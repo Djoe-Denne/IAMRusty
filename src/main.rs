@@ -22,7 +22,7 @@ use application::{
     }
 };
 
-use http_server::{AppState, serve};
+use http_server::{AppState, serve_with_config, ServerConfig};
 use tracing::info;
 
 #[tokio::main]
@@ -101,10 +101,24 @@ async fn main() -> anyhow::Result<()> {
         Arc::new(token_usecase),
     );
 
-    // Start HTTP server
-    let addr = format!("{}:{}", config.server.host, config.server.port);
-    info!("Starting HTTP server on {}", addr);
-    serve(app_state, &addr).await?;
+    // Create server configuration
+    let server_config = ServerConfig {
+        host: config.server.host.clone(),
+        port: config.server.port,
+        tls_enabled: config.server.tls_enabled,
+        tls_cert_path: if config.server.tls_enabled { Some(config.server.tls_cert_path.clone()) } else { None },
+        tls_key_path: if config.server.tls_enabled { Some(config.server.tls_key_path.clone()) } else { None },
+        tls_port: if config.server.tls_enabled { Some(config.server.tls_port) } else { None },
+    };
+
+    // Start server (HTTP or HTTPS based on configuration)
+    if config.server.tls_enabled {
+        info!("Starting HTTPS server on {}:{}", config.server.host, config.server.tls_port);
+    } else {
+        info!("Starting HTTP server on {}:{}", config.server.host, config.server.port);
+    }
+    
+    serve_with_config(app_state, server_config).await?;
 
     Ok(())
 } 

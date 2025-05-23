@@ -26,6 +26,30 @@ pub struct ServerConfig {
     pub host: String,
     /// Server port
     pub port: u16,
+    /// Whether TLS/HTTPS is enabled
+    #[serde(default)]
+    pub tls_enabled: bool,
+    /// Path to TLS certificate file
+    #[serde(default = "default_cert_path")]
+    pub tls_cert_path: String,
+    /// Path to TLS private key file
+    #[serde(default = "default_key_path")]
+    pub tls_key_path: String,
+    /// Port to use when TLS is enabled
+    #[serde(default = "default_tls_port")]
+    pub tls_port: u16,
+}
+
+fn default_cert_path() -> String {
+    "./certs/cert.pem".to_string()
+}
+
+fn default_key_path() -> String {
+    "./certs/key.pem".to_string()
+}
+
+fn default_tls_port() -> u16 {
+    8443
 }
 
 /// Generic provider configuration
@@ -225,6 +249,10 @@ pub fn generate_default_config() -> Result<String, ConfigError> {
         server: ServerConfig {
             host: "127.0.0.1".to_string(),
             port: 8080,
+            tls_enabled: false,
+            tls_cert_path: default_cert_path(),
+            tls_key_path: default_key_path(),
+            tls_port: default_tls_port(),
         },
         oauth: OAuthConfig {
             github: GithubConfig {

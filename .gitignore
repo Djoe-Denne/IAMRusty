@@ -119,4 +119,15 @@ temp/
 .dockerignore
 
 # Project specific
-# Add any project-specific patterns here 
+# Add any project-specific patterns here
+
+# TLS/SSL Certificates and Keys
+certs/
+*.pem
+*.crt
+*.key
+*.p12
+*.pfx
+*.cer
+certificates/
+ssl/ 
