@@ -10,7 +10,7 @@ use domain::port::repository::UserReadRepository;
 use tracing::debug;
 use chrono::{DateTime, Utc};
 
-use super::entity::{user, prelude::User};
+use super::entity::{users, prelude::Users};
 
 /// SeaORM implementation of UserReadRepository
 #[derive(Clone)]
@@ -25,7 +25,7 @@ impl UserReadRepositoryImpl {
     }
 
     /// Convert a database model to a domain user
-    fn to_domain(model: user::Model) -> DomainUser {
+    fn to_domain(model: users::Model) -> DomainUser {
         DomainUser {
             id: model.id,
             provider_user_id: model.provider_user_id,
@@ -44,7 +44,7 @@ impl UserReadRepository for UserReadRepositoryImpl {
 
     async fn find_by_id(&self, id: Uuid) -> Result<Option<DomainUser>, Self::Error> {
         debug!("Reading user by ID: {}", id);
-        let user = User::find_by_id(id)
+        let user = Users::find_by_id(id)
             .one(self.db.as_ref())
             .await?;
         
@@ -59,8 +59,8 @@ impl UserReadRepository for UserReadRepositoryImpl {
         let full_id = format!("{}_{}", provider.as_str(), provider_user_id);
         debug!("Reading user by provider ID: {}", full_id);
         
-        let user = User::find()
-            .filter(user::Column::ProviderUserId.eq(full_id))
+        let user = Users::find()
+            .filter(users::Column::ProviderUserId.eq(full_id))
             .one(self.db.as_ref())
             .await?;
         

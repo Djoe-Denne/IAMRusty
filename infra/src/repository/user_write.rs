@@ -10,7 +10,7 @@ use domain::port::repository::UserWriteRepository;
 use tracing::{debug, error};
 use chrono::{DateTime, Utc};
 
-use super::entity::{user, prelude::User};
+use super::entity::{users, prelude::Users};
 
 /// SeaORM implementation of UserWriteRepository
 #[derive(Clone)]
@@ -25,8 +25,8 @@ impl UserWriteRepositoryImpl {
     }
 
     /// Convert a domain user to a database model
-    fn to_model(user: &DomainUser) -> user::ActiveModel {
-        user::ActiveModel {
+    fn to_model(user: &DomainUser) -> users::ActiveModel {
+        users::ActiveModel {
             id: Set(user.id),
             provider_user_id: Set(user.provider_user_id.clone()),
             username: Set(user.username.clone()),
@@ -38,7 +38,7 @@ impl UserWriteRepositoryImpl {
     }
 
     /// Convert a database model to a domain user
-    fn to_domain(model: user::Model) -> DomainUser {
+    fn to_domain(model: users::Model) -> DomainUser {
         DomainUser {
             id: model.id,
             provider_user_id: model.provider_user_id,
@@ -66,7 +66,7 @@ impl UserWriteRepository for UserWriteRepositoryImpl {
 
     async fn update(&self, user: DomainUser) -> Result<DomainUser, Self::Error> {
         debug!("Updating user with ID: {}", user.id);
-        let existing = User::find_by_id(user.id)
+        let existing = Users::find_by_id(user.id)
             .one(self.db.as_ref())
             .await?
             .ok_or_else(|| {
@@ -74,7 +74,7 @@ impl UserWriteRepository for UserWriteRepositoryImpl {
                 DbErr::RecordNotFound("User not found".to_string())
             })?;
         
-        let mut model = user::ActiveModel::from(existing);
+        let mut model = users::ActiveModel::from(existing);
         
         model.username = Set(user.username.clone());
         model.email = Set(user.email.clone());

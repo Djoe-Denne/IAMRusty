@@ -8,7 +8,7 @@ use domain::entity::provider::{Provider, ProviderTokens};
 use domain::port::repository::TokenReadRepository;
 use tracing::debug;
 
-use super::entity::{provider_token, prelude::ProviderToken};
+use super::entity::{provider_tokens, prelude::ProviderTokens as ProviderTokensEntity};
 
 /// SeaORM implementation of TokenReadRepository
 #[derive(Clone)]
@@ -23,7 +23,7 @@ impl TokenReadRepositoryImpl {
     }
 
     /// Convert a database model to domain ProviderTokens
-    fn to_domain(model: provider_token::Model) -> ProviderTokens {
+    fn to_domain(model: provider_tokens::Model) -> ProviderTokens {
         ProviderTokens {
             access_token: model.access_token,
             refresh_token: model.refresh_token,
@@ -43,9 +43,9 @@ impl TokenReadRepository for TokenReadRepositoryImpl {
     ) -> Result<Option<ProviderTokens>, Self::Error> {
         debug!(user_id = %user_id, provider = %provider.as_str(), "Reading provider tokens");
         
-        let tokens = ProviderToken::find()
-            .filter(provider_token::Column::UserId.eq(user_id))
-            .filter(provider_token::Column::Provider.eq(provider.as_str()))
+        let tokens = ProviderTokensEntity::find()
+            .filter(provider_tokens::Column::UserId.eq(user_id))
+            .filter(provider_tokens::Column::Provider.eq(provider.as_str()))
             .one(self.db.as_ref())
             .await?;
 

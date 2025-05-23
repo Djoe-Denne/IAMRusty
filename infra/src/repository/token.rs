@@ -8,7 +8,7 @@ use domain::entity::provider::{Provider, ProviderTokens};
 use domain::port::repository::{TokenReadRepository, TokenWriteRepository};
 use tracing::debug;
 
-use super::entity::{provider_token, prelude::ProviderToken};
+use super::entity::{provider_tokens, prelude::ProviderTokens as ProviderTokensEntity};
 
 /// SeaORM implementation of TokenRepository
 pub struct TokenRepositoryImpl {
@@ -26,8 +26,8 @@ impl TokenRepositoryImpl {
         user_id: Uuid,
         provider: Provider,
         tokens: &ProviderTokens,
-    ) -> provider_token::ActiveModel {
-        provider_token::ActiveModel {
+    ) -> provider_tokens::ActiveModel {
+        provider_tokens::ActiveModel {
             id: Default::default(), // Auto-generated
             user_id: Set(user_id),
             provider: Set(provider.as_str().to_string()),
@@ -40,7 +40,7 @@ impl TokenRepositoryImpl {
     }
 
     /// Convert a database model to domain ProviderTokens
-    fn to_domain(model: provider_token::Model) -> ProviderTokens {
+    fn to_domain(model: provider_tokens::Model) -> ProviderTokens {
         ProviderTokens {
             access_token: model.access_token,
             refresh_token: model.refresh_token,
@@ -58,9 +58,9 @@ impl TokenReadRepository for TokenRepositoryImpl {
         user_id: Uuid,
         provider: Provider,
     ) -> Result<Option<ProviderTokens>, Self::Error> {
-        let tokens = ProviderToken::find()
-            .filter(provider_token::Column::UserId.eq(user_id))
-            .filter(provider_token::Column::Provider.eq(provider.as_str()))
+        let tokens = ProviderTokensEntity::find()
+            .filter(provider_tokens::Column::UserId.eq(user_id))
+            .filter(provider_tokens::Column::Provider.eq(provider.as_str()))
             .one(&self.db)
             .await?;
 
@@ -79,15 +79,15 @@ impl TokenWriteRepository for TokenRepositoryImpl {
         tokens: ProviderTokens,
     ) -> Result<(), Self::Error> {
         // Check if tokens already exist for this user and provider
-        let existing = ProviderToken::find()
-            .filter(provider_token::Column::UserId.eq(user_id))
-            .filter(provider_token::Column::Provider.eq(provider.as_str()))
+        let existing = ProviderTokensEntity::find()
+            .filter(provider_tokens::Column::UserId.eq(user_id))
+            .filter(provider_tokens::Column::Provider.eq(provider.as_str()))
             .one(&self.db)
             .await?;
 
         if let Some(existing) = existing {
             // Update existing tokens
-            let mut model = provider_token::ActiveModel::from(existing);
+            let mut model = provider_tokens::ActiveModel::from(existing);
             model.access_token = Set(tokens.access_token.clone());
             model.refresh_token = Set(tokens.refresh_token.clone());
             model.expires_in = Set(tokens.expires_in.map(|e| e as i32));

@@ -9,7 +9,7 @@ use domain::entity::{
 use domain::port::repository::{UserReadRepository, UserWriteRepository};
 use tracing::error;
 
-use super::entity::{user, prelude::User};
+use super::entity::{users, prelude::Users};
 
 /// SeaORM implementation of UserRepository
 pub struct UserRepositoryImpl {
@@ -23,8 +23,8 @@ impl UserRepositoryImpl {
     }
 
     /// Convert a domain user to a database model
-    fn to_model(user: &DomainUser) -> user::ActiveModel {
-        user::ActiveModel {
+    fn to_model(user: &DomainUser) -> users::ActiveModel {
+        users::ActiveModel {
             id: Set(user.id),
             provider_user_id: Set(user.provider_user_id.clone()),
             username: Set(user.username.clone()),
@@ -36,7 +36,7 @@ impl UserRepositoryImpl {
     }
 
     /// Convert a database model to a domain user
-    fn to_domain(model: user::Model) -> DomainUser {
+    fn to_domain(model: users::Model) -> DomainUser {
         DomainUser {
             id: model.id,
             provider_user_id: model.provider_user_id,
@@ -54,7 +54,7 @@ impl UserReadRepository for UserRepositoryImpl {
     type Error = DbErr;
 
     async fn find_by_id(&self, id: Uuid) -> Result<Option<DomainUser>, Self::Error> {
-        let user = User::find_by_id(id)
+        let user = Users::find_by_id(id)
             .one(&self.db)
             .await?;
         
@@ -68,8 +68,8 @@ impl UserReadRepository for UserRepositoryImpl {
     ) -> Result<Option<DomainUser>, Self::Error> {
         let full_id = format!("{}_{}", provider.as_str(), provider_user_id);
         
-        let user = User::find()
-            .filter(user::Column::ProviderUserId.eq(full_id))
+        let user = Users::find()
+            .filter(users::Column::ProviderUserId.eq(full_id))
             .one(&self.db)
             .await?;
         
@@ -90,15 +90,15 @@ impl UserWriteRepository for UserRepositoryImpl {
     }
 
     async fn update(&self, user: DomainUser) -> Result<DomainUser, Self::Error> {
-        let existing = User::find_by_id(user.id)
+        let existing = Users::find_by_id(user.id)
             .one(&self.db)
             .await?
             .ok_or_else(|| {
-                error!(user_id = %user.id, "Failed to update user: User not found");
+                error!("User not found for update: {}", user.id);
                 DbErr::RecordNotFound("User not found".to_string())
             })?;
         
-        let mut model = user::ActiveModel::from(existing);
+        let mut model = users::ActiveModel::from(existing);
         
         model.username = Set(user.username.clone());
         model.email = Set(user.email.clone());

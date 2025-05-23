@@ -54,8 +54,8 @@ impl AppState {
 /// Start the HTTP server
 pub async fn serve(state: AppState, addr: &str) -> anyhow::Result<()> {
     let app = Router::new()
-        .route("/api/auth/:provider/login", post(oauth_login))
-        .route("/api/auth/:provider/callback", get(oauth_callback))
+        .route("/api/auth/{provider}/login", post(oauth_login))
+        .route("/api/auth/{provider}/callback", get(oauth_callback))
         .route("/api/token/refresh", post(refresh_token))
         .route(
             "/api/me",

@@ -8,7 +8,7 @@ use domain::entity::token::RefreshToken as DomainRefreshToken;
 use domain::port::repository::RefreshTokenReadRepository;
 use tracing::debug;
 
-use super::entity::{refresh_token, prelude::RefreshToken};
+use super::entity::{refresh_tokens, prelude::RefreshTokens};
 
 /// SeaORM implementation of RefreshTokenReadRepository
 #[derive(Clone)]
@@ -23,7 +23,7 @@ impl RefreshTokenReadRepositoryImpl {
     }
 
     /// Convert a database model to a domain refresh token
-    fn to_domain(model: refresh_token::Model) -> DomainRefreshToken {
+    fn to_domain(model: refresh_tokens::Model) -> DomainRefreshToken {
         DomainRefreshToken {
             id: model.id,
             user_id: model.user_id,
@@ -42,8 +42,8 @@ impl RefreshTokenReadRepository for RefreshTokenReadRepositoryImpl {
     async fn find_by_token(&self, token: &str) -> Result<Option<DomainRefreshToken>, Self::Error> {
         debug!("Looking up refresh token");
         
-        let refresh_token = RefreshToken::find()
-            .filter(refresh_token::Column::Token.eq(token))
+        let refresh_token = RefreshTokens::find()
+            .filter(refresh_tokens::Column::Token.eq(token))
             .one(self.db.as_ref())
             .await?;
 
@@ -53,8 +53,8 @@ impl RefreshTokenReadRepository for RefreshTokenReadRepositoryImpl {
     async fn find_by_user_id(&self, user_id: Uuid) -> Result<Vec<DomainRefreshToken>, Self::Error> {
         debug!("Finding refresh tokens for user ID: {}", user_id);
         
-        let tokens = RefreshToken::find()
-            .filter(refresh_token::Column::UserId.eq(user_id))
+        let tokens = RefreshTokens::find()
+            .filter(refresh_tokens::Column::UserId.eq(user_id))
             .all(self.db.as_ref())
             .await?;
             

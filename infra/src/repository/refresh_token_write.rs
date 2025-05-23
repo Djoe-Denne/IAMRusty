@@ -8,7 +8,7 @@ use domain::entity::token::RefreshToken as DomainRefreshToken;
 use domain::port::repository::RefreshTokenWriteRepository;
 use tracing::debug;
 
-use super::entity::{refresh_token, prelude::RefreshToken};
+use super::entity::{refresh_tokens, prelude::RefreshTokens};
 
 /// SeaORM implementation of RefreshTokenWriteRepository
 #[derive(Clone)]
@@ -23,8 +23,8 @@ impl RefreshTokenWriteRepositoryImpl {
     }
 
     /// Convert a domain refresh token to a database model
-    fn to_model(token: &DomainRefreshToken) -> refresh_token::ActiveModel {
-        refresh_token::ActiveModel {
+    fn to_model(token: &DomainRefreshToken) -> refresh_tokens::ActiveModel {
+        refresh_tokens::ActiveModel {
             id: Set(token.id),
             user_id: Set(token.user_id),
             token: Set(token.token.clone()),
@@ -35,7 +35,7 @@ impl RefreshTokenWriteRepositoryImpl {
     }
 
     /// Convert a database model to a domain refresh token
-    fn to_domain(model: refresh_token::Model) -> DomainRefreshToken {
+    fn to_domain(model: refresh_tokens::Model) -> DomainRefreshToken {
         DomainRefreshToken {
             id: model.id,
             user_id: model.user_id,
@@ -63,12 +63,12 @@ impl RefreshTokenWriteRepository for RefreshTokenWriteRepositoryImpl {
     async fn update_validity(&self, token_id: Uuid, is_valid: bool) -> Result<(), Self::Error> {
         debug!("Updating refresh token validity: id={}, is_valid={}", token_id, is_valid);
         
-        let token = RefreshToken::find_by_id(token_id)
+        let token = RefreshTokens::find_by_id(token_id)
             .one(self.db.as_ref())
             .await?;
             
         if let Some(token) = token {
-            let mut model = refresh_token::ActiveModel::from(token);
+            let mut model = refresh_tokens::ActiveModel::from(token);
             model.is_valid = Set(is_valid);
             
             model.update(self.db.as_ref()).await?;
@@ -83,8 +83,8 @@ impl RefreshTokenWriteRepository for RefreshTokenWriteRepositoryImpl {
     async fn delete_by_user_id(&self, user_id: Uuid) -> Result<u64, Self::Error> {
         debug!("Deleting all refresh tokens for user ID: {}", user_id);
         
-        let result = RefreshToken::delete_many()
-            .filter(refresh_token::Column::UserId.eq(user_id))
+        let result = RefreshTokens::delete_many()
+            .filter(refresh_tokens::Column::UserId.eq(user_id))
             .exec(self.db.as_ref())
             .await?;
             
