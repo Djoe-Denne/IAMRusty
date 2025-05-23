@@ -4,10 +4,9 @@ use chrono::Utc;
 use uuid::Uuid;
 use std::sync::Arc;
 use domain::port::{
-    repository::{RefreshTokenRepository, RefreshTokenReadRepository, RefreshTokenWriteRepository},
+    repository::RefreshTokenRepository,
     service::TokenService,
 };
-use domain::entity::token::{JwtToken, RefreshToken};
 
 /// Token usecase error
 #[derive(Debug, Error)]

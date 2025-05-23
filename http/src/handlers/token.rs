@@ -4,7 +4,7 @@ use axum::{
     extract::State,
 };
 use serde::{Deserialize, Serialize};
-use application::usecase::token::{TokenUseCase, TokenError};
+use application::usecase::token::TokenError;
 use crate::AppState;
 use tracing::{debug, error};
 

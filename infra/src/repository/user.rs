@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use sea_orm::{DatabaseConnection, EntityTrait, Set, ActiveModelTrait, QueryFilter, ColumnTrait, DbErr};
 use uuid::Uuid;
-use chrono::{DateTime, Utc, NaiveDateTime};
+use chrono::{DateTime, Utc};
 use domain::entity::{
     provider::Provider,
     user::User as DomainUser,

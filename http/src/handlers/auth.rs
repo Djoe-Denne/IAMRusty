@@ -5,7 +5,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use domain::entity::provider::Provider;
-use application::usecase::login::{LoginUseCase, LoginError};
+use application::usecase::login::LoginError;
 use crate::AppState;
 use tracing::{debug, error};
 

@@ -3,7 +3,6 @@ use domain::error::DomainError;
 use domain::port::service::TokenEncoder;
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
-use serde::{Deserialize, Serialize};
 use tracing::{debug, error};
 
 /// JSON Web Token encoder/decoder

@@ -1,11 +1,7 @@
 use async_trait::async_trait;
-use sea_orm::{DatabaseConnection, EntityTrait, Set, ActiveModelTrait, QueryFilter, ColumnTrait, DbErr};
+use sea_orm::{DatabaseConnection, EntityTrait, Set, ActiveModelTrait, DbErr};
 use std::sync::Arc;
-use uuid::Uuid;
-use domain::entity::{
-    provider::Provider,
-    user::User as DomainUser,
-};
+use domain::entity::user::User as DomainUser;
 use domain::port::repository::UserWriteRepository;
 use tracing::{debug, error};
 use chrono::{DateTime, Utc};

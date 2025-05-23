@@ -1,5 +1,5 @@
 use crate::entity::{
-    provider::{Provider, ProviderTokens, ProviderUserProfile},
+    provider::{ProviderTokens, ProviderUserProfile},
     token::{JwkSet, TokenClaims, JwtToken, RefreshToken},
 };
 use crate::error::DomainError;

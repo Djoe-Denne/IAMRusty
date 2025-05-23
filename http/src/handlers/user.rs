@@ -5,7 +5,7 @@ use axum::{
 };
 use serde::Serialize;
 use uuid::Uuid;
-use application::usecase::user::{UserUseCase, UserError};
+use application::usecase::user::UserError;
 use crate::AppState;
 use tracing::{debug, error};
 

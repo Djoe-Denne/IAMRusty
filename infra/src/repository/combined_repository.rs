@@ -4,7 +4,6 @@ use domain::port::repository::{
     RefreshTokenReadRepository, RefreshTokenWriteRepository,
 };
 use sea_orm::DbErr;
-use std::sync::Arc;
 use uuid::Uuid;
 use domain::entity::{
     provider::{Provider, ProviderTokens},

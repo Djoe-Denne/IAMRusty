@@ -3,7 +3,7 @@
 mod jwt_encoder;
 
 use async_trait::async_trait;
-use chrono::{DateTime, Duration, Utc};
+use chrono::{Duration, Utc};
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation, Algorithm};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -146,7 +146,7 @@ impl TokenService for JwtTokenService {
         Ok(user_id)
     }
 
-    async fn validate_refresh_token(&self, token: &str) -> Result<RefreshToken, Self::Error> {
+    async fn validate_refresh_token(&self, _token: &str) -> Result<RefreshToken, Self::Error> {
         // This is just a stub implementation
         // The actual validation will query the database to check if the token exists and is valid
         // That is handled by the RefreshToken repository and use case

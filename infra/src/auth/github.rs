@@ -3,8 +3,6 @@ use oauth2::{
     basic::BasicClient, AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl,
     AuthorizationCode, TokenResponse, reqwest::async_http_client,
 };
-use oauth2::StandardTokenResponse;
-use oauth2::basic::BasicTokenType;
 use domain::entity::provider::{Provider, ProviderTokens, ProviderUserProfile};
 use domain::error::DomainError;
 use domain::port::service::ProviderOAuth2Client;

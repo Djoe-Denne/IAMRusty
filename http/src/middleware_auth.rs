@@ -5,8 +5,6 @@ use axum::{
     response::Response,
     body::Body,
 };
-use std::str::FromStr;
-use uuid::Uuid;
 use crate::AppState;
 use application::usecase::user::UserError;
 

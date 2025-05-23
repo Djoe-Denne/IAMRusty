@@ -1,7 +1,7 @@
 //! Login use case module
 
 use domain::entity::{
-    provider::{Provider, ProviderTokens},
+    provider::Provider,
     user::User,
 };
 use domain::port::{
