@@ -2,7 +2,7 @@
 name = "iam-service"
 version = "0.1.0"
 edition = "2024"
-authors = ["Djoé Denne <djoe.denne@gmail.com>"]
+authors = ["DjoÃ© Denne <djoe.denne@gmail.com>"]
 description = "IAM microservice with OAuth2, OpenID Connect, JWT, PostgreSQL, Axum, and SeaORM"
 license = "MIT OR Apache-2.0"
 
