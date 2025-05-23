@@ -1,0 +1,157 @@
+use crate::entity::{
+    provider::{Provider, ProviderTokens},
+    user::User,
+    token::RefreshToken,
+};
+use uuid::Uuid;
+
+/// Read operations for User entity
+#[async_trait::async_trait]
+pub trait UserReadRepository {
+    /// Error type returned by this repository
+    type Error: std::error::Error + Send + Sync + 'static;
+
+    /// Find a user by ID
+    async fn find_by_id(&self, id: Uuid) -> Result<Option<User>, Self::Error>;
+
+    /// Find a user by provider and provider user ID
+    async fn find_by_provider_user_id(
+        &self,
+        provider: Provider,
+        provider_user_id: &str,
+    ) -> Result<Option<User>, Self::Error>;
+}
+
+/// Write operations for User entity
+#[async_trait::async_trait]
+pub trait UserWriteRepository {
+    /// Error type returned by this repository
+    type Error: std::error::Error + Send + Sync + 'static;
+
+    /// Create a new user
+    async fn create(&self, user: User) -> Result<User, Self::Error>;
+
+    /// Update an existing user
+    async fn update(&self, user: User) -> Result<User, Self::Error>;
+}
+
+/// Combined read and write operations for User entity
+#[async_trait::async_trait]
+pub trait UserRepository: UserReadRepository + UserWriteRepository 
+where 
+    <Self as UserReadRepository>::Error: std::error::Error + Send + Sync + 'static,
+    <Self as UserWriteRepository>::Error: std::error::Error + Send + Sync + 'static,
+{
+    /// Error type for this repository
+    type Error: std::error::Error + Send + Sync + 'static;
+}
+
+// Blanket implementation for types that implement both read and write repositories
+impl<T> UserRepository for T 
+where 
+    T: UserReadRepository + UserWriteRepository,
+    <T as UserReadRepository>::Error: std::error::Error + Send + Sync + 'static,
+    <T as UserWriteRepository>::Error: std::error::Error + Send + Sync + 'static,
+{
+    type Error = <T as UserReadRepository>::Error;
+}
+
+/// Read operations for OAuth2 tokens
+#[async_trait::async_trait]
+pub trait TokenReadRepository {
+    /// Error type returned by this repository
+    type Error: std::error::Error + Send + Sync + 'static;
+
+    /// Get tokens for a user and provider
+    async fn get_provider_tokens(
+        &self,
+        user_id: Uuid,
+        provider: Provider,
+    ) -> Result<Option<ProviderTokens>, Self::Error>;
+}
+
+/// Write operations for OAuth2 tokens
+#[async_trait::async_trait]
+pub trait TokenWriteRepository {
+    /// Error type returned by this repository
+    type Error: std::error::Error + Send + Sync + 'static;
+
+    /// Save tokens for a user and provider
+    async fn save_provider_tokens(
+        &self,
+        user_id: Uuid,
+        provider: Provider,
+        tokens: ProviderTokens,
+    ) -> Result<(), Self::Error>;
+}
+
+/// Combined read and write operations for OAuth2 tokens
+#[async_trait::async_trait]
+pub trait TokenRepository: TokenReadRepository + TokenWriteRepository 
+where 
+    <Self as TokenReadRepository>::Error: std::error::Error + Send + Sync + 'static,
+    <Self as TokenWriteRepository>::Error: std::error::Error + Send + Sync + 'static,
+{
+    /// Error type for this repository
+    type Error: std::error::Error + Send + Sync + 'static;
+}
+
+// Blanket implementation for types that implement both read and write repositories
+impl<T> TokenRepository for T 
+where 
+    T: TokenReadRepository + TokenWriteRepository,
+    <T as TokenReadRepository>::Error: std::error::Error + Send + Sync + 'static,
+    <T as TokenWriteRepository>::Error: std::error::Error + Send + Sync + 'static,
+{
+    type Error = <T as TokenReadRepository>::Error;
+}
+
+/// Read operations for refresh tokens
+#[async_trait::async_trait]
+pub trait RefreshTokenReadRepository {
+    /// Error type returned by this repository
+    type Error: std::error::Error + Send + Sync + 'static;
+
+    /// Find a refresh token by its token string
+    async fn find_by_token(&self, token: &str) -> Result<Option<RefreshToken>, Self::Error>;
+    
+    /// Find refresh tokens for a user
+    async fn find_by_user_id(&self, user_id: Uuid) -> Result<Vec<RefreshToken>, Self::Error>;
+}
+
+/// Write operations for refresh tokens
+#[async_trait::async_trait]
+pub trait RefreshTokenWriteRepository {
+    /// Error type returned by this repository
+    type Error: std::error::Error + Send + Sync + 'static;
+
+    /// Create a new refresh token
+    async fn create(&self, token: RefreshToken) -> Result<RefreshToken, Self::Error>;
+    
+    /// Update a refresh token's validity
+    async fn update_validity(&self, token_id: Uuid, is_valid: bool) -> Result<(), Self::Error>;
+    
+    /// Delete all refresh tokens for a user
+    async fn delete_by_user_id(&self, user_id: Uuid) -> Result<u64, Self::Error>;
+}
+
+/// Combined read and write operations for refresh tokens
+#[async_trait::async_trait]
+pub trait RefreshTokenRepository: RefreshTokenReadRepository + RefreshTokenWriteRepository
+where 
+    <Self as RefreshTokenReadRepository>::Error: std::error::Error + Send + Sync + 'static,
+    <Self as RefreshTokenWriteRepository>::Error: std::error::Error + Send + Sync + 'static,
+{
+    /// Error type for this repository
+    type Error: std::error::Error + Send + Sync + 'static;
+}
+
+// Blanket implementation for types that implement both read and write repositories
+impl<T> RefreshTokenRepository for T 
+where 
+    T: RefreshTokenReadRepository + RefreshTokenWriteRepository,
+    <T as RefreshTokenReadRepository>::Error: std::error::Error + Send + Sync + 'static,
+    <T as RefreshTokenWriteRepository>::Error: std::error::Error + Send + Sync + 'static,
+{
+    type Error = <T as RefreshTokenReadRepository>::Error;
+} 

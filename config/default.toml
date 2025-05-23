@@ -1,0 +1,24 @@
+# IAM Service Default Configuration
+
+[server]
+host = "127.0.0.1"
+port = 8080
+
+[database]
+url = "postgres://postgres:postgres@localhost:5432/iam"
+# Specify read replicas if using a read/write split
+read_replicas = []
+
+[oauth.github]
+client_id = "your-github-client-id"
+client_secret = "your-github-client-secret"
+redirect_uri = "http://localhost:8080/auth/github/callback"
+
+[oauth.gitlab]
+client_id = "your-gitlab-client-id"
+client_secret = "your-gitlab-client-secret"
+redirect_uri = "http://localhost:8080/auth/gitlab/callback"
+
+[jwt]
+secret = "your-jwt-secret-key-should-be-at-least-32-bytes"
+expiration_seconds = 3600 

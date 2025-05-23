@@ -1,0 +1,172 @@
+openapi: 3.1.0
+info:
+  title: IAM Service API
+  version: 1.2.0
+  description: >
+    This API allows third-party clients to authenticate users via OAuth2 providers
+    (e.g., GitHub, GitLab) and retrieve basic user profile information.
+    It also supports issuing JWT tokens and serving public keys for token validation.
+
+servers:
+  - url: https://iam.example.com
+
+paths:
+  /auth/{provider}/start:
+    get:
+      summary: Start OAuth2 authentication
+      description: Redirects the user to the external OAuth2 provider's consent page.
+      parameters:
+        - in: path
+          name: provider
+          required: true
+          description: The OAuth2 provider to use (e.g., github, gitlab).
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Redirect to OAuth2 provider
+        "400":
+          description: Unknown or unsupported provider
+
+  /auth/{provider}/callback:
+    get:
+      summary: OAuth2 callback handler
+      description: >
+        Handles the redirect from the provider after user authorization.
+        Exchanges the authorization code for an access token and fetches user info.
+      parameters:
+        - in: path
+          name: provider
+          required: true
+          description: The OAuth2 provider.
+          schema:
+            type: string
+        - in: query
+          name: code
+          required: true
+          description: Authorization code received from the provider.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successfully authenticated
+          content:
+            application/json:
+              example:
+                token: "jwt_xyz"
+                user:
+                  id: "gitlab_12345"
+                  username: "henri"
+                  avatar: "https://gitlab.com/uploads/avatar.png"
+                  email: "henri@example.com"
+        "400":
+          description: Missing or invalid authorization code / unsupported provider
+        "401":
+          description: Authentication rejected by the provider
+        "500":
+          description: Error while communicating with the OAuth provider
+
+  /token/refresh:
+    post:
+      summary: Refresh access token
+      description: >
+        Exchanges a valid refresh token for a new JWT access token. The refresh token must be valid
+        and not expired or revoked.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token:
+                  type: string
+                  description: The refresh token issued at login.
+      responses:
+        "200":
+          description: New access token issued
+          content:
+            application/json:
+              example:
+                token: "jwt_xyz_new"
+                expires_in: 900
+        "400":
+          description: Malformed or missing refresh token
+        "401":
+          description: Invalid or expired refresh token
+          
+  /me:
+    get:
+      summary: Get current authenticated user
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Authenticated user's profile
+          content:
+            application/json:
+              example:
+                id: "github_9876"
+                username: "djoe-denne"
+                avatar: "https://avatars.githubusercontent.com/u/1234"
+                email: "dj@example.com"
+        "401":
+          description: Invalid or expired JWT token
+
+  /.well-known/jwks.json:
+    get:
+      summary: JSON Web Key Set (JWKS)
+      description: >
+        Public keys used to verify JWT tokens issued by this IAM service. This endpoint can be used
+        by reverse proxies or services like Istio to validate token signatures.
+      responses:
+        "200":
+          description: Public keys
+          content:
+            application/json:
+              example:
+                keys:
+                  - kty: RSA
+                    kid: abc123
+                    use: sig
+                    alg: RS256
+                    n: "...base64 modulus..."
+                    e: "AQAB"
+
+  /internal/{provider}/token:
+    post:
+      summary: Retrieve user's provider access token
+      description: >
+        Returns the OAuth2 access token for the authenticated user and specified provider.
+        This endpoint is intended for internal use (e.g. reverse proxy or internal services).
+      parameters:
+        - in: path
+          name: provider
+          required: true
+          description: OAuth2 provider name (e.g., github, gitlab)
+          schema:
+            type: string
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Access token for the authenticated user and specified provider
+          content:
+            application/json:
+              example:
+                access_token: "gho_xyz..."
+                expires_in: 3600
+        "400":
+          description: Unsupported provider
+        "404":
+          description: No token available for the user and provider
+        "401":
+          description: Missing or invalid authentication
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
