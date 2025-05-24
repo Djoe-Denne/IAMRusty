@@ -164,7 +164,6 @@ where
         // Create a new user
         let user = User::new(
             profile.username,
-            email,
             profile.avatar_url,
         );
         

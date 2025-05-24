@@ -25,7 +25,6 @@ impl UserWriteRepositoryImpl {
         users::ActiveModel {
             id: Set(user.id),
             username: Set(user.username.clone()),
-            email: Set(user.email.clone()),
             avatar_url: Set(user.avatar_url.clone()),
             created_at: Set(user.created_at.naive_utc()),
             updated_at: Set(user.updated_at.naive_utc()),
@@ -37,7 +36,6 @@ impl UserWriteRepositoryImpl {
         DomainUser {
             id: model.id,
             username: model.username,
-            email: model.email,
             avatar_url: model.avatar_url,
             created_at: DateTime::<Utc>::from_naive_utc_and_offset(model.created_at, Utc),
             updated_at: DateTime::<Utc>::from_naive_utc_and_offset(model.updated_at, Utc),
@@ -71,7 +69,6 @@ impl UserWriteRepository for UserWriteRepositoryImpl {
         let mut model = users::ActiveModel::from(existing);
         
         model.username = Set(user.username.clone());
-        model.email = Set(user.email.clone());
         model.avatar_url = Set(user.avatar_url.clone());
         model.updated_at = Set(user.updated_at.naive_utc());
         

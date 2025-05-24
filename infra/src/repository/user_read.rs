@@ -10,7 +10,7 @@ use domain::port::repository::UserReadRepository;
 use tracing::debug;
 use chrono::{DateTime, Utc};
 
-use super::entity::{users, prelude::Users, provider_tokens, prelude::ProviderTokens as ProviderTokensEntity};
+use super::entity::{users, prelude::Users, provider_tokens, prelude::ProviderTokens as ProviderTokensEntity, user_emails, prelude::UserEmails};
 
 /// SeaORM implementation of UserReadRepository
 #[derive(Clone)]
@@ -29,7 +29,6 @@ impl UserReadRepositoryImpl {
         DomainUser {
             id: model.id,
             username: model.username,
-            email: model.email,
             avatar_url: model.avatar_url,
             created_at: DateTime::<Utc>::from_naive_utc_and_offset(model.created_at, Utc),
             updated_at: DateTime::<Utc>::from_naive_utc_and_offset(model.updated_at, Utc),
@@ -52,12 +51,16 @@ impl UserReadRepository for UserReadRepositoryImpl {
 
     async fn find_by_email(&self, email: &str) -> Result<Option<DomainUser>, Self::Error> {
         debug!("Reading user by email: {}", email);
-        let user = Users::find()
-            .filter(users::Column::Email.eq(email))
+        let user_email = UserEmails::find()
+            .filter(user_emails::Column::Email.eq(email))
             .one(self.db.as_ref())
             .await?;
         
-        Ok(user.map(Self::to_domain))
+        if let Some(email_record) = user_email {
+            self.find_by_id(email_record.user_id).await
+        } else {
+            Ok(None)
+        }
     }
 
     async fn find_by_provider_user_id(

@@ -3,9 +3,10 @@
 use domain::entity::{
     provider::Provider,
     user::User,
+    user_email::UserEmail,
 };
 use domain::port::{
-    repository::{TokenRepository, UserRepository, RefreshTokenRepository},
+    repository::{TokenRepository, UserRepository, UserEmailRepository, RefreshTokenRepository},
     service::TokenService,
 };
 use crate::auth::AuthService;
@@ -36,6 +37,8 @@ pub enum LoginError {
 pub struct LoginResponse {
     /// User data
     pub user: User,
+    /// Primary email address from UserEmail entity
+    pub email: String,
     /// JWT access token
     pub access_token: String,
     /// Access token expiration in seconds
@@ -57,11 +60,12 @@ pub trait LoginUseCase: Send + Sync {
 }
 
 /// Login use case implementation
-pub struct LoginUseCaseImpl<GH, GL, UR, TR, RR, TS> 
+pub struct LoginUseCaseImpl<GH, GL, UR, UER, TR, RR, TS> 
 where
     GH: AuthService,
     GL: AuthService,
     UR: UserRepository,
+    UER: UserEmailRepository,
     TR: TokenRepository,
     RR: RefreshTokenRepository,
     TS: TokenService,
@@ -69,16 +73,18 @@ where
     github_auth: Arc<GH>,
     gitlab_auth: Arc<GL>,
     user_repo: Arc<UR>,
+    user_email_repo: Arc<UER>,
     token_repo: Arc<TR>,
     refresh_token_repo: Arc<RR>,
     token_service: Arc<TS>,
 }
 
-impl<GH, GL, UR, TR, RR, TS> LoginUseCaseImpl<GH, GL, UR, TR, RR, TS>
+impl<GH, GL, UR, UER, TR, RR, TS> LoginUseCaseImpl<GH, GL, UR, UER, TR, RR, TS>
 where
     GH: AuthService,
     GL: AuthService,
     UR: UserRepository,
+    UER: UserEmailRepository,
     TR: TokenRepository,
     RR: RefreshTokenRepository,
     TS: TokenService,
@@ -88,6 +94,7 @@ where
         github_auth: Arc<GH>,
         gitlab_auth: Arc<GL>,
         user_repo: Arc<UR>,
+        user_email_repo: Arc<UER>,
         token_repo: Arc<TR>,
         refresh_token_repo: Arc<RR>,
         token_service: Arc<TS>,
@@ -96,6 +103,7 @@ where
             github_auth,
             gitlab_auth,
             user_repo,
+            user_email_repo,
             token_repo,
             refresh_token_repo,
             token_service,
@@ -104,17 +112,19 @@ where
 }
 
 #[async_trait]
-impl<GH, GL, UR, TR, RR, TS> LoginUseCase for LoginUseCaseImpl<GH, GL, UR, TR, RR, TS>
+impl<GH, GL, UR, UER, TR, RR, TS> LoginUseCase for LoginUseCaseImpl<GH, GL, UR, UER, TR, RR, TS>
 where
     GH: AuthService + Send + Sync,
     GL: AuthService + Send + Sync,
     UR: UserRepository + Send + Sync,
+    UER: UserEmailRepository + Send + Sync,
     TR: TokenRepository + Send + Sync,
     RR: RefreshTokenRepository + Send + Sync,
     TS: TokenService + Send + Sync,
     GH::Error: std::error::Error + Send + Sync + 'static,
     GL::Error: std::error::Error + Send + Sync + 'static,
     <UR as UserRepository>::Error: std::error::Error + Send + Sync + 'static,
+    <UER as UserEmailRepository>::Error: std::error::Error + Send + Sync + 'static,
     <TR as TokenRepository>::Error: std::error::Error + Send + Sync + 'static,
     <RR as RefreshTokenRepository>::Error: std::error::Error + Send + Sync + 'static,
     TS::Error: std::error::Error + Send + Sync + 'static,
@@ -146,14 +156,22 @@ where
             LoginError::AuthError("Email is required from OAuth provider".to_string())
         })?;
 
-        // Check if user exists by email (primary linking mechanism)
+        // Check if a user exists with this email
         let user = match self
-            .user_repo
+            .user_email_repo
             .find_by_email(&email)
             .await
             .map_err(|e| LoginError::DbError(Box::new(e)))?
         {
-            Some(user) => {
+            Some(user_email) => {
+                // Get the user associated with this email
+                let user = self
+                    .user_repo
+                    .find_by_id(user_email.user_id)
+                    .await
+                    .map_err(|e| LoginError::DbError(Box::new(e)))?
+                    .ok_or_else(|| LoginError::DbError("User not found for email".into()))?;
+
                 // Update user profile if needed
                 let mut updated_user = user.clone();
                 let mut needs_update = false;
@@ -183,14 +201,27 @@ where
                 // Create new user
                 let new_user = User::new(
                     profile.username,
-                    email,
                     profile.avatar_url,
                 );
 
-                self.user_repo
+                let created_user = self.user_repo
                     .create(new_user)
                     .await
-                    .map_err(|e| LoginError::DbError(Box::new(e)))?
+                    .map_err(|e| LoginError::DbError(Box::new(e)))?;
+
+                // Create primary email for the new user
+                let user_email = UserEmail::new_primary(
+                    created_user.id,
+                    email.clone(),
+                    false, // OAuth emails are typically not verified initially
+                );
+
+                self.user_email_repo
+                    .create(user_email)
+                    .await
+                    .map_err(|e| LoginError::DbError(Box::new(e)))?;
+
+                created_user
             }
         };
 
@@ -228,6 +259,7 @@ where
 
         Ok(LoginResponse {
             user,
+            email,
             access_token: jwt_token.token,
             expires_in,
             refresh_token: refresh_token.token,

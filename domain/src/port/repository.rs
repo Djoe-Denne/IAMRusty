@@ -1,6 +1,7 @@
 use crate::entity::{
     provider::{Provider, ProviderTokens},
     user::User,
+    user_email::UserEmail,
     token::RefreshToken,
     provider_link::ProviderLink,
 };
@@ -15,7 +16,7 @@ pub trait UserReadRepository {
     /// Find a user by ID
     async fn find_by_id(&self, id: Uuid) -> Result<Option<User>, Self::Error>;
 
-    /// Find a user by email address (primary linking mechanism)
+    /// Find a user by any of their email addresses
     async fn find_by_email(&self, email: &str) -> Result<Option<User>, Self::Error>;
     
     /// Find a user by provider and provider user ID
@@ -59,6 +60,65 @@ where
     <T as UserWriteRepository>::Error: std::error::Error + Send + Sync + 'static,
 {
     type Error = <T as UserReadRepository>::Error;
+}
+
+/// Read operations for UserEmail entity
+#[async_trait::async_trait]
+pub trait UserEmailReadRepository {
+    /// Error type returned by this repository
+    type Error: std::error::Error + Send + Sync + 'static;
+
+    /// Get all emails for a user
+    async fn find_by_user_id(&self, user_id: Uuid) -> Result<Vec<UserEmail>, Self::Error>;
+    
+    /// Get a specific email by its ID
+    async fn find_by_id(&self, id: Uuid) -> Result<Option<UserEmail>, Self::Error>;
+    
+    /// Find a user email by email address
+    async fn find_by_email(&self, email: &str) -> Result<Option<UserEmail>, Self::Error>;
+    
+    /// Get the primary email for a user
+    async fn find_primary_by_user_id(&self, user_id: Uuid) -> Result<Option<UserEmail>, Self::Error>;
+}
+
+/// Write operations for UserEmail entity
+#[async_trait::async_trait]
+pub trait UserEmailWriteRepository {
+    /// Error type returned by this repository
+    type Error: std::error::Error + Send + Sync + 'static;
+
+    /// Create a new user email
+    async fn create(&self, user_email: UserEmail) -> Result<UserEmail, Self::Error>;
+    
+    /// Update a user email
+    async fn update(&self, user_email: UserEmail) -> Result<UserEmail, Self::Error>;
+    
+    /// Delete a user email
+    async fn delete(&self, id: Uuid) -> Result<(), Self::Error>;
+    
+    /// Set an email as primary (and unset other primary emails for the user)
+    async fn set_as_primary(&self, user_id: Uuid, email_id: Uuid) -> Result<(), Self::Error>;
+}
+
+/// Combined read and write operations for UserEmail entity
+#[async_trait::async_trait]
+pub trait UserEmailRepository: UserEmailReadRepository + UserEmailWriteRepository 
+where 
+    <Self as UserEmailReadRepository>::Error: std::error::Error + Send + Sync + 'static,
+    <Self as UserEmailWriteRepository>::Error: std::error::Error + Send + Sync + 'static,
+{
+    /// Error type for this repository
+    type Error: std::error::Error + Send + Sync + 'static;
+}
+
+// Blanket implementation for types that implement both read and write repositories
+impl<T> UserEmailRepository for T 
+where 
+    T: UserEmailReadRepository + UserEmailWriteRepository,
+    <T as UserEmailReadRepository>::Error: std::error::Error + Send + Sync + 'static,
+    <T as UserEmailWriteRepository>::Error: std::error::Error + Send + Sync + 'static,
+{
+    type Error = <T as UserEmailReadRepository>::Error;
 }
 
 /// Read operations for OAuth2 tokens

@@ -4,8 +4,8 @@ use chrono::{DateTime, Utc};
 
 /// Represents a user in the system
 /// 
-/// Users can link multiple OAuth providers (GitHub, GitLab, etc.) using email as the linking mechanism.
-/// Provider-specific information is stored in the provider_tokens table.
+/// Users can link multiple OAuth providers and have multiple email addresses.
+/// Email addresses are stored separately in the UserEmail entity.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct User {
     /// Unique identifier for the user
@@ -13,10 +13,6 @@ pub struct User {
     
     /// Username (can be updated when linking multiple providers)
     pub username: String,
-    
-    /// Email address - the primary linking mechanism for multiple providers
-    /// This field is required and must be unique across users
-    pub email: String,
     
     /// URL to the user's avatar
     pub avatar_url: Option<String>,
@@ -29,19 +25,15 @@ pub struct User {
 }
 
 impl User {
-    /// Creates a new user with the given email
-    /// 
-    /// Email is used as the primary identifier to link multiple OAuth providers
+    /// Creates a new user
     pub fn new(
         username: String,
-        email: String,
         avatar_url: Option<String>,
     ) -> Self {
         let now = Utc::now();
         Self {
             id: Uuid::new_v4(),
             username,
-            email,
             avatar_url,
             created_at: now,
             updated_at: now,

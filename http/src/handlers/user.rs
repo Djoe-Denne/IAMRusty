@@ -43,9 +43,9 @@ pub async fn get_user(
         })?;
     
     Ok(Json(UserResponse {
-        id: user.id,
-        username: user.username,
-        email: Some(user.email),
-        avatar_url: user.avatar_url,
+        id: user.user.id,
+        username: user.user.username,
+        email: user.email,
+        avatar_url: user.user.avatar_url,
     }))
 } 

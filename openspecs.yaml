@@ -1,10 +1,17 @@
 openapi: 3.1.0
 info:
   title: IAM Service API
-  version: 1.2.0
-  description: >
-    This API allows third-party clients to authenticate users via OAuth2 providers
-    (e.g., GitHub, GitLab) and retrieve basic user profile information.
+  version: 1.2.1
+  description: |
+    This API allows third-party clients to authenticate users via OAuth2 providers (e.g., GitHub, GitLab) and retrieve basic user profile information.
+    
+    **User Model Update:**
+    - Users are now provider-agnostic and can link multiple OAuth2 providers to a single account.
+    - Email addresses are managed in a separate entity (`user_emails`).
+    - The `email` field in user responses always returns the user's primary email (if available).
+    - Users can have multiple emails, but only one is primary.
+    - The system supports multi-provider login and account linking.
+    
     It also supports issuing JWT tokens and serving public keys for token validation.
 
 servers:
@@ -31,9 +38,11 @@ paths:
   /auth/{provider}/callback:
     get:
       summary: OAuth2 callback handler
-      description: >
+      description: |
         Handles the redirect from the provider after user authorization.
         Exchanges the authorization code for an access token and fetches user info.
+        
+        **Note:** The `email` field in the response is the user's primary email (if available). Users may have multiple emails, but only one is primary.
       parameters:
         - in: path
           name: provider
@@ -58,7 +67,7 @@ paths:
                   id: "gitlab_12345"
                   username: "henri"
                   avatar: "https://gitlab.com/uploads/avatar.png"
-                  email: "henri@example.com"
+                  email: "henri@example.com"  # This is the primary email
         "400":
           description: Missing or invalid authorization code / unsupported provider
         "401":
@@ -69,9 +78,8 @@ paths:
   /token/refresh:
     post:
       summary: Refresh access token
-      description: >
-        Exchanges a valid refresh token for a new JWT access token. The refresh token must be valid
-        and not expired or revoked.
+      description: |
+        Exchanges a valid refresh token for a new JWT access token. The refresh token must be valid and not expired or revoked.
       requestBody:
         required: true
         content:
@@ -110,16 +118,17 @@ paths:
                 id: "github_9876"
                 username: "djoe-denne"
                 avatar: "https://avatars.githubusercontent.com/u/1234"
-                email: "dj@example.com"
+                email: "dj@example.com"  # This is the primary email
+              
+              # Note: The `email` field is always the user's primary email (if available). Users may have multiple emails.
         "401":
           description: Invalid or expired JWT token
 
   /.well-known/jwks.json:
     get:
       summary: JSON Web Key Set (JWKS)
-      description: >
-        Public keys used to verify JWT tokens issued by this IAM service. This endpoint can be used
-        by reverse proxies or services like Istio to validate token signatures.
+      description: |
+        Public keys used to verify JWT tokens issued by this IAM service. This endpoint can be used by reverse proxies or services like Istio to validate token signatures.
       responses:
         "200":
           description: Public keys
@@ -137,7 +146,7 @@ paths:
   /internal/{provider}/token:
     post:
       summary: Retrieve user's provider access token
-      description: >
+      description: |
         Returns the OAuth2 access token for the authenticated user and specified provider.
         This endpoint is intended for internal use (e.g. reverse proxy or internal services).
       parameters:

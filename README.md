@@ -13,11 +13,13 @@ The IAM service is built using a hexagonal/ports and adapters architecture with 
 
 ## Features
 
-- OAuth2 authentication with multiple providers:
+- OAuth2 authentication with multiple providers (multi-provider, provider-agnostic user model):
   - GitHub
   - GitLab
 - JWT token generation and validation
-- User management
+- User management with support for multiple linked OAuth providers
+- **Email addresses are managed in a separate table**; users can have multiple emails, but only one is primary
+- User profile endpoints always return the primary email (if available)
 - Modular and extensible architecture
 - Read/write repository pattern for database scalability
 - Database connection pool with read replica support
@@ -151,16 +153,25 @@ sea-orm-cli migrate generate create_new_table
 
 The current schema includes:
 
-- **users**: User profiles from OAuth providers
+- **users**: User profiles (provider-agnostic)
   - `id` (UUID, primary key)
-  - `provider_user_id` (String, unique identifier from provider)
-  - `username`, `email`, `avatar_url`
+  - `username`
+  - `avatar_url`
+  - `created_at`, `updated_at`
+
+- **user_emails**: Email addresses for users
+  - `id` (UUID, primary key)
+  - `user_id` (UUID, foreign key to users)
+  - `email` (String, unique)
+  - `is_primary` (bool)
+  - `is_verified` (bool)
   - `created_at`, `updated_at`
 
 - **provider_tokens**: OAuth tokens for external API access
   - `id` (auto-increment primary key)
   - `user_id` (foreign key to users)
   - `provider` (github, gitlab, etc.)
+  - `provider_user_id` (String, unique per provider)
   - `access_token`, `refresh_token`, `expires_in`
   - `created_at`, `updated_at`
 
@@ -213,6 +224,14 @@ Or with environment variables:
 APP_DATABASE_URL=postgres://postgres:postgres@primary:5432/iam
 APP_DATABASE_READ_REPLICAS=['postgres://postgres:postgres@replica1:5432/iam', 'postgres://postgres:postgres@replica2:5432/iam']
 ```
+
+## User Model and OAuth Flow
+
+- Users are provider-agnostic and can link multiple OAuth2 providers to a single account.
+- Email addresses are managed in a separate entity (`user_emails`).
+- The `email` field in user responses always returns the user's primary email (if available).
+- Users can have multiple emails, but only one is primary.
+- The system supports multi-provider login and account linking.
 
 ## Getting Started
 
@@ -279,9 +298,9 @@ The API follows OpenAPI specification. See `openspecs.yaml` for complete API doc
 ### Main Endpoints
 
 - `GET /auth/{provider}/start` - Start OAuth2 authentication flow
-- `GET /auth/{provider}/callback` - OAuth2 callback endpoint
+- `GET /auth/{provider}/callback` - OAuth2 callback endpoint (returns user profile with primary email)
 - `POST /token/refresh` - Refresh JWT token
-- `GET /me` - Get current authenticated user profile
+- `GET /me` - Get current authenticated user profile (primary email)
 - `GET /.well-known/jwks.json` - Public keys for JWT validation
 - `POST /internal/{provider}/token` - Get provider access token (internal)
 

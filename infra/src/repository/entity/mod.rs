@@ -4,4 +4,5 @@ pub mod prelude;
 
 pub mod provider_tokens;
 pub mod refresh_tokens;
+pub mod user_emails;
 pub mod users;

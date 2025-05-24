@@ -8,8 +8,6 @@ pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: Uuid,
     pub username: String,
-    #[sea_orm(unique)]
-    pub email: String,
     pub avatar_url: Option<String>,
     pub created_at: DateTime,
     pub updated_at: DateTime,
@@ -21,6 +19,8 @@ pub enum Relation {
     ProviderTokens,
     #[sea_orm(has_many = "super::refresh_tokens::Entity")]
     RefreshTokens,
+    #[sea_orm(has_many = "super::user_emails::Entity")]
+    UserEmails,
 }
 
 impl Related<super::provider_tokens::Entity> for Entity {
@@ -32,6 +32,12 @@ impl Related<super::provider_tokens::Entity> for Entity {
 impl Related<super::refresh_tokens::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::RefreshTokens.def()
+    }
+}
+
+impl Related<super::user_emails::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::UserEmails.def()
     }
 }
 

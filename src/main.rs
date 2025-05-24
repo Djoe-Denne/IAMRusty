@@ -4,11 +4,14 @@ use infra::{
     repository::{
         user_read::UserReadRepositoryImpl, 
         user_write::UserWriteRepositoryImpl, 
+        user_email_read::UserEmailReadRepositoryImpl,
+        user_email_write::UserEmailWriteRepositoryImpl,
         token_read::TokenReadRepositoryImpl, 
         token_write::TokenWriteRepositoryImpl,
         refresh_token_read::RefreshTokenReadRepositoryImpl,
         refresh_token_write::RefreshTokenWriteRepositoryImpl,
         combined_repository::{CombinedUserRepository, CombinedTokenRepository, CombinedRefreshTokenRepository},
+        combined_user_email_repository::CombinedUserEmailRepository,
     },
     config::load_config,
     db::DbConnectionPool,
@@ -48,6 +51,10 @@ async fn main() -> anyhow::Result<()> {
     let user_write_repo = UserWriteRepositoryImpl::new(db_pool.get_write_connection());
     let user_repo = CombinedUserRepository::new(user_read_repo, user_write_repo);
 
+    let user_email_read_repo = UserEmailReadRepositoryImpl::new(db_pool.get_read_connection());
+    let user_email_write_repo = UserEmailWriteRepositoryImpl::new(db_pool.get_write_connection());
+    let user_email_repo = CombinedUserEmailRepository::new(user_email_read_repo, user_email_write_repo);
+
     let token_read_repo = TokenReadRepositoryImpl::new(db_pool.get_read_connection());
     let token_write_repo = TokenWriteRepositoryImpl::new(db_pool.get_write_connection());
     let token_repo = CombinedTokenRepository::new(token_read_repo, token_write_repo);
@@ -79,6 +86,7 @@ async fn main() -> anyhow::Result<()> {
         Arc::new(github_auth),
         Arc::new(gitlab_auth),
         Arc::new(user_repo.clone()),
+        Arc::new(user_email_repo.clone()),
         Arc::new(token_repo),
         Arc::new(refresh_token_repo.clone()),
         Arc::new(token_service.clone()),
@@ -86,6 +94,7 @@ async fn main() -> anyhow::Result<()> {
 
     let user_usecase = UserUseCaseImpl::new(
         Arc::new(user_repo),
+        Arc::new(user_email_repo),
         Arc::new(token_service.clone()),
     );
     

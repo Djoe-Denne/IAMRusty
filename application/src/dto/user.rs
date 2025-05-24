@@ -10,11 +10,23 @@ pub struct UserProfileDto {
     /// Username
     pub username: String,
     
-    /// Email address (now required)
+    /// Email address (populated separately from UserEmail entity)
     pub email: String,
     
     /// Avatar URL
     pub avatar: Option<String>,
+}
+
+impl UserProfileDto {
+    /// Create a UserProfileDto from a User and email
+    pub fn from_user_and_email(user: User, email: String) -> Self {
+        Self {
+            id: user.id.to_string(),
+            username: user.username,
+            email,
+            avatar: user.avatar_url,
+        }
+    }
 }
 
 impl From<User> for UserProfileDto {
@@ -22,7 +34,7 @@ impl From<User> for UserProfileDto {
         Self {
             id: user.id.to_string(),
             username: user.username,
-            email: user.email,
+            email: "".to_string(), // Placeholder - legacy auth service compatibility
             avatar: user.avatar_url,
         }
     }
