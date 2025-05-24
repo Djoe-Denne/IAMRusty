@@ -9,7 +9,7 @@ use domain::entity::{
 use domain::port::repository::{UserReadRepository, UserWriteRepository};
 use tracing::error;
 
-use super::entity::{users, prelude::Users};
+use super::entity::{users, prelude::Users, provider_tokens, prelude::ProviderTokens as ProviderTokensEntity};
 
 /// SeaORM implementation of UserRepository
 pub struct UserRepositoryImpl {
@@ -26,7 +26,6 @@ impl UserRepositoryImpl {
     fn to_model(user: &DomainUser) -> users::ActiveModel {
         users::ActiveModel {
             id: Set(user.id),
-            provider_user_id: Set(user.provider_user_id.clone()),
             username: Set(user.username.clone()),
             email: Set(user.email.clone()),
             avatar_url: Set(user.avatar_url.clone()),
@@ -39,7 +38,6 @@ impl UserRepositoryImpl {
     fn to_domain(model: users::Model) -> DomainUser {
         DomainUser {
             id: model.id,
-            provider_user_id: model.provider_user_id,
             username: model.username,
             email: model.email,
             avatar_url: model.avatar_url,
@@ -61,19 +59,32 @@ impl UserReadRepository for UserRepositoryImpl {
         Ok(user.map(Self::to_domain))
     }
 
+    async fn find_by_email(&self, email: &str) -> Result<Option<DomainUser>, Self::Error> {
+        let user = Users::find()
+            .filter(users::Column::Email.eq(email))
+            .one(&self.db)
+            .await?;
+        
+        Ok(user.map(Self::to_domain))
+    }
+
     async fn find_by_provider_user_id(
         &self,
         provider: Provider,
         provider_user_id: &str,
     ) -> Result<Option<DomainUser>, Self::Error> {
-        let full_id = format!("{}_{}", provider.as_str(), provider_user_id);
-        
-        let user = Users::find()
-            .filter(users::Column::ProviderUserId.eq(full_id))
+        // Find user through provider_tokens table
+        let provider_token = ProviderTokensEntity::find()
+            .filter(provider_tokens::Column::Provider.eq(provider.as_str()))
+            .filter(provider_tokens::Column::ProviderUserId.eq(provider_user_id))
             .one(&self.db)
             .await?;
         
-        Ok(user.map(Self::to_domain))
+        if let Some(token) = provider_token {
+            self.find_by_id(token.user_id).await
+        } else {
+            Ok(None)
+        }
     }
 }
 

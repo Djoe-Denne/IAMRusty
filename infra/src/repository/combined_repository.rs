@@ -9,6 +9,7 @@ use domain::entity::{
     provider::{Provider, ProviderTokens},
     user::User,
     token::RefreshToken,
+    provider_link::ProviderLink,
 };
 use async_trait::async_trait;
 
@@ -44,6 +45,10 @@ where
 
     async fn find_by_id(&self, id: Uuid) -> Result<Option<User>, Self::Error> {
         self.read_repo.find_by_id(id).await
+    }
+
+    async fn find_by_email(&self, email: &str) -> Result<Option<User>, Self::Error> {
+        self.read_repo.find_by_email(email).await
     }
 
     async fn find_by_provider_user_id(
@@ -108,6 +113,21 @@ where
     ) -> Result<Option<ProviderTokens>, Self::Error> {
         self.read_repo.get_provider_tokens(user_id, provider).await
     }
+
+    async fn get_provider_link(
+        &self,
+        user_id: Uuid,
+        provider: Provider,
+    ) -> Result<Option<ProviderLink>, Self::Error> {
+        self.read_repo.get_provider_link(user_id, provider).await
+    }
+
+    async fn get_user_provider_links(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Vec<ProviderLink>, Self::Error> {
+        self.read_repo.get_user_provider_links(user_id).await
+    }
 }
 
 #[async_trait]
@@ -122,9 +142,10 @@ where
         &self,
         user_id: Uuid,
         provider: Provider,
+        provider_user_id: String,
         tokens: ProviderTokens,
     ) -> Result<(), Self::Error> {
-        self.write_repo.save_provider_tokens(user_id, provider, tokens).await
+        self.write_repo.save_provider_tokens(user_id, provider, provider_user_id, tokens).await
     }
 }
 

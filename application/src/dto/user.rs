@@ -4,14 +4,14 @@ use serde::{Deserialize, Serialize};
 /// User profile DTO for HTTP responses
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserProfileDto {
-    /// User ID in provider:id format (e.g., "github_12345")
+    /// User UUID
     pub id: String,
     
     /// Username
     pub username: String,
     
-    /// Email address
-    pub email: Option<String>,
+    /// Email address (now required)
+    pub email: String,
     
     /// Avatar URL
     pub avatar: Option<String>,
@@ -20,7 +20,7 @@ pub struct UserProfileDto {
 impl From<User> for UserProfileDto {
     fn from(user: User) -> Self {
         Self {
-            id: user.provider_user_id,
+            id: user.id.to_string(),
             username: user.username,
             email: user.email,
             avatar: user.avatar_url,

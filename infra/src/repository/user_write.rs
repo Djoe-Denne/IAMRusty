@@ -24,7 +24,6 @@ impl UserWriteRepositoryImpl {
     fn to_model(user: &DomainUser) -> users::ActiveModel {
         users::ActiveModel {
             id: Set(user.id),
-            provider_user_id: Set(user.provider_user_id.clone()),
             username: Set(user.username.clone()),
             email: Set(user.email.clone()),
             avatar_url: Set(user.avatar_url.clone()),
@@ -37,7 +36,6 @@ impl UserWriteRepositoryImpl {
     fn to_domain(model: users::Model) -> DomainUser {
         DomainUser {
             id: model.id,
-            provider_user_id: model.provider_user_id,
             username: model.username,
             email: model.email,
             avatar_url: model.avatar_url,

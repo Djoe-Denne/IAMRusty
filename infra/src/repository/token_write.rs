@@ -27,12 +27,14 @@ impl TokenWriteRepositoryImpl {
     fn to_model(
         user_id: Uuid,
         provider: Provider,
+        provider_user_id: String,
         tokens: &ProviderTokens,
     ) -> provider_tokens::ActiveModel {
         provider_tokens::ActiveModel {
             id: Default::default(), // Auto-generated
             user_id: Set(user_id),
             provider: Set(provider.as_str().to_string()),
+            provider_user_id: Set(provider_user_id),
             access_token: Set(tokens.access_token.clone()),
             refresh_token: Set(tokens.refresh_token.clone()),
             expires_in: Set(tokens.expires_in.map(|e| e as i32)),
@@ -50,6 +52,7 @@ impl TokenWriteRepository for TokenWriteRepositoryImpl {
         &self,
         user_id: Uuid,
         provider: Provider,
+        provider_user_id: String,
         tokens: ProviderTokens,
     ) -> Result<(), Self::Error> {
         debug!(user_id = %user_id, provider = %provider.as_str(), "Saving provider tokens");
@@ -64,6 +67,7 @@ impl TokenWriteRepository for TokenWriteRepositoryImpl {
         if let Some(existing) = existing {
             // Update existing tokens
             let mut model = provider_tokens::ActiveModel::from(existing);
+            model.provider_user_id = Set(provider_user_id);
             model.access_token = Set(tokens.access_token.clone());
             model.refresh_token = Set(tokens.refresh_token.clone());
             model.expires_in = Set(tokens.expires_in.map(|e| e as i32));
@@ -74,7 +78,7 @@ impl TokenWriteRepository for TokenWriteRepositoryImpl {
             debug!(user_id = %user_id, provider = %provider.as_str(), "Updated provider tokens");
         } else {
             // Insert new tokens
-            let model = Self::to_model(user_id, provider, &tokens);
+            let model = Self::to_model(user_id, provider, provider_user_id, &tokens);
             model.insert(self.db.as_ref()).await?;
             
             debug!(user_id = %user_id, provider = %provider.as_str(), "Saved new provider tokens");

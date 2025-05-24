@@ -10,7 +10,7 @@ use domain::port::repository::UserReadRepository;
 use tracing::debug;
 use chrono::{DateTime, Utc};
 
-use super::entity::{users, prelude::Users};
+use super::entity::{users, prelude::Users, provider_tokens, prelude::ProviderTokens as ProviderTokensEntity};
 
 /// SeaORM implementation of UserReadRepository
 #[derive(Clone)]
@@ -28,7 +28,6 @@ impl UserReadRepositoryImpl {
     fn to_domain(model: users::Model) -> DomainUser {
         DomainUser {
             id: model.id,
-            provider_user_id: model.provider_user_id,
             username: model.username,
             email: model.email,
             avatar_url: model.avatar_url,
@@ -51,19 +50,34 @@ impl UserReadRepository for UserReadRepositoryImpl {
         Ok(user.map(Self::to_domain))
     }
 
+    async fn find_by_email(&self, email: &str) -> Result<Option<DomainUser>, Self::Error> {
+        debug!("Reading user by email: {}", email);
+        let user = Users::find()
+            .filter(users::Column::Email.eq(email))
+            .one(self.db.as_ref())
+            .await?;
+        
+        Ok(user.map(Self::to_domain))
+    }
+
     async fn find_by_provider_user_id(
         &self,
         provider: Provider,
         provider_user_id: &str,
     ) -> Result<Option<DomainUser>, Self::Error> {
-        let full_id = format!("{}_{}", provider.as_str(), provider_user_id);
-        debug!("Reading user by provider ID: {}", full_id);
+        debug!("Reading user by provider ID: {}_{}", provider.as_str(), provider_user_id);
         
-        let user = Users::find()
-            .filter(users::Column::ProviderUserId.eq(full_id))
+        // Find user through provider_tokens table
+        let provider_token = ProviderTokensEntity::find()
+            .filter(provider_tokens::Column::Provider.eq(provider.as_str()))
+            .filter(provider_tokens::Column::ProviderUserId.eq(provider_user_id))
             .one(self.db.as_ref())
             .await?;
         
-        Ok(user.map(Self::to_domain))
+        if let Some(token) = provider_token {
+            self.find_by_id(token.user_id).await
+        } else {
+            Ok(None)
+        }
     }
 } 

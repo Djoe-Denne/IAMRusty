@@ -5,6 +5,7 @@ use sea_orm::{
 use uuid::Uuid;
 use chrono::Utc;
 use domain::entity::provider::{Provider, ProviderTokens};
+use domain::entity::provider_link::ProviderLink;
 use domain::port::repository::{TokenReadRepository, TokenWriteRepository};
 use tracing::debug;
 
@@ -25,12 +26,14 @@ impl TokenRepositoryImpl {
     fn to_model(
         user_id: Uuid,
         provider: Provider,
+        provider_user_id: String,
         tokens: &ProviderTokens,
     ) -> provider_tokens::ActiveModel {
         provider_tokens::ActiveModel {
             id: Default::default(), // Auto-generated
             user_id: Set(user_id),
             provider: Set(provider.as_str().to_string()),
+            provider_user_id: Set(provider_user_id),
             access_token: Set(tokens.access_token.clone()),
             refresh_token: Set(tokens.refresh_token.clone()),
             expires_in: Set(tokens.expires_in.map(|e| e as i32)),
@@ -45,6 +48,16 @@ impl TokenRepositoryImpl {
             access_token: model.access_token,
             refresh_token: model.refresh_token,
             expires_in: model.expires_in.map(|e| e as u64),
+        }
+    }
+
+    /// Convert a database model to domain ProviderLink
+    fn to_provider_link(model: provider_tokens::Model) -> ProviderLink {
+        ProviderLink {
+            user_id: model.user_id,
+            provider: Provider::from_str(&model.provider).unwrap_or(Provider::GitHub),
+            provider_user_id: model.provider_user_id,
+            linked_at: chrono::DateTime::<Utc>::from_naive_utc_and_offset(model.created_at, Utc),
         }
     }
 }
@@ -66,6 +79,32 @@ impl TokenReadRepository for TokenRepositoryImpl {
 
         Ok(tokens.map(Self::to_domain))
     }
+
+    async fn get_provider_link(
+        &self,
+        user_id: Uuid,
+        provider: Provider,
+    ) -> Result<Option<ProviderLink>, Self::Error> {
+        let token = ProviderTokensEntity::find()
+            .filter(provider_tokens::Column::UserId.eq(user_id))
+            .filter(provider_tokens::Column::Provider.eq(provider.as_str()))
+            .one(&self.db)
+            .await?;
+
+        Ok(token.map(Self::to_provider_link))
+    }
+
+    async fn get_user_provider_links(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Vec<ProviderLink>, Self::Error> {
+        let tokens = ProviderTokensEntity::find()
+            .filter(provider_tokens::Column::UserId.eq(user_id))
+            .all(&self.db)
+            .await?;
+
+        Ok(tokens.into_iter().map(Self::to_provider_link).collect())
+    }
 }
 
 #[async_trait]
@@ -76,6 +115,7 @@ impl TokenWriteRepository for TokenRepositoryImpl {
         &self,
         user_id: Uuid,
         provider: Provider,
+        provider_user_id: String,
         tokens: ProviderTokens,
     ) -> Result<(), Self::Error> {
         // Check if tokens already exist for this user and provider
@@ -88,6 +128,7 @@ impl TokenWriteRepository for TokenRepositoryImpl {
         if let Some(existing) = existing {
             // Update existing tokens
             let mut model = provider_tokens::ActiveModel::from(existing);
+            model.provider_user_id = Set(provider_user_id);
             model.access_token = Set(tokens.access_token.clone());
             model.refresh_token = Set(tokens.refresh_token.clone());
             model.expires_in = Set(tokens.expires_in.map(|e| e as i32));
@@ -98,7 +139,7 @@ impl TokenWriteRepository for TokenRepositoryImpl {
             debug!(user_id = %user_id, provider = %provider.as_str(), "Updated provider tokens");
         } else {
             // Insert new tokens
-            let model = Self::to_model(user_id, provider, &tokens);
+            let model = Self::to_model(user_id, provider, provider_user_id, &tokens);
             model.insert(&self.db).await?;
             
             debug!(user_id = %user_id, provider = %provider.as_str(), "Saved new provider tokens");

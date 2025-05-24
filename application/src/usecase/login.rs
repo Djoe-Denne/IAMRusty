@@ -12,7 +12,7 @@ use crate::auth::AuthService;
 use async_trait::async_trait;
 use std::sync::Arc;
 use thiserror::Error;
-use uuid::Uuid;
+
 use chrono::Utc;
 
 /// Login use case error
@@ -141,40 +141,51 @@ where
             }
         };
 
-        // Store provider tokens
-        let provider_user_id = format!("{}_{}", provider.as_str(), profile.id);
+        // Profile email is required for linking
+        let email = profile.email.ok_or_else(|| {
+            LoginError::AuthError("Email is required from OAuth provider".to_string())
+        })?;
 
-        // Check if user exists
+        // Check if user exists by email (primary linking mechanism)
         let user = match self
             .user_repo
-            .find_by_provider_user_id(provider, &profile.id)
+            .find_by_email(&email)
             .await
             .map_err(|e| LoginError::DbError(Box::new(e)))?
         {
             Some(user) => {
-                // Update user details
+                // Update user profile if needed
                 let mut updated_user = user.clone();
-                updated_user.username = profile.username;
-                updated_user.email = profile.email;
-                updated_user.avatar_url = profile.avatar_url;
-                updated_user.updated_at = Utc::now();
-
-                self.user_repo
-                    .update(updated_user)
-                    .await
-                    .map_err(|e| LoginError::DbError(Box::new(e)))?
+                let mut needs_update = false;
+                
+                // Update username and avatar if they've changed
+                if updated_user.username != profile.username {
+                    updated_user.username = profile.username;
+                    needs_update = true;
+                }
+                
+                if updated_user.avatar_url != profile.avatar_url {
+                    updated_user.avatar_url = profile.avatar_url;
+                    needs_update = true;
+                }
+                
+                if needs_update {
+                    updated_user.updated_at = Utc::now();
+                    self.user_repo
+                        .update(updated_user)
+                        .await
+                        .map_err(|e| LoginError::DbError(Box::new(e)))?
+                } else {
+                    updated_user
+                }
             }
             None => {
                 // Create new user
-                let new_user = User {
-                    id: Uuid::new_v4(),
-                    provider_user_id,
-                    username: profile.username,
-                    email: profile.email,
-                    avatar_url: profile.avatar_url,
-                    created_at: Utc::now(),
-                    updated_at: Utc::now(),
-                };
+                let new_user = User::new(
+                    profile.username,
+                    email,
+                    profile.avatar_url,
+                );
 
                 self.user_repo
                     .create(new_user)
@@ -183,9 +194,9 @@ where
             }
         };
 
-        // Save provider tokens
+        // Save provider tokens with provider-specific user ID
         self.token_repo
-            .save_provider_tokens(user.id, provider, tokens)
+            .save_provider_tokens(user.id, provider, profile.id, tokens)
             .await
             .map_err(|e| LoginError::DbError(Box::new(e)))?;
 

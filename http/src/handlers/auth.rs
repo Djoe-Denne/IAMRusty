@@ -76,7 +76,7 @@ pub async fn oauth_login(
         user: UserData {
             id: response.user.id.to_string(),
             username: response.user.username,
-            email: response.user.email,
+            email: Some(response.user.email),
             avatar_url: response.user.avatar_url,
         },
         access_token: response.access_token,

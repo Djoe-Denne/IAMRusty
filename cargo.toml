@@ -7,7 +7,7 @@ description = "IAM microservice with OAuth2, OpenID Connect, JWT, PostgreSQL, Ax
 license = "MIT OR Apache-2.0"
 
 [workspace]
-members = ["domain", "application", "infra", "http"]
+members = ["domain", "application", "infra", "http", "migration"]
 
 [dependencies]
 # Internal workspace crates

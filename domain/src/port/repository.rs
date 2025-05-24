@@ -2,6 +2,7 @@ use crate::entity::{
     provider::{Provider, ProviderTokens},
     user::User,
     token::RefreshToken,
+    provider_link::ProviderLink,
 };
 use uuid::Uuid;
 
@@ -14,7 +15,11 @@ pub trait UserReadRepository {
     /// Find a user by ID
     async fn find_by_id(&self, id: Uuid) -> Result<Option<User>, Self::Error>;
 
+    /// Find a user by email address (primary linking mechanism)
+    async fn find_by_email(&self, email: &str) -> Result<Option<User>, Self::Error>;
+    
     /// Find a user by provider and provider user ID
+    /// This looks up via the provider_tokens table
     async fn find_by_provider_user_id(
         &self,
         provider: Provider,
@@ -68,6 +73,19 @@ pub trait TokenReadRepository {
         user_id: Uuid,
         provider: Provider,
     ) -> Result<Option<ProviderTokens>, Self::Error>;
+    
+    /// Get provider link information (user_id, provider, provider_user_id)
+    async fn get_provider_link(
+        &self,
+        user_id: Uuid,
+        provider: Provider,
+    ) -> Result<Option<ProviderLink>, Self::Error>;
+    
+    /// Get all provider links for a user
+    async fn get_user_provider_links(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Vec<ProviderLink>, Self::Error>;
 }
 
 /// Write operations for OAuth2 tokens
@@ -76,11 +94,12 @@ pub trait TokenWriteRepository {
     /// Error type returned by this repository
     type Error: std::error::Error + Send + Sync + 'static;
 
-    /// Save tokens for a user and provider
+    /// Save tokens for a user and provider, including the provider-specific user ID
     async fn save_provider_tokens(
         &self,
         user_id: Uuid,
         provider: Provider,
+        provider_user_id: String,
         tokens: ProviderTokens,
     ) -> Result<(), Self::Error>;
 }

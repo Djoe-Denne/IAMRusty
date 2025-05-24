@@ -93,6 +93,9 @@ where
         
         debug!("Retrieved user profile: {}", profile.username);
         
+        // Store the provider user ID before moving the profile
+        let provider_user_id = profile.id.clone();
+        
         // Find or create the user
         let user = self.find_or_create_user(provider, profile).await?;
         
@@ -100,7 +103,7 @@ where
         
         // Save the tokens
         self.token_repository
-            .save_provider_tokens(user.id, provider, tokens)
+            .save_provider_tokens(user.id, provider, provider_user_id, tokens)
             .await
             .map_err(map_repo_err)?;
         
@@ -136,20 +139,23 @@ where
     /// Find or create a user based on their provider profile
     async fn find_or_create_user(
         &self,
-        provider: Provider,
+        _provider: Provider,
         profile: ProviderUserProfile,
     ) -> Result<User, ApplicationError> {
-        let provider_user_id = format!("{}_{}", provider.as_str(), profile.id);
+        // Email is required for linking
+        let email = profile.email.ok_or_else(|| {
+            ApplicationError::Service("Email is required from OAuth provider".to_string())
+        })?;
         
-        // Try to find the user
+        // Try to find the user by email (primary linking mechanism)
         if let Some(user) = self.user_repository
-            .find_by_provider_user_id(provider, &profile.id)
+            .find_by_email(&email)
             .await
             .map_err(map_repo_err)?
         {
-            debug!(user_id = %user.id, "Found existing user");
+            debug!(user_id = %user.id, "Found existing user by email");
             
-            // Update user if needed (e.g., new email, avatar)
+            // Update user if needed (e.g., new username, avatar)
             // In a real implementation, we might check if any fields changed
             
             return Ok(user);
@@ -157,9 +163,8 @@ where
         
         // Create a new user
         let user = User::new(
-            provider_user_id,
             profile.username,
-            profile.email,
+            email,
             profile.avatar_url,
         );
         
