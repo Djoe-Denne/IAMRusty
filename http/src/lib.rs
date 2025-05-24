@@ -14,13 +14,15 @@ use application::usecase::{
     login::LoginUseCase,
     user::UserUseCase,
     token::TokenUseCase,
+    link_provider::LinkProviderUseCase,
 };
 
 mod handlers;
 mod middleware_auth;
+pub mod oauth_state;
 
 use handlers::{
-    auth::{oauth_callback, oauth_login},
+    auth::{oauth_callback, oauth_start},
     user::get_user,
     token::refresh_token,
 };
@@ -35,6 +37,8 @@ pub struct AppState {
     pub user_usecase: Arc<dyn UserUseCase>,
     /// Token use case
     pub token_usecase: Arc<dyn TokenUseCase>,
+    /// Link provider use case
+    pub link_provider_usecase: Arc<dyn LinkProviderUseCase>,
 }
 
 impl AppState {
@@ -43,11 +47,13 @@ impl AppState {
         login_usecase: Arc<dyn LoginUseCase>,
         user_usecase: Arc<dyn UserUseCase>,
         token_usecase: Arc<dyn TokenUseCase>,
+        link_provider_usecase: Arc<dyn LinkProviderUseCase>,
     ) -> Self {
         Self {
             login_usecase,
             user_usecase,
             token_usecase,
+            link_provider_usecase,
         }
     }
 }
@@ -65,7 +71,7 @@ pub struct ServerConfig {
 /// Start the HTTP server
 pub async fn serve(state: AppState, addr: &str) -> anyhow::Result<()> {
     let app = Router::new()
-        .route("/api/auth/{provider}/login", post(oauth_login))
+        .route("/api/auth/{provider}/start", get(oauth_start))
         .route("/api/auth/{provider}/callback", get(oauth_callback))
         .route("/api/token/refresh", post(refresh_token))
         .route(
@@ -83,7 +89,7 @@ pub async fn serve(state: AppState, addr: &str) -> anyhow::Result<()> {
 /// Start the server with optional HTTPS support
 pub async fn serve_with_config(state: AppState, config: ServerConfig) -> anyhow::Result<()> {
     let app = Router::new()
-        .route("/api/auth/{provider}/login", post(oauth_login))
+        .route("/api/auth/{provider}/start", get(oauth_start))
         .route("/api/auth/{provider}/callback", get(oauth_callback))
         .route("/api/token/refresh", post(refresh_token))
         .route(

@@ -22,6 +22,7 @@ use application::{
         login::LoginUseCaseImpl,
         user::UserUseCaseImpl,
         token::TokenUseCaseImpl,
+        link_provider::LinkProviderUseCaseImpl,
     }
 };
 
@@ -57,19 +58,34 @@ async fn main() -> anyhow::Result<()> {
 
     let token_read_repo = TokenReadRepositoryImpl::new(db_pool.get_read_connection());
     let token_write_repo = TokenWriteRepositoryImpl::new(db_pool.get_write_connection());
-    let token_repo = CombinedTokenRepository::new(token_read_repo, token_write_repo);
+    let token_repo_login = CombinedTokenRepository::new(token_read_repo.clone(), token_write_repo.clone());
+    
+    let token_read_repo_link = TokenReadRepositoryImpl::new(db_pool.get_read_connection());
+    let token_write_repo_link = TokenWriteRepositoryImpl::new(db_pool.get_write_connection());
+    let token_repo_link = CombinedTokenRepository::new(token_read_repo_link, token_write_repo_link);
     
     let refresh_token_read_repo = RefreshTokenReadRepositoryImpl::new(db_pool.get_read_connection());
     let refresh_token_write_repo = RefreshTokenWriteRepositoryImpl::new(db_pool.get_write_connection());
     let refresh_token_repo = CombinedRefreshTokenRepository::new(refresh_token_read_repo, refresh_token_write_repo);
 
     // Create auth services
-    let github_auth = GitHubOAuth2Client::new(
+    let github_auth_login = GitHubOAuth2Client::new(
         config.oauth.github.client_id.clone(),
         config.oauth.github.client_secret.clone(),
         config.oauth.github.redirect_uri.clone(),
     );
-    let gitlab_auth = GitLabOAuth2Client::new(
+    let gitlab_auth_login = GitLabOAuth2Client::new(
+        config.oauth.gitlab.client_id.clone(),
+        config.oauth.gitlab.client_secret.clone(),
+        config.oauth.gitlab.redirect_uri.clone(),
+    );
+    
+    let github_auth_link = GitHubOAuth2Client::new(
+        config.oauth.github.client_id.clone(),
+        config.oauth.github.client_secret.clone(),
+        config.oauth.github.redirect_uri.clone(),
+    );
+    let gitlab_auth_link = GitLabOAuth2Client::new(
         config.oauth.gitlab.client_id.clone(),
         config.oauth.gitlab.client_secret.clone(),
         config.oauth.gitlab.redirect_uri.clone(),
@@ -83,11 +99,21 @@ async fn main() -> anyhow::Result<()> {
 
     // Create use cases
     let login_usecase = LoginUseCaseImpl::new(
-        Arc::new(github_auth),
-        Arc::new(gitlab_auth),
+        Arc::new(github_auth_login),
+        Arc::new(gitlab_auth_login),
         Arc::new(user_repo.clone()),
         Arc::new(user_email_repo.clone()),
-        Arc::new(token_repo),
+        Arc::new(token_repo_login),
+        Arc::new(refresh_token_repo.clone()),
+        Arc::new(token_service.clone()),
+    );
+
+    let link_provider_usecase = LinkProviderUseCaseImpl::new(
+        Arc::new(github_auth_link),
+        Arc::new(gitlab_auth_link),
+        Arc::new(user_repo.clone()),
+        Arc::new(user_email_repo.clone()),
+        Arc::new(token_repo_link),
         Arc::new(refresh_token_repo.clone()),
         Arc::new(token_service.clone()),
     );
@@ -108,6 +134,7 @@ async fn main() -> anyhow::Result<()> {
         Arc::new(login_usecase),
         Arc::new(user_usecase),
         Arc::new(token_usecase),
+        Arc::new(link_provider_usecase),
     );
 
     // Create server configuration

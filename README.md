@@ -16,9 +16,11 @@ The IAM service is built using a hexagonal/ports and adapters architecture with 
 - OAuth2 authentication with multiple providers (multi-provider, provider-agnostic user model):
   - GitHub
   - GitLab
+- **Provider Linking**: Authenticated users can link additional OAuth2 providers to their existing account
 - JWT token generation and validation
 - User management with support for multiple linked OAuth providers
 - **Email addresses are managed in a separate table**; users can have multiple emails, but only one is primary
+- **Automatic email discovery**: When linking providers, new emails are automatically added as secondary emails
 - User profile endpoints always return the primary email (if available)
 - Modular and extensible architecture
 - Read/write repository pattern for database scalability
@@ -233,6 +235,24 @@ APP_DATABASE_READ_REPLICAS=['postgres://postgres:postgres@replica1:5432/iam', 'p
 - Users can have multiple emails, but only one is primary.
 - The system supports multi-provider login and account linking.
 
+### OAuth Flow Behavior
+
+The OAuth endpoints support two different operations based on the request context:
+
+1. **Login Operation** (unauthenticated users):
+   - Access `/auth/{provider}/start` without Authorization header
+   - Creates new user or authenticates existing user
+   - Returns JWT tokens and user profile
+
+2. **Provider Linking Operation** (authenticated users):
+   - Access `/auth/{provider}/start` with Authorization header (`Bearer <jwt-token>`)
+   - Links the OAuth provider to the existing authenticated user
+   - Prevents linking providers already linked to other users
+   - Automatically adds new emails as secondary (unverified) emails
+   - Returns updated user profile with all emails
+
+The operation type is encoded in the OAuth state parameter, ensuring secure and stateless operation context preservation during provider redirects.
+
 ## Getting Started
 
 ### Prerequisites
@@ -293,22 +313,51 @@ cargo watch -x run
 
 ## API Documentation
 
-The API follows OpenAPI specification. See `openspecs.yaml` for complete API documentation.
+The API follows OpenAPI specification. See `openspecs.yaml` (v1.3.0) for complete API documentation.
+
+**Latest Updates (v1.3.0):**
+- Added provider linking functionality for authenticated users
+- Enhanced OAuth endpoints to support dual-purpose operation (login vs. linking)
+- Added comprehensive error handling for provider conflicts
+- Added new response schemas for link operations with email management
 
 ### Main Endpoints
 
-- `GET /auth/{provider}/start` - Start OAuth2 authentication flow
-- `GET /auth/{provider}/callback` - OAuth2 callback endpoint (returns user profile with primary email)
+- `GET /auth/{provider}/start` - Start OAuth2 authentication flow (supports both login and provider linking)
+- `GET /auth/{provider}/callback` - OAuth2 callback endpoint (returns different response based on operation)
 - `POST /token/refresh` - Refresh JWT token
 - `GET /me` - Get current authenticated user profile (primary email)
 - `GET /.well-known/jwks.json` - Public keys for JWT validation
 - `POST /internal/{provider}/token` - Get provider access token (internal)
 
+#### OAuth Authentication Endpoints
+
+**Login Flow** (for new/existing users):
+```http
+GET /auth/{provider}/start
+# No Authorization header required
+# Redirects to provider OAuth page
+# Returns JWT tokens and user profile on callback
+```
+
+**Provider Linking Flow** (for authenticated users):
+```http
+GET /auth/{provider}/start
+Authorization: Bearer <jwt-token>
+# Requires valid JWT token
+# Links provider to existing user account
+# Returns updated user profile with all emails on callback
+```
+
 ### Example Usage
 
 ```bash
-# Start GitHub OAuth flow
+# Start GitHub OAuth login flow (for new users)
 curl "http://localhost:8080/auth/github/start"
+
+# Link GitHub to existing account (for authenticated users)
+curl -H "Authorization: Bearer <jwt-token>" \
+     "http://localhost:8080/auth/github/start"
 
 # Get user profile (requires valid JWT)
 curl -H "Authorization: Bearer <jwt-token>" "http://localhost:8080/me"
@@ -318,6 +367,72 @@ curl -X POST "http://localhost:8080/token/refresh" \
   -H "Content-Type: application/json" \
   -d '{"refresh_token": "<refresh-token>"}'
 ```
+
+#### Response Examples
+
+**Login Response** (after successful OAuth callback):
+```json
+{
+  "operation": "login",
+  "user": {
+    "id": "123e4567-e89b-12d3-a456-426614174000",
+    "username": "johndoe",
+    "email": "john@example.com",
+    "avatar_url": "https://avatars.githubusercontent.com/u/123456"
+  },
+  "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
+  "expires_in": 3600,
+  "refresh_token": "refresh_token_here"
+}
+```
+
+**Link Provider Response** (after successful provider linking):
+```json
+{
+  "operation": "link",
+  "message": "GitHub successfully linked",
+  "user": {
+    "id": "123e4567-e89b-12d3-a456-426614174000",
+    "username": "johndoe",
+    "email": "john@example.com",
+    "avatar_url": "https://avatars.githubusercontent.com/u/123456"
+  },
+  "emails": [
+    {
+      "id": "email-uuid-1",
+      "email": "john@example.com",
+      "is_primary": true,
+      "is_verified": true
+    },
+    {
+      "id": "email-uuid-2", 
+      "email": "john.github@example.com",
+      "is_primary": false,
+      "is_verified": false
+    }
+  ],
+  "new_email_added": true,
+  "new_email": "john.github@example.com"
+}
+```
+
+#### Error Responses
+
+The provider linking operation includes specific error handling:
+
+```json
+{
+  "operation": "link",
+  "error": "provider_already_linked",
+  "message": "This GitHub account is already linked to another user"
+}
+```
+
+Common error scenarios:
+- `provider_already_linked_to_same_user`: Provider is already linked to the same user
+- `provider_already_linked`: Provider account is linked to a different user
+- `user_not_found`: Authenticated user no longer exists
+- `auth_error`: Failed to authenticate with the OAuth provider
 
 ## Development
 
@@ -341,6 +456,14 @@ curl -X POST "http://localhost:8080/token/refresh" \
 4. **Add HTTP handlers** in `http/src/handlers/`
 5. **Create migrations** for schema changes
 6. **Regenerate entities** after schema changes
+
+### Key Dependencies
+
+- **base64**: For OAuth state parameter encoding/decoding
+- **serde**: JSON serialization for OAuth state management
+- **thiserror**: Structured error handling for use cases
+- **async-trait**: Async trait support for use case interfaces
+- **uuid**: User ID handling and state nonce generation
 
 ### Database Workflow
 

@@ -1649,6 +1649,7 @@ dependencies = [
  "application",
  "axum",
  "axum-server",
+ "base64 0.22.1",
  "chrono",
  "domain",
  "hyper 1.6.0",

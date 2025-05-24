@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: IAM Service API
-  version: 1.2.1
+  version: 1.3.0
   description: |
     This API allows third-party clients to authenticate users via OAuth2 providers (e.g., GitHub, GitLab) and retrieve basic user profile information.
     
@@ -12,6 +12,12 @@ info:
     - Users can have multiple emails, but only one is primary.
     - The system supports multi-provider login and account linking.
     
+    **OAuth Flow Enhancement:**
+    - The same `/start` and `/callback` endpoints handle both login and provider linking operations.
+    - When an authenticated user accesses `/start`, it initiates a "link provider" flow.
+    - When an unauthenticated user accesses `/start`, it initiates a "login" flow.
+    - The operation type is encoded in the OAuth `state` parameter for security.
+    
     It also supports issuing JWT tokens and serving public keys for token validation.
 
 servers:
@@ -20,8 +26,16 @@ servers:
 paths:
   /auth/{provider}/start:
     get:
-      summary: Start OAuth2 authentication
-      description: Redirects the user to the external OAuth2 provider's consent page.
+      summary: Start OAuth2 authentication or provider linking
+      description: |
+        Redirects the user to the external OAuth2 provider's consent page.
+        
+        **Dual Purpose:**
+        - **Login Flow** (no Authorization header): Creates new user or logs in existing user
+        - **Link Provider Flow** (with Authorization header): Links provider to authenticated user's account
+        
+        The operation type is determined by the presence of a valid JWT token in the Authorization header.
+        For linking operations, the user context is securely encoded in the OAuth `state` parameter.
       parameters:
         - in: path
           name: provider
@@ -29,20 +43,49 @@ paths:
           description: The OAuth2 provider to use (e.g., github, gitlab).
           schema:
             type: string
+        - in: header
+          name: Authorization
+          required: false
+          description: |
+            Bearer JWT token for linking operations. 
+            If present and valid, initiates provider linking for the authenticated user.
+            If absent, initiates login flow.
+          schema:
+            type: string
+            pattern: '^Bearer .+'
       responses:
         "302":
           description: Redirect to OAuth2 provider
+          headers:
+            Location:
+              description: OAuth2 provider authorization URL with state parameter
+              schema:
+                type: string
         "400":
           description: Unknown or unsupported provider
+        "401":
+          description: Invalid JWT token in Authorization header (for linking operations)
 
   /auth/{provider}/callback:
     get:
-      summary: OAuth2 callback handler
+      summary: OAuth2 callback handler for login and provider linking
       description: |
         Handles the redirect from the provider after user authorization.
         Exchanges the authorization code for an access token and fetches user info.
         
-        **Note:** The `email` field in the response is the user's primary email (if available). Users may have multiple emails, but only one is primary.
+        **Behavior depends on the operation type encoded in the state parameter:**
+        
+        **Login Flow:**
+        - Creates new user if email doesn't exist
+        - Logs in existing user if email matches
+        - Returns JWT token for authentication
+        
+        **Link Provider Flow:**
+        - Links provider to existing authenticated user
+        - Adds new email as secondary if it doesn't exist for the user
+        - Returns updated user profile and email list
+        
+        **Note:** The `email` field in responses is always the user's primary email (if available).
       parameters:
         - in: path
           name: provider
@@ -56,22 +99,148 @@ paths:
           description: Authorization code received from the provider.
           schema:
             type: string
+        - in: query
+          name: state
+          required: false
+          description: |
+            OAuth state parameter containing operation context.
+            For linking operations, contains signed user information.
+          schema:
+            type: string
       responses:
         "200":
-          description: Successfully authenticated
+          description: Successfully processed OAuth callback
           content:
             application/json:
-              example:
-                token: "jwt_xyz"
-                user:
-                  id: "gitlab_12345"
-                  username: "henri"
-                  avatar: "https://gitlab.com/uploads/avatar.png"
-                  email: "henri@example.com"  # This is the primary email
+              oneOf:
+                - title: Login Response
+                  description: Response for login operations
+                  type: object
+                  properties:
+                    operation:
+                      type: string
+                      enum: [login]
+                    user:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        username:
+                          type: string
+                        email:
+                          type: string
+                          description: Primary email address
+                        avatar:
+                          type: string
+                          nullable: true
+                    access_token:
+                      type: string
+                      description: JWT access token
+                    expires_in:
+                      type: integer
+                      description: Access token expiration in seconds
+                    refresh_token:
+                      type: string
+                      description: Refresh token for getting new access tokens
+                  example:
+                    operation: "login"
+                    user:
+                      id: "123e4567-e89b-12d3-a456-426614174000"
+                      username: "henri"
+                      email: "henri@example.com"
+                      avatar: "https://gitlab.com/uploads/avatar.png"
+                    access_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                    expires_in: 3600
+                    refresh_token: "def502004f8c7..."
+                - title: Link Provider Response
+                  description: Response for provider linking operations
+                  type: object
+                  properties:
+                    operation:
+                      type: string
+                      enum: [link]
+                    message:
+                      type: string
+                      example: "Provider successfully linked"
+                    user:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        username:
+                          type: string
+                        avatar:
+                          type: string
+                          nullable: true
+                    emails:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                          email:
+                            type: string
+                          is_primary:
+                            type: boolean
+                          is_verified:
+                            type: boolean
+                    new_email_added:
+                      type: boolean
+                      description: Whether a new email was added from this provider
+                    new_email:
+                      type: string
+                      nullable: true
+                      description: The new email that was added (if any)
+                  example:
+                    operation: "link"
+                    message: "GitHub successfully linked"
+                    user:
+                      id: "123e4567-e89b-12d3-a456-426614174000"
+                      username: "henri"
+                      avatar: "https://gitlab.com/uploads/avatar.png"
+                    emails:
+                      - id: "456e7890-e89b-12d3-a456-426614174001"
+                        email: "henri@example.com"
+                        is_primary: true
+                        is_verified: true
+                      - id: "789e0123-e89b-12d3-a456-426614174002"
+                        email: "henri@github.com"
+                        is_primary: false
+                        is_verified: false
+                    new_email_added: true
+                    new_email: "henri@github.com"
         "400":
-          description: Missing or invalid authorization code / unsupported provider
+          description: Missing or invalid authorization code / unsupported provider / invalid state parameter
         "401":
           description: Authentication rejected by the provider
+        "409":
+          description: Provider linking conflict
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  operation:
+                    type: string
+                    enum: [link]
+                  error:
+                    type: string
+                  message:
+                    type: string
+              examples:
+                already_linked_same_user:
+                  summary: Provider already linked to same user
+                  value:
+                    operation: "link"
+                    error: "provider_already_linked_to_same_user"
+                    message: "GitHub is already linked to your account"
+                already_linked_different_user:
+                  summary: Provider linked to different user
+                  value:
+                    operation: "link"
+                    error: "provider_already_linked"
+                    message: "This GitHub account is already linked to another user"
         "500":
           description: Error while communicating with the OAuth provider
 
