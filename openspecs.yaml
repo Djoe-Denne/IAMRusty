@@ -54,8 +54,8 @@ paths:
             type: string
             pattern: '^Bearer .+'
       responses:
-        "302":
-          description: Redirect to OAuth2 provider
+        "307":
+          description: Temporary redirect to OAuth2 provider
           headers:
             Location:
               description: OAuth2 provider authorization URL with state parameter

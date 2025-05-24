@@ -52,3 +52,12 @@ tower-http = { version = "0.5.2", features = ["trace", "catch-panic"] }
 
 [dev-dependencies]
 tokio = { version = "1.44", features = ["rt-multi-thread", "macros"] }
+axum-test = "17.3.0"
+wiremock = "0.6.3"
+testcontainers = "0.23.1"
+testcontainers-modules = { version = "0.11.0", features = ["postgres"] }
+sqlx = { version = "0.8.0", features = ["postgres", "runtime-tokio-rustls"] }
+sea-orm-cli = "1.1.11"
+url = "2.5.0"
+futures = "0.3.30"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter", "fmt"] }

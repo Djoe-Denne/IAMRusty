@@ -257,59 +257,89 @@ The operation type is encoded in the OAuth state parameter, ensuring secure and 
 
 ### Prerequisites
 
-- Rust (latest stable)
-- PostgreSQL
-- SeaORM CLI: `cargo install sea-orm-cli`
+- Rust 1.70+
+- PostgreSQL (for production) or Docker (for development/testing)
+- OAuth2 provider credentials (GitHub, GitLab, etc.)
 
 ### Quick Start
 
-1. **Clone and setup**:
-   ```bash
-   git clone <repository-url>
-   cd iam
-   ```
+1. **Configuration**: Set up your environment variables or configuration file (see [Configuration](#configuration) section)
 
-2. **Start PostgreSQL**:
+2. **Database Setup**: 
    ```bash
+   # Using Docker (recommended for development)
    docker-compose up postgres -d
+   
+   # Run migrations
+   cd migration && cargo run -- up
    ```
 
-3. **Configure environment**:
+3. **Start the service**:
    ```bash
-   cp .env.example .env  # or create a new .env file
-   # Edit .env with your configuration
+   cargo run
    ```
 
-4. **Run database migrations**:
+4. **Test OAuth integration**:
    ```bash
-   cd migration
-   cargo run -- up
-   cd ..
+   # Modern way (recommended)
+   just test-integration          # Using just
+   cargo make test-integration    # Using cargo-make
+   
+   # Traditional way  
+   cargo test --test integration_auth_oauth_flow
    ```
 
-5. **Build and run**:
-   ```bash
-   cargo build --release
-   cargo run --release
-   ```
+### 🧪 OAuth Integration Tests
 
-The service will start on `http://localhost:8080` by default.
+The service includes comprehensive integration tests for OAuth authentication flows with testcontainers for PostgreSQL. These tests validate:
 
-### Development Setup
+- **OAuth Start Endpoints**: GitHub/GitLab redirects, provider validation, state management
+- **OAuth Callbacks**: Login flow, provider linking, error handling  
+- **Security Features**: State parameter integrity, tamper resistance, nonce validation
+- **Performance**: Concurrent flows, database cleanup efficiency
+
+#### Running Tests
+
+**Modern Task Runner** (recommended):
 
 ```bash
-# Build in development mode
-cargo build
+# Install just (modern, clean syntax)
+cargo install just
 
-# Run with debug logging
-RUST_LOG=debug cargo run
+# Run OAuth integration tests
+just test-integration
+just test-single test_oauth_start_github_redirects_properly
+just test-debug                # With full debugging output
+just watch                     # Auto-run on file changes
 
-# Run tests
-cargo test
+# Test specific areas
+just test-start                 # OAuth start endpoints
+just test-callback              # OAuth callback handling
+just test-state                 # State management
 
-# Watch for changes (requires cargo-watch)
-cargo watch -x run
+# Development workflow
+just dev                        # Complete setup: dependencies + database + migrations
 ```
+
+**Alternative: Cargo-Make** (Rust-native):
+```bash
+cargo install cargo-make
+cargo make test-integration
+```
+
+**Direct Commands**:
+```bash
+# Run all OAuth integration tests
+cargo test --test integration_auth_oauth_flow
+
+# Run specific test with debugging
+RUST_LOG=debug cargo test test_oauth_start_github_redirects_properly -- --nocapture --exact
+
+# Run with CI optimizations
+CI=true TEST_MAX_CONCURRENCY=2 cargo test --test integration_auth_oauth_flow
+```
+
+For detailed test documentation, see [`tests/README.md`](tests/README.md) and the comprehensive [**Testing Guide**](docs/TESTING_GUIDE.md).
 
 ## API Documentation
 
