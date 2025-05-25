@@ -8,6 +8,7 @@ Comprehensive guide for using the test database system with testcontainers, sing
 - [Architecture](#architecture)
 - [Quick Start](#quick-start)
 - [Usage Patterns](#usage-patterns)
+- [Database Fixtures Integration](#database-fixtures-integration)
 - [Configuration](#configuration)
 - [Best Practices](#best-practices)
 - [Troubleshooting](#troubleshooting)
@@ -22,6 +23,7 @@ The test database system provides:
 - **Configuration Integration**: Seamless integration with the app's config system
 - **Migration Management**: Automatic database migration execution
 - **Automatic Cleanup**: Container cleanup on test completion with multiple safety mechanisms
+- **Database Fixtures**: Integrated with comprehensive DB fixture system for entity creation and validation
 
 ### Key Features
 
@@ -228,6 +230,291 @@ async fn test_foreign_keys() {
     // Cleanup will handle foreign keys properly
 }
 ```
+
+## Database Fixtures Integration
+
+The test database system integrates seamlessly with the comprehensive database fixture system, providing a fluent API for entity creation and validation. This combination offers the best of both worlds: reliable database infrastructure and convenient entity management.
+
+### Overview
+
+The database fixtures provide:
+
+- **Fluent API**: Chainable methods for entity creation
+- **Type Safety**: Strongly typed entity builders
+- **Factory Methods**: Pre-built entities for common scenarios
+- **Validation**: Check methods to verify entity state against database
+- **Automatic Cleanup**: Works with table truncation for test isolation
+
+### Basic Integration
+
+```rust
+mod common;
+mod fixtures;
+
+use common::TestFixture;
+use fixtures::DbFixtures;
+use serial_test::serial;
+
+#[tokio::test]
+#[serial]
+async fn test_user_with_fixtures() {
+    // Setup test database
+    let test_fixture = TestFixture::new().await.expect("Failed to create test fixture");
+    let db = test_fixture.db();
+    
+    // Create user using database fixtures
+    let user = DbFixtures::user()
+        .username("test_user")
+        .avatar_url(Some("https://example.com/avatar.png".to_string()))
+        .commit(db.clone())
+        .await
+        .expect("Failed to commit user");
+    
+    // Verify the user exists in the database
+    assert!(user.check(db.clone()).await.expect("Failed to check user"));
+    
+    // Access user properties
+    assert_eq!(user.username(), "test_user");
+    assert_eq!(user.avatar_url(), Some(&"https://example.com/avatar.png".to_string()));
+    
+    println!("✅ User created with ID: {}", user.id());
+    
+    // Table truncation will clean up automatically
+}
+```
+
+### Factory Methods with Test Database
+
+```rust
+#[tokio::test]
+#[serial]
+async fn test_factory_methods_integration() {
+    let test_fixture = TestFixture::new().await.expect("Failed to create test fixture");
+    let db = test_fixture.db();
+    
+    // Create users using factory methods
+    let arthur = DbFixtures::user().arthur().commit(db.clone()).await?;
+    let bob = DbFixtures::user().bob().commit(db.clone()).await?;
+    let alice = DbFixtures::user().alice().commit(db.clone()).await?;
+    
+    // Verify factory method data
+    assert_eq!(arthur.username(), "arthur");
+    assert_eq!(bob.username(), "bob");
+    assert_eq!(alice.username(), "alice");
+    
+    // All users should exist in database
+    assert!(arthur.check(db.clone()).await?);
+    assert!(bob.check(db.clone()).await?);
+    assert!(alice.check(db.clone()).await?);
+    
+    // Verify in database using raw SQL
+    let count_result = db
+        .query_one(sea_orm::Statement::from_string(
+            sea_orm::DatabaseBackend::Postgres,
+            "SELECT COUNT(*) as count FROM users".to_string(),
+        ))
+        .await
+        .expect("Failed to count users");
+    
+    let count: i64 = count_result
+        .unwrap()
+        .try_get("", "count")
+        .expect("Failed to get count");
+    
+    assert_eq!(count, 3);
+}
+```
+
+### Complete Entity Relationships
+
+```rust
+#[tokio::test]
+#[serial]
+async fn test_complete_user_setup_with_fixtures() {
+    let test_fixture = TestFixture::new().await.expect("Failed to create test fixture");
+    let db = test_fixture.db();
+    
+    // Create a complete user setup with all related entities
+    let user = DbFixtures::user()
+        .arthur()
+        .commit(db.clone())
+        .await?;
+    
+    // Add primary email
+    let primary_email = DbFixtures::user_email()
+        .arthur_primary(user.id())
+        .commit(db.clone())
+        .await?;
+    
+    // Add GitHub provider token
+    let github_token = DbFixtures::provider_token()
+        .arthur_github(user.id())
+        .commit(db.clone())
+        .await?;
+    
+    // Add refresh token
+    let refresh_token = DbFixtures::refresh_token()
+        .arthur_valid(user.id())
+        .commit(db.clone())
+        .await?;
+    
+    // Verify all entities exist using fixtures
+    assert!(user.check(db.clone()).await?);
+    assert!(primary_email.check(db.clone()).await?);
+    assert!(github_token.check(db.clone()).await?);
+    assert!(refresh_token.check(db.clone()).await?);
+    
+    // Verify relationships
+    assert_eq!(primary_email.user_id(), user.id());
+    assert_eq!(github_token.user_id(), user.id());
+    assert_eq!(refresh_token.user_id(), user.id());
+    
+    // Verify using raw SQL queries
+    let email_count: i64 = db
+        .query_one(sea_orm::Statement::from_string(
+            sea_orm::DatabaseBackend::Postgres,
+            format!("SELECT COUNT(*) as count FROM user_emails WHERE user_id = '{}'", user.id()),
+        ))
+        .await?
+        .unwrap()
+        .try_get("", "count")?;
+    
+    assert_eq!(email_count, 1);
+    
+    println!("✅ Complete user setup created:");
+    println!("   User: {} ({})", user.username(), user.id());
+    println!("   Primary Email: {} ({})", primary_email.email(), primary_email.id());
+    println!("   GitHub Token: {} ({})", github_token.provider_user_id(), github_token.id());
+    println!("   Refresh Token: {} ({})", refresh_token.is_usable(), refresh_token.id());
+}
+```
+
+### Fixture Validation and Database State
+
+```rust
+#[tokio::test]
+#[serial]
+async fn test_fixture_validation_with_database() {
+    let test_fixture = TestFixture::new().await.expect("Failed to create test fixture");
+    let db = test_fixture.db();
+    
+    // Create and commit a user fixture
+    let original_user = DbFixtures::user()
+        .username("original_user")
+        .avatar_url(Some("https://example.com/original.png".to_string()))
+        .commit(db.clone())
+        .await?;
+    
+    // Initially, the fixture should match the database
+    assert!(original_user.check(db.clone()).await?);
+    
+    // Manually modify the database using raw SQL
+    db.execute(sea_orm::Statement::from_string(
+        sea_orm::DatabaseBackend::Postgres,
+        format!(
+            "UPDATE users SET username = 'modified_user', avatar_url = 'https://example.com/modified.png' WHERE id = '{}'",
+            original_user.id()
+        ),
+    ))
+    .await?;
+    
+    // The original fixture should now fail the check
+    let check_result = original_user.check(db.clone()).await?;
+    assert!(!check_result, "Original fixture should fail check after database was modified");
+    
+    // Verify the original fixture still has the old data (unchanged)
+    assert_eq!(original_user.username(), "original_user");
+    assert_eq!(original_user.avatar_url(), Some(&"https://example.com/original.png".to_string()));
+    
+    // Verify the database has the new data
+    let updated_user = db
+        .query_one(sea_orm::Statement::from_string(
+            sea_orm::DatabaseBackend::Postgres,
+            format!("SELECT username, avatar_url FROM users WHERE id = '{}'", original_user.id()),
+        ))
+        .await?
+        .unwrap();
+    
+    let db_username: String = updated_user.try_get("", "username")?;
+    let db_avatar_url: Option<String> = updated_user.try_get("", "avatar_url")?;
+    
+    assert_eq!(db_username, "modified_user");
+    assert_eq!(db_avatar_url, Some("https://example.com/modified.png".to_string()));
+    
+    println!("✅ Fixture validation correctly detected database changes");
+}
+```
+
+### Combining with Configuration
+
+```rust
+#[tokio::test]
+#[serial]
+async fn test_fixtures_with_configuration() {
+    let test_fixture = TestFixture::new().await.expect("Failed to create test fixture");
+    let db = test_fixture.db();
+    let config = test_fixture.config();
+    
+    // Create user with configuration-aware data
+    let user = DbFixtures::user()
+        .username("config_test_user")
+        .commit(db.clone())
+        .await?;
+    
+    // Create provider token using configuration values
+    let github_token = DbFixtures::provider_token()
+        .user_id(user.id())
+        .provider("github")
+        .access_token("test_access_token")
+        .provider_user_id("github_user_123")
+        .commit(db.clone())
+        .await?;
+    
+    // Verify entities exist
+    assert!(user.check(db.clone()).await?);
+    assert!(github_token.check(db.clone()).await?);
+    
+    // Use configuration in test logic
+    assert_eq!(config.oauth.github.client_id, "test_github_client_id");
+    assert_eq!(github_token.provider(), "github");
+    
+    println!("✅ Fixtures work seamlessly with test configuration");
+    println!("   GitHub Client ID: {}", config.oauth.github.client_id);
+    println!("   User ID: {}", user.id());
+    println!("   Token Provider: {}", github_token.provider());
+}
+```
+
+### Performance Benefits
+
+The combination of test database and fixtures provides excellent performance:
+
+1. **Single Container**: Database container is reused across all tests
+2. **Table Truncation**: Fast cleanup between tests (faster than container recreation)
+3. **Efficient Fixtures**: Fixtures use prepared statements and optimized queries
+4. **Connection Pooling**: Shared connection pool reduces overhead
+5. **Batch Operations**: Fixtures can be created in batches for complex scenarios
+
+### Best Practices for Integration
+
+1. **Use Both Systems**: Combine raw SQL for complex queries with fixtures for entity creation
+2. **Validate with Fixtures**: Use fixture check methods for entity validation
+3. **Factory Methods**: Prefer factory methods for common test scenarios
+4. **Custom Data**: Use fluent API for test-specific entity customization
+5. **Relationships**: Create parent entities before child entities
+6. **Serial Tests**: Always use `#[serial]` for database tests
+7. **Error Handling**: Use descriptive error messages with `.expect()`
+
+### Available Database Fixtures
+
+The following entity fixtures are available for use with the test database:
+
+- **User Fixtures**: `DbFixtures::user()` - Create users with factory methods (arthur, bob, alice, charlie)
+- **User Email Fixtures**: `DbFixtures::user_email()` - Create user emails with primary/secondary options
+- **Provider Token Fixtures**: `DbFixtures::provider_token()` - Create OAuth provider tokens (GitHub, GitLab)
+- **Refresh Token Fixtures**: `DbFixtures::refresh_token()` - Create JWT refresh tokens with expiration
+
+For detailed documentation on each fixture type, see the [Fixtures Guide](FIXTURES_GUIDE.md#database-fixtures).
 
 ## Configuration
 

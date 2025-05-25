@@ -10,7 +10,10 @@ default:
     @just --list
 
 # 🧪 Testing Tasks
-test: test-unit test-integration test-fixtures cleanup-containers
+test: test-unit test-integration cleanup-containers
+
+# Run all tests including examples
+test-all: test test-integration-examples
 
 # Run unit tests only
 test-unit:
@@ -23,11 +26,37 @@ test-integration:
     @echo "🧹 Cleaning up test containers..."
     @just cleanup-containers
 
-# Run fixture tests
-test-fixtures:
-    @echo "🧪 Running fixture tests..."
-    cargo test --test example_fixture_usage -- --nocapture
-    cargo test --test integration_with_fixtures_example -- --nocapture
+# Run integration example tests
+test-integration-examples:
+    @echo "🧪 Running integration example tests..."
+    @just test-example-http-fixtures
+    @just test-example-db-fixtures
+    @just test-example-combined-fixtures
+    @echo "🧹 Cleaning up test containers..."
+    @just cleanup-containers
+
+# Run HTTP fixture examples
+test-example-http-fixtures:
+    @echo "🧪 Running HTTP fixture examples..."
+    cargo test --test example_http_fixtures -- --nocapture
+
+# Run database fixture examples
+test-example-db-fixtures:
+    @echo "🧪 Running database fixture examples..."
+    cargo test --test example_db_fixtures -- --nocapture
+
+# Run combined fixture examples
+test-example-combined-fixtures:
+    @echo "🧪 Running combined fixture examples..."
+    cargo test --test example_combined_fixtures -- --nocapture
+
+# Run a specific example test
+test-example TEST:
+    @echo "🧪 Running specific example test: {{TEST}}"
+    cargo test --test example_http_fixtures {{TEST}} -- --nocapture
+    cargo test --test example_db_fixtures {{TEST}} -- --nocapture
+    cargo test --test example_combined_fixtures {{TEST}} -- --nocapture
+    @just cleanup-containers
 
 # Clean up specific test container only
 cleanup-containers:
@@ -77,6 +106,15 @@ test-callback:
 
 test-state:
     cargo test --test integration_auth_oauth_flow test_oauth_state
+
+# 📚 Example Tests
+# Run all example tests
+examples: test-integration-examples
+
+# Run specific example categories
+examples-http: test-example-http-fixtures
+examples-db: test-example-db-fixtures
+examples-combined: test-example-combined-fixtures
 
 # 🔧 Development
 dev-setup:

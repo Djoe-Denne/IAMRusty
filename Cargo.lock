@@ -2085,6 +2085,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "application",
+ "async-trait",
  "axum",
  "axum-test",
  "chrono",
@@ -2102,6 +2103,7 @@ dependencies = [
  "migration",
  "oauth2 4.4.2",
  "openidconnect",
+ "rand 0.8.5",
  "sea-orm",
  "sea-orm-cli",
  "sea-orm-migration",
