@@ -50,6 +50,9 @@ pub struct LoginResponse {
 /// Login use case interface
 #[async_trait]
 pub trait LoginUseCase: Send + Sync {
+    /// Generate OAuth authorization URL for login flow
+    fn generate_start_url(&self, provider: Provider) -> Result<String, LoginError>;
+
     /// Exchange authorization code for tokens and login user
     async fn login(
         &self,
@@ -129,6 +132,13 @@ where
     <RR as RefreshTokenRepository>::Error: std::error::Error + Send + Sync + 'static,
     TS::Error: std::error::Error + Send + Sync + 'static,
 {
+    fn generate_start_url(&self, provider: Provider) -> Result<String, LoginError> {
+        match provider {
+            Provider::GitHub => Ok(self.github_auth.generate_authorize_url()),
+            Provider::GitLab => Ok(self.gitlab_auth.generate_authorize_url()),
+        }
+    }
+
     async fn login(
         &self,
         provider: Provider,

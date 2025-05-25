@@ -31,16 +31,29 @@ use tracing::info;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // Initialize tracing
+    // Load configuration first
+    let config = load_config()?;
+    
+    // Initialize tracing with config-based log level
+    let log_level = match config.logging.level.to_lowercase().as_str() {
+        "trace" => tracing::Level::TRACE,
+        "debug" => tracing::Level::DEBUG,
+        "info" => tracing::Level::INFO,
+        "warn" => tracing::Level::WARN,
+        "error" => tracing::Level::ERROR,
+        _ => tracing::Level::INFO,
+    };
+    
     tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::DEBUG)
+        .with_max_level(log_level)
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(&config.logging.level))
+        )
         .init();
 
     info!("Starting IAM service...");
-
-    // Load configuration
-    let config = load_config()?;
-    info!("Configuration loaded");
+    info!("Configuration loaded with log level: {}", config.logging.level);
 
     // Setup database connection pool
     let db_pool = DbConnectionPool::new(&config.database.url, config.database.read_replicas.clone()).await?;
@@ -69,27 +82,11 @@ async fn main() -> anyhow::Result<()> {
     let refresh_token_repo = CombinedRefreshTokenRepository::new(refresh_token_read_repo, refresh_token_write_repo);
 
     // Create auth services
-    let github_auth_login = GitHubOAuth2Client::new(
-        config.oauth.github.client_id.clone(),
-        config.oauth.github.client_secret.clone(),
-        config.oauth.github.redirect_uri.clone(),
-    );
-    let gitlab_auth_login = GitLabOAuth2Client::new(
-        config.oauth.gitlab.client_id.clone(),
-        config.oauth.gitlab.client_secret.clone(),
-        config.oauth.gitlab.redirect_uri.clone(),
-    );
+    let github_auth_login = GitHubOAuth2Client::from_config(&config.oauth.github);
+    let gitlab_auth_login = GitLabOAuth2Client::from_config(&config.oauth.gitlab);
     
-    let github_auth_link = GitHubOAuth2Client::new(
-        config.oauth.github.client_id.clone(),
-        config.oauth.github.client_secret.clone(),
-        config.oauth.github.redirect_uri.clone(),
-    );
-    let gitlab_auth_link = GitLabOAuth2Client::new(
-        config.oauth.gitlab.client_id.clone(),
-        config.oauth.gitlab.client_secret.clone(),
-        config.oauth.gitlab.redirect_uri.clone(),
-    );
+    let github_auth_link = GitHubOAuth2Client::from_config(&config.oauth.github);
+    let gitlab_auth_link = GitLabOAuth2Client::from_config(&config.oauth.gitlab);
 
     // Create token service
     let token_service = JwtTokenService::new(
@@ -135,6 +132,7 @@ async fn main() -> anyhow::Result<()> {
         Arc::new(user_usecase),
         Arc::new(token_usecase),
         Arc::new(link_provider_usecase),
+        config.oauth.clone(),
     );
 
     // Create server configuration

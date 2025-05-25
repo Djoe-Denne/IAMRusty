@@ -23,6 +23,26 @@ The IAM service uses a comprehensive integration testing approach that validates
 - **CI/CD Optimized**: Automatic environment detection and optimization
 - **Developer Friendly**: Rich fixtures, clear assertions, modern tooling
 
+### Test Coverage Status
+
+#### 🔁 /auth/{provider}/start
+✅ Redirects to provider with proper OAuth parameters  
+✅ Handles both login and link operations based on authentication state  
+✅ Stores state & purpose securely in session or signed parameter  
+✅ Returns 400 for unsupported providers  
+✅ Case-insensitive provider names  
+
+#### 🔁 /auth/{provider}/callback
+✅ Handles successful OAuth2 flow and creates JWT for known user  
+✅ Links external account if state correspond to a link and user is authenticated  
+✅ Associates new provider if same user logs in via another provider  
+✅ Detects and prevents linking a provider already bound to another user  
+✅ Fails on invalid or expired code  
+✅ Returns 400 on missing or invalid state/purpose  
+✅ Returns 401 if provider refuses or rejects user  
+
+**All OAuth callback error scenarios are now fully implemented and tested!**
+
 ## Technologies & Libraries
 
 ### Core Testing Framework

@@ -59,6 +59,9 @@ pub struct LinkProviderResponse {
 /// Link provider use case interface
 #[async_trait]
 pub trait LinkProviderUseCase: Send + Sync {
+    /// Generate OAuth authorization URL for link provider flow
+    fn generate_start_url(&self, provider: Provider) -> Result<String, LinkProviderError>;
+
     /// Link a new OAuth provider to an existing authenticated user
     async fn link_provider(
         &self,
@@ -139,6 +142,13 @@ where
     <RR as RefreshTokenRepository>::Error: std::error::Error + Send + Sync + 'static,
     <TS as TokenService>::Error: std::error::Error + Send + Sync + 'static,
 {
+    fn generate_start_url(&self, provider: Provider) -> Result<String, LinkProviderError> {
+        match provider {
+            Provider::GitHub => Ok(self.github_auth.generate_authorize_url()),
+            Provider::GitLab => Ok(self.gitlab_auth.generate_authorize_url()),
+        }
+    }
+
     async fn link_provider(
         &self,
         user_id: Uuid,

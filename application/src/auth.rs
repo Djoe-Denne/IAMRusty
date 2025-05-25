@@ -26,6 +26,9 @@ pub trait AuthService: Send + Sync {
     /// Get the provider type
     fn provider(&self) -> Provider;
     
+    /// Generate OAuth authorization URL
+    fn generate_authorize_url(&self) -> String;
+    
     /// Exchange an authorization code for access tokens and user profile
     async fn exchange_code(
         &self,
