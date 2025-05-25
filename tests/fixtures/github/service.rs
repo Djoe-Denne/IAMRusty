@@ -2,23 +2,34 @@ use wiremock::{Mock, MockServer, ResponseTemplate, matchers::{method, path, head
 use serde::Serialize;
 use std::sync::Arc;
 use super::resources::*;
-use crate::fixtures::common::get_mock_server;
+use crate::fixtures::common::MockServerFixture;
 
 /// GitHub service for mocking GitHub OAuth endpoints
 pub struct GitHubService {
     server: Arc<MockServer>,
+    _fixture: MockServerFixture, // Keeps the fixture alive for automatic cleanup
 }
 
 impl GitHubService {
-    /// Create a new GitHub service instance
+    /// Create a new GitHub service instance with automatic mock cleanup
     pub async fn new() -> Self {
-        let server = get_mock_server().await;
-        Self { server }
+        let fixture = MockServerFixture::new().await;
+        let server = fixture.server();
+        
+        Self { 
+            server,
+            _fixture: fixture,
+        }
     }
 
     /// Get the base URL for GitHub API mocking
     pub fn base_url(&self) -> String {
         self.server.uri()
+    }
+
+    /// Manual reset of all mocks (also happens automatically when service is dropped)
+    pub async fn reset(&self) {
+        self._fixture.reset().await;
     }
 
     /// Mock OAuth token exchange endpoint
@@ -186,12 +197,6 @@ impl GitHubService {
             GitHubError::server_error(),
         ).await
     }
-
-    /// Reset all mocks (clear all mounted mocks)
-    pub async fn reset(&self) {
-        self.server.reset().await;
-    }
 }
 
-// Note: Removed chain methods due to Serialize trait not being dyn compatible
-// Use individual method calls instead for better type safety 
+// Note: Automatic cleanup happens when GitHubService is dropped via the MockServerFixture 

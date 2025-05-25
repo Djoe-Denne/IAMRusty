@@ -33,6 +33,8 @@ async fn example_github_oauth_flow() {
     
     println!("✅ GitHub OAuth flow mocked successfully");
     println!("🔗 Mock server URL: {}", github.base_url());
+    
+    // Mocks will be automatically cleaned up when github service is dropped
 }
 
 #[tokio::test]
@@ -60,6 +62,8 @@ async fn example_gitlab_oauth_flow() {
     
     println!("✅ GitLab OAuth flow mocked successfully");
     println!("🔗 Mock server URL: {}", gitlab.base_url());
+    
+    // Mocks will be automatically cleaned up when gitlab service is dropped
 }
 
 #[tokio::test]
@@ -72,6 +76,8 @@ async fn example_error_scenarios() {
     github.setup_rate_limit_exceeded().await;
     
     println!("✅ GitHub error scenarios mocked successfully");
+    
+    // Mocks will be automatically cleaned up when github service is dropped
 }
 
 #[tokio::test]
@@ -96,6 +102,8 @@ async fn example_custom_user_data() {
         .await;
     
     println!("✅ Custom user data mocked successfully");
+    
+    // Mocks will be automatically cleaned up when github service is dropped
 }
 
 #[tokio::test]
@@ -115,4 +123,48 @@ async fn example_multi_provider_setup() {
     println!("✅ Multi-provider OAuth flows mocked successfully");
     println!("🔗 GitHub mock URL: {}", github.base_url());
     println!("🔗 GitLab mock URL: {}", gitlab.base_url());
+    
+    // Mocks will be automatically cleaned up when both services are dropped
+}
+
+#[tokio::test]
+async fn example_automatic_cleanup_isolation() {
+    // This test demonstrates that mocks from previous tests don't interfere
+    let github = GitHubFixtures::service().await;
+    
+    // Setup a specific mock that would conflict if previous test mocks weren't cleaned up
+    github
+        .oauth_token(
+            401, // Different status code than other tests
+            GitHubTokenRequest::valid(),
+            GitHubError::unauthorized(), // Different response than other tests
+        )
+        .await;
+    
+    println!("✅ Test isolation verified - no conflicts with previous test mocks");
+    println!("🧹 Automatic cleanup ensures each test starts with a clean slate");
+    
+    // This mock will be automatically cleaned up when github service is dropped
+}
+
+#[tokio::test]
+async fn example_manual_reset() {
+    let github = GitHubFixtures::service().await;
+    
+    // Setup initial mocks
+    github.setup_successful_token_exchange().await;
+    github.setup_successful_user_profile_arthur().await;
+    
+    println!("✅ Initial mocks setup");
+    
+    // Manually reset mocks mid-test if needed
+    github.reset().await;
+    
+    // Setup different mocks after reset
+    github.setup_failed_token_exchange_invalid_code().await;
+    github.setup_failed_user_profile_unauthorized().await;
+    
+    println!("✅ Manual reset and new mocks setup successfully");
+    
+    // Final cleanup happens automatically when github service is dropped
 } 

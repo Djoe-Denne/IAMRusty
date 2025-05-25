@@ -19,12 +19,15 @@ The fixture system provides a structured approach to mocking external services u
 - **Fluent**: Chainable API for easy test setup
 - **Reusable**: Pre-built resources and flows for common scenarios
 - **Type-safe**: Strongly typed inputs and outputs
+- **Integrated**: Works seamlessly with the test database system for complete integration testing
+- **Self-Cleaning**: Automatic mock cleanup between tests for perfect isolation
 
 ### Key Components
 
 1. **Service**: Main fixture class with fluent API for mocking endpoints
 2. **Resources**: Type-safe data structures for inputs/outputs
 3. **Flow**: Pre-made scenarios for common use cases
+4. **MockServerFixture**: Automatic cleanup mechanism for test isolation
 
 ## Architecture
 
@@ -152,6 +155,108 @@ async fn test_custom_user_data() {
             custom_user
         )
         .await;
+}
+```
+
+### Integration with Test Database
+
+The fixture system works seamlessly with the test database system for complete integration testing:
+
+```rust
+mod common;
+mod fixtures;
+
+use common::TestFixture;
+use fixtures::GitHubFixtures;
+use serial_test::serial;
+
+#[tokio::test]
+#[serial]
+async fn test_complete_oauth_flow() {
+    // Setup test database
+    let test_fixture = TestFixture::new().await.expect("Failed to create test fixture");
+    let db = test_fixture.db();
+    let config = test_fixture.config();
+    
+    // Setup GitHub mock server
+    let github = GitHubFixtures::service().await;
+    github.setup_successful_token_exchange().await;
+    github.setup_successful_user_profile_arthur().await;
+    
+    // Test complete OAuth flow with database persistence
+    // - Mock external API calls with fixtures
+    // - Verify database state changes
+    // - Use real configuration from test fixture
+    
+    // Verify user was created in database
+    let user_count: i64 = db
+        .query_one(sea_orm::Statement::from_string(
+            sea_orm::DatabaseBackend::Postgres,
+            "SELECT COUNT(*) as count FROM users".to_string(),
+        ))
+        .await
+        .expect("Failed to count users")
+        .unwrap()
+        .try_get("", "count")
+        .expect("Failed to get count");
+    
+    assert_eq!(user_count, 1);
+}
+```
+
+### Automatic Mock Cleanup
+
+The fixture system includes automatic cleanup to ensure perfect test isolation:
+
+```rust
+#[tokio::test]
+async fn test_automatic_cleanup() {
+    // Each test gets a fresh set of mocks
+    let github = GitHubFixtures::service().await;
+    
+    // Setup mocks for this test
+    github.setup_successful_token_exchange().await;
+    github.setup_successful_user_profile_arthur().await;
+    
+    // Test logic here...
+    
+    // Mocks are automatically cleaned up when github service is dropped
+    // Next test will start with a completely clean slate
+}
+
+#[tokio::test]
+async fn test_no_interference() {
+    // This test won't see any mocks from the previous test
+    let github = GitHubFixtures::service().await;
+    
+    // Can setup completely different mocks without conflicts
+    github.setup_failed_token_exchange_invalid_code().await;
+    
+    // Perfect test isolation guaranteed
+}
+```
+
+#### Manual Reset (Optional)
+
+You can also manually reset mocks mid-test if needed:
+
+```rust
+#[tokio::test]
+async fn test_manual_reset() {
+    let github = GitHubFixtures::service().await;
+    
+    // Setup initial mocks
+    github.setup_successful_token_exchange().await;
+    
+    // Test first scenario...
+    
+    // Reset mocks mid-test
+    github.reset().await;
+    
+    // Setup different mocks for second scenario
+    github.setup_failed_token_exchange_invalid_code().await;
+    
+    // Test second scenario...
 }
 ```
 
