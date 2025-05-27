@@ -26,7 +26,7 @@ async fn test_oauth_flow_with_database_persistence() {
     github.setup_successful_token_exchange().await;
     github.setup_successful_user_profile_arthur().await;
     
-    println!("🔗 Test Database URL: {}", config.database.url);
+    println!("🔗 Test Database URL: {}", config.database.url());
     println!("🔗 GitHub Mock URL: {}", github.base_url());
     
     // Simulate OAuth flow by creating user and provider token records
@@ -217,8 +217,8 @@ async fn test_configuration_consistency() {
     let gitlab = GitLabFixtures::service().await;
     
     // Verify that mock URLs can be used to override config URLs
-    assert!(config.database.url.contains("localhost"));
-    assert!(config.database.url.contains("iam_test"));
+    assert!(config.database.url().contains("localhost"));
+    assert!(config.database.url().contains("iam_test"));
     
     // In a real integration test, you would override the OAuth URLs with mock URLs
     println!("✅ Configuration consistency verified");

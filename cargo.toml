@@ -7,7 +7,7 @@ description = "IAM microservice with OAuth2, OpenID Connect, JWT, PostgreSQL, Ax
 license = "MIT OR Apache-2.0"
 
 [workspace]
-members = ["domain", "application", "infra", "http", "migration"]
+members = ["domain", "application", "infra", "http", "migration", "setup"]
 
 [dependencies]
 # Internal workspace crates
@@ -15,6 +15,7 @@ domain = { path = "domain" }
 application = { path = "application" }
 infra = { path = "infra" }
 http_server = { path = "http" }
+setup = { path = "setup" }
 
 # Web & HTTP
 axum = { version = "0.8.4", features = ["macros", "json"] }
@@ -47,7 +48,7 @@ tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter", "fmt", "json"] }
 
 # Middleware / tower layers
-tower = "0.4.13"
+tower = { version = "0.4.13", features = ["util"] }
 tower-http = { version = "0.5.2", features = ["trace", "catch-panic"] }
 
 [dev-dependencies]
@@ -69,3 +70,5 @@ libc = "0.2"
 ctor = "0.2.0"
 rand = "0.8.5"
 async-trait = "0.1.74"
+reqwest = { version = "0.12.0", features = ["json"] }
+base64 = "0.22.0"

@@ -7,7 +7,7 @@ use thiserror::Error;
 
 /// OAuth operation type
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(tag = "operation")]
+#[serde(tag = "type")]
 pub enum OAuthOperation {
     /// Login operation (create new user or authenticate existing)
     #[serde(rename = "login")]

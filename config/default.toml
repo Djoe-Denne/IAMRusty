@@ -2,14 +2,22 @@
 
 [server]
 host = "127.0.0.1"
-port = 8080
+port = 8081
 tls_enabled = false
 tls_cert_path = "./certs/cert.pem"
 tls_key_path = "./certs/key.pem"
 tls_port = 8443
 
 [database]
-url = "postgres://postgres:postgres@localhost:5432/iam"
+# Database connection details
+host = "localhost"
+port = 5432
+db = "iam_dev"
+# Database credentials
+[database.creds]
+username = "postgres"
+password = "postgres"
+
 # Specify read replicas if using a read/write split
 read_replicas = []
 

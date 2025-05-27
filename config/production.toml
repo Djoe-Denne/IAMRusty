@@ -9,7 +9,15 @@ tls_key_path = "/etc/ssl/private/iam.key"
 tls_port = 8443
 
 [database]
-url = "postgres://postgres:postgres@db:5432/iam_prod"
+# Database connection details
+host = "db"
+port = 5432
+db = "iam_prod"
+# Database credentials
+[database.creds]
+username = "postgres"
+password = "postgres"
+
 # Add read replicas for production
 read_replicas = ["postgres://postgres:postgres@db-read-1:5432/iam_prod", "postgres://postgres:postgres@db-read-2:5432/iam_prod"]
 

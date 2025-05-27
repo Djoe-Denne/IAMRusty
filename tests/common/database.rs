@@ -59,7 +59,7 @@ impl TestDatabase {
         let database_url = container.database_url.clone();
         
         // Create connection pool
-        let pool = DbConnectionPool::new(&database_url, vec![]).await?;
+        let pool = DbConnectionPool::new_from_url(&database_url, vec![]).await?;
         let connection = pool.get_write_connection();
         
         // Run migrations
@@ -153,7 +153,20 @@ impl TestDatabase {
     /// Create a test configuration with the test database URL
     pub fn create_test_config(&self) -> AppConfig {
         let mut config = create_base_test_config();
-        config.database.url = self.database_url.clone();
+        // Parse the test database URL and update the config
+        if let Ok(db_config) = DatabaseConfig::from_url(&self.database_url) {
+            config.database = db_config;
+        } else {
+            // Fallback to manual parsing if URL parsing fails
+            // Use the same settings as the loaded config would have
+            config.database = DatabaseConfig::new(
+                "postgres".to_string(),
+                "postgres".to_string(),
+                "localhost".to_string(),
+                0, // Use random port like the config
+                "iam_test".to_string(),
+            );
+        }
         config
     }
     
@@ -182,26 +195,47 @@ async fn get_or_create_test_container() -> Result<Arc<TestDatabaseContainer>, Db
     
     info!("Creating new PostgreSQL test container");
     
-    // Create PostgreSQL container using GenericImage with a static name
+    // Clear all configuration caches to ensure fresh random port generation
+    infra::config::clear_all_caches();
+    
+    // First, try to clean up any existing container with the same name
+    cleanup_existing_container().await;
+    
+    // Load test configuration to get database settings
+    let config = create_base_test_config();
+    let db_config = &config.database;
+    
+    // Determine the port to use
+    let host_port = if db_config.port == 0 {
+        // Use a random available port
+        db_config.actual_port()
+    } else {
+        db_config.port
+    };
+    
+    // Create PostgreSQL container using GenericImage with configuration-based settings
     let postgres_image = GenericImage::new("postgres", "15-alpine")
-        .with_env_var("POSTGRES_DB", "iam_test")
-        .with_env_var("POSTGRES_USER", "postgres")
-        .with_env_var("POSTGRES_PASSWORD", "postgres")
-        .with_container_name("iam-test-db"); // Static name for easy cleanup
+        .with_env_var("POSTGRES_DB", &db_config.db)
+        .with_env_var("POSTGRES_USER", &db_config.creds.username)
+        .with_env_var("POSTGRES_PASSWORD", &db_config.creds.password)
+        .with_container_name("iam-test-db") // Static name for easy cleanup
+        .with_mapped_port(host_port, testcontainers::core::ContainerPort::Tcp(5432)); // Map host port to container port 5432
     
     let container = postgres_image
         .start()
         .await
         .map_err(|e| DbErr::Custom(format!("Failed to start container: {}", e)))?;
     
-    let port = container.get_host_port_ipv4(5432).await
-        .map_err(|e| DbErr::Custom(format!("Failed to get container port: {}", e)))?;
     let database_url = format!(
-        "postgres://postgres:postgres@localhost:{}/iam_test",
-        port
+        "postgres://{}:{}@{}:{}/{}",
+        db_config.creds.username,
+        db_config.creds.password,
+        db_config.host,
+        host_port,
+        db_config.db
     );
     
-    info!("Test database container started on port {}", port);
+    info!("Test database container started on port {}", host_port);
     info!("Database URL: {}", database_url);
     
     // Wait for database to be ready
@@ -210,7 +244,7 @@ async fn get_or_create_test_container() -> Result<Arc<TestDatabaseContainer>, Db
     let test_container = Arc::new(TestDatabaseContainer {
         container,
         database_url,
-        port,
+        port: host_port,
     });
     
     *container_guard = Some(test_container.clone());
@@ -219,6 +253,47 @@ async fn get_or_create_test_container() -> Result<Arc<TestDatabaseContainer>, Db
     register_cleanup_handler().await;
     
     Ok(test_container)
+}
+
+/// Clean up any existing container with the test name
+async fn cleanup_existing_container() {
+    use std::process::Command;
+    
+    debug!("Checking for existing test container 'iam-test-db'");
+    
+    // Try to stop the container if it's running
+    let stop_result = Command::new("docker")
+        .args(&["stop", "iam-test-db"])
+        .output();
+    
+    match stop_result {
+        Ok(output) if output.status.success() => {
+            debug!("Stopped existing container 'iam-test-db'");
+        }
+        Ok(_) => {
+            debug!("Container 'iam-test-db' was not running or doesn't exist");
+        }
+        Err(e) => {
+            debug!("Failed to stop container: {}", e);
+        }
+    }
+    
+    // Try to remove the container
+    let rm_result = Command::new("docker")
+        .args(&["rm", "-f", "iam-test-db"])
+        .output();
+    
+    match rm_result {
+        Ok(output) if output.status.success() => {
+            debug!("Removed existing container 'iam-test-db'");
+        }
+        Ok(_) => {
+            debug!("Container 'iam-test-db' was already removed or doesn't exist");
+        }
+        Err(e) => {
+            debug!("Failed to remove container: {}", e);
+        }
+    }
 }
 
 /// Wait for the database to be ready for connections
@@ -300,50 +375,18 @@ async fn register_cleanup_handler() {
 
 /// Create a base test configuration
 fn create_base_test_config() -> AppConfig {
-    AppConfig {
-        server: infra::config::ServerConfig {
-            host: "127.0.0.1".to_string(),
-            port: 8080,
-            tls_enabled: false,
-            tls_cert_path: "./certs/cert.pem".to_string(),
-            tls_key_path: "./certs/key.pem".to_string(),
-            tls_port: 8443,
-        },
-        database: DatabaseConfig {
-            url: "postgres://postgres:postgres@localhost:5432/iam_test".to_string(), // Will be overridden
-            read_replicas: vec![],
-        },
-        oauth: infra::config::OAuthConfig {
-            github: infra::config::GitHubConfig {
-                client_id: "test_github_client_id".to_string(),
-                client_secret: "test_github_client_secret".to_string(),
-                redirect_uri: "http://localhost:8080/api/auth/github/callback".to_string(),
-                auth_url: "http://localhost:3000/login/oauth/authorize".to_string(),
-                token_url: "http://localhost:3000/login/oauth/access_token".to_string(),
-                user_url: "http://localhost:3000/user".to_string(),
-            },
-            gitlab: infra::config::GitLabConfig {
-                client_id: "test_gitlab_client_id".to_string(),
-                client_secret: "test_gitlab_client_secret".to_string(),
-                redirect_uri: "http://localhost:8080/api/auth/gitlab/callback".to_string(),
-                auth_url: "http://localhost:3000/oauth/authorize".to_string(),
-                token_url: "http://localhost:3000/oauth/token".to_string(),
-                user_url: "http://localhost:3000/api/v4/user".to_string(),
-            },
-        },
-        jwt: infra::config::JwtConfig {
-            secret: "test_jwt_secret_for_testing_only_must_be_at_least_32_bytes_long".to_string(),
-            expiration_seconds: 3600,
-        },
-        logging: infra::config::LoggingConfig {
-            level: "debug".to_string(),
-        },
-    }
+    // Load configuration from test.toml
+    // The RUN_ENV=test environment variable should be set by the justfile
+    infra::config::load_config().expect(
+        "Failed to load test configuration. Make sure RUN_ENV=test is set and config/test.toml exists."
+    )
 }
 
 /// Test fixture that automatically cleans up after each test
 pub struct TestFixture {
     pub database: TestDatabase,
+    /// Flag to track if this fixture should cleanup the container on drop
+    cleanup_container_on_drop: bool,
 }
 
 impl TestFixture {
@@ -354,12 +397,10 @@ impl TestFixture {
         // Clean up any existing data
         database.truncate_all_tables().await?;
         
-        Ok(Self { database })
-    }
-    
-    /// Get the test configuration
-    pub fn config(&self) -> AppConfig {
-        self.database.create_test_config()
+        Ok(Self { 
+            database,
+            cleanup_container_on_drop: false,
+        })
     }
     
     /// Get the database connection
@@ -367,14 +408,14 @@ impl TestFixture {
         self.database.get_connection()
     }
     
-    /// Get the database pool
-    pub fn pool(&self) -> &DbConnectionPool {
-        self.database.get_pool()
-    }
-    
     /// Manual cleanup (automatically called on drop)
     pub async fn cleanup(&self) -> Result<(), DbErr> {
         self.database.truncate_all_tables().await
+    }
+    
+    /// Get the test configuration
+    pub fn config(&self) -> AppConfig {
+        self.database.create_test_config()
     }
     
     /// Cleanup the global test container (stops and removes it)
@@ -384,31 +425,90 @@ impl TestFixture {
             let mut container_guard = container_mutex.lock().await;
             if let Some(container_arc) = container_guard.take() {
                 info!("Manually cleaning up test database container");
+                
+                // Get the container name for fallback cleanup
+                let container_name = "iam-test-db";
+                
                 // Try to unwrap the Arc to get ownership
                 match Arc::try_unwrap(container_arc) {
                     Ok(container) => {
                         container.cleanup().await;
                         info!("Test database container cleanup completed");
                     }
-                    Err(_) => {
-                        warn!("Could not cleanup container: still has references");
+                    Err(arc) => {
+                        warn!("Could not cleanup container: still has {} references", Arc::strong_count(&arc));
+                        info!("Attempting fallback cleanup using Docker commands");
+                        
+                        // Fallback: use direct Docker commands
+                        use std::process::Command;
+                        
+                        // Stop the container
+                        let stop_result = Command::new("docker")
+                            .args(&["stop", container_name])
+                            .output();
+                        
+                        match stop_result {
+                            Ok(output) if output.status.success() => {
+                                info!("Successfully stopped container {}", container_name);
+                            }
+                            Ok(output) => {
+                                let stderr = String::from_utf8_lossy(&output.stderr);
+                                warn!("Failed to stop container {}: {}", container_name, stderr);
+                            }
+                            Err(e) => {
+                                warn!("Failed to execute docker stop: {}", e);
+                            }
+                        }
+                        
+                        // Remove the container
+                        let rm_result = Command::new("docker")
+                            .args(&["rm", "-f", container_name])
+                            .output();
+                        
+                        match rm_result {
+                            Ok(output) if output.status.success() => {
+                                info!("Successfully removed container {}", container_name);
+                            }
+                            Ok(output) => {
+                                let stderr = String::from_utf8_lossy(&output.stderr);
+                                warn!("Failed to remove container {}: {}", container_name, stderr);
+                            }
+                            Err(e) => {
+                                warn!("Failed to execute docker rm: {}", e);
+                            }
+                        }
                     }
                 }
+            } else {
+                debug!("No test container to cleanup");
             }
+        } else {
+            debug!("Test container mutex not initialized");
         }
         Ok(())
     }
+    
 }
 
 impl Drop for TestFixture {
     fn drop(&mut self) {
         // Schedule cleanup in a blocking context
-        // Note: This is best effort cleanup. The main cleanup happens in TestFixture::new()
         if let Ok(rt) = tokio::runtime::Handle::try_current() {
             let database = self.database.connection.clone();
+            let cleanup_container = self.cleanup_container_on_drop;
+            
             rt.spawn(async move {
+                // Always truncate tables
                 if let Err(e) = truncate_tables_best_effort(&database).await {
                     warn!("Failed to cleanup test database on drop: {}", e);
+                }
+                
+                // Optionally cleanup container
+                if cleanup_container {
+                    info!("Cleaning up test container on TestFixture drop");
+                    if let Err(e) = TestFixture::cleanup_container().await {
+                        warn!("Failed to cleanup container on drop: {}", e);
+                    }
                 }
             });
         }
@@ -478,7 +578,7 @@ mod tests {
         let fixture = TestFixture::new().await.expect("Failed to create test fixture");
         let config = fixture.config();
         
-        assert!(config.database.url.contains("localhost"));
+        assert!(config.database.url().contains("localhost"));
         assert_eq!(config.jwt.secret, "test_jwt_secret_for_testing_only_must_be_at_least_32_bytes_long");
     }
 } 

@@ -1,10 +1,17 @@
 # Development environment configuration
 
 [server]
-port = 8080
+port = 8081
 
 [database]
-url = "postgres://postgres:postgres@localhost:5432/iam_dev"
+# Database connection details
+host = "localhost"
+port = 5432
+db = "iam_dev"
+# Database credentials
+[database.creds]
+username = "postgres"
+password = "postgres"
 
 # Enable debug level logging
 [logging]

@@ -14,8 +14,12 @@ static CLEANUP_REGISTERED: AtomicBool = AtomicBool::new(false);
 pub async fn get_mock_server() -> Arc<MockServer> {
     MOCK_SERVER
         .get_or_init(|| async {
-            let server = Arc::new(MockServer::start().await);
-            info!("🚀 Started shared wiremock server at: {}", server.uri());
+            // Create a TCP listener on port 3000
+            let listener = std::net::TcpListener::bind("127.0.0.1:3000")
+                .expect("Failed to bind to port 3000");
+            
+            let server = Arc::new(MockServer::builder().listener(listener).start().await);
+            eprintln!("🚀 Started shared wiremock server at: {}", server.uri());
             
             // Register cleanup handler on first server creation
             register_cleanup_handler().await;

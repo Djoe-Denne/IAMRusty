@@ -29,7 +29,8 @@ pub use handlers::{
     user::get_user,
     token::refresh_token,
 };
-use middleware_auth::auth;
+pub use middleware_auth::auth;
+use middleware_auth::auth as auth_middleware;
 
 /// Application state for HTTP handlers
 #[derive(Clone)]
@@ -83,7 +84,7 @@ pub async fn serve(state: AppState, addr: &str) -> anyhow::Result<()> {
         .route("/api/token/refresh", post(refresh_token))
         .route(
             "/api/me",
-            get(get_user).route_layer(middleware::from_fn_with_state(state.clone(), auth)),
+            get(get_user).route_layer(middleware::from_fn_with_state(state.clone(), auth_middleware)),
         )
         .with_state(state);
 
@@ -93,16 +94,23 @@ pub async fn serve(state: AppState, addr: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Health check handler
+async fn health_check() -> &'static str {
+    "OK"
+}
+
 /// Start the server with optional HTTPS support
 pub async fn serve_with_config(state: AppState, config: ServerConfig) -> anyhow::Result<()> {
     let app = Router::new()
+        .route("/health", get(health_check))
         .route("/api/auth/{provider}/start", get(oauth_start))
         .route("/api/auth/{provider}/callback", get(oauth_callback))
         .route("/api/token/refresh", post(refresh_token))
         .route(
             "/api/me",
-            get(get_user).route_layer(middleware::from_fn_with_state(state.clone(), auth)),
+            get(get_user).route_layer(middleware::from_fn_with_state(state.clone(), auth_middleware)),
         )
+
         .with_state(state);
 
     if config.tls_enabled {

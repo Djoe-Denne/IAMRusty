@@ -17,46 +17,37 @@ test-all: test test-integration-examples
 
 # Run unit tests only
 test-unit:
-    cargo test --lib
+    cargo test --lib -q 2>$null
 
 # Run integration tests with database
 test-integration:
     @echo "🧪 Running integration tests..."
-    cargo test --test integration_database_test -- --nocapture
-    @echo "🧹 Cleaning up test containers..."
-    @just cleanup-containers
+    @try { $env:RUN_ENV="test"; cargo test --test integration_auth_test -q -- --nocapture 2>$null; $env:RUN_ENV="test"; cargo test --test integration_user_test -q -- --nocapture 2>$null; $env:RUN_ENV="test"; cargo test --test integration_database_test -q -- --nocapture 2>$null } finally { echo "🧹 Cleaning up test containers..."; just cleanup-containers }
 
 # Run integration example tests
 test-integration-examples:
     @echo "🧪 Running integration example tests..."
-    @just test-example-http-fixtures
-    @just test-example-db-fixtures
-    @just test-example-combined-fixtures
-    @echo "🧹 Cleaning up test containers..."
-    @just cleanup-containers
+    @try { just test-example-http-fixtures; just test-example-db-fixtures; just test-example-combined-fixtures } finally { echo "🧹 Cleaning up test containers..."; just cleanup-containers }
 
 # Run HTTP fixture examples
 test-example-http-fixtures:
     @echo "🧪 Running HTTP fixture examples..."
-    cargo test --test example_http_fixtures -- --nocapture
+    $env:RUN_ENV="test"; cargo test --test example_http_fixtures -q -- --nocapture 2>$null
 
 # Run database fixture examples
 test-example-db-fixtures:
     @echo "🧪 Running database fixture examples..."
-    cargo test --test example_db_fixtures -- --nocapture
+    $env:RUN_ENV="test"; cargo test --test example_db_fixtures -q -- --nocapture 2>$null
 
 # Run combined fixture examples
 test-example-combined-fixtures:
     @echo "🧪 Running combined fixture examples..."
-    cargo test --test example_combined_fixtures -- --nocapture
+    $env:RUN_ENV="test"; cargo test --test example_combined_fixtures -q -- --nocapture 2>$null
 
 # Run a specific example test
 test-example TEST:
     @echo "🧪 Running specific example test: {{TEST}}"
-    cargo test --test example_http_fixtures {{TEST}} -- --nocapture
-    cargo test --test example_db_fixtures {{TEST}} -- --nocapture
-    cargo test --test example_combined_fixtures {{TEST}} -- --nocapture
-    @just cleanup-containers
+    @try { $env:RUN_ENV="test"; cargo test --test example_http_fixtures {{TEST}} -q -- --nocapture 2>$null; $env:RUN_ENV="test"; cargo test --test example_db_fixtures {{TEST}} -q -- --nocapture 2>$null; $env:RUN_ENV="test"; cargo test --test example_combined_fixtures {{TEST}} -q -- --nocapture 2>$null } finally { just cleanup-containers }
 
 # Clean up specific test container only
 cleanup-containers:
@@ -67,7 +58,7 @@ cleanup-containers:
 
 # Run tests with verbose output
 test-verbose:
-    $env:RUST_LOG="debug"; cargo test --test integration_database_test -- --nocapture
+    $env:RUST_LOG="debug"; cargo test --test integration_database_test -q -- --nocapture 2>$null
 
 # Check for running test containers
 check-containers:
@@ -77,8 +68,7 @@ check-containers:
 # Run a single test with cleanup
 test-single TEST:
     @echo "🧪 Running single test: {{TEST}}"
-    cargo test --test integration_database_test {{TEST}} -- --nocapture
-    @just cleanup-containers
+    @try { $env:RUN_ENV="test"; cargo test --test integration_auth_test {{TEST}} -q -- --nocapture 2>$null; $env:RUN_ENV="test"; cargo test --test integration_user_test {{TEST}} -q -- --nocapture 2>$null; $env:RUN_ENV="test"; cargo test --test integration_database_test {{TEST}} -q -- --nocapture 2>$null } finally { just cleanup-containers }
 
 # Run tests and show container status before/after
 test-with-status:
@@ -98,14 +88,36 @@ cleanup-all-postgres:
     @echo "✅ All postgres containers cleaned up"
 
 # 🎯 Test Groups
-test-start:
-    cargo test --test integration_auth_oauth_flow test_oauth_start
+# Run authentication tests only
+test-auth:
+    @echo "🔐 Running authentication tests..."
+    @try { $env:RUN_ENV="test"; cargo test --test integration_auth_test -q -- --nocapture 2>$null } finally { just cleanup-containers }
 
-test-callback:
-    cargo test --test integration_auth_oauth_flow test_oauth_callback
+# Run user tests only
+test-user:
+    @echo "👤 Running user tests..."
+    @try { $env:RUN_ENV="test"; cargo test --test integration_user_test -q -- --nocapture 2>$null } finally { just cleanup-containers }
 
-test-state:
-    cargo test --test integration_auth_oauth_flow test_oauth_state
+# Run database tests only
+test-db:
+    @echo "🗄️ Running database tests..."
+    @try { $env:RUN_ENV="test"; cargo test --test integration_database_test -q -- --nocapture 2>$null } finally { just cleanup-containers }
+
+# Run OAuth start endpoint tests
+test-oauth-start:
+    $env:RUN_ENV="test"; cargo test --test integration_auth_test test_oauth_start -q -- --nocapture 2>$null
+
+# Run OAuth callback endpoint tests
+test-oauth-callback:
+    $env:RUN_ENV="test"; cargo test --test integration_auth_test test_oauth_callback -q -- --nocapture 2>$null
+
+# Run user profile endpoint tests
+test-me:
+    $env:RUN_ENV="test"; cargo test --test integration_user_test test_get_me -q -- --nocapture 2>$null
+
+# Run provider token endpoint tests
+test-provider-tokens:
+    $env:RUN_ENV="test"; cargo test --test integration_user_test test_get_provider_token -q -- --nocapture 2>$null
 
 # 📚 Example Tests
 # Run all example tests
@@ -133,7 +145,7 @@ reset-db:
 
 # Watch tests and re-run on changes
 watch:
-    cargo watch -x "test --test integration_auth_oauth_flow"
+    cargo watch -x "test --test integration_auth_oauth_flow -q 2>$null"
 
 # 🧹 Cleanup
 clean:
@@ -145,7 +157,7 @@ clean-docker:
 
 # 📊 Information
 list-tests:
-    cargo test --test integration_auth_oauth_flow -- --list
+    cargo test --test integration_auth_oauth_flow -q -- --list 2>$null
 
 check-deps:
     Write-Host "🔍 Checking dependencies..."
@@ -156,10 +168,10 @@ check-deps:
 
 # 🚀 CI/CD
 test-github:
-    $env:GITHUB_ACTIONS="true"; $env:CI="true"; $env:TEST_VERBOSE="true"; $env:TEST_MAX_CONCURRENCY="2"; cargo test --test integration_auth_oauth_flow
+    $env:GITHUB_ACTIONS="true"; $env:CI="true"; $env:TEST_VERBOSE="true"; $env:TEST_MAX_CONCURRENCY="2"; cargo test --test integration_auth_oauth_flow -q 2>$null
 
 test-gitlab:
-    $env:GITLAB_CI="true"; $env:CI="true"; $env:TEST_VERBOSE="true"; $env:TEST_MAX_CONCURRENCY="2"; cargo test --test integration_auth_oauth_flow
+    $env:GITLAB_CI="true"; $env:CI="true"; $env:TEST_VERBOSE="true"; $env:TEST_MAX_CONCURRENCY="2"; cargo test --test integration_auth_oauth_flow -q 2>$null
 
 # 🔄 Database Tasks
 db-up:
@@ -175,4 +187,25 @@ db-reset:
 # 🏃 Quick Start Combo
 dev: dev-setup db-up db-migrate
     Write-Host "🎉 Development environment ready!"
-    Write-Host "Run: just test-integration" 
+    Write-Host "Run: just test-integration"
+
+# 🚀 Test Server Management
+# Start the IAM server in background for integration testing
+start-test-server:
+    @echo "🚀 Starting IAM test server..."
+    @$env:RUN_ENV="test"; $process = Start-Process -FilePath "cargo" -ArgumentList "run" -WindowStyle Hidden -PassThru; $process.Id | Out-File -FilePath ".test_server_pid" -Encoding ASCII
+    @echo "⏳ Waiting for server to start..."
+    @$attempts = 0; do { Start-Sleep -Seconds 1; $attempts++; try { $response = Invoke-WebRequest -Uri "http://127.0.0.1:8081/health" -TimeoutSec 2 -ErrorAction Stop; $ready = $true } catch { $ready = $false } } while (-not $ready -and $attempts -lt 30)
+    @if ($ready) { echo "✅ Test server is running on http://127.0.0.1:8081" } else { echo "❌ Test server failed to start"; exit 1 }
+
+# Stop the test server
+stop-test-server:
+    @echo "🛑 Stopping IAM test server..."
+    @if (Test-Path ".test_server_pid") { $pid = Get-Content ".test_server_pid" -ErrorAction SilentlyContinue; if ($pid) { try { Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue } catch { } }; Remove-Item ".test_server_pid" -ErrorAction SilentlyContinue }
+    @Get-Process -Name "cargo" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    @echo "✅ Test server stopped"
+
+# Check if test server is running
+check-test-server:
+    @echo "🔍 Checking test server status..."
+    @try { $response = Invoke-WebRequest -Uri "http://127.0.0.1:8081/health" -TimeoutSec 2; echo "✅ Server is running" } catch { echo "❌ Server is not responding" } 

@@ -14,6 +14,7 @@
 use std::path::Path;
 use std::fs;
 use std::env;
+use std::sync::{Arc, Mutex, OnceLock};
 use dotenvy::dotenv;
 use config::{Config, ConfigError, Environment, File, FileFormat};
 use tracing::{info, debug, warn};
@@ -65,8 +66,34 @@ impl From<&GitLabConfig> for ProviderConfig {
     }
 }
 
+/// Global configuration cache to ensure consistent random ports
+static CONFIG_CACHE: OnceLock<Arc<Mutex<Option<AppConfig>>>> = OnceLock::new();
+
 /// Load configuration from environment and config files
+/// This function caches the configuration to ensure consistent behavior,
+/// especially for random port generation in database configuration.
 pub fn load_config() -> Result<AppConfig, ConfigError> {
+    let cache = CONFIG_CACHE.get_or_init(|| Arc::new(Mutex::new(None)));
+    let mut cached_config = cache.lock().unwrap();
+    
+    // Return cached config if available
+    if let Some(ref config) = *cached_config {
+        debug!("Returning cached configuration");
+        return Ok(config.clone());
+    }
+    
+    // Load fresh configuration
+    let config = load_config_fresh()?;
+    
+    // Cache the configuration
+    *cached_config = Some(config.clone());
+    debug!("Configuration loaded and cached");
+    
+    Ok(config)
+}
+
+/// Internal function to load fresh configuration without caching
+fn load_config_fresh() -> Result<AppConfig, ConfigError> {
     // Load .env file if it exists
     let _ = dotenv().ok();
     
@@ -118,6 +145,22 @@ pub fn load_config() -> Result<AppConfig, ConfigError> {
     config.try_deserialize()
 }
 
+/// Clear the configuration cache (useful for testing)
+pub fn clear_config_cache() {
+    if let Some(cache) = CONFIG_CACHE.get() {
+        let mut cached_config = cache.lock().unwrap();
+        *cached_config = None;
+        debug!("Configuration cache cleared");
+    }
+}
+
+/// Clear all configuration caches (useful for testing)
+pub fn clear_all_caches() {
+    clear_config_cache();
+    DatabaseConfig::clear_port_cache();
+    debug!("All configuration caches cleared");
+}
+
 /// Generate a default configuration as a TOML string
 pub fn generate_default_config() -> Result<String, ConfigError> {
     let default_config = AppConfig {
@@ -151,10 +194,13 @@ pub fn generate_default_config() -> Result<String, ConfigError> {
             secret: "your_secret_key_here_change_in_production".to_string(),
             expiration_seconds: 3600,
         },
-        database: DatabaseConfig {
-            url: "postgresql://username:password@localhost/iam_db".to_string(),
-            read_replicas: vec![],
-        },
+        database: DatabaseConfig::new(
+            "username".to_string(),
+            "password".to_string(),
+            "localhost".to_string(),
+            5432,
+            "iam_db".to_string(),
+        ),
         logging: LoggingConfig {
             level: "info".to_string(),
         },

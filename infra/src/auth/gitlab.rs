@@ -107,7 +107,7 @@ impl ProviderOAuth2Client for GitLabOAuth2Client {
         // Create HTTP client
         let client = reqwest::Client::new();
         
-        eprintln!("🚀 DEBUG: GitLab user URL: {}", self.user_url);
+        debug!("GitLab user URL: {}", self.user_url);
 
         // Fetch user data from GitLab API
         let response = client
@@ -121,8 +121,8 @@ impl ProviderOAuth2Client for GitLabOAuth2Client {
                 DomainError::UserProfileError(format!("GitLab API request failed: {}", e))
             })?;
 
-        eprintln!("🚀 DEBUG: GitLab API response status: {}", response.status());
-        eprintln!("🚀 DEBUG: GitLab API response headers: {:?}", response.headers());
+        debug!("GitLab API response status: {}", response.status());
+        debug!("GitLab API response headers: {:?}", response.headers());
 
         let text = response
             .text()
@@ -132,7 +132,7 @@ impl ProviderOAuth2Client for GitLabOAuth2Client {
                 DomainError::UserProfileError(format!("Failed to get GitLab response text: {}", e))
             })?;
 
-        eprintln!("🚀 DEBUG: GitLab API response body: {}", text);
+        debug!("GitLab API response body: {}", text);
 
         let gitlab_user = serde_json::from_str::<GitLabUser>(&text)
             .map_err(|e| {
@@ -171,28 +171,28 @@ impl AuthService for GitLabOAuth2Client {
         code: String,
         _redirect_uri: String,
     ) -> Result<(ProviderTokens, ProviderUserProfile), Self::Error> {
-        eprintln!("🚀 DEBUG: GitLab exchange_code called with code: {}", code);
-        eprintln!("🚀 DEBUG: GitLab token URL: {}", self.client.token_url().unwrap().as_str());
-        eprintln!("🚀 DEBUG: GitLab user URL: {}", self.user_url);
+        debug!("GitLab exchange_code called with code: {}", code);
+        debug!("GitLab token URL: {}", self.client.token_url().unwrap().as_str());
+        debug!("GitLab user URL: {}", self.user_url);
         
         // Exchange code for tokens using ProviderOAuth2Client trait
         let tokens = ProviderOAuth2Client::exchange_code(self, &code).await
             .map_err(|e| {
-                eprintln!("💥 DEBUG: GitLab token exchange failed: {}", e);
+                debug!("GitLab token exchange failed: {}", e);
                 AuthError::AuthenticationError(format!("GitLab token exchange failed: {}", e))
             })?;
         
-        eprintln!("✅ DEBUG: GitLab token exchange successful, access_token: {}", 
+        debug!("GitLab token exchange successful, access_token: {}", 
                  &tokens.access_token[..std::cmp::min(10, tokens.access_token.len())]);
         
         // Get user profile using ProviderOAuth2Client trait
         let profile = ProviderOAuth2Client::get_user_profile(self, &tokens).await
             .map_err(|e| {
-                eprintln!("💥 DEBUG: GitLab profile fetch failed: {}", e);
+                debug!("GitLab profile fetch failed: {}", e);
                 AuthError::AuthenticationError(format!("GitLab profile fetch failed: {}", e))
             })?;
         
-        eprintln!("✅ DEBUG: GitLab profile fetch successful: {}", profile.username);
+        debug!("GitLab profile fetch successful: {}", profile.username);
         
         Ok((tokens, profile))
     }

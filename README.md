@@ -28,6 +28,13 @@ The IAM service is built using a hexagonal/ports and adapters architecture with 
 - Flexible configuration system
 - SeaORM-based database migrations and entity generation
 
+## Documentation
+
+- **[Database Configuration Guide](docs/DATABASE_CONFIGURATION.md)**: Comprehensive guide to the new structured database configuration, random port feature, and caching mechanisms
+- **[Test Database Guide](docs/TEST_DATABASE_GUIDE.md)**: Testing infrastructure and database fixtures
+- **[Fixtures Guide](docs/FIXTURES_GUIDE.md)**: Test fixtures and utilities
+- **[HTTPS Setup](docs/HTTPS_SETUP.md)**: TLS/HTTPS configuration guide
+
 ## Configuration
 
 The IAM service supports a flexible configuration system with multiple sources and automatic loading:

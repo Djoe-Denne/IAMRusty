@@ -48,4 +48,6 @@ pub async fn get_user(
         email: user.email,
         avatar_url: user.user.avatar_url,
     }))
-} 
+}
+
+ 

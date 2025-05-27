@@ -1,4 +1,6 @@
 use serde::{Deserialize, Serialize};
+use std::sync::{Arc, Mutex, OnceLock};
+use std::collections::HashMap;
 
 /// Server configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -33,14 +35,136 @@ fn default_tls_port() -> u16 {
     8443
 }
 
+/// Database credentials configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DatabaseCredentials {
+    /// Database username
+    pub username: String,
+    /// Database password
+    pub password: String,
+}
+
 /// Database configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DatabaseConfig {
-    /// PostgreSQL database URL
-    pub url: String,
-    /// Read replica database URLs
+    /// Database credentials
+    pub creds: DatabaseCredentials,
+    /// Database host
+    pub host: String,
+    /// Database port (5432 default, 0 for random port)
+    #[serde(default = "default_db_port")]
+    pub port: u16,
+    /// Database name
+    pub db: String,
+    /// Read replica database URLs (still using full URLs for flexibility)
     #[serde(default)]
     pub read_replicas: Vec<String>,
+}
+
+fn default_db_port() -> u16 {
+    5432
+}
+
+/// Global cache for resolved random ports to ensure consistency
+static PORT_CACHE: OnceLock<Arc<Mutex<HashMap<String, u16>>>> = OnceLock::new();
+
+impl DatabaseConfig {
+    /// Construct the primary database URL from components
+    pub fn url(&self) -> String {
+        let port = self.actual_port();
+        
+        format!(
+            "postgres://{}:{}@{}:{}/{}",
+            self.creds.username,
+            self.creds.password,
+            self.host,
+            port,
+            self.db
+        )
+    }
+    
+    /// Get a random available port
+    fn get_random_port() -> u16 {
+        use std::net::{TcpListener, SocketAddr};
+        
+        // Try to bind to a random port
+        match TcpListener::bind("127.0.0.1:0") {
+            Ok(listener) => {
+                match listener.local_addr() {
+                    Ok(SocketAddr::V4(addr)) => addr.port(),
+                    Ok(SocketAddr::V6(addr)) => addr.port(),
+                    Err(_) => 5432, // fallback to default
+                }
+            }
+            Err(_) => 5432, // fallback to default
+        }
+    }
+    
+    /// Get the actual port being used (resolves random port if needed)
+    /// This method caches the resolved port to ensure consistency across calls
+    pub fn actual_port(&self) -> u16 {
+        if self.port == 0 {
+            // Create a unique cache key for this database configuration
+            let cache_key = format!("{}:{}:{}", self.host, self.db, self.creds.username);
+            
+            let cache = PORT_CACHE.get_or_init(|| Arc::new(Mutex::new(HashMap::new())));
+            let mut port_cache = cache.lock().unwrap();
+            
+            // Return cached port if available
+            if let Some(&cached_port) = port_cache.get(&cache_key) {
+                return cached_port;
+            }
+            
+            // Generate new random port and cache it
+            let random_port = Self::get_random_port();
+            port_cache.insert(cache_key, random_port);
+            random_port
+        } else {
+            self.port
+        }
+    }
+    
+    /// Create a new DatabaseConfig with the specified components
+    pub fn new(username: String, password: String, host: String, port: u16, db: String) -> Self {
+        Self {
+            creds: DatabaseCredentials { username, password },
+            host,
+            port,
+            db,
+            read_replicas: vec![],
+        }
+    }
+    
+    /// Create a DatabaseConfig from a URL (for backward compatibility)
+    pub fn from_url(url: &str) -> Result<Self, String> {
+        use url::Url;
+        
+        let parsed = Url::parse(url).map_err(|e| format!("Invalid URL: {}", e))?;
+        
+        if parsed.scheme() != "postgres" && parsed.scheme() != "postgresql" {
+            return Err("URL must use postgres:// or postgresql:// scheme".to_string());
+        }
+        
+        let username = parsed.username().to_string();
+        let password = parsed.password().unwrap_or("").to_string();
+        let host = parsed.host_str().unwrap_or("localhost").to_string();
+        let port = parsed.port().unwrap_or(5432);
+        let db = parsed.path().trim_start_matches('/').to_string();
+        
+        if db.is_empty() {
+            return Err("Database name is required in URL path".to_string());
+        }
+        
+        Ok(Self::new(username, password, host, port, db))
+    }
+    
+    /// Clear the port cache (useful for testing)
+    pub fn clear_port_cache() {
+        if let Some(cache) = PORT_CACHE.get() {
+            let mut port_cache = cache.lock().unwrap();
+            port_cache.clear();
+        }
+    }
 }
 
 /// JWT configuration

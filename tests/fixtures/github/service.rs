@@ -55,6 +55,34 @@ impl GitHubService {
         self
     }
 
+    /// Mock OAuth authorization endpoint
+    /// GET /login/oauth/authorize
+    pub async fn oauth_authorize(
+        &self,
+        status_code: u16,
+        request: GitHubAuthRequest,
+        redirect_location: Option<String>,
+    ) -> &Self {
+        let mut response_template = ResponseTemplate::new(status_code);
+        
+        if let Some(location) = redirect_location {
+            response_template = response_template.insert_header("location", location);
+        }
+
+        Mock::given(method("GET"))
+            .and(path("/login/oauth/authorize"))
+            .and(wiremock::matchers::query_param("client_id", &request.client_id))
+            .and(wiremock::matchers::query_param("redirect_uri", &request.redirect_uri))
+            .and(wiremock::matchers::query_param("scope", &request.scope))
+            .and(wiremock::matchers::query_param("response_type", &request.response_type))
+            // Don't match exact redirect_uri, scope, or state since they may vary
+            .respond_with(response_template)
+            .mount(&*self.server)
+            .await;
+
+        self
+    }
+
     /// Mock user profile endpoint
     /// GET /user
     pub async fn user_profile(
@@ -132,6 +160,18 @@ impl GitHubService {
             200,
             GitHubTokenRequest::valid(),
             GitHubTokenResponse::success(),
+        ).await
+    }
+
+    /// Setup successful OAuth authorization flow
+    pub async fn setup_successful_oauth_authorization(&self) -> &Self {
+        // Mock the authorization endpoint that redirects back with a code
+        let callback_url = "http://127.0.0.1:8081/api/auth/github/callback?code=auth_code_from_github&state=login_state_67890";
+        
+        self.oauth_authorize(
+            302, // Temporary redirect
+            GitHubAuthRequest::login_flow(),
+            Some(callback_url.to_string()),
         ).await
     }
 

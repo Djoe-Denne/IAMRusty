@@ -1,0 +1,17 @@
+[package]
+name = "setup"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+# Internal workspace crates
+domain = { path = "../domain" }
+application = { path = "../application" }
+infra = { path = "../infra" }
+http_server = { path = "../http" }
+
+# External dependencies
+anyhow = "1.0.82"
+tracing = "0.1.40"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter", "fmt", "json"] }
+tokio = { version = "1.44", features = ["rt-multi-thread", "macros"] } 

@@ -6,6 +6,7 @@ pub use GitHubUser as User;
 pub use GitHubTokenRequest as TokenRequest;
 pub use GitHubTokenResponse as TokenResponse;
 pub use GitHubUserRequest as UserRequest;
+pub use GitHubAuthRequest as AuthRequest;
 pub use GitHubError as Error;
 
 /// GitHub user data structure matching the API response
@@ -90,6 +91,51 @@ impl GitHubUserBuilder {
             login: self.login.unwrap_or_else(|| "test_user".to_string()),
             email: self.email.unwrap_or_else(|| Some("test@example.com".to_string())),
             avatar_url: self.avatar_url.unwrap_or_else(|| Some("https://avatars.githubusercontent.com/u/12345?v=4".to_string())),
+        }
+    }
+}
+
+/// GitHub OAuth authorization request data (for the /login/oauth/authorize endpoint)
+#[derive(Debug, Clone)]
+pub struct GitHubAuthRequest {
+    pub client_id: String,
+    pub redirect_uri: String,
+    pub scope: String,
+    pub state: String,
+    pub response_type: String,
+}
+
+impl GitHubAuthRequest {
+    /// Standard OAuth authorization request
+    pub fn standard() -> Self {
+        Self {
+            client_id: "test_client_id".to_string(),
+            redirect_uri: "http://127.0.0.1:8081/api/auth/github/callback".to_string(),
+            scope: "user:email".to_string(),
+            state: "test_state_12345".to_string(),
+            response_type: "code".to_string(),
+        }
+    }
+
+    /// Authorization request for login flow
+    pub fn login_flow() -> Self {
+        Self {
+            client_id: "test_client_id".to_string(),
+            redirect_uri: "http://127.0.0.1:8081/api/auth/github/callback".to_string(),
+            scope: "user:email".to_string(),
+            state: "login_state_67890".to_string(),
+            response_type: "code".to_string(),
+        }
+    }
+
+    /// Authorization request for linking flow
+    pub fn linking_flow() -> Self {
+        Self {
+            client_id: "test_client_id".to_string(),
+            redirect_uri: "http://127.0.0.1:8081/api/auth/github/callback".to_string(),
+            scope: "user:email".to_string(),
+            state: "link_state_99999".to_string(),
+            response_type: "code".to_string(),
         }
     }
 }
