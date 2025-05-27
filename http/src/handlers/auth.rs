@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use domain::entity::provider::Provider;
 use application::usecase::{login::LoginError, link_provider::LinkProviderError};
 use crate::{AppState, oauth_state::OAuthState};
-use tracing::{debug, error, warn};
+use tracing::{debug, error};
 use uuid::Uuid;
 use url;
 

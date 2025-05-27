@@ -1,6 +1,12 @@
+//! Configuration crate for the IAM service
+//!
+//! This crate provides all configuration structures and utilities for the application,
+//! including server, database, OAuth, JWT, and logging configuration.
+
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::collections::HashMap;
+use tracing::Level;
 
 /// Server configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -21,6 +27,31 @@ pub struct ServerConfig {
     /// Port to use when TLS is enabled
     #[serde(default = "default_tls_port")]
     pub tls_port: u16,
+}
+
+impl ServerConfig {
+    /// Convert to setup ServerConfig format (for backward compatibility)
+    pub fn to_setup_config(&self) -> SetupServerConfig {
+        SetupServerConfig {
+            host: self.host.clone(),
+            port: self.port,
+            tls_enabled: self.tls_enabled,
+            tls_cert_path: if self.tls_enabled { Some(self.tls_cert_path.clone()) } else { None },
+            tls_key_path: if self.tls_enabled { Some(self.tls_key_path.clone()) } else { None },
+            tls_port: if self.tls_enabled { Some(self.tls_port) } else { None },
+        }
+    }
+}
+
+/// Setup server configuration (for backward compatibility with setup module)
+#[derive(Debug, Clone)]
+pub struct SetupServerConfig {
+    pub host: String,
+    pub port: u16,
+    pub tls_enabled: bool,
+    pub tls_cert_path: Option<String>,
+    pub tls_key_path: Option<String>,
+    pub tls_port: Option<u16>,
 }
 
 fn default_cert_path() -> String {
@@ -275,4 +306,24 @@ pub struct AppConfig {
     /// Logging configuration
     #[serde(default)]
     pub logging: LoggingConfig,
+}
+
+/// Setup logging based on configuration
+pub fn setup_logging(log_level_str: &str) {
+    let log_level = match log_level_str.to_lowercase().as_str() {
+        "trace" => Level::TRACE,
+        "debug" => Level::DEBUG,
+        "info" => Level::INFO,
+        "warn" => Level::WARN,
+        "error" => Level::ERROR,
+        _ => Level::INFO,
+    };
+    
+    tracing_subscriber::fmt()
+        .with_max_level(log_level)
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(log_level_str))
+        )
+        .init();
 } 

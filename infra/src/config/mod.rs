@@ -19,8 +19,8 @@ use dotenvy::dotenv;
 use config::{Config, ConfigError, Environment, File, FileFormat};
 use tracing::{info, debug, warn};
 
-// Re-export all config types from application layer (single source of truth)
-pub use application::config::{
+// Re-export all config types from configuration crate (single source of truth)
+pub use configuration::{
     AppConfig, 
     ServerConfig, 
     DatabaseConfig, 

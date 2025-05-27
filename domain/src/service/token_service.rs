@@ -1,9 +1,7 @@
 use chrono::Duration;
-use domain::entity::token::{JwkSet, TokenClaims};
-use domain::error::DomainError;
-use domain::port::service::TokenEncoder;
-
-use crate::error::ApplicationError;
+use crate::entity::token::{JwkSet, TokenClaims};
+use crate::error::DomainError;
+use crate::port::service::TokenEncoder;
 
 /// Service for JWT token operations
 pub struct TokenService {
@@ -21,21 +19,21 @@ impl TokenService {
     }
 
     /// Generate a JWT token for a user
-    pub fn generate_token(&self, user_id: &str, username: &str) -> Result<String, ApplicationError> {
+    pub fn generate_token(&self, user_id: &str, username: &str) -> Result<String, DomainError> {
         let claims = TokenClaims::new(user_id, username, self.token_duration);
         
         self.token_encoder.encode(&claims)
-            .map_err(|e| ApplicationError::Token(format!("Failed to generate token: {}", e)))
+            .map_err(|e| DomainError::TokenGenerationFailed(e.to_string()))
     }
 
     /// Validate a JWT token
-    pub fn validate_token(&self, token: &str) -> Result<TokenClaims, ApplicationError> {
+    pub fn validate_token(&self, token: &str) -> Result<TokenClaims, DomainError> {
         self.token_encoder.decode(token)
             .map_err(|e| {
                 match e {
-                    DomainError::TokenExpired => ApplicationError::Domain(DomainError::TokenExpired),
-                    DomainError::InvalidToken => ApplicationError::Domain(DomainError::InvalidToken),
-                    _ => ApplicationError::Token(format!("Failed to validate token: {}", e)),
+                    DomainError::TokenExpired => DomainError::TokenExpired,
+                    DomainError::InvalidToken => DomainError::InvalidToken,
+                    _ => DomainError::TokenValidationFailed(e.to_string()),
                 }
             })
     }

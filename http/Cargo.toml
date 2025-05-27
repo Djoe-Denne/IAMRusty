@@ -7,6 +7,7 @@ edition = "2021"
 # Internal crates
 domain = { path = "../domain" }
 application = { path = "../application" }
+configuration = { path = "../configuration" }
 
 # Web & HTTP
 axum = { version = "0.8.4", features = ["macros", "json"] }

@@ -139,6 +139,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "chrono",
+ "configuration",
  "domain",
  "serde",
  "thiserror 1.0.69",
@@ -924,6 +925,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "configuration"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "url",
+]
+
+[[package]]
 name = "const-oid"
 version = "0.9.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1240,6 +1252,7 @@ dependencies = [
  "serde",
  "thiserror 1.0.69",
  "tokio",
+ "tracing",
  "uuid",
 ]
 
@@ -1914,6 +1927,7 @@ dependencies = [
  "axum-server",
  "base64 0.22.1",
  "chrono",
+ "configuration",
  "domain",
  "hyper 1.6.0",
  "rustls 0.23.27",
@@ -2108,6 +2122,7 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "config",
+ "configuration",
  "ctor",
  "ctrlc",
  "domain",
@@ -2314,6 +2329,7 @@ dependencies = [
  "base64 0.21.7",
  "chrono",
  "config",
+ "configuration",
  "domain",
  "dotenvy",
  "jsonwebtoken",
@@ -4376,6 +4392,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "application",
+ "configuration",
  "domain",
  "http_server",
  "infra",

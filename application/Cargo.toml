@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 # Internal crates
 domain = { path = "../domain" }
+configuration = { path = "../configuration" }
 
 # Utility
 serde = { version = "1.0.197", features = ["derive"] }

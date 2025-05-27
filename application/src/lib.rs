@@ -5,7 +5,8 @@
 
 pub mod usecase;
 pub mod auth;
-pub mod service;
 pub mod dto;
 pub mod error;
-pub mod config; 
+
+// Re-export configuration for backward compatibility
+pub use configuration::*; 

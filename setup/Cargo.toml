@@ -9,6 +9,7 @@ domain = { path = "../domain" }
 application = { path = "../application" }
 infra = { path = "../infra" }
 http_server = { path = "../http" }
+configuration = { path = "../configuration" }
 
 # External dependencies
 anyhow = "1.0.82"

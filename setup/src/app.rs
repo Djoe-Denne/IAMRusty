@@ -19,8 +19,9 @@ use infra::{
         combined_user_email_repository::CombinedUserEmailRepository,
     },
     db::DbConnectionPool,
-    config::AppConfig,
 };
+
+use configuration::AppConfig;
 
 use application::{
     usecase::{

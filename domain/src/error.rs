@@ -34,4 +34,16 @@ pub enum DomainError {
     /// No token found for provider and user
     #[error("No token found for provider {0} and user {1}")]
     NoTokenForProvider(String, String),
+
+    /// Token generation failed
+    #[error("Token generation failed: {0}")]
+    TokenGenerationFailed(String),
+
+    /// Token validation failed
+    #[error("Token validation failed: {0}")]
+    TokenValidationFailed(String),
+
+    /// Repository error
+    #[error("Repository error: {0}")]
+    RepositoryError(String),
 } 

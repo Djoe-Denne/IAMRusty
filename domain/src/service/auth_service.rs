@@ -1,15 +1,13 @@
-use domain::entity::{
+use crate::entity::{
     provider::{Provider, ProviderTokens, ProviderUserProfile},
     user::User,
 };
-use domain::error::DomainError;
-use domain::port::{
+use crate::error::DomainError;
+use crate::port::{
     repository::{TokenRepository, UserRepository},
     service::ProviderOAuth2Client,
 };
 use tracing::{debug, info};
-
-use crate::{dto::{AuthResponseDto, UserProfileDto}, error::{ApplicationError, map_repo_err}};
 
 use super::TokenService;
 
@@ -52,15 +50,15 @@ where
     }
 
     /// Get OAuth2 provider client for the specified provider
-    fn get_provider_client(&self, provider: Provider) -> Result<&(dyn ProviderOAuth2Client + Send + Sync), ApplicationError> {
+    fn get_provider_client(&self, provider: Provider) -> Result<&(dyn ProviderOAuth2Client + Send + Sync), DomainError> {
         self.provider_clients
             .get(&provider)
             .map(|client| client.as_ref())
-            .ok_or_else(|| ApplicationError::Service(format!("Provider client not configured: {}", provider.as_str())))
+            .ok_or_else(|| DomainError::AuthorizationError(format!("Provider client not configured: {}", provider.as_str())))
     }
 
     /// Generate an authorization URL for the provider's OAuth2 flow
-    pub fn generate_authorize_url(&self, provider: &str) -> Result<String, ApplicationError> {
+    pub fn generate_authorize_url(&self, provider: &str) -> Result<String, DomainError> {
         let provider = Provider::from_str(provider)
             .ok_or_else(|| DomainError::ProviderNotSupported(provider.to_string()))?;
         
@@ -69,12 +67,12 @@ where
         Ok(client.generate_authorize_url())
     }
 
-    /// Process OAuth2 callback and return a JWT token
+    /// Process OAuth2 callback and return user and JWT token
     pub async fn process_callback(
         &self,
         provider_name: &str,
         code: &str,
-    ) -> Result<AuthResponseDto, ApplicationError> {
+    ) -> Result<(User, String), DomainError> {
         let provider = Provider::from_str(provider_name)
             .ok_or_else(|| DomainError::ProviderNotSupported(provider_name.to_string()))?;
         
@@ -101,39 +99,33 @@ where
         
         info!(user_id = %user.id, "User authenticated successfully");
         
-        // Save the tokens
+                // Save the tokens
         self.token_repository
             .save_provider_tokens(user.id, provider, provider_user_id, tokens)
             .await
-            .map_err(map_repo_err)?;
-        
+            .map_err(|e| DomainError::RepositoryError(e.to_string()))?;
+
         // Generate a JWT token
         let jwt_token = self.token_service
             .generate_token(&user.id.to_string(), &user.username)?;
-        
-        // Create the response DTO
-        let response = AuthResponseDto {
-            token: jwt_token,
-            user: UserProfileDto::from(user),
-        };
-        
-        Ok(response)
+
+        Ok((user, jwt_token))
     }
 
     /// Find a user by their ID
-    pub async fn find_user_by_id(&self, user_id: &str) -> Result<UserProfileDto, ApplicationError> {
+    pub async fn find_user_by_id(&self, user_id: &str) -> Result<User, DomainError> {
         let uuid = uuid::Uuid::parse_str(user_id)
             .map_err(|_| DomainError::UserNotFound)?;
         
         let user = self.user_repository
             .find_by_id(uuid)
             .await
-            .map_err(map_repo_err)?
+            .map_err(|e| DomainError::RepositoryError(e.to_string()))?
             .ok_or(DomainError::UserNotFound)?;
         
         debug!(user_id = %user.id, "Found user by ID");
         
-        Ok(UserProfileDto::from(user))
+        Ok(user)
     }
 
     /// Find or create a user based on their provider profile
@@ -141,17 +133,17 @@ where
         &self,
         _provider: Provider,
         profile: ProviderUserProfile,
-    ) -> Result<User, ApplicationError> {
+    ) -> Result<User, DomainError> {
         // Email is required for linking
         let email = profile.email.ok_or_else(|| {
-            ApplicationError::Service("Email is required from OAuth provider".to_string())
+            DomainError::UserProfileError("Email is required from OAuth provider".to_string())
         })?;
         
         // Try to find the user by email (primary linking mechanism)
         if let Some(user) = self.user_repository
             .find_by_email(&email)
             .await
-            .map_err(map_repo_err)?
+            .map_err(|e| DomainError::RepositoryError(e.to_string()))?
         {
             debug!(user_id = %user.id, "Found existing user by email");
             
@@ -170,7 +162,7 @@ where
         let created_user = self.user_repository
             .create(user)
             .await
-            .map_err(map_repo_err)?;
+            .map_err(|e| DomainError::RepositoryError(e.to_string()))?;
         
         info!(user_id = %created_user.id, "Created new user");
         
@@ -182,7 +174,7 @@ where
         &self,
         user_id: &str,
         provider_name: &str,
-    ) -> Result<ProviderTokens, ApplicationError> {
+    ) -> Result<ProviderTokens, DomainError> {
         let uuid = uuid::Uuid::parse_str(user_id)
             .map_err(|_| DomainError::UserNotFound)?;
         
@@ -192,7 +184,7 @@ where
         let tokens = self.token_repository
             .get_provider_tokens(uuid, provider)
             .await
-            .map_err(map_repo_err)?
+            .map_err(|e| DomainError::RepositoryError(e.to_string()))?
             .ok_or_else(|| 
                 DomainError::NoTokenForProvider(
                     provider_name.to_string(),
@@ -209,12 +201,11 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::service::TokenService;
-    use domain::entity::{
+    use crate::entity::{
         provider::{Provider, ProviderTokens, ProviderUserProfile},
         token::{JwkSet, TokenClaims},
     };
-    use domain::port::{
+    use crate::port::{
         repository::{TokenRepository, UserRepository},
         service::ProviderOAuth2Client,
     };

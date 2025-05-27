@@ -17,8 +17,8 @@ use application::{
         token::TokenUseCase,
         link_provider::LinkProviderUseCase,
     },
-    config::OAuthConfig,
 };
+use configuration::OAuthConfig;
 
 pub mod handlers;
 mod middleware_auth;

@@ -1,22 +1,18 @@
 [package]
-name = "domain"
+name = "configuration"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-# Utility
+# Serialization
 serde = { version = "1.0.197", features = ["derive"] }
-uuid = { version = "1.4.1", features = ["v4", "serde"] }
-chrono = { version = "0.4.31", features = ["serde"] }
 
-# Error handling
-thiserror = "1.0.56"
+# URL parsing
+url = "2.5"
 
 # Logging
 tracing = "0.1"
-
-# Async
-async-trait = "0.1.77"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [dev-dependencies]
 tokio = { version = "1.44", features = ["rt-multi-thread", "macros"] } 

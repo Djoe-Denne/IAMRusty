@@ -7,7 +7,7 @@ description = "IAM microservice with OAuth2, OpenID Connect, JWT, PostgreSQL, Ax
 license = "MIT OR Apache-2.0"
 
 [workspace]
-members = ["domain", "application", "infra", "http", "migration", "setup"]
+members = ["domain", "application", "infra", "http", "migration", "setup", "configuration"]
 
 [dependencies]
 # Internal workspace crates
@@ -16,6 +16,7 @@ application = { path = "application" }
 infra = { path = "infra" }
 http_server = { path = "http" }
 setup = { path = "setup" }
+configuration = { path = "configuration" }
 
 # Web & HTTP
 axum = { version = "0.8.4", features = ["macros", "json"] }
