@@ -28,6 +28,13 @@ The IAM service is built using a hexagonal/ports and adapters architecture with 
 - Flexible configuration system
 - SeaORM-based database migrations and entity generation
 
+## Documentation
+
+- **[Database Configuration Guide](docs/DATABASE_CONFIGURATION.md)**: Comprehensive guide to the new structured database configuration, random port feature, and caching mechanisms
+- **[Test Database Guide](docs/TEST_DATABASE_GUIDE.md)**: Testing infrastructure and database fixtures
+- **[Fixtures Guide](docs/FIXTURES_GUIDE.md)**: Test fixtures and utilities
+- **[HTTPS Setup](docs/HTTPS_SETUP.md)**: TLS/HTTPS configuration guide
+
 ## Configuration
 
 The IAM service supports a flexible configuration system with multiple sources and automatic loading:
@@ -289,57 +296,105 @@ The operation type is encoded in the OAuth state parameter, ensuring secure and 
    cargo test --test integration_auth_oauth_flow
    ```
 
-### 🧪 OAuth Integration Tests
+## 🧪 Testing
 
-The service includes comprehensive integration tests for OAuth authentication flows with testcontainers for PostgreSQL. These tests validate:
+The IAM service includes comprehensive testing infrastructure with both unit and integration tests.
+
+### Test Database System
+
+The service uses a sophisticated test database system with:
+
+- **Single Container**: One PostgreSQL testcontainer shared across all tests for performance
+- **Table Truncation**: Automatic cleanup between tests for isolation
+- **Unparallelizable Tests**: Uses `serial_test` to prevent race conditions
+- **Automatic Cleanup**: Container cleanup on test completion with multiple safety mechanisms
+
+#### Quick Test Database Usage
+
+```rust
+mod common;
+
+use common::TestFixture;
+use serial_test::serial;
+
+#[tokio::test]
+#[serial]  // Required for unparallelizable tests
+async fn test_your_feature() {
+    // Create test fixture - starts container, runs migrations, cleans tables
+    let fixture = TestFixture::new().await.expect("Failed to create test fixture");
+    
+    // Get database connection and configuration
+    let db = fixture.db();
+    let config = fixture.config();
+    
+    // Your test logic here...
+    
+    // Cleanup happens automatically when fixture is dropped
+}
+```
+
+### Fixture System
+
+The service includes a modular fixture system for mocking external services:
+
+- **GitHub Fixtures**: Mock GitHub OAuth and API endpoints
+- **GitLab Fixtures**: Mock GitLab OAuth and API endpoints
+- **Fluent API**: Easy-to-use builder pattern for test data
+- **Wiremock Integration**: Shared mock server for performance
+- **Automatic Cleanup**: Mocks are automatically reset between tests for perfect isolation
+
+#### Quick Fixture Usage
+
+```rust
+use tests::fixtures::GitHubFixtures;
+
+#[tokio::test]
+async fn test_github_oauth() {
+    let github = GitHubFixtures::service().await;
+    
+    // Setup successful OAuth flow
+    github.setup_successful_token_exchange().await;
+    github.setup_successful_user_profile_arthur().await;
+    
+    // Your test logic here...
+}
+```
+
+### Running Tests
+
+```bash
+# Run all tests with automatic cleanup
+just test
+
+# Run specific test types
+just test-unit                  # Unit tests only
+just test-integration          # Database integration tests
+just test-fixtures             # Fixture tests
+
+# Run single test with cleanup
+just test-single test_database_setup_and_cleanup
+
+# Check container status
+just check-containers
+
+# Manual cleanup if needed
+just cleanup-containers
+```
+
+For detailed testing documentation, see:
+- [Test Database Guide](docs/TEST_DATABASE_GUIDE.md) - Comprehensive database testing setup
+- [Fixtures Guide](docs/FIXTURES_GUIDE.md) - External service mocking system
+
+### OAuth Integration Tests
+
+The service includes comprehensive OAuth integration tests that validate:
 
 - **OAuth Start Endpoints**: GitHub/GitLab redirects, provider validation, state management
 - **OAuth Callbacks**: Login flow, provider linking, error handling  
 - **Security Features**: State parameter integrity, tamper resistance, nonce validation
 - **Performance**: Concurrent flows, database cleanup efficiency
 
-#### Running Tests
-
-**Modern Task Runner** (recommended):
-
-```bash
-# Install just (modern, clean syntax)
-cargo install just
-
-# Run OAuth integration tests
-just test-integration
-just test-single test_oauth_start_github_redirects_properly
-just test-debug                # With full debugging output
-just watch                     # Auto-run on file changes
-
-# Test specific areas
-just test-start                 # OAuth start endpoints
-just test-callback              # OAuth callback handling
-just test-state                 # State management
-
-# Development workflow
-just dev                        # Complete setup: dependencies + database + migrations
-```
-
-**Alternative: Cargo-Make** (Rust-native):
-```bash
-cargo install cargo-make
-cargo make test-integration
-```
-
-**Direct Commands**:
-```bash
-# Run all OAuth integration tests
-cargo test --test integration_auth_oauth_flow
-
-# Run specific test with debugging
-RUST_LOG=debug cargo test test_oauth_start_github_redirects_properly -- --nocapture --exact
-
-# Run with CI optimizations
-CI=true TEST_MAX_CONCURRENCY=2 cargo test --test integration_auth_oauth_flow
-```
-
-For detailed test documentation, see [`tests/README.md`](tests/README.md) and the comprehensive [**Testing Guide**](docs/TESTING_GUIDE.md).
+These tests use both the test database system and fixture system for complete end-to-end validation.
 
 ## API Documentation
 

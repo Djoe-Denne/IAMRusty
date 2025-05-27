@@ -3,6 +3,7 @@ use sea_orm::{DatabaseConnection, Database, DbErr, ConnectOptions};
 use std::time::Duration;
 use std::sync::Arc;
 use tracing::{info, warn};
+use crate::config::DatabaseConfig;
 
 /// Database connection pool with read-write split capabilities
 pub struct DbConnectionPool {
@@ -27,10 +28,12 @@ impl Clone for DbConnectionPool {
 }
 
 impl DbConnectionPool {
-    /// Create a new connection pool with the given database URL
-    pub async fn new(db_url: &str, read_replicas: Vec<String>) -> Result<Self, DbErr> {
+    /// Create a new connection pool with the given database configuration
+    pub async fn new(db_config: &DatabaseConfig) -> Result<Self, DbErr> {
+        let db_url = db_config.url();
+        
         // Create the write connection
-        let mut opt = ConnectOptions::new(db_url.to_owned());
+        let mut opt = ConnectOptions::new(db_url.clone());
         opt.max_connections(32)
             .min_connections(5)
             .connect_timeout(Duration::from_secs(8))
@@ -44,13 +47,13 @@ impl DbConnectionPool {
         // Create read connections (replicas if provided, otherwise use the main connection)
         let mut read_connections = Vec::new();
         
-        if read_replicas.is_empty() {
+        if db_config.read_replicas.is_empty() {
             // Use the write connection for reads if no replicas are provided
             info!("No read replicas specified, using primary database for reads");
             read_connections.push(Arc::new(write_conn.clone()));
         } else {
             // Connect to each read replica
-            for (i, replica_url) in read_replicas.iter().enumerate() {
+            for (i, replica_url) in db_config.read_replicas.iter().enumerate() {
                 info!("Connecting to read replica {}", i + 1);
                 let mut opt = ConnectOptions::new(replica_url.to_owned());
                 opt.max_connections(32)
@@ -83,6 +86,18 @@ impl DbConnectionPool {
             read_connections,
             current_read_index: std::sync::atomic::AtomicUsize::new(0),
         })
+    }
+    
+    /// Create a new connection pool with the given database URL (for backward compatibility)
+    pub async fn new_from_url(db_url: &str, read_replicas: Vec<String>) -> Result<Self, DbErr> {
+        // Parse the URL to create a DatabaseConfig
+        let db_config = DatabaseConfig::from_url(db_url)
+            .map_err(|e| DbErr::Custom(format!("Failed to parse database URL: {}", e)))?;
+        
+        let mut config = db_config;
+        config.read_replicas = read_replicas;
+        
+        Self::new(&config).await
     }
     
     /// Get a connection for write operations

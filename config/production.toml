@@ -3,16 +3,37 @@
 [server]
 host = "0.0.0.0"
 port = 8080
+tls_enabled = true
+tls_cert_path = "/etc/ssl/certs/iam.crt"
+tls_key_path = "/etc/ssl/private/iam.key"
+tls_port = 8443
 
 [database]
-url = "postgres://postgres:postgres@db:5432/iam_prod"
+# Database connection details
+host = "db"
+port = 5432
+db = "iam_prod"
+# Database credentials
+[database.creds]
+username = "postgres"
+password = "postgres"
+
 # Add read replicas for production
 read_replicas = ["postgres://postgres:postgres@db-read-1:5432/iam_prod", "postgres://postgres:postgres@db-read-2:5432/iam_prod"]
+
+[oauth.github]
+# Production values should be set via environment variables
+# These are just placeholders
+redirect_uri = "https://your-domain.com/api/auth/github/callback"
+
+[oauth.gitlab]
+# Production values should be set via environment variables  
+# These are just placeholders
+redirect_uri = "https://your-domain.com/api/auth/gitlab/callback"
 
 # Set longer JWT expiration for production
 [jwt]
 expiration_seconds = 86400  # 24 hours
 
-# Set info level logging for production
-[logging]
-level = "info" 
+# Note: Logging configuration should be handled by the application logger, not config
+# You can set RUST_LOG environment variable for log levels 

@@ -7,7 +7,7 @@ description = "IAM microservice with OAuth2, OpenID Connect, JWT, PostgreSQL, Ax
 license = "MIT OR Apache-2.0"
 
 [workspace]
-members = ["domain", "application", "infra", "http", "migration"]
+members = ["domain", "application", "infra", "http", "migration", "setup"]
 
 [dependencies]
 # Internal workspace crates
@@ -15,6 +15,7 @@ domain = { path = "domain" }
 application = { path = "application" }
 infra = { path = "infra" }
 http_server = { path = "http" }
+setup = { path = "setup" }
 
 # Web & HTTP
 axum = { version = "0.8.4", features = ["macros", "json"] }
@@ -47,17 +48,27 @@ tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter", "fmt", "json"] }
 
 # Middleware / tower layers
-tower = "0.4.13"
+tower = { version = "0.4.13", features = ["util"] }
 tower-http = { version = "0.5.2", features = ["trace", "catch-panic"] }
 
 [dev-dependencies]
 tokio = { version = "1.44", features = ["rt-multi-thread", "macros"] }
 axum-test = "17.3.0"
-wiremock = "0.6.3"
+tokio-test = "0.4.3"
+wiremock = "0.6.0"
 testcontainers = "0.23.1"
 testcontainers-modules = { version = "0.11.0", features = ["postgres"] }
-sqlx = { version = "0.8.0", features = ["postgres", "runtime-tokio-rustls"] }
+sqlx = { version = "0.8.2", features = ["postgres", "runtime-tokio-rustls", "uuid", "chrono"] }
 sea-orm-cli = "1.1.11"
 url = "2.5.0"
 futures = "0.3.30"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter", "fmt"] }
+migration = { path = "migration" }
+serial_test = "3.0.0"
+ctrlc = "3.4.0"
+libc = "0.2"
+ctor = "0.2.0"
+rand = "0.8.5"
+async-trait = "0.1.74"
+reqwest = { version = "0.12.0", features = ["json"] }
+base64 = "0.22.0"

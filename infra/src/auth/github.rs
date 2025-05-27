@@ -10,10 +10,6 @@ use application::auth::{AuthService, AuthError};
 use serde::Deserialize;
 use tracing::{debug, error};
 
-const GITHUB_AUTH_URL: &str = "https://github.com/login/oauth/authorize";
-const GITHUB_TOKEN_URL: &str = "https://github.com/login/oauth/access_token";
-const GITHUB_USER_URL: &str = "https://api.github.com/user";
-
 /// GitHub user response from the API
 #[derive(Debug, Deserialize)]
 struct GitHubUser {
@@ -30,6 +26,7 @@ struct GitHubUser {
 /// GitHub OAuth2 client
 pub struct GitHubOAuth2Client {
     client: BasicClient,
+    user_url: String,
 }
 
 impl GitHubOAuth2Client {
@@ -38,24 +35,30 @@ impl GitHubOAuth2Client {
         client_id: String,
         client_secret: String,
         redirect_url: String,
+        auth_url: String,
+        token_url: String,
+        user_url: String,
     ) -> Self {
         let client = BasicClient::new(
             ClientId::new(client_id),
             Some(ClientSecret::new(client_secret)),
-            AuthUrl::new(GITHUB_AUTH_URL.to_string()).unwrap(),
-            Some(TokenUrl::new(GITHUB_TOKEN_URL.to_string()).unwrap()),
+            AuthUrl::new(auth_url).unwrap(),
+            Some(TokenUrl::new(token_url).unwrap()),
         )
         .set_redirect_uri(RedirectUrl::new(redirect_url).unwrap());
 
-        Self { client }
+        Self { client, user_url }
     }
 
-    /// Create a new GitHub OAuth2 client from a ProviderConfig
-    pub fn from_config(config: &crate::config::ProviderConfig) -> Self {
+    /// Create a new GitHub OAuth2 client from a GithubConfig
+    pub fn from_config(config: &crate::config::GithubConfig) -> Self {
         Self::new(
             config.client_id.clone(),
             config.client_secret.clone(),
             config.redirect_uri.clone(),
+            config.auth_url.clone(),
+            config.token_url.clone(),
+            config.user_url.clone(),
         )
     }
 }
@@ -106,7 +109,7 @@ impl ProviderOAuth2Client for GitHubOAuth2Client {
         
         // Fetch user data from GitHub API
         let github_user = client
-            .get(GITHUB_USER_URL)
+            .get(self.user_url.clone())
             .header("User-Agent", "IAM-Service")
             .header("Accept", "application/vnd.github.v3+json")
             .header("Authorization", format!("token {}", tokens.access_token))
@@ -143,6 +146,10 @@ impl AuthService for GitHubOAuth2Client {
 
     fn provider(&self) -> Provider {
         Provider::GitHub
+    }
+
+    fn generate_authorize_url(&self) -> String {
+        ProviderOAuth2Client::generate_authorize_url(self)
     }
 
     async fn exchange_code(

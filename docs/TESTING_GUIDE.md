@@ -1,68 +1,39 @@
 # Testing Guide
 
-Comprehensive guide for understanding, extending, and implementing tests in the IAM service.
+Comprehensive guide for writing tests in the IAM (Identity Access Management) system. This guide covers integration testing patterns, test server management, database testing, and best practices.
 
 ## Table of Contents
 
 - [Overview](#overview)
-- [Technologies & Libraries](#technologies--libraries)
 - [Test Architecture](#test-architecture)
-- [Mocking & Fixtures](#mocking--fixtures)
-- [Running Tests](#running-tests)
-- [Writing New Tests](#writing-new-tests)
+- [Test Server Management](#test-server-management)
+- [HTTP Testing Utilities](#http-testing-utilities)
+- [Integration Testing Patterns](#integration-testing-patterns)
+- [Database Testing](#database-testing)
+- [OAuth and Authentication Tests](#oauth-and-authentication-tests)
+- [Test Utilities and Helpers](#test-utilities-and-helpers)
 - [Best Practices](#best-practices)
+- [Common Patterns](#common-patterns)
 - [Troubleshooting](#troubleshooting)
-- [Quick Reference](#quick-reference)
 
 ## Overview
 
-The IAM service uses a comprehensive integration testing approach that validates OAuth authentication flows end-to-end. Tests are designed to be:
+The testing system is designed for comprehensive integration testing with real database and HTTP server instances. It provides:
 
-- **Fast**: Shared database containers, efficient cleanup
-- **Reliable**: Isolated test environments, comprehensive mocking
-- **CI/CD Optimized**: Automatic environment detection and optimization
-- **Developer Friendly**: Rich fixtures, clear assertions, modern tooling
+- **Isolated Test Environment**: Each test runs with a clean database state
+- **Real Server Testing**: Tests run against actual HTTP server instances
+- **External Service Mocking**: Comprehensive fixture system for OAuth providers
+- **Serial Test Execution**: Ensures proper isolation and resource management
+- **Automatic Cleanup**: Database tables are truncated between tests
+- **Configuration Management**: Test-specific configuration with random ports
 
-## Technologies & Libraries
+### Key Components
 
-### Core Testing Framework
-
-| Library | Version | Purpose |
-|---------|---------|---------|
-| `tokio` | Latest | Async runtime for test execution |
-| `tokio-test` | Latest | Async testing utilities |
-
-### HTTP Testing
-
-| Library | Version | Purpose |
-|---------|---------|---------|
-| `axum-test` | 17.3.0 | HTTP testing framework for Axum applications |
-| `reqwest` | Latest | HTTP client for external API testing |
-| `serde_json` | Latest | JSON serialization/deserialization |
-
-### Database Testing
-
-| Library | Version | Purpose |
-|---------|---------|---------|
-| `testcontainers` | 0.23.1 | Containerized PostgreSQL for testing |
-| `testcontainers-modules` | 0.11.0 | Pre-built container modules |
-| `sea-orm` | Latest | Database ORM for test data management |
-| `sqlx` | Latest | Direct SQL operations for cleanup |
-
-### Mocking & Simulation
-
-| Library | Version | Purpose |
-|---------|---------|---------|
-| `wiremock` | 0.6.3 | HTTP service mocking for OAuth providers |
-| `uuid` | Latest | Test data generation |
-| `url` | Latest | URL parsing and validation |
-
-### Task Management
-
-| Library | Version | Purpose |
-|---------|---------|---------|
-| `just` | Latest | Modern task runner (recommended) |
-| `cargo-make` | Latest | Alternative Rust-native task runner |
+1. **Test Server Management** (`test_server.rs`): Global test server lifecycle management
+2. **HTTP Test Utilities** (`http_test.rs`): Server spawning and configuration
+3. **Database Testing** (`database.rs`): Database container and cleanup utilities
+4. **Fixtures System**: External service mocking (documented in [FIXTURES_GUIDE.md](FIXTURES_GUIDE.md))
+5. **Integration Tests**: Complete OAuth flow testing patterns
 
 ## Test Architecture
 
@@ -70,388 +41,1023 @@ The IAM service uses a comprehensive integration testing approach that validates
 
 ```
 tests/
-├── integration_auth_oauth_flow.rs  # Main OAuth integration tests
-├── test_config.rs                  # Configuration testing utilities
-├── README.md                       # Test-specific documentation
-└── common/                         # Shared test utilities
-    ├── mod.rs                      # Database container setup
-    └── fixtures.rs                 # Test fixtures and mocking
+├── auth_oauth_start.rs          # OAuth authentication flow tests
+├── common/
+│   ├── mod.rs                   # Common test utilities exports
+│   ├── test_server.rs           # Test server lifecycle management
+│   ├── http_test.rs             # HTTP server spawning utilities
+│   └── database.rs              # Database testing utilities
+├── fixtures/                    # External service mocking system
+│   ├── mod.rs
+│   ├── github/                  # GitHub API mocking
+│   ├── gitlab/                  # GitLab API mocking
+│   └── db/                      # Database fixtures
+└── example/                     # Example tests and documentation
 ```
 
-### Test Lifecycle
+### Dependencies and Imports
+
+All tests should include these common imports:
 
 ```rust
-#[tokio::test]
-async fn test_oauth_feature() {
-    // 1. Setup - Create clean test environment
-    let fixture = TestFixture::new().await;
-    
-    // 2. Arrange - Setup mocks and test data
-    fixture.mock_provider.setup_github_success().await;
-    
-    // 3. Act - Execute the test scenario
-    let response = fixture.server.get("/auth/github/start").await;
-    
-    // 4. Assert - Verify expected behavior
-    response.assert_status(StatusCode::TEMPORARY_REDIRECT);
-    
-    // 5. Cleanup - Automatic via TestFixture::drop
+// Include common test utilities and fixtures
+#[path = "common/mod.rs"] 
+mod common;
+#[path = "fixtures/mod.rs"]
+mod fixtures;
+
+use common::get_test_server;
+use fixtures::{GitHubFixtures, GitLabFixtures};
+use reqwest::Client;
+use serde_json::Value;
+use serial_test::serial;
+```
+
+### Test Attributes
+
+All integration tests should use these attributes:
+
+```rust
+#[tokio::test]  // For async test execution
+#[serial]       // For sequential execution to ensure isolation
+async fn test_name() {
+    // Test implementation
 }
 ```
 
-### Shared Database Strategy
+## Test Server Management
+
+The test server management system (`test_server.rs`) provides a global test server instance that automatically handles server lifecycle, database setup, and health checking.
+
+### Architecture
 
 ```rust
-// Single database container shared across all tests
-static DATABASE: OnceCell<Arc<DatabaseContainer>> = OnceCell::const_new();
+/// Global test server instance that starts only once
+static TEST_SERVER: OnceLock<Arc<Mutex<Option<JoinHandle<()>>>>> = OnceLock::new();
 
-// Efficient cleanup: TRUNCATE tables (not container recreation)
-impl DatabaseContainer {
-    pub async fn cleanup(&self) -> Result<(), Box<dyn std::error::Error>> {
-        // Fast table cleanup instead of container restart
-        sqlx::query("TRUNCATE TABLE users, oauth_accounts, user_emails RESTART IDENTITY CASCADE")
-            .execute(&self.pool)
-            .await?;
-        Ok(())
+/// Get or create the global test server instance
+pub async fn get_test_server() -> Result<String, Box<dyn std::error::Error>>
+```
+
+### Key Features
+
+1. **Single Instance**: Only one server instance runs across all tests
+2. **Health Checking**: Automatic server readiness verification
+3. **Lifecycle Management**: Detects dead servers and respawns automatically
+4. **Database Integration**: Ensures test database is ready before server start
+5. **Configuration-Based URLs**: Returns correct base URL from test configuration
+
+### Server Lifecycle
+
+The server management system follows this lifecycle:
+
+1. **Check Existing Server**: Determine if a server handle exists and is alive
+2. **Database Setup**: Ensure test database container is running
+3. **Server Spawning**: Launch new server if needed
+4. **Health Verification**: Wait for server to respond to health checks
+5. **URL Resolution**: Return the correct base URL for test clients
+
+### Usage Pattern
+
+```rust
+#[tokio::test]
+#[serial]
+async fn test_oauth_endpoint() {
+    // Get test server (automatically handles setup)
+    let base_url = get_test_server().await.expect("Failed to start test server");
+    
+    // Create HTTP client
+    let client = create_test_client();
+    
+    // Make requests to test server
+    let response = client
+        .get(&format!("{}/api/auth/github/start", base_url))
+        .send()
+        .await
+        .expect("Failed to send request");
+    
+    // Assertions...
+}
+```
+
+### Server Health Checking
+
+The system includes robust health checking with retries:
+
+```rust
+// Try to connect to the server with retries
+for attempt in 1..=10 {
+    tokio::time::sleep(tokio::time::Duration::from_millis(100 * attempt)).await;
+    
+    if let Ok(response) = client.get(&format!("{}/health", base_url)).send().await {
+        if response.status().is_success() {
+            println!("✅ Server is ready after {} attempts", attempt);
+            break;
+        }
     }
-}
-```
-
-## Mocking & Fixtures
-
-### OAuth Provider Mocking
-
-#### GitHub OAuth Flow
-
-```rust
-// Setup complete GitHub OAuth simulation
-let mock_provider = MockOAuthProvider::new().await;
-let auth_code = mock_provider.setup_github_success().await;
-
-// This creates wiremock endpoints for:
-// 1. Token exchange: POST /login/oauth/access_token
-// 2. User info: GET /user  
-// 3. User emails: GET /user/emails
-```
-
-#### GitLab OAuth Flow
-
-```rust
-// Setup complete GitLab OAuth simulation
-let auth_code = mock_provider.setup_gitlab_success().await;
-
-// This creates wiremock endpoints for:
-// 1. Token exchange: POST /oauth/token
-// 2. User info: GET /api/v4/user
-```
-
-#### Error Scenarios
-
-```rust
-// Simulate OAuth provider errors
-mock_provider.setup_oauth_error("access_denied", "User denied access").await;
-
-// Test various error conditions:
-// - access_denied
-// - invalid_request  
-// - invalid_client
-// - unauthorized_client
-```
-
-### Test Fixtures
-
-#### OAuth State Management
-
-```rust
-// Login operation state
-let login_state = OAuthStateFixtures::valid_login_state();
-
-// Provider linking state (authenticated users)
-let user_id = UserFixtures::test_user_id();
-let link_state = OAuthStateFixtures::valid_link_state(user_id);
-
-// Security testing
-let tampered_state = OAuthStateFixtures::tampered_state();
-let invalid_state = OAuthStateFixtures::invalid_state();
-```
-
-#### User Data
-
-```rust
-// Consistent test user ID
-let user_id = UserFixtures::test_user_id(); // UUID
-
-// Mock JWT token for authenticated requests
-let jwt_token = UserFixtures::test_jwt_token();
-let (header_name, header_value) = TestRequestBuilder::auth_header(&jwt_token);
-```
-
-#### Request Building
-
-```rust
-// OAuth callback simulation
-let callback_params = TestRequestBuilder::oauth_callback_query("auth_code", Some("state"));
-
-// Error callback simulation  
-let error_params = TestRequestBuilder::oauth_error_query("access_denied", Some("User denied"));
-
-// Authenticated requests
-let response = fixture
-    .server
-    .get("/auth/github/start")
-    .add_header(header_name, header_value)
-    .await;
-```
-
-### Response Assertions
-
-#### Standard Assertions
-
-```rust
-// Status code validation
-response.assert_status(StatusCode::TEMPORARY_REDIRECT);
-response.assert_status_ok();
-
-// JSON response validation
-let body: Value = response.json();
-ResponseAssertions::assert_oauth_success_response(&body);
-ResponseAssertions::assert_oauth_error_response(&body, "Invalid provider");
-```
-
-#### Redirect Validation
-
-```rust
-// Validate OAuth redirect URLs
-let location = response.header("location").to_str().unwrap();
-ResponseAssertions::assert_redirect_has_params(
-    location,
-    &["client_id", "redirect_uri", "state", "scope"]
-);
-
-// Validate state parameter integrity
-ResponseAssertions::assert_valid_state(&state_param);
-```
-
-## Running Tests
-
-### Using Modern Task Runner (Recommended)
-
-```bash
-# Install just (modern task runner)
-cargo install just
-
-# Run all OAuth integration tests
-just test-integration
-
-# Run specific test with debugging
-just test-single test_oauth_start_github_redirects_properly
-
-# Watch mode - auto-run on changes
-just watch
-
-# Debug mode with full logging
-just test-debug
-```
-
-### Direct Cargo Commands
-
-```bash
-# Run all integration tests
-cargo test --test integration_auth_oauth_flow
-
-# Run specific test pattern
-cargo test --test integration_auth_oauth_flow oauth_start
-
-# Debug with full logging
-RUST_LOG=debug cargo test --test integration_auth_oauth_flow -- --nocapture
-```
-
-### Environment Configuration
-
-```bash
-# CI/CD optimization
-CI=true TEST_VERBOSE=true TEST_MAX_CONCURRENCY=2 cargo test
-
-# Custom timeouts for slower systems
-TEST_DB_TIMEOUT=60 TEST_DB_RETRIES=50 cargo test
-
-# Docker configuration
-TEST_USE_DOCKER=true cargo test
-```
-
-## Writing New Tests
-
-### 1. Basic Test Template
-
-```rust
-#[tokio::test]
-async fn test_your_new_feature() {
-    // Setup clean test environment
-    let fixture = TestFixture::new().await;
     
-    // Arrange: Setup mocks and test data
-    let auth_code = fixture.mock_provider.setup_github_success().await;
-    let state = OAuthStateFixtures::valid_login_state();
-    
-    // Act: Execute the test scenario
-    let response = fixture
-        .server
-        .get("/auth/github/your-endpoint")
-        .add_query_params(&[
-            ("code", &auth_code),
-            ("state", &state)
-        ])
-        .await;
-    
-    // Assert: Verify expected behavior
-    response.assert_status_ok();
-    let body: Value = response.json();
-    
-    // Custom assertions
-    assert_eq!(body["operation"], "your_operation");
-    assert!(body["data"].is_object());
-}
-```
-
-### 2. Testing Authenticated Endpoints
-
-```rust
-#[tokio::test]
-async fn test_authenticated_feature() {
-    let fixture = TestFixture::new().await;
-    
-    // Create authenticated request
-    let token = UserFixtures::test_jwt_token();
-    let (header_name, header_value) = TestRequestBuilder::auth_header(&token);
-    
-    let response = fixture
-        .server
-        .post("/your-authenticated-endpoint")
-        .add_header(header_name, header_value)
-        .json(&json!({ "data": "test" }))
-        .await;
-    
-    response.assert_status_ok();
-}
-```
-
-### 3. Testing Error Scenarios
-
-```rust
-#[tokio::test]
-async fn test_error_handling() {
-    let fixture = TestFixture::new().await;
-    
-    // Setup error scenario
-    fixture.mock_provider.setup_oauth_error("invalid_request", "Missing parameter").await;
-    
-    let response = fixture
-        .server
-        .get("/auth/github/callback")
-        .add_query_params(&[("error", "invalid_request")])
-        .await;
-    
-    // Verify error handling
-    response.assert_status(StatusCode::BAD_REQUEST);
-    let body: Value = response.json();
-    ResponseAssertions::assert_oauth_error_response(&body, "invalid_request");
-}
-```
-
-### 4. Testing State Management
-
-```rust
-#[tokio::test]
-async fn test_state_security() {
-    let fixture = TestFixture::new().await;
-    
-    // Test tampered state
-    let tampered_state = OAuthStateFixtures::tampered_state();
-    
-    let response = fixture
-        .server
-        .get("/auth/github/callback")
-        .add_query_params(&[
-            ("code", "test_code"),
-            ("state", &tampered_state)
-        ])
-        .await;
-    
-    // Should reject tampered state
-    response.assert_status(StatusCode::BAD_REQUEST);
-}
-```
-
-### 5. Adding New Fixtures
-
-#### OAuth State Fixtures
-
-```rust
-// In tests/common/fixtures.rs
-impl OAuthStateFixtures {
-    pub fn custom_state_scenario() -> String {
-        let state = http_server::oauth_state::OAuthState {
-            operation: http_server::oauth_state::OAuthOperation::CustomOp,
-            nonce: Uuid::new_v4().to_string(),
-            user_id: Some(UserFixtures::test_user_id()),
-        };
-        state.encode().expect("Failed to encode custom state")
+    if attempt == 10 {
+        eprintln!("❌ Server failed to start after 10 attempts");
+        return Err("Server failed to start".into());
     }
+    
+    println!("⏳ Waiting for server to start (attempt {}/10)...", attempt);
 }
 ```
 
-#### Mock Provider Extensions
+### Server State Detection
+
+The system intelligently manages server state:
 
 ```rust
-// In tests/common/fixtures.rs
-impl MockOAuthProvider {
-    pub async fn setup_custom_provider(&self) -> String {
-        let auth_code = "custom_auth_code";
+// Check if we need to start a new server
+let needs_new_server = match server_guard.as_ref() {
+    None => true, // No server handle exists
+    Some(handle) => handle.is_finished(), // Server handle exists but task is finished
+};
+
+if needs_new_server {
+    // If the old handle is finished, clear it
+    if server_guard.is_some() {
+        println!("🔄 Previous server has stopped, starting a new one...");
+        *server_guard = None;
+    }
+    
+    // Start new server...
+} else {
+    println!("♻️  Reusing existing server instance");
+}
+```
+
+### Error Handling
+
+The server management includes comprehensive error handling:
+
+- **Database Setup Failures**: Proper error propagation with context
+- **Server Start Failures**: Detailed error messages with debugging info
+- **Health Check Timeouts**: Configurable retry logic with exponential backoff
+- **Configuration Errors**: Clear error messages for config loading issues
+
+## HTTP Testing Utilities
+
+The HTTP testing utilities (`http_test.rs`) provide the core server spawning functionality used by the test server management system.
+
+### Core Function
+
+```rust
+pub async fn spawn_test_server() -> anyhow::Result<()> {
+    // Use your real config loading logic
+    let config = load_config().expect("failed to load test config");
+
+    eprintln!("🚀 Starting test server with configuration:");
+    eprintln!("   Server host: {}", config.server.host);
+    eprintln!("   Server port: {}", config.server.port);
+    eprintln!("   TLS enabled: {}", config.server.tls_enabled);
+    eprintln!("   Database URL: {}", config.database.url());
+    eprintln!("   Database actual port: {}", config.database.actual_port());
+
+    // Create server configuration
+    let server_config = config::ServerConfig {
+        host: config.server.host.clone(),
+        port: config.server.port,
+        tls_enabled: config.server.tls_enabled,
+        tls_cert_path: if config.server.tls_enabled { Some(config.server.tls_cert_path.clone()) } else { None },
+        tls_key_path: if config.server.tls_enabled { Some(config.server.tls_key_path.clone()) } else { None },
+        tls_port: if config.server.tls_enabled { Some(config.server.tls_port) } else { None },
+    };
+
+    eprintln!("🌐 Test server will listen on: http://{}:{}", server_config.host, server_config.port);
+
+    // Build and run the application - this should run indefinitely
+    eprintln!("🔄 Starting server...");
+    app::build_and_run(config, server_config).await
+}
+```
+
+### Configuration Integration
+
+The HTTP utilities integrate with the configuration system:
+
+1. **Load Test Config**: Uses the standard config loading with test environment
+2. **Server Config Creation**: Translates app config to server config format
+3. **TLS Handling**: Properly configures TLS settings for test environment
+4. **Port Management**: Uses test-specific ports to avoid conflicts
+
+### Logging and Debugging
+
+The system provides comprehensive logging for debugging:
+
+```rust
+eprintln!("🚀 Starting test server with configuration:");
+eprintln!("   Server host: {}", config.server.host);
+eprintln!("   Server port: {}", config.server.port);
+eprintln!("   TLS enabled: {}", config.server.tls_enabled);
+eprintln!("   Database URL: {}", config.database.url());
+eprintln!("   Database actual port: {}", config.database.actual_port());
+```
+
+### Integration with App Framework
+
+The spawn function integrates with the main application framework:
+
+```rust
+// Build and run the application - this should run indefinitely
+app::build_and_run(config, server_config).await
+```
+
+This ensures that tests run against the same application code that runs in production.
+
+## Integration Testing Patterns
+
+Based on the `auth_oauth_start.rs` file, here are the established patterns for writing integration tests.
+
+### Basic Test Structure
+
+```rust
+#[tokio::test]
+#[serial]
+async fn test_oauth_start_github_redirect_success() {
+    // Setup test server
+    let base_url = get_test_server().await.expect("Failed to start test server");
+    let client = create_test_client();
+    
+    // Setup external service fixtures (scoped to this test)
+    let _github_service = GitHubFixtures::service().await;
+    
+    // Make request to endpoint
+    let response = client
+        .get(&format!("{}/api/auth/github/start", base_url))
+        .send()
+        .await
+        .expect("Failed to send request");
+    
+    // Assert response status
+    assert_eq!(response.status(), 303, "Should return 303 redirect status");
+    
+    // Assert response headers
+    let location = response
+        .headers()
+        .get("location")
+        .expect("Should have Location header")
+        .to_str()
+        .expect("Location header should be valid string");
+    
+    // Assert redirect destination
+    assert!(location.contains("github.com") || location.contains("localhost:3000"), 
+           "Should redirect to GitHub OAuth provider (or mock)");
+    
+    // Parse and validate query parameters
+    let (base_path, params) = parse_redirect_url(location)
+        .expect("Should be able to parse redirect URL");
+    
+    // Detailed parameter validation...
+}
+```
+
+### HTTP Client Configuration
+
+All tests use a standardized HTTP client that doesn't follow redirects:
+
+```rust
+/// Create a common HTTP client for tests that doesn't follow redirects automatically
+fn create_test_client() -> Client {
+    Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .expect("Failed to create HTTP client")
+}
+```
+
+This pattern allows tests to:
+- Verify redirect responses explicitly
+- Check redirect destinations and parameters
+- Test the actual HTTP flow without automatic following
+
+### URL Parsing and Validation
+
+Complex URL validation uses helper functions:
+
+```rust
+/// Helper function to verify redirect URL structure and extract query parameters
+fn parse_redirect_url(location: &str) -> Result<(String, std::collections::HashMap<String, String>), Box<dyn std::error::Error>> {
+    let url = Url::parse(location)?;
+    let mut params = std::collections::HashMap::new();
+    
+    for (key, value) in url.query_pairs() {
+        params.insert(key.to_string(), value.to_string());
+    }
+    
+    Ok((url.origin().ascii_serialization() + url.path(), params))
+}
+```
+
+### State Parameter Validation
+
+OAuth state parameters require special validation:
+
+```rust
+/// Helper function to decode and verify OAuth state parameter
+fn decode_oauth_state(state: &str) -> Result<Value, Box<dyn std::error::Error>> {
+    let decoded_bytes = general_purpose::URL_SAFE_NO_PAD.decode(state)?;
+    let decoded_str = String::from_utf8(decoded_bytes)?;
+    let state_json: Value = serde_json::from_str(&decoded_str)?;
+    Ok(state_json)
+}
+
+// Usage in tests:
+let state = params.get("state").unwrap();
+let decoded_state = decode_oauth_state(state)
+    .expect("Should be able to decode state parameter");
+
+assert_eq!(decoded_state["operation"]["type"], "login", 
+          "State should contain login operation type");
+assert!(decoded_state["nonce"].is_string(), 
+       "State should contain nonce for security");
+```
+
+### Error Testing Patterns
+
+Test error scenarios comprehensively:
+
+```rust
+#[tokio::test]
+#[serial]
+async fn test_oauth_start_unsupported_provider_returns_400() {
+    let base_url = get_test_server().await.expect("Failed to start test server");
+    let client = create_test_client();
+    
+    // Test multiple error cases
+    let unsupported_providers = vec!["facebook", "google", "twitter", "unknown", ""];
+    
+    for provider in unsupported_providers {
+        let response = client
+            .get(&format!("{}/api/auth/{}/start", base_url, provider))
+            .send()
+            .await
+            .expect("Failed to send request");
         
-        Mock::given(method("POST"))
-            .and(path_regex("/custom/oauth/token"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-                "access_token": "custom_token",
-                "token_type": "bearer"
-            })))
-            .mount(&self.server)
-            .await;
+        // Verify error status
+        assert_eq!(response.status(), 400, 
+                  "Should return 400 Bad Request for unsupported provider: {}", provider);
         
-        auth_code.to_string()
+        // Verify error response structure
+        let error_response: Value = response
+            .json()
+            .await
+            .expect("Should return JSON error response");
+        
+        assert_eq!(error_response["operation"], "start", 
+                  "Error response should indicate 'start' operation");
+        assert_eq!(error_response["error"], "invalid_provider", 
+                  "Error response should indicate 'invalid_provider'");
+        assert!(error_response["message"].is_string(), 
+               "Error response should have error message");
     }
 }
 ```
 
-### 6. Database Integration Tests
+### Case Sensitivity Testing
+
+Test various input variations:
 
 ```rust
 #[tokio::test]
+#[serial]
+async fn test_oauth_start_case_insensitive_providers() {
+    let base_url = get_test_server().await.expect("Failed to start test server");
+    let client = create_test_client();
+    
+    // Setup fixtures
+    let _github_service = GitHubFixtures::service().await;
+    let _gitlab_service = GitLabFixtures::service().await;
+    
+    // Test case variations that should work
+    let valid_cases = vec![
+        ("github", "GitHub"),
+        ("GITHUB", "GitHub"), 
+        ("GitHub", "GitHub"),
+        ("gitlab", "GitLab"),
+        ("GITLAB", "GitLab"),
+        ("GitLab", "GitLab"),
+    ];
+    
+    for (provider_input, expected_provider) in valid_cases {
+        let response = client
+            .get(&format!("{}/api/auth/{}/start", base_url, provider_input))
+            .send()
+            .await
+            .expect("Failed to send request");
+        
+        assert_eq!(response.status(), 303, 
+                  "Should handle case-insensitive provider: {}", provider_input);
+        
+        // Verify correct provider handling...
+    }
+}
+```
+
+### Security Testing Patterns
+
+Test security aspects like state uniqueness:
+
+```rust
+#[tokio::test]
+#[serial]
+async fn test_oauth_start_state_security_and_uniqueness() {
+    let base_url = get_test_server().await.expect("Failed to start test server");
+    let client = create_test_client();
+    let _github_service = GitHubFixtures::service().await;
+    
+    // Make multiple requests to verify state uniqueness
+    let mut states = std::collections::HashSet::new();
+    
+    for i in 0..5 {
+        let response = client
+            .get(&format!("{}/api/auth/github/start", base_url))
+            .send()
+            .await
+            .expect("Failed to send request");
+        
+        assert_eq!(response.status(), 303);
+        
+        let location = response
+            .headers()
+            .get("location")
+            .expect("Should have Location header")
+            .to_str()
+            .expect("Location header should be valid string");
+        
+        let (_, params) = parse_redirect_url(location)
+            .expect("Should be able to parse redirect URL");
+        
+        let state = params.get("state").unwrap();
+        
+        // Each state should be unique
+        assert!(!states.contains(state), 
+               "State parameter should be unique across requests (iteration {})", i);
+        states.insert(state.clone());
+        
+        // State should be properly formatted
+        let decoded_state = decode_oauth_state(state)
+            .expect("State should be valid base64 encoded JSON");
+        
+        // Verify security fields
+        assert_eq!(decoded_state["operation"]["type"], "login");
+        assert!(decoded_state["nonce"].is_string());
+        
+        // Nonce should be a valid UUID format
+        let nonce = decoded_state["nonce"].as_str().unwrap();
+        assert!(uuid::Uuid::parse_str(nonce).is_ok(), 
+               "Nonce should be a valid UUID");
+    }
+    
+    assert_eq!(states.len(), 5, "Should generate 5 unique state parameters");
+}
+```
+
+### Authorization Header Testing
+
+Test authenticated endpoints:
+
+```rust
+#[tokio::test]
+#[serial]
+async fn test_oauth_start_with_auth_header_link_operation() {
+    let base_url = get_test_server().await.expect("Failed to start test server");
+    let client = create_test_client();
+    let _github_service = GitHubFixtures::service().await;
+    
+    // Mock JWT token for testing
+    let mock_jwt_token = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...";
+    
+    // Make request with Authorization header
+    let response = client
+        .get(&format!("{}/api/auth/github/start", base_url))
+        .header("Authorization", mock_jwt_token)
+        .send()
+        .await
+        .expect("Failed to send request");
+    
+    // Handle different response scenarios
+    if response.status() == 303 {
+        // Valid token - check for link operation
+        let location = response
+            .headers()
+            .get("location")
+            .expect("Should have Location header")
+            .to_str()
+            .expect("Location header should be valid string");
+        
+        let (_, params) = parse_redirect_url(location)
+            .expect("Should be able to parse redirect URL");
+        
+        let state = params.get("state").unwrap();
+        let decoded_state = decode_oauth_state(state)
+            .expect("Should be able to decode state parameter");
+        
+        assert_eq!(decoded_state["operation"]["type"], "link", 
+                  "State should contain link operation type when Authorization header is present");
+        assert!(decoded_state["operation"]["user_id"].is_string(), 
+               "Link operation should contain user_id");
+    } else if response.status() == 401 {
+        // Invalid token - verify error response
+        let error_response: Value = response
+            .json()
+            .await
+            .expect("Should return JSON error response");
+        
+        assert_eq!(error_response["operation"], "start");
+        assert_eq!(error_response["error"], "invalid_token");
+    } else {
+        panic!("Unexpected response status: {}", response.status());
+    }
+}
+```
+
+## Database Testing
+
+The database testing system provides a comprehensive PostgreSQL container-based testing environment with automatic cleanup.
+
+### Test Database Architecture
+
+```rust
+/// Global test database container instance
+static TEST_CONTAINER: OnceLock<Arc<Mutex<Option<Arc<TestDatabaseContainer>>>>> = OnceLock::new();
+
+/// Test database fixture providing database connection and cleanup utilities
+pub struct TestDatabase {
+    pub pool: DbConnectionPool,
+    pub connection: Arc<DatabaseConnection>,
+    pub database_url: String,
+}
+```
+
+### Basic Database Test Pattern
+
+```rust
+mod common;
+
+use common::TestDatabase;
+use serial_test::serial;
+
+#[tokio::test]
+#[serial]
 async fn test_database_operations() {
-    let fixture = TestFixture::new().await;
+    // Create test database instance
+    let test_db = TestDatabase::new().await.expect("Failed to create test database");
+    let db = test_db.get_connection();
     
-    // Direct database operations for complex scenarios
-    let user_id = Uuid::new_v4();
+    // Run your database operations
+    // Tables are automatically truncated between tests
     
-    // Insert test data
-    sqlx::query!(
-        "INSERT INTO users (id, username, email) VALUES ($1, $2, $3)",
-        user_id,
-        "testuser",
-        "test@example.com"
-    )
-    .execute(&fixture.database.pool)
-    .await
-    .expect("Failed to insert test user");
+    // Verify results
+    // No manual cleanup needed
+}
+```
+
+### Database Container Management
+
+The system uses a single PostgreSQL container for all tests:
+
+1. **Container Creation**: Automatic PostgreSQL container setup with random ports
+2. **Migration Execution**: Automatic database schema migration
+3. **Connection Pooling**: Shared connection pool for all tests
+4. **Table Truncation**: Automatic cleanup between tests without container restart
+
+### Table Truncation System
+
+Between each test, all tables are truncated:
+
+```rust
+/// Truncate all tables to clean up between tests
+pub async fn truncate_all_tables(&self) -> Result<(), DbErr> {
+    debug!("Truncating all tables for test cleanup");
     
-    // Test your endpoint
-    let response = fixture
-        .server
-        .get(&format!("/users/{}", user_id))
-        .await;
+    // Get all table names from the database
+    let tables = self.get_all_table_names().await?;
     
-    response.assert_status_ok();
+    if tables.is_empty() {
+        debug!("No tables found to truncate");
+        return Ok(());
+    }
     
-    // Database is automatically cleaned up via fixture.database.cleanup()
+    // Disable foreign key checks temporarily
+    self.connection
+        .execute(Statement::from_string(
+            sea_orm::DatabaseBackend::Postgres,
+            "SET session_replication_role = replica;".to_string(),
+        ))
+        .await?;
+    
+    // Truncate all tables
+    for table in &tables {
+        let sql = format!("TRUNCATE TABLE {} RESTART IDENTITY CASCADE;", table);
+        self.connection
+            .execute(Statement::from_string(
+                sea_orm::DatabaseBackend::Postgres,
+                sql,
+            ))
+            .await?;
+    }
+    
+    // Re-enable foreign key checks
+    self.connection
+        .execute(Statement::from_string(
+            sea_orm::DatabaseBackend::Postgres,
+            "SET session_replication_role = DEFAULT;".to_string(),
+        ))
+        .await?;
+    
+    debug!("Successfully truncated {} tables", tables.len());
+    Ok(())
+}
+```
+
+### TestFixture Integration
+
+For complete integration testing, use `TestFixture`:
+
+```rust
+mod common;
+
+use common::TestFixture;
+use serial_test::serial;
+
+#[tokio::test]
+#[serial]
+async fn test_complete_integration() {
+    // Setup complete test environment
+    let test_fixture = TestFixture::new().await.expect("Failed to create test fixture");
+    let db = test_fixture.db();
+    let config = test_fixture.config();
+    
+    // Test with real database and configuration
+    // Database is automatically cleaned up
+}
+```
+
+### Database Entity Testing
+
+```rust
+use sea_orm::{EntityTrait, ActiveModelTrait, ActiveValue};
+use infra::repository::entity::users::{Entity as UsersEntity, ActiveModel as UserActiveModel};
+
+#[tokio::test]
+#[serial]
+async fn test_user_creation() {
+    let test_fixture = TestFixture::new().await.expect("Failed to create test fixture");
+    let db = test_fixture.db();
+    
+    // Create a user entity
+    let user_active_model = UserActiveModel {
+        username: ActiveValue::Set("test_user".to_string()),
+        avatar_url: ActiveValue::Set(Some("https://example.com/avatar.png".to_string())),
+        ..Default::default()
+    };
+    
+    let user = user_active_model.insert(&*db).await.expect("Failed to create user");
+    
+    // Verify user was created
+    let found_user = UsersEntity::find_by_id(user.id)
+        .one(&*db)
+        .await
+        .expect("Failed to query user")
+        .expect("User should exist");
+    
+    assert_eq!(found_user.username, "test_user");
+    assert_eq!(found_user.avatar_url, Some("https://example.com/avatar.png".to_string()));
+    
+    // Count users to verify isolation
+    let user_count: i64 = db
+        .query_one(sea_orm::Statement::from_string(
+            sea_orm::DatabaseBackend::Postgres,
+            "SELECT COUNT(*) as count FROM users".to_string(),
+        ))
+        .await
+        .expect("Failed to count users")
+        .unwrap()
+        .try_get("", "count")
+        .expect("Failed to get count");
+    
+    assert_eq!(user_count, 1);
+}
+```
+
+## OAuth and Authentication Tests
+
+OAuth and authentication testing requires coordination between external service mocks and database state.
+
+### Complete OAuth Flow Testing
+
+```rust
+mod common;
+mod fixtures;
+
+use common::{get_test_server, TestFixture};
+use fixtures::{GitHubFixtures, DbFixtures};
+use serial_test::serial;
+
+#[tokio::test]
+#[serial]
+async fn test_complete_github_oauth_flow() {
+    // Setup test environment
+    let test_fixture = TestFixture::new().await.expect("Failed to create test fixture");
+    let db = test_fixture.db();
+    let base_url = get_test_server().await.expect("Failed to start test server");
+    let client = create_test_client();
+    
+    // Setup GitHub mock server
+    let github = GitHubFixtures::service().await;
+    github.setup_successful_token_exchange().await;
+    github.setup_successful_user_profile_arthur().await;
+    
+    // Step 1: Start OAuth flow
+    let start_response = client
+        .get(&format!("{}/api/auth/github/start", base_url))
+        .send()
+        .await
+        .expect("Failed to start OAuth flow");
+    
+    assert_eq!(start_response.status(), 303);
+    
+    // Extract authorization URL and state
+    let location = start_response.headers().get("location").unwrap().to_str().unwrap();
+    let (_, params) = parse_redirect_url(location).unwrap();
+    let state = params.get("state").unwrap();
+    
+    // Step 2: Simulate OAuth callback
+    let callback_response = client
+        .get(&format!("{}/api/auth/github/callback", base_url))
+        .query(&[("code", "test_auth_code"), ("state", state)])
+        .send()
+        .await
+        .expect("Failed to complete OAuth callback");
+    
+    assert_eq!(callback_response.status(), 200);
+    
+    // Step 3: Verify database state
+    let user_count: i64 = db
+        .query_one(sea_orm::Statement::from_string(
+            sea_orm::DatabaseBackend::Postgres,
+            "SELECT COUNT(*) as count FROM users".to_string(),
+        ))
+        .await
+        .expect("Failed to count users")
+        .unwrap()
+        .try_get("", "count")
+        .expect("Failed to get count");
+    
+    assert_eq!(user_count, 1, "Should create one user");
+    
+    // Verify provider token was created
+    let token_count: i64 = db
+        .query_one(sea_orm::Statement::from_string(
+            sea_orm::DatabaseBackend::Postgres,
+            "SELECT COUNT(*) as count FROM provider_tokens WHERE provider = 'github'".to_string(),
+        ))
+        .await
+        .expect("Failed to count tokens")
+        .unwrap()
+        .try_get("", "count")
+        .expect("Failed to get count");
+    
+    assert_eq!(token_count, 1, "Should create one GitHub token");
+}
+```
+
+### Pre-existing User Linking
+
+```rust
+#[tokio::test]
+#[serial]
+async fn test_oauth_provider_linking() {
+    let test_fixture = TestFixture::new().await.expect("Failed to create test fixture");
+    let db = test_fixture.db();
+    let base_url = get_test_server().await.expect("Failed to start test server");
+    let client = create_test_client();
+    
+    // Pre-create user with database fixtures
+    let existing_user = DbFixtures::user()
+        .arthur()
+        .commit(db.clone())
+        .await
+        .expect("Failed to create user");
+    
+    let primary_email = DbFixtures::user_email()
+        .arthur_primary(existing_user.id())
+        .commit(db.clone())
+        .await
+        .expect("Failed to create email");
+    
+    // Setup GitHub mock
+    let github = GitHubFixtures::service().await;
+    github.setup_successful_token_exchange().await;
+    github.setup_successful_user_profile_arthur().await;
+    
+    // Create mock JWT for authenticated request
+    let mock_jwt = generate_test_jwt(existing_user.id());
+    
+    // Start OAuth flow with authentication (linking)
+    let start_response = client
+        .get(&format!("{}/api/auth/github/start", base_url))
+        .header("Authorization", format!("Bearer {}", mock_jwt))
+        .send()
+        .await
+        .expect("Failed to start OAuth linking");
+    
+    assert_eq!(start_response.status(), 303);
+    
+    // Complete OAuth flow...
+    
+    // Verify no new user was created
+    let user_count: i64 = db
+        .query_one(sea_orm::Statement::from_string(
+            sea_orm::DatabaseBackend::Postgres,
+            "SELECT COUNT(*) as count FROM users".to_string(),
+        ))
+        .await
+        .expect("Failed to count users")
+        .unwrap()
+        .try_get("", "count")
+        .expect("Failed to get count");
+    
+    assert_eq!(user_count, 1, "Should not create new user for linking");
+    
+    // Verify GitHub token was linked to existing user
+    assert!(existing_user.check(db.clone()).await.expect("Failed to check user"));
+    assert!(primary_email.check(db.clone()).await.expect("Failed to check email"));
+}
+```
+
+## Test Utilities and Helpers
+
+### Helper Function Patterns
+
+Common helper functions for test utilities:
+
+```rust
+/// Create HTTP client that doesn't follow redirects
+fn create_test_client() -> Client {
+    Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .expect("Failed to create HTTP client")
+}
+
+/// Parse OAuth redirect URL and extract parameters
+fn parse_redirect_url(location: &str) -> Result<(String, HashMap<String, String>), Box<dyn std::error::Error>> {
+    let url = Url::parse(location)?;
+    let mut params = HashMap::new();
+    
+    for (key, value) in url.query_pairs() {
+        params.insert(key.to_string(), value.to_string());
+    }
+    
+    Ok((url.origin().ascii_serialization() + url.path(), params))
+}
+
+/// Decode base64-encoded OAuth state parameter
+fn decode_oauth_state(state: &str) -> Result<Value, Box<dyn std::error::Error>> {
+    let decoded_bytes = general_purpose::URL_SAFE_NO_PAD.decode(state)?;
+    let decoded_str = String::from_utf8(decoded_bytes)?;
+    let state_json: Value = serde_json::from_str(&decoded_str)?;
+    Ok(state_json)
+}
+
+/// Generate test JWT token for authentication testing
+fn generate_test_jwt(user_id: uuid::Uuid) -> String {
+    // Implementation depends on your JWT system
+    format!("test_jwt_for_user_{}", user_id)
+}
+
+/// Assert that response contains expected error structure
+fn assert_error_response(response: &Value, operation: &str, error_code: &str) {
+    assert_eq!(response["operation"], operation, 
+              "Error response should indicate correct operation");
+    assert_eq!(response["error"], error_code, 
+              "Error response should indicate correct error code");
+    assert!(response["message"].is_string(), 
+           "Error response should have error message");
+}
+```
+
+### Test Data Builders
+
+Create builders for complex test data:
+
+```rust
+/// Builder for OAuth test scenarios
+pub struct OAuthTestBuilder {
+    provider: String,
+    user_authenticated: bool,
+    expected_operation: String,
+}
+
+impl OAuthTestBuilder {
+    pub fn new(provider: &str) -> Self {
+        Self {
+            provider: provider.to_string(),
+            user_authenticated: false,
+            expected_operation: "login".to_string(),
+        }
+    }
+    
+    pub fn with_authenticated_user(mut self) -> Self {
+        self.user_authenticated = true;
+        self.expected_operation = "link".to_string();
+        self
+    }
+    
+    pub async fn run_start_test(self, base_url: &str, client: &Client) -> TestResult {
+        let mut request = client.get(&format!("{}/api/auth/{}/start", base_url, self.provider));
+        
+        if self.user_authenticated {
+            request = request.header("Authorization", "Bearer test_jwt");
+        }
+        
+        let response = request.send().await.expect("Failed to send request");
+        
+        TestResult {
+            response,
+            expected_operation: self.expected_operation,
+        }
+    }
+}
+
+/// Test result wrapper for fluent assertions
+pub struct TestResult {
+    response: reqwest::Response,
+    expected_operation: String,
+}
+
+impl TestResult {
+    pub async fn assert_redirect(self) -> Self {
+        assert_eq!(self.response.status(), 303, "Should return redirect");
+        self
+    }
+    
+    pub async fn assert_state_operation(self) -> Self {
+        let location = self.response.headers().get("location").unwrap().to_str().unwrap();
+        let (_, params) = parse_redirect_url(location).unwrap();
+        let state = params.get("state").unwrap();
+        let decoded_state = decode_oauth_state(state).unwrap();
+        
+        assert_eq!(decoded_state["operation"]["type"], self.expected_operation);
+        self
+    }
+}
+```
+
+### Assertion Helpers
+
+Common assertion patterns:
+
+```rust
+/// Assert OAuth redirect response structure
+fn assert_oauth_redirect(response: &reqwest::Response, provider: &str) {
+    assert_eq!(response.status(), 303, "Should return 303 redirect");
+    
+    let location = response
+        .headers()
+        .get("location")
+        .expect("Should have Location header")
+        .to_str()
+        .expect("Location header should be valid string");
+    
+    assert!(
+        location.contains(&format!("{}.com", provider)) || location.contains("localhost:3000"),
+        "Should redirect to {} OAuth provider (or mock)", provider
+    );
+}
+
+/// Assert OAuth query parameters
+fn assert_oauth_parameters(params: &HashMap<String, String>, provider: &str) {
+    let required_params = vec!["client_id", "redirect_uri", "scope", "response_type", "state"];
+    
+    for param in required_params {
+        assert!(params.contains_key(param), 
+               "Should have required OAuth2 parameter '{}'", param);
+        assert!(!params.get(param).unwrap().is_empty(), 
+               "OAuth2 parameter '{}' should not be empty", param);
+    }
+    
+    assert_eq!(params.get("response_type").unwrap(), "code", 
+              "response_type should be 'code' for authorization code flow");
+    
+    let redirect_uri = params.get("redirect_uri").unwrap();
+    assert!(redirect_uri.contains(&format!("/api/auth/{}/callback", provider)), 
+           "redirect_uri should point to correct callback endpoint");
+}
+
+/// Assert error response structure
+fn assert_api_error(response_json: &Value, operation: &str, error_code: &str) {
+    assert_eq!(response_json["operation"], operation);
+    assert_eq!(response_json["error"], error_code);
+    assert!(response_json["message"].is_string());
+    
+    if let Some(details) = response_json.get("details") {
+        assert!(details.is_object() || details.is_array());
+    }
 }
 ```
 
@@ -459,224 +1065,223 @@ async fn test_database_operations() {
 
 ### Test Organization
 
-1. **One Feature Per Test**: Each test should validate one specific feature or scenario
-2. **Clear Test Names**: Use descriptive names that explain what is being tested
-3. **Group Related Tests**: Use modules or comments to group related functionality
-4. **Test Both Success and Failure**: Always test error scenarios alongside happy paths
+1. **Group Related Tests**: Use descriptive test function names and group related tests
+2. **Serial Execution**: Always use `#[serial]` for integration tests
+3. **Clear Test Names**: Use descriptive names that indicate what is being tested
+4. **Comprehensive Coverage**: Test success cases, error cases, edge cases, and security aspects
 
-### Performance Optimization
+### Resource Management
 
-1. **Use Shared Database**: Always use `TestFixture::new()` for database efficiency
-2. **Minimal Setup**: Only setup what each test actually needs
-3. **Fast Assertions**: Use helper methods for common assertion patterns
-4. **Parallel Safe**: Ensure tests can run concurrently without interference
+1. **Automatic Cleanup**: Rely on automatic table truncation and mock cleanup
+2. **Scoped Fixtures**: Create fixtures within test scope for automatic cleanup
+3. **Shared Server**: Use the global test server for efficiency
+4. **Database Isolation**: Each test starts with a clean database state
+
+### Error Handling
+
+1. **Comprehensive Error Testing**: Test all possible error scenarios
+2. **Realistic Error Responses**: Use actual error responses that match production
+3. **Status Code Verification**: Always verify HTTP status codes
+4. **Error Message Validation**: Check error message structure and content
 
 ### Security Testing
 
-1. **State Tampering**: Always test OAuth state parameter security
-2. **Authentication**: Test both authenticated and unauthenticated scenarios  
-3. **Authorization**: Verify proper access controls
-4. **Input Validation**: Test malformed or malicious inputs
+1. **State Uniqueness**: Verify OAuth state parameters are unique
+2. **Parameter Validation**: Test input validation thoroughly
+3. **Authorization Testing**: Test both authenticated and unauthenticated scenarios
+4. **Token Security**: Verify token handling and validation
 
-### Maintainability
+### Performance Considerations
 
-1. **Use Fixtures**: Prefer fixtures over inline test data
-2. **Consistent Patterns**: Follow established patterns for similar tests
-3. **Clear Assertions**: Use descriptive assertion messages
-4. **Mock Realistic Data**: Ensure mocks match real provider responses
+1. **Shared Resources**: Use shared test server and database container
+2. **Efficient Cleanup**: Use table truncation instead of container restart
+3. **Parallel Safety**: Design tests to be thread-safe when possible
+4. **Resource Limits**: Be mindful of test execution time and resource usage
+
+## Common Patterns
+
+### Testing API Endpoints
+
+```rust
+#[tokio::test]
+#[serial]
+async fn test_api_endpoint() {
+    // 1. Setup
+    let base_url = get_test_server().await.expect("Failed to start test server");
+    let client = create_test_client();
+    let _fixtures = ExternalServiceFixtures::service().await;
+    
+    // 2. Execute
+    let response = client
+        .method(&format!("{}/api/endpoint", base_url))
+        .header("Content-Type", "application/json")
+        .json(&request_body)
+        .send()
+        .await
+        .expect("Failed to send request");
+    
+    // 3. Assert
+    assert_eq!(response.status(), expected_status);
+    let response_json: Value = response.json().await.expect("Failed to parse JSON");
+    // Additional assertions...
+}
+```
+
+### Testing with Database State
+
+```rust
+#[tokio::test]
+#[serial]
+async fn test_with_database() {
+    // Setup
+    let test_fixture = TestFixture::new().await.expect("Failed to create test fixture");
+    let db = test_fixture.db();
+    let base_url = get_test_server().await.expect("Failed to start test server");
+    
+    // Pre-create database entities
+    let user = DbFixtures::user().arthur().commit(db.clone()).await?;
+    
+    // Execute API operation
+    let response = client.post(&format!("{}/api/operation", base_url))
+        .json(&request_data)
+        .send()
+        .await?;
+    
+    // Verify API response
+    assert_eq!(response.status(), 200);
+    
+    // Verify database state
+    assert!(user.check(db.clone()).await?);
+    let updated_count = count_entities(db.clone(), "table_name").await?;
+    assert_eq!(updated_count, expected_count);
+}
+```
+
+### Testing External Service Integration
+
+```rust
+#[tokio::test]
+#[serial]
+async fn test_external_service() {
+    // Setup mocks
+    let external_service = ExternalServiceFixtures::service().await;
+    external_service.setup_successful_response().await;
+    
+    // Setup database
+    let test_fixture = TestFixture::new().await?;
+    let db = test_fixture.db();
+    
+    // Execute integration
+    let base_url = get_test_server().await?;
+    let response = client.post(&format!("{}/api/integration", base_url))
+        .json(&integration_data)
+        .send()
+        .await?;
+    
+    // Verify integration results
+    assert_eq!(response.status(), 200);
+    
+    // Verify external service was called
+    // (This depends on your mocking framework)
+    
+    // Verify database state changes
+    let result_count = count_entities(db, "results").await?;
+    assert_eq!(result_count, 1);
+}
+```
 
 ## Troubleshooting
 
 ### Common Issues
 
-#### Docker/Testcontainers Issues
+1. **Server Start Failures**
+   - Check if port is already in use
+   - Verify database container is running
+   - Check configuration loading
 
-```bash
-# Check Docker status
-docker ps
-systemctl status docker  # Linux
-open -a Docker           # macOS
+2. **Database Connection Issues**
+   - Ensure PostgreSQL container is running
+   - Check database URL formatting
+   - Verify migrations are applied
 
-# Clean up containers
-docker container prune -f
-just clean-docker
-```
+3. **Test Isolation Problems**
+   - Always use `#[serial]` for integration tests
+   - Verify table truncation is working
+   - Check for static state between tests
 
-#### Database Connection Issues
+4. **Mock Server Issues**
+   - Verify fixtures are properly scoped
+   - Check mock endpoint configurations
+   - Ensure automatic cleanup is working
 
-```bash
-# Increase timeouts for slower systems
-TEST_DB_TIMEOUT=120 just test-integration
+### Debugging Tips
 
-# Check container logs
-docker logs <container_id>
-```
+1. **Enable Logging**
+   ```rust
+   use tracing_test::traced_test;
+   
+   #[tokio::test]
+   #[serial]
+   #[traced_test]
+   async fn test_with_logging() {
+       // Test implementation
+       // Logs will be captured and displayed on test failure
+   }
+   ```
 
-#### Mock Server Issues
+2. **Database State Inspection**
+   ```rust
+   // Add debugging queries to inspect database state
+   let debug_count: i64 = db
+       .query_one(Statement::from_string(
+           DatabaseBackend::Postgres,
+           "SELECT COUNT(*) as count FROM table_name".to_string(),
+       ))
+       .await?
+       .unwrap()
+       .try_get("", "count")?;
+   
+   eprintln!("Debug: table has {} rows", debug_count);
+   ```
 
-```bash
-# Verify wiremock setup
-RUST_LOG=wiremock=debug just test-debug
+3. **Response Body Inspection**
+   ```rust
+   let response_text = response.text().await?;
+   eprintln!("Response body: {}", response_text);
+   
+   // Then parse if needed
+   let response_json: Value = serde_json::from_str(&response_text)?;
+   ```
 
-# Check port conflicts
-netstat -an | grep LISTEN
-```
+4. **Configuration Debugging**
+   ```rust
+   let config = test_fixture.config();
+   eprintln!("Test config: {:#?}", config);
+   ```
 
-#### CI/CD Issues
+### Performance Issues
 
-```bash
-# GitHub Actions
-CI=true TEST_VERBOSE=true just test-ci
+1. **Slow Test Execution**
+   - Check if tests are running serially when they could run in parallel
+   - Verify database container isn't being recreated unnecessarily
+   - Look for inefficient database operations
 
-# Reduce resource usage  
-TEST_MAX_CONCURRENCY=1 just test-integration
-```
+2. **Resource Leaks**
+   - Ensure proper cleanup of HTTP clients
+   - Verify database connections are properly closed
+   - Check for hanging server processes
 
-### Debugging Tools
+3. **Flaky Tests**
+   - Add proper waits for asynchronous operations
+   - Increase timeouts for slow operations
+   - Verify test isolation is complete
 
-```bash
-# Maximum verbosity
-RUST_LOG=trace just test-single your_test_name
+### CI/CD Considerations
 
-# Database query logging
-RUST_LOG=sqlx=debug,sea_orm=debug just test-debug
+1. **Container Management**: Ensure Docker is available in CI environment
+2. **Port Conflicts**: Use random ports to avoid conflicts
+3. **Resource Limits**: Consider resource constraints in CI environment
+4. **Parallel Execution**: Be careful with parallel test execution
+5. **Cleanup**: Ensure proper cleanup even on test failures
 
-# HTTP request/response logging
-RUST_LOG=axum_test=debug,reqwest=debug just test-debug
-```
-
-### Test Development Workflow
-
-1. **Start with Simple Test**: Begin with basic happy path
-2. **Add Error Cases**: Systematically add error scenarios
-3. **Use Watch Mode**: `just watch` for rapid iteration
-4. **Debug Step by Step**: Use single test debugging when issues arise
-5. **Verify in CI**: Test changes in CI environment before merging
-
-## Quick Reference
-
-### Essential Commands
-
-```bash
-# Development workflow
-just test-integration          # Run all OAuth tests
-just test-single <test_name>   # Debug specific test
-just watch                     # Auto-run on changes
-just test-debug               # Full logging
-
-# Specific test groups
-just test-start               # OAuth start endpoints
-just test-callback            # OAuth callbacks  
-just test-state              # State management
-```
-
-### Copy-Paste Test Templates
-
-#### Basic OAuth Endpoint Test
-
-```rust
-#[tokio::test]
-async fn test_oauth_new_endpoint() {
-    let fixture = TestFixture::new().await;
-    
-    let response = fixture
-        .server
-        .get("/auth/github/new-endpoint")
-        .await;
-    
-    response.assert_status(StatusCode::OK);
-    let body: Value = response.json();
-    assert_eq!(body["status"], "success");
-}
-```
-
-#### Authenticated Endpoint Test
-
-```rust
-#[tokio::test]
-async fn test_authenticated_endpoint() {
-    let fixture = TestFixture::new().await;
-    
-    let token = UserFixtures::test_jwt_token();
-    let (header_name, header_value) = TestRequestBuilder::auth_header(&token);
-    
-    let response = fixture
-        .server
-        .get("/protected-endpoint")
-        .add_header(header_name, header_value)
-        .await;
-    
-    response.assert_status_ok();
-}
-```
-
-#### OAuth Callback with Mock Data
-
-```rust
-#[tokio::test]
-async fn test_oauth_callback_flow() {
-    let fixture = TestFixture::new().await;
-    
-    let auth_code = fixture.mock_provider.setup_github_success().await;
-    let state = OAuthStateFixtures::valid_login_state();
-    
-    let response = fixture
-        .server
-        .get("/auth/github/callback")
-        .add_query_params(&[
-            ("code", &auth_code),
-            ("state", &state)
-        ])
-        .await;
-    
-    response.assert_status_ok();
-    let body: Value = response.json();
-    ResponseAssertions::assert_oauth_success_response(&body);
-}
-```
-
-#### Error Handling Test
-
-```rust
-#[tokio::test]
-async fn test_error_scenario() {
-    let fixture = TestFixture::new().await;
-    
-    fixture.mock_provider.setup_oauth_error("access_denied", "User denied").await;
-    
-    let response = fixture
-        .server
-        .get("/auth/github/callback")
-        .add_query_params(&[("error", "access_denied")])
-        .await;
-    
-    response.assert_status(StatusCode::BAD_REQUEST);
-    let body: Value = response.json();
-    assert!(body["error"].as_str().unwrap().contains("access_denied"));
-}
-```
-
-### Most Used Fixtures
-
-```rust
-// OAuth states
-let login_state = OAuthStateFixtures::valid_login_state();
-let link_state = OAuthStateFixtures::valid_link_state(user_id);
-let tampered_state = OAuthStateFixtures::tampered_state();
-
-// User data
-let user_id = UserFixtures::test_user_id();
-let jwt_token = UserFixtures::test_jwt_token();
-
-// Mock setups
-let auth_code = fixture.mock_provider.setup_github_success().await;
-let auth_code = fixture.mock_provider.setup_gitlab_success().await;
-fixture.mock_provider.setup_oauth_error("error_type", "description").await;
-
-// Response assertions
-ResponseAssertions::assert_oauth_success_response(&body);
-ResponseAssertions::assert_oauth_error_response(&body, "expected_error");
-ResponseAssertions::assert_redirect_has_params(location, &["state", "code"]);
-```
-
-This comprehensive testing framework ensures robust, maintainable, and reliable OAuth authentication functionality while providing excellent developer experience for test development and debugging. 
+This comprehensive testing guide provides the foundation for writing robust, maintainable integration tests in the IAM system. The patterns and utilities ensure consistent test quality and reliable test execution across different environments. 
