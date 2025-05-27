@@ -6,7 +6,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use domain::entity::provider::Provider;
-use application::usecase::{login::LoginError, link_provider::LinkProviderError};
+use application::command::{CommandContext, CommandError};
 use crate::{AppState, oauth_state::OAuthState};
 use tracing::{debug, error};
 use uuid::Uuid;
@@ -173,11 +173,16 @@ pub async fn oauth_start(
             }))
         })?;
     
-    // Generate provider authorization URL using the real OAuth clients
+    // Generate provider authorization URL using the command service
+    let context = CommandContext::new()
+        .with_metadata("operation".to_string(), if oauth_state.is_login() { "login_start".to_string() } else { "link_start".to_string() })
+        .with_metadata("provider".to_string(), provider.as_str().to_string());
+    
     let base_auth_url = if oauth_state.is_login() {
-        // Login operation - use login use case
-        state.login_usecase
-            .generate_start_url(provider)
+        // Login operation - use login command
+        state.command_service
+            .generate_login_start_url(provider, context)
+            .await
             .map_err(|e| {
                 error!("Failed to generate login authorization URL: {}", e);
                 (StatusCode::INTERNAL_SERVER_ERROR, Json(OAuthErrorResponse {
@@ -187,9 +192,10 @@ pub async fn oauth_start(
                 }))
             })?
     } else {
-        // Link operation - use link provider use case
-        state.link_provider_usecase
-            .generate_start_url(provider)
+        // Link operation - use link provider command
+        state.command_service
+            .generate_link_provider_start_url(provider, context)
+            .await
             .map_err(|e| {
                 error!("Failed to generate link authorization URL: {}", e);
                 (StatusCode::INTERNAL_SERVER_ERROR, Json(OAuthErrorResponse {
@@ -311,18 +317,31 @@ async fn handle_login_callback(
 ) -> Result<Json<OAuthResponse>, (StatusCode, Json<OAuthErrorResponse>)> {
     debug!("Handling login callback");
     
+    let context = CommandContext::new()
+        .with_metadata("operation".to_string(), "login_callback".to_string())
+        .with_metadata("provider".to_string(), provider.as_str().to_string());
+    
     let response = state
-        .login_usecase
-        .login(provider, code, redirect_uri)
+        .command_service
+        .login(provider, code, redirect_uri, context)
         .await
         .map_err(|e| {
             error!("Failed to login: {}", e);
             match e {
-                LoginError::AuthError(_) => (StatusCode::UNAUTHORIZED, Json(OAuthErrorResponse {
-                    operation: "login".to_string(),
-                    error: "authentication_failed".to_string(),
-                    message: "Authentication failed".to_string(),
-                })),
+                CommandError::Business(msg) if msg.contains("Authentication failed") => {
+                    (StatusCode::UNAUTHORIZED, Json(OAuthErrorResponse {
+                        operation: "login".to_string(),
+                        error: "authentication_failed".to_string(),
+                        message: "Authentication failed".to_string(),
+                    }))
+                }
+                CommandError::Validation(msg) => {
+                    (StatusCode::BAD_REQUEST, Json(OAuthErrorResponse {
+                        operation: "login".to_string(),
+                        error: "validation_failed".to_string(),
+                        message: msg,
+                    }))
+                }
                 _ => (StatusCode::INTERNAL_SERVER_ERROR, Json(OAuthErrorResponse {
                     operation: "login".to_string(),
                     error: "login_failed".to_string(),
@@ -355,37 +374,53 @@ async fn handle_link_callback(
 ) -> Result<Json<OAuthResponse>, (StatusCode, Json<OAuthErrorResponse>)> {
     debug!("Handling link callback for user: {}", user_id);
     
+    let context = CommandContext::new()
+        .with_user_id(user_id)
+        .with_metadata("operation".to_string(), "link_callback".to_string())
+        .with_metadata("provider".to_string(), provider.as_str().to_string());
+    
     let response = state
-        .link_provider_usecase
-        .link_provider(user_id, provider, code, redirect_uri)
+        .command_service
+        .link_provider(user_id, provider, code, redirect_uri, context)
         .await
         .map_err(|e| {
             error!("Failed to link provider: {}", e);
             match e {
-                LinkProviderError::ProviderAlreadyLinkedToSameUser => {
+                CommandError::Business(msg) if msg.contains("already linked to your account") => {
                     (StatusCode::CONFLICT, Json(OAuthErrorResponse {
                         operation: "link".to_string(),
                         error: "provider_already_linked_to_same_user".to_string(),
                         message: format!("{} is already linked to your account", provider.as_str()),
                     }))
                 }
-                LinkProviderError::ProviderAlreadyLinked => {
+                CommandError::Business(msg) if msg.contains("already linked to another user") => {
                     (StatusCode::CONFLICT, Json(OAuthErrorResponse {
                         operation: "link".to_string(),
                         error: "provider_already_linked".to_string(),
                         message: format!("This {} account is already linked to another user", provider.as_str()),
                     }))
                 }
-                LinkProviderError::AuthError(_) => (StatusCode::UNAUTHORIZED, Json(OAuthErrorResponse {
-                    operation: "link".to_string(),
-                    error: "authentication_failed".to_string(),
-                    message: "Authentication failed".to_string(),
-                })),
-                LinkProviderError::UserNotFound => (StatusCode::NOT_FOUND, Json(OAuthErrorResponse {
-                    operation: "link".to_string(),
-                    error: "user_not_found".to_string(),
-                    message: "User not found".to_string(),
-                })),
+                CommandError::Business(msg) if msg.contains("Authentication failed") => {
+                    (StatusCode::UNAUTHORIZED, Json(OAuthErrorResponse {
+                        operation: "link".to_string(),
+                        error: "authentication_failed".to_string(),
+                        message: "Authentication failed".to_string(),
+                    }))
+                }
+                CommandError::Business(msg) if msg.contains("User not found") => {
+                    (StatusCode::NOT_FOUND, Json(OAuthErrorResponse {
+                        operation: "link".to_string(),
+                        error: "user_not_found".to_string(),
+                        message: "User not found".to_string(),
+                    }))
+                }
+                CommandError::Validation(msg) => {
+                    (StatusCode::BAD_REQUEST, Json(OAuthErrorResponse {
+                        operation: "link".to_string(),
+                        error: "validation_failed".to_string(),
+                        message: msg,
+                    }))
+                }
                 _ => (StatusCode::INTERNAL_SERVER_ERROR, Json(OAuthErrorResponse {
                     operation: "link".to_string(),
                     error: "link_failed".to_string(),

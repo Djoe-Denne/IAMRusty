@@ -29,7 +29,11 @@ use application::{
         user::UserUseCaseImpl,
         token::TokenUseCaseImpl,
         link_provider::LinkProviderUseCaseImpl,
-    }
+    },
+    command::{
+        bus::CommandBus,
+        service::DynCommandService,
+    },
 };
 
 use crate::config::ServerConfig;
@@ -105,22 +109,43 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
     );
 
     let user_usecase = UserUseCaseImpl::new(
+        Arc::new(user_repo.clone()),
+        Arc::new(user_email_repo.clone()),
+        Arc::new(token_service.clone()),
+    );
+    
+    let token_usecase = TokenUseCaseImpl::new(
+        Arc::new(refresh_token_repo.clone()),
+        Arc::new(token_service.clone()),
+    );
+
+    // Create separate instances for command service
+    let user_usecase_for_commands = UserUseCaseImpl::new(
         Arc::new(user_repo),
         Arc::new(user_email_repo),
         Arc::new(token_service.clone()),
     );
     
-    let token_usecase = TokenUseCaseImpl::new(
+    let token_usecase_for_commands = TokenUseCaseImpl::new(
         Arc::new(refresh_token_repo),
         Arc::new(token_service),
     );
 
+    // Create command bus and service
+    let command_bus = Arc::new(CommandBus::new());
+    let command_service = Arc::new(DynCommandService::new(
+        command_bus,
+        Arc::new(login_usecase),
+        Arc::new(link_provider_usecase),
+        Arc::new(token_usecase_for_commands),
+        Arc::new(user_usecase_for_commands),
+    ));
+
     // Create app state
     let app_state = AppState::new(
-        Arc::new(login_usecase),
+        command_service,
         Arc::new(user_usecase),
         Arc::new(token_usecase),
-        Arc::new(link_provider_usecase),
         config.oauth.clone(),
     );
 

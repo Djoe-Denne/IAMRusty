@@ -5,7 +5,7 @@ use axum::{
     response::Response,
     body::Body,
 };
-use crate::AppState;
+
 use application::usecase::user::UserError;
 
 /// Extract JWT token from the Authorization header
@@ -19,7 +19,7 @@ fn extract_token(auth_header: &str) -> Option<&str> {
 
 /// Authentication middleware
 pub async fn auth(
-    State(state): State<AppState>,
+    State(state): State<crate::AppState>,
     req: Request<Body>,
     next: Next,
 ) -> Result<Response, StatusCode> {

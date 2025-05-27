@@ -23,6 +23,8 @@ tracing = "0.1.40"
 
 # Async
 async-trait = "0.1.77"
+tokio = { version = "1.44", features = ["rt-multi-thread", "macros", "time"] }
+fastrand = "2.0"
 
 [dev-dependencies]
 tokio = { version = "1.44", features = ["rt-multi-thread", "macros"] }

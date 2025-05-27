@@ -5,7 +5,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use application::usecase::token::TokenError;
-use crate::AppState;
+
 use tracing::{debug, error};
 
 /// Request for token refresh
@@ -26,7 +26,7 @@ pub struct TokenResponse {
 
 /// Handler for refreshing a token
 pub async fn refresh_token(
-    State(state): State<AppState>,
+    State(state): State<crate::AppState>,
     Json(request): Json<RefreshTokenRequest>,
 ) -> Result<Json<TokenResponse>, (StatusCode, String)> {
     debug!("Refreshing token");

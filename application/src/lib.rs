@@ -7,6 +7,7 @@ pub mod usecase;
 pub mod auth;
 pub mod dto;
 pub mod error;
+pub mod command;
 
 // Re-export configuration for backward compatibility
 pub use configuration::*; 

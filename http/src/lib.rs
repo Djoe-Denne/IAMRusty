@@ -12,11 +12,10 @@ use std::sync::Arc;
 use std::net::SocketAddr;
 use application::{
     usecase::{
-        login::LoginUseCase,
         user::UserUseCase,
         token::TokenUseCase,
-        link_provider::LinkProviderUseCase,
     },
+    command::service::DynCommandService,
 };
 use configuration::OAuthConfig;
 
@@ -35,14 +34,12 @@ use middleware_auth::auth as auth_middleware;
 /// Application state for HTTP handlers
 #[derive(Clone)]
 pub struct AppState {
-    /// Login use case
-    pub login_usecase: Arc<dyn LoginUseCase>,
+    /// Command service for handling commands with cross-cutting concerns
+    pub command_service: Arc<DynCommandService>,
     /// User use case
     pub user_usecase: Arc<dyn UserUseCase>,
     /// Token use case
     pub token_usecase: Arc<dyn TokenUseCase>,
-    /// Link provider use case
-    pub link_provider_usecase: Arc<dyn LinkProviderUseCase>,
     /// OAuth configuration for accessing redirect URIs
     pub oauth_config: OAuthConfig,
 }
@@ -50,17 +47,15 @@ pub struct AppState {
 impl AppState {
     /// Create a new AppState
     pub fn new(
-        login_usecase: Arc<dyn LoginUseCase>,
+        command_service: Arc<DynCommandService>,
         user_usecase: Arc<dyn UserUseCase>,
         token_usecase: Arc<dyn TokenUseCase>,
-        link_provider_usecase: Arc<dyn LinkProviderUseCase>,
         oauth_config: OAuthConfig,
     ) -> Self {
         Self {
-            login_usecase,
+            command_service,
             user_usecase,
             token_usecase,
-            link_provider_usecase,
             oauth_config,
         }
     }

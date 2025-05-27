@@ -141,6 +141,7 @@ dependencies = [
  "chrono",
  "configuration",
  "domain",
+ "fastrand 2.3.0",
  "serde",
  "thiserror 1.0.69",
  "tokio",

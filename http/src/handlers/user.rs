@@ -6,7 +6,7 @@ use axum::{
 use serde::Serialize;
 use uuid::Uuid;
 use application::usecase::user::UserError;
-use crate::AppState;
+
 use tracing::{debug, error};
 
 /// User response
@@ -24,7 +24,7 @@ pub struct UserResponse {
 
 /// Get the current user's profile
 pub async fn get_user(
-    State(state): State<AppState>,
+    State(state): State<crate::AppState>,
     Extension(user_id): Extension<Uuid>,
 ) -> Result<Json<UserResponse>, (StatusCode, String)> {
     debug!("Getting user profile for ID: {}", user_id);
