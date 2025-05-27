@@ -22,7 +22,7 @@ test-unit:
 # Run integration tests with database
 test-integration:
     @echo "🧪 Running integration tests..."
-    @try { $env:RUN_ENV="test"; cargo test --test integration_auth_test -q -- --nocapture 2>$null; $env:RUN_ENV="test"; cargo test --test integration_user_test -q -- --nocapture 2>$null; $env:RUN_ENV="test"; cargo test --test integration_database_test -q -- --nocapture 2>$null } finally { echo "🧹 Cleaning up test containers..."; just cleanup-containers }
+    @try { $env:RUN_ENV="test"; cargo test --test integration_auth_test -q -- --nocapture 2>$null; $env:RUN_ENV="test"; cargo test --test integration_user_test -q -- --nocapture 2>$null; $env:RUN_ENV="test"; cargo test --test integration_database_test -q -- --nocapture 2>$null; $env:RUN_ENV="test"; cargo test --test auth_oauth_callback -q -- --nocapture 2>$null } finally { echo "🧹 Cleaning up test containers..."; just cleanup-containers }
 
 # Run integration example tests
 test-integration-examples:
@@ -68,7 +68,7 @@ check-containers:
 # Run a single test with cleanup
 test-single TEST:
     @echo "🧪 Running single test: {{TEST}}"
-    @try { $env:RUN_ENV="test"; cargo test --test integration_auth_test {{TEST}} -q -- --nocapture 2>$null; $env:RUN_ENV="test"; cargo test --test integration_user_test {{TEST}} -q -- --nocapture 2>$null; $env:RUN_ENV="test"; cargo test --test integration_database_test {{TEST}} -q -- --nocapture 2>$null } finally { just cleanup-containers }
+    @try { $env:RUN_ENV="test"; cargo test --test integration_auth_test {{TEST}} -q -- --nocapture 2>$null; $env:RUN_ENV="test"; cargo test --test integration_user_test {{TEST}} -q -- --nocapture 2>$null; $env:RUN_ENV="test"; cargo test --test integration_database_test {{TEST}} -q -- --nocapture 2>$null; $env:RUN_ENV="test"; cargo test --test auth_oauth_callback {{TEST}} -q -- --nocapture 2>$null } finally { just cleanup-containers }
 
 # Run tests and show container status before/after
 test-with-status:
@@ -93,6 +93,11 @@ test-auth:
     @echo "🔐 Running authentication tests..."
     @try { $env:RUN_ENV="test"; cargo test --test integration_auth_test -q -- --nocapture 2>$null } finally { just cleanup-containers }
 
+# Run all OAuth tests (start + callback)
+test-oauth:
+    @echo "🔐 Running all OAuth tests..."
+    @try { $env:RUN_ENV="test"; cargo test --test integration_auth_test test_oauth_start -q -- --nocapture 2>$null; $env:RUN_ENV="test"; cargo test --test auth_oauth_callback -q -- --nocapture 2>$null } finally { just cleanup-containers }
+
 # Run user tests only
 test-user:
     @echo "👤 Running user tests..."
@@ -105,11 +110,33 @@ test-db:
 
 # Run OAuth start endpoint tests
 test-oauth-start:
-    $env:RUN_ENV="test"; cargo test --test integration_auth_test test_oauth_start -q -- --nocapture 2>$null
+    @echo "🔐 Running OAuth start tests..."
+    @try { $env:RUN_ENV="test"; cargo test --test integration_auth_test test_oauth_start -q -- --nocapture 2>$null } finally { just cleanup-containers }
 
 # Run OAuth callback endpoint tests
 test-oauth-callback:
-    $env:RUN_ENV="test"; cargo test --test integration_auth_test test_oauth_callback -q -- --nocapture 2>$null
+    @echo "🔐 Running OAuth callback tests..."
+    @try { $env:RUN_ENV="test"; cargo test --test auth_oauth_callback -q -- --nocapture 2>$null } finally { just cleanup-containers }
+
+# Run OAuth callback success flow tests
+test-oauth-callback-success:
+    @echo "🔐 Running OAuth callback success tests..."
+    @try { $env:RUN_ENV="test"; cargo test --test auth_oauth_callback test_oauth_callback_github_successful_flow -q -- --nocapture 2>$null; $env:RUN_ENV="test"; cargo test --test auth_oauth_callback test_oauth_callback_gitlab_successful_flow -q -- --nocapture 2>$null } finally { just cleanup-containers }
+
+# Run OAuth callback linking tests
+test-oauth-callback-linking:
+    @echo "🔐 Running OAuth callback linking tests..."
+    @try { $env:RUN_ENV="test"; cargo test --test auth_oauth_callback test_oauth_callback_links_external_account -q -- --nocapture 2>$null; $env:RUN_ENV="test"; cargo test --test auth_oauth_callback test_oauth_callback_associates_new_provider -q -- --nocapture 2>$null; $env:RUN_ENV="test"; cargo test --test auth_oauth_callback test_oauth_callback_prevents_linking_provider_already_bound -q -- --nocapture 2>$null } finally { just cleanup-containers }
+
+# Run OAuth callback error tests
+test-oauth-callback-errors:
+    @echo "🔐 Running OAuth callback error tests..."
+    @try { $env:RUN_ENV="test"; cargo test --test auth_oauth_callback test_oauth_callback_fails_on_invalid -q -- --nocapture 2>$null; $env:RUN_ENV="test"; cargo test --test auth_oauth_callback test_oauth_callback_returns_400 -q -- --nocapture 2>$null; $env:RUN_ENV="test"; cargo test --test auth_oauth_callback test_oauth_callback_returns_401 -q -- --nocapture 2>$null } finally { just cleanup-containers }
+
+# Run OAuth callback tests with debug logging
+test-oauth-callback-debug:
+    @echo "🔐 Running OAuth callback tests with debug logging..."
+    @try { $env:RUN_ENV="test"; $env:RUST_LOG="debug"; cargo test --test auth_oauth_callback -q -- --nocapture 2>$null } finally { just cleanup-containers }
 
 # Run user profile endpoint tests
 test-me:
@@ -145,7 +172,7 @@ reset-db:
 
 # Watch tests and re-run on changes
 watch:
-    cargo watch -x "test --test integration_auth_oauth_flow -q 2>$null"
+    cargo watch -x "test --test auth_oauth_callback -q 2>$null"
 
 # 🧹 Cleanup
 clean:
@@ -157,7 +184,11 @@ clean-docker:
 
 # 📊 Information
 list-tests:
-    cargo test --test integration_auth_oauth_flow -q -- --list 2>$null
+    @echo "📋 Available OAuth callback tests:"
+    @cargo test --test auth_oauth_callback -q -- --list 2>$null
+    @echo ""
+    @echo "📋 Available integration tests:"
+    @cargo test --test integration_auth_test -q -- --list 2>$null
 
 check-deps:
     Write-Host "🔍 Checking dependencies..."
@@ -168,10 +199,10 @@ check-deps:
 
 # 🚀 CI/CD
 test-github:
-    $env:GITHUB_ACTIONS="true"; $env:CI="true"; $env:TEST_VERBOSE="true"; $env:TEST_MAX_CONCURRENCY="2"; cargo test --test integration_auth_oauth_flow -q 2>$null
+    $env:GITHUB_ACTIONS="true"; $env:CI="true"; $env:TEST_VERBOSE="true"; $env:TEST_MAX_CONCURRENCY="2"; just test-integration
 
 test-gitlab:
-    $env:GITLAB_CI="true"; $env:CI="true"; $env:TEST_VERBOSE="true"; $env:TEST_MAX_CONCURRENCY="2"; cargo test --test integration_auth_oauth_flow -q 2>$null
+    $env:GITLAB_CI="true"; $env:CI="true"; $env:TEST_VERBOSE="true"; $env:TEST_MAX_CONCURRENCY="2"; just test-integration
 
 # 🔄 Database Tasks
 db-up:

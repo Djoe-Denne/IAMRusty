@@ -4,6 +4,9 @@ use setup::{app, config};
 pub async fn spawn_test_server() -> anyhow::Result<()> {
     // Use your real config loading logic
     let config = load_config().expect("failed to load test config");
+    
+    // Initialize logging for the test server
+    //config::setup_logging(&config.logging.level);
 
     eprintln!("🚀 Starting test server with configuration:");
     eprintln!("   Server host: {}", config.server.host);

@@ -195,12 +195,6 @@ where
             }
         }
 
-        // Save provider tokens with provider-specific user ID
-        self.token_repo
-            .save_provider_tokens(user.id, provider, profile.id, tokens)
-            .await
-            .map_err(|e| LinkProviderError::DbError(Box::new(e)))?;
-
         // Handle email from the new provider
         let mut new_email_added = false;
         let mut new_email = None;
@@ -217,10 +211,13 @@ where
                     if existing.user_id != user_id {
                         // Email belongs to a different user - we'll take the permissive approach
                         // and just log a warning but continue with the linking
-                        tracing::warn!(
+                        tracing::error!(
                             "Email {} from provider {} already belongs to user {}, not adding to user {}",
                             email, provider.as_str(), existing.user_id, user_id
                         );
+                    
+                        // Provider is linked to a different user
+                        return Err(LinkProviderError::ProviderAlreadyLinked);
                     }
                     // Email already exists for this user - nothing to do
                 }
@@ -241,13 +238,20 @@ where
                     new_email = Some(email);
                 }
             }
-        }
+        }        
 
         // Get all user emails after potential addition
         let emails = self.user_email_repo
             .find_by_user_id(user_id)
             .await
             .map_err(|e| LinkProviderError::DbError(Box::new(e)))?;
+        
+        // Save provider tokens with provider-specific user ID
+        self.token_repo
+            .save_provider_tokens(user.id, provider, profile.id, tokens)
+            .await
+            .map_err(|e| LinkProviderError::DbError(Box::new(e)))?;
+
 
         Ok(LinkProviderResponse {
             user,
