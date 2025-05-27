@@ -22,32 +22,7 @@ test-unit:
 # Run integration tests with database
 test-integration:
     @echo "🧪 Running integration tests..."
-    @try { $env:RUN_ENV="test"; cargo test --test integration_auth_test -q -- --nocapture 2>$null; $env:RUN_ENV="test"; cargo test --test integration_user_test -q -- --nocapture 2>$null; $env:RUN_ENV="test"; cargo test --test integration_database_test -q -- --nocapture 2>$null; $env:RUN_ENV="test"; cargo test --test auth_oauth_callback -q -- --nocapture 2>$null } finally { echo "🧹 Cleaning up test containers..."; just cleanup-containers }
-
-# Run integration example tests
-test-integration-examples:
-    @echo "🧪 Running integration example tests..."
-    @try { just test-example-http-fixtures; just test-example-db-fixtures; just test-example-combined-fixtures } finally { echo "🧹 Cleaning up test containers..."; just cleanup-containers }
-
-# Run HTTP fixture examples
-test-example-http-fixtures:
-    @echo "🧪 Running HTTP fixture examples..."
-    $env:RUN_ENV="test"; cargo test --test example_http_fixtures -q -- --nocapture 2>$null
-
-# Run database fixture examples
-test-example-db-fixtures:
-    @echo "🧪 Running database fixture examples..."
-    $env:RUN_ENV="test"; cargo test --test example_db_fixtures -q -- --nocapture 2>$null
-
-# Run combined fixture examples
-test-example-combined-fixtures:
-    @echo "🧪 Running combined fixture examples..."
-    $env:RUN_ENV="test"; cargo test --test example_combined_fixtures -q -- --nocapture 2>$null
-
-# Run a specific example test
-test-example TEST:
-    @echo "🧪 Running specific example test: {{TEST}}"
-    @try { $env:RUN_ENV="test"; cargo test --test example_http_fixtures {{TEST}} -q -- --nocapture 2>$null; $env:RUN_ENV="test"; cargo test --test example_db_fixtures {{TEST}} -q -- --nocapture 2>$null; $env:RUN_ENV="test"; cargo test --test example_combined_fixtures {{TEST}} -q -- --nocapture 2>$null } finally { just cleanup-containers }
+    @try { $env:RUN_ENV="test"; cargo test --test auth_oauth_start -q -- --nocapture 2>$null; $env:RUN_ENV="test"; cargo test --test auth_oauth_callback -q -- --nocapture 2>$null } finally { echo "🧹 Cleaning up test containers..."; just cleanup-containers }
 
 # Clean up specific test container only
 cleanup-containers:
@@ -58,7 +33,7 @@ cleanup-containers:
 
 # Run tests with verbose output
 test-verbose:
-    $env:RUST_LOG="debug"; cargo test --test integration_database_test -q -- --nocapture 2>$null
+    $env:RUST_LOG="debug"; cargo test --test auth_oauth_callback -q -- --nocapture 2>$null
 
 # Check for running test containers
 check-containers:
@@ -68,7 +43,7 @@ check-containers:
 # Run a single test with cleanup
 test-single TEST:
     @echo "🧪 Running single test: {{TEST}}"
-    @try { $env:RUN_ENV="test"; cargo test --test integration_auth_test {{TEST}} -q -- --nocapture 2>$null; $env:RUN_ENV="test"; cargo test --test integration_user_test {{TEST}} -q -- --nocapture 2>$null; $env:RUN_ENV="test"; cargo test --test integration_database_test {{TEST}} -q -- --nocapture 2>$null; $env:RUN_ENV="test"; cargo test --test auth_oauth_callback {{TEST}} -q -- --nocapture 2>$null } finally { just cleanup-containers }
+    @try { $env:RUN_ENV="test"; cargo test --test auth_oauth_start {{TEST}} -q -- --nocapture 2>$null; $env:RUN_ENV="test"; cargo test --test auth_oauth_callback {{TEST}} -q -- --nocapture 2>$null } finally { just cleanup-containers }
 
 # Run tests and show container status before/after
 test-with-status:
@@ -91,27 +66,27 @@ cleanup-all-postgres:
 # Run authentication tests only
 test-auth:
     @echo "🔐 Running authentication tests..."
-    @try { $env:RUN_ENV="test"; cargo test --test integration_auth_test -q -- --nocapture 2>$null } finally { just cleanup-containers }
+    @try { $env:RUN_ENV="test"; cargo test --test auth_oauth_start -q -- --nocapture 2>$null } finally { just cleanup-containers }
 
 # Run all OAuth tests (start + callback)
 test-oauth:
     @echo "🔐 Running all OAuth tests..."
-    @try { $env:RUN_ENV="test"; cargo test --test integration_auth_test test_oauth_start -q -- --nocapture 2>$null; $env:RUN_ENV="test"; cargo test --test auth_oauth_callback -q -- --nocapture 2>$null } finally { just cleanup-containers }
+    @try { $env:RUN_ENV="test"; cargo test --test auth_oauth_start -q -- --nocapture 2>$null; $env:RUN_ENV="test"; cargo test --test auth_oauth_callback -q -- --nocapture 2>$null } finally { just cleanup-containers }
 
-# Run user tests only
-test-user:
-    @echo "👤 Running user tests..."
-    @try { $env:RUN_ENV="test"; cargo test --test integration_user_test -q -- --nocapture 2>$null } finally { just cleanup-containers }
+# Run user tests only (placeholder - no user tests exist yet)
+# test-user:
+#     @echo "👤 Running user tests..."
+#     @try { $env:RUN_ENV="test"; cargo test --test integration_user_test -q -- --nocapture 2>$null } finally { just cleanup-containers }
 
-# Run database tests only
-test-db:
-    @echo "🗄️ Running database tests..."
-    @try { $env:RUN_ENV="test"; cargo test --test integration_database_test -q -- --nocapture 2>$null } finally { just cleanup-containers }
+# Run database tests only (placeholder - no database tests exist yet)
+# test-db:
+#     @echo "🗄️ Running database tests..."
+#     @try { $env:RUN_ENV="test"; cargo test --test integration_database_test -q -- --nocapture 2>$null } finally { just cleanup-containers }
 
 # Run OAuth start endpoint tests
 test-oauth-start:
     @echo "🔐 Running OAuth start tests..."
-    @try { $env:RUN_ENV="test"; cargo test --test integration_auth_test test_oauth_start -q -- --nocapture 2>$null } finally { just cleanup-containers }
+    @try { $env:RUN_ENV="test"; cargo test --test auth_oauth_start -q -- --nocapture 2>$null } finally { just cleanup-containers }
 
 # Run OAuth callback endpoint tests
 test-oauth-callback:
@@ -138,22 +113,35 @@ test-oauth-callback-debug:
     @echo "🔐 Running OAuth callback tests with debug logging..."
     @try { $env:RUN_ENV="test"; $env:RUST_LOG="debug"; cargo test --test auth_oauth_callback -q -- --nocapture 2>$null } finally { just cleanup-containers }
 
-# Run user profile endpoint tests
-test-me:
-    $env:RUN_ENV="test"; cargo test --test integration_user_test test_get_me -q -- --nocapture 2>$null
+# Run user profile endpoint tests (placeholder - no user tests exist yet)
+# test-me:
+#     $env:RUN_ENV="test"; cargo test --test integration_user_test test_get_me -q -- --nocapture 2>$null
 
-# Run provider token endpoint tests
-test-provider-tokens:
-    $env:RUN_ENV="test"; cargo test --test integration_user_test test_get_provider_token -q -- --nocapture 2>$null
+# Run provider token endpoint tests (placeholder - no user tests exist yet)
+# test-provider-tokens:
+#     $env:RUN_ENV="test"; cargo test --test integration_user_test test_get_provider_token -q -- --nocapture 2>$null
 
 # 📚 Example Tests
+# Run integration example tests
+test-integration-examples:
+    @echo "🧪 Running integration example tests..."
+    @try { $env:RUN_ENV="test"; cargo test --test example_http_fixtures -q -- --nocapture 2>$null; $env:RUN_ENV="test"; cargo test --test example_db_fixtures -q -- --nocapture 2>$null; $env:RUN_ENV="test"; cargo test --test example_combined_fixtures -q -- --nocapture 2>$null } finally { echo "🧹 Cleaning up test containers..."; just cleanup-containers }
+
 # Run all example tests
 examples: test-integration-examples
 
 # Run specific example categories
-examples-http: test-example-http-fixtures
-examples-db: test-example-db-fixtures
-examples-combined: test-example-combined-fixtures
+examples-http:
+    @echo "🧪 Running HTTP fixture examples..."
+    @try { $env:RUN_ENV="test"; cargo test --test example_http_fixtures -q -- --nocapture 2>$null } finally { just cleanup-containers }
+
+examples-db:
+    @echo "🧪 Running database fixture examples..."
+    @try { $env:RUN_ENV="test"; cargo test --test example_db_fixtures -q -- --nocapture 2>$null } finally { just cleanup-containers }
+
+examples-combined:
+    @echo "🧪 Running combined fixture examples..."
+    @try { $env:RUN_ENV="test"; cargo test --test example_combined_fixtures -q -- --nocapture 2>$null } finally { just cleanup-containers }
 
 # 🔧 Development
 dev-setup:
@@ -184,11 +172,14 @@ clean-docker:
 
 # 📊 Information
 list-tests:
+    @echo "📋 Available OAuth start tests:"
+    @cargo test --test auth_oauth_start -q -- --list 2>$null
+    @echo ""
     @echo "📋 Available OAuth callback tests:"
     @cargo test --test auth_oauth_callback -q -- --list 2>$null
     @echo ""
-    @echo "📋 Available integration tests:"
-    @cargo test --test integration_auth_test -q -- --list 2>$null
+    @echo "📋 Available example tests:"
+    @cargo test --test example_http_fixtures -q -- --list 2>$null
 
 check-deps:
     Write-Host "🔍 Checking dependencies..."
