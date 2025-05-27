@@ -10,6 +10,7 @@ use domain::port::{
     service::TokenService,
 };
 use crate::auth::AuthService;
+use crate::usecase::factory::AuthProviderFactory;
 use async_trait::async_trait;
 use std::sync::Arc;
 use thiserror::Error;
@@ -75,16 +76,15 @@ pub trait LinkProviderUseCase: Send + Sync {
 /// Link provider use case implementation
 pub struct LinkProviderUseCaseImpl<GH, GL, UR, UER, TR, RR, TS> 
 where
-    GH: AuthService,
-    GL: AuthService,
+    GH: AuthService + 'static,
+    GL: AuthService + 'static,
     UR: UserRepository,
     UER: UserEmailRepository,
     TR: TokenRepository,
     RR: RefreshTokenRepository,
     TS: TokenService,
 {
-    github_auth: Arc<GH>,
-    gitlab_auth: Arc<GL>,
+    auth_factory: Arc<AuthProviderFactory<GH, GL>>,
     user_repo: Arc<UR>,
     user_email_repo: Arc<UER>,
     token_repo: Arc<TR>,
@@ -94,8 +94,8 @@ where
 
 impl<GH, GL, UR, UER, TR, RR, TS> LinkProviderUseCaseImpl<GH, GL, UR, UER, TR, RR, TS>
 where
-    GH: AuthService,
-    GL: AuthService,
+    GH: AuthService + 'static,
+    GL: AuthService + 'static,
     UR: UserRepository,
     UER: UserEmailRepository,
     TR: TokenRepository,
@@ -112,9 +112,10 @@ where
         refresh_token_repo: Arc<RR>,
         token_service: Arc<TS>,
     ) -> Self {
+        let auth_factory = Arc::new(AuthProviderFactory::new(github_auth, gitlab_auth));
+        
         Self {
-            github_auth,
-            gitlab_auth,
+            auth_factory,
             user_repo,
             user_email_repo,
             token_repo,
@@ -127,8 +128,8 @@ where
 #[async_trait]
 impl<GH, GL, UR, UER, TR, RR, TS> LinkProviderUseCase for LinkProviderUseCaseImpl<GH, GL, UR, UER, TR, RR, TS>
 where
-    GH: AuthService + Send + Sync,
-    GL: AuthService + Send + Sync,
+    GH: AuthService + Send + Sync + 'static,
+    GL: AuthService + Send + Sync + 'static,
     UR: UserRepository + Send + Sync,
     UER: UserEmailRepository + Send + Sync,
     TR: TokenRepository + Send + Sync,
@@ -143,10 +144,8 @@ where
     <TS as TokenService>::Error: std::error::Error + Send + Sync + 'static,
 {
     fn generate_start_url(&self, provider: Provider) -> Result<String, LinkProviderError> {
-        match provider {
-            Provider::GitHub => Ok(self.github_auth.generate_authorize_url()),
-            Provider::GitLab => Ok(self.gitlab_auth.generate_authorize_url()),
-        }
+        let auth_service = self.auth_factory.get_auth_service(provider);
+        Ok(auth_service.generate_authorize_url())
     }
 
     async fn link_provider(
@@ -163,21 +162,14 @@ where
             .map_err(|e| LinkProviderError::DbError(Box::new(e)))?
             .ok_or(LinkProviderError::UserNotFound)?;
 
+        // Get the auth service for the provider
+        let auth_service = self.auth_factory.get_auth_service(provider);
+        
         // Exchange authorization code for tokens
-        let (tokens, profile) = match provider {
-            Provider::GitHub => {
-                self.github_auth
-                    .exchange_code(code, redirect_uri)
-                    .await
-                    .map_err(|e| LinkProviderError::AuthError(e.to_string()))?
-            }
-            Provider::GitLab => {
-                self.gitlab_auth
-                    .exchange_code(code, redirect_uri)
-                    .await
-                    .map_err(|e| LinkProviderError::AuthError(e.to_string()))?
-            }
-        };
+        let (tokens, profile) = auth_service
+            .exchange_code(code, redirect_uri)
+            .await
+            .map_err(|e| LinkProviderError::AuthError(e.to_string()))?;
 
         // Check if this provider account is already linked to any user
         let existing_user_with_provider = self.user_repo
