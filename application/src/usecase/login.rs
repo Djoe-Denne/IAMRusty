@@ -14,7 +14,7 @@ use crate::usecase::factory::AuthProviderFactory;
 use async_trait::async_trait;
 use std::sync::Arc;
 use thiserror::Error;
-
+use uuid::Uuid;
 use chrono::Utc;
 
 /// Login use case error
@@ -113,6 +113,172 @@ where
             token_service,
         }
     }
+
+    /// Exchange authorization code for tokens and user profile
+    async fn exchange_code_for_profile(
+        &self,
+        provider: Provider,
+        code: String,
+        redirect_uri: String,
+    ) -> Result<(domain::entity::provider::ProviderTokens, domain::entity::provider::ProviderUserProfile), LoginError>
+    where
+        GH: AuthService,
+        GL: AuthService,
+        <GH as AuthService>::Error: std::error::Error + Send + Sync + 'static,
+        <GL as AuthService>::Error: std::error::Error + Send + Sync + 'static,
+    {
+        let auth_service = self.auth_factory.get_auth_service(provider);
+        
+        auth_service
+            .exchange_code(code, redirect_uri)
+            .await
+            .map_err(|e| LoginError::AuthError(e.to_string()))
+    }
+
+    /// Find or create user based on OAuth profile
+    async fn find_or_create_user(
+        &self,
+        profile: &domain::entity::provider::ProviderUserProfile,
+        email: &str,
+    ) -> Result<User, LoginError>
+    where
+        UR: UserRepository,
+        UER: UserEmailRepository,
+        <UR as UserRepository>::Error: std::error::Error + Send + Sync + 'static,
+        <UER as UserEmailRepository>::Error: std::error::Error + Send + Sync + 'static,
+    {
+        // Check if a user exists with this email
+        let existing_email = self.user_email_repo
+            .find_by_email(email)
+            .await
+            .map_err(|e| LoginError::DbError(Box::new(e)))?;
+
+        match existing_email {
+            Some(user_email) => self.update_existing_user(user_email.user_id, profile).await,
+            None => self.create_new_user(profile, email).await,
+        }
+    }
+
+    /// Update existing user with latest profile data
+    async fn update_existing_user(
+        &self,
+        user_id: Uuid,
+        profile: &domain::entity::provider::ProviderUserProfile,
+    ) -> Result<User, LoginError>
+    where
+        UR: UserRepository,
+        <UR as UserRepository>::Error: std::error::Error + Send + Sync + 'static,
+    {
+        let user = self.user_repo
+            .find_by_id(user_id)
+            .await
+            .map_err(|e| LoginError::DbError(Box::new(e)))?
+            .ok_or_else(|| LoginError::DbError("User not found for email".into()))?;
+
+        // Check if update is needed
+        if user.username == profile.username && user.avatar_url == profile.avatar_url {
+            return Ok(user);
+        }
+
+        // Update user profile
+        let mut updated_user = user;
+        updated_user.username = profile.username.clone();
+        updated_user.avatar_url = profile.avatar_url.clone();
+        updated_user.updated_at = Utc::now();
+
+        self.user_repo
+            .update(updated_user)
+            .await
+            .map_err(|e| LoginError::DbError(Box::new(e)))
+    }
+
+    /// Create new user with primary email
+    async fn create_new_user(
+        &self,
+        profile: &domain::entity::provider::ProviderUserProfile,
+        email: &str,
+    ) -> Result<User, LoginError>
+    where
+        UR: UserRepository,
+        UER: UserEmailRepository,
+        <UR as UserRepository>::Error: std::error::Error + Send + Sync + 'static,
+        <UER as UserEmailRepository>::Error: std::error::Error + Send + Sync + 'static,
+    {
+        // Create new user
+        let new_user = User::new(
+            profile.username.clone(),
+            profile.avatar_url.clone(),
+        );
+
+        let created_user = self.user_repo
+            .create(new_user)
+            .await
+            .map_err(|e| LoginError::DbError(Box::new(e)))?;
+
+        // Create primary email for the new user
+        let user_email = UserEmail::new_primary(
+            created_user.id,
+            email.to_string(),
+            false, // OAuth emails are typically not verified initially
+        );
+
+        self.user_email_repo
+            .create(user_email)
+            .await
+            .map_err(|e| LoginError::DbError(Box::new(e)))?;
+
+        Ok(created_user)
+    }
+
+    /// Save provider tokens for user
+    async fn save_provider_tokens(
+        &self,
+        user_id: Uuid,
+        provider: Provider,
+        provider_user_id: String,
+        tokens: domain::entity::provider::ProviderTokens,
+    ) -> Result<(), LoginError>
+    where
+        TR: TokenRepository,
+        <TR as TokenRepository>::Error: std::error::Error + Send + Sync + 'static,
+    {
+        self.token_repo
+            .save_provider_tokens(user_id, provider, provider_user_id, tokens)
+            .await
+            .map_err(|e| LoginError::DbError(Box::new(e)))
+    }
+
+    /// Generate and store authentication tokens
+    async fn generate_auth_tokens(
+        &self,
+        user_id: Uuid,
+    ) -> Result<(domain::entity::token::JwtToken, domain::entity::token::RefreshToken), LoginError>
+    where
+        TS: TokenService,
+        RR: RefreshTokenRepository,
+        <TS as TokenService>::Error: std::error::Error + Send + Sync + 'static,
+        <RR as RefreshTokenRepository>::Error: std::error::Error + Send + Sync + 'static,
+    {
+        // Generate JWT access token
+        let jwt_token = self.token_service
+            .generate_access_token(user_id)
+            .await
+            .map_err(|e| LoginError::TokenError(Box::new(e)))?;
+
+        // Generate refresh token
+        let refresh_token = self.token_service
+            .generate_refresh_token(user_id)
+            .await
+            .map_err(|e| LoginError::TokenError(Box::new(e)))?;
+
+        // Store refresh token in database
+        self.refresh_token_repo
+            .create(refresh_token.clone())
+            .await
+            .map_err(|e| LoginError::DbError(Box::new(e)))?;
+
+        Ok((jwt_token, refresh_token))
+    }
 }
 
 #[async_trait]
@@ -144,118 +310,26 @@ where
         code: String,
         redirect_uri: String,
     ) -> Result<LoginResponse, LoginError> {
-        // Get the auth service for the provider
-        let auth_service = self.auth_factory.get_auth_service(provider);
-        
-        // Exchange authorization code for tokens
-        let (tokens, profile) = auth_service
-            .exchange_code(code, redirect_uri)
-            .await
-            .map_err(|e| LoginError::AuthError(e.to_string()))?;
+        // Step 1: Exchange code for tokens and profile
+        let (tokens, profile) = self.exchange_code_for_profile(provider, code, redirect_uri).await?;
 
-        // Profile email is required for linking
-        let email = profile.email.ok_or_else(|| {
-            LoginError::AuthError("Email is required from OAuth provider".to_string())
-        })?;
+        // Step 2: Validate email requirement
+        let email = profile.email
+            .as_ref()
+            .ok_or_else(|| LoginError::AuthError("Email is required from OAuth provider".to_string()))?
+            .clone();
 
-        // Check if a user exists with this email
-        let user = match self
-            .user_email_repo
-            .find_by_email(&email)
-            .await
-            .map_err(|e| LoginError::DbError(Box::new(e)))?
-        {
-            Some(user_email) => {
-                // Get the user associated with this email
-                let user = self
-                    .user_repo
-                    .find_by_id(user_email.user_id)
-                    .await
-                    .map_err(|e| LoginError::DbError(Box::new(e)))?
-                    .ok_or_else(|| LoginError::DbError("User not found for email".into()))?;
+        // Step 3: Find or create user
+        let user = self.find_or_create_user(&profile, &email).await?;
 
-                // Update user profile if needed
-                let mut updated_user = user.clone();
-                let mut needs_update = false;
-                
-                // Update username and avatar if they've changed
-                if updated_user.username != profile.username {
-                    updated_user.username = profile.username;
-                    needs_update = true;
-                }
-                
-                if updated_user.avatar_url != profile.avatar_url {
-                    updated_user.avatar_url = profile.avatar_url;
-                    needs_update = true;
-                }
-                
-                if needs_update {
-                    updated_user.updated_at = Utc::now();
-                    self.user_repo
-                        .update(updated_user)
-                        .await
-                        .map_err(|e| LoginError::DbError(Box::new(e)))?
-                } else {
-                    updated_user
-                }
-            }
-            None => {
-                // Create new user
-                let new_user = User::new(
-                    profile.username,
-                    profile.avatar_url,
-                );
+        // Step 4: Save provider tokens
+        self.save_provider_tokens(user.id, provider, profile.id, tokens).await?;
 
-                let created_user = self.user_repo
-                    .create(new_user)
-                    .await
-                    .map_err(|e| LoginError::DbError(Box::new(e)))?;
+        // Step 5: Generate authentication tokens
+        let (jwt_token, refresh_token) = self.generate_auth_tokens(user.id).await?;
 
-                // Create primary email for the new user
-                let user_email = UserEmail::new_primary(
-                    created_user.id,
-                    email.clone(),
-                    false, // OAuth emails are typically not verified initially
-                );
-
-                self.user_email_repo
-                    .create(user_email)
-                    .await
-                    .map_err(|e| LoginError::DbError(Box::new(e)))?;
-
-                created_user
-            }
-        };
-
-        // Save provider tokens with provider-specific user ID
-        self.token_repo
-            .save_provider_tokens(user.id, provider, profile.id, tokens)
-            .await
-            .map_err(|e| LoginError::DbError(Box::new(e)))?;
-
-        // Generate JWT access token
-        let jwt_token = self
-            .token_service
-            .generate_access_token(user.id)
-            .await
-            .map_err(|e| LoginError::TokenError(Box::new(e)))?;
-            
-        // Generate refresh token
-        let refresh_token = self
-            .token_service
-            .generate_refresh_token(user.id)
-            .await
-            .map_err(|e| LoginError::TokenError(Box::new(e)))?;
-            
-        // Store refresh token in database
-        self.refresh_token_repo
-            .create(refresh_token.clone())
-            .await
-            .map_err(|e| LoginError::DbError(Box::new(e)))?;
-
-        // Calculate expiration time in seconds
-        let now = Utc::now();
-        let expires_in = (jwt_token.expires_at - now)
+        // Step 6: Calculate expiration and return response
+        let expires_in = (jwt_token.expires_at - Utc::now())
             .num_seconds()
             .max(0) as u64;
 

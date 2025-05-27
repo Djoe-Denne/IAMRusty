@@ -123,6 +123,136 @@ where
             _token_service: token_service,
         }
     }
+
+    /// Load and verify user exists
+    async fn load_user(&self, user_id: Uuid) -> Result<User, LinkProviderError>
+    where
+        UR: UserRepository,
+        <UR as UserRepository>::Error: std::error::Error + Send + Sync + 'static,
+    {
+        self.user_repo
+            .find_by_id(user_id)
+            .await
+            .map_err(|e| LinkProviderError::DbError(Box::new(e)))?
+            .ok_or(LinkProviderError::UserNotFound)
+    }
+
+    /// Exchange authorization code for tokens and user profile
+    async fn fetch_provider_profile(
+        &self,
+        provider: Provider,
+        code: String,
+        redirect_uri: String,
+    ) -> Result<(domain::entity::provider::ProviderTokens, domain::entity::provider::ProviderUserProfile), LinkProviderError>
+    where
+        GH: AuthService,
+        GL: AuthService,
+        <GH as AuthService>::Error: std::error::Error + Send + Sync + 'static,
+        <GL as AuthService>::Error: std::error::Error + Send + Sync + 'static,
+    {
+        let auth_service = self.auth_factory.get_auth_service(provider);
+        
+        let (tokens, profile) = auth_service
+            .exchange_code(code, redirect_uri)
+            .await
+            .map_err(|e| LinkProviderError::AuthError(e.to_string()))?;
+        
+        Ok((tokens, profile))
+    }
+
+    /// Check for provider conflicts with other users
+    async fn check_provider_conflicts(
+        &self,
+        user_id: Uuid,
+        provider: Provider,
+        provider_user_id: &str,
+    ) -> Result<(), LinkProviderError>
+    where
+        UR: UserRepository,
+        <UR as UserRepository>::Error: std::error::Error + Send + Sync + 'static,
+    {
+        let existing_user = self.user_repo
+            .find_by_provider_user_id(provider, provider_user_id)
+            .await
+            .map_err(|e| LinkProviderError::DbError(Box::new(e)))?;
+
+        match existing_user {
+            Some(user) if user.id == user_id => {
+                Err(LinkProviderError::ProviderAlreadyLinkedToSameUser)
+            }
+            Some(_) => Err(LinkProviderError::ProviderAlreadyLinked),
+            None => Ok(()),
+        }
+    }
+
+    /// Handle email from provider - add if new, check conflicts if exists
+    async fn handle_provider_email(
+        &self,
+        user_id: Uuid,
+        provider: Provider,
+        email: Option<String>,
+    ) -> Result<(bool, Option<String>), LinkProviderError>
+    where
+        UER: UserEmailRepository,
+        <UER as UserEmailRepository>::Error: std::error::Error + Send + Sync + 'static,
+    {
+        let Some(email) = email else {
+            return Ok((false, None));
+        };
+
+        let existing_email = self.user_email_repo
+            .find_by_email(&email)
+            .await
+            .map_err(|e| LinkProviderError::DbError(Box::new(e)))?;
+
+        match existing_email {
+            Some(existing) if existing.user_id != user_id => {
+                tracing::error!(
+                    "Email {} from provider {} already belongs to user {}, not adding to user {}",
+                    email, provider.as_str(), existing.user_id, user_id
+                );
+                Err(LinkProviderError::ProviderAlreadyLinked)
+            }
+            Some(_) => Ok((false, None)), // Email already exists for this user
+            None => {
+                // Create new secondary email
+                let user_email = UserEmail::new_secondary(user_id, email.clone(), false);
+                self.user_email_repo.create(user_email).await
+                    .map_err(|e| LinkProviderError::DbError(Box::new(e)))?;
+                Ok((true, Some(email)))
+            }
+        }
+    }
+
+    /// Save provider tokens
+    async fn save_provider_tokens(
+        &self,
+        user_id: Uuid,
+        provider: Provider,
+        provider_user_id: String,
+        tokens: domain::entity::provider::ProviderTokens,
+    ) -> Result<(), LinkProviderError>
+    where
+        TR: TokenRepository,
+        <TR as TokenRepository>::Error: std::error::Error + Send + Sync + 'static,
+    {
+        self.token_repo
+            .save_provider_tokens(user_id, provider, provider_user_id, tokens)
+            .await
+            .map_err(|e| LinkProviderError::DbError(Box::new(e)))
+    }
+
+    /// Get all emails for user
+    async fn get_user_emails(&self, user_id: Uuid) -> Result<Vec<UserEmail>, LinkProviderError>
+    where
+        UER: UserEmailRepository,
+        <UER as UserEmailRepository>::Error: std::error::Error + Send + Sync + 'static,
+    {
+        self.user_email_repo
+            .find_by_user_id(user_id)
+            .await
+            .map_err(|e| LinkProviderError::DbError(Box::new(e)))
+    }
 }
 
 #[async_trait]
@@ -155,95 +285,31 @@ where
         code: String,
         redirect_uri: String,
     ) -> Result<LinkProviderResponse, LinkProviderError> {
-        // Verify that the user exists
-        let user = self.user_repo
-            .find_by_id(user_id)
-            .await
-            .map_err(|e| LinkProviderError::DbError(Box::new(e)))?
-            .ok_or(LinkProviderError::UserNotFound)?;
+        // Step 1: Verify user exists
+        let user = self.load_user(user_id).await?;
 
-        // Get the auth service for the provider
-        let auth_service = self.auth_factory.get_auth_service(provider);
-        
-        // Exchange authorization code for tokens
-        let (tokens, profile) = auth_service
-            .exchange_code(code, redirect_uri)
-            .await
-            .map_err(|e| LinkProviderError::AuthError(e.to_string()))?;
+        // Step 2: Exchange code for tokens and profile
+        let (tokens, profile) = self.fetch_provider_profile(
+            provider,
+            code,
+            redirect_uri
+        ).await?;
 
-        // Check if this provider account is already linked to any user
-        let existing_user_with_provider = self.user_repo
-            .find_by_provider_user_id(provider, &profile.id)
-            .await
-            .map_err(|e| LinkProviderError::DbError(Box::new(e)))?;
+        // Step 3: Check for provider conflicts
+        self.check_provider_conflicts(user_id, provider, &profile.id).await?;
 
-        if let Some(existing_user) = existing_user_with_provider {
-            if existing_user.id == user_id {
-                // Provider is already linked to the same user
-                return Err(LinkProviderError::ProviderAlreadyLinkedToSameUser);
-            } else {
-                // Provider is linked to a different user
-                return Err(LinkProviderError::ProviderAlreadyLinked);
-            }
-        }
+        // Step 4: Handle email updates
+        let (new_email_added, new_email) = self.handle_provider_email(
+            user_id,
+            provider,
+            profile.email
+        ).await?;
 
-        // Handle email from the new provider
-        let mut new_email_added = false;
-        let mut new_email = None;
-        
-        if let Some(email) = profile.email {
-            // Check if this email already exists for any user
-            let existing_email = self.user_email_repo
-                .find_by_email(&email)
-                .await
-                .map_err(|e| LinkProviderError::DbError(Box::new(e)))?;
+        // Step 5: Save provider tokens
+        self.save_provider_tokens(user_id, provider, profile.id, tokens).await?;
 
-            match existing_email {
-                Some(existing) => {
-                    if existing.user_id != user_id {
-                        // Email belongs to a different user - we'll take the permissive approach
-                        // and just log a warning but continue with the linking
-                        tracing::error!(
-                            "Email {} from provider {} already belongs to user {}, not adding to user {}",
-                            email, provider.as_str(), existing.user_id, user_id
-                        );
-                    
-                        // Provider is linked to a different user
-                        return Err(LinkProviderError::ProviderAlreadyLinked);
-                    }
-                    // Email already exists for this user - nothing to do
-                }
-                None => {
-                    // New email - add it as a secondary email (not verified)
-                    let user_email = UserEmail::new_secondary(
-                        user_id,
-                        email.clone(),
-                        false, // OAuth emails are typically not verified initially
-                    );
-
-                    self.user_email_repo
-                        .create(user_email)
-                        .await
-                        .map_err(|e| LinkProviderError::DbError(Box::new(e)))?;
-
-                    new_email_added = true;
-                    new_email = Some(email);
-                }
-            }
-        }        
-
-        // Get all user emails after potential addition
-        let emails = self.user_email_repo
-            .find_by_user_id(user_id)
-            .await
-            .map_err(|e| LinkProviderError::DbError(Box::new(e)))?;
-        
-        // Save provider tokens with provider-specific user ID
-        self.token_repo
-            .save_provider_tokens(user.id, provider, profile.id, tokens)
-            .await
-            .map_err(|e| LinkProviderError::DbError(Box::new(e)))?;
-
+        // Step 6: Get all user emails and return response
+        let emails = self.get_user_emails(user_id).await?;
 
         Ok(LinkProviderResponse {
             user,
