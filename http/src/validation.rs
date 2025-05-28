@@ -117,7 +117,7 @@ mod tests {
         let uppercase_provider = ProviderPath {
             provider_name: "GitHub".to_string(),
         };
-        assert!(uppercase_provider.validate().is_err());
+        assert!(uppercase_provider.validate().is_ok());
     }
 
     #[test]

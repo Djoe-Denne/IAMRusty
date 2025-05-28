@@ -35,5 +35,22 @@ redirect_uri = "https://your-domain.com/api/auth/gitlab/callback"
 [jwt]
 expiration_seconds = 86400  # 24 hours
 
+# Command configuration for production
+[command.retry]
+# Conservative retry settings for production
+max_attempts = 3
+base_delay_ms = 500
+max_delay_ms = 60000  # 1 minute max delay
+backoff_multiplier = 2.0
+use_jitter = true
+
+# Command-specific overrides for production (example)
+[command.overrides.critical_command]
+max_attempts = 5
+base_delay_ms = 1000
+max_delay_ms = 30000
+backoff_multiplier = 1.8
+use_jitter = true
+
 # Note: Logging configuration should be handled by the application logger, not config
 # You can set RUST_LOG environment variable for log levels 

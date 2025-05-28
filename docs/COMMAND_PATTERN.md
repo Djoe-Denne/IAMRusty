@@ -172,8 +172,9 @@ impl Command for LoginCommand {
 
 ### Retry Configuration
 
-The CommandBus supports configurable retry policies:
+The CommandBus supports both global and command-specific retry policies:
 
+#### Global Retry Policy (Legacy)
 ```rust
 pub struct RetryPolicy {
     pub max_attempts: u32,           // Default: 3
@@ -183,6 +184,97 @@ pub struct RetryPolicy {
     pub use_jitter: bool,           // Default: true
 }
 ```
+
+#### Configuration-Driven Retry Policies (Recommended)
+
+The system now supports configuration-driven retry policies with command-specific overrides:
+
+```rust
+use configuration::{CommandRetryConfig, CommandConfig};
+
+// Configuration structure that maps to TOML
+pub struct CommandRetryConfig {
+    pub max_attempts: u32,
+    pub base_delay_ms: u64,       // Milliseconds in config
+    pub max_delay_ms: u64,        // Milliseconds in config
+    pub backoff_multiplier: f64,
+    pub use_jitter: bool,
+}
+
+pub struct CommandConfig {
+    pub retry: CommandRetryConfig,                           // Default policy
+    pub overrides: HashMap<String, CommandRetryConfig>,     // Command-specific overrides
+}
+```
+
+#### Retry Policy Conversion
+
+The system automatically converts configuration values to internal retry policies:
+
+```rust
+impl From<&CommandRetryConfig> for RetryPolicy {
+    fn from(config: &CommandRetryConfig) -> Self {
+        Self {
+            max_attempts: config.max_attempts,
+            base_delay: Duration::from_millis(config.base_delay_ms),    // Convert to Duration
+            max_delay: Duration::from_millis(config.max_delay_ms),      // Convert to Duration
+            backoff_multiplier: config.backoff_multiplier,
+            use_jitter: config.use_jitter,
+        }
+    }
+}
+```
+
+#### Command-Specific Retry Resolution
+
+The CommandBus resolves the appropriate retry policy for each command:
+
+```rust
+impl CommandBus {
+    /// Get retry policy for a specific command
+    fn get_retry_policy(&self, command_type: &str) -> RetryPolicy {
+        if let Some(ref command_config) = self.command_config {
+            // Look for command-specific override first
+            if let Some(override_config) = command_config.overrides.get(command_type) {
+                return RetryPolicy::from(override_config);
+            }
+            // Fall back to default command config
+            RetryPolicy::from(&command_config.retry)
+        } else {
+            // Fall back to bus default (legacy behavior)
+            self.config.retry_policy.clone()
+        }
+    }
+    
+    pub async fn execute<C, H>(&self, command: C, handler: Arc<H>, context: CommandContext) 
+    where C: Command + Clone, H: CommandHandler<C>
+    {
+        // Get command-specific retry policy
+        let retry_policy = self.get_retry_policy(command.command_type());
+        
+        // Use the resolved policy for retry logic
+        // ... retry implementation uses the specific policy
+    }
+}
+```
+
+#### Example: Command-Specific Behavior
+
+Given this configuration:
+
+```toml
+[command.retry]
+max_attempts = 3
+base_delay_ms = 100
+
+[command.overrides.login_command]
+max_attempts = 5
+base_delay_ms = 50
+```
+
+- `login_command` will retry up to 5 times with 50ms base delay
+- `link_provider_command` will retry up to 3 times with 100ms base delay (uses default)
+- Any other command will use the default policy
 
 ### Error Classification
 
@@ -268,12 +360,200 @@ let auth_url = state.command_service
 
 ## Configuration
 
+### Command-Level Retry Configuration
+
+The IAM service now supports configurable retry policies at both the global and command-specific levels through the application configuration system. This allows fine-grained control over retry behavior for different types of commands.
+
+#### Configuration Structure
+
+The retry configuration is defined in the application's TOML configuration files using the following structure:
+
+```toml
+# Command configuration
+[command.retry]
+# Default retry configuration for all commands
+max_attempts = 3
+base_delay_ms = 100
+max_delay_ms = 30000
+backoff_multiplier = 2.0
+use_jitter = true
+
+# Command-specific retry overrides
+[command.overrides.login_command]
+max_attempts = 5
+base_delay_ms = 25
+max_delay_ms = 2000
+backoff_multiplier = 1.5
+use_jitter = false
+
+[command.overrides.link_provider_command]
+max_attempts = 2
+base_delay_ms = 100
+max_delay_ms = 1000
+backoff_multiplier = 1.0
+use_jitter = false
+```
+
+#### Configuration Parameters
+
+- **`max_attempts`**: Maximum number of retry attempts (including the initial attempt)
+- **`base_delay_ms`**: Base delay between retries in milliseconds
+- **`max_delay_ms`**: Maximum delay between retries in milliseconds (caps exponential backoff)
+- **`backoff_multiplier`**: Multiplier for exponential backoff (default: 2.0)
+- **`use_jitter`**: Whether to add random jitter to retry delays (recommended for production)
+
+#### Environment-Specific Configuration
+
+Different environments can have different retry configurations:
+
+**Development (`config/development.toml`)**:
+```toml
+[command.retry]
+# More lenient retry settings for development
+max_attempts = 5
+base_delay_ms = 200
+max_delay_ms = 10000
+backoff_multiplier = 2.0
+use_jitter = true
+
+[command.overrides.test_command]
+max_attempts = 2
+base_delay_ms = 100
+max_delay_ms = 5000
+backoff_multiplier = 1.5
+use_jitter = false
+```
+
+**Production (`config/production.toml`)**:
+```toml
+[command.retry]
+# Conservative retry settings for production
+max_attempts = 3
+base_delay_ms = 500
+max_delay_ms = 60000  # 1 minute max delay
+backoff_multiplier = 2.0
+use_jitter = true
+
+[command.overrides.critical_command]
+max_attempts = 5
+base_delay_ms = 1000
+max_delay_ms = 30000
+backoff_multiplier = 1.8
+use_jitter = true
+```
+
+**Testing (`config/test.toml`)**:
+```toml
+[command.retry]
+# Faster retry settings for tests
+max_attempts = 2
+base_delay_ms = 50
+max_delay_ms = 5000
+backoff_multiplier = 2.0
+use_jitter = false  # Disable jitter for predictable test behavior
+```
+
 ### CommandBus Configuration
 
+The CommandBus now integrates with the application configuration system:
+
 ```rust
-use application::command::bus::{CommandBus, CommandBusConfig, RetryPolicy};
+use application::command::bus::{CommandBus, CommandBusConfig};
+use configuration::{CommandConfig, AppConfig};
 use std::time::Duration;
 
+// Load application configuration
+let app_config = infra::config::load_config()?;
+
+// Create CommandBus with command-specific configuration
+let bus_config = CommandBusConfig {
+    default_timeout: Duration::from_secs(30),
+    // The retry_policy here serves as a fallback if no command config is provided
+    retry_policy: RetryPolicy::default(),
+    enable_metrics: true,
+    enable_tracing: true,
+};
+
+let command_bus = CommandBus::with_command_config(
+    bus_config,
+    app_config.command,  // This contains the TOML configuration
+);
+```
+
+### Retry Policy Resolution
+
+The CommandBus resolves retry policies using the following precedence:
+
+1. **Command-specific override**: If a command type has a specific configuration in `[command.overrides.<command_type>]`
+2. **Default command configuration**: The configuration in `[command.retry]`
+3. **Bus default**: The hardcoded default in `CommandBusConfig` (fallback)
+
+```rust
+// Example of how the CommandBus resolves retry policies
+impl CommandBus {
+    fn get_retry_policy(&self, command_type: &str) -> RetryPolicy {
+        if let Some(ref command_config) = self.command_config {
+            // Convert from configuration to internal retry policy
+            RetryPolicy::from(command_config.get_retry_config(command_type))
+        } else {
+            // Fallback to bus default
+            self.config.retry_policy.clone()
+        }
+    }
+}
+```
+
+### Environment Variable Overrides
+
+You can override configuration values using environment variables with the `IAM_` prefix:
+
+```bash
+# Override default retry attempts
+IAM_COMMAND__RETRY__MAX_ATTEMPTS=5
+
+# Override specific command configuration
+IAM_COMMAND__OVERRIDES__LOGIN_COMMAND__MAX_ATTEMPTS=3
+IAM_COMMAND__OVERRIDES__LOGIN_COMMAND__BASE_DELAY_MS=100
+```
+
+### Application Setup
+
+```rust
+// In setup/src/app.rs
+pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
+    // ... create use cases ...
+    
+    // Create command bus with configuration-driven retry policies
+    let command_bus = Arc::new(CommandBus::with_command_config(
+        application::command::bus::CommandBusConfig::default(),
+        config.command.clone(),  // Pass the command configuration
+    ));
+    
+    let command_service = Arc::new(DynCommandService::new(
+        command_bus,
+        Arc::new(login_usecase),
+        Arc::new(link_provider_usecase),
+        Arc::new(token_usecase_for_commands),
+        Arc::new(user_usecase_for_commands),
+    ));
+
+    // Create app state with command service
+    let app_state = AppState::new(
+        command_service,
+        Arc::new(user_usecase),
+        Arc::new(token_usecase),
+        config.oauth.clone(),
+    );
+
+    Ok(app_state)
+}
+```
+
+### Legacy CommandBus Configuration
+
+For backward compatibility, you can still configure the CommandBus directly:
+
+```rust
 let config = CommandBusConfig {
     default_timeout: Duration::from_secs(30),
     retry_policy: RetryPolicy {
@@ -290,32 +570,7 @@ let config = CommandBusConfig {
 let command_bus = CommandBus::with_config(config);
 ```
 
-### Application Setup
-
-```rust
-// In setup/src/app.rs
-pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
-    // ... create use cases ...
-    
-    // Create command bus and service
-    let command_bus = Arc::new(CommandBus::new());
-    let command_service = Arc::new(DynCommandService::new(
-        command_bus,
-        Arc::new(login_usecase),
-        Arc::new(link_provider_usecase),
-    ));
-
-    // Create app state with command service
-    let app_state = AppState::new(
-        command_service,
-        Arc::new(user_usecase),
-        Arc::new(token_usecase),
-        config.oauth.clone(),
-    );
-
-    Ok(app_state)
-}
-```
+However, it's recommended to use the configuration-driven approach for better maintainability and environment-specific settings.
 
 ## Monitoring and Observability
 
@@ -546,6 +801,15 @@ This ensures that all cross-cutting concerns (retries, logging, metrics, timeout
 - **Integration Tests**: Test the full command execution flow
 - **Retry Testing**: Verify retry behavior with simulated failures
 - **Performance Tests**: Validate timeout and retry configurations
+
+### 6. Configuration Management
+- **Environment-Specific Settings**: Use different retry configurations for dev/test/prod
+- **Command-Specific Tuning**: Override retry behavior for critical or sensitive operations
+- **Conservative Production Settings**: Use longer delays and fewer retries in production
+- **Disable Jitter in Tests**: Set `use_jitter = false` for predictable test behavior
+- **Monitor and Adjust**: Use metrics to fine-tune retry configurations
+- **Document Overrides**: Clearly document why specific commands have custom retry settings
+- **Environment Variables**: Use environment variables for runtime configuration adjustments
 
 ## Future Enhancements
 

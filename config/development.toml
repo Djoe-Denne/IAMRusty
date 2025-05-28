@@ -15,4 +15,21 @@ password = "postgres"
 
 # Enable debug level logging
 [logging]
-level = "debug" 
+level = "debug"
+
+# Command configuration for development
+[command.retry]
+# More lenient retry settings for development
+max_attempts = 5
+base_delay_ms = 200
+max_delay_ms = 10000
+backoff_multiplier = 2.0
+use_jitter = true
+
+# Command-specific overrides for development
+[command.overrides.test_command]
+max_attempts = 2
+base_delay_ms = 100
+max_delay_ms = 5000
+backoff_multiplier = 1.5
+use_jitter = false 

@@ -316,7 +316,7 @@ pub async fn oauth_callback(
 ## Configuration Layer
 
 **Location**: `configuration/` crate  
-**Purpose**: Centralized configuration management
+**Purpose**: Centralized configuration management with environment-specific settings
 
 ### Structure
 
@@ -329,19 +329,61 @@ configuration/
 ### Key Components
 
 #### Configuration Types
-- **AppConfig**: Root configuration
-- **ServerConfig**: HTTP server configuration
-- **DatabaseConfig**: Database connection configuration
-- **OAuthConfig**: OAuth provider configurations
-- **JwtConfig**: JWT token configuration
+- **AppConfig**: Root configuration containing all subsystem configs
+- **ServerConfig**: HTTP server configuration (host, port, TLS settings)
+- **DatabaseConfig**: Database connection configuration with read replicas
+- **OAuthConfig**: OAuth provider configurations (GitHub, GitLab)
+- **JwtConfig**: JWT token configuration (secret, expiration)
+- **CommandConfig**: Command retry configuration system
+- **CommandRetryConfig**: Retry policy configuration for commands
+
+#### Command Retry Configuration System
+
+The configuration system now supports sophisticated retry policies with command-specific overrides:
+
+```rust
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CommandRetryConfig {
+    /// Maximum number of retry attempts
+    pub max_attempts: u32,
+    /// Base delay between retries in milliseconds
+    pub base_delay_ms: u64,
+    /// Maximum delay between retries in milliseconds
+    pub max_delay_ms: u64,
+    /// Backoff multiplier for exponential backoff
+    pub backoff_multiplier: f64,
+    /// Whether to use jitter in retry delays
+    pub use_jitter: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CommandConfig {
+    /// Default retry configuration for all commands
+    #[serde(default)]
+    pub retry: CommandRetryConfig,
+    /// Command-specific retry configurations
+    #[serde(default)]
+    pub overrides: HashMap<String, CommandRetryConfig>,
+}
+```
+
+#### Configuration Resolution
+
+The system supports a flexible hierarchy for configuration resolution:
+
+1. **Command-specific overrides**: `[command.overrides.<command_type>]`
+2. **Default command configuration**: `[command.retry]`
+3. **System defaults**: Hardcoded fallback values
 
 #### Features
-- **Environment Variables**: Support for hierarchical env vars
-- **TOML Files**: Configuration file support
-- **Default Values**: Sensible defaults with serde
-- **Port Caching**: Consistent random port generation
+- **Environment Variables**: Support for hierarchical env vars with `IAM_` prefix
+- **TOML Files**: Configuration file support with environment-specific overrides
+- **Default Values**: Sensible defaults with serde default functions
+- **Port Caching**: Consistent random port generation for testing
+- **Command-Level Tuning**: Fine-grained retry control per command type
+- **Environment-Specific Policies**: Different retry settings per environment
 
-### Example: Configuration Structure
+### Example: Complete Configuration Structure
 
 ```rust
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -352,7 +394,85 @@ pub struct AppConfig {
     pub database: DatabaseConfig,
     #[serde(default)]
     pub logging: LoggingConfig,
+    #[serde(default)]
+    pub command: CommandConfig,  // Command retry configuration
 }
+```
+
+### Configuration File Examples
+
+#### Development Environment (`config/development.toml`)
+```toml
+[command.retry]
+# Lenient settings for development
+max_attempts = 5
+base_delay_ms = 200
+max_delay_ms = 10000
+backoff_multiplier = 2.0
+use_jitter = true
+
+[command.overrides.test_command]
+max_attempts = 2
+base_delay_ms = 100
+max_delay_ms = 5000
+backoff_multiplier = 1.5
+use_jitter = false
+```
+
+#### Production Environment (`config/production.toml`)
+```toml
+[command.retry]
+# Conservative settings for production
+max_attempts = 3
+base_delay_ms = 500
+max_delay_ms = 60000  # 1 minute max delay
+backoff_multiplier = 2.0
+use_jitter = true
+
+[command.overrides.critical_command]
+max_attempts = 5
+base_delay_ms = 1000
+max_delay_ms = 30000
+backoff_multiplier = 1.8
+use_jitter = true
+```
+
+#### Testing Environment (`config/test.toml`)
+```toml
+[command.retry]
+# Fast, predictable settings for tests
+max_attempts = 2
+base_delay_ms = 50
+max_delay_ms = 5000
+backoff_multiplier = 2.0
+use_jitter = false  # Disable jitter for test determinism
+```
+
+### Configuration Integration
+
+The configuration system integrates with the Command Bus for runtime policy resolution:
+
+```rust
+impl CommandConfig {
+    /// Get retry configuration for a specific command
+    /// Returns command-specific config if available, otherwise returns default
+    pub fn get_retry_config(&self, command_type: &str) -> &CommandRetryConfig {
+        self.overrides.get(command_type).unwrap_or(&self.retry)
+    }
+}
+```
+
+### Environment Variable Support
+
+All configuration values can be overridden using environment variables:
+
+```bash
+# Override default retry attempts
+IAM_COMMAND__RETRY__MAX_ATTEMPTS=5
+
+# Override specific command configuration
+IAM_COMMAND__OVERRIDES__LOGIN_COMMAND__MAX_ATTEMPTS=3
+IAM_COMMAND__OVERRIDES__LOGIN_COMMAND__BASE_DELAY_MS=100
 ```
 
 ## Setup Layer

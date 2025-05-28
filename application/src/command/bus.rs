@@ -4,6 +4,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::time::timeout;
 use tracing::{info, warn, error, instrument};
+use configuration::{CommandConfig, CommandRetryConfig};
 
 /// Retry policy configuration
 #[derive(Debug, Clone)]
@@ -18,6 +19,18 @@ pub struct RetryPolicy {
     pub backoff_multiplier: f64,
     /// Whether to use jitter
     pub use_jitter: bool,
+}
+
+impl From<&CommandRetryConfig> for RetryPolicy {
+    fn from(config: &CommandRetryConfig) -> Self {
+        Self {
+            max_attempts: config.max_attempts,
+            base_delay: Duration::from_millis(config.base_delay_ms),
+            max_delay: Duration::from_millis(config.max_delay_ms),
+            backoff_multiplier: config.backoff_multiplier,
+            use_jitter: config.use_jitter,
+        }
+    }
 }
 
 impl Default for RetryPolicy {
@@ -118,6 +131,7 @@ impl MetricsCollector for LoggingMetricsCollector {
 /// Command bus for executing commands with cross-cutting concerns
 pub struct CommandBus {
     config: CommandBusConfig,
+    command_config: Option<CommandConfig>,
     metrics_collector: Arc<dyn MetricsCollector>,
 }
 
@@ -126,6 +140,7 @@ impl CommandBus {
     pub fn new() -> Self {
         Self {
             config: CommandBusConfig::default(),
+            command_config: None,
             metrics_collector: Arc::new(LoggingMetricsCollector),
         }
     }
@@ -134,6 +149,7 @@ impl CommandBus {
     pub fn with_config(config: CommandBusConfig) -> Self {
         Self {
             config,
+            command_config: None,
             metrics_collector: Arc::new(LoggingMetricsCollector),
         }
     }
@@ -145,7 +161,42 @@ impl CommandBus {
     ) -> Self {
         Self {
             config,
+            command_config: None,
             metrics_collector,
+        }
+    }
+    
+    /// Create a new command bus with command-specific configuration
+    pub fn with_command_config(
+        config: CommandBusConfig,
+        command_config: CommandConfig,
+    ) -> Self {
+        Self {
+            config,
+            command_config: Some(command_config),
+            metrics_collector: Arc::new(LoggingMetricsCollector),
+        }
+    }
+    
+    /// Create a new command bus with both command config and metrics collector
+    pub fn with_command_config_and_metrics(
+        config: CommandBusConfig,
+        command_config: CommandConfig,
+        metrics_collector: Arc<dyn MetricsCollector>,
+    ) -> Self {
+        Self {
+            config,
+            command_config: Some(command_config),
+            metrics_collector,
+        }
+    }
+    
+    /// Get retry policy for a specific command
+    fn get_retry_policy(&self, command_type: &str) -> RetryPolicy {
+        if let Some(ref command_config) = self.command_config {
+            RetryPolicy::from(command_config.get_retry_config(command_type))
+        } else {
+            self.config.retry_policy.clone()
         }
     }
     
@@ -172,6 +223,9 @@ impl CommandBus {
     {
         let start_time = Instant::now();
         let mut retry_attempts = 0;
+        
+        // Get command-specific retry policy
+        let retry_policy = self.get_retry_policy(command.command_type());
         
         // Validate command first
         if let Err(e) = command.validate() {
@@ -211,7 +265,7 @@ impl CommandBus {
                     retry_attempts += 1;
                     
                     // Check if error is retryable first
-                    if !self.config.retry_policy.is_retryable(&e) {
+                    if !retry_policy.is_retryable(&e) {
                         // Error is not retryable - return original error immediately
                         let duration = start_time.elapsed();
                         error!(
@@ -227,9 +281,9 @@ impl CommandBus {
                         
                         return Err(e);
                     }
-                    
+                    eprintln!("retry_attempts: {}/{}", retry_attempts, retry_policy.max_attempts);
                     // Error is retryable - check if we've reached max attempts
-                    if retry_attempts >= self.config.retry_policy.max_attempts {
+                    if retry_attempts >= retry_policy.max_attempts {
                         // Max retries reached - return RetryExhausted
                         let duration = start_time.elapsed();
                         error!(
@@ -247,7 +301,7 @@ impl CommandBus {
                     }
                     
                     // Calculate delay and retry
-                    let delay = self.config.retry_policy.calculate_delay(retry_attempts - 1);
+                    let delay = retry_policy.calculate_delay(retry_attempts - 1);
                     warn!(
                         error = %e,
                         retry_attempt = retry_attempts,
@@ -262,7 +316,7 @@ impl CommandBus {
                     retry_attempts += 1;
                     let timeout_error = CommandError::Timeout;
                     
-                    if retry_attempts >= self.config.retry_policy.max_attempts {
+                    if retry_attempts >= retry_policy.max_attempts {
                         let duration = start_time.elapsed();
                         error!(
                             duration_ms = duration.as_millis() as u64,
@@ -277,7 +331,7 @@ impl CommandBus {
                         return Err(CommandError::RetryExhausted("Timeout".to_string()));
                     }
                     
-                    let delay = self.config.retry_policy.calculate_delay(retry_attempts - 1);
+                    let delay = retry_policy.calculate_delay(retry_attempts - 1);
                     warn!(
                         retry_attempt = retry_attempts,
                         delay_ms = delay.as_millis() as u64,
@@ -765,6 +819,170 @@ mod tests {
             assert!(metrics[0].success);
             assert_eq!(metrics[0].retry_attempts, 0);
             assert!(metrics[0].error_type.is_none());
+        }
+
+        #[tokio::test]
+        async fn execute_command_with_command_specific_retry_config() {
+            use std::collections::HashMap;
+            
+            let mut overrides = HashMap::new();
+            overrides.insert("test_command".to_string(), CommandRetryConfig {
+                max_attempts: 5,
+                base_delay_ms: 25,
+                max_delay_ms: 5000,
+                backoff_multiplier: 1.5,
+                use_jitter: false,
+            });
+            
+            let command_config = CommandConfig {
+                retry: CommandRetryConfig {
+                    max_attempts: 2,
+                    base_delay_ms: 100,
+                    max_delay_ms: 10000,
+                    backoff_multiplier: 2.0,
+                    use_jitter: false,
+                },
+                overrides,
+            };
+            
+            let bus_config = CommandBusConfig {
+                default_timeout: Duration::from_secs(1),
+                retry_policy: RetryPolicy {
+                    max_attempts: 1, // This should be overridden
+                    base_delay: Duration::from_millis(1000),
+                    max_delay: Duration::from_secs(60),
+                    backoff_multiplier: 3.0,
+                    use_jitter: true,
+                },
+                enable_metrics: false,
+                enable_tracing: false,
+            };
+            
+            let bus = CommandBus::with_command_config(bus_config, command_config);
+            let handler = Arc::new(TestCommandHandler::new(HandlerBehavior::InfrastructureError));
+            let command = TestCommand::new("test data".to_string());
+            let context = CommandContext::new();
+            
+            let result = bus.execute(command, handler.clone(), context).await;
+            
+            assert_err!(&result);
+            // Should use command-specific max_attempts (5) instead of bus default (1)
+            assert_eq!(handler.get_call_count(), 5);
+        }
+
+        #[tokio::test]
+        async fn execute_command_falls_back_to_default_retry_config() {
+            use std::collections::HashMap;
+            
+            let overrides = HashMap::new(); // No overrides
+            
+            let command_config = CommandConfig {
+                retry: CommandRetryConfig {
+                    max_attempts: 3,
+                    base_delay_ms: 50,
+                    max_delay_ms: 5000,
+                    backoff_multiplier: 1.8,
+                    use_jitter: false,
+                },
+                overrides,
+            };
+            
+            let bus_config = CommandBusConfig {
+                default_timeout: Duration::from_secs(1),
+                retry_policy: RetryPolicy::default(), // This should be ignored
+                enable_metrics: false,
+                enable_tracing: false,
+            };
+            
+            let bus = CommandBus::with_command_config(bus_config, command_config);
+            let handler = Arc::new(TestCommandHandler::new(HandlerBehavior::InfrastructureError));
+            let command = TestCommand::new("test data".to_string());
+            let context = CommandContext::new();
+            
+            let result = bus.execute(command, handler.clone(), context).await;
+            
+            assert_err!(&result);
+            // Should use command config default max_attempts (3)
+            assert_eq!(handler.get_call_count(), 3);
+        }
+
+        #[tokio::test]
+        async fn execute_command_with_unknown_command_type_uses_default() {
+            use std::collections::HashMap;
+            
+            // Define a command with a different type
+            #[derive(Debug, Clone)]
+            struct UnknownCommand {
+                id: uuid::Uuid,
+                data: String,
+            }
+            
+            #[async_trait]
+            impl Command for UnknownCommand {
+                type Result = String;
+                
+                fn command_type(&self) -> &'static str {
+                    "unknown_command"
+                }
+                
+                fn command_id(&self) -> uuid::Uuid {
+                    self.id
+                }
+                
+                fn validate(&self) -> Result<(), CommandError> {
+                    Ok(())
+                }
+            }
+            
+            #[async_trait]
+            impl CommandHandler<UnknownCommand> for TestCommandHandler {
+                async fn handle(&self, _command: UnknownCommand) -> Result<String, CommandError> {
+                    let mut count = self.call_count.lock().unwrap();
+                    *count += 1;
+                    Err(CommandError::Infrastructure("Test error".to_string()))
+                }
+            }
+            
+            let mut overrides = HashMap::new();
+            overrides.insert("test_command".to_string(), CommandRetryConfig {
+                max_attempts: 5,
+                base_delay_ms: 25,
+                max_delay_ms: 5000,
+                backoff_multiplier: 1.5,
+                use_jitter: false,
+            });
+            
+            let command_config = CommandConfig {
+                retry: CommandRetryConfig {
+                    max_attempts: 2,
+                    base_delay_ms: 100,
+                    max_delay_ms: 10000,
+                    backoff_multiplier: 2.0,
+                    use_jitter: false,
+                },
+                overrides,
+            };
+            
+            let bus_config = CommandBusConfig {
+                default_timeout: Duration::from_secs(1),
+                retry_policy: RetryPolicy::default(),
+                enable_metrics: false,
+                enable_tracing: false,
+            };
+            
+            let bus = CommandBus::with_command_config(bus_config, command_config);
+            let handler = Arc::new(TestCommandHandler::new(HandlerBehavior::InfrastructureError));
+            let command = UnknownCommand {
+                id: uuid::Uuid::new_v4(),
+                data: "test".to_string(),
+            };
+            let context = CommandContext::new();
+            
+            let result = bus.execute(command, handler.clone(), context).await;
+            
+            assert_err!(&result);
+            // Should use command config default max_attempts (2) since "unknown_command" is not in overrides
+            assert_eq!(handler.get_call_count(), 2);
         }
     }
 } 

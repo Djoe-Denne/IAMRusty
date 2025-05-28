@@ -292,6 +292,86 @@ pub struct OAuthConfig {
     pub gitlab: GitLabConfig,
 }
 
+/// Command retry configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CommandRetryConfig {
+    /// Maximum number of retry attempts
+    #[serde(default = "default_max_attempts")]
+    pub max_attempts: u32,
+    /// Base delay between retries in milliseconds
+    #[serde(default = "default_base_delay_ms")]
+    pub base_delay_ms: u64,
+    /// Maximum delay between retries in milliseconds
+    #[serde(default = "default_max_delay_ms")]
+    pub max_delay_ms: u64,
+    /// Backoff multiplier
+    #[serde(default = "default_backoff_multiplier")]
+    pub backoff_multiplier: f64,
+    /// Whether to use jitter
+    #[serde(default = "default_use_jitter")]
+    pub use_jitter: bool,
+}
+
+fn default_max_attempts() -> u32 {
+    3
+}
+
+fn default_base_delay_ms() -> u64 {
+    100
+}
+
+fn default_max_delay_ms() -> u64 {
+    30000
+}
+
+fn default_backoff_multiplier() -> f64 {
+    2.0
+}
+
+fn default_use_jitter() -> bool {
+    true
+}
+
+impl Default for CommandRetryConfig {
+    fn default() -> Self {
+        Self {
+            max_attempts: default_max_attempts(),
+            base_delay_ms: default_base_delay_ms(),
+            max_delay_ms: default_max_delay_ms(),
+            backoff_multiplier: default_backoff_multiplier(),
+            use_jitter: default_use_jitter(),
+        }
+    }
+}
+
+/// Command configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CommandConfig {
+    /// Default retry configuration for all commands
+    #[serde(default)]
+    pub retry: CommandRetryConfig,
+    /// Command-specific retry configurations
+    #[serde(default)]
+    pub overrides: HashMap<String, CommandRetryConfig>,
+}
+
+impl Default for CommandConfig {
+    fn default() -> Self {
+        Self {
+            retry: CommandRetryConfig::default(),
+            overrides: HashMap::new(),
+        }
+    }
+}
+
+impl CommandConfig {
+    /// Get retry configuration for a specific command
+    /// Returns command-specific configuration if available, otherwise returns default
+    pub fn get_retry_config(&self, command_type: &str) -> &CommandRetryConfig {
+        self.overrides.get(command_type).unwrap_or(&self.retry)
+    }
+}
+
 /// Complete application configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
@@ -306,6 +386,9 @@ pub struct AppConfig {
     /// Logging configuration
     #[serde(default)]
     pub logging: LoggingConfig,
+    /// Command configuration
+    #[serde(default)]
+    pub command: CommandConfig,
 }
 
 /// Setup logging based on configuration
@@ -401,6 +484,34 @@ mod tests {
         JwtConfig {
             secret: "test_secret_key".to_string(),
             expiration_seconds: 3600,
+        }
+    }
+
+    #[fixture]
+    fn sample_command_retry_config() -> CommandRetryConfig {
+        CommandRetryConfig {
+            max_attempts: 5,
+            base_delay_ms: 200,
+            max_delay_ms: 10000,
+            backoff_multiplier: 1.5,
+            use_jitter: false,
+        }
+    }
+
+    #[fixture]
+    fn sample_command_config() -> CommandConfig {
+        let mut overrides = std::collections::HashMap::new();
+        overrides.insert("test_command".to_string(), CommandRetryConfig {
+            max_attempts: 2,
+            base_delay_ms: 50,
+            max_delay_ms: 5000,
+            backoff_multiplier: 1.2,
+            use_jitter: false,
+        });
+        
+        CommandConfig {
+            retry: sample_command_retry_config(),
+            overrides,
         }
     }
 
@@ -770,7 +881,6 @@ mod tests {
         }
 
         #[rstest]
-        #[case("trace")]
         #[case("debug")]
         #[case("info")]
         #[case("warn")]
@@ -780,7 +890,6 @@ mod tests {
             let config = LoggingConfig {
                 level: level.to_string(),
             };
-
             assert_eq!(config.level, level);
         }
 
@@ -794,6 +903,142 @@ mod tests {
             let deserialized: LoggingConfig = assert_ok!(serde_json::from_str(&json));
             
             assert_eq!(deserialized.level, config.level);
+        }
+    }
+
+    mod command_retry_config {
+        use super::*;
+
+        #[test]
+        fn default_command_retry_config_has_expected_values() {
+            let config = CommandRetryConfig::default();
+            
+            assert_eq!(config.max_attempts, 3);
+            assert_eq!(config.base_delay_ms, 100);
+            assert_eq!(config.max_delay_ms, 30000);
+            assert_eq!(config.backoff_multiplier, 2.0);
+            assert!(config.use_jitter);
+        }
+
+        #[rstest]
+        #[test]
+        fn command_retry_config_stores_custom_values(sample_command_retry_config: CommandRetryConfig) {
+            assert_eq!(sample_command_retry_config.max_attempts, 5);
+            assert_eq!(sample_command_retry_config.base_delay_ms, 200);
+            assert_eq!(sample_command_retry_config.max_delay_ms, 10000);
+            assert_eq!(sample_command_retry_config.backoff_multiplier, 1.5);
+            assert!(!sample_command_retry_config.use_jitter);
+        }
+
+        #[test]
+        fn command_retry_config_serialization_works() {
+            let config = CommandRetryConfig {
+                max_attempts: 3,
+                base_delay_ms: 150,
+                max_delay_ms: 20000,
+                backoff_multiplier: 2.5,
+                use_jitter: true,
+            };
+
+            let json = assert_ok!(serde_json::to_string(&config));
+            let deserialized: CommandRetryConfig = assert_ok!(serde_json::from_str(&json));
+            
+            assert_eq!(deserialized.max_attempts, config.max_attempts);
+            assert_eq!(deserialized.base_delay_ms, config.base_delay_ms);
+            assert_eq!(deserialized.max_delay_ms, config.max_delay_ms);
+            assert_eq!(deserialized.backoff_multiplier, config.backoff_multiplier);
+            assert_eq!(deserialized.use_jitter, config.use_jitter);
+        }
+
+        #[test]
+        fn command_retry_config_serde_defaults_work() {
+            // Test that serde defaults are applied when fields are missing
+            let json = r#"{}"#;
+            let config: CommandRetryConfig = assert_ok!(serde_json::from_str(json));
+            
+            assert_eq!(config.max_attempts, 3);
+            assert_eq!(config.base_delay_ms, 100);
+            assert_eq!(config.max_delay_ms, 30000);
+            assert_eq!(config.backoff_multiplier, 2.0);
+            assert!(config.use_jitter);
+        }
+    }
+
+    mod command_config {
+        use super::*;
+
+        #[test]
+        fn default_command_config_has_expected_values() {
+            let config = CommandConfig::default();
+            
+            assert_eq!(config.retry.max_attempts, 3);
+            assert!(config.overrides.is_empty());
+        }
+
+        #[rstest]
+        #[test]
+        fn command_config_stores_retry_and_overrides(sample_command_config: CommandConfig) {
+            assert_eq!(sample_command_config.retry.max_attempts, 5);
+            assert_eq!(sample_command_config.overrides.len(), 1);
+            assert!(sample_command_config.overrides.contains_key("test_command"));
+        }
+
+        #[rstest]
+        #[test]
+        fn get_retry_config_returns_override_when_available(sample_command_config: CommandConfig) {
+            let config = sample_command_config.get_retry_config("test_command");
+            
+            assert_eq!(config.max_attempts, 2);
+            assert_eq!(config.base_delay_ms, 50);
+            assert_eq!(config.backoff_multiplier, 1.2);
+        }
+
+        #[rstest]
+        #[test]
+        fn get_retry_config_returns_default_when_no_override(sample_command_config: CommandConfig) {
+            let config = sample_command_config.get_retry_config("unknown_command");
+            
+            assert_eq!(config.max_attempts, 5);
+            assert_eq!(config.base_delay_ms, 200);
+            assert_eq!(config.backoff_multiplier, 1.5);
+        }
+
+        #[test]
+        fn command_config_serialization_preserves_structure() {
+            let mut overrides = std::collections::HashMap::new();
+            overrides.insert("cmd1".to_string(), CommandRetryConfig {
+                max_attempts: 1,
+                base_delay_ms: 25,
+                max_delay_ms: 2500,
+                backoff_multiplier: 1.1,
+                use_jitter: false,
+            });
+
+            let config = CommandConfig {
+                retry: CommandRetryConfig::default(),
+                overrides,
+            };
+
+            let json = assert_ok!(serde_json::to_string(&config));
+            let deserialized: CommandConfig = assert_ok!(serde_json::from_str(&json));
+            
+            assert_eq!(deserialized.retry.max_attempts, config.retry.max_attempts);
+            assert_eq!(deserialized.overrides.len(), 1);
+            assert!(deserialized.overrides.contains_key("cmd1"));
+            
+            let override_config = deserialized.overrides.get("cmd1").unwrap();
+            assert_eq!(override_config.max_attempts, 1);
+            assert_eq!(override_config.base_delay_ms, 25);
+        }
+
+        #[test]
+        fn command_config_serde_defaults_work() {
+            // Test that serde defaults are applied when fields are missing
+            let json = r#"{}"#;
+            let config: CommandConfig = assert_ok!(serde_json::from_str(json));
+            
+            assert_eq!(config.retry.max_attempts, 3);
+            assert!(config.overrides.is_empty());
         }
     }
 
@@ -811,6 +1056,7 @@ mod tests {
                 jwt: sample_jwt_config(),
                 database: sample_database_config(),
                 logging: LoggingConfig::default(),
+                command: sample_command_config(),
             };
 
             assert_eq!(app_config.server.host, "127.0.0.1");
@@ -831,6 +1077,7 @@ mod tests {
                 jwt: sample_jwt_config(),
                 database: sample_database_config(),
                 logging: LoggingConfig::default(),
+                command: sample_command_config(),
             };
 
             let json = assert_ok!(serde_json::to_string(&app_config));

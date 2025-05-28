@@ -132,7 +132,10 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
     );
 
     // Create command bus and service
-    let command_bus = Arc::new(CommandBus::new());
+    let command_bus = Arc::new(CommandBus::with_command_config(
+        application::command::bus::CommandBusConfig::default(),
+        config.command.clone(),
+    ));
     let command_service = Arc::new(DynCommandService::new(
         command_bus,
         Arc::new(login_usecase),

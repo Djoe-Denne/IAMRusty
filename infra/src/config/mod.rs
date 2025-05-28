@@ -28,7 +28,9 @@ pub use configuration::{
     OAuthConfig, 
     GitHubConfig, 
     GitLabConfig,
-    LoggingConfig
+    LoggingConfig,
+    CommandConfig,
+    CommandRetryConfig
 };
 
 // Type aliases for backward compatibility
@@ -204,6 +206,7 @@ pub fn generate_default_config() -> Result<String, ConfigError> {
         logging: LoggingConfig {
             level: "info".to_string(),
         },
+        command: CommandConfig::default(),
     };
     
     toml::to_string_pretty(&default_config)
