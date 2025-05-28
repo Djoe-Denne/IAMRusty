@@ -27,6 +27,7 @@ pub mod handlers;
 pub mod error;
 mod middleware_auth;
 pub mod oauth_state;
+pub mod validation;
 
 pub use handlers::{
     auth::{oauth_callback, oauth_start},

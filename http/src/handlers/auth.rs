@@ -4,25 +4,41 @@ use axum::{
     extract::{State, Path, Query},
     response::Redirect,
 };
+use axum_valid::Valid;
 use serde::{Deserialize, Serialize};
+use validator::Validate;
 use domain::entity::provider::Provider;
-use application::command::{CommandContext, CommandError};
-use crate::{AppState, oauth_state::OAuthState, error::AuthError};
+use application::command::CommandContext;
+use crate::{AppState, oauth_state::OAuthState, error::AuthError, validation::*};
 use tracing::{debug, error};
 use uuid::Uuid;
 use url;
 
 /// OAuth callback query parameters
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct OAuthCallbackQuery {
     /// Authorization code from provider
+    #[validate(length(max = 1000, message = "Authorization code is too long"))]
     pub code: Option<String>,
     /// State parameter containing operation context
+    #[validate(length(max = 2000, message = "State parameter is too long"))]
     pub state: Option<String>,
     /// Error from provider (if any)
+    #[validate(length(max = 500, message = "Error message is too long"))]
     pub error: Option<String>,
     /// Error description from provider (if any)
+    #[validate(length(max = 1000, message = "Error description is too long"))]
     pub error_description: Option<String>,
+}
+
+/// OAuth provider path parameter
+#[derive(Debug, Deserialize, Validate)]
+pub struct ProviderPath {
+    /// Provider name (github, gitlab, etc.)
+    #[validate(length(min = 1, max = 50, message = "Provider name must be between 1 and 50 characters"))]
+    #[validate(regex(path = "*PROVIDER_REGEX", message = "Provider name can only contain lowercase letters"))]
+    #[validate(custom(function = "validate_provider_name", message = "Invalid provider name"))]
+    pub provider_name: String,
 }
 
 /// User data for responses
@@ -94,13 +110,13 @@ pub enum OAuthResponse {
 /// Handle OAuth start - redirects to provider with appropriate state
 pub async fn oauth_start(
     State(state): State<AppState>,
-    Path(provider_name): Path<String>,
+    Valid(Path(provider_path)): Valid<Path<ProviderPath>>,
     headers: HeaderMap,
 ) -> Result<Redirect, AuthError> {
-    debug!("OAuth start for provider: {}", provider_name);
+    debug!("OAuth start for provider: {}", provider_path.provider_name);
     
     // Parse the provider
-    let provider = match provider_name.to_lowercase().as_str() {
+    let provider = match provider_path.provider_name.to_lowercase().as_str() {
         "github" => Provider::GitHub,
         "gitlab" => Provider::GitLab,
         _ => return Err(AuthError::oauth_invalid_provider("start")),
@@ -110,7 +126,7 @@ pub async fn oauth_start(
     let oauth_state = if let Some(auth_header) = headers.get("Authorization") {
         // Link operation - user is authenticated
         let auth_str = auth_header.to_str()
-            .map_err(|e| AuthError::oauth_invalid_authorization_header("start"))?;
+            .map_err(|_e| AuthError::oauth_invalid_authorization_header("start"))?;
         
         if !auth_str.starts_with("Bearer ") {
             return Err(AuthError::oauth_invalid_authorization_header("start"));
@@ -122,7 +138,7 @@ pub async fn oauth_start(
         let user_id = state.user_usecase
             .validate_token(token)
             .await
-            .map_err(|e| AuthError::oauth_invalid_token("start"))?;
+            .map_err(|_e| AuthError::oauth_invalid_token("start"))?;
         
         debug!("Creating link state for user: {}", user_id);
         OAuthState::new_link(user_id)
@@ -134,7 +150,7 @@ pub async fn oauth_start(
     
     // Encode the state
     let encoded_state = oauth_state.encode()
-        .map_err(|e| AuthError::oauth_state_encoding_failed("start"))?;
+        .map_err(|_e| AuthError::oauth_state_encoding_failed("start"))?;
     
     // Generate provider authorization URL using the command service
     let context = CommandContext::new()
@@ -146,18 +162,18 @@ pub async fn oauth_start(
         state.command_service
             .generate_login_start_url(provider, context)
             .await
-            .map_err(|e| AuthError::oauth_url_generation_failed("start"))?
+            .map_err(|_e| AuthError::oauth_url_generation_failed("start"))?
     } else {
         // Link operation - use link provider command
         state.command_service
             .generate_link_provider_start_url(provider, context)
             .await
-            .map_err(|e| AuthError::oauth_url_generation_failed("start"))?
+            .map_err(|_e| AuthError::oauth_url_generation_failed("start"))?
     };
     
     // Parse the URL and add our state parameter
     let mut url = url::Url::parse(&base_auth_url)
-        .map_err(|e| AuthError::oauth_invalid_url("start"))?;
+        .map_err(|_e| AuthError::oauth_invalid_url("start"))?;
     
     // Add the state parameter to the URL
     url.query_pairs_mut().append_pair("state", &encoded_state);
@@ -169,10 +185,10 @@ pub async fn oauth_start(
 /// Handle OAuth callback - processes both login and link operations
 pub async fn oauth_callback(
     State(state): State<AppState>,
-    Path(provider_name): Path<String>,
-    Query(query): Query<OAuthCallbackQuery>,
+    Valid(Path(provider_path)): Valid<Path<ProviderPath>>,
+    Valid(Query(query)): Valid<Query<OAuthCallbackQuery>>,
 ) -> Result<Json<OAuthResponse>, AuthError> {
-    debug!("OAuth callback for provider: {}", provider_name);
+    debug!("OAuth callback for provider: {}", provider_path.provider_name);
     
     // Check for OAuth errors from provider
     if let Some(error) = query.error {
@@ -188,7 +204,7 @@ pub async fn oauth_callback(
     };
     
     // Parse the provider
-    let provider = match provider_name.to_lowercase().as_str() {
+    let provider = match provider_path.provider_name.to_lowercase().as_str() {
         "github" => Provider::GitHub,
         "gitlab" => Provider::GitLab,
         _ => return Err(AuthError::oauth_invalid_provider("callback")),
@@ -197,7 +213,7 @@ pub async fn oauth_callback(
     // Decode the state to determine operation type
     let oauth_state = if let Some(state_param) = query.state {
         OAuthState::decode(&state_param)
-            .map_err(|e| AuthError::oauth_invalid_state("callback"))?
+            .map_err(|_e| AuthError::oauth_invalid_state("callback"))?
     } else {
         return Err(AuthError::oauth_missing_state("callback"));
     };

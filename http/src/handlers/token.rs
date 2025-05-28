@@ -2,16 +2,19 @@ use axum::{
     Json,
     extract::State,
 };
+use axum_valid::Valid;
 use serde::{Deserialize, Serialize};
-use crate::error::ApiError;
+use validator::Validate;
+use crate::{error::ApiError, validation::*};
 use application::command::CommandContext;
 
 use tracing::debug;
 
 /// Request for token refresh
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct RefreshTokenRequest {
     /// The refresh token
+    #[validate(custom(function = "validate_refresh_token", message = "Invalid refresh token format"))]
     pub refresh_token: String,
 }
 
@@ -27,7 +30,7 @@ pub struct TokenResponse {
 /// Handler for refreshing a token
 pub async fn refresh_token(
     State(state): State<crate::AppState>,
-    Json(request): Json<RefreshTokenRequest>,
+    Valid(Json(request)): Valid<Json<RefreshTokenRequest>>,
 ) -> Result<Json<TokenResponse>, ApiError> {
     debug!("Refreshing token");
     
