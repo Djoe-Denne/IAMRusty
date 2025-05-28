@@ -114,13 +114,6 @@ where
         self.token_service
             .validate_access_token(token)
             .await
-            .map_err(|e| {
-                // Map token service errors to user errors
-                if e.to_string().contains("expired") {
-                    UserError::TokenExpired
-                } else {
-                    UserError::TokenServiceError(Box::new(e))
-                }
-            })
+            .map_err(|e| UserError::TokenServiceError(Box::new(e)))
     }
 } 

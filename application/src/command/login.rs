@@ -1,4 +1,4 @@
-use super::{Command, CommandError, CommandHandler};
+use super::{Command, CommandError, CommandHandler, error_mapping::ErrorMapping};
 use crate::usecase::login::{LoginUseCase, LoginError, LoginResponse};
 use domain::entity::provider::Provider;
 use async_trait::async_trait;
@@ -95,11 +95,7 @@ where
         self.login_use_case
             .login(command.provider, command.code, command.redirect_uri)
             .await
-            .map_err(|e| match e {
-                LoginError::AuthError(msg) => CommandError::Business(format!("Authentication failed: {}", msg)),
-                LoginError::DbError(e) => CommandError::Infrastructure(format!("Database error: {}", e)),
-                LoginError::TokenError(e) => CommandError::Infrastructure(format!("Token service error: {}", e)),
-            })
+            .map_err(ErrorMapping::map_login_error)
     }
 }
 
@@ -168,10 +164,6 @@ where
     async fn handle(&self, command: GenerateLoginStartUrlCommand) -> Result<String, CommandError> {
         self.login_use_case
             .generate_start_url(command.provider)
-            .map_err(|e| match e {
-                LoginError::AuthError(msg) => CommandError::Business(format!("Authentication error: {}", msg)),
-                LoginError::DbError(e) => CommandError::Infrastructure(format!("Database error: {}", e)),
-                LoginError::TokenError(e) => CommandError::Infrastructure(format!("Token service error: {}", e)),
-            })
+            .map_err(ErrorMapping::map_login_error)
     }
 } 

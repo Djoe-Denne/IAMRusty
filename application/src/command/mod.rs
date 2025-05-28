@@ -4,6 +4,7 @@ pub mod link_provider;
 pub mod token;
 pub mod user;
 pub mod service;
+pub mod error_mapping;
 
 use async_trait::async_trait;
 

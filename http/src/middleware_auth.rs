@@ -6,7 +6,9 @@ use axum::{
     body::Body,
 };
 
-use application::usecase::user::UserError;
+use application::command::{CommandContext, CommandError};
+use uuid::Uuid;
+use std::collections::HashMap;
 
 /// Extract JWT token from the Authorization header
 fn extract_token(auth_header: &str) -> Option<&str> {
@@ -33,15 +35,28 @@ pub async fn auth(
     // Extract the token
     let token = extract_token(auth_header).ok_or(StatusCode::UNAUTHORIZED)?;
 
-    // Validate the token
+    // Create command context for token validation
+    let context = CommandContext {
+        execution_id: Uuid::new_v4(),
+        user_id: None,
+        request_id: req.headers()
+            .get("x-request-id")
+            .and_then(|h| h.to_str().ok())
+            .map(|s| s.to_string()),
+        metadata: HashMap::new(),
+    };
+
+    // Validate the token using command service
     let user_id = state
-        .user_usecase
-        .validate_token(token)
+        .command_service
+        .validate_token(token.to_string(), context)
         .await
         .map_err(|e| match e {
-            UserError::InvalidToken => StatusCode::UNAUTHORIZED,
-            UserError::TokenExpired => StatusCode::UNAUTHORIZED,
-            _ => StatusCode::INTERNAL_SERVER_ERROR,
+            CommandError::Business(_) => StatusCode::UNAUTHORIZED,
+            CommandError::Validation(_) => StatusCode::UNAUTHORIZED,
+            CommandError::Infrastructure(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            CommandError::Timeout => StatusCode::INTERNAL_SERVER_ERROR,
+            CommandError::RetryExhausted(_) => StatusCode::INTERNAL_SERVER_ERROR,
         })?;
 
     // Add the user ID to the request extensions

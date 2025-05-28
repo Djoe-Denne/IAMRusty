@@ -107,6 +107,14 @@ impl UserEmailFixtureBuilder {
             .is_verified(true)
     }
     
+    /// Create Arthur's secondary email
+    pub fn arthur_secondary(self, user_id: Uuid) -> Self {
+        self.user_id(user_id)
+            .email("arthur.secondary@example.com")
+            .is_primary(false)
+            .is_verified(false)
+    }
+    
     /// Create Arthur's GitHub email
     pub fn arthur_github(self, user_id: Uuid) -> Self {
         self.user_id(user_id)

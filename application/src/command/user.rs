@@ -1,4 +1,4 @@
-use super::{Command, CommandError, CommandHandler};
+use super::{Command, CommandError, CommandHandler, error_mapping::ErrorMapping};
 use crate::usecase::user::{UserUseCase, UserError, UserProfile};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -108,12 +108,14 @@ where
         self.user_use_case
             .get_user(command.user_id)
             .await
-            .map_err(|e| match e {
+            .map_err(|e| match &e {
                 UserError::RepositoryError(_) => CommandError::Infrastructure(e.to_string()),
-                UserError::TokenServiceError(_) => CommandError::Infrastructure(e.to_string()),
+                UserError::TokenServiceError(inner) => {
+                    ErrorMapping::map_token_service_error_to_validation(inner.as_ref())
+                },
                 UserError::UserNotFound => CommandError::Business(format!("User error: {}", e)),
-                UserError::InvalidToken => CommandError::Business(format!("User error: {}", e)),
-                UserError::TokenExpired => CommandError::Business(format!("User error: {}", e)),
+                UserError::InvalidToken => CommandError::Validation(format!("User error: {}", e)),
+                UserError::TokenExpired => CommandError::Validation(format!("User error: {}", e)),
             })
     }
 }
@@ -147,12 +149,14 @@ where
         self.user_use_case
             .validate_token(&command.token)
             .await
-            .map_err(|e| match e {
+            .map_err(|e| match &e {
                 UserError::RepositoryError(_) => CommandError::Infrastructure(e.to_string()),
-                UserError::TokenServiceError(_) => CommandError::Infrastructure(e.to_string()),
+                UserError::TokenServiceError(inner) => {
+                    ErrorMapping::map_token_service_error_to_validation(inner.as_ref())
+                },
                 UserError::UserNotFound => CommandError::Business(format!("User error: {}", e)),
-                UserError::InvalidToken => CommandError::Business(format!("User error: {}", e)),
-                UserError::TokenExpired => CommandError::Business(format!("User error: {}", e)),
+                UserError::InvalidToken => CommandError::Validation(format!("User error: {}", e)),
+                UserError::TokenExpired => CommandError::Validation(format!("User error: {}", e)),
             })
     }
 } 

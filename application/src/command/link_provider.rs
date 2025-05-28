@@ -1,4 +1,4 @@
-use super::{Command, CommandError, CommandHandler};
+use super::{Command, CommandError, CommandHandler, error_mapping::ErrorMapping};
 use crate::usecase::link_provider::{LinkProviderUseCase, LinkProviderError, LinkProviderResponse};
 use domain::entity::provider::Provider;
 use async_trait::async_trait;
@@ -115,26 +115,7 @@ where
                 command.redirect_uri,
             )
             .await
-            .map_err(|e| match e {
-                LinkProviderError::AuthError(msg) => {
-                    CommandError::Business(format!("Authentication failed: {}", msg))
-                }
-                LinkProviderError::DbError(e) => {
-                    CommandError::Infrastructure(format!("Database error: {}", e))
-                }
-                LinkProviderError::TokenError(e) => {
-                    CommandError::Infrastructure(format!("Token service error: {}", e))
-                }
-                LinkProviderError::UserNotFound => {
-                    CommandError::Business("User not found".to_string())
-                }
-                LinkProviderError::ProviderAlreadyLinked => {
-                    CommandError::Business("Provider account is already linked to another user".to_string())
-                }
-                LinkProviderError::ProviderAlreadyLinkedToSameUser => {
-                    CommandError::Business("Provider is already linked to your account".to_string())
-                }
-            })
+            .map_err(ErrorMapping::map_link_provider_error)
     }
 }
 
@@ -203,13 +184,6 @@ where
     async fn handle(&self, command: GenerateLinkProviderStartUrlCommand) -> Result<String, CommandError> {
         self.link_provider_use_case
             .generate_start_url(command.provider)
-            .map_err(|e| match e {
-                LinkProviderError::AuthError(msg) => CommandError::Business(format!("Authentication error: {}", msg)),
-                LinkProviderError::DbError(e) => CommandError::Infrastructure(format!("Database error: {}", e)),
-                LinkProviderError::TokenError(e) => CommandError::Infrastructure(format!("Token service error: {}", e)),
-                LinkProviderError::UserNotFound => CommandError::Business("User not found".to_string()),
-                LinkProviderError::ProviderAlreadyLinked => CommandError::Business("Provider account is already linked to another user".to_string()),
-                LinkProviderError::ProviderAlreadyLinkedToSameUser => CommandError::Business("Provider is already linked to your account".to_string()),
-            })
+            .map_err(ErrorMapping::map_link_provider_error)
     }
 } 

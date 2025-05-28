@@ -72,6 +72,14 @@ The central orchestrator that provides:
 - **Structured Logging**: Comprehensive execution logging
 - **Error Classification**: Smart retry decisions based on error types
 
+#### ErrorMapping (`error_mapping.rs`)
+A centralized utility module that provides:
+- **Consistent Error Mapping**: Standardized mapping from use case errors to CommandError types
+- **Authentication Error Detection**: Smart classification of authentication-related errors
+- **Token Service Error Handling**: Special handling for JWT validation and token service errors
+- **Business Logic Mapping**: Proper categorization of business vs infrastructure errors
+- **Maintainable Error Messages**: Centralized location for all error message formatting
+
 #### DynCommandService (`service.rs`)
 A service wrapper that:
 - **Properly uses CommandBus**: All commands are executed through the CommandBus with full retry, logging, and metrics support
@@ -364,15 +372,93 @@ Failed commands produce detailed error logs:
 
 ## Error Handling
 
-### Error Flow
+### Centralized Error Mapping
 
-1. **Use Case Error**: Original error from business logic
-2. **Error Mapping**: Converted to appropriate CommandError type
-3. **Retry Decision**: CommandBus decides whether to retry
-4. **HTTP Mapping**: CommandError mapped to HTTP status code
-5. **Client Response**: Standardized error response to client
+All error mapping logic is centralized in the `ErrorMapping` utility module (`application/src/command/error_mapping.rs`). This provides:
+
+- **Consistency**: All command handlers use the same error mapping logic
+- **Maintainability**: Error messages and categorization are centralized
+- **Testability**: Error mapping logic can be tested independently
+- **Standards**: Uniform approach to error classification across all commands
+
+```rust
+use super::{Command, CommandError, CommandHandler, error_mapping::ErrorMapping};
+
+#[async_trait]
+impl<L> CommandHandler<LoginCommand> for LoginCommandHandler<L> {
+    async fn handle(&self, command: LoginCommand) -> Result<LoginResponse, CommandError> {
+        self.login_use_case
+            .login(command.provider, command.code, command.redirect_uri)
+            .await
+            .map_err(ErrorMapping::map_login_error)  // Centralized mapping
+    }
+}
+```
 
 ### Error Mapping Examples
+
+#### Before: Inline Error Mapping (Duplicated)
+```rust
+// Duplicated in every command handler
+.map_err(|e| match e {
+    LoginError::AuthError(msg) => CommandError::Business(format!("Authentication failed: {}", msg)),
+    LoginError::DbError(e) => CommandError::Infrastructure(format!("Database error: {}", e)),
+    LoginError::TokenError(e) => CommandError::Infrastructure(format!("Token service error: {}", e)),
+})
+```
+
+#### After: Centralized Error Mapping
+```rust
+// Single line using centralized mapping
+.map_err(ErrorMapping::map_login_error)
+```
+
+#### Error Mapping Categories
+```rust
+impl ErrorMapping {
+    /// Map LoginError to appropriate CommandError
+    pub fn map_login_error(error: LoginError) -> CommandError {
+        match error {
+            LoginError::AuthError(msg) => CommandError::Business(format!("Authentication failed: {}", msg)),
+            LoginError::DbError(e) => CommandError::Infrastructure(format!("Database error: {}", e)),
+            LoginError::TokenError(e) => CommandError::Infrastructure(format!("Token service error: {}", e)),
+        }
+    }
+
+    /// Map LinkProviderError with conflict handling
+    pub fn map_link_provider_error(error: LinkProviderError) -> CommandError {
+        match error {
+            LinkProviderError::AuthError(msg) => {
+                CommandError::Business(format!("Authentication failed: {}", msg))
+            }
+            LinkProviderError::UserNotFound => {
+                CommandError::Business("User not found".to_string())
+            }
+            LinkProviderError::ProviderAlreadyLinked => {
+                CommandError::Business("Provider account is already linked to another user".to_string())
+            }
+            LinkProviderError::ProviderAlreadyLinkedToSameUser => {
+                CommandError::Business("Provider is already linked to your account".to_string())
+            }
+            // ... other mappings
+        }
+    }
+
+    /// Smart token service error mapping
+    pub fn map_token_service_error_to_validation(error: &dyn std::error::Error) -> CommandError {
+        let error_msg = error.to_string();
+        if Self::is_authentication_related_error(&error_msg) {
+            CommandError::Validation(format!("Authentication failed: {}", error_msg))
+        } else {
+            CommandError::Infrastructure(error.to_string())
+        }
+    }
+}
+```
+
+### HTTP Error Mapping
+
+Command errors are then mapped to HTTP responses:
 
 ```rust
 // Use case error to command error
@@ -446,6 +532,8 @@ This ensures that all cross-cutting concerns (retries, logging, metrics, timeout
 - **Rich Error Messages**: Include context and actionable information
 - **Error Logging**: Log errors with sufficient detail for debugging
 - **User-Friendly Messages**: Map technical errors to user-friendly responses
+- **Centralized Mapping**: Use the ErrorMapping utility for consistent error handling
+- **Authentication Detection**: Leverage smart classification for JWT/token errors
 
 ### 4. Performance Considerations
 - **Timeout Configuration**: Set appropriate timeouts for different operations

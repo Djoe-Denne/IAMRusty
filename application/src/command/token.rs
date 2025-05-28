@@ -1,4 +1,4 @@
-use super::{Command, CommandError, CommandHandler};
+use super::{Command, CommandError, CommandHandler, error_mapping::ErrorMapping};
 use crate::usecase::token::{TokenUseCase, TokenError, RefreshTokenResponse};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -146,13 +146,7 @@ where
         self.token_use_case
             .refresh_token(command.refresh_token)
             .await
-            .map_err(|e| match e {
-                TokenError::RepositoryError(_) => CommandError::Infrastructure(e.to_string()),
-                TokenError::TokenServiceError(_) => CommandError::Infrastructure(e.to_string()),
-                TokenError::TokenNotFound => CommandError::Business(format!("Token error: {}", e)),
-                TokenError::TokenInvalid => CommandError::Business(format!("Token error: {}", e)),
-                TokenError::TokenExpired => CommandError::Business(format!("Token error: {}", e)),
-            })
+            .map_err(ErrorMapping::map_token_error)
     }
 }
 
@@ -185,13 +179,7 @@ where
         self.token_use_case
             .revoke_token(command.refresh_token)
             .await
-            .map_err(|e| match e {
-                TokenError::RepositoryError(_) => CommandError::Infrastructure(e.to_string()),
-                TokenError::TokenServiceError(_) => CommandError::Infrastructure(e.to_string()),
-                TokenError::TokenNotFound => CommandError::Business(format!("Token error: {}", e)),
-                TokenError::TokenInvalid => CommandError::Business(format!("Token error: {}", e)),
-                TokenError::TokenExpired => CommandError::Business(format!("Token error: {}", e)),
-            })
+            .map_err(ErrorMapping::map_token_error)
     }
 }
 
@@ -224,12 +212,6 @@ where
         self.token_use_case
             .revoke_all_tokens(command.user_id)
             .await
-            .map_err(|e| match e {
-                TokenError::RepositoryError(_) => CommandError::Infrastructure(e.to_string()),
-                TokenError::TokenServiceError(_) => CommandError::Infrastructure(e.to_string()),
-                TokenError::TokenNotFound => CommandError::Business(format!("Token error: {}", e)),
-                TokenError::TokenInvalid => CommandError::Business(format!("Token error: {}", e)),
-                TokenError::TokenExpired => CommandError::Business(format!("Token error: {}", e)),
-            })
+            .map_err(ErrorMapping::map_token_error)
     }
 } 

@@ -5,6 +5,7 @@ use axum::{
 use serde::Serialize;
 use uuid::Uuid;
 use crate::error::ApiError;
+use application::command::CommandContext;
 
 use tracing::debug;
 
@@ -28,10 +29,14 @@ pub async fn get_user(
 ) -> Result<Json<UserResponse>, ApiError> {
     debug!("Getting user profile for ID: {}", user_id);
     
-    // Get the user
+    let context = CommandContext::new()
+        .with_user_id(user_id)
+        .with_metadata("operation".to_string(), "get_user".to_string());
+    
+    // Get the user using command service
     let user = state
-        .user_usecase
-        .get_user(user_id)
+        .command_service
+        .get_user(user_id, context)
         .await?;
     
     Ok(Json(UserResponse {

@@ -4,6 +4,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use crate::error::ApiError;
+use application::command::CommandContext;
 
 use tracing::debug;
 
@@ -30,10 +31,13 @@ pub async fn refresh_token(
 ) -> Result<Json<TokenResponse>, ApiError> {
     debug!("Refreshing token");
     
-    // Refresh the token
+    let context = CommandContext::new()
+        .with_metadata("operation".to_string(), "refresh_token".to_string());
+    
+    // Refresh the token using command service
     let response = state
-        .token_usecase
-        .refresh_token(request.refresh_token)
+        .command_service
+        .refresh_token(request.refresh_token, context)
         .await?;
     
     Ok(Json(TokenResponse {

@@ -346,6 +346,9 @@ impl IntoResponse for ApiError {
                 CommandError::Business(msg) if msg.contains("User not found") => {
                     (StatusCode::NOT_FOUND, "User not found".to_string())
                 }
+                CommandError::Validation(msg) if msg.contains("Authentication failed") => {
+                    (StatusCode::UNAUTHORIZED, "Authentication failed".to_string())
+                }
                 CommandError::Validation(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
                 _ => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
             },
