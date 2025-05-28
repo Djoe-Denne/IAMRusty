@@ -319,13 +319,15 @@ pub fn setup_logging(log_level_str: &str) {
         _ => Level::INFO,
     };
     
-    tracing_subscriber::fmt()
+    // Use try_init() to avoid panicking if subscriber is already initialized
+    // This is especially important during testing where setup_logging might be called multiple times
+    let _ = tracing_subscriber::fmt()
         .with_max_level(log_level)
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
                 .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(log_level_str))
         )
-        .init();
+        .try_init();
 }
 
 #[cfg(test)]

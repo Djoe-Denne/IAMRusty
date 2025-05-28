@@ -3,10 +3,11 @@
 use lazy_static::lazy_static;
 use regex::Regex;
 use validator::ValidationError;
+use tracing::log::{debug, warn};
 
 lazy_static! {
-    /// Regex for validating provider names (only lowercase letters)
-    pub static ref PROVIDER_REGEX: Regex = Regex::new(r"^[a-z]+$").unwrap();
+    /// Regex for validating provider names (letters only, case-insensitive)
+    pub static ref PROVIDER_REGEX: Regex = Regex::new(r"^[a-zA-Z]+$").unwrap();
     
     /// Regex for validating JWT tokens (base64url format)
     pub static ref JWT_TOKEN_REGEX: Regex = Regex::new(r"^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$").unwrap();
@@ -17,48 +18,71 @@ lazy_static! {
 
 /// Custom validation function for provider names
 pub fn validate_provider_name(provider: &str) -> Result<(), ValidationError> {
-    let valid_providers = ["github", "gitlab"];
+    debug!("Validating provider name: '{}'", provider);
     
-    if !valid_providers.contains(&provider.to_lowercase().as_str()) {
+    let valid_providers = ["github", "gitlab"];
+    let lowercase_provider = provider.to_lowercase();
+    
+    debug!("Lowercase provider: '{}'", lowercase_provider);
+    debug!("Valid providers: {:?}", valid_providers);
+    
+    if !valid_providers.contains(&lowercase_provider.as_str()) {
+        warn!("Invalid provider name '{}' (lowercase: '{}')", provider, lowercase_provider);
         return Err(ValidationError::new("invalid_provider"));
     }
     
+    debug!("Provider name '{}' is valid", provider);
     Ok(())
 }
 
 /// Custom validation function for non-empty strings
 pub fn validate_non_empty_string(value: &str) -> Result<(), ValidationError> {
+    debug!("Validating non-empty string: '{}'", value);
+    
     if value.trim().is_empty() {
+        warn!("String is empty or whitespace only: '{}'", value);
         return Err(ValidationError::new("empty_string"));
     }
+    
+    debug!("String is valid (non-empty): '{}'", value);
     Ok(())
 }
 
 /// Custom validation function for OAuth codes
 pub fn validate_oauth_code(code: &str) -> Result<(), ValidationError> {
+    debug!("Validating OAuth code: '{}' (length: {})", code, code.len());
+    
     if code.trim().is_empty() {
+        warn!("OAuth code is empty or whitespace only: '{}'", code);
         return Err(ValidationError::new("empty_oauth_code"));
     }
     
     // OAuth codes should be reasonably sized (typically much smaller than 1000 chars)
     if code.len() > 1000 {
+        warn!("OAuth code too long: {} characters", code.len());
         return Err(ValidationError::new("oauth_code_too_long"));
     }
     
+    debug!("OAuth code is valid: '{}'", code);
     Ok(())
 }
 
 /// Custom validation function for refresh tokens
 pub fn validate_refresh_token(token: &str) -> Result<(), ValidationError> {
+    debug!("Validating refresh token: '{}' (length: {})", token, token.len());
+    
     if token.trim().is_empty() {
+        warn!("Refresh token is empty or whitespace only: '{}'", token);
         return Err(ValidationError::new("empty_refresh_token"));
     }
     
     // Basic format check - should be a reasonable length and contain valid characters
     if token.len() < 10 || token.len() > 1000 {
+        warn!("Refresh token invalid length: {} characters (should be 10-1000)", token.len());
         return Err(ValidationError::new("invalid_refresh_token_length"));
     }
     
+    debug!("Refresh token is valid: '{}'", token);
     Ok(())
 }
 

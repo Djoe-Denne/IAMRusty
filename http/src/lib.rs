@@ -81,8 +81,8 @@ pub struct ServerConfig {
 /// Start the HTTP server
 pub async fn serve(state: AppState, addr: &str) -> anyhow::Result<()> {
     let app = Router::new()
-        .route("/api/auth/{provider}/start", get(oauth_start))
-        .route("/api/auth/{provider}/callback", get(oauth_callback))
+        .route("/api/auth/{provider_name}/start", get(oauth_start))
+        .route("/api/auth/{provider_name}/callback", get(oauth_callback))
         .route("/api/token/refresh", post(refresh_token))
         .route(
             "/api/me",
@@ -128,8 +128,8 @@ fn handle_panic(err: Box<dyn std::any::Any + Send + 'static>) -> axum::response:
 pub async fn serve_with_config(state: AppState, config: ServerConfig) -> anyhow::Result<()> {
     let app = Router::new()
         .route("/health", get(health_check))
-        .route("/api/auth/{provider}/start", get(oauth_start))
-        .route("/api/auth/{provider}/callback", get(oauth_callback))
+        .route("/api/auth/{provider_name}/start", get(oauth_start))
+        .route("/api/auth/{provider_name}/callback", get(oauth_callback))
         .route("/api/token/refresh", post(refresh_token))
         .route(
             "/api/me",

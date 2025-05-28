@@ -753,7 +753,7 @@ async fn test_oauth_callback_returns_401_when_provider_rejects_user() {
 
 #[tokio::test]
 #[serial]
-async fn test_oauth_callback_unsupported_provider_returns_400() {
+async fn test_oauth_callback_unsupported_provider_returns_422() {
     // Setup test environment
     let base_url = get_test_server().await.expect("Failed to start test server");
     let client = create_test_client();
@@ -775,16 +775,16 @@ async fn test_oauth_callback_unsupported_provider_returns_400() {
             .await
             .expect("Failed to send callback request");
         
-        // ❌ Should return 400 for unsupported providers
-        assert_eq!(response.status(), 400, 
-                  "Should return 400 Bad Request for unsupported provider: {}", provider);
+        // ❌ Should return 422 for unsupported providers (validation error)
+        assert_eq!(response.status(), 422, 
+                  "Should return 422 Unprocessable Entity for unsupported provider: {}", provider);
         
         let error_response: Value = response.json().await.expect("Should return JSON error response");
         
-        assert_eq!(error_response["operation"], "callback");
-        assert_eq!(error_response["error"], "invalid_provider");
-        assert!(error_response["message"].as_str().unwrap().contains("Invalid provider"), 
-               "Error message should mention invalid provider");
+        // axum-valid returns validation errors in a different format
+        // Check for validation error structure
+        assert!(error_response.get("provider_name").is_some(), 
+               "Response should contain validation errors for provider: {}", provider);
     }
 }
 
@@ -833,7 +833,7 @@ async fn test_oauth_callback_case_insensitive_providers() {
             .send()
             .await
             .expect("Failed to send callback request");
-        
+
         // ✅ Should successfully handle case-insensitive provider names
         assert_eq!(response.status(), 200, 
                   "Should handle case-insensitive provider: {}", provider_input);

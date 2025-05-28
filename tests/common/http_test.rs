@@ -6,7 +6,7 @@ pub async fn spawn_test_server() -> anyhow::Result<()> {
     let config = load_config().expect("failed to load test config");
     
     // Initialize logging for the test server
-    //config::setup_logging(&config.logging.level);
+    config::setup_logging(&config.logging.level);
 
     eprintln!("🚀 Starting test server with configuration:");
     eprintln!("   Server host: {}", config.server.host);

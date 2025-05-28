@@ -36,7 +36,7 @@ pub struct OAuthCallbackQuery {
 pub struct ProviderPath {
     /// Provider name (github, gitlab, etc.)
     #[validate(length(min = 1, max = 50, message = "Provider name must be between 1 and 50 characters"))]
-    #[validate(regex(path = "*PROVIDER_REGEX", message = "Provider name can only contain lowercase letters"))]
+    #[validate(regex(path = "*PROVIDER_REGEX", message = "Provider name can only contain letters"))]
     #[validate(custom(function = "validate_provider_name", message = "Invalid provider name"))]
     pub provider_name: String,
 }
