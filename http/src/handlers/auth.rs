@@ -1,13 +1,13 @@
 use axum::{
     Json,
-    http::{StatusCode, HeaderMap},
+    http::HeaderMap,
     extract::{State, Path, Query},
     response::Redirect,
 };
 use serde::{Deserialize, Serialize};
 use domain::entity::provider::Provider;
 use application::command::{CommandContext, CommandError};
-use crate::{AppState, oauth_state::OAuthState};
+use crate::{AppState, oauth_state::OAuthState, error::AuthError};
 use tracing::{debug, error};
 use uuid::Uuid;
 use url;
@@ -83,17 +83,6 @@ pub struct OAuthLinkResponse {
     pub new_email: Option<String>,
 }
 
-/// OAuth error response
-#[derive(Debug, Serialize)]
-pub struct OAuthErrorResponse {
-    /// Operation type
-    pub operation: String,
-    /// Error code
-    pub error: String,
-    /// Error message
-    pub message: String,
-}
-
 /// Combined response type for OAuth callbacks
 #[derive(Debug, Serialize)]
 #[serde(untagged)]
@@ -107,36 +96,24 @@ pub async fn oauth_start(
     State(state): State<AppState>,
     Path(provider_name): Path<String>,
     headers: HeaderMap,
-) -> Result<Redirect, (StatusCode, Json<OAuthErrorResponse>)> {
+) -> Result<Redirect, AuthError> {
     debug!("OAuth start for provider: {}", provider_name);
     
     // Parse the provider
     let provider = match provider_name.to_lowercase().as_str() {
         "github" => Provider::GitHub,
         "gitlab" => Provider::GitLab,
-        _ => return Err((StatusCode::BAD_REQUEST, Json(OAuthErrorResponse {
-            operation: "start".to_string(),
-            error: "invalid_provider".to_string(),
-            message: "Invalid provider".to_string(),
-        }))),
+        _ => return Err(AuthError::oauth_invalid_provider("start")),
     };
     
     // Check if this is a login or link operation based on Authorization header
     let oauth_state = if let Some(auth_header) = headers.get("Authorization") {
         // Link operation - user is authenticated
         let auth_str = auth_header.to_str()
-            .map_err(|_| (StatusCode::BAD_REQUEST, Json(OAuthErrorResponse {
-                operation: "start".to_string(),
-                error: "invalid_authorization_header".to_string(),
-                message: "Invalid Authorization header".to_string(),
-            })))?;
+            .map_err(|e| AuthError::oauth_invalid_authorization_header("start"))?;
         
         if !auth_str.starts_with("Bearer ") {
-            return Err((StatusCode::BAD_REQUEST, Json(OAuthErrorResponse {
-                operation: "start".to_string(),
-                error: "invalid_authorization_header".to_string(),
-                message: "Authorization header must start with 'Bearer '".to_string(),
-            })));
+            return Err(AuthError::oauth_invalid_authorization_header("start"));
         }
         
         let token = &auth_str[7..];
@@ -145,14 +122,7 @@ pub async fn oauth_start(
         let user_id = state.user_usecase
             .validate_token(token)
             .await
-            .map_err(|e| {
-                error!("Failed to validate token: {}", e);
-                (StatusCode::UNAUTHORIZED, Json(OAuthErrorResponse {
-                    operation: "start".to_string(),
-                    error: "invalid_token".to_string(),
-                    message: "Invalid or expired token".to_string(),
-                }))
-            })?;
+            .map_err(|e| AuthError::oauth_invalid_token("start"))?;
         
         debug!("Creating link state for user: {}", user_id);
         OAuthState::new_link(user_id)
@@ -164,14 +134,7 @@ pub async fn oauth_start(
     
     // Encode the state
     let encoded_state = oauth_state.encode()
-        .map_err(|e| {
-            error!("Failed to encode OAuth state: {}", e);
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(OAuthErrorResponse {
-                operation: "start".to_string(),
-                error: "state_encoding_failed".to_string(),
-                message: "Failed to create OAuth state".to_string(),
-            }))
-        })?;
+        .map_err(|e| AuthError::oauth_state_encoding_failed("start"))?;
     
     // Generate provider authorization URL using the command service
     let context = CommandContext::new()
@@ -183,39 +146,18 @@ pub async fn oauth_start(
         state.command_service
             .generate_login_start_url(provider, context)
             .await
-            .map_err(|e| {
-                error!("Failed to generate login authorization URL: {}", e);
-                (StatusCode::INTERNAL_SERVER_ERROR, Json(OAuthErrorResponse {
-                    operation: "start".to_string(),
-                    error: "url_generation_failed".to_string(),
-                    message: "Failed to generate authorization URL".to_string(),
-                }))
-            })?
+            .map_err(|e| AuthError::oauth_url_generation_failed("start"))?
     } else {
         // Link operation - use link provider command
         state.command_service
             .generate_link_provider_start_url(provider, context)
             .await
-            .map_err(|e| {
-                error!("Failed to generate link authorization URL: {}", e);
-                (StatusCode::INTERNAL_SERVER_ERROR, Json(OAuthErrorResponse {
-                    operation: "start".to_string(),
-                    error: "url_generation_failed".to_string(),
-                    message: "Failed to generate authorization URL".to_string(),
-                }))
-            })?
+            .map_err(|e| AuthError::oauth_url_generation_failed("start"))?
     };
     
     // Parse the URL and add our state parameter
     let mut url = url::Url::parse(&base_auth_url)
-        .map_err(|e| {
-            error!("Failed to parse authorization URL: {}", e);
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(OAuthErrorResponse {
-                operation: "start".to_string(),
-                error: "invalid_url".to_string(),
-                message: "Invalid authorization URL".to_string(),
-            }))
-        })?;
+        .map_err(|e| AuthError::oauth_invalid_url("start"))?;
     
     // Add the state parameter to the URL
     url.query_pairs_mut().append_pair("state", &encoded_state);
@@ -229,60 +171,35 @@ pub async fn oauth_callback(
     State(state): State<AppState>,
     Path(provider_name): Path<String>,
     Query(query): Query<OAuthCallbackQuery>,
-) -> Result<Json<OAuthResponse>, (StatusCode, Json<OAuthErrorResponse>)> {
+) -> Result<Json<OAuthResponse>, AuthError> {
     debug!("OAuth callback for provider: {}", provider_name);
     
     // Check for OAuth errors from provider
     if let Some(error) = query.error {
         let description = query.error_description.unwrap_or_else(|| "OAuth error".to_string());
         error!("OAuth error from provider: {} - {}", error, description);
-        return Err((StatusCode::BAD_REQUEST, Json(OAuthErrorResponse {
-            operation: "callback".to_string(),
-            error: error,
-            message: description,
-        })));
+        return Err(AuthError::oauth_provider_error("callback", error, description));
     }
     
     // Check if code parameter is present
     let code = match query.code {
         Some(c) if !c.is_empty() => c,
-        _ => {
-            return Err((StatusCode::BAD_REQUEST, Json(OAuthErrorResponse {
-                operation: "callback".to_string(),
-                error: "missing_code".to_string(),
-                message: "Missing code parameter".to_string(),
-            })));
-        }
+        _ => return Err(AuthError::oauth_missing_code("callback")),
     };
     
     // Parse the provider
     let provider = match provider_name.to_lowercase().as_str() {
         "github" => Provider::GitHub,
         "gitlab" => Provider::GitLab,
-        _ => return Err((StatusCode::BAD_REQUEST, Json(OAuthErrorResponse {
-            operation: "callback".to_string(),
-            error: "invalid_provider".to_string(),
-            message: "Invalid provider".to_string(),
-        }))),
+        _ => return Err(AuthError::oauth_invalid_provider("callback")),
     };
     
     // Decode the state to determine operation type
     let oauth_state = if let Some(state_param) = query.state {
         OAuthState::decode(&state_param)
-            .map_err(|e| {
-                error!("Failed to decode OAuth state: {}", e);
-                (StatusCode::BAD_REQUEST, Json(OAuthErrorResponse {
-                    operation: "callback".to_string(),
-                    error: "invalid_state".to_string(),
-                    message: "Invalid state parameter".to_string(),
-                }))
-            })?
+            .map_err(|e| AuthError::oauth_invalid_state("callback"))?
     } else {
-        return Err((StatusCode::BAD_REQUEST, Json(OAuthErrorResponse {
-            operation: "callback".to_string(),
-            error: "missing_state".to_string(),
-            message: "Missing state parameter".to_string(),
-        })));
+        return Err(AuthError::oauth_missing_state("callback"));
     };
     
     // Get redirect URI from configuration instead of hardcoding
@@ -300,11 +217,7 @@ pub async fn oauth_callback(
         handle_link_callback(state, provider, code, redirect_uri, user_id).await
     } else {
         error!("Invalid OAuth state operation");
-        Err((StatusCode::BAD_REQUEST, Json(OAuthErrorResponse {
-            operation: "callback".to_string(),
-            error: "invalid_state_operation".to_string(),
-            message: "Invalid operation in state".to_string(),
-        })))
+        Err(AuthError::oauth_invalid_state_operation("callback"))
     }
 }
 
@@ -314,7 +227,7 @@ async fn handle_login_callback(
     provider: Provider,
     code: String,
     redirect_uri: String,
-) -> Result<Json<OAuthResponse>, (StatusCode, Json<OAuthErrorResponse>)> {
+) -> Result<Json<OAuthResponse>, AuthError> {
     debug!("Handling login callback");
     
     let context = CommandContext::new()
@@ -327,27 +240,7 @@ async fn handle_login_callback(
         .await
         .map_err(|e| {
             error!("Failed to login: {}", e);
-            match e {
-                CommandError::Business(msg) if msg.contains("Authentication failed") => {
-                    (StatusCode::UNAUTHORIZED, Json(OAuthErrorResponse {
-                        operation: "login".to_string(),
-                        error: "authentication_failed".to_string(),
-                        message: "Authentication failed".to_string(),
-                    }))
-                }
-                CommandError::Validation(msg) => {
-                    (StatusCode::BAD_REQUEST, Json(OAuthErrorResponse {
-                        operation: "login".to_string(),
-                        error: "validation_failed".to_string(),
-                        message: msg,
-                    }))
-                }
-                _ => (StatusCode::INTERNAL_SERVER_ERROR, Json(OAuthErrorResponse {
-                    operation: "login".to_string(),
-                    error: "login_failed".to_string(),
-                    message: "Login failed".to_string(),
-                })),
-            }
+            AuthError::oauth_login_failed("login", &e)
         })?;
     
     Ok(Json(OAuthResponse::Login(OAuthLoginResponse {
@@ -371,7 +264,7 @@ async fn handle_link_callback(
     code: String,
     redirect_uri: String,
     user_id: Uuid,
-) -> Result<Json<OAuthResponse>, (StatusCode, Json<OAuthErrorResponse>)> {
+) -> Result<Json<OAuthResponse>, AuthError> {
     debug!("Handling link callback for user: {}", user_id);
     
     let context = CommandContext::new()
@@ -385,48 +278,7 @@ async fn handle_link_callback(
         .await
         .map_err(|e| {
             error!("Failed to link provider: {}", e);
-            match e {
-                CommandError::Business(msg) if msg.contains("already linked to your account") => {
-                    (StatusCode::CONFLICT, Json(OAuthErrorResponse {
-                        operation: "link".to_string(),
-                        error: "provider_already_linked_to_same_user".to_string(),
-                        message: format!("{} is already linked to your account", provider.as_str()),
-                    }))
-                }
-                CommandError::Business(msg) if msg.contains("already linked to another user") => {
-                    (StatusCode::CONFLICT, Json(OAuthErrorResponse {
-                        operation: "link".to_string(),
-                        error: "provider_already_linked".to_string(),
-                        message: format!("This {} account is already linked to another user", provider.as_str()),
-                    }))
-                }
-                CommandError::Business(msg) if msg.contains("Authentication failed") => {
-                    (StatusCode::UNAUTHORIZED, Json(OAuthErrorResponse {
-                        operation: "link".to_string(),
-                        error: "authentication_failed".to_string(),
-                        message: "Authentication failed".to_string(),
-                    }))
-                }
-                CommandError::Business(msg) if msg.contains("User not found") => {
-                    (StatusCode::NOT_FOUND, Json(OAuthErrorResponse {
-                        operation: "link".to_string(),
-                        error: "user_not_found".to_string(),
-                        message: "User not found".to_string(),
-                    }))
-                }
-                CommandError::Validation(msg) => {
-                    (StatusCode::BAD_REQUEST, Json(OAuthErrorResponse {
-                        operation: "link".to_string(),
-                        error: "validation_failed".to_string(),
-                        message: msg,
-                    }))
-                }
-                _ => (StatusCode::INTERNAL_SERVER_ERROR, Json(OAuthErrorResponse {
-                    operation: "link".to_string(),
-                    error: "link_failed".to_string(),
-                    message: "Link provider failed".to_string(),
-                })),
-            }
+            AuthError::oauth_link_failed("link", &e, provider.as_str())
         })?;
     
     // Convert UserEmail entities to EmailData

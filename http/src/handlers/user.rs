@@ -1,13 +1,12 @@
 use axum::{
     Json,
-    http::StatusCode,
     extract::{State, Extension},
 };
 use serde::Serialize;
 use uuid::Uuid;
-use application::usecase::user::UserError;
+use crate::error::ApiError;
 
-use tracing::{debug, error};
+use tracing::debug;
 
 /// User response
 #[derive(Debug, Serialize)]
@@ -26,21 +25,14 @@ pub struct UserResponse {
 pub async fn get_user(
     State(state): State<crate::AppState>,
     Extension(user_id): Extension<Uuid>,
-) -> Result<Json<UserResponse>, (StatusCode, String)> {
+) -> Result<Json<UserResponse>, ApiError> {
     debug!("Getting user profile for ID: {}", user_id);
     
     // Get the user
     let user = state
         .user_usecase
         .get_user(user_id)
-        .await
-        .map_err(|e| {
-            error!("Failed to get user: {}", e);
-            match e {
-                UserError::UserNotFound => (StatusCode::NOT_FOUND, "User not found".to_string()),
-                _ => (StatusCode::INTERNAL_SERVER_ERROR, "Failed to get user".to_string()),
-            }
-        })?;
+        .await?;
     
     Ok(Json(UserResponse {
         id: user.user.id,

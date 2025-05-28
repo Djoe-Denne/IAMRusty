@@ -7,7 +7,11 @@ use axum::{
     Router,
     routing::{get, post},
     middleware,
+    http::StatusCode,
+    response::{Json, IntoResponse},
 };
+use tower_http::catch_panic::CatchPanicLayer;
+use serde_json::json;
 use std::sync::Arc;
 use std::net::SocketAddr;
 use application::{
@@ -20,6 +24,7 @@ use application::{
 use configuration::OAuthConfig;
 
 pub mod handlers;
+pub mod error;
 mod middleware_auth;
 pub mod oauth_state;
 
@@ -29,6 +34,7 @@ pub use handlers::{
     token::refresh_token,
 };
 pub use middleware_auth::auth;
+pub use error::{ApiError, AuthError, OAuthErrorResponse};
 use middleware_auth::auth as auth_middleware;
 
 /// Application state for HTTP handlers
@@ -81,6 +87,7 @@ pub async fn serve(state: AppState, addr: &str) -> anyhow::Result<()> {
             "/api/me",
             get(get_user).route_layer(middleware::from_fn_with_state(state.clone(), auth_middleware)),
         )
+        .layer(CatchPanicLayer::custom(handle_panic))
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
@@ -94,6 +101,28 @@ async fn health_check() -> &'static str {
     "OK"
 }
 
+/// Handle panic in middleware
+fn handle_panic(err: Box<dyn std::any::Any + Send + 'static>) -> axum::response::Response {
+    let details = if let Some(s) = err.downcast_ref::<String>() {
+        s.clone()
+    } else if let Some(s) = err.downcast_ref::<&str>() {
+        s.to_string()
+    } else {
+        "Unknown panic".to_string()
+    };
+
+    tracing::error!("Service panicked: {}", details);
+
+    let body = Json(json!({
+        "error": {
+            "message": "Internal server error",
+            "status": 500,
+        }
+    }));
+
+    (StatusCode::INTERNAL_SERVER_ERROR, body).into_response()
+}
+
 /// Start the server with optional HTTPS support
 pub async fn serve_with_config(state: AppState, config: ServerConfig) -> anyhow::Result<()> {
     let app = Router::new()
@@ -105,7 +134,7 @@ pub async fn serve_with_config(state: AppState, config: ServerConfig) -> anyhow:
             "/api/me",
             get(get_user).route_layer(middleware::from_fn_with_state(state.clone(), auth_middleware)),
         )
-
+        .layer(CatchPanicLayer::custom(handle_panic))
         .with_state(state);
 
     if config.tls_enabled {

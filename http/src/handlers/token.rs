@@ -1,12 +1,11 @@
 use axum::{
     Json,
-    http::StatusCode,
     extract::State,
 };
 use serde::{Deserialize, Serialize};
-use application::usecase::token::TokenError;
+use crate::error::ApiError;
 
-use tracing::{debug, error};
+use tracing::debug;
 
 /// Request for token refresh
 #[derive(Debug, Deserialize)]
@@ -28,23 +27,14 @@ pub struct TokenResponse {
 pub async fn refresh_token(
     State(state): State<crate::AppState>,
     Json(request): Json<RefreshTokenRequest>,
-) -> Result<Json<TokenResponse>, (StatusCode, String)> {
+) -> Result<Json<TokenResponse>, ApiError> {
     debug!("Refreshing token");
     
     // Refresh the token
     let response = state
         .token_usecase
         .refresh_token(request.refresh_token)
-        .await
-        .map_err(|e| {
-            error!("Failed to refresh token: {}", e);
-            match e {
-                TokenError::TokenNotFound => (StatusCode::UNAUTHORIZED, "Invalid refresh token".to_string()),
-                TokenError::TokenInvalid => (StatusCode::UNAUTHORIZED, "Invalid refresh token".to_string()),
-                TokenError::TokenExpired => (StatusCode::UNAUTHORIZED, "Expired refresh token".to_string()),
-                _ => (StatusCode::INTERNAL_SERVER_ERROR, "Failed to refresh token".to_string()),
-            }
-        })?;
+        .await?;
     
     Ok(Json(TokenResponse {
         token: response.access_token,
