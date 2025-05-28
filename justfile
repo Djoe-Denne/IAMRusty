@@ -1,6 +1,24 @@
 # IAM Service - Modern Task Runner
 # Install: cargo install just
 # Usage: just <task>
+#
+# 📚 Documentation:
+# This justfile provides comprehensive testing and development commands for the IAM service.
+# 
+# 🧪 Testing Strategy:
+# - Unit tests: Fast, isolated tests for individual components (domain logic)
+# - Integration tests: End-to-end tests with real database and HTTP server
+# - Examples: Demonstration tests showing fixture usage patterns
+#
+# 🔧 Quick Start:
+# - just unit-test           # Run unit tests only (fast)
+# - just test-integration     # Run integration tests with database
+# - just test                 # Run complete test suite
+# - just dev                  # Setup development environment
+#
+# 🐳 Docker Requirements:
+# Integration tests require Docker for PostgreSQL database containers.
+# Containers are automatically managed and cleaned up after tests.
 
 # Set Windows-compatible shell
 set shell := ["powershell.exe", "-c"]
@@ -10,14 +28,22 @@ default:
     @just --list
 
 # 🧪 Testing Tasks
-test: test-unit test-integration cleanup-containers
+
+# Run complete test suite (unit + integration + cleanup)
+test: unit-test test-integration cleanup-containers
 
 # Run all tests including examples
 test-all: test test-integration-examples
 
-# Run unit tests only
-test-unit:
+# Run unit tests only (fast, no external dependencies)
+unit-test:
+    @echo "🧪 Running unit tests..."
+    @echo "   Testing domain business logic (auth_service, token_service)"
     cargo test --lib -q 2>$null
+    @echo "✅ Unit tests completed"
+
+# Legacy alias for unit tests (for backward compatibility)
+test-unit: unit-test
 
 # Run integration tests with database
 test-integration:

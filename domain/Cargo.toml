@@ -19,4 +19,9 @@ tracing = "0.1"
 async-trait = "0.1.77"
 
 [dev-dependencies]
-tokio = { version = "1.44", features = ["rt-multi-thread", "macros"] } 
+tokio = { version = "1.44", features = ["rt-multi-thread", "macros", "test-util"] }
+# Testing libraries for comprehensive unit testing
+mockall = "0.13.0"
+rstest = "0.23.0"
+tokio-test = "0.4.4"
+claims = "0.7.1" 
