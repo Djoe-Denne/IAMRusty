@@ -229,7 +229,7 @@ pub async fn oauth_callback(
         handle_login_callback(state, provider, code, redirect_uri).await
     } else if let Some(user_id) = oauth_state.get_link_user_id() {
         // Handle link operation
-        println!("handle_link_callback {:?}, {:?}, {:?}", user_id, code, redirect_uri);
+        debug!("handle_link_callback {:?}, {:?}, {:?}", user_id, code, redirect_uri);
         handle_link_callback(state, provider, code, redirect_uri, user_id).await
     } else {
         error!("Invalid OAuth state operation");

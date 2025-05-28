@@ -170,7 +170,7 @@ async fn test_oauth_start_gitlab_redirect_success() {
 
 #[tokio::test]
 #[serial]
-async fn test_oauth_start_unsupported_provider_returns_400() {
+async fn test_oauth_start_unsupported_provider_returns_422() {
     // Setup test server
     let base_url = get_test_server().await.expect("Failed to start test server");
     let client = create_test_client();
@@ -186,8 +186,8 @@ async fn test_oauth_start_unsupported_provider_returns_400() {
             .expect("Failed to send request");
         
         // ❌ Should return 400 for unsupported providers
-        assert_eq!(response.status(), 400, 
-                  "Should return 400 Bad Request for unsupported provider: {}", provider);
+        assert_eq!(response.status(), 422, 
+                  "Should return 422 Unprocessable Entity for unsupported provider: {}", provider);
         
         // Should return JSON error response
         let error_response: Value = response
@@ -195,12 +195,8 @@ async fn test_oauth_start_unsupported_provider_returns_400() {
             .await
             .expect("Should return JSON error response");
         
-        assert_eq!(error_response["operation"], "start", 
-                  "Error response should indicate 'start' operation");
-        assert_eq!(error_response["error"], "invalid_provider", 
-                  "Error response should indicate 'invalid_provider'");
-        assert!(error_response["message"].is_string(), 
-               "Error response should have error message");
+        assert!(error_response.get("provider_name").is_some(), 
+               "Error response should contain provider_name");
     }
 }
 

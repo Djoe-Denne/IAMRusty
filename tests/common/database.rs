@@ -363,7 +363,7 @@ async fn register_cleanup_handler() {
     
     // Register cleanup for normal process termination
     extern "C" fn cleanup_on_exit() {
-        eprintln!("Process exiting, attempting to cleanup test database container...");
+        debug!("Process exiting, attempting to cleanup test database container...");
         // Note: We can't do async cleanup here, but the container will be cleaned up
         // by Docker eventually. This is just for logging.
     }

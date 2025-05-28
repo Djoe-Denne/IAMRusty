@@ -12,6 +12,7 @@ use fixtures::github::*;
 use serial_test::serial;
 use sea_orm::ConnectionTrait;
 use uuid::Uuid;
+use tracing::debug;
 
 #[tokio::test]
 #[serial]
@@ -26,8 +27,8 @@ async fn test_oauth_flow_with_database_persistence() {
     github.setup_successful_token_exchange().await;
     github.setup_successful_user_profile_arthur().await;
     
-    println!("🔗 Test Database URL: {}", config.database.url());
-    println!("🔗 GitHub Mock URL: {}", github.base_url());
+    debug!("🔗 Test Database URL: {}", config.database.url());
+    debug!("🔗 GitHub Mock URL: {}", github.base_url());
     
     // Simulate OAuth flow by creating user and provider token records
     let user_id = Uuid::new_v4();
@@ -86,7 +87,7 @@ async fn test_oauth_flow_with_database_persistence() {
     assert_eq!(user_count, 1, "Should have one user");
     assert_eq!(token_count, 1, "Should have one GitHub token");
     
-    println!("✅ OAuth flow with database persistence successful");
+    debug!("✅ OAuth flow with database persistence successful");
     
     // Cleanup happens automatically when test_fixture is dropped
 }
@@ -151,9 +152,9 @@ async fn test_multi_provider_with_database() {
     
     assert_eq!(token_count, 2, "Should have tokens for both providers");
     
-    println!("✅ Multi-provider setup with database successful");
-    println!("🔗 GitHub mock URL: {}", github.base_url());
-    println!("🔗 GitLab mock URL: {}", gitlab.base_url());
+    debug!("✅ Multi-provider setup with database successful");
+    debug!("🔗 GitHub mock URL: {}", github.base_url());
+    debug!("🔗 GitLab mock URL: {}", gitlab.base_url());
 }
 
 #[tokio::test]
@@ -201,8 +202,8 @@ async fn test_error_scenarios_with_database() {
     // Second insert should fail due to unique constraint on provider + provider_user_id
     assert!(result2.is_err(), "Second token insert should fail due to unique constraint");
     
-    println!("✅ Error scenarios with database constraints working correctly");
-    println!("🔗 GitHub error mock URL: {}", github.base_url());
+    debug!("✅ Error scenarios with database constraints working correctly");
+    debug!("🔗 GitHub error mock URL: {}", github.base_url());
 }
 
 #[tokio::test]
@@ -221,11 +222,11 @@ async fn test_configuration_consistency() {
     assert!(config.database.url().contains("iam_test"));
     
     // In a real integration test, you would override the OAuth URLs with mock URLs
-    println!("✅ Configuration consistency verified");
-    println!("📋 Test config OAuth GitHub URL: {}", config.oauth.github.auth_url);
-    println!("📋 Test config OAuth GitLab URL: {}", config.oauth.gitlab.auth_url);
-    println!("🔗 GitHub mock URL: {}", github.base_url());
-    println!("🔗 GitLab mock URL: {}", gitlab.base_url());
+    debug!("✅ Configuration consistency verified");
+    debug!("📋 Test config OAuth GitHub URL: {}", config.oauth.github.auth_url);
+    debug!("📋 Test config OAuth GitLab URL: {}", config.oauth.gitlab.auth_url);
+    debug!("🔗 GitHub mock URL: {}", github.base_url());
+    debug!("🔗 GitLab mock URL: {}", gitlab.base_url());
     
     // In a real application, you would:
     // 1. Override config.oauth.github.* URLs with github.base_url()

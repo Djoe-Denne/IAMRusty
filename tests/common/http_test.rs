@@ -1,19 +1,22 @@
 use infra::config::load_config;
 use setup::{app, config};
+use tracing::debug;
 
 pub async fn spawn_test_server() -> anyhow::Result<()> {
     // Use your real config loading logic
     let config = load_config().expect("failed to load test config");
     
     // Initialize logging for the test server
-    config::setup_logging(&config.logging.level);
+    if config.logging.level != "" {
+        config::setup_logging(&config.logging.level);
+    }
 
-    eprintln!("🚀 Starting test server with configuration:");
-    eprintln!("   Server host: {}", config.server.host);
-    eprintln!("   Server port: {}", config.server.port);
-    eprintln!("   TLS enabled: {}", config.server.tls_enabled);
-    eprintln!("   Database URL: {}", config.database.url());
-    eprintln!("   Database actual port: {}", config.database.actual_port());
+    debug!("🚀 Starting test server with configuration:");
+    debug!("   Server host: {}", config.server.host);
+    debug!("   Server port: {}", config.server.port);
+    debug!("   TLS enabled: {}", config.server.tls_enabled);
+    debug!("   Database URL: {}", config.database.url());
+    debug!("   Database actual port: {}", config.database.actual_port());
 
     // Create server configuration
     let server_config = config::ServerConfig {
@@ -25,9 +28,9 @@ pub async fn spawn_test_server() -> anyhow::Result<()> {
         tls_port: if config.server.tls_enabled { Some(config.server.tls_port) } else { None },
     };
 
-    eprintln!("🌐 Test server will listen on: http://{}:{}", server_config.host, server_config.port);
+    debug!("🌐 Test server will listen on: http://{}:{}", server_config.host, server_config.port);
 
     // Build and run the application - this should run indefinitely
-    eprintln!("🔄 Starting server...");
+    debug!("🔄 Starting server...");
     app::build_and_run(config, server_config).await
 }

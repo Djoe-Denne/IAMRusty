@@ -682,11 +682,11 @@ To see detailed validation information during development:
 // In your test or development code
 let validation_result = request.validate();
 match validation_result {
-    Ok(_) => println!("Validation passed"),
+    Ok(_) => debug!("Validation passed"),
     Err(errors) => {
         for (field, field_errors) in errors.field_errors() {
             for error in field_errors {
-                println!("Field '{}': {} (code: {:?})", field, error.message.as_ref().unwrap_or(&"Unknown error".to_string()), error.code);
+                debug!("Field '{}': {} (code: {:?})", field, error.message.as_ref().unwrap_or(&"Unknown error".to_string()), error.code);
             }
         }
     }

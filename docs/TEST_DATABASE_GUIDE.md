@@ -277,7 +277,7 @@ async fn test_user_with_fixtures() {
     assert_eq!(user.username(), "test_user");
     assert_eq!(user.avatar_url(), Some(&"https://example.com/avatar.png".to_string()));
     
-    println!("✅ User created with ID: {}", user.id());
+    debug!("✅ User created with ID: {}", user.id());
     
     // Table truncation will clean up automatically
 }
@@ -381,11 +381,11 @@ async fn test_complete_user_setup_with_fixtures() {
     
     assert_eq!(email_count, 1);
     
-    println!("✅ Complete user setup created:");
-    println!("   User: {} ({})", user.username(), user.id());
-    println!("   Primary Email: {} ({})", primary_email.email(), primary_email.id());
-    println!("   GitHub Token: {} ({})", github_token.provider_user_id(), github_token.id());
-    println!("   Refresh Token: {} ({})", refresh_token.is_usable(), refresh_token.id());
+    debug!("✅ Complete user setup created:");
+    debug!("   User: {} ({})", user.username(), user.id());
+    debug!("   Primary Email: {} ({})", primary_email.email(), primary_email.id());
+    debug!("   GitHub Token: {} ({})", github_token.provider_user_id(), github_token.id());
+    debug!("   Refresh Token: {} ({})", refresh_token.is_usable(), refresh_token.id());
 }
 ```
 
@@ -441,7 +441,7 @@ async fn test_fixture_validation_with_database() {
     assert_eq!(db_username, "modified_user");
     assert_eq!(db_avatar_url, Some("https://example.com/modified.png".to_string()));
     
-    println!("✅ Fixture validation correctly detected database changes");
+    debug!("✅ Fixture validation correctly detected database changes");
 }
 ```
 
@@ -478,10 +478,10 @@ async fn test_fixtures_with_configuration() {
     assert_eq!(config.oauth.github.client_id, "test_github_client_id");
     assert_eq!(github_token.provider(), "github");
     
-    println!("✅ Fixtures work seamlessly with test configuration");
-    println!("   GitHub Client ID: {}", config.oauth.github.client_id);
-    println!("   User ID: {}", user.id());
-    println!("   Token Provider: {}", github_token.provider());
+    debug!("✅ Fixtures work seamlessly with test configuration");
+    debug!("   GitHub Client ID: {}", config.oauth.github.client_id);
+    debug!("   User ID: {}", user.id());
+    debug!("   Token Provider: {}", github_token.provider());
 }
 ```
 

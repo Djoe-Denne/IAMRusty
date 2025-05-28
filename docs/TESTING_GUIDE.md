@@ -151,17 +151,17 @@ for attempt in 1..=10 {
     
     if let Ok(response) = client.get(&format!("{}/health", base_url)).send().await {
         if response.status().is_success() {
-            println!("✅ Server is ready after {} attempts", attempt);
+            debug!("✅ Server is ready after {} attempts", attempt);
             break;
         }
     }
     
     if attempt == 10 {
-        eprintln!("❌ Server failed to start after 10 attempts");
+        debug!("❌ Server failed to start after 10 attempts");
         return Err("Server failed to start".into());
     }
     
-    println!("⏳ Waiting for server to start (attempt {}/10)...", attempt);
+    debug!("⏳ Waiting for server to start (attempt {}/10)...", attempt);
 }
 ```
 
@@ -179,13 +179,13 @@ let needs_new_server = match server_guard.as_ref() {
 if needs_new_server {
     // If the old handle is finished, clear it
     if server_guard.is_some() {
-        println!("🔄 Previous server has stopped, starting a new one...");
+        debug!("🔄 Previous server has stopped, starting a new one...");
         *server_guard = None;
     }
     
     // Start new server...
 } else {
-    println!("♻️  Reusing existing server instance");
+    debug!("♻️  Reusing existing server instance");
 }
 ```
 
@@ -209,12 +209,12 @@ pub async fn spawn_test_server() -> anyhow::Result<()> {
     // Use your real config loading logic
     let config = load_config().expect("failed to load test config");
 
-    eprintln!("🚀 Starting test server with configuration:");
-    eprintln!("   Server host: {}", config.server.host);
-    eprintln!("   Server port: {}", config.server.port);
-    eprintln!("   TLS enabled: {}", config.server.tls_enabled);
-    eprintln!("   Database URL: {}", config.database.url());
-    eprintln!("   Database actual port: {}", config.database.actual_port());
+    debug!("🚀 Starting test server with configuration:");
+    debug!("   Server host: {}", config.server.host);
+    debug!("   Server port: {}", config.server.port);
+    debug!("   TLS enabled: {}", config.server.tls_enabled);
+    debug!("   Database URL: {}", config.database.url());
+    debug!("   Database actual port: {}", config.database.actual_port());
 
     // Create server configuration
     let server_config = config::ServerConfig {
@@ -226,10 +226,10 @@ pub async fn spawn_test_server() -> anyhow::Result<()> {
         tls_port: if config.server.tls_enabled { Some(config.server.tls_port) } else { None },
     };
 
-    eprintln!("🌐 Test server will listen on: http://{}:{}", server_config.host, server_config.port);
+    debug!("🌐 Test server will listen on: http://{}:{}", server_config.host, server_config.port);
 
     // Build and run the application - this should run indefinitely
-    eprintln!("🔄 Starting server...");
+    debug!("🔄 Starting server...");
     app::build_and_run(config, server_config).await
 }
 ```
@@ -248,12 +248,12 @@ The HTTP utilities integrate with the configuration system:
 The system provides comprehensive logging for debugging:
 
 ```rust
-eprintln!("🚀 Starting test server with configuration:");
-eprintln!("   Server host: {}", config.server.host);
-eprintln!("   Server port: {}", config.server.port);
-eprintln!("   TLS enabled: {}", config.server.tls_enabled);
-eprintln!("   Database URL: {}", config.database.url());
-eprintln!("   Database actual port: {}", config.database.actual_port());
+debug!("🚀 Starting test server with configuration:");
+debug!("   Server host: {}", config.server.host);
+debug!("   Server port: {}", config.server.port);
+debug!("   TLS enabled: {}", config.server.tls_enabled);
+debug!("   Database URL: {}", config.database.url());
+debug!("   Database actual port: {}", config.database.actual_port());
 ```
 
 ### Integration with App Framework
@@ -1241,13 +1241,13 @@ async fn test_external_service() {
        .unwrap()
        .try_get("", "count")?;
    
-   eprintln!("Debug: table has {} rows", debug_count);
+   debug!("Debug: table has {} rows", debug_count);
    ```
 
 3. **Response Body Inspection**
    ```rust
    let response_text = response.text().await?;
-   eprintln!("Response body: {}", response_text);
+   debug!("Response body: {}", response_text);
    
    // Then parse if needed
    let response_json: Value = serde_json::from_str(&response_text)?;
@@ -1256,7 +1256,7 @@ async fn test_external_service() {
 4. **Configuration Debugging**
    ```rust
    let config = test_fixture.config();
-   eprintln!("Test config: {:#?}", config);
+   debug!("Test config: {:#?}", config);
    ```
 
 ### Performance Issues

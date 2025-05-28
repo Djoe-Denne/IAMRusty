@@ -390,7 +390,7 @@ async fn test_user_creation() {
     assert_eq!(user.username(), "test_user");
     assert_eq!(user.avatar_url(), Some(&"https://example.com/avatar.png".to_string()));
     
-    println!("✅ User created with ID: {}", user.id());
+    debug!("✅ User created with ID: {}", user.id());
 }
 ```
 
@@ -567,7 +567,7 @@ async fn test_fixture_validation() {
     assert_eq!(original_user.username(), "original_user");
     assert_eq!(original_user.avatar_url(), Some(&"https://example.com/original.png".to_string()));
     
-    println!("✅ Fixture validation correctly detected database changes");
+    debug!("✅ Fixture validation correctly detected database changes");
 }
 ```
 
@@ -677,10 +677,10 @@ async fn test_complete_oauth_integration() {
     // Run OAuth flow test...
     // The test will use mocked HTTP responses and real database operations
     
-    println!("✅ Complete integration test with HTTP mocks and DB fixtures");
-    println!("   GitHub mock URL: {}", github.base_url());
-    println!("   User ID: {}", user.id());
-    println!("   Primary email: {}", primary_email.email());
+    debug!("✅ Complete integration test with HTTP mocks and DB fixtures");
+    debug!("   GitHub mock URL: {}", github.base_url());
+    debug!("   User ID: {}", user.id());
+    debug!("   Primary email: {}", primary_email.email());
 }
 ```
 
@@ -876,8 +876,8 @@ async fn test_multi_provider_oauth() {
     gitlab.setup_successful_user_profile_alice().await;
     
     // Test both providers...
-    println!("🔗 GitHub mock URL: {}", github.base_url());
-    println!("🔗 GitLab mock URL: {}", gitlab.base_url());
+    debug!("🔗 GitHub mock URL: {}", github.base_url());
+    debug!("🔗 GitLab mock URL: {}", gitlab.base_url());
 }
 ```
 
@@ -903,7 +903,7 @@ async fn test_user_with_no_email() {
         .await;
     
     // Test handling of users without email...
-    println!("✅ Custom user data mocked successfully");
+    debug!("✅ Custom user data mocked successfully");
 }
 ```
 
@@ -930,7 +930,7 @@ async fn test_oauth_flow() {
         .await;
     
     // Your test logic here...
-    println!("✅ GitHub OAuth flow mocked at: {}", github.base_url());
+    debug!("✅ GitHub OAuth flow mocked at: {}", github.base_url());
 }
 ```
 

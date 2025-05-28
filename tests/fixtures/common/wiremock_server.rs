@@ -19,7 +19,7 @@ pub async fn get_mock_server() -> Arc<MockServer> {
                 .expect("Failed to bind to port 3000");
             
             let server = Arc::new(MockServer::builder().listener(listener).start().await);
-            eprintln!("🚀 Started shared wiremock server at: {}", server.uri());
+            debug!("🚀 Started shared wiremock server at: {}", server.uri());
             
             // Register cleanup handler on first server creation
             register_cleanup_handler().await;
@@ -64,7 +64,7 @@ async fn register_cleanup_handler() {
     
     // Register cleanup for normal process termination
     extern "C" fn cleanup_on_exit() {
-        eprintln!("🧹 Process exiting, wiremock server will be cleaned up automatically");
+        debug!("🧹 Process exiting, wiremock server will be cleaned up automatically");
     }
     
     unsafe {

@@ -42,4 +42,4 @@ expiration_seconds = 3600
 
 # Enable maximum logging for tests
 [logging]
-level = "error" 
+level = "" 

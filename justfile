@@ -39,7 +39,7 @@ test-all: test test-integration-examples
 unit-test:
     @echo "🧪 Running unit tests..."
     @echo "   Testing domain business logic (auth_service, token_service)"
-    cargo test --lib -q 2>$null
+    cargo test -q 2>$null
     @echo "✅ Unit tests completed"
 
 # Legacy alias for unit tests (for backward compatibility)
@@ -48,7 +48,15 @@ test-unit: unit-test
 # Run integration tests with database
 test-integration:
     @echo "🧪 Running integration tests..."
-    @try { $env:RUN_ENV="test"; cargo test --test auth_oauth_start -q -- --nocapture 2>$null; $env:RUN_ENV="test"; cargo test --test auth_oauth_callback -q -- --nocapture 2>$null; $env:RUN_ENV="test"; cargo test --test user -q -- --nocapture 2>$null; $env:RUN_ENV="test"; cargo test --test token -q -- --nocapture 2>$null } finally { echo "🧹 Cleaning up test containers..."; just cleanup-containers }
+    @try { 
+        $env:RUN_ENV="test"; cargo test --test auth_oauth_start -q -- --nocapture 2>$null; 
+        $env:RUN_ENV="test"; cargo test --test auth_oauth_callback -q -- --nocapture 2>$null; 
+        $env:RUN_ENV="test"; cargo test --test user -q -- --nocapture 2>$null; 
+        $env:RUN_ENV="test"; cargo test --test token -q -- --nocapture 2>$null
+    } finally { 
+        echo "🧹 Cleaning up test containers..."; 
+        just cleanup-containers 
+    }
 
 # Clean up specific test container only
 cleanup-containers:

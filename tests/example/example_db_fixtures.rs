@@ -4,6 +4,7 @@ mod fixtures;
 use common::TestFixture;
 use fixtures::DbFixtures;
 use serial_test::serial;
+use tracing::debug;
 
 #[tokio::test]
 #[serial]
@@ -27,7 +28,7 @@ async fn test_user_fixture_basic() {
     assert_eq!(user.username(), "test_user");
     assert_eq!(user.avatar_url(), Some(&"https://example.com/avatar.png".to_string()));
     
-    println!("✅ User fixture created and verified: {}", user.id());
+    debug!("✅ User fixture created and verified: {}", user.id());
 }
 
 #[tokio::test]
@@ -65,7 +66,7 @@ async fn test_user_fixture_factory_methods() {
     assert!(bob.check(db.clone()).await.expect("Failed to check Bob"));
     assert!(alice.check(db.clone()).await.expect("Failed to check Alice"));
     
-    println!("✅ Factory method users created: Arthur({}), Bob({}), Alice({})", 
+    debug!("✅ Factory method users created: Arthur({}), Bob({}), Alice({})", 
              arthur.id(), bob.id(), alice.id());
 }
 
@@ -111,7 +112,7 @@ async fn test_user_email_fixtures() {
     assert!(primary_email.check(db.clone()).await.expect("Failed to check primary email"));
     assert!(secondary_email.check(db.clone()).await.expect("Failed to check secondary email"));
     
-    println!("✅ User emails created: Primary({}), Secondary({})", 
+    debug!("✅ User emails created: Primary({}), Secondary({})", 
              primary_email.id(), secondary_email.id());
 }
 
@@ -158,7 +159,7 @@ async fn test_provider_token_fixtures() {
     assert!(github_token.check(db.clone()).await.expect("Failed to check GitHub token"));
     assert!(gitlab_token.check(db.clone()).await.expect("Failed to check GitLab token"));
     
-    println!("✅ Provider tokens created: GitHub({}), GitLab({})", 
+    debug!("✅ Provider tokens created: GitHub({}), GitLab({})", 
              github_token.id(), gitlab_token.id());
 }
 
@@ -216,7 +217,7 @@ async fn test_refresh_token_fixtures() {
     assert!(expired_token.check(db.clone()).await.expect("Failed to check expired token"));
     assert!(invalid_token.check(db.clone()).await.expect("Failed to check invalid token"));
     
-    println!("✅ Refresh tokens created: Valid({}), Expired({}), Invalid({})", 
+    debug!("✅ Refresh tokens created: Valid({}), Expired({}), Invalid({})", 
              valid_token.id(), expired_token.id(), invalid_token.id());
 }
 
@@ -283,13 +284,13 @@ async fn test_complete_user_setup() {
     assert_eq!(gitlab_token.user_id(), user.id());
     assert_eq!(refresh_token.user_id(), user.id());
     
-    println!("✅ Complete user setup created:");
-    println!("   User: {} ({})", user.username(), user.id());
-    println!("   Primary Email: {} ({})", primary_email.email(), primary_email.id());
-    println!("   Secondary Email: {} ({})", secondary_email.email(), secondary_email.id());
-    println!("   GitHub Token: {} ({})", github_token.provider_user_id(), github_token.id());
-    println!("   GitLab Token: {} ({})", gitlab_token.provider_user_id(), gitlab_token.id());
-    println!("   Refresh Token: {} ({})", refresh_token.is_usable(), refresh_token.id());
+    debug!("✅ Complete user setup created:");
+    debug!("   User: {} ({})", user.username(), user.id());
+    debug!("   Primary Email: {} ({})", primary_email.email(), primary_email.id());
+    debug!("   Secondary Email: {} ({})", secondary_email.email(), secondary_email.id());
+    debug!("   GitHub Token: {} ({})", github_token.provider_user_id(), github_token.id());
+    debug!("   GitLab Token: {} ({})", gitlab_token.provider_user_id(), gitlab_token.id());
+    debug!("   Refresh Token: {} ({})", refresh_token.is_usable(), refresh_token.id());
 }
 
 #[tokio::test]
@@ -347,7 +348,7 @@ async fn test_custom_fixture_data() {
     assert!(custom_email.check(db.clone()).await.expect("Failed to check custom email"));
     assert!(custom_token.check(db.clone()).await.expect("Failed to check custom token"));
     
-    println!("✅ Custom fixture data created and verified");
+    debug!("✅ Custom fixture data created and verified");
 }
 
 #[tokio::test]
@@ -369,7 +370,7 @@ async fn test_fixture_isolation() {
     // Verify it exists
     assert!(user.check(db.clone()).await.expect("Failed to check user"));
     
-    println!("✅ Fixture isolation test - user created: {}", user.id());
+    debug!("✅ Fixture isolation test - user created: {}", user.id());
     
     // This user will be automatically cleaned up by table truncation
     // The next test will start with empty tables
@@ -419,9 +420,9 @@ async fn test_fixture_modification_without_commit_should_fail_check() {
     assert_eq!(original_user.username(), "original_user");
     assert_eq!(original_user.avatar_url(), Some(&"https://example.com/original.png".to_string()));
     
-    println!("✅ Fixture modification test passed:");
-    println!("   Original fixture (stale): {} - check failed as expected", original_user.username());
-    println!("   Database was modified externally, but fixture data remains unchanged");
+    debug!("✅ Fixture modification test passed:");
+    debug!("   Original fixture (stale): {} - check failed as expected", original_user.username());
+    debug!("   Database was modified externally, but fixture data remains unchanged");
 }
 
 #[tokio::test]
@@ -456,5 +457,5 @@ async fn test_fixture_check_with_deleted_record() {
     let check_result = user.check(db.clone()).await.expect("Failed to check user after deletion");
     assert!(!check_result, "Fixture check should fail when record is deleted from database");
     
-    println!("✅ Deleted record test passed - fixture check failed as expected when record was deleted");
+    debug!("✅ Deleted record test passed - fixture check failed as expected when record was deleted");
 } 

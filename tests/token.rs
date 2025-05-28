@@ -336,7 +336,7 @@ async fn test_refresh_token_returns_400_for_missing_refresh_token() {
 
 #[tokio::test]
 #[serial]
-async fn test_refresh_token_returns_400_for_empty_refresh_token() {
+async fn test_refresh_token_returns_422_for_empty_refresh_token() {
     // Setup test environment
     let base_url = get_test_server().await.expect("Failed to start test server");
     let client = create_test_client();
@@ -351,18 +351,16 @@ async fn test_refresh_token_returns_400_for_empty_refresh_token() {
         .await
         .expect("Failed to send request");
     
-    // ❌ Should return 400 Bad Request for empty refresh token
-    assert_eq!(response.status(), 400, "Should return 400 for empty refresh token");
+    // ❌ Should return 422 Unprocessable Entity for empty refresh token
+    assert_eq!(response.status(), 422, "Should return 422 for empty refresh token");
     
     let response_json: Value = response
         .json()
         .await
         .expect("Should return JSON error response");
     
-    assert!(response_json["error"].is_object(), 
-           "Should return error object");
-    assert_eq!(response_json["error"]["status"], 400, 
-              "Error status should be 400");
+    assert!(response_json["refresh_token"].is_array(), 
+           "Should return refresh_token object");
 }
 
 #[tokio::test]

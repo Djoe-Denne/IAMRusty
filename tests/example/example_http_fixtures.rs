@@ -3,7 +3,7 @@ mod fixtures;
 use fixtures::{GitHubFixtures, GitLabFixtures};
 use fixtures::github::*;
 use fixtures::gitlab::*;
-
+use tracing::debug;
 #[tokio::test]
 async fn example_github_oauth_flow() {
     // Create GitHub service fixture
@@ -31,8 +31,8 @@ async fn example_github_oauth_flow() {
     // For example, making HTTP requests to your OAuth endpoints
     // and verifying they interact correctly with the mocked GitHub API
     
-    println!("✅ GitHub OAuth flow mocked successfully");
-    println!("🔗 Mock server URL: {}", github.base_url());
+    debug!("✅ GitHub OAuth flow mocked successfully");
+    debug!("🔗 Mock server URL: {}", github.base_url());
     
     // Mocks will be automatically cleaned up when github service is dropped
 }
@@ -60,8 +60,8 @@ async fn example_gitlab_oauth_flow() {
         )
         .await;
     
-    println!("✅ GitLab OAuth flow mocked successfully");
-    println!("🔗 Mock server URL: {}", gitlab.base_url());
+    debug!("✅ GitLab OAuth flow mocked successfully");
+    debug!("🔗 Mock server URL: {}", gitlab.base_url());
     
     // Mocks will be automatically cleaned up when gitlab service is dropped
 }
@@ -75,7 +75,7 @@ async fn example_error_scenarios() {
     github.setup_failed_user_profile_unauthorized().await;
     github.setup_rate_limit_exceeded().await;
     
-    println!("✅ GitHub error scenarios mocked successfully");
+    debug!("✅ GitHub error scenarios mocked successfully");
     
     // Mocks will be automatically cleaned up when github service is dropped
 }
@@ -101,7 +101,7 @@ async fn example_custom_user_data() {
         )
         .await;
     
-    println!("✅ Custom user data mocked successfully");
+    debug!("✅ Custom user data mocked successfully");
     
     // Mocks will be automatically cleaned up when github service is dropped
 }
@@ -120,9 +120,9 @@ async fn example_multi_provider_setup() {
     gitlab.setup_successful_token_exchange().await;
     gitlab.setup_successful_user_profile_alice().await;
     
-    println!("✅ Multi-provider OAuth flows mocked successfully");
-    println!("🔗 GitHub mock URL: {}", github.base_url());
-    println!("🔗 GitLab mock URL: {}", gitlab.base_url());
+    debug!("✅ Multi-provider OAuth flows mocked successfully");
+    debug!("🔗 GitHub mock URL: {}", github.base_url());
+    debug!("🔗 GitLab mock URL: {}", gitlab.base_url());
     
     // Mocks will be automatically cleaned up when both services are dropped
 }
@@ -141,8 +141,8 @@ async fn example_automatic_cleanup_isolation() {
         )
         .await;
     
-    println!("✅ Test isolation verified - no conflicts with previous test mocks");
-    println!("🧹 Automatic cleanup ensures each test starts with a clean slate");
+    debug!("✅ Test isolation verified - no conflicts with previous test mocks");
+    debug!("🧹 Automatic cleanup ensures each test starts with a clean slate");
     
     // This mock will be automatically cleaned up when github service is dropped
 }
@@ -155,7 +155,7 @@ async fn example_manual_reset() {
     github.setup_successful_token_exchange().await;
     github.setup_successful_user_profile_arthur().await;
     
-    println!("✅ Initial mocks setup");
+    debug!("✅ Initial mocks setup");
     
     // Manually reset mocks mid-test if needed
     github.reset().await;
@@ -164,7 +164,7 @@ async fn example_manual_reset() {
     github.setup_failed_token_exchange_invalid_code().await;
     github.setup_failed_user_profile_unauthorized().await;
     
-    println!("✅ Manual reset and new mocks setup successfully");
+    debug!("✅ Manual reset and new mocks setup successfully");
     
     // Final cleanup happens automatically when github service is dropped
 } 
