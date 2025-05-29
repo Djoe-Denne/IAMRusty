@@ -1,6 +1,6 @@
 use axum::{
     Json,
-    http::HeaderMap,
+    http::{HeaderMap, StatusCode},
     extract::{State, Path, Query},
     response::Redirect,
 };
@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use validator::Validate;
 use domain::entity::provider::Provider;
 use application::command::CommandContext;
-use crate::{AppState, oauth_state::OAuthState, error::AuthError, validation::*};
+use crate::{AppState, oauth_state::OAuthState, error::AuthError, validation::*, extractors::ValidatedJson};
 use tracing::{debug, error};
 use uuid::Uuid;
 use url;
@@ -105,6 +105,48 @@ pub struct OAuthLinkResponse {
 pub enum OAuthResponse {
     Login(OAuthLoginResponse),
     Link(OAuthLinkResponse),
+}
+
+/// Email/password signup request
+#[derive(Debug, Deserialize, Validate)]
+pub struct SignupRequest {
+    #[validate(custom(function = "crate::validation::validate_username", message = "Username must be 3-30 characters and contain only letters, numbers, underscores, and hyphens"))]
+    pub username: String,
+    #[validate(custom(function = "crate::validation::validate_email_format", message = "Invalid email format"))]
+    pub email: String,
+    #[validate(custom(function = "crate::validation::validate_strong_password", message = "Password must be at least 8 characters and contain both letters and numbers"))]
+    pub password: String,
+}
+
+/// Email/password login request
+#[derive(Debug, Deserialize, Validate)]
+pub struct LoginRequest {
+    #[validate(custom(function = "crate::validation::validate_email_format", message = "Invalid email format"))]
+    pub email: String,
+    #[validate(custom(function = "crate::validation::validate_non_empty_string", message = "Password is required"))]
+    pub password: String,
+}
+
+/// Email verification request
+#[derive(Debug, Deserialize, Validate)]
+pub struct VerifyEmailRequest {
+    #[validate(custom(function = "crate::validation::validate_email_format", message = "Invalid email format"))]
+    pub email: String,
+    #[validate(custom(function = "crate::validation::validate_verification_token", message = "Invalid verification token format"))]
+    pub verification_token: String,
+}
+
+/// Generic success response
+#[derive(Debug, Serialize)]
+pub struct SuccessResponse {
+    pub message: String,
+}
+
+/// Email/password login response
+#[derive(Debug, Serialize)]
+pub struct LoginResponse {
+    pub user: UserData,
+    pub token: String,
 }
 
 /// Handle OAuth start - redirects to provider with appropriate state
@@ -327,4 +369,98 @@ async fn handle_link_callback(
         new_email_added: response.new_email_added,
         new_email: response.new_email,
     })))
+}
+
+/// Handle email/password signup
+pub async fn signup(
+    State(state): State<AppState>,
+    ValidatedJson(request): ValidatedJson<SignupRequest>,
+) -> Result<(StatusCode, Json<SuccessResponse>), AuthError> {
+    debug!("Email/password signup for email: {}", request.email);
+    
+    let context = CommandContext::new()
+        .with_metadata("operation".to_string(), "signup".to_string())
+        .with_metadata("email".to_string(), request.email.clone());
+    
+    let response = state
+        .command_service
+        .signup(
+            request.username,
+            request.email,
+            request.password,
+            context,
+        )
+        .await
+        .map_err(|e| {
+            error!("Signup failed: {}", e);
+            AuthError::signup_failed(&e)
+        })?;
+    
+    Ok((StatusCode::CREATED, Json(SuccessResponse {
+        message: response.message,
+    })))
+}
+
+/// Handle email/password login
+pub async fn login(
+    State(state): State<AppState>,
+    ValidatedJson(request): ValidatedJson<LoginRequest>,
+) -> Result<Json<LoginResponse>, AuthError> {
+    debug!("Email/password login for email: {}", request.email);
+    
+    let context = CommandContext::new()
+        .with_metadata("operation".to_string(), "login".to_string())
+        .with_metadata("email".to_string(), request.email.clone());
+    
+    let response = state
+        .command_service
+        .password_login(
+            request.email,
+            request.password,
+            context,
+        )
+        .await
+        .map_err(|e| {
+            error!("Login failed: {}", e);
+            AuthError::login_failed(&e)
+        })?;
+    
+    Ok(Json(LoginResponse {
+        user: UserData {
+            id: response.user.id.to_string(),
+            username: response.user.username,
+            email: Some(response.user.email),
+            avatar_url: response.user.avatar,
+        },
+        token: response.token,
+    }))
+}
+
+/// Handle email verification
+pub async fn verify_email(
+    State(state): State<AppState>,
+    ValidatedJson(request): ValidatedJson<VerifyEmailRequest>,
+) -> Result<Json<SuccessResponse>, AuthError> {
+    debug!("Email verification for: {}", request.email);
+    
+    let context = CommandContext::new()
+        .with_metadata("operation".to_string(), "verify_email".to_string())
+        .with_metadata("email".to_string(), request.email.clone());
+    
+    let response = state
+        .command_service
+        .verify_email(
+            request.email,
+            request.verification_token,
+            context,
+        )
+        .await
+        .map_err(|e| {
+            error!("Email verification failed: {}", e);
+            AuthError::verification_failed(&e)
+        })?;
+    
+    Ok(Json(SuccessResponse {
+        message: response.message,
+    }))
 } 

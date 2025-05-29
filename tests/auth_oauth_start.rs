@@ -360,8 +360,7 @@ async fn test_oauth_start_with_auth_header_link_operation() {
             .await
             .expect("Should return JSON error response");
         
-        assert_eq!(error_response["operation"], "start");
-        assert_eq!(error_response["error"], "invalid_token");
+        assert_eq!(error_response["error"]["error_code"], "invalid_token");
     } else {
         panic!("Unexpected response status: {}", response.status());
     }
@@ -400,8 +399,7 @@ async fn test_oauth_start_invalid_auth_header_formats() {
             .await
             .expect("Should return JSON error response");
         
-        assert_eq!(error_response["operation"], "start");
-        assert_eq!(error_response["error"], "invalid_authorization_header");
+        assert_eq!(error_response["error"]["error_code"], "invalid_authorization_header");
     }
 
 }

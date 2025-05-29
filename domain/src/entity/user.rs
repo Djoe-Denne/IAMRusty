@@ -17,6 +17,9 @@ pub struct User {
     /// URL to the user's avatar
     pub avatar_url: Option<String>,
     
+    /// Password hash (for email/password authentication)
+    pub password_hash: Option<String>,
+    
     /// When the user was created
     pub created_at: DateTime<Utc>,
     
@@ -35,6 +38,24 @@ impl User {
             id: Uuid::new_v4(),
             username,
             avatar_url,
+            password_hash: None,
+            created_at: now,
+            updated_at: now,
+        }
+    }
+    
+    /// Creates a new user with password authentication
+    pub fn new_with_password(
+        username: String,
+        password_hash: String,
+        avatar_url: Option<String>,
+    ) -> Self {
+        let now = Utc::now();
+        Self {
+            id: Uuid::new_v4(),
+            username,
+            avatar_url,
+            password_hash: Some(password_hash),
             created_at: now,
             updated_at: now,
         }
@@ -53,5 +74,16 @@ impl User {
             self.avatar_url = Some(avatar_url);
         }
         self.updated_at = Utc::now();
+    }
+    
+    /// Updates the user's password hash
+    pub fn update_password(&mut self, password_hash: String) {
+        self.password_hash = Some(password_hash);
+        self.updated_at = Utc::now();
+    }
+    
+    /// Checks if the user has password authentication enabled
+    pub fn has_password(&self) -> bool {
+        self.password_hash.is_some()
     }
 } 

@@ -1,12 +1,11 @@
 use async_trait::async_trait;
-use sea_orm::{DatabaseConnection, EntityTrait, Set, ActiveModelTrait, DbErr};
-use std::sync::Arc;
 use domain::entity::user::User as DomainUser;
 use domain::port::repository::UserWriteRepository;
+use sea_orm::{DatabaseConnection, EntityTrait, ActiveModelTrait, ActiveValue, DbErr, Set};
+use std::sync::Arc;
+use super::entity::{users, prelude::Users};
 use tracing::{debug, error};
 use chrono::{DateTime, Utc};
-
-use super::entity::{users, prelude::Users};
 
 /// SeaORM implementation of UserWriteRepository
 #[derive(Clone)]
@@ -21,13 +20,14 @@ impl UserWriteRepositoryImpl {
     }
 
     /// Convert a domain user to a database model
-    fn to_model(user: &DomainUser) -> users::ActiveModel {
+    fn to_active_model(&self, user: &DomainUser) -> users::ActiveModel {
         users::ActiveModel {
-            id: Set(user.id),
-            username: Set(user.username.clone()),
-            avatar_url: Set(user.avatar_url.clone()),
-            created_at: Set(user.created_at.naive_utc()),
-            updated_at: Set(user.updated_at.naive_utc()),
+            id: ActiveValue::Set(user.id),
+            username: ActiveValue::Set(user.username.clone()),
+            password_hash: ActiveValue::Set(user.password_hash.clone()),
+            avatar_url: ActiveValue::Set(user.avatar_url.clone()),
+            created_at: ActiveValue::Set(user.created_at.naive_utc()),
+            updated_at: ActiveValue::Set(user.updated_at.naive_utc()),
         }
     }
 
@@ -36,6 +36,7 @@ impl UserWriteRepositoryImpl {
         DomainUser {
             id: model.id,
             username: model.username,
+            password_hash: model.password_hash,
             avatar_url: model.avatar_url,
             created_at: DateTime::<Utc>::from_naive_utc_and_offset(model.created_at, Utc),
             updated_at: DateTime::<Utc>::from_naive_utc_and_offset(model.updated_at, Utc),
@@ -49,11 +50,18 @@ impl UserWriteRepository for UserWriteRepositoryImpl {
 
     async fn create(&self, user: DomainUser) -> Result<DomainUser, Self::Error> {
         debug!("Creating new user with ID: {}", user.id);
-        let model = Self::to_model(&user);
+        let model = self.to_active_model(&user);
         
         let res = model.insert(self.db.as_ref()).await?;
-        
-        Ok(Self::to_domain(res))
+
+        Ok(DomainUser {
+            id: res.id,
+            username: res.username,
+            password_hash: res.password_hash,
+            avatar_url: res.avatar_url,
+            created_at: DateTime::<Utc>::from_naive_utc_and_offset(res.created_at, Utc),
+            updated_at: DateTime::<Utc>::from_naive_utc_and_offset(res.updated_at, Utc),
+        })
     }
 
     async fn update(&self, user: DomainUser) -> Result<DomainUser, Self::Error> {

@@ -309,7 +309,7 @@ async fn test_get_user_returns_401_when_authorization_header_format_is_invalid()
 
 #[tokio::test]
 #[serial]
-async fn test_get_user_returns_404_when_user_not_found_in_database() {
+async fn test_get_user_returns_401_when_user_not_found_in_database() {
     // Setup test environment
     let test_fixture = TestFixture::new().await.expect("Failed to create test fixture");
     let base_url = get_test_server().await.expect("Failed to start test server");
@@ -328,8 +328,15 @@ async fn test_get_user_returns_404_when_user_not_found_in_database() {
         .await
         .expect("Failed to send request");
     
-    // ❌ Should return 404 Not Found when user not found
-    assert_eq!(response.status(), 404, "Should return 404 when user not found");
+    // Re-make the request to get the JSON response
+    let response = client
+        .get(&format!("{}/api/me", base_url))
+        .header("Authorization", format!("Bearer {}", jwt_token))
+        .send()
+        .await
+        .expect("Failed to send request");
+    
+    assert_eq!(response.status(), 401, "Should return 401 when user not found");
     
     let response_json: Value = response
         .json()
@@ -338,8 +345,10 @@ async fn test_get_user_returns_404_when_user_not_found_in_database() {
     
     assert!(response_json["error"].is_object(), 
            "Should return error object");
-    assert_eq!(response_json["error"]["status"], 404, 
-              "Error status should be 404");
+    assert_eq!(response_json["error"]["error_code"], "authentication_error".to_string(), 
+              "Error code should be authentication_error");
+    assert_eq!(response_json["error"]["status"], 401, 
+              "Error status should be 401");
 }
 
 #[tokio::test]

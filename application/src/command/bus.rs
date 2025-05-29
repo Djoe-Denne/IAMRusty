@@ -281,7 +281,7 @@ impl CommandBus {
                         
                         return Err(e);
                     }
-                    eprintln!("retry_attempts: {}/{}", retry_attempts, retry_policy.max_attempts);
+                    
                     // Error is retryable - check if we've reached max attempts
                     if retry_attempts >= retry_policy.max_attempts {
                         // Max retries reached - return RetryExhausted

@@ -52,6 +52,7 @@ pub async fn auth(
         .validate_token(token.to_string(), context)
         .await
         .map_err(|e| match e {
+            CommandError::Authentication(_) => StatusCode::UNAUTHORIZED,
             CommandError::Business(_) => StatusCode::UNAUTHORIZED,
             CommandError::Validation(_) => StatusCode::UNAUTHORIZED,
             CommandError::Infrastructure(_) => StatusCode::INTERNAL_SERVER_ERROR,

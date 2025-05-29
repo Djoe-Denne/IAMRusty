@@ -26,6 +26,7 @@ regex = "1.10"
 lazy_static = "1.4"
 
 # Utility
+async-trait = "0.1"
 serde = { version = "1.0.197", features = ["derive"] }
 serde_json = "1.0.116"
 uuid = { version = "1.4.1", features = ["v4", "serde"] }

@@ -1,6 +1,7 @@
 //! JWT token encoder implementation
 
 mod jwt_encoder;
+mod token_service_adapter;
 
 use async_trait::async_trait;
 use chrono::{Duration, Utc};
@@ -154,4 +155,5 @@ impl TokenService for JwtTokenService {
     }
 }
 
-pub use jwt_encoder::*; 
+pub use jwt_encoder::*;
+pub use token_service_adapter::*; 

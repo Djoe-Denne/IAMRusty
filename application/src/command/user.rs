@@ -1,5 +1,5 @@
 use super::{Command, CommandError, CommandHandler, error_mapping::ErrorMapping};
-use crate::usecase::user::{UserUseCase, UserError, UserProfile};
+use crate::usecase::user::{UserUseCase, UserProfile};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -108,15 +108,7 @@ where
         self.user_use_case
             .get_user(command.user_id)
             .await
-            .map_err(|e| match &e {
-                UserError::RepositoryError(_) => CommandError::Infrastructure(e.to_string()),
-                UserError::TokenServiceError(inner) => {
-                    ErrorMapping::map_token_service_error_to_validation(inner.as_ref())
-                },
-                UserError::UserNotFound => CommandError::Business(format!("User error: {}", e)),
-                UserError::InvalidToken => CommandError::Validation(format!("User error: {}", e)),
-                UserError::TokenExpired => CommandError::Validation(format!("User error: {}", e)),
-            })
+            .map_err(ErrorMapping::map_user_error)
     }
 }
 
@@ -149,14 +141,6 @@ where
         self.user_use_case
             .validate_token(&command.token)
             .await
-            .map_err(|e| match &e {
-                UserError::RepositoryError(_) => CommandError::Infrastructure(e.to_string()),
-                UserError::TokenServiceError(inner) => {
-                    ErrorMapping::map_token_service_error_to_validation(inner.as_ref())
-                },
-                UserError::UserNotFound => CommandError::Business(format!("User error: {}", e)),
-                UserError::InvalidToken => CommandError::Validation(format!("User error: {}", e)),
-                UserError::TokenExpired => CommandError::Validation(format!("User error: {}", e)),
-            })
+            .map_err(ErrorMapping::map_user_error)
     }
 } 

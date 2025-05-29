@@ -1,5 +1,5 @@
 use super::{Command, CommandError, CommandHandler, error_mapping::ErrorMapping};
-use crate::usecase::link_provider::{LinkProviderUseCase, LinkProviderError, LinkProviderResponse};
+use crate::usecase::link_provider::{LinkProviderUseCase, LinkProviderResponse};
 use domain::entity::provider::Provider;
 use async_trait::async_trait;
 use std::sync::Arc;

@@ -5,6 +5,9 @@ pub mod token;
 pub mod user;
 pub mod service;
 pub mod error_mapping;
+pub mod signup;
+pub mod password_login;
+pub mod verify_email;
 
 use async_trait::async_trait;
 
@@ -18,7 +21,11 @@ pub enum CommandError {
     /// Validation error
     #[error("Validation error: {0}")]
     Validation(String),
-    
+
+    /// Authentication error
+    #[error("Authentication error: {0}")]
+    Authentication(String),
+
     /// Business logic error
     #[error("Business error: {0}")]
     Business(String),

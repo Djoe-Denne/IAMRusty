@@ -29,6 +29,7 @@ impl UserReadRepositoryImpl {
         DomainUser {
             id: model.id,
             username: model.username,
+            password_hash: model.password_hash,
             avatar_url: model.avatar_url,
             created_at: DateTime::<Utc>::from_naive_utc_and_offset(model.created_at, Utc),
             updated_at: DateTime::<Utc>::from_naive_utc_and_offset(model.updated_at, Utc),

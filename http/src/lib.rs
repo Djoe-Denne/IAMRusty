@@ -25,17 +25,19 @@ use configuration::OAuthConfig;
 
 pub mod handlers;
 pub mod error;
+pub mod extractors;
 mod middleware_auth;
 pub mod oauth_state;
 pub mod validation;
 
 pub use handlers::{
-    auth::{oauth_callback, oauth_start},
+    auth::{oauth_callback, oauth_start, signup, login, verify_email},
     user::get_user,
     token::refresh_token,
 };
 pub use middleware_auth::auth;
-pub use error::{ApiError, AuthError, OAuthErrorResponse};
+pub use error::{ApiError, AuthError, UniformErrorResponse, ValidationError};
+pub use extractors::ValidatedJson;
 use middleware_auth::auth as auth_middleware;
 
 /// Application state for HTTP handlers
@@ -128,6 +130,9 @@ fn handle_panic(err: Box<dyn std::any::Any + Send + 'static>) -> axum::response:
 pub async fn serve_with_config(state: AppState, config: ServerConfig) -> anyhow::Result<()> {
     let app = Router::new()
         .route("/health", get(health_check))
+        .route("/api/auth/signup", post(signup))
+        .route("/api/auth/login", post(login))
+        .route("/api/auth/verify", post(verify_email))
         .route("/api/auth/{provider_name}/start", get(oauth_start))
         .route("/api/auth/{provider_name}/callback", get(oauth_callback))
         .route("/api/token/refresh", post(refresh_token))

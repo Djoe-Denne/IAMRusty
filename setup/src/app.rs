@@ -4,8 +4,8 @@ use tracing::info;
 
 use http_server::{AppState, serve_with_config, ServerConfig as HttpServerConfig};
 use infra::{
-    auth::{GitHubOAuth2Client, GitLabOAuth2Client},
-    token::JwtTokenService,
+    auth::{GitHubOAuth2Client, GitLabOAuth2Client, PasswordService, PasswordServiceAdapter},
+    token::{JwtTokenService, TokenServiceAdapter},
     repository::{
         user_read::UserReadRepositoryImpl,
         user_write::UserWriteRepositoryImpl,
@@ -17,8 +17,12 @@ use infra::{
         refresh_token_write::RefreshTokenWriteRepositoryImpl,
         combined_repository::{CombinedUserRepository, CombinedTokenRepository, CombinedRefreshTokenRepository},
         combined_user_email_repository::CombinedUserEmailRepository,
+        email_verification_read::SeaOrmEmailVerificationReadRepository,
+        email_verification_write::SeaOrmEmailVerificationWriteRepository,
+        combined_email_verification_repository::CombinedEmailVerificationRepository,
     },
     db::DbConnectionPool,
+    event::NoOpEventPublisher,
 };
 
 use configuration::AppConfig;
@@ -29,6 +33,7 @@ use application::{
         user::UserUseCaseImpl,
         token::TokenUseCaseImpl,
         link_provider::LinkProviderUseCaseImpl,
+        auth::AuthUseCaseImpl,
     },
     command::{
         bus::CommandBus,
@@ -62,6 +67,14 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
     let user_email_write_repo = UserEmailWriteRepositoryImpl::new(db_pool.get_write_connection());
     let user_email_repo = CombinedUserEmailRepository::new(user_email_read_repo, user_email_write_repo);
 
+    // Create email verification repositories
+    let email_verification_read_repo = SeaOrmEmailVerificationReadRepository::new(db_pool.get_read_connection());
+    let email_verification_write_repo = SeaOrmEmailVerificationWriteRepository::new(db_pool.get_write_connection());
+    let email_verification_repo = CombinedEmailVerificationRepository::new_with_sea_orm(
+        Arc::new(email_verification_read_repo),
+        Arc::new(email_verification_write_repo),
+    );
+
     let token_read_repo = TokenReadRepositoryImpl::new(db_pool.get_read_connection());
     let token_write_repo = TokenWriteRepositoryImpl::new(db_pool.get_write_connection());
     let token_repo_login = CombinedTokenRepository::new(token_read_repo.clone(), token_write_repo.clone());
@@ -81,11 +94,21 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
     let github_auth_link = GitHubOAuth2Client::from_config(&config.oauth.github);
     let gitlab_auth_link = GitLabOAuth2Client::from_config(&config.oauth.gitlab);
 
+    // Create password service
+    let password_service = Arc::new(PasswordService::new());
+    let password_service_adapter = Arc::new(PasswordServiceAdapter::new(password_service));
+
+    // Create event publisher (no-op for now)
+    let event_publisher = Arc::new(NoOpEventPublisher::new());
+
     // Create token service
-    let token_service = JwtTokenService::new(
+    let token_service = Arc::new(JwtTokenService::new(
         config.jwt.secret.clone(),
         config.jwt.expiration_seconds,
-    );
+    ));
+    
+    // Create token service adapter for auth use case
+    let token_service_adapter = Arc::new(TokenServiceAdapter::new(token_service.clone()));
 
     // Create use cases
     let login_usecase = LoginUseCaseImpl::new(
@@ -95,7 +118,7 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
         Arc::new(user_email_repo.clone()),
         Arc::new(token_repo_login),
         Arc::new(refresh_token_repo.clone()),
-        Arc::new(token_service.clone()),
+        token_service.clone(),
     );
 
     let link_provider_usecase = LinkProviderUseCaseImpl::new(
@@ -105,30 +128,40 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
         Arc::new(user_email_repo.clone()),
         Arc::new(token_repo_link),
         Arc::new(refresh_token_repo.clone()),
-        Arc::new(token_service.clone()),
+        token_service.clone(),
     );
 
     let user_usecase = UserUseCaseImpl::new(
         Arc::new(user_repo.clone()),
         Arc::new(user_email_repo.clone()),
-        Arc::new(token_service.clone()),
+        token_service.clone(),
     );
     
     let token_usecase = TokenUseCaseImpl::new(
         Arc::new(refresh_token_repo.clone()),
-        Arc::new(token_service.clone()),
+        token_service.clone(),
+    );
+
+    // Create auth use case
+    let auth_usecase = AuthUseCaseImpl::new(
+        Arc::new(user_repo.clone()),
+        Arc::new(user_email_repo.clone()),
+        Arc::new(email_verification_repo),
+        password_service_adapter.clone(),
+        token_service_adapter,
+        event_publisher,
     );
 
     // Create separate instances for command service
     let user_usecase_for_commands = UserUseCaseImpl::new(
         Arc::new(user_repo),
         Arc::new(user_email_repo),
-        Arc::new(token_service.clone()),
+        token_service.clone(),
     );
     
     let token_usecase_for_commands = TokenUseCaseImpl::new(
         Arc::new(refresh_token_repo),
-        Arc::new(token_service),
+        token_service,
     );
 
     // Create command bus and service
@@ -142,6 +175,7 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
         Arc::new(link_provider_usecase),
         Arc::new(token_usecase_for_commands),
         Arc::new(user_usecase_for_commands),
+        Arc::new(auth_usecase),
     ));
 
     // Create app state

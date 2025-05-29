@@ -2,5 +2,6 @@
 
 pub use super::provider_tokens::Entity as ProviderTokens;
 pub use super::refresh_tokens::Entity as RefreshTokens;
+pub use super::user_email_verification::Entity as UserEmailVerification;
 pub use super::user_emails::Entity as UserEmails;
 pub use super::users::Entity as Users;

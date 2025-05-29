@@ -1,6 +1,8 @@
 use super::CommandError;
 use crate::usecase::login::LoginError;
 use crate::usecase::link_provider::LinkProviderError;
+use crate::usecase::auth::AuthError;
+use crate::usecase::user::UserError;
 
 /// Utility functions for mapping errors to CommandError consistently across command handlers
 pub struct ErrorMapping;
@@ -50,7 +52,7 @@ impl ErrorMapping {
     pub fn map_link_provider_error(error: LinkProviderError) -> CommandError {
         match error {
             LinkProviderError::AuthError(msg) => {
-                CommandError::Business(format!("Authentication failed: {}", msg))
+                CommandError::Authentication("Authentication failed".to_string())
             }
             LinkProviderError::DbError(e) => {
                 CommandError::Infrastructure(format!("Database error: {}", e))
@@ -59,7 +61,7 @@ impl ErrorMapping {
                 CommandError::Infrastructure(format!("Token service error: {}", e))
             }
             LinkProviderError::UserNotFound => {
-                CommandError::Business("User not found".to_string())
+                CommandError::Authentication("Authentication failed".to_string())
             }
             LinkProviderError::ProviderAlreadyLinked => {
                 CommandError::Business("Provider account is already linked to another user".to_string())
@@ -82,9 +84,51 @@ impl ErrorMapping {
                 Self::map_token_service_error_to_business(inner.as_ref())
             },
             // Authentication-related token errors should return 401
-            TokenError::TokenNotFound => CommandError::Validation("Authentication failed: Invalid refresh token".to_string()),
-            TokenError::TokenInvalid => CommandError::Validation("Authentication failed: Invalid refresh token".to_string()),
-            TokenError::TokenExpired => CommandError::Validation("Authentication failed: Expired refresh token".to_string()),
+            TokenError::TokenNotFound => CommandError::Authentication("Authentication failed: Invalid refresh token".to_string()),
+            TokenError::TokenInvalid => CommandError::Authentication("Authentication failed: Invalid refresh token".to_string()),
+            TokenError::TokenExpired => CommandError::Authentication("Authentication failed: Expired refresh token".to_string()),
+        }
+    }
+
+    /// Map AuthError to appropriate CommandError
+    /// 
+    /// Provides consistent error mapping for all authentication operations.
+    /// Authentication-related errors use Validation to return 401, business errors
+    /// use Business type, and infrastructure errors use Infrastructure type.
+    pub fn map_auth_error(error: AuthError) -> CommandError {
+        match error {
+            AuthError::InvalidCredentials => CommandError::Validation("Invalid credentials".to_string()),
+            AuthError::UserNotFound => CommandError::Business("Invalid credentials".to_string()), // Don't leak user existence
+            AuthError::EmailNotVerified => CommandError::Business("Email not verified".to_string()),
+            AuthError::UserAlreadyExists => CommandError::Business("User already exists".to_string()),
+            AuthError::WeakPassword => CommandError::Validation("Password is too weak".to_string()),
+            AuthError::InvalidEmail => CommandError::Validation("Invalid email format".to_string()),
+            AuthError::EmailNotFound => CommandError::Business("Invalid verification request".to_string()), // Don't leak email existence
+            AuthError::EmailAlreadyVerified => CommandError::Business("Email is already verified".to_string()),
+            AuthError::InvalidVerificationToken => CommandError::Validation("Invalid or expired verification token".to_string()),
+            AuthError::VerificationTokenExpired => CommandError::Validation("Verification token has expired".to_string()),
+            AuthError::RepositoryError(_) => CommandError::Infrastructure(error.to_string()),
+            AuthError::EventPublishingError(_) => CommandError::Infrastructure(error.to_string()),
+            AuthError::TokenServiceError(inner) => {
+                Self::map_token_service_error_to_validation(inner.as_ref())
+            },
+            AuthError::PasswordHashingError(_) => CommandError::Infrastructure(error.to_string()),
+            AuthError::VerificationTokenGenerationError(_) => CommandError::Infrastructure(error.to_string()),
+        }
+    }
+
+    /// Map UserError to appropriate CommandError
+    /// 
+    /// Provides consistent error mapping for all user operations.
+    /// Token-related errors are mapped using the existing token service error mapping,
+    /// while other errors use appropriate CommandError types.
+    pub fn map_user_error(error: UserError) -> CommandError {
+        match error {
+            UserError::RepositoryError(_) => CommandError::Infrastructure(error.to_string()),
+            UserError::TokenServiceError(inner) => {
+                Self::map_token_service_error_to_validation(inner.as_ref())
+            },
+            _ => CommandError::Authentication("Authentication failed".to_string()),
         }
     }
 

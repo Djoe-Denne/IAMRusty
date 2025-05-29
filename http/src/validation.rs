@@ -14,7 +14,37 @@ lazy_static! {
     
     /// Regex for validating UUIDs
     pub static ref UUID_REGEX: Regex = Regex::new(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$").unwrap();
+    
+    /// Regex for validating email addresses (more comprehensive than basic email validation)
+    pub static ref EMAIL_REGEX: Regex = Regex::new(
+        r"^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$"
+    ).unwrap();
+    
+    /// Regex for validating usernames (alphanumeric, underscores, hyphens, 3-30 chars)
+    pub static ref USERNAME_REGEX: Regex = Regex::new(r"^[a-zA-Z0-9_-]{3,30}$").unwrap();
+    
+    /// Regex for strong password validation (at least 8 chars, contains letter and number)
+    pub static ref STRONG_PASSWORD_REGEX: Regex = Regex::new(r"^.{8,128}$").unwrap();
+    
+    /// Regex to check if password contains at least one letter
+    pub static ref HAS_LETTER_REGEX: Regex = Regex::new(r"[a-zA-Z]").unwrap();
+    
+    /// Regex to check if password contains at least one digit
+    pub static ref HAS_DIGIT_REGEX: Regex = Regex::new(r"\d").unwrap();
+    
+    /// Regex for verification tokens (alphanumeric and common safe characters)
+    pub static ref VERIFICATION_TOKEN_REGEX: Regex = Regex::new(r"^[a-zA-Z0-9_-]{10,100}$").unwrap();
 }
+
+// Common weak passwords to reject
+const COMMON_WEAK_PASSWORDS: &[&str] = &[
+    "password", "123456789", "qwerty", "abc123", "letmein", 
+    "welcome", "monkey", "1234567890", "password123", "admin",
+    "12345678", "iloveyou", "princess", "1234567", "rockyou",
+    "12345", "123123", "baseball", "abc123", "football",
+    "monkey", "letmein", "696969", "shadow", "master",
+    "666666", "qwertyuiop", "123321", "mustang", "1234567890"
+];
 
 /// Custom validation function for provider names
 pub fn validate_provider_name(provider: &str) -> Result<(), ValidationError> {
@@ -45,6 +75,114 @@ pub fn validate_non_empty_string(value: &str) -> Result<(), ValidationError> {
     }
     
     debug!("String is valid (non-empty): '{}'", value);
+    Ok(())
+}
+
+/// Custom validation function for usernames
+pub fn validate_username(username: &str) -> Result<(), ValidationError> {
+    debug!("Validating username: '{}'", username);
+    
+    if username.trim().is_empty() {
+        warn!("Username is empty: '{}'", username);
+        return Err(ValidationError::new("empty_username"));
+    }
+    
+    if !USERNAME_REGEX.is_match(username) {
+        warn!("Username format invalid: '{}'", username);
+        return Err(ValidationError::new("invalid_username_format"));
+    }
+    
+    debug!("Username is valid: '{}'", username);
+    Ok(())
+}
+
+/// Custom validation function for email addresses
+pub fn validate_email_format(email: &str) -> Result<(), ValidationError> {
+    debug!("Validating email: '{}'", email);
+    
+    if email.trim().is_empty() {
+        warn!("Email is empty: '{}'", email);
+        return Err(ValidationError::new("empty_email"));
+    }
+    
+    if !EMAIL_REGEX.is_match(email) {
+        warn!("Email format invalid: '{}'", email);
+        return Err(ValidationError::new("invalid_email_format"));
+    }
+    
+    // Additional checks
+    if email.len() > 254 {
+        warn!("Email too long: {} characters", email.len());
+        return Err(ValidationError::new("email_too_long"));
+    }
+    
+    debug!("Email is valid: '{}'", email);
+    Ok(())
+}
+
+/// Custom validation function for strong passwords
+pub fn validate_strong_password(password: &str) -> Result<(), ValidationError> {
+    debug!("Validating password strength (length: {})", password.len());
+    
+    if password.is_empty() {
+        warn!("Password is empty");
+        return Err(ValidationError::new("empty_password"));
+    }
+    
+    if password.len() < 8 {
+        warn!("Password too short: {} characters", password.len());
+        return Err(ValidationError::new("password_too_short"));
+    }
+    
+    if password.len() > 128 {
+        warn!("Password too long: {} characters", password.len());
+        return Err(ValidationError::new("password_too_long"));
+    }
+    
+    // Check basic length requirement
+    if !STRONG_PASSWORD_REGEX.is_match(password) {
+        warn!("Password doesn't meet length requirements");
+        return Err(ValidationError::new("password_invalid_length"));
+    }
+    
+    // Check for at least one letter
+    if !HAS_LETTER_REGEX.is_match(password) {
+        warn!("Password must contain at least one letter");
+        return Err(ValidationError::new("password_needs_letter"));
+    }
+    
+    // Check for at least one digit
+    if !HAS_DIGIT_REGEX.is_match(password) {
+        warn!("Password must contain at least one digit");
+        return Err(ValidationError::new("password_needs_digit"));
+    }
+    
+    // Check against common weak passwords
+    let password_lower = password.to_lowercase();
+    if COMMON_WEAK_PASSWORDS.contains(&password_lower.as_str()) {
+        warn!("Password is in common weak passwords list");
+        return Err(ValidationError::new("password_too_common"));
+    }
+    
+    debug!("Password meets strength requirements");
+    Ok(())
+}
+
+/// Custom validation function for verification tokens
+pub fn validate_verification_token(token: &str) -> Result<(), ValidationError> {
+    debug!("Validating verification token: '{}'", token);
+    
+    if token.trim().is_empty() {
+        warn!("Verification token is empty: '{}'", token);
+        return Err(ValidationError::new("empty_verification_token"));
+    }
+    
+    if !VERIFICATION_TOKEN_REGEX.is_match(token) {
+        warn!("Verification token format invalid: '{}'", token);
+        return Err(ValidationError::new("invalid_verification_token_format"));
+    }
+    
+    debug!("Verification token is valid: '{}'", token);
     Ok(())
 }
 

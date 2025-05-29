@@ -1,5 +1,5 @@
 use super::{Command, CommandError, CommandHandler, error_mapping::ErrorMapping};
-use crate::usecase::login::{LoginUseCase, LoginError, LoginResponse};
+use crate::usecase::login::{LoginUseCase, LoginResponse};
 use domain::entity::provider::Provider;
 use async_trait::async_trait;
 use std::sync::Arc;

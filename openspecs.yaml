@@ -24,6 +24,91 @@ servers:
   - url: https://iam.example.com
 
 paths:
+  /auth/signup:
+    post:
+      summary: Sign up with email and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+              required:
+                - username
+                - email
+                - password
+      responses:
+        "201":
+          description: User created successfully
+        "400":
+          description: Invalid input or user already exists
+
+  /auth/login:
+    post:
+      summary: Log in with email and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+              required:
+                - email
+                - password
+      responses:
+        "200":
+          description: Authentication successful
+          content:
+            application/json:
+              example:
+                token: "jwt_xyz"
+                user:
+                  id: "user_123"
+                  username: "alice"
+                  email: "alice@example.com"
+        "401":
+          description: Invalid credentials
+          
+  /auth/verify:
+    post:
+      summary: Verify user email with a token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                verification_token:
+                  type: string
+              required:
+                - email
+                - verification_token
+      responses:
+        "200":
+          description: Email successfully verified
+        "400":
+          description: Invalid or expired verification token
+        "404":
+          description: Email not found or already verified
+
   /auth/{provider}/start:
     get:
       summary: Start OAuth2 authentication or provider linking

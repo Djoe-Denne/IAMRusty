@@ -1,5 +1,5 @@
 use super::{Command, CommandError, CommandHandler, error_mapping::ErrorMapping};
-use crate::usecase::token::{TokenUseCase, TokenError, RefreshTokenResponse};
+use crate::usecase::token::{TokenUseCase, RefreshTokenResponse};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;

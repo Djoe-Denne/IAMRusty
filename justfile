@@ -30,7 +30,7 @@ default:
 # 🧪 Testing Tasks
 
 # Run complete test suite (unit + integration + cleanup)
-test: unit-test test-integration cleanup-containers
+test: unit-test integration-test cleanup-containers
 
 # Run all tests including examples
 test-all: test test-integration-examples
@@ -46,17 +46,9 @@ unit-test:
 test-unit: unit-test
 
 # Run integration tests with database
-test-integration:
+integration-test:
     @echo "🧪 Running integration tests..."
-    @try { 
-        $env:RUN_ENV="test"; cargo test --test auth_oauth_start -q -- --nocapture 2>$null; 
-        $env:RUN_ENV="test"; cargo test --test auth_oauth_callback -q -- --nocapture 2>$null; 
-        $env:RUN_ENV="test"; cargo test --test user -q -- --nocapture 2>$null; 
-        $env:RUN_ENV="test"; cargo test --test token -q -- --nocapture 2>$null
-    } finally { 
-        echo "🧹 Cleaning up test containers..."; 
-        just cleanup-containers 
-    }
+    @try { $env:RUN_ENV="test"; cargo test -q -- --nocapture 2>$null} finally { echo "🧹 Cleaning up test containers..."; just cleanup-containers  }
 
 # Clean up specific test container only
 cleanup-containers:
@@ -200,12 +192,12 @@ dev-setup:
 
 # Run migrations
 migrate:
-    cd migration && cargo run
+    cd migration; cargo run
 
 # Reset database (for development)
 reset-db:
-    cd migration && cargo run -- down
-    cd migration && cargo run -- up
+    cd migration; cargo run -- down
+    cd migration; cargo run -- up
 
 # Watch tests and re-run on changes
 watch:

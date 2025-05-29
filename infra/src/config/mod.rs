@@ -24,13 +24,15 @@ pub use configuration::{
     AppConfig, 
     ServerConfig, 
     DatabaseConfig, 
+    DatabaseCredentials,
     JwtConfig, 
     OAuthConfig, 
     GitHubConfig, 
     GitLabConfig,
     LoggingConfig,
     CommandConfig,
-    CommandRetryConfig
+    CommandRetryConfig,
+    KafkaConfig
 };
 
 // Type aliases for backward compatibility
@@ -174,39 +176,43 @@ pub fn generate_default_config() -> Result<String, ConfigError> {
             tls_key_path: "./certs/key.pem".to_string(),
             tls_port: 8443,
         },
+        database: DatabaseConfig {
+            creds: DatabaseCredentials {
+                username: "postgres".to_string(),
+                password: "postgres".to_string(),
+            },
+            host: "localhost".to_string(),
+            port: 5432,
+            db: "iam".to_string(),
+            read_replicas: vec![],
+        },
         oauth: OAuthConfig {
             github: GitHubConfig {
-                client_id: "your_github_client_id".to_string(),
-                client_secret: "your_github_client_secret".to_string(),
-                redirect_uri: "http://localhost:8080/api/auth/github/callback".to_string(),
+                client_id: "YOUR_GITHUB_CLIENT_ID".to_string(),
+                client_secret: "YOUR_GITHUB_CLIENT_SECRET".to_string(),
+                redirect_uri: "http://localhost:8080/auth/github/callback".to_string(),
                 auth_url: "https://github.com/login/oauth/authorize".to_string(),
                 token_url: "https://github.com/login/oauth/access_token".to_string(),
                 user_url: "https://api.github.com/user".to_string(),
             },
             gitlab: GitLabConfig {
-                client_id: "your_gitlab_client_id".to_string(),
-                client_secret: "your_gitlab_client_secret".to_string(),
-                redirect_uri: "http://localhost:8080/api/auth/gitlab/callback".to_string(),
+                client_id: "YOUR_GITLAB_CLIENT_ID".to_string(),
+                client_secret: "YOUR_GITLAB_CLIENT_SECRET".to_string(),
+                redirect_uri: "http://localhost:8080/auth/gitlab/callback".to_string(),
                 auth_url: "https://gitlab.com/oauth/authorize".to_string(),
                 token_url: "https://gitlab.com/oauth/token".to_string(),
                 user_url: "https://gitlab.com/api/v4/user".to_string(),
             },
         },
         jwt: JwtConfig {
-            secret: "your_secret_key_here_change_in_production".to_string(),
+            secret: "your-256-bit-secret-key-change-this-in-production".to_string(),
             expiration_seconds: 3600,
         },
-        database: DatabaseConfig::new(
-            "username".to_string(),
-            "password".to_string(),
-            "localhost".to_string(),
-            5432,
-            "iam_db".to_string(),
-        ),
         logging: LoggingConfig {
             level: "info".to_string(),
         },
         command: CommandConfig::default(),
+        kafka: KafkaConfig::default(),
     };
     
     toml::to_string_pretty(&default_config)

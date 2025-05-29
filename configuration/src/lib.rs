@@ -344,7 +344,7 @@ impl Default for CommandRetryConfig {
     }
 }
 
-/// Command configuration
+/// Command configuration with retry settings and command-specific overrides
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CommandConfig {
     /// Default retry configuration for all commands
@@ -366,13 +366,102 @@ impl Default for CommandConfig {
 
 impl CommandConfig {
     /// Get retry configuration for a specific command
-    /// Returns command-specific configuration if available, otherwise returns default
+    /// Returns command-specific config if available, otherwise returns default
     pub fn get_retry_config(&self, command_type: &str) -> &CommandRetryConfig {
         self.overrides.get(command_type).unwrap_or(&self.retry)
     }
 }
 
-/// Complete application configuration
+/// Kafka configuration for event publishing
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KafkaConfig {
+    /// Kafka broker addresses (comma-separated)
+    #[serde(default = "default_kafka_brokers")]
+    pub brokers: String,
+    /// Topic for user events
+    #[serde(default = "default_user_events_topic")]
+    pub user_events_topic: String,
+    /// Producer client ID
+    #[serde(default = "default_kafka_client_id")]
+    pub client_id: String,
+    /// Message timeout in milliseconds
+    #[serde(default = "default_kafka_timeout_ms")]
+    pub timeout_ms: u64,
+    /// Maximum number of retries for failed messages
+    #[serde(default = "default_kafka_max_retries")]
+    pub max_retries: u32,
+    /// Whether to enable Kafka (for testing/development flexibility)
+    #[serde(default = "default_kafka_enabled")]
+    pub enabled: bool,
+    /// Compression type for messages (none, gzip, snappy, lz4, zstd)
+    #[serde(default = "default_kafka_compression")]
+    pub compression: String,
+    /// Security protocol (plaintext, ssl, sasl_plaintext, sasl_ssl)
+    #[serde(default = "default_kafka_security_protocol")]
+    pub security_protocol: String,
+    /// SASL mechanism (PLAIN, SCRAM-SHA-256, SCRAM-SHA-512, GSSAPI, OAUTHBEARER)
+    #[serde(default)]
+    pub sasl_mechanism: Option<String>,
+    /// SASL username
+    #[serde(default)]
+    pub sasl_username: Option<String>,
+    /// SASL password
+    #[serde(default)]
+    pub sasl_password: Option<String>,
+}
+
+impl Default for KafkaConfig {
+    fn default() -> Self {
+        Self {
+            brokers: default_kafka_brokers(),
+            user_events_topic: default_user_events_topic(),
+            client_id: default_kafka_client_id(),
+            timeout_ms: default_kafka_timeout_ms(),
+            max_retries: default_kafka_max_retries(),
+            enabled: default_kafka_enabled(),
+            compression: default_kafka_compression(),
+            security_protocol: default_kafka_security_protocol(),
+            sasl_mechanism: None,
+            sasl_username: None,
+            sasl_password: None,
+        }
+    }
+}
+
+// Kafka configuration defaults
+fn default_kafka_brokers() -> String {
+    "localhost:9092".to_string()
+}
+
+fn default_user_events_topic() -> String {
+    "user-events".to_string()
+}
+
+fn default_kafka_client_id() -> String {
+    "iam-service".to_string()
+}
+
+fn default_kafka_timeout_ms() -> u64 {
+    5000
+}
+
+fn default_kafka_max_retries() -> u32 {
+    3
+}
+
+fn default_kafka_enabled() -> bool {
+    true
+}
+
+fn default_kafka_compression() -> String {
+    "gzip".to_string()
+}
+
+fn default_kafka_security_protocol() -> String {
+    "plaintext".to_string()
+}
+
+/// Application configuration combining all subsystem configurations
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     /// Server configuration
@@ -389,6 +478,9 @@ pub struct AppConfig {
     /// Command configuration
     #[serde(default)]
     pub command: CommandConfig,
+    /// Kafka configuration
+    #[serde(default)]
+    pub kafka: KafkaConfig,
 }
 
 /// Setup logging based on configuration
@@ -1042,6 +1134,59 @@ mod tests {
         }
     }
 
+    mod kafka_config {
+        use super::*;
+
+        #[test]
+        fn default_kafka_config_has_expected_values() {
+            let config = KafkaConfig::default();
+            
+            assert_eq!(config.brokers, "localhost:9092");
+            assert_eq!(config.user_events_topic, "user-events");
+            assert_eq!(config.client_id, "iam-service");
+            assert_eq!(config.timeout_ms, 5000);
+            assert_eq!(config.max_retries, 3);
+            assert!(config.enabled);
+            assert_eq!(config.compression, "gzip");
+            assert_eq!(config.security_protocol, "plaintext");
+            assert!(config.sasl_mechanism.is_none());
+            assert!(config.sasl_username.is_none());
+            assert!(config.sasl_password.is_none());
+        }
+
+        #[test]
+        fn kafka_config_serialization_works() {
+            let config = KafkaConfig {
+                brokers: "test_brokers".to_string(),
+                user_events_topic: "test_topic".to_string(),
+                client_id: "test_client_id".to_string(),
+                timeout_ms: 10000,
+                max_retries: 5,
+                enabled: false,
+                compression: "snappy".to_string(),
+                security_protocol: "ssl".to_string(),
+                sasl_mechanism: Some("SCRAM-SHA-256".to_string()),
+                sasl_username: Some("test_username".to_string()),
+                sasl_password: Some("test_password".to_string()),
+            };
+
+            let json = assert_ok!(serde_json::to_string(&config));
+            let deserialized: KafkaConfig = assert_ok!(serde_json::from_str(&json));
+            
+            assert_eq!(deserialized.brokers, "test_brokers");
+            assert_eq!(deserialized.user_events_topic, "test_topic");
+            assert_eq!(deserialized.client_id, "test_client_id");
+            assert_eq!(deserialized.timeout_ms, 10000);
+            assert_eq!(deserialized.max_retries, 5);
+            assert!(!deserialized.enabled);
+            assert_eq!(deserialized.compression, "snappy");
+            assert_eq!(deserialized.security_protocol, "ssl");
+            assert_eq!(deserialized.sasl_mechanism, Some("SCRAM-SHA-256".to_string()));
+            assert_eq!(deserialized.sasl_username, Some("test_username".to_string()));
+            assert_eq!(deserialized.sasl_password, Some("test_password".to_string()));
+        }
+    }
+
     mod app_config {
         use super::*;
 
@@ -1057,6 +1202,7 @@ mod tests {
                 database: sample_database_config(),
                 logging: LoggingConfig::default(),
                 command: sample_command_config(),
+                kafka: KafkaConfig::default(),
             };
 
             assert_eq!(app_config.server.host, "127.0.0.1");
@@ -1078,6 +1224,7 @@ mod tests {
                 database: sample_database_config(),
                 logging: LoggingConfig::default(),
                 command: sample_command_config(),
+                kafka: KafkaConfig::default(),
             };
 
             let json = assert_ok!(serde_json::to_string(&app_config));

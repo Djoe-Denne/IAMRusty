@@ -423,9 +423,8 @@ async fn test_oauth_callback_prevents_linking_provider_already_bound_to_another_
     
     let error_response: Value = response.json().await.expect("Should return JSON error response");
     
-    assert_eq!(error_response["operation"], "link");
-    assert_eq!(error_response["error"], "provider_already_linked");
-    assert!(error_response["message"].as_str().unwrap().contains("already linked to another user"), 
+    assert_eq!(error_response["error"]["error_code"], "provider_already_linked");
+    assert!(error_response["error"]["message"].as_str().unwrap().contains("already linked to another user"), 
            "Error message should indicate provider is already linked");
     
     // ✅ Should still have exactly two users (no new users created)
@@ -477,9 +476,8 @@ async fn test_oauth_callback_fails_on_invalid_authorization_code() {
     let error_response: Value = response.json().await.expect("Should return JSON error response");
     
     // For invalid code, the error comes from the login usecase, not the callback endpoint
-    assert_eq!(error_response["operation"], "login");
-    assert_eq!(error_response["error"], "authentication_failed");
-    assert!(error_response["message"].as_str().unwrap().contains("Authentication failed"), 
+    assert_eq!(error_response["error"]["error_code"], "authentication_failed");
+    assert!(error_response["error"]["message"].as_str().unwrap().contains("Authentication failed"), 
            "Error message should mention authentication failure");
     
     // ✅ Should not create any users or tokens
@@ -523,9 +521,8 @@ async fn test_oauth_callback_fails_on_expired_authorization_code() {
     let error_response: Value = response.json().await.expect("Should return JSON error response");
     
     // For expired code, the error comes from the login usecase, not the callback endpoint
-    assert_eq!(error_response["operation"], "login");
-    assert_eq!(error_response["error"], "authentication_failed");
-    assert!(error_response["message"].as_str().unwrap().contains("Authentication failed"), 
+    assert_eq!(error_response["error"]["error_code"], "authentication_failed");
+    assert!(error_response["error"]["message"].as_str().unwrap().contains("Authentication failed"), 
            "Error message should mention authentication failure");
     
     // ✅ Should not create any users or tokens
@@ -556,9 +553,8 @@ async fn test_oauth_callback_returns_400_on_missing_state_parameter() {
     
     let error_response: Value = response.json().await.expect("Should return JSON error response");
     
-    assert_eq!(error_response["operation"], "callback");
-    assert_eq!(error_response["error"], "missing_state");
-    assert!(error_response["message"].as_str().unwrap().contains("state parameter"), 
+    assert_eq!(error_response["error"]["error_code"], "missing_state");
+    assert!(error_response["error"]["message"].as_str().unwrap().contains("state parameter"), 
            "Error message should mention missing state parameter");
 }
 
@@ -585,8 +581,7 @@ async fn test_oauth_callback_returns_400_on_missing_code_parameter() {
     
     let error_response: Value = response.json().await.expect("Should return JSON error response");
     
-    assert_eq!(error_response["operation"], "callback");
-    assert_eq!(error_response["error"], "missing_code");
+    assert_eq!(error_response["error"]["error_code"], "missing_code");
 }
 
 #[tokio::test]
@@ -615,9 +610,8 @@ async fn test_oauth_callback_returns_400_on_invalid_state_format() {
     
     let error_response: Value = response.json().await.expect("Should return JSON error response");
     
-    assert_eq!(error_response["operation"], "callback");
-    assert_eq!(error_response["error"], "invalid_state");
-    assert!(error_response["message"].as_str().unwrap().contains("state parameter"), 
+    assert_eq!(error_response["error"]["error_code"], "invalid_state");
+    assert!(error_response["error"]["message"].as_str().unwrap().contains("state parameter"), 
            "Error message should mention invalid state parameter");
 }
 
@@ -653,8 +647,7 @@ async fn test_oauth_callback_returns_400_on_invalid_state_purpose() {
     
     let error_response: Value = response.json().await.expect("Should return JSON error response");
     
-    assert_eq!(error_response["operation"], "callback");
-    assert_eq!(error_response["error"], "invalid_state");
+    assert_eq!(error_response["error"]["error_code"], "invalid_state");
 }
 
 #[tokio::test]
@@ -691,9 +684,8 @@ async fn test_oauth_callback_returns_401_when_provider_refuses_user() {
     let error_response: Value = response.json().await.expect("Should return JSON error response");
     
     // For provider refusal, the error comes from the login usecase
-    assert_eq!(error_response["operation"], "login");
-    assert_eq!(error_response["error"], "authentication_failed");
-    assert!(error_response["message"].as_str().unwrap().contains("Authentication failed"), 
+    assert_eq!(error_response["error"]["error_code"], "authentication_failed");
+    assert!(error_response["error"]["message"].as_str().unwrap().contains("Authentication failed"), 
            "Error message should mention authentication failure");
     
     // ✅ Should not create any users or tokens
@@ -738,9 +730,8 @@ async fn test_oauth_callback_returns_401_when_provider_rejects_user() {
     let error_response: Value = response.json().await.expect("Should return JSON error response");
     
     // For provider rejection, the error comes from the login usecase
-    assert_eq!(error_response["operation"], "login");
-    assert_eq!(error_response["error"], "authentication_failed");
-    assert!(error_response["message"].as_str().unwrap().contains("Authentication failed"), 
+    assert_eq!(error_response["error"]["error_code"], "authentication_failed");
+    assert!(error_response["error"]["message"].as_str().unwrap().contains("Authentication failed"), 
            "Error message should mention authentication failure");
     
     // ✅ Should not create any users or tokens

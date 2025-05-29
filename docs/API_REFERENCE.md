@@ -40,8 +40,6 @@ Authorization: Bearer <jwt_token>
 3. **Refresh Token**: Use `/api/token/refresh` before expiration
 4. **Token Expiry**: Default 3600 seconds (1 hour)
 
-## Endpoints
-
 ### OAuth Authentication
 
 #### Start OAuth Flow
@@ -149,6 +147,141 @@ Handles OAuth2 provider callback and processes authorization code.
 - `400 Bad Request`: Invalid parameters, missing code/state
 - `401 Unauthorized`: Authentication failed
 - `409 Conflict`: Provider already linked
+
+### Email/Password Authentication
+
+#### User Registration
+
+```http
+POST /api/auth/signup
+```
+
+Registers a new user with email and password credentials.
+
+**Request Body:**
+```json
+{
+  "username": "alice",
+  "email": "alice@example.com",
+  "password": "securePassword123"
+}
+```
+
+**Validation Rules:**
+- `username`: Non-empty string, trimmed
+- `email`: Valid email format, unique across system
+- `password`: Minimum 8 characters
+
+**Response (201 Created):**
+```json
+{
+  "message": "User created successfully. Please check your email for verification instructions."
+}
+```
+
+**Error Responses:**
+- `400 Bad Request`: Validation errors
+- `409 Conflict`: User with email already exists
+
+**Example:**
+```bash
+curl -X POST "https://iam.example.com/api/auth/signup" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "alice",
+    "email": "alice@example.com",
+    "password": "securePassword123"
+  }'
+```
+
+#### Email Verification
+
+```http
+POST /api/auth/verify
+```
+
+Verifies a user's email address using a verification token sent via email.
+
+**Request Body:**
+```json
+{
+  "email": "alice@example.com",
+  "verification_token": "abc123def456ghi789"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "message": "Email verified successfully"
+}
+```
+
+**Error Responses:**
+- `400 Bad Request`: Invalid token or expired
+- `404 Not Found`: Email or token not found
+- `409 Conflict`: Email already verified
+
+**Example:**
+```bash
+curl -X POST "https://iam.example.com/api/auth/verify" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "alice@example.com",
+    "verification_token": "abc123def456ghi789"
+  }'
+```
+
+#### Email/Password Login
+
+```http
+POST /api/auth/login
+```
+
+Authenticates a user with email and password credentials.
+
+**Request Body:**
+```json
+{
+  "email": "alice@example.com",
+  "password": "securePassword123"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "user": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "username": "alice",
+    "email": "alice@example.com",
+    "avatar": null
+  },
+  "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
+}
+```
+
+**Error Responses:**
+- `400 Bad Request`: Validation errors
+- `401 Unauthorized`: Invalid credentials
+- `403 Forbidden`: Email not verified
+
+**Security Features:**
+- Passwords hashed using Argon2
+- Rate limiting on login attempts
+- Email verification required before login
+
+**Example:**
+```bash
+curl -X POST "https://iam.example.com/api/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "alice@example.com",
+    "password": "securePassword123"
+  }'
+```
+
+## Endpoints
 
 ### Token Management
 

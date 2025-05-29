@@ -11,7 +11,7 @@ tls_enabled = false
 [database]
 # Database connection details
 host = "localhost"
-port = 0
+port = 0  # Use random port for testing
 db = "iam_test"
 # Database credentials
 [database.creds]
@@ -42,7 +42,7 @@ expiration_seconds = 3600
 
 # Enable maximum logging for tests
 [logging]
-level = "" 
+level = ""
 
 # Command configuration for testing
 [command.retry]
@@ -52,4 +52,15 @@ base_delay_ms = 50
 max_delay_ms = 5000
 backoff_multiplier = 2.0
 use_jitter = false  # Disable jitter for predictable test behavior
+
+# Kafka configuration for testing (disabled by default)
+[kafka]
+enabled = false  # Disabled for tests - use mock publisher
+brokers = "localhost:9092"
+user_events_topic = "test-user-events"
+client_id = "iam-service-test"
+timeout_ms = 1000
+max_retries = 1
+compression = "none"
+security_protocol = "plaintext"
 

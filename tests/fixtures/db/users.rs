@@ -12,6 +12,7 @@ use infra::repository::entity::users::{Entity as UsersEntity, Model as UserModel
 pub struct UserFixtureBuilder {
     id: Option<Uuid>,
     username: Option<String>,
+    password_hash: Option<Option<String>>,
     avatar_url: Option<Option<String>>,
     created_at: Option<NaiveDateTime>,
     updated_at: Option<NaiveDateTime>,
@@ -23,6 +24,7 @@ impl UserFixtureBuilder {
         Self {
             id: None,
             username: None,
+            password_hash: None,
             avatar_url: None,
             created_at: None,
             updated_at: None,
@@ -38,6 +40,12 @@ impl UserFixtureBuilder {
     /// Set the username
     pub fn username(mut self, username: impl Into<String>) -> Self {
         self.username = Some(username.into());
+        self
+    }
+    
+    /// Set the password hash
+    pub fn password_hash(mut self, password_hash: impl Into<String>) -> Self {
+        self.password_hash = Some(Some(password_hash.into()));
         self
     }
     
@@ -96,6 +104,13 @@ impl UserFixtureBuilder {
         self.username("no_avatar_user")
             .avatar_url(None)
     }
+    
+    /// Create a user with email/password authentication
+    pub fn with_password(self, username: impl Into<String>, password_hash: impl Into<String>) -> Self {
+        self.username(username)
+            .password_hash(password_hash)
+            .avatar_url(None)
+    }
 }
 
 impl Default for UserFixtureBuilder {
@@ -118,6 +133,7 @@ impl DbFixture<UsersEntity, UserModel, UserActiveModel> for UserFixtureBuilder {
         UserActiveModel {
             id: ActiveValue::Set(self.id.unwrap_or_else(TestData::uuid)),
             username: ActiveValue::Set(self.username.clone().unwrap_or_else(TestData::username)),
+            password_hash: ActiveValue::Set(self.password_hash.clone().unwrap_or(None)),
             avatar_url: ActiveValue::Set(self.avatar_url.clone().unwrap_or(None)),
             created_at: ActiveValue::Set(self.created_at.unwrap_or(now)),
             updated_at: ActiveValue::Set(self.updated_at.unwrap_or(now)),

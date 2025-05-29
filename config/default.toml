@@ -41,6 +41,21 @@ user_url = "https://gitlab.com/api/v4/user"
 secret = "your-jwt-secret-key-should-be-at-least-32-bytes"
 expiration_seconds = 3600
 
+# Kafka configuration for event publishing
+[kafka]
+enabled = true
+brokers = "localhost:9092"
+user_events_topic = "user-events"
+client_id = "iam-service"
+timeout_ms = 5000
+max_retries = 3
+compression = "gzip"
+security_protocol = "plaintext"
+# Optional SASL configuration
+# sasl_mechanism = "PLAIN"
+# sasl_username = "your-kafka-username"
+# sasl_password = "your-kafka-password"
+
 # Command configuration
 [command.retry]
 # Default retry configuration for all commands
