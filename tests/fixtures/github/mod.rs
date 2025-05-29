@@ -1,8 +1,6 @@
 pub mod service;
 pub mod resources;
 
-pub use service::*;
-pub use resources::*;
 
 /// Main GitHub fixtures namespace
 pub struct GitHubFixtures;
@@ -14,5 +12,4 @@ impl GitHubFixtures {
     }
 }
 
-/// Re-export resources for easy access
-pub use resources::*; 
+ 

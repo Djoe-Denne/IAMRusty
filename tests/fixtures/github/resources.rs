@@ -1,13 +1,6 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-/// GitHub resources namespace - re-export all types for easy access
-pub use GitHubUser as User;
-pub use GitHubTokenRequest as TokenRequest;
-pub use GitHubTokenResponse as TokenResponse;
-pub use GitHubUserRequest as UserRequest;
-pub use GitHubAuthRequest as AuthRequest;
-pub use GitHubError as Error;
 
 /// GitHub user data structure matching the API response
 #[derive(Debug, Clone, Serialize, Deserialize)]

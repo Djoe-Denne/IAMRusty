@@ -1,7 +1,7 @@
 use crate::usecase::auth::{
     AuthUseCase, AuthUseCaseImpl, PasswordService, EmailVerificationRepository, TokenService
 };
-use domain::port::repository::{UserRepository, UserEmailRepository, UserReadRepository, UserWriteRepository, UserEmailReadRepository, UserEmailWriteRepository};
+use domain::port::repository::{UserRepository, UserEmailRepository};
 use domain::port::event_publisher::EventPublisher;
 use std::sync::Arc;
 

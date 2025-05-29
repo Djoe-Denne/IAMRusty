@@ -1,12 +1,6 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-/// GitLab resources namespace - re-export all types for easy access
-pub use GitLabUser as User;
-pub use GitLabTokenRequest as TokenRequest;
-pub use GitLabTokenResponse as TokenResponse;
-pub use GitLabUserRequest as UserRequest;
-pub use GitLabError as Error;
 
 /// GitLab user data structure matching the API response
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -1,7 +1,7 @@
 use sea_orm::{DatabaseConnection, ActiveValue, DbErr, ActiveModelTrait};
 use std::sync::Arc;
 use uuid::Uuid;
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use sea_orm::prelude::DateTimeWithTimeZone;
 use super::common::{DbFixture, CommittedFixture, TestData};
 

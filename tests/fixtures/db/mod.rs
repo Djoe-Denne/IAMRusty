@@ -5,11 +5,6 @@ pub mod refresh_tokens;
 pub mod common;
 
 // Re-export all fixtures for easy access
-pub use users::*;
-pub use user_emails::*;
-pub use provider_tokens::*;
-pub use refresh_tokens::*;
-pub use common::*;
 
 /// Main entry point for DB fixtures
 pub struct DbFixtures;

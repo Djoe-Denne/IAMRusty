@@ -1,4 +1,4 @@
-use sea_orm::{DatabaseConnection, EntityTrait, ModelTrait, ActiveModelTrait, ActiveValue, DbErr, PrimaryKeyTrait};
+use sea_orm::{DatabaseConnection, EntityTrait, ModelTrait, ActiveModelTrait, DbErr};
 use std::fmt::Debug;
 use uuid::Uuid;
 use chrono::{DateTime, Utc, NaiveDateTime};

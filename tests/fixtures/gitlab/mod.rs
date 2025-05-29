@@ -1,8 +1,6 @@
 pub mod service;
 pub mod resources;
 
-pub use service::*;
-pub use resources::*;
 
 /// Main GitLab fixtures namespace
 pub struct GitLabFixtures;
@@ -14,5 +12,4 @@ impl GitLabFixtures {
     }
 }
 
-/// Re-export resources for easy access
-pub use resources::*; 
+ 

@@ -1,7 +1,7 @@
 use sea_orm::{DatabaseConnection, ActiveValue, DbErr, ActiveModelTrait};
 use std::sync::Arc;
 use uuid::Uuid;
-use chrono::{DateTime, Utc, NaiveDateTime};
+use chrono::NaiveDateTime;
 use super::common::{DbFixture, CommittedFixture, TestData};
 
 // Import the entity types
