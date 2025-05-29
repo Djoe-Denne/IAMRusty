@@ -19,7 +19,7 @@ use application::{
         user::UserUseCase,
         token::TokenUseCase,
     },
-    command::service::DynCommandService,
+    command::GenericCommandService,
 };
 use configuration::OAuthConfig;
 
@@ -44,7 +44,7 @@ use middleware_auth::auth as auth_middleware;
 #[derive(Clone)]
 pub struct AppState {
     /// Command service for handling commands with cross-cutting concerns
-    pub command_service: Arc<DynCommandService>,
+    pub command_service: Arc<GenericCommandService>,
     /// User use case
     pub user_usecase: Arc<dyn UserUseCase>,
     /// Token use case
@@ -56,7 +56,7 @@ pub struct AppState {
 impl AppState {
     /// Create a new AppState
     pub fn new(
-        command_service: Arc<DynCommandService>,
+        command_service: Arc<GenericCommandService>,
         user_usecase: Arc<dyn UserUseCase>,
         token_usecase: Arc<dyn TokenUseCase>,
         oauth_config: OAuthConfig,

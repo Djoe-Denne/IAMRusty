@@ -8,7 +8,14 @@ use axum_valid::Valid;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 use domain::entity::provider::Provider;
-use application::command::CommandContext;
+use application::command::{
+    CommandContext,
+    login::{LoginCommand, GenerateLoginStartUrlCommand},
+    link_provider::{LinkProviderCommand, GenerateLinkProviderStartUrlCommand},
+    signup::SignupCommand,
+    password_login::PasswordLoginCommand,
+    verify_email::VerifyEmailCommand,
+};
 use crate::{AppState, oauth_state::OAuthState, error::AuthError, validation::*, extractors::ValidatedJson};
 use tracing::{debug, error};
 use uuid::Uuid;
@@ -201,14 +208,16 @@ pub async fn oauth_start(
     
     let base_auth_url = if oauth_state.is_login() {
         // Login operation - use login command
+        let command = GenerateLoginStartUrlCommand::new(provider);
         state.command_service
-            .generate_login_start_url(provider, context)
+            .execute(command, context)
             .await
             .map_err(|_e| AuthError::oauth_url_generation_failed("start"))?
     } else {
         // Link operation - use link provider command
+        let command = GenerateLinkProviderStartUrlCommand::new(provider);
         state.command_service
-            .generate_link_provider_start_url(provider, context)
+            .execute(command, context)
             .await
             .map_err(|_e| AuthError::oauth_url_generation_failed("start"))?
     };
@@ -292,9 +301,10 @@ async fn handle_login_callback(
         .with_metadata("operation".to_string(), "login_callback".to_string())
         .with_metadata("provider".to_string(), provider.as_str().to_string());
     
+    let command = LoginCommand::new(provider, code, redirect_uri);
     let response = state
         .command_service
-        .login(provider, code, redirect_uri, context)
+        .execute(command, context)
         .await
         .map_err(|e| {
             error!("Failed to login: {}", e);
@@ -330,9 +340,10 @@ async fn handle_link_callback(
         .with_metadata("operation".to_string(), "link_callback".to_string())
         .with_metadata("provider".to_string(), provider.as_str().to_string());
     
+    let command = LinkProviderCommand::new(user_id, provider, code, redirect_uri);
     let response = state
         .command_service
-        .link_provider(user_id, provider, code, redirect_uri, context)
+        .execute(command, context)
         .await
         .map_err(|e| {
             error!("Failed to link provider: {}", e);
@@ -382,14 +393,10 @@ pub async fn signup(
         .with_metadata("operation".to_string(), "signup".to_string())
         .with_metadata("email".to_string(), request.email.clone());
     
+    let command = SignupCommand::new(request.username, request.email, request.password);
     let response = state
         .command_service
-        .signup(
-            request.username,
-            request.email,
-            request.password,
-            context,
-        )
+        .execute(command, context)
         .await
         .map_err(|e| {
             error!("Signup failed: {}", e);
@@ -412,13 +419,10 @@ pub async fn login(
         .with_metadata("operation".to_string(), "login".to_string())
         .with_metadata("email".to_string(), request.email.clone());
     
+    let command = PasswordLoginCommand::new(request.email, request.password);
     let response = state
         .command_service
-        .password_login(
-            request.email,
-            request.password,
-            context,
-        )
+        .execute(command, context)
         .await
         .map_err(|e| {
             error!("Login failed: {}", e);
@@ -447,13 +451,10 @@ pub async fn verify_email(
         .with_metadata("operation".to_string(), "verify_email".to_string())
         .with_metadata("email".to_string(), request.email.clone());
     
+    let command = VerifyEmailCommand::new(request.email, request.verification_token);
     let response = state
         .command_service
-        .verify_email(
-            request.email,
-            request.verification_token,
-            context,
-        )
+        .execute(command, context)
         .await
         .map_err(|e| {
             error!("Email verification failed: {}", e);

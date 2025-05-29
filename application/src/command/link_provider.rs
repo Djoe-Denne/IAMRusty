@@ -1,4 +1,5 @@
-use super::{Command, CommandError, CommandHandler, error_mapping::ErrorMapping};
+use super::{Command, CommandError, CommandHandler, error_mappers::LinkProviderErrorMapper};
+use super::registry::CommandErrorMapper;
 use crate::usecase::link_provider::{LinkProviderUseCase, LinkProviderResponse};
 use domain::entity::provider::Provider;
 use async_trait::async_trait;
@@ -115,7 +116,7 @@ where
                 command.redirect_uri,
             )
             .await
-            .map_err(ErrorMapping::map_link_provider_error)
+            .map_err(|e| LinkProviderErrorMapper.map_error(Box::new(e)))
     }
 }
 
@@ -184,6 +185,6 @@ where
     async fn handle(&self, command: GenerateLinkProviderStartUrlCommand) -> Result<String, CommandError> {
         self.link_provider_use_case
             .generate_start_url(command.provider)
-            .map_err(ErrorMapping::map_link_provider_error)
+            .map_err(|e| LinkProviderErrorMapper.map_error(Box::new(e)))
     }
 } 

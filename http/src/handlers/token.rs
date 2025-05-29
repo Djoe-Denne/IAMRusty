@@ -6,7 +6,7 @@ use axum_valid::Valid;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 use crate::{error::ApiError, validation::*};
-use application::command::CommandContext;
+use application::command::{CommandContext, token::RefreshTokenCommand};
 
 use tracing::debug;
 
@@ -38,9 +38,10 @@ pub async fn refresh_token(
         .with_metadata("operation".to_string(), "refresh_token".to_string());
     
     // Refresh the token using command service
+    let command = RefreshTokenCommand::new(request.refresh_token);
     let response = state
         .command_service
-        .refresh_token(request.refresh_token, context)
+        .execute(command, context)
         .await?;
     
     Ok(Json(TokenResponse {

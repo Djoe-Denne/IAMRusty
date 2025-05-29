@@ -36,8 +36,7 @@ use application::{
         auth::AuthUseCaseImpl,
     },
     command::{
-        bus::CommandBus,
-        service::DynCommandService,
+        CommandRegistryFactory, GenericCommandService,
     },
 };
 
@@ -164,19 +163,15 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
         token_service,
     );
 
-    // Create command bus and service
-    let command_bus = Arc::new(CommandBus::with_command_config(
-        application::command::bus::CommandBusConfig::default(),
-        config.command.clone(),
-    ));
-    let command_service = Arc::new(DynCommandService::new(
-        command_bus,
+    // Create command registry and service
+    let registry = CommandRegistryFactory::create_iam_registry(
         Arc::new(login_usecase),
         Arc::new(link_provider_usecase),
         Arc::new(token_usecase_for_commands),
         Arc::new(user_usecase_for_commands),
         Arc::new(auth_usecase),
-    ));
+    );
+    let command_service = Arc::new(GenericCommandService::new(Arc::new(registry)));
 
     // Create app state
     let app_state = AppState::new(

@@ -1,4 +1,4 @@
-use super::{Command, CommandError, CommandHandler, error_mapping::ErrorMapping};
+use super::{Command, CommandError, CommandHandler};
 use crate::usecase::user::{UserUseCase, UserProfile};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -105,10 +105,13 @@ where
     U: UserUseCase + Send + Sync + ?Sized,
 {
     async fn handle(&self, command: GetUserCommand) -> Result<UserProfile, CommandError> {
-        self.user_use_case
-            .get_user(command.user_id)
-            .await
-            .map_err(ErrorMapping::map_user_error)
+        match self.user_use_case.get_user(command.user_id).await {
+            Ok(profile) => Ok(profile),
+            Err(_e) => {
+                // Convert user errors to appropriate command errors
+                Err(CommandError::Authentication("Authentication failed".to_string()))
+            }
+        }
     }
 }
 
@@ -138,9 +141,12 @@ where
     U: UserUseCase + Send + Sync + ?Sized,
 {
     async fn handle(&self, command: ValidateTokenCommand) -> Result<Uuid, CommandError> {
-        self.user_use_case
-            .validate_token(&command.token)
-            .await
-            .map_err(ErrorMapping::map_user_error)
+        match self.user_use_case.validate_token(&command.token).await {
+            Ok(user_id) => Ok(user_id),
+            Err(_e) => {
+                // Convert user errors to appropriate command errors  
+                Err(CommandError::Authentication("Authentication failed".to_string()))
+            }
+        }
     }
 } 

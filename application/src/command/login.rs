@@ -1,4 +1,5 @@
-use super::{Command, CommandError, CommandHandler, error_mapping::ErrorMapping};
+use super::{Command, CommandError, CommandHandler, error_mappers::LoginErrorMapper};
+use super::registry::CommandErrorMapper;
 use crate::usecase::login::{LoginUseCase, LoginResponse};
 use domain::entity::provider::Provider;
 use async_trait::async_trait;
@@ -95,7 +96,7 @@ where
         self.login_use_case
             .login(command.provider, command.code, command.redirect_uri)
             .await
-            .map_err(ErrorMapping::map_login_error)
+            .map_err(|e| LoginErrorMapper.map_error(Box::new(e)))
     }
 }
 
@@ -164,6 +165,6 @@ where
     async fn handle(&self, command: GenerateLoginStartUrlCommand) -> Result<String, CommandError> {
         self.login_use_case
             .generate_start_url(command.provider)
-            .map_err(ErrorMapping::map_login_error)
+            .map_err(|e| LoginErrorMapper.map_error(Box::new(e)))
     }
 } 

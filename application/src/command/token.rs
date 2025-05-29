@@ -1,4 +1,5 @@
-use super::{Command, CommandError, CommandHandler, error_mapping::ErrorMapping};
+use super::{Command, CommandError, CommandHandler, error_mappers::TokenErrorMapper};
+use super::registry::CommandErrorMapper;
 use crate::usecase::token::{TokenUseCase, RefreshTokenResponse};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -146,7 +147,7 @@ where
         self.token_use_case
             .refresh_token(command.refresh_token)
             .await
-            .map_err(ErrorMapping::map_token_error)
+            .map_err(|e| TokenErrorMapper.map_error(Box::new(e)))
     }
 }
 
@@ -179,7 +180,7 @@ where
         self.token_use_case
             .revoke_token(command.refresh_token)
             .await
-            .map_err(ErrorMapping::map_token_error)
+            .map_err(|e| TokenErrorMapper.map_error(Box::new(e)))
     }
 }
 
@@ -212,6 +213,6 @@ where
         self.token_use_case
             .revoke_all_tokens(command.user_id)
             .await
-            .map_err(ErrorMapping::map_token_error)
+            .map_err(|e| TokenErrorMapper.map_error(Box::new(e)))
     }
 } 

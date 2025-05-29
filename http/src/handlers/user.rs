@@ -5,7 +5,7 @@ use axum::{
 use serde::Serialize;
 use uuid::Uuid;
 use crate::error::ApiError;
-use application::command::CommandContext;
+use application::command::{CommandContext, user::GetUserCommand};
 
 use tracing::debug;
 
@@ -34,9 +34,10 @@ pub async fn get_user(
         .with_metadata("operation".to_string(), "get_user".to_string());
     
     // Get the user using command service
+    let command = GetUserCommand::new(user_id);
     let user = state
         .command_service
-        .get_user(user_id, context)
+        .execute(command, context)
         .await?;
     
     Ok(Json(UserResponse {

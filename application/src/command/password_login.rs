@@ -1,4 +1,5 @@
-use super::{Command, CommandError, CommandHandler, error_mapping::ErrorMapping};
+use super::{Command, CommandError, CommandHandler, error_mappers::AuthErrorMapper};
+use super::registry::CommandErrorMapper;
 use crate::usecase::auth::{AuthUseCase, LoginRequest, LoginResponse};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -90,6 +91,6 @@ where
         self.auth_use_case
             .login(request)
             .await
-            .map_err(ErrorMapping::map_auth_error)
+            .map_err(|e| AuthErrorMapper.map_error(Box::new(e)))
     }
 } 

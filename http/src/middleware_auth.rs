@@ -6,7 +6,7 @@ use axum::{
     body::Body,
 };
 
-use application::command::{CommandContext, CommandError};
+use application::command::{CommandContext, CommandError, user::ValidateTokenCommand};
 use uuid::Uuid;
 use std::collections::HashMap;
 
@@ -47,9 +47,10 @@ pub async fn auth(
     };
 
     // Validate the token using command service
+    let command = ValidateTokenCommand::new(token.to_string());
     let user_id = state
         .command_service
-        .validate_token(token.to_string(), context)
+        .execute(command, context)
         .await
         .map_err(|e| match e {
             CommandError::Authentication(_) => StatusCode::UNAUTHORIZED,

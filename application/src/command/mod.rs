@@ -1,13 +1,31 @@
-pub mod bus;
 pub mod login;
 pub mod link_provider;
 pub mod token;
 pub mod user;
-pub mod service;
-pub mod error_mapping;
 pub mod signup;
 pub mod password_login;
 pub mod verify_email;
+
+// New modules for the extensible command system
+pub mod registry;
+pub mod error_mappers;
+pub mod generic_service;
+pub mod factory;
+
+// Re-exports for the extensible command system
+pub use registry::{
+    CommandRegistry, CommandRegistryBuilder, CommandErrorMapper, DynCommandHandler,
+    RetryPolicy, RegistryConfig, MetricsCollector, LoggingMetricsCollector
+};
+pub use generic_service::GenericCommandService;
+pub use factory::CommandRegistryFactory;
+pub use error_mappers::{
+    AuthErrorMapper, LoginErrorMapper, LinkProviderErrorMapper, 
+    TokenErrorMapper, UserErrorMapper
+};
+
+// Convenience alias for the new service
+pub type ExtensibleCommandService = GenericCommandService;
 
 use async_trait::async_trait;
 
