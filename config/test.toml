@@ -53,14 +53,15 @@ max_delay_ms = 5000
 backoff_multiplier = 2.0
 use_jitter = false  # Disable jitter for predictable test behavior
 
-# Kafka configuration for testing (disabled by default)
+# Kafka configuration for testing (enabled for real integration testing)
 [kafka]
-enabled = false  # Disabled for tests - use mock publisher
-brokers = "localhost:9092"
+enabled = true  # Enabled for real Kafka integration tests
+host = "localhost"
+port = 0  # Use random port for testing to avoid conflicts
 user_events_topic = "test-user-events"
 client_id = "iam-service-test"
-timeout_ms = 1000
-max_retries = 1
+timeout_ms = 5000
+max_retries = 3
 compression = "none"
 security_protocol = "plaintext"
 

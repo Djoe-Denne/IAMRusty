@@ -44,13 +44,16 @@ expiration_seconds = 3600
 # Kafka configuration for event publishing
 [kafka]
 enabled = true
-brokers = "localhost:9092"
+host = "localhost"
+port = 9092
 user_events_topic = "user-events"
 client_id = "iam-service"
 timeout_ms = 5000
 max_retries = 3
 compression = "gzip"
 security_protocol = "plaintext"
+# Additional broker hosts for multi-broker setups (optional)
+additional_brokers = []
 # Optional SASL configuration
 # sasl_mechanism = "PLAIN"
 # sasl_username = "your-kafka-username"

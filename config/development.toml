@@ -1,30 +1,64 @@
 # Development environment configuration
 
 [server]
+host = "127.0.0.1"
 port = 8080
 
 [database]
-# Database connection details
-host = "localhost"
-port = 5432
+# Use a different database for development
 db = "iam_dev"
-# Database credentials
-[database.creds]
-username = "postgres"
-password = "postgres"
+
+[oauth.github]
+# Development GitHub OAuth settings
+redirect_uri = "http://localhost:8080/api/auth/github/callback"
+
+[oauth.gitlab]
+# Development GitLab OAuth settings  
+redirect_uri = "http://localhost:8080/api/auth/gitlab/callback"
+
+[jwt]
+# Shorter expiration for development
+expiration_seconds = 3600  # 1 hour
+
+# Kafka configuration for event publishing
+[kafka]
+enabled = true
+host = "localhost"
+port = 9092
+user_events_topic = "user-events"
+client_id = "iam-service-dev"
+timeout_ms = 5000
+max_retries = 3
+compression = "gzip"
+security_protocol = "plaintext"
+
+# For SSL development setup:
+# 1. Enable SSL feature in Cargo.toml: rdkafka = { features = ["cmake-build", "ssl", "tokio"] }
+# 2. Uncomment and configure the following:
+# security_protocol = "ssl"
+# ssl_ca_location = "probe"  # Use system CA certificates
+# ssl_certificate_location = "/path/to/client-cert.pem"  # Optional for mutual TLS
+# ssl_key_location = "/path/to/client-key.pem"  # Optional for mutual TLS
+# ssl_key_password = "client-key-password"  # Optional if key is encrypted
+
+# For SASL authentication (works with or without SSL):
+# sasl_mechanism = "PLAIN"  # or "SCRAM-SHA-256", "SCRAM-SHA-512"
+# sasl_username = "kafka-username"
+# sasl_password = "kafka-password"
+# security_protocol = "sasl_plaintext"  # or "sasl_ssl" if using SSL
+
+# Command configuration for development
+[command.retry]
+# Faster retries for development
+max_attempts = 2
+base_delay_ms = 50
+max_delay_ms = 5000
+backoff_multiplier = 2.0
+use_jitter = false
 
 # Enable debug level logging
 [logging]
 level = "debug"
-
-# Command configuration for development
-[command.retry]
-# More lenient retry settings for development
-max_attempts = 5
-base_delay_ms = 200
-max_delay_ms = 10000
-backoff_multiplier = 2.0
-use_jitter = true
 
 # Command-specific overrides for development
 [command.overrides.test_command]

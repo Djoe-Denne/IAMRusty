@@ -22,7 +22,7 @@ use infra::{
         combined_email_verification_repository::CombinedEmailVerificationRepository,
     },
     db::DbConnectionPool,
-    event::NoOpEventPublisher,
+    event::create_event_publisher,
 };
 
 use configuration::AppConfig;
@@ -97,8 +97,8 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
     let password_service = Arc::new(PasswordService::new());
     let password_service_adapter = Arc::new(PasswordServiceAdapter::new(password_service));
 
-    // Create event publisher (no-op for now)
-    let event_publisher = Arc::new(NoOpEventPublisher::new());
+    // Create event publisher using configuration
+    let event_publisher = create_event_publisher(&config.kafka)?;
 
     // Create token service
     let token_service = Arc::new(JwtTokenService::new(

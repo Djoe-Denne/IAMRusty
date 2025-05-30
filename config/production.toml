@@ -53,4 +53,19 @@ backoff_multiplier = 1.8
 use_jitter = true
 
 # Note: Logging configuration should be handled by the application logger, not config
-# You can set RUST_LOG environment variable for log levels 
+# You can set RUST_LOG environment variable for log levels
+
+# Kafka configuration for production
+[kafka]
+enabled = true
+host = "kafka.production.com"
+port = 9092
+user_events_topic = "user-events"
+client_id = "iam-service"
+timeout_ms = 5000
+max_retries = 3
+compression = "gzip"
+security_protocol = "ssl"
+# Use environment variables for production secrets:
+# IAM_KAFKA__SASL_USERNAME=your-kafka-username
+# IAM_KAFKA__SASL_PASSWORD=your-kafka-password 

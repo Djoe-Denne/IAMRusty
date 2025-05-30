@@ -162,6 +162,7 @@ pub fn clear_config_cache() {
 pub fn clear_all_caches() {
     clear_config_cache();
     DatabaseConfig::clear_port_cache();
+    KafkaConfig::clear_port_cache();
     debug!("All configuration caches cleared");
 }
 

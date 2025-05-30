@@ -375,9 +375,12 @@ impl CommandConfig {
 /// Kafka configuration for event publishing
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KafkaConfig {
-    /// Kafka broker addresses (comma-separated)
-    #[serde(default = "default_kafka_brokers")]
-    pub brokers: String,
+    /// Kafka broker host
+    #[serde(default = "default_kafka_host")]
+    pub host: String,
+    /// Kafka broker port (9092 default, 0 for random port)
+    #[serde(default = "default_kafka_port")]
+    pub port: u16,
     /// Topic for user events
     #[serde(default = "default_user_events_topic")]
     pub user_events_topic: String,
@@ -408,12 +411,130 @@ pub struct KafkaConfig {
     /// SASL password
     #[serde(default)]
     pub sasl_password: Option<String>,
+    /// SSL CA certificate location (use "probe" for system CA certificates)
+    #[serde(default)]
+    pub ssl_ca_location: Option<String>,
+    /// SSL certificate location for client authentication
+    #[serde(default)]
+    pub ssl_certificate_location: Option<String>,
+    /// SSL private key location for client authentication
+    #[serde(default)]
+    pub ssl_key_location: Option<String>,
+    /// SSL private key password
+    #[serde(default)]
+    pub ssl_key_password: Option<String>,
+    /// Additional broker hosts (for multi-broker setups) - backward compatibility
+    #[serde(default)]
+    pub additional_brokers: Vec<String>,
 }
 
-impl Default for KafkaConfig {
-    fn default() -> Self {
+impl KafkaConfig {
+    /// Get the brokers string for Kafka client configuration
+    pub fn brokers(&self) -> String {
+        let port = self.actual_port();
+        let primary_broker = format!("{}:{}", self.host, port);
+        
+        if self.additional_brokers.is_empty() {
+            primary_broker
+        } else {
+            let mut all_brokers = vec![primary_broker];
+            all_brokers.extend(self.additional_brokers.clone());
+            all_brokers.join(",")
+        }
+    }
+    
+    /// Get a random available port
+    fn get_random_port() -> u16 {
+        use std::net::TcpListener;
+        
+        // Try to bind to a random port
+        match TcpListener::bind("127.0.0.1:0") {
+            Ok(listener) => {
+                match listener.local_addr() {
+                    Ok(addr) => addr.port(),
+                    Err(_) => 9092, // fallback to default
+                }
+            }
+            Err(_) => 9092, // fallback to default
+        }
+    }
+    
+    /// Get the actual port being used (resolves random port if needed)
+    /// This method caches the resolved port to ensure consistency across calls
+    pub fn actual_port(&self) -> u16 {
+        if self.port == 0 {
+            // Create a unique cache key for this Kafka configuration
+            let cache_key = format!("kafka:{}:{}", self.host, self.client_id);
+            
+            let cache = PORT_CACHE.get_or_init(|| Arc::new(Mutex::new(HashMap::new())));
+            let mut port_cache = cache.lock().unwrap();
+            
+            // Return cached port if available
+            if let Some(&cached_port) = port_cache.get(&cache_key) {
+                return cached_port;
+            }
+            
+            // Generate new random port and cache it
+            let random_port = Self::get_random_port();
+            port_cache.insert(cache_key, random_port);
+            random_port
+        } else {
+            self.port
+        }
+    }
+    
+    /// Create a new KafkaConfig with the specified components
+    pub fn new(host: String, port: u16, user_events_topic: String, client_id: String) -> Self {
         Self {
-            brokers: default_kafka_brokers(),
+            host,
+            port,
+            user_events_topic,
+            client_id,
+            timeout_ms: default_kafka_timeout_ms(),
+            max_retries: default_kafka_max_retries(),
+            enabled: default_kafka_enabled(),
+            compression: default_kafka_compression(),
+            security_protocol: default_kafka_security_protocol(),
+            sasl_mechanism: None,
+            sasl_username: None,
+            sasl_password: None,
+            ssl_ca_location: None,
+            ssl_certificate_location: None,
+            ssl_key_location: None,
+            ssl_key_password: None,
+            additional_brokers: vec![],
+        }
+    }
+    
+    /// Create a KafkaConfig from a brokers string (for backward compatibility)
+    pub fn from_brokers(brokers: &str) -> Result<Self, String> {
+        let broker_list: Vec<&str> = brokers.split(',').collect();
+        if broker_list.is_empty() {
+            return Err("Brokers string cannot be empty".to_string());
+        }
+        
+        // Parse the first broker as primary
+        let primary_broker = broker_list[0].trim();
+        let parts: Vec<&str> = primary_broker.split(':').collect();
+        
+        if parts.len() != 2 {
+            return Err(format!("Invalid broker format '{}', expected 'host:port'", primary_broker));
+        }
+        
+        let host = parts[0].to_string();
+        let port = parts[1].parse::<u16>()
+            .map_err(|_| format!("Invalid port in broker '{}'", primary_broker))?;
+        
+        // Handle additional brokers
+        let additional_brokers = if broker_list.len() > 1 {
+            broker_list[1..].iter().map(|b| b.trim().to_string()).collect()
+        } else {
+            vec![]
+        };
+        
+        Ok(Self {
+            host,
+            port,
             user_events_topic: default_user_events_topic(),
             client_id: default_kafka_client_id(),
             timeout_ms: default_kafka_timeout_ms(),
@@ -424,13 +545,54 @@ impl Default for KafkaConfig {
             sasl_mechanism: None,
             sasl_username: None,
             sasl_password: None,
+            ssl_ca_location: None,
+            ssl_certificate_location: None,
+            ssl_key_location: None,
+            ssl_key_password: None,
+            additional_brokers,
+        })
+    }
+    
+    /// Clear the port cache (useful for testing)
+    pub fn clear_port_cache() {
+        if let Some(cache) = PORT_CACHE.get() {
+            let mut port_cache = cache.lock().unwrap();
+            port_cache.clear();
+        }
+    }
+}
+
+impl Default for KafkaConfig {
+    fn default() -> Self {
+        Self {
+            host: default_kafka_host(),
+            port: default_kafka_port(),
+            user_events_topic: default_user_events_topic(),
+            client_id: default_kafka_client_id(),
+            timeout_ms: default_kafka_timeout_ms(),
+            max_retries: default_kafka_max_retries(),
+            enabled: default_kafka_enabled(),
+            compression: default_kafka_compression(),
+            security_protocol: default_kafka_security_protocol(),
+            sasl_mechanism: None,
+            sasl_username: None,
+            sasl_password: None,
+            ssl_ca_location: None,
+            ssl_certificate_location: None,
+            ssl_key_location: None,
+            ssl_key_password: None,
+            additional_brokers: vec![],
         }
     }
 }
 
 // Kafka configuration defaults
-fn default_kafka_brokers() -> String {
-    "localhost:9092".to_string()
+fn default_kafka_host() -> String {
+    "localhost".to_string()
+}
+
+fn default_kafka_port() -> u16 {
+    9092
 }
 
 fn default_user_events_topic() -> String {
@@ -1141,7 +1303,8 @@ mod tests {
         fn default_kafka_config_has_expected_values() {
             let config = KafkaConfig::default();
             
-            assert_eq!(config.brokers, "localhost:9092");
+            assert_eq!(config.host, "localhost");
+            assert_eq!(config.port, 9092);
             assert_eq!(config.user_events_topic, "user-events");
             assert_eq!(config.client_id, "iam-service");
             assert_eq!(config.timeout_ms, 5000);
@@ -1152,12 +1315,18 @@ mod tests {
             assert!(config.sasl_mechanism.is_none());
             assert!(config.sasl_username.is_none());
             assert!(config.sasl_password.is_none());
+            assert!(config.ssl_ca_location.is_none());
+            assert!(config.ssl_certificate_location.is_none());
+            assert!(config.ssl_key_location.is_none());
+            assert!(config.ssl_key_password.is_none());
+            assert!(config.additional_brokers.is_empty());
         }
 
         #[test]
         fn kafka_config_serialization_works() {
             let config = KafkaConfig {
-                brokers: "test_brokers".to_string(),
+                host: "test_host".to_string(),
+                port: 10000,
                 user_events_topic: "test_topic".to_string(),
                 client_id: "test_client_id".to_string(),
                 timeout_ms: 10000,
@@ -1168,12 +1337,18 @@ mod tests {
                 sasl_mechanism: Some("SCRAM-SHA-256".to_string()),
                 sasl_username: Some("test_username".to_string()),
                 sasl_password: Some("test_password".to_string()),
+                ssl_ca_location: Some("probe".to_string()),
+                ssl_certificate_location: Some("/path/to/cert.pem".to_string()),
+                ssl_key_location: Some("/path/to/key.pem".to_string()),
+                ssl_key_password: Some("password".to_string()),
+                additional_brokers: vec!["test_broker1:10001".to_string(), "test_broker2:10002".to_string()],
             };
 
             let json = assert_ok!(serde_json::to_string(&config));
             let deserialized: KafkaConfig = assert_ok!(serde_json::from_str(&json));
             
-            assert_eq!(deserialized.brokers, "test_brokers");
+            assert_eq!(deserialized.host, "test_host");
+            assert_eq!(deserialized.port, 10000);
             assert_eq!(deserialized.user_events_topic, "test_topic");
             assert_eq!(deserialized.client_id, "test_client_id");
             assert_eq!(deserialized.timeout_ms, 10000);
@@ -1184,6 +1359,183 @@ mod tests {
             assert_eq!(deserialized.sasl_mechanism, Some("SCRAM-SHA-256".to_string()));
             assert_eq!(deserialized.sasl_username, Some("test_username".to_string()));
             assert_eq!(deserialized.sasl_password, Some("test_password".to_string()));
+            assert_eq!(deserialized.ssl_ca_location, Some("probe".to_string()));
+            assert_eq!(deserialized.ssl_certificate_location, Some("/path/to/cert.pem".to_string()));
+            assert_eq!(deserialized.ssl_key_location, Some("/path/to/key.pem".to_string()));
+            assert_eq!(deserialized.ssl_key_password, Some("password".to_string()));
+            assert_eq!(deserialized.additional_brokers, vec!["test_broker1:10001".to_string(), "test_broker2:10002".to_string()]);
+        }
+
+        #[test]
+        fn brokers_method_returns_single_broker() {
+            let config = KafkaConfig::new(
+                "test-host".to_string(),
+                9092,
+                "test-topic".to_string(),
+                "test-client".to_string(),
+            );
+
+            assert_eq!(config.brokers(), "test-host:9092");
+        }
+
+        #[test]
+        fn brokers_method_includes_additional_brokers() {
+            let mut config = KafkaConfig::new(
+                "primary".to_string(),
+                9092,
+                "test-topic".to_string(),
+                "test-client".to_string(),
+            );
+            config.additional_brokers = vec![
+                "secondary:9093".to_string(),
+                "tertiary:9094".to_string(),
+            ];
+
+            let brokers = config.brokers();
+            assert!(brokers.contains("primary:9092"));
+            assert!(brokers.contains("secondary:9093"));
+            assert!(brokers.contains("tertiary:9094"));
+            
+            // Should be comma-separated
+            let broker_list: Vec<&str> = brokers.split(',').collect();
+            assert_eq!(broker_list.len(), 3);
+        }
+
+        #[test]
+        fn actual_port_returns_configured_port_when_not_zero() {
+            let config = KafkaConfig::new(
+                "localhost".to_string(),
+                9093,
+                "test-topic".to_string(),
+                "test-client".to_string(),
+            );
+
+            assert_eq!(config.actual_port(), 9093);
+        }
+
+        #[test]
+        fn actual_port_returns_random_port_when_zero() {
+            KafkaConfig::clear_port_cache();
+            
+            let config = KafkaConfig::new(
+                "localhost".to_string(),
+                0,
+                "test-topic".to_string(),
+                "test-client-random".to_string(),
+            );
+
+            let port1 = config.actual_port();
+            let port2 = config.actual_port();
+            
+            // Should be consistent (cached)
+            assert_eq!(port1, port2);
+            // Should be a valid port number
+            assert!(port1 > 1024);
+            assert!(port1 <= 65535);
+        }
+
+        #[test]
+        fn actual_port_caches_different_ports_for_different_configs() {
+            KafkaConfig::clear_port_cache();
+            
+            let config1 = KafkaConfig::new(
+                "localhost".to_string(),
+                0,
+                "topic1".to_string(),
+                "client1".to_string(),
+            );
+            
+            let config2 = KafkaConfig::new(
+                "localhost".to_string(),
+                0,
+                "topic2".to_string(),
+                "client2".to_string(),
+            );
+
+            let port1 = config1.actual_port();
+            let port2 = config2.actual_port();
+            
+            // Different configs should get different ports
+            assert_ne!(port1, port2);
+            
+            // But should be consistent for same config
+            assert_eq!(config1.actual_port(), port1);
+            assert_eq!(config2.actual_port(), port2);
+        }
+
+        #[test]
+        fn from_brokers_parses_single_broker() {
+            let config = assert_ok!(KafkaConfig::from_brokers("localhost:9092"));
+            
+            assert_eq!(config.host, "localhost");
+            assert_eq!(config.port, 9092);
+            assert!(config.additional_brokers.is_empty());
+            assert_eq!(config.user_events_topic, "user-events");
+            assert_eq!(config.client_id, "iam-service");
+        }
+
+        #[test]
+        fn from_brokers_parses_multiple_brokers() {
+            let config = assert_ok!(KafkaConfig::from_brokers("primary:9092,secondary:9093,tertiary:9094"));
+            
+            assert_eq!(config.host, "primary");
+            assert_eq!(config.port, 9092);
+            assert_eq!(config.additional_brokers, vec!["secondary:9093", "tertiary:9094"]);
+        }
+
+        #[test]
+        fn from_brokers_handles_whitespace() {
+            let config = assert_ok!(KafkaConfig::from_brokers(" primary:9092 , secondary:9093 "));
+            
+            assert_eq!(config.host, "primary");
+            assert_eq!(config.port, 9092);
+            assert_eq!(config.additional_brokers, vec!["secondary:9093"]);
+        }
+
+        #[test]
+        fn from_brokers_rejects_invalid_format() {
+            assert_err!(KafkaConfig::from_brokers("invalid"));
+            assert_err!(KafkaConfig::from_brokers("host:invalid_port"));
+            assert_err!(KafkaConfig::from_brokers(""));
+            assert_err!(KafkaConfig::from_brokers("host"));
+        }
+
+        #[test]
+        fn new_creates_valid_config() {
+            let config = KafkaConfig::new(
+                "test-host".to_string(),
+                9092,
+                "test-topic".to_string(),
+                "test-client".to_string(),
+            );
+
+            assert_eq!(config.host, "test-host");
+            assert_eq!(config.port, 9092);
+            assert_eq!(config.user_events_topic, "test-topic");
+            assert_eq!(config.client_id, "test-client");
+            assert_eq!(config.timeout_ms, 5000);
+            assert_eq!(config.max_retries, 3);
+            assert!(config.enabled);
+            assert_eq!(config.compression, "gzip");
+            assert_eq!(config.security_protocol, "plaintext");
+            assert!(config.additional_brokers.is_empty());
+        }
+
+        #[test]
+        fn clear_port_cache_clears_cached_ports() {
+            let config = KafkaConfig::new(
+                "localhost".to_string(),
+                0,
+                "test-topic".to_string(),
+                "test-client-clear".to_string(),
+            );
+
+            let _port1 = config.actual_port(); // This caches a port
+            KafkaConfig::clear_port_cache();
+            let port2 = config.actual_port(); // This should generate a new port
+            
+            // Note: ports might be the same due to randomness, but cache was cleared
+            assert!(port2 > 1024);
         }
     }
 
