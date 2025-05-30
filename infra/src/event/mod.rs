@@ -40,8 +40,54 @@ impl EventPublisher for ConcreteEventPublisher {
     }
 }
 
+/// Check if a Kafka test container is currently running
+#[cfg(any(test, feature = "test-utils"))]
+fn is_test_kafka_container_running() -> bool {
+    // The kafka_testcontainer.rs sets these environment variables when a container is started
+    // We check for these specific test environment variables to detect if a test container is active
+    std::env::var("IAM_KAFKA__HOST").is_ok() && 
+    std::env::var("IAM_KAFKA__PORT").is_ok() &&
+    std::env::var("IAM_KAFKA__ENABLED").map(|v| v == "true").unwrap_or(false)
+}
+
+/// Check if we're running in test mode
+fn is_test_mode() -> bool {
+    cfg!(test) || cfg!(feature = "test-utils")
+}
+
 /// Factory function to create an event publisher based on configuration
 pub fn create_event_publisher(config: &KafkaConfig) -> Result<Arc<ConcreteEventPublisher>, DomainError> {
+    // In test mode, only use Kafka if explicitly enabled AND a test container is running
+    if is_test_mode() {
+        #[cfg(any(test, feature = "test-utils"))]
+        {
+            if config.enabled && is_test_kafka_container_running() {
+                tracing::info!("Test mode: Test Kafka container detected, using Kafka event publisher");
+                match KafkaEventPublisher::new(config.clone()) {
+                    Ok(publisher) => {
+                        return Ok(Arc::new(ConcreteEventPublisher::Kafka(publisher)));
+                    }
+                    Err(e) => {
+                        tracing::warn!("Failed to create Kafka event publisher in test mode, falling back to no-op: {}", e);
+                        return Ok(Arc::new(ConcreteEventPublisher::NoOp(NoOpEventPublisher::new())));
+                    }
+                }
+            } else {
+                tracing::info!("Test mode: No Kafka test container detected or Kafka disabled, using no-op event publisher");
+                return Ok(Arc::new(ConcreteEventPublisher::NoOp(NoOpEventPublisher::new())));
+            }
+        }
+        
+        #[cfg(not(any(test, feature = "test-utils")))]
+        {
+            // This branch should never be reached due to is_test_mode() check above,
+            // but included for completeness
+            tracing::info!("Test mode detected but test-utils feature not available, using no-op event publisher");
+            return Ok(Arc::new(ConcreteEventPublisher::NoOp(NoOpEventPublisher::new())));
+        }
+    }
+    
+    // Production mode: use the original logic
     if config.enabled {
         match KafkaEventPublisher::new(config.clone()) {
             Ok(publisher) => {

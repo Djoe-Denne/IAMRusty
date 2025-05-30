@@ -1,7 +1,6 @@
 use axum::{http::StatusCode, response::{Response, IntoResponse}, Json, extract::rejection::JsonRejection};
 use serde::Serialize;
 use domain::error::DomainError;
-use application::error::ApplicationError;
 use application::command::CommandError;
 use application::usecase::{user::UserError, token::TokenError};
 use thiserror::Error;
@@ -116,11 +115,6 @@ pub enum ApiError {
     /// Domain error
     #[error(transparent)]
     Domain(#[from] DomainError),
-
-    /// Application error
-    #[error(transparent)]
-    Application(#[from] ApplicationError),
-
     /// Command error
     #[error(transparent)]
     Command(#[from] CommandError),
@@ -470,29 +464,6 @@ impl IntoResponse for ApiError {
                     }
                     DomainError::RepositoryError(msg) => {
                         (StatusCode::INTERNAL_SERVER_ERROR, "repository_error".to_string(), msg)
-                    }
-                }
-            }
-            ApiError::Application(app_error) => {
-                match app_error {
-                    ApplicationError::Domain(domain_error) => {
-                        // Re-use domain error mapping
-                        return ApiError::Domain(domain_error).into_response();
-                    }
-                    ApplicationError::Repository(msg) => {
-                        (StatusCode::INTERNAL_SERVER_ERROR, "repository_error".to_string(), msg)
-                    }
-                    ApplicationError::Service(msg) => {
-                        (StatusCode::INTERNAL_SERVER_ERROR, "service_error".to_string(), msg)
-                    }
-                    ApplicationError::OAuth2(msg) => {
-                        (StatusCode::BAD_REQUEST, "oauth2_error".to_string(), msg)
-                    }
-                    ApplicationError::Token(msg) => {
-                        (StatusCode::INTERNAL_SERVER_ERROR, "token_error".to_string(), msg)
-                    }
-                    ApplicationError::UserProfile(msg) => {
-                        (StatusCode::INTERNAL_SERVER_ERROR, "user_profile_error".to_string(), msg)
                     }
                 }
             }

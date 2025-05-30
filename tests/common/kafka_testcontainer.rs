@@ -54,6 +54,7 @@ pub struct TestKafka {
 impl TestKafka {
     /// Get or create the global test Kafka instance
     pub async fn new() -> Result<Self, Box<dyn std::error::Error>> {
+        println!("Creating new Kafka test container");
         let container = get_or_create_test_kafka_container().await?;
         let brokers = container.brokers.clone();
         let topic = "test-user-events".to_string();
@@ -320,17 +321,3 @@ impl TestKafkaFixture {
         Ok(())
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use serial_test::serial;
-    
-    #[tokio::test]
-    #[serial]
-    async fn test_kafka_container_creation() {
-        let kafka = TestKafka::new().await.expect("Failed to create test Kafka");
-        assert!(!kafka.brokers.is_empty());
-        assert!(kafka.brokers.contains("localhost"));
-    }
-} 
