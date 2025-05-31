@@ -1,6 +1,10 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
+use std::collections::HashMap;
+
+use rustycog_events::event::{DomainEvent as DomainEventTrait, BaseEvent};
+use rustycog_core::error::ServiceError;
 
 /// Domain events that can be published to external systems
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -17,16 +21,13 @@ pub enum DomainEvent {
 /// Event triggered when a user signs up with email and password
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserSignedUpEvent {
-    /// Event ID for idempotency
-    pub event_id: Uuid,
-    /// User ID
-    pub user_id: Uuid,
+    /// Base event information
+    #[serde(flatten)]
+    pub base: BaseEvent,
     /// User's email address
     pub email: String,
     /// Username
     pub username: String,
-    /// When the event occurred
-    pub occurred_at: DateTime<Utc>,
     /// Whether the email is verified
     pub email_verified: bool,
 }
@@ -34,27 +35,21 @@ pub struct UserSignedUpEvent {
 /// Event triggered when a user verifies their email
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserEmailVerifiedEvent {
-    /// Event ID for idempotency
-    pub event_id: Uuid,
-    /// User ID
-    pub user_id: Uuid,
+    /// Base event information
+    #[serde(flatten)]
+    pub base: BaseEvent,
     /// Email that was verified
     pub email: String,
-    /// When the event occurred
-    pub occurred_at: DateTime<Utc>,
 }
 
 /// Event triggered when a user logs in successfully
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserLoggedInEvent {
-    /// Event ID for idempotency
-    pub event_id: Uuid,
-    /// User ID
-    pub user_id: Uuid,
+    /// Base event information
+    #[serde(flatten)]
+    pub base: BaseEvent,
     /// Email used for login
     pub email: String,
-    /// When the event occurred
-    pub occurred_at: DateTime<Utc>,
     /// Login method (email_password, oauth_github, oauth_gitlab, etc.)
     pub login_method: String,
 }
@@ -62,12 +57,15 @@ pub struct UserLoggedInEvent {
 impl UserSignedUpEvent {
     /// Create a new UserSignedUp event
     pub fn new(user_id: Uuid, email: String, username: String, email_verified: bool) -> Self {
+        let mut base = BaseEvent::new("user_signed_up".to_string(), user_id);
+        base = base.with_metadata("email".to_string(), email.clone());
+        base = base.with_metadata("username".to_string(), username.clone());
+        base = base.with_metadata("email_verified".to_string(), email_verified.to_string());
+        
         Self {
-            event_id: Uuid::new_v4(),
-            user_id,
+            base,
             email,
             username,
-            occurred_at: Utc::now(),
             email_verified,
         }
     }
@@ -76,11 +74,12 @@ impl UserSignedUpEvent {
 impl UserEmailVerifiedEvent {
     /// Create a new UserEmailVerified event
     pub fn new(user_id: Uuid, email: String) -> Self {
+        let mut base = BaseEvent::new("user_email_verified".to_string(), user_id);
+        base = base.with_metadata("email".to_string(), email.clone());
+        
         Self {
-            event_id: Uuid::new_v4(),
-            user_id,
+            base,
             email,
-            occurred_at: Utc::now(),
         }
     }
 }
@@ -88,13 +87,111 @@ impl UserEmailVerifiedEvent {
 impl UserLoggedInEvent {
     /// Create a new UserLoggedIn event
     pub fn new(user_id: Uuid, email: String, login_method: String) -> Self {
+        let mut base = BaseEvent::new("user_logged_in".to_string(), user_id);
+        base = base.with_metadata("email".to_string(), email.clone());
+        base = base.with_metadata("login_method".to_string(), login_method.clone());
+        
         Self {
-            event_id: Uuid::new_v4(),
-            user_id,
+            base,
             email,
-            occurred_at: Utc::now(),
             login_method,
         }
+    }
+}
+
+// Implement DomainEventTrait for UserSignedUpEvent
+impl DomainEventTrait for UserSignedUpEvent {
+    fn event_type(&self) -> &'static str {
+        "user_signed_up"
+    }
+    
+    fn event_id(&self) -> Uuid {
+        self.base.event_id
+    }
+    
+    fn aggregate_id(&self) -> Uuid {
+        self.base.aggregate_id
+    }
+    
+    fn occurred_at(&self) -> DateTime<Utc> {
+        self.base.occurred_at
+    }
+    
+    fn version(&self) -> u32 {
+        self.base.version
+    }
+    
+    fn to_json(&self) -> Result<String, ServiceError> {
+        serde_json::to_string(self)
+            .map_err(|e| ServiceError::internal(format!("Failed to serialize event: {}", e)))
+    }
+    
+    fn metadata(&self) -> HashMap<String, String> {
+        self.base.metadata.clone()
+    }
+}
+
+// Implement DomainEventTrait for UserEmailVerifiedEvent
+impl DomainEventTrait for UserEmailVerifiedEvent {
+    fn event_type(&self) -> &'static str {
+        "user_email_verified"
+    }
+    
+    fn event_id(&self) -> Uuid {
+        self.base.event_id
+    }
+    
+    fn aggregate_id(&self) -> Uuid {
+        self.base.aggregate_id
+    }
+    
+    fn occurred_at(&self) -> DateTime<Utc> {
+        self.base.occurred_at
+    }
+    
+    fn version(&self) -> u32 {
+        self.base.version
+    }
+    
+    fn to_json(&self) -> Result<String, ServiceError> {
+        serde_json::to_string(self)
+            .map_err(|e| ServiceError::internal(format!("Failed to serialize event: {}", e)))
+    }
+    
+    fn metadata(&self) -> HashMap<String, String> {
+        self.base.metadata.clone()
+    }
+}
+
+// Implement DomainEventTrait for UserLoggedInEvent
+impl DomainEventTrait for UserLoggedInEvent {
+    fn event_type(&self) -> &'static str {
+        "user_logged_in"
+    }
+    
+    fn event_id(&self) -> Uuid {
+        self.base.event_id
+    }
+    
+    fn aggregate_id(&self) -> Uuid {
+        self.base.aggregate_id
+    }
+    
+    fn occurred_at(&self) -> DateTime<Utc> {
+        self.base.occurred_at
+    }
+    
+    fn version(&self) -> u32 {
+        self.base.version
+    }
+    
+    fn to_json(&self) -> Result<String, ServiceError> {
+        serde_json::to_string(self)
+            .map_err(|e| ServiceError::internal(format!("Failed to serialize event: {}", e)))
+    }
+    
+    fn metadata(&self) -> HashMap<String, String> {
+        self.base.metadata.clone()
     }
 }
 
@@ -102,18 +199,18 @@ impl DomainEvent {
     /// Get the event ID for tracking
     pub fn event_id(&self) -> Uuid {
         match self {
-            DomainEvent::UserSignedUp(event) => event.event_id,
-            DomainEvent::UserEmailVerified(event) => event.event_id,
-            DomainEvent::UserLoggedIn(event) => event.event_id,
+            DomainEvent::UserSignedUp(event) => event.base.event_id,
+            DomainEvent::UserEmailVerified(event) => event.base.event_id,
+            DomainEvent::UserLoggedIn(event) => event.base.event_id,
         }
     }
 
     /// Get the user ID associated with this event
     pub fn user_id(&self) -> Uuid {
         match self {
-            DomainEvent::UserSignedUp(event) => event.user_id,
-            DomainEvent::UserEmailVerified(event) => event.user_id,
-            DomainEvent::UserLoggedIn(event) => event.user_id,
+            DomainEvent::UserSignedUp(event) => event.base.aggregate_id,
+            DomainEvent::UserEmailVerified(event) => event.base.aggregate_id,
+            DomainEvent::UserLoggedIn(event) => event.base.aggregate_id,
         }
     }
 

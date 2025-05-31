@@ -2,4 +2,4 @@
 
 pub mod repository;
 pub mod service;
-pub mod event_publisher; 
+pub mod event_publisher;

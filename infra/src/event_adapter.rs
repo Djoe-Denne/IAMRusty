@@ -120,9 +120,9 @@ impl RustycogDomainEvent for IAMDomainEventAdapter {
     
     fn occurred_at(&self) -> chrono::DateTime<chrono::Utc> {
         match &self.inner {
-            IAMDomainEvent::UserSignedUp(event) => event.occurred_at,
-            IAMDomainEvent::UserEmailVerified(event) => event.occurred_at,
-            IAMDomainEvent::UserLoggedIn(event) => event.occurred_at,
+            IAMDomainEvent::UserSignedUp(event) => event.occurred_at(),
+            IAMDomainEvent::UserEmailVerified(event) => event.occurred_at(),
+            IAMDomainEvent::UserLoggedIn(event) => event.occurred_at(),
         }
     }
     

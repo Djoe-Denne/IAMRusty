@@ -1,5 +1,4 @@
-use super::{Command, CommandError, CommandHandler};
-use super::registry::CommandErrorMapper;
+use rustycog_command::{Command, CommandError, CommandHandler, CommandErrorMapper};
 use crate::usecase::token::{TokenUseCase, RefreshTokenResponse, TokenError};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};

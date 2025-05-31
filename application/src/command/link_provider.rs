@@ -1,6 +1,7 @@
-use super::{Command, CommandError, CommandHandler};
-use super::registry::CommandErrorMapper;
-use crate::usecase::link_provider::{LinkProviderUseCase, LinkProviderResponse, LinkProviderError};
+use rustycog_command::{Command, CommandError, CommandHandler, CommandErrorMapper};
+use crate::usecase::{
+    link_provider::{LinkProviderUseCase, LinkProviderResponse, LinkProviderError},
+};
 use domain::entity::provider::Provider;
 use async_trait::async_trait;
 use std::sync::Arc;

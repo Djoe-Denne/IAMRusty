@@ -1,5 +1,5 @@
+use rustycog_command::{CommandRegistry, CommandRegistryBuilder};
 use super::{
-    registry::{CommandRegistry, CommandRegistryBuilder},
     login::{LoginCommand, GenerateLoginStartUrlCommand, LoginCommandHandler, GenerateLoginStartUrlCommandHandler, LoginErrorMapper},
     link_provider::{LinkProviderCommand, GenerateLinkProviderStartUrlCommand, LinkProviderCommandHandler, GenerateLinkProviderStartUrlCommandHandler, LinkProviderErrorMapper},
     token::{RefreshTokenCommand, RevokeTokenCommand, RevokeAllTokensCommand, RefreshTokenCommandHandler, RevokeTokenCommandHandler, RevokeAllTokensCommandHandler, TokenErrorMapper},
