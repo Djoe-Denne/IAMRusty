@@ -28,6 +28,9 @@ async-trait = "0.1.77"
 tokio = { version = "1.44", features = ["rt-multi-thread", "macros", "time"] }
 fastrand = "2.0"
 
+# Compile-time plugin system
+inventory = "0.3"
+
 [dev-dependencies]
 # Testing libraries for comprehensive unit testing
 mockall = "0.13.0"

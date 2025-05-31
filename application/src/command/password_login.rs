@@ -147,25 +147,3 @@ where
             .map_err(|e| AuthErrorMapper.map_error(Box::new(e)))
     }
 }
-
-// Inventory-based command registration for zero-boilerplate plugin system
-use super::registry::{CommandRegistration, CommandHandlerWrapper};
-
-inventory::submit! {
-    CommandRegistration {
-        command_name: "password_login",
-        handler_factory: |container| {
-            let auth_use_case = container
-                .get_dependency("AuthUseCase")
-                .and_then(|dep| dep.downcast::<Arc<dyn crate::usecase::auth::AuthUseCase>>().ok())
-                .map(|boxed| *boxed)
-                .expect("AuthUseCase dependency not found");
-            
-            Arc::new(CommandHandlerWrapper::new(
-                Arc::new(PasswordLoginCommandHandler::new(auth_use_case)),
-                Arc::new(AuthErrorMapper),
-            ))
-        },
-        error_mapper_factory: || Arc::new(AuthErrorMapper),
-    }
-} 

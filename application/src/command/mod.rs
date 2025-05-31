@@ -14,11 +14,7 @@ pub mod factory;
 // Re-exports for the extensible command system
 pub use registry::{
     CommandRegistry, CommandRegistryBuilder, CommandErrorMapper, DynCommandHandler,
-    RetryPolicy, RegistryConfig, MetricsCollector, LoggingMetricsCollector,
-    // New inventory-based exports
-    CommandRegistration, DependencyContainer, SimpleDependencyContainer,
-    build_registry_from_inventory, build_registry_from_inventory_with_config,
-    build_registry_from_inventory_with_config_and_metrics,
+    RetryPolicy, RegistryConfig, MetricsCollector, LoggingMetricsCollector
 };
 pub use generic_service::GenericCommandService;
 pub use factory::CommandRegistryFactory;
