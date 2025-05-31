@@ -106,7 +106,7 @@ impl std::fmt::Debug for IAMDomainEventAdapter {
 }
 
 impl RustycogDomainEvent for IAMDomainEventAdapter {
-    fn event_type(&self) -> &'static str {
+    fn event_type(&self) -> & str {
         self.inner.event_type()
     }
     
@@ -120,14 +120,18 @@ impl RustycogDomainEvent for IAMDomainEventAdapter {
     
     fn occurred_at(&self) -> chrono::DateTime<chrono::Utc> {
         match &self.inner {
-            IAMDomainEvent::UserSignedUp(event) => event.occurred_at(),
-            IAMDomainEvent::UserEmailVerified(event) => event.occurred_at(),
-            IAMDomainEvent::UserLoggedIn(event) => event.occurred_at(),
+            IAMDomainEvent::UserSignedUp(event) => event.base.occurred_at,
+            IAMDomainEvent::UserEmailVerified(event) => event.base.occurred_at,
+            IAMDomainEvent::UserLoggedIn(event) => event.base.occurred_at,
         }
     }
-    
+
     fn version(&self) -> u32 {
-        1 // Default version for all events
+        match &self.inner {
+            IAMDomainEvent::UserSignedUp(event) => event.base.version,
+            IAMDomainEvent::UserEmailVerified(event) => event.base.version,
+            IAMDomainEvent::UserLoggedIn(event) => event.base.version,
+        }
     }
     
     fn to_json(&self) -> Result<String, ServiceError> {
