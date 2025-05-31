@@ -1,202 +1,21 @@
-//! Configuration crate for the IAM service
+//! IAM service specific configuration
 //!
-//! This crate provides all configuration structures and utilities for the application,
-//! including server, database, OAuth, JWT, and logging configuration.
+//! This crate provides IAM-specific configuration structures including OAuth and JWT
+//! configuration, while re-exporting core configuration utilities from rustycog-config.
+
+// Re-export core configuration from rustycog-config
+pub use rustycog_config::{
+    ServerConfig, SetupServerConfig, DatabaseConfig, DatabaseCredentials, LoggingConfig,
+    CommandConfig, CommandRetryConfig, KafkaConfig, setup_logging
+};
 
 use serde::{Deserialize, Serialize};
+use std::path::Path;
+use std::fs;
+use std::env;
 use std::sync::{Arc, Mutex, OnceLock};
-use std::collections::HashMap;
-use tracing::Level;
-
-/// Server configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ServerConfig {
-    /// Server host
-    pub host: String,
-    /// Server port
-    pub port: u16,
-    /// Whether TLS/HTTPS is enabled
-    #[serde(default)]
-    pub tls_enabled: bool,
-    /// Path to TLS certificate file
-    #[serde(default = "default_cert_path")]
-    pub tls_cert_path: String,
-    /// Path to TLS private key file
-    #[serde(default = "default_key_path")]
-    pub tls_key_path: String,
-    /// Port to use when TLS is enabled
-    #[serde(default = "default_tls_port")]
-    pub tls_port: u16,
-}
-
-impl ServerConfig {
-    /// Convert to setup ServerConfig format (for backward compatibility)
-    pub fn to_setup_config(&self) -> SetupServerConfig {
-        SetupServerConfig {
-            host: self.host.clone(),
-            port: self.port,
-            tls_enabled: self.tls_enabled,
-            tls_cert_path: if self.tls_enabled { Some(self.tls_cert_path.clone()) } else { None },
-            tls_key_path: if self.tls_enabled { Some(self.tls_key_path.clone()) } else { None },
-            tls_port: if self.tls_enabled { Some(self.tls_port) } else { None },
-        }
-    }
-}
-
-/// Setup server configuration (for backward compatibility with setup module)
-#[derive(Debug, Clone)]
-pub struct SetupServerConfig {
-    pub host: String,
-    pub port: u16,
-    pub tls_enabled: bool,
-    pub tls_cert_path: Option<String>,
-    pub tls_key_path: Option<String>,
-    pub tls_port: Option<u16>,
-}
-
-fn default_cert_path() -> String {
-    "./certs/cert.pem".to_string()
-}
-
-fn default_key_path() -> String {
-    "./certs/key.pem".to_string()
-}
-
-fn default_tls_port() -> u16 {
-    8443
-}
-
-/// Database credentials configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DatabaseCredentials {
-    /// Database username
-    pub username: String,
-    /// Database password
-    pub password: String,
-}
-
-/// Database configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DatabaseConfig {
-    /// Database credentials
-    pub creds: DatabaseCredentials,
-    /// Database host
-    pub host: String,
-    /// Database port (5432 default, 0 for random port)
-    #[serde(default = "default_db_port")]
-    pub port: u16,
-    /// Database name
-    pub db: String,
-    /// Read replica database URLs (still using full URLs for flexibility)
-    #[serde(default)]
-    pub read_replicas: Vec<String>,
-}
-
-fn default_db_port() -> u16 {
-    5432
-}
-
-/// Global cache for resolved random ports to ensure consistency
-static PORT_CACHE: OnceLock<Arc<Mutex<HashMap<String, u16>>>> = OnceLock::new();
-
-impl DatabaseConfig {
-    /// Construct the primary database URL from components
-    pub fn url(&self) -> String {
-        let port = self.actual_port();
-        
-        format!(
-            "postgres://{}:{}@{}:{}/{}",
-            self.creds.username,
-            self.creds.password,
-            self.host,
-            port,
-            self.db
-        )
-    }
-    
-    /// Get a random available port
-    fn get_random_port() -> u16 {
-        use std::net::{TcpListener, SocketAddr};
-        
-        // Try to bind to a random port
-        match TcpListener::bind("127.0.0.1:0") {
-            Ok(listener) => {
-                match listener.local_addr() {
-                    Ok(SocketAddr::V4(addr)) => addr.port(),
-                    Ok(SocketAddr::V6(addr)) => addr.port(),
-                    Err(_) => 5432, // fallback to default
-                }
-            }
-            Err(_) => 5432, // fallback to default
-        }
-    }
-    
-    /// Get the actual port being used (resolves random port if needed)
-    /// This method caches the resolved port to ensure consistency across calls
-    pub fn actual_port(&self) -> u16 {
-        if self.port == 0 {
-            // Create a unique cache key for this database configuration
-            let cache_key = format!("{}:{}:{}", self.host, self.db, self.creds.username);
-            
-            let cache = PORT_CACHE.get_or_init(|| Arc::new(Mutex::new(HashMap::new())));
-            let mut port_cache = cache.lock().unwrap();
-            
-            // Return cached port if available
-            if let Some(&cached_port) = port_cache.get(&cache_key) {
-                return cached_port;
-            }
-            
-            // Generate new random port and cache it
-            let random_port = Self::get_random_port();
-            port_cache.insert(cache_key, random_port);
-            random_port
-        } else {
-            self.port
-        }
-    }
-    
-    /// Create a new DatabaseConfig with the specified components
-    pub fn new(username: String, password: String, host: String, port: u16, db: String) -> Self {
-        Self {
-            creds: DatabaseCredentials { username, password },
-            host,
-            port,
-            db,
-            read_replicas: vec![],
-        }
-    }
-    
-    /// Create a DatabaseConfig from a URL (for backward compatibility)
-    pub fn from_url(url: &str) -> Result<Self, String> {
-        use url::Url;
-        
-        let parsed = Url::parse(url).map_err(|e| format!("Invalid URL: {}", e))?;
-        
-        if parsed.scheme() != "postgres" && parsed.scheme() != "postgresql" {
-            return Err("URL must use postgres:// or postgresql:// scheme".to_string());
-        }
-        
-        let username = parsed.username().to_string();
-        let password = parsed.password().unwrap_or("").to_string();
-        let host = parsed.host_str().unwrap_or("localhost").to_string();
-        let port = parsed.port().unwrap_or(5432);
-        let db = parsed.path().trim_start_matches('/').to_string();
-        
-        if db.is_empty() {
-            return Err("Database name is required in URL path".to_string());
-        }
-        
-        Ok(Self::new(username, password, host, port, db))
-    }
-    
-    /// Clear the port cache (useful for testing)
-    pub fn clear_port_cache() {
-        if let Some(cache) = PORT_CACHE.get() {
-            let mut port_cache = cache.lock().unwrap();
-            port_cache.clear();
-        }
-    }
-}
+use config::{Config, ConfigError, Environment, File, FileFormat};
+use tracing::{info, debug, warn};
 
 /// JWT configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -265,26 +84,6 @@ fn default_gitlab_user_url() -> String {
     "https://gitlab.com/api/v4/user".to_string()
 }
 
-/// Logging configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LoggingConfig {
-    /// Log level (trace, debug, info, warn, error)
-    #[serde(default = "default_log_level")]
-    pub level: String,
-}
-
-fn default_log_level() -> String {
-    "info".to_string()
-}
-
-impl Default for LoggingConfig {
-    fn default() -> Self {
-        Self {
-            level: default_log_level(),
-        }
-    }
-}
-
 /// OAuth configuration for all providers
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OAuthConfig {
@@ -292,338 +91,7 @@ pub struct OAuthConfig {
     pub gitlab: GitLabConfig,
 }
 
-/// Command retry configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CommandRetryConfig {
-    /// Maximum number of retry attempts
-    #[serde(default = "default_max_attempts")]
-    pub max_attempts: u32,
-    /// Base delay between retries in milliseconds
-    #[serde(default = "default_base_delay_ms")]
-    pub base_delay_ms: u64,
-    /// Maximum delay between retries in milliseconds
-    #[serde(default = "default_max_delay_ms")]
-    pub max_delay_ms: u64,
-    /// Backoff multiplier
-    #[serde(default = "default_backoff_multiplier")]
-    pub backoff_multiplier: f64,
-    /// Whether to use jitter
-    #[serde(default = "default_use_jitter")]
-    pub use_jitter: bool,
-}
-
-fn default_max_attempts() -> u32 {
-    3
-}
-
-fn default_base_delay_ms() -> u64 {
-    100
-}
-
-fn default_max_delay_ms() -> u64 {
-    30000
-}
-
-fn default_backoff_multiplier() -> f64 {
-    2.0
-}
-
-fn default_use_jitter() -> bool {
-    true
-}
-
-impl Default for CommandRetryConfig {
-    fn default() -> Self {
-        Self {
-            max_attempts: default_max_attempts(),
-            base_delay_ms: default_base_delay_ms(),
-            max_delay_ms: default_max_delay_ms(),
-            backoff_multiplier: default_backoff_multiplier(),
-            use_jitter: default_use_jitter(),
-        }
-    }
-}
-
-/// Command configuration with retry settings and command-specific overrides
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CommandConfig {
-    /// Default retry configuration for all commands
-    #[serde(default)]
-    pub retry: CommandRetryConfig,
-    /// Command-specific retry configurations
-    #[serde(default)]
-    pub overrides: HashMap<String, CommandRetryConfig>,
-}
-
-impl Default for CommandConfig {
-    fn default() -> Self {
-        Self {
-            retry: CommandRetryConfig::default(),
-            overrides: HashMap::new(),
-        }
-    }
-}
-
-impl CommandConfig {
-    /// Get retry configuration for a specific command
-    /// Returns command-specific config if available, otherwise returns default
-    pub fn get_retry_config(&self, command_type: &str) -> &CommandRetryConfig {
-        self.overrides.get(command_type).unwrap_or(&self.retry)
-    }
-}
-
-/// Kafka configuration for event publishing
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct KafkaConfig {
-    /// Kafka broker host
-    #[serde(default = "default_kafka_host")]
-    pub host: String,
-    /// Kafka broker port (9092 default, 0 for random port)
-    #[serde(default = "default_kafka_port")]
-    pub port: u16,
-    /// Topic for user events
-    #[serde(default = "default_user_events_topic")]
-    pub user_events_topic: String,
-    /// Producer client ID
-    #[serde(default = "default_kafka_client_id")]
-    pub client_id: String,
-    /// Message timeout in milliseconds
-    #[serde(default = "default_kafka_timeout_ms")]
-    pub timeout_ms: u64,
-    /// Maximum number of retries for failed messages
-    #[serde(default = "default_kafka_max_retries")]
-    pub max_retries: u32,
-    /// Whether to enable Kafka (for testing/development flexibility)
-    #[serde(default = "default_kafka_enabled")]
-    pub enabled: bool,
-    /// Compression type for messages (none, gzip, snappy, lz4, zstd)
-    #[serde(default = "default_kafka_compression")]
-    pub compression: String,
-    /// Security protocol (plaintext, ssl, sasl_plaintext, sasl_ssl)
-    #[serde(default = "default_kafka_security_protocol")]
-    pub security_protocol: String,
-    /// SASL mechanism (PLAIN, SCRAM-SHA-256, SCRAM-SHA-512, GSSAPI, OAUTHBEARER)
-    #[serde(default)]
-    pub sasl_mechanism: Option<String>,
-    /// SASL username
-    #[serde(default)]
-    pub sasl_username: Option<String>,
-    /// SASL password
-    #[serde(default)]
-    pub sasl_password: Option<String>,
-    /// SSL CA certificate location (use "probe" for system CA certificates)
-    #[serde(default)]
-    pub ssl_ca_location: Option<String>,
-    /// SSL certificate location for client authentication
-    #[serde(default)]
-    pub ssl_certificate_location: Option<String>,
-    /// SSL private key location for client authentication
-    #[serde(default)]
-    pub ssl_key_location: Option<String>,
-    /// SSL private key password
-    #[serde(default)]
-    pub ssl_key_password: Option<String>,
-    /// Additional broker hosts (for multi-broker setups) - backward compatibility
-    #[serde(default)]
-    pub additional_brokers: Vec<String>,
-}
-
-impl KafkaConfig {
-    /// Get the brokers string for Kafka client configuration
-    pub fn brokers(&self) -> String {
-        let port = self.actual_port();
-        let primary_broker = format!("{}:{}", self.host, port);
-        
-        if self.additional_brokers.is_empty() {
-            primary_broker
-        } else {
-            let mut all_brokers = vec![primary_broker];
-            all_brokers.extend(self.additional_brokers.clone());
-            all_brokers.join(",")
-        }
-    }
-    
-    /// Get a random available port
-    fn get_random_port() -> u16 {
-        use std::net::TcpListener;
-        
-        // Try to bind to a random port
-        match TcpListener::bind("127.0.0.1:0") {
-            Ok(listener) => {
-                match listener.local_addr() {
-                    Ok(addr) => addr.port(),
-                    Err(_) => 9092, // fallback to default
-                }
-            }
-            Err(_) => 9092, // fallback to default
-        }
-    }
-    
-    /// Get the actual port being used (resolves random port if needed)
-    /// This method caches the resolved port to ensure consistency across calls
-    pub fn actual_port(&self) -> u16 {
-        if self.port == 0 {
-            // Create a unique cache key for this Kafka configuration
-            let cache_key = format!("kafka:{}:{}", self.host, self.client_id);
-            
-            let cache = PORT_CACHE.get_or_init(|| Arc::new(Mutex::new(HashMap::new())));
-            let mut port_cache = cache.lock().unwrap();
-            
-            // Return cached port if available
-            if let Some(&cached_port) = port_cache.get(&cache_key) {
-                return cached_port;
-            }
-            
-            // Generate new random port and cache it
-            let random_port = Self::get_random_port();
-            port_cache.insert(cache_key, random_port);
-            random_port
-        } else {
-            self.port
-        }
-    }
-    
-    /// Create a new KafkaConfig with the specified components
-    pub fn new(host: String, port: u16, user_events_topic: String, client_id: String) -> Self {
-        Self {
-            host,
-            port,
-            user_events_topic,
-            client_id,
-            timeout_ms: default_kafka_timeout_ms(),
-            max_retries: default_kafka_max_retries(),
-            enabled: default_kafka_enabled(),
-            compression: default_kafka_compression(),
-            security_protocol: default_kafka_security_protocol(),
-            sasl_mechanism: None,
-            sasl_username: None,
-            sasl_password: None,
-            ssl_ca_location: None,
-            ssl_certificate_location: None,
-            ssl_key_location: None,
-            ssl_key_password: None,
-            additional_brokers: vec![],
-        }
-    }
-    
-    /// Create a KafkaConfig from a brokers string (for backward compatibility)
-    pub fn from_brokers(brokers: &str) -> Result<Self, String> {
-        let broker_list: Vec<&str> = brokers.split(',').collect();
-        if broker_list.is_empty() {
-            return Err("Brokers string cannot be empty".to_string());
-        }
-        
-        // Parse the first broker as primary
-        let primary_broker = broker_list[0].trim();
-        let parts: Vec<&str> = primary_broker.split(':').collect();
-        
-        if parts.len() != 2 {
-            return Err(format!("Invalid broker format '{}', expected 'host:port'", primary_broker));
-        }
-        
-        let host = parts[0].to_string();
-        let port = parts[1].parse::<u16>()
-            .map_err(|_| format!("Invalid port in broker '{}'", primary_broker))?;
-        
-        // Handle additional brokers
-        let additional_brokers = if broker_list.len() > 1 {
-            broker_list[1..].iter().map(|b| b.trim().to_string()).collect()
-        } else {
-            vec![]
-        };
-        
-        Ok(Self {
-            host,
-            port,
-            user_events_topic: default_user_events_topic(),
-            client_id: default_kafka_client_id(),
-            timeout_ms: default_kafka_timeout_ms(),
-            max_retries: default_kafka_max_retries(),
-            enabled: default_kafka_enabled(),
-            compression: default_kafka_compression(),
-            security_protocol: default_kafka_security_protocol(),
-            sasl_mechanism: None,
-            sasl_username: None,
-            sasl_password: None,
-            ssl_ca_location: None,
-            ssl_certificate_location: None,
-            ssl_key_location: None,
-            ssl_key_password: None,
-            additional_brokers,
-        })
-    }
-    
-    /// Clear the port cache (useful for testing)
-    pub fn clear_port_cache() {
-        if let Some(cache) = PORT_CACHE.get() {
-            let mut port_cache = cache.lock().unwrap();
-            port_cache.clear();
-        }
-    }
-}
-
-impl Default for KafkaConfig {
-    fn default() -> Self {
-        Self {
-            host: default_kafka_host(),
-            port: default_kafka_port(),
-            user_events_topic: default_user_events_topic(),
-            client_id: default_kafka_client_id(),
-            timeout_ms: default_kafka_timeout_ms(),
-            max_retries: default_kafka_max_retries(),
-            enabled: default_kafka_enabled(),
-            compression: default_kafka_compression(),
-            security_protocol: default_kafka_security_protocol(),
-            sasl_mechanism: None,
-            sasl_username: None,
-            sasl_password: None,
-            ssl_ca_location: None,
-            ssl_certificate_location: None,
-            ssl_key_location: None,
-            ssl_key_password: None,
-            additional_brokers: vec![],
-        }
-    }
-}
-
-// Kafka configuration defaults
-fn default_kafka_host() -> String {
-    "localhost".to_string()
-}
-
-fn default_kafka_port() -> u16 {
-    9092
-}
-
-fn default_user_events_topic() -> String {
-    "user-events".to_string()
-}
-
-fn default_kafka_client_id() -> String {
-    "iam-service".to_string()
-}
-
-fn default_kafka_timeout_ms() -> u64 {
-    5000
-}
-
-fn default_kafka_max_retries() -> u32 {
-    3
-}
-
-fn default_kafka_enabled() -> bool {
-    true
-}
-
-fn default_kafka_compression() -> String {
-    "gzip".to_string()
-}
-
-fn default_kafka_security_protocol() -> String {
-    "plaintext".to_string()
-}
-
-/// Application configuration combining all subsystem configurations
+/// IAM Application configuration combining all subsystem configurations
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     /// Server configuration
@@ -645,26 +113,214 @@ pub struct AppConfig {
     pub kafka: KafkaConfig,
 }
 
-/// Setup logging based on configuration
-pub fn setup_logging(log_level_str: &str) {
-    let log_level = match log_level_str.to_lowercase().as_str() {
-        "trace" => Level::TRACE,
-        "debug" => Level::DEBUG,
-        "info" => Level::INFO,
-        "warn" => Level::WARN,
-        "error" => Level::ERROR,
-        _ => Level::INFO,
+impl AppConfig {
+    /// Create a new IAM AppConfig with IAM-specific Kafka defaults
+    pub fn new_with_iam_defaults(
+        server: ServerConfig,
+        oauth: OAuthConfig,
+        jwt: JwtConfig,
+        database: DatabaseConfig,
+    ) -> Self {
+        let mut kafka = KafkaConfig::default();
+        // Override with IAM-specific client ID
+        kafka.client_id = "iam-service".to_string();
+        
+        Self {
+            server,
+            oauth,
+            jwt,
+            database,
+            logging: LoggingConfig::default(),
+            command: CommandConfig::default(),
+            kafka,
+        }
+    }
+}
+
+/// Generic provider configuration for conversion utilities
+#[derive(Debug, Clone)]
+pub struct ProviderConfig {
+    /// Client ID
+    pub client_id: String,
+    /// Client secret
+    pub client_secret: String,
+    /// Redirect URI
+    pub redirect_uri: String,
+}
+
+impl From<&GitHubConfig> for ProviderConfig {
+    fn from(config: &GitHubConfig) -> Self {
+        ProviderConfig {
+            client_id: config.client_id.clone(),
+            client_secret: config.client_secret.clone(),
+            redirect_uri: config.redirect_uri.clone(),
+        }
+    }
+}
+
+impl From<&GitLabConfig> for ProviderConfig {
+    fn from(config: &GitLabConfig) -> Self {
+        ProviderConfig {
+            client_id: config.client_id.clone(),
+            client_secret: config.client_secret.clone(),
+            redirect_uri: config.redirect_uri.clone(),
+        }
+    }
+}
+
+/// Global configuration cache to ensure consistent random ports
+static CONFIG_CACHE: OnceLock<Arc<Mutex<Option<AppConfig>>>> = OnceLock::new();
+
+/// Load configuration from environment and config files
+/// This function caches the configuration to ensure consistent behavior,
+/// especially for random port generation in database configuration.
+pub fn load_config() -> Result<AppConfig, ConfigError> {
+    let cache = CONFIG_CACHE.get_or_init(|| Arc::new(Mutex::new(None)));
+    let mut cached_config = cache.lock().unwrap();
+    
+    // Return cached config if available
+    if let Some(ref config) = *cached_config {
+        debug!("Returning cached configuration");
+        return Ok(config.clone());
+    }
+    
+    // Load fresh configuration
+    let config = load_config_fresh()?;
+    
+    // Cache the configuration
+    *cached_config = Some(config.clone());
+    debug!("Configuration loaded and cached");
+    
+    Ok(config)
+}
+
+/// Internal function to load fresh configuration without caching
+fn load_config_fresh() -> Result<AppConfig, ConfigError> {
+    // Load .env file if it exists
+    let _ = dotenvy::dotenv().ok();
+    
+    // Get environment
+    let env = env::var("RUN_ENV").unwrap_or_else(|_| "development".to_string());
+    
+    // Determine the configuration file to use
+    let config_file = env::var("CONFIG_FILE").unwrap_or_else(|_| "config.toml".to_string());
+    let config_path = Path::new(&config_file);
+    
+    info!("Loading configuration from {:?} (environment: {})", config_path, env);
+    
+    // Start building the configuration
+    let mut cfg_builder = Config::builder();
+    
+    // Try loading from config directory (legacy format)
+    let default_config_path = Path::new("config/default.toml");
+    if default_config_path.exists() {
+        debug!("Loading default configuration from {:?}", default_config_path);
+        cfg_builder = cfg_builder.add_source(File::new("config/default.toml", FileFormat::Toml));
+        
+        // Add environment-specific configuration if it exists
+        let env_config_path = format!("config/{}.toml", env);
+        if Path::new(&env_config_path).exists() {
+            debug!("Loading environment configuration from {}", env_config_path);
+            cfg_builder = cfg_builder.add_source(File::new(&env_config_path, FileFormat::Toml));
+        }
+    } else if config_path.exists() {
+        // Use specified config file
+        debug!("Loading configuration from {:?}", config_path);
+        cfg_builder = cfg_builder.add_source(File::from(config_path).format(FileFormat::Toml));
+    } else {
+        warn!("No configuration file found, using environment variables only");
+    }
+    
+    // Add environment variables with IAM prefix
+    cfg_builder = cfg_builder.add_source(
+        Environment::with_prefix("IAM")
+            .prefix_separator("_")
+            .separator("__")
+    );
+    
+    // Build and parse the configuration
+    let config = cfg_builder.build()?;
+    
+    debug!("Configuration loaded successfully");
+    
+    // Deserialize into our configuration struct
+    config.try_deserialize()
+}
+
+/// Clear the configuration cache (useful for testing)
+pub fn clear_config_cache() {
+    if let Some(cache) = CONFIG_CACHE.get() {
+        let mut cached_config = cache.lock().unwrap();
+        *cached_config = None;
+        debug!("Configuration cache cleared");
+    }
+}
+
+/// Clear all configuration caches (useful for testing)
+pub fn clear_all_caches() {
+    clear_config_cache();
+    DatabaseConfig::clear_port_cache();
+    KafkaConfig::clear_port_cache();
+    debug!("All configuration caches cleared");
+}
+
+/// Generate a default configuration as a TOML string
+pub fn generate_default_config() -> Result<String, ConfigError> {
+    let default_config = AppConfig {
+        server: ServerConfig {
+            host: "0.0.0.0".to_string(),
+            port: 8080,
+            tls_enabled: false,
+            tls_cert_path: "./certs/cert.pem".to_string(),
+            tls_key_path: "./certs/key.pem".to_string(),
+            tls_port: 8443,
+        },
+        database: DatabaseConfig::new(
+            "postgres".to_string(),
+            "postgres".to_string(),
+            "localhost".to_string(),
+            5432,
+            "iam".to_string(),
+        ),
+        oauth: OAuthConfig {
+            github: GitHubConfig {
+                client_id: "YOUR_GITHUB_CLIENT_ID".to_string(),
+                client_secret: "YOUR_GITHUB_CLIENT_SECRET".to_string(),
+                redirect_uri: "http://localhost:8080/auth/github/callback".to_string(),
+                auth_url: "https://github.com/login/oauth/authorize".to_string(),
+                token_url: "https://github.com/login/oauth/access_token".to_string(),
+                user_url: "https://api.github.com/user".to_string(),
+            },
+            gitlab: GitLabConfig {
+                client_id: "YOUR_GITLAB_CLIENT_ID".to_string(),
+                client_secret: "YOUR_GITLAB_CLIENT_SECRET".to_string(),
+                redirect_uri: "http://localhost:8080/auth/gitlab/callback".to_string(),
+                auth_url: "https://gitlab.com/oauth/authorize".to_string(),
+                token_url: "https://gitlab.com/oauth/token".to_string(),
+                user_url: "https://gitlab.com/api/v4/user".to_string(),
+            },
+        },
+        jwt: JwtConfig {
+            secret: "your-256-bit-secret-key-change-this-in-production".to_string(),
+            expiration_seconds: 3600,
+        },
+        logging: LoggingConfig::default(),
+        command: CommandConfig::default(),
+        kafka: KafkaConfig::default(),
     };
     
-    // Use try_init() to avoid panicking if subscriber is already initialized
-    // This is especially important during testing where setup_logging might be called multiple times
-    let _ = tracing_subscriber::fmt()
-        .with_max_level(log_level)
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(log_level_str))
-        )
-        .try_init();
+    toml::to_string_pretty(&default_config)
+        .map_err(|e| ConfigError::Message(format!("Failed to serialize default config: {}", e)))
+}
+
+/// Write a default configuration file
+pub fn write_default_config(path: &str) -> Result<(), ConfigError> {
+    let config_content = generate_default_config()?;
+    fs::write(path, config_content)
+        .map_err(|e| ConfigError::Message(format!("Failed to write config file: {}", e)))?;
+    
+    info!("Default configuration written to {}", path);
+    Ok(())
 }
 
 #[cfg(test)]
@@ -673,41 +329,6 @@ mod tests {
     use claims::*;
     use rstest::*;
     use serde_json;
-
-    // Test fixtures
-    #[fixture]
-    fn sample_database_creds() -> DatabaseCredentials {
-        DatabaseCredentials {
-            username: "testuser".to_string(),
-            password: "testpass".to_string(),
-        }
-    }
-
-    #[fixture]
-    fn sample_database_config() -> DatabaseConfig {
-        DatabaseConfig {
-            creds: DatabaseCredentials {
-                username: "testuser".to_string(),
-                password: "testpass".to_string(),
-            },
-            host: "localhost".to_string(),
-            port: 5432,
-            db: "testdb".to_string(),
-            read_replicas: vec![],
-        }
-    }
-
-    #[fixture]
-    fn sample_server_config() -> ServerConfig {
-        ServerConfig {
-            host: "127.0.0.1".to_string(),
-            port: 8080,
-            tls_enabled: false,
-            tls_cert_path: "./certs/cert.pem".to_string(),
-            tls_key_path: "./certs/key.pem".to_string(),
-            tls_port: 8443,
-        }
-    }
 
     #[fixture]
     fn sample_github_config() -> GitHubConfig {
@@ -742,303 +363,26 @@ mod tests {
     }
 
     #[fixture]
-    fn sample_command_retry_config() -> CommandRetryConfig {
-        CommandRetryConfig {
-            max_attempts: 5,
-            base_delay_ms: 200,
-            max_delay_ms: 10000,
-            backoff_multiplier: 1.5,
-            use_jitter: false,
+    fn sample_server_config() -> ServerConfig {
+        ServerConfig {
+            host: "127.0.0.1".to_string(),
+            port: 8080,
+            tls_enabled: false,
+            tls_cert_path: "./certs/cert.pem".to_string(),
+            tls_key_path: "./certs/key.pem".to_string(),
+            tls_port: 8443,
         }
     }
 
     #[fixture]
-    fn sample_command_config() -> CommandConfig {
-        let mut overrides = std::collections::HashMap::new();
-        overrides.insert("test_command".to_string(), CommandRetryConfig {
-            max_attempts: 2,
-            base_delay_ms: 50,
-            max_delay_ms: 5000,
-            backoff_multiplier: 1.2,
-            use_jitter: false,
-        });
-        
-        CommandConfig {
-            retry: sample_command_retry_config(),
-            overrides,
-        }
-    }
-
-    mod database_credentials {
-        use super::*;
-
-        #[rstest]
-        #[test]
-        fn new_creates_valid_credentials(sample_database_creds: DatabaseCredentials) {
-            assert_eq!(sample_database_creds.username, "testuser");
-            assert_eq!(sample_database_creds.password, "testpass");
-        }
-
-        #[rstest]
-        #[test]
-        fn serialization_roundtrip(sample_database_creds: DatabaseCredentials) {
-            let json = assert_ok!(serde_json::to_string(&sample_database_creds));
-            let deserialized: DatabaseCredentials = assert_ok!(serde_json::from_str(&json));
-            
-            assert_eq!(deserialized.username, sample_database_creds.username);
-            assert_eq!(deserialized.password, sample_database_creds.password);
-        }
-
-        #[test]
-        fn clone_creates_independent_copy() {
-            let original = DatabaseCredentials {
-                username: "original".to_string(),
-                password: "pass".to_string(),
-            };
-            
-            let cloned = original.clone();
-            assert_eq!(cloned.username, original.username);
-            assert_eq!(cloned.password, original.password);
-        }
-    }
-
-    mod database_config {
-        use super::*;
-
-        #[rstest]
-        #[test]
-        fn new_creates_valid_config() {
-            let config = DatabaseConfig::new(
-                "user".to_string(),
-                "pass".to_string(),
-                "host".to_string(),
-                5432,
-                "db".to_string(),
-            );
-
-            assert_eq!(config.creds.username, "user");
-            assert_eq!(config.creds.password, "pass");
-            assert_eq!(config.host, "host");
-            assert_eq!(config.port, 5432);
-            assert_eq!(config.db, "db");
-            assert!(config.read_replicas.is_empty());
-        }
-
-        #[rstest]
-        #[test]
-        fn url_builds_correct_postgres_url(sample_database_config: DatabaseConfig) {
-            let url = sample_database_config.url();
-            
-            assert_eq!(url, "postgres://testuser:testpass@localhost:5432/testdb");
-        }
-
-        #[rstest]
-        #[test]
-        fn actual_port_returns_configured_port_when_not_zero() {
-            let config = DatabaseConfig::new(
-                "user".to_string(),
-                "pass".to_string(),
-                "localhost".to_string(),
-                5433,
-                "db".to_string(),
-            );
-
-            assert_eq!(config.actual_port(), 5433);
-        }
-
-        #[test]
-        fn actual_port_returns_random_port_when_zero() {
-            DatabaseConfig::clear_port_cache();
-            
-            let config = DatabaseConfig::new(
-                "user".to_string(),
-                "pass".to_string(),
-                "localhost".to_string(),
-                0,
-                "db".to_string(),
-            );
-
-            let port1 = config.actual_port();
-            let port2 = config.actual_port();
-            
-            // Should be consistent (cached)
-            assert_eq!(port1, port2);
-            // Should be a valid port number
-            assert!(port1 > 1024);
-            assert!(port1 <= 65535);
-        }
-
-        #[test]
-        fn actual_port_caches_random_ports() {
-            DatabaseConfig::clear_port_cache();
-            
-            let config1 = DatabaseConfig::new(
-                "user1".to_string(),
-                "pass".to_string(),
-                "localhost".to_string(),
-                0,
-                "db1".to_string(),
-            );
-            
-            let config2 = DatabaseConfig::new(
-                "user2".to_string(),
-                "pass".to_string(),
-                "localhost".to_string(),
-                0,
-                "db2".to_string(),
-            );
-
-            let port1 = config1.actual_port();
-            let port2 = config2.actual_port();
-            
-            // Different configs should get different ports
-            assert_ne!(port1, port2);
-            
-            // But should be consistent for same config
-            assert_eq!(config1.actual_port(), port1);
-            assert_eq!(config2.actual_port(), port2);
-        }
-
-        #[rstest]
-        #[case("postgres://user:pass@localhost:5432/testdb")]
-        #[case("postgresql://user:pass@localhost:5432/testdb")]
-        #[case("postgres://user:pass@localhost/testdb")]
-        #[case("postgres://user@localhost:5432/testdb")]
-        #[test]
-        fn from_url_parses_valid_urls(#[case] url: &str) {
-            let result = DatabaseConfig::from_url(url);
-            assert_ok!(&result);
-            
-            let config = result.unwrap();
-            assert_eq!(config.creds.username, "user");
-            assert_eq!(config.host, "localhost");
-            assert_eq!(config.db, "testdb");
-        }
-
-        #[rstest]
-        #[case("http://user:pass@localhost:5432/testdb", "URL must use postgres")]
-        #[case("postgres://user:pass@localhost:5432/", "Database name is required")]
-        #[case("not-a-url", "Invalid URL")]
-        #[test]
-        fn from_url_rejects_invalid_urls(#[case] url: &str, #[case] expected_error: &str) {
-            let result = DatabaseConfig::from_url(url);
-            assert_err!(&result);
-            
-            let error = result.unwrap_err();
-            assert!(error.contains(expected_error));
-        }
-
-        #[test]
-        fn from_url_handles_missing_password() {
-            let result = DatabaseConfig::from_url("postgres://user@localhost:5432/testdb");
-            assert_ok!(&result);
-            
-            let config = result.unwrap();
-            assert_eq!(config.creds.password, "");
-        }
-
-        #[test]
-        fn from_url_uses_default_port_when_missing() {
-            let result = DatabaseConfig::from_url("postgres://user:pass@localhost/testdb");
-            assert_ok!(&result);
-            
-            let config = result.unwrap();
-            assert_eq!(config.port, 5432);
-        }
-
-        #[test]
-        fn clear_port_cache_clears_cached_ports() {
-            let config = DatabaseConfig::new(
-                "user".to_string(),
-                "pass".to_string(),
-                "localhost".to_string(),
-                0,
-                "db".to_string(),
-            );
-
-            let _port1 = config.actual_port(); // This caches a port
-            DatabaseConfig::clear_port_cache();
-            let port2 = config.actual_port(); // This should generate a new port
-            
-            // Note: ports might be the same due to randomness, but cache was cleared
-            assert!(port2 > 1024);
-        }
-
-        #[rstest]
-        #[test]
-        fn serialization_preserves_all_fields(sample_database_config: DatabaseConfig) {
-            let json = assert_ok!(serde_json::to_string(&sample_database_config));
-            let deserialized: DatabaseConfig = assert_ok!(serde_json::from_str(&json));
-            
-            assert_eq!(deserialized.creds.username, sample_database_config.creds.username);
-            assert_eq!(deserialized.host, sample_database_config.host);
-            assert_eq!(deserialized.port, sample_database_config.port);
-            assert_eq!(deserialized.db, sample_database_config.db);
-        }
-    }
-
-    mod server_config {
-        use super::*;
-
-        #[rstest]
-        #[test]
-        fn to_setup_config_without_tls(sample_server_config: ServerConfig) {
-            let setup_config = sample_server_config.to_setup_config();
-            
-            assert_eq!(setup_config.host, sample_server_config.host);
-            assert_eq!(setup_config.port, sample_server_config.port);
-            assert!(!setup_config.tls_enabled);
-            assert!(setup_config.tls_cert_path.is_none());
-            assert!(setup_config.tls_key_path.is_none());
-            assert!(setup_config.tls_port.is_none());
-        }
-
-        #[test]
-        fn to_setup_config_with_tls() {
-            let config = ServerConfig {
-                host: "0.0.0.0".to_string(),
-                port: 8080,
-                tls_enabled: true,
-                tls_cert_path: "/path/to/cert.pem".to_string(),
-                tls_key_path: "/path/to/key.pem".to_string(),
-                tls_port: 8443,
-            };
-
-            let setup_config = config.to_setup_config();
-            
-            assert!(setup_config.tls_enabled);
-            assert_eq!(setup_config.tls_cert_path, Some("/path/to/cert.pem".to_string()));
-            assert_eq!(setup_config.tls_key_path, Some("/path/to/key.pem".to_string()));
-            assert_eq!(setup_config.tls_port, Some(8443));
-        }
-
-        #[test]
-        fn default_values_applied_correctly() {
-            let config = ServerConfig {
-                host: "localhost".to_string(),
-                port: 3000,
-                tls_enabled: false,
-                tls_cert_path: default_cert_path(),
-                tls_key_path: default_key_path(),
-                tls_port: default_tls_port(),
-            };
-
-            assert_eq!(config.tls_cert_path, "./certs/cert.pem");
-            assert_eq!(config.tls_key_path, "./certs/key.pem");
-            assert_eq!(config.tls_port, 8443);
-        }
-
-        #[rstest]
-        #[test]
-        fn serialization_includes_default_values(sample_server_config: ServerConfig) {
-            let json = assert_ok!(serde_json::to_string(&sample_server_config));
-            
-            // Should include all fields even with defaults
-            assert!(json.contains("tls_enabled"));
-            assert!(json.contains("tls_cert_path"));
-            assert!(json.contains("tls_key_path"));
-            assert!(json.contains("tls_port"));
-        }
+    fn sample_database_config() -> DatabaseConfig {
+        DatabaseConfig::new(
+            "testuser".to_string(),
+            "testpass".to_string(),
+            "localhost".to_string(),
+            5432,
+            "testdb".to_string(),
+        )
     }
 
     mod oauth_configs {
@@ -1125,420 +469,6 @@ mod tests {
         }
     }
 
-    mod logging_config {
-        use super::*;
-
-        #[test]
-        fn default_logging_config_uses_info_level() {
-            let config = LoggingConfig::default();
-            assert_eq!(config.level, "info");
-        }
-
-        #[rstest]
-        #[case("debug")]
-        #[case("info")]
-        #[case("warn")]
-        #[case("error")]
-        #[test]
-        fn logging_config_accepts_valid_levels(#[case] level: &str) {
-            let config = LoggingConfig {
-                level: level.to_string(),
-            };
-            assert_eq!(config.level, level);
-        }
-
-        #[test]
-        fn logging_config_serialization_works() {
-            let config = LoggingConfig {
-                level: "debug".to_string(),
-            };
-
-            let json = assert_ok!(serde_json::to_string(&config));
-            let deserialized: LoggingConfig = assert_ok!(serde_json::from_str(&json));
-            
-            assert_eq!(deserialized.level, config.level);
-        }
-    }
-
-    mod command_retry_config {
-        use super::*;
-
-        #[test]
-        fn default_command_retry_config_has_expected_values() {
-            let config = CommandRetryConfig::default();
-            
-            assert_eq!(config.max_attempts, 3);
-            assert_eq!(config.base_delay_ms, 100);
-            assert_eq!(config.max_delay_ms, 30000);
-            assert_eq!(config.backoff_multiplier, 2.0);
-            assert!(config.use_jitter);
-        }
-
-        #[rstest]
-        #[test]
-        fn command_retry_config_stores_custom_values(sample_command_retry_config: CommandRetryConfig) {
-            assert_eq!(sample_command_retry_config.max_attempts, 5);
-            assert_eq!(sample_command_retry_config.base_delay_ms, 200);
-            assert_eq!(sample_command_retry_config.max_delay_ms, 10000);
-            assert_eq!(sample_command_retry_config.backoff_multiplier, 1.5);
-            assert!(!sample_command_retry_config.use_jitter);
-        }
-
-        #[test]
-        fn command_retry_config_serialization_works() {
-            let config = CommandRetryConfig {
-                max_attempts: 3,
-                base_delay_ms: 150,
-                max_delay_ms: 20000,
-                backoff_multiplier: 2.5,
-                use_jitter: true,
-            };
-
-            let json = assert_ok!(serde_json::to_string(&config));
-            let deserialized: CommandRetryConfig = assert_ok!(serde_json::from_str(&json));
-            
-            assert_eq!(deserialized.max_attempts, config.max_attempts);
-            assert_eq!(deserialized.base_delay_ms, config.base_delay_ms);
-            assert_eq!(deserialized.max_delay_ms, config.max_delay_ms);
-            assert_eq!(deserialized.backoff_multiplier, config.backoff_multiplier);
-            assert_eq!(deserialized.use_jitter, config.use_jitter);
-        }
-
-        #[test]
-        fn command_retry_config_serde_defaults_work() {
-            // Test that serde defaults are applied when fields are missing
-            let json = r#"{}"#;
-            let config: CommandRetryConfig = assert_ok!(serde_json::from_str(json));
-            
-            assert_eq!(config.max_attempts, 3);
-            assert_eq!(config.base_delay_ms, 100);
-            assert_eq!(config.max_delay_ms, 30000);
-            assert_eq!(config.backoff_multiplier, 2.0);
-            assert!(config.use_jitter);
-        }
-    }
-
-    mod command_config {
-        use super::*;
-
-        #[test]
-        fn default_command_config_has_expected_values() {
-            let config = CommandConfig::default();
-            
-            assert_eq!(config.retry.max_attempts, 3);
-            assert!(config.overrides.is_empty());
-        }
-
-        #[rstest]
-        #[test]
-        fn command_config_stores_retry_and_overrides(sample_command_config: CommandConfig) {
-            assert_eq!(sample_command_config.retry.max_attempts, 5);
-            assert_eq!(sample_command_config.overrides.len(), 1);
-            assert!(sample_command_config.overrides.contains_key("test_command"));
-        }
-
-        #[rstest]
-        #[test]
-        fn get_retry_config_returns_override_when_available(sample_command_config: CommandConfig) {
-            let config = sample_command_config.get_retry_config("test_command");
-            
-            assert_eq!(config.max_attempts, 2);
-            assert_eq!(config.base_delay_ms, 50);
-            assert_eq!(config.backoff_multiplier, 1.2);
-        }
-
-        #[rstest]
-        #[test]
-        fn get_retry_config_returns_default_when_no_override(sample_command_config: CommandConfig) {
-            let config = sample_command_config.get_retry_config("unknown_command");
-            
-            assert_eq!(config.max_attempts, 5);
-            assert_eq!(config.base_delay_ms, 200);
-            assert_eq!(config.backoff_multiplier, 1.5);
-        }
-
-        #[test]
-        fn command_config_serialization_preserves_structure() {
-            let mut overrides = std::collections::HashMap::new();
-            overrides.insert("cmd1".to_string(), CommandRetryConfig {
-                max_attempts: 1,
-                base_delay_ms: 25,
-                max_delay_ms: 2500,
-                backoff_multiplier: 1.1,
-                use_jitter: false,
-            });
-
-            let config = CommandConfig {
-                retry: CommandRetryConfig::default(),
-                overrides,
-            };
-
-            let json = assert_ok!(serde_json::to_string(&config));
-            let deserialized: CommandConfig = assert_ok!(serde_json::from_str(&json));
-            
-            assert_eq!(deserialized.retry.max_attempts, config.retry.max_attempts);
-            assert_eq!(deserialized.overrides.len(), 1);
-            assert!(deserialized.overrides.contains_key("cmd1"));
-            
-            let override_config = deserialized.overrides.get("cmd1").unwrap();
-            assert_eq!(override_config.max_attempts, 1);
-            assert_eq!(override_config.base_delay_ms, 25);
-        }
-
-        #[test]
-        fn command_config_serde_defaults_work() {
-            // Test that serde defaults are applied when fields are missing
-            let json = r#"{}"#;
-            let config: CommandConfig = assert_ok!(serde_json::from_str(json));
-            
-            assert_eq!(config.retry.max_attempts, 3);
-            assert!(config.overrides.is_empty());
-        }
-    }
-
-    mod kafka_config {
-        use super::*;
-
-        #[test]
-        fn default_kafka_config_has_expected_values() {
-            let config = KafkaConfig::default();
-            
-            assert_eq!(config.host, "localhost");
-            assert_eq!(config.port, 9092);
-            assert_eq!(config.user_events_topic, "user-events");
-            assert_eq!(config.client_id, "iam-service");
-            assert_eq!(config.timeout_ms, 5000);
-            assert_eq!(config.max_retries, 3);
-            assert!(config.enabled);
-            assert_eq!(config.compression, "gzip");
-            assert_eq!(config.security_protocol, "plaintext");
-            assert!(config.sasl_mechanism.is_none());
-            assert!(config.sasl_username.is_none());
-            assert!(config.sasl_password.is_none());
-            assert!(config.ssl_ca_location.is_none());
-            assert!(config.ssl_certificate_location.is_none());
-            assert!(config.ssl_key_location.is_none());
-            assert!(config.ssl_key_password.is_none());
-            assert!(config.additional_brokers.is_empty());
-        }
-
-        #[test]
-        fn kafka_config_serialization_works() {
-            let config = KafkaConfig {
-                host: "test_host".to_string(),
-                port: 10000,
-                user_events_topic: "test_topic".to_string(),
-                client_id: "test_client_id".to_string(),
-                timeout_ms: 10000,
-                max_retries: 5,
-                enabled: false,
-                compression: "snappy".to_string(),
-                security_protocol: "ssl".to_string(),
-                sasl_mechanism: Some("SCRAM-SHA-256".to_string()),
-                sasl_username: Some("test_username".to_string()),
-                sasl_password: Some("test_password".to_string()),
-                ssl_ca_location: Some("probe".to_string()),
-                ssl_certificate_location: Some("/path/to/cert.pem".to_string()),
-                ssl_key_location: Some("/path/to/key.pem".to_string()),
-                ssl_key_password: Some("password".to_string()),
-                additional_brokers: vec!["test_broker1:10001".to_string(), "test_broker2:10002".to_string()],
-            };
-
-            let json = assert_ok!(serde_json::to_string(&config));
-            let deserialized: KafkaConfig = assert_ok!(serde_json::from_str(&json));
-            
-            assert_eq!(deserialized.host, "test_host");
-            assert_eq!(deserialized.port, 10000);
-            assert_eq!(deserialized.user_events_topic, "test_topic");
-            assert_eq!(deserialized.client_id, "test_client_id");
-            assert_eq!(deserialized.timeout_ms, 10000);
-            assert_eq!(deserialized.max_retries, 5);
-            assert!(!deserialized.enabled);
-            assert_eq!(deserialized.compression, "snappy");
-            assert_eq!(deserialized.security_protocol, "ssl");
-            assert_eq!(deserialized.sasl_mechanism, Some("SCRAM-SHA-256".to_string()));
-            assert_eq!(deserialized.sasl_username, Some("test_username".to_string()));
-            assert_eq!(deserialized.sasl_password, Some("test_password".to_string()));
-            assert_eq!(deserialized.ssl_ca_location, Some("probe".to_string()));
-            assert_eq!(deserialized.ssl_certificate_location, Some("/path/to/cert.pem".to_string()));
-            assert_eq!(deserialized.ssl_key_location, Some("/path/to/key.pem".to_string()));
-            assert_eq!(deserialized.ssl_key_password, Some("password".to_string()));
-            assert_eq!(deserialized.additional_brokers, vec!["test_broker1:10001".to_string(), "test_broker2:10002".to_string()]);
-        }
-
-        #[test]
-        fn brokers_method_returns_single_broker() {
-            let config = KafkaConfig::new(
-                "test-host".to_string(),
-                9092,
-                "test-topic".to_string(),
-                "test-client".to_string(),
-            );
-
-            assert_eq!(config.brokers(), "test-host:9092");
-        }
-
-        #[test]
-        fn brokers_method_includes_additional_brokers() {
-            let mut config = KafkaConfig::new(
-                "primary".to_string(),
-                9092,
-                "test-topic".to_string(),
-                "test-client".to_string(),
-            );
-            config.additional_brokers = vec![
-                "secondary:9093".to_string(),
-                "tertiary:9094".to_string(),
-            ];
-
-            let brokers = config.brokers();
-            assert!(brokers.contains("primary:9092"));
-            assert!(brokers.contains("secondary:9093"));
-            assert!(brokers.contains("tertiary:9094"));
-            
-            // Should be comma-separated
-            let broker_list: Vec<&str> = brokers.split(',').collect();
-            assert_eq!(broker_list.len(), 3);
-        }
-
-        #[test]
-        fn actual_port_returns_configured_port_when_not_zero() {
-            let config = KafkaConfig::new(
-                "localhost".to_string(),
-                9093,
-                "test-topic".to_string(),
-                "test-client".to_string(),
-            );
-
-            assert_eq!(config.actual_port(), 9093);
-        }
-
-        #[test]
-        fn actual_port_returns_random_port_when_zero() {
-            KafkaConfig::clear_port_cache();
-            
-            let config = KafkaConfig::new(
-                "localhost".to_string(),
-                0,
-                "test-topic".to_string(),
-                "test-client-random".to_string(),
-            );
-
-            let port1 = config.actual_port();
-            let port2 = config.actual_port();
-            
-            // Should be consistent (cached)
-            assert_eq!(port1, port2);
-            // Should be a valid port number
-            assert!(port1 > 1024);
-            assert!(port1 <= 65535);
-        }
-
-        #[test]
-        fn actual_port_caches_different_ports_for_different_configs() {
-            KafkaConfig::clear_port_cache();
-            
-            let config1 = KafkaConfig::new(
-                "localhost".to_string(),
-                0,
-                "topic1".to_string(),
-                "client1".to_string(),
-            );
-            
-            let config2 = KafkaConfig::new(
-                "localhost".to_string(),
-                0,
-                "topic2".to_string(),
-                "client2".to_string(),
-            );
-
-            let port1 = config1.actual_port();
-            let port2 = config2.actual_port();
-            
-            // Different configs should get different ports
-            assert_ne!(port1, port2);
-            
-            // But should be consistent for same config
-            assert_eq!(config1.actual_port(), port1);
-            assert_eq!(config2.actual_port(), port2);
-        }
-
-        #[test]
-        fn from_brokers_parses_single_broker() {
-            let config = assert_ok!(KafkaConfig::from_brokers("localhost:9092"));
-            
-            assert_eq!(config.host, "localhost");
-            assert_eq!(config.port, 9092);
-            assert!(config.additional_brokers.is_empty());
-            assert_eq!(config.user_events_topic, "user-events");
-            assert_eq!(config.client_id, "iam-service");
-        }
-
-        #[test]
-        fn from_brokers_parses_multiple_brokers() {
-            let config = assert_ok!(KafkaConfig::from_brokers("primary:9092,secondary:9093,tertiary:9094"));
-            
-            assert_eq!(config.host, "primary");
-            assert_eq!(config.port, 9092);
-            assert_eq!(config.additional_brokers, vec!["secondary:9093", "tertiary:9094"]);
-        }
-
-        #[test]
-        fn from_brokers_handles_whitespace() {
-            let config = assert_ok!(KafkaConfig::from_brokers(" primary:9092 , secondary:9093 "));
-            
-            assert_eq!(config.host, "primary");
-            assert_eq!(config.port, 9092);
-            assert_eq!(config.additional_brokers, vec!["secondary:9093"]);
-        }
-
-        #[test]
-        fn from_brokers_rejects_invalid_format() {
-            assert_err!(KafkaConfig::from_brokers("invalid"));
-            assert_err!(KafkaConfig::from_brokers("host:invalid_port"));
-            assert_err!(KafkaConfig::from_brokers(""));
-            assert_err!(KafkaConfig::from_brokers("host"));
-        }
-
-        #[test]
-        fn new_creates_valid_config() {
-            let config = KafkaConfig::new(
-                "test-host".to_string(),
-                9092,
-                "test-topic".to_string(),
-                "test-client".to_string(),
-            );
-
-            assert_eq!(config.host, "test-host");
-            assert_eq!(config.port, 9092);
-            assert_eq!(config.user_events_topic, "test-topic");
-            assert_eq!(config.client_id, "test-client");
-            assert_eq!(config.timeout_ms, 5000);
-            assert_eq!(config.max_retries, 3);
-            assert!(config.enabled);
-            assert_eq!(config.compression, "gzip");
-            assert_eq!(config.security_protocol, "plaintext");
-            assert!(config.additional_brokers.is_empty());
-        }
-
-        #[test]
-        fn clear_port_cache_clears_cached_ports() {
-            let config = KafkaConfig::new(
-                "localhost".to_string(),
-                0,
-                "test-topic".to_string(),
-                "test-client-clear".to_string(),
-            );
-
-            let _port1 = config.actual_port(); // This caches a port
-            KafkaConfig::clear_port_cache();
-            let port2 = config.actual_port(); // This should generate a new port
-            
-            // Note: ports might be the same due to randomness, but cache was cleared
-            assert!(port2 > 1024);
-        }
-    }
-
     mod app_config {
         use super::*;
 
@@ -1553,7 +483,7 @@ mod tests {
                 jwt: sample_jwt_config(),
                 database: sample_database_config(),
                 logging: LoggingConfig::default(),
-                command: sample_command_config(),
+                command: CommandConfig::default(),
                 kafka: KafkaConfig::default(),
             };
 
@@ -1575,7 +505,7 @@ mod tests {
                 jwt: sample_jwt_config(),
                 database: sample_database_config(),
                 logging: LoggingConfig::default(),
-                command: sample_command_config(),
+                command: CommandConfig::default(),
                 kafka: KafkaConfig::default(),
             };
 
@@ -1586,95 +516,25 @@ mod tests {
             assert_eq!(deserialized.oauth.github.client_id, app_config.oauth.github.client_id);
             assert_eq!(deserialized.jwt.secret, app_config.jwt.secret);
         }
-    }
-
-    mod setup_logging {
-        use super::*;
 
         #[test]
-        fn setup_logging_handles_valid_levels() {
-            // Test just ensures the function doesn't panic for valid levels
-            // We can't test actual logging setup because global subscriber can only be set once
-            
-            // These calls should not panic
-            let levels = ["trace", "debug", "info", "warn", "error"];
-            for level in levels.iter() {
-                // We test the level matching logic without calling the actual setup
-                let parsed_level = match level.to_lowercase().as_str() {
-                    "trace" => Level::TRACE,
-                    "debug" => Level::DEBUG,
-                    "info" => Level::INFO,
-                    "warn" => Level::WARN,
-                    "error" => Level::ERROR,
-                    _ => Level::INFO,
-                };
-                
-                // Just verify the level parsing works
-                assert!(matches!(parsed_level, Level::TRACE | Level::DEBUG | Level::INFO | Level::WARN | Level::ERROR));
-            }
-        }
+        fn new_with_iam_defaults_sets_correct_kafka_client_id() {
+            let app_config = AppConfig::new_with_iam_defaults(
+                sample_server_config(),
+                OAuthConfig {
+                    github: sample_github_config(),
+                    gitlab: sample_gitlab_config(),
+                },
+                sample_jwt_config(),
+                sample_database_config(),
+            );
 
-        #[test]
-        fn setup_logging_handles_invalid_level() {
-            // Test that invalid levels default to INFO
-            let parsed_level = match "invalid".to_lowercase().as_str() {
-                "trace" => Level::TRACE,
-                "debug" => Level::DEBUG,
-                "info" => Level::INFO,
-                "warn" => Level::WARN,
-                "error" => Level::ERROR,
-                _ => Level::INFO,
-            };
-            
-            assert!(matches!(parsed_level, Level::INFO));
+            assert_eq!(app_config.kafka.client_id, "iam-service");
         }
     }
 
     mod edge_cases {
         use super::*;
-
-        #[test]
-        fn database_config_handles_empty_strings() {
-            let config = DatabaseConfig::new(
-                "".to_string(),
-                "".to_string(),
-                "".to_string(),
-                0,
-                "".to_string(),
-            );
-
-            // Should build URL even with empty strings (though not practical)
-            let url = config.url();
-            assert!(url.starts_with("postgres://"));
-        }
-
-        #[test]
-        fn database_config_handles_special_characters_in_password() {
-            let config = DatabaseConfig::new(
-                "user".to_string(),
-                "p@ss:w0rd!".to_string(),
-                "localhost".to_string(),
-                5432,
-                "db".to_string(),
-            );
-
-            let url = config.url();
-            assert!(url.contains("p@ss:w0rd!"));
-        }
-
-        #[test]
-        fn server_config_handles_ipv6_address() {
-            let config = ServerConfig {
-                host: "::1".to_string(),
-                port: 8080,
-                tls_enabled: false,
-                tls_cert_path: default_cert_path(),
-                tls_key_path: default_key_path(),
-                tls_port: default_tls_port(),
-            };
-
-            assert_eq!(config.host, "::1");
-        }
 
         #[test]
         fn oauth_configs_handle_custom_endpoints() {

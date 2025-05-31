@@ -6,5 +6,8 @@
 pub mod repository;
 pub mod auth;
 pub mod token;
+pub mod event_adapter;
 pub mod db;
-pub mod event; 
+
+// Re-export event functionality from rustycog-events for internal use
+pub use rustycog_events as rustycog_event; 

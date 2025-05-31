@@ -1,4 +1,4 @@
-use infra::config::load_config;
+use configuration::load_config;
 use setup::{app, config};
 use tracing::info;
 

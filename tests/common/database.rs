@@ -8,7 +8,7 @@ use std::sync::OnceLock;
 use tokio::sync::Mutex;
 use testcontainers::{GenericImage, ImageExt, ContainerAsync, runners::AsyncRunner};
 use sea_orm::{Database, DatabaseConnection, DbErr, Statement, ConnectionTrait};
-use infra::config::{AppConfig, DatabaseConfig};
+use configuration::{AppConfig, DatabaseConfig, clear_all_caches};
 use infra::db::DbConnectionPool;
 use migration::{Migrator, MigratorTrait};
 use tracing::{info, debug, warn};
@@ -196,7 +196,7 @@ async fn get_or_create_test_container() -> Result<Arc<TestDatabaseContainer>, Db
     info!("Creating new PostgreSQL test container");
     
     // Clear all configuration caches to ensure fresh random port generation
-    infra::config::clear_all_caches();
+    clear_all_caches();
     
     // First, try to clean up any existing container with the same name
     cleanup_existing_container().await;
@@ -377,7 +377,7 @@ async fn register_cleanup_handler() {
 fn create_base_test_config() -> AppConfig {
     // Load configuration from test.toml
     // The RUN_ENV=test environment variable should be set by the justfile
-    infra::config::load_config().expect(
+    configuration::load_config().expect(
         "Failed to load test configuration. Make sure RUN_ENV=test is set and config/test.toml exists."
     )
 }

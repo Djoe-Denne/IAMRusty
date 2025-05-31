@@ -1,5 +1,5 @@
 use crate::common::{spawn_test_server, TestDatabase};
-use infra::config::load_config;
+use configuration::load_config;
 use std::sync::OnceLock;
 use tokio::sync::Mutex;
 use std::sync::Arc;

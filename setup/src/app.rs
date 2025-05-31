@@ -22,7 +22,7 @@ use infra::{
         combined_email_verification_repository::CombinedEmailVerificationRepository,
     },
     db::DbConnectionPool,
-    event::create_event_publisher,
+    event_adapter::create_event_publisher,
 };
 
 use configuration::AppConfig;

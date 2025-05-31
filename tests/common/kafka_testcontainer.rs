@@ -12,7 +12,7 @@ use tracing::{info, debug, warn};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use uuid;
-use infra::event::test_consumer::TestKafkaConsumer;
+use infra::event_adapter::test_consumer::TestKafkaConsumer;
 
 /// Global test Kafka container instance
 static TEST_KAFKA_CONTAINER: OnceLock<Arc<Mutex<Option<Arc<TestKafkaContainer>>>>> = OnceLock::new();
@@ -180,11 +180,11 @@ async fn get_or_create_test_kafka_container() -> Result<Arc<TestKafkaContainer>,
     // Clean up any existing container
     cleanup_existing_kafka_container().await;
     
-    // Clear configuration caches to ensure fresh port generation
-    infra::config::clear_all_caches();
+    // Clear all configuration caches to ensure fresh random port generation
+    configuration::clear_all_caches();
     
-    // Load test configuration to get Kafka settings
-    let config = infra::config::load_config()?;
+    // Load configuration to understand Kafka settings
+    let config = configuration::load_config()?;
     let kafka_config = &config.kafka;
     
     // Use the configuration's port resolution mechanism

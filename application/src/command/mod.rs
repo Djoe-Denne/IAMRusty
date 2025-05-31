@@ -5,10 +5,9 @@ pub mod user;
 pub mod signup;
 pub mod password_login;
 pub mod verify_email;
-
-// New modules for the extensible command system
 pub mod registry;
 pub mod generic_service;
+
 pub mod factory;
 
 // Re-exports for the extensible command system

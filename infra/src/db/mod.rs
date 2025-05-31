@@ -3,7 +3,7 @@ use sea_orm::{DatabaseConnection, Database, DbErr, ConnectOptions};
 use std::time::Duration;
 use std::sync::Arc;
 use tracing::{info, warn};
-use crate::config::DatabaseConfig;
+use configuration::DatabaseConfig;
 
 /// Database connection pool with read-write split capabilities
 pub struct DbConnectionPool {

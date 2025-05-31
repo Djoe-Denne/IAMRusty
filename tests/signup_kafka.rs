@@ -12,6 +12,7 @@ use serial_test::serial;
 use uuid::Uuid;
 use sea_orm::ConnectionTrait;
 use infra::auth::PasswordService;
+use configuration;
 
 /// Create a common HTTP client for tests
 fn create_test_client() -> Client {
@@ -32,8 +33,11 @@ async fn test_signup_kafka_integration() {
     println!("🔧 Kafka container started on: {}", kafka_fixture.kafka.brokers);
     println!("🔧 Topic: {}", kafka_fixture.kafka.topic);
     
-    // Clear config cache so the new environment variables are picked up
-    infra::config::clear_config_cache();
+    // Clear configuration cache and restart with test environment
+    configuration::clear_config_cache();
+    
+    // Load configuration
+    let config = configuration::load_config().expect("Should load config");
     
     // Setup database fixture
     let _db_fixture = TestFixture::new().await
@@ -51,7 +55,6 @@ async fn test_signup_kafka_integration() {
     tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
     
     // Verify Kafka configuration
-    let config = infra::config::load_config().expect("Should load config");
     println!("🔧 Kafka config - enabled: {}, brokers: {}, topic: {}", 
              config.kafka.enabled, config.kafka.brokers(), config.kafka.user_events_topic);
     

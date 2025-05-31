@@ -1003,13 +1003,17 @@ name = "configuration"
 version = "0.1.0"
 dependencies = [
  "claims",
+ "config",
+ "dotenvy",
  "mockall",
  "rstest",
+ "rustycog-config",
  "serde",
  "serde_json",
  "tempfile",
  "tokio",
  "tokio-test",
+ "toml",
  "tracing",
  "tracing-subscriber",
  "url",
@@ -2457,8 +2461,10 @@ dependencies = [
  "oauth2 4.4.2",
  "openidconnect",
  "rand 0.8.5",
- "rdkafka",
  "reqwest 0.11.27",
+ "rustycog-config",
+ "rustycog-core",
+ "rustycog-events",
  "sea-orm",
  "sea-orm-migration",
  "serde",
@@ -4245,6 +4251,45 @@ name = "rustversion"
 version = "1.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a0d197bd2c9dc6e53b84da9556a69ba4cdfab8619eb41a8bd1cc2027a0f6b1d"
+
+[[package]]
+name = "rustycog-config"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "tracing",
+ "tracing-subscriber",
+ "url",
+]
+
+[[package]]
+name = "rustycog-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "serde",
+ "thiserror 1.0.69",
+ "uuid",
+]
+
+[[package]]
+name = "rustycog-events"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "futures",
+ "rdkafka",
+ "rustycog-config",
+ "rustycog-core",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "uuid",
+]
 
 [[package]]
 name = "ryu"
