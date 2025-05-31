@@ -1,10 +1,63 @@
-use super::{Command, CommandError, CommandHandler, error_mappers::AuthErrorMapper};
+use super::{Command, CommandError, CommandHandler};
 use super::registry::CommandErrorMapper;
-use crate::usecase::auth::{AuthUseCase, SignupRequest, SignupResponse};
+use crate::usecase::auth::{AuthUseCase, SignupRequest, SignupResponse, AuthError};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
+
+/// Error mapper for authentication-related commands (signup, password login, verify email)
+pub struct AuthErrorMapper;
+
+impl CommandErrorMapper for AuthErrorMapper {
+    fn map_error(&self, error: Box<dyn std::error::Error + Send + Sync>) -> CommandError {
+        if let Some(auth_error) = error.downcast_ref::<AuthError>() {
+            match auth_error {
+                AuthError::InvalidCredentials => CommandError::Validation("Invalid credentials".to_string()),
+                AuthError::UserNotFound => CommandError::Business("Invalid credentials".to_string()), // Don't leak user existence
+                AuthError::EmailNotVerified => CommandError::Business("Email not verified".to_string()),
+                AuthError::UserAlreadyExists => CommandError::Business("User already exists".to_string()),
+                AuthError::WeakPassword => CommandError::Validation("Password is too weak".to_string()),
+                AuthError::InvalidEmail => CommandError::Validation("Invalid email format".to_string()),
+                AuthError::EmailNotFound => CommandError::Business("Invalid verification request".to_string()), // Don't leak email existence
+                AuthError::EmailAlreadyVerified => CommandError::Business("Email is already verified".to_string()),
+                AuthError::InvalidVerificationToken => CommandError::Validation("Invalid or expired verification token".to_string()),
+                AuthError::VerificationTokenExpired => CommandError::Validation("Verification token has expired".to_string()),
+                AuthError::RepositoryError(_) => CommandError::Infrastructure(error.to_string()),
+                AuthError::EventPublishingError(_) => CommandError::Infrastructure(error.to_string()),
+                AuthError::TokenServiceError(inner) => {
+                    let error_msg = inner.to_string();
+                    if Self::is_authentication_related_error(&error_msg) {
+                        CommandError::Validation(format!("Authentication failed: {}", error_msg))
+                    } else {
+                        CommandError::Infrastructure(error.to_string())
+                    }
+                },
+                AuthError::PasswordHashingError(_) => CommandError::Infrastructure(error.to_string()),
+                AuthError::VerificationTokenGenerationError(_) => CommandError::Infrastructure(error.to_string()),
+            }
+        } else {
+            let error_msg = error.to_string();
+            if Self::is_authentication_related_error(&error_msg) {
+                CommandError::Validation(format!("Authentication failed: {}", error_msg))
+            } else {
+                CommandError::Infrastructure(error.to_string())
+            }
+        }
+    }
+}
+
+impl AuthErrorMapper {
+    fn is_authentication_related_error(error_msg: &str) -> bool {
+        error_msg.contains("expired") || 
+        error_msg.contains("invalid") || 
+        error_msg.contains("Token expired") ||
+        error_msg.contains("Invalid token") ||
+        error_msg.contains("JWT error") ||
+        error_msg.contains("malformed") ||
+        error_msg.contains("signature")
+    }
+}
 
 /// Signup command
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -99,5 +152,27 @@ where
             .signup(request)
             .await
             .map_err(|e| AuthErrorMapper.map_error(Box::new(e)))
+    }
+}
+
+// Inventory-based command registration for zero-boilerplate plugin system
+use super::registry::{CommandRegistration, CommandHandlerWrapper};
+
+inventory::submit! {
+    CommandRegistration {
+        command_name: "signup",
+        handler_factory: |container| {
+            let auth_use_case = container
+                .get_dependency("AuthUseCase")
+                .and_then(|dep| dep.downcast::<Arc<dyn crate::usecase::auth::AuthUseCase>>().ok())
+                .map(|boxed| *boxed)
+                .expect("AuthUseCase dependency not found");
+            
+            Arc::new(CommandHandlerWrapper::new(
+                Arc::new(SignupCommandHandler::new(auth_use_case)),
+                Arc::new(AuthErrorMapper),
+            ))
+        },
+        error_mapper_factory: || Arc::new(AuthErrorMapper),
     }
 } 

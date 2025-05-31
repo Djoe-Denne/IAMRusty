@@ -1,13 +1,12 @@
 use super::{
     registry::{CommandRegistry, CommandRegistryBuilder},
-    error_mappers::*,
-    login::{LoginCommand, GenerateLoginStartUrlCommand, LoginCommandHandler, GenerateLoginStartUrlCommandHandler},
-    link_provider::{LinkProviderCommand, GenerateLinkProviderStartUrlCommand, LinkProviderCommandHandler, GenerateLinkProviderStartUrlCommandHandler},
-    token::{RefreshTokenCommand, RevokeTokenCommand, RevokeAllTokensCommand, RefreshTokenCommandHandler, RevokeTokenCommandHandler, RevokeAllTokensCommandHandler},
-    user::{GetUserCommand, ValidateTokenCommand, GetUserCommandHandler, ValidateTokenCommandHandler},
-    signup::{SignupCommand, SignupCommandHandler},
-    password_login::{PasswordLoginCommand, PasswordLoginCommandHandler},
-    verify_email::{VerifyEmailCommand, VerifyEmailCommandHandler},
+    login::{LoginCommand, GenerateLoginStartUrlCommand, LoginCommandHandler, GenerateLoginStartUrlCommandHandler, LoginErrorMapper},
+    link_provider::{LinkProviderCommand, GenerateLinkProviderStartUrlCommand, LinkProviderCommandHandler, GenerateLinkProviderStartUrlCommandHandler, LinkProviderErrorMapper},
+    token::{RefreshTokenCommand, RevokeTokenCommand, RevokeAllTokensCommand, RefreshTokenCommandHandler, RevokeTokenCommandHandler, RevokeAllTokensCommandHandler, TokenErrorMapper},
+    user::{GetUserCommand, ValidateTokenCommand, GetUserCommandHandler, ValidateTokenCommandHandler, UserErrorMapper},
+    signup::{SignupCommand, SignupCommandHandler, AuthErrorMapper as SignupAuthErrorMapper},
+    password_login::{PasswordLoginCommand, PasswordLoginCommandHandler, AuthErrorMapper as PasswordLoginAuthErrorMapper},
+    verify_email::{VerifyEmailCommand, VerifyEmailCommandHandler, AuthErrorMapper as VerifyEmailAuthErrorMapper},
 };
 use crate::usecase::{
     login::LoginUseCase,
@@ -74,12 +73,14 @@ impl CommandRegistryFactory {
         let signup_handler = Arc::new(SignupCommandHandler::new(auth_usecase.clone()));
         let password_login_handler = Arc::new(PasswordLoginCommandHandler::new(auth_usecase.clone()));
         let verify_email_handler = Arc::new(VerifyEmailCommandHandler::new(auth_usecase));
-        let auth_error_mapper = Arc::new(AuthErrorMapper);
+        let signup_auth_error_mapper = Arc::new(SignupAuthErrorMapper);
+        let password_login_auth_error_mapper = Arc::new(PasswordLoginAuthErrorMapper);
+        let verify_email_auth_error_mapper = Arc::new(VerifyEmailAuthErrorMapper);
 
         builder = builder
-            .register::<SignupCommand, _>("signup".to_string(), signup_handler, auth_error_mapper.clone())
-            .register::<PasswordLoginCommand, _>("password_login".to_string(), password_login_handler, auth_error_mapper.clone())
-            .register::<VerifyEmailCommand, _>("verify_email".to_string(), verify_email_handler, auth_error_mapper);
+            .register::<SignupCommand, _>("signup".to_string(), signup_handler, signup_auth_error_mapper)
+            .register::<PasswordLoginCommand, _>("password_login".to_string(), password_login_handler, password_login_auth_error_mapper)
+            .register::<VerifyEmailCommand, _>("verify_email".to_string(), verify_email_handler, verify_email_auth_error_mapper);
 
         builder.build()
     }
@@ -109,12 +110,14 @@ impl CommandRegistryFactory {
         let signup_handler = Arc::new(SignupCommandHandler::new(auth_usecase.clone()));
         let password_login_handler = Arc::new(PasswordLoginCommandHandler::new(auth_usecase.clone()));
         let verify_email_handler = Arc::new(VerifyEmailCommandHandler::new(auth_usecase));
-        let auth_error_mapper = Arc::new(AuthErrorMapper);
+        let signup_auth_error_mapper = Arc::new(SignupAuthErrorMapper);
+        let password_login_auth_error_mapper = Arc::new(PasswordLoginAuthErrorMapper);
+        let verify_email_auth_error_mapper = Arc::new(VerifyEmailAuthErrorMapper);
 
         CommandRegistryBuilder::new()
-            .register::<SignupCommand, _>("signup".to_string(), signup_handler, auth_error_mapper.clone())
-            .register::<PasswordLoginCommand, _>("password_login".to_string(), password_login_handler, auth_error_mapper.clone())
-            .register::<VerifyEmailCommand, _>("verify_email".to_string(), verify_email_handler, auth_error_mapper)
+            .register::<SignupCommand, _>("signup".to_string(), signup_handler, signup_auth_error_mapper)
+            .register::<PasswordLoginCommand, _>("password_login".to_string(), password_login_handler, password_login_auth_error_mapper)
+            .register::<VerifyEmailCommand, _>("verify_email".to_string(), verify_email_handler, verify_email_auth_error_mapper)
     }
 
     /// Create a registry builder with only token commands

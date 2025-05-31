@@ -1,10 +1,54 @@
-use super::{Command, CommandError, CommandHandler, error_mappers::TokenErrorMapper};
+use super::{Command, CommandError, CommandHandler};
 use super::registry::CommandErrorMapper;
-use crate::usecase::token::{TokenUseCase, RefreshTokenResponse};
+use crate::usecase::token::{TokenUseCase, RefreshTokenResponse, TokenError};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
+
+/// Error mapper for token-related commands
+pub struct TokenErrorMapper;
+
+impl CommandErrorMapper for TokenErrorMapper {
+    fn map_error(&self, error: Box<dyn std::error::Error + Send + Sync>) -> CommandError {
+        if let Some(token_error) = error.downcast_ref::<TokenError>() {
+            match token_error {
+                TokenError::RepositoryError(_) => CommandError::Infrastructure(error.to_string()),
+                TokenError::TokenServiceError(inner) => {
+                    let error_msg = inner.to_string();
+                    if Self::is_authentication_related_error(&error_msg) {
+                        CommandError::Business(format!("Authentication failed: {}", error_msg))
+                    } else {
+                        CommandError::Infrastructure(error.to_string())
+                    }
+                },
+                // Authentication-related token errors should return 401
+                TokenError::TokenNotFound => CommandError::Authentication("Authentication failed: Invalid refresh token".to_string()),
+                TokenError::TokenInvalid => CommandError::Authentication("Authentication failed: Invalid refresh token".to_string()),
+                TokenError::TokenExpired => CommandError::Authentication("Authentication failed: Expired refresh token".to_string()),
+            }
+        } else {
+            let error_msg = error.to_string();
+            if Self::is_authentication_related_error(&error_msg) {
+                CommandError::Validation(format!("Authentication failed: {}", error_msg))
+            } else {
+                CommandError::Infrastructure(error.to_string())
+            }
+        }
+    }
+}
+
+impl TokenErrorMapper {
+    fn is_authentication_related_error(error_msg: &str) -> bool {
+        error_msg.contains("expired") || 
+        error_msg.contains("invalid") || 
+        error_msg.contains("Token expired") ||
+        error_msg.contains("Invalid token") ||
+        error_msg.contains("JWT error") ||
+        error_msg.contains("malformed") ||
+        error_msg.contains("signature")
+    }
+}
 
 /// Refresh token command
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -214,5 +258,65 @@ where
             .revoke_all_tokens(command.user_id)
             .await
             .map_err(|e| TokenErrorMapper.map_error(Box::new(e)))
+    }
+}
+
+// Inventory-based command registration for zero-boilerplate plugin system
+use super::registry::{CommandRegistration, CommandHandlerWrapper};
+
+inventory::submit! {
+    CommandRegistration {
+        command_name: "refresh_token",
+        handler_factory: |container| {
+            let token_use_case = container
+                .get_dependency("TokenUseCase")
+                .and_then(|dep| dep.downcast::<Arc<dyn crate::usecase::token::TokenUseCase>>().ok())
+                .map(|boxed| *boxed)
+                .expect("TokenUseCase dependency not found");
+            
+            Arc::new(CommandHandlerWrapper::new(
+                Arc::new(RefreshTokenCommandHandler::new(token_use_case)),
+                Arc::new(TokenErrorMapper),
+            ))
+        },
+        error_mapper_factory: || Arc::new(TokenErrorMapper),
+    }
+}
+
+inventory::submit! {
+    CommandRegistration {
+        command_name: "revoke_token",
+        handler_factory: |container| {
+            let token_use_case = container
+                .get_dependency("TokenUseCase")
+                .and_then(|dep| dep.downcast::<Arc<dyn crate::usecase::token::TokenUseCase>>().ok())
+                .map(|boxed| *boxed)
+                .expect("TokenUseCase dependency not found");
+            
+            Arc::new(CommandHandlerWrapper::new(
+                Arc::new(RevokeTokenCommandHandler::new(token_use_case)),
+                Arc::new(TokenErrorMapper),
+            ))
+        },
+        error_mapper_factory: || Arc::new(TokenErrorMapper),
+    }
+}
+
+inventory::submit! {
+    CommandRegistration {
+        command_name: "revoke_all_tokens",
+        handler_factory: |container| {
+            let token_use_case = container
+                .get_dependency("TokenUseCase")
+                .and_then(|dep| dep.downcast::<Arc<dyn crate::usecase::token::TokenUseCase>>().ok())
+                .map(|boxed| *boxed)
+                .expect("TokenUseCase dependency not found");
+            
+            Arc::new(CommandHandlerWrapper::new(
+                Arc::new(RevokeAllTokensCommandHandler::new(token_use_case)),
+                Arc::new(TokenErrorMapper),
+            ))
+        },
+        error_mapper_factory: || Arc::new(TokenErrorMapper),
     }
 } 

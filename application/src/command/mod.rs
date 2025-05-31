@@ -8,21 +8,20 @@ pub mod verify_email;
 
 // New modules for the extensible command system
 pub mod registry;
-pub mod error_mappers;
 pub mod generic_service;
 pub mod factory;
 
 // Re-exports for the extensible command system
 pub use registry::{
     CommandRegistry, CommandRegistryBuilder, CommandErrorMapper, DynCommandHandler,
-    RetryPolicy, RegistryConfig, MetricsCollector, LoggingMetricsCollector
+    RetryPolicy, RegistryConfig, MetricsCollector, LoggingMetricsCollector,
+    // New inventory-based exports
+    CommandRegistration, DependencyContainer, SimpleDependencyContainer,
+    build_registry_from_inventory, build_registry_from_inventory_with_config,
+    build_registry_from_inventory_with_config_and_metrics,
 };
 pub use generic_service::GenericCommandService;
 pub use factory::CommandRegistryFactory;
-pub use error_mappers::{
-    AuthErrorMapper, LoginErrorMapper, LinkProviderErrorMapper, 
-    TokenErrorMapper, UserErrorMapper
-};
 
 // Convenience alias for the new service
 pub type ExtensibleCommandService = GenericCommandService;

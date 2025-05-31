@@ -1,10 +1,48 @@
-use super::{Command, CommandError, CommandHandler, error_mappers::LoginErrorMapper};
+use super::{Command, CommandError, CommandHandler};
 use super::registry::CommandErrorMapper;
-use crate::usecase::login::{LoginUseCase, LoginResponse};
+use crate::usecase::{
+    login::{LoginUseCase, LoginResponse, LoginError},
+};
 use domain::entity::provider::Provider;
 use async_trait::async_trait;
 use std::sync::Arc;
 use uuid::Uuid;
+
+/// Error mapper for login-related commands
+pub struct LoginErrorMapper;
+
+impl CommandErrorMapper for LoginErrorMapper {
+    fn map_error(&self, error: Box<dyn std::error::Error + Send + Sync>) -> CommandError {
+        // Try to downcast to known error types
+        if let Some(login_error) = error.downcast_ref::<LoginError>() {
+            match login_error {
+                LoginError::AuthError(msg) => CommandError::Business(format!("Authentication failed: {}", msg)),
+                LoginError::DbError(e) => CommandError::Infrastructure(format!("Database error: {}", e)),
+                LoginError::TokenError(e) => CommandError::Infrastructure(format!("Token service error: {}", e)),
+            }
+        } else {
+            // Check if it's an authentication-related error by message
+            let error_msg = error.to_string();
+            if Self::is_authentication_related_error(&error_msg) {
+                CommandError::Business(format!("Authentication failed: {}", error_msg))
+            } else {
+                CommandError::Infrastructure(error.to_string())
+            }
+        }
+    }
+}
+
+impl LoginErrorMapper {
+    fn is_authentication_related_error(error_msg: &str) -> bool {
+        error_msg.contains("expired") || 
+        error_msg.contains("invalid") || 
+        error_msg.contains("Token expired") ||
+        error_msg.contains("Invalid token") ||
+        error_msg.contains("JWT error") ||
+        error_msg.contains("malformed") ||
+        error_msg.contains("signature")
+    }
+}
 
 /// Login command
 #[derive(Debug, Clone)]
@@ -166,5 +204,48 @@ where
         self.login_use_case
             .generate_start_url(command.provider)
             .map_err(|e| LoginErrorMapper.map_error(Box::new(e)))
+    }
+}
+
+// Inventory-based command registration for zero-boilerplate plugin system
+use super::registry::{CommandRegistration, CommandHandlerWrapper};
+
+inventory::submit! {
+    CommandRegistration {
+        command_name: "login",
+        handler_factory: |container| {
+            // Extract the login use case dependency
+            let login_use_case = container
+                .get_dependency("LoginUseCase")
+                .and_then(|dep| dep.downcast::<Arc<dyn crate::usecase::login::LoginUseCase>>().ok())
+                .map(|boxed| *boxed)
+                .expect("LoginUseCase dependency not found");
+            
+            // Create the command handler wrapper
+            Arc::new(CommandHandlerWrapper::new(
+                Arc::new(LoginCommandHandler::new(login_use_case)),
+                Arc::new(LoginErrorMapper),
+            ))
+        },
+        error_mapper_factory: || Arc::new(LoginErrorMapper),
+    }
+}
+
+inventory::submit! {
+    CommandRegistration {
+        command_name: "generate_login_start_url",
+        handler_factory: |container| {
+            let login_use_case = container
+                .get_dependency("LoginUseCase")
+                .and_then(|dep| dep.downcast::<Arc<dyn crate::usecase::login::LoginUseCase>>().ok())
+                .map(|boxed| *boxed)
+                .expect("LoginUseCase dependency not found");
+            
+            Arc::new(CommandHandlerWrapper::new(
+                Arc::new(GenerateLoginStartUrlCommandHandler::new(login_use_case)),
+                Arc::new(LoginErrorMapper),
+            ))
+        },
+        error_mapper_factory: || Arc::new(LoginErrorMapper),
     }
 } 

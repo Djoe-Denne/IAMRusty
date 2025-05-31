@@ -1,10 +1,42 @@
-use super::{Command, CommandError, CommandHandler, error_mappers::LinkProviderErrorMapper};
+use super::{Command, CommandError, CommandHandler};
 use super::registry::CommandErrorMapper;
-use crate::usecase::link_provider::{LinkProviderUseCase, LinkProviderResponse};
+use crate::usecase::link_provider::{LinkProviderUseCase, LinkProviderResponse, LinkProviderError};
 use domain::entity::provider::Provider;
 use async_trait::async_trait;
 use std::sync::Arc;
 use uuid::Uuid;
+
+/// Error mapper for link provider commands
+pub struct LinkProviderErrorMapper;
+
+impl CommandErrorMapper for LinkProviderErrorMapper {
+    fn map_error(&self, error: Box<dyn std::error::Error + Send + Sync>) -> CommandError {
+        if let Some(link_error) = error.downcast_ref::<LinkProviderError>() {
+            match link_error {
+                LinkProviderError::AuthError(_msg) => {
+                    CommandError::Authentication("Authentication failed".to_string())
+                }
+                LinkProviderError::DbError(e) => {
+                    CommandError::Infrastructure(format!("Database error: {}", e))
+                }
+                LinkProviderError::TokenError(e) => {
+                    CommandError::Infrastructure(format!("Token service error: {}", e))
+                }
+                LinkProviderError::UserNotFound => {
+                    CommandError::Authentication("Authentication failed".to_string())
+                }
+                LinkProviderError::ProviderAlreadyLinked => {
+                    CommandError::Business("Provider account is already linked to another user".to_string())
+                }
+                LinkProviderError::ProviderAlreadyLinkedToSameUser => {
+                    CommandError::Business("Provider is already linked to your account".to_string())
+                }
+            }
+        } else {
+            CommandError::Infrastructure(error.to_string())
+        }
+    }
+}
 
 /// Link provider command
 #[derive(Debug, Clone)]
@@ -186,5 +218,46 @@ where
         self.link_provider_use_case
             .generate_start_url(command.provider)
             .map_err(|e| LinkProviderErrorMapper.map_error(Box::new(e)))
+    }
+}
+
+// Inventory-based command registration for zero-boilerplate plugin system
+use super::registry::{CommandRegistration, CommandHandlerWrapper};
+
+inventory::submit! {
+    CommandRegistration {
+        command_name: "link_provider",
+        handler_factory: |container| {
+            let link_provider_use_case = container
+                .get_dependency("LinkProviderUseCase")
+                .and_then(|dep| dep.downcast::<Arc<dyn crate::usecase::link_provider::LinkProviderUseCase>>().ok())
+                .map(|boxed| *boxed)
+                .expect("LinkProviderUseCase dependency not found");
+            
+            Arc::new(CommandHandlerWrapper::new(
+                Arc::new(LinkProviderCommandHandler::new(link_provider_use_case)),
+                Arc::new(LinkProviderErrorMapper),
+            ))
+        },
+        error_mapper_factory: || Arc::new(LinkProviderErrorMapper),
+    }
+}
+
+inventory::submit! {
+    CommandRegistration {
+        command_name: "generate_link_provider_start_url",
+        handler_factory: |container| {
+            let link_provider_use_case = container
+                .get_dependency("LinkProviderUseCase")
+                .and_then(|dep| dep.downcast::<Arc<dyn crate::usecase::link_provider::LinkProviderUseCase>>().ok())
+                .map(|boxed| *boxed)
+                .expect("LinkProviderUseCase dependency not found");
+            
+            Arc::new(CommandHandlerWrapper::new(
+                Arc::new(GenerateLinkProviderStartUrlCommandHandler::new(link_provider_use_case)),
+                Arc::new(LinkProviderErrorMapper),
+            ))
+        },
+        error_mapper_factory: || Arc::new(LinkProviderErrorMapper),
     }
 } 

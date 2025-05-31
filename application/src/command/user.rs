@@ -1,9 +1,46 @@
 use super::{Command, CommandError, CommandHandler};
-use crate::usecase::user::{UserUseCase, UserProfile};
+use super::registry::CommandErrorMapper;
+use crate::usecase::user::{UserUseCase, UserProfile, UserError};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
+
+/// Error mapper for user-related commands
+pub struct UserErrorMapper;
+
+impl CommandErrorMapper for UserErrorMapper {
+    fn map_error(&self, error: Box<dyn std::error::Error + Send + Sync>) -> CommandError {
+        if let Some(user_error) = error.downcast_ref::<UserError>() {
+            match user_error {
+                UserError::RepositoryError(_) => CommandError::Infrastructure(error.to_string()),
+                UserError::TokenServiceError(inner) => {
+                    let error_msg = inner.to_string();
+                    if Self::is_authentication_related_error(&error_msg) {
+                        CommandError::Validation(format!("Authentication failed: {}", error_msg))
+                    } else {
+                        CommandError::Infrastructure(error.to_string())
+                    }
+                },
+                _ => CommandError::Authentication("Authentication failed".to_string()),
+            }
+        } else {
+            CommandError::Authentication("Authentication failed".to_string())
+        }
+    }
+}
+
+impl UserErrorMapper {
+    fn is_authentication_related_error(error_msg: &str) -> bool {
+        error_msg.contains("expired") || 
+        error_msg.contains("invalid") || 
+        error_msg.contains("Token expired") ||
+        error_msg.contains("Invalid token") ||
+        error_msg.contains("JWT error") ||
+        error_msg.contains("malformed") ||
+        error_msg.contains("signature")
+    }
+}
 
 /// Get user command
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -105,13 +142,10 @@ where
     U: UserUseCase + Send + Sync + ?Sized,
 {
     async fn handle(&self, command: GetUserCommand) -> Result<UserProfile, CommandError> {
-        match self.user_use_case.get_user(command.user_id).await {
-            Ok(profile) => Ok(profile),
-            Err(_e) => {
-                // Convert user errors to appropriate command errors
-                Err(CommandError::Authentication("Authentication failed".to_string()))
-            }
-        }
+        self.user_use_case
+            .get_user(command.user_id)
+            .await
+            .map_err(|e| UserErrorMapper.map_error(Box::new(e)))
     }
 }
 
@@ -141,12 +175,50 @@ where
     U: UserUseCase + Send + Sync + ?Sized,
 {
     async fn handle(&self, command: ValidateTokenCommand) -> Result<Uuid, CommandError> {
-        match self.user_use_case.validate_token(&command.token).await {
-            Ok(user_id) => Ok(user_id),
-            Err(_e) => {
-                // Convert user errors to appropriate command errors  
-                Err(CommandError::Authentication("Authentication failed".to_string()))
-            }
-        }
+        self.user_use_case
+            .validate_token(&command.token)
+            .await
+            .map_err(|e| UserErrorMapper.map_error(Box::new(e)))
+    }
+}
+
+// Inventory-based command registration for zero-boilerplate plugin system
+use super::registry::{CommandRegistration, CommandHandlerWrapper};
+
+inventory::submit! {
+    CommandRegistration {
+        command_name: "get_user",
+        handler_factory: |container| {
+            let user_use_case = container
+                .get_dependency("UserUseCase")
+                .and_then(|dep| dep.downcast::<Arc<dyn crate::usecase::user::UserUseCase>>().ok())
+                .map(|boxed| *boxed)
+                .expect("UserUseCase dependency not found");
+            
+            Arc::new(CommandHandlerWrapper::new(
+                Arc::new(GetUserCommandHandler::new(user_use_case)),
+                Arc::new(UserErrorMapper),
+            ))
+        },
+        error_mapper_factory: || Arc::new(UserErrorMapper),
+    }
+}
+
+inventory::submit! {
+    CommandRegistration {
+        command_name: "validate_token",
+        handler_factory: |container| {
+            let user_use_case = container
+                .get_dependency("UserUseCase")
+                .and_then(|dep| dep.downcast::<Arc<dyn crate::usecase::user::UserUseCase>>().ok())
+                .map(|boxed| *boxed)
+                .expect("UserUseCase dependency not found");
+            
+            Arc::new(CommandHandlerWrapper::new(
+                Arc::new(ValidateTokenCommandHandler::new(user_use_case)),
+                Arc::new(UserErrorMapper),
+            ))
+        },
+        error_mapper_factory: || Arc::new(UserErrorMapper),
     }
 } 
