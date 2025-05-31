@@ -116,14 +116,14 @@ async fn test_signup_kafka_integration() {
         if retry_messages.is_empty() {
             // Print environment variables for debugging
             println!("🔧 Environment variables:");
-            if let Ok(val) = std::env::var("IAM_KAFKA__ENABLED") {
-                println!("   IAM_KAFKA__ENABLED: {}", val);
+            if let Ok(val) = std::env::var("RUSTYCOG_KAFKA__ENABLED") {
+                println!("   RUSTYCOG_KAFKA__ENABLED: {}", val);
             }
-            if let Ok(val) = std::env::var("IAM_KAFKA__HOST") {
-                println!("   IAM_KAFKA__HOST: {}", val);
+            if let Ok(val) = std::env::var("RUSTYCOG_KAFKA__HOST") {
+                println!("   RUSTYCOG_KAFKA__HOST: {}", val);
             }
-            if let Ok(val) = std::env::var("IAM_KAFKA__PORT") {
-                println!("   IAM_KAFKA__PORT: {}", val);
+            if let Ok(val) = std::env::var("RUSTYCOG_KAFKA__PORT") {
+                println!("   RUSTYCOG_KAFKA__PORT: {}", val);
             }
             
             panic!("No messages found in Kafka topic after retries. This suggests the event is not being published.");
@@ -146,7 +146,7 @@ async fn test_signup_kafka_integration() {
         
         if let Ok(event) = serde_json::from_str::<serde_json::Value>(message) {
             if let Some(event_type) = event.get("event_type") {
-                if event_type == "UserSignedUp" {
+                if event_type == "user_signed_up" {
                     found_signup_event = true;
                     
                     // Verify event structure

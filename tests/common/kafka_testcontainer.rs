@@ -67,18 +67,18 @@ impl TestKafka {
             
             // Set environment variables for Kafka configuration so our app config picks it up
             unsafe {
-                std::env::set_var("IAM_KAFKA__HOST", host);
-                std::env::set_var("IAM_KAFKA__PORT", port);
-                std::env::set_var("IAM_KAFKA__ENABLED", "true");
-                std::env::set_var("IAM_KAFKA__USER_EVENTS_TOPIC", &topic);
+                std::env::set_var("RUSTYCOG_KAFKA__HOST", host);
+                std::env::set_var("RUSTYCOG_KAFKA__PORT", port);
+                std::env::set_var("RUSTYCOG_KAFKA__ENABLED", "true");
+                std::env::set_var("RUSTYCOG_KAFKA__USER_EVENTS_TOPIC", &topic);
             }
         } else {
             // Fallback to old format for compatibility
             unsafe {
-                std::env::set_var("IAM_KAFKA__HOST", "localhost");
-                std::env::set_var("IAM_KAFKA__PORT", "9092");
-                std::env::set_var("IAM_KAFKA__ENABLED", "true");
-                std::env::set_var("IAM_KAFKA__USER_EVENTS_TOPIC", &topic);
+                std::env::set_var("RUSTYCOG_KAFKA__HOST", "localhost");
+                std::env::set_var("RUSTYCOG_KAFKA__PORT", "9092");
+                std::env::set_var("RUSTYCOG_KAFKA__ENABLED", "true");
+                std::env::set_var("RUSTYCOG_KAFKA__USER_EVENTS_TOPIC", &topic);
             }
         }
         
@@ -180,8 +180,9 @@ async fn get_or_create_test_kafka_container() -> Result<Arc<TestKafkaContainer>,
     // Clean up any existing container
     cleanup_existing_kafka_container().await;
     
-    // Clear all configuration caches to ensure fresh random port generation
-    configuration::clear_all_caches();
+    // Clear only the Kafka port cache to ensure fresh random port generation
+    // Don't clear all caches as that would interfere with database test containers
+    KafkaConfig::clear_port_cache();
     
     // Load configuration to understand Kafka settings
     let config = configuration::load_config()?;

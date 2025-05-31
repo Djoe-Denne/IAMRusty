@@ -5,7 +5,7 @@ use rustycog_events::event::BaseEvent;
 
 /// Domain events that can be published to external systems
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "event_type")]
+#[serde(untagged)]
 pub enum DomainEvent {
     /// User signed up with email/password
     UserSignedUp(UserSignedUpEvent),
@@ -18,6 +18,7 @@ pub enum DomainEvent {
 /// Event triggered when a user signs up with email and password
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserSignedUpEvent {
+    #[serde(flatten)]
     pub base: BaseEvent,
     /// User ID
     pub user_id: Uuid,
@@ -32,6 +33,7 @@ pub struct UserSignedUpEvent {
 /// Event triggered when a user verifies their email
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserEmailVerifiedEvent {
+    #[serde(flatten)]
     pub base: BaseEvent,
     /// User ID
     pub user_id: Uuid,
@@ -42,6 +44,7 @@ pub struct UserEmailVerifiedEvent {
 /// Event triggered when a user logs in successfully
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserLoggedInEvent {
+    #[serde(flatten)]
     pub base: BaseEvent,
     /// User ID
     pub user_id: Uuid,

@@ -8,7 +8,7 @@ use std::sync::OnceLock;
 use tokio::sync::Mutex;
 use testcontainers::{GenericImage, ImageExt, ContainerAsync, runners::AsyncRunner};
 use sea_orm::{Database, DatabaseConnection, DbErr, Statement, ConnectionTrait};
-use configuration::{AppConfig, DatabaseConfig, clear_all_caches};
+use configuration::{AppConfig, DatabaseConfig};
 use infra::db::DbConnectionPool;
 use migration::{Migrator, MigratorTrait};
 use tracing::{info, debug, warn};
@@ -195,8 +195,9 @@ async fn get_or_create_test_container() -> Result<Arc<TestDatabaseContainer>, Db
     
     info!("Creating new PostgreSQL test container");
     
-    // Clear all configuration caches to ensure fresh random port generation
-    clear_all_caches();
+    // Clear only the database port cache to ensure fresh random port generation
+    // Don't clear all caches as that would interfere with Kafka test containers
+    DatabaseConfig::clear_port_cache();
     
     // First, try to clean up any existing container with the same name
     cleanup_existing_container().await;
