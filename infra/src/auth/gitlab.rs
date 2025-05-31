@@ -7,6 +7,7 @@ use domain::entity::provider::{Provider, ProviderTokens, ProviderUserProfile};
 use domain::error::DomainError;
 use domain::port::service::ProviderOAuth2Client;
 use application::auth::{AuthService, AuthError};
+use configuration::GitLabConfig;
 use serde::Deserialize;
 use tracing::{debug, error};
 
@@ -51,7 +52,7 @@ impl GitLabOAuth2Client {
     }
 
     /// Create a new GitLab OAuth2 client from a GitlabConfig
-    pub fn from_config(config: &crate::config::GitlabConfig) -> Self {
+    pub fn from_config(config: &GitLabConfig) -> Self {
         Self::new(
             config.client_id.clone(),
             config.client_secret.clone(),

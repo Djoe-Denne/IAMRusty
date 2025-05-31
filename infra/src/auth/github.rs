@@ -7,6 +7,7 @@ use domain::entity::provider::{Provider, ProviderTokens, ProviderUserProfile};
 use domain::error::DomainError;
 use domain::port::service::ProviderOAuth2Client;
 use application::auth::{AuthService, AuthError};
+use configuration::GitHubConfig;
 use serde::Deserialize;
 use tracing::{debug, error};
 
@@ -51,7 +52,7 @@ impl GitHubOAuth2Client {
     }
 
     /// Create a new GitHub OAuth2 client from a GithubConfig
-    pub fn from_config(config: &crate::config::GithubConfig) -> Self {
+    pub fn from_config(config: &GitHubConfig) -> Self {
         Self::new(
             config.client_id.clone(),
             config.client_secret.clone(),
