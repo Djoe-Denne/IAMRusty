@@ -10,11 +10,6 @@ rustycog-config = { path = "../../rustycog/rustycog-config" }
 # Serialization
 serde = { version = "1.0.197", features = ["derive"] }
 
-# Configuration loading
-config = "0.14.0"
-dotenvy = "0.15.7"
-toml = "0.8.22"
-
 # URL parsing
 url = "2.5.2"
 
