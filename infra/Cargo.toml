@@ -13,6 +13,7 @@ configuration = { path = "../configuration" }
 rustycog-events = { path = "../../rustycog/rustycog-events" }
 rustycog-core = { path = "../../rustycog/rustycog-core" }
 rustycog-config = { path = "../../rustycog/rustycog-config" }
+rustycog-db = { path = "../../rustycog/rustycog-db" }
 
 # ORM & PostgreSQL
 sea-orm = { version = "1.1.11", features = ["sqlx-postgres", "runtime-tokio-rustls", "macros"] }
