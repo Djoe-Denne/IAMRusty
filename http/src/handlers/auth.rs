@@ -11,12 +11,12 @@ use domain::entity::provider::Provider;
 use application::command::{
     CommandContext,
     login::{LoginCommand, GenerateLoginStartUrlCommand},
-    link_provider::{LinkProviderCommand, GenerateLinkProviderStartUrlCommand},
+    provider::{LinkProviderCommand, GenerateLinkProviderStartUrlCommand, GetProviderTokenCommand},
     signup::SignupCommand,
     password_login::PasswordLoginCommand,
     verify_email::VerifyEmailCommand,
 };
-use crate::{AppState, oauth_state::OAuthState, error::AuthError, validation::*, extractors::ValidatedJson};
+use crate::{AppState, oauth_state::OAuthState, error::AuthError, validation::*, extractors::ValidatedJson, middleware_auth::AuthUser};
 use tracing::{debug, error};
 use uuid::Uuid;
 use url;
@@ -463,5 +463,51 @@ pub async fn verify_email(
     
     Ok(Json(SuccessResponse {
         message: response.message,
+    }))
+}
+
+/// Provider token response for internal endpoints
+#[derive(Debug, Serialize)]
+pub struct InternalProviderTokenResponse {
+    /// Access token from the provider
+    pub access_token: String,
+    /// Token expiration in seconds (optional)
+    pub expires_in: Option<u64>,
+}
+
+/// Handle internal provider token request
+pub async fn internal_provider_token(
+    State(state): State<AppState>,
+    Valid(Path(provider_path)): Valid<Path<ProviderPath>>,
+    auth_user: AuthUser,
+) -> Result<Json<InternalProviderTokenResponse>, AuthError> {
+    debug!("Internal provider token request for provider: {} and user: {}", provider_path.provider_name, auth_user.user_id);
+    
+    // Parse the provider
+    let provider = match provider_path.provider_name.to_lowercase().as_str() {
+        "github" => Provider::GitHub,
+        "gitlab" => Provider::GitLab,
+        _ => return Err(AuthError::oauth_invalid_provider("internal_token")),
+    };
+    
+    let context = CommandContext::new()
+        .with_user_id(auth_user.user_id)
+        .with_metadata("operation".to_string(), "internal_provider_token".to_string())
+        .with_metadata("provider".to_string(), provider.as_str().to_string());
+    
+    // Execute the get provider token command
+    let command = GetProviderTokenCommand::new(auth_user.user_id, provider);
+    let response = state
+        .command_service
+        .execute(command, context)
+        .await
+        .map_err(|e| {
+            error!("Failed to get provider token: {}", e);
+            AuthError::provider_token_failed(&e, provider.as_str())
+        })?;
+    
+    Ok(Json(InternalProviderTokenResponse {
+        access_token: response.access_token,
+        expires_in: response.expires_in,
     }))
 } 

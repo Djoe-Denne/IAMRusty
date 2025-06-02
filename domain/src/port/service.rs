@@ -20,7 +20,7 @@ pub trait ProviderOAuth2Client {
 }
 
 /// JWT token encoder/decoder
-pub trait TokenEncoder {
+pub trait TokenEncoder: Send + Sync {
     /// Encode a token with the given claims
     fn encode(&self, claims: &TokenClaims) -> Result<String, DomainError>;
 

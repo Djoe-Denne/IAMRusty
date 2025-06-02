@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use anyhow::Result;
 use tracing::info;
+use chrono::Duration;
 
 use http_server::{AppState, serve_with_config, ServerConfig as HttpServerConfig};
 use infra::{
@@ -33,6 +34,7 @@ use application::{
         user::UserUseCaseImpl,
         token::TokenUseCaseImpl,
         link_provider::LinkProviderUseCaseImpl,
+        provider::ProviderUseCaseImpl,
         auth::AuthUseCaseImpl,
     },
     command::{
@@ -101,9 +103,10 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
     let event_publisher = create_event_publisher(&config.kafka)?;
 
     // Create token service
-    let token_service = Arc::new(JwtTokenService::new(
+    let token_service = Arc::new(JwtTokenService::with_refresh_expiration(
         config.jwt.secret.clone(),
         config.jwt.expiration_seconds,
+        config.jwt.refresh_token_expiration_seconds,
     ));
     
     // Create token service adapter for auth use case
@@ -151,6 +154,39 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
         event_publisher,
     );
 
+    // Create provider usecase
+    // For provider usecase, we only need the get_provider_token method from AuthService
+    // which doesn't use the TokenService, so we can create a minimal one
+    #[derive(Debug, Clone)]
+    struct MinimalTokenEncoder;
+    
+    impl domain::port::service::TokenEncoder for MinimalTokenEncoder {
+        fn encode(&self, _claims: &domain::entity::token::TokenClaims) -> Result<String, domain::error::DomainError> {
+            Ok("dummy_token".to_string())
+        }
+        fn decode(&self, _token: &str) -> Result<domain::entity::token::TokenClaims, domain::error::DomainError> {
+            Err(domain::error::DomainError::InvalidToken)
+        }
+        fn jwks(&self) -> domain::entity::token::JwkSet {
+            domain::entity::token::JwkSet { keys: vec![] }
+        }
+    }
+    
+    // Create separate token repository for provider auth service
+    let token_read_repo_provider = TokenReadRepositoryImpl::new(db_pool.get_read_connection());
+    let token_write_repo_provider = TokenWriteRepositoryImpl::new(db_pool.get_write_connection());
+    let token_repo_provider = CombinedTokenRepository::new(token_read_repo_provider, token_write_repo_provider);
+    
+    let provider_auth_service = domain::service::auth_service::AuthService::new(
+        user_repo.clone(),
+        token_repo_provider,
+        domain::service::token_service::TokenService::new(
+            Box::new(MinimalTokenEncoder),
+            Duration::hours(1)
+        )
+    );
+    let provider_usecase = ProviderUseCaseImpl::new(Arc::new(provider_auth_service));
+
     // Create separate instances for command service
     let user_usecase_for_commands = UserUseCaseImpl::new(
         Arc::new(user_repo),
@@ -167,6 +203,7 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
     let registry = CommandRegistryFactory::create_iam_registry(
         Arc::new(login_usecase),
         Arc::new(link_provider_usecase),
+        Arc::new(provider_usecase),
         Arc::new(token_usecase_for_commands),
         Arc::new(user_usecase_for_commands),
         Arc::new(auth_usecase),

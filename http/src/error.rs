@@ -860,4 +860,58 @@ impl AuthError {
             },
         }
     }
+
+    /// Provider token failed
+    pub fn provider_token_failed(command_error: &CommandError, provider: &str) -> Self {
+        match command_error {
+            CommandError::Authentication(msg) if msg.contains("Authentication failed") => {
+                Self::OAuth {
+                    operation: "internal_token".to_string(),
+                    error_code: "authentication_failed".to_string(),
+                    message: "Authentication failed".to_string(),
+                    status: StatusCode::UNAUTHORIZED,
+                }
+            }
+            CommandError::Validation(msg) if msg.contains("Unsupported provider") => {
+                Self::OAuth {
+                    operation: "internal_token".to_string(),
+                    error_code: "unsupported_provider".to_string(),
+                    message: format!("Unsupported provider: {}", provider),
+                    status: StatusCode::BAD_REQUEST,
+                }
+            }
+            CommandError::Business(msg) if msg.contains("No token available") => {
+                Self::OAuth {
+                    operation: "internal_token".to_string(),
+                    error_code: "no_token_available".to_string(),
+                    message: format!("No token available for the user and provider {}", provider),
+                    status: StatusCode::NOT_FOUND,
+                }
+            }
+            CommandError::Validation(msg) => {
+                Self::OAuth {
+                    operation: "internal_token".to_string(),
+                    error_code: "validation_failed".to_string(),
+                    message: msg.clone(),
+                    status: StatusCode::BAD_REQUEST,
+                }
+            }
+            CommandError::Infrastructure(_) => {
+                Self::OAuth {
+                    operation: "internal_token".to_string(),
+                    error_code: "internal_error".to_string(),
+                    message: "Internal server error".to_string(),
+                    status: StatusCode::INTERNAL_SERVER_ERROR,
+                }
+            }
+            _ => {
+                Self::OAuth {
+                    operation: "internal_token".to_string(),
+                    error_code: "token_retrieval_failed".to_string(),
+                    message: "Failed to retrieve provider token".to_string(),
+                    status: StatusCode::INTERNAL_SERVER_ERROR,
+                }
+            }
+        }
+    }
 } 

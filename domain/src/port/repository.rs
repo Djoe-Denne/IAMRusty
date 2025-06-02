@@ -210,6 +210,9 @@ pub trait RefreshTokenWriteRepository {
     /// Update a refresh token's validity
     async fn update_validity(&self, token_id: Uuid, is_valid: bool) -> Result<(), Self::Error>;
     
+    /// Delete a refresh token by its ID
+    async fn delete_by_id(&self, token_id: Uuid) -> Result<(), Self::Error>;
+    
     /// Delete all refresh tokens for a user
     async fn delete_by_user_id(&self, user_id: Uuid) -> Result<u64, Self::Error>;
 }

@@ -5,6 +5,11 @@ info:
   description: |
     This API allows third-party clients to authenticate users via OAuth2 providers (e.g., GitHub, GitLab) and retrieve basic user profile information.
     
+    **Token Management:**
+    - JWT access tokens have a configurable expiration time (default: 15 minutes)
+    - Refresh tokens have a configurable expiration time (default: 30 days)
+    - Refresh token rotation is implemented for enhanced security - each refresh operation generates a new refresh token and invalidates the old one
+    
     **User Model Update:**
     - Users are now provider-agnostic and can link multiple OAuth2 providers to a single account.
     - Email addresses are managed in a separate entity (`user_emails`).
@@ -80,6 +85,7 @@ paths:
                   id: "user_123"
                   username: "alice"
                   email: "alice@example.com"
+                expires_in: 900
         "401":
           description: Invalid credentials
           
@@ -235,7 +241,7 @@ paths:
                       email: "henri@example.com"
                       avatar: "https://gitlab.com/uploads/avatar.png"
                     access_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                    expires_in: 3600
+                    expires_in: 900
                     refresh_token: "def502004f8c7..."
                 - title: Link Provider Response
                   description: Response for provider linking operations
@@ -333,7 +339,12 @@ paths:
     post:
       summary: Refresh access token
       description: |
-        Exchanges a valid refresh token for a new JWT access token. The refresh token must be valid and not expired or revoked.
+        Exchanges a valid refresh token for a new JWT access token and a new refresh token. 
+        The old refresh token is invalidated and deleted from the database when a new one is issued.
+        The new refresh token resets the expiration period (default: 30 days).
+        
+        **Security Note:** Each refresh operation generates a new refresh token and invalidates the previous one,
+        implementing refresh token rotation for enhanced security.
       requestBody:
         required: true
         content:
@@ -344,15 +355,32 @@ paths:
               properties:
                 refresh_token:
                   type: string
-                  description: The refresh token issued at login.
+                  description: The refresh token issued at login or from a previous refresh.
       responses:
         "200":
-          description: New access token issued
+          description: New access token and refresh token issued
           content:
             application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                    description: New JWT access token
+                  expires_in:
+                    type: integer
+                    description: Access token expiration in seconds (default: 900 = 15 minutes)
+                  refresh_token:
+                    type: string
+                    description: New refresh token (replaces the old one)
+                  refresh_expires_in:
+                    type: integer
+                    description: Refresh token expiration in seconds (default: 2592000 = 30 days)
               example:
-                token: "jwt_xyz_new"
+                access_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
                 expires_in: 900
+                refresh_token: "def502004f8c7abc123..."
+                refresh_expires_in: 2592000
         "400":
           description: Malformed or missing refresh token
         "401":

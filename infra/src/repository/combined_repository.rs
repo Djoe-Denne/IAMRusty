@@ -204,6 +204,10 @@ where
         self.write_repo.update_validity(token_id, is_valid).await
     }
     
+    async fn delete_by_id(&self, token_id: Uuid) -> Result<(), Self::Error> {
+        self.write_repo.delete_by_id(token_id).await
+    }
+    
     async fn delete_by_user_id(&self, user_id: Uuid) -> Result<u64, Self::Error> {
         self.write_repo.delete_by_user_id(user_id).await
     }

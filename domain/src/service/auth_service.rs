@@ -181,6 +181,13 @@ where
         let provider = Provider::from_str(provider_name)
             .ok_or_else(|| DomainError::ProviderNotSupported(provider_name.to_string()))?;
         
+        // First verify that the user exists (security: don't reveal if user has tokens or not)
+        let _user = self.user_repository
+            .find_by_id(uuid)
+            .await
+            .map_err(|e| DomainError::RepositoryError(e.to_string()))?
+            .ok_or(DomainError::UserNotFound)?;
+        
         let tokens = self.token_repository
             .get_provider_tokens(uuid, provider)
             .await

@@ -61,7 +61,7 @@ impl JwtTokenService {
         Self {
             secret,
             access_token_expiration,
-            refresh_token_expiration: access_token_expiration * 30, // 30x longer than access token
+            refresh_token_expiration: 2_592_000, // Default 30 days
         }
     }
     

@@ -80,6 +80,22 @@ impl RefreshTokenWriteRepository for RefreshTokenWriteRepositoryImpl {
         Ok(())
     }
 
+    async fn delete_by_id(&self, token_id: Uuid) -> Result<(), Self::Error> {
+        debug!("Deleting refresh token by ID: {}", token_id);
+        
+        let result = RefreshTokens::delete_by_id(token_id)
+            .exec(self.db.as_ref())
+            .await?;
+            
+        if result.rows_affected > 0 {
+            debug!("Deleted refresh token: {}", token_id);
+        } else {
+            debug!("Refresh token not found for deletion: {}", token_id);
+        }
+        
+        Ok(())
+    }
+
     async fn delete_by_user_id(&self, user_id: Uuid) -> Result<u64, Self::Error> {
         debug!("Deleting all refresh tokens for user ID: {}", user_id);
         

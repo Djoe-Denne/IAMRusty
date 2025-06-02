@@ -37,8 +37,12 @@ pub enum TokenError {
 pub struct RefreshTokenResponse {
     /// New access token
     pub access_token: String,
-    /// Expiration time in seconds
+    /// Access token expiration time in seconds
     pub expires_in: u64,
+    /// New refresh token (replaces the old one)
+    pub refresh_token: String,
+    /// Refresh token expiration time in seconds
+    pub refresh_expires_in: u64,
 }
 
 /// Token use case interface
@@ -88,23 +92,23 @@ where
 {
     async fn refresh_token(&self, refresh_token: String) -> Result<RefreshTokenResponse, TokenError> {
         // Find the refresh token
-        let token = self.refresh_token_repo
+        let old_token = self.refresh_token_repo
             .find_by_token(&refresh_token)
             .await
             .map_err(|e| TokenError::RepositoryError(Box::new(e)))?
             .ok_or(TokenError::TokenNotFound)?;
         
         // Check if the token is valid
-        if !token.is_valid {
+        if !old_token.is_valid {
             return Err(TokenError::TokenInvalid);
         }
         
         // Check if the token is expired
         let now = Utc::now();
-        if token.expires_at < now {
+        if old_token.expires_at < now {
             // Invalidate the expired token
             self.refresh_token_repo
-                .update_validity(token.id, false)
+                .update_validity(old_token.id, false)
                 .await
                 .map_err(|e| TokenError::RepositoryError(Box::new(e)))?;
                 
@@ -112,19 +116,43 @@ where
         }
         
         // Generate a new access token
-        let new_token = self.token_service
-            .generate_access_token(token.user_id)
+        let new_access_token = self.token_service
+            .generate_access_token(old_token.user_id)
             .await
             .map_err(|e| TokenError::TokenServiceError(Box::new(e)))?;
         
-        // Calculate expiration time in seconds
-        let expires_in = (new_token.expires_at - now)
+        // Generate a new refresh token
+        let new_refresh_token = self.token_service
+            .generate_refresh_token(old_token.user_id)
+            .await
+            .map_err(|e| TokenError::TokenServiceError(Box::new(e)))?;
+        
+        // Store the new refresh token in database
+        self.refresh_token_repo
+            .create(new_refresh_token.clone())
+            .await
+            .map_err(|e| TokenError::RepositoryError(Box::new(e)))?;
+        
+        // Delete the old refresh token from database (refresh token rotation)
+        self.refresh_token_repo
+            .delete_by_id(old_token.id)
+            .await
+            .map_err(|e| TokenError::RepositoryError(Box::new(e)))?;
+        
+        // Calculate expiration times in seconds
+        let access_expires_in = (new_access_token.expires_at - now)
+            .num_seconds()
+            .max(0) as u64;
+            
+        let refresh_expires_in = (new_refresh_token.expires_at - now)
             .num_seconds()
             .max(0) as u64;
         
         Ok(RefreshTokenResponse {
-            access_token: new_token.token,
-            expires_in,
+            access_token: new_access_token.token,
+            expires_in: access_expires_in,
+            refresh_token: new_refresh_token.token,
+            refresh_expires_in,
         })
     }
     

@@ -69,9 +69,12 @@ pub struct GitLabConfig {
 pub struct JwtConfig {
     /// JWT signing secret
     pub secret: String,
-    /// Token expiration time in seconds
+    /// Access token expiration time in seconds (default: 15 minutes)
     #[serde(default = "default_jwt_expiration")]
     pub expiration_seconds: u64,
+    /// Refresh token expiration time in seconds (default: 30 days)
+    #[serde(default = "default_refresh_token_expiration")]
+    pub refresh_token_expiration_seconds: u64,
 }
 
 /// Main application configuration
@@ -119,7 +122,11 @@ fn default_gitlab_user_url() -> String {
 }
 
 fn default_jwt_expiration() -> u64 {
-    3600 // 1 hour
+    900 // 15 minutes
+}
+
+fn default_refresh_token_expiration() -> u64 {
+    2_592_000 // 30 days (30 * 24 * 60 * 60)
 }
 
 /// Generic provider configuration for conversion utilities
@@ -211,6 +218,7 @@ impl ConfigLoader<AppConfig> for AppConfig {
             jwt: JwtConfig {
                 secret: "your-256-bit-secret-key-change-this-in-production".to_string(),
                 expiration_seconds: default_jwt_expiration(),
+                refresh_token_expiration_seconds: default_refresh_token_expiration(),
             },
             logging: LoggingConfig::default(),
             command: CommandConfig::default(),
@@ -257,7 +265,7 @@ mod tests {
         assert_eq!(config.server.port, 8080);
         assert_eq!(config.database.host, "localhost");
         assert_eq!(config.database.port, 0);
-        assert_eq!(config.jwt.expiration_seconds, 3600);
+        assert_eq!(config.jwt.expiration_seconds, 900);
     }
     
     #[test]

@@ -1,6 +1,6 @@
 use axum::{
-    extract::State,
-    http::{Request, StatusCode},
+    extract::{State, FromRequestParts},
+    http::{Request, StatusCode, request::Parts},
     middleware::Next,
     response::Response,
     body::Body,
@@ -9,6 +9,29 @@ use axum::{
 use application::command::{CommandContext, CommandError, user::ValidateTokenCommand};
 use uuid::Uuid;
 use std::collections::HashMap;
+
+/// Authenticated user information extracted from middleware
+#[derive(Debug, Clone)]
+pub struct AuthUser {
+    pub user_id: Uuid,
+}
+
+impl<S> FromRequestParts<S> for AuthUser
+where
+    S: Send + Sync,
+{
+    type Rejection = StatusCode;
+
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        let user_id = parts
+            .extensions
+            .get::<Uuid>()
+            .copied()
+            .ok_or(StatusCode::UNAUTHORIZED)?;
+
+        Ok(AuthUser { user_id })
+    }
+}
 
 /// Extract JWT token from the Authorization header
 fn extract_token(auth_header: &str) -> Option<&str> {

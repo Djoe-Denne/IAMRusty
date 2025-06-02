@@ -31,7 +31,7 @@ pub mod oauth_state;
 pub mod validation;
 
 pub use handlers::{
-    auth::{oauth_callback, oauth_start, signup, login, verify_email},
+    auth::{oauth_callback, oauth_start, signup, login, verify_email, internal_provider_token},
     user::get_user,
     token::refresh_token,
 };
@@ -80,25 +80,6 @@ pub struct ServerConfig {
     pub tls_port: Option<u16>,
 }
 
-/// Start the HTTP server
-pub async fn serve(state: AppState, addr: &str) -> anyhow::Result<()> {
-    let app = Router::new()
-        .route("/api/auth/{provider_name}/start", get(oauth_start))
-        .route("/api/auth/{provider_name}/callback", get(oauth_callback))
-        .route("/api/token/refresh", post(refresh_token))
-        .route(
-            "/api/me",
-            get(get_user).route_layer(middleware::from_fn_with_state(state.clone(), auth_middleware)),
-        )
-        .layer(CatchPanicLayer::custom(handle_panic))
-        .with_state(state);
-
-    let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, app).await?;
-
-    Ok(())
-}
-
 /// Health check handler
 async fn health_check() -> &'static str {
     "OK"
@@ -139,6 +120,10 @@ pub async fn serve_with_config(state: AppState, config: ServerConfig) -> anyhow:
         .route(
             "/api/me",
             get(get_user).route_layer(middleware::from_fn_with_state(state.clone(), auth_middleware)),
+        )
+        .route(
+            "/internal/{provider_name}/token",
+            post(internal_provider_token).route_layer(middleware::from_fn_with_state(state.clone(), auth_middleware)),
         )
         .layer(CatchPanicLayer::custom(handle_panic))
         .with_state(state);

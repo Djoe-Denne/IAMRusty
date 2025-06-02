@@ -39,7 +39,8 @@ user_url = "https://gitlab.com/api/v4/user"
 
 [jwt]
 secret = "your-jwt-secret-key-should-be-at-least-32-bytes"
-expiration_seconds = 3600
+expiration_seconds = 900  # 15 minutes
+refresh_token_expiration_seconds = 2592000  # 30 days
 
 # Kafka configuration for event publishing
 [kafka]

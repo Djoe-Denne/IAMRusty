@@ -33,7 +33,9 @@ redirect_uri = "https://your-domain.com/api/auth/gitlab/callback"
 
 # Set longer JWT expiration for production
 [jwt]
-expiration_seconds = 86400  # 24 hours
+secret = "CHANGE-THIS-IN-PRODUCTION-256-BIT-SECRET-KEY"
+expiration_seconds = 900  # 15 minutes
+refresh_token_expiration_seconds = 2592000  # 30 days
 
 # Command configuration for production
 [command.retry]

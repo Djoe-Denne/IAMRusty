@@ -22,9 +22,14 @@ pub struct RefreshTokenRequest {
 #[derive(Debug, Serialize)]
 pub struct TokenResponse {
     /// The JWT access token
+    #[serde(rename = "access_token")]
     pub token: String,
-    /// Token expiration time in seconds
+    /// Access token expiration time in seconds
     pub expires_in: u64,
+    /// New refresh token (replaces the old one)
+    pub refresh_token: String,
+    /// Refresh token expiration time in seconds
+    pub refresh_expires_in: u64,
 }
 
 /// Handler for refreshing a token
@@ -47,5 +52,7 @@ pub async fn refresh_token(
     Ok(Json(TokenResponse {
         token: response.access_token,
         expires_in: response.expires_in,
+        refresh_token: response.refresh_token,
+        refresh_expires_in: response.refresh_expires_in,
     }))
 } 

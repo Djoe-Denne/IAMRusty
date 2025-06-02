@@ -1,5 +1,5 @@
 pub mod login;
-pub mod link_provider;
+pub mod provider;
 pub mod token;
 pub mod user;
 pub mod signup;

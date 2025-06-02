@@ -1,6 +1,7 @@
 use rustycog_command::{Command, CommandError, CommandHandler, CommandErrorMapper};
 use crate::usecase::{
     link_provider::{LinkProviderUseCase, LinkProviderResponse, LinkProviderError},
+    provider::{ProviderUseCase, ProviderTokenResponse, ProviderError},
 };
 use domain::entity::provider::Provider;
 use async_trait::async_trait;
@@ -31,6 +32,35 @@ impl CommandErrorMapper for LinkProviderErrorMapper {
                 }
                 LinkProviderError::ProviderAlreadyLinkedToSameUser => {
                     CommandError::Business("Provider is already linked to your account".to_string())
+                }
+            }
+        } else {
+            CommandError::Infrastructure(error.to_string())
+        }
+    }
+}
+
+/// Error mapper for provider token commands
+pub struct ProviderErrorMapper;
+
+impl CommandErrorMapper for ProviderErrorMapper {
+    fn map_error(&self, error: Box<dyn std::error::Error + Send + Sync>) -> CommandError {
+        if let Some(provider_error) = error.downcast_ref::<ProviderError>() {
+            match provider_error {
+                ProviderError::UserNotFound => {
+                    CommandError::Authentication("Authentication failed".to_string())
+                }
+                ProviderError::ProviderNotSupported(provider) => {
+                    CommandError::Validation(format!("Unsupported provider: {}", provider))
+                }
+                ProviderError::NoTokenForProvider => {
+                    CommandError::Business("No token available for the user and provider".to_string())
+                }
+                ProviderError::AuthError(msg) => {
+                    CommandError::Authentication(msg.clone())
+                }
+                ProviderError::DbError(e) => {
+                    CommandError::Infrastructure(format!("Database error: {}", e))
                 }
             }
         } else {
@@ -219,5 +249,84 @@ where
         self.link_provider_use_case
             .generate_start_url(command.provider)
             .map_err(|e| LinkProviderErrorMapper.map_error(Box::new(e)))
+    }
+}
+
+/// Get provider token command
+#[derive(Debug, Clone)]
+pub struct GetProviderTokenCommand {
+    /// Command instance ID
+    pub command_id: Uuid,
+    /// User ID to get the token for
+    pub user_id: Uuid,
+    /// OAuth provider
+    pub provider: Provider,
+}
+
+impl GetProviderTokenCommand {
+    /// Create a new get provider token command
+    pub fn new(user_id: Uuid, provider: Provider) -> Self {
+        Self {
+            command_id: Uuid::new_v4(),
+            user_id,
+            provider,
+        }
+    }
+}
+
+#[async_trait]
+impl Command for GetProviderTokenCommand {
+    type Result = ProviderTokenResponse;
+    
+    fn command_type(&self) -> &'static str {
+        "get_provider_token"
+    }
+    
+    fn command_id(&self) -> Uuid {
+        self.command_id
+    }
+    
+    fn validate(&self) -> Result<(), CommandError> {
+        // Validate user_id is not nil
+        if self.user_id.is_nil() {
+            return Err(CommandError::Validation(
+                "User ID cannot be nil".to_string()
+            ));
+        }
+        
+        Ok(())
+    }
+}
+
+/// Get provider token command handler
+pub struct GetProviderTokenCommandHandler<P> 
+where
+    P: ProviderUseCase + ?Sized,
+{
+    provider_use_case: Arc<P>,
+}
+
+impl<P> GetProviderTokenCommandHandler<P>
+where
+    P: ProviderUseCase + ?Sized,
+{
+    /// Create a new get provider token command handler
+    pub fn new(provider_use_case: Arc<P>) -> Self {
+        Self {
+            provider_use_case,
+        }
+    }
+}
+
+#[async_trait]
+impl<P> CommandHandler<GetProviderTokenCommand> for GetProviderTokenCommandHandler<P>
+where
+    P: ProviderUseCase + Send + Sync + ?Sized,
+{
+    async fn handle(&self, command: GetProviderTokenCommand) -> Result<ProviderTokenResponse, CommandError> {
+        self.provider_use_case
+            .get_provider_token(command.user_id, command.provider)
+            .await
+            .map_err(|e| ProviderErrorMapper.map_error(Box::new(e)))
     }
 }

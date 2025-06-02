@@ -1,7 +1,7 @@
 use rustycog_command::{CommandRegistry, CommandRegistryBuilder};
 use super::{
     login::{LoginCommand, GenerateLoginStartUrlCommand, LoginCommandHandler, GenerateLoginStartUrlCommandHandler, LoginErrorMapper},
-    link_provider::{LinkProviderCommand, GenerateLinkProviderStartUrlCommand, LinkProviderCommandHandler, GenerateLinkProviderStartUrlCommandHandler, LinkProviderErrorMapper},
+    provider::{LinkProviderCommand, GenerateLinkProviderStartUrlCommand, LinkProviderCommandHandler, GenerateLinkProviderStartUrlCommandHandler, LinkProviderErrorMapper, GetProviderTokenCommand, GetProviderTokenCommandHandler, ProviderErrorMapper},
     token::{RefreshTokenCommand, RevokeTokenCommand, RevokeAllTokensCommand, RefreshTokenCommandHandler, RevokeTokenCommandHandler, RevokeAllTokensCommandHandler, TokenErrorMapper},
     user::{GetUserCommand, ValidateTokenCommand, GetUserCommandHandler, ValidateTokenCommandHandler, UserErrorMapper},
     signup::{SignupCommand, SignupCommandHandler, AuthErrorMapper as SignupAuthErrorMapper},
@@ -11,6 +11,7 @@ use super::{
 use crate::usecase::{
     login::LoginUseCase,
     link_provider::LinkProviderUseCase,
+    provider::ProviderUseCase,
     token::TokenUseCase,
     user::UserUseCase,
     auth::AuthUseCase,
@@ -25,6 +26,7 @@ impl CommandRegistryFactory {
     pub fn create_iam_registry(
         login_usecase: Arc<dyn LoginUseCase>,
         link_provider_usecase: Arc<dyn LinkProviderUseCase>,
+        provider_usecase: Arc<dyn ProviderUseCase>,
         token_usecase: Arc<dyn TokenUseCase>,
         user_usecase: Arc<dyn UserUseCase>,
         auth_usecase: Arc<dyn AuthUseCase>,
@@ -48,6 +50,13 @@ impl CommandRegistryFactory {
         builder = builder
             .register::<LinkProviderCommand, _>("link_provider".to_string(), link_provider_handler, link_provider_error_mapper.clone())
             .register::<GenerateLinkProviderStartUrlCommand, _>("generate_link_provider_start_url".to_string(), link_provider_start_url_handler, link_provider_error_mapper);
+
+        // Register provider token commands
+        let get_provider_token_handler = Arc::new(GetProviderTokenCommandHandler::new(provider_usecase));
+        let provider_error_mapper = Arc::new(ProviderErrorMapper);
+
+        builder = builder
+            .register::<GetProviderTokenCommand, _>("get_provider_token".to_string(), get_provider_token_handler, provider_error_mapper);
 
         // Register token commands
         let refresh_token_handler = Arc::new(RefreshTokenCommandHandler::new(token_usecase.clone()));
@@ -159,6 +168,17 @@ impl CommandRegistryFactory {
         CommandRegistryBuilder::new()
             .register::<LinkProviderCommand, _>("link_provider".to_string(), link_provider_handler, link_provider_error_mapper.clone())
             .register::<GenerateLinkProviderStartUrlCommand, _>("generate_link_provider_start_url".to_string(), link_provider_start_url_handler, link_provider_error_mapper)
+    }
+
+    /// Create a registry builder with only provider token commands
+    pub fn create_builder_with_provider(
+        provider_usecase: Arc<dyn ProviderUseCase>,
+    ) -> CommandRegistryBuilder {
+        let get_provider_token_handler = Arc::new(GetProviderTokenCommandHandler::new(provider_usecase));
+        let provider_error_mapper = Arc::new(ProviderErrorMapper);
+
+        CommandRegistryBuilder::new()
+            .register::<GetProviderTokenCommand, _>("get_provider_token".to_string(), get_provider_token_handler, provider_error_mapper)
     }
 }
 
