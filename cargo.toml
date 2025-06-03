@@ -75,3 +75,4 @@ reqwest = { version = "0.12.0", features = ["json"] }
 base64 = "0.22.0"
 rdkafka = { version = "0.36.2", features = ["cmake-build", "tokio"] }
 infra = { path = "infra", features = ["test-utils"] }
+rustycog-events = { path = "../rustycog/rustycog-events", features = ["test-utils"] }

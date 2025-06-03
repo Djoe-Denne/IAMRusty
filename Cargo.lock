@@ -2263,6 +2263,7 @@ dependencies = [
  "rand 0.8.5",
  "rdkafka",
  "reqwest 0.12.15",
+ "rustycog-events",
  "sea-orm",
  "sea-orm-cli",
  "sea-orm-migration",

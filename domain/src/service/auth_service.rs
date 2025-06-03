@@ -397,6 +397,7 @@ mod tests {
         User {
             id: Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap(),
             username: "testuser".to_string(),
+            password_hash: None,
             avatar_url: Some("https://example.com/avatar.jpg".to_string()),
             created_at: Utc::now(),
             updated_at: Utc::now(),
