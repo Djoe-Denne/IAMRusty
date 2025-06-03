@@ -149,6 +149,7 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
         password_service_adapter.clone(),
         token_service.clone(),
         event_publisher,
+        config.jwt.secret.clone(),
     );
 
     // Create provider usecase
@@ -174,7 +175,7 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
     let token_write_repo_provider = TokenWriteRepositoryImpl::new(db_pool.get_write_connection());
     let token_repo_provider = CombinedTokenRepository::new(token_read_repo_provider, token_write_repo_provider);
     
-    let provider_auth_service = domain::service::auth_service::AuthService::new(
+    let provider_auth_service = domain::service::oauth_service::OAuthService::new(
         user_repo.clone(),
         token_repo_provider,
         domain::service::token_service::TokenService::new(

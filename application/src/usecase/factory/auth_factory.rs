@@ -4,8 +4,6 @@ use crate::usecase::auth::{
 use domain::port::service::AuthTokenService;
 use domain::port::repository::{UserRepository, UserEmailRepository, EmailVerificationRepository};
 use domain::port::event_publisher::EventPublisher;
-use domain::entity::token::RefreshToken;
-use chrono::{Duration, Utc};
 use std::sync::Arc;
 
 /// Factory for creating the auth use case with its dependencies
@@ -20,6 +18,7 @@ impl AuthFactory {
         password_service: Arc<PS>,
         token_service: Arc<TS>,
         event_publisher: Arc<EP>,
+        jwt_secret: String,
     ) -> Arc<dyn AuthUseCase>
     where
         UR: UserRepository + Send + Sync + 'static,
@@ -36,6 +35,7 @@ impl AuthFactory {
             password_service,
             token_service,
             event_publisher,
+            jwt_secret,
         ))
     }
 }
@@ -43,7 +43,7 @@ impl AuthFactory {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::usecase::auth::{AuthError, SignupRequest, LoginRequest, VerifyEmailRequest};
+    use crate::usecase::auth::{AuthError};
     use domain::entity::user::User;
     use domain::entity::user_email::UserEmail;
     use domain::entity::email_verification::EmailVerification;
@@ -54,6 +54,8 @@ mod tests {
         UserEmailReadRepository, UserEmailWriteRepository,
         EmailVerificationReadRepository, EmailVerificationWriteRepository
     };
+    use domain::entity::token::RefreshToken;
+    use chrono::{Utc, Duration};
     use async_trait::async_trait;
     use uuid::Uuid;
 
@@ -171,6 +173,7 @@ mod tests {
             password_service,
             token_service,
             event_publisher,
+            "test_secret".to_string(),
         );
 
         // If we get here, the factory successfully created the use case

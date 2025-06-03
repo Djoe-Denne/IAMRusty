@@ -12,6 +12,9 @@ use std::sync::Arc;
 use thiserror::Error;
 use uuid::Uuid;
 use rand::{distributions::Alphanumeric, Rng};
+use hmac::{Hmac, Mac};
+use sha2::Sha256;
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 
 /// Auth use case errors
 #[derive(Debug, Error)]
@@ -149,6 +152,7 @@ where
     password_service: Arc<PS>,
     token_service: Arc<TS>,
     event_publisher: Arc<EP>,
+    jwt_secret: String,
 }
 
 impl<UR, UER, EVR, PS, TS, EP> AuthUseCaseImpl<UR, UER, EVR, PS, TS, EP>
@@ -167,6 +171,7 @@ where
         password_service: Arc<PS>,
         token_service: Arc<TS>,
         event_publisher: Arc<EP>,
+        jwt_secret: String,
     ) -> Self {
         Self {
             user_repository,
@@ -175,16 +180,33 @@ where
             password_service,
             token_service,
             event_publisher,
+            jwt_secret,
         }
     }
 
-    /// Generate a random verification token
-    fn generate_verification_token() -> String {
-        rand::thread_rng()
+    /// Generate a secure verification token using HMAC with the configured JWT secret
+    fn generate_verification_token(&self, email: &str) -> Result<String, AuthError> {
+        // Create a unique payload combining email, timestamp, and random data
+        let timestamp = chrono::Utc::now().timestamp();
+        let nonce: String = rand::thread_rng()
             .sample_iter(&Alphanumeric)
-            .take(32)
+            .take(16)
             .map(char::from)
-            .collect()
+            .collect();
+        let payload = format!("{}:{}:{}", email, timestamp, nonce);
+        
+        // Create HMAC using the JWT secret
+        let mut mac = Hmac::<Sha256>::new_from_slice(self.jwt_secret.as_bytes())
+            .map_err(|e| AuthError::VerificationTokenGenerationError(
+                format!("Failed to create HMAC: {}", e)
+            ))?;
+        
+        mac.update(payload.as_bytes());
+        let result = mac.finalize();
+        let token_bytes = result.into_bytes();
+        
+        // Encode as URL-safe base64
+        Ok(URL_SAFE_NO_PAD.encode(&token_bytes))
     }
 }
 
@@ -231,7 +253,7 @@ where
             .map_err(|e| AuthError::RepositoryError(DomainError::RepositoryError(e.to_string())))?;
 
         // Generate verification token
-        let verification_token = Self::generate_verification_token();
+        let verification_token = self.generate_verification_token(&request.email)?;
         let email_verification = EmailVerification::new(
             request.email.clone(),
             verification_token,

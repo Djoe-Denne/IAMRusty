@@ -21,6 +21,11 @@ chrono = { version = "0.4.31", features = ["serde"] }
 url = "2.5"
 rand = "0.8.5"
 
+# Cryptography
+hmac = "0.12"
+sha2 = "0.10"
+base64 = "0.22"
+
 # Error handling
 thiserror = "1.0.64"
 anyhow = "1.0.82"

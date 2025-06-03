@@ -1,7 +1,7 @@
 //! Provider use case module
 
 use domain::entity::provider::{Provider, ProviderTokens};
-use domain::service::auth_service::AuthService;
+use domain::service::oauth_service::OAuthService;
 use async_trait::async_trait;
 use std::sync::Arc;
 use thiserror::Error;
@@ -67,7 +67,7 @@ where
     U: domain::port::repository::UserRepository,
     T: domain::port::repository::TokenRepository,
 {
-    auth_service: Arc<AuthService<U, T>>,
+    auth_service: Arc<OAuthService<U, T>>,
 }
 
 impl<U, T> ProviderUseCaseImpl<U, T>
@@ -76,7 +76,7 @@ where
     T: domain::port::repository::TokenRepository,
 {
     /// Create a new ProviderUseCaseImpl
-    pub fn new(auth_service: Arc<AuthService<U, T>>) -> Self {
+    pub fn new(auth_service: Arc<OAuthService<U, T>>) -> Self {
         Self {
             auth_service,
         }

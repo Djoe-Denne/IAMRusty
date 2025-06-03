@@ -1,5 +1,5 @@
-pub mod auth_service;
+pub mod oauth_service;
 pub mod token_service;
 
-pub use auth_service::AuthService;
+pub use oauth_service::OAuthService;
 pub use token_service::TokenService; 
