@@ -3,6 +3,7 @@ use domain::entity::email_verification::EmailVerification;
 use domain::error::DomainError;
 use sea_orm::{ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 use std::sync::Arc;
+use uuid::Uuid;
 
 use super::entity::user_email_verification;
 
@@ -11,6 +12,7 @@ use super::entity::user_email_verification;
 pub trait EmailVerificationWriteRepository: Send + Sync {
     async fn create(&self, verification: &EmailVerification) -> Result<(), DomainError>;
     async fn delete_by_email(&self, email: &str) -> Result<(), DomainError>;
+    async fn delete_by_id(&self, id: Uuid) -> Result<(), DomainError>;
 }
 
 /// SeaORM implementation of EmailVerificationWriteRepository
@@ -54,6 +56,16 @@ impl EmailVerificationWriteRepository for SeaOrmEmailVerificationWriteRepository
             .exec(self.db.as_ref())
             .await
             .map_err(|e| DomainError::RepositoryError(format!("Failed to delete email verification: {}", e)))?;
+
+        Ok(())
+    }
+
+    async fn delete_by_id(&self, id: Uuid) -> Result<(), DomainError> {
+        user_email_verification::Entity::delete_many()
+            .filter(user_email_verification::Column::Id.eq(id))
+            .exec(self.db.as_ref())
+            .await
+            .map_err(|e| DomainError::RepositoryError(format!("Failed to delete email verification by id: {}", e)))?;
 
         Ok(())
     }

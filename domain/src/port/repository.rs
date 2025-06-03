@@ -4,6 +4,7 @@ use crate::entity::{
     user_email::UserEmail,
     token::RefreshToken,
     provider_link::ProviderLink,
+    email_verification::EmailVerification,
 };
 use uuid::Uuid;
 
@@ -236,4 +237,54 @@ where
     <T as RefreshTokenWriteRepository>::Error: std::error::Error + Send + Sync + 'static,
 {
     type Error = <T as RefreshTokenReadRepository>::Error;
+}
+
+/// Read operations for EmailVerification entity
+#[async_trait::async_trait]
+pub trait EmailVerificationReadRepository {
+    /// Error type returned by this repository
+    type Error: std::error::Error + Send + Sync + 'static;
+
+    /// Find email verification by email and token
+    async fn find_by_email_and_token(&self, email: &str, token: &str) -> Result<Option<EmailVerification>, Self::Error>;
+    
+    /// Find email verification by email
+    async fn find_by_email(&self, email: &str) -> Result<Option<EmailVerification>, Self::Error>;
+}
+
+/// Write operations for EmailVerification entity
+#[async_trait::async_trait]
+pub trait EmailVerificationWriteRepository {
+    /// Error type returned by this repository
+    type Error: std::error::Error + Send + Sync + 'static;
+
+    /// Create a new email verification
+    async fn create(&self, verification: &EmailVerification) -> Result<(), Self::Error>;
+    
+    /// Delete email verification by email
+    async fn delete_by_email(&self, email: &str) -> Result<(), Self::Error>;
+    
+    /// Delete email verification by id
+    async fn delete_by_id(&self, id: Uuid) -> Result<(), Self::Error>;
+}
+
+/// Combined read and write operations for EmailVerification entity
+#[async_trait::async_trait]
+pub trait EmailVerificationRepository: EmailVerificationReadRepository + EmailVerificationWriteRepository
+where 
+    <Self as EmailVerificationReadRepository>::Error: std::error::Error + Send + Sync + 'static,
+    <Self as EmailVerificationWriteRepository>::Error: std::error::Error + Send + Sync + 'static,
+{
+    /// Error type for this repository
+    type Error: std::error::Error + Send + Sync + 'static;
+}
+
+// Blanket implementation for types that implement both read and write repositories
+impl<T> EmailVerificationRepository for T 
+where 
+    T: EmailVerificationReadRepository + EmailVerificationWriteRepository,
+    <T as EmailVerificationReadRepository>::Error: std::error::Error + Send + Sync + 'static,
+    <T as EmailVerificationWriteRepository>::Error: std::error::Error + Send + Sync + 'static,
+{
+    type Error = <T as EmailVerificationReadRepository>::Error;
 } 

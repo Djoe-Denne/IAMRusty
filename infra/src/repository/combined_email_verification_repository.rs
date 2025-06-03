@@ -1,13 +1,18 @@
 use async_trait::async_trait;
 use domain::entity::email_verification::EmailVerification;
 use domain::error::DomainError;
-use application::usecase::auth::EmailVerificationRepository;
+use domain::port::repository::{
+    EmailVerificationRepository, 
+    EmailVerificationReadRepository as DomainEmailVerificationReadRepository,
+    EmailVerificationWriteRepository as DomainEmailVerificationWriteRepository
+};
 use std::sync::Arc;
+use uuid::Uuid;
 
 use super::email_verification_read::{EmailVerificationReadRepository, SeaOrmEmailVerificationReadRepository};
 use super::email_verification_write::{EmailVerificationWriteRepository, SeaOrmEmailVerificationWriteRepository};
 
-/// Combined email verification repository that implements the application's EmailVerificationRepository trait
+/// Combined email verification repository that implements the domain's EmailVerificationRepository trait
 pub struct CombinedEmailVerificationRepository {
     read_repo: Arc<dyn EmailVerificationReadRepository>,
     write_repo: Arc<dyn EmailVerificationWriteRepository>,
@@ -37,17 +42,32 @@ impl CombinedEmailVerificationRepository {
 }
 
 #[async_trait]
-impl EmailVerificationRepository for CombinedEmailVerificationRepository {
-    async fn create(&self, verification: &EmailVerification) -> Result<(), DomainError> {
-        self.write_repo.create(verification).await
-    }
+impl DomainEmailVerificationReadRepository for CombinedEmailVerificationRepository {
+    type Error = DomainError;
 
-    async fn find_by_email_and_token(&self, email: &str, token: &str) -> Result<Option<EmailVerification>, DomainError> {
+    async fn find_by_email_and_token(&self, email: &str, token: &str) -> Result<Option<EmailVerification>, Self::Error> {
         self.read_repo.find_by_email_and_token(email, token).await
     }
 
-    async fn delete_by_email(&self, email: &str) -> Result<(), DomainError> {
+    async fn find_by_email(&self, email: &str) -> Result<Option<EmailVerification>, Self::Error> {
+        self.read_repo.find_by_email(email).await
+    }
+}
+
+#[async_trait]
+impl DomainEmailVerificationWriteRepository for CombinedEmailVerificationRepository {
+    type Error = DomainError;
+
+    async fn create(&self, verification: &EmailVerification) -> Result<(), Self::Error> {
+        self.write_repo.create(verification).await
+    }
+
+    async fn delete_by_email(&self, email: &str) -> Result<(), Self::Error> {
         self.write_repo.delete_by_email(email).await
+    }
+
+    async fn delete_by_id(&self, id: Uuid) -> Result<(), Self::Error> {
+        self.write_repo.delete_by_id(id).await
     }
 }
 

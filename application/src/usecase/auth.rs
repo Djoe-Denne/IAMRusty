@@ -3,7 +3,7 @@ use domain::entity::events::{DomainEvent, UserSignedUpEvent, UserEmailVerifiedEv
 use domain::entity::user::User;
 use domain::entity::user_email::UserEmail;
 use domain::entity::email_verification::EmailVerification;
-use domain::port::repository::{UserRepository, UserEmailRepository};
+use domain::port::repository::{UserRepository, UserEmailRepository, EmailVerificationRepository};
 use domain::port::event_publisher::EventPublisher;
 use domain::error::DomainError;
 use serde::{Deserialize, Serialize};
@@ -116,14 +116,6 @@ pub struct UserProfile {
 pub trait PasswordService: Send + Sync {
     async fn hash_password(&self, password: &str) -> Result<String, AuthError>;
     async fn verify_password(&self, password: &str, hash: &str) -> Result<bool, AuthError>;
-}
-
-/// Email verification repository trait
-#[async_trait]
-pub trait EmailVerificationRepository: Send + Sync {
-    async fn create(&self, verification: &EmailVerification) -> Result<(), DomainError>;
-    async fn find_by_email_and_token(&self, email: &str, token: &str) -> Result<Option<EmailVerification>, DomainError>;
-    async fn delete_by_email(&self, email: &str) -> Result<(), DomainError>;
 }
 
 /// Token service trait for dependency injection
@@ -246,7 +238,8 @@ where
         );
 
         // Save the verification token
-        self.email_verification_repository.create(&email_verification).await?;
+        self.email_verification_repository.create(&email_verification).await
+            .map_err(|e| AuthError::RepositoryError(DomainError::RepositoryError(e.to_string())))?;
 
         // Publish UserSignedUp event
         let event = DomainEvent::UserSignedUp(UserSignedUpEvent::new(
@@ -332,7 +325,8 @@ where
         // Find verification token
         let verification = self.email_verification_repository
             .find_by_email_and_token(&request.email, &request.verification_token)
-            .await?;
+            .await
+            .map_err(|e| AuthError::RepositoryError(DomainError::RepositoryError(e.to_string())))?;
 
         let verification = match verification {
             Some(v) => v,
@@ -376,7 +370,8 @@ where
             .map_err(|e| AuthError::RepositoryError(DomainError::RepositoryError(e.to_string())))?;
 
         // Clean up verification token
-        self.email_verification_repository.delete_by_email(&request.email).await?;
+        self.email_verification_repository.delete_by_email(&request.email).await
+            .map_err(|e| AuthError::RepositoryError(DomainError::RepositoryError(e.to_string())))?;
 
         // Publish UserEmailVerified event
         let event = DomainEvent::UserEmailVerified(UserEmailVerifiedEvent::new(

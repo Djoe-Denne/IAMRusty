@@ -1,7 +1,7 @@
 use crate::usecase::auth::{
-    AuthUseCase, AuthUseCaseImpl, PasswordService, EmailVerificationRepository, TokenService
+    AuthUseCase, AuthUseCaseImpl, PasswordService, TokenService
 };
-use domain::port::repository::{UserRepository, UserEmailRepository};
+use domain::port::repository::{UserRepository, UserEmailRepository, EmailVerificationRepository};
 use domain::port::event_publisher::EventPublisher;
 use std::sync::Arc;
 
@@ -46,6 +46,11 @@ mod tests {
     use domain::entity::email_verification::EmailVerification;
     use domain::entity::events::DomainEvent;
     use domain::error::DomainError;
+    use domain::port::repository::{
+        UserReadRepository, UserWriteRepository, 
+        UserEmailReadRepository, UserEmailWriteRepository,
+        EmailVerificationReadRepository, EmailVerificationWriteRepository
+    };
     use async_trait::async_trait;
     use uuid::Uuid;
 
@@ -95,10 +100,20 @@ mod tests {
     }
 
     #[async_trait]
-    impl EmailVerificationRepository for MockEmailVerificationRepository {
-        async fn create(&self, _verification: &EmailVerification) -> Result<(), DomainError> { Ok(()) }
-        async fn find_by_email_and_token(&self, _email: &str, _token: &str) -> Result<Option<EmailVerification>, DomainError> { Ok(None) }
-        async fn delete_by_email(&self, _email: &str) -> Result<(), DomainError> { Ok(()) }
+    impl EmailVerificationReadRepository for MockEmailVerificationRepository {
+        type Error = DomainError;
+
+        async fn find_by_email_and_token(&self, _email: &str, _token: &str) -> Result<Option<EmailVerification>, Self::Error> { Ok(None) }
+        async fn find_by_email(&self, _email: &str) -> Result<Option<EmailVerification>, Self::Error> { Ok(None) }
+    }
+
+    #[async_trait]
+    impl EmailVerificationWriteRepository for MockEmailVerificationRepository {
+        type Error = DomainError;
+
+        async fn create(&self, _verification: &EmailVerification) -> Result<(), Self::Error> { Ok(()) }
+        async fn delete_by_email(&self, _email: &str) -> Result<(), Self::Error> { Ok(()) }
+        async fn delete_by_id(&self, _id: Uuid) -> Result<(), Self::Error> { Ok(()) }
     }
 
     #[async_trait]
