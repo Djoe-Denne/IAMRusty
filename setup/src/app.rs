@@ -6,7 +6,7 @@ use chrono::Duration;
 use http_server::{AppState, serve_with_config, ServerConfig as HttpServerConfig};
 use infra::{
     auth::{GitHubOAuth2Client, GitLabOAuth2Client, PasswordService, PasswordServiceAdapter},
-    token::{JwtTokenService, TokenServiceAdapter},
+    token::{JwtTokenService},
     repository::{
         user_read::UserReadRepositoryImpl,
         user_write::UserWriteRepositoryImpl,
@@ -104,13 +104,10 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
 
     // Create token service
     let token_service = Arc::new(JwtTokenService::with_refresh_expiration(
-        config.jwt.secret.clone(),
+        infra::token::JwtAlgorithm::HS256(config.jwt.secret.clone()),
         config.jwt.expiration_seconds,
         config.jwt.refresh_token_expiration_seconds,
     ));
-    
-    // Create token service adapter for auth use case
-    let token_service_adapter = Arc::new(TokenServiceAdapter::new(token_service.clone()));
 
     // Create use cases
     let login_usecase = LoginUseCaseImpl::new(
@@ -150,7 +147,7 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
         Arc::new(user_email_repo.clone()),
         Arc::new(email_verification_repo),
         password_service_adapter.clone(),
-        token_service_adapter,
+        token_service.clone(),
         event_publisher,
     );
 
@@ -158,9 +155,9 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
     // For provider usecase, we only need the get_provider_token method from AuthService
     // which doesn't use the TokenService, so we can create a minimal one
     #[derive(Debug, Clone)]
-    struct MinimalTokenEncoder;
+    struct MinimalJwtTokenEncoder;
     
-    impl domain::port::service::TokenEncoder for MinimalTokenEncoder {
+    impl domain::port::service::JwtTokenEncoder for MinimalJwtTokenEncoder {
         fn encode(&self, _claims: &domain::entity::token::TokenClaims) -> Result<String, domain::error::DomainError> {
             Ok("dummy_token".to_string())
         }
@@ -181,7 +178,7 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
         user_repo.clone(),
         token_repo_provider,
         domain::service::token_service::TokenService::new(
-            Box::new(MinimalTokenEncoder),
+            Box::new(MinimalJwtTokenEncoder),
             Duration::hours(1)
         )
     );

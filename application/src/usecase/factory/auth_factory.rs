@@ -1,8 +1,11 @@
 use crate::usecase::auth::{
-    AuthUseCase, AuthUseCaseImpl, PasswordService, TokenService
+    AuthUseCase, AuthUseCaseImpl, PasswordService
 };
+use domain::port::service::AuthTokenService;
 use domain::port::repository::{UserRepository, UserEmailRepository, EmailVerificationRepository};
 use domain::port::event_publisher::EventPublisher;
+use domain::entity::token::RefreshToken;
+use chrono::{Duration, Utc};
 use std::sync::Arc;
 
 /// Factory for creating the auth use case with its dependencies
@@ -23,7 +26,7 @@ impl AuthFactory {
         UER: UserEmailRepository + Send + Sync + 'static,
         EVR: EmailVerificationRepository + Send + Sync + 'static,
         PS: PasswordService + Send + Sync + 'static,
-        TS: TokenService + Send + Sync + 'static,
+        TS: AuthTokenService + Send + Sync + 'static,
         EP: EventPublisher + Send + Sync + 'static,
     {
         Arc::new(AuthUseCaseImpl::new(
@@ -123,15 +126,32 @@ mod tests {
     }
 
     #[async_trait]
-    impl TokenService for MockTokenService {
-        async fn generate_jwt_for_user(&self, _user_id: Uuid) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+    impl AuthTokenService for MockTokenService {
+        type Error = DomainError;
+
+        async fn generate_access_token(&self, _user_id: Uuid) -> Result<String, Self::Error> {
             Ok("test_token".to_string())
+        }
+        async fn generate_refresh_token(&self, _user_id: Uuid) -> Result<String, Self::Error> {
+            Ok("test_refresh_token".to_string())
+        }
+        async fn validate_access_token(&self, _token: &str) -> Result<Uuid, Self::Error> { Ok(Uuid::new_v4()) }
+        async fn validate_refresh_token(&self, _token: &str) -> Result<RefreshToken, Self::Error> { 
+            Ok(RefreshToken {
+                id: Uuid::new_v4(),
+                user_id: Uuid::new_v4(),
+                token: "test_refresh_token".to_string(),
+                is_valid: true,
+                created_at: Utc::now(),
+                expires_at: Utc::now() + Duration::days(30),
+            }) 
         }
     }
 
     #[async_trait]
     impl EventPublisher for MockEventPublisher {
         async fn publish(&self, _event: DomainEvent) -> Result<(), DomainError> { Ok(()) }
+        async fn publish_batch(&self, _events: Vec<DomainEvent>) -> Result<(), DomainError> { Ok(()) }
         async fn health_check(&self) -> Result<(), DomainError> { Ok(()) }
     }
 

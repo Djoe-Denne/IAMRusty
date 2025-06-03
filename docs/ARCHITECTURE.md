@@ -105,7 +105,7 @@ domain/
 - **UserRepository**: User data persistence contract
 - **TokenRepository**: Token storage contract
 - **ProviderOAuth2Client**: OAuth provider integration contract
-- **TokenEncoder**: JWT encoding/decoding contract
+- **JwtTokenEncoder**: JWT encoding/decoding contract
 
 #### Domain Errors
 All domain operations return `DomainError` types:

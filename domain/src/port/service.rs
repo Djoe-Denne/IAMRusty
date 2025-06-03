@@ -2,8 +2,8 @@ use crate::entity::{
     provider::{ProviderTokens, ProviderUserProfile},
     token::{JwkSet, TokenClaims, JwtToken, RefreshToken},
 };
-use crate::error::DomainError;
 use uuid::Uuid;
+use crate::error::DomainError;
 use async_trait::async_trait;
 
 /// Provider OAuth2 client interface
@@ -20,7 +20,7 @@ pub trait ProviderOAuth2Client {
 }
 
 /// JWT token encoder/decoder
-pub trait TokenEncoder: Send + Sync {
+pub trait JwtTokenEncoder: Send + Sync {
     /// Encode a token with the given claims
     fn encode(&self, claims: &TokenClaims) -> Result<String, DomainError>;
 
@@ -33,7 +33,7 @@ pub trait TokenEncoder: Send + Sync {
 
 /// Token service for handling JWT tokens
 #[async_trait]
-pub trait TokenService: Send + Sync {
+pub trait AuthTokenService: Send + Sync {
     /// Error type returned by this service
     type Error: std::error::Error + Send + Sync + 'static;
 

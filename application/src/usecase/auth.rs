@@ -5,6 +5,7 @@ use domain::entity::user_email::UserEmail;
 use domain::entity::email_verification::EmailVerification;
 use domain::port::repository::{UserRepository, UserEmailRepository, EmailVerificationRepository};
 use domain::port::event_publisher::EventPublisher;
+use domain::port::service::{AuthTokenService};
 use domain::error::DomainError;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -139,7 +140,7 @@ where
     UER: UserEmailRepository,
     EVR: EmailVerificationRepository,
     PS: PasswordService,
-    TS: TokenService,
+    TS: AuthTokenService,
     EP: EventPublisher,
 {
     user_repository: Arc<UR>,
@@ -156,7 +157,7 @@ where
     UER: UserEmailRepository,
     EVR: EmailVerificationRepository,
     PS: PasswordService,
-    TS: TokenService,
+    TS: AuthTokenService,
     EP: EventPublisher,
 {
     pub fn new(
@@ -194,7 +195,7 @@ where
     UER: UserEmailRepository + Send + Sync,
     EVR: EmailVerificationRepository + Send + Sync,
     PS: PasswordService + Send + Sync,
-    TS: TokenService + Send + Sync,
+    TS: AuthTokenService + Send + Sync,
     EP: EventPublisher + Send + Sync,
 {
     async fn signup(&self, request: SignupRequest) -> Result<SignupResponse, AuthError> {
@@ -294,9 +295,9 @@ where
 
         // Generate JWT token
         let token = self.token_service
-            .generate_jwt_for_user(user.id)
+            .generate_access_token(user.id)
             .await
-            .map_err(AuthError::TokenServiceError)?;
+            .map_err(|e| AuthError::TokenServiceError(Box::new(e)))?;
 
         // Publish UserLoggedIn event
         let event = DomainEvent::UserLoggedIn(UserLoggedInEvent::new(
@@ -317,7 +318,7 @@ where
                 email: request.email,
                 avatar: user.avatar_url,
             },
-            token,
+            token: token.token,
         })
     }
 

@@ -502,7 +502,7 @@ pub struct JwtConfig {
 pub async fn refresh_token(&self, refresh_token: &str) -> Result<TokenResponse, TokenError> {
     // Validate current refresh token
     let token = self.validate_refresh_token(refresh_token).await?;
-    
+
     // Generate new tokens
     let new_access_token = self.generate_access_token(token.user_id).await?;
     let new_refresh_token = self.generate_refresh_token(token.user_id).await?;

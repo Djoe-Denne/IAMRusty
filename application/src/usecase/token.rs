@@ -5,7 +5,7 @@ use uuid::Uuid;
 use std::sync::Arc;
 use domain::port::{
     repository::RefreshTokenRepository,
-    service::TokenService,
+    service::AuthTokenService,
 };
 
 /// Token usecase error
@@ -62,7 +62,7 @@ pub trait TokenUseCase: Send + Sync {
 pub struct TokenUseCaseImpl<R, T>
 where
     R: RefreshTokenRepository,
-    T: TokenService,
+    T: AuthTokenService,
 {
     refresh_token_repo: Arc<R>,
     token_service: Arc<T>,
@@ -71,7 +71,7 @@ where
 impl<R, T> TokenUseCaseImpl<R, T>
 where
     R: RefreshTokenRepository,
-    T: TokenService,
+    T: AuthTokenService,
 {
     /// Create a new TokenUseCaseImpl
     pub fn new(refresh_token_repo: Arc<R>, token_service: Arc<T>) -> Self {
@@ -86,7 +86,7 @@ where
 impl<R, T> TokenUseCase for TokenUseCaseImpl<R, T>
 where
     R: RefreshTokenRepository + Send + Sync,
-    T: TokenService + Send + Sync,
+    T: AuthTokenService + Send + Sync,
     <R as RefreshTokenRepository>::Error: std::error::Error + Send + Sync + 'static,
     T::Error: std::error::Error + Send + Sync + 'static,
 {

@@ -4,7 +4,7 @@ use uuid::Uuid;
 use std::sync::Arc;
 use domain::port::{
     repository::{UserRepository, UserEmailRepository},
-    service::TokenService,
+    service::AuthTokenService,
 };
 use domain::entity::user::User;
 
@@ -56,7 +56,7 @@ pub struct UserUseCaseImpl<UR, UER, T>
 where
     UR: UserRepository,
     UER: UserEmailRepository,
-    T: TokenService,
+    T: AuthTokenService,
 {
     user_repo: Arc<UR>,
     user_email_repo: Arc<UER>,
@@ -67,7 +67,7 @@ impl<UR, UER, T> UserUseCaseImpl<UR, UER, T>
 where
     UR: UserRepository,
     UER: UserEmailRepository,
-    T: TokenService,
+    T: AuthTokenService,
 {
     /// Create a new UserUseCaseImpl
     pub fn new(user_repo: Arc<UR>, user_email_repo: Arc<UER>, token_service: Arc<T>) -> Self {
@@ -84,7 +84,7 @@ impl<UR, UER, T> UserUseCase for UserUseCaseImpl<UR, UER, T>
 where
     UR: UserRepository + Send + Sync,
     UER: UserEmailRepository + Send + Sync,
-    T: TokenService + Send + Sync,
+    T: AuthTokenService + Send + Sync,
     <UR as UserRepository>::Error: std::error::Error + Send + Sync + 'static,
     <UER as UserEmailRepository>::Error: std::error::Error + Send + Sync + 'static,
     T::Error: std::error::Error + Send + Sync + 'static,

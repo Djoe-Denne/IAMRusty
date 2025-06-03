@@ -1,17 +1,17 @@
 use chrono::Duration;
 use crate::entity::token::{JwkSet, TokenClaims};
 use crate::error::DomainError;
-use crate::port::service::TokenEncoder;
+use crate::port::service::JwtTokenEncoder;
 
 /// Service for JWT token operations
 pub struct TokenService {
-    token_encoder: Box<dyn TokenEncoder>,
+    token_encoder: Box<dyn JwtTokenEncoder>,
     token_duration: Duration,
 }
 
 impl TokenService {
     /// Create a new token service
-    pub fn new(token_encoder: Box<dyn TokenEncoder>, token_duration: Duration) -> Self {
+    pub fn new(token_encoder: Box<dyn JwtTokenEncoder>, token_duration: Duration) -> Self {
         Self {
             token_encoder,
             token_duration,
@@ -49,17 +49,17 @@ mod tests {
     use super::*;
     use crate::entity::token::{JwkSet, TokenClaims};
     use crate::error::DomainError;
-    use crate::port::service::TokenEncoder;
+    use crate::port::service::JwtTokenEncoder;
     use mockall::{mock, predicate::*};
     use rstest::*;
     use chrono::{Duration, Utc};
     use claims::*;
 
-    // Mock implementation for TokenEncoder
+    // Mock implementation for JwtTokenEncoder
     mock! {
         pub TokenEnc {}
         
-        impl TokenEncoder for TokenEnc {
+        impl JwtTokenEncoder for TokenEnc {
             fn encode(&self, claims: &TokenClaims) -> Result<String, DomainError>;
             fn decode(&self, token: &str) -> Result<TokenClaims, DomainError>;
             fn jwks(&self) -> JwkSet;

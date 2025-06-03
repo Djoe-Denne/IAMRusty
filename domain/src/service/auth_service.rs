@@ -384,7 +384,7 @@ mod tests {
     mock! {
         TokenEnc {}
         
-        impl crate::port::service::TokenEncoder for TokenEnc {
+        impl crate::port::service::JwtTokenEncoder for TokenEnc {
             fn encode(&self, claims: &crate::entity::token::TokenClaims) -> Result<String, DomainError>;
             fn decode(&self, token: &str) -> Result<crate::entity::token::TokenClaims, DomainError>;
             fn jwks(&self) -> crate::entity::token::JwkSet;

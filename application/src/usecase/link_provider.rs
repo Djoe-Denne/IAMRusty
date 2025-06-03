@@ -7,7 +7,7 @@ use domain::entity::{
 };
 use domain::port::{
     repository::{TokenRepository, UserRepository, UserEmailRepository, RefreshTokenRepository},
-    service::TokenService,
+    service::AuthTokenService,
 };
 use crate::auth::AuthService;
 use crate::usecase::factory::AuthProviderFactory;
@@ -82,7 +82,7 @@ where
     UER: UserEmailRepository,
     TR: TokenRepository,
     RR: RefreshTokenRepository,
-    TS: TokenService,
+    TS: AuthTokenService,
 {
     auth_factory: Arc<AuthProviderFactory<GH, GL>>,
     user_repo: Arc<UR>,
@@ -100,7 +100,7 @@ where
     UER: UserEmailRepository,
     TR: TokenRepository,
     RR: RefreshTokenRepository,
-    TS: TokenService,
+    TS: AuthTokenService,
 {
     /// Create a new LinkProviderUseCaseImpl
     pub fn new(
@@ -264,14 +264,14 @@ where
     UER: UserEmailRepository + Send + Sync,
     TR: TokenRepository + Send + Sync,
     RR: RefreshTokenRepository + Send + Sync,
-    TS: TokenService + Send + Sync,
+    TS: AuthTokenService + Send + Sync,
     <GH as AuthService>::Error: std::error::Error + Send + Sync + 'static,
     <GL as AuthService>::Error: std::error::Error + Send + Sync + 'static,
     <UR as UserRepository>::Error: std::error::Error + Send + Sync + 'static,
     <UER as UserEmailRepository>::Error: std::error::Error + Send + Sync + 'static,
     <TR as TokenRepository>::Error: std::error::Error + Send + Sync + 'static,
     <RR as RefreshTokenRepository>::Error: std::error::Error + Send + Sync + 'static,
-    <TS as TokenService>::Error: std::error::Error + Send + Sync + 'static,
+    <TS as AuthTokenService>::Error: std::error::Error + Send + Sync + 'static,
 {
     fn generate_start_url(&self, provider: Provider) -> Result<String, LinkProviderError> {
         let auth_service = self.auth_factory.get_auth_service(provider);
