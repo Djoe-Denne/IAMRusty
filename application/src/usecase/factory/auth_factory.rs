@@ -1,7 +1,7 @@
 use crate::usecase::auth::{
     AuthUseCase, AuthUseCaseImpl, PasswordService
 };
-use domain::port::service::AuthTokenService;
+use domain::port::service::{AuthTokenService, JwtTokenEncoder};
 use domain::port::repository::{UserRepository, UserEmailRepository, EmailVerificationRepository};
 use domain::port::event_publisher::EventPublisher;
 use std::sync::Arc;
@@ -131,11 +131,22 @@ mod tests {
     impl AuthTokenService for MockTokenService {
         type Error = DomainError;
 
-        async fn generate_access_token(&self, _user_id: Uuid) -> Result<String, Self::Error> {
-            Ok("test_token".to_string())
+        async fn generate_access_token(&self, user_id: Uuid) -> Result<domain::entity::token::JwtToken, Self::Error> {
+            Ok(domain::entity::token::JwtToken {
+                user_id,
+                token: "test_token".to_string(),
+                expires_at: Utc::now() + Duration::hours(1),
+            })
         }
-        async fn generate_refresh_token(&self, _user_id: Uuid) -> Result<String, Self::Error> {
-            Ok("test_refresh_token".to_string())
+        async fn generate_refresh_token(&self, user_id: Uuid) -> Result<RefreshToken, Self::Error> {
+            Ok(RefreshToken {
+                id: Uuid::new_v4(),
+                user_id,
+                token: "test_refresh_token".to_string(),
+                is_valid: true,
+                created_at: Utc::now(),
+                expires_at: Utc::now() + Duration::days(30),
+            })
         }
         async fn validate_access_token(&self, _token: &str) -> Result<Uuid, Self::Error> { Ok(Uuid::new_v4()) }
         async fn validate_refresh_token(&self, _token: &str) -> Result<RefreshToken, Self::Error> { 
@@ -147,6 +158,26 @@ mod tests {
                 created_at: Utc::now(),
                 expires_at: Utc::now() + Duration::days(30),
             }) 
+        }
+    }
+
+    impl JwtTokenEncoder for MockTokenService {
+        fn encode(&self, _claims: &domain::entity::token::TokenClaims) -> Result<String, DomainError> {
+            Ok("encoded_token".to_string())
+        }
+
+        fn decode(&self, _token: &str) -> Result<domain::entity::token::TokenClaims, DomainError> {
+            Ok(domain::entity::token::TokenClaims {
+                sub: Uuid::new_v4().to_string(),
+                username: "test_user".to_string(),
+                exp: (Utc::now() + Duration::hours(1)).timestamp(),
+                iat: Utc::now().timestamp(),
+                jti: Uuid::new_v4().to_string(),
+            })
+        }
+
+        fn jwks(&self) -> domain::entity::token::JwkSet {
+            domain::entity::token::JwkSet { keys: vec![] }
         }
     }
 

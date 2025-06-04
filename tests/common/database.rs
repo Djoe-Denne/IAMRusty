@@ -580,6 +580,17 @@ mod tests {
         let config = fixture.config();
         
         assert!(config.database.url().contains("localhost"));
-        assert_eq!(config.jwt.secret, "test_jwt_secret_for_testing_only_must_be_at_least_32_bytes_long");
+        // Check that JWT secret is properly configured
+        match &config.jwt.secret {
+            configuration::SecretStorage::PemFile { private_key_path, public_key_path, key_id } => {
+                assert!(private_key_path.contains("key.pem"));
+                assert!(public_key_path.contains("public_key.pem"));
+                assert_eq!(key_id.as_ref().unwrap(), "jwt-key-test");
+            }
+            configuration::SecretStorage::PlainText { value } => {
+                assert_eq!(value, "test_jwt_secret_for_testing_only_must_be_at_least_32_bytes_long");
+            }
+            _ => panic!("Unexpected secret storage type in test config"),
+        }
     }
 } 

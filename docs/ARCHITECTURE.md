@@ -333,55 +333,72 @@ configuration/
 - **ServerConfig**: HTTP server configuration (host, port, TLS settings)
 - **DatabaseConfig**: Database connection configuration with read replicas
 - **OAuthConfig**: OAuth provider configurations (GitHub, GitLab)
-- **JwtConfig**: JWT token configuration (secret, expiration)
+- **JwtConfig**: JWT token configuration with extensible secret storage
 - **CommandConfig**: Command retry configuration system
 - **CommandRetryConfig**: Retry policy configuration for commands
 
-#### Command Retry Configuration System
+#### JWT Secret Storage Architecture
 
-The configuration system now supports sophisticated retry policies with command-specific overrides:
+The JWT configuration system uses a layered approach to support multiple secret storage backends while keeping the JWT encoder agnostic to the secret source:
 
 ```rust
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CommandRetryConfig {
-    /// Maximum number of retry attempts
-    pub max_attempts: u32,
-    /// Base delay between retries in milliseconds
-    pub base_delay_ms: u64,
-    /// Maximum delay between retries in milliseconds
-    pub max_delay_ms: u64,
-    /// Backoff multiplier for exponential backoff
-    pub backoff_multiplier: f64,
-    /// Whether to use jitter in retry delays
-    pub use_jitter: bool,
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct JwtConfig {
+    /// Token expiration time in seconds
+    pub expiration_seconds: u64,
+    /// Secret storage configuration
+    pub secret_storage: SecretStorage,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CommandConfig {
-    /// Default retry configuration for all commands
-    #[serde(default)]
-    pub retry: CommandRetryConfig,
-    /// Command-specific retry configurations
-    #[serde(default)]
-    pub overrides: HashMap<String, CommandRetryConfig>,
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(tag = "type")]
+pub enum SecretStorage {
+    /// Plain text HMAC secret (development/legacy)
+    PlainText { secret: String },
+    /// RSA key pair from PEM files (recommended for production)
+    PemFile {
+        private_key_path: String,
+        public_key_path: String,
+    },
+    /// HashiCorp Vault integration (future)
+    Vault {
+        vault_url: String,
+        secret_path: String,
+        role: String,
+    },
+    /// GCP Secret Manager integration (future)
+    GcpSecretManager {
+        project_id: String,
+        secret_name: String,
+        version: String,
+    },
+}
+
+/// Resolved JWT secret for token operations
+#[derive(Debug, Clone)]
+pub enum JwtSecret {
+    /// HMAC symmetric key
+    Hmac(String),
+    /// RSA asymmetric key pair
+    Rsa {
+        private_key: String,
+        public_key: String,
+        kid: String,
+    },
 }
 ```
 
-#### Configuration Resolution
+**Secret Resolution Flow**:
+1. **Configuration Loading**: SecretStorage enum loaded from config files
+2. **Secret Resolution**: Converts storage config to JwtSecret at startup
+3. **JWT Service Creation**: JwtTokenService created with resolved secret
+4. **Token Operations**: JWT encoding/decoding using appropriate algorithm
 
-The system supports a flexible hierarchy for configuration resolution:
-
-1. **Command-specific overrides**: `[command.overrides.<command_type>]`
-2. **Default command configuration**: `[command.retry]`
-3. **System defaults**: Hardcoded fallback values
-
-#### Features
-- **Environment Variables**: Support for hierarchical env vars with `IAM_` prefix
-- **TOML Files**: Configuration file support with environment-specific overrides
-- **Default Values**: Sensible defaults with serde default functions
-- **Port Caching**: Consistent random port generation for testing
-- **Command-Level Tuning**: Fine-grained retry control per command type
-- **Environment-Specific Policies**: Different retry settings per environment
+**Benefits**:
+- **Extensibility**: Easy to add new secret storage backends
+- **Security**: Separation of storage mechanism from cryptographic operations
+- **Flexibility**: Support for both symmetric and asymmetric algorithms
+- **Future-Proof**: Ready for enterprise secret management integration
 
 ### Example: Complete Configuration Structure
 

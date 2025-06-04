@@ -13,6 +13,9 @@ serde = { version = "1.0.197", features = ["derive"] }
 # URL parsing
 url = "2.5.2"
 
+# Error handling
+thiserror = "1.0"
+
 # Logging
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }

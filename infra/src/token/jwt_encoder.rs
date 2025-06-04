@@ -4,6 +4,7 @@ use domain::entity::{
 use domain::error::DomainError;
 use domain::port::service::{JwtTokenEncoder, AuthTokenService};
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation};
+use rsa::{RsaPublicKey, pkcs8::DecodePublicKey, traits::PublicKeyParts};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use tracing::{debug, error};
 use async_trait::async_trait;
@@ -131,6 +132,27 @@ impl JwtTokenService {
             JwtAlgorithm::HS256(_) => None,
         }
     }
+
+    /// Extract RSA modulus (n) and exponent (e) from a PEM public key PKCS#8 format
+    fn extract_rsa_components(&self, public_key_pem: &str) -> Result<(String, String), String> {
+        // 1. Parser le PEM (PKCS#8 ou PKCS#1) en RsaPublicKey
+        let rsa_pub = RsaPublicKey::from_public_key_pem(public_key_pem)
+            .map_err(|e| format!("Failed to parse RSA public key PEM: {}", e))?;
+
+        // 2. Récupérer le modulus (n) et l'exposant (e) sous forme de BigUint
+        let n_big = rsa_pub.n();
+        let e_big = rsa_pub.e();
+
+        // 3. Convertir en octets big-endian
+        let n_bytes = n_big.to_bytes_be();
+        let e_bytes = e_big.to_bytes_be();
+
+        // 4. Encoder en Base64URL sans padding
+        let n_b64 = URL_SAFE_NO_PAD.encode(&n_bytes);
+        let e_b64 = URL_SAFE_NO_PAD.encode(&e_bytes);
+
+        Ok((n_b64, e_b64))
+    }
 }
 
 // Implementation of JwtTokenEncoder trait for low-level JWT operations
@@ -191,23 +213,32 @@ impl JwtTokenEncoder for JwtTokenService {
         
         match &self.algorithm_config {
             JwtAlgorithm::RS256(key_pair) => {
-                // Extract modulus and exponent from the public key
-                // In a real implementation, we would parse the RSA key properly
-                // This is just a placeholder for the structure
-                let n = URL_SAFE_NO_PAD.encode("placeholder_modulus");
-                let e = URL_SAFE_NO_PAD.encode("AQAB"); // Standard RSA exponent
+                // Parse the RSA public key to extract modulus and exponent
+                match self.extract_rsa_components(&key_pair.public_key) {
+                    Ok((n, e)) => {
+                        let jwk = Jwk {
+                            kty: "RSA".to_string(),
+                            kid: key_pair.kid.clone(),
+                            use_: "sig".to_string(),
+                            alg: "RS256".to_string(),
+                            n: n.clone(),
+                            e: e.clone(),
+                        };
 
-                let jwk = Jwk {
-                    kty: "RSA".to_string(),
-                    kid: key_pair.kid.clone(),
-                    use_: "sig".to_string(),
-                    alg: "RS256".to_string(),
-                    n,
-                    e,
-                };
+                        debug!("Successfully created JWKS with RSA key (kid: {}, modulus length: {} chars)", 
+                            key_pair.kid, n.len());
 
-                JwkSet {
-                    keys: vec![jwk],
+                        JwkSet {
+                            keys: vec![jwk],
+                        }
+                    }
+                    Err(e) => {
+                        error!("Failed to extract RSA components for JWKS: {}", e);
+                        // Return empty JWKS if we can't parse the key
+                        JwkSet {
+                            keys: vec![],
+                        }
+                    }
                 }
             }
             JwtAlgorithm::HS256(_) => {

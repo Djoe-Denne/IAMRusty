@@ -116,7 +116,7 @@ async fn test_internal_provider_token_github_success_returns_access_token() {
         .expect("Failed to create provider token");
     
     // Create valid JWT token for authentication
-    let secret = test_fixture.config().jwt.secret;
+    let secret = test_fixture.config().jwt.get_secret_string().expect("Failed to get secret string");
     let jwt_token = create_valid_jwt_token(user.id(), &secret);
     
     // Make request to internal provider token endpoint
@@ -170,7 +170,7 @@ async fn test_internal_provider_token_gitlab_success_returns_access_token() {
         .expect("Failed to create provider token");
     
     // Create valid JWT token for authentication
-    let secret = test_fixture.config().jwt.secret;
+    let secret = test_fixture.config().jwt.get_secret_string().expect("Failed to get secret string");
     let jwt_token = create_valid_jwt_token(user.id(), &secret);
     
     // Make request to internal provider token endpoint
@@ -224,7 +224,7 @@ async fn test_internal_provider_token_returns_401_when_token_is_expired() {
     
     // Create expired JWT token
     let user_id = Uuid::new_v4();
-    let secret = test_fixture.config().jwt.secret;
+    let secret = test_fixture.config().jwt.get_secret_string().expect("Failed to get secret string");
     let expired_token = create_expired_jwt_token(user_id, &secret);
     
     // Make request with expired token
@@ -279,7 +279,7 @@ async fn test_internal_provider_token_returns_422_when_provider_is_unsupported()
         .expect("Failed to create user");
     
     // Create valid JWT token for authentication
-    let secret = test_fixture.config().jwt.secret;
+    let secret = test_fixture.config().jwt.get_secret_string().expect("Failed to get secret string");
     let jwt_token = create_valid_jwt_token(user.id(), &secret);
     
     // Make request with unsupported provider
@@ -330,7 +330,7 @@ async fn test_internal_provider_token_returns_404_when_no_token_for_provider() {
         .expect("Failed to create user");
     
     // Create valid JWT token for authentication
-    let secret = test_fixture.config().jwt.secret;
+    let secret = test_fixture.config().jwt.get_secret_string().expect("Failed to get secret string");
     let jwt_token = create_valid_jwt_token(user.id(), &secret);
     
     // Make request for GitHub token when user has no GitHub token
@@ -365,7 +365,7 @@ async fn test_internal_provider_token_returns_401_when_user_not_found() {
     
     // Create valid JWT token for a user that doesn't exist in database
     let non_existent_user_id = Uuid::new_v4();
-    let secret = test_fixture.config().jwt.secret;
+    let secret = test_fixture.config().jwt.get_secret_string().expect("Failed to get secret string");
     let jwt_token = create_valid_jwt_token(non_existent_user_id, &secret);
     
     // Make request with token for non-existent user
@@ -432,7 +432,7 @@ async fn test_internal_provider_token_case_insensitive_providers() {
         .expect("Failed to create provider token");
     
     // Create valid JWT token for authentication
-    let secret = test_fixture.config().jwt.secret;
+    let secret = test_fixture.config().jwt.get_secret_string().expect("Failed to get secret string");
     let jwt_token = create_valid_jwt_token(user.id(), &secret);
     
     // Test different case variations of GitHub
@@ -488,7 +488,7 @@ async fn test_internal_provider_token_different_users_different_tokens() {
         .await
         .expect("Failed to create token2");
     
-    let secret = test_fixture.config().jwt.secret;
+    let secret = test_fixture.config().jwt.get_secret_string().expect("Failed to get secret string");
     
     // Test user 1
     let jwt_token1 = create_valid_jwt_token(user1.id(), &secret);
@@ -552,7 +552,7 @@ async fn test_internal_provider_token_user_with_multiple_providers() {
         .await
         .expect("Failed to create GitLab token");
     
-    let secret = test_fixture.config().jwt.secret;
+    let secret = test_fixture.config().jwt.get_secret_string().expect("Failed to get secret string");
     let jwt_token = create_valid_jwt_token(user.id(), &secret);
     
     // Test GitHub endpoint
@@ -606,7 +606,7 @@ async fn test_internal_provider_token_concurrent_requests_same_user() {
         .await
         .expect("Failed to create provider token");
     
-    let secret = test_fixture.config().jwt.secret;
+    let secret = test_fixture.config().jwt.get_secret_string().expect("Failed to get secret string");
     let jwt_token = create_valid_jwt_token(user.id(), &secret);
     
     // Make 5 concurrent requests

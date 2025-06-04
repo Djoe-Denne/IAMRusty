@@ -1,9 +1,11 @@
-# Generate self-signed certificates for development/testing
-# This script creates a certificate authority and then generates a server certificate
+# Generate certificates and JWT signing keys for development/testing
+# This script creates TLS certificates and RSA keys for JWT signing
 
 param(
-    [string]$CertDir = "./certs",
-    [int]$Days = 365
+    [string]$CertDir = "./config/certs",
+    [int]$Days = 365,
+    [int]$JwtKeySize = 4096,  # Larger key size for JWT validation
+    [int]$TlsKeySize = 2048
 )
 
 $ErrorActionPreference = "Stop"
@@ -11,109 +13,140 @@ $ErrorActionPreference = "Stop"
 # Create certs directory if it doesn't exist
 if (!(Test-Path $CertDir)) {
     New-Item -ItemType Directory -Path $CertDir -Force | Out-Null
+    Write-Host "Created directory: $CertDir" -ForegroundColor Green
 }
 
-Write-Host "Generating self-signed certificates for development..." -ForegroundColor Green
+Write-Host "Generating certificates and JWT signing keys..." -ForegroundColor Green
+Write-Host "   Target directory: $CertDir" -ForegroundColor Cyan
+Write-Host "   JWT key size: $JwtKeySize bits" -ForegroundColor Cyan
+Write-Host "   TLS key size: $TlsKeySize bits" -ForegroundColor Cyan
+Write-Host ""
 
 try {
     # Check if OpenSSL is available
     $null = Get-Command openssl -ErrorAction Stop
-    Write-Host "Using OpenSSL for certificate generation..." -ForegroundColor Yellow
+    Write-Host "Using OpenSSL for key generation..." -ForegroundColor Yellow
+    
+    # Generate JWT signing RSA key pair (high priority)
+    Write-Host "Generating JWT RSA private key ($JwtKeySize bits)..."
+    & openssl genrsa -out "$CertDir/key.pem" $JwtKeySize
+    if ($LASTEXITCODE -ne 0) { throw "Failed to generate JWT private key" }
+    
+    Write-Host "Extracting JWT RSA public key..."
+    & openssl rsa -in "$CertDir/key.pem" -pubout -out "$CertDir/public_key.pem"
+    if ($LASTEXITCODE -ne 0) { throw "Failed to extract JWT public key" }
+    
+    # Verify the key pair
+    Write-Host "Verifying JWT key pair..."
+    & openssl rsa -in "$CertDir/key.pem" -check -noout
+    if ($LASTEXITCODE -ne 0) { throw "JWT key verification failed" }
+    
+    Write-Host "JWT signing keys generated successfully!" -ForegroundColor Green
+    Write-Host ""
+    
+    # Generate TLS certificates (for HTTPS)
+    Write-Host "Generating TLS certificates..." -ForegroundColor Yellow
     
     # Generate CA private key
     Write-Host "1. Generating CA private key..."
-    & openssl genrsa -out "$CertDir/ca-key.pem" 2048
+    & openssl genrsa -out "$CertDir/ca-key.pem" $TlsKeySize
     
     # Generate CA certificate
     Write-Host "2. Generating CA certificate..."
-    & openssl req -new -x509 -key "$CertDir/ca-key.pem" -out "$CertDir/ca-cert.pem" -days $Days -subj "/C=US/ST=CA/L=San Francisco/O=IAM Service/OU=Development/CN=IAM-CA"
+    & openssl req -new -x509 -key "$CertDir/ca-key.pem" -out "$CertDir/ca-cert.pem" -days $Days -subj "/C=FR/ST=FR/L=Nice/O=IAM Service/OU=Development/CN=IAM-CA"
     
-    # Generate server private key
-    Write-Host "3. Generating server private key..."
-    & openssl genrsa -out "$CertDir/key.pem" 2048
+    # Generate server private key for TLS (separate from JWT keys)
+    Write-Host "3. Generating TLS server private key..."
+    & openssl genrsa -out "$CertDir/tls-key.pem" $TlsKeySize
     
     # Create temporary config file for certificate generation
     $configContent = @"
 [req]
 distinguished_name = req_distinguished_name
-req_extensions = v3_req
-prompt = no
+req_extensions     = v3_req
+prompt             = no
 
 [req_distinguished_name]
-C = US
-ST = CA
-L = San Francisco
-O = IAM Service
+C  = FR
+ST = FR
+L  = Nice
+O  = IAM Service
 OU = Development
 CN = localhost
 
 [v3_req]
-keyUsage = keyEncipherment, dataEncipherment
-extendedKeyUsage = serverAuth
-subjectAltName = @alt_names
+keyUsage        = keyEncipherment, dataEncipherment
+extendedKeyUsage = clientAuth, serverAuth
+subjectAltName  = @alt_names
 
 [alt_names]
 DNS.1 = localhost
 DNS.2 = 127.0.0.1
-IP.1 = 127.0.0.1
-IP.2 = ::1
+IP.1  = 127.0.0.1
+IP.2  = ::1
 "@
-    
+
     $configFile = "$CertDir/temp-config.conf"
     Set-Content -Path $configFile -Value $configContent
     
     # Generate server certificate signing request
-    Write-Host "4. Generating server certificate signing request..."
-    & openssl req -new -key "$CertDir/key.pem" -out "$CertDir/server.csr" -config $configFile
+    Write-Host "4. Generating TLS certificate signing request..."
+    & openssl req -new -key "$CertDir/tls-key.pem" -out "$CertDir/server.csr" -config $configFile
     
     # Generate server certificate signed by CA
-    Write-Host "5. Generating server certificate..."
-    & openssl x509 -req -in "$CertDir/server.csr" -CA "$CertDir/ca-cert.pem" -CAkey "$CertDir/ca-key.pem" -CAcreateserial -out "$CertDir/cert.pem" -days $Days -extensions v3_req -extfile $configFile
+    Write-Host "5. Generating TLS server certificate..."
+    & openssl x509 -req -in "$CertDir/server.csr" -CA "$CertDir/ca-cert.pem" -CAkey "$CertDir/ca-key.pem" -CAcreateserial -out "$CertDir/tls-cert.pem" -days $Days -extensions v3_req -extfile $configFile
     
     # Clean up temporary files
-    Remove-Item "$CertDir/server.csr" -Force
-    Remove-Item $configFile -Force
-    
+    Remove-Item "$CertDir/server.csr" -Force -ErrorAction SilentlyContinue
+    Remove-Item $configFile -Force -ErrorAction SilentlyContinue
+
 } catch {
-    Write-Host "OpenSSL not found. Using PowerShell certificate generation..." -ForegroundColor Yellow
-    
-    # Fallback to PowerShell certificate generation
-    Write-Host "1. Generating CA certificate..."
-    $caCert = New-SelfSignedCertificate -Subject "CN=IAM-CA" -CertStoreLocation "Cert:\CurrentUser\My" -KeyUsage CertSign -KeyUsageProperty All -KeyLength 2048 -NotAfter (Get-Date).AddDays($Days) -HashAlgorithm SHA256
-    
-    Write-Host "2. Generating server certificate..."
-    $serverCert = New-SelfSignedCertificate -Subject "CN=localhost" -DnsName @("localhost", "127.0.0.1") -CertStoreLocation "Cert:\CurrentUser\My" -Signer $caCert -KeyLength 2048 -NotAfter (Get-Date).AddDays($Days) -HashAlgorithm SHA256
-    
-    # Export certificates
-    Write-Host "3. Exporting certificates..."
-    $caPassword = ConvertTo-SecureString -String "password" -Force -AsPlainText
-    $serverPassword = ConvertTo-SecureString -String "password" -Force -AsPlainText
-    
-    Export-Certificate -Cert $caCert -FilePath "$CertDir/ca-cert.cer"
-    Export-Certificate -Cert $serverCert -FilePath "$CertDir/cert.cer"
-    Export-PfxCertificate -Cert $caCert -FilePath "$CertDir/ca-cert.pfx" -Password $caPassword
-    Export-PfxCertificate -Cert $serverCert -FilePath "$CertDir/cert.pfx" -Password $serverPassword
-    
-    # Convert to PEM format (requires OpenSSL or manual conversion)
+    Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Red
     Write-Host ""
-    Write-Host "⚠️  Certificates generated in Windows format (.cer, .pfx)" -ForegroundColor Yellow
-    Write-Host "   For the Rust service, you'll need to convert to PEM format or install OpenSSL" -ForegroundColor Yellow
-    
-    # Clean up from certificate store
-    Remove-Item "Cert:\CurrentUser\My\$($caCert.Thumbprint)" -Force
-    Remove-Item "Cert:\CurrentUser\My\$($serverCert.Thumbprint)" -Force
+    Write-Host "OpenSSL might not be installed or accessible." -ForegroundColor Yellow
+    Write-Host "Please install OpenSSL from: https://slproweb.com/products/Win32OpenSSL.html" -ForegroundColor Yellow
+    exit 1
 }
 
 Write-Host ""
-Write-Host "✅ Certificates generated successfully!" -ForegroundColor Green
+Write-Host "All keys and certificates generated successfully!" -ForegroundColor Green
 Write-Host ""
 Write-Host "Generated files in $CertDir/:" -ForegroundColor Cyan
-Get-ChildItem $CertDir | ForEach-Object { Write-Host "    📜 $($_.Name)" -ForegroundColor White }
+$files = Get-ChildItem $CertDir | Sort-Object Name
+foreach ($file in $files) {
+    $size = [math]::Round($file.Length / 1KB, 1)
+    switch ($file.Name) {
+        "key.pem" { Write-Host "  $($file.Name) - JWT private key ($size KB)" -ForegroundColor Yellow }
+        "public_key.pem" { Write-Host "  $($file.Name) - JWT public key ($size KB)" -ForegroundColor Yellow }
+        "tls-key.pem" { Write-Host "  $($file.Name) - TLS private key ($size KB)" -ForegroundColor Blue }
+        "tls-cert.pem" { Write-Host "  $($file.Name) - TLS certificate ($size KB)" -ForegroundColor Blue }
+        "ca-key.pem" { Write-Host "  $($file.Name) - CA private key ($size KB)" -ForegroundColor Magenta }
+        "ca-cert.pem" { Write-Host "  $($file.Name) - CA certificate ($size KB)" -ForegroundColor Magenta }
+        default { Write-Host "  $($file.Name) ($size KB)" -ForegroundColor White }
+    }
+}
+
 Write-Host ""
-Write-Host "To enable HTTPS in your service:" -ForegroundColor Yellow
-Write-Host "1. Update config.toml: set tls_enabled = true" -ForegroundColor White
-Write-Host "2. Ensure cert paths point to the generated .pem files" -ForegroundColor White
-Write-Host "3. For browsers to trust the certificate, import the CA certificate" -ForegroundColor White
+Write-Host "Usage Instructions:" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "⚠️  These are self-signed certificates for development only!" -ForegroundColor Red
-Write-Host "   For production, use certificates from a trusted CA like Let's Encrypt." -ForegroundColor Red 
+Write-Host "For JWT Configuration (test.toml):" -ForegroundColor Yellow
+Write-Host "  [jwt.secret]" -ForegroundColor White
+Write-Host "  type = `"pem_file`"" -ForegroundColor White
+Write-Host "  private_key_path = `"$CertDir/key.pem`"" -ForegroundColor White
+Write-Host "  public_key_path = `"$CertDir/public_key.pem`"" -ForegroundColor White
+Write-Host "  key_id = `"jwt-key-test`"" -ForegroundColor White
+Write-Host ""
+Write-Host "For TLS Configuration (production.toml):" -ForegroundColor Yellow
+Write-Host "  [server]" -ForegroundColor White
+Write-Host "  tls_enabled = true" -ForegroundColor White
+Write-Host "  tls_cert_path = `"$CertDir/tls-cert.pem`"" -ForegroundColor White
+Write-Host "  tls_key_path = `"$CertDir/tls-key.pem`"" -ForegroundColor White
+Write-Host ""
+Write-Host "To run tests:" -ForegroundColor Green
+Write-Host "  `$env:RUN_ENV=`"test`"; cargo test --test token" -ForegroundColor White
+Write-Host ""
+Write-Host "Security Notes:" -ForegroundColor Red
+Write-Host "  • These are development/test keys only!" -ForegroundColor White
+Write-Host "  • JWT private keys should be kept secure in production" -ForegroundColor White
+Write-Host "  • For production, use proper key management (Vault, GCP, etc.)" -ForegroundColor White

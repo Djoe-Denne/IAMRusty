@@ -184,29 +184,56 @@ where
         }
     }
 
-    /// Generate a secure verification token using HMAC with the configured JWT secret
+    /// Generate a secure verification token using HMAC with the configured secret
+    /// 
+    /// This method creates email verification tokens using HMAC-SHA256. The secret used
+    /// depends on the JWT configuration:
+    /// - For HMAC JWT configs: Uses the same secret
+    /// - For RSA JWT configs: Uses the private key as HMAC secret (setup handles this)
+    /// 
+    /// The token includes email, timestamp, and random nonce to ensure uniqueness
+    /// and prevent replay attacks.
     fn generate_verification_token(&self, email: &str) -> Result<String, AuthError> {
+        // Validate email input
+        if email.is_empty() {
+            return Err(AuthError::InvalidEmail);
+        }
+        
         // Create a unique payload combining email, timestamp, and random data
         let timestamp = chrono::Utc::now().timestamp();
         let nonce: String = rand::thread_rng()
             .sample_iter(&Alphanumeric)
-            .take(16)
+            .take(32) // Increased from 16 to 32 for better security
             .map(char::from)
             .collect();
-        let payload = format!("{}:{}:{}", email, timestamp, nonce);
+        let payload = format!("email_verification:{}:{}:{}", email, timestamp, nonce);
         
-        // Create HMAC using the JWT secret
+        // Validate secret length for HMAC security
+        if self.jwt_secret.len() < 32 {
+            tracing::warn!("JWT secret length ({} bytes) is below recommended minimum (32 bytes) for HMAC operations", 
+                self.jwt_secret.len());
+        }
+        
+        // Create HMAC using the resolved JWT secret
         let mut mac = Hmac::<Sha256>::new_from_slice(self.jwt_secret.as_bytes())
-            .map_err(|e| AuthError::VerificationTokenGenerationError(
-                format!("Failed to create HMAC: {}", e)
-            ))?;
+            .map_err(|e| {
+                tracing::error!("Failed to create HMAC for verification token: {}", e);
+                AuthError::VerificationTokenGenerationError(
+                    format!("Failed to create HMAC: {}", e)
+                )
+            })?;
         
         mac.update(payload.as_bytes());
         let result = mac.finalize();
         let token_bytes = result.into_bytes();
         
-        // Encode as URL-safe base64
-        Ok(URL_SAFE_NO_PAD.encode(&token_bytes))
+        // Encode as URL-safe base64 (no padding for cleaner URLs)
+        let token = URL_SAFE_NO_PAD.encode(&token_bytes);
+        
+        tracing::debug!("Generated verification token for email: {} (token length: {} chars)", 
+            email, token.len());
+        
+        Ok(token)
     }
 }
 

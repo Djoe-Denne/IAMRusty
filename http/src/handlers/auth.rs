@@ -490,15 +490,14 @@ pub async fn internal_provider_token(
         _ => return Err(AuthError::oauth_invalid_provider("internal_token")),
     };
     
+    let command = GetProviderTokenCommand::new(auth_user.user_id, provider);
+    
     let context = CommandContext::new()
         .with_user_id(auth_user.user_id)
         .with_metadata("operation".to_string(), "internal_provider_token".to_string())
         .with_metadata("provider".to_string(), provider.as_str().to_string());
     
-    // Execute the get provider token command
-    let command = GetProviderTokenCommand::new(auth_user.user_id, provider);
-    let response = state
-        .command_service
+    let result = state.command_service
         .execute(command, context)
         .await
         .map_err(|e| {
@@ -507,7 +506,20 @@ pub async fn internal_provider_token(
         })?;
     
     Ok(Json(InternalProviderTokenResponse {
-        access_token: response.access_token,
-        expires_in: response.expires_in,
+        access_token: result.access_token,
+        expires_in: result.expires_in,
     }))
+}
+
+/// Handle JWKS endpoint - returns public keys for JWT verification
+/// This endpoint is used by reverse proxies and services like Istio to validate JWT tokens
+pub async fn jwks(
+    State(state): State<AppState>,
+) -> Result<Json<domain::entity::token::JwkSet>, AuthError> {
+    debug!("JWKS endpoint requested");
+    
+    let jwks = state.token_usecase.get_jwks();
+    
+    debug!("Returning JWKS with {} keys", jwks.keys.len());
+    Ok(Json(jwks))
 } 

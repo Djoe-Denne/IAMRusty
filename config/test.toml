@@ -37,9 +37,15 @@ token_url = "http://localhost:3000/oauth/token"
 user_url = "http://localhost:3000/api/v4/user"
 
 [jwt]
-secret = "test_jwt_secret_for_testing_only_must_be_at_least_32_bytes_long"
 expiration_seconds = 900  # 15 minutes
 refresh_token_expiration_seconds = 2592000  # 30 days
+
+# JWT secret configuration using PEM files for testing
+[jwt.secret]
+type = "pem_file"
+private_key_path = "./config/certs/key.pem"
+public_key_path = "./config/certs/public_key.pem"
+key_id = "jwt-key-test"
 
 # Enable maximum logging for tests
 [logging]

@@ -68,8 +68,18 @@ token_url = "https://gitlab.com/oauth/token"
 user_url = "https://gitlab.com/api/v4/user"
 
 [jwt]
-secret = "your-jwt-secret-key-should-be-at-least-32-bytes"
 expiration_seconds = 3600
+
+# Option 1: HMAC with plain text secret (development/legacy)
+[jwt.secret_storage]
+type = "PlainText"
+secret = "your-jwt-secret-key-should-be-at-least-32-bytes"
+
+# Option 2: RSA with PEM files (recommended for production)
+# [jwt.secret_storage]
+# type = "PemFile"
+# private_key_path = "config/certs/key.pem"
+# public_key_path = "config/certs/public-key.pem"
 ```
 
 **`config/production.toml`** (production overrides):
@@ -105,6 +115,12 @@ redirect_uri = "https://your-domain.com/api/auth/gitlab/callback"
 
 [jwt]
 expiration_seconds = 86400  # 24 hours
+
+# Production: Use RSA certificates for better security
+[jwt.secret_storage]
+type = "PemFile"
+private_key_path = "/etc/ssl/private/jwt-key.pem"
+public_key_path = "/etc/ssl/certs/jwt-public-key.pem"
 ```
 
 ## Docker Deployment
@@ -212,13 +228,76 @@ services:
     environment:
       - RUN_ENV=${RUN_ENV:-production}
       - RUST_LOG=info,tower_http=debug
+      # JWT Configuration - choose one:
+      # Option 1: HMAC (development)
+      - APP_JWT_SECRET_STORAGE__TYPE=PlainText
+      - APP_JWT_SECRET_STORAGE__SECRET=your-secure-jwt-secret-at-least-32-chars
+      # Option 2: RSA (production) - uncomment lines below and comment HMAC above
+      # - APP_JWT_SECRET_STORAGE__TYPE=PemFile
+      # - APP_JWT_SECRET_STORAGE__PRIVATE_KEY_PATH=/app/certs/jwt-key.pem
+      # - APP_JWT_SECRET_STORAGE__PUBLIC_KEY_PATH=/app/certs/jwt-public-key.pem
     volumes:
       - ./keys:/app/keys
       - ./config:/app/config
-      - ./certs:/app/certs
+      - ./certs:/app/certs              # TLS certificates
+      - ./config/certs:/app/certs/jwt   # JWT certificates (if using RSA)
     depends_on:
       postgres:
         condition: service_healthy
+
+volumes:
+  postgres-data:
+```
+
+### Production Docker Compose
+
+For production with RSA certificates:
+
+```yaml
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+      POSTGRES_USER: postgres
+      POSTGRES_DB: iam_prod
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    secrets:
+      - db_password
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  iam-service:
+    image: your-registry/iam-service:latest
+    ports:
+      - "80:8080"
+      - "443:8443"
+    environment:
+      - RUN_ENV=production
+      - RUST_LOG=info
+      - APP_JWT_SECRET_STORAGE__TYPE=PemFile
+      - APP_JWT_SECRET_STORAGE__PRIVATE_KEY_PATH=/etc/ssl/private/jwt-key.pem
+      - APP_JWT_SECRET_STORAGE__PUBLIC_KEY_PATH=/etc/ssl/certs/jwt-public-key.pem
+      - APP_SERVER_TLS_ENABLED=true
+      - APP_SERVER_TLS_CERT_PATH=/etc/ssl/certs/tls-cert.pem
+      - APP_SERVER_TLS_KEY_PATH=/etc/ssl/private/tls-key.pem
+    volumes:
+      - /etc/ssl/certs:/etc/ssl/certs:ro
+      - /etc/ssl/private:/etc/ssl/private:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+secrets:
+  db_password:
+    file: ./secrets/db_password.txt
 
 volumes:
   postgres-data:
@@ -254,8 +333,16 @@ APP_OAUTH_GITLAB_CLIENT_SECRET=your_gitlab_client_secret
 APP_OAUTH_GITLAB_REDIRECT_URI=https://yourdomain.com/api/auth/gitlab/callback
 
 # JWT configuration
-APP_JWT_SECRET=your-super-secret-jwt-key-at-least-32-characters-long
+# Option 1: HMAC with plain text secret
+APP_JWT_SECRET_STORAGE__TYPE=PlainText
+APP_JWT_SECRET_STORAGE__SECRET=your-super-secret-jwt-key-at-least-32-characters-long
 APP_JWT_EXPIRATION_SECONDS=3600
+
+# Option 2: RSA with PEM files (recommended for production)
+# APP_JWT_SECRET_STORAGE__TYPE=PemFile
+# APP_JWT_SECRET_STORAGE__PRIVATE_KEY_PATH=/etc/ssl/private/jwt-key.pem
+# APP_JWT_SECRET_STORAGE__PUBLIC_KEY_PATH=/etc/ssl/certs/jwt-public-key.pem
+# APP_JWT_EXPIRATION_SECONDS=86400
 
 # Environment selection
 RUN_ENV=production

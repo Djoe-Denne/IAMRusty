@@ -14,6 +14,124 @@ use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex, OnceLock};
 use rustycog_config::{ConfigCache, ConfigLoader};
 use tracing::debug;
+use std::fs;
+use std::path::Path;
+use thiserror::Error;
+
+/// Secret management errors
+#[derive(Debug, Error)]
+pub enum SecretError {
+    #[error("Failed to read secret file: {0}")]
+    FileReadError(String),
+    #[error("Invalid secret format: {0}")]
+    InvalidFormat(String),
+    #[error("Secret not found: {0}")]
+    NotFound(String),
+}
+
+/// Secret storage configuration
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(tag = "type")]
+pub enum SecretStorage {
+    /// Plain text secret (for backward compatibility)
+    #[serde(rename = "plain")]
+    PlainText { 
+        /// The plain text secret value
+        value: String 
+    },
+    /// PEM file-based secrets
+    #[serde(rename = "pem_file")]
+    PemFile {
+        /// Path to the private key file
+        private_key_path: String,
+        /// Path to the public key file
+        public_key_path: String,
+        /// Optional key ID for JWKS
+        key_id: Option<String>,
+    },
+    /// HashiCorp Vault (future implementation)
+    #[serde(rename = "vault")]
+    Vault {
+        /// Vault server URL
+        url: String,
+        /// Secret path in vault
+        secret_path: String,
+        /// Authentication token
+        token: String,
+    },
+    /// Google Cloud Secret Manager (future implementation)
+    #[serde(rename = "gcp_secret_manager")]
+    GcpSecretManager {
+        /// GCP project ID
+        project_id: String,
+        /// Secret name for private key
+        private_key_secret: String,
+        /// Secret name for public key
+        public_key_secret: String,
+    },
+}
+
+/// Resolved JWT secrets
+#[derive(Debug, Clone)]
+pub enum JwtSecret {
+    /// HMAC secret
+    Hmac(String),
+    /// RSA key pair
+    Rsa {
+        private_key: String,
+        public_key: String,
+        key_id: String,
+    },
+}
+
+impl SecretStorage {
+    /// Resolve the secret from the configured storage
+    pub fn resolve(&self) -> Result<JwtSecret, SecretError> {
+        match self {
+            SecretStorage::PlainText { value } => {
+                tracing::debug!("Resolving plain text JWT secret (length: {})", value.len());
+                Ok(JwtSecret::Hmac(value.clone()))
+            }
+            SecretStorage::PemFile { private_key_path, public_key_path, key_id } => {
+                tracing::info!("Resolving PEM file-based JWT secret from private_key_path='{}', public_key_path='{}', key_id={:?}", 
+                    private_key_path, public_key_path, key_id);
+                
+                tracing::debug!("Reading private key from: {}", private_key_path);
+                let private_key = fs::read_to_string(private_key_path)
+                    .map_err(|e| {
+                        tracing::error!("Failed to read private key from {}: {}", private_key_path, e);
+                        SecretError::FileReadError(format!("Failed to read private key from {}: {}", private_key_path, e))
+                    })?;
+                tracing::debug!("Successfully read private key ({} bytes)", private_key.len());
+                
+                tracing::debug!("Reading public key from: {}", public_key_path);
+                let public_key = fs::read_to_string(public_key_path)
+                    .map_err(|e| {
+                        tracing::error!("Failed to read public key from {}: {}", public_key_path, e);
+                        SecretError::FileReadError(format!("Failed to read public key from {}: {}", public_key_path, e))
+                    })?;
+                tracing::debug!("Successfully read public key ({} bytes)", public_key.len());
+                
+                let key_id = key_id.clone().unwrap_or_else(|| "default".to_string());
+                tracing::info!("Successfully resolved RSA key pair with key_id: {}", key_id);
+                
+                Ok(JwtSecret::Rsa {
+                    private_key,
+                    public_key,
+                    key_id,
+                })
+            }
+            SecretStorage::Vault { .. } => {
+                tracing::warn!("Vault secret storage requested but not yet implemented");
+                Err(SecretError::InvalidFormat("Vault secret storage not yet implemented".to_string()))
+            }
+            SecretStorage::GcpSecretManager { .. } => {
+                tracing::warn!("GCP Secret Manager requested but not yet implemented");
+                Err(SecretError::InvalidFormat("GCP Secret Manager not yet implemented".to_string()))
+            }
+        }
+    }
+}
 
 /// OAuth configuration containing provider-specific settings
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -67,14 +185,80 @@ pub struct GitLabConfig {
 /// JWT configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JwtConfig {
-    /// JWT signing secret
-    pub secret: String,
+    /// JWT secret storage configuration
+    pub secret: SecretStorage,
     /// Access token expiration time in seconds (default: 15 minutes)
     #[serde(default = "default_jwt_expiration")]
     pub expiration_seconds: u64,
     /// Refresh token expiration time in seconds (default: 30 days)
     #[serde(default = "default_refresh_token_expiration")]
     pub refresh_token_expiration_seconds: u64,
+}
+
+impl JwtConfig {
+    /// Resolve the JWT secret from the configured storage
+    pub fn resolve_secret(&self) -> Result<JwtSecret, SecretError> {
+        self.secret.resolve()
+    }
+
+    /// Get the resolved secret as a string (for HMAC compatibility)
+    /// This method provides backward compatibility for HMAC-based JWT services
+    pub fn get_secret_string(&self) -> Result<String, SecretError> {
+        match self.resolve_secret()? {
+            JwtSecret::Hmac(secret) => Ok(secret),
+            JwtSecret::Rsa { .. } => Err(SecretError::InvalidFormat(
+                "Cannot convert RSA key pair to HMAC secret string".to_string()
+            ))
+        }
+    }
+
+    /// Check if the configuration uses RSA keys
+    pub fn uses_rsa(&self) -> bool {
+        matches!(self.secret, SecretStorage::PemFile { .. })
+    }
+
+    /// Check if the configuration uses HMAC
+    pub fn uses_hmac(&self) -> bool {
+        matches!(self.secret, SecretStorage::PlainText { .. })
+    }
+
+    /// Create a JwtAlgorithm from this configuration
+    /// This method bridges the configuration with the JWT encoder implementation
+    pub fn create_jwt_algorithm(&self) -> Result<JwtAlgorithm, SecretError> {
+        match self.resolve_secret()? {
+            JwtSecret::Hmac(secret) => Ok(JwtAlgorithm::HS256(secret)),
+            JwtSecret::Rsa { private_key, public_key, key_id } => {
+                Ok(JwtAlgorithm::RS256(JwtKeyPair {
+                    private_key,
+                    public_key,
+                    kid: key_id,
+                }))
+            }
+        }
+    }
+}
+
+/// JWT algorithm configuration
+/// This is re-exported from the infra crate to avoid circular dependencies
+/// It should match the JwtAlgorithm enum in infra::token::jwt_encoder
+#[derive(Debug, Clone)]
+pub enum JwtAlgorithm {
+    /// RSA256 with key pair
+    RS256(JwtKeyPair),
+    /// HMAC256 with secret
+    HS256(String),
+}
+
+/// JWT key pair for token signing and verification
+/// This is re-exported from the domain to avoid circular dependencies
+#[derive(Debug, Clone)]
+pub struct JwtKeyPair {
+    /// Private key (RS256)
+    pub private_key: String,
+    /// Public key (RS256)
+    pub public_key: String,
+    /// Key ID
+    pub kid: String,
 }
 
 /// Main application configuration
@@ -216,7 +400,7 @@ impl ConfigLoader<AppConfig> for AppConfig {
                 },
             },
             jwt: JwtConfig {
-                secret: "your-256-bit-secret-key-change-this-in-production".to_string(),
+                secret: SecretStorage::PlainText { value: "your-256-bit-secret-key-change-this-in-production".to_string() },
                 expiration_seconds: default_jwt_expiration(),
                 refresh_token_expiration_seconds: default_refresh_token_expiration(),
             },

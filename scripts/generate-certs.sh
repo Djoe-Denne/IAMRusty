@@ -1,34 +1,56 @@
 #!/bin/bash
 
-# Generate self-signed certificates for development/testing
-# This script creates a certificate authority and then generates a server certificate
+# Generate certificates and JWT signing keys for development/testing
+# This script creates TLS certificates and RSA keys for JWT signing
 
 set -e
 
-CERT_DIR="./certs"
+CERT_DIR="./config/certs"
 DAYS=365
-KEY_SIZE=2048
+JWT_KEY_SIZE=4096  # Larger key size for JWT validation
+TLS_KEY_SIZE=2048
 
 # Create certs directory if it doesn't exist
 mkdir -p "$CERT_DIR"
 
-echo "Generating self-signed certificates for development..."
+echo "🔐 Generating certificates and JWT signing keys..."
+echo "   Target directory: $CERT_DIR"
+echo "   JWT key size: $JWT_KEY_SIZE bits"
+echo "   TLS key size: $TLS_KEY_SIZE bits"
+echo ""
+
+# Generate JWT signing RSA key pair (high priority)
+echo "🔑 Generating JWT RSA private key ($JWT_KEY_SIZE bits)..."
+openssl genrsa -out "$CERT_DIR/key.pem" $JWT_KEY_SIZE
+
+echo "🔑 Extracting JWT RSA public key..."
+openssl rsa -in "$CERT_DIR/key.pem" -pubout -out "$CERT_DIR/public_key.pem"
+
+# Verify the key pair
+echo "✅ Verifying JWT key pair..."
+openssl rsa -in "$CERT_DIR/key.pem" -check -noout
+
+echo "✅ JWT signing keys generated successfully!"
+echo ""
+
+# Generate TLS certificates (for HTTPS)
+echo "🔐 Generating TLS certificates..."
 
 # Generate CA private key
 echo "1. Generating CA private key..."
-openssl genrsa -out "$CERT_DIR/ca-key.pem" $KEY_SIZE
+openssl genrsa -out "$CERT_DIR/ca-key.pem" $TLS_KEY_SIZE
 
 # Generate CA certificate
 echo "2. Generating CA certificate..."
-openssl req -new -x509 -key "$CERT_DIR/ca-key.pem" -out "$CERT_DIR/ca-cert.pem" -days $DAYS -subj "/C=US/ST=CA/L=San Francisco/O=IAM Service/OU=Development/CN=IAM-CA"
+openssl req -new -x509 -key "$CERT_DIR/ca-key.pem" -out "$CERT_DIR/ca-cert.pem" -days $DAYS -subj "/C=FR/ST=FR/L=Nice/O=IAM Service/OU=Development/CN=IAM-CA"
 
-# Generate server private key
-echo "3. Generating server private key..."
-openssl genrsa -out "$CERT_DIR/key.pem" $KEY_SIZE
+# Generate server private key for TLS (separate from JWT keys)
+echo "3. Generating TLS server private key..."
+openssl genrsa -out "$CERT_DIR/tls-key.pem" $TLS_KEY_SIZE
 
 # Generate server certificate signing request
-echo "4. Generating server certificate signing request..."
-openssl req -new -key "$CERT_DIR/key.pem" -out "$CERT_DIR/server.csr" -subj "/C=US/ST=CA/L=San Francisco/O=IAM Service/OU=Development/CN=localhost" -config <(
+echo "4. Generating TLS certificate signing request..."
+openssl req -new -key "$CERT_DIR/tls-key.pem" -out "$CERT_DIR/server.csr" -subj "/C=FR/ST=FR/L=Nice/O=IAM Service/OU=Development/CN=localhost" -config <(
 cat <<EOF
 [req]
 distinguished_name = req_distinguished_name
@@ -36,9 +58,9 @@ req_extensions = v3_req
 prompt = no
 
 [req_distinguished_name]
-C = US
-ST = CA
-L = San Francisco
+C = FR
+ST = FR
+L = Nice
 O = IAM Service
 OU = Development
 CN = localhost
@@ -57,8 +79,8 @@ EOF
 )
 
 # Generate server certificate signed by CA
-echo "5. Generating server certificate..."
-openssl x509 -req -in "$CERT_DIR/server.csr" -CA "$CERT_DIR/ca-cert.pem" -CAkey "$CERT_DIR/ca-key.pem" -CAcreateserial -out "$CERT_DIR/cert.pem" -days $DAYS -extensions v3_req -extfile <(
+echo "5. Generating TLS server certificate..."
+openssl x509 -req -in "$CERT_DIR/server.csr" -CA "$CERT_DIR/ca-cert.pem" -CAkey "$CERT_DIR/ca-key.pem" -CAcreateserial -out "$CERT_DIR/tls-cert.pem" -days $DAYS -extensions v3_req -extfile <(
 cat <<EOF
 [v3_req]
 keyUsage = keyEncipherment, dataEncipherment
@@ -80,19 +102,59 @@ rm "$CERT_DIR/server.csr"
 chmod 600 "$CERT_DIR"/*.pem
 
 echo ""
-echo "✅ Certificates generated successfully!"
+echo "🎉 All keys and certificates generated successfully!"
 echo ""
-echo "Generated files:"
-echo "  📁 $CERT_DIR/"
-echo "    🔑 key.pem       - Server private key"
-echo "    📜 cert.pem      - Server certificate"
-echo "    🔑 ca-key.pem    - CA private key"
-echo "    📜 ca-cert.pem   - CA certificate"
+echo "Generated files in $CERT_DIR/:"
+for file in "$CERT_DIR"/*; do
+    if [ -f "$file" ]; then
+        filename=$(basename "$file")
+        size=$(ls -lh "$file" | awk '{print $5}')
+        case "$filename" in
+            "key.pem")
+                echo "  🔑 $filename - JWT private key ($size)"
+                ;;
+            "public_key.pem")
+                echo "  🔑 $filename - JWT public key ($size)"
+                ;;
+            "tls-key.pem")
+                echo "  🔐 $filename - TLS private key ($size)"
+                ;;
+            "tls-cert.pem")
+                echo "  📜 $filename - TLS certificate ($size)"
+                ;;
+            "ca-key.pem")
+                echo "  🔐 $filename - CA private key ($size)"
+                ;;
+            "ca-cert.pem")
+                echo "  📜 $filename - CA certificate ($size)"
+                ;;
+            *)
+                echo "  📄 $filename ($size)"
+                ;;
+        esac
+    fi
+done
+
 echo ""
-echo "To enable HTTPS in your service:"
-echo "1. Update config.toml: set tls_enabled = true"
-echo "2. Ensure cert paths point to: $CERT_DIR/cert.pem and $CERT_DIR/key.pem"
-echo "3. For browsers to trust the certificate, import $CERT_DIR/ca-cert.pem as a trusted CA"
+echo "🔧 Usage Instructions:"
 echo ""
-echo "⚠️  These are self-signed certificates for development only!"
-echo "   For production, use certificates from a trusted CA like Let's Encrypt." 
+echo "For JWT Configuration (test.toml):"
+echo "  [jwt.secret]"
+echo "  type = \"pem_file\""
+echo "  private_key_path = \"$CERT_DIR/key.pem\""
+echo "  public_key_path = \"$CERT_DIR/public_key.pem\""
+echo "  key_id = \"jwt-key-test\""
+echo ""
+echo "For TLS Configuration (production.toml):"
+echo "  [server]"
+echo "  tls_enabled = true"
+echo "  tls_cert_path = \"$CERT_DIR/tls-cert.pem\""
+echo "  tls_key_path = \"$CERT_DIR/tls-key.pem\""
+echo ""
+echo "To run tests:"
+echo "  RUN_ENV=test cargo test --test token"
+echo ""
+echo "⚠️  Security Notes:"
+echo "  • These are development/test keys only!"
+echo "  • JWT private keys should be kept secure in production"
+echo "  • For production, use proper key management (Vault, GCP, etc.)" 

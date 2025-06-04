@@ -31,7 +31,7 @@ pub mod oauth_state;
 pub mod validation;
 
 pub use handlers::{
-    auth::{oauth_callback, oauth_start, signup, login, verify_email, internal_provider_token},
+    auth::{oauth_callback, oauth_start, signup, login, verify_email, internal_provider_token, jwks},
     user::get_user,
     token::refresh_token,
 };
@@ -111,6 +111,7 @@ fn handle_panic(err: Box<dyn std::any::Any + Send + 'static>) -> axum::response:
 pub async fn serve_with_config(state: AppState, config: ServerConfig) -> anyhow::Result<()> {
     let app = Router::new()
         .route("/health", get(health_check))
+        .route("/.well-known/jwks.json", get(jwks))
         .route("/api/auth/signup", post(signup))
         .route("/api/auth/login", post(login))
         .route("/api/auth/verify", post(verify_email))

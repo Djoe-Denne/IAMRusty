@@ -16,4 +16,8 @@ anyhow = "1.0.82"
 chrono = "0.4"
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter", "fmt", "json"] }
-tokio = { version = "1.44", features = ["rt-multi-thread", "macros"] } 
+tokio = { version = "1.44", features = ["rt-multi-thread", "macros"] }
+
+# Cryptographic dependencies for secret derivation
+sha2 = "0.10"
+base64 = "0.22" 

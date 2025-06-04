@@ -116,7 +116,7 @@ async fn test_get_user_returns_correct_info_when_token_is_valid() {
         .expect("Failed to create primary email");
     
     // Create valid JWT token
-    let secret = test_fixture.config().jwt.secret;
+    let secret = test_fixture.config().jwt.get_secret_string().expect("Failed to get secret string");
     let jwt_token = create_valid_jwt_token(user.id(), &secret);
     
     // Make request to /me endpoint
@@ -156,7 +156,7 @@ async fn test_get_user_returns_401_when_token_is_expired() {
     
     // Create expired JWT token
     let user_id = Uuid::new_v4();
-    let secret = test_fixture.config().jwt.secret;
+    let secret = test_fixture.config().jwt.get_secret_string().expect("Failed to get secret string");
     let expired_token = create_expired_jwt_token(user_id, &secret);
     
     // Make request with expired token
@@ -317,7 +317,7 @@ async fn test_get_user_returns_401_when_user_not_found_in_database() {
     
     // Create valid JWT token for non-existent user
     let non_existent_user_id = Uuid::new_v4();
-    let secret = test_fixture.config().jwt.secret;
+    let secret = test_fixture.config().jwt.get_secret_string().expect("Failed to get secret string");
     let jwt_token = create_valid_jwt_token(non_existent_user_id, &secret);
     
     // Make request with token for non-existent user
@@ -381,7 +381,7 @@ async fn test_get_user_returns_correct_primary_email_when_user_has_multiple_emai
         .expect("Failed to create primary email");
     
     // Create valid JWT token
-    let secret = test_fixture.config().jwt.secret;
+    let secret = test_fixture.config().jwt.get_secret_string().expect("Failed to get secret string");
     let jwt_token = create_valid_jwt_token(user.id(), &secret);
     
     // Make request to /me endpoint
@@ -424,7 +424,7 @@ async fn test_get_user_handles_user_with_no_primary_email() {
         .expect("Failed to create user");
     
     // Create valid JWT token
-    let secret = test_fixture.config().jwt.secret;
+    let secret = test_fixture.config().jwt.get_secret_string().expect("Failed to get secret string");
     let jwt_token = create_valid_jwt_token(user.id(), &secret);
     
     // Make request to /me endpoint
@@ -472,7 +472,7 @@ async fn test_get_user_concurrent_requests_with_same_token() {
         .expect("Failed to create primary email");
     
     // Create valid JWT token
-    let secret = test_fixture.config().jwt.secret;
+    let secret = test_fixture.config().jwt.get_secret_string().expect("Failed to get secret string");
     let jwt_token = create_valid_jwt_token(user.id(), &secret);
     
     // Make multiple concurrent requests with the same token
@@ -532,7 +532,7 @@ async fn test_get_user_security_jwt_claims_validation() {
         .await
         .expect("Failed to create primary email");
     
-    let secret = test_fixture.config().jwt.secret;
+    let secret = test_fixture.config().jwt.get_secret_string().expect("Failed to get secret string");
     
     // Test various invalid claim scenarios
     let test_cases = vec![

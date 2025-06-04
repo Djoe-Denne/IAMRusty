@@ -3,9 +3,12 @@ use thiserror::Error;
 use chrono::Utc;
 use uuid::Uuid;
 use std::sync::Arc;
-use domain::port::{
-    repository::RefreshTokenRepository,
-    service::AuthTokenService,
+use domain::{
+    entity::token::JwkSet,
+    port::{
+        repository::RefreshTokenRepository,
+        service::{AuthTokenService, JwtTokenEncoder},
+    },
 };
 
 /// Token usecase error
@@ -56,13 +59,16 @@ pub trait TokenUseCase: Send + Sync {
     
     /// Revoke all refresh tokens for a user
     async fn revoke_all_tokens(&self, user_id: Uuid) -> Result<u64, TokenError>;
+    
+    /// Get the JSON Web Key Set (JWKS) for token verification
+    fn get_jwks(&self) -> JwkSet;
 }
 
 /// Token use case implementation
 pub struct TokenUseCaseImpl<R, T>
 where
     R: RefreshTokenRepository,
-    T: AuthTokenService,
+    T: AuthTokenService + JwtTokenEncoder,
 {
     refresh_token_repo: Arc<R>,
     token_service: Arc<T>,
@@ -71,7 +77,7 @@ where
 impl<R, T> TokenUseCaseImpl<R, T>
 where
     R: RefreshTokenRepository,
-    T: AuthTokenService,
+    T: AuthTokenService + JwtTokenEncoder,
 {
     /// Create a new TokenUseCaseImpl
     pub fn new(refresh_token_repo: Arc<R>, token_service: Arc<T>) -> Self {
@@ -86,7 +92,7 @@ where
 impl<R, T> TokenUseCase for TokenUseCaseImpl<R, T>
 where
     R: RefreshTokenRepository + Send + Sync,
-    T: AuthTokenService + Send + Sync,
+    T: AuthTokenService + JwtTokenEncoder + Send + Sync,
     <R as RefreshTokenRepository>::Error: std::error::Error + Send + Sync + 'static,
     T::Error: std::error::Error + Send + Sync + 'static,
 {
@@ -181,5 +187,9 @@ where
             .map_err(|e| TokenError::RepositoryError(Box::new(e)))?;
             
         Ok(count)
+    }
+
+    fn get_jwks(&self) -> JwkSet {
+        self.token_service.jwks()
     }
 } 

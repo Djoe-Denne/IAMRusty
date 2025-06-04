@@ -61,8 +61,16 @@ The IAM service supports a flexible configuration system with multiple sources a
    APP_SERVER_PORT=8080
    
    # JWT Configuration
-   APP_JWT_SECRET=your-super-secret-jwt-key-at-least-32-characters-long
+   # Option 1: HMAC with plain text secret (development/legacy)
+   APP_JWT_SECRET_STORAGE__TYPE=PlainText
+   APP_JWT_SECRET_STORAGE__SECRET=your-super-secret-jwt-key-at-least-32-characters-long
    APP_JWT_EXPIRATION_SECONDS=3600
+   
+   # Option 2: RSA with PEM files (recommended for production)
+   # APP_JWT_SECRET_STORAGE__TYPE=PemFile
+   # APP_JWT_SECRET_STORAGE__PRIVATE_KEY_PATH=config/certs/key.pem
+   # APP_JWT_SECRET_STORAGE__PUBLIC_KEY_PATH=config/certs/public-key.pem
+   # APP_JWT_EXPIRATION_SECONDS=86400
    
    # OAuth Configuration
    APP_OAUTH_GITHUB_CLIENT_ID=your-github-client-id
@@ -97,8 +105,18 @@ The IAM service supports a flexible configuration system with multiple sources a
    redirect_uri = "http://localhost:8080/auth/gitlab/callback"
    
    [jwt]
-   secret = "your-super-secret-jwt-key-at-least-32-characters-long"
    expiration_seconds = 3600
+   
+   # Option 1: HMAC with plain text secret (development/legacy)
+   [jwt.secret_storage]
+   type = "PlainText"
+   secret = "your-super-secret-jwt-key-at-least-32-characters-long"
+   
+   # Option 2: RSA with PEM files (recommended for production)
+   # [jwt.secret_storage]
+   # type = "PemFile"
+   # private_key_path = "config/certs/key.pem"
+   # public_key_path = "config/certs/public-key.pem"
    ```
 
 ### Configuration Setup
