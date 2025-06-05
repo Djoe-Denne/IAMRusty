@@ -4,6 +4,7 @@ use crate::usecase::{
     provider::{ProviderUseCase, ProviderTokenResponse, ProviderError},
 };
 use domain::entity::provider::Provider;
+use domain::error::DomainError;
 use async_trait::async_trait;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -18,20 +19,24 @@ impl CommandErrorMapper for LinkProviderErrorMapper {
                 LinkProviderError::AuthError(_msg) => {
                     CommandError::Authentication("Authentication failed".to_string())
                 }
-                LinkProviderError::DbError(e) => {
-                    CommandError::Infrastructure(format!("Database error: {}", e))
+                LinkProviderError::DomainError(domain_error) => {
+                    match domain_error {
+                        DomainError::UserNotFound => {
+                            CommandError::Authentication("Authentication failed".to_string())
+                        }
+                        DomainError::BusinessRuleViolation(msg) => {
+                            CommandError::Business(msg.clone())
+                        }
+                        DomainError::RepositoryError(msg) => {
+                            CommandError::Infrastructure(format!("Database error: {}", msg))
+                        }
+                        _ => {
+                            CommandError::Infrastructure(domain_error.to_string())
+                        }
+                    }
                 }
-                LinkProviderError::TokenError(e) => {
-                    CommandError::Infrastructure(format!("Token service error: {}", e))
-                }
-                LinkProviderError::UserNotFound => {
-                    CommandError::Authentication("Authentication failed".to_string())
-                }
-                LinkProviderError::ProviderAlreadyLinked => {
-                    CommandError::Business("Provider account is already linked to another user".to_string())
-                }
-                LinkProviderError::ProviderAlreadyLinkedToSameUser => {
-                    CommandError::Business("Provider is already linked to your account".to_string())
+                LinkProviderError::ProviderNotConfigured(provider) => {
+                    CommandError::Infrastructure(format!("Provider {} not configured", provider))
                 }
             }
         } else {

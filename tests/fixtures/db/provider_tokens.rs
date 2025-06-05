@@ -154,6 +154,18 @@ impl ProviderTokenFixtureBuilder {
         self.gitlab(user_id)
             .provider_user_id("charlie456")
     }
+
+    /// Create Charlie's GitHub token
+    pub fn charlie_github(self, user_id: Uuid) -> Self {
+        self.github(user_id)
+            .provider_user_id("charlie789")
+    }
+
+    /// Create Diana's GitHub token
+    pub fn diana_github(self, user_id: Uuid) -> Self {
+        self.github(user_id)
+            .provider_user_id("diana321")
+    }
 }
 
 impl Default for ProviderTokenFixtureBuilder {

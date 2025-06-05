@@ -438,6 +438,9 @@ impl IntoResponse for ApiError {
                     DomainError::ProviderNotSupported(msg) => {
                         (StatusCode::BAD_REQUEST, "provider_not_supported".to_string(), msg)
                     }
+                    DomainError::BusinessRuleViolation(msg) => {
+                        (StatusCode::BAD_REQUEST, "business_rule_violation".to_string(), msg)
+                    }
                     DomainError::InvalidToken => {
                         (StatusCode::UNAUTHORIZED, "invalid_token".to_string(), "Invalid token".to_string())
                     }

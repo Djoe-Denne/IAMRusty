@@ -30,6 +30,9 @@ impl ErrorMapper<DomainError> for IAMErrorMapper {
             DomainError::ProviderNotSupported(provider) => {
                 ServiceError::validation(format!("Provider not supported: {}", provider))
             }
+            DomainError::BusinessRuleViolation(message) => {
+                ServiceError::business(message)
+            }
             DomainError::InvalidToken => ServiceError::authentication("Invalid token"),
             DomainError::TokenExpired => ServiceError::authentication("Token expired"),
             DomainError::AuthorizationError(message) => ServiceError::authorization(message),
@@ -59,7 +62,7 @@ impl ErrorMapper<DomainError> for IAMErrorMapper {
             ServiceError::NotFound { .. } => DomainError::UserNotFound,
             ServiceError::Infrastructure { message, .. } => DomainError::RepositoryError(message),
             ServiceError::Validation { message, .. } => DomainError::TokenValidationFailed(message),
-            ServiceError::Business { message, .. } => DomainError::RepositoryError(message),
+            ServiceError::Business { message, .. } => DomainError::BusinessRuleViolation(message),
             ServiceError::Timeout { message, .. } => {
                 DomainError::RepositoryError(format!("Timeout: {}", message))
             }

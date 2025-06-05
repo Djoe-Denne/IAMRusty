@@ -5,10 +5,8 @@ use domain::entity::{
     user::User,
     user_email::UserEmail,
 };
-use domain::port::{
-    repository::{TokenRepository, UserRepository, UserEmailRepository, RefreshTokenRepository},
-    service::AuthTokenService,
-};
+use domain::service::{ProviderLinkService};
+use domain::error::DomainError;
 use crate::auth::AuthService;
 use crate::usecase::factory::AuthProviderFactory;
 use async_trait::async_trait;
@@ -23,25 +21,13 @@ pub enum LinkProviderError {
     #[error("Authentication error: {0}")]
     AuthError(String),
 
-    /// Database error from repository
-    #[error("Database error: {0}")]
-    DbError(Box<dyn std::error::Error + Send + Sync>),
+    /// Domain service error
+    #[error("Domain service error: {0}")]
+    DomainError(#[from] DomainError),
 
-    /// Token service error
-    #[error("Token service error: {0}")]
-    TokenError(Box<dyn std::error::Error + Send + Sync>),
-
-    /// User not found
-    #[error("User not found")]
-    UserNotFound,
-
-    /// Provider already linked to another user
-    #[error("Provider account is already linked to another user")]
-    ProviderAlreadyLinked,
-
-    /// Provider already linked to the same user
-    #[error("Provider is already linked to your account")]
-    ProviderAlreadyLinkedToSameUser,
+    /// Provider not configured
+    #[error("Provider not configured: {0}")]
+    ProviderNotConfigured(String),
 }
 
 /// Link provider response
@@ -74,67 +60,38 @@ pub trait LinkProviderUseCase: Send + Sync {
 }
 
 /// Link provider use case implementation
-pub struct LinkProviderUseCaseImpl<GH, GL, UR, UER, TR, RR, TS> 
+pub struct LinkProviderUseCaseImpl<GH, GL, UR, UER, TR> 
 where
     GH: AuthService + 'static,
     GL: AuthService + 'static,
-    UR: UserRepository,
-    UER: UserEmailRepository,
-    TR: TokenRepository,
-    RR: RefreshTokenRepository,
-    TS: AuthTokenService,
+    UR: domain::port::repository::UserRepository,
+    UER: domain::port::repository::UserEmailRepository,
+    TR: domain::port::repository::TokenRepository,
 {
     auth_factory: Arc<AuthProviderFactory<GH, GL>>,
-    user_repo: Arc<UR>,
-    user_email_repo: Arc<UER>,
-    token_repo: Arc<TR>,
-    _refresh_token_repo: Arc<RR>,
-    _token_service: Arc<TS>,
+    provider_link_service: Arc<ProviderLinkService<UR, UER, TR>>,
 }
 
-impl<GH, GL, UR, UER, TR, RR, TS> LinkProviderUseCaseImpl<GH, GL, UR, UER, TR, RR, TS>
+impl<GH, GL, UR, UER, TR> LinkProviderUseCaseImpl<GH, GL, UR, UER, TR>
 where
     GH: AuthService + 'static,
     GL: AuthService + 'static,
-    UR: UserRepository,
-    UER: UserEmailRepository,
-    TR: TokenRepository,
-    RR: RefreshTokenRepository,
-    TS: AuthTokenService,
+    UR: domain::port::repository::UserRepository,
+    UER: domain::port::repository::UserEmailRepository,
+    TR: domain::port::repository::TokenRepository,
 {
     /// Create a new LinkProviderUseCaseImpl
     pub fn new(
         github_auth: Arc<GH>,
         gitlab_auth: Arc<GL>,
-        user_repo: Arc<UR>,
-        user_email_repo: Arc<UER>,
-        token_repo: Arc<TR>,
-        refresh_token_repo: Arc<RR>,
-        token_service: Arc<TS>,
+        provider_link_service: Arc<ProviderLinkService<UR, UER, TR>>,
     ) -> Self {
         let auth_factory = Arc::new(AuthProviderFactory::new(github_auth, gitlab_auth));
         
         Self {
             auth_factory,
-            user_repo,
-            user_email_repo,
-            token_repo,
-            _refresh_token_repo: refresh_token_repo,
-            _token_service: token_service,
+            provider_link_service,
         }
-    }
-
-    /// Load and verify user exists
-    async fn load_user(&self, user_id: Uuid) -> Result<User, LinkProviderError>
-    where
-        UR: UserRepository,
-        <UR as UserRepository>::Error: std::error::Error + Send + Sync + 'static,
-    {
-        self.user_repo
-            .find_by_id(user_id)
-            .await
-            .map_err(|e| LinkProviderError::DbError(Box::new(e)))?
-            .ok_or(LinkProviderError::UserNotFound)
     }
 
     /// Exchange authorization code for tokens and user profile
@@ -159,119 +116,21 @@ where
         
         Ok((tokens, profile))
     }
-
-    /// Check for provider conflicts with other users
-    async fn check_provider_conflicts(
-        &self,
-        user_id: Uuid,
-        provider: Provider,
-        provider_user_id: &str,
-    ) -> Result<(), LinkProviderError>
-    where
-        UR: UserRepository,
-        <UR as UserRepository>::Error: std::error::Error + Send + Sync + 'static,
-    {
-        let existing_user = self.user_repo
-            .find_by_provider_user_id(provider, provider_user_id)
-            .await
-            .map_err(|e| LinkProviderError::DbError(Box::new(e)))?;
-
-        match existing_user {
-            Some(user) if user.id == user_id => {
-                Err(LinkProviderError::ProviderAlreadyLinkedToSameUser)
-            }
-            Some(_) => Err(LinkProviderError::ProviderAlreadyLinked),
-            None => Ok(()),
-        }
-    }
-
-    /// Handle email from provider - add if new, check conflicts if exists
-    async fn handle_provider_email(
-        &self,
-        user_id: Uuid,
-        provider: Provider,
-        email: Option<String>,
-    ) -> Result<(bool, Option<String>), LinkProviderError>
-    where
-        UER: UserEmailRepository,
-        <UER as UserEmailRepository>::Error: std::error::Error + Send + Sync + 'static,
-    {
-        let Some(email) = email else {
-            return Ok((false, None));
-        };
-
-        let existing_email = self.user_email_repo
-            .find_by_email(&email)
-            .await
-            .map_err(|e| LinkProviderError::DbError(Box::new(e)))?;
-
-        match existing_email {
-            Some(existing) if existing.user_id != user_id => {
-                tracing::error!(
-                    "Email {} from provider {} already belongs to user {}, not adding to user {}",
-                    email, provider.as_str(), existing.user_id, user_id
-                );
-                Err(LinkProviderError::ProviderAlreadyLinked)
-            }
-            Some(_) => Ok((false, None)), // Email already exists for this user
-            None => {
-                // Create new secondary email
-                let user_email = UserEmail::new_secondary(user_id, email.clone(), false);
-                self.user_email_repo.create(user_email).await
-                    .map_err(|e| LinkProviderError::DbError(Box::new(e)))?;
-                Ok((true, Some(email)))
-            }
-        }
-    }
-
-    /// Save provider tokens
-    async fn save_provider_tokens(
-        &self,
-        user_id: Uuid,
-        provider: Provider,
-        provider_user_id: String,
-        tokens: domain::entity::provider::ProviderTokens,
-    ) -> Result<(), LinkProviderError>
-    where
-        TR: TokenRepository,
-        <TR as TokenRepository>::Error: std::error::Error + Send + Sync + 'static,
-    {
-        self.token_repo
-            .save_provider_tokens(user_id, provider, provider_user_id, tokens)
-            .await
-            .map_err(|e| LinkProviderError::DbError(Box::new(e)))
-    }
-
-    /// Get all emails for user
-    async fn get_user_emails(&self, user_id: Uuid) -> Result<Vec<UserEmail>, LinkProviderError>
-    where
-        UER: UserEmailRepository,
-        <UER as UserEmailRepository>::Error: std::error::Error + Send + Sync + 'static,
-    {
-        self.user_email_repo
-            .find_by_user_id(user_id)
-            .await
-            .map_err(|e| LinkProviderError::DbError(Box::new(e)))
-    }
 }
 
 #[async_trait]
-impl<GH, GL, UR, UER, TR, RR, TS> LinkProviderUseCase for LinkProviderUseCaseImpl<GH, GL, UR, UER, TR, RR, TS>
+impl<GH, GL, UR, UER, TR> LinkProviderUseCase for LinkProviderUseCaseImpl<GH, GL, UR, UER, TR>
 where
     GH: AuthService + Send + Sync + 'static,
     GL: AuthService + Send + Sync + 'static,
-    UR: UserRepository + Send + Sync,
-    UER: UserEmailRepository + Send + Sync,
-    TR: TokenRepository + Send + Sync,
-    RR: RefreshTokenRepository + Send + Sync,
-    TS: AuthTokenService + Send + Sync,
+    UR: domain::port::repository::UserRepository + Send + Sync,
+    UER: domain::port::repository::UserEmailRepository + Send + Sync,
+    TR: domain::port::repository::TokenRepository + Send + Sync,
     <GH as AuthService>::Error: std::error::Error + Send + Sync + 'static,
     <GL as AuthService>::Error: std::error::Error + Send + Sync + 'static,
-    <UR as UserRepository>::Error: std::error::Error + Send + Sync + 'static,
-    <UER as UserEmailRepository>::Error: std::error::Error + Send + Sync + 'static,
-    <TR as TokenRepository>::Error: std::error::Error + Send + Sync + 'static,
-    <RR as RefreshTokenRepository>::Error: std::error::Error + Send + Sync + 'static,
-    <TS as AuthTokenService>::Error: std::error::Error + Send + Sync + 'static,
+    <UR as domain::port::repository::UserRepository>::Error: std::error::Error + Send + Sync + 'static,
+    <UER as domain::port::repository::UserEmailRepository>::Error: std::error::Error + Send + Sync + 'static,
+    <TR as domain::port::repository::TokenRepository>::Error: std::error::Error + Send + Sync + 'static,
 {
     fn generate_start_url(&self, provider: Provider) -> Result<String, LinkProviderError> {
         let auth_service = self.auth_factory.get_auth_service(provider);
@@ -285,37 +144,30 @@ where
         code: String,
         redirect_uri: String,
     ) -> Result<LinkProviderResponse, LinkProviderError> {
-        // Step 1: Verify user exists
-        let user = self.load_user(user_id).await?;
-
-        // Step 2: Exchange code for tokens and profile
+        // Step 1: Exchange code for tokens and profile
         let (tokens, profile) = self.fetch_provider_profile(
             provider,
             code,
             redirect_uri
         ).await?;
 
-        // Step 3: Check for provider conflicts
-        self.check_provider_conflicts(user_id, provider, &profile.id).await?;
+        // Step 2: Use domain service to handle the business logic
+        let result = self.provider_link_service
+            .link_provider_to_user(
+                user_id,
+                provider,
+                profile.id.clone(),
+                tokens,
+                profile,
+            )
+            .await?;
 
-        // Step 4: Handle email updates
-        let (new_email_added, new_email) = self.handle_provider_email(
-            user_id,
-            provider,
-            profile.email
-        ).await?;
-
-        // Step 5: Save provider tokens
-        self.save_provider_tokens(user_id, provider, profile.id, tokens).await?;
-
-        // Step 6: Get all user emails and return response
-        let emails = self.get_user_emails(user_id).await?;
-
+        // Step 3: Convert domain result to use case response
         Ok(LinkProviderResponse {
-            user,
-            emails,
-            new_email_added,
-            new_email,
+            user: result.user,
+            emails: result.emails,
+            new_email_added: result.new_email_added,
+            new_email: result.new_email,
         })
     }
 } 

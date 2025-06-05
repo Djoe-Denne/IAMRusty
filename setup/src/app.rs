@@ -146,14 +146,17 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
         token_service.clone(),
     );
 
-    let link_provider_usecase = LinkProviderUseCaseImpl::new(
-        Arc::new(github_auth_link),
-        Arc::new(gitlab_auth_link),
+    // Create provider link service for domain business logic
+    let provider_link_service = Arc::new(domain::service::ProviderLinkService::new(
         Arc::new(user_repo.clone()),
         Arc::new(user_email_repo.clone()),
         Arc::new(token_repo_link),
-        Arc::new(refresh_token_repo.clone()),
-        token_service.clone(),
+    ));
+
+    let link_provider_usecase = LinkProviderUseCaseImpl::new(
+        Arc::new(github_auth_link),
+        Arc::new(gitlab_auth_link),
+        provider_link_service,
     );
 
     let user_usecase = UserUseCaseImpl::new(

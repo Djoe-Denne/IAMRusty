@@ -99,6 +99,12 @@ impl UserFixtureBuilder {
             .avatar_url(Some("https://gitlab.com/uploads/-/system/user/avatar/456/avatar.png".to_string()))
     }
     
+    /// Create Diana user (GitHub user)
+    pub fn diana(self) -> Self {
+        self.username("diana")
+            .avatar_url(Some("https://avatars.githubusercontent.com/u/321654".to_string()))
+    }
+    
     /// Create a user without avatar
     pub fn no_avatar(self) -> Self {
         self.username("no_avatar_user")

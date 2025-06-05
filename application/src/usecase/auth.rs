@@ -219,7 +219,7 @@ where
             .map_err(|e| {
                 tracing::error!("Failed to create HMAC for verification token: {}", e);
                 AuthError::VerificationTokenGenerationError(
-                    format!("Failed to create HMAC: {}", e)
+                format!("Failed to create HMAC: {}", e)
                 )
             })?;
         

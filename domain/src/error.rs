@@ -11,6 +11,10 @@ pub enum DomainError {
     #[error("Provider not supported: {0}")]
     ProviderNotSupported(String),
 
+    /// Business rule violation
+    #[error("Business rule violation: {0}")]
+    BusinessRuleViolation(String),
+
     /// Invalid token
     #[error("Invalid token")]
     InvalidToken,
