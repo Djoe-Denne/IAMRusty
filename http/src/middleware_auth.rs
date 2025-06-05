@@ -76,12 +76,12 @@ pub async fn auth(
         .execute(command, context)
         .await
         .map_err(|e| match e {
-            CommandError::Authentication(_) => StatusCode::UNAUTHORIZED,
-            CommandError::Business(_) => StatusCode::UNAUTHORIZED,
-            CommandError::Validation(_) => StatusCode::UNAUTHORIZED,
-            CommandError::Infrastructure(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            CommandError::Timeout => StatusCode::INTERNAL_SERVER_ERROR,
-            CommandError::RetryExhausted(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            CommandError::Authentication { .. } => StatusCode::UNAUTHORIZED,
+            CommandError::Business { .. } => StatusCode::UNAUTHORIZED,
+            CommandError::Validation { .. } => StatusCode::UNAUTHORIZED,
+            CommandError::Infrastructure { .. } => StatusCode::INTERNAL_SERVER_ERROR,
+            CommandError::Timeout { .. } => StatusCode::INTERNAL_SERVER_ERROR,
+            CommandError::RetryExhausted { .. } => StatusCode::INTERNAL_SERVER_ERROR,
         })?;
 
     // Add the user ID to the request extensions

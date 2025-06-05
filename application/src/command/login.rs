@@ -7,6 +7,32 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use uuid::Uuid;
 
+/// Error codes for login-related operations
+#[derive(Debug, Clone)]
+pub enum LoginErrorCode {
+    AuthenticationFailed,
+    TokenExpired,
+    InvalidToken,
+    ProviderError,
+    DatabaseError,
+    TokenServiceError,
+    ValidationFailed,
+}
+
+impl LoginErrorCode {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::AuthenticationFailed => "authentication_failed",
+            Self::TokenExpired => "token_expired", 
+            Self::InvalidToken => "invalid_token",
+            Self::ProviderError => "provider_error",
+            Self::DatabaseError => "database_error",
+            Self::TokenServiceError => "token_service_error",
+            Self::ValidationFailed => "validation_failed",
+        }
+    }
+}
+
 /// Error mapper for login-related commands
 pub struct LoginErrorMapper;
 
@@ -15,17 +41,32 @@ impl CommandErrorMapper for LoginErrorMapper {
         // Try to downcast to known error types
         if let Some(login_error) = error.downcast_ref::<LoginError>() {
             match login_error {
-                LoginError::AuthError(msg) => CommandError::Business(format!("Authentication failed: {}", msg)),
-                LoginError::DbError(e) => CommandError::Infrastructure(format!("Database error: {}", e)),
-                LoginError::TokenError(e) => CommandError::Infrastructure(format!("Token service error: {}", e)),
+                LoginError::AuthError(msg) => CommandError::business(
+                    LoginErrorCode::AuthenticationFailed.as_str(),
+                    format!("Authentication failed: {}", msg)
+                ),
+                LoginError::DbError(e) => CommandError::infrastructure(
+                    LoginErrorCode::DatabaseError.as_str(),
+                    format!("Database error: {}", e)
+                ),
+                LoginError::TokenError(e) => CommandError::infrastructure(
+                    LoginErrorCode::TokenServiceError.as_str(),
+                    format!("Token service error: {}", e)
+                ),
             }
         } else {
             // Check if it's an authentication-related error by message
             let error_msg = error.to_string();
             if Self::is_authentication_related_error(&error_msg) {
-                CommandError::Business(format!("Authentication failed: {}", error_msg))
+                CommandError::business(
+                    LoginErrorCode::AuthenticationFailed.as_str(),
+                    format!("Authentication failed: {}", error_msg)
+                )
             } else {
-                CommandError::Infrastructure(error.to_string())
+                CommandError::infrastructure(
+                    LoginErrorCode::ProviderError.as_str(),
+                    error.to_string()
+                )
             }
         }
     }
@@ -82,21 +123,24 @@ impl Command for LoginCommand {
     
     fn validate(&self) -> Result<(), CommandError> {
         if self.code.trim().is_empty() {
-            return Err(CommandError::Validation(
-                "Authorization code cannot be empty".to_string()
+            return Err(CommandError::validation(
+                LoginErrorCode::ValidationFailed.as_str(),
+                "Authorization code cannot be empty"
             ));
         }
         
         if self.redirect_uri.trim().is_empty() {
-            return Err(CommandError::Validation(
-                "Redirect URI cannot be empty".to_string()
+            return Err(CommandError::validation(
+                LoginErrorCode::ValidationFailed.as_str(),
+                "Redirect URI cannot be empty"
             ));
         }
         
         // Basic URL validation for redirect_uri
         if !self.redirect_uri.starts_with("http://") && !self.redirect_uri.starts_with("https://") {
-            return Err(CommandError::Validation(
-                "Redirect URI must be a valid HTTP/HTTPS URL".to_string()
+            return Err(CommandError::validation(
+                LoginErrorCode::ValidationFailed.as_str(),
+                "Redirect URI must be a valid HTTP/HTTPS URL"
             ));
         }
         

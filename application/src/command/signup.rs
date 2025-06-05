@@ -5,6 +5,9 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 
+// Re-export AuthErrorCode from password_login module
+pub use super::password_login::AuthErrorCode;
+
 /// Error mapper for authentication-related commands (signup, password login, verify email)
 pub struct AuthErrorMapper;
 
@@ -12,35 +15,89 @@ impl CommandErrorMapper for AuthErrorMapper {
     fn map_error(&self, error: Box<dyn std::error::Error + Send + Sync>) -> CommandError {
         if let Some(auth_error) = error.downcast_ref::<AuthError>() {
             match auth_error {
-                AuthError::InvalidCredentials => CommandError::Validation("Invalid credentials".to_string()),
-                AuthError::UserNotFound => CommandError::Business("Invalid credentials".to_string()), // Don't leak user existence
-                AuthError::EmailNotVerified => CommandError::Business("Email not verified".to_string()),
-                AuthError::UserAlreadyExists => CommandError::Business("User already exists".to_string()),
-                AuthError::WeakPassword => CommandError::Validation("Password is too weak".to_string()),
-                AuthError::InvalidEmail => CommandError::Validation("Invalid email format".to_string()),
-                AuthError::EmailNotFound => CommandError::Business("Invalid verification request".to_string()), // Don't leak email existence
-                AuthError::EmailAlreadyVerified => CommandError::Business("Email is already verified".to_string()),
-                AuthError::InvalidVerificationToken => CommandError::Validation("Invalid or expired verification token".to_string()),
-                AuthError::VerificationTokenExpired => CommandError::Validation("Verification token has expired".to_string()),
-                AuthError::RepositoryError(_) => CommandError::Infrastructure(error.to_string()),
-                AuthError::EventPublishingError(_) => CommandError::Infrastructure(error.to_string()),
+                AuthError::InvalidCredentials => CommandError::validation(
+                    AuthErrorCode::InvalidCredentials.as_str(),
+                    "Invalid credentials"
+                ),
+                AuthError::UserNotFound => CommandError::business(
+                    AuthErrorCode::InvalidCredentials.as_str(),
+                    "Invalid credentials" // Don't leak user existence
+                ),
+                AuthError::EmailNotVerified => CommandError::business(
+                    AuthErrorCode::EmailNotVerified.as_str(),
+                    "Email not verified"
+                ),
+                AuthError::UserAlreadyExists => CommandError::business(
+                    AuthErrorCode::UserAlreadyExists.as_str(),
+                    "User already exists"
+                ),
+                AuthError::WeakPassword => CommandError::validation(
+                    AuthErrorCode::WeakPassword.as_str(),
+                    "Password is too weak"
+                ),
+                AuthError::InvalidEmail => CommandError::validation(
+                    AuthErrorCode::InvalidEmail.as_str(),
+                    "Invalid email format"
+                ),
+                AuthError::EmailNotFound => CommandError::business(
+                    AuthErrorCode::EmailNotFound.as_str(),
+                    "Invalid verification request" // Don't leak email existence
+                ),
+                AuthError::EmailAlreadyVerified => CommandError::business(
+                    AuthErrorCode::EmailAlreadyVerified.as_str(),
+                    "Email is already verified"
+                ),
+                AuthError::InvalidVerificationToken => CommandError::validation(
+                    AuthErrorCode::InvalidVerificationToken.as_str(),
+                    "Invalid or expired verification token"
+                ),
+                AuthError::VerificationTokenExpired => CommandError::validation(
+                    AuthErrorCode::VerificationTokenExpired.as_str(),
+                    "Verification token has expired"
+                ),
+                AuthError::RepositoryError(_) => CommandError::infrastructure(
+                    AuthErrorCode::RepositoryError.as_str(),
+                    error.to_string()
+                ),
+                AuthError::EventPublishingError(_) => CommandError::infrastructure(
+                    AuthErrorCode::EventPublishingError.as_str(),
+                    error.to_string()
+                ),
                 AuthError::TokenServiceError(inner) => {
                     let error_msg = inner.to_string();
                     if Self::is_authentication_related_error(&error_msg) {
-                        CommandError::Validation(format!("Authentication failed: {}", error_msg))
+                        CommandError::validation(
+                            AuthErrorCode::AuthenticationFailed.as_str(),
+                            format!("Authentication failed: {}", error_msg)
+                        )
                     } else {
-                        CommandError::Infrastructure(error.to_string())
+                        CommandError::infrastructure(
+                            AuthErrorCode::TokenServiceError.as_str(),
+                            error.to_string()
+                        )
                     }
                 },
-                AuthError::PasswordHashingError(_) => CommandError::Infrastructure(error.to_string()),
-                AuthError::VerificationTokenGenerationError(_) => CommandError::Infrastructure(error.to_string()),
+                AuthError::PasswordHashingError(_) => CommandError::infrastructure(
+                    AuthErrorCode::PasswordHashingError.as_str(),
+                    error.to_string()
+                ),
+                AuthError::VerificationTokenGenerationError(_) => CommandError::infrastructure(
+                    AuthErrorCode::VerificationTokenGenerationError.as_str(),
+                    error.to_string()
+                ),
             }
         } else {
             let error_msg = error.to_string();
             if Self::is_authentication_related_error(&error_msg) {
-                CommandError::Validation(format!("Authentication failed: {}", error_msg))
+                CommandError::validation(
+                    AuthErrorCode::AuthenticationFailed.as_str(),
+                    format!("Authentication failed: {}", error_msg)
+                )
             } else {
-                CommandError::Infrastructure(error.to_string())
+                CommandError::infrastructure(
+                    AuthErrorCode::RepositoryError.as_str(),
+                    error.to_string()
+                )
             }
         }
     }
@@ -100,15 +157,24 @@ impl Command for SignupCommand {
         
         // These are basic sanity checks to ensure the command is properly constructed
         if self.username.trim().is_empty() {
-            return Err(CommandError::Validation("Username cannot be empty".to_string()));
+            return Err(CommandError::validation(
+                AuthErrorCode::ValidationFailed.as_str(),
+                "Username cannot be empty"
+            ));
         }
         
         if self.email.trim().is_empty() {
-            return Err(CommandError::Validation("Email cannot be empty".to_string()));
+            return Err(CommandError::validation(
+                AuthErrorCode::ValidationFailed.as_str(),
+                "Email cannot be empty"
+            ));
         }
         
         if self.password.is_empty() {
-            return Err(CommandError::Validation("Password cannot be empty".to_string()));
+            return Err(CommandError::validation(
+                AuthErrorCode::ValidationFailed.as_str(),
+                "Password cannot be empty"
+            ));
         }
         
         Ok(())

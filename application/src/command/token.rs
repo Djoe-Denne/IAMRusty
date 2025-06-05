@@ -5,6 +5,32 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 
+/// Error codes for token-related operations
+#[derive(Debug, Clone)]
+pub enum TokenErrorCode {
+    RepositoryError,
+    TokenServiceError,
+    TokenNotFound,
+    TokenInvalid,
+    TokenExpired,
+    AuthenticationFailed,
+    ValidationFailed,
+}
+
+impl TokenErrorCode {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::RepositoryError => "repository_error",
+            Self::TokenServiceError => "token_service_error",
+            Self::TokenNotFound => "token_not_found",
+            Self::TokenInvalid => "token_invalid",
+            Self::TokenExpired => "token_expired",
+            Self::AuthenticationFailed => "authentication_failed",
+            Self::ValidationFailed => "validation_failed",
+        }
+    }
+}
+
 /// Error mapper for token-related commands
 pub struct TokenErrorMapper;
 
@@ -12,26 +38,50 @@ impl CommandErrorMapper for TokenErrorMapper {
     fn map_error(&self, error: Box<dyn std::error::Error + Send + Sync>) -> CommandError {
         if let Some(token_error) = error.downcast_ref::<TokenError>() {
             match token_error {
-                TokenError::RepositoryError(_) => CommandError::Infrastructure(error.to_string()),
+                TokenError::RepositoryError(_) => CommandError::infrastructure(
+                    TokenErrorCode::RepositoryError.as_str(),
+                    error.to_string()
+                ),
                 TokenError::TokenServiceError(inner) => {
                     let error_msg = inner.to_string();
                     if Self::is_authentication_related_error(&error_msg) {
-                        CommandError::Business(format!("Authentication failed: {}", error_msg))
+                        CommandError::business(
+                            TokenErrorCode::AuthenticationFailed.as_str(),
+                            format!("Authentication failed: {}", error_msg)
+                        )
                     } else {
-                        CommandError::Infrastructure(error.to_string())
+                        CommandError::infrastructure(
+                            TokenErrorCode::TokenServiceError.as_str(),
+                            error.to_string()
+                        )
                     }
                 },
                 // Authentication-related token errors should return 401
-                TokenError::TokenNotFound => CommandError::Authentication("Authentication failed: Invalid refresh token".to_string()),
-                TokenError::TokenInvalid => CommandError::Authentication("Authentication failed: Invalid refresh token".to_string()),
-                TokenError::TokenExpired => CommandError::Authentication("Authentication failed: Expired refresh token".to_string()),
+                TokenError::TokenNotFound => CommandError::authentication(
+                    TokenErrorCode::TokenNotFound.as_str(),
+                    "Authentication failed: Invalid refresh token"
+                ),
+                TokenError::TokenInvalid => CommandError::authentication(
+                    TokenErrorCode::TokenInvalid.as_str(),
+                    "Authentication failed: Invalid refresh token"
+                ),
+                TokenError::TokenExpired => CommandError::authentication(
+                    TokenErrorCode::TokenExpired.as_str(),
+                    "Authentication failed: Expired refresh token"
+                ),
             }
         } else {
             let error_msg = error.to_string();
             if Self::is_authentication_related_error(&error_msg) {
-                CommandError::Validation(format!("Authentication failed: {}", error_msg))
+                CommandError::validation(
+                    TokenErrorCode::AuthenticationFailed.as_str(),
+                    format!("Authentication failed: {}", error_msg)
+                )
             } else {
-                CommandError::Infrastructure(error.to_string())
+                CommandError::infrastructure(
+                    TokenErrorCode::RepositoryError.as_str(),
+                    error.to_string()
+                )
             }
         }
     }
@@ -81,7 +131,10 @@ impl Command for RefreshTokenCommand {
 
     fn validate(&self) -> Result<(), CommandError> {
         if self.refresh_token.trim().is_empty() {
-            return Err(CommandError::Validation("Refresh token cannot be empty".to_string()));
+            return Err(CommandError::validation(
+                TokenErrorCode::ValidationFailed.as_str(),
+                "Refresh token cannot be empty"
+            ));
         }
         Ok(())
     }
@@ -119,7 +172,10 @@ impl Command for RevokeTokenCommand {
 
     fn validate(&self) -> Result<(), CommandError> {
         if self.refresh_token.trim().is_empty() {
-            return Err(CommandError::Validation("Refresh token cannot be empty".to_string()));
+            return Err(CommandError::validation(
+                TokenErrorCode::ValidationFailed.as_str(),
+                "Refresh token cannot be empty"
+            ));
         }
         Ok(())
     }

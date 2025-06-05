@@ -5,6 +5,32 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 
+/// Error codes for user-related operations
+#[derive(Debug, Clone)]
+pub enum UserErrorCode {
+    RepositoryError,
+    TokenServiceError,
+    UserNotFound,
+    InvalidToken,
+    TokenExpired,
+    AuthenticationFailed,
+    ValidationFailed,
+}
+
+impl UserErrorCode {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::RepositoryError => "repository_error",
+            Self::TokenServiceError => "token_service_error",
+            Self::UserNotFound => "user_not_found",
+            Self::InvalidToken => "invalid_token",
+            Self::TokenExpired => "token_expired",
+            Self::AuthenticationFailed => "authentication_failed",
+            Self::ValidationFailed => "validation_failed",
+        }
+    }
+}
+
 /// Error mapper for user-related commands
 pub struct UserErrorMapper;
 
@@ -12,19 +38,42 @@ impl CommandErrorMapper for UserErrorMapper {
     fn map_error(&self, error: Box<dyn std::error::Error + Send + Sync>) -> CommandError {
         if let Some(user_error) = error.downcast_ref::<UserError>() {
             match user_error {
-                UserError::RepositoryError(_) => CommandError::Infrastructure(error.to_string()),
+                UserError::RepositoryError(_) => CommandError::infrastructure(
+                    UserErrorCode::RepositoryError.as_str(),
+                    error.to_string()
+                ),
                 UserError::TokenServiceError(inner) => {
                     let error_msg = inner.to_string();
                     if Self::is_authentication_related_error(&error_msg) {
-                        CommandError::Validation(format!("Authentication failed: {}", error_msg))
+                        CommandError::validation(
+                            UserErrorCode::AuthenticationFailed.as_str(),
+                            format!("Authentication failed: {}", error_msg)
+                        )
                     } else {
-                        CommandError::Infrastructure(error.to_string())
+                        CommandError::infrastructure(
+                            UserErrorCode::TokenServiceError.as_str(),
+                            error.to_string()
+                        )
                     }
                 },
-                _ => CommandError::Authentication("Authentication failed".to_string()),
+                UserError::UserNotFound => CommandError::authentication(
+                    UserErrorCode::UserNotFound.as_str(),
+                    "Authentication failed"
+                ),
+                UserError::InvalidToken => CommandError::authentication(
+                    UserErrorCode::InvalidToken.as_str(),
+                    "Authentication failed"
+                ),
+                UserError::TokenExpired => CommandError::authentication(
+                    UserErrorCode::TokenExpired.as_str(),
+                    "Authentication failed"
+                ),
             }
         } else {
-            CommandError::Authentication("Authentication failed".to_string())
+            CommandError::authentication(
+                UserErrorCode::AuthenticationFailed.as_str(),
+                "Authentication failed"
+            )
         }
     }
 }
@@ -109,7 +158,10 @@ impl Command for ValidateTokenCommand {
 
     fn validate(&self) -> Result<(), CommandError> {
         if self.token.trim().is_empty() {
-            return Err(CommandError::Validation("Token cannot be empty".to_string()));
+            return Err(CommandError::validation(
+                UserErrorCode::ValidationFailed.as_str(),
+                "Token cannot be empty"
+            ));
         }
         Ok(())
     }

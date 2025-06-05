@@ -335,8 +335,8 @@ async fn test_internal_provider_token_returns_404_when_no_token_for_provider() {
     
     assert!(response_json["error"].is_object(), 
            "Should return error object");
-    assert_eq!(response_json["error"]["error_code"], "no_token_available", 
-              "Should return no_token_available error code");
+    assert_eq!(response_json["error"]["error_code"], "no_token_for_provider", 
+              "Should return no_token_for_provider error code");
 }
 
 #[tokio::test]
