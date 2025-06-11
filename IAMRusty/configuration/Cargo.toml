@@ -1,0 +1,32 @@
+[package]
+name = "configuration"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Core configuration from rustycog
+rustycog-config = { path = "../../rustycog/rustycog-config" }
+
+# Serialization
+serde = { version = "1.0.197", features = ["derive"] }
+
+# URL parsing
+url = "2.5.2"
+
+# Error handling
+thiserror = "1.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[dev-dependencies]
+# Testing libraries for comprehensive unit testing
+mockall = "0.13.0"
+rstest = "0.23.0"
+tokio-test = "0.4.4"
+claims = "0.7.1"
+tempfile = "3.8.0"
+serde_json = "1.0.140"
+
+tokio = { version = "1.44", features = ["rt-multi-thread", "macros"] } 

@@ -1,0 +1,463 @@
+openapi: 3.1.0
+info:
+  title: IAM Service API
+  version: 1.3.0
+  description: |
+    This API allows third-party clients to authenticate users via OAuth2 providers (e.g., GitHub, GitLab) and retrieve basic user profile information.
+    
+    **Token Management:**
+    - JWT access tokens have a configurable expiration time (default: 15 minutes)
+    - Refresh tokens have a configurable expiration time (default: 30 days)
+    - Refresh token rotation is implemented for enhanced security - each refresh operation generates a new refresh token and invalidates the old one
+    
+    **User Model Update:**
+    - Users are now provider-agnostic and can link multiple OAuth2 providers to a single account.
+    - Email addresses are managed in a separate entity (`user_emails`).
+    - The `email` field in user responses always returns the user's primary email (if available).
+    - Users can have multiple emails, but only one is primary.
+    - The system supports multi-provider login and account linking.
+    
+    **OAuth Flow Enhancement:**
+    - The same `/start` and `/callback` endpoints handle both login and provider linking operations.
+    - When an authenticated user accesses `/start`, it initiates a "link provider" flow.
+    - When an unauthenticated user accesses `/start`, it initiates a "login" flow.
+    - The operation type is encoded in the OAuth `state` parameter for security.
+    
+    It also supports issuing JWT tokens and serving public keys for token validation.
+
+servers:
+  - url: https://iam.example.com
+
+paths:
+  /auth/signup:
+    post:
+      summary: Sign up with email and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+              required:
+                - username
+                - email
+                - password
+      responses:
+        "201":
+          description: User created successfully
+        "400":
+          description: Invalid input or user already exists
+
+  /auth/login:
+    post:
+      summary: Log in with email and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+              required:
+                - email
+                - password
+      responses:
+        "200":
+          description: Authentication successful
+          content:
+            application/json:
+              example:
+                token: "jwt_xyz"
+                user:
+                  id: "user_123"
+                  username: "alice"
+                  email: "alice@example.com"
+                expires_in: 900
+        "401":
+          description: Invalid credentials
+          
+  /auth/verify:
+    post:
+      summary: Verify user email with a token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                verification_token:
+                  type: string
+              required:
+                - email
+                - verification_token
+      responses:
+        "200":
+          description: Email successfully verified
+        "400":
+          description: Invalid or expired verification token
+        "404":
+          description: Email not found or already verified
+
+  /auth/{provider}/start:
+    get:
+      summary: Start OAuth2 authentication or provider linking
+      description: |
+        Redirects the user to the external OAuth2 provider's consent page.
+        
+        **Dual Purpose:**
+        - **Login Flow** (no Authorization header): Creates new user or logs in existing user
+        - **Link Provider Flow** (with Authorization header): Links provider to authenticated user's account
+        
+        The operation type is determined by the presence of a valid JWT token in the Authorization header.
+        For linking operations, the user context is securely encoded in the OAuth `state` parameter.
+      parameters:
+        - in: path
+          name: provider
+          required: true
+          description: The OAuth2 provider to use (e.g., github, gitlab).
+          schema:
+            type: string
+        - in: header
+          name: Authorization
+          required: false
+          description: |
+            Bearer JWT token for linking operations. 
+            If present and valid, initiates provider linking for the authenticated user.
+            If absent, initiates login flow.
+          schema:
+            type: string
+            pattern: '^Bearer .+'
+      responses:
+        "303":
+          description: Temporary redirect to OAuth2 provider
+          headers:
+            Location:
+              description: OAuth2 provider authorization URL with state parameter
+              schema:
+                type: string
+        "400":
+          description: Unknown or unsupported provider
+        "401":
+          description: Invalid JWT token in Authorization header (for linking operations)
+
+  /auth/{provider}/callback:
+    get:
+      summary: OAuth2 callback handler for login and provider linking
+      description: |
+        Handles the redirect from the provider after user authorization.
+        Exchanges the authorization code for an access token and fetches user info.
+        
+        **Behavior depends on the operation type encoded in the state parameter:**
+        
+        **Login Flow:**
+        - Creates new user if email doesn't exist
+        - Logs in existing user if email matches
+        - Returns JWT token for authentication
+        
+        **Link Provider Flow:**
+        - Links provider to existing authenticated user
+        - Adds new email as secondary if it doesn't exist for the user
+        - Returns updated user profile and email list
+        
+        **Note:** The `email` field in responses is always the user's primary email (if available).
+      parameters:
+        - in: path
+          name: provider
+          required: true
+          description: The OAuth2 provider.
+          schema:
+            type: string
+        - in: query
+          name: code
+          required: true
+          description: Authorization code received from the provider.
+          schema:
+            type: string
+        - in: query
+          name: state
+          required: false
+          description: |
+            OAuth state parameter containing operation context.
+            For linking operations, contains signed user information.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successfully processed OAuth callback
+          content:
+            application/json:
+              oneOf:
+                - title: Login Response
+                  description: Response for login operations
+                  type: object
+                  properties:
+                    operation:
+                      type: string
+                      enum: [login]
+                    user:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        username:
+                          type: string
+                        email:
+                          type: string
+                          description: Primary email address
+                        avatar:
+                          type: string
+                          nullable: true
+                    access_token:
+                      type: string
+                      description: JWT access token
+                    expires_in:
+                      type: integer
+                      description: Access token expiration in seconds
+                    refresh_token:
+                      type: string
+                      description: Refresh token for getting new access tokens
+                  example:
+                    operation: "login"
+                    user:
+                      id: "123e4567-e89b-12d3-a456-426614174000"
+                      username: "henri"
+                      email: "henri@example.com"
+                      avatar: "https://gitlab.com/uploads/avatar.png"
+                    access_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                    expires_in: 900
+                    refresh_token: "def502004f8c7..."
+                - title: Link Provider Response
+                  description: Response for provider linking operations
+                  type: object
+                  properties:
+                    operation:
+                      type: string
+                      enum: [link]
+                    message:
+                      type: string
+                      example: "Provider successfully linked"
+                    user:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        username:
+                          type: string
+                        avatar:
+                          type: string
+                          nullable: true
+                    emails:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                          email:
+                            type: string
+                          is_primary:
+                            type: boolean
+                          is_verified:
+                            type: boolean
+                    new_email_added:
+                      type: boolean
+                      description: Whether a new email was added from this provider
+                    new_email:
+                      type: string
+                      nullable: true
+                      description: The new email that was added (if any)
+                  example:
+                    operation: "link"
+                    message: "GitHub successfully linked"
+                    user:
+                      id: "123e4567-e89b-12d3-a456-426614174000"
+                      username: "henri"
+                      avatar: "https://gitlab.com/uploads/avatar.png"
+                    emails:
+                      - id: "456e7890-e89b-12d3-a456-426614174001"
+                        email: "henri@example.com"
+                        is_primary: true
+                        is_verified: true
+                      - id: "789e0123-e89b-12d3-a456-426614174002"
+                        email: "henri@github.com"
+                        is_primary: false
+                        is_verified: false
+                    new_email_added: true
+                    new_email: "henri@github.com"
+        "400":
+          description: Missing or invalid authorization code / unsupported provider / invalid state parameter
+        "401":
+          description: Authentication rejected by the provider
+        "409":
+          description: Provider linking conflict
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  operation:
+                    type: string
+                    enum: [link]
+                  error:
+                    type: string
+                  message:
+                    type: string
+              examples:
+                already_linked_same_user:
+                  summary: Provider already linked to same user
+                  value:
+                    operation: "link"
+                    error: "provider_already_linked_to_same_user"
+                    message: "GitHub is already linked to your account"
+                already_linked_different_user:
+                  summary: Provider linked to different user
+                  value:
+                    operation: "link"
+                    error: "provider_already_linked"
+                    message: "This GitHub account is already linked to another user"
+        "500":
+          description: Error while communicating with the OAuth provider
+
+  /token/refresh:
+    post:
+      summary: Refresh access token
+      description: |
+        Exchanges a valid refresh token for a new JWT access token and a new refresh token. 
+        The old refresh token is invalidated and deleted from the database when a new one is issued.
+        The new refresh token resets the expiration period (default: 30 days).
+        
+        **Security Note:** Each refresh operation generates a new refresh token and invalidates the previous one,
+        implementing refresh token rotation for enhanced security.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token:
+                  type: string
+                  description: The refresh token issued at login or from a previous refresh.
+      responses:
+        "200":
+          description: New access token and refresh token issued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                    description: New JWT access token
+                  expires_in:
+                    type: integer
+                    description: Access token expiration in seconds (default: 900 = 15 minutes)
+                  refresh_token:
+                    type: string
+                    description: New refresh token (replaces the old one)
+                  refresh_expires_in:
+                    type: integer
+                    description: Refresh token expiration in seconds (default: 2592000 = 30 days)
+              example:
+                access_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                expires_in: 900
+                refresh_token: "def502004f8c7abc123..."
+                refresh_expires_in: 2592000
+        "400":
+          description: Malformed or missing refresh token
+        "401":
+          description: Invalid or expired refresh token
+          
+  /me:
+    get:
+      summary: Get current authenticated user
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Authenticated user's profile
+          content:
+            application/json:
+              example:
+                id: "github_9876"
+                username: "djoe-denne"
+                avatar: "https://avatars.githubusercontent.com/u/1234"
+                email: "dj@example.com"  # This is the primary email
+              
+              # Note: The `email` field is always the user's primary email (if available). Users may have multiple emails.
+        "401":
+          description: Invalid or expired JWT token
+
+  /.well-known/jwks.json:
+    get:
+      summary: JSON Web Key Set (JWKS)
+      description: |
+        Public keys used to verify JWT tokens issued by this IAM service. This endpoint can be used by reverse proxies or services like Istio to validate token signatures.
+      responses:
+        "200":
+          description: Public keys
+          content:
+            application/json:
+              example:
+                keys:
+                  - kty: RSA
+                    kid: abc123
+                    use: sig
+                    alg: RS256
+                    n: "...base64 modulus..."
+                    e: "AQAB"
+
+  /internal/{provider}/token:
+    post:
+      summary: Retrieve user's provider access token
+      description: |
+        Returns the OAuth2 access token for the authenticated user and specified provider.
+        This endpoint is intended for internal use (e.g. reverse proxy or internal services).
+      parameters:
+        - in: path
+          name: provider
+          required: true
+          description: OAuth2 provider name (e.g., github, gitlab)
+          schema:
+            type: string
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Access token for the authenticated user and specified provider
+          content:
+            application/json:
+              example:
+                access_token: "gho_xyz..."
+                expires_in: 3600
+        "400":
+          description: Unsupported provider
+        "404":
+          description: No token available for the user and provider
+        "401":
+          description: Missing or invalid authentication
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
