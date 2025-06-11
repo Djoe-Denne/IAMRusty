@@ -1,0 +1,50 @@
+use async_trait::async_trait;
+use rustycog_core::error::ServiceError;
+use crate::event::{DomainEvent, EventPublisher};
+use tracing;
+
+/// No-op event publisher for testing and development
+/// 
+/// This publisher doesn't actually publish events anywhere,
+/// but provides a valid implementation for development environments
+/// where event publishing is not needed.
+pub struct NoOpEventPublisher;
+
+impl NoOpEventPublisher {
+    /// Create a new NoOpEventPublisher
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl Default for NoOpEventPublisher {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[async_trait]
+impl EventPublisher for NoOpEventPublisher {
+    async fn publish(&self, event: Box<dyn DomainEvent>) -> Result<(), ServiceError> {
+        // Log the event but don't actually publish it
+        tracing::debug!(
+            event_id = %event.event_id(),
+            event_type = %event.event_type(),
+            aggregate_id = %event.aggregate_id(),
+            "Event would be published (no-op mode)"
+        );
+        Ok(())
+    }
+
+    async fn publish_batch(&self, events: Vec<Box<dyn DomainEvent>>) -> Result<(), ServiceError> {
+        for event in events {
+            self.publish(event).await?;
+        }
+        Ok(())
+    }
+
+    async fn health_check(&self) -> Result<(), ServiceError> {
+        // Always healthy since no-op
+        Ok(())
+    }
+} 

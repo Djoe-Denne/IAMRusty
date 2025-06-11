@@ -1,0 +1,19 @@
+[package]
+name = "rustycog-db"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Database management utilities for RustyCog"
+license.workspace = true
+
+[dependencies]
+rustycog-core = { path = "../rustycog-core" }
+rustycog-config = { path = "../rustycog-config" }
+sea-orm.workspace = true
+tokio.workspace = true
+async-trait.workspace = true
+uuid.workspace = true
+
+# Logging
+tracing.workspace = true
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

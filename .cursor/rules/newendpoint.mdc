@@ -1,0 +1,203 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# New Endpoint Implementation Guide
+
+This guide provides a comprehensive checklist for implementing new endpoints in the IAM service following the established architectural patterns.
+
+## Implementation Checklist
+
+### 1. OpenAPI Specification ✅
+**File**: `openspecs.yaml`
+- [ ] Add endpoint definition with proper path, parameters, and security
+- [ ] Define request/response schemas with examples
+- [ ] Document all possible error responses (400, 401, 404, 422, 500)
+- [ ] Follow existing patterns for authentication and error handling
+- [ ] Include clear description of endpoint behavior
+
+### 2. Command Implementation ✅
+**File**: `application/src/command/{module}.rs`
+- [ ] Create or update command struct with input validation
+- [ ] Implement input validation (use validator crate patterns)
+- [ ] Add proper error handling with domain-specific error types
+- [ ] Command should only validate input and delegate to usecase
+- [ ] Add comprehensive unit tests for validation logic
+- [ ] Follow existing command patterns (see `COMMAND_PATTERN.md`)
+
+### 3. UseCase Implementation ✅
+**File**: `application/src/usecase/{module}.rs`
+- [ ] Create error enum with all business scenarios
+- [ ] Define response structs for successful operations
+- [ ] Implement usecase trait and implementation
+- [ ] Orchestrate business logic and call domain services
+- [ ] Add comprehensive unit tests using mockall framework
+- [ ] Follow patterns from existing usecases (like `link_provider.rs`)
+
+### 4. Domain Service Implementation ✅
+**File**: `domain/src/service/{service}.rs`
+- [ ] Implement pure business logic methods
+- [ ] Add proper error handling and logging
+- [ ] Validate business rules and constraints
+- [ ] Handle repository interactions
+- [ ] Add unit tests for business logic
+- [ ] Reference domain modeling guidelines
+
+### 5. Command Registration ✅
+**File**: `application/src/command/factory.rs`
+- [ ] Add import statements for new command
+- [ ] Register command in `create_iam_registry` method
+- [ ] Ensure proper dependency injection for usecases
+- [ ] Update method signatures if needed for new dependencies
+
+### 6. Module Exports ✅
+**Files**: `application/src/command/mod.rs` and `application/src/usecase/mod.rs`
+- [ ] Export new modules in mod.rs files
+- [ ] Ensure proper visibility and accessibility
+- [ ] Follow existing module organization patterns
+
+### 7. HTTP Handler Implementation ✅
+**File**: `http/src/handlers/{module}.rs`
+- [ ] Create handler function with proper parameter extraction
+- [ ] Implement authentication middleware (AuthUser for protected routes)
+- [ ] Execute command via command service
+- [ ] Map responses and errors correctly
+- [ ] Keep handlers thin - delegate to command service
+- [ ] Follow existing handler patterns
+
+### 8. Error Handling Updates ✅
+**File**: `http/src/error.rs`
+- [ ] Add error mapping method to convert command errors to HTTP responses
+- [ ] Use appropriate HTTP status codes:
+  - 400: Bad Request (validation errors)
+  - 401: Unauthorized (authentication failures)
+  - 404: Not Found (resource not found)
+  - 422: Unprocessable Entity (business validation errors)
+  - 500: Internal Server Error (unexpected errors)
+- [ ] Follow consistent error response format
+- [ ] Reference `ERROR_HANDLING_GUIDE.md`
+
+### 9. Application Setup ✅
+**File**: `setup/src/app.rs`
+- [ ] Create usecase instances with proper dependencies
+- [ ] Handle domain service dependencies (repositories, auth services)
+- [ ] Wire dependencies in dependency injection container
+- [ ] Update command registry factory calls
+- [ ] Ensure all required services are available
+
+### 10. Route Registration ⚠️
+**File**: `http/src/app.rs`
+- [ ] Add route to router with correct HTTP method and path
+- [ ] Include path parameters and middleware
+- [ ] Set up authentication middleware if required
+- [ ] Follow existing routing patterns
+- [ ] Test route registration
+
+### 11. Integration Tests ✅
+**File**: `tests/{endpoint_name}.rs`
+- [ ] Create comprehensive test suite covering:
+  - Success scenarios for all valid inputs
+  - Authentication failures (missing/expired/invalid tokens)
+  - Validation errors (invalid parameters)
+  - Business logic errors (resource not found, conflicts)
+  - Edge cases (concurrent requests, boundary values)
+- [ ] Use `TestFixture` and `DbFixtures` for test setup
+- [ ] Use `serial_test::serial` for database tests
+- [ ] Follow patterns from existing integration tests
+- [ ] Reference `TESTING_GUIDE.md` and `FIXTURES_GUIDE.md`
+
+### 12. Documentation Review ✅
+**Reference Documents**:
+- [ ] `COMMAND_PATTERN.md` - Command implementation patterns
+- [ ] `ERROR_HANDLING_GUIDE.md` - Error handling consistency
+- [ ] `TESTING_GUIDE.md` - Test coverage requirements
+- [ ] `ARCHITECTURE.md` - Overall system design patterns
+- [ ] `INPUT_VALIDATION_GUIDE.md` - Validation patterns
+- [ ] `API_REFERENCE.md` - API documentation standards
+
+## Key Architectural Patterns
+
+### Layered Architecture
+```
+HTTP Handler → Command → UseCase → Domain Service → Repository
+```
+
+### Error Handling Flow
+```
+Domain Error → UseCase Error → Command Error → HTTP Error → JSON Response
+```
+
+### Authentication Pattern
+```rust
+// For protected endpoints
+pub async fn handler(
+    auth_user: AuthUser,
+    // other parameters
+) -> Result<impl IntoResponse, AuthError>
+```
+
+### Command Pattern
+```rust
+pub struct SomeCommand {
+    pub field: ValidatedField,
+}
+
+impl Command for SomeCommand {
+    type Output = SomeResponse;
+    type Error = SomeError;
+    
+    async fn execute(&self, context: &CommandContext) -> Result<Self::Output, Self::Error>
+}
+```
+
+### UseCase Pattern
+```rust
+#[async_trait]
+pub trait SomeUseCase: Send + Sync {
+    async fn do_something(&self, input: SomeInput) -> Result<SomeOutput, SomeError>;
+}
+```
+
+## Testing Requirements
+
+### Unit Tests
+- [ ] Command validation logic
+- [ ] UseCase business logic (with mocked dependencies)
+- [ ] Domain service methods
+- [ ] Error handling scenarios
+
+### Integration Tests
+- [ ] End-to-end HTTP requests
+- [ ] Database interactions
+- [ ] Authentication flows
+- [ ] Error response formats
+
+## Common Pitfalls to Avoid
+
+1. **Missing Route Registration**: Always register new routes in the HTTP router
+2. **Inconsistent Error Handling**: Use established error mapping patterns
+3. **Missing Dependencies**: Ensure all required services are wired in app setup
+4. **Incomplete Validation**: Validate at both input and business logic levels
+5. **Missing Tests**: Implement both unit and integration tests
+6. **Documentation Drift**: Update OpenAPI spec and reference docs
+
+## Final Verification
+
+- [ ] Endpoint appears in OpenAPI documentation
+- [ ] All tests pass (unit and integration)
+- [ ] Error responses follow consistent format
+- [ ] Authentication works correctly
+- [ ] Logging includes appropriate debug/info messages
+- [ ] Code follows established patterns and conventions
+
+## Example Implementation Reference
+
+See the `/internal/{provider}/token` endpoint implementation as a complete example:
+- Command: `GetProviderTokenCommand` in `command/provider.rs`
+- UseCase: `ProviderUseCaseImpl` in `usecase/provider.rs`
+- Domain: `get_provider_token` method in `domain/service/auth_service.rs`
+- Handler: `internal_provider_token` in `http/handlers/auth.rs`
+- Tests: `tests/internal_provider_token.rs`
+
+This implementation demonstrates all the patterns and practices outlined in this guide. 

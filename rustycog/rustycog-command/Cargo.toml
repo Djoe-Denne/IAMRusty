@@ -1,0 +1,17 @@
+[package]
+name = "rustycog-command"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Generic command pattern implementation for RustyCog"
+license.workspace = true
+
+[dependencies]
+rustycog-core = { path = "../rustycog-core" }
+tokio.workspace = true
+async-trait.workspace = true
+tracing.workspace = true
+inventory = "0.3"
+uuid.workspace = true
+serde.workspace = true
+thiserror.workspace = true 

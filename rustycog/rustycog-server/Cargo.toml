@@ -1,0 +1,13 @@
+[package]
+name = "rustycog-server"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Server setup and application bootstrapping for RustyCog"
+license.workspace = true
+
+[dependencies]
+rustycog-core = { path = "../rustycog-core" }
+tokio.workspace = true
+anyhow.workspace = true
+tracing.workspace = true 
