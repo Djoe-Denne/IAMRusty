@@ -1,17 +1,17 @@
-use crate::usecase::auth::{
+use crate::usecase::oauth::{
     AuthUseCase, AuthUseCaseImpl, PasswordService
 };
-use domain::port::service::{AuthTokenService, JwtTokenEncoder};
+use domain::port::service::AuthTokenService;
 use domain::port::repository::{UserRepository, UserEmailRepository, EmailVerificationRepository};
 use domain::port::event_publisher::EventPublisher;
 use std::sync::Arc;
 
 /// Factory for creating the auth use case with its dependencies
-pub struct AuthFactory;
+pub struct OAuthFactory;
 
-impl AuthFactory {
+impl OAuthFactory {
     /// Create an auth use case instance with all its dependencies
-    pub fn create_auth_use_case<UR, UER, EVR, PS, TS, EP>(
+    pub fn create_oauth_use_case<UR, UER, EVR, PS, TS, EP>(
         user_repository: Arc<UR>,
         user_email_repository: Arc<UER>,
         email_verification_repository: Arc<EVR>,
@@ -43,8 +43,9 @@ impl AuthFactory {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::usecase::auth::{AuthError};
+    use crate::usecase::oauth::{AuthError};
     use domain::entity::user::User;
+    use domain::port::service::JwtTokenEncoder;
     use domain::entity::user_email::UserEmail;
     use domain::entity::email_verification::EmailVerification;
     use domain::entity::events::DomainEvent;
@@ -197,7 +198,7 @@ mod tests {
         let token_service = Arc::new(MockTokenService);
         let event_publisher = Arc::new(MockEventPublisher);
 
-        let auth_use_case = AuthFactory::create_auth_use_case(
+        let auth_use_case = OAuthFactory::create_oauth_use_case(
             user_repo,
             user_email_repo,
             email_verification_repo,

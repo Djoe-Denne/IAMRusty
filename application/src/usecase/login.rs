@@ -9,8 +9,8 @@ use domain::port::{
     repository::{TokenRepository, UserRepository, UserEmailRepository, RefreshTokenRepository},
     service::AuthTokenService,
 };
-use crate::auth::AuthService;
-use crate::usecase::factory::AuthProviderFactory;
+use crate::auth::OAuthService;
+use crate::usecase::factory::OAuthProviderFactory;
 use async_trait::async_trait;
 use std::sync::Arc;
 use thiserror::Error;
@@ -66,15 +66,15 @@ pub trait LoginUseCase: Send + Sync {
 /// Login use case implementation
 pub struct LoginUseCaseImpl<GH, GL, UR, UER, TR, RR, TS> 
 where
-    GH: AuthService + 'static,
-    GL: AuthService + 'static,
+    GH: OAuthService + 'static,
+    GL: OAuthService + 'static,
     UR: UserRepository,
     UER: UserEmailRepository,
     TR: TokenRepository,
     RR: RefreshTokenRepository,
     TS: AuthTokenService,
 {
-    auth_factory: Arc<AuthProviderFactory<GH, GL>>,
+    auth_factory: Arc<OAuthProviderFactory<GH, GL>>,
     user_repo: Arc<UR>,
     user_email_repo: Arc<UER>,
     token_repo: Arc<TR>,
@@ -84,8 +84,8 @@ where
 
 impl<GH, GL, UR, UER, TR, RR, TS> LoginUseCaseImpl<GH, GL, UR, UER, TR, RR, TS>
 where
-    GH: AuthService + 'static,
-    GL: AuthService + 'static,
+    GH: OAuthService + 'static,
+    GL: OAuthService + 'static,
     UR: UserRepository,
     UER: UserEmailRepository,
     TR: TokenRepository,
@@ -102,7 +102,7 @@ where
         refresh_token_repo: Arc<RR>,
         token_service: Arc<TS>,
     ) -> Self {
-        let auth_factory = Arc::new(AuthProviderFactory::new(github_auth, gitlab_auth));
+        let auth_factory = Arc::new(OAuthProviderFactory::new(github_auth, gitlab_auth));
         
         Self {
             auth_factory,
@@ -122,12 +122,12 @@ where
         redirect_uri: String,
     ) -> Result<(domain::entity::provider::ProviderTokens, domain::entity::provider::ProviderUserProfile), LoginError>
     where
-        GH: AuthService,
-        GL: AuthService,
-        <GH as AuthService>::Error: std::error::Error + Send + Sync + 'static,
-        <GL as AuthService>::Error: std::error::Error + Send + Sync + 'static,
+        GH: OAuthService,
+        GL: OAuthService,
+        <GH as OAuthService>::Error: std::error::Error + Send + Sync + 'static,
+        <GL as OAuthService>::Error: std::error::Error + Send + Sync + 'static,
     {
-        let auth_service = self.auth_factory.get_auth_service(provider);
+        let auth_service = self.auth_factory.get_oauth_service(provider);
         
         auth_service
             .exchange_code(code, redirect_uri)
@@ -284,8 +284,8 @@ where
 #[async_trait]
 impl<GH, GL, UR, UER, TR, RR, TS> LoginUseCase for LoginUseCaseImpl<GH, GL, UR, UER, TR, RR, TS>
 where
-    GH: AuthService + Send + Sync + 'static,
-    GL: AuthService + Send + Sync + 'static,
+    GH: OAuthService + Send + Sync + 'static,
+    GL: OAuthService + Send + Sync + 'static,
     UR: UserRepository + Send + Sync,
     UER: UserEmailRepository + Send + Sync,
     TR: TokenRepository + Send + Sync,
@@ -300,7 +300,7 @@ where
     TS::Error: std::error::Error + Send + Sync + 'static,
 {
     fn generate_start_url(&self, provider: Provider) -> Result<String, LoginError> {
-        let auth_service = self.auth_factory.get_auth_service(provider);
+        let auth_service = self.auth_factory.get_oauth_service(provider);
         Ok(auth_service.generate_authorize_url())
     }
 

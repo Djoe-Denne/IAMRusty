@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use application::usecase::auth::{PasswordService as AppPasswordService, AuthError};
+use application::usecase::oauth::{PasswordService as AppPasswordService, AuthError};
 use super::PasswordService;
 use std::sync::Arc;
 

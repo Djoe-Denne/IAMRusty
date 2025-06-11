@@ -2,7 +2,6 @@ use async_trait::async_trait;
 use domain::entity::email_verification::EmailVerification;
 use domain::error::DomainError;
 use domain::port::repository::{
-    EmailVerificationRepository, 
     EmailVerificationReadRepository as DomainEmailVerificationReadRepository,
     EmailVerificationWriteRepository as DomainEmailVerificationWriteRepository
 };

@@ -1,6 +1,6 @@
 //! Auth provider factory for creating provider-specific authentication services
 
-use crate::auth::{AuthService, AuthError};
+use crate::auth::{OAuthService, AuthError as OAuthError};
 use domain::entity::provider::Provider;
 use std::sync::Arc;
 use thiserror::Error;
@@ -10,23 +10,24 @@ use thiserror::Error;
 pub enum FactoryError {
     /// Unsupported provider
     #[error("Unsupported provider: {0}")]
+    #[allow(dead_code)]
     UnsupportedProvider(String),
 }
 
 /// Factory for creating authentication services based on provider type
-pub struct AuthProviderFactory<GH, GL>
+pub struct OAuthProviderFactory<GH, GL>
 where
-    GH: AuthService + 'static,
-    GL: AuthService + 'static,
+    GH: OAuthService + 'static,
+    GL: OAuthService + 'static,
 {
     github_auth: Arc<GH>,
     gitlab_auth: Arc<GL>,
 }
 
-impl<GH, GL> AuthProviderFactory<GH, GL>
+impl<GH, GL> OAuthProviderFactory<GH, GL>
 where
-    GH: AuthService + 'static,
-    GL: AuthService + 'static,
+    GH: OAuthService + 'static,
+    GL: OAuthService + 'static,
 {
     /// Create a new AuthProviderFactory
     pub fn new(github_auth: Arc<GH>, gitlab_auth: Arc<GL>) -> Self {
@@ -38,32 +39,32 @@ where
 
     /// Get the authentication service for a specific provider
     /// Returns the concrete type wrapped in Arc with unified error type
-    pub fn get_auth_service(&self, provider: Provider) -> Arc<dyn AuthService<Error = AuthError>> {
+    pub fn get_oauth_service(&self, provider: Provider) -> Arc<dyn OAuthService<Error = OAuthError>> {
         match provider {
-            Provider::GitHub => Arc::new(AuthServiceWrapper::new(self.github_auth.clone())),
-            Provider::GitLab => Arc::new(AuthServiceWrapper::new(self.gitlab_auth.clone())),
+            Provider::GitHub => Arc::new(OAuthServiceWrapper::new(self.github_auth.clone())),
+            Provider::GitLab => Arc::new(OAuthServiceWrapper::new(self.gitlab_auth.clone())),
         }
     }
 }
 
 /// Wrapper to unify different auth service error types
-struct AuthServiceWrapper<AS: AuthService> {
+struct OAuthServiceWrapper<AS: OAuthService> {
     inner: Arc<AS>,
 }
 
-impl<AS: AuthService> AuthServiceWrapper<AS> {
+impl<AS: OAuthService> OAuthServiceWrapper<AS> {
     fn new(inner: Arc<AS>) -> Self {
         Self { inner }
     }
 }
 
 #[async_trait::async_trait]
-impl<AS> AuthService for AuthServiceWrapper<AS>
+impl<AS> OAuthService for OAuthServiceWrapper<AS>
 where
-    AS: AuthService,
+    AS: OAuthService,
     AS::Error: std::error::Error + Send + Sync + 'static,
 {
-    type Error = AuthError;
+    type Error = OAuthError;
 
     fn provider(&self) -> Provider {
         self.inner.provider()
@@ -81,6 +82,6 @@ where
         self.inner
             .exchange_code(code, redirect_uri)
             .await
-            .map_err(|e| AuthError::AuthenticationError(e.to_string()))
+            .map_err(|e| OAuthError::AuthenticationError(e.to_string()))
     }
 } 

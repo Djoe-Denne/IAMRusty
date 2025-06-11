@@ -10,10 +10,7 @@ use reqwest::Client;
 use serde_json::Value;
 use serial_test::serial;
 use uuid::Uuid;
-use base64::{Engine as _, engine::general_purpose};
 use chrono::{Utc, Duration};
-use jsonwebtoken::{encode, decode, Header, Algorithm, EncodingKey, DecodingKey, Validation};
-use serde::{Serialize, Deserialize};
 
 /// Create a common HTTP client for tests
 fn create_test_client() -> Client {
@@ -23,71 +20,22 @@ fn create_test_client() -> Client {
         .expect("Failed to create HTTP client")
 }
 
-/// JWT claims for test tokens
-#[derive(Debug, Serialize, Deserialize)]
-struct TestClaims {
-    sub: String,        // Subject (user ID)
-    exp: usize,         // Expiration time (as UTC timestamp)
-    iat: usize,         // Issued at (as UTC timestamp)
-    jti: String,        // JWT ID (unique identifier for the token)
+/// Create a valid JWT token for testing using the proper JWT service
+fn create_valid_jwt_token(user_id: Uuid, config: &configuration::AppConfig) -> String {
+    common::jwt_test_utils::create_valid_jwt_token_with_encoder(user_id, config)
+        .expect("Failed to create valid JWT token")
 }
 
-/// Generate a valid JWT token for testing
-fn create_valid_jwt_token(user_id: Uuid, secret: &str) -> String {
-    let now = Utc::now();
-    let exp = now + Duration::hours(1);
-    
-    let claims = TestClaims {
-        sub: user_id.to_string(),
-        exp: exp.timestamp() as usize,
-        iat: now.timestamp() as usize,
-        jti: Uuid::new_v4().to_string(),
-    };
-    
-    let header = Header::new(Algorithm::HS256);
-    let encoding_key = EncodingKey::from_secret(secret.as_bytes());
-    
-    encode(&header, &claims, &encoding_key)
-        .expect("Failed to encode JWT token")
+/// Create an expired JWT token for testing using the proper JWT service
+fn create_expired_jwt_token(user_id: Uuid, config: &configuration::AppConfig) -> String {
+    common::jwt_test_utils::create_expired_jwt_token_with_encoder(user_id, config)
+        .expect("Failed to create expired JWT token")
 }
 
-/// Generate an expired JWT token for testing
-fn create_expired_jwt_token(user_id: Uuid, secret: &str) -> String {
-    let now = Utc::now();
-    let exp = now - Duration::hours(1); // Expired 1 hour ago
-    
-    let claims = TestClaims {
-        sub: user_id.to_string(),
-        exp: exp.timestamp() as usize,
-        iat: (now - Duration::hours(2)).timestamp() as usize,
-        jti: Uuid::new_v4().to_string(),
-    };
-    
-    let header = Header::new(Algorithm::HS256);
-    let encoding_key = EncodingKey::from_secret(secret.as_bytes());
-    
-    encode(&header, &claims, &encoding_key)
-        .expect("Failed to encode JWT token")
-}
-
-/// Generate a JWT token with invalid signature
-fn create_invalid_signature_jwt_token(user_id: Uuid) -> String {
-    let now = Utc::now();
-    let exp = now + Duration::hours(1);
-    
-    let claims = TestClaims {
-        sub: user_id.to_string(),
-        exp: exp.timestamp() as usize,
-        iat: now.timestamp() as usize,
-        jti: Uuid::new_v4().to_string(),
-    };
-    
-    let header = Header::new(Algorithm::HS256);
-    let wrong_secret = "wrong_secret_for_invalid_signature";
-    let encoding_key = EncodingKey::from_secret(wrong_secret.as_bytes());
-    
-    encode(&header, &claims, &encoding_key)
-        .expect("Failed to encode JWT token")
+/// Create an invalid JWT token for testing using the proper JWT service
+fn create_invalid_signature_jwt_token(user_id: Uuid, config: &configuration::AppConfig) -> String {
+    common::jwt_test_utils::create_invalid_jwt_token_with_encoder(user_id, config)
+        .expect("Failed to create invalid JWT token")
 }
 
 // 👤 User Endpoint Tests
@@ -115,9 +63,8 @@ async fn test_get_user_returns_correct_info_when_token_is_valid() {
         .await
         .expect("Failed to create primary email");
     
-    // Create valid JWT token
-    let secret = test_fixture.config().jwt.get_secret_string().expect("Failed to get secret string");
-    let jwt_token = create_valid_jwt_token(user.id(), &secret);
+    // Create valid JWT token using proper configuration
+    let jwt_token = create_valid_jwt_token(user.id(), &test_fixture.config());
     
     // Make request to /me endpoint
     let response = client
@@ -156,8 +103,7 @@ async fn test_get_user_returns_401_when_token_is_expired() {
     
     // Create expired JWT token
     let user_id = Uuid::new_v4();
-    let secret = test_fixture.config().jwt.get_secret_string().expect("Failed to get secret string");
-    let expired_token = create_expired_jwt_token(user_id, &secret);
+    let expired_token = create_expired_jwt_token(user_id, &test_fixture.config());
     
     // Make request with expired token
     let response = client
@@ -226,12 +172,13 @@ async fn test_get_user_returns_401_when_token_is_malformed() {
 #[serial]
 async fn test_get_user_returns_401_when_token_has_invalid_signature() {
     // Setup test environment
+    let test_fixture = TestFixture::new().await.expect("Failed to create test fixture");
     let base_url = get_test_server().await.expect("Failed to start test server");
     let client = create_test_client();
     
     // Create token with invalid signature
     let user_id = Uuid::new_v4();
-    let invalid_token = create_invalid_signature_jwt_token(user_id);
+    let invalid_token = create_invalid_signature_jwt_token(user_id, &test_fixture.config());
     
     // Make request with invalid signature token
     let response = client
@@ -317,8 +264,7 @@ async fn test_get_user_returns_401_when_user_not_found_in_database() {
     
     // Create valid JWT token for non-existent user
     let non_existent_user_id = Uuid::new_v4();
-    let secret = test_fixture.config().jwt.get_secret_string().expect("Failed to get secret string");
-    let jwt_token = create_valid_jwt_token(non_existent_user_id, &secret);
+    let jwt_token = create_valid_jwt_token(non_existent_user_id, &test_fixture.config());
     
     // Make request with token for non-existent user
     let response = client
@@ -345,8 +291,8 @@ async fn test_get_user_returns_401_when_user_not_found_in_database() {
     
     assert!(response_json["error"].is_object(), 
            "Should return error object");
-    assert_eq!(response_json["error"]["error_code"], "authentication_error".to_string(), 
-              "Error code should be authentication_error");
+    assert_eq!(response_json["error"]["error_code"], "user_not_found".to_string(), 
+              "Error code should be user_not_found");
     assert_eq!(response_json["error"]["status"], 401, 
               "Error status should be 401");
 }
@@ -368,21 +314,20 @@ async fn test_get_user_returns_correct_primary_email_when_user_has_multiple_emai
         .expect("Failed to create user");
     
     // Create multiple emails - secondary email first, then primary
-    let secondary_email = DbFixtures::user_email()
+    let _secondary_email = DbFixtures::user_email()
         .arthur_secondary(user.id())
         .commit(db.clone())
         .await
         .expect("Failed to create secondary email");
     
-    let primary_email = DbFixtures::user_email()
+    let _primary_email = DbFixtures::user_email()
         .arthur_primary(user.id())
         .commit(db.clone())
         .await
         .expect("Failed to create primary email");
     
     // Create valid JWT token
-    let secret = test_fixture.config().jwt.get_secret_string().expect("Failed to get secret string");
-    let jwt_token = create_valid_jwt_token(user.id(), &secret);
+    let jwt_token = create_valid_jwt_token(user.id(), &test_fixture.config());
     
     // Make request to /me endpoint
     let response = client
@@ -424,8 +369,7 @@ async fn test_get_user_handles_user_with_no_primary_email() {
         .expect("Failed to create user");
     
     // Create valid JWT token
-    let secret = test_fixture.config().jwt.get_secret_string().expect("Failed to get secret string");
-    let jwt_token = create_valid_jwt_token(user.id(), &secret);
+    let jwt_token = create_valid_jwt_token(user.id(), &test_fixture.config());
     
     // Make request to /me endpoint
     let response = client
@@ -465,15 +409,14 @@ async fn test_get_user_concurrent_requests_with_same_token() {
         .await
         .expect("Failed to create user");
     
-    let primary_email = DbFixtures::user_email()
+    let _primary_email = DbFixtures::user_email()
         .arthur_primary(user.id())
         .commit(db.clone())
         .await
         .expect("Failed to create primary email");
     
     // Create valid JWT token
-    let secret = test_fixture.config().jwt.get_secret_string().expect("Failed to get secret string");
-    let jwt_token = create_valid_jwt_token(user.id(), &secret);
+    let jwt_token = create_valid_jwt_token(user.id(), &test_fixture.config());
     
     // Make multiple concurrent requests with the same token
     let mut handles = vec![];
@@ -526,13 +469,28 @@ async fn test_get_user_security_jwt_claims_validation() {
         .await
         .expect("Failed to create user");
     
-    let primary_email = DbFixtures::user_email()
+    let _primary_email = DbFixtures::user_email()
         .arthur_primary(user.id())
         .commit(db.clone())
         .await
         .expect("Failed to create primary email");
     
-    let secret = test_fixture.config().jwt.get_secret_string().expect("Failed to get secret string");
+    // Get the JWT configuration to create custom tokens
+    let config = test_fixture.config();
+    let jwt_algorithm_config = config.jwt.create_jwt_algorithm()
+        .expect("Failed to create JWT algorithm");
+    
+    // Get algorithm and keys for manual token creation
+    let (algorithm, encoding_key) = match jwt_algorithm_config {
+        configuration::JwtAlgorithm::HS256(secret) => {
+            (jsonwebtoken::Algorithm::HS256, jsonwebtoken::EncodingKey::from_secret(secret.as_bytes()))
+        }
+        configuration::JwtAlgorithm::RS256(key_pair) => {
+            (jsonwebtoken::Algorithm::RS256, 
+             jsonwebtoken::EncodingKey::from_rsa_pem(key_pair.private_key.as_bytes())
+                .expect("Failed to create RSA encoding key"))
+        }
+    };
     
     // Test various invalid claim scenarios
     let test_cases = vec![
@@ -567,10 +525,9 @@ async fn test_get_user_security_jwt_claims_validation() {
     ];
     
     for (claims, description) in test_cases {
-        let header = Header::new(Algorithm::HS256);
-        let encoding_key = EncodingKey::from_secret(secret.as_bytes());
+        let header = jsonwebtoken::Header::new(algorithm);
         
-        let invalid_token = encode(&header, &claims, &encoding_key)
+        let invalid_token = jsonwebtoken::encode(&header, &claims, &encoding_key)
             .expect("Failed to encode token");
         
         let response = client

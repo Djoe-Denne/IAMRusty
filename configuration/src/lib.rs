@@ -15,7 +15,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use rustycog_config::{ConfigCache, ConfigLoader};
 use tracing::debug;
 use std::fs;
-use std::path::Path;
+
 use thiserror::Error;
 
 /// Secret management errors

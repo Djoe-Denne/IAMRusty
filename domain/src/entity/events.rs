@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use chrono::{DateTime, Utc};
+
 use rustycog_events::event::BaseEvent;
 
 /// Domain events that can be published to external systems

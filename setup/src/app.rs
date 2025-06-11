@@ -35,7 +35,7 @@ use application::{
         token::TokenUseCaseImpl,
         link_provider::LinkProviderUseCaseImpl,
         provider::ProviderUseCaseImpl,
-        auth::AuthUseCaseImpl,
+        oauth::AuthUseCaseImpl,
     },
     command::{
         CommandRegistryFactory, GenericCommandService,

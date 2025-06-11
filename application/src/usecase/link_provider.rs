@@ -7,8 +7,8 @@ use domain::entity::{
 };
 use domain::service::{ProviderLinkService};
 use domain::error::DomainError;
-use crate::auth::AuthService;
-use crate::usecase::factory::AuthProviderFactory;
+use crate::auth::OAuthService;
+use crate::usecase::factory::OAuthProviderFactory;
 use async_trait::async_trait;
 use std::sync::Arc;
 use thiserror::Error;
@@ -62,20 +62,20 @@ pub trait LinkProviderUseCase: Send + Sync {
 /// Link provider use case implementation
 pub struct LinkProviderUseCaseImpl<GH, GL, UR, UER, TR> 
 where
-    GH: AuthService + 'static,
-    GL: AuthService + 'static,
+    GH: OAuthService + 'static,
+    GL: OAuthService + 'static,
     UR: domain::port::repository::UserRepository,
     UER: domain::port::repository::UserEmailRepository,
     TR: domain::port::repository::TokenRepository,
 {
-    auth_factory: Arc<AuthProviderFactory<GH, GL>>,
+    auth_factory: Arc<OAuthProviderFactory<GH, GL>>,
     provider_link_service: Arc<ProviderLinkService<UR, UER, TR>>,
 }
 
 impl<GH, GL, UR, UER, TR> LinkProviderUseCaseImpl<GH, GL, UR, UER, TR>
 where
-    GH: AuthService + 'static,
-    GL: AuthService + 'static,
+    GH: OAuthService + 'static,
+    GL: OAuthService + 'static,
     UR: domain::port::repository::UserRepository,
     UER: domain::port::repository::UserEmailRepository,
     TR: domain::port::repository::TokenRepository,
@@ -86,7 +86,7 @@ where
         gitlab_auth: Arc<GL>,
         provider_link_service: Arc<ProviderLinkService<UR, UER, TR>>,
     ) -> Self {
-        let auth_factory = Arc::new(AuthProviderFactory::new(github_auth, gitlab_auth));
+        let auth_factory = Arc::new(OAuthProviderFactory::new(github_auth, gitlab_auth));
         
         Self {
             auth_factory,
@@ -102,12 +102,12 @@ where
         redirect_uri: String,
     ) -> Result<(domain::entity::provider::ProviderTokens, domain::entity::provider::ProviderUserProfile), LinkProviderError>
     where
-        GH: AuthService,
-        GL: AuthService,
-        <GH as AuthService>::Error: std::error::Error + Send + Sync + 'static,
-        <GL as AuthService>::Error: std::error::Error + Send + Sync + 'static,
+        GH: OAuthService,
+        GL: OAuthService,
+        <GH as OAuthService>::Error: std::error::Error + Send + Sync + 'static,
+        <GL as OAuthService>::Error: std::error::Error + Send + Sync + 'static,
     {
-        let auth_service = self.auth_factory.get_auth_service(provider);
+        let auth_service = self.auth_factory.get_oauth_service(provider);
         
         let (tokens, profile) = auth_service
             .exchange_code(code, redirect_uri)
@@ -121,19 +121,19 @@ where
 #[async_trait]
 impl<GH, GL, UR, UER, TR> LinkProviderUseCase for LinkProviderUseCaseImpl<GH, GL, UR, UER, TR>
 where
-    GH: AuthService + Send + Sync + 'static,
-    GL: AuthService + Send + Sync + 'static,
+    GH: OAuthService + Send + Sync + 'static,
+    GL: OAuthService + Send + Sync + 'static,
     UR: domain::port::repository::UserRepository + Send + Sync,
     UER: domain::port::repository::UserEmailRepository + Send + Sync,
     TR: domain::port::repository::TokenRepository + Send + Sync,
-    <GH as AuthService>::Error: std::error::Error + Send + Sync + 'static,
-    <GL as AuthService>::Error: std::error::Error + Send + Sync + 'static,
+    <GH as OAuthService>::Error: std::error::Error + Send + Sync + 'static,
+    <GL as OAuthService>::Error: std::error::Error + Send + Sync + 'static,
     <UR as domain::port::repository::UserRepository>::Error: std::error::Error + Send + Sync + 'static,
     <UER as domain::port::repository::UserEmailRepository>::Error: std::error::Error + Send + Sync + 'static,
     <TR as domain::port::repository::TokenRepository>::Error: std::error::Error + Send + Sync + 'static,
 {
     fn generate_start_url(&self, provider: Provider) -> Result<String, LinkProviderError> {
-        let auth_service = self.auth_factory.get_auth_service(provider);
+        let auth_service = self.auth_factory.get_oauth_service(provider);
         Ok(auth_service.generate_authorize_url())
     }
 

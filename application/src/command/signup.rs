@@ -1,5 +1,5 @@
 use rustycog_command::{Command, CommandError, CommandHandler, CommandErrorMapper};
-use crate::usecase::auth::{AuthUseCase, SignupRequest, SignupResponse, AuthError};
+use crate::usecase::oauth::{AuthUseCase, SignupRequest, SignupResponse, AuthError};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;

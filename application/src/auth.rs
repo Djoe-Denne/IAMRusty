@@ -19,7 +19,7 @@ pub enum AuthError {
 
 /// Authentication service for OAuth providers
 #[async_trait]
-pub trait AuthService: Send + Sync {
+pub trait OAuthService: Send + Sync {
     /// Error type returned by this service
     type Error: std::error::Error + Send + Sync + 'static;
     

@@ -1,7 +1,7 @@
 //! Factory module for creating use cases
 
-mod auth_provider;
-mod auth_factory;
+mod oauth_provider;
+mod oauth_factory;
 
-pub use auth_provider::AuthProviderFactory;
-pub use auth_factory::AuthFactory; 
+pub use oauth_provider::OAuthProviderFactory;
+pub use oauth_factory::OAuthFactory; 

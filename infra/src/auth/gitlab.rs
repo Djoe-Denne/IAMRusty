@@ -6,7 +6,7 @@ use oauth2::{
 use domain::entity::provider::{Provider, ProviderTokens, ProviderUserProfile};
 use domain::error::DomainError;
 use domain::port::service::ProviderOAuth2Client;
-use application::auth::{AuthService, AuthError};
+use application::auth::{OAuthService, AuthError};
 use configuration::GitLabConfig;
 use serde::Deserialize;
 use tracing::{debug, error};
@@ -156,7 +156,7 @@ impl ProviderOAuth2Client for GitLabOAuth2Client {
 }
 
 #[async_trait]
-impl AuthService for GitLabOAuth2Client {
+impl OAuthService for GitLabOAuth2Client {
     type Error = AuthError;
 
     fn provider(&self) -> Provider {

@@ -14,7 +14,7 @@ use crate::usecase::{
     provider::ProviderUseCase,
     token::TokenUseCase,
     user::UserUseCase,
-    auth::AuthUseCase,
+    oauth::AuthUseCase,
 };
 use std::sync::Arc;
 

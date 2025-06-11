@@ -6,7 +6,7 @@ use oauth2::{
 use domain::entity::provider::{Provider, ProviderTokens, ProviderUserProfile};
 use domain::error::DomainError;
 use domain::port::service::ProviderOAuth2Client;
-use application::auth::{AuthService, AuthError};
+use application::auth::{OAuthService, AuthError};
 use configuration::GitHubConfig;
 use serde::Deserialize;
 use tracing::{debug, error};
@@ -142,7 +142,7 @@ impl ProviderOAuth2Client for GitHubOAuth2Client {
 }
 
 #[async_trait]
-impl AuthService for GitHubOAuth2Client {
+impl OAuthService for GitHubOAuth2Client {
     type Error = AuthError;
 
     fn provider(&self) -> Provider {

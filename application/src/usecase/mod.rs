@@ -4,4 +4,4 @@ pub mod token;
 pub mod link_provider;
 pub mod provider;
 pub mod factory;
-pub mod auth; 
+pub mod oauth; 
