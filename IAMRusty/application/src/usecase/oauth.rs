@@ -106,6 +106,18 @@ pub struct VerifyEmailResponse {
     pub message: String,
 }
 
+/// Resend verification email request
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResendVerificationEmailRequest {
+    pub email: String,
+}
+
+/// Resend verification email response
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResendVerificationEmailResponse {
+    pub message: String,
+}
+
 /// User profile for responses
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserProfile {
@@ -134,6 +146,7 @@ pub trait AuthUseCase: Send + Sync {
     async fn signup(&self, request: SignupRequest) -> Result<SignupResponse, AuthError>;
     async fn login(&self, request: LoginRequest) -> Result<LoginResponse, AuthError>;
     async fn verify_email(&self, request: VerifyEmailRequest) -> Result<VerifyEmailResponse, AuthError>;
+    async fn resend_verification_email(&self, request: ResendVerificationEmailRequest) -> Result<ResendVerificationEmailResponse, AuthError>;
 }
 
 /// Implementation of the auth use case
@@ -291,12 +304,12 @@ where
         self.email_verification_repository.create(&email_verification).await
             .map_err(|e| AuthError::RepositoryError(DomainError::RepositoryError(e.to_string())))?;
 
-        // Publish UserSignedUp event
+        // Publish UserSignedUp event so external email service can handle sending email
         let event = DomainEvent::UserSignedUp(UserSignedUpEvent::new(
             _created_user.id,
-            request.email,
-            request.username,
-            false, // Email not verified yet
+            request.email.clone(),
+            request.username.clone(),
+            false,
         ));
 
         if let Err(e) = self.event_publisher.publish(event).await {
@@ -437,5 +450,53 @@ where
         Ok(VerifyEmailResponse {
             message: "Email verified successfully".to_string(),
         })
+    }
+
+    async fn resend_verification_email(&self, request: ResendVerificationEmailRequest) -> Result<ResendVerificationEmailResponse, AuthError> {
+        // Find user by email
+        let user_email = self.user_email_repository
+            .find_by_email(&request.email)
+            .await
+            .map_err(|e| AuthError::RepositoryError(DomainError::RepositoryError(e.to_string())))?
+            .ok_or(AuthError::EmailNotFound)?;
+
+        // Check if email is verified
+        if user_email.is_verified {
+            return Err(AuthError::EmailAlreadyVerified);
+        }
+
+        // Generate verification token
+        let verification_token = self.generate_verification_token(&request.email)?;
+        let email_verification = EmailVerification::new(
+            request.email.clone(),
+            verification_token,
+            24, // Expires in 24 hours
+        );
+
+        // Save the verification token
+        self.email_verification_repository.create(&email_verification).await
+            .map_err(|e| AuthError::RepositoryError(DomainError::RepositoryError(e.to_string())))?;
+
+        // Fetch user to include username
+        let user = self.user_repository
+            .find_by_id(user_email.user_id)
+            .await
+            .map_err(|e| AuthError::RepositoryError(DomainError::RepositoryError(e.to_string())))?
+            .ok_or(AuthError::UserNotFound)?;
+
+        // Reuse UserSignedUp event to trigger email service
+        let event = DomainEvent::UserSignedUp(UserSignedUpEvent::new(
+            user_email.user_id,
+            request.email.clone(),
+            user.username,
+            false,
+        ));
+
+        if let Err(e) = self.event_publisher.publish(event).await {
+            tracing::warn!("Failed to publish UserSignedUp event: {}", e);
+            // Don't fail the resend for event publishing errors
+        }
+
+        Ok(ResendVerificationEmailResponse { message: "Verification email resent successfully".to_string() })
     }
 } 

@@ -6,6 +6,7 @@ pub mod signup;
 pub mod password_login;
 pub mod verify_email;
 pub mod factory;
+pub mod resend_verification_email;
 
 // Re-export everything from rustycog-command
 pub use rustycog_command::*;

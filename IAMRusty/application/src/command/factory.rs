@@ -81,7 +81,7 @@ impl CommandRegistryFactory {
         // Register auth commands
         let signup_handler = Arc::new(SignupCommandHandler::new(auth_usecase.clone()));
         let password_login_handler = Arc::new(PasswordLoginCommandHandler::new(auth_usecase.clone()));
-        let verify_email_handler = Arc::new(VerifyEmailCommandHandler::new(auth_usecase));
+        let verify_email_handler = Arc::new(VerifyEmailCommandHandler::new(auth_usecase.clone()));
         let signup_auth_error_mapper = Arc::new(SignupAuthErrorMapper);
         let password_login_auth_error_mapper = Arc::new(PasswordLoginAuthErrorMapper);
         let verify_email_auth_error_mapper = Arc::new(VerifyEmailAuthErrorMapper);
@@ -89,7 +89,14 @@ impl CommandRegistryFactory {
         builder = builder
             .register::<SignupCommand, _>("signup".to_string(), signup_handler, signup_auth_error_mapper)
             .register::<PasswordLoginCommand, _>("password_login".to_string(), password_login_handler, password_login_auth_error_mapper)
-            .register::<VerifyEmailCommand, _>("verify_email".to_string(), verify_email_handler, verify_email_auth_error_mapper);
+            .register::<VerifyEmailCommand, _>("verify_email".to_string(), verify_email_handler.clone(), verify_email_auth_error_mapper.clone());
+
+        // Register resend verification email command
+        use super::resend_verification_email::{ResendVerificationEmailCommand, ResendVerificationEmailCommandHandler};
+        let resend_verification_email_handler = Arc::new(ResendVerificationEmailCommandHandler::new(auth_usecase));
+
+        builder = builder
+            .register::<ResendVerificationEmailCommand, _>("resend_verification_email".to_string(), resend_verification_email_handler, verify_email_auth_error_mapper);
 
         builder.build()
     }
@@ -118,7 +125,7 @@ impl CommandRegistryFactory {
     ) -> CommandRegistryBuilder {
         let signup_handler = Arc::new(SignupCommandHandler::new(auth_usecase.clone()));
         let password_login_handler = Arc::new(PasswordLoginCommandHandler::new(auth_usecase.clone()));
-        let verify_email_handler = Arc::new(VerifyEmailCommandHandler::new(auth_usecase));
+        let verify_email_handler = Arc::new(VerifyEmailCommandHandler::new(auth_usecase.clone()));
         let signup_auth_error_mapper = Arc::new(SignupAuthErrorMapper);
         let password_login_auth_error_mapper = Arc::new(PasswordLoginAuthErrorMapper);
         let verify_email_auth_error_mapper = Arc::new(VerifyEmailAuthErrorMapper);

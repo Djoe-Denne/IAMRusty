@@ -31,7 +31,7 @@ pub mod oauth_state;
 pub mod validation;
 
 pub use handlers::{
-    auth::{oauth_callback, oauth_start, signup, login, verify_email, internal_provider_token, jwks},
+    auth::{oauth_callback, oauth_start, signup, login, verify_email, resend_verification_email, internal_provider_token, jwks},
     user::get_user,
     token::refresh_token,
 };
@@ -115,6 +115,7 @@ pub async fn serve_with_config(state: AppState, config: ServerConfig) -> anyhow:
         .route("/api/auth/signup", post(signup))
         .route("/api/auth/login", post(login))
         .route("/api/auth/verify", post(verify_email))
+        .route("/api/auth/resend-verification", post(resend_verification_email))
         .route("/api/auth/{provider_name}/start", get(oauth_start))
         .route("/api/auth/{provider_name}/callback", get(oauth_callback))
         .route("/api/token/refresh", post(refresh_token))

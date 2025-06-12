@@ -15,6 +15,7 @@ use application::command::{
     signup::SignupCommand,
     password_login::PasswordLoginCommand,
     verify_email::VerifyEmailCommand,
+    resend_verification_email::ResendVerificationEmailCommand,
 };
 use crate::{AppState, oauth_state::OAuthState, error::AuthError, validation::*, extractors::ValidatedJson, middleware_auth::AuthUser};
 use tracing::{debug, error};
@@ -141,6 +142,13 @@ pub struct VerifyEmailRequest {
     pub email: String,
     #[validate(custom(function = "crate::validation::validate_verification_token", message = "Invalid verification token format"))]
     pub verification_token: String,
+}
+
+/// Resend verification email request
+#[derive(Debug, Deserialize, Validate)]
+pub struct ResendVerificationEmailRequest {
+    #[validate(custom(function = "crate::validation::validate_email_format", message = "Invalid email format"))]
+    pub email: String,
 }
 
 /// Generic success response
@@ -464,6 +472,28 @@ pub async fn verify_email(
     Ok(Json(SuccessResponse {
         message: response.message,
     }))
+}
+
+/// Resend verification email
+pub async fn resend_verification_email(
+    State(state): State<AppState>,
+    ValidatedJson(request): ValidatedJson<ResendVerificationEmailRequest>,
+) -> Result<Json<SuccessResponse>, AuthError> {
+    let command = ResendVerificationEmailCommand::new(request.email.clone());
+
+    let context = CommandContext::new()
+        .with_metadata("operation".to_string(), "resend_verification_email".to_string())
+        .with_metadata("email".to_string(), request.email.clone());
+
+    let response = state.command_service
+        .execute(command, context)
+        .await
+        .map_err(|e| {
+            error!("Resend verification failed: {}", e);
+            AuthError::verification_failed(&e) // reuse existing error mapping
+        })?;
+
+    Ok(Json(SuccessResponse { message: response.message }))
 }
 
 /// Provider token response for internal endpoints
