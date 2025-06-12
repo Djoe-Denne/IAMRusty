@@ -5,7 +5,7 @@
 //! separation.
 
 use std::sync::Arc;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use async_trait::async_trait;
 use domain::error::DomainError;
 use domain::port::event_publisher::EventPublisher;
@@ -174,7 +174,57 @@ impl RustycogDomainEvent for IAMDomainEventAdapter {
 /// Type alias for IAMRusty's adapted event publisher
 pub type IAMEventPublisherAdapter = GenericEventPublisherAdapter<IAMDomainEvent, DomainError>;
 
-/// Wrapper that implements the domain EventPublisher trait
+/// Multi-queue event publisher that can publish to multiple queues
+pub struct MultiQueueEventPublisher {
+    publishers: Vec<IAMEventPublisherAdapter>,
+    queue_names: HashSet<String>,
+}
+
+impl MultiQueueEventPublisher {
+    /// Create a new multi-queue event publisher
+    pub fn new(publishers: Vec<IAMEventPublisherAdapter>, queue_names: HashSet<String>) -> Self {
+        Self { publishers, queue_names }
+    }
+
+    /// Check if this publisher handles the given queue name
+    pub fn handles_queue(&self, queue_name: &str) -> bool {
+        self.queue_names.is_empty() || self.queue_names.contains(queue_name)
+    }
+
+    /// Get the queue names this publisher handles
+    pub fn queue_names(&self) -> &HashSet<String> {
+        &self.queue_names
+    }
+}
+
+#[async_trait]
+impl EventPublisher for MultiQueueEventPublisher {
+    async fn publish(&self, event: IAMDomainEvent) -> Result<(), DomainError> {
+        // Publish to all configured publishers
+        for publisher in &self.publishers {
+            publisher.publish(event.clone()).await?;
+        }
+        Ok(())
+    }
+
+    async fn publish_batch(&self, events: Vec<IAMDomainEvent>) -> Result<(), DomainError> {
+        // Publish to all configured publishers
+        for publisher in &self.publishers {
+            publisher.publish_batch(events.clone()).await?;
+        }
+        Ok(())
+    }
+
+    async fn health_check(&self) -> Result<(), DomainError> {
+        // Check health of all publishers
+        for publisher in &self.publishers {
+            publisher.health_check().await?;
+        }
+        Ok(())
+    }
+}
+
+/// Wrapper that implements the domain EventPublisher trait (legacy single publisher support)
 pub struct EventPublisherWrapper {
     inner: IAMEventPublisherAdapter,
 }
@@ -247,6 +297,114 @@ pub async fn create_event_publisher_with_queue_config_async(config: &QueueConfig
     })?;
     
     Ok(Arc::new(EventPublisherWrapper::new(adapted_publisher)))
+}
+
+/// Factory function to create a multi-queue event publisher with specific queue names
+/// If queue_names is empty, it will handle all queues configured in the QueueConfig
+/// 
+/// # Examples
+/// 
+/// ```rust
+/// use std::collections::HashSet;
+/// use rustycog_config::QueueConfig;
+/// 
+/// // Create a publisher that handles all queues
+/// let publisher = create_multi_queue_event_publisher_async(&config, None).await?;
+/// 
+/// // Create a publisher that only handles specific queues
+/// let mut specific_queues = HashSet::new();
+/// specific_queues.insert("user-events".to_string());
+/// specific_queues.insert("email-events".to_string());
+/// let publisher = create_multi_queue_event_publisher_async(&config, Some(specific_queues)).await?;
+/// ```
+pub async fn create_multi_queue_event_publisher_async(
+    config: &QueueConfig,
+    queue_names: Option<HashSet<String>>,
+) -> Result<Arc<MultiQueueEventPublisher>, DomainError> {
+    let error_mapper = Arc::new(IAMErrorMapper);
+    let event_adapter = Arc::new(IAMEventAdapter);
+    
+    let queue_names = queue_names.unwrap_or_else(|| {
+        // If no specific queue names provided, use all configured queues
+        match config {
+            QueueConfig::Sqs(sqs_config) => {
+                let mut all_queues = HashSet::new();
+                // Add all queue names from the configuration
+                for queue_name in sqs_config.queues.values() {
+                    all_queues.insert(queue_name.clone());
+                }
+                // Also add the default queue
+                all_queues.insert(sqs_config.default_queue.clone());
+                all_queues
+            }
+            QueueConfig::Kafka(kafka_config) => {
+                let mut all_queues = HashSet::new();
+                all_queues.insert(kafka_config.user_events_topic.clone());
+                all_queues
+            }
+            QueueConfig::Disabled => HashSet::new(),
+        }
+    });
+    
+    // For now, create a single publisher (we can extend this later to create multiple publishers for different queues)
+    let adapted_publisher = rustycog_events::adapter::create_adapted_event_publisher_with_queue_config_async(
+        config, 
+        error_mapper, 
+        event_adapter
+    ).await.map_err(|service_error| {
+        IAMErrorMapper.from_service_error(service_error)
+    })?;
+    
+    Ok(Arc::new(MultiQueueEventPublisher::new(
+        vec![adapted_publisher],
+        queue_names,
+    )))
+}
+
+/// Factory function to create multiple event publishers for specific queues
+/// This creates one publisher per queue, allowing for fine-grained control
+/// 
+/// # Examples
+/// 
+/// ```rust
+/// use std::collections::HashSet;
+/// 
+/// let mut target_queues = HashSet::new();
+/// target_queues.insert("user-events".to_string());
+/// target_queues.insert("email-events".to_string());
+/// 
+/// let publishers = create_queue_specific_event_publishers_async(&config, &target_queues).await?;
+/// for (queue_name, publisher) in publishers {
+///     println!("Created publisher for queue: {}", queue_name);
+/// }
+/// ```
+pub async fn create_queue_specific_event_publishers_async(
+    base_config: &QueueConfig,
+    target_queues: &HashSet<String>,
+) -> Result<Vec<(String, Arc<EventPublisherWrapper>)>, DomainError> {
+    let mut publishers = Vec::new();
+    
+    for queue_name in target_queues {
+        // Create a modified config for this specific queue
+        let queue_config = match base_config {
+            QueueConfig::Sqs(sqs_config) => {
+                let mut modified_sqs_config = sqs_config.clone();
+                modified_sqs_config.default_queue = queue_name.clone();
+                QueueConfig::Sqs(modified_sqs_config)
+            }
+            QueueConfig::Kafka(kafka_config) => {
+                let mut modified_kafka_config = kafka_config.clone();
+                modified_kafka_config.user_events_topic = queue_name.clone();
+                QueueConfig::Kafka(modified_kafka_config)
+            }
+            QueueConfig::Disabled => QueueConfig::Disabled,
+        };
+        
+        let publisher = create_event_publisher_with_queue_config_async(&queue_config).await?;
+        publishers.push((queue_name.clone(), publisher));
+    }
+    
+    Ok(publishers)
 }
 
 /// Create a custom error mapper registry with IAM-specific mappings

@@ -48,73 +48,34 @@ private_key_path = "./config/certs/key.pem"
 public_key_path = "./config/certs/public_key.pem"
 key_id = "jwt-key-test"
 
-# Queue configuration - can be either Kafka or SQS
+# Queue configuration for testing - using SQS
 [queue]
-type = "kafka"  # Default to Kafka, can be changed to "sqs" or "disabled"
-
-# Kafka configuration for event publishing
-[queue.kafka]
-enabled = true
-host = "localhost"
-port = 9092
-user_events_topic = "user-events"
-client_id = "iam-service"
-timeout_ms = 5000
-max_retries = 3
-compression = "gzip"
-security_protocol = "plaintext"
-# Additional broker hosts for multi-broker setups (optional)
-additional_brokers = []
-# Optional SASL configuration
-# sasl_mechanism = "PLAIN"
-# sasl_username = "your-kafka-username"
-# sasl_password = "your-kafka-password"
-
-# SQS configuration for event publishing (alternative to Kafka)
-[queue.sqs]
-enabled = false  # Disabled by default, enable when using SQS
+type = "sqs"
+enabled = true  # Enabled for real SQS integration tests
 region = "us-east-1"
-account_id = "123456789012"
-default_queue = "user-events"
-# Queue mappings for different event types (can be extended)
-[queue.sqs.queues]
-user_signed_up = "user-events"
-user_email_verified = "user-events"
-user_logged_in = "user-events"
-# For LocalStack development/testing, use host/port:
+account_id = "000000000000"
+default_queue = "test-user-events"
+# Use new host/port configuration instead of endpoint_url
 host = "localhost"
-port = 4566
-# For production AWS, leave host as empty to use AWS endpoints
-# host = ""
-# port = 443
-access_key_id = "your-aws-access-key"
-secret_access_key = "your-aws-secret-key"
+port = 0  # Use random port for testing (will set EXTERNAL_SERVICE_PORTS_START)
+access_key_id = "test"
+secret_access_key = "test"
 max_retries = 3
 timeout_seconds = 30
 
-# Legacy Kafka configuration for backward compatibility
+# Queue mappings for different event types (can be extended)
+[queue.queues]
+user_signed_up = "test-user-events"
+
+# Legacy Kafka configuration kept for backward compatibility tests
 [kafka]
-enabled = true
+enabled = false  # Disabled by default, can be enabled for Kafka-specific tests
 host = "localhost"
-port = 9092
-user_events_topic = "user-events"
-client_id = "iam-service"
+port = 0  # Use random port for testing to avoid conflicts
+user_events_topic = "test-user-events"
+client_id = "iam-service-test"
 timeout_ms = 5000
 max_retries = 3
-compression = "gzip"
+compression = "none"
 security_protocol = "plaintext"
-# Additional broker hosts for multi-broker setups (optional)
-additional_brokers = []
-# Optional SASL configuration
-# sasl_mechanism = "PLAIN"
-# sasl_username = "your-kafka-username"
-# sasl_password = "your-kafka-password"
 
-# Command configuration
-[command.retry]
-# Default retry configuration for all commands
-max_attempts = 3
-base_delay_ms = 100
-max_delay_ms = 30000
-backoff_multiplier = 2.0
-use_jitter = true 

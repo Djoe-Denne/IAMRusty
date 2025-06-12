@@ -5,7 +5,7 @@ use chrono::Duration;
 
 use http_server::{AppState, serve_with_config, ServerConfig as HttpServerConfig};
 use infra::{
-    auth::{GitHubOAuth2Client, GitLabOAuth2Client, PasswordService, PasswordServiceAdapter}, db::DbConnectionPool, event_adapter::{create_event_publisher_with_queue_config_async}, repository::{
+    auth::{GitHubOAuth2Client, GitLabOAuth2Client, PasswordService, PasswordServiceAdapter}, db::DbConnectionPool, event_adapter::{create_multi_queue_event_publisher_async}, repository::{
         combined_email_verification_repository::CombinedEmailVerificationRepository, combined_repository::{CombinedRefreshTokenRepository, CombinedTokenRepository, CombinedUserRepository}, combined_user_email_repository::CombinedUserEmailRepository, email_verification_read::SeaOrmEmailVerificationReadRepository, email_verification_write::SeaOrmEmailVerificationWriteRepository, refresh_token_read::RefreshTokenReadRepositoryImpl, refresh_token_write::RefreshTokenWriteRepositoryImpl, token_read::TokenReadRepositoryImpl, token_write::TokenWriteRepositoryImpl, user_email_read::UserEmailReadRepositoryImpl, user_email_write::UserEmailWriteRepositoryImpl, user_read::UserReadRepositoryImpl, user_write::UserWriteRepositoryImpl
     }, token::JwtTokenService
 };
@@ -84,7 +84,29 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
     let password_service_adapter = Arc::new(PasswordServiceAdapter::new(password_service));
 
     // Create event publisher using configuration
-    let event_publisher = create_event_publisher_with_queue_config_async(&config.queue).await?;
+    // For now, create a multi-queue publisher that handles all configured queues
+    // You can modify this to handle specific queues by passing Some(queue_names_set)
+    // 
+    // Examples:
+    // 
+    // 1. Handle all queues (current behavior):
+    // let event_publisher = create_multi_queue_event_publisher_async(&config.queue, None).await?;
+    // 
+    // 2. Handle only specific queues:
+    // let mut specific_queues = HashSet::new();
+    // specific_queues.insert("test-user-events".to_string());
+    // let event_publisher = create_multi_queue_event_publisher_async(&config.queue, Some(specific_queues)).await?;
+    // 
+    // 3. Handle queues based on environment:
+    // let queue_names = if config.is_test_environment() {
+    //     let mut test_queues = HashSet::new();
+    //     test_queues.insert("test-user-events".to_string());
+    //     Some(test_queues)
+    // } else {
+    //     None // Handle all queues in production
+    // };
+    // let event_publisher = create_multi_queue_event_publisher_async(&config.queue, queue_names).await?;
+    let event_publisher = create_multi_queue_event_publisher_async(&config.queue, None).await?;
 
     // Create token service with secret resolved from configuration
     tracing::info!("Setting up JWT token service");

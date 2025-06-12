@@ -49,7 +49,7 @@ key_id = "jwt-key-test"
 
 # Enable maximum logging for tests
 [logging]
-level = "debug"
+level = ""
 
 # Command configuration for testing
 [command.retry]
@@ -78,8 +78,6 @@ timeout_seconds = 30
 # Queue mappings for different event types (can be extended)
 [queue.queues]
 user_signed_up = "test-user-events"
-user_email_verified = "test-user-events"
-user_logged_in = "test-user-events"
 
 # Legacy Kafka configuration kept for backward compatibility tests
 [kafka]
