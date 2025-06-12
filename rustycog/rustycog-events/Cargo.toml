@@ -10,6 +10,9 @@ license.workspace = true
 rustycog-core = { path = "../rustycog-core" }
 rustycog-config = { path = "../rustycog-config" }
 rdkafka.workspace = true
+aws-sdk-sqs = "1.0"
+aws-config = "1.0"
+aws-credential-types = "1.0"
 tokio.workspace = true
 async-trait.workspace = true
 serde.workspace = true

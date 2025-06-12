@@ -7,6 +7,9 @@ pub mod db_utils;
 #[cfg(test)]
 pub mod kafka_testcontainer;
 
+#[cfg(test)]
+pub mod sqs_testcontainer;
+
 pub use database::*;
 pub use http_test::spawn_test_server;
 pub use test_server::get_test_server;
@@ -15,4 +18,8 @@ pub use db_utils::*;
 
 #[cfg(test)]
 pub use kafka_testcontainer::{TestKafkaFixture};
+
+#[cfg(test)]
+pub use sqs_testcontainer::{TestSqsFixture};
+
 pub use test_server::*; 

@@ -57,8 +57,8 @@ tokio = { version = "1.44", features = ["rt-multi-thread", "macros"] }
 axum-test = "17.3.0"
 tokio-test = "0.4.3"
 wiremock = "0.6.0"
-testcontainers = "0.23.1"
-testcontainers-modules = { version = "0.11.0", features = ["postgres"] }
+testcontainers = { version = "0.23.1", features = ["blocking"] }
+testcontainers-modules = { version = "0.11.0", features = ["postgres", "localstack"] }
 sqlx = { version = "0.8.2", features = ["postgres", "runtime-tokio-rustls", "uuid", "chrono"] }
 sea-orm-cli = "1.1.11"
 url = "2.5.0"
@@ -74,5 +74,8 @@ async-trait = "0.1.74"
 reqwest = { version = "0.12.0", features = ["json"] }
 base64 = "0.22.0"
 rdkafka = { version = "0.36.2", features = ["cmake-build", "tokio"] }
+aws-sdk-sqs = "1.0"
+aws-config = "1.0"
+aws-credential-types = "1.0"
 infra = { path = "infra", features = ["test-utils"] }
 rustycog-events = { path = "../rustycog/rustycog-events", features = ["test-utils"] }

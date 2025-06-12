@@ -48,7 +48,51 @@ private_key_path = "./config/certs/key.pem"
 public_key_path = "./config/certs/public_key.pem"
 key_id = "jwt-key-test"
 
+# Queue configuration - can be either Kafka or SQS
+[queue]
+type = "kafka"  # Default to Kafka, can be changed to "sqs" or "disabled"
+
 # Kafka configuration for event publishing
+[queue.kafka]
+enabled = true
+host = "localhost"
+port = 9092
+user_events_topic = "user-events"
+client_id = "iam-service"
+timeout_ms = 5000
+max_retries = 3
+compression = "gzip"
+security_protocol = "plaintext"
+# Additional broker hosts for multi-broker setups (optional)
+additional_brokers = []
+# Optional SASL configuration
+# sasl_mechanism = "PLAIN"
+# sasl_username = "your-kafka-username"
+# sasl_password = "your-kafka-password"
+
+# SQS configuration for event publishing (alternative to Kafka)
+[queue.sqs]
+enabled = false  # Disabled by default, enable when using SQS
+region = "us-east-1"
+account_id = "123456789012"
+default_queue = "user-events"
+# Queue mappings for different event types (can be extended)
+[queue.sqs.queues]
+user_signed_up = "user-events"
+user_email_verified = "user-events"
+user_logged_in = "user-events"
+# For LocalStack development/testing, use host/port:
+host = "localhost"
+port = 4566
+# For production AWS, leave host as empty to use AWS endpoints
+# host = ""
+# port = 443
+access_key_id = "your-aws-access-key"
+secret_access_key = "your-aws-secret-key"
+max_retries = 3
+timeout_seconds = 30
+
+# Legacy Kafka configuration for backward compatibility
 [kafka]
 enabled = true
 host = "localhost"

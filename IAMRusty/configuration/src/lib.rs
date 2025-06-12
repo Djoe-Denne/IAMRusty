@@ -6,7 +6,7 @@
 // Re-export core configuration from rustycog-config
 pub use rustycog_config::{
     ServerConfig, SetupServerConfig, DatabaseConfig, DatabaseCredentials, LoggingConfig,
-    CommandConfig, CommandRetryConfig, KafkaConfig, setup_logging,
+    CommandConfig, CommandRetryConfig, KafkaConfig, QueueConfig, SqsConfig, setup_logging,
     clear_all_caches, ConfigError, load_config_with_cache, load_config_fresh, generate_default_config_toml
 };
 
@@ -276,7 +276,10 @@ pub struct AppConfig {
     pub logging: LoggingConfig,
     /// Command configuration
     pub command: CommandConfig,
-    /// Kafka configuration
+    /// Queue configuration (Kafka, SQS, or Disabled)
+    pub queue: QueueConfig,
+    /// Legacy Kafka configuration (for backward compatibility)
+    #[serde(default)]
     pub kafka: KafkaConfig,
 }
 
@@ -406,6 +409,7 @@ impl ConfigLoader<AppConfig> for AppConfig {
             },
             logging: LoggingConfig::default(),
             command: CommandConfig::default(),
+            queue: QueueConfig::default(),
             kafka: KafkaConfig::default(),
         }
     }

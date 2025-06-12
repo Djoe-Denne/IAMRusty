@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::collections::HashMap;
 use rustycog_core::error::ServiceError;
 use crate::{ConcreteEventPublisher, DomainEvent as RustycogDomainEvent, EventPublisher};
-use rustycog_config::KafkaConfig;
+use rustycog_config::{KafkaConfig, QueueConfig};
 
 /// Trait for bidirectional mapping between custom error types and ServiceError
 pub trait ErrorMapper<E>: Send + Sync {
@@ -188,7 +188,7 @@ impl<TEvent> Default for EventAdapterRegistry<TEvent> {
 
 /// Builder for creating adapted event publishers
 pub struct AdaptedEventPublisherBuilder<TEvent, TError> {
-    config: Option<KafkaConfig>,
+    config: Option<QueueConfig>,
     error_mapper: Option<Arc<dyn ErrorMapper<TError>>>,
     event_adapter: Option<Arc<dyn EventAdapter<TEvent>>>,
 }
@@ -203,9 +203,15 @@ impl<TEvent, TError> AdaptedEventPublisherBuilder<TEvent, TError> {
         }
     }
 
-    /// Set the Kafka configuration
-    pub fn with_config(mut self, config: KafkaConfig) -> Self {
+    /// Set the queue configuration (Kafka, SQS, or Disabled)
+    pub fn with_config(mut self, config: QueueConfig) -> Self {
         self.config = Some(config);
+        self
+    }
+
+    /// Set the Kafka configuration (for backward compatibility)
+    pub fn with_kafka_config(mut self, config: KafkaConfig) -> Self {
+        self.config = Some(QueueConfig::Kafka(config));
         self
     }
 
@@ -224,7 +230,7 @@ impl<TEvent, TError> AdaptedEventPublisherBuilder<TEvent, TError> {
     /// Build the adapted event publisher
     pub fn build(self) -> Result<GenericEventPublisherAdapter<TEvent, TError>, ServiceError> {
         let config = self.config.ok_or_else(|| {
-            ServiceError::validation("Kafka config is required")
+            ServiceError::validation("Queue config is required")
         })?;
 
         let error_mapper = self.error_mapper.ok_or_else(|| {
@@ -235,7 +241,46 @@ impl<TEvent, TError> AdaptedEventPublisherBuilder<TEvent, TError> {
             ServiceError::validation("Event adapter is required")
         })?;
 
-        let publisher = crate::create_event_publisher(&config)?;
+        let publisher = match &config {
+            QueueConfig::Kafka(kafka_config) => crate::create_event_publisher(kafka_config)?,
+            QueueConfig::Sqs(_) => {
+                return Err(ServiceError::internal("SQS publisher creation requires async context. Use create_adapted_event_publisher_async instead"));
+            },
+            QueueConfig::Disabled => {
+                tracing::info!("Queue disabled in adapter, using no-op event publisher");
+                Arc::new(crate::ConcreteEventPublisher::NoOp(crate::NoOpEventPublisher::new()))
+            }
+        };
+
+        Ok(GenericEventPublisherAdapter::new(
+            publisher,
+            error_mapper,
+            event_adapter,
+        ))
+    }
+
+    /// Build the adapted event publisher (async version for SQS)
+    pub async fn build_async(self) -> Result<GenericEventPublisherAdapter<TEvent, TError>, ServiceError> {
+        let config = self.config.ok_or_else(|| {
+            ServiceError::validation("Queue config is required")
+        })?;
+
+        let error_mapper = self.error_mapper.ok_or_else(|| {
+            ServiceError::validation("Error mapper is required")
+        })?;
+
+        let event_adapter = self.event_adapter.ok_or_else(|| {
+            ServiceError::validation("Event adapter is required")
+        })?;
+
+        let publisher = match &config {
+            QueueConfig::Kafka(kafka_config) => crate::create_event_publisher(kafka_config)?,
+            QueueConfig::Sqs(sqs_config) => crate::create_sqs_event_publisher(sqs_config).await?,
+            QueueConfig::Disabled => {
+                tracing::info!("Queue disabled in adapter, using no-op event publisher");
+                Arc::new(crate::ConcreteEventPublisher::NoOp(crate::NoOpEventPublisher::new()))
+            }
+        };
 
         Ok(GenericEventPublisherAdapter::new(
             publisher,
@@ -251,9 +296,22 @@ impl<TEvent, TError> Default for AdaptedEventPublisherBuilder<TEvent, TError> {
     }
 }
 
-/// Convenience function to create an adapted event publisher
+/// Convenience function to create an adapted event publisher (legacy Kafka support)
 pub fn create_adapted_event_publisher<TEvent, TError>(
     config: &KafkaConfig,
+    error_mapper: Arc<dyn ErrorMapper<TError>>,
+    event_adapter: Arc<dyn EventAdapter<TEvent>>,
+) -> Result<GenericEventPublisherAdapter<TEvent, TError>, ServiceError> {
+    AdaptedEventPublisherBuilder::new()
+        .with_kafka_config(config.clone())
+        .with_error_mapper(error_mapper)
+        .with_event_adapter(event_adapter)
+        .build()
+}
+
+/// Convenience function to create an adapted event publisher with queue config
+pub fn create_adapted_event_publisher_with_queue_config<TEvent, TError>(
+    config: &QueueConfig,
     error_mapper: Arc<dyn ErrorMapper<TError>>,
     event_adapter: Arc<dyn EventAdapter<TEvent>>,
 ) -> Result<GenericEventPublisherAdapter<TEvent, TError>, ServiceError> {
@@ -262,4 +320,18 @@ pub fn create_adapted_event_publisher<TEvent, TError>(
         .with_error_mapper(error_mapper)
         .with_event_adapter(event_adapter)
         .build()
+}
+
+/// Convenience function to create an adapted event publisher with queue config (async)
+pub async fn create_adapted_event_publisher_with_queue_config_async<TEvent, TError>(
+    config: &QueueConfig,
+    error_mapper: Arc<dyn ErrorMapper<TError>>,
+    event_adapter: Arc<dyn EventAdapter<TEvent>>,
+) -> Result<GenericEventPublisherAdapter<TEvent, TError>, ServiceError> {
+    AdaptedEventPublisherBuilder::new()
+        .with_config(config.clone())
+        .with_error_mapper(error_mapper)
+        .with_event_adapter(event_adapter)
+        .build_async()
+        .await
 } 

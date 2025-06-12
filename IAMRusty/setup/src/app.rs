@@ -5,25 +5,9 @@ use chrono::Duration;
 
 use http_server::{AppState, serve_with_config, ServerConfig as HttpServerConfig};
 use infra::{
-    auth::{GitHubOAuth2Client, GitLabOAuth2Client, PasswordService, PasswordServiceAdapter},
-    token::{JwtTokenService},
-    repository::{
-        user_read::UserReadRepositoryImpl,
-        user_write::UserWriteRepositoryImpl,
-        user_email_read::UserEmailReadRepositoryImpl,
-        user_email_write::UserEmailWriteRepositoryImpl,
-        token_read::TokenReadRepositoryImpl,
-        token_write::TokenWriteRepositoryImpl,
-        refresh_token_read::RefreshTokenReadRepositoryImpl,
-        refresh_token_write::RefreshTokenWriteRepositoryImpl,
-        combined_repository::{CombinedUserRepository, CombinedTokenRepository, CombinedRefreshTokenRepository},
-        combined_user_email_repository::CombinedUserEmailRepository,
-        email_verification_read::SeaOrmEmailVerificationReadRepository,
-        email_verification_write::SeaOrmEmailVerificationWriteRepository,
-        combined_email_verification_repository::CombinedEmailVerificationRepository,
-    },
-    db::DbConnectionPool,
-    event_adapter::create_event_publisher,
+    auth::{GitHubOAuth2Client, GitLabOAuth2Client, PasswordService, PasswordServiceAdapter}, db::DbConnectionPool, event_adapter::{create_event_publisher_with_queue_config_async}, repository::{
+        combined_email_verification_repository::CombinedEmailVerificationRepository, combined_repository::{CombinedRefreshTokenRepository, CombinedTokenRepository, CombinedUserRepository}, combined_user_email_repository::CombinedUserEmailRepository, email_verification_read::SeaOrmEmailVerificationReadRepository, email_verification_write::SeaOrmEmailVerificationWriteRepository, refresh_token_read::RefreshTokenReadRepositoryImpl, refresh_token_write::RefreshTokenWriteRepositoryImpl, token_read::TokenReadRepositoryImpl, token_write::TokenWriteRepositoryImpl, user_email_read::UserEmailReadRepositoryImpl, user_email_write::UserEmailWriteRepositoryImpl, user_read::UserReadRepositoryImpl, user_write::UserWriteRepositoryImpl
+    }, token::JwtTokenService
 };
 
 use configuration::AppConfig;
@@ -100,7 +84,7 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
     let password_service_adapter = Arc::new(PasswordServiceAdapter::new(password_service));
 
     // Create event publisher using configuration
-    let event_publisher = create_event_publisher(&config.kafka)?;
+    let event_publisher = create_event_publisher_with_queue_config_async(&config.queue).await?;
 
     // Create token service with secret resolved from configuration
     tracing::info!("Setting up JWT token service");

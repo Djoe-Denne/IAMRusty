@@ -18,7 +18,7 @@ use rustycog_events::{
     DomainEvent as RustycogDomainEvent,
 };
 use rustycog_core::error::ServiceError;
-use rustycog_config::KafkaConfig;
+use rustycog_config::{KafkaConfig, QueueConfig};
 
 /// IAMRusty-specific error mapper implementation
 pub struct IAMErrorMapper;
@@ -201,7 +201,7 @@ impl EventPublisher for EventPublisherWrapper {
     }
 }
 
-/// Factory function to create an event publisher adapted for IAMRusty domain layer
+/// Factory function to create an event publisher adapted for IAMRusty domain layer (legacy Kafka)
 pub fn create_event_publisher(config: &KafkaConfig) -> Result<Arc<EventPublisherWrapper>, DomainError> {
     let error_mapper = Arc::new(IAMErrorMapper);
     let event_adapter = Arc::new(IAMEventAdapter);
@@ -211,6 +211,40 @@ pub fn create_event_publisher(config: &KafkaConfig) -> Result<Arc<EventPublisher
             // Convert ServiceError to DomainError for this context
             IAMErrorMapper.from_service_error(service_error)
         })?;
+    
+    Ok(Arc::new(EventPublisherWrapper::new(adapted_publisher)))
+}
+
+/// Factory function to create an event publisher with queue config for IAMRusty domain layer
+pub fn create_event_publisher_with_queue_config(config: &QueueConfig) -> Result<Arc<EventPublisherWrapper>, DomainError> {
+    let error_mapper = Arc::new(IAMErrorMapper);
+    let event_adapter = Arc::new(IAMEventAdapter);
+    
+    let adapted_publisher = rustycog_events::adapter::create_adapted_event_publisher_with_queue_config(
+        config, 
+        error_mapper, 
+        event_adapter
+    ).map_err(|service_error| {
+        // Convert ServiceError to DomainError for this context
+        IAMErrorMapper.from_service_error(service_error)
+    })?;
+    
+    Ok(Arc::new(EventPublisherWrapper::new(adapted_publisher)))
+}
+
+/// Factory function to create an event publisher with queue config for IAMRusty domain layer (async)
+pub async fn create_event_publisher_with_queue_config_async(config: &QueueConfig) -> Result<Arc<EventPublisherWrapper>, DomainError> {
+    let error_mapper = Arc::new(IAMErrorMapper);
+    let event_adapter = Arc::new(IAMEventAdapter);
+    
+    let adapted_publisher = rustycog_events::adapter::create_adapted_event_publisher_with_queue_config_async(
+        config, 
+        error_mapper, 
+        event_adapter
+    ).await.map_err(|service_error| {
+        // Convert ServiceError to DomainError for this context
+        IAMErrorMapper.from_service_error(service_error)
+    })?;
     
     Ok(Arc::new(EventPublisherWrapper::new(adapted_publisher)))
 }

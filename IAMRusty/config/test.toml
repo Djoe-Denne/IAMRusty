@@ -49,7 +49,7 @@ key_id = "jwt-key-test"
 
 # Enable maximum logging for tests
 [logging]
-level = ""
+level = "debug"
 
 # Command configuration for testing
 [command.retry]
@@ -60,9 +60,30 @@ max_delay_ms = 5000
 backoff_multiplier = 2.0
 use_jitter = false  # Disable jitter for predictable test behavior
 
-# Kafka configuration for testing (enabled for real integration testing)
+# Queue configuration for testing - using SQS
+[queue]
+type = "sqs"
+enabled = true  # Enabled for real SQS integration tests
+region = "us-east-1"
+account_id = "000000000000"
+default_queue = "test-user-events"
+# Use new host/port configuration instead of endpoint_url
+host = "localhost"
+port = 0  # Use random port for testing (will set EXTERNAL_SERVICE_PORTS_START)
+access_key_id = "test"
+secret_access_key = "test"
+max_retries = 3
+timeout_seconds = 30
+
+# Queue mappings for different event types (can be extended)
+[queue.queues]
+user_signed_up = "test-user-events"
+user_email_verified = "test-user-events"
+user_logged_in = "test-user-events"
+
+# Legacy Kafka configuration kept for backward compatibility tests
 [kafka]
-enabled = true  # Enabled for real Kafka integration tests
+enabled = false  # Disabled by default, can be enabled for Kafka-specific tests
 host = "localhost"
 port = 0  # Use random port for testing to avoid conflicts
 user_events_topic = "test-user-events"

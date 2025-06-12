@@ -333,6 +333,261 @@ impl CommandConfig {
     }
 }
 
+/// SQS configuration for event publishing
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SqsConfig {
+    /// AWS region
+    #[serde(default = "default_sqs_region")]
+    pub region: String,
+    /// AWS account ID (required for building queue URLs)
+    #[serde(default = "default_sqs_account_id")]
+    pub account_id: String,
+    /// Queue names for different event types (generic, not IAM-specific)
+    #[serde(default = "default_sqs_queues")]
+    pub queues: HashMap<String, String>,
+    /// Default queue name to use when no specific queue is configured for an event type
+    #[serde(default = "default_sqs_default_queue")]
+    pub default_queue: String,
+    /// AWS access key ID (optional, can use IAM roles or environment variables)
+    #[serde(default)]
+    pub access_key_id: Option<String>,
+    /// AWS secret access key (optional, can use IAM roles or environment variables)
+    #[serde(default)]
+    pub secret_access_key: Option<String>,
+    /// AWS session token (optional, for temporary credentials)
+    #[serde(default)]
+    pub session_token: Option<String>,
+    /// Custom endpoint host (for LocalStack or custom SQS implementations)
+    #[serde(default = "default_sqs_host")]
+    pub host: String,
+    /// Custom endpoint port (for LocalStack or custom SQS implementations, 0 for random port)
+    #[serde(default = "default_sqs_port")]
+    pub port: u16,
+    /// Custom endpoint URL (for LocalStack or custom SQS implementations) - deprecated, use host/port instead
+    #[serde(default)]
+    pub endpoint_url: Option<String>,
+    /// Whether to enable SQS (for testing/development flexibility)
+    #[serde(default = "default_sqs_enabled")]
+    pub enabled: bool,
+    /// Maximum number of retries for failed messages
+    #[serde(default = "default_sqs_max_retries")]
+    pub max_retries: u32,
+    /// Message timeout in seconds
+    #[serde(default = "default_sqs_timeout_seconds")]
+    pub timeout_seconds: u64,
+}
+
+impl SqsConfig {
+    /// Check if a queue is a FIFO queue based on queue name
+    pub fn is_fifo_queue(&self, queue_name: &str) -> bool {
+        queue_name.ends_with(".fifo")
+    }
+
+    /// Get the queue name for a specific event type, falling back to default queue
+    pub fn get_queue_name(&self, event_type: &str) -> &str {
+        self.queues.get(event_type).map(|s| s.as_str()).unwrap_or(&self.default_queue)
+    }
+
+    /// Build the full queue URL for a given queue name
+    pub fn build_queue_url(&self, queue_name: &str) -> String {
+        if self.host == "localhost" {
+            // For LocalStack or custom endpoint
+            format!("http://{}:{}/000000000000/{}", self.host, self.actual_port(), queue_name)
+        } else {
+            // For AWS
+            format!("https://sqs.{}.scaleway.com/{}/{}", self.region, self.account_id, queue_name)
+        }
+    }
+
+    /// Get the full queue URL for a specific event type
+    pub fn get_queue_url(&self, event_type: &str) -> String {
+        let queue_name = self.get_queue_name(event_type);
+        self.build_queue_url(queue_name)
+    }
+
+    /// Get the default queue URL (for backward compatibility)
+    pub fn default_queue_url(&self) -> String {
+        self.build_queue_url(&self.default_queue)
+    }
+
+    /// Get a random available port
+    fn get_random_port() -> u16 {
+        use std::net::{TcpListener, SocketAddr};
+        
+        // Try to bind to a random port
+        match TcpListener::bind("127.0.0.1:0") {
+            Ok(listener) => {
+                match listener.local_addr() {
+                    Ok(SocketAddr::V4(addr)) => addr.port(),
+                    Ok(SocketAddr::V6(addr)) => addr.port(),
+                    Err(_) => 4566, // fallback to LocalStack default
+                }
+            }
+            Err(_) => 4566, // fallback to LocalStack default
+        }
+    }
+
+    /// Get the actual port being used (resolves random port if needed)
+    /// This method caches the resolved port to ensure consistency across calls
+    pub fn actual_port(&self) -> u16 {
+        if self.port == 0 {
+            // Create a unique cache key for this SQS configuration
+            let cache_key = format!("sqs:{}:{}", self.host, self.region);
+            
+            let cache = PORT_CACHE.get_or_init(|| Arc::new(Mutex::new(HashMap::new())));
+            let mut port_cache = cache.lock().unwrap();
+            
+            // Return cached port if available
+            if let Some(&cached_port) = port_cache.get(&cache_key) {
+                debug!("Using cached SQS port: {}", cached_port);
+                return cached_port;
+            }
+            
+            // Generate new random port and cache it
+            let random_port = Self::get_random_port();
+            port_cache.insert(cache_key, random_port);
+            
+            println!("Generated random SQS port: {}", random_port);
+            random_port
+        } else {
+            println!("Using SQS port from config: {}", self.port);
+            self.port
+        }        
+    }
+
+    /// Get the endpoint URL for SQS (constructs from host/port or uses legacy endpoint_url)
+    pub fn endpoint_url(&self) -> Option<String> {
+        // If legacy endpoint_url is provided, use it
+        if let Some(ref url) = self.endpoint_url {
+            return Some(url.clone());
+        }
+        
+        // If host is localhost (default), construct URL from host/port
+        if self.host == "localhost" {
+            let port = self.actual_port();
+            Some(format!("http://{}:{}", self.host, port))
+        } else {
+            // For non-localhost hosts, assume it's AWS (no custom endpoint needed)
+            None
+        }
+    }
+
+    /// Create a new SqsConfig with the specified components
+    pub fn new(region: String, account_id: String, queues: HashMap<String, String>, default_queue: String) -> Self {
+        Self {
+            region,
+            account_id,
+            queues,
+            default_queue,
+            access_key_id: None,
+            secret_access_key: None,
+            session_token: None,
+            host: default_sqs_host(),
+            port: default_sqs_port(),
+            endpoint_url: None,
+            enabled: default_sqs_enabled(),
+            max_retries: default_sqs_max_retries(),
+            timeout_seconds: default_sqs_timeout_seconds(),
+        }
+    }
+
+    /// Clear the port cache for SQS
+    pub fn clear_port_cache() {
+        if let Some(cache) = PORT_CACHE.get() {
+            let mut port_cache = cache.lock().unwrap();
+            // Create a unique cache key for this SQS configuration
+            port_cache.remove(&"sqs".to_string());
+            debug!("SQS port cleared from cache");
+        }
+    }
+}
+
+impl Default for SqsConfig {
+    fn default() -> Self {
+        Self {
+            region: default_sqs_region(),
+            account_id: default_sqs_account_id(),
+            queues: default_sqs_queues(),
+            default_queue: default_sqs_default_queue(),
+            access_key_id: None,
+            secret_access_key: None,
+            session_token: None,
+            host: default_sqs_host(),
+            port: default_sqs_port(), // Use random port for testing by default
+            endpoint_url: None,
+            enabled: default_sqs_enabled(),
+            max_retries: default_sqs_max_retries(),
+            timeout_seconds: default_sqs_timeout_seconds(),
+        }
+    }
+}
+
+// SQS configuration defaults
+fn default_sqs_region() -> String {
+    "us-east-1".to_string()
+}
+
+fn default_sqs_account_id() -> String {
+    "123456789012".to_string()
+}
+
+fn default_sqs_queues() -> HashMap<String, String> {
+    HashMap::new()
+}
+
+fn default_sqs_default_queue() -> String {
+    "user-events".to_string()
+}
+
+fn default_sqs_host() -> String {
+    "localhost".to_string()
+}
+
+fn default_sqs_port() -> u16 {
+    4566 // LocalStack SQS default port
+}
+
+fn default_sqs_enabled() -> bool {
+    true
+}
+
+fn default_sqs_max_retries() -> u32 {
+    3
+}
+
+fn default_sqs_timeout_seconds() -> u64 {
+    30
+}
+
+/// Event queue configuration - can be either Kafka or SQS
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum QueueConfig {
+    #[serde(rename = "kafka")]
+    Kafka(KafkaConfig),
+    #[serde(rename = "sqs")]
+    Sqs(SqsConfig),
+    #[serde(rename = "disabled")]
+    Disabled,
+}
+
+impl Default for QueueConfig {
+    fn default() -> Self {
+        QueueConfig::Kafka(KafkaConfig::default())
+    }
+}
+
+impl QueueConfig {
+    /// Check if queue is enabled
+    pub fn is_enabled(&self) -> bool {
+        match self {
+            QueueConfig::Kafka(config) => config.enabled,
+            QueueConfig::Sqs(config) => config.enabled,
+            QueueConfig::Disabled => false,
+        }
+    }
+}
+
 /// Kafka configuration for event publishing
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KafkaConfig {
@@ -705,6 +960,7 @@ where
 pub fn clear_all_caches() {
     DatabaseConfig::clear_port_cache();
     KafkaConfig::clear_port_cache();
+    SqsConfig::clear_port_cache();
     println!("All configuration caches cleared");
 }
 
