@@ -2,6 +2,7 @@ pub mod users;
 pub mod user_emails;
 pub mod provider_tokens;
 pub mod refresh_tokens;
+pub mod email_verification;
 pub mod common;
 
 // Re-export all fixtures for easy access
@@ -28,5 +29,10 @@ impl DbFixtures {
     /// Create a new refresh token fixture builder
     pub fn refresh_token() -> refresh_tokens::RefreshTokenFixtureBuilder {
         refresh_tokens::RefreshTokenFixtureBuilder::new()
+    }
+    
+    /// Create a new email verification fixture builder
+    pub fn email_verification() -> email_verification::EmailVerificationFixtureBuilder {
+        email_verification::EmailVerificationFixtureBuilder::new()
     }
 } 

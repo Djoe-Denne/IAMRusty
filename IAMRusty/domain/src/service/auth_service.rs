@@ -359,9 +359,15 @@ where
         let updated_email = self.user_email_repository.update(user_email).await
             .map_err(|e| AuthError::RepositoryError(DomainError::RepositoryError(e.to_string())))?;
 
-        // Clean up verification token
-        self.email_verification_repository.delete_by_email(&request.email).await
-            .map_err(|e| AuthError::RepositoryError(DomainError::RepositoryError(e.to_string())))?;
+        // Clean up verification token after successful verification
+        if let Err(e) = self.email_verification_repository.delete_by_id(verification.id).await {
+            tracing::warn!("Failed to delete verification token after successful verification: {}", e);
+            // Try to delete by email as fallback
+            if let Err(e2) = self.email_verification_repository.delete_by_email(&request.email).await {
+                tracing::error!("Failed to delete verification token by email as fallback: {}", e2);
+                // Don't fail the verification process if cleanup fails
+            }
+        }
 
         // Publish UserEmailVerified event
         let event = DomainEvent::UserEmailVerified(UserEmailVerifiedEvent::new(
@@ -392,6 +398,12 @@ where
             Some(user_email) => {
                 // Only proceed if email is not verified
                 if !user_email.is_verified {
+                    // Delete any existing verification tokens for this email first
+                    if let Err(e) = self.email_verification_repository.delete_by_email(&request.email).await {
+                        tracing::warn!("Failed to delete existing verification tokens for {}: {}", request.email, e);
+                        // Continue anyway - the create might still work if there were no existing tokens
+                    }
+
                     // Generate verification token
                     let verification_token = self.generate_verification_token();
                     let email_verification = EmailVerification::new(

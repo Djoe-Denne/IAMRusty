@@ -11,6 +11,7 @@ use serde_json::{json, Value};
 use serial_test::serial;
 use uuid::Uuid;
 use sea_orm::ConnectionTrait;
+use chrono;
 
 /// Create a common HTTP client for tests
 fn create_test_client() -> Client {
@@ -561,4 +562,114 @@ async fn test_resend_verification_database_consistency() {
     assert!(verification_token.len() > 10, "Verification token should be substantial length");
 
     // Note: We could also verify expires_at is in the future, but that would require timestamp parsing
+}
+
+#[tokio::test]
+#[serial]
+async fn test_resend_verification_invalidates_old_tokens() {
+    // Setup test server and database
+    let base_url = get_test_server().await.expect("Failed to start test server");
+    let fixture = TestFixture::new().await.expect("Failed to create test fixture");
+    let client = create_test_client();
+    let db = fixture.db();
+
+    // Create user with unverified email
+    let user = DbFixtures::user()
+        .username("tokeninvalidationuser")
+        .commit(db.clone())
+        .await
+        .expect("Failed to create user");
+
+    let user_email = DbFixtures::user_email()
+        .user_id(user.id())
+        .email("tokeninvalidation@example.com")
+        .is_primary(true)
+        .is_verified(false)
+        .commit(db.clone())
+        .await
+        .expect("Failed to create user email");
+
+    // Create an initial verification token using the fixture
+    let initial_verification = DbFixtures::email_verification()
+        .email(user_email.email())
+        .verification_token("initial_token_123")
+        .expires_at((chrono::Utc::now() + chrono::Duration::hours(24)).into())
+        .commit(db.clone())
+        .await
+        .expect("Failed to create initial verification token");
+    
+    let initial_token = initial_verification.verification_token().to_string();
+
+    // Verify initial token exists
+    let initial_count = db
+        .query_one(sea_orm::Statement::from_string(
+            sea_orm::DatabaseBackend::Postgres,
+            format!("SELECT COUNT(*) as count FROM user_email_verification WHERE email = '{}'", user_email.email()),
+        ))
+        .await
+        .expect("Failed to count initial verification tokens")
+        .unwrap();
+    
+    let initial_count_val: i64 = initial_count.try_get("", "count").expect("Failed to get initial count");
+    assert_eq!(initial_count_val, 1, "Should have exactly one initial verification token");
+
+    // Make resend verification request
+    let resend_data = json!({
+        "email": "tokeninvalidation@example.com"
+    });
+
+    let response = client
+        .post(&format!("{}/api/auth/resend-verification", base_url))
+        .header("Content-Type", "application/json")
+        .json(&resend_data)
+        .send()
+        .await
+        .expect("Failed to send resend verification request");
+
+    // ✅ Should return 200 OK for successful resend
+    assert_eq!(response.status(), 200, "Should return 200 OK for successful verification resend");
+
+    // ✅ Verify only one token exists after resend (old token should be invalidated)
+    let final_count = db
+        .query_one(sea_orm::Statement::from_string(
+            sea_orm::DatabaseBackend::Postgres,
+            format!("SELECT COUNT(*) as count FROM user_email_verification WHERE email = '{}'", user_email.email()),
+        ))
+        .await
+        .expect("Failed to count final verification tokens")
+        .unwrap();
+    
+    let final_count_val: i64 = final_count.try_get("", "count").expect("Failed to get final count");
+    assert_eq!(final_count_val, 1, "Should have exactly one verification token after resend (old token invalidated)");
+
+    // ✅ Verify the token is different from the initial one (new token created)
+    let current_token_data = db
+        .query_one(sea_orm::Statement::from_string(
+            sea_orm::DatabaseBackend::Postgres,
+            format!(
+                "SELECT verification_token FROM user_email_verification WHERE email = '{}' LIMIT 1", 
+                user_email.email()
+            ),
+        ))
+        .await
+        .expect("Failed to query current verification token")
+        .unwrap();
+    
+    let current_token: String = current_token_data.try_get("", "verification_token").expect("Failed to get current token");
+    assert_ne!(current_token, initial_token, "New token should be different from the initial token");
+    assert!(!current_token.is_empty(), "New verification token should not be empty");
+    assert!(current_token.len() > 10, "New verification token should be substantial length");
+
+    // ✅ Verify email is still unverified (only resend, not auto-verify)
+    let email_status = db
+        .query_one(sea_orm::Statement::from_string(
+            sea_orm::DatabaseBackend::Postgres,
+            format!("SELECT is_verified FROM user_emails WHERE email = '{}'", user_email.email()),
+        ))
+        .await
+        .expect("Failed to query email verification status")
+        .unwrap();
+    
+    let is_verified: bool = email_status.try_get("", "is_verified").expect("Failed to get verification status");
+    assert!(!is_verified, "Email should remain unverified after resend");
 }

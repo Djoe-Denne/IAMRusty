@@ -125,7 +125,7 @@ impl TestData {
     }
     
     /// Generate a random string of given length
-    fn random_string(len: usize) -> String {
+    pub fn random_string(len: usize) -> String {
         use rand::Rng;
         const CHARSET: &[u8] = b"abcdefghijklmnopqrstuvwxyz0123456789";
         let mut rng = rand::thread_rng();

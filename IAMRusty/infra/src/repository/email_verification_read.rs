@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use domain::entity::email_verification::EmailVerification;
 use domain::error::DomainError;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder};
 use std::sync::Arc;
 
 use super::entity::user_email_verification;
@@ -38,9 +38,12 @@ impl SeaOrmEmailVerificationReadRepository {
 #[async_trait]
 impl EmailVerificationReadRepository for SeaOrmEmailVerificationReadRepository {
     async fn find_by_email_and_token(&self, email: &str, token: &str) -> Result<Option<EmailVerification>, DomainError> {
+        // Find the verification token with the farthest expiration date (most recent)
+        // This ensures we get the latest token if somehow multiple exist
         let model = user_email_verification::Entity::find()
             .filter(user_email_verification::Column::Email.eq(email))
             .filter(user_email_verification::Column::VerificationToken.eq(token))
+            .order_by_desc(user_email_verification::Column::ExpiresAt)
             .one(self.db.as_ref())
             .await
             .map_err(|e| DomainError::RepositoryError(format!("Failed to find email verification: {}", e)))?;
@@ -49,8 +52,11 @@ impl EmailVerificationReadRepository for SeaOrmEmailVerificationReadRepository {
     }
 
     async fn find_by_email(&self, email: &str) -> Result<Option<EmailVerification>, DomainError> {
+        // Find the verification token with the farthest expiration date (most recent)
+        // This ensures we get the latest token if multiple exist for the same email
         let model = user_email_verification::Entity::find()
             .filter(user_email_verification::Column::Email.eq(email))
+            .order_by_desc(user_email_verification::Column::ExpiresAt)
             .one(self.db.as_ref())
             .await
             .map_err(|e| DomainError::RepositoryError(format!("Failed to find email verification by email: {}", e)))?;

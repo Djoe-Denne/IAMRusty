@@ -115,6 +115,75 @@ paths:
         "404":
           description: Email not found or already verified
 
+  /auth/resend-verification:
+    post:
+      summary: Resend email verification token
+      description: |
+        Resends a verification email to the specified email address if it exists and is unverified.
+        
+        **Security Note:** This endpoint always returns a 200 OK response with a generic message 
+        to prevent user enumeration attacks. The actual behavior depends on the email status:
+        - If email exists and is unverified: sends a new verification email and invalidates old tokens
+        - If email is already verified: no action taken (silent success)
+        - If email doesn't exist: no action taken (silent success)
+        
+        **Token Management:** When a new verification token is created, any existing verification 
+        tokens for the same email are automatically invalidated to prevent token accumulation attacks.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: Email address to resend verification for
+              required:
+                - email
+      responses:
+        "200":
+          description: Generic success response (always returned for security)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "If your email is registered and unverified, a verification email has been sent"
+              example:
+                message: "If your email is registered and unverified, a verification email has been sent"
+        "422":
+          description: Validation error (invalid email format, missing fields, malformed JSON)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                      status:
+                        type: integer
+                        example: 422
+              examples:
+                invalid_email:
+                  summary: Invalid email format
+                  value:
+                    error:
+                      message: "Invalid email format"
+                      status: 422
+                missing_email:
+                  summary: Missing email field
+                  value:
+                    error:
+                      message: "Email field is required"
+                      status: 422
+
   /auth/{provider}/start:
     get:
       summary: Start OAuth2 authentication or provider linking
