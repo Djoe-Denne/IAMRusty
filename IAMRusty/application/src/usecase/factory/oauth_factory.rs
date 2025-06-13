@@ -1,41 +1,53 @@
 use crate::usecase::oauth::{
-    AuthUseCase, AuthUseCaseImpl, PasswordService
+    OAuthUseCase, OAuthUseCaseImpl
 };
+use crate::auth::OAuthService;
 use domain::port::service::AuthTokenService;
-use domain::port::repository::{UserRepository, UserEmailRepository, EmailVerificationRepository};
+use domain::port::repository::{TokenRepository, UserRepository, UserEmailRepository, RefreshTokenRepository};
 use domain::port::event_publisher::EventPublisher;
 use std::sync::Arc;
 
-/// Factory for creating the auth use case with its dependencies
+/// Factory for creating the OAuth use case with its dependencies
 pub struct OAuthFactory;
 
 impl OAuthFactory {
-    /// Create an auth use case instance with all its dependencies
-    pub fn create_oauth_use_case<UR, UER, EVR, PS, TS, EP>(
+    /// Create an OAuth use case instance with all its dependencies
+    pub fn create_oauth_use_case<GH, GL, UR, UER, TR, RR, TS, EP>(
+        github_auth: Arc<GH>,
+        gitlab_auth: Arc<GL>,
         user_repository: Arc<UR>,
         user_email_repository: Arc<UER>,
-        email_verification_repository: Arc<EVR>,
-        password_service: Arc<PS>,
+        token_repository: Arc<TR>,
+        refresh_token_repository: Arc<RR>,
         token_service: Arc<TS>,
         event_publisher: Arc<EP>,
-        jwt_secret: String,
-    ) -> Arc<dyn AuthUseCase>
+    ) -> Arc<dyn OAuthUseCase>
     where
+        GH: OAuthService + Send + Sync + 'static,
+        GL: OAuthService + Send + Sync + 'static,
         UR: UserRepository + Send + Sync + 'static,
         UER: UserEmailRepository + Send + Sync + 'static,
-        EVR: EmailVerificationRepository + Send + Sync + 'static,
-        PS: PasswordService + Send + Sync + 'static,
+        TR: TokenRepository + Send + Sync + 'static,
+        RR: RefreshTokenRepository + Send + Sync + 'static,
         TS: AuthTokenService + Send + Sync + 'static,
         EP: EventPublisher + Send + Sync + 'static,
+        GH::Error: std::error::Error + Send + Sync + 'static,
+        GL::Error: std::error::Error + Send + Sync + 'static,
+        <UR as UserRepository>::Error: std::error::Error + Send + Sync + 'static,
+        <UER as UserEmailRepository>::Error: std::error::Error + Send + Sync + 'static,
+        <TR as TokenRepository>::Error: std::error::Error + Send + Sync + 'static,
+        <RR as RefreshTokenRepository>::Error: std::error::Error + Send + Sync + 'static,
+        TS::Error: std::error::Error + Send + Sync + 'static,
     {
-        Arc::new(AuthUseCaseImpl::new(
+        Arc::new(OAuthUseCaseImpl::new(
+            github_auth,
+            gitlab_auth,
             user_repository,
             user_email_repository,
-            email_verification_repository,
-            password_service,
+            token_repository,
+            refresh_token_repository,
             token_service,
             event_publisher,
-            jwt_secret,
         ))
     }
 }
@@ -198,7 +210,7 @@ mod tests {
         let token_service = Arc::new(MockTokenService);
         let event_publisher = Arc::new(MockEventPublisher);
 
-        let auth_use_case = OAuthFactory::create_oauth_use_case(
+        let auth_use_case = LoginFactory::create_login_use_case(
             user_repo,
             user_email_repo,
             email_verification_repo,

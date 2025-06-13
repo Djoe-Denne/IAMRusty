@@ -19,7 +19,7 @@ use application::{
         token::TokenUseCaseImpl,
         link_provider::LinkProviderUseCaseImpl,
         provider::ProviderUseCaseImpl,
-        oauth::AuthUseCaseImpl,
+        oauth::OAuthUseCaseImpl,
     },
     command::{
         CommandRegistryFactory, GenericCommandService,
@@ -141,8 +141,8 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
     ));
     tracing::info!("JWT token service created successfully");
 
-    // Create use cases
-    let login_usecase = LoginUseCaseImpl::new(
+    // Create OAuth use case for OAuth flows
+    let oauth_usecase = OAuthUseCaseImpl::new(
         Arc::new(github_auth_login),
         Arc::new(gitlab_auth_login),
         Arc::new(user_repo.clone()),
@@ -150,6 +150,7 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
         Arc::new(token_repo_login),
         Arc::new(refresh_token_repo.clone()),
         token_service.clone(),
+        event_publisher.clone(),
     );
 
     // Create provider link service for domain business logic
@@ -211,8 +212,8 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
         }
     };
     
-    tracing::info!("Creating auth use case with verification token support");
-    let auth_usecase = AuthUseCaseImpl::new(
+    tracing::info!("Creating login use case with verification token support");
+    let login_usecase = LoginUseCaseImpl::new(
         Arc::new(user_repo.clone()),
         Arc::new(user_email_repo.clone()),
         Arc::new(email_verification_repo),
@@ -269,12 +270,12 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
 
     // Create command registry and service
     let registry = CommandRegistryFactory::create_iam_registry(
-        Arc::new(login_usecase),
+        Arc::new(oauth_usecase),
         Arc::new(link_provider_usecase),
         Arc::new(provider_usecase),
         Arc::new(token_usecase_for_commands),
         Arc::new(user_usecase_for_commands),
-        Arc::new(auth_usecase),
+        Arc::new(login_usecase),
     );
     let command_service = Arc::new(GenericCommandService::new(Arc::new(registry)));
 

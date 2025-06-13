@@ -1,5 +1,5 @@
 use rustycog_command::{Command, CommandError, CommandHandler, CommandErrorMapper};
-use crate::usecase::oauth::{AuthUseCase, VerifyEmailRequest, VerifyEmailResponse, AuthError};
+use crate::usecase::login::{LoginUseCase, VerifyEmailRequest, VerifyEmailResponse, LoginError};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -13,78 +13,61 @@ pub struct AuthErrorMapper;
 
 impl CommandErrorMapper for AuthErrorMapper {
     fn map_error(&self, error: Box<dyn std::error::Error + Send + Sync>) -> CommandError {
-        if let Some(auth_error) = error.downcast_ref::<AuthError>() {
-            match auth_error {
-                AuthError::InvalidCredentials => CommandError::validation(
-                    AuthErrorCode::InvalidCredentials.as_str(),
-                    "Invalid credentials"
+        if let Some(error) = error.downcast_ref::<LoginError>() {
+            match error {
+                LoginError::UserNotFound => CommandError::business(
+                    AuthErrorCode::UserNotFound.as_str(),
+                    "User not found"
                 ),
-                AuthError::UserNotFound => CommandError::business(
+                LoginError::InvalidCredentials => CommandError::business(
                     AuthErrorCode::InvalidCredentials.as_str(),
                     "Invalid credentials" // Don't leak user existence
                 ),
-                AuthError::EmailNotVerified => CommandError::business(
+                LoginError::EmailNotVerified => CommandError::business(
                     AuthErrorCode::EmailNotVerified.as_str(),
                     "Email not verified"
                 ),
-                AuthError::UserAlreadyExists => CommandError::business(
+                LoginError::UserAlreadyExists => CommandError::business(
                     AuthErrorCode::UserAlreadyExists.as_str(),
                     "User already exists"
                 ),
-                AuthError::WeakPassword => CommandError::validation(
+                LoginError::WeakPassword => CommandError::validation(
                     AuthErrorCode::WeakPassword.as_str(),
                     "Password is too weak"
                 ),
-                AuthError::InvalidEmail => CommandError::validation(
+                LoginError::InvalidEmail => CommandError::validation(
                     AuthErrorCode::InvalidEmail.as_str(),
                     "Invalid email format"
                 ),
-                AuthError::EmailNotFound => CommandError::business(
+                LoginError::EmailNotFound => CommandError::business(
                     AuthErrorCode::EmailNotFound.as_str(),
                     "Invalid verification request" // Don't leak email existence
                 ),
-                AuthError::EmailAlreadyVerified => CommandError::business(
+                LoginError::EmailAlreadyVerified => CommandError::business(
                     AuthErrorCode::EmailAlreadyVerified.as_str(),
                     "Email is already verified"
                 ),
-                AuthError::InvalidVerificationToken => CommandError::validation(
+                LoginError::InvalidVerificationToken => CommandError::validation(
                     AuthErrorCode::InvalidVerificationToken.as_str(),
                     "Invalid or expired verification token"
                 ),
-                AuthError::VerificationTokenExpired => CommandError::validation(
+                LoginError::VerificationTokenExpired => CommandError::validation(
                     AuthErrorCode::VerificationTokenExpired.as_str(),
                     "Verification token has expired"
                 ),
-                AuthError::RepositoryError(_) => CommandError::infrastructure(
-                    AuthErrorCode::RepositoryError.as_str(),
-                    error.to_string()
-                ),
-                AuthError::EventPublishingError(_) => CommandError::infrastructure(
-                    AuthErrorCode::EventPublishingError.as_str(),
-                    error.to_string()
-                ),
-                AuthError::TokenServiceError(inner) => {
-                    let error_msg = inner.to_string();
-                    if Self::is_authentication_related_error(&error_msg) {
+                LoginError::AuthServiceError(msg) => {
+                    if Self::is_authentication_related_error(msg) {
                         CommandError::validation(
                             AuthErrorCode::AuthenticationFailed.as_str(),
-                            format!("Authentication failed: {}", error_msg)
+                            format!("Authentication failed: {}", msg)
                         )
                     } else {
                         CommandError::infrastructure(
-                            AuthErrorCode::TokenServiceError.as_str(),
-                            error.to_string()
+                            AuthErrorCode::RepositoryError.as_str(),
+                            msg.clone()
                         )
                     }
                 },
-                AuthError::PasswordHashingError(_) => CommandError::infrastructure(
-                    AuthErrorCode::PasswordHashingError.as_str(),
-                    error.to_string()
-                ),
-                AuthError::VerificationTokenGenerationError(_) => CommandError::infrastructure(
-                    AuthErrorCode::VerificationTokenGenerationError.as_str(),
-                    error.to_string()
-                ),
             }
         } else {
             let error_msg = error.to_string();
@@ -178,19 +161,19 @@ impl Command for VerifyEmailCommand {
 /// Email verification command handler
 pub struct VerifyEmailCommandHandler<A>
 where
-    A: AuthUseCase + ?Sized,
+    A: LoginUseCase + ?Sized,
 {
-    auth_use_case: Arc<A>,
+    login_use_case: Arc<A>,
 }
 
 impl<A> VerifyEmailCommandHandler<A>
 where
-    A: AuthUseCase + ?Sized,
+    A: LoginUseCase + ?Sized,
 {
     /// Create a new email verification command handler
-    pub fn new(auth_use_case: Arc<A>) -> Self {
+    pub fn new(login_use_case: Arc<A>) -> Self {
         Self {
-            auth_use_case,
+            login_use_case,
         }
     }
 }
@@ -198,7 +181,7 @@ where
 #[async_trait]
 impl<A> CommandHandler<VerifyEmailCommand> for VerifyEmailCommandHandler<A>
 where
-    A: AuthUseCase + Send + Sync + ?Sized,
+    A: LoginUseCase + Send + Sync + ?Sized,
 {
     async fn handle(&self, command: VerifyEmailCommand) -> Result<VerifyEmailResponse, CommandError> {
         let request = VerifyEmailRequest {
@@ -206,7 +189,7 @@ where
             verification_token: command.verification_token,
         };
 
-        self.auth_use_case
+        self.login_use_case
             .verify_email(request)
             .await
             .map_err(|e| AuthErrorMapper.map_error(Box::new(e)))

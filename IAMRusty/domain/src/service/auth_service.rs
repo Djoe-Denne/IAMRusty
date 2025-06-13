@@ -1,27 +1,175 @@
-use chrono::Duration;
-use crate::entity::token::{JwkSet, TokenClaims};
-use crate::error::DomainError;
-use crate::port::service::JwtTokenEncoder;
+//! Authentication service for email/password operations
 
-/// Service for JWT token operations
-pub struct TokenService {
-    user_repository: Box<dyn UserRepository>,
-    user_email_repository: Box<dyn UserEmailRepository>,
-    email_verification_repository: Box<dyn EmailVerificationRepository>,
-    password_service: Box<dyn PasswordService>,
-    token_service: Box<dyn AuthTokenService>,
-    event_publisher: Box<dyn EventPublisher>,
+use crate::entity::{
+    user::User,
+    user_email::UserEmail,
+    email_verification::EmailVerification,
+    events::{DomainEvent, UserSignedUpEvent, UserLoggedInEvent, UserEmailVerifiedEvent},
+};
+use crate::port::{
+    repository::{UserRepository, UserEmailRepository, EmailVerificationRepository},
+    service::AuthTokenService,
+    event_publisher::EventPublisher,
+};
+use crate::error::DomainError;
+use async_trait::async_trait;
+use std::sync::Arc;
+use thiserror::Error;
+use uuid::Uuid;
+use serde::{Deserialize, Serialize};
+
+/// Authentication service errors
+#[derive(Debug, Error)]
+pub enum AuthError {
+    #[error("User already exists")]
+    UserAlreadyExists,
+    
+    #[error("User not found")]
+    UserNotFound,
+    
+    #[error("Invalid credentials")]
+    InvalidCredentials,
+    
+    #[error("Weak password")]
+    WeakPassword,
+    
+    #[error("Invalid email format")]
+    InvalidEmail,
+    
+    #[error("Email not verified")]
+    EmailNotVerified,
+    
+    #[error("Email not found")]
+    EmailNotFound,
+    
+    #[error("Email already verified")]
+    EmailAlreadyVerified,
+    
+    #[error("Invalid verification token")]
+    InvalidVerificationToken,
+    
+    #[error("Verification token expired")]
+    VerificationTokenExpired,
+    
+    #[error("Repository error: {0}")]
+    RepositoryError(#[from] DomainError),
+    
+    #[error("Event publishing error: {0}")]
+    EventPublishingError(String),
+    
+    #[error("Token service error: {0}")]
+    TokenServiceError(Box<dyn std::error::Error + Send + Sync>),
+    
+    #[error("Password hashing error: {0}")]
+    PasswordHashingError(String),
+    
+    #[error("Verification token generation error: {0}")]
+    VerificationTokenGenerationError(String),
 }
 
-impl TokenService {
-    /// Create a new token service
+/// Signup request
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SignupRequest {
+    pub username: String,
+    pub email: String,
+    pub password: String,
+}
+
+/// Signup response
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SignupResponse {
+    pub message: String,
+}
+
+/// Login request for email/password authentication
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LoginRequest {
+    pub email: String,
+    pub password: String,
+}
+
+/// Login response for email/password authentication
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LoginResponse {
+    pub user: UserProfile,
+    pub token: String,
+}
+
+/// Verify email request
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VerifyEmailRequest {
+    pub email: String,
+    pub verification_token: String,
+}
+
+/// Verify email response
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VerifyEmailResponse {
+    pub message: String,
+}
+
+/// Resend verification email request
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResendVerificationEmailRequest {
+    pub email: String,
+}
+
+/// Resend verification email response
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResendVerificationEmailResponse {
+    pub message: String,
+}
+
+/// User profile for responses
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserProfile {
+    pub id: Uuid,
+    pub username: String,
+    pub email: String,
+    pub avatar: Option<String>,
+}
+
+/// Password service trait for dependency injection
+#[async_trait]
+pub trait PasswordService: Send + Sync {
+    async fn hash_password(&self, password: &str) -> Result<String, AuthError>;
+    async fn verify_password(&self, password: &str, hash: &str) -> Result<bool, AuthError>;
+}
+
+/// Authentication service for email/password operations
+pub struct AuthService<UR, UER, EVR, PS, TS, EP>
+where
+    UR: UserRepository,
+    UER: UserEmailRepository,
+    EVR: EmailVerificationRepository,
+    PS: PasswordService,
+    TS: AuthTokenService,
+    EP: EventPublisher,
+{
+    user_repository: Arc<UR>,
+    user_email_repository: Arc<UER>,
+    email_verification_repository: Arc<EVR>,
+    password_service: Arc<PS>,
+    token_service: Arc<TS>,
+    event_publisher: Arc<EP>,
+}
+
+impl<UR, UER, EVR, PS, TS, EP> AuthService<UR, UER, EVR, PS, TS, EP>
+where
+    UR: UserRepository,
+    UER: UserEmailRepository,
+    EVR: EmailVerificationRepository,
+    PS: PasswordService,
+    TS: AuthTokenService,
+    EP: EventPublisher,
+{
     pub fn new(
-        user_repository: Box<dyn UserRepository>,
-        user_email_repository: Box<dyn UserEmailRepository>,
-        email_verification_repository: Box<dyn EmailVerificationRepository>,
-        password_service: Box<dyn PasswordService>,
-        token_service: Box<dyn AuthTokenService>,
-        event_publisher: Box<dyn EventPublisher>,
+        user_repository: Arc<UR>,
+        user_email_repository: Arc<UER>,
+        email_verification_repository: Arc<EVR>,
+        password_service: Arc<PS>,
+        token_service: Arc<TS>,
+        event_publisher: Arc<EP>,
     ) -> Self {
         Self {
             user_repository,
@@ -33,7 +181,13 @@ impl TokenService {
         }
     }
 
-    async fn signup(&self, request: SignupRequest) -> Result<SignupResponse, AuthError> {
+    /// Generate a verification token using UUID v4
+    /// Simple, secure, and doesn't require crypto dependencies
+    fn generate_verification_token(&self) -> String {
+        Uuid::new_v4().to_string()
+    }
+
+    pub async fn signup(&self, request: SignupRequest) -> Result<SignupResponse, AuthError> {
         // Check if user already exists by email
         if let Ok(Some(_)) = self.user_email_repository.find_by_email(&request.email).await {
             return Err(AuthError::UserAlreadyExists);
@@ -50,12 +204,12 @@ impl TokenService {
         );
 
         // Save the user
-        let _created_user = self.user_repository.create(user).await
+        let created_user = self.user_repository.create(user).await
             .map_err(|e| AuthError::RepositoryError(DomainError::RepositoryError(e.to_string())))?;
 
         // Create the user email (unverified initially)
         let user_email = UserEmail::new(
-            _created_user.id,
+            created_user.id,
             request.email.clone(),
             true, // Primary email
             false, // Not verified yet
@@ -66,7 +220,7 @@ impl TokenService {
             .map_err(|e| AuthError::RepositoryError(DomainError::RepositoryError(e.to_string())))?;
 
         // Generate verification token
-        let verification_token = Self::generate_verification_token();
+        let verification_token = self.generate_verification_token();
         let email_verification = EmailVerification::new(
             request.email.clone(),
             verification_token,
@@ -77,12 +231,12 @@ impl TokenService {
         self.email_verification_repository.create(&email_verification).await
             .map_err(|e| AuthError::RepositoryError(DomainError::RepositoryError(e.to_string())))?;
 
-        // Publish UserSignedUp event
+        // Publish UserSignedUp event so external email service can handle sending email
         let event = DomainEvent::UserSignedUp(UserSignedUpEvent::new(
-            _created_user.id,
-            request.email,
-            request.username,
-            false, // Email not verified yet
+            created_user.id,
+            request.email.clone(),
+            request.username.clone(),
+            false,
         ));
 
         if let Err(e) = self.event_publisher.publish(event).await {
@@ -95,7 +249,7 @@ impl TokenService {
         })
     }
 
-    async fn login(&self, request: LoginRequest) -> Result<LoginResponse, AuthError> {
+    pub async fn login(&self, request: LoginRequest) -> Result<LoginResponse, AuthError> {
         // Find user by email
         let user_email = self.user_email_repository
             .find_by_email(&request.email)
@@ -128,7 +282,7 @@ impl TokenService {
             return Err(AuthError::InvalidCredentials);
         }
 
-        // Generate JWT token
+        // Generate JWT access token (our internal token, not provider token)
         let token = self.token_service
             .generate_access_token(user.id)
             .await
@@ -157,7 +311,7 @@ impl TokenService {
         })
     }
 
-    async fn verify_email(&self, request: VerifyEmailRequest) -> Result<VerifyEmailResponse, AuthError> {
+    pub async fn verify_email(&self, request: VerifyEmailRequest) -> Result<VerifyEmailResponse, AuthError> {
         // Find verification token
         let verification = self.email_verification_repository
             .find_by_email_and_token(&request.email, &request.verification_token)
@@ -202,7 +356,7 @@ impl TokenService {
 
         // Mark email as verified
         user_email.verify();
-        let _updated_email = self.user_email_repository.update(user_email).await
+        let updated_email = self.user_email_repository.update(user_email).await
             .map_err(|e| AuthError::RepositoryError(DomainError::RepositoryError(e.to_string())))?;
 
         // Clean up verification token
@@ -211,7 +365,7 @@ impl TokenService {
 
         // Publish UserEmailVerified event
         let event = DomainEvent::UserEmailVerified(UserEmailVerifiedEvent::new(
-            _updated_email.user_id,
+            updated_email.user_id,
             request.email,
         ));
 
@@ -225,4 +379,53 @@ impl TokenService {
         })
     }
 
+    pub async fn resend_verification_email(&self, request: ResendVerificationEmailRequest) -> Result<ResendVerificationEmailResponse, AuthError> {
+        // Find user by email
+        let user_email = self.user_email_repository
+            .find_by_email(&request.email)
+            .await
+            .map_err(|e| AuthError::RepositoryError(DomainError::RepositoryError(e.to_string())))?
+            .ok_or(AuthError::EmailNotFound)?;
+
+        // Check if email is verified
+        if user_email.is_verified {
+            return Err(AuthError::EmailAlreadyVerified);
+        }
+
+        // Generate verification token
+        let verification_token = self.generate_verification_token();
+        let email_verification = EmailVerification::new(
+            request.email.clone(),
+            verification_token,
+            24, // Expires in 24 hours
+        );
+
+        // Save the verification token
+        self.email_verification_repository.create(&email_verification).await
+            .map_err(|e| AuthError::RepositoryError(DomainError::RepositoryError(e.to_string())))?;
+
+        // Fetch user to include username
+        let user = self.user_repository
+            .find_by_id(user_email.user_id)
+            .await
+            .map_err(|e| AuthError::RepositoryError(DomainError::RepositoryError(e.to_string())))?
+            .ok_or(AuthError::UserNotFound)?;
+
+        // Reuse UserSignedUp event to trigger email service
+        let event = DomainEvent::UserSignedUp(UserSignedUpEvent::new(
+            user_email.user_id,
+            request.email.clone(),
+            user.username,
+            false,
+        ));
+
+        if let Err(e) = self.event_publisher.publish(event).await {
+            tracing::warn!("Failed to publish UserSignedUp event: {}", e);
+            // Don't fail the resend for event publishing errors
+        }
+
+        Ok(ResendVerificationEmailResponse { 
+            message: "Verification email resent successfully".to_string() 
+        })
+    }
 }

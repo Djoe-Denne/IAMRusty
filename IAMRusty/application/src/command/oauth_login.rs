@@ -1,15 +1,15 @@
 use rustycog_command::{Command, CommandError, CommandHandler, CommandErrorMapper};
 use crate::usecase::{
-    login::{LoginUseCase, LoginResponse, LoginError},
+    oauth::{OAuthUseCase, OAuthLoginResponse, OAuthError},
 };
 use domain::entity::provider::Provider;
 use async_trait::async_trait;
 use std::sync::Arc;
 use uuid::Uuid;
 
-/// Error codes for login-related operations
+/// Error codes for OAuth login-related operations
 #[derive(Debug, Clone)]
-pub enum LoginErrorCode {
+pub enum OAuthLoginErrorCode {
     AuthenticationFailed,
     TokenExpired,
     InvalidToken,
@@ -19,7 +19,7 @@ pub enum LoginErrorCode {
     ValidationFailed,
 }
 
-impl LoginErrorCode {
+impl OAuthLoginErrorCode {
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::AuthenticationFailed => "authentication_failed",
@@ -33,25 +33,33 @@ impl LoginErrorCode {
     }
 }
 
-/// Error mapper for login-related commands
-pub struct LoginErrorMapper;
+/// Error mapper for OAuth login-related commands
+pub struct OAuthLoginErrorMapper;
 
-impl CommandErrorMapper for LoginErrorMapper {
+impl CommandErrorMapper for OAuthLoginErrorMapper {
     fn map_error(&self, error: Box<dyn std::error::Error + Send + Sync>) -> CommandError {
         // Try to downcast to known error types
-        if let Some(login_error) = error.downcast_ref::<LoginError>() {
-            match login_error {
-                LoginError::AuthError(msg) => CommandError::business(
-                    LoginErrorCode::AuthenticationFailed.as_str(),
-                    format!("Authentication failed: {}", msg)
+        if let Some(oauth_error) = error.downcast_ref::<OAuthError>() {
+            match oauth_error {
+                OAuthError::AuthError(_) => CommandError::business(
+                    OAuthLoginErrorCode::AuthenticationFailed.as_str(),
+                    "OAuth authentication failed"
                 ),
-                LoginError::DbError(e) => CommandError::infrastructure(
-                    LoginErrorCode::DatabaseError.as_str(),
-                    format!("Database error: {}", e)
+                OAuthError::DbError(_) => CommandError::infrastructure(
+                    OAuthLoginErrorCode::DatabaseError.as_str(),
+                    "Database error during OAuth flow"
                 ),
-                LoginError::TokenError(e) => CommandError::infrastructure(
-                    LoginErrorCode::TokenServiceError.as_str(),
-                    format!("Token service error: {}", e)
+                OAuthError::TokenError(_) => CommandError::infrastructure(
+                    OAuthLoginErrorCode::TokenServiceError.as_str(),
+                    "Token service error during OAuth flow"
+                ),
+                OAuthError::EventPublishingError(_) => CommandError::infrastructure(
+                    OAuthLoginErrorCode::ProviderError.as_str(),
+                    "Event publishing error during OAuth flow"
+                ),
+                OAuthError::ProviderNotConfigured(_) => CommandError::infrastructure(
+                    OAuthLoginErrorCode::ProviderError.as_str(),
+                    "OAuth provider not configured"
                 ),
             }
         } else {
@@ -59,12 +67,12 @@ impl CommandErrorMapper for LoginErrorMapper {
             let error_msg = error.to_string();
             if Self::is_authentication_related_error(&error_msg) {
                 CommandError::business(
-                    LoginErrorCode::AuthenticationFailed.as_str(),
-                    format!("Authentication failed: {}", error_msg)
+                    OAuthLoginErrorCode::AuthenticationFailed.as_str(),
+                    format!("OAuth authentication failed: {}", error_msg)
                 )
             } else {
                 CommandError::infrastructure(
-                    LoginErrorCode::ProviderError.as_str(),
+                    OAuthLoginErrorCode::ProviderError.as_str(),
                     error.to_string()
                 )
             }
@@ -72,7 +80,7 @@ impl CommandErrorMapper for LoginErrorMapper {
     }
 }
 
-impl LoginErrorMapper {
+impl OAuthLoginErrorMapper {
     fn is_authentication_related_error(error_msg: &str) -> bool {
         error_msg.contains("expired") || 
         error_msg.contains("invalid") || 
@@ -84,9 +92,9 @@ impl LoginErrorMapper {
     }
 }
 
-/// Login command
+/// OAuth login command
 #[derive(Debug, Clone)]
-pub struct LoginCommand {
+pub struct OAuthLoginCommand {
     /// Command instance ID
     pub command_id: Uuid,
     /// OAuth provider
@@ -97,8 +105,8 @@ pub struct LoginCommand {
     pub redirect_uri: String,
 }
 
-impl LoginCommand {
-    /// Create a new login command
+impl OAuthLoginCommand {
+    /// Create a new OAuth login command
     pub fn new(provider: Provider, code: String, redirect_uri: String) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -110,11 +118,11 @@ impl LoginCommand {
 }
 
 #[async_trait]
-impl Command for LoginCommand {
-    type Result = LoginResponse;
+impl Command for OAuthLoginCommand {
+    type Result = OAuthLoginResponse;
     
     fn command_type(&self) -> &'static str {
-        "login"
+        "oauth_login"
     }
     
     fn command_id(&self) -> Uuid {
@@ -124,14 +132,14 @@ impl Command for LoginCommand {
     fn validate(&self) -> Result<(), CommandError> {
         if self.code.trim().is_empty() {
             return Err(CommandError::validation(
-                LoginErrorCode::ValidationFailed.as_str(),
+                OAuthLoginErrorCode::ValidationFailed.as_str(),
                 "Authorization code cannot be empty"
             ));
         }
         
         if self.redirect_uri.trim().is_empty() {
             return Err(CommandError::validation(
-                LoginErrorCode::ValidationFailed.as_str(),
+                OAuthLoginErrorCode::ValidationFailed.as_str(),
                 "Redirect URI cannot be empty"
             ));
         }
@@ -139,7 +147,7 @@ impl Command for LoginCommand {
         // Basic URL validation for redirect_uri
         if !self.redirect_uri.starts_with("http://") && !self.redirect_uri.starts_with("https://") {
             return Err(CommandError::validation(
-                LoginErrorCode::ValidationFailed.as_str(),
+                OAuthLoginErrorCode::ValidationFailed.as_str(),
                 "Redirect URI must be a valid HTTP/HTTPS URL"
             ));
         }
@@ -148,50 +156,50 @@ impl Command for LoginCommand {
     }
 }
 
-/// Login command handler
-pub struct LoginCommandHandler<L> 
+/// OAuth login command handler
+pub struct OAuthLoginCommandHandler<O> 
 where
-    L: LoginUseCase + ?Sized,
+    O: OAuthUseCase + ?Sized,
 {
-    login_use_case: Arc<L>,
+    oauth_use_case: Arc<O>,
 }
 
-impl<L> LoginCommandHandler<L>
+impl<O> OAuthLoginCommandHandler<O>
 where
-    L: LoginUseCase + ?Sized,
+    O: OAuthUseCase + ?Sized,
 {
-    /// Create a new login command handler
-    pub fn new(login_use_case: Arc<L>) -> Self {
+    /// Create a new OAuth login command handler
+    pub fn new(oauth_use_case: Arc<O>) -> Self {
         Self {
-            login_use_case,
+            oauth_use_case,
         }
     }
 }
 
 #[async_trait]
-impl<L> CommandHandler<LoginCommand> for LoginCommandHandler<L>
+impl<O> CommandHandler<OAuthLoginCommand> for OAuthLoginCommandHandler<O>
 where
-    L: LoginUseCase + Send + Sync + ?Sized,
+    O: OAuthUseCase + Send + Sync + ?Sized,
 {
-    async fn handle(&self, command: LoginCommand) -> Result<LoginResponse, CommandError> {
-        self.login_use_case
-            .login(command.provider, command.code, command.redirect_uri)
+    async fn handle(&self, command: OAuthLoginCommand) -> Result<OAuthLoginResponse, CommandError> {
+        self.oauth_use_case
+            .oauth_login(command.provider, command.code, command.redirect_uri)
             .await
-            .map_err(|e| LoginErrorMapper.map_error(Box::new(e)))
+            .map_err(|e| OAuthLoginErrorMapper.map_error(Box::new(e)))
     }
 }
 
 /// Generate OAuth start URL command
 #[derive(Debug, Clone)]
-pub struct GenerateLoginStartUrlCommand {
+pub struct GenerateOAuthStartUrlCommand {
     /// Command instance ID
     pub command_id: Uuid,
     /// OAuth provider
     pub provider: Provider,
 }
 
-impl GenerateLoginStartUrlCommand {
-    /// Create a new generate login start URL command
+impl GenerateOAuthStartUrlCommand {
+    /// Create a new generate OAuth start URL command
     pub fn new(provider: Provider) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -201,11 +209,11 @@ impl GenerateLoginStartUrlCommand {
 }
 
 #[async_trait]
-impl Command for GenerateLoginStartUrlCommand {
+impl Command for GenerateOAuthStartUrlCommand {
     type Result = String;
     
     fn command_type(&self) -> &'static str {
-        "generate_login_start_url"
+        "generate_oauth_start_url"
     }
     
     fn command_id(&self) -> Uuid {
@@ -218,34 +226,34 @@ impl Command for GenerateLoginStartUrlCommand {
     }
 }
 
-/// Generate login start URL command handler
-pub struct GenerateLoginStartUrlCommandHandler<L> 
+/// Generate OAuth start URL command handler
+pub struct GenerateOAuthStartUrlCommandHandler<O> 
 where
-    L: LoginUseCase + ?Sized,
+    O: OAuthUseCase + ?Sized,
 {
-    login_use_case: Arc<L>,
+    oauth_use_case: Arc<O>,
 }
 
-impl<L> GenerateLoginStartUrlCommandHandler<L>
+impl<O> GenerateOAuthStartUrlCommandHandler<O>
 where
-    L: LoginUseCase + ?Sized,
+    O: OAuthUseCase + ?Sized,
 {
-    /// Create a new generate login start URL command handler
-    pub fn new(login_use_case: Arc<L>) -> Self {
+    /// Create a new generate OAuth start URL command handler
+    pub fn new(oauth_use_case: Arc<O>) -> Self {
         Self {
-            login_use_case,
+            oauth_use_case,
         }
     }
 }
 
 #[async_trait]
-impl<L> CommandHandler<GenerateLoginStartUrlCommand> for GenerateLoginStartUrlCommandHandler<L>
+impl<O> CommandHandler<GenerateOAuthStartUrlCommand> for GenerateOAuthStartUrlCommandHandler<O>
 where
-    L: LoginUseCase + Send + Sync + ?Sized,
+    O: OAuthUseCase + Send + Sync + ?Sized,
 {
-    async fn handle(&self, command: GenerateLoginStartUrlCommand) -> Result<String, CommandError> {
-        self.login_use_case
+    async fn handle(&self, command: GenerateOAuthStartUrlCommand) -> Result<String, CommandError> {
+        self.oauth_use_case
             .generate_start_url(command.provider)
-            .map_err(|e| LoginErrorMapper.map_error(Box::new(e)))
+            .map_err(|e| OAuthLoginErrorMapper.map_error(Box::new(e)))
     }
 }

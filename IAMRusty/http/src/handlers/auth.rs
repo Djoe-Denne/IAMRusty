@@ -10,7 +10,7 @@ use validator::Validate;
 use domain::entity::provider::Provider;
 use application::command::{
     CommandContext,
-    login::{LoginCommand, GenerateLoginStartUrlCommand},
+    oauth_login::{OAuthLoginCommand, GenerateOAuthStartUrlCommand},
     provider::{LinkProviderCommand, GenerateLinkProviderStartUrlCommand, GetProviderTokenCommand},
     signup::SignupCommand,
     password_login::PasswordLoginCommand,
@@ -216,7 +216,7 @@ pub async fn oauth_start(
     
     let base_auth_url = if oauth_state.is_login() {
         // Login operation - use login command
-        let command = GenerateLoginStartUrlCommand::new(provider);
+        let command = GenerateOAuthStartUrlCommand::new(provider);
         state.command_service
             .execute(command, context)
             .await
@@ -309,7 +309,7 @@ async fn handle_login_callback(
         .with_metadata("operation".to_string(), "login_callback".to_string())
         .with_metadata("provider".to_string(), provider.as_str().to_string());
     
-    let command = LoginCommand::new(provider, code, redirect_uri);
+    let command = OAuthLoginCommand::new(provider, code, redirect_uri);
     let response = state
         .command_service
         .execute(command, context)

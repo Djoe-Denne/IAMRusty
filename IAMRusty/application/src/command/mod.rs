@@ -1,4 +1,4 @@
-pub mod login;
+pub mod oauth_login;
 pub mod provider;
 pub mod token;
 pub mod user;

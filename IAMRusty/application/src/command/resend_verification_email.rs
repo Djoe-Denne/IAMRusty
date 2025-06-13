@@ -1,4 +1,4 @@
-use crate::usecase::oauth::{AuthUseCase, AuthError, ResendVerificationEmailRequest, ResendVerificationEmailResponse};
+use crate::usecase::login::{LoginUseCase, ResendVerificationEmailRequest, ResendVerificationEmailResponse};
 use super::signup::AuthErrorMapper; // Reuse existing mapper implementation
 use async_trait::async_trait;
 use rustycog_command::{Command, CommandError, CommandHandler};
@@ -50,24 +50,24 @@ impl Command for ResendVerificationEmailCommand {
 /// Command handler
 pub struct ResendVerificationEmailCommandHandler<A>
 where
-    A: AuthUseCase + ?Sized,
+    A: LoginUseCase + ?Sized,
 {
-    auth_use_case: std::sync::Arc<A>,
+    login_use_case: std::sync::Arc<A>,
 }
 
 impl<A> ResendVerificationEmailCommandHandler<A>
 where
-    A: AuthUseCase + ?Sized,
+    A: LoginUseCase + ?Sized,
 {
-    pub fn new(auth_use_case: std::sync::Arc<A>) -> Self {
-        Self { auth_use_case }
+    pub fn new(login_use_case: std::sync::Arc<A>) -> Self {
+        Self { login_use_case }
     }
 }
 
 #[async_trait]
 impl<A> CommandHandler<ResendVerificationEmailCommand> for ResendVerificationEmailCommandHandler<A>
 where
-    A: AuthUseCase + Send + Sync + ?Sized,
+    A: LoginUseCase + Send + Sync + ?Sized,
 {
     async fn handle(&self, command: ResendVerificationEmailCommand) -> Result<ResendVerificationEmailResponse, CommandError> {
         let request = ResendVerificationEmailRequest {
@@ -75,7 +75,7 @@ where
         };
 
         self
-            .auth_use_case
+            .login_use_case
             .resend_verification_email(request)
             .await
             .map_err(|e| AuthErrorMapper.map_error(Box::new(e)))

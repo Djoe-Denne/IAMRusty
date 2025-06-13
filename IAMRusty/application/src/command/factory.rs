@@ -1,6 +1,6 @@
 use rustycog_command::{CommandRegistry, CommandRegistryBuilder};
 use super::{
-    login::{LoginCommand, GenerateLoginStartUrlCommand, LoginCommandHandler, GenerateLoginStartUrlCommandHandler, LoginErrorMapper},
+    oauth_login::{OAuthLoginCommand, GenerateOAuthStartUrlCommand, OAuthLoginCommandHandler, GenerateOAuthStartUrlCommandHandler, OAuthLoginErrorMapper},
     provider::{LinkProviderCommand, GenerateLinkProviderStartUrlCommand, LinkProviderCommandHandler, GenerateLinkProviderStartUrlCommandHandler, LinkProviderErrorMapper, GetProviderTokenCommand, GetProviderTokenCommandHandler, ProviderErrorMapper},
     token::{RefreshTokenCommand, RevokeTokenCommand, RevokeAllTokensCommand, RefreshTokenCommandHandler, RevokeTokenCommandHandler, RevokeAllTokensCommandHandler, TokenErrorMapper},
     user::{GetUserCommand, ValidateTokenCommand, GetUserCommandHandler, ValidateTokenCommandHandler, UserErrorMapper},
@@ -14,7 +14,7 @@ use crate::usecase::{
     provider::ProviderUseCase,
     token::TokenUseCase,
     user::UserUseCase,
-    oauth::AuthUseCase,
+    oauth::OAuthUseCase,
 };
 use std::sync::Arc;
 
@@ -24,23 +24,23 @@ pub struct CommandRegistryFactory;
 impl CommandRegistryFactory {
     /// Create a command registry with all standard IAM commands registered
     pub fn create_iam_registry(
-        login_usecase: Arc<dyn LoginUseCase>,
+        oauth_usecase: Arc<dyn OAuthUseCase>,
         link_provider_usecase: Arc<dyn LinkProviderUseCase>,
         provider_usecase: Arc<dyn ProviderUseCase>,
         token_usecase: Arc<dyn TokenUseCase>,
         user_usecase: Arc<dyn UserUseCase>,
-        auth_usecase: Arc<dyn AuthUseCase>,
+        login_auth_usecase: Arc<dyn LoginUseCase>,
     ) -> CommandRegistry {
         let mut builder = CommandRegistryBuilder::new();
 
-        // Register login commands
-        let login_handler = Arc::new(LoginCommandHandler::new(login_usecase.clone()));
-        let login_start_url_handler = Arc::new(GenerateLoginStartUrlCommandHandler::new(login_usecase));
-        let login_error_mapper = Arc::new(LoginErrorMapper);
+        // Register OAuth login commands
+        let oauth_login_handler = Arc::new(OAuthLoginCommandHandler::new(oauth_usecase.clone()));
+        let oauth_start_url_handler = Arc::new(GenerateOAuthStartUrlCommandHandler::new(oauth_usecase));
+        let oauth_login_error_mapper = Arc::new(OAuthLoginErrorMapper);
 
         builder = builder
-            .register::<LoginCommand, _>("login".to_string(), login_handler, login_error_mapper.clone())
-            .register::<GenerateLoginStartUrlCommand, _>("generate_login_start_url".to_string(), login_start_url_handler, login_error_mapper);
+            .register::<OAuthLoginCommand, _>("oauth_login".to_string(), oauth_login_handler, oauth_login_error_mapper.clone())
+            .register::<GenerateOAuthStartUrlCommand, _>("generate_oauth_start_url".to_string(), oauth_start_url_handler, oauth_login_error_mapper);
 
         // Register link provider commands
         let link_provider_handler = Arc::new(LinkProviderCommandHandler::new(link_provider_usecase.clone()));
@@ -79,9 +79,9 @@ impl CommandRegistryFactory {
             .register::<ValidateTokenCommand, _>("validate_token".to_string(), validate_token_handler, user_error_mapper);
 
         // Register auth commands
-        let signup_handler = Arc::new(SignupCommandHandler::new(auth_usecase.clone()));
-        let password_login_handler = Arc::new(PasswordLoginCommandHandler::new(auth_usecase.clone()));
-        let verify_email_handler = Arc::new(VerifyEmailCommandHandler::new(auth_usecase.clone()));
+        let signup_handler = Arc::new(SignupCommandHandler::new(login_auth_usecase.clone()));
+        let password_login_handler = Arc::new(PasswordLoginCommandHandler::new(login_auth_usecase.clone()));
+        let verify_email_handler = Arc::new(VerifyEmailCommandHandler::new(login_auth_usecase.clone()));
         let signup_auth_error_mapper = Arc::new(SignupAuthErrorMapper);
         let password_login_auth_error_mapper = Arc::new(PasswordLoginAuthErrorMapper);
         let verify_email_auth_error_mapper = Arc::new(VerifyEmailAuthErrorMapper);
@@ -93,7 +93,7 @@ impl CommandRegistryFactory {
 
         // Register resend verification email command
         use super::resend_verification_email::{ResendVerificationEmailCommand, ResendVerificationEmailCommandHandler};
-        let resend_verification_email_handler = Arc::new(ResendVerificationEmailCommandHandler::new(auth_usecase));
+        let resend_verification_email_handler = Arc::new(ResendVerificationEmailCommandHandler::new(login_auth_usecase));
 
         builder = builder
             .register::<ResendVerificationEmailCommand, _>("resend_verification_email".to_string(), resend_verification_email_handler, verify_email_auth_error_mapper);
@@ -106,26 +106,26 @@ impl CommandRegistryFactory {
         CommandRegistryBuilder::new()
     }
 
-    /// Create a registry builder with only specific command groups
-    pub fn create_builder_with_login(
-        login_usecase: Arc<dyn LoginUseCase>,
+    /// Create a registry builder with only OAuth login commands
+    pub fn create_builder_with_oauth_login(
+        oauth_usecase: Arc<dyn OAuthUseCase>,
     ) -> CommandRegistryBuilder {
-        let login_handler = Arc::new(LoginCommandHandler::new(login_usecase.clone()));
-        let login_start_url_handler = Arc::new(GenerateLoginStartUrlCommandHandler::new(login_usecase));
-        let login_error_mapper = Arc::new(LoginErrorMapper);
+        let oauth_login_handler = Arc::new(OAuthLoginCommandHandler::new(oauth_usecase.clone()));
+        let oauth_start_url_handler = Arc::new(GenerateOAuthStartUrlCommandHandler::new(oauth_usecase));
+        let oauth_login_error_mapper = Arc::new(OAuthLoginErrorMapper);
 
         CommandRegistryBuilder::new()
-            .register::<LoginCommand, _>("login".to_string(), login_handler, login_error_mapper.clone())
-            .register::<GenerateLoginStartUrlCommand, _>("generate_login_start_url".to_string(), login_start_url_handler, login_error_mapper)
+            .register::<OAuthLoginCommand, _>("oauth_login".to_string(), oauth_login_handler, oauth_login_error_mapper.clone())
+            .register::<GenerateOAuthStartUrlCommand, _>("generate_oauth_start_url".to_string(), oauth_start_url_handler, oauth_login_error_mapper)
     }
 
     /// Create a registry builder with only auth commands
     pub fn create_builder_with_auth(
-        auth_usecase: Arc<dyn AuthUseCase>,
+        login_auth_usecase: Arc<dyn LoginUseCase>,
     ) -> CommandRegistryBuilder {
-        let signup_handler = Arc::new(SignupCommandHandler::new(auth_usecase.clone()));
-        let password_login_handler = Arc::new(PasswordLoginCommandHandler::new(auth_usecase.clone()));
-        let verify_email_handler = Arc::new(VerifyEmailCommandHandler::new(auth_usecase.clone()));
+        let signup_handler = Arc::new(SignupCommandHandler::new(login_auth_usecase.clone()));
+        let password_login_handler = Arc::new(PasswordLoginCommandHandler::new(login_auth_usecase.clone()));
+        let verify_email_handler = Arc::new(VerifyEmailCommandHandler::new(login_auth_usecase.clone()));
         let signup_auth_error_mapper = Arc::new(SignupAuthErrorMapper);
         let password_login_auth_error_mapper = Arc::new(PasswordLoginAuthErrorMapper);
         let verify_email_auth_error_mapper = Arc::new(VerifyEmailAuthErrorMapper);

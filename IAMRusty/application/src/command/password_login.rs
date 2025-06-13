@@ -1,17 +1,18 @@
 use rustycog_command::{Command, CommandError, CommandHandler, CommandErrorMapper};
-use crate::usecase::oauth::{AuthUseCase, LoginRequest, LoginResponse, AuthError};
+use crate::usecase::login::{LoginUseCase, LoginRequest, LoginResponse, LoginError};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 
-/// Error codes for authentication-related operations
-#[derive(Debug, Clone)]
+
+/// Authentication error codes for consistent error handling
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AuthErrorCode {
     InvalidCredentials,
-    UserNotFound,
     EmailNotVerified,
     UserAlreadyExists,
+    UserNotFound,
     WeakPassword,
     InvalidEmail,
     EmailNotFound,
@@ -30,104 +31,87 @@ pub enum AuthErrorCode {
 impl AuthErrorCode {
     pub fn as_str(&self) -> &'static str {
         match self {
-            Self::InvalidCredentials => "invalid_credentials",
-            Self::UserNotFound => "user_not_found",
-            Self::EmailNotVerified => "email_not_verified",
-            Self::UserAlreadyExists => "user_already_exists",
-            Self::WeakPassword => "weak_password",
-            Self::InvalidEmail => "invalid_email",
-            Self::EmailNotFound => "email_not_found",
-            Self::EmailAlreadyVerified => "email_already_verified",
-            Self::InvalidVerificationToken => "invalid_verification_token",
-            Self::VerificationTokenExpired => "verification_token_expired",
-            Self::RepositoryError => "repository_error",
-            Self::EventPublishingError => "event_publishing_error",
-            Self::TokenServiceError => "token_service_error",
-            Self::PasswordHashingError => "password_hashing_error",
-            Self::VerificationTokenGenerationError => "verification_token_generation_error",
-            Self::AuthenticationFailed => "authentication_failed",
-            Self::ValidationFailed => "validation_failed",
+            AuthErrorCode::InvalidCredentials => "invalid_credentials",
+            AuthErrorCode::EmailNotVerified => "email_not_verified",
+            AuthErrorCode::UserAlreadyExists => "user_already_exists",
+            AuthErrorCode::UserNotFound => "user_not_found",
+            AuthErrorCode::WeakPassword => "weak_password",
+            AuthErrorCode::InvalidEmail => "invalid_email",
+            AuthErrorCode::EmailNotFound => "email_not_found",
+            AuthErrorCode::EmailAlreadyVerified => "email_already_verified",
+            AuthErrorCode::InvalidVerificationToken => "invalid_verification_token",
+            AuthErrorCode::VerificationTokenExpired => "verification_token_expired",
+            AuthErrorCode::RepositoryError => "repository_error",
+            AuthErrorCode::EventPublishingError => "event_publishing_error",
+            AuthErrorCode::TokenServiceError => "token_service_error",
+            AuthErrorCode::PasswordHashingError => "password_hashing_error",
+            AuthErrorCode::VerificationTokenGenerationError => "verification_token_generation_error",
+            AuthErrorCode::AuthenticationFailed => "authentication_failed",
+            AuthErrorCode::ValidationFailed => "validation_failed",
         }
     }
 }
 
-/// Error mapper for authentication-related commands (signup, password login, verify email)
+/// Error mapper for auth errors to command errors
 pub struct AuthErrorMapper;
 
 impl CommandErrorMapper for AuthErrorMapper {
     fn map_error(&self, error: Box<dyn std::error::Error + Send + Sync>) -> CommandError {
-        if let Some(auth_error) = error.downcast_ref::<AuthError>() {
-            match auth_error {
-                AuthError::InvalidCredentials => CommandError::validation(
-                    AuthErrorCode::InvalidCredentials.as_str(),
-                    "Invalid credentials"
+        if let Some(error) = error.downcast_ref::<LoginError>() {
+            match error {
+                LoginError::UserNotFound => CommandError::business(
+                    AuthErrorCode::UserNotFound.as_str(),
+                    "User not found"
                 ),
-                AuthError::UserNotFound => CommandError::business(
+                LoginError::InvalidCredentials => CommandError::business(
                     AuthErrorCode::InvalidCredentials.as_str(),
                     "Invalid credentials" // Don't leak user existence
                 ),
-                AuthError::EmailNotVerified => CommandError::business(
+                LoginError::EmailNotVerified => CommandError::business(
                     AuthErrorCode::EmailNotVerified.as_str(),
                     "Email not verified"
                 ),
-                AuthError::UserAlreadyExists => CommandError::business(
+                LoginError::UserAlreadyExists => CommandError::business(
                     AuthErrorCode::UserAlreadyExists.as_str(),
                     "User already exists"
                 ),
-                AuthError::WeakPassword => CommandError::validation(
+                LoginError::WeakPassword => CommandError::validation(
                     AuthErrorCode::WeakPassword.as_str(),
                     "Password is too weak"
                 ),
-                AuthError::InvalidEmail => CommandError::validation(
+                LoginError::InvalidEmail => CommandError::validation(
                     AuthErrorCode::InvalidEmail.as_str(),
                     "Invalid email format"
                 ),
-                AuthError::EmailNotFound => CommandError::business(
+                LoginError::EmailNotFound => CommandError::business(
                     AuthErrorCode::EmailNotFound.as_str(),
                     "Invalid verification request" // Don't leak email existence
                 ),
-                AuthError::EmailAlreadyVerified => CommandError::business(
+                LoginError::EmailAlreadyVerified => CommandError::business(
                     AuthErrorCode::EmailAlreadyVerified.as_str(),
                     "Email is already verified"
                 ),
-                AuthError::InvalidVerificationToken => CommandError::validation(
+                LoginError::InvalidVerificationToken => CommandError::validation(
                     AuthErrorCode::InvalidVerificationToken.as_str(),
                     "Invalid or expired verification token"
                 ),
-                AuthError::VerificationTokenExpired => CommandError::validation(
+                LoginError::VerificationTokenExpired => CommandError::validation(
                     AuthErrorCode::VerificationTokenExpired.as_str(),
                     "Verification token has expired"
                 ),
-                AuthError::RepositoryError(_) => CommandError::infrastructure(
-                    AuthErrorCode::RepositoryError.as_str(),
-                    error.to_string()
-                ),
-                AuthError::EventPublishingError(_) => CommandError::infrastructure(
-                    AuthErrorCode::EventPublishingError.as_str(),
-                    error.to_string()
-                ),
-                AuthError::TokenServiceError(inner) => {
-                    let error_msg = inner.to_string();
-                    if Self::is_authentication_related_error(&error_msg) {
+                LoginError::AuthServiceError(msg) => {
+                    if Self::is_authentication_related_error(msg) {
                         CommandError::validation(
                             AuthErrorCode::AuthenticationFailed.as_str(),
-                            format!("Authentication failed: {}", error_msg)
+                            format!("Authentication failed: {}", msg)
                         )
                     } else {
                         CommandError::infrastructure(
-                            AuthErrorCode::TokenServiceError.as_str(),
-                            error.to_string()
+                            AuthErrorCode::RepositoryError.as_str(),
+                            msg.clone()
                         )
                     }
                 },
-                AuthError::PasswordHashingError(_) => CommandError::infrastructure(
-                    AuthErrorCode::PasswordHashingError.as_str(),
-                    error.to_string()
-                ),
-                AuthError::VerificationTokenGenerationError(_) => CommandError::infrastructure(
-                    AuthErrorCode::VerificationTokenGenerationError.as_str(),
-                    error.to_string()
-                ),
             }
         } else {
             let error_msg = error.to_string();
@@ -163,9 +147,9 @@ impl AuthErrorMapper {
 pub struct PasswordLoginCommand {
     /// Command instance ID
     pub command_id: Uuid,
-    /// Email address for authentication
+    /// Email address
     pub email: String,
-    /// Password for authentication
+    /// Password
     pub password: String,
 }
 
@@ -192,6 +176,7 @@ impl Command for PasswordLoginCommand {
     }
 
     fn validate(&self) -> Result<(), CommandError> {
+        // Basic validation without external validator crate
         if self.email.trim().is_empty() {
             return Err(CommandError::validation(
                 AuthErrorCode::ValidationFailed.as_str(),
@@ -221,19 +206,19 @@ impl Command for PasswordLoginCommand {
 /// Password login command handler
 pub struct PasswordLoginCommandHandler<A>
 where
-    A: AuthUseCase + ?Sized,
+    A: LoginUseCase + ?Sized,
 {
-    auth_use_case: Arc<A>,
+    login_use_case: Arc<A>,
 }
 
 impl<A> PasswordLoginCommandHandler<A>
 where
-    A: AuthUseCase + ?Sized,
+    A: LoginUseCase + ?Sized,
 {
     /// Create a new password login command handler
-    pub fn new(auth_use_case: Arc<A>) -> Self {
+    pub fn new(login_use_case: Arc<A>) -> Self {
         Self {
-            auth_use_case,
+            login_use_case,
         }
     }
 }
@@ -241,7 +226,7 @@ where
 #[async_trait]
 impl<A> CommandHandler<PasswordLoginCommand> for PasswordLoginCommandHandler<A>
 where
-    A: AuthUseCase + Send + Sync + ?Sized,
+    A: LoginUseCase + Send + Sync + ?Sized,
 {
     async fn handle(&self, command: PasswordLoginCommand) -> Result<LoginResponse, CommandError> {
         let request = LoginRequest {
@@ -249,7 +234,7 @@ where
             password: command.password,
         };
 
-        self.auth_use_case
+        self.login_use_case
             .login(request)
             .await
             .map_err(|e| AuthErrorMapper.map_error(Box::new(e)))
