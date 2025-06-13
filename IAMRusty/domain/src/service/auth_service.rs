@@ -381,51 +381,60 @@ where
 
     pub async fn resend_verification_email(&self, request: ResendVerificationEmailRequest) -> Result<ResendVerificationEmailResponse, AuthError> {
         // Find user by email
-        let user_email = self.user_email_repository
+        let user_email_result = self.user_email_repository
             .find_by_email(&request.email)
             .await
-            .map_err(|e| AuthError::RepositoryError(DomainError::RepositoryError(e.to_string())))?
-            .ok_or(AuthError::EmailNotFound)?;
-
-        // Check if email is verified
-        if user_email.is_verified {
-            return Err(AuthError::EmailAlreadyVerified);
-        }
-
-        // Generate verification token
-        let verification_token = self.generate_verification_token();
-        let email_verification = EmailVerification::new(
-            request.email.clone(),
-            verification_token,
-            24, // Expires in 24 hours
-        );
-
-        // Save the verification token
-        self.email_verification_repository.create(&email_verification).await
             .map_err(|e| AuthError::RepositoryError(DomainError::RepositoryError(e.to_string())))?;
 
-        // Fetch user to include username
-        let user = self.user_repository
-            .find_by_id(user_email.user_id)
-            .await
-            .map_err(|e| AuthError::RepositoryError(DomainError::RepositoryError(e.to_string())))?
-            .ok_or(AuthError::UserNotFound)?;
+        // For security reasons (prevent user enumeration), always return success response
+        // but only perform actions if the email exists and is unverified
+        match user_email_result {
+            Some(user_email) => {
+                // Only proceed if email is not verified
+                if !user_email.is_verified {
+                    // Generate verification token
+                    let verification_token = self.generate_verification_token();
+                    let email_verification = EmailVerification::new(
+                        request.email.clone(),
+                        verification_token,
+                        24, // Expires in 24 hours
+                    );
 
-        // Reuse UserSignedUp event to trigger email service
-        let event = DomainEvent::UserSignedUp(UserSignedUpEvent::new(
-            user_email.user_id,
-            request.email.clone(),
-            user.username,
-            false,
-        ));
+                    // Save the verification token
+                    if let Err(e) = self.email_verification_repository.create(&email_verification).await {
+                        tracing::error!("Failed to create verification token: {}", e);
+                        // Continue and return success to prevent information leakage
+                    } else {
+                        // Fetch user to include username for event
+                        if let Ok(Some(user)) = self.user_repository.find_by_id(user_email.user_id).await {
+                            // Publish event to trigger email service
+                            let event = DomainEvent::UserSignedUp(UserSignedUpEvent::new(
+                                user_email.user_id,
+                                request.email.clone(),
+                                user.username,
+                                false,
+                            ));
 
-        if let Err(e) = self.event_publisher.publish(event).await {
-            tracing::warn!("Failed to publish UserSignedUp event: {}", e);
-            // Don't fail the resend for event publishing errors
+                            if let Err(e) = self.event_publisher.publish(event).await {
+                                tracing::warn!("Failed to publish UserSignedUp event: {}", e);
+                                // Don't fail the resend for event publishing errors
+                            }
+                        }
+                    }
+                } else {
+                    // Email is already verified - log but don't reveal this information
+                    tracing::debug!("Resend verification requested for already verified email: {}", request.email);
+                }
+            }
+            None => {
+                // Email not found - log but don't reveal this information
+                tracing::debug!("Resend verification requested for non-existent email: {}", request.email);
+            }
         }
 
+        // Always return success response to prevent user enumeration attacks
         Ok(ResendVerificationEmailResponse { 
-            message: "Verification email resent successfully".to_string() 
+            message: "If your email is registered and unverified, a verification email has been sent.".to_string() 
         })
     }
 }

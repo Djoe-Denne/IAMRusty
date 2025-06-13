@@ -478,22 +478,28 @@ pub async fn verify_email(
 pub async fn resend_verification_email(
     State(state): State<AppState>,
     ValidatedJson(request): ValidatedJson<ResendVerificationEmailRequest>,
-) -> Result<Json<SuccessResponse>, AuthError> {
+) -> Json<SuccessResponse> {
+    debug!("Resend verification email for: {}", request.email);
+    
     let command = ResendVerificationEmailCommand::new(request.email.clone());
-
     let context = CommandContext::new()
         .with_metadata("operation".to_string(), "resend_verification_email".to_string())
         .with_metadata("email".to_string(), request.email.clone());
 
-    let response = state.command_service
-        .execute(command, context)
-        .await
-        .map_err(|e| {
-            error!("Resend verification failed: {}", e);
-            AuthError::verification_failed(&e) // reuse existing error mapping
-        })?;
-
-    Ok(Json(SuccessResponse { message: response.message }))
+    // Execute command but handle all errors gracefully to prevent user enumeration
+    match state.command_service.execute(command, context).await {
+        Ok(response) => Json(SuccessResponse { message: response.message }),
+        Err(e) => {
+            // Log the actual error for debugging but don't reveal it to the client
+            debug!("Resend verification failed: {}", e);
+            
+            // Always return generic success message to prevent user enumeration attacks
+            // This prevents attackers from discovering which emails are registered
+            Json(SuccessResponse {
+                message: "If your email is registered and unverified, a verification email has been sent.".to_string(),
+            })
+        }
+    }
 }
 
 /// Provider token response for internal endpoints
