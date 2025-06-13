@@ -177,51 +177,18 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
         token_service.clone(),
     );
 
-    // Create auth use case with resolved secret for verification token generation
-    tracing::info!("Resolving JWT secret for email verification tokens");
-    let jwt_secret_for_verification = match config.jwt.resolve_secret() {
-        Ok(configuration::JwtSecret::Hmac(secret)) => {
-            tracing::debug!("Using HMAC secret for verification tokens (length: {} bytes)", secret.len());
-            secret
-        }
-        Ok(configuration::JwtSecret::Rsa { private_key, key_id, .. }) => {
-            tracing::info!("RSA JWT configuration detected, deriving HMAC secret for verification tokens");
-            
-            // For RSA configurations, we derive a consistent HMAC secret from the private key
-            // This ensures verification tokens work even with RSA JWT configurations
-            // We use SHA256 to create a fixed-length secret from the private key
-            use sha2::{Sha256, Digest};
-            use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
-            
-            let mut hasher = Sha256::new();
-            hasher.update(b"iam_verification_token_secret:");
-            hasher.update(key_id.as_bytes());
-            hasher.update(b":");
-            hasher.update(private_key.as_bytes());
-            let hash = hasher.finalize();
-            let derived_secret = URL_SAFE_NO_PAD.encode(&hash);
-            
-            tracing::debug!("Derived HMAC secret for verification tokens from RSA private key (key_id: {}, derived length: {} bytes)", 
-                key_id, derived_secret.len());
-            
-            derived_secret
-        }
-        Err(e) => {
-            tracing::error!("Failed to resolve JWT secret for verification tokens: {}", e);
-            return Err(anyhow::anyhow!("Failed to resolve JWT secret for verification tokens: {}", e));
-        }
-    };
-    
-    tracing::info!("Creating login use case with verification token support");
-    let login_usecase = LoginUseCaseImpl::new(
+    tracing::info!("Creating auth service for login use case");
+    let auth_service = Arc::new(domain::service::auth_service::AuthService::new(
         Arc::new(user_repo.clone()),
         Arc::new(user_email_repo.clone()),
         Arc::new(email_verification_repo),
         password_service_adapter.clone(),
         token_service.clone(),
         event_publisher,
-        jwt_secret_for_verification,
-    );
+    ));
+    
+    tracing::info!("Creating login use case with verification token support");
+    let login_usecase = LoginUseCaseImpl::new(auth_service);
 
     // Create provider usecase
     // For provider usecase, we only need the get_provider_token method from AuthService
