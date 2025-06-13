@@ -7,8 +7,8 @@ pub struct UserProfileDto {
     /// User UUID
     pub id: String,
     
-    /// Username
-    pub username: String,
+    /// Username (optional for incomplete registrations)
+    pub username: Option<String>,
     
     /// Email address (populated separately from UserEmail entity)
     pub email: String,

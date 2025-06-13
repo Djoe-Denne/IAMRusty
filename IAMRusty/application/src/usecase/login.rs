@@ -5,7 +5,7 @@ use domain::service::auth_service::{
 };
 use domain::port::{
     repository::{UserRepository, UserEmailRepository, EmailVerificationRepository},
-    service::AuthTokenService,
+    service::{AuthTokenService, RegistrationTokenService},
     event_publisher::EventPublisher,
 };
 use async_trait::async_trait;
@@ -85,28 +85,30 @@ pub trait LoginUseCase: Send + Sync {
 }
 
 /// Implementation of the login use case for email/password authentication
-pub struct LoginUseCaseImpl<UR, UER, EVR, PS, TS, EP>
+pub struct LoginUseCaseImpl<UR, UER, EVR, PS, TS, RTS, EP>
 where
     UR: UserRepository,
     UER: UserEmailRepository,
     EVR: EmailVerificationRepository,
     PS: PasswordService,
     TS: AuthTokenService,
+    RTS: RegistrationTokenService,
     EP: EventPublisher,
 {
-    auth_service: Arc<AuthService<UR, UER, EVR, PS, TS, EP>>,
+    auth_service: Arc<AuthService<UR, UER, EVR, PS, TS, RTS, EP>>,
 }
 
-impl<UR, UER, EVR, PS, TS, EP> LoginUseCaseImpl<UR, UER, EVR, PS, TS, EP>
+impl<UR, UER, EVR, PS, TS, RTS, EP> LoginUseCaseImpl<UR, UER, EVR, PS, TS, RTS, EP>
 where
     UR: UserRepository,
     UER: UserEmailRepository,
     EVR: EmailVerificationRepository,
     PS: PasswordService,
     TS: AuthTokenService,
+    RTS: RegistrationTokenService,
     EP: EventPublisher,
 {
-    pub fn new(auth_service: Arc<AuthService<UR, UER, EVR, PS, TS, EP>>) -> Self {
+    pub fn new(auth_service: Arc<AuthService<UR, UER, EVR, PS, TS, RTS, EP>>) -> Self {
         Self {
             auth_service,
         }
@@ -114,13 +116,14 @@ where
 }
 
 #[async_trait]
-impl<UR, UER, EVR, PS, TS, EP> LoginUseCase for LoginUseCaseImpl<UR, UER, EVR, PS, TS, EP>
+impl<UR, UER, EVR, PS, TS, RTS, EP> LoginUseCase for LoginUseCaseImpl<UR, UER, EVR, PS, TS, RTS, EP>
 where
     UR: UserRepository + Send + Sync,
     UER: UserEmailRepository + Send + Sync,
     EVR: EmailVerificationRepository + Send + Sync,
     PS: PasswordService + Send + Sync,
     TS: AuthTokenService + Send + Sync,
+    RTS: RegistrationTokenService + Send + Sync,
     EP: EventPublisher + Send + Sync,
 {
     async fn signup(&self, request: SignupRequest) -> Result<SignupResponse, LoginError> {

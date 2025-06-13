@@ -1,5 +1,6 @@
 use axum::{
     extract::{rejection::JsonRejection, FromRequest, Request},
+    http::StatusCode,
     Json,
 };
 use serde::de::DeserializeOwned;
@@ -50,7 +51,7 @@ where
                     JsonRejection::JsonSyntaxError(_) => ValidationError::new(
                         "invalid_json_syntax", 
                         "Invalid JSON syntax in request body"
-                    ),
+                    ).with_status(StatusCode::BAD_REQUEST),
                     JsonRejection::MissingJsonContentType(_) => ValidationError::new(
                         "missing_content_type",
                         "Missing 'Content-Type: application/json' header"
@@ -58,11 +59,11 @@ where
                     JsonRejection::BytesRejection(_) => ValidationError::new(
                         "request_body_error",
                         "Failed to read request body"
-                    ),
+                    ).with_status(StatusCode::BAD_REQUEST),
                     _ => ValidationError::new(
                         "json_extraction_error",
                         "Failed to extract JSON from request"
-                    ),
+                    ).with_status(StatusCode::BAD_REQUEST),
                 })?;
             
             value.validate()

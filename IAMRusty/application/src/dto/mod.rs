@@ -3,7 +3,7 @@
 //! This module contains DTOs for communication with the HTTP layer
 //! and other external interfaces.
 
-mod auth;
+pub mod auth;
 mod user;
 
 pub use auth::*;

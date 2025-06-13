@@ -20,8 +20,8 @@ lazy_static! {
         r"^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$"
     ).unwrap();
     
-    /// Regex for validating usernames (alphanumeric, underscores, hyphens, 3-30 chars)
-    pub static ref USERNAME_REGEX: Regex = Regex::new(r"^[a-zA-Z0-9_-]{3,30}$").unwrap();
+    /// Regex for validating usernames (alphanumeric, underscores, hyphens, 3-50 chars)
+    pub static ref USERNAME_REGEX: Regex = Regex::new(r"^[a-zA-Z0-9_-]{3,50}$").unwrap();
     
     /// Regex for strong password validation (at least 8 chars, contains letter and number)
     pub static ref STRONG_PASSWORD_REGEX: Regex = Regex::new(r"^.{8,128}$").unwrap();
@@ -90,6 +90,12 @@ pub fn validate_username(username: &str) -> Result<(), ValidationError> {
     if !USERNAME_REGEX.is_match(username) {
         warn!("Username format invalid: '{}'", username);
         return Err(ValidationError::new("invalid_username_format"));
+    }
+    
+    // Require at least one letter (cannot be only numbers/symbols)
+    if !HAS_LETTER_REGEX.is_match(username) {
+        warn!("Username must contain at least one letter: '{}'", username);
+        return Err(ValidationError::new("username_needs_letter"));
     }
     
     debug!("Username is valid: '{}'", username);

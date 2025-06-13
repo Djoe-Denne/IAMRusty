@@ -32,6 +32,9 @@ paths:
   /auth/signup:
     post:
       summary: Sign up with email and password
+      description: |
+        Creates user account. Returns 200 if email exists (adds password to existing user),
+        201 if new user (requires username selection via /auth/complete-registration).
       requestBody:
         required: true
         content:
@@ -39,26 +42,51 @@ paths:
             schema:
               type: object
               properties:
-                username:
-                  type: string
-                email:
-                  type: string
-                  format: email
-                password:
-                  type: string
-              required:
-                - username
-                - email
-                - password
+                email: {type: string, format: email}
+                password: {type: string, minLength: 8}
+              required: [email, password]
       responses:
+        "200":
+          description: Existing user - password auth added
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    type: object
+                    properties:
+                      id: {type: string}
+                      username: {type: string}
+                      email: {type: string}
+                  access_token: {type: string}
+                  expires_in: {type: integer}
+                  refresh_token: {type: string}
+                  message: {type: string}
         "201":
-          description: User created successfully
+          description: New user created - username required
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    type: object
+                    properties:
+                      id: {type: string}
+                      email: {type: string}
+                  registration_token: {type: string, description: "RSA-signed JWT"}
+                  requires_username: {type: boolean, example: true}
+                  message: {type: string}
         "400":
-          description: Invalid input or user already exists
+          description: Invalid input
+        "409":
+          description: Email already has password authentication
 
   /auth/login:
     post:
       summary: Log in with email and password
+      description: Only works for users with completed registration (have username).
       requestBody:
         required: true
         content:
@@ -66,28 +94,38 @@ paths:
             schema:
               type: object
               properties:
-                email:
-                  type: string
-                  format: email
-                password:
-                  type: string
-              required:
-                - email
-                - password
+                email: {type: string, format: email}
+                password: {type: string}
+              required: [email, password]
       responses:
         "200":
           description: Authentication successful
           content:
             application/json:
-              example:
-                token: "jwt_xyz"
-                user:
-                  id: "user_123"
-                  username: "alice"
-                  email: "alice@example.com"
-                expires_in: 900
+              schema:
+                type: object
+                properties:
+                  user:
+                    type: object
+                    properties:
+                      id: {type: string}
+                      username: {type: string}
+                      email: {type: string}
+                  access_token: {type: string}
+                  expires_in: {type: integer}
+                  refresh_token: {type: string}
         "401":
           description: Invalid credentials
+        "423":
+          description: Account exists but registration incomplete
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: {type: string, example: "registration_incomplete"}
+                  message: {type: string}
+                  registration_token: {type: string, description: "RSA-signed JWT"}
           
   /auth/verify:
     post:
@@ -370,6 +408,22 @@ paths:
                         is_verified: false
                     new_email_added: true
                     new_email: "henri@github.com"
+        "202":
+          description: New user - username selection required
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  operation: {type: string, enum: [registration_required]}
+                  registration_token: {type: string, description: "RSA-signed JWT"}
+                  provider_info:
+                    type: object
+                    properties:
+                      email: {type: string}
+                      avatar: {type: string, nullable: true}
+                      suggested_username: {type: string}
+                  requires_username: {type: boolean, example: true}
         "400":
           description: Missing or invalid authorization code / unsupported provider / invalid state parameter
         "401":
@@ -403,6 +457,97 @@ paths:
                     message: "This GitHub account is already linked to another user"
         "500":
           description: Error while communicating with the OAuth provider
+
+  /auth/complete-registration:
+    post:
+      summary: Complete user registration with username choice
+      description: |
+        Used once per user to complete registration. Validates RSA-signed registration_token
+        containing user email. Triggers user_signed_up domain event.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                registration_token:
+                  type: string
+                  description: RSA-signed JWT containing email, user_id, exp
+                username:
+                  type: string
+                  minLength: 3
+                  maxLength: 50
+                  pattern: '^[a-zA-Z0-9_-]+$'
+              required: [registration_token, username]
+      responses:
+        "200":
+          description: Registration completed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    type: object
+                    properties:
+                      id: {type: string}
+                      username: {type: string}
+                      email: {type: string}
+                      avatar: {type: string, nullable: true}
+                  access_token: {type: string}
+                  expires_in: {type: integer}
+                  refresh_token: {type: string}
+        "400":
+          description: Invalid or expired registration token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: {type: string}
+                  message: {type: string}
+              examples:
+                expired_token:
+                  value:
+                    error: "token_expired"
+                    message: "Registration token has expired"
+                invalid_signature:
+                  value:
+                    error: "invalid_token"
+                    message: "Invalid registration token signature"
+        "409":
+          description: Username already taken
+        "422":
+          description: Invalid username format
+
+  /auth/username/check:
+    get:
+      summary: Check username availability
+      parameters:
+        - in: query
+          name: username
+          required: true
+          schema:
+            type: string
+            minLength: 3
+            maxLength: 50
+      responses:
+        "200":
+          description: Username availability status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  available: {type: boolean}
+                  suggestions:
+                    type: array
+                    items: {type: string}
+                    description: Alternative suggestions if username taken
+              example:
+                available: false
+                suggestions: ["johndoe123", "johndoe_", "j_doe"]
 
   /token/refresh:
     post:

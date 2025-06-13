@@ -20,6 +20,7 @@ use application::{
         link_provider::LinkProviderUseCaseImpl,
         provider::ProviderUseCaseImpl,
         oauth::OAuthUseCaseImpl,
+        registration::RegistrationUseCaseImpl,
     },
     command::{
         CommandRegistryFactory, GenericCommandService,
@@ -118,7 +119,7 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
     tracing::debug!("Successfully created JWT algorithm config");
     
     // Convert configuration JwtAlgorithm to infra JwtAlgorithm
-    let jwt_algorithm = match jwt_algorithm_config {
+    let jwt_algorithm = match jwt_algorithm_config.clone() {
         configuration::JwtAlgorithm::HS256(secret) => {
             tracing::info!("Using HMAC256 JWT algorithm (secret length: {})", secret.len());
             infra::token::JwtAlgorithm::HS256(secret)
@@ -141,6 +142,12 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
     ));
     tracing::info!("JWT token service created successfully");
 
+    // Create registration token service
+    tracing::info!("Creating registration token service");
+    let registration_token_service = Arc::new(infra::token::RegistrationTokenServiceImpl::new(
+        infra::token::JwtAlgorithm::from(jwt_algorithm_config.clone()),
+    ).unwrap());
+
     // Create OAuth use case for OAuth flows
     let oauth_usecase = OAuthUseCaseImpl::new(
         Arc::new(github_auth_login),
@@ -150,6 +157,7 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
         Arc::new(token_repo_login),
         Arc::new(refresh_token_repo.clone()),
         token_service.clone(),
+        registration_token_service.clone(),
         event_publisher.clone(),
     );
 
@@ -177,6 +185,8 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
         token_service.clone(),
     );
 
+
+
     tracing::info!("Creating auth service for login use case");
     let auth_service = Arc::new(domain::service::auth_service::AuthService::new(
         Arc::new(user_repo.clone()),
@@ -184,11 +194,23 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
         Arc::new(email_verification_repo),
         password_service_adapter.clone(),
         token_service.clone(),
-        event_publisher,
+        registration_token_service.clone(),
+        event_publisher.clone(),
     ));
     
     tracing::info!("Creating login use case with verification token support");
     let login_usecase = LoginUseCaseImpl::new(auth_service);
+
+    // Create registration use case
+    tracing::info!("Creating registration use case");
+    let registration_usecase = Arc::new(RegistrationUseCaseImpl::new(
+        Arc::new(user_repo.clone()),
+        Arc::new(user_repo.clone()),
+        Arc::new(user_email_repo.clone()),
+        registration_token_service.clone(),
+        token_service.clone(),
+        event_publisher.clone(),
+    ));
 
     // Create provider usecase
     // For provider usecase, we only need the get_provider_token method from AuthService
@@ -243,6 +265,7 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
         Arc::new(token_usecase_for_commands),
         Arc::new(user_usecase_for_commands),
         Arc::new(login_usecase),
+        registration_usecase.clone(),
     );
     let command_service = Arc::new(GenericCommandService::new(Arc::new(registry)));
 
@@ -251,6 +274,7 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
         command_service,
         Arc::new(user_usecase),
         Arc::new(token_usecase),
+        registration_usecase,
         config.oauth.clone(),
     );
 

@@ -103,8 +103,6 @@ impl AuthErrorMapper {
 pub struct SignupCommand {
     /// Command instance ID
     pub command_id: Uuid,
-    /// Username for the new user
-    pub username: String,
     /// Email address for the new user
     pub email: String,
     /// Password for the new user
@@ -113,10 +111,9 @@ pub struct SignupCommand {
 
 impl SignupCommand {
     /// Create a new signup command
-    pub fn new(username: String, email: String, password: String) -> Self {
+    pub fn new(email: String, password: String) -> Self {
         Self {
             command_id: Uuid::new_v4(),
-            username,
             email,
             password,
         }
@@ -139,13 +136,6 @@ impl Command for SignupCommand {
         // Input format validation is handled at the HTTP layer
         
         // These are basic sanity checks to ensure the command is properly constructed
-        if self.username.trim().is_empty() {
-            return Err(CommandError::validation(
-                AuthErrorCode::ValidationFailed.as_str(),
-                "Username cannot be empty"
-            ));
-        }
-        
         if self.email.trim().is_empty() {
             return Err(CommandError::validation(
                 AuthErrorCode::ValidationFailed.as_str(),
@@ -191,7 +181,6 @@ where
 {
     async fn handle(&self, command: SignupCommand) -> Result<SignupResponse, CommandError> {
         let request = SignupRequest {
-            username: command.username,
             email: command.email,
             password: command.password,
         };

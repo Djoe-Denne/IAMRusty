@@ -227,6 +227,13 @@ pub enum AuthError {
     /// General API error
     #[error(transparent)]
     Api(#[from] ApiError),
+
+    /// Registration incomplete with token
+    #[error("{message}")]
+    RegistrationIncomplete {
+        registration_token: String,
+        message: String,
+    },
 }
 
 impl IntoResponse for AuthError {
@@ -423,6 +430,14 @@ impl IntoResponse for AuthError {
                 (StatusCode::INTERNAL_SERVER_ERROR, body).into_response()
             }
             AuthError::Api(api_error) => api_error.into_response(),
+            AuthError::RegistrationIncomplete { registration_token, message } => {
+                let body = Json(serde_json::json!({
+                    "error": "registration_incomplete",
+                    "message": message,
+                    "registration_token": registration_token
+                }));
+                (StatusCode::LOCKED, body).into_response()
+            }
         }
     }
 }
@@ -923,6 +938,96 @@ impl AuthError {
                     status: StatusCode::INTERNAL_SERVER_ERROR,
                 }
             }
+        }
+    }
+
+    /// Registration failed
+    pub fn registration_failed(command_error: &CommandError) -> Self {
+        match command_error {
+            CommandError::Validation { code, .. } if code == "invalid_token" => AuthError::OAuth {
+                operation: "complete_registration".to_string(),
+                error_code: code.clone(),
+                message: "Invalid registration token signature".to_string(),
+                status: StatusCode::BAD_REQUEST,
+            },
+            CommandError::Validation { code, .. } if code == "token_expired" => AuthError::OAuth {
+                operation: "complete_registration".to_string(),
+                error_code: code.clone(),
+                message: "Registration token has expired".to_string(),
+                status: StatusCode::BAD_REQUEST,
+            },
+            CommandError::Business { code, .. } if code == "username_taken" => AuthError::OAuth {
+                operation: "complete_registration".to_string(),
+                error_code: code.clone(),
+                message: "Username is already taken".to_string(),
+                status: StatusCode::CONFLICT,
+            },
+            CommandError::Business { code, .. } if code == "user_not_found" => AuthError::OAuth {
+                operation: "complete_registration".to_string(),
+                error_code: code.clone(),
+                message: "Registration session not found".to_string(),
+                status: StatusCode::BAD_REQUEST,
+            },
+            CommandError::Validation { code, .. } if code == "invalid_username" => AuthError::OAuth {
+                operation: "complete_registration".to_string(),
+                error_code: code.clone(),
+                message: "Invalid username format".to_string(),
+                status: StatusCode::UNPROCESSABLE_ENTITY,
+            },
+            CommandError::Validation { code, message } => AuthError::OAuth {
+                operation: "complete_registration".to_string(),
+                error_code: code.clone(),
+                message: message.clone(),
+                status: StatusCode::BAD_REQUEST,
+            },
+            CommandError::Business { code, message } => AuthError::OAuth {
+                operation: "complete_registration".to_string(),
+                error_code: code.clone(),
+                message: message.clone(),
+                status: StatusCode::BAD_REQUEST,
+            },
+            CommandError::Infrastructure { code, .. } => AuthError::OAuth {
+                operation: "complete_registration".to_string(),
+                error_code: code.clone(),
+                message: "Internal server error".to_string(),
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+            },
+            _ => AuthError::OAuth {
+                operation: "complete_registration".to_string(),
+                error_code: "registration_failed".to_string(),
+                message: "Registration completion failed".to_string(),
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+            },
+        }
+    }
+
+    /// Username check failed
+    pub fn username_check_failed(command_error: &CommandError) -> Self {
+        match command_error {
+            CommandError::Validation { code, .. } if code == "invalid_username" => AuthError::OAuth {
+                operation: "check_username".to_string(),
+                error_code: code.clone(),
+                message: "Invalid username format".to_string(),
+                status: StatusCode::BAD_REQUEST,
+            },
+            CommandError::Validation { code, message } => AuthError::OAuth {
+                operation: "check_username".to_string(),
+                error_code: code.clone(),
+                message: message.clone(),
+                status: StatusCode::BAD_REQUEST,
+            },
+            CommandError::Infrastructure { code, .. } => AuthError::OAuth {
+                operation: "check_username".to_string(),
+                error_code: code.clone(),
+                message: "Internal server error".to_string(),
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+            },
+            _ => AuthError::OAuth {
+                operation: "check_username".to_string(),
+                error_code: "username_check_failed".to_string(),
+                message: "Username availability check failed".to_string(),
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+            },
         }
     }
 } 

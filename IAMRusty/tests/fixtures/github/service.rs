@@ -43,7 +43,8 @@ impl GitHubService {
         Mock::given(method("POST"))
             .and(path("/login/oauth/access_token"))
             .and(header("accept", "application/json"))
-            .and(body_string_contains(&request.code))
+            .and(header("content-type", "application/x-www-form-urlencoded"))
+            .and(body_string_contains(&format!("code={}", &request.code)))
             .respond_with(
                 ResponseTemplate::new(status_code)
                     .set_body_json(response)

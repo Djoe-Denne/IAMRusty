@@ -12,6 +12,7 @@ use chrono::{Duration, Utc};
 use uuid::Uuid;
 use rand::Rng;
 use thiserror::Error;
+use configuration;
 
 /// JWT token service error
 #[derive(Debug, Error)]
@@ -40,6 +41,19 @@ pub enum JwtAlgorithm {
     RS256(JwtKeyPair),
     /// HMAC256 with secret
     HS256(String),
+}
+
+impl From<configuration::JwtAlgorithm> for JwtAlgorithm {
+    fn from(config_alg: configuration::JwtAlgorithm) -> Self {
+        match config_alg {
+            configuration::JwtAlgorithm::HS256(secret) => Self::HS256(secret),
+            configuration::JwtAlgorithm::RS256(key_pair) => Self::RS256(JwtKeyPair {
+                private_key: key_pair.private_key,
+                public_key: key_pair.public_key,
+                kid: key_pair.kid,
+            }),
+        }
+    }
 }
 
 /// Unified JWT token service that handles both encoding/decoding and token management

@@ -2,7 +2,7 @@ use crate::usecase::oauth::{
     OAuthUseCase, OAuthUseCaseImpl
 };
 use crate::auth::OAuthService;
-use domain::port::service::AuthTokenService;
+use domain::port::service::{AuthTokenService, RegistrationTokenService};
 use domain::port::repository::{TokenRepository, UserRepository, UserEmailRepository, RefreshTokenRepository};
 use domain::port::event_publisher::EventPublisher;
 use std::sync::Arc;
@@ -12,7 +12,7 @@ pub struct OAuthFactory;
 
 impl OAuthFactory {
     /// Create an OAuth use case instance with all its dependencies
-    pub fn create_oauth_use_case<GH, GL, UR, UER, TR, RR, TS, EP>(
+    pub fn create_oauth_use_case<GH, GL, UR, UER, TR, RR, TS, RTS, EP>(
         github_auth: Arc<GH>,
         gitlab_auth: Arc<GL>,
         user_repository: Arc<UR>,
@@ -20,6 +20,7 @@ impl OAuthFactory {
         token_repository: Arc<TR>,
         refresh_token_repository: Arc<RR>,
         token_service: Arc<TS>,
+        registration_token_service: Arc<RTS>,
         event_publisher: Arc<EP>,
     ) -> Arc<dyn OAuthUseCase>
     where
@@ -30,6 +31,7 @@ impl OAuthFactory {
         TR: TokenRepository + Send + Sync + 'static,
         RR: RefreshTokenRepository + Send + Sync + 'static,
         TS: AuthTokenService + Send + Sync + 'static,
+        RTS: RegistrationTokenService + Send + Sync + 'static,
         EP: EventPublisher + Send + Sync + 'static,
         GH::Error: std::error::Error + Send + Sync + 'static,
         GL::Error: std::error::Error + Send + Sync + 'static,
@@ -47,6 +49,7 @@ impl OAuthFactory {
             token_repository,
             refresh_token_repository,
             token_service,
+            registration_token_service,
             event_publisher,
         ))
     }

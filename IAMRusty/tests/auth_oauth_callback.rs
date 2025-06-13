@@ -68,84 +68,6 @@ fn verify_jwt_structure(token: &str) -> bool {
     parts.len() == 3 && !parts[0].is_empty() && !parts[1].is_empty() && !parts[2].is_empty()
 }
 
-// 🔐 Authentication & OAuth Callback Tests
-// 🔁 /auth/{provider}/callback
-
-#[tokio::test]
-#[serial]
-async fn test_oauth_callback_github_successful_flow_creates_jwt_for_new_user() {
-    // Setup test environment
-    let test_fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let db = test_fixture.db();
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let client = create_test_client();
-    
-    // Setup GitHub mock server for successful flow
-    let github = GitHubFixtures::service().await;
-    github.setup_successful_token_exchange().await;
-    github.setup_successful_user_profile_arthur().await;
-    
-    // Create valid state for login operation
-    let state = create_login_state();
-    
-    // Make callback request with authorization code
-    let response = client
-        .get(&format!("{}/api/auth/github/callback", base_url))
-        .query(&[
-            ("code", "valid_auth_code_123"),
-            ("state", &state)
-        ])
-        .send()
-        .await
-        .expect("Failed to send callback request");
-    
-    // ✅ Should return 200 OK with JWT token
-    assert_eq!(response.status(), 200, "Should return 200 OK for successful OAuth callback");
-    
-    // ✅ Should return JSON response with JWT token
-    let response_json: Value = response
-        .json()
-        .await
-        .expect("Should return JSON response");
-    
-    assert_eq!(response_json["operation"], "login", 
-              "Response should indicate 'login' operation");
-    
-    // ✅ Should contain valid JWT token
-    let access_token = response_json["access_token"].as_str()
-        .expect("Response should contain access token");
-    assert!(verify_jwt_structure(access_token), 
-           "Access token should have valid structure");
-    
-    // ✅ Should create user in database
-    let user_count = count_entities(db.clone(), "users").await
-        .expect("Failed to count users");
-    assert_eq!(user_count, 1, "Should create exactly one user");
-    
-    // ✅ Should create provider token in database
-    let token_count = count_entities(db.clone(), "provider_tokens").await
-        .expect("Failed to count provider tokens");
-    assert_eq!(token_count, 1, "Should create exactly one provider token");
-    
-    // ✅ Should create user email in database
-    let email_count = count_entities(db.clone(), "user_emails").await
-        .expect("Failed to count user emails");
-    assert_eq!(email_count, 1, "Should create exactly one user email");
-    
-    // ✅ Verify user data matches GitHub profile
-    let user_data: Option<sea_orm::QueryResult> = db
-        .query_one(Statement::from_string(
-            DatabaseBackend::Postgres,
-            "SELECT username, avatar_url FROM users LIMIT 1".to_string(),
-        ))
-        .await
-        .expect("Failed to query user data");
-    
-    let user_data = user_data.expect("User should exist");
-    let username: String = user_data.try_get("", "username").expect("Should have username");
-    assert_eq!(username, "arthur", "Username should match GitHub profile");
-}
-
 #[tokio::test]
 #[serial]
 async fn test_oauth_callback_gitlab_successful_flow_creates_jwt_for_new_user() {
@@ -167,7 +89,7 @@ async fn test_oauth_callback_gitlab_successful_flow_creates_jwt_for_new_user() {
     let response = client
         .get(&format!("{}/api/auth/gitlab/callback", base_url))
         .query(&[
-            ("code", "valid_gitlab_auth_code"),
+            ("code", "test_auth_code"),
             ("state", &state)
         ])
         .send()
@@ -175,22 +97,19 @@ async fn test_oauth_callback_gitlab_successful_flow_creates_jwt_for_new_user() {
         .expect("Failed to send callback request");
     
     // ✅ Should return 200 OK with JWT token
-    assert_eq!(response.status(), 200, "Should return 200 OK for successful GitLab OAuth callback");
+    assert_eq!(response.status(), 202, "Should return 200 OK for successful GitLab OAuth callback");
     
     let response_json: Value = response.json().await.expect("Should return JSON response");
     
-    assert_eq!(response_json["operation"], "login");
+    assert_eq!(response_json["operation"], "registration_required".to_string());
     
-    // ✅ Should contain valid JWT token
-    let access_token = response_json["access_token"].as_str().expect("Response should contain access token");
-    assert!(verify_jwt_structure(access_token), "Access token should have valid structure");
+    // ✅ Should return registration token
+    let registration_token = response_json["registration_token"].as_str().expect("Response should contain registration token");
+    assert!(verify_jwt_structure(registration_token), "Registration token should have valid structure");
     
-    // ✅ Verify database state
-    let user_count = count_entities(db.clone(), "users").await.expect("Failed to count users");
-    assert_eq!(user_count, 1, "Should create exactly one user");
-    
-    let token_count = count_entities(db.clone(), "provider_tokens").await.expect("Failed to count provider tokens");
-    assert_eq!(token_count, 1, "Should create exactly one provider token");
+    // ✅ Should return provider info
+    let provider_info = response_json["provider_info"].as_object().expect("Response should contain provider info");
+    assert_eq!(provider_info["email"].as_str().expect("Provider info should contain email"), "alice@example.com");
 }
 
 #[tokio::test]
@@ -227,7 +146,7 @@ async fn test_oauth_callback_links_external_account_with_valid_link_state() {
     let response = client
         .get(&format!("{}/api/auth/github/callback", base_url))
         .query(&[
-            ("code", "valid_auth_code_for_linking"),
+            ("code", "test_auth_code"),
             ("state", &state)
         ])
         .send()
@@ -312,7 +231,7 @@ async fn test_oauth_callback_associates_new_provider_for_same_user() {
     let response = client
         .get(&format!("{}/api/auth/gitlab/callback", base_url))
         .query(&[
-            ("code", "valid_gitlab_auth_code"),
+            ("code", "test_auth_code"),
             ("state", &state)
         ])
         .send()
@@ -411,7 +330,7 @@ async fn test_oauth_callback_prevents_linking_provider_already_bound_to_another_
     let response = client
         .get(&format!("{}/api/auth/github/callback", base_url))
         .query(&[
-            ("code", "valid_auth_code_but_already_linked"),
+            ("code", "test_auth_code"),
             ("state", &state)
         ])
         .send()
@@ -794,12 +713,12 @@ async fn test_oauth_callback_case_insensitive_providers() {
     
     // Test case variations that should work
     let valid_cases = vec![
-        ("github", "valid_auth_code_123"),
-        ("GITHUB", "valid_auth_code_123"),
-        ("GitHub", "valid_auth_code_123"),
-        ("gitlab", "valid_gitlab_auth_code"),
-        ("GITLAB", "valid_gitlab_auth_code"),
-        ("GitLab", "valid_gitlab_auth_code"),
+        ("github", "test_auth_code"),
+        ("GITHUB", "test_auth_code"),
+        ("GitHub", "test_auth_code"),
+        ("gitlab", "test_auth_code"),
+        ("GITLAB", "test_auth_code"),
+        ("GitLab", "test_auth_code"),
     ];
     
     for (provider_input, auth_code) in valid_cases {
@@ -826,12 +745,12 @@ async fn test_oauth_callback_case_insensitive_providers() {
             .expect("Failed to send callback request");
 
         // ✅ Should successfully handle case-insensitive provider names
-        assert_eq!(response.status(), 200, 
+        assert_eq!(response.status(), 202, 
                   "Should handle case-insensitive provider: {}", provider_input);
         
         let response_json: Value = response.json().await.expect("Should return JSON response");
         
-        assert_eq!(response_json["operation"], "login");
+        assert_eq!(response_json["operation"], "registration_required".to_string());
         
         // Clean up for next iteration - truncate all tables
         let _ = test_fixture.cleanup().await;

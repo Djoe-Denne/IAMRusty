@@ -20,6 +20,9 @@ pub trait UserReadRepository {
     /// Find a user by any of their email addresses
     async fn find_by_email(&self, email: &str) -> Result<Option<User>, Self::Error>;
     
+    /// Find a user by username
+    async fn find_by_username(&self, username: &str) -> Result<Option<User>, Self::Error>;
+    
     /// Find a user by provider and provider user ID
     /// This looks up via the provider_tokens table
     async fn find_by_provider_user_id(

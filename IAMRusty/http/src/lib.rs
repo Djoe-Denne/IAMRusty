@@ -18,6 +18,7 @@ use application::{
     usecase::{
         user::UserUseCase,
         token::TokenUseCase,
+        registration::RegistrationUseCase,
     },
     command::GenericCommandService,
 };
@@ -31,7 +32,7 @@ pub mod oauth_state;
 pub mod validation;
 
 pub use handlers::{
-    auth::{oauth_callback, oauth_start, signup, login, verify_email, resend_verification_email, internal_provider_token, jwks},
+    auth::{oauth_callback, oauth_start, signup, login, verify_email, resend_verification_email, internal_provider_token, jwks, complete_registration, check_username},
     user::get_user,
     token::refresh_token,
 };
@@ -49,6 +50,8 @@ pub struct AppState {
     pub user_usecase: Arc<dyn UserUseCase>,
     /// Token use case
     pub token_usecase: Arc<dyn TokenUseCase>,
+    /// Registration use case
+    pub registration_usecase: Arc<dyn RegistrationUseCase>,
     /// OAuth configuration for accessing redirect URIs
     pub oauth_config: OAuthConfig,
 }
@@ -59,12 +62,14 @@ impl AppState {
         command_service: Arc<GenericCommandService>,
         user_usecase: Arc<dyn UserUseCase>,
         token_usecase: Arc<dyn TokenUseCase>,
+        registration_usecase: Arc<dyn RegistrationUseCase>,
         oauth_config: OAuthConfig,
     ) -> Self {
         Self {
             command_service,
             user_usecase,
             token_usecase,
+            registration_usecase,
             oauth_config,
         }
     }
@@ -116,6 +121,8 @@ pub async fn serve_with_config(state: AppState, config: ServerConfig) -> anyhow:
         .route("/api/auth/login", post(login))
         .route("/api/auth/verify", post(verify_email))
         .route("/api/auth/resend-verification", post(resend_verification_email))
+        .route("/api/auth/complete-registration", post(complete_registration))
+        .route("/api/auth/username/check", get(check_username))
         .route("/api/auth/{provider_name}/start", get(oauth_start))
         .route("/api/auth/{provider_name}/callback", get(oauth_callback))
         .route("/api/token/refresh", post(refresh_token))

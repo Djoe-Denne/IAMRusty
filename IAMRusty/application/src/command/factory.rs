@@ -7,6 +7,7 @@ use super::{
     signup::{SignupCommand, SignupCommandHandler, AuthErrorMapper as SignupAuthErrorMapper},
     password_login::{PasswordLoginCommand, PasswordLoginCommandHandler, AuthErrorMapper as PasswordLoginAuthErrorMapper},
     verify_email::{VerifyEmailCommand, VerifyEmailCommandHandler, AuthErrorMapper as VerifyEmailAuthErrorMapper},
+    registration::{CompleteRegistrationCommand, CheckUsernameCommand, CompleteRegistrationCommandHandler, CheckUsernameCommandHandler, RegistrationErrorMapper},
 };
 use crate::usecase::{
     login::LoginUseCase,
@@ -15,6 +16,7 @@ use crate::usecase::{
     token::TokenUseCase,
     user::UserUseCase,
     oauth::OAuthUseCase,
+    registration::RegistrationUseCase,
 };
 use std::sync::Arc;
 
@@ -30,6 +32,7 @@ impl CommandRegistryFactory {
         token_usecase: Arc<dyn TokenUseCase>,
         user_usecase: Arc<dyn UserUseCase>,
         login_auth_usecase: Arc<dyn LoginUseCase>,
+        registration_usecase: Arc<dyn RegistrationUseCase>,
     ) -> CommandRegistry {
         let mut builder = CommandRegistryBuilder::new();
 
@@ -97,6 +100,15 @@ impl CommandRegistryFactory {
 
         builder = builder
             .register::<ResendVerificationEmailCommand, _>("resend_verification_email".to_string(), resend_verification_email_handler, verify_email_auth_error_mapper);
+
+        // Register registration commands
+        let complete_registration_handler = Arc::new(CompleteRegistrationCommandHandler::new(registration_usecase.clone()));
+        let check_username_handler = Arc::new(CheckUsernameCommandHandler::new(registration_usecase));
+        let registration_error_mapper = Arc::new(RegistrationErrorMapper);
+
+        builder = builder
+            .register::<CompleteRegistrationCommand, _>("complete_registration".to_string(), complete_registration_handler, registration_error_mapper.clone())
+            .register::<CheckUsernameCommand, _>("check_username".to_string(), check_username_handler, registration_error_mapper);
 
         builder.build()
     }

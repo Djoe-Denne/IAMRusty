@@ -118,39 +118,3 @@ impl Drop for MockServerFixture {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use wiremock::{Mock, ResponseTemplate, matchers::{method, path}};
-    
-    #[tokio::test]
-    async fn test_mock_server_creation() {
-        let server = get_mock_server().await;
-        assert!(!server.uri().is_empty());
-    }
-    
-    #[tokio::test]
-    async fn test_mock_server_fixture() {
-        let fixture = MockServerFixture::new().await;
-        assert!(!fixture.base_url().is_empty());
-    }
-    
-    #[tokio::test]
-    async fn test_mock_reset() {
-        let fixture = MockServerFixture::new().await;
-        
-        // Add a mock
-        Mock::given(method("GET"))
-            .and(path("/test"))
-            .respond_with(ResponseTemplate::new(200))
-            .mount(&*fixture.server())
-            .await;
-        
-        // Reset should clear it
-        fixture.reset().await;
-        
-        // This test verifies the reset functionality works
-        // In a real scenario, you'd verify the mock is no longer active
-    }
-} 

@@ -42,7 +42,7 @@ pub async fn get_user(
     
     Ok(Json(UserResponse {
         id: user.user.id,
-        username: user.user.username,
+        username: user.user.username.unwrap_or_default(),
         email: user.email,
         avatar_url: user.user.avatar_url,
     }))

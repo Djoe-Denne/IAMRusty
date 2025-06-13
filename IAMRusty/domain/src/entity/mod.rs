@@ -6,4 +6,5 @@ pub mod token;
 pub mod provider;
 pub mod provider_link;
 pub mod events;
-pub mod email_verification; 
+pub mod email_verification;
+pub mod registration_token; 

@@ -1,6 +1,7 @@
 use crate::entity::{
     provider::{ProviderTokens, ProviderUserProfile},
     token::{JwkSet, TokenClaims, JwtToken, RefreshToken},
+    registration_token::RegistrationTokenClaims,
 };
 use uuid::Uuid;
 use crate::error::DomainError;
@@ -29,6 +30,21 @@ pub trait JwtTokenEncoder: Send + Sync {
 
     /// Get the JSON Web Key Set (JWKS) for token verification
     fn jwks(&self) -> JwkSet;
+}
+
+/// Registration token service for managing RSA-signed registration tokens
+pub trait RegistrationTokenService: Send + Sync {
+    /// Generate a registration token for email/password flow
+    fn generate_registration_token(&self, user_id: Uuid, email: String) -> Result<String, DomainError>;
+
+    /// Generate a registration token for OAuth flow
+    fn generate_oauth_registration_token(&self, user_id: Uuid, email: String, provider_info: crate::entity::registration_token::ProviderInfo) -> Result<String, DomainError>;
+
+    /// Validate and decode a registration token
+    fn validate_registration_token(&self, token: &str) -> Result<RegistrationTokenClaims, DomainError>;
+
+    /// Check if a registration token is valid and not expired
+    fn is_registration_token_valid(&self, token: &str) -> bool;
 }
 
 /// Token service for handling JWT tokens

@@ -9,7 +9,7 @@ use domain::entity::{
 };
 use domain::port::{
     repository::{TokenRepository, UserRepository, UserEmailRepository, RefreshTokenRepository},
-    service::AuthTokenService,
+    service::{AuthTokenService, RegistrationTokenService},
     event_publisher::EventPublisher,
 };
 use crate::auth::OAuthService;
@@ -59,29 +59,62 @@ pub struct OAuthLoginResponse {
     pub refresh_token: String,
 }
 
+/// OAuth registration response for new users requiring username
+#[derive(Debug, Serialize, Deserialize)]
+pub struct OAuthRegistrationResponse {
+    /// User data (incomplete)
+    pub user: User,
+    /// Primary email address from UserEmail entity
+    pub email: String,
+    /// Registration token for completing registration with username
+    pub registration_token: String,
+    /// Provider information for UI display and suggestions
+    pub provider_info: ProviderInfo,
+}
+
+/// Provider information from OAuth flow
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ProviderInfo {
+    /// Provider email
+    pub email: String,
+    /// Provider avatar URL
+    pub avatar: Option<String>,
+    /// Suggested username based on provider data
+    pub suggested_username: String,
+}
+
+/// OAuth result enum that can be either login or registration
+#[derive(Debug, Serialize, Deserialize)]
+pub enum OAuthResult {
+    /// User successfully logged in
+    Login(OAuthLoginResponse),
+    /// User needs to complete registration
+    Registration(OAuthRegistrationResponse),
+}
+
 /// OAuth use case interface
 #[async_trait]
 pub trait OAuthUseCase: Send + Sync {
     /// Generate OAuth authorization URL for login flow
     fn generate_start_url(&self, provider: Provider) -> Result<String, OAuthError>;
 
-    /// Exchange authorization code for tokens and login user
+    /// Exchange authorization code for tokens and login user or start registration
     /// This handles the OAuth callback and:
     /// 1. Exchanges the authorization code for provider tokens
     /// 2. Gets user profile from provider
     /// 3. Creates or updates user in our system
     /// 4. Stores provider tokens for future API calls
-    /// 5. Issues our own JWT tokens for user authentication
+    /// 5. Either issues JWT tokens (existing user) or registration token (new user)
     async fn oauth_login(
         &self,
         provider: Provider,
         code: String,
         redirect_uri: String,
-    ) -> Result<OAuthLoginResponse, OAuthError>;
+    ) -> Result<OAuthResult, OAuthError>;
 }
 
 /// OAuth use case implementation
-pub struct OAuthUseCaseImpl<GH, GL, UR, UER, TR, RR, TS, EP> 
+pub struct OAuthUseCaseImpl<GH, GL, UR, UER, TR, RR, TS, RTS, EP> 
 where
     GH: OAuthService + 'static,
     GL: OAuthService + 'static,
@@ -90,6 +123,7 @@ where
     TR: TokenRepository,
     RR: RefreshTokenRepository,
     TS: AuthTokenService,
+    RTS: RegistrationTokenService,
     EP: EventPublisher,
 {
     auth_factory: Arc<OAuthProviderFactory<GH, GL>>,
@@ -98,10 +132,11 @@ where
     token_repo: Arc<TR>,
     refresh_token_repo: Arc<RR>,
     token_service: Arc<TS>,
+    registration_token_service: Arc<RTS>,
     event_publisher: Arc<EP>,
 }
 
-impl<GH, GL, UR, UER, TR, RR, TS, EP> OAuthUseCaseImpl<GH, GL, UR, UER, TR, RR, TS, EP>
+impl<GH, GL, UR, UER, TR, RR, TS, RTS, EP> OAuthUseCaseImpl<GH, GL, UR, UER, TR, RR, TS, RTS, EP>
 where
     GH: OAuthService + 'static,
     GL: OAuthService + 'static,
@@ -110,6 +145,7 @@ where
     TR: TokenRepository,
     RR: RefreshTokenRepository,
     TS: AuthTokenService,
+    RTS: RegistrationTokenService,
     EP: EventPublisher,
 {
     /// Create a new OAuthUseCaseImpl
@@ -121,6 +157,7 @@ where
         token_repo: Arc<TR>,
         refresh_token_repo: Arc<RR>,
         token_service: Arc<TS>,
+        registration_token_service: Arc<RTS>,
         event_publisher: Arc<EP>,
     ) -> Self {
         let auth_factory = Arc::new(OAuthProviderFactory::new(github_auth, gitlab_auth));
@@ -132,6 +169,7 @@ where
             token_repo,
             refresh_token_repo,
             token_service,
+            registration_token_service,
             event_publisher,
         }
     }
@@ -199,13 +237,13 @@ where
             .ok_or_else(|| OAuthError::DbError("User not found for email".into()))?;
 
         // Check if update is needed
-        if user.username == profile.username && user.avatar_url == profile.avatar_url {
+        if user.username == Some(profile.username.clone()) && user.avatar_url == profile.avatar_url {
             return Ok(user);
         }
 
         // Update user profile
         let mut updated_user = user;
-        updated_user.username = profile.username.clone();
+        updated_user.username = Some(profile.username.clone());
         updated_user.avatar_url = profile.avatar_url.clone();
         updated_user.updated_at = Utc::now();
 
@@ -215,7 +253,7 @@ where
             .map_err(|e| OAuthError::DbError(Box::new(e)))
     }
 
-    /// Create new user with primary email
+    /// Create new user with primary email (without username for OAuth)
     async fn create_new_user(
         &self,
         profile: &domain::entity::provider::ProviderUserProfile,
@@ -227,9 +265,8 @@ where
         <UR as UserRepository>::Error: std::error::Error + Send + Sync + 'static,
         <UER as UserEmailRepository>::Error: std::error::Error + Send + Sync + 'static,
     {
-        // Create new user (OAuth users don't have passwords)
-        let new_user = User::new(
-            profile.username.clone(),
+        // Create new user without username (OAuth users need to complete registration)
+        let new_user = User::new_incomplete(
             profile.avatar_url.clone(),
         );
 
@@ -304,10 +341,88 @@ where
         
         Ok((jwt_token, refresh_token))
     }
+
+    /// Handle login for complete users (have username)
+    async fn handle_complete_user_login(
+        &self,
+        user: User,
+        email: String,
+    ) -> Result<OAuthResult, OAuthError>
+    where
+        TS: AuthTokenService,
+        RR: RefreshTokenRepository,
+        EP: EventPublisher,
+        <TS as AuthTokenService>::Error: std::error::Error + Send + Sync + 'static,
+        <RR as RefreshTokenRepository>::Error: std::error::Error + Send + Sync + 'static,
+    {
+        // Generate authentication tokens (our internal JWT tokens)
+        let (jwt_token, refresh_token) = self.generate_auth_tokens(user.id).await?;
+
+        // Publish user logged in event
+        let event = DomainEvent::UserLoggedIn(UserLoggedInEvent::new(
+            user.id,
+            email.clone(),
+            format!("oauth_login"),
+        ));
+
+        if let Err(e) = self.event_publisher.publish(event).await {
+            tracing::warn!("Failed to publish UserLoggedIn event: {}", e);
+            // Don't fail the login for event publishing errors
+        }
+
+        // Calculate expiration and return response
+        let expires_in = (jwt_token.expires_at - Utc::now())
+            .num_seconds()
+            .max(0) as u64;
+
+        Ok(OAuthResult::Login(OAuthLoginResponse {
+            user,
+            email,
+            access_token: jwt_token.token,
+            expires_in,
+            refresh_token: refresh_token.token,
+        }))
+    }
+
+    /// Handle registration for incomplete users (no username)
+    async fn handle_incomplete_user_registration(
+        &self,
+        user: User,
+        email: String,
+        profile: &domain::entity::provider::ProviderUserProfile,
+    ) -> Result<OAuthResult, OAuthError>
+    where
+        RTS: RegistrationTokenService,
+    {
+        // Create provider info for frontend
+        let provider_info = ProviderInfo {
+            email: profile.email.clone().unwrap(),
+            avatar: profile.avatar_url.clone(),
+            suggested_username: profile.username.clone(),
+        };
+
+        // Generate OAuth registration token with provider info
+        let domain_provider_info = domain::entity::registration_token::ProviderInfo {
+            email: provider_info.email.clone(),
+            avatar: provider_info.avatar.clone(), 
+            suggested_username: provider_info.suggested_username.clone(),
+        };
+        
+        let registration_token = self.registration_token_service
+            .generate_oauth_registration_token(user.id, email.clone(), domain_provider_info)
+            .map_err(|e| OAuthError::TokenError(Box::new(e)))?;
+
+        Ok(OAuthResult::Registration(OAuthRegistrationResponse {
+            user,
+            email,
+            registration_token,
+            provider_info,
+        }))
+    }
 }
 
 #[async_trait]
-impl<GH, GL, UR, UER, TR, RR, TS, EP> OAuthUseCase for OAuthUseCaseImpl<GH, GL, UR, UER, TR, RR, TS, EP>
+impl<GH, GL, UR, UER, TR, RR, TS, RTS, EP> OAuthUseCase for OAuthUseCaseImpl<GH, GL, UR, UER, TR, RR, TS, RTS, EP>
 where
     GH: OAuthService + Send + Sync + 'static,
     GL: OAuthService + Send + Sync + 'static,
@@ -316,6 +431,7 @@ where
     TR: TokenRepository + Send + Sync,
     RR: RefreshTokenRepository + Send + Sync,
     TS: AuthTokenService + Send + Sync,
+    RTS: RegistrationTokenService + Send + Sync,
     EP: EventPublisher + Send + Sync,
     GH::Error: std::error::Error + Send + Sync + 'static,
     GL::Error: std::error::Error + Send + Sync + 'static,
@@ -332,10 +448,10 @@ where
 
     async fn oauth_login(
         &self,
-        provider: Provider,
+        provider: Provider,  
         code: String,
         redirect_uri: String,
-    ) -> Result<OAuthLoginResponse, OAuthError> {
+    ) -> Result<OAuthResult, OAuthError> {
         // Step 1: Exchange code for provider tokens and profile
         let (provider_tokens, profile) = self.exchange_code_for_profile(provider, code, redirect_uri).await?;
 
@@ -349,34 +465,15 @@ where
         let user = self.find_or_create_user(&profile, &email).await?;
 
         // Step 4: Save provider tokens (for future API calls to the provider)
-        self.save_provider_tokens(user.id, provider, profile.id, provider_tokens).await?;
+        self.save_provider_tokens(user.id, provider, profile.id.clone(), provider_tokens).await?;
 
-        // Step 5: Generate authentication tokens (our internal JWT tokens)
-        let (jwt_token, refresh_token) = self.generate_auth_tokens(user.id).await?;
-
-        // Step 6: Publish user logged in event
-        let event = DomainEvent::UserLoggedIn(UserLoggedInEvent::new(
-            user.id,
-            email.clone(),
-            format!("oauth_{}", provider.as_str()),
-        ));
-
-        if let Err(e) = self.event_publisher.publish(event).await {
-            tracing::warn!("Failed to publish UserLoggedIn event: {}", e);
-            // Don't fail the login for event publishing errors
+        // Step 5: Check if user is complete (has username) or needs registration
+        if user.username.is_some() {
+            // Existing complete user - proceed with login
+            self.handle_complete_user_login(user, email).await
+        } else {
+            // New incomplete user - require registration
+            self.handle_incomplete_user_registration(user, email, &profile).await
         }
-
-        // Step 7: Calculate expiration and return response
-        let expires_in = (jwt_token.expires_at - Utc::now())
-            .num_seconds()
-            .max(0) as u64;
-
-        Ok(OAuthLoginResponse {
-            user,
-            email,
-            access_token: jwt_token.token,
-            expires_in,
-            refresh_token: refresh_token.token,
-        })
     }
 } 

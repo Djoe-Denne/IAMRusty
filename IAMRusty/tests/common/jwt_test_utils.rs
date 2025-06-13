@@ -2,8 +2,10 @@ use uuid::Uuid;
 use chrono::{Utc, Duration};
 use configuration::AppConfig;
 use domain::entity::token::TokenClaims;
-use domain::port::service::JwtTokenEncoder;
-use infra::token::JwtTokenService;
+use domain::entity::registration_token::{RegistrationTokenClaims, RegistrationFlow};
+use domain::port::service::{JwtTokenEncoder, RegistrationTokenService};
+use infra::token::{JwtTokenService, registration_token_service::RegistrationTokenServiceImpl};
+use jsonwebtoken::{encode, Header, Algorithm, EncodingKey};
 use anyhow::Result;
 
 /// Create a JWT token service from configuration for testing
@@ -114,4 +116,75 @@ pub fn create_invalid_jwt_token(user_id: Uuid, config: AppConfig) -> Result<Stri
     let token = create_invalid_jwt_token_with_encoder(user_id, &config)
         .map_err(|e| anyhow::anyhow!("Failed to create invalid JWT token: {}", e))?;
     Ok(token)
+}
+
+/// Create a registration token service from configuration for testing
+fn create_registration_token_service_from_config(config: &AppConfig) -> Result<RegistrationTokenServiceImpl, anyhow::Error> {
+    let jwt_algorithm_config = config.jwt.create_jwt_algorithm()?;
+    
+    let jwt_algorithm = match jwt_algorithm_config {
+        configuration::JwtAlgorithm::HS256(_) => {
+            return Err(anyhow::anyhow!("Registration tokens must use RSA256 algorithm"));
+        }
+        configuration::JwtAlgorithm::RS256(key_pair) => {
+            infra::token::JwtAlgorithm::RS256(domain::entity::token::JwtKeyPair {
+                private_key: key_pair.private_key,
+                public_key: key_pair.public_key,
+                kid: key_pair.kid,
+            })
+        }
+    };
+    
+    RegistrationTokenServiceImpl::new(jwt_algorithm)
+        .map_err(|e| anyhow::anyhow!("Failed to create registration token service: {}", e))
+}
+
+/// Create a valid registration token for testing
+pub fn create_valid_registration_token_with_encoder(
+    user_id: Uuid,
+    email: String,
+    config: &AppConfig
+) -> Result<String, anyhow::Error> {
+    let service = create_registration_token_service_from_config(config)?;
+    
+    service.generate_registration_token(user_id, email)
+        .map_err(|e| anyhow::anyhow!("Failed to generate registration token: {}", e))
+}
+
+/// Create an expired registration token for testing
+pub fn create_expired_registration_token_with_encoder(
+    user_id: Uuid,
+    email: String,
+    config: &AppConfig
+) -> Result<String, anyhow::Error> {
+    // Create claims that are already expired
+    let expired_claims = RegistrationTokenClaims {
+        sub: "registration".to_string(),
+        user_id: user_id.to_string(),
+        email,
+        flow: RegistrationFlow::EmailPassword, // Default to email/password flow for tests
+        provider_info: None, // No provider info for email/password flow
+        exp: (Utc::now() - Duration::hours(1)).timestamp(), // Expired 1 hour ago
+        iat: (Utc::now() - Duration::hours(2)).timestamp(), // Issued 2 hours ago
+        jti: Uuid::new_v4().to_string(),
+    };
+    
+    // Get the algorithm config to encode manually
+    let jwt_algorithm_config = config.jwt.create_jwt_algorithm()?;
+    
+    let (encoding_key, kid) = match jwt_algorithm_config {
+        configuration::JwtAlgorithm::RS256(key_pair) => {
+            let encoding_key = EncodingKey::from_rsa_pem(key_pair.private_key.as_bytes())
+                .map_err(|e| anyhow::anyhow!("Failed to create encoding key: {}", e))?;
+            (encoding_key, Some(key_pair.kid))
+        }
+        _ => return Err(anyhow::anyhow!("Registration tokens must use RSA256 algorithm")),
+    };
+    
+    // Create header with proper algorithm and key ID
+    let mut header = Header::new(Algorithm::RS256);
+    header.kid = kid;
+    
+    encode(&header, &expired_claims, &encoding_key)
+        .map_err(|e| anyhow::anyhow!("Failed to encode expired registration token: {}", e))
 } 

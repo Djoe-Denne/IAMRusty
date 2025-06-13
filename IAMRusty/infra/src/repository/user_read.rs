@@ -64,6 +64,16 @@ impl UserReadRepository for UserReadRepositoryImpl {
         }
     }
 
+    async fn find_by_username(&self, username: &str) -> Result<Option<DomainUser>, Self::Error> {
+        debug!("Reading user by username: {}", username);
+        let user = Users::find()
+            .filter(users::Column::Username.eq(username))
+            .one(self.db.as_ref())
+            .await?;
+        
+        Ok(user.map(Self::to_domain))
+    }
+
     async fn find_by_provider_user_id(
         &self,
         provider: Provider,

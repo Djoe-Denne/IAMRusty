@@ -105,9 +105,12 @@ where
             .await
             .map_err(|e| DomainError::RepositoryError(e.to_string()))?;
 
+        // Ensure user has a username (complete registration)
+        let username = user.username.as_ref().ok_or(DomainError::UserNotFound)?;
+        
         // Generate a JWT token
         let jwt_token = self.token_service
-            .generate_token(&user.id.to_string(), &user.username)?;
+            .generate_token(&user.id.to_string(), username)?;
 
         Ok((user, jwt_token))
     }

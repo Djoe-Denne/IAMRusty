@@ -47,6 +47,10 @@ where
         self.read_repo.find_by_id(id).await
     }
 
+    async fn find_by_username(&self, username: &str) -> Result<Option<User>, Self::Error> {
+        self.read_repo.find_by_username(username).await
+    }
+
     async fn find_by_email(&self, email: &str) -> Result<Option<User>, Self::Error> {
         self.read_repo.find_by_email(email).await
     }

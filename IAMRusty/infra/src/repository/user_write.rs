@@ -54,14 +54,7 @@ impl UserWriteRepository for UserWriteRepositoryImpl {
         
         let res = model.insert(self.db.as_ref()).await?;
 
-        Ok(DomainUser {
-            id: res.id,
-            username: res.username,
-            password_hash: res.password_hash,
-            avatar_url: res.avatar_url,
-            created_at: DateTime::<Utc>::from_naive_utc_and_offset(res.created_at, Utc),
-            updated_at: DateTime::<Utc>::from_naive_utc_and_offset(res.updated_at, Utc),
-        })
+        Ok(Self::to_domain(res))
     }
 
     async fn update(&self, user: DomainUser) -> Result<DomainUser, Self::Error> {
@@ -76,8 +69,15 @@ impl UserWriteRepository for UserWriteRepositoryImpl {
         
         let mut model = users::ActiveModel::from(existing);
         
-        model.username = Set(user.username.clone());
-        model.avatar_url = Set(user.avatar_url.clone());
+        if user.username.is_some() {
+            model.username = Set(user.username.clone());
+        }
+        if user.avatar_url.is_some() {
+            model.avatar_url = Set(user.avatar_url.clone());
+        }
+        if user.password_hash.is_some() {
+            model.password_hash = Set(user.password_hash.clone());
+        }
         model.updated_at = Set(user.updated_at.naive_utc());
         
         let updated = model.update(self.db.as_ref()).await?;

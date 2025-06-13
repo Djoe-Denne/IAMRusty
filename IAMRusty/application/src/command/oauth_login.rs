@@ -1,6 +1,6 @@
 use rustycog_command::{Command, CommandError, CommandHandler, CommandErrorMapper};
 use crate::usecase::{
-    oauth::{OAuthUseCase, OAuthLoginResponse, OAuthError},
+    oauth::{OAuthUseCase, OAuthError},
 };
 use domain::entity::provider::Provider;
 use async_trait::async_trait;
@@ -119,7 +119,7 @@ impl OAuthLoginCommand {
 
 #[async_trait]
 impl Command for OAuthLoginCommand {
-    type Result = OAuthLoginResponse;
+    type Result = crate::usecase::oauth::OAuthResult;
     
     fn command_type(&self) -> &'static str {
         "oauth_login"
@@ -181,7 +181,7 @@ impl<O> CommandHandler<OAuthLoginCommand> for OAuthLoginCommandHandler<O>
 where
     O: OAuthUseCase + Send + Sync + ?Sized,
 {
-    async fn handle(&self, command: OAuthLoginCommand) -> Result<OAuthLoginResponse, CommandError> {
+    async fn handle(&self, command: OAuthLoginCommand) -> Result<crate::usecase::oauth::OAuthResult, CommandError> {
         self.oauth_use_case
             .oauth_login(command.provider, command.code, command.redirect_uri)
             .await

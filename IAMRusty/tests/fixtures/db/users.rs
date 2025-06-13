@@ -138,7 +138,7 @@ impl DbFixture<UsersEntity, UserModel, UserActiveModel> for UserFixtureBuilder {
         
         UserActiveModel {
             id: ActiveValue::Set(self.id.unwrap_or_else(TestData::uuid)),
-            username: ActiveValue::Set(self.username.clone().unwrap_or_else(TestData::username)),
+            username: ActiveValue::Set(self.username.clone()),
             password_hash: ActiveValue::Set(self.password_hash.clone().unwrap_or(None)),
             avatar_url: ActiveValue::Set(self.avatar_url.clone().unwrap_or(None)),
             created_at: ActiveValue::Set(self.created_at.unwrap_or(now)),
@@ -187,8 +187,8 @@ impl UserFixture {
     }
     
     /// Get the username
-    pub fn username(&self) -> &str {
-        &self.model().username
+    pub fn username(&self) -> Option<&str> {
+        self.model().username.as_deref()
     }
     
     /// Get the avatar URL

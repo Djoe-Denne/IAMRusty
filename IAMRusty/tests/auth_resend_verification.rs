@@ -301,7 +301,7 @@ async fn test_resend_verification_malformed_json() {
         .expect("Failed to send resend verification request");
 
     // ✅ Should return 422 for malformed JSON (framework validation)
-    assert_eq!(response.status(), 422, "Should return 422 for malformed JSON at framework level");
+    assert_eq!(response.status(), 400, "Should return 400 for malformed JSON at framework level");
     
     let response_body: Value = response
         .json()

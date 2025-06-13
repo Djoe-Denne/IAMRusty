@@ -148,7 +148,7 @@ impl GitHubTokenRequest {
         Self {
             client_id: "test_client_id".to_string(),
             client_secret: "test_client_secret".to_string(),
-            code: "valid_auth_code".to_string(),
+            code: "test_auth_code".to_string(),
             redirect_uri: Some("http://localhost:3000/auth/github/callback".to_string()),
         }
     }

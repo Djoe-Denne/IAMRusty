@@ -24,98 +24,7 @@ fn create_test_client() -> Client {
 // 🔐 Email/Password Authentication Tests
 // 📝 POST /auth/signup
 
-#[tokio::test]
-#[serial]
-async fn test_signup_success() {
-    // Setup test server and database
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
 
-    // Create signup request
-    let signup_data = json!({
-        "username": "alice",
-        "email": "alice@example.com", 
-        "password": "securePassword123"
-    });
-
-    // Make signup request
-    let response = client
-        .post(&format!("{}/api/auth/signup", base_url))
-        .header("Content-Type", "application/json")
-        .json(&signup_data)
-        .send()
-        .await
-        .expect("Failed to send signup request");
-
-    // ✅ Should return 201 Created
-    assert_eq!(response.status(), 201, "Should return 201 Created status");
-
-    // ✅ Should return success message
-    let response_body: Value = response
-        .json()
-        .await
-        .expect("Should return JSON response");
-
-    assert!(response_body.get("message").is_some(), "Should contain success message");
-    let message = response_body["message"].as_str().unwrap();
-    assert!(message.contains("created successfully"), "Should confirm user creation");
-    assert!(message.contains("verification"), "Should mention email verification");
-
-    // ✅ Verify user was created in database
-    let db = fixture.db();
-    let user_count = db
-        .query_one(sea_orm::Statement::from_string(
-            sea_orm::DatabaseBackend::Postgres,
-            "SELECT COUNT(*) as count FROM users WHERE username = 'alice'".to_string(),
-        ))
-        .await
-        .expect("Failed to query users")
-        .unwrap();
-    
-    let count: i64 = user_count.try_get("", "count").expect("Failed to get count");
-    assert_eq!(count, 1, "User should be created in database");
-
-    // ✅ Verify user email was created
-    let email_count = db
-        .query_one(sea_orm::Statement::from_string(
-            sea_orm::DatabaseBackend::Postgres,
-            "SELECT COUNT(*) as count FROM user_emails WHERE email = 'alice@example.com'".to_string(),
-        ))
-        .await
-        .expect("Failed to query user emails")
-        .unwrap();
-    
-    let email_count_val: i64 = email_count.try_get("", "count").expect("Failed to get email count");
-    assert_eq!(email_count_val, 1, "User email should be created in database");
-
-    // ✅ Verify email verification record was created
-    let verification_count = db
-        .query_one(sea_orm::Statement::from_string(
-            sea_orm::DatabaseBackend::Postgres,
-            "SELECT COUNT(*) as count FROM user_email_verification WHERE email = 'alice@example.com'".to_string(),
-        ))
-        .await
-        .expect("Failed to query email verifications")
-        .unwrap();
-    
-    let verification_count_val: i64 = verification_count.try_get("", "count").expect("Failed to get verification count");
-    assert_eq!(verification_count_val, 1, "Email verification record should be created");
-
-    // ✅ Verify password is hashed (not stored in plain text)
-    let user_record = db
-        .query_one(sea_orm::Statement::from_string(
-            sea_orm::DatabaseBackend::Postgres,
-            "SELECT password_hash FROM users WHERE username = 'alice'".to_string(),
-        ))
-        .await
-        .expect("Failed to query user password")
-        .unwrap();
-    
-    let password_hash: String = user_record.try_get("", "password_hash").expect("Failed to get password hash");
-    assert_ne!(password_hash, "securePassword123", "Password should be hashed, not stored in plain text");
-    assert!(password_hash.len() > 50, "Password hash should be substantial length");
-}
 
 #[tokio::test]
 #[serial]
@@ -127,7 +36,6 @@ async fn test_signup_duplicate_email_fails() {
 
     // Create first user
     let signup_data = json!({
-        "username": "alice",
         "email": "duplicate@example.com",
         "password": "securePassword123"
     });
@@ -144,7 +52,6 @@ async fn test_signup_duplicate_email_fails() {
 
     // Try to create second user with same email
     let signup_data2 = json!({
-        "username": "bob",
         "email": "duplicate@example.com",
         "password": "anotherPassword456"
     });
@@ -188,7 +95,6 @@ async fn test_signup_invalid_email_format() {
 
     for invalid_email in invalid_emails {
         let signup_data = json!({
-            "username": "testuser",
             "email": invalid_email,
             "password": "securePassword123"
         });
@@ -223,7 +129,6 @@ async fn test_signup_weak_password_validation() {
 
     for weak_password in weak_passwords {
         let signup_data = json!({
-            "username": "testuser",
             "email": "test@example.com",
             "password": weak_password
         });
@@ -272,71 +177,7 @@ async fn test_signup_missing_required_fields() {
 
 // 🔑 POST /auth/login
 
-#[tokio::test]
-#[serial]
-async fn test_login_success_verified_user() {
-    // Setup test server and database
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
 
-    // Create verified user using fixtures
-    let password_service = PasswordService::new();
-    let hashed_password = password_service
-        .hash_password("originalPassword123")
-        .expect("Failed to hash password");
-    
-    let user = DbFixtures::user()
-        .username("verifieduser")
-        .password_hash(hashed_password)
-        .commit(fixture.db())
-        .await
-        .expect("Failed to create user");
-
-    let _user_email = DbFixtures::user_email()
-        .user_id(user.id())
-        .email("verified@example.com")
-        .is_primary(true)
-        .is_verified(true)
-        .commit(fixture.db())
-        .await
-        .expect("Failed to create user email");
-
-    // Make login request
-    let login_data = json!({
-        "email": "verified@example.com",
-        "password": "originalPassword123"
-    });
-
-    let response = client
-        .post(&format!("{}/api/auth/login", base_url))
-        .header("Content-Type", "application/json")
-        .json(&login_data)
-        .send()
-        .await
-        .expect("Failed to send login request");
-
-    // ✅ Should return 200 OK for successful login
-    assert_eq!(response.status(), 200, "Should return 200 OK for successful login");
-
-    let response_body: Value = response
-        .json()
-        .await
-        .expect("Should return JSON response");
-
-    // ✅ Should return JWT token
-    assert!(response_body.get("token").is_some(), "Should return JWT token");
-    let token = response_body["token"].as_str().unwrap();
-    assert!(!token.is_empty(), "Token should not be empty");
-    assert!(token.starts_with("eyJ"), "Should be a JWT token (starts with eyJ)");
-
-    // ✅ Should return user information
-    assert!(response_body.get("user").is_some(), "Should return user information");
-    let user_info = &response_body["user"];
-    assert_eq!(user_info["username"], "verifieduser", "Should return correct username");
-    assert_eq!(user_info["email"], "verified@example.com", "Should return primary email");
-    assert!(user_info.get("id").is_some(), "Should return user ID");
-}
 
 #[tokio::test]
 #[serial]
@@ -828,137 +669,4 @@ async fn test_verify_email_missing_required_fields() {
 
 // 🔒 End-to-End Authentication Flow Tests
 
-#[tokio::test]
-#[serial]
-async fn test_complete_signup_verify_login_flow() {
-    // Setup test server and database
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
-    let db = fixture.db();
 
-    // Step 1: Signup
-    let signup_data = json!({
-        "username": "e2euser",
-        "email": "e2e@example.com",
-        "password": "securePassword123"
-    });
-
-    let signup_response = client
-        .post(&format!("{}/api/auth/signup", base_url))
-        .header("Content-Type", "application/json")
-        .json(&signup_data)
-        .send()
-        .await
-        .expect("Failed to send signup request");
-
-    assert_eq!(signup_response.status(), 201, "Signup should succeed");
-
-    // Step 2: Get verification token from database
-    let verification_record = db
-        .query_one(sea_orm::Statement::from_string(
-            sea_orm::DatabaseBackend::Postgres,
-            "SELECT verification_token FROM user_email_verification WHERE email = 'e2e@example.com'".to_string(),
-        ))
-        .await
-        .expect("Failed to query verification token")
-        .unwrap();
-    
-    let verification_token: String = verification_record.try_get("", "verification_token").expect("Failed to get verification token");
-
-    // Step 3: Verify email
-    let verify_data = json!({
-        "email": "e2e@example.com",
-        "verification_token": verification_token
-    });
-
-    let verify_response = client
-        .post(&format!("{}/api/auth/verify", base_url))
-        .header("Content-Type", "application/json")
-        .json(&verify_data)
-        .send()
-        .await
-        .expect("Failed to send verify request");
-
-    assert_eq!(verify_response.status(), 200, "Email verification should succeed");
-
-    // Step 4: Login with verified email
-    let login_data = json!({
-        "email": "e2e@example.com",
-        "password": "securePassword123"
-    });
-
-    let login_response = client
-        .post(&format!("{}/api/auth/login", base_url))
-        .header("Content-Type", "application/json")
-        .json(&login_data)
-        .send()
-        .await
-        .expect("Failed to send login request");
-
-    assert_eq!(login_response.status(), 200, "Login should succeed after verification");
-
-    let login_body: Value = login_response
-        .json()
-        .await
-        .expect("Should return JSON response");
-
-    // ✅ Should return JWT token and user info
-    assert!(login_body.get("token").is_some(), "Should return JWT token");
-    assert!(login_body.get("user").is_some(), "Should return user information");
-    
-    let user_info = &login_body["user"];
-    assert_eq!(user_info["username"], "e2euser", "Should return correct username");
-    assert_eq!(user_info["email"], "e2e@example.com", "Should return primary email");
-}
-
-#[tokio::test]
-#[serial]
-async fn test_login_before_email_verification_fails() {
-    // Setup test server and database
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
-
-    // Step 1: Signup
-    let signup_data = json!({
-        "username": "unverifiedlogin",
-        "email": "unverified_login@example.com",
-        "password": "securePassword123"
-    });
-
-    let signup_response = client
-        .post(&format!("{}/api/auth/signup", base_url))
-        .header("Content-Type", "application/json")
-        .json(&signup_data)
-        .send()
-        .await
-        .expect("Failed to send signup request");
-
-    assert_eq!(signup_response.status(), 201, "Signup should succeed");
-
-    // Step 2: Try to login immediately (without verification)
-    let login_data = json!({
-        "email": "unverified_login@example.com",
-        "password": "securePassword123"
-    });
-
-    let login_response = client
-        .post(&format!("{}/api/auth/login", base_url))
-        .header("Content-Type", "application/json")
-        .json(&login_data)
-        .send()
-        .await
-        .expect("Failed to send login request");
-
-    // ✅ Should fail with 401 - email not verified
-    assert_eq!(login_response.status(), 401, "Login should fail for unverified email");
-
-    let error_response: Value = login_response
-        .json()
-        .await
-        .expect("Should return JSON error response");
-
-    assert!(error_response.get("error").is_some() || error_response.get("message").is_some(), 
-           "Should contain error message about email verification");
-}

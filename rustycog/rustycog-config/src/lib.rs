@@ -447,10 +447,10 @@ impl SqsConfig {
             let random_port = Self::get_random_port();
             port_cache.insert(cache_key, random_port);
             
-            println!("Generated random SQS port: {}", random_port);
+            debug!("Generated random SQS port: {}", random_port);
             random_port
         } else {
-            println!("Using SQS port from config: {}", self.port);
+            debug!("Using SQS port from config: {}", self.port);
             self.port
         }        
     }

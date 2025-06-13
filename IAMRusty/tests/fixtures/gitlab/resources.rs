@@ -104,7 +104,7 @@ impl GitLabTokenRequest {
         Self {
             client_id: "test_gitlab_client_id".to_string(),
             client_secret: "test_gitlab_client_secret".to_string(),
-            code: "valid_gitlab_auth_code".to_string(),
+            code: "test_auth_code".to_string(),
             grant_type: "authorization_code".to_string(),
             redirect_uri: Some("http://localhost:3000/auth/gitlab/callback".to_string()),
         }
@@ -126,7 +126,7 @@ impl GitLabTokenRequest {
         Self {
             client_id: "invalid_gitlab_client_id".to_string(),
             client_secret: "invalid_gitlab_client_secret".to_string(),
-            code: "valid_gitlab_auth_code".to_string(),
+            code: "test_auth_code".to_string(),
             grant_type: "authorization_code".to_string(),
             redirect_uri: Some("http://localhost:3000/auth/gitlab/callback".to_string()),
         }
