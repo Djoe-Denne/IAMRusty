@@ -11,8 +11,7 @@ use crate::dto::auth::{
     CheckUsernameRequest,
     CheckUsernameResponse,
 };
-
-
+use domain::error::DomainError;
 
 /// Error codes for registration-related operations
 #[derive(Debug, Clone)]
@@ -53,46 +52,50 @@ impl CommandErrorMapper for RegistrationErrorMapper {
     fn map_error(&self, error: Box<dyn std::error::Error + Send + Sync>) -> CommandError {
         if let Some(reg_error) = error.downcast_ref::<RegistrationError>() {
             match reg_error {
-                RegistrationError::RepositoryError(_) => CommandError::infrastructure(
-                    RegistrationErrorCode::RepositoryError.as_str(),
-                    error.to_string()
-                ),
-                RegistrationError::TokenServiceError(_) => CommandError::infrastructure(
-                    RegistrationErrorCode::TokenServiceError.as_str(),
-                    error.to_string()
-                ),
-                RegistrationError::EventError(_) => CommandError::infrastructure(
-                    RegistrationErrorCode::EventError.as_str(),
-                    error.to_string()
-                ),
-                RegistrationError::InvalidToken => CommandError::validation(
-                    RegistrationErrorCode::InvalidToken.as_str(),
-                    "Invalid or expired registration token"
-                ),
-                RegistrationError::TokenExpired => CommandError::validation(
-                    RegistrationErrorCode::TokenExpired.as_str(),
-                    "Registration token has expired"
-                ),
-                RegistrationError::UsernameTaken => CommandError::business(
-                    RegistrationErrorCode::UsernameTaken.as_str(),
-                    "Username already taken"
-                ),
-                RegistrationError::InvalidUsername => CommandError::validation(
-                    RegistrationErrorCode::InvalidUsername.as_str(),
-                    "Invalid username format"
-                ),
-                RegistrationError::UserNotFound => CommandError::business(
-                    RegistrationErrorCode::UserNotFound.as_str(),
-                    "User not found"
-                ),
-                RegistrationError::RegistrationAlreadyComplete => CommandError::validation(
-                    RegistrationErrorCode::RegistrationAlreadyComplete.as_str(),
-                    "Registration already completed"
-                ),
-                _ => CommandError::infrastructure(
-                    RegistrationErrorCode::RepositoryError.as_str(),
-                    "Registration failed"
-                ),
+                RegistrationError::DomainError(domain_error) => {
+                    match domain_error {
+                        DomainError::RepositoryError(_) => CommandError::infrastructure(
+                            RegistrationErrorCode::RepositoryError.as_str(),
+                            domain_error.to_string()
+                        ),
+                        DomainError::TokenServiceError(_) => CommandError::infrastructure(
+                            RegistrationErrorCode::TokenServiceError.as_str(),
+                            domain_error.to_string()
+                        ),
+                        DomainError::EventError(_) => CommandError::infrastructure(
+                            RegistrationErrorCode::EventError.as_str(),
+                            domain_error.to_string()
+                        ),
+                        DomainError::InvalidToken => CommandError::validation(
+                            RegistrationErrorCode::InvalidToken.as_str(),
+                            "Invalid or expired registration token"
+                        ),
+                        DomainError::TokenExpired => CommandError::validation(
+                            RegistrationErrorCode::TokenExpired.as_str(),
+                            "Registration token has expired"
+                        ),
+                        DomainError::UsernameTaken => CommandError::business(
+                            RegistrationErrorCode::UsernameTaken.as_str(),
+                            "Username already taken"
+                        ),
+                        DomainError::InvalidUsername => CommandError::validation(
+                            RegistrationErrorCode::InvalidUsername.as_str(),
+                            "Invalid username format"
+                        ),
+                        DomainError::UserNotFound => CommandError::business(
+                            RegistrationErrorCode::UserNotFound.as_str(),
+                            "User not found"
+                        ),
+                        DomainError::RegistrationAlreadyComplete => CommandError::validation(
+                            RegistrationErrorCode::RegistrationAlreadyComplete.as_str(),
+                            "Registration already completed"
+                        ),
+                        _ => CommandError::infrastructure(
+                            RegistrationErrorCode::RepositoryError.as_str(),
+                            "Registration failed"
+                        ),
+                    }
+                }
             }
         } else {
             CommandError::infrastructure(

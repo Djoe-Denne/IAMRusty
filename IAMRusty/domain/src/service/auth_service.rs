@@ -18,6 +18,7 @@ use thiserror::Error;
 use uuid::Uuid;
 use serde::{Deserialize, Serialize};
 use chrono::Utc;
+use tracing::debug;
 
 /// Authentication service errors
 #[derive(Debug, Error)]
@@ -233,7 +234,7 @@ where
                 .map_err(|e| AuthError::RepositoryError(DomainError::RepositoryError(e.to_string())))?
                 .ok_or(AuthError::UserNotFound)?;
 
-            if existing_user.password_hash.is_some() {
+            if existing_user.password_hash.is_some() && existing_user.username.is_some() {
                 return Err(AuthError::UserAlreadyExists);
             }
 
@@ -270,6 +271,22 @@ where
                     message: "Password authentication added to existing account".to_string(),
                 });
             }
+
+            
+        // Generate registration token (RSA-signed JWT)
+            let registration_token = self.registration_token_service
+                .generate_registration_token(updated_user.id, request.email.clone())
+                .map_err(|e| AuthError::RepositoryError(e))?;
+
+            return Ok(SignupResponse::RegistrationRequired {
+                user: IncompleteUserProfile {
+                    id: updated_user.id,
+                    email: request.email,
+                },
+                registration_token,
+                requires_username: true,
+                message: "Account created. Please choose a username to complete registration".to_string(),
+            })
         }
 
         // Create new user without username (incomplete registration)
@@ -404,6 +421,8 @@ where
     }
 
     pub async fn verify_email(&self, request: VerifyEmailRequest) -> Result<VerifyEmailResponse, AuthError> {
+
+        debug!("Verifying email: {}", request.email);
         // Find verification token
         let verification = self.email_verification_repository
             .find_by_email_and_token(&request.email, &request.verification_token)

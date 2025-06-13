@@ -52,6 +52,12 @@ impl ErrorMapper<DomainError> for IAMErrorMapper {
             DomainError::RepositoryError(message) => {
                 ServiceError::infrastructure(format!("Repository error: {}", message))
             }
+            // Registration-specific errors
+            DomainError::UsernameTaken => ServiceError::business("Username already taken".to_string()),
+            DomainError::InvalidUsername => ServiceError::validation("Invalid username format".to_string()),
+            DomainError::RegistrationAlreadyComplete => ServiceError::business("Registration already completed".to_string()),
+            DomainError::TokenServiceError(message) => ServiceError::infrastructure(format!("Token service error: {}", message)),
+            DomainError::EventError(message) => ServiceError::infrastructure(format!("Event error: {}", message)),
         }
     }
 
@@ -327,6 +333,7 @@ pub async fn create_multi_queue_event_publisher_async(
     let queue_names = queue_names.unwrap_or_else(|| {
         // If no specific queue names provided, use all configured queues
         match config {
+            QueueConfig::Disabled => HashSet::new(),
             QueueConfig::Sqs(sqs_config) => {
                 let mut all_queues = HashSet::new();
                 // Add all queue names from the configuration
@@ -336,13 +343,12 @@ pub async fn create_multi_queue_event_publisher_async(
                 // Also add the default queue
                 all_queues.insert(sqs_config.default_queue.clone());
                 all_queues
-            }
+            },
             QueueConfig::Kafka(kafka_config) => {
                 let mut all_queues = HashSet::new();
                 all_queues.insert(kafka_config.user_events_topic.clone());
                 all_queues
             }
-            QueueConfig::Disabled => HashSet::new(),
         }
     });
     

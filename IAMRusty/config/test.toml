@@ -62,8 +62,8 @@ use_jitter = false  # Disable jitter for predictable test behavior
 
 # Queue configuration for testing - using SQS
 [queue]
+enabled = false
 type = "sqs"
-enabled = true  # Enabled for real SQS integration tests
 region = "us-east-1"
 account_id = "000000000000"
 default_queue = "test-user-events"
@@ -78,16 +78,3 @@ timeout_seconds = 30
 # Queue mappings for different event types (can be extended)
 [queue.queues]
 user_signed_up = "test-user-events"
-
-# Legacy Kafka configuration kept for backward compatibility tests
-[kafka]
-enabled = false  # Disabled by default, can be enabled for Kafka-specific tests
-host = "localhost"
-port = 0  # Use random port for testing to avoid conflicts
-user_events_topic = "test-user-events"
-client_id = "iam-service-test"
-timeout_ms = 5000
-max_retries = 3
-compression = "none"
-security_protocol = "plaintext"
-

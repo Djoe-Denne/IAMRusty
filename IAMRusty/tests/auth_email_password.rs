@@ -50,6 +50,22 @@ async fn test_signup_duplicate_email_fails() {
 
     assert_eq!(response1.status(), 201, "First signup should succeed");
 
+    let signup_body: Value = response1.json().await.expect("Should return JSON");
+    let registration_token = signup_body["registration_token"].as_str().unwrap();
+
+    let completion_data = json!({
+        "registration_token": registration_token,
+        "username": "testuser"
+    });
+
+    let response = client
+        .post(&format!("{}/api/auth/complete-registration", base_url))
+        .header("Content-Type", "application/json")
+        .json(&completion_data)
+        .send()
+        .await
+        .expect("Failed to send completion");
+
     // Try to create second user with same email
     let signup_data2 = json!({
         "email": "duplicate@example.com",

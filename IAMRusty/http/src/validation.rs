@@ -106,19 +106,21 @@ pub fn validate_username(username: &str) -> Result<(), ValidationError> {
 pub fn validate_email_format(email: &str) -> Result<(), ValidationError> {
     debug!("Validating email: '{}'", email);
     
-    if email.trim().is_empty() {
+    let trimmed_email = email.trim();
+    
+    if trimmed_email.is_empty() {
         warn!("Email is empty: '{}'", email);
         return Err(ValidationError::new("empty_email"));
     }
     
-    if !EMAIL_REGEX.is_match(email) {
+    if !EMAIL_REGEX.is_match(trimmed_email) {
         warn!("Email format invalid: '{}'", email);
         return Err(ValidationError::new("invalid_email_format"));
     }
     
     // Additional checks
-    if email.len() > 254 {
-        warn!("Email too long: {} characters", email.len());
+    if trimmed_email.len() > 254 {
+        warn!("Email too long: {} characters", trimmed_email.len());
         return Err(ValidationError::new("email_too_long"));
     }
     

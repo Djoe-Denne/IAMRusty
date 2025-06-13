@@ -50,4 +50,25 @@ pub enum DomainError {
     /// Repository error
     #[error("Repository error: {0}")]
     RepositoryError(String),
+
+    // Registration-specific errors
+    /// Username already taken
+    #[error("Username already taken")]
+    UsernameTaken,
+
+    /// Invalid username format
+    #[error("Invalid username format")]
+    InvalidUsername,
+
+    /// User already has username (registration already complete)
+    #[error("Registration already completed")]
+    RegistrationAlreadyComplete,
+
+    /// Token service error
+    #[error("Token service error: {0}")]
+    TokenServiceError(String),
+
+    /// Event publishing error
+    #[error("Event publishing error: {0}")]
+    EventError(String),
 } 

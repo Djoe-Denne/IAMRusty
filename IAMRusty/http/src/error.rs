@@ -483,6 +483,22 @@ impl IntoResponse for ApiError {
                     DomainError::RepositoryError(msg) => {
                         (StatusCode::INTERNAL_SERVER_ERROR, "repository_error".to_string(), msg)
                     }
+                    // Registration-specific errors
+                    DomainError::UsernameTaken => {
+                        (StatusCode::CONFLICT, "username_taken".to_string(), "Username already taken".to_string())
+                    }
+                    DomainError::InvalidUsername => {
+                        (StatusCode::UNPROCESSABLE_ENTITY, "invalid_username".to_string(), "Invalid username format".to_string())
+                    }
+                    DomainError::RegistrationAlreadyComplete => {
+                        (StatusCode::BAD_REQUEST, "registration_already_complete".to_string(), "Registration already completed".to_string())
+                    }
+                    DomainError::TokenServiceError(msg) => {
+                        (StatusCode::INTERNAL_SERVER_ERROR, "token_service_error".to_string(), msg)
+                    }
+                    DomainError::EventError(msg) => {
+                        (StatusCode::INTERNAL_SERVER_ERROR, "event_error".to_string(), msg)
+                    }
                 }
             }
             ApiError::Command(cmd_error) => {

@@ -202,14 +202,19 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
     let login_usecase = LoginUseCaseImpl::new(auth_service);
 
     // Create registration use case
-    tracing::info!("Creating registration use case");
-    let registration_usecase = Arc::new(RegistrationUseCaseImpl::new(
+    tracing::info!("Creating registration service");
+    let registration_service = Arc::new(domain::service::RegistrationServiceImpl::new(
         Arc::new(user_repo.clone()),
         Arc::new(user_repo.clone()),
         Arc::new(user_email_repo.clone()),
         registration_token_service.clone(),
         token_service.clone(),
         event_publisher.clone(),
+    ));
+    
+    tracing::info!("Creating registration use case");
+    let registration_usecase = Arc::new(RegistrationUseCaseImpl::new(
+        registration_service,
     ));
 
     // Create provider usecase

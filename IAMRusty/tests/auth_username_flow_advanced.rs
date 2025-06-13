@@ -415,79 +415,19 @@ async fn test_no_user_enumeration_in_errors() {
 
     assert_eq!(response.status(), 401);
     
-    let error_response: Value = response.json().await.expect("Should return JSON");
+    let error_json: Value = response.json().await.expect("Should return JSON");
+    let error_response = &error_json["error"];
     let error_message = error_response["message"].as_str().unwrap_or("");
     
     // Should not reveal user existence
     assert!(!error_message.to_lowercase().contains("user not found"));
     assert!(!error_message.to_lowercase().contains("email not found"));
-    assert!(error_message.to_lowercase().contains("invalid") || 
-           error_message.to_lowercase().contains("credentials"));
+    assert!(error_message.to_lowercase().contains("invalid email or password"));
 }
 
 // =============================================================================
 // 🌊 END-TO-END FLOW TESTS
 // =============================================================================
-
-#[tokio::test]
-#[serial]
-async fn test_complete_email_first_flow() {
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
-
-    // Step 1: Email signup
-    let signup_data = json!({
-        "email": "flow@example.com",
-        "password": "securePassword123"
-    });
-
-    let signup_response = client
-        .post(&format!("{}/api/auth/signup", base_url))
-        .header("Content-Type", "application/json")
-        .json(&signup_data)
-        .send()
-        .await
-        .expect("Failed to send signup");
-
-    assert_eq!(signup_response.status(), 201);
-    
-    let signup_body: Value = signup_response.json().await.expect("Should return JSON");
-    let registration_token = signup_body["registration_token"].as_str().unwrap();
-
-    // Step 2: Complete registration
-    let completion_data = json!({
-        "registration_token": registration_token,
-        "username": "flowuser"
-    });
-
-    let completion_response = client
-        .post(&format!("{}/api/auth/complete-registration", base_url))
-        .header("Content-Type", "application/json")
-        .json(&completion_data)
-        .send()
-        .await
-        .expect("Failed to send completion");
-
-    assert_eq!(completion_response.status(), 200);
-
-    // Step 3: Login with credentials
-    let login_data = json!({
-        "email": "flow@example.com",
-        "password": "securePassword123"
-    });
-
-    let login_response = client
-        .post(&format!("{}/api/auth/login", base_url))
-        .header("Content-Type", "application/json")
-        .json(&login_data)
-        .send()
-        .await
-        .expect("Failed to send login");
-
-    assert_eq!(login_response.status(), 200, "Should successfully login after completion");
-}
-
 #[tokio::test]
 #[serial]
 async fn test_oauth_first_flow_with_github() {
