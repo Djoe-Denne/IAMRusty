@@ -342,7 +342,7 @@ async fn test_your_feature() {
     let fixture = TestFixture::new().await.expect("Failed to create test fixture");
     
     // Get database connection and configuration
-    let db = fixture.db();
+    let db = _fixture.db();
     let config = fixture.config();
     
     // Your test logic here...

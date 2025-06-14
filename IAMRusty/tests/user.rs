@@ -4,7 +4,7 @@ mod common;
 #[path = "fixtures/mod.rs"]
 mod fixtures;
 
-use common::{get_test_server, TestFixture};
+use common::{setup_test_server, create_test_client};
 use fixtures::{GitHubFixtures, GitLabFixtures, DbFixtures};
 use reqwest::Client;
 use serde_json::Value;
@@ -12,13 +12,7 @@ use serial_test::serial;
 use uuid::Uuid;
 use chrono::{Utc, Duration};
 
-/// Create a common HTTP client for tests
-fn create_test_client() -> Client {
-    Client::builder()
-        .redirect(reqwest::redirect::Policy::none())
-        .build()
-        .expect("Failed to create HTTP client")
-}
+
 
 /// Create a valid JWT token for testing using the proper JWT service
 fn create_valid_jwt_token(user_id: Uuid, config: &configuration::AppConfig) -> String {
@@ -45,10 +39,8 @@ fn create_invalid_signature_jwt_token(user_id: Uuid, config: &configuration::App
 #[serial]
 async fn test_get_user_returns_correct_info_when_token_is_valid() {
     // Setup test environment
-    let test_fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let db = test_fixture.db();
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let db = _fixture.db();
     
     // Pre-create user and email
     let user = DbFixtures::user()
@@ -64,7 +56,7 @@ async fn test_get_user_returns_correct_info_when_token_is_valid() {
         .expect("Failed to create primary email");
     
     // Create valid JWT token using proper configuration
-    let jwt_token = create_valid_jwt_token(user.id(), &test_fixture.config());
+    let jwt_token = create_valid_jwt_token(user.id(), &_fixture.config());
     
     // Make request to /me endpoint
     let response = client
@@ -97,13 +89,11 @@ async fn test_get_user_returns_correct_info_when_token_is_valid() {
 #[serial]
 async fn test_get_user_returns_401_when_token_is_expired() {
     // Setup test environment
-    let test_fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
     
     // Create expired JWT token
     let user_id = Uuid::new_v4();
-    let expired_token = create_expired_jwt_token(user_id, &test_fixture.config());
+    let expired_token = create_expired_jwt_token(user_id, &_fixture.config());
     
     // Make request with expired token
     let response = client
@@ -126,8 +116,7 @@ async fn test_get_user_returns_401_when_token_is_expired() {
 #[serial]
 async fn test_get_user_returns_401_when_token_is_malformed() {
     // Setup test environment
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
     
     let malformed_tokens = vec![
         ("invalid.jwt.token", 401),
@@ -172,13 +161,11 @@ async fn test_get_user_returns_401_when_token_is_malformed() {
 #[serial]
 async fn test_get_user_returns_401_when_token_has_invalid_signature() {
     // Setup test environment
-    let test_fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
     
     // Create token with invalid signature
     let user_id = Uuid::new_v4();
-    let invalid_token = create_invalid_signature_jwt_token(user_id, &test_fixture.config());
+    let invalid_token = create_invalid_signature_jwt_token(user_id, &_fixture.config());
     
     // Make request with invalid signature token
     let response = client
@@ -201,8 +188,7 @@ async fn test_get_user_returns_401_when_token_has_invalid_signature() {
 #[serial]
 async fn test_get_user_returns_401_when_no_authorization_header() {
     // Setup test environment
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
     
     // Make request without Authorization header
     let response = client
@@ -224,8 +210,7 @@ async fn test_get_user_returns_401_when_no_authorization_header() {
 #[serial]
 async fn test_get_user_returns_401_when_authorization_header_format_is_invalid() {
     // Setup test environment
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
     
     let invalid_headers = vec![
         "Basic dXNlcjpwYXNzd29yZA==", // Basic auth instead of Bearer
@@ -258,13 +243,11 @@ async fn test_get_user_returns_401_when_authorization_header_format_is_invalid()
 #[serial]
 async fn test_get_user_returns_401_when_user_not_found_in_database() {
     // Setup test environment
-    let test_fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
     
     // Create valid JWT token for non-existent user
     let non_existent_user_id = Uuid::new_v4();
-    let jwt_token = create_valid_jwt_token(non_existent_user_id, &test_fixture.config());
+    let jwt_token = create_valid_jwt_token(non_existent_user_id, &_fixture.config());
     
     // Make request with token for non-existent user
     let response = client
@@ -301,10 +284,8 @@ async fn test_get_user_returns_401_when_user_not_found_in_database() {
 #[serial]
 async fn test_get_user_returns_correct_primary_email_when_user_has_multiple_emails() {
     // Setup test environment
-    let test_fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let db = test_fixture.db();
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let db = _fixture.db();
     
     // Pre-create user with multiple emails
     let user = DbFixtures::user()
@@ -327,7 +308,7 @@ async fn test_get_user_returns_correct_primary_email_when_user_has_multiple_emai
         .expect("Failed to create primary email");
     
     // Create valid JWT token
-    let jwt_token = create_valid_jwt_token(user.id(), &test_fixture.config());
+    let jwt_token = create_valid_jwt_token(user.id(), &_fixture.config());
     
     // Make request to /me endpoint
     let response = client
@@ -356,10 +337,8 @@ async fn test_get_user_returns_correct_primary_email_when_user_has_multiple_emai
 #[serial]
 async fn test_get_user_handles_user_with_no_primary_email() {
     // Setup test environment
-    let test_fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let db = test_fixture.db();
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let db = _fixture.db();
     
     // Pre-create user without any emails
     let user = DbFixtures::user()
@@ -369,7 +348,7 @@ async fn test_get_user_handles_user_with_no_primary_email() {
         .expect("Failed to create user");
     
     // Create valid JWT token
-    let jwt_token = create_valid_jwt_token(user.id(), &test_fixture.config());
+    let jwt_token = create_valid_jwt_token(user.id(), &_fixture.config());
     
     // Make request to /me endpoint
     let response = client
@@ -398,9 +377,8 @@ async fn test_get_user_handles_user_with_no_primary_email() {
 #[serial]
 async fn test_get_user_concurrent_requests_with_same_token() {
     // Setup test environment
-    let test_fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let db = test_fixture.db();
-    let base_url = get_test_server().await.expect("Failed to start test server");
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let db = _fixture.db();
     
     // Pre-create user and email
     let user = DbFixtures::user()
@@ -416,7 +394,7 @@ async fn test_get_user_concurrent_requests_with_same_token() {
         .expect("Failed to create primary email");
     
     // Create valid JWT token
-    let jwt_token = create_valid_jwt_token(user.id(), &test_fixture.config());
+    let jwt_token = create_valid_jwt_token(user.id(), &_fixture.config());
     
     // Make multiple concurrent requests with the same token
     let mut handles = vec![];
@@ -426,8 +404,8 @@ async fn test_get_user_concurrent_requests_with_same_token() {
         let token = jwt_token.clone();
         
         let handle = tokio::spawn(async move {
-            let client = create_test_client();
-            let response = client
+            let client2 = create_test_client();
+            let response = client2
                 .get(&format!("{}/api/me", base_url))
                 .header("Authorization", format!("Bearer {}", token))
                 .send()
@@ -457,10 +435,8 @@ async fn test_get_user_concurrent_requests_with_same_token() {
 #[serial]
 async fn test_get_user_security_jwt_claims_validation() {
     // Setup test environment
-    let test_fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let db = test_fixture.db();
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let db = _fixture.db();
     
     // Pre-create user
     let user = DbFixtures::user()
@@ -476,7 +452,7 @@ async fn test_get_user_security_jwt_claims_validation() {
         .expect("Failed to create primary email");
     
     // Get the JWT configuration to create custom tokens
-    let config = test_fixture.config();
+    let config = _fixture.config();
     let jwt_algorithm_config = config.jwt.create_jwt_algorithm()
         .expect("Failed to create JWT algorithm");
     

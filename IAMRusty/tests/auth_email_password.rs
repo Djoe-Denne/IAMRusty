@@ -4,7 +4,7 @@ mod common;
 #[path = "fixtures/mod.rs"]
 mod fixtures;
 
-use common::{get_test_server, TestFixture, TestKafkaFixture};
+use common::setup_test_server;
 use fixtures::DbFixtures;
 use reqwest::Client;
 use serde_json::{json, Value};
@@ -13,26 +13,15 @@ use uuid::Uuid;
 use sea_orm::ConnectionTrait;
 use infra::auth::PasswordService;
 
-/// Create a common HTTP client for tests
-fn create_test_client() -> Client {
-    Client::builder()
-        .redirect(reqwest::redirect::Policy::none())
-        .build()
-        .expect("Failed to create HTTP client")
-}
 
 // 🔐 Email/Password Authentication Tests
 // 📝 POST /auth/signup
-
-
 
 #[tokio::test]
 #[serial]
 async fn test_signup_duplicate_email_fails() {
     // Setup test server and database
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     // Create first user
     let signup_data = json!({
@@ -96,9 +85,7 @@ async fn test_signup_duplicate_email_fails() {
 #[serial]
 async fn test_signup_invalid_email_format() {
     // Setup test server
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     let invalid_emails = vec![
         "invalid-email",
@@ -132,9 +119,7 @@ async fn test_signup_invalid_email_format() {
 #[serial]
 async fn test_signup_weak_password_validation() {
     // Setup test server
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     let weak_passwords = vec![
         "", // Empty
@@ -166,9 +151,7 @@ async fn test_signup_weak_password_validation() {
 #[serial]
 async fn test_signup_missing_required_fields() {
     // Setup test server
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     let test_cases = vec![
         (json!({"email": "test@example.com", "password": "password123"}), "missing username"),
@@ -199,9 +182,7 @@ async fn test_signup_missing_required_fields() {
 #[serial]
 async fn test_login_unverified_email_fails() {
     // Setup test server and database
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     // Create unverified user
     let password_service = PasswordService::new();
@@ -212,7 +193,7 @@ async fn test_login_unverified_email_fails() {
     let user = DbFixtures::user()
         .username("unverifieduser")
         .password_hash(hashed_password)
-        .commit(fixture.db())
+        .commit(_fixture.db())
         .await
         .expect("Failed to create user");
 
@@ -221,7 +202,7 @@ async fn test_login_unverified_email_fails() {
         .email("unverified@example.com")
         .is_primary(true)
         .is_verified(false) // Not verified
-        .commit(fixture.db())
+        .commit(_fixture.db())
         .await
         .expect("Failed to create user email");
 
@@ -255,9 +236,7 @@ async fn test_login_unverified_email_fails() {
 #[serial]
 async fn test_login_invalid_credentials() {
     // Setup test server and database
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     // Create verified user
     let password_service = PasswordService::new();
@@ -268,7 +247,7 @@ async fn test_login_invalid_credentials() {
     let user = DbFixtures::user()
         .username("testuser")
         .password_hash(hashed_password)
-        .commit(fixture.db())
+        .commit(_fixture.db())
         .await
         .expect("Failed to create user");
 
@@ -277,7 +256,7 @@ async fn test_login_invalid_credentials() {
         .email("test@example.com")
         .is_primary(true)
         .is_verified(true)
-        .commit(fixture.db())
+        .commit(_fixture.db())
         .await
         .expect("Failed to create user email");
 
@@ -321,9 +300,7 @@ async fn test_login_invalid_credentials() {
 #[serial]
 async fn test_login_missing_required_fields() {
     // Setup test server
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     let test_cases = vec![
         (json!({"password": "password123"}), "missing email"),
@@ -351,10 +328,8 @@ async fn test_login_missing_required_fields() {
 #[serial]
 async fn test_verify_email_success() {
     // Setup test server and database
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
-    let db = fixture.db();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let db = _fixture.db();
 
     // Create user with unverified email
     let user = DbFixtures::user()
@@ -442,10 +417,8 @@ async fn test_verify_email_success() {
 #[serial]
 async fn test_verify_email_invalid_token() {
     // Setup test server and database
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
-    let db = fixture.db();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let db = _fixture.db();
 
     // Create user with unverified email
     let user = DbFixtures::user()
@@ -508,10 +481,8 @@ async fn test_verify_email_invalid_token() {
 #[serial]
 async fn test_verify_email_expired_token() {
     // Setup test server and database
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
-    let db = fixture.db();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let db = _fixture.db();
 
     // Create user with unverified email
     let user = DbFixtures::user()
@@ -574,9 +545,7 @@ async fn test_verify_email_expired_token() {
 #[serial]
 async fn test_verify_email_nonexistent_email() {
     // Setup test server
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     // Make verify request for nonexistent email
     let verify_data = json!({
@@ -608,10 +577,8 @@ async fn test_verify_email_nonexistent_email() {
 #[serial]
 async fn test_verify_email_already_verified() {
     // Setup test server and database
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
-    let db = fixture.db();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let db = _fixture.db();
 
     // Create user with already verified email
     let user = DbFixtures::user()
@@ -659,9 +626,7 @@ async fn test_verify_email_already_verified() {
 #[serial]
 async fn test_verify_email_missing_required_fields() {
     // Setup test server
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     let test_cases = vec![
         (json!({"verification_token": "token123"}), "missing email"),

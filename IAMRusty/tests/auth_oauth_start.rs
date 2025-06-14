@@ -4,7 +4,7 @@ mod common;
 #[path = "fixtures/mod.rs"]
 mod fixtures;
 
-use common::get_test_server;
+use common::setup_test_server;
 use fixtures::{GitHubFixtures, GitLabFixtures};
 use reqwest::Client;
 use serde_json::Value;
@@ -12,14 +12,6 @@ use url::Url;
 use base64::{Engine as _, engine::general_purpose};
 use serial_test::serial;
 use uuid;
-
-/// Create a common HTTP client for tests that doesn't follow redirects automatically
-fn create_test_client() -> Client {
-    Client::builder()
-        .redirect(reqwest::redirect::Policy::none())
-        .build()
-        .expect("Failed to create HTTP client")
-}
 
 /// Helper function to decode and verify OAuth state parameter
 fn decode_oauth_state(state: &str) -> Result<Value, Box<dyn std::error::Error>> {
@@ -48,8 +40,7 @@ fn parse_redirect_url(location: &str) -> Result<(String, std::collections::HashM
 #[serial]
 async fn test_oauth_start_github_redirect_success() {
     // Setup test server
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
     
     // Setup GitHub fixtures (scoped to this test)
     let _github_service = GitHubFixtures::service().await;
@@ -110,8 +101,7 @@ async fn test_oauth_start_github_redirect_success() {
 #[serial]
 async fn test_oauth_start_gitlab_redirect_success() {
     // Setup test server
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
     
     // Setup GitLab fixtures (scoped to this test)
     let _gitlab_service = GitLabFixtures::service().await;
@@ -172,8 +162,7 @@ async fn test_oauth_start_gitlab_redirect_success() {
 #[serial]
 async fn test_oauth_start_unsupported_provider_returns_422() {
     // Setup test server
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
     
     // Test unsupported providers
     let unsupported_providers = vec!["facebook", "google", "twitter", "unknown", ""];
@@ -204,8 +193,7 @@ async fn test_oauth_start_unsupported_provider_returns_422() {
 #[serial]
 async fn test_oauth_start_case_insensitive_providers() {
     // Setup test server
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
     
     // Setup fixtures
     let _github_service = GitHubFixtures::service().await;
@@ -252,8 +240,7 @@ async fn test_oauth_start_case_insensitive_providers() {
 #[serial]
 async fn test_oauth_start_state_security_and_uniqueness() {
     // Setup test server
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
     
     // Setup GitHub fixtures (scoped to this test)
     let _github_service = GitHubFixtures::service().await;
@@ -310,8 +297,7 @@ async fn test_oauth_start_state_security_and_uniqueness() {
 #[serial]
 async fn test_oauth_start_with_auth_header_link_operation() {
     // Setup test server
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
     
     // Setup GitHub fixtures (scoped to this test)
     let _github_service = GitHubFixtures::service().await;
@@ -370,8 +356,7 @@ async fn test_oauth_start_with_auth_header_link_operation() {
 #[serial]
 async fn test_oauth_start_invalid_auth_header_formats() {
     // Setup test server
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
     
     // Test various invalid Authorization header formats
     let invalid_headers = vec![
@@ -408,8 +393,7 @@ async fn test_oauth_start_invalid_auth_header_formats() {
 #[serial]
 async fn test_oauth_start_query_parameter_structure() {
     // Setup test server
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
     
     // Setup fixtures
     let _github_service = GitHubFixtures::service().await;

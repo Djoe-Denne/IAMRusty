@@ -4,7 +4,7 @@ mod common;
 #[path = "fixtures/mod.rs"]
 mod fixtures;
 
-use common::{get_test_server, TestFixture};
+use common::setup_test_server;
 use fixtures::DbFixtures;
 use reqwest::Client;
 use serde_json::{json, Value};
@@ -20,9 +20,7 @@ fn create_test_client() -> Client {
 #[tokio::test]
 #[serial]
 async fn test_username_available() {
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     let response = client
         .get(&format!("{}/api/auth/username/check", base_url))
@@ -40,10 +38,8 @@ async fn test_username_available() {
 #[tokio::test]
 #[serial]
 async fn test_username_taken() {
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
-    let db = fixture.db();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let db = _fixture.db();
 
     // Create user
     let _user = DbFixtures::user()
@@ -68,9 +64,7 @@ async fn test_username_taken() {
 #[tokio::test]
 #[serial]
 async fn test_username_validation() {
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     // Too short
     let response = client

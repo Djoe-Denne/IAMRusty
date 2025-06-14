@@ -4,21 +4,11 @@ mod common;
 #[path = "fixtures/mod.rs"]
 mod fixtures;
 
-use common::{get_test_server, TestFixture};
+use common::setup_test_server;
 use fixtures::{DbFixtures, GitHubFixtures};
-use reqwest::Client;
 use serde_json::{json, Value};
 use serial_test::serial;
 use base64::{engine::general_purpose, Engine as _};
-use common::jwt_test_utils::create_expired_registration_token_with_encoder;
-
-/// Create a common HTTP client for tests
-fn create_test_client() -> Client {
-    Client::builder()
-        .redirect(reqwest::redirect::Policy::none())
-        .build()
-        .expect("Failed to create HTTP client")
-}
 
 /// Helper function to decode JWT payload for testing
 fn decode_jwt_payload(jwt: &str) -> Result<Value, Box<dyn std::error::Error>> {
@@ -46,9 +36,7 @@ fn decode_jwt_payload(jwt: &str) -> Result<Value, Box<dyn std::error::Error>> {
 #[tokio::test]
 #[serial]
 async fn test_registration_token_has_correct_structure() {
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     let signup_data = json!({
         "email": "jwttest@example.com",
@@ -82,9 +70,7 @@ async fn test_registration_token_has_correct_structure() {
 #[tokio::test]
 #[serial]
 async fn test_expired_token_returns_400() {
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     // Use an obviously invalid token
     let expired_token = "invalid.token.here";
@@ -108,8 +94,7 @@ async fn test_expired_token_returns_400() {
 #[tokio::test]
 #[serial]
 async fn test_jwks_endpoint_accessible() {
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     let response = client
         .get(&format!("{}/.well-known/jwks.json", base_url))
@@ -130,9 +115,7 @@ async fn test_jwks_endpoint_accessible() {
 #[tokio::test]
 #[serial]
 async fn test_same_email_retry_returns_new_token() {
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     let signup_data = json!({
         "email": "retry@example.com",
@@ -172,9 +155,7 @@ async fn test_same_email_retry_returns_new_token() {
 #[tokio::test]
 #[serial]
 async fn test_user_id_consistent_across_retries() {
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     let signup_data = json!({
         "email": "consistent@example.com", 
@@ -217,9 +198,7 @@ async fn test_user_id_consistent_across_retries() {
 #[tokio::test]
 #[serial]
 async fn test_username_availability_check() {
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     // Check available username
     let response = client
@@ -238,10 +217,8 @@ async fn test_username_availability_check() {
 #[tokio::test]
 #[serial]
 async fn test_taken_username_with_suggestions() {
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
-    let db = fixture.db();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let db = _fixture.db();
 
     // Pre-create user with taken username
     let _existing_user = DbFixtures::user()
@@ -270,9 +247,7 @@ async fn test_taken_username_with_suggestions() {
 #[tokio::test]
 #[serial]
 async fn test_username_format_validation() {
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     // Test too short username
     let response = client
@@ -303,9 +278,7 @@ async fn test_username_format_validation() {
 #[tokio::test]
 #[serial]
 async fn test_email_validation_and_sanitization() {
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     let test_cases = vec![
         ("valid@example.com", true),
@@ -343,9 +316,7 @@ async fn test_email_validation_and_sanitization() {
 #[tokio::test]
 #[serial]
 async fn test_username_injection_prevention() {
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     // Get registration token
     let signup_data = json!({
@@ -396,9 +367,7 @@ async fn test_username_injection_prevention() {
 #[tokio::test]
 #[serial]
 async fn test_no_user_enumeration_in_errors() {
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     // Test login with non-existent email
     let login_data = json!({
@@ -432,9 +401,7 @@ async fn test_no_user_enumeration_in_errors() {
 #[tokio::test]
 #[serial]
 async fn test_oauth_first_flow_with_github() {
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     // Setup GitHub mock
     let github = GitHubFixtures::service().await;

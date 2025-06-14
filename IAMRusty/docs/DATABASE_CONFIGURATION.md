@@ -226,7 +226,7 @@ async fn my_test() {
     let config = fixture.config();
     
     // Use the database connection
-    let db = fixture.db();
+    let db = _fixture.db();
     
     // Test cleanup is automatic
 }

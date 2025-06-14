@@ -4,7 +4,7 @@ mod common;
 #[path = "fixtures/mod.rs"]
 mod fixtures;
 
-use common::{get_test_server, TestFixture, jwt_test_utils};
+use common::setup_test_server;
 use fixtures::DbFixtures;
 use reqwest::Client;
 use serde_json::{json, Value};
@@ -13,14 +13,6 @@ use base64::{engine::general_purpose, Engine as _};
 use sea_orm::ConnectionTrait;
 use uuid;
 
-/// Create a common HTTP client for tests
-fn create_test_client() -> Client {
-    Client::builder()
-        .redirect(reqwest::redirect::Policy::none())
-        .build()
-        .expect("Failed to create HTTP client")
-}
-
 // =============================================================================
 // ✅ COMPLETE REGISTRATION ENDPOINT TESTS
 // =============================================================================
@@ -28,9 +20,7 @@ fn create_test_client() -> Client {
 #[tokio::test]
 #[serial]
 async fn test_complete_registration_success() {
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     // First get a registration token via signup
     let signup_data = json!({
@@ -86,9 +76,7 @@ async fn test_complete_registration_success() {
 #[tokio::test]
 #[serial]
 async fn test_complete_registration_invalid_token_signature() {
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     // Use invalid token with bad signature
     let invalid_token = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InRlc3RAZXhhbXBsZS5jb20iLCJ1c2VyX2lkIjoiMTIzIiwiZXhwIjo5OTk5OTk5OTk5LCJpYXQiOjE2MDAwMDAwMDAsInN1YiI6IjEyMyJ9.invalid_signature";
@@ -117,14 +105,12 @@ async fn test_complete_registration_invalid_token_signature() {
 #[tokio::test]
 #[serial]
 async fn test_complete_registration_expired_token() {
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     // Create an expired registration token using the utility function
     let user_id = uuid::Uuid::new_v4();
     let email = "test@example.com".to_string();
-    let config = fixture.config();
+    let config = _fixture.config();
     
     let expired_token = common::jwt_test_utils::create_expired_registration_token_with_encoder(
         user_id, 
@@ -156,10 +142,8 @@ async fn test_complete_registration_expired_token() {
 #[tokio::test]
 #[serial]
 async fn test_complete_registration_username_already_taken() {
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
-    let db = fixture.db();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let db = _fixture.db();
 
     // Pre-create user with taken username
     let _existing_user = DbFixtures::user()
@@ -208,9 +192,7 @@ async fn test_complete_registration_username_already_taken() {
 #[tokio::test]
 #[serial]
 async fn test_complete_registration_invalid_username_format() {
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     // Get registration token
     let signup_data = json!({
@@ -267,9 +249,7 @@ async fn test_complete_registration_invalid_username_format() {
 #[tokio::test]
 #[serial]
 async fn test_complete_registration_valid_username_formats() {
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     // Valid username formats that should be accepted
     let max_length_username = "a".repeat(50);
@@ -329,9 +309,7 @@ async fn test_complete_registration_valid_username_formats() {
 #[tokio::test]
 #[serial]
 async fn test_complete_registration_malformed_request() {
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     // Test missing registration_token
     let missing_token_data = json!({
@@ -389,9 +367,7 @@ async fn test_complete_registration_malformed_request() {
 #[tokio::test]
 #[serial]
 async fn test_registration_token_single_use() {
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     // Get registration token
     let signup_data = json!({
@@ -452,9 +428,7 @@ async fn test_registration_token_single_use() {
 #[tokio::test]
 #[serial]
 async fn test_complete_registration_updates_user_record() {
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     // Get registration token
     let signup_data = json!({
@@ -493,7 +467,7 @@ async fn test_complete_registration_updates_user_record() {
     assert_eq!(completion_response.status(), 200);
 
     // Verify user record was updated in database
-    let db = fixture.db();
+    let db = _fixture.db();
     let user_record = db
         .query_one(sea_orm::Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
@@ -510,10 +484,8 @@ async fn test_complete_registration_updates_user_record() {
 #[tokio::test]
 #[serial]
 async fn test_complete_registration_user_can_login_afterward() {
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
-    let db = fixture.db();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let db = _fixture.db();
 
     // Complete full registration flow
     let signup_data = json!({

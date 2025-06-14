@@ -393,7 +393,7 @@ pub struct TestFixture {
 impl TestFixture {
     /// Create a new test fixture with database cleanup
     pub async fn new() -> Result<Self, DbErr> {
-        let database = TestDatabase::new().await?;
+        let database = TestDatabase::new().await.expect("Failed to create test database");
         
         // Clean up any existing data
         database.truncate_all_tables().await?;

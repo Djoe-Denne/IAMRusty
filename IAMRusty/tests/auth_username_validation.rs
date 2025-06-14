@@ -4,20 +4,14 @@ mod common;
 #[path = "fixtures/mod.rs"]
 mod fixtures;
 
-use common::{get_test_server, TestFixture};
+use common::setup_test_server;
 use fixtures::DbFixtures;
 use reqwest::Client;
 use serde_json::{json, Value};
 use serial_test::serial;
 use sea_orm::ConnectionTrait;
 
-/// Create a common HTTP client for tests
-fn create_test_client() -> Client {
-    Client::builder()
-        .redirect(reqwest::redirect::Policy::none())
-        .build()
-        .expect("Failed to create HTTP client")
-}
+
 
 // =============================================================================
 // 🔍 USERNAME CHECK ENDPOINT TESTS
@@ -26,9 +20,7 @@ fn create_test_client() -> Client {
 #[tokio::test]
 #[serial]
 async fn test_username_check_available_returns_true() {
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     let response = client
         .get(&format!("{}/api/auth/username/check", base_url))
@@ -49,10 +41,8 @@ async fn test_username_check_available_returns_true() {
 #[tokio::test]
 #[serial]
 async fn test_username_check_taken_returns_false_with_suggestions() {
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
-    let db = fixture.db();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let db = _fixture.db();
 
     // Pre-create user with taken username
     let _existing_user = DbFixtures::user()
@@ -90,10 +80,8 @@ async fn test_username_check_taken_returns_false_with_suggestions() {
 #[tokio::test]
 #[serial]
 async fn test_username_check_case_sensitivity() {
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
-    let db = fixture.db();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let db = _fixture.db();
 
     // Create user with lowercase username
     let _existing_user = DbFixtures::user()
@@ -140,9 +128,7 @@ async fn test_username_check_case_sensitivity() {
 #[tokio::test]
 #[serial]
 async fn test_username_minimum_length_validation() {
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     // Test usernames below minimum length (3 characters)
     let short_usernames = vec!["", "a", "ab"];
@@ -173,9 +159,7 @@ async fn test_username_minimum_length_validation() {
 #[tokio::test]
 #[serial]
 async fn test_username_maximum_length_validation() {
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     // Test username at maximum length (50 characters)
     let max_length_username = "a".repeat(50);
@@ -204,9 +188,7 @@ async fn test_username_maximum_length_validation() {
 #[tokio::test]
 #[serial]
 async fn test_username_character_pattern_validation() {
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     // Test valid character patterns (alphanumeric + underscore + dash)
     let valid_usernames = vec![
@@ -275,9 +257,7 @@ async fn test_username_character_pattern_validation() {
 #[tokio::test]
 #[serial]
 async fn test_username_unicode_and_special_characters() {
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     // Test Unicode characters (should be rejected based on pattern ^[a-zA-Z0-9_-]+$)
     let unicode_usernames = vec![
@@ -330,10 +310,8 @@ async fn test_username_unicode_and_special_characters() {
 #[tokio::test]
 #[serial]
 async fn test_username_suggestions_reasonable_alternatives() {
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
-    let db = fixture.db();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let db = _fixture.db();
 
     // Create multiple users with similar usernames
     let taken_usernames = vec!["johndoe", "johndoe123", "johndoe_"];
@@ -390,10 +368,8 @@ async fn test_username_suggestions_reasonable_alternatives() {
 #[tokio::test]
 #[serial]
 async fn test_username_suggestions_different_strategies() {
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
-    let db = fixture.db();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let db = _fixture.db();
 
     // Create user with a simple username
     let _user = DbFixtures::user()
@@ -439,9 +415,7 @@ async fn test_username_suggestions_different_strategies() {
 #[tokio::test]
 #[serial]
 async fn test_username_check_missing_parameter() {
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     // Request without username parameter
     let response = client
@@ -456,9 +430,7 @@ async fn test_username_check_missing_parameter() {
 #[tokio::test]
 #[serial]
 async fn test_username_check_empty_parameter() {
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     // Request with empty username parameter
     let response = client
@@ -475,9 +447,7 @@ async fn test_username_check_empty_parameter() {
 #[tokio::test]
 #[serial]
 async fn test_username_check_multiple_parameters() {
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     // Request with multiple username parameters
     let response = client
@@ -494,9 +464,7 @@ async fn test_username_check_multiple_parameters() {
 #[tokio::test]
 #[serial]
 async fn test_username_check_whitespace_handling() {
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     // Test usernames with leading/trailing whitespace
     let whitespace_usernames = vec![
@@ -528,10 +496,8 @@ async fn test_username_check_whitespace_handling() {
 #[tokio::test]
 #[serial]
 async fn test_username_uniqueness_across_database() {
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
-    let db = fixture.db();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let db = _fixture.db();
 
     // Create user with specific username
     let unique_username = "uniqueuser123";
@@ -574,10 +540,8 @@ async fn test_username_uniqueness_across_database() {
 #[tokio::test]
 #[serial]
 async fn test_username_check_performance_with_many_users() {
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
-    let db = fixture.db();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let db = _fixture.db();
 
     // Create multiple users to test performance
     for i in 0..10 {

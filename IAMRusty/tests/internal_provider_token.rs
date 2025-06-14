@@ -6,13 +6,14 @@ use serde::{Serialize, Deserialize};
 use serde_json::Value;
 use uuid::Uuid;
 
-use common::{get_test_server, TestFixture, create_valid_jwt_token_with_encoder, create_expired_jwt_token_with_encoder, create_invalid_jwt_token_with_encoder};
+use common::setup_test_server;
 use fixtures::DbFixtures;
 use reqwest::Client;
 use serial_test::serial;
 use tokio;
 use chrono::{Utc, Duration};
 use jsonwebtoken::{encode, Header, Algorithm, EncodingKey};
+use common::jwt_test_utils::{create_valid_jwt_token_with_encoder, create_expired_jwt_token_with_encoder, create_invalid_jwt_token_with_encoder};
 
 /// Create a common HTTP client for tests
 fn create_test_client() -> Client {
@@ -99,10 +100,8 @@ fn create_invalid_signature_jwt_token(user_id: Uuid) -> String {
 #[serial]
 async fn test_internal_provider_token_github_success_returns_access_token() {
     // Setup test environment
-    let test_fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let db = test_fixture.db();
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let db = _fixture.db();
     
     // Create user in database
     let user = DbFixtures::user()
@@ -119,7 +118,7 @@ async fn test_internal_provider_token_github_success_returns_access_token() {
         .expect("Failed to create provider token");
     
     // Create valid JWT token for authentication using the new encoder-based method
-    let jwt_token = create_valid_jwt_token_with_encoder(user.id(), &test_fixture.config())
+    let jwt_token = create_valid_jwt_token_with_encoder(user.id(), &_fixture.config())
         .expect("Failed to create JWT token");
     
     // Make request to internal provider token endpoint
@@ -153,10 +152,8 @@ async fn test_internal_provider_token_github_success_returns_access_token() {
 #[serial]
 async fn test_internal_provider_token_gitlab_success_returns_access_token() {
     // Setup test environment
-    let test_fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let db = test_fixture.db();
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let db = _fixture.db();
     
     // Create user in database
     let user = DbFixtures::user()
@@ -173,7 +170,7 @@ async fn test_internal_provider_token_gitlab_success_returns_access_token() {
         .expect("Failed to create provider token");
     
     // Create valid JWT token for authentication using the new encoder-based method
-    let jwt_token = create_valid_jwt_token_with_encoder(user.id(), &test_fixture.config())
+    let jwt_token = create_valid_jwt_token_with_encoder(user.id(), &_fixture.config())
         .expect("Failed to create JWT token");
     
     // Make request to internal provider token endpoint
@@ -203,8 +200,7 @@ async fn test_internal_provider_token_gitlab_success_returns_access_token() {
 #[serial]
 async fn test_internal_provider_token_returns_401_when_no_authorization_header() {
     // Setup test environment
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
     
     // Make request without Authorization header
     let response = client
@@ -221,13 +217,12 @@ async fn test_internal_provider_token_returns_401_when_no_authorization_header()
 #[serial]
 async fn test_internal_provider_token_returns_401_when_token_is_expired() {
     // Setup test environment
-    let test_fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let db = _fixture.db();
     
     // Create expired JWT token using the new encoder-based method
     let user_id = Uuid::new_v4();
-    let expired_token = create_expired_jwt_token_with_encoder(user_id, &test_fixture.config())
+    let expired_token = create_expired_jwt_token_with_encoder(user_id, &_fixture.config())
         .expect("Failed to create expired JWT token");
     
     // Make request with expired token
@@ -246,13 +241,12 @@ async fn test_internal_provider_token_returns_401_when_token_is_expired() {
 #[serial]
 async fn test_internal_provider_token_returns_401_when_token_has_invalid_signature() {
     // Setup test environment
-    let test_fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let db = _fixture.db();
     
     // Create JWT token with invalid signature using the new encoder-based method
     let user_id = Uuid::new_v4();
-    let invalid_token = create_invalid_jwt_token_with_encoder(user_id, &test_fixture.config())
+    let invalid_token = create_invalid_jwt_token_with_encoder(user_id, &_fixture.config())
         .expect("Failed to create invalid signature JWT token");
     
     // Make request with invalid signature token
@@ -271,13 +265,12 @@ async fn test_internal_provider_token_returns_401_when_token_has_invalid_signatu
 #[serial]
 async fn test_internal_provider_token_returns_422_when_provider_is_unsupported() {
     // Setup test environment
-    let test_fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let db = _fixture.db();
     
     // Create valid JWT token using the new encoder-based method
     let user_id = Uuid::new_v4();
-    let jwt_token = create_valid_jwt_token_with_encoder(user_id, &test_fixture.config())
+    let jwt_token = create_valid_jwt_token_with_encoder(user_id, &_fixture.config())
         .expect("Failed to create JWT token");
     
     // Test unsupported providers
@@ -301,10 +294,8 @@ async fn test_internal_provider_token_returns_422_when_provider_is_unsupported()
 #[serial]
 async fn test_internal_provider_token_returns_404_when_no_token_for_provider() {
     // Setup test environment
-    let test_fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let db = test_fixture.db();
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let db = _fixture.db();
     
     // Create user in database but NO provider token
     let user = DbFixtures::user()
@@ -314,7 +305,7 @@ async fn test_internal_provider_token_returns_404_when_no_token_for_provider() {
         .expect("Failed to create user");
     
     // Create valid JWT token for authentication using the new encoder-based method
-    let jwt_token = create_valid_jwt_token_with_encoder(user.id(), &test_fixture.config())
+    let jwt_token = create_valid_jwt_token_with_encoder(user.id(), &_fixture.config())
         .expect("Failed to create JWT token");
     
     // Make request for GitHub token when user has no GitHub token
@@ -343,13 +334,12 @@ async fn test_internal_provider_token_returns_404_when_no_token_for_provider() {
 #[serial]
 async fn test_internal_provider_token_returns_401_when_user_not_found() {
     // Setup test environment
-    let test_fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let db = _fixture.db();
     
     // Create valid JWT token for a user that doesn't exist in database using the new encoder-based method
     let non_existent_user_id = Uuid::new_v4();
-    let jwt_token = create_valid_jwt_token_with_encoder(non_existent_user_id, &test_fixture.config())
+    let jwt_token = create_valid_jwt_token_with_encoder(non_existent_user_id, &_fixture.config())
         .expect("Failed to create JWT token");
     
     // Make request with token for non-existent user
@@ -368,8 +358,8 @@ async fn test_internal_provider_token_returns_401_when_user_not_found() {
 #[serial]
 async fn test_internal_provider_token_returns_401_when_malformed_token() {
     // Setup test environment
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let db = _fixture.db();
     
     let malformed_tokens = vec![
         "invalid.jwt.token",
@@ -397,10 +387,8 @@ async fn test_internal_provider_token_returns_401_when_malformed_token() {
 #[serial]
 async fn test_internal_provider_token_case_insensitive_providers() {
     // Setup test environment
-    let test_fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let db = test_fixture.db();
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let db = _fixture.db();
     
     // Create user with GitHub token
     let user = DbFixtures::user()
@@ -416,7 +404,7 @@ async fn test_internal_provider_token_case_insensitive_providers() {
         .expect("Failed to create provider token");
     
     // Create valid JWT token for authentication using the new encoder-based method
-    let jwt_token = create_valid_jwt_token_with_encoder(user.id(), &test_fixture.config())
+    let jwt_token = create_valid_jwt_token_with_encoder(user.id(), &_fixture.config())
         .expect("Failed to create JWT token");
     
     // Test different case variations of GitHub
@@ -440,10 +428,8 @@ async fn test_internal_provider_token_case_insensitive_providers() {
 #[serial]
 async fn test_internal_provider_token_different_users_different_tokens() {
     // Setup test environment
-    let test_fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let db = test_fixture.db();
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let db = _fixture.db();
     
     // Create two users with different GitHub tokens
     let user1 = DbFixtures::user()
@@ -473,7 +459,7 @@ async fn test_internal_provider_token_different_users_different_tokens() {
         .expect("Failed to create token2");
     
     // Test user 1 using the new encoder-based method
-    let jwt_token1 = create_valid_jwt_token_with_encoder(user1.id(), &test_fixture.config())
+    let jwt_token1 = create_valid_jwt_token_with_encoder(user1.id(), &_fixture.config())
         .expect("Failed to create JWT token for user1");
     let response1 = client
         .post(&format!("{}/internal/github/token", base_url))
@@ -487,7 +473,7 @@ async fn test_internal_provider_token_different_users_different_tokens() {
     let token1 = response1_json["access_token"].as_str().expect("Should have access_token");
     
     // Test user 2 using the new encoder-based method
-    let jwt_token2 = create_valid_jwt_token_with_encoder(user2.id(), &test_fixture.config())
+    let jwt_token2 = create_valid_jwt_token_with_encoder(user2.id(), &_fixture.config())
         .expect("Failed to create JWT token for user2");
     let response2 = client
         .post(&format!("{}/internal/github/token", base_url))
@@ -510,10 +496,8 @@ async fn test_internal_provider_token_different_users_different_tokens() {
 #[serial]
 async fn test_internal_provider_token_user_with_multiple_providers() {
     // Setup test environment
-    let test_fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let db = test_fixture.db();
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let db = _fixture.db();
     
     // Create user with both GitHub and GitLab tokens
     let user = DbFixtures::user()
@@ -537,7 +521,7 @@ async fn test_internal_provider_token_user_with_multiple_providers() {
         .expect("Failed to create GitLab token");
     
     // Create valid JWT token for authentication using the new encoder-based method
-    let jwt_token = create_valid_jwt_token_with_encoder(user.id(), &test_fixture.config())
+    let jwt_token = create_valid_jwt_token_with_encoder(user.id(), &_fixture.config())
         .expect("Failed to create JWT token");
     
     // Test GitHub token retrieval
@@ -569,10 +553,8 @@ async fn test_internal_provider_token_user_with_multiple_providers() {
 #[serial]
 async fn test_internal_provider_token_concurrent_requests_same_user() {
     // Setup test environment
-    let test_fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let db = test_fixture.db();
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let db = _fixture.db();
     
     // Create user with GitHub token
     let user = DbFixtures::user()
@@ -589,7 +571,7 @@ async fn test_internal_provider_token_concurrent_requests_same_user() {
         .expect("Failed to create provider token");
     
     // Create valid JWT token for authentication using the new encoder-based method
-    let jwt_token = create_valid_jwt_token_with_encoder(user.id(), &test_fixture.config())
+    let jwt_token = create_valid_jwt_token_with_encoder(user.id(), &_fixture.config())
         .expect("Failed to create JWT token");
     
     // Make multiple concurrent requests

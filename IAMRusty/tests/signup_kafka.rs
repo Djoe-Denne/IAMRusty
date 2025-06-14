@@ -4,23 +4,10 @@ mod common;
 #[path = "fixtures/mod.rs"]
 mod fixtures;
 
-use common::{get_test_server, TestFixture, TestKafkaFixture};
-use fixtures::DbFixtures;
-use reqwest::Client;
+use common::{setup_test_server, TestKafkaFixture, TestFixture};
 use serde_json::{json, Value};
 use serial_test::serial;
-use uuid::Uuid;
-use sea_orm::ConnectionTrait;
-use infra::auth::PasswordService;
 use configuration;
-
-/// Create a common HTTP client for tests
-fn create_test_client() -> Client {
-    Client::builder()
-        .redirect(reqwest::redirect::Policy::none())
-        .build()
-        .expect("Failed to create HTTP client")
-}
 
 // 🔥 Kafka Integration Test
 #[tokio::test]
@@ -49,8 +36,7 @@ async fn test_signup_kafka_integration() {
     tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
     
     // Start the regular test server (it will pick up Kafka config from environment)
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
     
     // Wait a moment for server to be fully ready
     tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;

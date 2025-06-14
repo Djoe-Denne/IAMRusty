@@ -753,7 +753,7 @@ OAuth and authentication testing requires coordination between external service 
 mod common;
 mod fixtures;
 
-use common::{get_test_server, TestFixture};
+use common::setup_test_server;
 use fixtures::{GitHubFixtures, DbFixtures};
 use serial_test::serial;
 

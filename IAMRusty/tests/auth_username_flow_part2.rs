@@ -4,9 +4,8 @@ mod common;
 #[path = "fixtures/mod.rs"]
 mod fixtures;
 
-use common::{get_test_server, TestFixture};
-use fixtures::{DbFixtures, GitHubFixtures, GitLabFixtures};
-use reqwest::Client;
+use common::setup_test_server;
+use fixtures::{DbFixtures, GitHubFixtures};
 use serde_json::{json, Value};
 use serial_test::serial;
 use uuid::Uuid;
@@ -15,14 +14,6 @@ use base64::{engine::general_purpose, Engine as _};
 use std::collections::HashMap;
 use url::Url;
 use common::jwt_test_utils::create_expired_registration_token_with_encoder;
-
-/// Create a common HTTP client for tests
-fn create_test_client() -> Client {
-    Client::builder()
-        .redirect(reqwest::redirect::Policy::none())
-        .build()
-        .expect("Failed to create HTTP client")
-}
 
 /// Helper function to decode and verify JWT structure (for testing)
 fn decode_jwt_payload(jwt: &str) -> Result<Value, Box<dyn std::error::Error>> {
@@ -64,10 +55,8 @@ fn parse_redirect_url(location: &str) -> Result<(String, HashMap<String, String>
 #[serial]
 async fn test_oauth_provider_already_linked_to_same_user() {
     // Setup
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
-    let db = fixture.db();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let db = _fixture.db();
 
     // Pre-create user with GitHub provider already linked
     let existing_user = DbFixtures::user()
@@ -113,10 +102,8 @@ async fn test_oauth_provider_already_linked_to_same_user() {
 #[serial]
 async fn test_oauth_provider_linked_to_different_user_returns_409() {
     // Setup
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
-    let db = fixture.db();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let db = _fixture.db();
 
     // Pre-create first user with GitHub linked
     let first_user = DbFixtures::user()
@@ -199,9 +186,7 @@ async fn test_oauth_provider_linked_to_different_user_returns_409() {
 #[serial]
 async fn test_registration_token_has_correct_rsa_signature() {
     // Setup
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     // Get registration token
     let signup_data = json!({
@@ -243,9 +228,7 @@ async fn test_registration_token_has_correct_rsa_signature() {
 #[serial]
 async fn test_registration_token_contains_required_claims() {
     // Setup
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     // Get registration token
     let signup_data = json!({
@@ -292,9 +275,7 @@ async fn test_registration_token_contains_required_claims() {
 #[serial]
 async fn test_registration_token_expires_after_configured_duration() {
     // Setup
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     // Get registration token
     let signup_data = json!({
@@ -331,9 +312,7 @@ async fn test_registration_token_expires_after_configured_duration() {
 #[serial]
 async fn test_expired_registration_token_returns_400() {
     // Setup
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     let config = configuration::load_config().expect("failed to load test config");
 
@@ -375,9 +354,7 @@ async fn test_expired_registration_token_returns_400() {
 #[serial]
 async fn test_same_email_signup_after_incomplete_registration() {
     // Setup
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     // First signup
     let signup_data = json!({
@@ -421,9 +398,7 @@ async fn test_same_email_signup_after_incomplete_registration() {
 #[serial]
 async fn test_no_duplicate_user_records_created_on_retry() {
     // Setup
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     // Multiple signups with same email
     let signup_data = json!({
@@ -444,7 +419,7 @@ async fn test_no_duplicate_user_records_created_on_retry() {
     }
 
     // Verify only one user record exists
-    let db = fixture.db();
+    let db = _fixture.db();
     let user_count = db
         .query_one(sea_orm::Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
@@ -462,9 +437,7 @@ async fn test_no_duplicate_user_records_created_on_retry() {
 #[serial]
 async fn test_user_id_remains_consistent_across_retries() {
     // Setup
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     // First signup
     let signup_data = json!({
@@ -511,9 +484,7 @@ async fn test_user_id_remains_consistent_across_retries() {
 #[serial]
 async fn test_user_signed_up_triggered_only_at_registration_completion() {
     // Setup
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     // Step 1: Email signup (should NOT trigger user_signed_up event)
     let signup_data = json!({
@@ -567,10 +538,8 @@ async fn test_user_signed_up_triggered_only_at_registration_completion() {
 #[serial]
 async fn test_user_signed_up_triggered_when_existing_user_adds_password() {
     // Setup
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
-    let db = fixture.db();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let db = _fixture.db();
 
     // Pre-create user with OAuth (completed registration)
     let existing_user = DbFixtures::user()
@@ -612,9 +581,7 @@ async fn test_user_signed_up_triggered_when_existing_user_adds_password() {
 #[serial]
 async fn test_event_fired_after_successful_database_transaction() {
     // Setup
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     // Complete registration flow
     let signup_data = json!({
@@ -666,9 +633,7 @@ async fn test_event_fired_after_successful_database_transaction() {
 #[serial]
 async fn test_email_addresses_properly_validated_and_sanitized() {
     // Setup
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     // Test various email formats for validation
     let test_cases = vec![
@@ -713,9 +678,7 @@ async fn test_email_addresses_properly_validated_and_sanitized() {
 #[serial]
 async fn test_username_input_sanitization_prevents_injection() {
     // Setup
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     // Get registration token
     let signup_data = json!({
@@ -772,9 +735,7 @@ async fn test_username_input_sanitization_prevents_injection() {
 #[serial]
 async fn test_no_sensitive_data_exposed_in_error_messages() {
     // Setup
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
+    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
 
     // Test invalid login (should not reveal user existence)
     let login_data = json!({
@@ -816,7 +777,7 @@ async fn test_proper_https_enforcement_for_token_transmission() {
     // over HTTPS in production environments. Since this is a test environment,
     // we'll verify that the system is configured to enforce HTTPS appropriately.
     
-    let base_url = get_test_server().await.expect("Failed to start test server");
+    let (_fixture, base_url, _client) = setup_test_server().await.expect("Failed to setup test server");
     
     // In a real test, you would:
     // 1. Verify that non-HTTPS requests are rejected or redirected

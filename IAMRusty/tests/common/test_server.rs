@@ -1,10 +1,11 @@
-use crate::common::{spawn_test_server, TestDatabase};
+use crate::common::{spawn_test_server, TestFixture};
 use configuration::load_config;
 use std::sync::OnceLock;
 use tokio::sync::Mutex;
 use std::sync::Arc;
 use tokio::task::JoinHandle;
 use tracing::debug;
+use reqwest::Client;
 
 /// Global test server instance that starts only once
 static TEST_SERVER: OnceLock<Arc<Mutex<Option<JoinHandle<()>>>>> = OnceLock::new();
@@ -34,13 +35,6 @@ pub async fn get_test_server() -> Result<String, Box<dyn std::error::Error>> {
             *server_guard = None;
         }
         
-        // First, ensure the test database is running
-        debug!("🗄️  Setting up test database...");
-        let _test_db = TestDatabase::new().await.map_err(|e| {
-            format!("Failed to setup test database: {}", e)
-        })?;
-        debug!("✅ Test database is ready");
-        
         // Start the server using the existing spawn_test_server function
         let server_handle = tokio::spawn(async {
             if let Err(e) = spawn_test_server().await {
@@ -50,27 +44,6 @@ pub async fn get_test_server() -> Result<String, Box<dyn std::error::Error>> {
         
         *server_guard = Some(server_handle);
         
-        // Wait for the server to be ready by trying to connect
-        let client = reqwest::Client::new();
-        
-        // Try to connect to the server with retries
-        for attempt in 1..=10 {
-            tokio::time::sleep(tokio::time::Duration::from_millis(100 * attempt)).await;
-            
-            if let Ok(response) = client.get(&format!("{}/health", base_url)).send().await {
-                if response.status().is_success() {
-                    debug!("✅ Server is ready after {} attempts", attempt);
-                    break;
-                }
-            }
-            
-            if attempt == 10 {
-                debug!("❌ Server failed to start after 10 attempts");
-                return Err("Server failed to start".into());
-            }
-            
-            debug!("⏳ Waiting for server to start (attempt {}/10)...", attempt);
-        }
     } else {
         debug!("♻️  Reusing existing server instance");
     }
@@ -79,3 +52,18 @@ pub async fn get_test_server() -> Result<String, Box<dyn std::error::Error>> {
     debug!("🔗 Test client will connect to: {}", base_url);
     Ok(base_url)
 } 
+
+// method that return a test fixture, base_url and client
+pub async fn setup_test_server() -> Result<(TestFixture, String, Client), Box<dyn std::error::Error>> {
+    let fixture = TestFixture::new().await?;
+    let base_url = get_test_server().await?;
+    let client = create_test_client();
+    Ok((fixture, base_url, client))
+}
+
+pub fn create_test_client() -> Client {
+    Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .expect("Failed to create HTTP client")
+}
