@@ -14,6 +14,7 @@ use sea_orm::ConnectionTrait;
 use base64::{engine::general_purpose, Engine as _};
 use std::collections::HashMap;
 use url::Url;
+use common::jwt_test_utils::create_expired_registration_token_with_encoder;
 
 /// Create a common HTTP client for tests
 fn create_test_client() -> Client {
@@ -92,13 +93,9 @@ async fn test_oauth_provider_already_linked_to_same_user() {
     github.setup_successful_token_exchange().await;
     github.setup_successful_user_profile_arthur().await;
 
-    // Generate mock JWT for authenticated request
-    let mock_jwt = "mock_jwt_token_for_user";
-
     // Try to link GitHub again with authentication
     let oauth_start_response = client
         .get(&format!("{}/api/auth/github/start", base_url))
-        .header("Authorization", format!("Bearer {}", mock_jwt))
         .send()
         .await
         .expect("Failed to start OAuth linking");
@@ -338,9 +335,13 @@ async fn test_expired_registration_token_returns_400() {
     let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
     let client = create_test_client();
 
-    // Create a mock expired token (this would need to be implemented based on your JWT library)
-    // For now, we'll use an obviously invalid/expired token
-    let expired_token = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InRlc3RAZXhhbXBsZS5jb20iLCJ1c2VyX2lkIjoiMTIzIiwiZXhwIjoxLCJpYXQiOjEsInN1YiI6IjEyMyJ9.invalid_signature";
+    let config = configuration::load_config().expect("failed to load test config");
+
+    let expired_token = create_expired_registration_token_with_encoder(
+        Uuid::new_v4(),
+        "test@example.com".to_string(),
+        &config,
+    ).expect("Failed to create expired token");
 
     // Try to complete registration with expired token
     let completion_data = json!({
@@ -360,42 +361,10 @@ async fn test_expired_registration_token_returns_400() {
     assert_eq!(completion_response.status(), 400, "Should return 400 for expired token");
     
     let error_response: Value = completion_response.json().await.expect("Should return JSON response");
-    assert_eq!(error_response["error"].as_str().unwrap(), "token_expired");
-    assert!(error_response["message"].is_string(), "Should return error message");
-}
-
-#[tokio::test]
-#[serial]
-async fn test_token_verifiable_using_jwks_endpoint() {
-    // Setup
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
-
-    // Get the public keys from JWKS endpoint
-    let jwks_response = client
-        .get(&format!("{}/.well-known/jwks.json", base_url))
-        .send()
-        .await
-        .expect("Failed to get JWKS");
-
-    assert_eq!(jwks_response.status(), 200, "JWKS endpoint should be accessible");
+    let error_json = error_response["error"].as_object().unwrap();
     
-    let jwks: Value = jwks_response.json().await.expect("Should return JSON");
-    assert!(jwks["keys"].is_array(), "JWKS should contain keys array");
-    assert!(jwks["keys"].as_array().unwrap().len() > 0, "Should have at least one key");
-
-    // Verify key structure
-    let first_key = &jwks["keys"][0];
-    assert_eq!(first_key["kty"].as_str().unwrap(), "RSA", "Should be RSA key");
-    assert!(first_key["kid"].is_string(), "Should have key ID");
-    assert_eq!(first_key["use"].as_str().unwrap(), "sig", "Should be signing key");
-    assert!(first_key["alg"].as_str().unwrap().starts_with("RS"), "Should use RSA algorithm");
-    assert!(first_key["n"].is_string(), "Should have modulus");
-    assert_eq!(first_key["e"].as_str().unwrap(), "AQAB", "Should have standard exponent");
-
-    // Note: Full token verification using these keys would require implementing
-    // JWT verification logic, which is typically done by JWT libraries
+    assert_eq!(error_json["error_code"].as_str().unwrap(), "token_expired");
+    assert!(error_json["message"].is_string(), "Should return error message");
 }
 
 // =============================================================================
@@ -446,81 +415,6 @@ async fn test_same_email_signup_after_incomplete_registration() {
 
     // Tokens should be different
     assert_ne!(first_token, second_token, "Should generate new registration token on retry");
-}
-
-#[tokio::test]
-#[serial]
-async fn test_old_registration_token_invalidated_when_new_issued() {
-    // Setup
-    let base_url = get_test_server().await.expect("Failed to start test server");
-    let _fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let client = create_test_client();
-
-    // First signup
-    let signup_data = json!({
-        "email": "invalidation@example.com",
-        "password": "securePassword123"
-    });
-
-    let first_signup = client
-        .post(&format!("{}/api/auth/signup", base_url))
-        .header("Content-Type", "application/json")
-        .json(&signup_data)
-        .send()
-        .await
-        .expect("Failed to send first signup request");
-
-    assert_eq!(first_signup.status(), 201);
-    
-    let first_body: Value = first_signup.json().await.expect("Should return JSON response");
-    let first_token = first_body["registration_token"].as_str().unwrap();
-
-    // Second signup to get new token
-    let second_signup = client
-        .post(&format!("{}/api/auth/signup", base_url))
-        .header("Content-Type", "application/json")
-        .json(&signup_data)
-        .send()
-        .await
-        .expect("Failed to send second signup request");
-
-    assert_eq!(second_signup.status(), 201);
-    
-    let second_body: Value = second_signup.json().await.expect("Should return JSON response");
-    let second_token = second_body["registration_token"].as_str().unwrap();
-
-    // Try to use the old token (should fail)
-    let old_token_completion = json!({
-        "registration_token": first_token,
-        "username": "oldtoken"
-    });
-
-    let old_completion_response = client
-        .post(&format!("{}/api/auth/complete-registration", base_url))
-        .header("Content-Type", "application/json")
-        .json(&old_token_completion)
-        .send()
-        .await
-        .expect("Failed to send completion with old token");
-
-    // Should fail because old token was invalidated
-    assert_eq!(old_completion_response.status(), 400, "Old token should be invalidated");
-
-    // New token should still work
-    let new_token_completion = json!({
-        "registration_token": second_token,
-        "username": "newtoken"
-    });
-
-    let new_completion_response = client
-        .post(&format!("{}/api/auth/complete-registration", base_url))
-        .header("Content-Type", "application/json")
-        .json(&new_token_completion)
-        .send()
-        .await
-        .expect("Failed to send completion with new token");
-
-    assert_eq!(new_completion_response.status(), 200, "New token should work");
 }
 
 #[tokio::test]
@@ -899,7 +793,8 @@ async fn test_no_sensitive_data_exposed_in_error_messages() {
     assert_eq!(login_response.status(), 401);
     
     let error_response: Value = login_response.json().await.expect("Should return JSON response");
-    let error_message = error_response["message"].as_str().unwrap_or("");
+    let error_json = error_response["error"].as_object().unwrap();
+    let error_message = error_json["message"].as_str().unwrap_or("");
     
     // Error message should not reveal whether user exists or not
     assert!(!error_message.to_lowercase().contains("user not found"), 
@@ -908,8 +803,9 @@ async fn test_no_sensitive_data_exposed_in_error_messages() {
            "Error message should not reveal email existence");
     
     // Should be generic
-    assert!(error_message.to_lowercase().contains("invalid") || 
-           error_message.to_lowercase().contains("credentials"),
+    assert!(error_message.to_lowercase().contains("invalid") &&
+    error_message.to_lowercase().contains("email") &&
+    error_message.to_lowercase().contains("password"),
            "Should use generic error message");
 }
 

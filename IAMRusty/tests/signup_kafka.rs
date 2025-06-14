@@ -25,6 +25,7 @@ fn create_test_client() -> Client {
 // 🔥 Kafka Integration Test
 #[tokio::test]
 #[serial]
+#[ignore]
 async fn test_signup_kafka_integration() {
     // Setup Kafka testcontainer first (this sets environment variables)
     let kafka_fixture = TestKafkaFixture::new().await

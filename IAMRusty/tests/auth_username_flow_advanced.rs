@@ -10,6 +10,7 @@ use reqwest::Client;
 use serde_json::{json, Value};
 use serial_test::serial;
 use base64::{engine::general_purpose, Engine as _};
+use common::jwt_test_utils::create_expired_registration_token_with_encoder;
 
 /// Create a common HTTP client for tests
 fn create_test_client() -> Client {

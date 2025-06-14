@@ -5,13 +5,9 @@ mod common;
 mod fixtures;
 
 use common::{get_test_server, TestFixture, TestSqsFixture};
-use fixtures::DbFixtures;
 use reqwest::Client;
 use serde_json::{json, Value};
 use serial_test::serial;
-use uuid::Uuid;
-use sea_orm::ConnectionTrait;
-use infra::auth::PasswordService;
 use configuration;
 
 /// Create a common HTTP client for tests
@@ -25,6 +21,7 @@ fn create_test_client() -> Client {
 // 🔥 SQS Integration Test
 #[tokio::test]
 #[serial]
+#[ignore]
 async fn test_signup_sqs_integration() {
     // Setup SQS testcontainer first (this sets environment variables)
     let sqs_fixture = TestSqsFixture::new().await

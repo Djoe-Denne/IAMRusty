@@ -360,6 +360,7 @@ async fn test_username_suggestions_reasonable_alternatives() {
     assert_eq!(response_body["available"].as_bool().unwrap(), false);
     
     let suggestions = response_body["suggestions"].as_array().unwrap();
+
     assert!(suggestions.len() > 0, "Should provide suggestions");
     assert!(suggestions.len() <= 5, "Should not provide too many suggestions");
     

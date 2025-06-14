@@ -57,21 +57,15 @@ impl UsernameValidator {
         let mut suggestions = Vec::new();
         
         // Add numeric suffixes
-        for i in 1..=10 {
-            suggestions.push(format!("{}{}", base_username, i));
+        for i in 1..=4 {        
+            // Add timestamp-based suffix (simpler than rand)
+            use std::time::{SystemTime, UNIX_EPOCH};
+            let timestamp = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis() % 1000; // Get last 3 digits of milliseconds
+            suggestions.push(format!("{}_{}", base_username, timestamp));
         }
-        
-        // Add underscore variants (only suffix, not prefix)
-        suggestions.push(format!("{}_", base_username));
-        
-        // Add timestamp-based suffix (simpler than rand)
-        use std::time::{SystemTime, UNIX_EPOCH};
-        let timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis() % 1000; // Get last 3 digits of milliseconds
-        suggestions.push(format!("{}_{}", base_username, timestamp));
-
         suggestions
     }
 }
