@@ -33,8 +33,8 @@ paths:
     post:
       summary: Sign up with email and password
       description: |
-        Creates user account. Returns 200 if email exists (adds password to existing user),
-        201 if new user (requires username selection via /auth/complete-registration).
+        Creates user account. Returns 201 for new user (requires username selection via /auth/complete-registration).
+        Returns 409 if email already has password authentication.
       requestBody:
         required: true
         content:
@@ -46,23 +46,6 @@ paths:
                 password: {type: string, minLength: 8}
               required: [email, password]
       responses:
-        "200":
-          description: Existing user - password auth added
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  user:
-                    type: object
-                    properties:
-                      id: {type: string}
-                      username: {type: string}
-                      email: {type: string}
-                  access_token: {type: string}
-                  expires_in: {type: integer}
-                  refresh_token: {type: string}
-                  message: {type: string}
         "201":
           description: New user created - username required
           content:
@@ -78,15 +61,29 @@ paths:
                   registration_token: {type: string, description: "RSA-signed JWT"}
                   requires_username: {type: boolean, example: true}
                   message: {type: string}
-        "400":
-          description: Invalid input
         "409":
           description: Email already has password authentication
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: {type: string}
+                  message: {type: string}
+        "422":
+          description: Validation error (invalid email format, weak password, missing fields)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: {type: string}
+                  message: {type: string}
 
   /auth/login:
     post:
       summary: Log in with email and password
-      description: Only works for users with completed registration (have username).
+      description: Only works for users with completed registration (have username). Returns 423 if registration incomplete.
       requestBody:
         required: true
         content:
@@ -116,6 +113,8 @@ paths:
                   refresh_token: {type: string}
         "401":
           description: Invalid credentials
+        "422":
+          description: Validation error (missing fields, invalid format)
         "423":
           description: Account exists but registration incomplete
           content:
@@ -152,6 +151,8 @@ paths:
           description: Invalid or expired verification token
         "404":
           description: Email not found or already verified
+        "422":
+          description: Validation error (missing fields, invalid format)
 
   /auth/resend-verification:
     post:
@@ -238,9 +239,10 @@ paths:
         - in: path
           name: provider
           required: true
-          description: The OAuth2 provider to use (e.g., github, gitlab).
+          description: The OAuth2 provider to use (github, gitlab). Case-insensitive.
           schema:
             type: string
+            enum: [github, gitlab]
         - in: header
           name: Authorization
           required: false
@@ -259,10 +261,17 @@ paths:
               description: OAuth2 provider authorization URL with state parameter
               schema:
                 type: string
-        "400":
-          description: Unknown or unsupported provider
         "401":
           description: Invalid JWT token in Authorization header (for linking operations)
+        "422":
+          description: Unknown or unsupported provider
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  provider_name: {type: string}
+                  error: {type: string}
 
   /auth/{provider}/callback:
     get:
@@ -274,12 +283,12 @@ paths:
         **Behavior depends on the operation type encoded in the state parameter:**
         
         **Login Flow:**
-        - Creates new user if email doesn't exist
-        - Logs in existing user if email matches
+        - Creates new user if email doesn't exist (returns 202 for username selection)
+        - Logs in existing user if email matches (returns 200)
         - Returns JWT token for authentication
         
         **Link Provider Flow:**
-        - Links provider to existing authenticated user
+        - Links provider to existing authenticated user (returns 200)
         - Adds new email as secondary if it doesn't exist for the user
         - Returns updated user profile and email list
         
@@ -288,9 +297,10 @@ paths:
         - in: path
           name: provider
           required: true
-          description: The OAuth2 provider.
+          description: The OAuth2 provider (github, gitlab). Case-insensitive.
           schema:
             type: string
+            enum: [github, gitlab]
         - in: query
           name: code
           required: true
@@ -312,7 +322,7 @@ paths:
             application/json:
               oneOf:
                 - title: Login Response
-                  description: Response for login operations
+                  description: Response for login operations (existing user)
                   type: object
                   properties:
                     operation:
@@ -425,9 +435,9 @@ paths:
                       suggested_username: {type: string}
                   requires_username: {type: boolean, example: true}
         "400":
-          description: Missing or invalid authorization code / unsupported provider / invalid state parameter
+          description: Missing or invalid authorization code / invalid state parameter / missing required parameters
         "401":
-          description: Authentication rejected by the provider
+          description: Authentication rejected by the provider / invalid authorization code
         "409":
           description: Provider linking conflict
           content:
@@ -455,6 +465,15 @@ paths:
                     operation: "link"
                     error: "provider_already_linked"
                     message: "This GitHub account is already linked to another user"
+        "422":
+          description: Unsupported provider
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  provider_name: {type: string}
+                  error: {type: string}
         "500":
           description: Error while communicating with the OAuth provider
 
@@ -505,21 +524,26 @@ paths:
               schema:
                 type: object
                 properties:
-                  error: {type: string}
-                  message: {type: string}
+                  error: 
+                    type: object
+                    properties:
+                      error_code: {type: string}
+                      message: {type: string}
               examples:
                 expired_token:
                   value:
-                    error: "token_expired"
-                    message: "Registration token has expired"
+                    error:
+                      error_code: "token_expired"
+                      message: "Registration token has expired"
                 invalid_signature:
                   value:
-                    error: "invalid_token"
-                    message: "Invalid registration token signature"
+                    error:
+                      error_code: "invalid_token"
+                      message: "Invalid registration token signature"
         "409":
           description: Username already taken
         "422":
-          description: Invalid username format
+          description: Invalid username format or missing required fields
 
   /auth/username/check:
     get:
@@ -548,6 +572,10 @@ paths:
               example:
                 available: false
                 suggestions: ["johndoe123", "johndoe_", "j_doe"]
+        "400":
+          description: Username too short (less than 3 characters)
+        "422":
+          description: Username validation error (too short, missing parameter)
 
   /token/refresh:
     post:
@@ -596,9 +624,11 @@ paths:
                 refresh_token: "def502004f8c7abc123..."
                 refresh_expires_in: 2592000
         "400":
-          description: Malformed or missing refresh token
+          description: Malformed or missing refresh token / malformed JSON / wrong content type
         "401":
           description: Invalid or expired refresh token
+        "422":
+          description: Empty refresh token field
           
   /me:
     get:
@@ -610,15 +640,22 @@ paths:
           description: Authenticated user's profile
           content:
             application/json:
+              schema:
+                type: object
+                properties:
+                  id: {type: string}
+                  username: {type: string}
+                  email: {type: string, description: "Primary email address", nullable: true}
+                  avatar_url: {type: string, nullable: true}
               example:
                 id: "github_9876"
                 username: "djoe-denne"
-                avatar: "https://avatars.githubusercontent.com/u/1234"
+                avatar_url: "https://avatars.githubusercontent.com/u/1234"
                 email: "dj@example.com"  # This is the primary email
               
               # Note: The `email` field is always the user's primary email (if available). Users may have multiple emails.
         "401":
-          description: Invalid or expired JWT token
+          description: Invalid or expired JWT token / missing Authorization header / malformed token
 
   /.well-known/jwks.json:
     get:
@@ -649,9 +686,10 @@ paths:
         - in: path
           name: provider
           required: true
-          description: OAuth2 provider name (e.g., github, gitlab)
+          description: OAuth2 provider name (github, gitlab). Case-insensitive.
           schema:
             type: string
+            enum: [github, gitlab]
       security:
         - bearerAuth: []
       responses:
@@ -659,15 +697,20 @@ paths:
           description: Access token for the authenticated user and specified provider
           content:
             application/json:
+              schema:
+                type: object
+                properties:
+                  access_token: {type: string}
+                  expires_in: {type: integer, nullable: true}
               example:
                 access_token: "gho_xyz..."
                 expires_in: 3600
-        "400":
-          description: Unsupported provider
+        "401":
+          description: Invalid or expired JWT token / missing Authorization header / user not found
         "404":
           description: No token available for the user and provider
-        "401":
-          description: Missing or invalid authentication
+        "422":
+          description: Unsupported provider
 
 components:
   securitySchemes:
