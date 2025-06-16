@@ -231,12 +231,16 @@ where
             }
         }
 
+        // Calculate expires_in from the actual token expiration
+        let now = chrono::Utc::now();
+        let expires_in = (access_token.expires_at - now).num_seconds().max(0) as u64;
+
         Ok(RegistrationCompletionResult {
             user: updated_user,
             user_email,
             access_token: access_token.token,
             refresh_token: refresh_token.token,
-            expires_in: 3600, // TODO: Get from config
+            expires_in, // Now calculated from actual token expiration instead of hardcoded
         })
     }
 

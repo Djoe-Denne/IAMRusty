@@ -201,7 +201,7 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
     );
 
     let oauth_usecase =
-        OAuthUseCaseImpl::new(Arc::new(oauth_service), registration_token_service.clone());
+        OAuthUseCaseImpl::new(Arc::new(oauth_service), registration_token_service.clone(), token_service.clone());
 
     // Create provider link service for domain business logic
     let provider_link_service = Arc::new(domain::service::ProviderLinkService::new(

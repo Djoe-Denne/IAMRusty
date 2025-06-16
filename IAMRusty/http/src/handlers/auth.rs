@@ -447,12 +447,12 @@ async fn handle_login_callback(
                     user: UserData {
                         id: login_response.user.id.to_string(),
                         username: login_response.user.username.clone(),
-                        email: login_response.user.username, // TODO: Get actual email from domain service
+                        email: Some(login_response.email),
                         avatar_url: login_response.user.avatar_url,
                     },
                     access_token: login_response.access_token,
-                    expires_in: 3600, // TODO: Get actual expiration from domain service
-                    refresh_token: "placeholder_refresh".to_string(), // TODO: Generate actual refresh token
+                    expires_in: login_response.expires_in, // Now using actual expiration from domain service
+                    refresh_token: login_response.refresh_token, // Now using actual refresh token from domain service
                 })),
             ))
         }
