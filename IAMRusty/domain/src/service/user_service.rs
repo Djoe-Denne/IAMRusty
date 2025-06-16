@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::entity::{user::User, user_email::UserEmail};
+use crate::entity::user::User;
 use crate::error::DomainError;
 use crate::port::{
     repository::{UserEmailRepository, UserRepository},

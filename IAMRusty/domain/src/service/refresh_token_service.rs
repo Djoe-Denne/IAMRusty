@@ -4,7 +4,7 @@ use std::sync::Arc;
 use tracing::debug;
 use uuid::Uuid;
 
-use crate::entity::token::{JwkSet, JwtToken, RefreshToken};
+use crate::entity::token::JwkSet;
 use crate::error::DomainError;
 use crate::port::{
     repository::RefreshTokenRepository,
