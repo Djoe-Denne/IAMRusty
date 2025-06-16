@@ -117,4 +117,4 @@ impl DomainEvent {
             DomainEvent::UserLoggedIn(event) => &event.base.event_type,
         }
     }
-} 
+}

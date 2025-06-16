@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Duration, Utc};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /// Claims for JWT tokens
@@ -7,16 +7,16 @@ use uuid::Uuid;
 pub struct TokenClaims {
     /// Subject (user id)
     pub sub: String,
-    
+
     /// Username
     pub username: String,
-    
+
     /// JWT expiration timestamp
     pub exp: i64,
-    
+
     /// JWT issued at timestamp
     pub iat: i64,
-    
+
     /// JWT ID
     pub jti: String,
 }
@@ -40,10 +40,10 @@ impl TokenClaims {
 pub struct JwtKeyPair {
     /// Private key (RS256)
     pub private_key: String,
-    
+
     /// Public key (RS256)
     pub public_key: String,
-    
+
     /// Key ID
     pub kid: String,
 }
@@ -60,19 +60,19 @@ pub struct JwkSet {
 pub struct Jwk {
     /// Key type
     pub kty: String,
-    
+
     /// Key ID
     pub kid: String,
-    
+
     /// Key usage
     pub use_: String,
-    
+
     /// Algorithm
     pub alg: String,
-    
+
     /// Modulus (RS256)
     pub n: String,
-    
+
     /// Exponent (RS256)
     pub e: String,
 }
@@ -103,4 +103,4 @@ pub struct RefreshToken {
     pub created_at: DateTime<Utc>,
     /// When the token expires
     pub expires_at: DateTime<Utc>,
-} 
+}

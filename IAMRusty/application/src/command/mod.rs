@@ -1,13 +1,13 @@
+pub mod factory;
 pub mod oauth_login;
+pub mod password_login;
 pub mod provider;
+pub mod registration;
+pub mod resend_verification_email;
+pub mod signup;
 pub mod token;
 pub mod user;
-pub mod signup;
-pub mod password_login;
 pub mod verify_email;
-pub mod factory;
-pub mod resend_verification_email;
-pub mod registration;
 
 // Re-export everything from rustycog-command
 pub use rustycog_command::*;
@@ -16,4 +16,4 @@ pub use rustycog_command::*;
 pub use factory::CommandRegistryFactory;
 
 // Convenience alias for the new service
-pub type ExtensibleCommandService = GenericCommandService; 
+pub type ExtensibleCommandService = GenericCommandService;

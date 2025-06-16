@@ -5,16 +5,17 @@
 
 // Re-export core configuration from rustycog-config
 pub use rustycog_config::{
-    ServerConfig, SetupServerConfig, DatabaseConfig, DatabaseCredentials, LoggingConfig,
-    CommandConfig, CommandRetryConfig, KafkaConfig, QueueConfig, SqsConfig, setup_logging,
-    clear_all_caches, ConfigError, load_config_with_cache, load_config_fresh, generate_default_config_toml
+    clear_all_caches, generate_default_config_toml, load_config_fresh, load_config_with_cache,
+    setup_logging, CommandConfig, CommandRetryConfig, ConfigError, DatabaseConfig,
+    DatabaseCredentials, KafkaConfig, LoggingConfig, QueueConfig, ServerConfig, SetupServerConfig,
+    SqsConfig,
 };
 
-use serde::{Deserialize, Serialize};
-use std::sync::{Arc, Mutex, OnceLock};
 use rustycog_config::{ConfigCache, ConfigLoader};
-use tracing::debug;
+use serde::{Deserialize, Serialize};
 use std::fs;
+use std::sync::{Arc, Mutex, OnceLock};
+use tracing::debug;
 
 use thiserror::Error;
 
@@ -35,9 +36,9 @@ pub enum SecretError {
 pub enum SecretStorage {
     /// Plain text secret (for backward compatibility)
     #[serde(rename = "plain")]
-    PlainText { 
+    PlainText {
         /// The plain text secret value
-        value: String 
+        value: String,
     },
     /// PEM file-based secrets
     #[serde(rename = "pem_file")]
@@ -92,29 +93,44 @@ impl SecretStorage {
                 tracing::debug!("Resolving plain text JWT secret (length: {})", value.len());
                 Ok(JwtSecret::Hmac(value.clone()))
             }
-            SecretStorage::PemFile { private_key_path, public_key_path, key_id } => {
+            SecretStorage::PemFile {
+                private_key_path,
+                public_key_path,
+                key_id,
+            } => {
                 tracing::info!("Resolving PEM file-based JWT secret from private_key_path='{}', public_key_path='{}', key_id={:?}", 
                     private_key_path, public_key_path, key_id);
-                
+
                 tracing::debug!("Reading private key from: {}", private_key_path);
-                let private_key = fs::read_to_string(private_key_path)
-                    .map_err(|e| {
-                        tracing::error!("Failed to read private key from {}: {}", private_key_path, e);
-                        SecretError::FileReadError(format!("Failed to read private key from {}: {}", private_key_path, e))
-                    })?;
-                tracing::debug!("Successfully read private key ({} bytes)", private_key.len());
-                
+                let private_key = fs::read_to_string(private_key_path).map_err(|e| {
+                    tracing::error!(
+                        "Failed to read private key from {}: {}",
+                        private_key_path,
+                        e
+                    );
+                    SecretError::FileReadError(format!(
+                        "Failed to read private key from {}: {}",
+                        private_key_path, e
+                    ))
+                })?;
+                tracing::debug!(
+                    "Successfully read private key ({} bytes)",
+                    private_key.len()
+                );
+
                 tracing::debug!("Reading public key from: {}", public_key_path);
-                let public_key = fs::read_to_string(public_key_path)
-                    .map_err(|e| {
-                        tracing::error!("Failed to read public key from {}: {}", public_key_path, e);
-                        SecretError::FileReadError(format!("Failed to read public key from {}: {}", public_key_path, e))
-                    })?;
+                let public_key = fs::read_to_string(public_key_path).map_err(|e| {
+                    tracing::error!("Failed to read public key from {}: {}", public_key_path, e);
+                    SecretError::FileReadError(format!(
+                        "Failed to read public key from {}: {}",
+                        public_key_path, e
+                    ))
+                })?;
                 tracing::debug!("Successfully read public key ({} bytes)", public_key.len());
-                
+
                 let key_id = key_id.clone().unwrap_or_else(|| "default".to_string());
                 tracing::info!("Successfully resolved RSA key pair with key_id: {}", key_id);
-                
+
                 Ok(JwtSecret::Rsa {
                     private_key,
                     public_key,
@@ -123,11 +139,15 @@ impl SecretStorage {
             }
             SecretStorage::Vault { .. } => {
                 tracing::warn!("Vault secret storage requested but not yet implemented");
-                Err(SecretError::InvalidFormat("Vault secret storage not yet implemented".to_string()))
+                Err(SecretError::InvalidFormat(
+                    "Vault secret storage not yet implemented".to_string(),
+                ))
             }
             SecretStorage::GcpSecretManager { .. } => {
                 tracing::warn!("GCP Secret Manager requested but not yet implemented");
-                Err(SecretError::InvalidFormat("GCP Secret Manager not yet implemented".to_string()))
+                Err(SecretError::InvalidFormat(
+                    "GCP Secret Manager not yet implemented".to_string(),
+                ))
             }
         }
     }
@@ -207,8 +227,8 @@ impl JwtConfig {
         match self.resolve_secret()? {
             JwtSecret::Hmac(secret) => Ok(secret),
             JwtSecret::Rsa { .. } => Err(SecretError::InvalidFormat(
-                "Cannot convert RSA key pair to HMAC secret string".to_string()
-            ))
+                "Cannot convert RSA key pair to HMAC secret string".to_string(),
+            )),
         }
     }
 
@@ -227,13 +247,15 @@ impl JwtConfig {
     pub fn create_jwt_algorithm(&self) -> Result<JwtAlgorithm, SecretError> {
         match self.resolve_secret()? {
             JwtSecret::Hmac(secret) => Ok(JwtAlgorithm::HS256(secret)),
-            JwtSecret::Rsa { private_key, public_key, key_id } => {
-                Ok(JwtAlgorithm::RS256(JwtKeyPair {
-                    private_key,
-                    public_key,
-                    kid: key_id,
-                }))
-            }
+            JwtSecret::Rsa {
+                private_key,
+                public_key,
+                key_id,
+            } => Ok(JwtAlgorithm::RS256(JwtKeyPair {
+                private_key,
+                public_key,
+                kid: key_id,
+            })),
         }
     }
 }
@@ -363,13 +385,13 @@ impl ConfigCache<AppConfig> for AppConfigCache {
         let cached_config = cache.lock().unwrap();
         cached_config.clone()
     }
-    
+
     fn set_cached(config: AppConfig) {
         let cache = CONFIG_CACHE.get_or_init(|| Arc::new(Mutex::new(None)));
         let mut cached_config = cache.lock().unwrap();
         *cached_config = Some(config);
     }
-    
+
     fn clear_cached() {
         let cache = CONFIG_CACHE.get_or_init(|| Arc::new(Mutex::new(None)));
         let mut cached_config = cache.lock().unwrap();
@@ -403,7 +425,9 @@ impl ConfigLoader<AppConfig> for AppConfig {
                 },
             },
             jwt: JwtConfig {
-                secret: SecretStorage::PlainText { value: "your-256-bit-secret-key-change-this-in-production".to_string() },
+                secret: SecretStorage::PlainText {
+                    value: "your-256-bit-secret-key-change-this-in-production".to_string(),
+                },
                 expiration_seconds: default_jwt_expiration(),
                 refresh_token_expiration_seconds: default_refresh_token_expiration(),
             },
@@ -413,7 +437,7 @@ impl ConfigLoader<AppConfig> for AppConfig {
             kafka: KafkaConfig::default(),
         }
     }
-    
+
     fn config_prefix() -> &'static str {
         "IAM"
     }
@@ -445,7 +469,7 @@ pub fn generate_default_config() -> Result<String, ConfigError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_app_config_default() {
         let config = AppConfig::default();
@@ -455,28 +479,28 @@ mod tests {
         assert_eq!(config.database.port, 0);
         assert_eq!(config.jwt.expiration_seconds, 900);
     }
-    
+
     #[test]
     fn test_config_cache() {
         // Clear any existing cache
         AppConfigCache::clear_cached();
-        
+
         // Should return None initially
         assert!(AppConfigCache::get_cached().is_none());
-        
+
         // Set a config
         let config = AppConfig::default();
         AppConfigCache::set_cached(config.clone());
-        
+
         // Should return the cached config
         let cached = AppConfigCache::get_cached().unwrap();
         assert_eq!(cached.server.host, config.server.host);
-        
+
         // Clear cache
         AppConfigCache::clear_cached();
         assert!(AppConfigCache::get_cached().is_none());
     }
-    
+
     #[test]
     fn test_generate_default_config() {
         let toml_config = generate_default_config().expect("Should generate default config");
@@ -485,7 +509,7 @@ mod tests {
         assert!(toml_config.contains("[oauth.github]"));
         assert!(toml_config.contains("[jwt]"));
     }
-    
+
     #[test]
     fn test_provider_config_conversion() {
         let github_config = GitHubConfig {
@@ -496,10 +520,13 @@ mod tests {
             token_url: default_github_token_url(),
             user_url: default_github_user_url(),
         };
-        
+
         let provider_config: ProviderConfig = (&github_config).into();
         assert_eq!(provider_config.client_id, "test_id");
         assert_eq!(provider_config.client_secret, "test_secret");
-        assert_eq!(provider_config.redirect_uri, "http://localhost:8080/callback");
+        assert_eq!(
+            provider_config.redirect_uri,
+            "http://localhost:8080/callback"
+        );
     }
-} 
+}

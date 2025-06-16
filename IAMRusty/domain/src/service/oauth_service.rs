@@ -1,10 +1,11 @@
 use crate::entity::{
     provider::{Provider, ProviderTokens, ProviderUserProfile},
     user::User,
+    user_email::UserEmail,
 };
 use crate::error::DomainError;
 use crate::port::{
-    repository::{TokenRepository, UserRepository},
+    repository::{TokenRepository, UserEmailRepository, UserRepository},
     service::ProviderOAuth2Client,
 };
 use tracing::{debug, info};
@@ -14,27 +15,36 @@ use super::TokenService;
 use std::collections::HashMap;
 
 /// Authentication service for OAuth2 providers
-pub struct OAuthService<U, T> 
+pub struct OAuthService<U, T, UE>
 where
     U: UserRepository,
     T: TokenRepository,
+    UE: UserEmailRepository,
 {
     user_repository: U,
     token_repository: T,
+    user_email_repository: UE,
     token_service: TokenService,
     provider_clients: HashMap<Provider, Box<dyn ProviderOAuth2Client + Send + Sync>>,
 }
 
-impl<U, T> OAuthService<U, T>
+impl<U, T, UE> OAuthService<U, T, UE>
 where
     U: UserRepository,
     T: TokenRepository,
+    UE: UserEmailRepository,
 {
     /// Create a new auth service
-    pub fn new(user_repository: U, token_repository: T, token_service: TokenService) -> Self {
+    pub fn new(
+        user_repository: U,
+        token_repository: T,
+        user_email_repository: UE,
+        token_service: TokenService,
+    ) -> Self {
         Self {
             user_repository,
             token_repository,
+            user_email_repository,
             token_service,
             provider_clients: HashMap::new(),
         }
@@ -50,20 +60,28 @@ where
     }
 
     /// Get OAuth2 provider client for the specified provider
-    fn get_provider_client(&self, provider: Provider) -> Result<&(dyn ProviderOAuth2Client + Send + Sync), DomainError> {
+    fn get_provider_client(
+        &self,
+        provider: Provider,
+    ) -> Result<&(dyn ProviderOAuth2Client + Send + Sync), DomainError> {
         self.provider_clients
             .get(&provider)
             .map(|client| client.as_ref())
-            .ok_or_else(|| DomainError::AuthorizationError(format!("Provider client not configured: {}", provider.as_str())))
+            .ok_or_else(|| {
+                DomainError::AuthorizationError(format!(
+                    "Provider client not configured: {}",
+                    provider.as_str()
+                ))
+            })
     }
 
     /// Generate an authorization URL for the provider's OAuth2 flow
     pub fn generate_authorize_url(&self, provider: &str) -> Result<String, DomainError> {
         let provider = Provider::from_str(provider)
             .ok_or_else(|| DomainError::ProviderNotSupported(provider.to_string()))?;
-        
+
         let client = self.get_provider_client(provider)?;
-        
+
         Ok(client.generate_authorize_url())
     }
 
@@ -75,34 +93,34 @@ where
     ) -> Result<(User, String, String), DomainError> {
         let provider = Provider::from_str(provider_name)
             .ok_or_else(|| DomainError::ProviderNotSupported(provider_name.to_string()))?;
-        
+
         debug!("Processing OAuth2 callback for provider: {}", provider_name);
-        
+
         // Get the provider client
         let client = self.get_provider_client(provider)?;
-        
+
         // Exchange the authorization code for tokens
         let tokens = client.exchange_code(code).await?;
-        
+
         debug!("Successfully exchanged code for tokens");
-        
+
         // Get the user profile
         let profile = client.get_user_profile(&tokens).await?;
-        
+
         debug!("Retrieved user profile: {}", profile.username);
-        
+
         // Store the provider user ID and email before moving the profile
         let provider_user_id = profile.id.clone();
         let email = profile.email.clone().ok_or_else(|| {
             DomainError::UserProfileError("Email is required from OAuth provider".to_string())
         })?;
-        
+
         // Find or create the user
         let user = self.find_or_create_user(provider, profile).await?;
-        
+
         info!(user_id = %user.id, "User authenticated successfully");
-        
-                // Save the tokens
+
+        // Save the tokens
         self.token_repository
             .save_provider_tokens(user.id, provider, provider_user_id, tokens)
             .await
@@ -111,7 +129,8 @@ where
         // Check if user has a username (complete registration)
         if let Some(username) = user.username.as_ref() {
             // Generate a JWT token for complete users
-            let jwt_token = self.token_service
+            let jwt_token = self
+                .token_service
                 .generate_token(&user.id.to_string(), username)?;
             Ok((user, jwt_token, email))
         } else {
@@ -122,17 +141,17 @@ where
 
     /// Find a user by their ID
     pub async fn find_user_by_id(&self, user_id: &str) -> Result<User, DomainError> {
-        let uuid = uuid::Uuid::parse_str(user_id)
-            .map_err(|_| DomainError::UserNotFound)?;
-        
-        let user = self.user_repository
+        let uuid = uuid::Uuid::parse_str(user_id).map_err(|_| DomainError::UserNotFound)?;
+
+        let user = self
+            .user_repository
             .find_by_id(uuid)
             .await
             .map_err(|e| DomainError::RepositoryError(e.to_string()))?
             .ok_or(DomainError::UserNotFound)?;
-        
+
         debug!(user_id = %user.id, "Found user by ID");
-        
+
         Ok(user)
     }
 
@@ -146,33 +165,43 @@ where
         let email = profile.email.ok_or_else(|| {
             DomainError::UserProfileError("Email is required from OAuth provider".to_string())
         })?;
-        
+
         // Try to find the user by email (primary linking mechanism)
-        if let Some(user) = self.user_repository
+        if let Some(user) = self
+            .user_repository
             .find_by_email(&email)
             .await
             .map_err(|e| DomainError::RepositoryError(e.to_string()))?
         {
             debug!(user_id = %user.id, "Found existing user by email");
-            
+
             // Update user if needed (e.g., new username, avatar)
             // In a real implementation, we might check if any fields changed
-            
+
             return Ok(user);
         }
-        
+
         // Create a new incomplete user (requires registration completion)
-        let user = User::new_incomplete(
-            profile.avatar_url,
-        );
-        
-        let created_user = self.user_repository
+        let user = User::new_incomplete(profile.avatar_url);
+
+        let created_user = self
+            .user_repository
             .create(user)
             .await
             .map_err(|e| DomainError::RepositoryError(e.to_string()))?;
-        
+
         info!(user_id = %created_user.id, "Created new user");
-        
+
+        // Create the user's primary email record
+        let user_email = UserEmail::new_primary(created_user.id, email.clone(), false); // false = not verified yet
+
+        self.user_email_repository
+            .create(user_email)
+            .await
+            .map_err(|e| DomainError::RepositoryError(e.to_string()))?;
+
+        debug!(user_id = %created_user.id, email = %email, "Created primary email for OAuth user");
+
         Ok(created_user)
     }
 
@@ -182,32 +211,30 @@ where
         user_id: &str,
         provider_name: &str,
     ) -> Result<ProviderTokens, DomainError> {
-        let uuid = uuid::Uuid::parse_str(user_id)
-            .map_err(|_| DomainError::UserNotFound)?;
-        
+        let uuid = uuid::Uuid::parse_str(user_id).map_err(|_| DomainError::UserNotFound)?;
+
         let provider = Provider::from_str(provider_name)
             .ok_or_else(|| DomainError::ProviderNotSupported(provider_name.to_string()))?;
-        
+
         // First verify that the user exists (security: don't reveal if user has tokens or not)
-        let _user = self.user_repository
+        let _user = self
+            .user_repository
             .find_by_id(uuid)
             .await
             .map_err(|e| DomainError::RepositoryError(e.to_string()))?
             .ok_or(DomainError::UserNotFound)?;
-        
-        let tokens = self.token_repository
+
+        let tokens = self
+            .token_repository
             .get_provider_tokens(uuid, provider)
             .await
             .map_err(|e| DomainError::RepositoryError(e.to_string()))?
-            .ok_or_else(|| 
-                DomainError::NoTokenForProvider(
-                    provider_name.to_string(),
-                    user_id.to_string()
-                )
-            )?;
-        
+            .ok_or_else(|| {
+                DomainError::NoTokenForProvider(provider_name.to_string(), user_id.to_string())
+            })?;
+
         debug!(user_id = %uuid, provider = %provider_name, "Retrieved provider token");
-        
+
         Ok(tokens)
     }
 }
@@ -221,15 +248,17 @@ mod tests {
     };
     use crate::error::DomainError;
     use crate::port::{
-        repository::{TokenReadRepository, TokenWriteRepository, UserReadRepository, UserWriteRepository},
+        repository::{
+            TokenReadRepository, TokenWriteRepository, UserReadRepository, UserWriteRepository,
+        },
         service::ProviderOAuth2Client,
     };
-    use mockall::{mock, predicate::*};
-    use rstest::*;
-    use uuid::Uuid;
     use chrono::{Duration as ChronoDuration, Utc};
     use claims::*;
+    use mockall::{mock, predicate::*};
+    use rstest::*;
     use std::collections::HashMap;
+    use uuid::Uuid;
 
     // Define a test error type that implements std::error::Error
     #[derive(Debug, Clone)]
@@ -260,7 +289,11 @@ mod tests {
             self.find_by_id_responses.insert(id, response);
         }
 
-        fn expect_find_by_email(&mut self, email: String, response: Result<Option<User>, TestError>) {
+        fn expect_find_by_email(
+            &mut self,
+            email: String,
+            response: Result<Option<User>, TestError>,
+        ) {
             self.find_by_email_responses.insert(email, response);
         }
 
@@ -274,13 +307,15 @@ mod tests {
         type Error = TestError;
 
         async fn find_by_id(&self, id: Uuid) -> Result<Option<User>, Self::Error> {
-            self.find_by_id_responses.get(&id)
+            self.find_by_id_responses
+                .get(&id)
                 .cloned()
                 .unwrap_or(Ok(None))
         }
 
         async fn find_by_email(&self, email: &str) -> Result<Option<User>, Self::Error> {
-            self.find_by_email_responses.get(email)
+            self.find_by_email_responses
+                .get(email)
                 .cloned()
                 .unwrap_or(Ok(None))
         }
@@ -313,8 +348,80 @@ mod tests {
 
     #[derive(Default)]
     struct MockTokenRepo {
-        get_provider_tokens_responses: HashMap<(Uuid, Provider), Result<Option<ProviderTokens>, TestError>>,
+        get_provider_tokens_responses:
+            HashMap<(Uuid, Provider), Result<Option<ProviderTokens>, TestError>>,
         save_calls: Vec<(Uuid, Provider, String, ProviderTokens)>,
+    }
+
+    #[derive(Default)]
+    struct MockUserEmailRepo {
+        create_responses: Vec<Result<crate::entity::user_email::UserEmail, TestError>>,
+    }
+
+    impl MockUserEmailRepo {
+        fn new() -> Self {
+            Self::default()
+        }
+
+        fn expect_create(
+            &mut self,
+            response: Result<crate::entity::user_email::UserEmail, TestError>,
+        ) {
+            self.create_responses.push(response);
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl crate::port::repository::UserEmailReadRepository for MockUserEmailRepo {
+        type Error = TestError;
+
+        async fn find_by_user_id(
+            &self,
+            _user_id: Uuid,
+        ) -> Result<Vec<crate::entity::user_email::UserEmail>, Self::Error> {
+            Ok(vec![])
+        }
+
+        async fn find_by_email(
+            &self,
+            _email: &str,
+        ) -> Result<Option<crate::entity::user_email::UserEmail>, Self::Error> {
+            Ok(None)
+        }
+
+        async fn find_by_id(
+            &self,
+            _id: Uuid,
+        ) -> Result<Option<crate::entity::user_email::UserEmail>, Self::Error> {
+            Ok(None)
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl crate::port::repository::UserEmailWriteRepository for MockUserEmailRepo {
+        type Error = TestError;
+
+        async fn create(
+            &self,
+            user_email: crate::entity::user_email::UserEmail,
+        ) -> Result<crate::entity::user_email::UserEmail, Self::Error> {
+            if let Some(response) = self.create_responses.first() {
+                response.clone()
+            } else {
+                Ok(user_email)
+            }
+        }
+
+        async fn update(
+            &self,
+            user_email: crate::entity::user_email::UserEmail,
+        ) -> Result<crate::entity::user_email::UserEmail, Self::Error> {
+            Ok(user_email)
+        }
+
+        async fn delete(&self, _id: Uuid) -> Result<(), Self::Error> {
+            Ok(())
+        }
     }
 
     impl MockTokenRepo {
@@ -322,8 +429,14 @@ mod tests {
             Self::default()
         }
 
-        fn expect_get_provider_tokens(&mut self, user_id: Uuid, provider: Provider, response: Result<Option<ProviderTokens>, TestError>) {
-            self.get_provider_tokens_responses.insert((user_id, provider), response);
+        fn expect_get_provider_tokens(
+            &mut self,
+            user_id: Uuid,
+            provider: Provider,
+            response: Result<Option<ProviderTokens>, TestError>,
+        ) {
+            self.get_provider_tokens_responses
+                .insert((user_id, provider), response);
         }
 
         fn expect_save_provider_tokens(&mut self) {
@@ -340,7 +453,8 @@ mod tests {
             user_id: Uuid,
             provider: Provider,
         ) -> Result<Option<ProviderTokens>, Self::Error> {
-            self.get_provider_tokens_responses.get(&(user_id, provider))
+            self.get_provider_tokens_responses
+                .get(&(user_id, provider))
                 .cloned()
                 .unwrap_or(Ok(None))
         }
@@ -390,7 +504,7 @@ mod tests {
     // Mock token encoder for testing
     mock! {
         TokenEnc {}
-        
+
         impl crate::port::service::JwtTokenEncoder for TokenEnc {
             fn encode(&self, claims: &crate::entity::token::TokenClaims) -> Result<String, DomainError>;
             fn decode(&self, token: &str) -> Result<crate::entity::token::TokenClaims, DomainError>;
@@ -431,14 +545,15 @@ mod tests {
     }
 
     #[fixture]
-    fn auth_service() -> OAuthService<MockUserRepo, MockTokenRepo> {
+    fn auth_service() -> OAuthService<MockUserRepo, MockTokenRepo, MockUserEmailRepo> {
         let user_repo = MockUserRepo::new();
         let token_repo = MockTokenRepo::new();
+        let user_email_repo = MockUserEmailRepo::new();
         // Create a minimal TokenService for testing - we'll test token generation separately
         let mock_encoder = Box::new(MockTokenEnc::new());
         let token_service = TokenService::new(mock_encoder, ChronoDuration::hours(1));
-        
-        OAuthService::new(user_repo, token_repo, token_service)
+
+        OAuthService::new(user_repo, token_repo, user_email_repo, token_service)
     }
 
     mod auth_service_creation {
@@ -448,13 +563,13 @@ mod tests {
         fn new_creates_auth_service_with_empty_provider_clients() {
             let user_repo = MockUserRepo::new();
             let token_repo = MockTokenRepo::new();
-            let token_service = TokenService::new(
-                Box::new(MockTokenEnc::new()), 
-                ChronoDuration::hours(1)
-            );
-            
-            let auth_service = OAuthService::new(user_repo, token_repo, token_service);
-            
+            let user_email_repo = MockUserEmailRepo::new();
+            let token_service =
+                TokenService::new(Box::new(MockTokenEnc::new()), ChronoDuration::hours(1));
+
+            let auth_service =
+                OAuthService::new(user_repo, token_repo, user_email_repo, token_service);
+
             assert!(auth_service.provider_clients.is_empty());
         }
 
@@ -481,18 +596,23 @@ mod tests {
         fn success_with_valid_provider(#[case] provider_str: &str, #[case] provider: Provider) {
             let mut auth_service = auth_service();
             let mut mock_client = MockOAuth2Client::new();
-            
+
             mock_client
                 .expect_generate_authorize_url()
                 .times(1)
-                .returning(|| "https://github.com/login/oauth/authorize?client_id=test".to_string());
+                .returning(|| {
+                    "https://github.com/login/oauth/authorize?client_id=test".to_string()
+                });
 
             auth_service.register_provider_client(provider, Box::new(mock_client));
 
             let result = auth_service.generate_authorize_url(provider_str);
 
             assert_ok!(&result);
-            assert_eq!(result.unwrap(), "https://github.com/login/oauth/authorize?client_id=test");
+            assert_eq!(
+                result.unwrap(),
+                "https://github.com/login/oauth/authorize?client_id=test"
+            );
         }
 
         #[test]
@@ -538,12 +658,13 @@ mod tests {
         ) {
             let mut user_repo = MockUserRepo::new();
             let mut token_repo = MockTokenRepo::new();
+            let user_email_repo = MockUserEmailRepo::new();
             let provider = Provider::GitHub;
-            
+
             // Setup user repository mock - user exists by email
             user_repo.expect_find_by_email(
                 "user@example.com".to_string(),
-                Ok(Some(sample_user.clone()))
+                Ok(Some(sample_user.clone())),
             );
 
             // Setup token repository mock
@@ -557,8 +678,9 @@ mod tests {
                 .returning(|_| Ok("jwt_token".to_string()));
 
             let token_service = TokenService::new(Box::new(mock_encoder), ChronoDuration::hours(1));
-            let mut auth_service = OAuthService::new(user_repo, token_repo, token_service);
-            
+            let mut auth_service =
+                OAuthService::new(user_repo, token_repo, user_email_repo, token_service);
+
             // Setup mock OAuth2 client
             let mut mock_client = MockOAuth2Client::new();
             mock_client
@@ -566,7 +688,7 @@ mod tests {
                 .with(eq("auth_code"))
                 .times(1)
                 .returning(move |_| Ok(sample_provider_tokens.clone()));
-            
+
             mock_client
                 .expect_get_user_profile()
                 .times(1)
@@ -586,7 +708,9 @@ mod tests {
         async fn error_with_unsupported_provider() {
             let auth_service = auth_service();
 
-            let result = auth_service.process_callback("unsupported", "auth_code").await;
+            let result = auth_service
+                .process_callback("unsupported", "auth_code")
+                .await;
 
             assert_err!(&result);
             match result.unwrap_err() {
@@ -617,7 +741,7 @@ mod tests {
         async fn error_when_profile_missing_email(sample_provider_tokens: ProviderTokens) {
             let mut auth_service = auth_service();
             let provider = Provider::GitHub;
-            
+
             let mut profile_without_email = sample_provider_profile();
             profile_without_email.email = None;
 
@@ -626,7 +750,7 @@ mod tests {
                 .expect_exchange_code()
                 .times(1)
                 .returning(move |_| Ok(sample_provider_tokens.clone()));
-            
+
             mock_client
                 .expect_get_user_profile()
                 .times(1)
@@ -650,7 +774,7 @@ mod tests {
         async fn error_when_code_exchange_fails(_sample_provider_tokens: ProviderTokens) {
             let mut auth_service = auth_service();
             let provider = Provider::GitHub;
-            
+
             let mut mock_client = MockOAuth2Client::new();
             mock_client
                 .expect_exchange_code()
@@ -659,7 +783,9 @@ mod tests {
 
             auth_service.register_provider_client(provider, Box::new(mock_client));
 
-            let result = auth_service.process_callback("github", "invalid_code").await;
+            let result = auth_service
+                .process_callback("github", "invalid_code")
+                .await;
 
             assert_err!(&result);
             match result.unwrap_err() {
@@ -679,12 +805,15 @@ mod tests {
         async fn success_with_valid_uuid(sample_user: User) {
             let mut user_repo = MockUserRepo::new();
             let token_repo = MockTokenRepo::new();
+            let user_email_repo = MockUserEmailRepo::new();
             let user_id = sample_user.id;
 
             user_repo.expect_find_by_id(user_id, Ok(Some(sample_user.clone())));
 
-            let token_service = TokenService::new(Box::new(MockTokenEnc::new()), ChronoDuration::hours(1));
-            let auth_service = OAuthService::new(user_repo, token_repo, token_service);
+            let token_service =
+                TokenService::new(Box::new(MockTokenEnc::new()), ChronoDuration::hours(1));
+            let auth_service =
+                OAuthService::new(user_repo, token_repo, user_email_repo, token_service);
 
             let result = auth_service.find_user_by_id(&user_id.to_string()).await;
 
@@ -710,12 +839,15 @@ mod tests {
         async fn error_when_user_not_found() {
             let mut user_repo = MockUserRepo::new();
             let token_repo = MockTokenRepo::new();
+            let user_email_repo = MockUserEmailRepo::new();
             let user_id = Uuid::new_v4();
 
             user_repo.expect_find_by_id(user_id, Ok(None));
 
-            let token_service = TokenService::new(Box::new(MockTokenEnc::new()), ChronoDuration::hours(1));
-            let auth_service = OAuthService::new(user_repo, token_repo, token_service);
+            let token_service =
+                TokenService::new(Box::new(MockTokenEnc::new()), ChronoDuration::hours(1));
+            let auth_service =
+                OAuthService::new(user_repo, token_repo, user_email_repo, token_service);
 
             let result = auth_service.find_user_by_id(&user_id.to_string()).await;
 
@@ -734,7 +866,8 @@ mod tests {
 
             user_repo.expect_find_by_id(user_id, Err(TestError("Database error".to_string())));
 
-            let token_service = TokenService::new(Box::new(MockTokenEnc::new()), ChronoDuration::hours(1));
+            let token_service =
+                TokenService::new(Box::new(MockTokenEnc::new()), ChronoDuration::hours(1));
             let auth_service = OAuthService::new(user_repo, token_repo, token_service);
 
             let result = auth_service.find_user_by_id(&user_id.to_string()).await;
@@ -760,12 +893,19 @@ mod tests {
             let user_id = Uuid::new_v4();
             let provider = Provider::GitHub;
 
-            token_repo.expect_get_provider_tokens(user_id, provider, Ok(Some(sample_provider_tokens.clone())));
+            token_repo.expect_get_provider_tokens(
+                user_id,
+                provider,
+                Ok(Some(sample_provider_tokens.clone())),
+            );
 
-            let token_service = TokenService::new(Box::new(MockTokenEnc::new()), ChronoDuration::hours(1));
+            let token_service =
+                TokenService::new(Box::new(MockTokenEnc::new()), ChronoDuration::hours(1));
             let auth_service = OAuthService::new(user_repo, token_repo, token_service);
 
-            let result = auth_service.get_provider_token(&user_id.to_string(), "github").await;
+            let result = auth_service
+                .get_provider_token(&user_id.to_string(), "github")
+                .await;
 
             assert_ok!(&result);
             let tokens = result.unwrap();
@@ -776,7 +916,9 @@ mod tests {
         async fn error_with_invalid_user_id() {
             let auth_service = auth_service();
 
-            let result = auth_service.get_provider_token("invalid-uuid", "github").await;
+            let result = auth_service
+                .get_provider_token("invalid-uuid", "github")
+                .await;
 
             assert_err!(&result);
             match result.unwrap_err() {
@@ -790,7 +932,9 @@ mod tests {
             let auth_service = auth_service();
             let user_id = Uuid::new_v4();
 
-            let result = auth_service.get_provider_token(&user_id.to_string(), "unsupported").await;
+            let result = auth_service
+                .get_provider_token(&user_id.to_string(), "unsupported")
+                .await;
 
             assert_err!(&result);
             match result.unwrap_err() {
@@ -810,10 +954,13 @@ mod tests {
 
             token_repo.expect_get_provider_tokens(user_id, provider, Ok(None));
 
-            let token_service = TokenService::new(Box::new(MockTokenEnc::new()), ChronoDuration::hours(1));
+            let token_service =
+                TokenService::new(Box::new(MockTokenEnc::new()), ChronoDuration::hours(1));
             let auth_service = OAuthService::new(user_repo, token_repo, token_service);
 
-            let result = auth_service.get_provider_token(&user_id.to_string(), "github").await;
+            let result = auth_service
+                .get_provider_token(&user_id.to_string(), "github")
+                .await;
 
             assert_err!(&result);
             match result.unwrap_err() {
@@ -833,20 +980,20 @@ mod tests {
     fn get_provider_client_success(#[case] provider: Provider, #[case] _provider_str: &str) {
         let mut auth_service = auth_service();
         let mock_client = MockOAuth2Client::new();
-        
+
         auth_service.register_provider_client(provider, Box::new(mock_client));
-        
+
         let result = auth_service.get_provider_client(provider);
-        
+
         assert_ok!(&result);
     }
 
     #[test]
     fn get_provider_client_error_when_not_configured() {
         let auth_service = auth_service();
-        
+
         let result = auth_service.get_provider_client(Provider::GitHub);
-        
+
         assert!(result.is_err());
         if let Err(DomainError::AuthorizationError(msg)) = result {
             assert!(msg.contains("Provider client not configured"));
@@ -854,4 +1001,4 @@ mod tests {
             panic!("Expected AuthorizationError");
         }
     }
-} 
+}

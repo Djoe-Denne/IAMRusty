@@ -1,15 +1,15 @@
 use async_trait::async_trait;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, Set,
-};
-use uuid::Uuid;
 use chrono::Utc;
 use domain::entity::provider::{Provider, ProviderTokens};
 use domain::entity::provider_link::ProviderLink;
 use domain::port::repository::{TokenReadRepository, TokenWriteRepository};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, Set,
+};
 use tracing::debug;
+use uuid::Uuid;
 
-use super::entity::{provider_tokens, prelude::ProviderTokens as ProviderTokensEntity};
+use super::entity::{prelude::ProviderTokens as ProviderTokensEntity, provider_tokens};
 
 /// SeaORM implementation of TokenRepository
 pub struct TokenRepositoryImpl {
@@ -133,18 +133,18 @@ impl TokenWriteRepository for TokenRepositoryImpl {
             model.refresh_token = Set(tokens.refresh_token.clone());
             model.expires_in = Set(tokens.expires_in.map(|e| e as i32));
             model.updated_at = Set(Utc::now().naive_utc());
-            
+
             model.update(&self.db).await?;
-            
+
             debug!(user_id = %user_id, provider = %provider.as_str(), "Updated provider tokens");
         } else {
             // Insert new tokens
             let model = Self::to_model(user_id, provider, provider_user_id, &tokens);
             model.insert(&self.db).await?;
-            
+
             debug!(user_id = %user_id, provider = %provider.as_str(), "Saved new provider tokens");
         }
 
         Ok(())
     }
-} 
+}

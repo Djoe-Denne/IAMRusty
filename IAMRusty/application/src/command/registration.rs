@@ -1,16 +1,14 @@
 use async_trait::async_trait;
+use rustycog_command::{Command, CommandError, CommandErrorMapper, CommandHandler};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 use std::sync::Arc;
-use rustycog_command::{Command, CommandError, CommandHandler, CommandErrorMapper};
+use uuid::Uuid;
 
-use crate::usecase::registration::{RegistrationUseCase, RegistrationError};
 use crate::dto::auth::{
-    CompleteRegistrationRequest,
+    CheckUsernameRequest, CheckUsernameResponse, CompleteRegistrationRequest,
     CompleteRegistrationResponse,
-    CheckUsernameRequest,
-    CheckUsernameResponse,
 };
+use crate::usecase::registration::{RegistrationError, RegistrationUseCase};
 use domain::error::DomainError;
 
 /// Error codes for registration-related operations
@@ -52,55 +50,53 @@ impl CommandErrorMapper for RegistrationErrorMapper {
     fn map_error(&self, error: Box<dyn std::error::Error + Send + Sync>) -> CommandError {
         if let Some(reg_error) = error.downcast_ref::<RegistrationError>() {
             match reg_error {
-                RegistrationError::DomainError(domain_error) => {
-                    match domain_error {
-                        DomainError::RepositoryError(_) => CommandError::infrastructure(
-                            RegistrationErrorCode::RepositoryError.as_str(),
-                            domain_error.to_string()
-                        ),
-                        DomainError::TokenServiceError(_) => CommandError::infrastructure(
-                            RegistrationErrorCode::TokenServiceError.as_str(),
-                            domain_error.to_string()
-                        ),
-                        DomainError::EventError(_) => CommandError::infrastructure(
-                            RegistrationErrorCode::EventError.as_str(),
-                            domain_error.to_string()
-                        ),
-                        DomainError::InvalidToken => CommandError::validation(
-                            RegistrationErrorCode::InvalidToken.as_str(),
-                            "Invalid or expired registration token"
-                        ),
-                        DomainError::TokenExpired => CommandError::validation(
-                            RegistrationErrorCode::TokenExpired.as_str(),
-                            "Registration token has expired"
-                        ),
-                        DomainError::UsernameTaken => CommandError::business(
-                            RegistrationErrorCode::UsernameTaken.as_str(),
-                            "Username already taken"
-                        ),
-                        DomainError::InvalidUsername => CommandError::validation(
-                            RegistrationErrorCode::InvalidUsername.as_str(),
-                            "Invalid username format"
-                        ),
-                        DomainError::UserNotFound => CommandError::business(
-                            RegistrationErrorCode::UserNotFound.as_str(),
-                            "User not found"
-                        ),
-                        DomainError::RegistrationAlreadyComplete => CommandError::validation(
-                            RegistrationErrorCode::RegistrationAlreadyComplete.as_str(),
-                            "Registration already completed"
-                        ),
-                        _ => CommandError::infrastructure(
-                            RegistrationErrorCode::RepositoryError.as_str(),
-                            "Registration failed"
-                        ),
-                    }
-                }
+                RegistrationError::DomainError(domain_error) => match domain_error {
+                    DomainError::RepositoryError(_) => CommandError::infrastructure(
+                        RegistrationErrorCode::RepositoryError.as_str(),
+                        domain_error.to_string(),
+                    ),
+                    DomainError::TokenServiceError(_) => CommandError::infrastructure(
+                        RegistrationErrorCode::TokenServiceError.as_str(),
+                        domain_error.to_string(),
+                    ),
+                    DomainError::EventError(_) => CommandError::infrastructure(
+                        RegistrationErrorCode::EventError.as_str(),
+                        domain_error.to_string(),
+                    ),
+                    DomainError::InvalidToken => CommandError::validation(
+                        RegistrationErrorCode::InvalidToken.as_str(),
+                        "Invalid or expired registration token",
+                    ),
+                    DomainError::TokenExpired => CommandError::validation(
+                        RegistrationErrorCode::TokenExpired.as_str(),
+                        "Registration token has expired",
+                    ),
+                    DomainError::UsernameTaken => CommandError::business(
+                        RegistrationErrorCode::UsernameTaken.as_str(),
+                        "Username already taken",
+                    ),
+                    DomainError::InvalidUsername => CommandError::validation(
+                        RegistrationErrorCode::InvalidUsername.as_str(),
+                        "Invalid username format",
+                    ),
+                    DomainError::UserNotFound => CommandError::business(
+                        RegistrationErrorCode::UserNotFound.as_str(),
+                        "User not found",
+                    ),
+                    DomainError::RegistrationAlreadyComplete => CommandError::validation(
+                        RegistrationErrorCode::RegistrationAlreadyComplete.as_str(),
+                        "Registration already completed",
+                    ),
+                    _ => CommandError::infrastructure(
+                        RegistrationErrorCode::RepositoryError.as_str(),
+                        "Registration failed",
+                    ),
+                },
             }
         } else {
             CommandError::infrastructure(
                 RegistrationErrorCode::RepositoryError.as_str(),
-                error.to_string()
+                error.to_string(),
             )
         }
     }
@@ -142,28 +138,32 @@ impl Command for CompleteRegistrationCommand {
         if self.registration_token.trim().is_empty() {
             return Err(CommandError::validation(
                 RegistrationErrorCode::ValidationFailed.as_str(),
-                "Registration token is required"
+                "Registration token is required",
             ));
         }
 
         if self.username.trim().is_empty() {
             return Err(CommandError::validation(
                 RegistrationErrorCode::ValidationFailed.as_str(),
-                "Username is required"
+                "Username is required",
             ));
         }
 
         if self.username.len() < 3 || self.username.len() > 50 {
             return Err(CommandError::validation(
                 RegistrationErrorCode::ValidationFailed.as_str(),
-                "Username must be between 3 and 50 characters"
+                "Username must be between 3 and 50 characters",
             ));
         }
 
-        if !self.username.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-') {
+        if !self
+            .username
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+        {
             return Err(CommandError::validation(
                 RegistrationErrorCode::ValidationFailed.as_str(),
-                "Username can only contain letters, numbers, underscores, and hyphens"
+                "Username can only contain letters, numbers, underscores, and hyphens",
             ));
         }
 
@@ -171,7 +171,7 @@ impl Command for CompleteRegistrationCommand {
         if !self.username.chars().any(|c| c.is_alphabetic()) {
             return Err(CommandError::validation(
                 RegistrationErrorCode::ValidationFailed.as_str(),
-                "Username must contain at least one letter"
+                "Username must contain at least one letter",
             ));
         }
 
@@ -212,14 +212,14 @@ impl Command for CheckUsernameCommand {
         if self.username.trim().is_empty() {
             return Err(CommandError::validation(
                 RegistrationErrorCode::ValidationFailed.as_str(),
-                "Username is required"
+                "Username is required",
             ));
         }
 
         if self.username.len() > 50 {
             return Err(CommandError::validation(
                 RegistrationErrorCode::ValidationFailed.as_str(),
-                "Username cannot be longer than 50 characters"
+                "Username cannot be longer than 50 characters",
             ));
         }
 
@@ -251,7 +251,10 @@ impl<R> CommandHandler<CompleteRegistrationCommand> for CompleteRegistrationComm
 where
     R: RegistrationUseCase + Send + Sync + ?Sized,
 {
-    async fn handle(&self, command: CompleteRegistrationCommand) -> Result<CompleteRegistrationResponse, CommandError> {
+    async fn handle(
+        &self,
+        command: CompleteRegistrationCommand,
+    ) -> Result<CompleteRegistrationResponse, CommandError> {
         let request = CompleteRegistrationRequest {
             registration_token: command.registration_token,
             username: command.username,
@@ -288,7 +291,10 @@ impl<R> CommandHandler<CheckUsernameCommand> for CheckUsernameCommandHandler<R>
 where
     R: RegistrationUseCase + Send + Sync + ?Sized,
 {
-    async fn handle(&self, command: CheckUsernameCommand) -> Result<CheckUsernameResponse, CommandError> {
+    async fn handle(
+        &self,
+        command: CheckUsernameCommand,
+    ) -> Result<CheckUsernameResponse, CommandError> {
         let request = CheckUsernameRequest {
             username: command.username,
         };
@@ -298,4 +304,4 @@ where
             .await
             .map_err(|e| RegistrationErrorMapper.map_error(Box::new(e)))
     }
-} 
+}

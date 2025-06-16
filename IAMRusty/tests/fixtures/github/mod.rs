@@ -1,6 +1,5 @@
-pub mod service;
 pub mod resources;
-
+pub mod service;
 
 /// Main GitHub fixtures namespace
 pub struct GitHubFixtures;
@@ -11,5 +10,3 @@ impl GitHubFixtures {
         service::GitHubService::new().await
     }
 }
-
- 

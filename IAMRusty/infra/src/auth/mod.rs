@@ -8,4 +8,4 @@ mod password_adapter;
 pub use github::*;
 pub use gitlab::*;
 pub use password::*;
-pub use password_adapter::*; 
+pub use password_adapter::*;

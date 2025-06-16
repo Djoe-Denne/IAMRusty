@@ -1,14 +1,12 @@
 use async_trait::async_trait;
-use sea_orm::{
-    ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter,
-};
-use std::sync::Arc;
-use uuid::Uuid;
 use domain::entity::token::RefreshToken as DomainRefreshToken;
 use domain::port::repository::RefreshTokenReadRepository;
+use sea_orm::{ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter};
+use std::sync::Arc;
 use tracing::debug;
+use uuid::Uuid;
 
-use super::entity::{refresh_tokens, prelude::RefreshTokens};
+use super::entity::{prelude::RefreshTokens, refresh_tokens};
 
 /// SeaORM implementation of RefreshTokenReadRepository
 #[derive(Clone)]
@@ -41,7 +39,7 @@ impl RefreshTokenReadRepository for RefreshTokenReadRepositoryImpl {
 
     async fn find_by_token(&self, token: &str) -> Result<Option<DomainRefreshToken>, Self::Error> {
         debug!("Looking up refresh token");
-        
+
         let refresh_token = RefreshTokens::find()
             .filter(refresh_tokens::Column::Token.eq(token))
             .one(self.db.as_ref())
@@ -49,15 +47,15 @@ impl RefreshTokenReadRepository for RefreshTokenReadRepositoryImpl {
 
         Ok(refresh_token.map(Self::to_domain))
     }
-    
+
     async fn find_by_user_id(&self, user_id: Uuid) -> Result<Vec<DomainRefreshToken>, Self::Error> {
         debug!("Finding refresh tokens for user ID: {}", user_id);
-        
+
         let tokens = RefreshTokens::find()
             .filter(refresh_tokens::Column::UserId.eq(user_id))
             .all(self.db.as_ref())
             .await?;
-            
+
         Ok(tokens.into_iter().map(Self::to_domain).collect())
     }
-} 
+}

@@ -18,16 +18,8 @@ impl MigrationTrait for Migration {
                             .not_null()
                             .primary_key(),
                     )
-                    .col(
-                        ColumnDef::new(UserEmails::UserId)
-                            .uuid()
-                            .not_null(),
-                    )
-                    .col(
-                        ColumnDef::new(UserEmails::Email)
-                            .string()
-                            .not_null(),
-                    )
+                    .col(ColumnDef::new(UserEmails::UserId).uuid().not_null())
+                    .col(ColumnDef::new(UserEmails::Email).string().not_null())
                     .col(
                         ColumnDef::new(UserEmails::IsPrimary)
                             .boolean()
@@ -121,12 +113,7 @@ impl MigrationTrait for Migration {
             .alter_table(
                 Table::alter()
                     .table(Users::Table)
-                    .add_column(
-                        ColumnDef::new(Users::Email)
-                            .string()
-                            .not_null()
-                            .default(""),
-                    )
+                    .add_column(ColumnDef::new(Users::Email).string().not_null().default(""))
                     .to_owned(),
             )
             .await?;
@@ -169,4 +156,4 @@ enum UserEmails {
     IsVerified,
     CreatedAt,
     UpdatedAt,
-} 
+}

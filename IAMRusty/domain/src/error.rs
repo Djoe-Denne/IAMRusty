@@ -75,4 +75,4 @@ pub enum DomainError {
     /// Event publishing error
     #[error("Event publishing error: {0}")]
     EventError(String),
-} 
+}

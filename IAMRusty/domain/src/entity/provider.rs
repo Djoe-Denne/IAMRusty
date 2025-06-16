@@ -33,10 +33,10 @@ impl Provider {
 pub struct ProviderTokens {
     /// The access token
     pub access_token: String,
-    
+
     /// Refresh token, if provided
     pub refresh_token: Option<String>,
-    
+
     /// Expiration time in seconds from issuance
     pub expires_in: Option<u64>,
 }
@@ -46,13 +46,13 @@ pub struct ProviderTokens {
 pub struct ProviderUserProfile {
     /// Provider-specific user ID
     pub id: String,
-    
+
     /// Username from the provider
     pub username: String,
-    
+
     /// Email address from the provider
     pub email: Option<String>,
-    
+
     /// URL to the user's avatar
     pub avatar_url: Option<String>,
-} 
+}

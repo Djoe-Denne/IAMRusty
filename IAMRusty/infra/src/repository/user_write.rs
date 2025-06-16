@@ -1,11 +1,11 @@
+use super::entity::{prelude::Users, users};
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use domain::entity::user::User as DomainUser;
 use domain::port::repository::UserWriteRepository;
-use sea_orm::{DatabaseConnection, EntityTrait, ActiveModelTrait, ActiveValue, DbErr, Set};
+use sea_orm::{ActiveModelTrait, ActiveValue, DatabaseConnection, DbErr, EntityTrait, Set};
 use std::sync::Arc;
-use super::entity::{users, prelude::Users};
 use tracing::{debug, error};
-use chrono::{DateTime, Utc};
 
 /// SeaORM implementation of UserWriteRepository
 #[derive(Clone)]
@@ -51,7 +51,7 @@ impl UserWriteRepository for UserWriteRepositoryImpl {
     async fn create(&self, user: DomainUser) -> Result<DomainUser, Self::Error> {
         debug!("Creating new user with ID: {}", user.id);
         let model = self.to_active_model(&user);
-        
+
         let res = model.insert(self.db.as_ref()).await?;
 
         Ok(Self::to_domain(res))
@@ -66,9 +66,9 @@ impl UserWriteRepository for UserWriteRepositoryImpl {
                 error!(user_id = %user.id, "Failed to update user: User not found");
                 DbErr::RecordNotFound("User not found".to_string())
             })?;
-        
+
         let mut model = users::ActiveModel::from(existing);
-        
+
         if user.username.is_some() {
             model.username = Set(user.username.clone());
         }
@@ -79,9 +79,9 @@ impl UserWriteRepository for UserWriteRepositoryImpl {
             model.password_hash = Set(user.password_hash.clone());
         }
         model.updated_at = Set(user.updated_at.naive_utc());
-        
+
         let updated = model.update(self.db.as_ref()).await?;
-        
+
         Ok(Self::to_domain(updated))
     }
-} 
+}

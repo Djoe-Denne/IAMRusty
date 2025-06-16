@@ -1,16 +1,14 @@
 use async_trait::async_trait;
-use sea_orm::{
-    ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter,
-};
-use std::sync::Arc;
-use uuid::Uuid;
+use chrono::Utc;
 use domain::entity::provider::{Provider, ProviderTokens};
 use domain::entity::provider_link::ProviderLink;
 use domain::port::repository::TokenReadRepository;
+use sea_orm::{ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter};
+use std::sync::Arc;
 use tracing::debug;
-use chrono::Utc;
+use uuid::Uuid;
 
-use super::entity::{provider_tokens, prelude::ProviderTokens as ProviderTokensEntity};
+use super::entity::{prelude::ProviderTokens as ProviderTokensEntity, provider_tokens};
 
 /// SeaORM implementation of TokenReadRepository
 #[derive(Clone)]
@@ -54,7 +52,7 @@ impl TokenReadRepository for TokenReadRepositoryImpl {
         provider: Provider,
     ) -> Result<Option<ProviderTokens>, Self::Error> {
         debug!(user_id = %user_id, provider = %provider.as_str(), "Reading provider tokens");
-        
+
         let tokens = ProviderTokensEntity::find()
             .filter(provider_tokens::Column::UserId.eq(user_id))
             .filter(provider_tokens::Column::Provider.eq(provider.as_str()))
@@ -70,7 +68,7 @@ impl TokenReadRepository for TokenReadRepositoryImpl {
         provider: Provider,
     ) -> Result<Option<ProviderLink>, Self::Error> {
         debug!(user_id = %user_id, provider = %provider.as_str(), "Reading provider link");
-        
+
         let token = ProviderTokensEntity::find()
             .filter(provider_tokens::Column::UserId.eq(user_id))
             .filter(provider_tokens::Column::Provider.eq(provider.as_str()))
@@ -85,7 +83,7 @@ impl TokenReadRepository for TokenReadRepositoryImpl {
         user_id: Uuid,
     ) -> Result<Vec<ProviderLink>, Self::Error> {
         debug!(user_id = %user_id, "Reading all provider links for user");
-        
+
         let tokens = ProviderTokensEntity::find()
             .filter(provider_tokens::Column::UserId.eq(user_id))
             .all(self.db.as_ref())
@@ -93,4 +91,4 @@ impl TokenReadRepository for TokenReadRepositoryImpl {
 
         Ok(tokens.into_iter().map(Self::to_provider_link).collect())
     }
-} 
+}

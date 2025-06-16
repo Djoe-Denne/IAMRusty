@@ -12,12 +12,7 @@ impl MigrationTrait for Migration {
                 Table::create()
                     .table(Users::Table)
                     .if_not_exists()
-                    .col(
-                        ColumnDef::new(Users::Id)
-                            .uuid()
-                            .not_null()
-                            .primary_key(),
-                    )
+                    .col(ColumnDef::new(Users::Id).uuid().not_null().primary_key())
                     .col(ColumnDef::new(Users::ProviderUserId).string().not_null())
                     .col(ColumnDef::new(Users::Username).string().not_null())
                     .col(ColumnDef::new(Users::Email).string())
@@ -53,7 +48,11 @@ impl MigrationTrait for Migration {
                     )
                     .col(ColumnDef::new(ProviderTokens::UserId).uuid().not_null())
                     .col(ColumnDef::new(ProviderTokens::Provider).string().not_null())
-                    .col(ColumnDef::new(ProviderTokens::AccessToken).string().not_null())
+                    .col(
+                        ColumnDef::new(ProviderTokens::AccessToken)
+                            .string()
+                            .not_null(),
+                    )
                     .col(ColumnDef::new(ProviderTokens::RefreshToken).string())
                     .col(ColumnDef::new(ProviderTokens::ExpiresIn).integer())
                     .col(
@@ -93,7 +92,12 @@ impl MigrationTrait for Migration {
                     )
                     .col(ColumnDef::new(RefreshTokens::UserId).uuid().not_null())
                     .col(ColumnDef::new(RefreshTokens::Token).text().not_null())
-                    .col(ColumnDef::new(RefreshTokens::IsValid).boolean().not_null().default(true))
+                    .col(
+                        ColumnDef::new(RefreshTokens::IsValid)
+                            .boolean()
+                            .not_null()
+                            .default(true),
+                    )
                     .col(
                         ColumnDef::new(RefreshTokens::CreatedAt)
                             .timestamp_with_time_zone()

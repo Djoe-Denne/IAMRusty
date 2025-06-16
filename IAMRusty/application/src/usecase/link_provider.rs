@@ -1,15 +1,11 @@
 //! Link Provider use case module
 
-use domain::entity::{
-    provider::Provider,
-    user::User,
-    user_email::UserEmail,
-};
-use domain::service::{ProviderLinkService};
-use domain::error::DomainError;
 use crate::auth::OAuthService;
 use crate::usecase::factory::OAuthProviderFactory;
 use async_trait::async_trait;
+use domain::entity::{provider::Provider, user::User, user_email::UserEmail};
+use domain::error::DomainError;
+use domain::service::ProviderLinkService;
 use std::sync::Arc;
 use thiserror::Error;
 use uuid::Uuid;
@@ -60,7 +56,7 @@ pub trait LinkProviderUseCase: Send + Sync {
 }
 
 /// Link provider use case implementation
-pub struct LinkProviderUseCaseImpl<GH, GL, UR, UER, TR> 
+pub struct LinkProviderUseCaseImpl<GH, GL, UR, UER, TR>
 where
     GH: OAuthService + 'static,
     GL: OAuthService + 'static,
@@ -87,7 +83,7 @@ where
         provider_link_service: Arc<ProviderLinkService<UR, UER, TR>>,
     ) -> Self {
         let auth_factory = Arc::new(OAuthProviderFactory::new(github_auth, gitlab_auth));
-        
+
         Self {
             auth_factory,
             provider_link_service,
@@ -100,7 +96,13 @@ where
         provider: Provider,
         code: String,
         redirect_uri: String,
-    ) -> Result<(domain::entity::provider::ProviderTokens, domain::entity::provider::ProviderUserProfile), LinkProviderError>
+    ) -> Result<
+        (
+            domain::entity::provider::ProviderTokens,
+            domain::entity::provider::ProviderUserProfile,
+        ),
+        LinkProviderError,
+    >
     where
         GH: OAuthService,
         GL: OAuthService,
@@ -108,12 +110,12 @@ where
         <GL as OAuthService>::Error: std::error::Error + Send + Sync + 'static,
     {
         let auth_service = self.auth_factory.get_oauth_service(provider);
-        
+
         let (tokens, profile) = auth_service
             .exchange_code(code, redirect_uri)
             .await
             .map_err(|e| LinkProviderError::AuthError(e.to_string()))?;
-        
+
         Ok((tokens, profile))
     }
 }
@@ -128,9 +130,12 @@ where
     TR: domain::port::repository::TokenRepository + Send + Sync,
     <GH as OAuthService>::Error: std::error::Error + Send + Sync + 'static,
     <GL as OAuthService>::Error: std::error::Error + Send + Sync + 'static,
-    <UR as domain::port::repository::UserRepository>::Error: std::error::Error + Send + Sync + 'static,
-    <UER as domain::port::repository::UserEmailRepository>::Error: std::error::Error + Send + Sync + 'static,
-    <TR as domain::port::repository::TokenRepository>::Error: std::error::Error + Send + Sync + 'static,
+    <UR as domain::port::repository::UserRepository>::Error:
+        std::error::Error + Send + Sync + 'static,
+    <UER as domain::port::repository::UserEmailRepository>::Error:
+        std::error::Error + Send + Sync + 'static,
+    <TR as domain::port::repository::TokenRepository>::Error:
+        std::error::Error + Send + Sync + 'static,
 {
     fn generate_start_url(&self, provider: Provider) -> Result<String, LinkProviderError> {
         let auth_service = self.auth_factory.get_oauth_service(provider);
@@ -145,21 +150,14 @@ where
         redirect_uri: String,
     ) -> Result<LinkProviderResponse, LinkProviderError> {
         // Step 1: Exchange code for tokens and profile
-        let (tokens, profile) = self.fetch_provider_profile(
-            provider,
-            code,
-            redirect_uri
-        ).await?;
+        let (tokens, profile) = self
+            .fetch_provider_profile(provider, code, redirect_uri)
+            .await?;
 
         // Step 2: Use domain service to handle the business logic
-        let result = self.provider_link_service
-            .link_provider_to_user(
-                user_id,
-                provider,
-                profile.id.clone(),
-                tokens,
-                profile,
-            )
+        let result = self
+            .provider_link_service
+            .link_provider_to_user(user_id, provider, profile.id.clone(), tokens, profile)
             .await?;
 
         // Step 3: Convert domain result to use case response
@@ -170,4 +168,4 @@ where
             new_email: result.new_email,
         })
     }
-} 
+}

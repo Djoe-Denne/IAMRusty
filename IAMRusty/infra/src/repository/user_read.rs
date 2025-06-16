@@ -1,16 +1,16 @@
 use async_trait::async_trait;
-use sea_orm::{DatabaseConnection, EntityTrait, QueryFilter, ColumnTrait, DbErr};
-use std::sync::Arc;
-use uuid::Uuid;
-use domain::entity::{
-    provider::Provider,
-    user::User as DomainUser,
-};
-use domain::port::repository::UserReadRepository;
-use tracing::debug;
 use chrono::{DateTime, Utc};
+use domain::entity::{provider::Provider, user::User as DomainUser};
+use domain::port::repository::UserReadRepository;
+use sea_orm::{ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter};
+use std::sync::Arc;
+use tracing::debug;
+use uuid::Uuid;
 
-use super::entity::{users, prelude::Users, provider_tokens, prelude::ProviderTokens as ProviderTokensEntity, user_emails, prelude::UserEmails};
+use super::entity::{
+    prelude::ProviderTokens as ProviderTokensEntity, prelude::UserEmails, prelude::Users,
+    provider_tokens, user_emails, users,
+};
 
 /// SeaORM implementation of UserReadRepository
 #[derive(Clone)]
@@ -43,10 +43,8 @@ impl UserReadRepository for UserReadRepositoryImpl {
 
     async fn find_by_id(&self, id: Uuid) -> Result<Option<DomainUser>, Self::Error> {
         debug!("Reading user by ID: {}", id);
-        let user = Users::find_by_id(id)
-            .one(self.db.as_ref())
-            .await?;
-        
+        let user = Users::find_by_id(id).one(self.db.as_ref()).await?;
+
         Ok(user.map(Self::to_domain))
     }
 
@@ -56,7 +54,7 @@ impl UserReadRepository for UserReadRepositoryImpl {
             .filter(user_emails::Column::Email.eq(email))
             .one(self.db.as_ref())
             .await?;
-        
+
         if let Some(email_record) = user_email {
             self.find_by_id(email_record.user_id).await
         } else {
@@ -70,7 +68,7 @@ impl UserReadRepository for UserReadRepositoryImpl {
             .filter(users::Column::Username.eq(username))
             .one(self.db.as_ref())
             .await?;
-        
+
         Ok(user.map(Self::to_domain))
     }
 
@@ -79,19 +77,23 @@ impl UserReadRepository for UserReadRepositoryImpl {
         provider: Provider,
         provider_user_id: &str,
     ) -> Result<Option<DomainUser>, Self::Error> {
-        debug!("Reading user by provider ID: {}_{}", provider.as_str(), provider_user_id);
-        
+        debug!(
+            "Reading user by provider ID: {}_{}",
+            provider.as_str(),
+            provider_user_id
+        );
+
         // Find user through provider_tokens table
         let provider_token = ProviderTokensEntity::find()
             .filter(provider_tokens::Column::Provider.eq(provider.as_str()))
             .filter(provider_tokens::Column::ProviderUserId.eq(provider_user_id))
             .one(self.db.as_ref())
             .await?;
-        
+
         if let Some(token) = provider_token {
             self.find_by_id(token.user_id).await
         } else {
             Ok(None)
         }
     }
-} 
+}

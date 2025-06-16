@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use chrono::{Duration, Utc};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /// Registration flow type
@@ -19,26 +19,26 @@ pub enum RegistrationFlow {
 pub struct RegistrationTokenClaims {
     /// Subject type - always "registration" for these tokens
     pub sub: String,
-    
+
     /// User ID that this token is for
     pub user_id: String,
-    
+
     /// User's email address
     pub email: String,
-    
+
     /// Registration flow type
     pub flow: RegistrationFlow,
-    
+
     /// Provider information (only for OAuth flows)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider_info: Option<ProviderInfo>,
 
     /// JWT expiration timestamp
     pub exp: i64,
-    
+
     /// JWT issued at timestamp
     pub iat: i64,
-    
+
     /// JWT token ID (for revocation)
     pub jti: String,
 }
@@ -69,7 +69,7 @@ impl RegistrationTokenClaims {
     pub fn new_with_flow(user_id: Uuid, email: String, flow: RegistrationFlow) -> Self {
         let now = Utc::now();
         let expires_in = Duration::hours(24); // 24 hours as recommended
-        
+
         Self {
             sub: "registration".to_string(),
             user_id: user_id.to_string(),
@@ -106,4 +106,4 @@ impl RegistrationTokenClaims {
     pub fn is_email_password_flow(&self) -> bool {
         self.flow == RegistrationFlow::EmailPassword
     }
-} 
+}

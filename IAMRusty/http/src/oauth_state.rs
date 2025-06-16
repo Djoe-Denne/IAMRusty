@@ -1,9 +1,9 @@
 //! OAuth state parameter handling for operation context
 
+use base64::{engine::general_purpose, Engine as _};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
-use base64::{Engine as _, engine::general_purpose};
 use thiserror::Error;
+use uuid::Uuid;
 
 /// OAuth operation type
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -32,11 +32,11 @@ pub enum StateError {
     /// Failed to serialize state
     #[error("Failed to serialize state: {0}")]
     SerializationError(#[from] serde_json::Error),
-    
+
     /// Failed to encode/decode base64
     #[error("Failed to encode/decode base64: {0}")]
     Base64Error(#[from] base64::DecodeError),
-    
+
     /// Invalid state format
     #[error("Invalid state format")]
     InvalidFormat,
@@ -50,7 +50,7 @@ impl OAuthState {
             nonce: uuid::Uuid::new_v4().to_string(),
         }
     }
-    
+
     /// Create a new link provider state
     pub fn new_link(user_id: Uuid) -> Self {
         Self {
@@ -58,27 +58,26 @@ impl OAuthState {
             nonce: uuid::Uuid::new_v4().to_string(),
         }
     }
-    
+
     /// Encode the state to a base64 string for use in OAuth flow
     pub fn encode(&self) -> Result<String, StateError> {
         let json = serde_json::to_string(self)?;
         Ok(general_purpose::URL_SAFE_NO_PAD.encode(json))
     }
-    
+
     /// Decode a base64 string back to OAuth state
     pub fn decode(encoded: &str) -> Result<Self, StateError> {
         let json_bytes = general_purpose::URL_SAFE_NO_PAD.decode(encoded)?;
-        let json = String::from_utf8(json_bytes)
-            .map_err(|_| StateError::InvalidFormat)?;
+        let json = String::from_utf8(json_bytes).map_err(|_| StateError::InvalidFormat)?;
         let state: OAuthState = serde_json::from_str(&json)?;
         Ok(state)
     }
-    
+
     /// Check if this is a login operation
     pub fn is_login(&self) -> bool {
         matches!(self.operation, OAuthOperation::Login)
     }
-    
+
     /// Check if this is a link operation and return the user ID
     pub fn get_link_user_id(&self) -> Option<Uuid> {
         match &self.operation {
@@ -97,7 +96,7 @@ mod tests {
         let state = OAuthState::new_login();
         let encoded = state.encode().unwrap();
         let decoded = OAuthState::decode(&encoded).unwrap();
-        
+
         assert!(decoded.is_login());
         assert_eq!(decoded.operation, state.operation);
         assert_eq!(decoded.nonce, state.nonce);
@@ -109,10 +108,10 @@ mod tests {
         let state = OAuthState::new_link(user_id);
         let encoded = state.encode().unwrap();
         let decoded = OAuthState::decode(&encoded).unwrap();
-        
+
         assert!(!decoded.is_login());
         assert_eq!(decoded.get_link_user_id(), Some(user_id));
         assert_eq!(decoded.operation, state.operation);
         assert_eq!(decoded.nonce, state.nonce);
     }
-} 
+}

@@ -11,11 +11,7 @@ impl MigrationTrait for Migration {
             .alter_table(
                 Table::alter()
                     .table(Users::Table)
-                    .modify_column(
-                        ColumnDef::new(Users::Username)
-                            .string()
-                            .null()
-                    )
+                    .modify_column(ColumnDef::new(Users::Username).string().null())
                     .to_owned(),
             )
             .await?;
@@ -35,7 +31,7 @@ impl MigrationTrait for Migration {
                         ColumnDef::new(Users::Username)
                             .string()
                             .not_null()
-                            .default("incomplete_user")
+                            .default("incomplete_user"),
                     )
                     .to_owned(),
             )
@@ -49,4 +45,4 @@ impl MigrationTrait for Migration {
 enum Users {
     Table,
     Username,
-} 
+}

@@ -1,18 +1,18 @@
 //! Test database utilities with testcontainers
-//! 
+//!
 //! This module provides a single PostgreSQL container for all tests with table truncation
 //! between tests to ensure test isolation while maintaining performance.
 
-use std::sync::Arc;
-use std::sync::OnceLock;
-use tokio::sync::Mutex;
-use testcontainers::{GenericImage, ImageExt, ContainerAsync, runners::AsyncRunner};
-use sea_orm::{Database, DatabaseConnection, DbErr, Statement, ConnectionTrait};
 use configuration::{AppConfig, DatabaseConfig};
 use infra::db::DbConnectionPool;
 use migration::{Migrator, MigratorTrait};
-use tracing::{info, debug, warn};
+use sea_orm::{ConnectionTrait, Database, DatabaseConnection, DbErr, Statement};
+use std::sync::Arc;
+use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, Ordering};
+use testcontainers::{ContainerAsync, GenericImage, ImageExt, runners::AsyncRunner};
+use tokio::sync::Mutex;
+use tracing::{debug, info, warn};
 
 /// Global test database container instance
 static TEST_CONTAINER: OnceLock<Arc<Mutex<Option<Arc<TestDatabaseContainer>>>>> = OnceLock::new();
@@ -57,21 +57,21 @@ impl TestDatabase {
     pub async fn new() -> Result<Self, DbErr> {
         let container = get_or_create_test_container().await?;
         let database_url = container.database_url.clone();
-        
+
         // Create connection pool
         let pool = DbConnectionPool::new_from_url(&database_url, vec![]).await?;
         let connection = pool.get_write_connection();
-        
+
         // Run migrations
         Self::run_migrations(&connection).await?;
-        
+
         Ok(Self {
             pool,
             connection,
             database_url,
         })
     }
-    
+
     /// Run database migrations
     async fn run_migrations(connection: &DatabaseConnection) -> Result<(), DbErr> {
         info!("Running database migrations for test database");
@@ -79,19 +79,19 @@ impl TestDatabase {
         info!("Database migrations completed successfully");
         Ok(())
     }
-    
+
     /// Truncate all tables to clean up between tests
     pub async fn truncate_all_tables(&self) -> Result<(), DbErr> {
         debug!("Truncating all tables for test cleanup");
-        
+
         // Get all table names from the database
         let tables = self.get_all_table_names().await?;
-        
+
         if tables.is_empty() {
             debug!("No tables found to truncate");
             return Ok(());
         }
-        
+
         // Disable foreign key checks temporarily
         self.connection
             .execute(Statement::from_string(
@@ -99,7 +99,7 @@ impl TestDatabase {
                 "SET session_replication_role = replica;".to_string(),
             ))
             .await?;
-        
+
         // Truncate all tables
         for table in &tables {
             let sql = format!("TRUNCATE TABLE {} RESTART IDENTITY CASCADE;", table);
@@ -110,7 +110,7 @@ impl TestDatabase {
                 ))
                 .await?;
         }
-        
+
         // Re-enable foreign key checks
         self.connection
             .execute(Statement::from_string(
@@ -118,11 +118,11 @@ impl TestDatabase {
                 "SET session_replication_role = DEFAULT;".to_string(),
             ))
             .await?;
-        
+
         debug!("Successfully truncated {} tables", tables.len());
         Ok(())
     }
-    
+
     /// Get all table names from the current database
     async fn get_all_table_names(&self) -> Result<Vec<String>, DbErr> {
         let sql = r#"
@@ -133,23 +133,24 @@ impl TestDatabase {
             AND table_name NOT LIKE 'seaql_%'
             ORDER BY table_name;
         "#;
-        
-        let result = self.connection
+
+        let result = self
+            .connection
             .query_all(Statement::from_string(
                 sea_orm::DatabaseBackend::Postgres,
                 sql.to_string(),
             ))
             .await?;
-        
+
         let tables: Vec<String> = result
             .into_iter()
             .map(|row| row.try_get::<String>("", "table_name"))
             .collect::<Result<Vec<_>, _>>()?;
-        
+
         debug!("Found {} tables: {:?}", tables.len(), tables);
         Ok(tables)
     }
-    
+
     /// Create a test configuration with the test database URL
     pub fn create_test_config(&self) -> AppConfig {
         let mut config = create_base_test_config();
@@ -169,12 +170,12 @@ impl TestDatabase {
         }
         config
     }
-    
+
     /// Get the database connection for direct use
     pub fn get_connection(&self) -> Arc<DatabaseConnection> {
         self.connection.clone()
     }
-    
+
     /// Get the connection pool
     pub fn get_pool(&self) -> &DbConnectionPool {
         &self.pool
@@ -183,29 +184,27 @@ impl TestDatabase {
 
 /// Get or create the global test container
 async fn get_or_create_test_container() -> Result<Arc<TestDatabaseContainer>, DbErr> {
-    let container_mutex = TEST_CONTAINER.get_or_init(|| {
-        Arc::new(Mutex::new(None))
-    });
-    
+    let container_mutex = TEST_CONTAINER.get_or_init(|| Arc::new(Mutex::new(None)));
+
     let mut container_guard = container_mutex.lock().await;
-    
+
     if let Some(ref container) = *container_guard {
         return Ok(container.clone());
     }
-    
+
     info!("Creating new PostgreSQL test container");
-    
+
     // Clear only the database port cache to ensure fresh random port generation
     // Don't clear all caches as that would interfere with Kafka test containers
     DatabaseConfig::clear_port_cache();
-    
+
     // First, try to clean up any existing container with the same name
     cleanup_existing_container().await;
-    
+
     // Load test configuration to get database settings
     let config = create_base_test_config();
     let db_config = &config.database;
-    
+
     // Determine the port to use
     let host_port = if db_config.port == 0 {
         // Use a random available port
@@ -213,7 +212,7 @@ async fn get_or_create_test_container() -> Result<Arc<TestDatabaseContainer>, Db
     } else {
         db_config.port
     };
-    
+
     // Create PostgreSQL container using GenericImage with configuration-based settings
     let postgres_image = GenericImage::new("postgres", "15-alpine")
         .with_env_var("POSTGRES_DB", &db_config.db)
@@ -221,52 +220,48 @@ async fn get_or_create_test_container() -> Result<Arc<TestDatabaseContainer>, Db
         .with_env_var("POSTGRES_PASSWORD", &db_config.creds.password)
         .with_container_name("iam-test-db") // Static name for easy cleanup
         .with_mapped_port(host_port, testcontainers::core::ContainerPort::Tcp(5432)); // Map host port to container port 5432
-    
+
     let container = postgres_image
         .start()
         .await
         .map_err(|e| DbErr::Custom(format!("Failed to start container: {}", e)))?;
-    
+
     let database_url = format!(
         "postgres://{}:{}@{}:{}/{}",
-        db_config.creds.username,
-        db_config.creds.password,
-        db_config.host,
-        host_port,
-        db_config.db
+        db_config.creds.username, db_config.creds.password, db_config.host, host_port, db_config.db
     );
-    
+
     info!("Test database container started on port {}", host_port);
     info!("Database URL: {}", database_url);
-    
+
     // Wait for database to be ready
     wait_for_database(&database_url).await?;
-    
+
     let test_container = Arc::new(TestDatabaseContainer {
         container,
         database_url,
         port: host_port,
     });
-    
+
     *container_guard = Some(test_container.clone());
-    
+
     // Register cleanup handler on first container creation
     register_cleanup_handler().await;
-    
+
     Ok(test_container)
 }
 
 /// Clean up any existing container with the test name
 async fn cleanup_existing_container() {
     use std::process::Command;
-    
+
     debug!("Checking for existing test container 'iam-test-db'");
-    
+
     // Try to stop the container if it's running
     let stop_result = Command::new("docker")
         .args(&["stop", "iam-test-db"])
         .output();
-    
+
     match stop_result {
         Ok(output) if output.status.success() => {
             debug!("Stopped existing container 'iam-test-db'");
@@ -278,12 +273,12 @@ async fn cleanup_existing_container() {
             debug!("Failed to stop container: {}", e);
         }
     }
-    
+
     // Try to remove the container
     let rm_result = Command::new("docker")
         .args(&["rm", "-f", "iam-test-db"])
         .output();
-    
+
     match rm_result {
         Ok(output) if output.status.success() => {
             debug!("Removed existing container 'iam-test-db'");
@@ -299,13 +294,13 @@ async fn cleanup_existing_container() {
 
 /// Wait for the database to be ready for connections
 async fn wait_for_database(database_url: &str) -> Result<(), DbErr> {
-    use tokio::time::{sleep, Duration, timeout};
-    
+    use tokio::time::{Duration, sleep, timeout};
+
     info!("Waiting for database to be ready...");
-    
+
     let max_attempts = 30;
     let mut attempts = 0;
-    
+
     while attempts < max_attempts {
         match timeout(Duration::from_secs(2), Database::connect(database_url)).await {
             Ok(Ok(conn)) => {
@@ -327,14 +322,17 @@ async fn wait_for_database(database_url: &str) -> Result<(), DbErr> {
                 debug!("Database connection timed out");
             }
         }
-        
+
         attempts += 1;
         if attempts < max_attempts {
-            debug!("Retrying database connection in 1 second... (attempt {}/{})", attempts, max_attempts);
+            debug!(
+                "Retrying database connection in 1 second... (attempt {}/{})",
+                attempts, max_attempts
+            );
             sleep(Duration::from_secs(1)).await;
         }
     }
-    
+
     Err(DbErr::Custom(format!(
         "Database failed to become ready after {} attempts",
         max_attempts
@@ -347,28 +345,30 @@ async fn register_cleanup_handler() {
     if CLEANUP_REGISTERED.swap(true, Ordering::SeqCst) {
         return;
     }
-    
+
     info!("Registering test database container cleanup handler");
-    
+
     // Register cleanup for Ctrl+C and other signals
     let _ = ctrlc::set_handler(move || {
         info!("Received termination signal, cleaning up test database container");
-        
+
         // Use direct docker command to cleanup the specific container
         use std::process::Command;
-        let _ = Command::new("docker").args(&["stop", "iam-test-db"]).output();
+        let _ = Command::new("docker")
+            .args(&["stop", "iam-test-db"])
+            .output();
         let _ = Command::new("docker").args(&["rm", "iam-test-db"]).output();
-        
+
         std::process::exit(0);
     });
-    
+
     // Register cleanup for normal process termination
     extern "C" fn cleanup_on_exit() {
         debug!("Process exiting, attempting to cleanup test database container...");
         // Note: We can't do async cleanup here, but the container will be cleaned up
         // by Docker eventually. This is just for logging.
     }
-    
+
     unsafe {
         libc::atexit(cleanup_on_exit);
     }
@@ -393,32 +393,34 @@ pub struct TestFixture {
 impl TestFixture {
     /// Create a new test fixture with database cleanup
     pub async fn new() -> Result<Self, DbErr> {
-        let database = TestDatabase::new().await.expect("Failed to create test database");
-        
+        let database = TestDatabase::new()
+            .await
+            .expect("Failed to create test database");
+
         // Clean up any existing data
         database.truncate_all_tables().await?;
-        
-        Ok(Self { 
+
+        Ok(Self {
             database,
             cleanup_container_on_drop: false,
         })
     }
-    
+
     /// Get the database connection
     pub fn db(&self) -> Arc<DatabaseConnection> {
         self.database.get_connection()
     }
-    
+
     /// Manual cleanup (automatically called on drop)
     pub async fn cleanup(&self) -> Result<(), DbErr> {
         self.database.truncate_all_tables().await
     }
-    
+
     /// Get the test configuration
     pub fn config(&self) -> AppConfig {
         self.database.create_test_config()
     }
-    
+
     /// Cleanup the global test container (stops and removes it)
     pub async fn cleanup_container() -> Result<(), DbErr> {
         let container_mutex = TEST_CONTAINER.get();
@@ -426,10 +428,10 @@ impl TestFixture {
             let mut container_guard = container_mutex.lock().await;
             if let Some(container_arc) = container_guard.take() {
                 info!("Manually cleaning up test database container");
-                
+
                 // Get the container name for fallback cleanup
                 let container_name = "iam-test-db";
-                
+
                 // Try to unwrap the Arc to get ownership
                 match Arc::try_unwrap(container_arc) {
                     Ok(container) => {
@@ -437,17 +439,20 @@ impl TestFixture {
                         info!("Test database container cleanup completed");
                     }
                     Err(arc) => {
-                        warn!("Could not cleanup container: still has {} references", Arc::strong_count(&arc));
+                        warn!(
+                            "Could not cleanup container: still has {} references",
+                            Arc::strong_count(&arc)
+                        );
                         info!("Attempting fallback cleanup using Docker commands");
-                        
+
                         // Fallback: use direct Docker commands
                         use std::process::Command;
-                        
+
                         // Stop the container
                         let stop_result = Command::new("docker")
                             .args(&["stop", container_name])
                             .output();
-                        
+
                         match stop_result {
                             Ok(output) if output.status.success() => {
                                 info!("Successfully stopped container {}", container_name);
@@ -460,12 +465,12 @@ impl TestFixture {
                                 warn!("Failed to execute docker stop: {}", e);
                             }
                         }
-                        
+
                         // Remove the container
                         let rm_result = Command::new("docker")
                             .args(&["rm", "-f", container_name])
                             .output();
-                        
+
                         match rm_result {
                             Ok(output) if output.status.success() => {
                                 info!("Successfully removed container {}", container_name);
@@ -488,7 +493,6 @@ impl TestFixture {
         }
         Ok(())
     }
-    
 }
 
 impl Drop for TestFixture {
@@ -497,13 +501,13 @@ impl Drop for TestFixture {
         if let Ok(rt) = tokio::runtime::Handle::try_current() {
             let database = self.database.connection.clone();
             let cleanup_container = self.cleanup_container_on_drop;
-            
+
             rt.spawn(async move {
                 // Always truncate tables
                 if let Err(e) = truncate_tables_best_effort(&database).await {
                     warn!("Failed to cleanup test database on drop: {}", e);
                 }
-                
+
                 // Optionally cleanup container
                 if cleanup_container {
                     info!("Cleaning up test container on TestFixture drop");
@@ -520,7 +524,7 @@ impl Drop for TestFixture {
 async fn truncate_tables_best_effort(connection: &DatabaseConnection) -> Result<(), DbErr> {
     // Simple truncation without detailed error handling
     let tables = ["refresh_tokens", "provider_tokens", "user_emails", "users"];
-    
+
     // Disable foreign key checks
     let _ = connection
         .execute(Statement::from_string(
@@ -528,7 +532,7 @@ async fn truncate_tables_best_effort(connection: &DatabaseConnection) -> Result<
             "SET session_replication_role = replica;".to_string(),
         ))
         .await;
-    
+
     // Truncate known tables
     for table in &tables {
         let sql = format!("TRUNCATE TABLE {} RESTART IDENTITY CASCADE;", table);
@@ -539,7 +543,7 @@ async fn truncate_tables_best_effort(connection: &DatabaseConnection) -> Result<
             ))
             .await;
     }
-    
+
     // Re-enable foreign key checks
     let _ = connection
         .execute(Statement::from_string(
@@ -547,6 +551,6 @@ async fn truncate_tables_best_effort(connection: &DatabaseConnection) -> Result<
             "SET session_replication_role = DEFAULT;".to_string(),
         ))
         .await;
-    
+
     Ok(())
 }

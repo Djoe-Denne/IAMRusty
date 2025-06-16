@@ -1,8 +1,11 @@
-use wiremock::{Mock, MockServer, ResponseTemplate, matchers::{method, path, header, body_string_contains}};
-use serde::Serialize;
-use std::sync::Arc;
 use super::resources::*;
 use crate::fixtures::common::MockServerFixture;
+use serde::Serialize;
+use std::sync::Arc;
+use wiremock::{
+    Mock, MockServer, ResponseTemplate,
+    matchers::{body_string_contains, header, method, path},
+};
 
 /// GitLab service for mocking GitLab OAuth endpoints
 pub struct GitLabService {
@@ -15,8 +18,8 @@ impl GitLabService {
     pub async fn new() -> Self {
         let fixture = MockServerFixture::new().await;
         let server = fixture.server();
-        
-        Self { 
+
+        Self {
             server,
             _fixture: fixture,
         }
@@ -47,7 +50,7 @@ impl GitLabService {
             .respond_with(
                 ResponseTemplate::new(status_code)
                     .set_body_json(response)
-                    .insert_header("content-type", "application/json")
+                    .insert_header("content-type", "application/json"),
             )
             .mount(&*self.server)
             .await;
@@ -66,11 +69,14 @@ impl GitLabService {
         Mock::given(method("GET"))
             .and(path("/api/v4/user"))
             .and(header("user-agent", &request.user_agent))
-            .and(header("authorization", format!("Bearer {}", request.access_token)))
+            .and(header(
+                "authorization",
+                format!("Bearer {}", request.access_token),
+            ))
             .respond_with(
                 ResponseTemplate::new(status_code)
                     .set_body_json(response)
-                    .insert_header("content-type", "application/json")
+                    .insert_header("content-type", "application/json"),
             )
             .mount(&*self.server)
             .await;
@@ -91,7 +97,7 @@ impl GitLabService {
             .respond_with(
                 ResponseTemplate::new(status_code)
                     .set_body_json(response)
-                    .insert_header("content-type", "application/json")
+                    .insert_header("content-type", "application/json"),
             )
             .mount(&*self.server)
             .await;
@@ -107,7 +113,8 @@ impl GitLabService {
             200,
             GitLabTokenRequest::valid(),
             GitLabTokenResponse::success(),
-        ).await
+        )
+        .await
     }
 
     /// Setup failed OAuth token exchange (invalid code)
@@ -116,7 +123,8 @@ impl GitLabService {
             400,
             GitLabTokenRequest::invalid_code(),
             GitLabError::invalid_grant(),
-        ).await
+        )
+        .await
     }
 
     /// Setup failed OAuth token exchange (invalid client)
@@ -125,16 +133,14 @@ impl GitLabService {
             401,
             GitLabTokenRequest::invalid_client(),
             GitLabError::invalid_client(),
-        ).await
+        )
+        .await
     }
 
     /// Setup successful user profile fetch for Alice
     pub async fn setup_successful_user_profile_alice(&self) -> &Self {
-        self.user_profile(
-            200,
-            GitLabUserRequest::authenticated(),
-            GitLabUser::alice(),
-        ).await
+        self.user_profile(200, GitLabUserRequest::authenticated(), GitLabUser::alice())
+            .await
     }
 
     /// Setup successful user profile fetch for Charlie
@@ -143,7 +149,8 @@ impl GitLabService {
             200,
             GitLabUserRequest::authenticated(),
             GitLabUser::charlie(),
-        ).await
+        )
+        .await
     }
 
     /// Setup failed user profile fetch (unauthorized)
@@ -152,7 +159,8 @@ impl GitLabService {
             401,
             GitLabUserRequest::invalid_token(),
             GitLabError::unauthorized(),
-        ).await
+        )
+        .await
     }
 
     /// Setup forbidden error (insufficient scope)
@@ -161,7 +169,8 @@ impl GitLabService {
             403,
             GitLabUserRequest::authenticated(),
             GitLabError::forbidden(),
-        ).await
+        )
+        .await
     }
 
     /// Setup rate limit exceeded error
@@ -170,7 +179,8 @@ impl GitLabService {
             429,
             GitLabUserRequest::authenticated(),
             GitLabError::rate_limit_exceeded(),
-        ).await
+        )
+        .await
     }
 
     /// Setup server error
@@ -179,8 +189,9 @@ impl GitLabService {
             500,
             GitLabUserRequest::authenticated(),
             GitLabError::server_error(),
-        ).await
+        )
+        .await
     }
 }
 
-// Note: Automatic cleanup happens when GitLabService is dropped via the MockServerFixture 
+// Note: Automatic cleanup happens when GitLabService is dropped via the MockServerFixture

@@ -1,48 +1,63 @@
-use std::sync::Arc;
 use anyhow::Result;
-use tracing::info;
 use chrono::Duration;
+use std::sync::Arc;
+use tracing::info;
 
-use http_server::{AppState, serve_with_config, ServerConfig as HttpServerConfig};
+use http_server::{AppState, ServerConfig as HttpServerConfig, serve_with_config};
 use infra::{
-    auth::{GitHubOAuth2Client, GitLabOAuth2Client, PasswordService, PasswordServiceAdapter}, db::DbConnectionPool, event_adapter::{create_multi_queue_event_publisher_async}, repository::{
-        combined_email_verification_repository::CombinedEmailVerificationRepository, combined_repository::{CombinedRefreshTokenRepository, CombinedTokenRepository, CombinedUserRepository}, combined_user_email_repository::CombinedUserEmailRepository, email_verification_read::SeaOrmEmailVerificationReadRepository, email_verification_write::SeaOrmEmailVerificationWriteRepository, refresh_token_read::RefreshTokenReadRepositoryImpl, refresh_token_write::RefreshTokenWriteRepositoryImpl, token_read::TokenReadRepositoryImpl, token_write::TokenWriteRepositoryImpl, user_email_read::UserEmailReadRepositoryImpl, user_email_write::UserEmailWriteRepositoryImpl, user_read::UserReadRepositoryImpl, user_write::UserWriteRepositoryImpl
-    }, token::JwtTokenService
+    auth::{GitHubOAuth2Client, GitLabOAuth2Client, PasswordService, PasswordServiceAdapter},
+    db::DbConnectionPool,
+    event_adapter::create_multi_queue_event_publisher_async,
+    repository::{
+        combined_email_verification_repository::CombinedEmailVerificationRepository,
+        combined_repository::{
+            CombinedRefreshTokenRepository, CombinedTokenRepository, CombinedUserRepository,
+        },
+        combined_user_email_repository::CombinedUserEmailRepository,
+        email_verification_read::SeaOrmEmailVerificationReadRepository,
+        email_verification_write::SeaOrmEmailVerificationWriteRepository,
+        refresh_token_read::RefreshTokenReadRepositoryImpl,
+        refresh_token_write::RefreshTokenWriteRepositoryImpl,
+        token_read::TokenReadRepositoryImpl,
+        token_write::TokenWriteRepositoryImpl,
+        user_email_read::UserEmailReadRepositoryImpl,
+        user_email_write::UserEmailWriteRepositoryImpl,
+        user_read::UserReadRepositoryImpl,
+        user_write::UserWriteRepositoryImpl,
+    },
+    token::JwtTokenService,
 };
 
 use configuration::AppConfig;
 
 use application::{
+    command::{CommandRegistryFactory, GenericCommandService},
     usecase::{
-        login::LoginUseCaseImpl,
-        user::UserUseCaseImpl,
-        token::TokenUseCaseImpl,
-        link_provider::LinkProviderUseCaseImpl,
-        provider::ProviderUseCaseImpl,
-        oauth::OAuthUseCaseImpl,
-        registration::RegistrationUseCaseImpl,
-    },
-    command::{
-        CommandRegistryFactory, GenericCommandService,
+        link_provider::LinkProviderUseCaseImpl, login::LoginUseCaseImpl, oauth::OAuthUseCaseImpl,
+        provider::ProviderUseCaseImpl, registration::RegistrationUseCaseImpl,
+        token::TokenUseCaseImpl, user::UserUseCaseImpl,
     },
 };
 
 use crate::config::ServerConfig;
-pub async fn build_and_run(
-    config: AppConfig,
-    app_config: ServerConfig,
-) -> Result<()> {
+pub async fn build_and_run(config: AppConfig, app_config: ServerConfig) -> Result<()> {
     let app_state = build_app_state(config.clone()).await?;
     run_server(app_state, app_config).await
 }
 
 pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
     info!("Building IAM service...");
-    
+
     // Setup database connection pool
     let db_pool = DbConnectionPool::new(&config.database).await?;
-    info!("Database connection pool initialized with {} read replicas", 
-          if config.database.read_replicas.is_empty() { 0 } else { config.database.read_replicas.len() });
+    info!(
+        "Database connection pool initialized with {} read replicas",
+        if config.database.read_replicas.is_empty() {
+            0
+        } else {
+            config.database.read_replicas.len()
+        }
+    );
 
     // Create repositories
     let user_read_repo = UserReadRepositoryImpl::new(db_pool.get_read_connection());
@@ -51,11 +66,14 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
 
     let user_email_read_repo = UserEmailReadRepositoryImpl::new(db_pool.get_read_connection());
     let user_email_write_repo = UserEmailWriteRepositoryImpl::new(db_pool.get_write_connection());
-    let user_email_repo = CombinedUserEmailRepository::new(user_email_read_repo, user_email_write_repo);
+    let user_email_repo =
+        CombinedUserEmailRepository::new(user_email_read_repo, user_email_write_repo);
 
     // Create email verification repositories
-    let email_verification_read_repo = SeaOrmEmailVerificationReadRepository::new(db_pool.get_read_connection());
-    let email_verification_write_repo = SeaOrmEmailVerificationWriteRepository::new(db_pool.get_write_connection());
+    let email_verification_read_repo =
+        SeaOrmEmailVerificationReadRepository::new(db_pool.get_read_connection());
+    let email_verification_write_repo =
+        SeaOrmEmailVerificationWriteRepository::new(db_pool.get_write_connection());
     let email_verification_repo = CombinedEmailVerificationRepository::new_with_sea_orm(
         Arc::new(email_verification_read_repo),
         Arc::new(email_verification_write_repo),
@@ -63,20 +81,24 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
 
     let token_read_repo = TokenReadRepositoryImpl::new(db_pool.get_read_connection());
     let token_write_repo = TokenWriteRepositoryImpl::new(db_pool.get_write_connection());
-    let token_repo_login = CombinedTokenRepository::new(token_read_repo.clone(), token_write_repo.clone());
-    
+    let token_repo_login =
+        CombinedTokenRepository::new(token_read_repo.clone(), token_write_repo.clone());
+
     let token_read_repo_link = TokenReadRepositoryImpl::new(db_pool.get_read_connection());
     let token_write_repo_link = TokenWriteRepositoryImpl::new(db_pool.get_write_connection());
     let token_repo_link = CombinedTokenRepository::new(token_read_repo_link, token_write_repo_link);
-    
-    let refresh_token_read_repo = RefreshTokenReadRepositoryImpl::new(db_pool.get_read_connection());
-    let refresh_token_write_repo = RefreshTokenWriteRepositoryImpl::new(db_pool.get_write_connection());
-    let refresh_token_repo = CombinedRefreshTokenRepository::new(refresh_token_read_repo, refresh_token_write_repo);
+
+    let refresh_token_read_repo =
+        RefreshTokenReadRepositoryImpl::new(db_pool.get_read_connection());
+    let refresh_token_write_repo =
+        RefreshTokenWriteRepositoryImpl::new(db_pool.get_write_connection());
+    let refresh_token_repo =
+        CombinedRefreshTokenRepository::new(refresh_token_read_repo, refresh_token_write_repo);
 
     // Create auth services
     let github_auth_login = GitHubOAuth2Client::from_config(&config.oauth.github);
     let gitlab_auth_login = GitLabOAuth2Client::from_config(&config.oauth.gitlab);
-    
+
     let github_auth_link = GitHubOAuth2Client::from_config(&config.oauth.github);
     let gitlab_auth_link = GitLabOAuth2Client::from_config(&config.oauth.gitlab);
 
@@ -87,17 +109,17 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
     // Create event publisher using configuration
     // For now, create a multi-queue publisher that handles all configured queues
     // You can modify this to handle specific queues by passing Some(queue_names_set)
-    // 
+    //
     // Examples:
-    // 
+    //
     // 1. Handle all queues (current behavior):
     // let event_publisher = create_multi_queue_event_publisher_async(&config.queue, None).await?;
-    // 
+    //
     // 2. Handle only specific queues:
     // let mut specific_queues = HashSet::new();
     // specific_queues.insert("test-user-events".to_string());
     // let event_publisher = create_multi_queue_event_publisher_async(&config.queue, Some(specific_queues)).await?;
-    // 
+    //
     // 3. Handle queues based on environment:
     // let queue_names = if config.is_test_environment() {
     //     let mut test_queues = HashSet::new();
@@ -111,22 +133,28 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
 
     // Create token service with secret resolved from configuration
     tracing::info!("Setting up JWT token service");
-    let jwt_algorithm_config = config.jwt.create_jwt_algorithm()
-        .map_err(|e| {
-            tracing::error!("Failed to create JWT algorithm from configuration: {}", e);
-            anyhow::anyhow!("Failed to create JWT algorithm from configuration: {}", e)
-        })?;
+    let jwt_algorithm_config = config.jwt.create_jwt_algorithm().map_err(|e| {
+        tracing::error!("Failed to create JWT algorithm from configuration: {}", e);
+        anyhow::anyhow!("Failed to create JWT algorithm from configuration: {}", e)
+    })?;
     tracing::debug!("Successfully created JWT algorithm config");
-    
+
     // Convert configuration JwtAlgorithm to infra JwtAlgorithm
     let jwt_algorithm = match jwt_algorithm_config.clone() {
         configuration::JwtAlgorithm::HS256(secret) => {
-            tracing::info!("Using HMAC256 JWT algorithm (secret length: {})", secret.len());
+            tracing::info!(
+                "Using HMAC256 JWT algorithm (secret length: {})",
+                secret.len()
+            );
             infra::token::JwtAlgorithm::HS256(secret)
         }
         configuration::JwtAlgorithm::RS256(key_pair) => {
-            tracing::info!("Using RSA256 JWT algorithm (key_id: {}, private_key: {} bytes, public_key: {} bytes)", 
-                key_pair.kid, key_pair.private_key.len(), key_pair.public_key.len());
+            tracing::info!(
+                "Using RSA256 JWT algorithm (key_id: {}, private_key: {} bytes, public_key: {} bytes)",
+                key_pair.kid,
+                key_pair.private_key.len(),
+                key_pair.public_key.len()
+            );
             infra::token::JwtAlgorithm::RS256(domain::entity::token::JwtKeyPair {
                 private_key: key_pair.private_key,
                 public_key: key_pair.public_key,
@@ -134,7 +162,7 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
             })
         }
     };
-    
+
     let token_service = Arc::new(JwtTokenService::with_refresh_expiration(
         jwt_algorithm,
         config.jwt.expiration_seconds,
@@ -144,20 +172,24 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
 
     // Create registration token service
     tracing::info!("Creating registration token service");
-    let registration_token_service = Arc::new(infra::token::RegistrationTokenServiceImpl::new(
-        infra::token::JwtAlgorithm::from(jwt_algorithm_config.clone()),
-    ).unwrap());
+    let registration_token_service = Arc::new(
+        infra::token::RegistrationTokenServiceImpl::new(infra::token::JwtAlgorithm::from(
+            jwt_algorithm_config.clone(),
+        ))
+        .unwrap(),
+    );
 
-    // Create OAuth service for OAuth flows  
+    // Create OAuth service for OAuth flows
     let mut oauth_service = domain::service::oauth_service::OAuthService::new(
         user_repo.clone(),
         token_repo_login,
+        user_email_repo.clone(),
         domain::service::TokenService::new(
             Box::new(token_service.as_ref().clone()),
             chrono::Duration::hours(1),
         ),
     );
-    
+
     // Register OAuth provider clients
     oauth_service.register_provider_client(
         domain::entity::provider::Provider::GitHub,
@@ -167,8 +199,9 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
         domain::entity::provider::Provider::GitLab,
         Box::new(gitlab_auth_login),
     );
-    
-    let oauth_usecase = OAuthUseCaseImpl::new(Arc::new(oauth_service), registration_token_service.clone());
+
+    let oauth_usecase =
+        OAuthUseCaseImpl::new(Arc::new(oauth_service), registration_token_service.clone());
 
     // Create provider link service for domain business logic
     let provider_link_service = Arc::new(domain::service::ProviderLinkService::new(
@@ -189,17 +222,15 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
         Arc::new(user_email_repo.clone()),
         token_service.clone(),
     ));
-    
+
     let refresh_token_service = Arc::new(domain::service::RefreshTokenServiceImpl::new(
         Arc::new(refresh_token_repo.clone()),
         token_service.clone(),
     ));
-    
+
     // Create use cases with domain services
     let user_usecase = UserUseCaseImpl::new(user_service.clone());
     let token_usecase = TokenUseCaseImpl::new(refresh_token_service.clone());
-
-
 
     tracing::info!("Creating auth service for login use case");
     let auth_service = Arc::new(domain::service::auth_service::AuthService::new(
@@ -211,7 +242,7 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
         registration_token_service.clone(),
         event_publisher.clone(),
     ));
-    
+
     tracing::info!("Creating login use case with verification token support");
     let login_usecase = LoginUseCaseImpl::new(auth_service);
 
@@ -225,42 +256,48 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
         token_service.clone(),
         event_publisher.clone(),
     ));
-    
+
     tracing::info!("Creating registration use case");
-    let registration_usecase = Arc::new(RegistrationUseCaseImpl::new(
-        registration_service,
-    ));
+    let registration_usecase = Arc::new(RegistrationUseCaseImpl::new(registration_service));
 
     // Create provider usecase
     // For provider usecase, we only need the get_provider_token method from AuthService
     // which doesn't use the TokenService, so we can create a minimal one
     #[derive(Debug, Clone)]
     struct MinimalJwtTokenEncoder;
-    
+
     impl domain::port::service::JwtTokenEncoder for MinimalJwtTokenEncoder {
-        fn encode(&self, _claims: &domain::entity::token::TokenClaims) -> Result<String, domain::error::DomainError> {
+        fn encode(
+            &self,
+            _claims: &domain::entity::token::TokenClaims,
+        ) -> Result<String, domain::error::DomainError> {
             Ok("dummy_token".to_string())
         }
-        fn decode(&self, _token: &str) -> Result<domain::entity::token::TokenClaims, domain::error::DomainError> {
+        fn decode(
+            &self,
+            _token: &str,
+        ) -> Result<domain::entity::token::TokenClaims, domain::error::DomainError> {
             Err(domain::error::DomainError::InvalidToken)
         }
         fn jwks(&self) -> domain::entity::token::JwkSet {
             domain::entity::token::JwkSet { keys: vec![] }
         }
     }
-    
+
     // Create separate token repository for provider auth service
     let token_read_repo_provider = TokenReadRepositoryImpl::new(db_pool.get_read_connection());
     let token_write_repo_provider = TokenWriteRepositoryImpl::new(db_pool.get_write_connection());
-    let token_repo_provider = CombinedTokenRepository::new(token_read_repo_provider, token_write_repo_provider);
-    
+    let token_repo_provider =
+        CombinedTokenRepository::new(token_read_repo_provider, token_write_repo_provider);
+
     let provider_auth_service = domain::service::oauth_service::OAuthService::new(
         user_repo.clone(),
         token_repo_provider,
+        user_email_repo.clone(),
         domain::service::token_service::TokenService::new(
             Box::new(MinimalJwtTokenEncoder),
-            Duration::hours(1)
-        )
+            Duration::hours(1),
+        ),
     );
     let provider_usecase = ProviderUseCaseImpl::new(Arc::new(provider_auth_service));
 
@@ -270,12 +307,11 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
         Arc::new(user_email_repo),
         token_service.clone(),
     ));
-    
-    let refresh_token_service_for_commands = Arc::new(domain::service::RefreshTokenServiceImpl::new(
-        Arc::new(refresh_token_repo),
-        token_service,
-    ));
-    
+
+    let refresh_token_service_for_commands = Arc::new(
+        domain::service::RefreshTokenServiceImpl::new(Arc::new(refresh_token_repo), token_service),
+    );
+
     let user_usecase_for_commands = UserUseCaseImpl::new(user_service_for_commands);
     let token_usecase_for_commands = TokenUseCaseImpl::new(refresh_token_service_for_commands);
 
@@ -318,11 +354,18 @@ pub async fn run_server(app_state: AppState, app_config: ServerConfig) -> Result
 
     // Start server (HTTP or HTTPS based on configuration)
     if server_config.tls_enabled {
-        info!("Starting HTTPS server on {}:{}", server_config.host, server_config.tls_port.unwrap());
+        info!(
+            "Starting HTTPS server on {}:{}",
+            server_config.host,
+            server_config.tls_port.unwrap()
+        );
     } else {
-        info!("Starting HTTP server on {}:{}", server_config.host, server_config.port);
+        info!(
+            "Starting HTTP server on {}:{}",
+            server_config.host, server_config.port
+        );
     }
-    
+
     serve_with_config(app_state, server_config).await?;
 
     Ok(())

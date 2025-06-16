@@ -1,6 +1,6 @@
 //! Auth provider factory for creating provider-specific authentication services
 
-use crate::auth::{OAuthService, AuthError as OAuthError};
+use crate::auth::{AuthError as OAuthError, OAuthService};
 use domain::entity::provider::Provider;
 use std::sync::Arc;
 use thiserror::Error;
@@ -39,7 +39,10 @@ where
 
     /// Get the authentication service for a specific provider
     /// Returns the concrete type wrapped in Arc with unified error type
-    pub fn get_oauth_service(&self, provider: Provider) -> Arc<dyn OAuthService<Error = OAuthError>> {
+    pub fn get_oauth_service(
+        &self,
+        provider: Provider,
+    ) -> Arc<dyn OAuthService<Error = OAuthError>> {
         match provider {
             Provider::GitHub => Arc::new(OAuthServiceWrapper::new(self.github_auth.clone())),
             Provider::GitLab => Arc::new(OAuthServiceWrapper::new(self.gitlab_auth.clone())),
@@ -78,10 +81,16 @@ where
         &self,
         code: String,
         redirect_uri: String,
-    ) -> Result<(domain::entity::provider::ProviderTokens, domain::entity::provider::ProviderUserProfile), Self::Error> {
+    ) -> Result<
+        (
+            domain::entity::provider::ProviderTokens,
+            domain::entity::provider::ProviderUserProfile,
+        ),
+        Self::Error,
+    > {
         self.inner
             .exchange_code(code, redirect_uri)
             .await
             .map_err(|e| OAuthError::AuthenticationError(e.to_string()))
     }
-} 
+}

@@ -2,16 +2,16 @@ use async_trait::async_trait;
 use std::sync::Arc;
 
 use crate::entity::{
+    events::{DomainEvent, UserSignedUpEvent},
     user::User,
     user_email::UserEmail,
-    events::{DomainEvent, UserSignedUpEvent},
-};
-use crate::port::{
-    repository::{UserEmailRepository, UserReadRepository, UserWriteRepository},
-    service::{RegistrationTokenService, AuthTokenService},
-    event_publisher::EventPublisher,
 };
 use crate::error::DomainError;
+use crate::port::{
+    event_publisher::EventPublisher,
+    repository::{UserEmailRepository, UserReadRepository, UserWriteRepository},
+    service::{AuthTokenService, RegistrationTokenService},
+};
 
 /// Registration completion result
 #[derive(Debug)]
@@ -42,7 +42,10 @@ impl UsernameValidator {
         if username.len() > 50 {
             return Err(DomainError::InvalidUsername);
         }
-        if !username.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-') {
+        if !username
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+        {
             return Err(DomainError::InvalidUsername);
         }
         // Require at least one letter (cannot be only numbers/symbols)
@@ -55,15 +58,16 @@ impl UsernameValidator {
     /// Generate username suggestions when username is taken
     pub fn generate_suggestions(base_username: &str) -> Vec<String> {
         let mut suggestions = Vec::new();
-        
+
         // Add numeric suffixes
-        for i in 1..=4 {        
+        for i in 1..=4 {
             // Add timestamp-based suffix (simpler than rand)
             use std::time::{SystemTime, UNIX_EPOCH};
             let timestamp = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap_or_default()
-                .as_millis() % 1000; // Get last 3 digits of milliseconds
+                .as_millis()
+                % 1000; // Get last 3 digits of milliseconds
             suggestions.push(format!("{}_{}", base_username, timestamp));
         }
         suggestions
@@ -79,7 +83,7 @@ pub trait RegistrationService: Send + Sync {
         registration_token: &str,
         username: String,
     ) -> Result<RegistrationCompletionResult, DomainError>;
-    
+
     /// Check username availability
     async fn check_username(&self, username: &str) -> Result<UsernameCheckResult, DomainError>;
 }
@@ -131,7 +135,8 @@ where
 }
 
 #[async_trait]
-impl<UR, UW, UER, RTS, TS, EP> RegistrationService for RegistrationServiceImpl<UR, UW, UER, RTS, TS, EP>
+impl<UR, UW, UER, RTS, TS, EP> RegistrationService
+    for RegistrationServiceImpl<UR, UW, UER, RTS, TS, EP>
 where
     UR: UserReadRepository + Send + Sync,
     UW: UserWriteRepository + Send + Sync,
@@ -153,14 +158,17 @@ where
         UsernameValidator::validate(&username)?;
 
         // Validate and decode registration token
-        let token_claims = self.registration_token_service
+        let token_claims = self
+            .registration_token_service
             .validate_registration_token(registration_token)?;
 
         // Get user by ID from token
-        let user_id = token_claims.get_user_id()
+        let user_id = token_claims
+            .get_user_id()
             .map_err(|_| DomainError::InvalidToken)?;
 
-        let mut user = self.user_read_repo
+        let mut user = self
+            .user_read_repo
             .find_by_id(user_id)
             .await
             .map_err(|e| DomainError::RepositoryError(e.to_string()))?
@@ -178,13 +186,15 @@ where
 
         // Update user with username
         user.complete_registration(username.clone());
-        let updated_user = self.user_write_repo
+        let updated_user = self
+            .user_write_repo
             .update(user)
             .await
             .map_err(|e| DomainError::RepositoryError(e.to_string()))?;
 
         // Get user's primary email
-        let user_email = self.user_email_repo
+        let user_email = self
+            .user_email_repo
             .find_by_user_id(user_id)
             .await
             .map_err(|e| DomainError::RepositoryError(e.to_string()))?
@@ -193,12 +203,14 @@ where
             .ok_or_else(|| DomainError::RepositoryError("Primary email not found".to_string()))?;
 
         // Generate access and refresh tokens
-        let access_token = self.token_service
+        let access_token = self
+            .token_service
             .generate_access_token(user_id)
             .await
             .map_err(|e| DomainError::TokenServiceError(e.to_string()))?;
 
-        let refresh_token = self.token_service
+        let refresh_token = self
+            .token_service
             .generate_refresh_token(user_id)
             .await
             .map_err(|e| DomainError::TokenServiceError(e.to_string()))?;
@@ -238,7 +250,8 @@ where
         }
 
         // Check if username exists
-        let exists = self.user_read_repo
+        let exists = self
+            .user_read_repo
             .find_by_username(username)
             .await
             .map_err(|e| DomainError::RepositoryError(e.to_string()))?
@@ -258,4 +271,4 @@ where
 
         Ok(result)
     }
-} 
+}

@@ -1,18 +1,16 @@
-use domain::entity::{
-    token::{JwkSet, Jwk, TokenClaims, JwtKeyPair, JwtToken, RefreshToken},
-};
-use domain::error::DomainError;
-use domain::port::service::{JwtTokenEncoder, AuthTokenService};
-use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation};
-use rsa::{RsaPublicKey, pkcs8::DecodePublicKey, traits::PublicKeyParts};
-use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
-use tracing::{debug, error};
 use async_trait::async_trait;
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use chrono::{Duration, Utc};
-use uuid::Uuid;
-use rand::Rng;
-use thiserror::Error;
 use configuration;
+use domain::entity::token::{Jwk, JwkSet, JwtKeyPair, JwtToken, RefreshToken, TokenClaims};
+use domain::error::DomainError;
+use domain::port::service::{AuthTokenService, JwtTokenEncoder};
+use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation};
+use rand::Rng;
+use rsa::{pkcs8::DecodePublicKey, traits::PublicKeyParts, RsaPublicKey};
+use thiserror::Error;
+use tracing::{debug, error};
+use uuid::Uuid;
 
 /// JWT token service error
 #[derive(Debug, Error)]
@@ -20,15 +18,15 @@ pub enum TokenError {
     /// JWT encoding/decoding error
     #[error("JWT error: {0}")]
     JwtError(#[from] jsonwebtoken::errors::Error),
-    
+
     /// Invalid token
     #[error("Invalid token")]
     InvalidToken,
-    
+
     /// Token expired
     #[error("Token expired")]
     TokenExpired,
-    
+
     /// Generic error
     #[error("Token error: {0}")]
     GenericError(String),
@@ -84,7 +82,11 @@ impl JwtTokenService {
     }
 
     /// Create a new JwtTokenService with custom refresh token expiration
-    pub fn with_refresh_expiration(algorithm_config: JwtAlgorithm, access_token_expiration: u64, refresh_token_expiration: u64) -> Self {
+    pub fn with_refresh_expiration(
+        algorithm_config: JwtAlgorithm,
+        access_token_expiration: u64,
+        refresh_token_expiration: u64,
+    ) -> Self {
         Self {
             algorithm_config,
             access_token_expiration,
@@ -111,15 +113,12 @@ impl JwtTokenService {
     fn get_encoding_key(&self) -> Result<EncodingKey, DomainError> {
         match &self.algorithm_config {
             JwtAlgorithm::RS256(key_pair) => {
-                EncodingKey::from_rsa_pem(key_pair.private_key.as_bytes())
-                    .map_err(|e| {
-                        error!("Failed to create RSA encoding key: {}", e);
-                        DomainError::AuthorizationError(format!("Invalid private key: {}", e))
-                    })
+                EncodingKey::from_rsa_pem(key_pair.private_key.as_bytes()).map_err(|e| {
+                    error!("Failed to create RSA encoding key: {}", e);
+                    DomainError::AuthorizationError(format!("Invalid private key: {}", e))
+                })
             }
-            JwtAlgorithm::HS256(secret) => {
-                Ok(EncodingKey::from_secret(secret.as_bytes()))
-            }
+            JwtAlgorithm::HS256(secret) => Ok(EncodingKey::from_secret(secret.as_bytes())),
         }
     }
 
@@ -127,15 +126,12 @@ impl JwtTokenService {
     fn get_decoding_key(&self) -> Result<DecodingKey, DomainError> {
         match &self.algorithm_config {
             JwtAlgorithm::RS256(key_pair) => {
-                DecodingKey::from_rsa_pem(key_pair.public_key.as_bytes())
-                    .map_err(|e| {
-                        error!("Failed to create RSA decoding key: {}", e);
-                        DomainError::InvalidToken
-                    })
+                DecodingKey::from_rsa_pem(key_pair.public_key.as_bytes()).map_err(|e| {
+                    error!("Failed to create RSA decoding key: {}", e);
+                    DomainError::InvalidToken
+                })
             }
-            JwtAlgorithm::HS256(secret) => {
-                Ok(DecodingKey::from_secret(secret.as_bytes()))
-            }
+            JwtAlgorithm::HS256(secret) => Ok(DecodingKey::from_secret(secret.as_bytes())),
         }
     }
 
@@ -173,7 +169,7 @@ impl JwtTokenService {
 impl JwtTokenEncoder for JwtTokenService {
     fn encode(&self, claims: &TokenClaims) -> Result<String, DomainError> {
         debug!("Encoding JWT token for user: {}", claims.sub);
-        
+
         let mut header = Header {
             alg: self.get_algorithm(),
             ..Default::default()
@@ -186,36 +182,33 @@ impl JwtTokenEncoder for JwtTokenService {
 
         let encoding_key = self.get_encoding_key()?;
 
-        jsonwebtoken::encode(&header, claims, &encoding_key)
-            .map_err(|e| {
-                error!("Failed to encode JWT: {}", e);
-                DomainError::AuthorizationError(format!("Token encoding failed: {}", e))
-            })
+        jsonwebtoken::encode(&header, claims, &encoding_key).map_err(|e| {
+            error!("Failed to encode JWT: {}", e);
+            DomainError::AuthorizationError(format!("Token encoding failed: {}", e))
+        })
     }
 
     fn decode(&self, token: &str) -> Result<TokenClaims, DomainError> {
         debug!("Decoding JWT token");
-        
+
         let decoding_key = self.get_decoding_key()?;
 
         let mut validation = Validation::new(self.get_algorithm());
         validation.set_required_spec_claims(&["sub", "exp", "iat", "jti"]);
 
         let token_data = jsonwebtoken::decode::<TokenClaims>(token, &decoding_key, &validation)
-            .map_err(|e| {
-                match e.kind() {
-                    jsonwebtoken::errors::ErrorKind::ExpiredSignature => {
-                        debug!("JWT token expired");
-                        DomainError::TokenExpired
-                    }
-                    jsonwebtoken::errors::ErrorKind::InvalidSignature => {
-                        debug!("JWT token has invalid signature");
-                        DomainError::InvalidToken
-                    }
-                    _ => {
-                        error!("JWT validation error: {}", e);
-                        DomainError::InvalidToken
-                    }
+            .map_err(|e| match e.kind() {
+                jsonwebtoken::errors::ErrorKind::ExpiredSignature => {
+                    debug!("JWT token expired");
+                    DomainError::TokenExpired
+                }
+                jsonwebtoken::errors::ErrorKind::InvalidSignature => {
+                    debug!("JWT token has invalid signature");
+                    DomainError::InvalidToken
+                }
+                _ => {
+                    error!("JWT validation error: {}", e);
+                    DomainError::InvalidToken
                 }
             })?;
 
@@ -224,7 +217,7 @@ impl JwtTokenEncoder for JwtTokenService {
 
     fn jwks(&self) -> JwkSet {
         debug!("Building JWKS");
-        
+
         match &self.algorithm_config {
             JwtAlgorithm::RS256(key_pair) => {
                 // Parse the RSA public key to extract modulus and exponent
@@ -242,24 +235,18 @@ impl JwtTokenEncoder for JwtTokenService {
                         debug!("Successfully created JWKS with RSA key (kid: {}, modulus length: {} chars)", 
                             key_pair.kid, n.len());
 
-                        JwkSet {
-                            keys: vec![jwk],
-                        }
+                        JwkSet { keys: vec![jwk] }
                     }
                     Err(e) => {
                         error!("Failed to extract RSA components for JWKS: {}", e);
                         // Return empty JWKS if we can't parse the key
-                        JwkSet {
-                            keys: vec![],
-                        }
+                        JwkSet { keys: vec![] }
                     }
                 }
             }
             JwtAlgorithm::HS256(_) => {
                 // HMAC keys are not included in JWKS for security reasons
-                JwkSet {
-                    keys: vec![],
-                }
+                JwkSet { keys: vec![] }
             }
         }
     }
@@ -273,7 +260,7 @@ impl AuthTokenService for JwtTokenService {
     async fn generate_access_token(&self, user_id: Uuid) -> Result<JwtToken, Self::Error> {
         let now = Utc::now();
         let expires_at = now + Duration::seconds(self.access_token_expiration as i64);
-        
+
         let claims = TokenClaims {
             sub: user_id.to_string(),
             username: "".to_string(), // This could be enhanced to include username
@@ -281,17 +268,14 @@ impl AuthTokenService for JwtTokenService {
             iat: now.timestamp(),
             jti: Uuid::new_v4().to_string(),
         };
-        
-        let token = self.encode(&claims)
-            .map_err(|e| {
-                match e {
-                    DomainError::AuthorizationError(msg) => TokenError::GenericError(msg),
-                    DomainError::InvalidToken => TokenError::InvalidToken,
-                    DomainError::TokenExpired => TokenError::TokenExpired,
-                    _ => TokenError::GenericError(e.to_string()),
-                }
-            })?;
-        
+
+        let token = self.encode(&claims).map_err(|e| match e {
+            DomainError::AuthorizationError(msg) => TokenError::GenericError(msg),
+            DomainError::InvalidToken => TokenError::InvalidToken,
+            DomainError::TokenExpired => TokenError::TokenExpired,
+            _ => TokenError::GenericError(e.to_string()),
+        })?;
+
         Ok(JwtToken {
             user_id,
             token,
@@ -303,7 +287,7 @@ impl AuthTokenService for JwtTokenService {
         let now = Utc::now();
         let expires_at = now + Duration::seconds(self.refresh_token_expiration as i64);
         let token = self.generate_random_token();
-        
+
         Ok(RefreshToken {
             id: Uuid::new_v4(),
             user_id,
@@ -315,18 +299,14 @@ impl AuthTokenService for JwtTokenService {
     }
 
     async fn validate_access_token(&self, token: &str) -> Result<Uuid, Self::Error> {
-        let claims = self.decode(token)
-            .map_err(|e| {
-                match e {
-                    DomainError::TokenExpired => TokenError::TokenExpired,
-                    DomainError::InvalidToken => TokenError::InvalidToken,
-                    _ => TokenError::GenericError(e.to_string()),
-                }
-            })?;
-        
-        let user_id = Uuid::parse_str(&claims.sub)
-            .map_err(|_| TokenError::InvalidToken)?;
-        
+        let claims = self.decode(token).map_err(|e| match e {
+            DomainError::TokenExpired => TokenError::TokenExpired,
+            DomainError::InvalidToken => TokenError::InvalidToken,
+            _ => TokenError::GenericError(e.to_string()),
+        })?;
+
+        let user_id = Uuid::parse_str(&claims.sub).map_err(|_| TokenError::InvalidToken)?;
+
         Ok(user_id)
     }
 
@@ -334,6 +314,8 @@ impl AuthTokenService for JwtTokenService {
         // This is just a stub implementation
         // The actual validation will query the database to check if the token exists and is valid
         // That is handled by the RefreshToken repository and use case
-        Err(TokenError::GenericError("Not implemented directly in the token service".to_string()))
+        Err(TokenError::GenericError(
+            "Not implemented directly in the token service".to_string(),
+        ))
     }
-} 
+}

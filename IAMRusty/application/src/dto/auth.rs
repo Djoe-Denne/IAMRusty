@@ -8,7 +8,7 @@ use super::UserProfileDto;
 pub struct AuthResponseDto {
     /// JWT token
     pub token: String,
-    
+
     /// User profile
     pub user: UserProfileDto,
 }
@@ -18,7 +18,7 @@ pub struct AuthResponseDto {
 pub struct ProviderTokenResponseDto {
     /// Access token
     pub access_token: String,
-    
+
     /// Token expiration in seconds
     pub expires_in: Option<u64>,
 }
@@ -183,4 +183,4 @@ pub enum LoginResponse {
         message: String,
         registration_token: String,
     },
-} 
+}

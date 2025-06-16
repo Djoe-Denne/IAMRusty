@@ -1,14 +1,15 @@
 use axum::{
-    extract::{State, FromRequestParts},
-    http::{Request, StatusCode, request::Parts},
+    body::Body,
+    extract::{FromRequestParts, State},
+    http::{request::Parts, Request, StatusCode},
     middleware::Next,
     response::Response,
-    body::Body,
 };
+use tracing::debug;
 
-use application::command::{CommandContext, CommandError, user::ValidateTokenCommand};
-use uuid::Uuid;
+use application::command::{user::ValidateTokenCommand, CommandContext, CommandError};
 use std::collections::HashMap;
+use uuid::Uuid;
 
 /// Authenticated user information extracted from middleware
 #[derive(Debug, Clone)]
@@ -59,15 +60,22 @@ pub async fn auth(
     let token = extract_token(auth_header).ok_or(StatusCode::UNAUTHORIZED)?;
 
     // Create command context for token validation
+    let request_id = req
+        .headers()
+        .get("x-request-id")
+        .and_then(|h| h.to_str().ok())
+        .map(|s| s.to_string());
     let context = CommandContext {
         execution_id: Uuid::new_v4(),
         user_id: None,
-        request_id: req.headers()
-            .get("x-request-id")
-            .and_then(|h| h.to_str().ok())
-            .map(|s| s.to_string()),
+        request_id: request_id.clone(),
         metadata: HashMap::new(),
     };
+
+    debug!(
+        "Try to validate token for query {}",
+        request_id.unwrap_or_default()
+    );
 
     // Validate the token using command service
     let command = ValidateTokenCommand::new(token.to_string());
@@ -90,4 +98,4 @@ pub async fn auth(
 
     // Continue with the request
     Ok(next.run(req).await)
-} 
+}

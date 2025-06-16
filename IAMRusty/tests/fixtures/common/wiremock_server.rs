@@ -1,8 +1,8 @@
-use wiremock::MockServer;
 use std::sync::Arc;
-use tokio::sync::OnceCell;
 use std::sync::atomic::{AtomicBool, Ordering};
-use tracing::{info, debug};
+use tokio::sync::OnceCell;
+use tracing::{debug, info};
+use wiremock::MockServer;
 
 /// Shared wiremock server instance for all fixtures
 static MOCK_SERVER: OnceCell<Arc<MockServer>> = OnceCell::const_new();
@@ -15,15 +15,15 @@ pub async fn get_mock_server() -> Arc<MockServer> {
     MOCK_SERVER
         .get_or_init(|| async {
             // Create a TCP listener on port 3000
-            let listener = std::net::TcpListener::bind("127.0.0.1:3000")
-                .expect("Failed to bind to port 3000");
-            
+            let listener =
+                std::net::TcpListener::bind("127.0.0.1:3000").expect("Failed to bind to port 3000");
+
             let server = Arc::new(MockServer::builder().listener(listener).start().await);
             debug!("🚀 Started shared wiremock server at: {}", server.uri());
-            
+
             // Register cleanup handler on first server creation
             register_cleanup_handler().await;
-            
+
             server
         })
         .await
@@ -51,9 +51,9 @@ async fn register_cleanup_handler() {
     if CLEANUP_REGISTERED.swap(true, Ordering::SeqCst) {
         return;
     }
-    
+
     info!("📝 Registering wiremock cleanup handler");
-    
+
     // Register cleanup for Ctrl+C and other signals
     let _ = ctrlc::set_handler(move || {
         info!("🧹 Received termination signal, cleaning up wiremock server");
@@ -61,12 +61,12 @@ async fn register_cleanup_handler() {
         // when the process exits. This is just for logging.
         std::process::exit(0);
     });
-    
+
     // Register cleanup for normal process termination
     extern "C" fn cleanup_on_exit() {
         debug!("🧹 Process exiting, wiremock server will be cleaned up automatically");
     }
-    
+
     unsafe {
         libc::atexit(cleanup_on_exit);
     }
@@ -81,23 +81,23 @@ impl MockServerFixture {
     /// Create a new mock server fixture with automatic cleanup
     pub async fn new() -> Self {
         let server = get_mock_server().await;
-        
+
         // Reset all existing mocks for test isolation
         reset_all_mocks().await;
-        
+
         Self { server }
     }
-    
+
     /// Get the mock server instance
     pub fn server(&self) -> Arc<MockServer> {
         self.server.clone()
     }
-    
+
     /// Get the base URL
     pub fn base_url(&self) -> String {
         self.server.uri()
     }
-    
+
     /// Manual reset (also happens automatically on drop)
     pub async fn reset(&self) {
         debug!("🧹 Manually resetting wiremock mocks");

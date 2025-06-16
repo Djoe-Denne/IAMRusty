@@ -1,27 +1,30 @@
+use crate::{
+    error::AuthError, extractors::ValidatedJson, middleware_auth::AuthUser,
+    oauth_state::OAuthState, validation::*, AppState,
+};
+use application::command::{
+    oauth_login::{GenerateOAuthStartUrlCommand, OAuthLoginCommand},
+    password_login::PasswordLoginCommand,
+    provider::{GenerateLinkProviderStartUrlCommand, GetProviderTokenCommand, LinkProviderCommand},
+    registration::{CheckUsernameCommand, CompleteRegistrationCommand},
+    resend_verification_email::ResendVerificationEmailCommand,
+    signup::SignupCommand,
+    verify_email::VerifyEmailCommand,
+    CommandContext,
+};
 use axum::{
-    Json,
+    extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
-    extract::{State, Path, Query},
     response::Redirect,
+    Json,
 };
 use axum_valid::Valid;
-use serde::{Deserialize, Serialize};
-use validator::Validate;
 use domain::entity::provider::Provider;
-use application::command::{
-    CommandContext,
-    oauth_login::{OAuthLoginCommand, GenerateOAuthStartUrlCommand},
-    provider::{LinkProviderCommand, GenerateLinkProviderStartUrlCommand, GetProviderTokenCommand},
-    signup::SignupCommand,
-    password_login::PasswordLoginCommand,
-    verify_email::VerifyEmailCommand,
-    resend_verification_email::ResendVerificationEmailCommand,
-    registration::{CompleteRegistrationCommand, CheckUsernameCommand},
-};
-use crate::{AppState, oauth_state::OAuthState, error::AuthError, validation::*, extractors::ValidatedJson, middleware_auth::AuthUser};
+use serde::{Deserialize, Serialize};
 use tracing::{debug, error};
-use uuid::Uuid;
 use url;
+use uuid::Uuid;
+use validator::Validate;
 
 /// OAuth callback query parameters
 #[derive(Debug, Deserialize, Validate)]
@@ -44,8 +47,15 @@ pub struct OAuthCallbackQuery {
 #[derive(Debug, Deserialize, Validate)]
 pub struct ProviderPath {
     /// Provider name (github, gitlab, etc.)
-    #[validate(length(min = 1, max = 50, message = "Provider name must be between 1 and 50 characters"))]
-    #[validate(regex(path = "*PROVIDER_REGEX", message = "Provider name can only contain letters"))]
+    #[validate(length(
+        min = 1,
+        max = 50,
+        message = "Provider name must be between 1 and 50 characters"
+    ))]
+    #[validate(regex(
+        path = "*PROVIDER_REGEX",
+        message = "Provider name can only contain letters"
+    ))]
     #[validate(custom(function = "validate_provider_name", message = "Invalid provider name"))]
     pub provider_name: String,
 }
@@ -146,9 +156,15 @@ pub struct ProviderInfo {
 /// Email/password signup request (username now chosen separately)
 #[derive(Debug, Deserialize, Validate)]
 pub struct SignupRequest {
-    #[validate(custom(function = "crate::validation::validate_email_format", message = "Invalid email format"))]
+    #[validate(custom(
+        function = "crate::validation::validate_email_format",
+        message = "Invalid email format"
+    ))]
     pub email: String,
-    #[validate(custom(function = "crate::validation::validate_strong_password", message = "Password must be at least 8 characters and contain both letters and numbers"))]
+    #[validate(custom(
+        function = "crate::validation::validate_strong_password",
+        message = "Password must be at least 8 characters and contain both letters and numbers"
+    ))]
     pub password: String,
 }
 
@@ -176,25 +192,40 @@ pub enum SignupResponse {
 /// Email/password login request
 #[derive(Debug, Deserialize, Validate)]
 pub struct LoginRequest {
-    #[validate(custom(function = "crate::validation::validate_email_format", message = "Invalid email format"))]
+    #[validate(custom(
+        function = "crate::validation::validate_email_format",
+        message = "Invalid email format"
+    ))]
     pub email: String,
-    #[validate(custom(function = "crate::validation::validate_non_empty_string", message = "Password is required"))]
+    #[validate(custom(
+        function = "crate::validation::validate_non_empty_string",
+        message = "Password is required"
+    ))]
     pub password: String,
 }
 
 /// Email verification request
 #[derive(Debug, Deserialize, Validate)]
 pub struct VerifyEmailRequest {
-    #[validate(custom(function = "crate::validation::validate_email_format", message = "Invalid email format"))]
+    #[validate(custom(
+        function = "crate::validation::validate_email_format",
+        message = "Invalid email format"
+    ))]
     pub email: String,
-    #[validate(custom(function = "crate::validation::validate_verification_token", message = "Invalid verification token format"))]
+    #[validate(custom(
+        function = "crate::validation::validate_verification_token",
+        message = "Invalid verification token format"
+    ))]
     pub verification_token: String,
 }
 
 /// Resend verification email request
 #[derive(Debug, Deserialize, Validate)]
 pub struct ResendVerificationEmailRequest {
-    #[validate(custom(function = "crate::validation::validate_email_format", message = "Invalid email format"))]
+    #[validate(custom(
+        function = "crate::validation::validate_email_format",
+        message = "Invalid email format"
+    ))]
     pub email: String,
 }
 
@@ -229,32 +260,34 @@ pub async fn oauth_start(
     headers: HeaderMap,
 ) -> Result<Redirect, AuthError> {
     debug!("OAuth start for provider: {}", provider_path.provider_name);
-    
+
     // Parse the provider
     let provider = match provider_path.provider_name.to_lowercase().as_str() {
         "github" => Provider::GitHub,
         "gitlab" => Provider::GitLab,
         _ => return Err(AuthError::oauth_invalid_provider("start")),
     };
-    
+
     // Check if this is a login or link operation based on Authorization header
     let oauth_state = if let Some(auth_header) = headers.get("Authorization") {
         // Link operation - user is authenticated
-        let auth_str = auth_header.to_str()
+        let auth_str = auth_header
+            .to_str()
             .map_err(|_e| AuthError::oauth_invalid_authorization_header("start"))?;
-        
+
         if !auth_str.starts_with("Bearer ") {
             return Err(AuthError::oauth_invalid_authorization_header("start"));
         }
-        
+
         let token = &auth_str[7..];
-        
+
         // Validate the token and get user ID
-        let user_id = state.user_usecase
-            .validate_token(token)
+        let user_id = state
+            .user_usecase
+            .validate_access_token(token)
             .await
             .map_err(|_e| AuthError::oauth_invalid_token("start"))?;
-        
+
         debug!("Creating link state for user: {}", user_id);
         OAuthState::new_link(user_id)
     } else {
@@ -262,39 +295,49 @@ pub async fn oauth_start(
         debug!("Creating login state");
         OAuthState::new_login()
     };
-    
+
     // Encode the state
-    let encoded_state = oauth_state.encode()
+    let encoded_state = oauth_state
+        .encode()
         .map_err(|_e| AuthError::oauth_state_encoding_failed("start"))?;
-    
+
     // Generate provider authorization URL using the command service
     let context = CommandContext::new()
-        .with_metadata("operation".to_string(), if oauth_state.is_login() { "login_start".to_string() } else { "link_start".to_string() })
+        .with_metadata(
+            "operation".to_string(),
+            if oauth_state.is_login() {
+                "login_start".to_string()
+            } else {
+                "link_start".to_string()
+            },
+        )
         .with_metadata("provider".to_string(), provider.as_str().to_string());
-    
+
     let base_auth_url = if oauth_state.is_login() {
         // Login operation - use login command
         let command = GenerateOAuthStartUrlCommand::new(provider);
-        state.command_service
+        state
+            .command_service
             .execute(command, context)
             .await
             .map_err(|_e| AuthError::oauth_url_generation_failed("start"))?
     } else {
         // Link operation - use link provider command
         let command = GenerateLinkProviderStartUrlCommand::new(provider);
-        state.command_service
+        state
+            .command_service
             .execute(command, context)
             .await
             .map_err(|_e| AuthError::oauth_url_generation_failed("start"))?
     };
-    
+
     // Parse the URL and add our state parameter
-    let mut url = url::Url::parse(&base_auth_url)
-        .map_err(|_e| AuthError::oauth_invalid_url("start"))?;
-    
+    let mut url =
+        url::Url::parse(&base_auth_url).map_err(|_e| AuthError::oauth_invalid_url("start"))?;
+
     // Add the state parameter to the URL
     url.query_pairs_mut().append_pair("state", &encoded_state);
-    
+
     debug!("Redirecting to provider authorization URL");
     Ok(Redirect::to(url.as_str()))
 }
@@ -305,50 +348,64 @@ pub async fn oauth_callback(
     Valid(Path(provider_path)): Valid<Path<ProviderPath>>,
     Valid(Query(query)): Valid<Query<OAuthCallbackQuery>>,
 ) -> Result<(StatusCode, Json<OAuthResponse>), AuthError> {
-    debug!("OAuth callback for provider: {}", provider_path.provider_name);
-    
+    debug!(
+        "OAuth callback for provider: {}",
+        provider_path.provider_name
+    );
+
     // Check for OAuth errors from provider
     if let Some(error) = query.error {
-        let description = query.error_description.unwrap_or_else(|| "OAuth error".to_string());
+        let description = query
+            .error_description
+            .unwrap_or_else(|| "OAuth error".to_string());
         error!("OAuth error from provider: {} - {}", error, description);
-        return Err(AuthError::oauth_provider_error("callback", error, description));
+        return Err(AuthError::oauth_provider_error(
+            "callback",
+            error,
+            description,
+        ));
     }
-    
+
     // Check if code parameter is present
     let code = match query.code {
         Some(c) if !c.is_empty() => c,
         _ => return Err(AuthError::oauth_missing_code("callback")),
     };
-    
+
     // Parse the provider
     let provider = match provider_path.provider_name.to_lowercase().as_str() {
         "github" => Provider::GitHub,
         "gitlab" => Provider::GitLab,
         _ => return Err(AuthError::oauth_invalid_provider("callback")),
     };
-    
+
     // Decode the state to determine operation type
     let oauth_state = if let Some(state_param) = query.state {
-        OAuthState::decode(&state_param)
-            .map_err(|_e| AuthError::oauth_invalid_state("callback"))?
+        OAuthState::decode(&state_param).map_err(|_e| AuthError::oauth_invalid_state("callback"))?
     } else {
         return Err(AuthError::oauth_missing_state("callback"));
     };
-    
+
     // Get redirect URI from configuration instead of hardcoding
     let redirect_uri = match provider {
         Provider::GitHub => &state.oauth_config.github.redirect_uri,
         Provider::GitLab => &state.oauth_config.gitlab.redirect_uri,
-    }.clone();
-    
+    }
+    .clone();
+
     if oauth_state.is_login() {
         // Handle login operation
-        let (status_code, json_response) = handle_login_callback(state, provider, code, redirect_uri).await?;
+        let (status_code, json_response) =
+            handle_login_callback(state, provider, code, redirect_uri).await?;
         Ok((status_code, json_response))
     } else if let Some(user_id) = oauth_state.get_link_user_id() {
         // Handle link operation
-        debug!("handle_link_callback {:?}, {:?}, {:?}", user_id, code, redirect_uri);
-        let json_response = handle_link_callback(state, provider, code, redirect_uri, user_id).await?;
+        debug!(
+            "handle_link_callback {:?}, {:?}, {:?}",
+            user_id, code, redirect_uri
+        );
+        let json_response =
+            handle_link_callback(state, provider, code, redirect_uri, user_id).await?;
         Ok((StatusCode::OK, json_response))
     } else {
         error!("Invalid OAuth state operation");
@@ -364,11 +421,11 @@ async fn handle_login_callback(
     redirect_uri: String,
 ) -> Result<(StatusCode, Json<OAuthResponse>), AuthError> {
     debug!("Handling login callback");
-    
+
     let context = CommandContext::new()
         .with_metadata("operation".to_string(), "login_callback".to_string())
         .with_metadata("provider".to_string(), provider.as_str().to_string());
-    
+
     let command = OAuthLoginCommand::new(provider, code);
     let response = state
         .command_service
@@ -378,36 +435,44 @@ async fn handle_login_callback(
             error!("Failed to login: {}", e);
             AuthError::oauth_login_failed("login", &e)
         })?;
-    
+
     // Handle both login and registration scenarios
     match response {
         application::usecase::oauth::OAuthResponse::Login(login_response) => {
             // Existing complete user - return 200 with login tokens
-            Ok((StatusCode::OK, Json(OAuthResponse::Login(OAuthLoginResponse {
-                operation: "login".to_string(),
-                user: UserData {
-                    id: login_response.user.id.to_string(),
-                    username: login_response.user.username.clone(),
-                    email: login_response.user.username, // TODO: Get actual email from domain service
-                    avatar_url: login_response.user.avatar_url,
-                },
-                access_token: login_response.access_token,
-                expires_in: 3600, // TODO: Get actual expiration from domain service
-                refresh_token: "placeholder_refresh".to_string(), // TODO: Generate actual refresh token
-            }))))
-        },
+            Ok((
+                StatusCode::OK,
+                Json(OAuthResponse::Login(OAuthLoginResponse {
+                    operation: "login".to_string(),
+                    user: UserData {
+                        id: login_response.user.id.to_string(),
+                        username: login_response.user.username.clone(),
+                        email: login_response.user.username, // TODO: Get actual email from domain service
+                        avatar_url: login_response.user.avatar_url,
+                    },
+                    access_token: login_response.access_token,
+                    expires_in: 3600, // TODO: Get actual expiration from domain service
+                    refresh_token: "placeholder_refresh".to_string(), // TODO: Generate actual refresh token
+                })),
+            ))
+        }
         application::usecase::oauth::OAuthResponse::Registration(reg_response) => {
             // New user needs to complete registration - return 202 with registration token
-            Ok((StatusCode::ACCEPTED, Json(OAuthResponse::RegistrationRequired(OAuthRegistrationRequiredResponse {
-                operation: "registration_required".to_string(),
-                registration_token: reg_response.registration_token,
-                provider_info: ProviderInfo {
-                    email: reg_response.provider_info.email,
-                    avatar: reg_response.provider_info.avatar_url,
-                    suggested_username: reg_response.provider_info.username,
-                },
-                requires_username: true,
-            }))))
+            Ok((
+                StatusCode::ACCEPTED,
+                Json(OAuthResponse::RegistrationRequired(
+                    OAuthRegistrationRequiredResponse {
+                        operation: "registration_required".to_string(),
+                        registration_token: reg_response.registration_token,
+                        provider_info: ProviderInfo {
+                            email: reg_response.provider_info.email,
+                            avatar: reg_response.provider_info.avatar_url,
+                            suggested_username: reg_response.provider_info.username,
+                        },
+                        requires_username: true,
+                    },
+                )),
+            ))
         }
     }
 }
@@ -421,12 +486,12 @@ async fn handle_link_callback(
     user_id: Uuid,
 ) -> Result<Json<OAuthResponse>, AuthError> {
     debug!("Handling link callback for user: {}", user_id);
-    
+
     let context = CommandContext::new()
         .with_user_id(user_id)
         .with_metadata("operation".to_string(), "link_callback".to_string())
         .with_metadata("provider".to_string(), provider.as_str().to_string());
-    
+
     let command = LinkProviderCommand::new(user_id, provider, code, redirect_uri);
     let response = state
         .command_service
@@ -436,9 +501,10 @@ async fn handle_link_callback(
             error!("Failed to link provider: {}", e);
             AuthError::oauth_link_failed("link", &e, provider.as_str())
         })?;
-    
+
     // Convert UserEmail entities to EmailData
-    let emails: Vec<EmailData> = response.emails
+    let emails: Vec<EmailData> = response
+        .emails
         .into_iter()
         .map(|email| EmailData {
             id: email.id.to_string(),
@@ -447,13 +513,13 @@ async fn handle_link_callback(
             is_verified: email.is_verified,
         })
         .collect();
-    
+
     // Get primary email for user data
     let primary_email = emails
         .iter()
         .find(|e| e.is_primary)
         .map(|e| e.email.clone());
-    
+
     Ok(Json(OAuthResponse::Link(OAuthLinkResponse {
         operation: "link".to_string(),
         message: format!("{} successfully linked", provider.as_str()),
@@ -475,11 +541,11 @@ pub async fn signup(
     ValidatedJson(request): ValidatedJson<SignupRequest>,
 ) -> Result<(StatusCode, Json<SignupResponse>), AuthError> {
     debug!("Email/password signup for email: {}", request.email);
-    
+
     let context = CommandContext::new()
         .with_metadata("operation".to_string(), "signup".to_string())
         .with_metadata("email".to_string(), request.email.clone());
-    
+
     let command = SignupCommand::new(request.email, request.password);
     let response = state
         .command_service
@@ -489,10 +555,17 @@ pub async fn signup(
             error!("Signup failed: {}", e);
             AuthError::signup_failed(&e)
         })?;
-    
+
     match response {
-        domain::service::auth_service::SignupResponse::ExistingUser { user, access_token, expires_in, refresh_token, message } => {
-            Ok((StatusCode::OK, Json(SignupResponse::ExistingUser {
+        domain::service::auth_service::SignupResponse::ExistingUser {
+            user,
+            access_token,
+            expires_in,
+            refresh_token,
+            message,
+        } => Ok((
+            StatusCode::OK,
+            Json(SignupResponse::ExistingUser {
                 user: UserData {
                     id: user.id.to_string(),
                     username: user.username,
@@ -503,21 +576,29 @@ pub async fn signup(
                 expires_in,
                 refresh_token,
                 message,
-            })))
-        },
-        domain::service::auth_service::SignupResponse::RegistrationRequired { user, registration_token, requires_username, message } => {
-            Ok((StatusCode::CREATED, Json(SignupResponse::NewUser {
-                user: UserData {
-                    id: user.id.to_string(),
-                    username: None,
-                    email: Some(user.email),
-                    avatar_url: None, // Incomplete user doesn't have avatar yet
-                },
-                registration_token,
-                requires_username,
-                message,
-            })))
-        },
+            }),
+        )),
+        domain::service::auth_service::SignupResponse::RegistrationRequired {
+            user,
+            registration_token,
+            requires_username,
+            message,
+        } => {
+            Ok((
+                StatusCode::CREATED,
+                Json(SignupResponse::NewUser {
+                    user: UserData {
+                        id: user.id.to_string(),
+                        username: None,
+                        email: Some(user.email),
+                        avatar_url: None, // Incomplete user doesn't have avatar yet
+                    },
+                    registration_token,
+                    requires_username,
+                    message,
+                }),
+            ))
+        }
     }
 }
 
@@ -527,11 +608,11 @@ pub async fn login(
     ValidatedJson(request): ValidatedJson<LoginRequest>,
 ) -> Result<Json<LoginResponse>, AuthError> {
     debug!("Email/password login for email: {}", request.email);
-    
+
     let context = CommandContext::new()
         .with_metadata("operation".to_string(), "login".to_string())
         .with_metadata("email".to_string(), request.email.clone());
-    
+
     let command = PasswordLoginCommand::new(request.email, request.password);
     let response = state
         .command_service
@@ -541,27 +622,31 @@ pub async fn login(
             error!("Login failed: {}", e);
             AuthError::login_failed(&e)
         })?;
-    
+
     match response {
-        domain::service::auth_service::LoginResponse::Success { user, access_token, expires_in, refresh_token } => {
-            Ok(Json(LoginResponse::Success {
-                user: UserData {
-                    id: user.id.to_string(),
-                    username: user.username,
-                    email: Some(user.email),
-                    avatar_url: user.avatar,
-                },
-                access_token,
-                expires_in,
-                refresh_token,
-            }))
-        },
-        domain::service::auth_service::LoginResponse::RegistrationIncomplete { registration_token, message } => {
-            Err(AuthError::RegistrationIncomplete {
-                registration_token,
-                message,
-            })
-        },
+        domain::service::auth_service::LoginResponse::Success {
+            user,
+            access_token,
+            expires_in,
+            refresh_token,
+        } => Ok(Json(LoginResponse::Success {
+            user: UserData {
+                id: user.id.to_string(),
+                username: user.username,
+                email: Some(user.email),
+                avatar_url: user.avatar,
+            },
+            access_token,
+            expires_in,
+            refresh_token,
+        })),
+        domain::service::auth_service::LoginResponse::RegistrationIncomplete {
+            registration_token,
+            message,
+        } => Err(AuthError::RegistrationIncomplete {
+            registration_token,
+            message,
+        }),
     }
 }
 
@@ -571,11 +656,11 @@ pub async fn verify_email(
     ValidatedJson(request): ValidatedJson<VerifyEmailRequest>,
 ) -> Result<Json<SuccessResponse>, AuthError> {
     debug!("Email verification for: {}", request.email);
-    
+
     let context = CommandContext::new()
         .with_metadata("operation".to_string(), "verify_email".to_string())
         .with_metadata("email".to_string(), request.email.clone());
-    
+
     let command = VerifyEmailCommand::new(request.email, request.verification_token);
     let response = state
         .command_service
@@ -585,7 +670,7 @@ pub async fn verify_email(
             error!("Email verification failed: {}", e);
             AuthError::verification_failed(&e)
         })?;
-    
+
     Ok(Json(SuccessResponse {
         message: response.message,
     }))
@@ -597,19 +682,24 @@ pub async fn resend_verification_email(
     ValidatedJson(request): ValidatedJson<ResendVerificationEmailRequest>,
 ) -> Json<SuccessResponse> {
     debug!("Resend verification email for: {}", request.email);
-    
+
     let command = ResendVerificationEmailCommand::new(request.email.clone());
     let context = CommandContext::new()
-        .with_metadata("operation".to_string(), "resend_verification_email".to_string())
+        .with_metadata(
+            "operation".to_string(),
+            "resend_verification_email".to_string(),
+        )
         .with_metadata("email".to_string(), request.email.clone());
 
     // Execute command but handle all errors gracefully to prevent user enumeration
     match state.command_service.execute(command, context).await {
-        Ok(response) => Json(SuccessResponse { message: response.message }),
+        Ok(response) => Json(SuccessResponse {
+            message: response.message,
+        }),
         Err(e) => {
             // Log the actual error for debugging but don't reveal it to the client
             debug!("Resend verification failed: {}", e);
-            
+
             // Always return generic success message to prevent user enumeration attacks
             // This prevents attackers from discovering which emails are registered
             Json(SuccessResponse {
@@ -634,30 +724,37 @@ pub async fn internal_provider_token(
     Valid(Path(provider_path)): Valid<Path<ProviderPath>>,
     auth_user: AuthUser,
 ) -> Result<Json<InternalProviderTokenResponse>, AuthError> {
-    debug!("Internal provider token request for provider: {} and user: {}", provider_path.provider_name, auth_user.user_id);
-    
+    debug!(
+        "Internal provider token request for provider: {} and user: {}",
+        provider_path.provider_name, auth_user.user_id
+    );
+
     // Parse the provider
     let provider = match provider_path.provider_name.to_lowercase().as_str() {
         "github" => Provider::GitHub,
         "gitlab" => Provider::GitLab,
         _ => return Err(AuthError::oauth_invalid_provider("internal_token")),
     };
-    
+
     let command = GetProviderTokenCommand::new(auth_user.user_id, provider);
-    
+
     let context = CommandContext::new()
         .with_user_id(auth_user.user_id)
-        .with_metadata("operation".to_string(), "internal_provider_token".to_string())
+        .with_metadata(
+            "operation".to_string(),
+            "internal_provider_token".to_string(),
+        )
         .with_metadata("provider".to_string(), provider.as_str().to_string());
-    
-    let result = state.command_service
+
+    let result = state
+        .command_service
         .execute(command, context)
         .await
         .map_err(|e| {
             error!("Failed to get provider token: {}", e);
             AuthError::provider_token_failed(&e, provider.as_str())
         })?;
-    
+
     Ok(Json(InternalProviderTokenResponse {
         access_token: result.access_token,
         expires_in: result.expires_in,
@@ -670,9 +767,9 @@ pub async fn jwks(
     State(state): State<AppState>,
 ) -> Result<Json<domain::entity::token::JwkSet>, AuthError> {
     debug!("JWKS endpoint requested");
-    
+
     let jwks = state.token_usecase.get_jwks();
-    
+
     debug!("Returning JWKS with {} keys", jwks.keys.len());
     Ok(Json(jwks))
 }
@@ -684,8 +781,15 @@ pub struct CompleteRegistrationRequest {
     #[validate(length(min = 1, message = "Registration token is required"))]
     pub registration_token: String,
     /// Chosen username
-    #[validate(length(min = 3, max = 50, message = "Username must be between 3 and 50 characters"))]
-    #[validate(custom(function = "crate::validation::validate_username", message = "Username must be 3-50 characters and contain only letters, numbers, underscores, and hyphens"))]
+    #[validate(length(
+        min = 3,
+        max = 50,
+        message = "Username must be between 3 and 50 characters"
+    ))]
+    #[validate(custom(
+        function = "crate::validation::validate_username",
+        message = "Username must be 3-50 characters and contain only letters, numbers, underscores, and hyphens"
+    ))]
     pub username: String,
 }
 
@@ -706,8 +810,15 @@ pub struct CompleteRegistrationResponse {
 #[derive(Debug, Deserialize, Validate)]
 pub struct CheckUsernameQuery {
     /// Username to check
-    #[validate(length(min = 3, max = 50, message = "Username must be between 3 and 50 characters"))]
-    #[validate(custom(function = "crate::validation::validate_username", message = "Username can only contain letters, numbers, underscores, and hyphens"))]
+    #[validate(length(
+        min = 3,
+        max = 50,
+        message = "Username must be between 3 and 50 characters"
+    ))]
+    #[validate(custom(
+        function = "crate::validation::validate_username",
+        message = "Username can only contain letters, numbers, underscores, and hyphens"
+    ))]
     pub username: String,
 }
 
@@ -726,16 +837,13 @@ pub async fn complete_registration(
     ValidatedJson(request): ValidatedJson<CompleteRegistrationRequest>,
 ) -> Result<Json<CompleteRegistrationResponse>, AuthError> {
     debug!("Complete registration for username: {}", request.username);
-    
+
     let context = CommandContext::new()
         .with_metadata("operation".to_string(), "complete_registration".to_string())
         .with_metadata("username".to_string(), request.username.clone());
-    
-    let command = CompleteRegistrationCommand::new(
-        request.registration_token,
-        request.username,
-    );
-    
+
+    let command = CompleteRegistrationCommand::new(request.registration_token, request.username);
+
     let response = state
         .command_service
         .execute(command, context)
@@ -744,7 +852,7 @@ pub async fn complete_registration(
             error!("Complete registration failed: {}", e);
             AuthError::registration_failed(&e)
         })?;
-    
+
     Ok(Json(CompleteRegistrationResponse {
         user: UserData {
             id: response.user.id,
@@ -764,13 +872,13 @@ pub async fn check_username(
     Valid(Query(query)): Valid<Query<CheckUsernameQuery>>,
 ) -> Result<Json<CheckUsernameResponse>, AuthError> {
     debug!("Check username availability for: {}", query.username);
-    
+
     let context = CommandContext::new()
         .with_metadata("operation".to_string(), "check_username".to_string())
         .with_metadata("username".to_string(), query.username.clone());
-    
+
     let command = CheckUsernameCommand::new(query.username);
-    
+
     let response = state
         .command_service
         .execute(command, context)
@@ -779,9 +887,9 @@ pub async fn check_username(
             error!("Username check failed: {}", e);
             AuthError::username_check_failed(&e)
         })?;
-    
+
     Ok(Json(CheckUsernameResponse {
         available: response.available,
         suggestions: response.suggestions.unwrap_or_else(Vec::new),
     }))
-} 
+}

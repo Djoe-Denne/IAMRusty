@@ -1,13 +1,13 @@
+use application::auth::{AuthError, OAuthService};
 use async_trait::async_trait;
-use oauth2::{
-    basic::BasicClient, AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl,
-    AuthorizationCode, TokenResponse, reqwest::async_http_client,
-};
+use configuration::GitHubConfig;
 use domain::entity::provider::{Provider, ProviderTokens, ProviderUserProfile};
 use domain::error::DomainError;
 use domain::port::service::ProviderOAuth2Client;
-use application::auth::{OAuthService, AuthError};
-use configuration::GitHubConfig;
+use oauth2::{
+    basic::BasicClient, reqwest::async_http_client, AuthUrl, AuthorizationCode, ClientId,
+    ClientSecret, RedirectUrl, TokenResponse, TokenUrl,
+};
 use serde::Deserialize;
 use tracing::{debug, error};
 
@@ -79,7 +79,7 @@ impl ProviderOAuth2Client for GitHubOAuth2Client {
 
     async fn exchange_code(&self, code: &str) -> Result<ProviderTokens, DomainError> {
         debug!("Exchanging GitHub authorization code for tokens");
-        
+
         let token_result = self
             .client
             .exchange_code(AuthorizationCode::new(code.to_string()))
@@ -98,16 +98,19 @@ impl ProviderOAuth2Client for GitHubOAuth2Client {
         };
 
         debug!("Successfully exchanged GitHub code for token");
-        
+
         Ok(provider_tokens)
     }
 
-    async fn get_user_profile(&self, tokens: &ProviderTokens) -> Result<ProviderUserProfile, DomainError> {
+    async fn get_user_profile(
+        &self,
+        tokens: &ProviderTokens,
+    ) -> Result<ProviderUserProfile, DomainError> {
         debug!("Fetching GitHub user profile");
-        
+
         // Create HTTP client
         let client = reqwest::Client::new();
-        
+
         // Fetch user data from GitHub API
         let github_user = client
             .get(self.user_url.clone())
@@ -135,8 +138,11 @@ impl ProviderOAuth2Client for GitHubOAuth2Client {
             avatar_url: github_user.avatar_url,
         };
 
-        debug!("Successfully fetched GitHub profile for user: {}", profile.username);
-        
+        debug!(
+            "Successfully fetched GitHub profile for user: {}",
+            profile.username
+        );
+
         Ok(profile)
     }
 }
@@ -159,17 +165,23 @@ impl OAuthService for GitHubOAuth2Client {
         _redirect_uri: String,
     ) -> Result<(ProviderTokens, ProviderUserProfile), Self::Error> {
         debug!("Exchanging GitHub authorization code for tokens and profile");
-        
+
         // Exchange code for tokens using ProviderOAuth2Client trait
-        let tokens = ProviderOAuth2Client::exchange_code(self, &code).await
-            .map_err(|e| AuthError::AuthenticationError(format!("GitHub token exchange failed: {}", e)))?;
-        
+        let tokens = ProviderOAuth2Client::exchange_code(self, &code)
+            .await
+            .map_err(|e| {
+                AuthError::AuthenticationError(format!("GitHub token exchange failed: {}", e))
+            })?;
+
         // Get user profile using ProviderOAuth2Client trait
-        let profile = ProviderOAuth2Client::get_user_profile(self, &tokens).await
-            .map_err(|e| AuthError::AuthenticationError(format!("GitHub profile fetch failed: {}", e)))?;
-        
+        let profile = ProviderOAuth2Client::get_user_profile(self, &tokens)
+            .await
+            .map_err(|e| {
+                AuthError::AuthenticationError(format!("GitHub profile fetch failed: {}", e))
+            })?;
+
         debug!("Successfully exchanged GitHub code for tokens and profile");
-        
+
         Ok((tokens, profile))
     }
-} 
+}

@@ -1,10 +1,10 @@
 use crate::entity::{
+    email_verification::EmailVerification,
     provider::{Provider, ProviderTokens},
+    provider_link::ProviderLink,
+    token::RefreshToken,
     user::User,
     user_email::UserEmail,
-    token::RefreshToken,
-    provider_link::ProviderLink,
-    email_verification::EmailVerification,
 };
 use uuid::Uuid;
 
@@ -19,10 +19,10 @@ pub trait UserReadRepository {
 
     /// Find a user by any of their email addresses
     async fn find_by_email(&self, email: &str) -> Result<Option<User>, Self::Error>;
-    
+
     /// Find a user by username
     async fn find_by_username(&self, username: &str) -> Result<Option<User>, Self::Error>;
-    
+
     /// Find a user by provider and provider user ID
     /// This looks up via the provider_tokens table
     async fn find_by_provider_user_id(
@@ -47,8 +47,8 @@ pub trait UserWriteRepository {
 
 /// Combined read and write operations for User entity
 #[async_trait::async_trait]
-pub trait UserRepository: UserReadRepository + UserWriteRepository 
-where 
+pub trait UserRepository: UserReadRepository + UserWriteRepository
+where
     <Self as UserReadRepository>::Error: std::error::Error + Send + Sync + 'static,
     <Self as UserWriteRepository>::Error: std::error::Error + Send + Sync + 'static,
 {
@@ -57,8 +57,8 @@ where
 }
 
 // Blanket implementation for types that implement both read and write repositories
-impl<T> UserRepository for T 
-where 
+impl<T> UserRepository for T
+where
     T: UserReadRepository + UserWriteRepository,
     <T as UserReadRepository>::Error: std::error::Error + Send + Sync + 'static,
     <T as UserWriteRepository>::Error: std::error::Error + Send + Sync + 'static,
@@ -74,15 +74,18 @@ pub trait UserEmailReadRepository {
 
     /// Get all emails for a user
     async fn find_by_user_id(&self, user_id: Uuid) -> Result<Vec<UserEmail>, Self::Error>;
-    
+
     /// Get a specific email by its ID
     async fn find_by_id(&self, id: Uuid) -> Result<Option<UserEmail>, Self::Error>;
-    
+
     /// Find a user email by email address
     async fn find_by_email(&self, email: &str) -> Result<Option<UserEmail>, Self::Error>;
-    
+
     /// Get the primary email for a user
-    async fn find_primary_by_user_id(&self, user_id: Uuid) -> Result<Option<UserEmail>, Self::Error>;
+    async fn find_primary_by_user_id(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Option<UserEmail>, Self::Error>;
 }
 
 /// Write operations for UserEmail entity
@@ -93,21 +96,21 @@ pub trait UserEmailWriteRepository {
 
     /// Create a new user email
     async fn create(&self, user_email: UserEmail) -> Result<UserEmail, Self::Error>;
-    
+
     /// Update a user email
     async fn update(&self, user_email: UserEmail) -> Result<UserEmail, Self::Error>;
-    
+
     /// Delete a user email
     async fn delete(&self, id: Uuid) -> Result<(), Self::Error>;
-    
+
     /// Set an email as primary (and unset other primary emails for the user)
     async fn set_as_primary(&self, user_id: Uuid, email_id: Uuid) -> Result<(), Self::Error>;
 }
 
 /// Combined read and write operations for UserEmail entity
 #[async_trait::async_trait]
-pub trait UserEmailRepository: UserEmailReadRepository + UserEmailWriteRepository 
-where 
+pub trait UserEmailRepository: UserEmailReadRepository + UserEmailWriteRepository
+where
     <Self as UserEmailReadRepository>::Error: std::error::Error + Send + Sync + 'static,
     <Self as UserEmailWriteRepository>::Error: std::error::Error + Send + Sync + 'static,
 {
@@ -116,8 +119,8 @@ where
 }
 
 // Blanket implementation for types that implement both read and write repositories
-impl<T> UserEmailRepository for T 
-where 
+impl<T> UserEmailRepository for T
+where
     T: UserEmailReadRepository + UserEmailWriteRepository,
     <T as UserEmailReadRepository>::Error: std::error::Error + Send + Sync + 'static,
     <T as UserEmailWriteRepository>::Error: std::error::Error + Send + Sync + 'static,
@@ -137,14 +140,14 @@ pub trait TokenReadRepository {
         user_id: Uuid,
         provider: Provider,
     ) -> Result<Option<ProviderTokens>, Self::Error>;
-    
+
     /// Get provider link information (user_id, provider, provider_user_id)
     async fn get_provider_link(
         &self,
         user_id: Uuid,
         provider: Provider,
     ) -> Result<Option<ProviderLink>, Self::Error>;
-    
+
     /// Get all provider links for a user
     async fn get_user_provider_links(
         &self,
@@ -170,8 +173,8 @@ pub trait TokenWriteRepository {
 
 /// Combined read and write operations for OAuth2 tokens
 #[async_trait::async_trait]
-pub trait TokenRepository: TokenReadRepository + TokenWriteRepository 
-where 
+pub trait TokenRepository: TokenReadRepository + TokenWriteRepository
+where
     <Self as TokenReadRepository>::Error: std::error::Error + Send + Sync + 'static,
     <Self as TokenWriteRepository>::Error: std::error::Error + Send + Sync + 'static,
 {
@@ -180,8 +183,8 @@ where
 }
 
 // Blanket implementation for types that implement both read and write repositories
-impl<T> TokenRepository for T 
-where 
+impl<T> TokenRepository for T
+where
     T: TokenReadRepository + TokenWriteRepository,
     <T as TokenReadRepository>::Error: std::error::Error + Send + Sync + 'static,
     <T as TokenWriteRepository>::Error: std::error::Error + Send + Sync + 'static,
@@ -197,7 +200,7 @@ pub trait RefreshTokenReadRepository {
 
     /// Find a refresh token by its token string
     async fn find_by_token(&self, token: &str) -> Result<Option<RefreshToken>, Self::Error>;
-    
+
     /// Find refresh tokens for a user
     async fn find_by_user_id(&self, user_id: Uuid) -> Result<Vec<RefreshToken>, Self::Error>;
 }
@@ -210,13 +213,13 @@ pub trait RefreshTokenWriteRepository {
 
     /// Create a new refresh token
     async fn create(&self, token: RefreshToken) -> Result<RefreshToken, Self::Error>;
-    
+
     /// Update a refresh token's validity
     async fn update_validity(&self, token_id: Uuid, is_valid: bool) -> Result<(), Self::Error>;
-    
+
     /// Delete a refresh token by its ID
     async fn delete_by_id(&self, token_id: Uuid) -> Result<(), Self::Error>;
-    
+
     /// Delete all refresh tokens for a user
     async fn delete_by_user_id(&self, user_id: Uuid) -> Result<u64, Self::Error>;
 }
@@ -224,7 +227,7 @@ pub trait RefreshTokenWriteRepository {
 /// Combined read and write operations for refresh tokens
 #[async_trait::async_trait]
 pub trait RefreshTokenRepository: RefreshTokenReadRepository + RefreshTokenWriteRepository
-where 
+where
     <Self as RefreshTokenReadRepository>::Error: std::error::Error + Send + Sync + 'static,
     <Self as RefreshTokenWriteRepository>::Error: std::error::Error + Send + Sync + 'static,
 {
@@ -233,8 +236,8 @@ where
 }
 
 // Blanket implementation for types that implement both read and write repositories
-impl<T> RefreshTokenRepository for T 
-where 
+impl<T> RefreshTokenRepository for T
+where
     T: RefreshTokenReadRepository + RefreshTokenWriteRepository,
     <T as RefreshTokenReadRepository>::Error: std::error::Error + Send + Sync + 'static,
     <T as RefreshTokenWriteRepository>::Error: std::error::Error + Send + Sync + 'static,
@@ -249,8 +252,12 @@ pub trait EmailVerificationReadRepository {
     type Error: std::error::Error + Send + Sync + 'static;
 
     /// Find email verification by email and token
-    async fn find_by_email_and_token(&self, email: &str, token: &str) -> Result<Option<EmailVerification>, Self::Error>;
-    
+    async fn find_by_email_and_token(
+        &self,
+        email: &str,
+        token: &str,
+    ) -> Result<Option<EmailVerification>, Self::Error>;
+
     /// Find email verification by email
     async fn find_by_email(&self, email: &str) -> Result<Option<EmailVerification>, Self::Error>;
 }
@@ -263,18 +270,19 @@ pub trait EmailVerificationWriteRepository {
 
     /// Create a new email verification
     async fn create(&self, verification: &EmailVerification) -> Result<(), Self::Error>;
-    
+
     /// Delete email verification by email
     async fn delete_by_email(&self, email: &str) -> Result<(), Self::Error>;
-    
+
     /// Delete email verification by id
     async fn delete_by_id(&self, id: Uuid) -> Result<(), Self::Error>;
 }
 
 /// Combined read and write operations for EmailVerification entity
 #[async_trait::async_trait]
-pub trait EmailVerificationRepository: EmailVerificationReadRepository + EmailVerificationWriteRepository
-where 
+pub trait EmailVerificationRepository:
+    EmailVerificationReadRepository + EmailVerificationWriteRepository
+where
     <Self as EmailVerificationReadRepository>::Error: std::error::Error + Send + Sync + 'static,
     <Self as EmailVerificationWriteRepository>::Error: std::error::Error + Send + Sync + 'static,
 {
@@ -283,11 +291,11 @@ where
 }
 
 // Blanket implementation for types that implement both read and write repositories
-impl<T> EmailVerificationRepository for T 
-where 
+impl<T> EmailVerificationRepository for T
+where
     T: EmailVerificationReadRepository + EmailVerificationWriteRepository,
     <T as EmailVerificationReadRepository>::Error: std::error::Error + Send + Sync + 'static,
     <T as EmailVerificationWriteRepository>::Error: std::error::Error + Send + Sync + 'static,
 {
     type Error = <T as EmailVerificationReadRepository>::Error;
-} 
+}

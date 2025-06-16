@@ -1,7 +1,7 @@
-use chrono::Duration;
 use crate::entity::token::{JwkSet, TokenClaims};
 use crate::error::DomainError;
 use crate::port::service::JwtTokenEncoder;
+use chrono::Duration;
 
 /// Service for JWT token operations
 pub struct TokenService {
@@ -21,21 +21,19 @@ impl TokenService {
     /// Generate a JWT token for a user
     pub fn generate_token(&self, user_id: &str, username: &str) -> Result<String, DomainError> {
         let claims = TokenClaims::new(user_id, username, self.token_duration);
-        
-        self.token_encoder.encode(&claims)
+
+        self.token_encoder
+            .encode(&claims)
             .map_err(|e| DomainError::TokenGenerationFailed(e.to_string()))
     }
 
     /// Validate a JWT token
     pub fn validate_token(&self, token: &str) -> Result<TokenClaims, DomainError> {
-        self.token_encoder.decode(token)
-            .map_err(|e| {
-                match e {
-                    DomainError::TokenExpired => DomainError::TokenExpired,
-                    DomainError::InvalidToken => DomainError::InvalidToken,
-                    _ => DomainError::TokenValidationFailed(e.to_string()),
-                }
-            })
+        self.token_encoder.decode(token).map_err(|e| match e {
+            DomainError::TokenExpired => DomainError::TokenExpired,
+            DomainError::InvalidToken => DomainError::InvalidToken,
+            _ => DomainError::TokenValidationFailed(e.to_string()),
+        })
     }
 
     /// Get the JSON Web Key Set
@@ -50,15 +48,15 @@ mod tests {
     use crate::entity::token::{JwkSet, TokenClaims};
     use crate::error::DomainError;
     use crate::port::service::JwtTokenEncoder;
-    use mockall::{mock, predicate::*};
-    use rstest::*;
     use chrono::{Duration, Utc};
     use claims::*;
+    use mockall::{mock, predicate::*};
+    use rstest::*;
 
     // Mock implementation for JwtTokenEncoder
     mock! {
         pub TokenEnc {}
-        
+
         impl JwtTokenEncoder for TokenEnc {
             fn encode(&self, claims: &TokenClaims) -> Result<String, DomainError>;
             fn decode(&self, token: &str) -> Result<TokenClaims, DomainError>;
@@ -88,15 +86,17 @@ mod tests {
     }
 
     #[fixture]
-    fn sample_token_claims(sample_user_id: String, sample_username: String, token_duration: Duration) -> TokenClaims {
+    fn sample_token_claims(
+        sample_user_id: String,
+        sample_username: String,
+        token_duration: Duration,
+    ) -> TokenClaims {
         TokenClaims::new(&sample_user_id, &sample_username, token_duration)
     }
 
     #[fixture]
     fn sample_jwks() -> JwkSet {
-        JwkSet {
-            keys: vec![]
-        }
+        JwkSet { keys: vec![] }
     }
 
     #[fixture]
@@ -112,19 +112,19 @@ mod tests {
         #[test]
         fn new_creates_token_service_with_correct_duration(token_duration: Duration) {
             let mock_encoder = MockTokenEnc::new();
-            
+
             let service = TokenService::new(Box::new(mock_encoder), token_duration);
-            
+
             assert_eq!(service.token_duration, token_duration);
         }
 
         #[rstest]
-        #[test]  
+        #[test]
         fn new_stores_token_encoder(token_duration: Duration) {
             let mock_encoder = MockTokenEnc::new();
-            
+
             let _service = TokenService::new(Box::new(mock_encoder), token_duration);
-            
+
             // Test passes if no panic occurs during creation
         }
     }
@@ -142,7 +142,7 @@ mod tests {
             let mut mock_encoder = MockTokenEnc::new();
             let expected_token = "expected_jwt_token".to_string();
             let expected_token_clone = expected_token.clone();
-            
+
             mock_encoder
                 .expect_encode()
                 .times(1)
@@ -170,9 +170,9 @@ mod tests {
                 .expect_encode()
                 .times(1)
                 .withf(move |claims: &TokenClaims| {
-                    claims.sub == user_id_clone && 
-                    claims.username == username_clone &&
-                    claims.exp > Utc::now().timestamp() as i64 // Token should expire in the future
+                    claims.sub == user_id_clone
+                        && claims.username == username_clone
+                        && claims.exp > Utc::now().timestamp() as i64 // Token should expire in the future
                 })
                 .returning(|_| Ok("token".to_string()));
 
@@ -212,7 +212,11 @@ mod tests {
         #[rstest]
         #[case("", "username", "Empty user ID should work")]
         #[case("user_id", "", "Empty username should work")]
-        #[case("very_long_user_id_that_exceeds_normal_length_but_should_still_work", "very_long_username_that_exceeds_normal_length", "Long strings should work")]
+        #[case(
+            "very_long_user_id_that_exceeds_normal_length_but_should_still_work",
+            "very_long_username_that_exceeds_normal_length",
+            "Long strings should work"
+        )]
         #[test]
         fn handles_edge_case_inputs(
             #[case] user_id: &str,
@@ -246,9 +250,10 @@ mod tests {
             token_duration: Duration,
         ) {
             let mut mock_encoder = MockTokenEnc::new();
-            let expected_claims = TokenClaims::new(&sample_user_id, &sample_username, token_duration);
+            let expected_claims =
+                TokenClaims::new(&sample_user_id, &sample_username, token_duration);
             let expected_claims_clone = expected_claims.clone();
-            
+
             mock_encoder
                 .expect_decode()
                 .with(eq(sample_jwt_token.clone()))
@@ -300,7 +305,7 @@ mod tests {
 
             assert_err!(&result);
             match result.unwrap_err() {
-                DomainError::InvalidToken => {} // Expected  
+                DomainError::InvalidToken => {} // Expected
                 _ => panic!("Expected InvalidToken error"),
             }
         }
@@ -308,8 +313,8 @@ mod tests {
         #[rstest]
         #[test]
         fn converts_other_errors_to_validation_failed(
-            sample_jwt_token: String, 
-            token_duration: Duration
+            sample_jwt_token: String,
+            token_duration: Duration,
         ) {
             let mut mock_encoder = MockTokenEnc::new();
             mock_encoder
@@ -364,7 +369,7 @@ mod tests {
             let mut mock_encoder = MockTokenEnc::new();
             let expected_jwks = JwkSet { keys: vec![] };
             let expected_jwks_clone = expected_jwks.clone();
-            
+
             mock_encoder
                 .expect_jwks()
                 .times(1)
@@ -407,16 +412,17 @@ mod tests {
             let mut mock_encoder = MockTokenEnc::new();
             let expected_token = "test_jwt_token".to_string();
             let expected_token_clone = expected_token.clone();
-            let expected_claims = TokenClaims::new(&sample_user_id, &sample_username, token_duration);
+            let expected_claims =
+                TokenClaims::new(&sample_user_id, &sample_username, token_duration);
             let expected_claims_clone = expected_claims.clone();
-            
+
             // Setup for generate_token call
             mock_encoder
                 .expect_encode()
                 .times(1)
                 .returning(move |_| Ok(expected_token_clone.clone()));
-                
-            // Setup for validate_token call  
+
+            // Setup for validate_token call
             mock_encoder
                 .expect_decode()
                 .times(1)
@@ -433,9 +439,9 @@ mod tests {
             let validate_result = service.validate_token(&token);
             assert_ok!(&validate_result);
             let claims = validate_result.unwrap();
-            
+
             assert_eq!(claims.sub, expected_claims.sub);
             assert_eq!(claims.username, expected_claims.username);
         }
     }
-} 
+}

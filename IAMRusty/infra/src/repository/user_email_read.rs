@@ -1,13 +1,13 @@
 use async_trait::async_trait;
-use sea_orm::{DatabaseConnection, EntityTrait, QueryFilter, ColumnTrait, DbErr};
-use std::sync::Arc;
-use uuid::Uuid;
+use chrono::{DateTime, Utc};
 use domain::entity::user_email::UserEmail as DomainUserEmail;
 use domain::port::repository::UserEmailReadRepository;
+use sea_orm::{ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter};
+use std::sync::Arc;
 use tracing::debug;
-use chrono::{DateTime, Utc};
+use uuid::Uuid;
 
-use super::entity::{user_emails, prelude::UserEmails};
+use super::entity::{prelude::UserEmails, user_emails};
 
 /// SeaORM implementation of UserEmailReadRepository
 #[derive(Clone)]
@@ -45,37 +45,38 @@ impl UserEmailReadRepository for UserEmailReadRepositoryImpl {
             .filter(user_emails::Column::UserId.eq(user_id))
             .all(self.db.as_ref())
             .await?;
-        
+
         Ok(emails.into_iter().map(Self::to_domain).collect())
     }
-    
+
     async fn find_by_id(&self, id: Uuid) -> Result<Option<DomainUserEmail>, Self::Error> {
         debug!("Reading user email by ID: {}", id);
-        let email = UserEmails::find_by_id(id)
-            .one(self.db.as_ref())
-            .await?;
-        
+        let email = UserEmails::find_by_id(id).one(self.db.as_ref()).await?;
+
         Ok(email.map(Self::to_domain))
     }
-    
+
     async fn find_by_email(&self, email: &str) -> Result<Option<DomainUserEmail>, Self::Error> {
         debug!("Reading user email by email: {}", email);
         let user_email = UserEmails::find()
             .filter(user_emails::Column::Email.eq(email))
             .one(self.db.as_ref())
             .await?;
-        
+
         Ok(user_email.map(Self::to_domain))
     }
-    
-    async fn find_primary_by_user_id(&self, user_id: Uuid) -> Result<Option<DomainUserEmail>, Self::Error> {
+
+    async fn find_primary_by_user_id(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Option<DomainUserEmail>, Self::Error> {
         debug!("Reading primary email for user ID: {}", user_id);
         let primary_email = UserEmails::find()
             .filter(user_emails::Column::UserId.eq(user_id))
             .filter(user_emails::Column::IsPrimary.eq(true))
             .one(self.db.as_ref())
             .await?;
-        
+
         Ok(primary_email.map(Self::to_domain))
     }
-} 
+}

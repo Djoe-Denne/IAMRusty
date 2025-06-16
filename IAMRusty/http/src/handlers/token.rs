@@ -1,12 +1,9 @@
-use axum::{
-    Json,
-    extract::State,
-};
+use crate::{error::ApiError, validation::*};
+use application::command::{token::RefreshTokenCommand, CommandContext};
+use axum::{extract::State, Json};
 use axum_valid::Valid;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
-use crate::{error::ApiError, validation::*};
-use application::command::{CommandContext, token::RefreshTokenCommand};
 
 use tracing::debug;
 
@@ -14,7 +11,10 @@ use tracing::debug;
 #[derive(Debug, Deserialize, Validate)]
 pub struct RefreshTokenRequest {
     /// The refresh token
-    #[validate(custom(function = "validate_refresh_token", message = "Invalid refresh token format"))]
+    #[validate(custom(
+        function = "validate_refresh_token",
+        message = "Invalid refresh token format"
+    ))]
     pub refresh_token: String,
 }
 
@@ -38,21 +38,18 @@ pub async fn refresh_token(
     Valid(Json(request)): Valid<Json<RefreshTokenRequest>>,
 ) -> Result<Json<TokenResponse>, ApiError> {
     debug!("Refreshing token");
-    
-    let context = CommandContext::new()
-        .with_metadata("operation".to_string(), "refresh_token".to_string());
-    
+
+    let context =
+        CommandContext::new().with_metadata("operation".to_string(), "refresh_token".to_string());
+
     // Refresh the token using command service
     let command = RefreshTokenCommand::new(request.refresh_token);
-    let response = state
-        .command_service
-        .execute(command, context)
-        .await?;
-    
+    let response = state.command_service.execute(command, context).await?;
+
     Ok(Json(TokenResponse {
         token: response.access_token,
         expires_in: response.expires_in,
         refresh_token: response.refresh_token,
         refresh_expires_in: response.refresh_expires_in,
     }))
-} 
+}

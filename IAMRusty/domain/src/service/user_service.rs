@@ -2,13 +2,10 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::entity::{
-    user::User,
-    user_email::UserEmail,
-};
+use crate::entity::{user::User, user_email::UserEmail};
 use crate::error::DomainError;
 use crate::port::{
-    repository::{UserRepository, UserEmailRepository},
+    repository::{UserEmailRepository, UserRepository},
     service::AuthTokenService,
 };
 
@@ -26,9 +23,9 @@ pub struct UserProfile {
 pub trait UserService: Send + Sync {
     /// Get a user profile by ID (includes primary email)
     async fn get_user_profile(&self, id: Uuid) -> Result<UserProfile, DomainError>;
-    
+
     /// Validate a user's JWT token and return the user ID
-    async fn validate_token(&self, token: &str) -> Result<Uuid, DomainError>;
+    async fn validate_access_token(&self, token: &str) -> Result<Uuid, DomainError>;
 }
 
 /// User domain service implementation
@@ -71,29 +68,31 @@ where
 {
     async fn get_user_profile(&self, id: Uuid) -> Result<UserProfile, DomainError> {
         // Get the user
-        let user = self.user_repo
+        let user = self
+            .user_repo
             .find_by_id(id)
             .await
             .map_err(|e| DomainError::RepositoryError(e.to_string()))?
             .ok_or(DomainError::UserNotFound)?;
-        
+
         // Get the primary email
-        let primary_email = self.user_email_repo
+        let primary_email = self
+            .user_email_repo
             .find_primary_by_user_id(id)
             .await
             .map_err(|e| DomainError::RepositoryError(e.to_string()))?;
-        
+
         Ok(UserProfile {
             user,
             email: primary_email.map(|email| email.email),
         })
     }
-    
-    async fn validate_token(&self, token: &str) -> Result<Uuid, DomainError> {
+
+    async fn validate_access_token(&self, token: &str) -> Result<Uuid, DomainError> {
         // Validate the token and get the user ID
         self.token_service
             .validate_access_token(token)
             .await
-            .map_err(|e| DomainError::TokenServiceError(e.to_string()))
+            .map_err(|e| DomainError::InvalidToken)
     }
-} 
+}

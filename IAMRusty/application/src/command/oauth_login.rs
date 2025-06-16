@@ -1,9 +1,7 @@
-use rustycog_command::{Command, CommandError, CommandHandler, CommandErrorMapper};
-use crate::usecase::{
-    oauth::{OAuthUseCase, OAuthError, OAuthResponse},
-};
-use domain::entity::provider::Provider;
+use crate::usecase::oauth::{OAuthError, OAuthResponse, OAuthUseCase};
 use async_trait::async_trait;
+use domain::entity::provider::Provider;
+use rustycog_command::{Command, CommandError, CommandErrorMapper, CommandHandler};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -23,7 +21,7 @@ impl OAuthLoginErrorCode {
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::AuthenticationFailed => "authentication_failed",
-            Self::TokenExpired => "token_expired", 
+            Self::TokenExpired => "token_expired",
             Self::InvalidToken => "invalid_token",
             Self::ProviderError => "provider_error",
             Self::DatabaseError => "database_error",
@@ -47,23 +45,23 @@ impl CommandErrorMapper for OAuthLoginErrorMapper {
                     match domain_error {
                         DomainError::UserNotFound => CommandError::business(
                             OAuthLoginErrorCode::AuthenticationFailed.as_str(),
-                            "User not found"
+                            "User not found",
                         ),
                         DomainError::ProviderNotSupported(_) => CommandError::business(
                             OAuthLoginErrorCode::ProviderError.as_str(),
-                            "Provider not supported"
+                            "Provider not supported",
                         ),
                         DomainError::AuthorizationError(_) => CommandError::business(
                             OAuthLoginErrorCode::AuthenticationFailed.as_str(),
-                            "Authorization failed"
+                            "Authorization failed",
                         ),
                         DomainError::RepositoryError(_) => CommandError::infrastructure(
                             OAuthLoginErrorCode::DatabaseError.as_str(),
-                            "Database error during OAuth flow"
+                            "Database error during OAuth flow",
                         ),
                         _ => CommandError::infrastructure(
                             OAuthLoginErrorCode::ProviderError.as_str(),
-                            "OAuth flow error"
+                            "OAuth flow error",
                         ),
                     }
                 }
@@ -74,12 +72,12 @@ impl CommandErrorMapper for OAuthLoginErrorMapper {
             if Self::is_authentication_related_error(&error_msg) {
                 CommandError::business(
                     OAuthLoginErrorCode::AuthenticationFailed.as_str(),
-                    format!("OAuth authentication failed: {}", error_msg)
+                    format!("OAuth authentication failed: {}", error_msg),
                 )
             } else {
                 CommandError::infrastructure(
                     OAuthLoginErrorCode::ProviderError.as_str(),
-                    error.to_string()
+                    error.to_string(),
                 )
             }
         }
@@ -88,13 +86,13 @@ impl CommandErrorMapper for OAuthLoginErrorMapper {
 
 impl OAuthLoginErrorMapper {
     fn is_authentication_related_error(error_msg: &str) -> bool {
-        error_msg.contains("expired") || 
-        error_msg.contains("invalid") || 
-        error_msg.contains("Token expired") ||
-        error_msg.contains("Invalid token") ||
-        error_msg.contains("JWT error") ||
-        error_msg.contains("malformed") ||
-        error_msg.contains("signature")
+        error_msg.contains("expired")
+            || error_msg.contains("invalid")
+            || error_msg.contains("Token expired")
+            || error_msg.contains("Invalid token")
+            || error_msg.contains("JWT error")
+            || error_msg.contains("malformed")
+            || error_msg.contains("signature")
     }
 }
 
@@ -123,29 +121,29 @@ impl OAuthLoginCommand {
 #[async_trait]
 impl Command for OAuthLoginCommand {
     type Result = OAuthResponse;
-    
+
     fn command_type(&self) -> &'static str {
         "oauth_login"
     }
-    
+
     fn command_id(&self) -> Uuid {
         self.command_id
     }
-    
+
     fn validate(&self) -> Result<(), CommandError> {
         if self.code.trim().is_empty() {
             return Err(CommandError::validation(
                 OAuthLoginErrorCode::ValidationFailed.as_str(),
-                "Authorization code cannot be empty"
+                "Authorization code cannot be empty",
             ));
         }
-        
+
         Ok(())
     }
 }
 
 /// OAuth login command handler
-pub struct OAuthLoginCommandHandler<O> 
+pub struct OAuthLoginCommandHandler<O>
 where
     O: OAuthUseCase + ?Sized,
 {
@@ -158,9 +156,7 @@ where
 {
     /// Create a new OAuth login command handler
     pub fn new(oauth_use_case: Arc<O>) -> Self {
-        Self {
-            oauth_use_case,
-        }
+        Self { oauth_use_case }
     }
 }
 
@@ -199,15 +195,15 @@ impl GenerateOAuthStartUrlCommand {
 #[async_trait]
 impl Command for GenerateOAuthStartUrlCommand {
     type Result = String;
-    
+
     fn command_type(&self) -> &'static str {
         "generate_oauth_start_url"
     }
-    
+
     fn command_id(&self) -> Uuid {
         self.command_id
     }
-    
+
     fn validate(&self) -> Result<(), CommandError> {
         // Provider validation is handled by the enum itself
         Ok(())
@@ -215,7 +211,7 @@ impl Command for GenerateOAuthStartUrlCommand {
 }
 
 /// Generate OAuth start URL command handler
-pub struct GenerateOAuthStartUrlCommandHandler<O> 
+pub struct GenerateOAuthStartUrlCommandHandler<O>
 where
     O: OAuthUseCase + ?Sized,
 {
@@ -228,9 +224,7 @@ where
 {
     /// Create a new generate OAuth start URL command handler
     pub fn new(oauth_use_case: Arc<O>) -> Self {
-        Self {
-            oauth_use_case,
-        }
+        Self { oauth_use_case }
     }
 }
 

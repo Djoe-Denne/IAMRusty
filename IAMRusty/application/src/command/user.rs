@@ -1,6 +1,6 @@
-use rustycog_command::{Command, CommandError, CommandHandler, CommandErrorMapper};
-use crate::usecase::user::{UserUseCase, UserProfile, UserError};
+use crate::usecase::user::{UserError, UserProfile, UserUseCase};
 use async_trait::async_trait;
+use rustycog_command::{Command, CommandError, CommandErrorMapper, CommandHandler};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -44,61 +44,65 @@ impl CommandErrorMapper for UserErrorMapper {
                     match domain_error {
                         DomainError::UserNotFound => CommandError::authentication(
                             UserErrorCode::UserNotFound.as_str(),
-                            "Authentication failed: User not found"
+                            "Authentication failed: User not found",
                         ),
                         DomainError::TokenValidationFailed(_) => CommandError::authentication(
                             UserErrorCode::InvalidToken.as_str(),
-                            "Authentication failed: Token validation failed"
+                            "Authentication failed: Token validation failed",
                         ),
                         DomainError::TokenExpired => CommandError::authentication(
                             UserErrorCode::TokenExpired.as_str(),
-                            "Authentication failed: Token expired"
+                            "Authentication failed: Token expired",
+                        ),
+                        DomainError::InvalidToken => CommandError::authentication(
+                            UserErrorCode::InvalidToken.as_str(),
+                            "Authentication failed: Invalid token",
                         ),
                         DomainError::RepositoryError(_) => CommandError::infrastructure(
                             UserErrorCode::RepositoryError.as_str(),
-                            "Repository error during user operation"
+                            "Repository error during user operation",
                         ),
                         _ => CommandError::infrastructure(
                             UserErrorCode::TokenServiceError.as_str(),
-                            "User service error"
+                            "User service error",
                         ),
                     }
-                },
+                }
                 UserError::RepositoryError(_) => CommandError::infrastructure(
                     UserErrorCode::RepositoryError.as_str(),
-                    error.to_string()
+                    error.to_string(),
                 ),
                 UserError::TokenServiceError(inner) => {
                     let error_msg = inner.to_string();
                     if Self::is_authentication_related_error(&error_msg) {
                         CommandError::validation(
                             UserErrorCode::AuthenticationFailed.as_str(),
-                            format!("Authentication failed: {}", error_msg)
+                            format!("Authentication failed: {}", error_msg),
                         )
                     } else {
                         CommandError::infrastructure(
                             UserErrorCode::TokenServiceError.as_str(),
-                            error.to_string()
+                            error.to_string(),
                         )
                     }
-                },
+                }
                 UserError::UserNotFound => CommandError::authentication(
                     UserErrorCode::UserNotFound.as_str(),
-                    "Authentication failed"
+                    "Authentication failed",
                 ),
                 UserError::InvalidToken => CommandError::authentication(
                     UserErrorCode::InvalidToken.as_str(),
-                    "Authentication failed"
+                    "Authentication failed",
                 ),
                 UserError::TokenExpired => CommandError::authentication(
                     UserErrorCode::TokenExpired.as_str(),
-                    "Authentication failed"
+                    "Authentication failed",
                 ),
             }
         } else {
             CommandError::authentication(
                 UserErrorCode::AuthenticationFailed.as_str(),
-                "Authentication failed"
+                "Authentication failed",
             )
         }
     }
@@ -106,13 +110,13 @@ impl CommandErrorMapper for UserErrorMapper {
 
 impl UserErrorMapper {
     fn is_authentication_related_error(error_msg: &str) -> bool {
-        error_msg.contains("expired") || 
-        error_msg.contains("invalid") || 
-        error_msg.contains("Token expired") ||
-        error_msg.contains("Invalid token") ||
-        error_msg.contains("JWT error") ||
-        error_msg.contains("malformed") ||
-        error_msg.contains("signature")
+        error_msg.contains("expired")
+            || error_msg.contains("invalid")
+            || error_msg.contains("Token expired")
+            || error_msg.contains("Invalid token")
+            || error_msg.contains("JWT error")
+            || error_msg.contains("malformed")
+            || error_msg.contains("signature")
     }
 }
 
@@ -128,9 +132,9 @@ pub struct GetUserCommand {
 impl GetUserCommand {
     /// Create a new get user command
     pub fn new(user_id: Uuid) -> Self {
-        Self { 
+        Self {
             command_id: Uuid::new_v4(),
-            user_id 
+            user_id,
         }
     }
 }
@@ -164,9 +168,9 @@ pub struct ValidateTokenCommand {
 impl ValidateTokenCommand {
     /// Create a new validate token command
     pub fn new(token: String) -> Self {
-        Self { 
+        Self {
             command_id: Uuid::new_v4(),
-            token 
+            token,
         }
     }
 }
@@ -186,7 +190,7 @@ impl Command for ValidateTokenCommand {
         if self.token.trim().is_empty() {
             return Err(CommandError::validation(
                 UserErrorCode::ValidationFailed.as_str(),
-                "Token cannot be empty"
+                "Token cannot be empty",
             ));
         }
         Ok(())
@@ -194,7 +198,7 @@ impl Command for ValidateTokenCommand {
 }
 
 /// Get user command handler
-pub struct GetUserCommandHandler<U> 
+pub struct GetUserCommandHandler<U>
 where
     U: UserUseCase + ?Sized,
 {
@@ -207,9 +211,7 @@ where
 {
     /// Create a new get user command handler
     pub fn new(user_use_case: Arc<U>) -> Self {
-        Self {
-            user_use_case,
-        }
+        Self { user_use_case }
     }
 }
 
@@ -227,7 +229,7 @@ where
 }
 
 /// Validate token command handler
-pub struct ValidateTokenCommandHandler<U> 
+pub struct ValidateTokenCommandHandler<U>
 where
     U: UserUseCase + ?Sized,
 {
@@ -240,9 +242,7 @@ where
 {
     /// Create a new validate token command handler
     pub fn new(user_use_case: Arc<U>) -> Self {
-        Self {
-            user_use_case,
-        }
+        Self { user_use_case }
     }
 }
 
@@ -253,7 +253,7 @@ where
 {
     async fn handle(&self, command: ValidateTokenCommand) -> Result<Uuid, CommandError> {
         self.user_use_case
-            .validate_token(&command.token)
+            .validate_access_token(&command.token)
             .await
             .map_err(|e| UserErrorMapper.map_error(Box::new(e)))
     }

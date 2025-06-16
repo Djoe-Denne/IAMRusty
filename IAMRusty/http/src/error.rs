@@ -1,8 +1,13 @@
-use axum::{http::StatusCode, response::{Response, IntoResponse}, Json, extract::rejection::JsonRejection};
-use serde::Serialize;
-use domain::error::DomainError;
 use application::command::CommandError;
-use application::usecase::{user::UserError, token::TokenError};
+use application::usecase::{token::TokenError, user::UserError};
+use axum::{
+    extract::rejection::JsonRejection,
+    http::StatusCode,
+    response::{IntoResponse, Response},
+    Json,
+};
+use domain::error::DomainError;
+use serde::Serialize;
 use thiserror::Error;
 use validator::ValidationErrors as ValidatorValidationErrors;
 
@@ -35,7 +40,7 @@ impl ValidationError {
             status: StatusCode::UNPROCESSABLE_ENTITY,
         }
     }
-    
+
     pub fn with_status(mut self, status: StatusCode) -> Self {
         self.status = status;
         self
@@ -59,14 +64,15 @@ impl IntoResponse for ValidationError {
 impl From<ValidatorValidationErrors> for ValidationError {
     fn from(errors: ValidatorValidationErrors) -> Self {
         // Extract the first validation error for a clean message
-        let (field, error_info) = errors.errors()
+        let (field, error_info) = errors
+            .errors()
             .iter()
             .next()
             .map(|(field, error_kind)| {
                 let first_error = match error_kind {
-                    validator::ValidationErrorsKind::Field(errors) => {
-                        errors.first().map(|e| (e.code.as_ref(), e.message.as_deref()))
-                    }
+                    validator::ValidationErrorsKind::Field(errors) => errors
+                        .first()
+                        .map(|e| (e.code.as_ref(), e.message.as_deref())),
                     _ => None,
                 };
                 (field.as_ref(), first_error)
@@ -74,25 +80,31 @@ impl From<ValidatorValidationErrors> for ValidationError {
             .unwrap_or(("unknown", None));
 
         let (error_code, message) = if let Some((code, msg)) = error_info {
-            let formatted_message = msg.map(|s| s.to_string()).unwrap_or_else(|| {
-                match code {
-                    "empty_string" | "empty_password" | "empty_email" | "empty_username" => {
-                        format!("{} is required", field.replace('_', " "))
-                    }
-                    "invalid_email_format" => "Invalid email format".to_string(),
-                    "password_too_short" => "Password must be at least 8 characters long".to_string(),
-                    "password_needs_letter" => "Password must contain at least one letter".to_string(),
-                    "password_needs_digit" => "Password must contain at least one number".to_string(),
-                    "password_too_common" => "Password is too common, please choose a stronger password".to_string(),
-                    "invalid_username_format" => "Username can only contain letters, numbers, underscores, and hyphens".to_string(),
-                    "email_too_long" => "Email address is too long".to_string(),
-                    "password_too_long" => "Password is too long".to_string(),
-                    _ => format!("Invalid {}", field.replace('_', " ")),
+            let formatted_message = msg.map(|s| s.to_string()).unwrap_or_else(|| match code {
+                "empty_string" | "empty_password" | "empty_email" | "empty_username" => {
+                    format!("{} is required", field.replace('_', " "))
                 }
+                "invalid_email_format" => "Invalid email format".to_string(),
+                "password_too_short" => "Password must be at least 8 characters long".to_string(),
+                "password_needs_letter" => "Password must contain at least one letter".to_string(),
+                "password_needs_digit" => "Password must contain at least one number".to_string(),
+                "password_too_common" => {
+                    "Password is too common, please choose a stronger password".to_string()
+                }
+                "invalid_username_format" => {
+                    "Username can only contain letters, numbers, underscores, and hyphens"
+                        .to_string()
+                }
+                "email_too_long" => "Email address is too long".to_string(),
+                "password_too_long" => "Password is too long".to_string(),
+                _ => format!("Invalid {}", field.replace('_', " ")),
             });
             (format!("validation_{}", code), formatted_message)
         } else {
-            ("validation_failed".to_string(), "Validation failed".to_string())
+            (
+                "validation_failed".to_string(),
+                "Validation failed".to_string(),
+            )
         };
 
         ValidationError::new(error_code, message)
@@ -102,10 +114,8 @@ impl From<ValidatorValidationErrors> for ValidationError {
 /// Convert JSON parsing errors to our uniform format
 impl From<JsonRejection> for ValidationError {
     fn from(_rejection: JsonRejection) -> Self {
-        ValidationError::new(
-            "invalid_json",
-            "Invalid JSON format in request body"
-        ).with_status(StatusCode::BAD_REQUEST)
+        ValidationError::new("invalid_json", "Invalid JSON format in request body")
+            .with_status(StatusCode::BAD_REQUEST)
     }
 }
 
@@ -239,7 +249,12 @@ pub enum AuthError {
 impl IntoResponse for AuthError {
     fn into_response(self) -> Response {
         match self {
-            AuthError::OAuth { operation: _operation, error_code, message, status } => {
+            AuthError::OAuth {
+                operation: _operation,
+                error_code,
+                message,
+                status,
+            } => {
                 let body = Json(UniformErrorResponse {
                     error: ErrorDetails {
                         error_code,
@@ -430,7 +445,10 @@ impl IntoResponse for AuthError {
                 (StatusCode::INTERNAL_SERVER_ERROR, body).into_response()
             }
             AuthError::Api(api_error) => api_error.into_response(),
-            AuthError::RegistrationIncomplete { registration_token, message } => {
+            AuthError::RegistrationIncomplete {
+                registration_token,
+                message,
+            } => {
                 let body = Json(serde_json::json!({
                     "error": "registration_incomplete",
                     "message": message,
@@ -447,102 +465,150 @@ impl IntoResponse for ApiError {
         let (status, error_code, message) = match self {
             ApiError::Domain(domain_error) => {
                 match domain_error {
-                    DomainError::UserNotFound => {
-                        (StatusCode::NOT_FOUND, "user_not_found".to_string(), "User not found".to_string())
-                    }
-                    DomainError::ProviderNotSupported(msg) => {
-                        (StatusCode::BAD_REQUEST, "provider_not_supported".to_string(), msg)
-                    }
-                    DomainError::BusinessRuleViolation(msg) => {
-                        (StatusCode::BAD_REQUEST, "business_rule_violation".to_string(), msg)
-                    }
-                    DomainError::InvalidToken => {
-                        (StatusCode::UNAUTHORIZED, "invalid_token".to_string(), "Invalid token".to_string())
-                    }
-                    DomainError::TokenExpired => {
-                        (StatusCode::UNAUTHORIZED, "token_expired".to_string(), "Token expired".to_string())
-                    }
-                    DomainError::AuthorizationError(msg) => {
-                        (StatusCode::UNAUTHORIZED, "authorization_error".to_string(), msg)
-                    }
+                    DomainError::UserNotFound => (
+                        StatusCode::NOT_FOUND,
+                        "user_not_found".to_string(),
+                        "User not found".to_string(),
+                    ),
+                    DomainError::ProviderNotSupported(msg) => (
+                        StatusCode::BAD_REQUEST,
+                        "provider_not_supported".to_string(),
+                        msg,
+                    ),
+                    DomainError::BusinessRuleViolation(msg) => (
+                        StatusCode::BAD_REQUEST,
+                        "business_rule_violation".to_string(),
+                        msg,
+                    ),
+                    DomainError::InvalidToken => (
+                        StatusCode::UNAUTHORIZED,
+                        "invalid_token".to_string(),
+                        "Invalid token".to_string(),
+                    ),
+                    DomainError::TokenExpired => (
+                        StatusCode::UNAUTHORIZED,
+                        "token_expired".to_string(),
+                        "Token expired".to_string(),
+                    ),
+                    DomainError::AuthorizationError(msg) => (
+                        StatusCode::UNAUTHORIZED,
+                        "authorization_error".to_string(),
+                        msg,
+                    ),
                     DomainError::OAuth2Error(msg) => {
                         (StatusCode::BAD_REQUEST, "oauth2_error".to_string(), msg)
                     }
-                    DomainError::UserProfileError(msg) => {
-                        (StatusCode::INTERNAL_SERVER_ERROR, "user_profile_error".to_string(), msg)
-                    }
-                    DomainError::NoTokenForProvider(provider, user) => {
-                        (StatusCode::NOT_FOUND, "no_token_for_provider".to_string(), format!("No token found for provider {} and user {}", provider, user))
-                    }
-                    DomainError::TokenGenerationFailed(msg) => {
-                        (StatusCode::INTERNAL_SERVER_ERROR, "token_generation_failed".to_string(), msg)
-                    }
-                    DomainError::TokenValidationFailed(msg) => {
-                        (StatusCode::UNAUTHORIZED, "token_validation_failed".to_string(), msg)
-                    }
-                    DomainError::RepositoryError(msg) => {
-                        (StatusCode::INTERNAL_SERVER_ERROR, "repository_error".to_string(), msg)
-                    }
+                    DomainError::UserProfileError(msg) => (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "user_profile_error".to_string(),
+                        msg,
+                    ),
+                    DomainError::NoTokenForProvider(provider, user) => (
+                        StatusCode::NOT_FOUND,
+                        "no_token_for_provider".to_string(),
+                        format!("No token found for provider {} and user {}", provider, user),
+                    ),
+                    DomainError::TokenGenerationFailed(msg) => (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "token_generation_failed".to_string(),
+                        msg,
+                    ),
+                    DomainError::TokenValidationFailed(msg) => (
+                        StatusCode::UNAUTHORIZED,
+                        "token_validation_failed".to_string(),
+                        msg,
+                    ),
+                    DomainError::RepositoryError(msg) => (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "repository_error".to_string(),
+                        msg,
+                    ),
                     // Registration-specific errors
-                    DomainError::UsernameTaken => {
-                        (StatusCode::CONFLICT, "username_taken".to_string(), "Username already taken".to_string())
-                    }
-                    DomainError::InvalidUsername => {
-                        (StatusCode::UNPROCESSABLE_ENTITY, "invalid_username".to_string(), "Invalid username format".to_string())
-                    }
-                    DomainError::RegistrationAlreadyComplete => {
-                        (StatusCode::BAD_REQUEST, "registration_already_complete".to_string(), "Registration already completed".to_string())
-                    }
-                    DomainError::TokenServiceError(msg) => {
-                        (StatusCode::INTERNAL_SERVER_ERROR, "token_service_error".to_string(), msg)
-                    }
-                    DomainError::EventError(msg) => {
-                        (StatusCode::INTERNAL_SERVER_ERROR, "event_error".to_string(), msg)
-                    }
-                    DomainError::TokenNotFound => {
-                        (StatusCode::UNAUTHORIZED, "token_not_found".to_string(), "Token not found".to_string())
-                    }
+                    DomainError::UsernameTaken => (
+                        StatusCode::CONFLICT,
+                        "username_taken".to_string(),
+                        "Username already taken".to_string(),
+                    ),
+                    DomainError::InvalidUsername => (
+                        StatusCode::UNPROCESSABLE_ENTITY,
+                        "invalid_username".to_string(),
+                        "Invalid username format".to_string(),
+                    ),
+                    DomainError::RegistrationAlreadyComplete => (
+                        StatusCode::BAD_REQUEST,
+                        "registration_already_complete".to_string(),
+                        "Registration already completed".to_string(),
+                    ),
+                    DomainError::TokenServiceError(msg) => (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "token_service_error".to_string(),
+                        msg,
+                    ),
+                    DomainError::EventError(msg) => (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "event_error".to_string(),
+                        msg,
+                    ),
+                    DomainError::TokenNotFound => (
+                        StatusCode::UNAUTHORIZED,
+                        "token_not_found".to_string(),
+                        "Token not found".to_string(),
+                    ),
                 }
             }
-            ApiError::Command(cmd_error) => {
-                match cmd_error {
-                    CommandError::Validation { code, message } => {
-                        (StatusCode::UNPROCESSABLE_ENTITY, code.clone(), message.clone())
-                    }
-                    CommandError::Authentication { code, message } => {
-                        (StatusCode::UNAUTHORIZED, code.clone(), message.clone())
-                    }
-                    CommandError::Business { code, message } => {
-                        (StatusCode::BAD_REQUEST, code.clone(), message.clone())
-                    }
-                    CommandError::Infrastructure { code, message } => {
-                        (StatusCode::INTERNAL_SERVER_ERROR, code.clone(), message.clone())
-                    }
-                    CommandError::Timeout { code, message } => {
-                        (StatusCode::REQUEST_TIMEOUT, code.clone(), message.clone())
-                    }
-                    CommandError::RetryExhausted { code, message } => {
-                        (StatusCode::INTERNAL_SERVER_ERROR, code.clone(), message.clone())
-                    }
+            ApiError::Command(cmd_error) => match cmd_error {
+                CommandError::Validation { code, message } => (
+                    StatusCode::UNPROCESSABLE_ENTITY,
+                    code.clone(),
+                    message.clone(),
+                ),
+                CommandError::Authentication { code, message } => {
+                    (StatusCode::UNAUTHORIZED, code.clone(), message.clone())
                 }
-            }
+                CommandError::Business { code, message } => {
+                    (StatusCode::BAD_REQUEST, code.clone(), message.clone())
+                }
+                CommandError::Infrastructure { code, message } => (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    code.clone(),
+                    message.clone(),
+                ),
+                CommandError::Timeout { code, message } => {
+                    (StatusCode::REQUEST_TIMEOUT, code.clone(), message.clone())
+                }
+                CommandError::RetryExhausted { code, message } => (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    code.clone(),
+                    message.clone(),
+                ),
+            },
             ApiError::User(user_error) => {
                 match user_error {
-                    UserError::RepositoryError(_) => {
-                        (StatusCode::INTERNAL_SERVER_ERROR, "repository_error".to_string(), "Internal repository error".to_string())
-                    }
-                    UserError::TokenServiceError(_) => {
-                        (StatusCode::INTERNAL_SERVER_ERROR, "token_service_error".to_string(), "Token service error".to_string())
-                    }
-                    UserError::UserNotFound => {
-                        (StatusCode::NOT_FOUND, "user_not_found".to_string(), "User not found".to_string())
-                    }
-                    UserError::InvalidToken => {
-                        (StatusCode::UNAUTHORIZED, "invalid_token".to_string(), "Invalid token".to_string())
-                    }
-                    UserError::TokenExpired => {
-                        (StatusCode::UNAUTHORIZED, "token_expired".to_string(), "Token expired".to_string())
-                    }
+                    UserError::RepositoryError(_) => (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "repository_error".to_string(),
+                        "Internal repository error".to_string(),
+                    ),
+                    UserError::TokenServiceError(_) => (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "token_service_error".to_string(),
+                        "Token service error".to_string(),
+                    ),
+                    UserError::UserNotFound => (
+                        StatusCode::NOT_FOUND,
+                        "user_not_found".to_string(),
+                        "User not found".to_string(),
+                    ),
+                    UserError::InvalidToken => (
+                        StatusCode::UNAUTHORIZED,
+                        "invalid_token".to_string(),
+                        "Invalid token".to_string(),
+                    ),
+                    UserError::TokenExpired => (
+                        StatusCode::UNAUTHORIZED,
+                        "token_expired".to_string(),
+                        "Token expired".to_string(),
+                    ),
                     UserError::DomainError(domain_error) => {
                         // Delegate to domain error handling
                         let domain_api_error = ApiError::Domain(domain_error.clone());
@@ -552,21 +618,31 @@ impl IntoResponse for ApiError {
             }
             ApiError::Token(token_error) => {
                 match token_error {
-                    TokenError::RepositoryError(_) => {
-                        (StatusCode::INTERNAL_SERVER_ERROR, "repository_error".to_string(), "Repository error".to_string())
-                    }
-                    TokenError::TokenServiceError(_) => {
-                        (StatusCode::INTERNAL_SERVER_ERROR, "token_service_error".to_string(), "Token service error".to_string())
-                    }
-                    TokenError::TokenNotFound => {
-                        (StatusCode::UNAUTHORIZED, "token_not_found".to_string(), "Refresh token not found".to_string())
-                    }
-                    TokenError::TokenInvalid => {
-                        (StatusCode::UNAUTHORIZED, "token_invalid".to_string(), "Refresh token is invalid".to_string())
-                    }
-                    TokenError::TokenExpired => {
-                        (StatusCode::UNAUTHORIZED, "token_expired".to_string(), "Refresh token is expired".to_string())
-                    }
+                    TokenError::RepositoryError(_) => (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "repository_error".to_string(),
+                        "Repository error".to_string(),
+                    ),
+                    TokenError::TokenServiceError(_) => (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "token_service_error".to_string(),
+                        "Token service error".to_string(),
+                    ),
+                    TokenError::TokenNotFound => (
+                        StatusCode::UNAUTHORIZED,
+                        "token_not_found".to_string(),
+                        "Refresh token not found".to_string(),
+                    ),
+                    TokenError::TokenInvalid => (
+                        StatusCode::UNAUTHORIZED,
+                        "token_invalid".to_string(),
+                        "Refresh token is invalid".to_string(),
+                    ),
+                    TokenError::TokenExpired => (
+                        StatusCode::UNAUTHORIZED,
+                        "token_expired".to_string(),
+                        "Refresh token is expired".to_string(),
+                    ),
                     TokenError::DomainError(domain_error) => {
                         // Delegate to domain error handling
                         let domain_api_error = ApiError::Domain(domain_error.clone());
@@ -574,15 +650,19 @@ impl IntoResponse for ApiError {
                     }
                 }
             }
-            ApiError::AuthenticationRequired => {
-                (StatusCode::UNAUTHORIZED, "authentication_required".to_string(), "Authentication required".to_string())
-            }
+            ApiError::AuthenticationRequired => (
+                StatusCode::UNAUTHORIZED,
+                "authentication_required".to_string(),
+                "Authentication required".to_string(),
+            ),
             ApiError::InvalidRequest(msg) => {
                 (StatusCode::BAD_REQUEST, "invalid_request".to_string(), msg)
             }
-            ApiError::InternalServerError(msg) => {
-                (StatusCode::INTERNAL_SERVER_ERROR, "internal_server_error".to_string(), msg)
-            }
+            ApiError::InternalServerError(msg) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "internal_server_error".to_string(),
+                msg,
+            ),
         };
 
         let body = Json(UniformErrorResponse {
@@ -700,33 +780,29 @@ impl AuthError {
 
     pub fn oauth_login_failed(operation: &str, command_error: &CommandError) -> Self {
         match command_error {
-            CommandError::Business { code, .. } if code == "authentication_failed" => {
-                Self::OAuth {
-                    operation: operation.to_string(),
-                    error_code: code.clone(),
-                    message: "Authentication failed".to_string(),
-                    status: StatusCode::UNAUTHORIZED,
-                }
-            }
-            CommandError::Validation { code, message } => {
-                Self::OAuth {
-                    operation: operation.to_string(),
-                    error_code: code.clone(),
-                    message: message.clone(),
-                    status: StatusCode::BAD_REQUEST,
-                }
-            }
+            CommandError::Business { code, .. } if code == "authentication_failed" => Self::OAuth {
+                operation: operation.to_string(),
+                error_code: code.clone(),
+                message: "Authentication failed".to_string(),
+                status: StatusCode::UNAUTHORIZED,
+            },
+            CommandError::Validation { code, message } => Self::OAuth {
+                operation: operation.to_string(),
+                error_code: code.clone(),
+                message: message.clone(),
+                status: StatusCode::BAD_REQUEST,
+            },
             // Handle OAuth provider errors (invalid codes, user rejection, etc.) as authentication failures
-            CommandError::Infrastructure { code, .. } if code == "provider_error" => {
-                Self::OAuth {
-                    operation: operation.to_string(),
-                    error_code: "authentication_failed".to_string(),
-                    message: "Authentication failed".to_string(),
-                    status: StatusCode::UNAUTHORIZED,
-                }
-            }
+            CommandError::Infrastructure { code, .. } if code == "provider_error" => Self::OAuth {
+                operation: operation.to_string(),
+                error_code: "authentication_failed".to_string(),
+                message: "Authentication failed".to_string(),
+                status: StatusCode::UNAUTHORIZED,
+            },
             // Handle retry exhausted errors that originated from OAuth provider failures
-            CommandError::RetryExhausted { message, .. } if message.contains("provider_error") || message.contains("OAuth") => {
+            CommandError::RetryExhausted { message, .. }
+                if message.contains("provider_error") || message.contains("OAuth") =>
+            {
                 Self::OAuth {
                     operation: operation.to_string(),
                     error_code: "authentication_failed".to_string(),
@@ -735,7 +811,9 @@ impl AuthError {
                 }
             }
             // Handle other OAuth-related infrastructure errors as authentication failures
-            CommandError::Infrastructure { code, .. } if code.contains("oauth") || code.contains("provider") => {
+            CommandError::Infrastructure { code, .. }
+                if code.contains("oauth") || code.contains("provider") =>
+            {
                 Self::OAuth {
                     operation: operation.to_string(),
                     error_code: "authentication_failed".to_string(),
@@ -758,7 +836,11 @@ impl AuthError {
         }
     }
 
-    pub fn oauth_link_failed(operation: &str, command_error: &CommandError, provider: &str) -> Self {
+    pub fn oauth_link_failed(
+        operation: &str,
+        command_error: &CommandError,
+        provider: &str,
+    ) -> Self {
         match command_error {
             CommandError::Business { code, .. } if code == "provider_already_linked_same_user" => {
                 Self::OAuth {
@@ -772,45 +854,42 @@ impl AuthError {
                 Self::OAuth {
                     operation: operation.to_string(),
                     error_code: code.clone(),
-                    message: format!("This {} account is already linked to another user", provider),
+                    message: format!(
+                        "This {} account is already linked to another user",
+                        provider
+                    ),
                     status: StatusCode::CONFLICT,
                 }
             }
-            CommandError::Business { code, .. } if code == "authentication_failed" => {
-                Self::OAuth {
-                    operation: operation.to_string(),
-                    error_code: code.clone(),
-                    message: "Authentication failed".to_string(),
-                    status: StatusCode::UNAUTHORIZED,
-                }
-            }
-            CommandError::Business { code, .. } if code == "user_not_found" => {
-                Self::OAuth {
-                    operation: operation.to_string(),
-                    error_code: code.clone(),
-                    message: "User not found".to_string(),
-                    status: StatusCode::NOT_FOUND,
-                }
-            }
-            CommandError::Validation { code, message } => {
-                Self::OAuth {
-                    operation: operation.to_string(),
-                    error_code: code.clone(),
-                    message: message.clone(),
-                    status: StatusCode::BAD_REQUEST,
-                }
-            }
+            CommandError::Business { code, .. } if code == "authentication_failed" => Self::OAuth {
+                operation: operation.to_string(),
+                error_code: code.clone(),
+                message: "Authentication failed".to_string(),
+                status: StatusCode::UNAUTHORIZED,
+            },
+            CommandError::Business { code, .. } if code == "user_not_found" => Self::OAuth {
+                operation: operation.to_string(),
+                error_code: code.clone(),
+                message: "User not found".to_string(),
+                status: StatusCode::NOT_FOUND,
+            },
+            CommandError::Validation { code, message } => Self::OAuth {
+                operation: operation.to_string(),
+                error_code: code.clone(),
+                message: message.clone(),
+                status: StatusCode::BAD_REQUEST,
+            },
             // Handle OAuth provider errors (invalid codes, user rejection, etc.) as authentication failures
-            CommandError::Infrastructure { code, .. } if code == "provider_error" => {
-                Self::OAuth {
-                    operation: operation.to_string(),
-                    error_code: "authentication_failed".to_string(),
-                    message: "Authentication failed".to_string(),
-                    status: StatusCode::UNAUTHORIZED,
-                }
-            }
+            CommandError::Infrastructure { code, .. } if code == "provider_error" => Self::OAuth {
+                operation: operation.to_string(),
+                error_code: "authentication_failed".to_string(),
+                message: "Authentication failed".to_string(),
+                status: StatusCode::UNAUTHORIZED,
+            },
             // Handle retry exhausted errors that originated from OAuth provider failures
-            CommandError::RetryExhausted { message, .. } if message.contains("provider_error") || message.contains("OAuth") => {
+            CommandError::RetryExhausted { message, .. }
+                if message.contains("provider_error") || message.contains("OAuth") =>
+            {
                 Self::OAuth {
                     operation: operation.to_string(),
                     error_code: "authentication_failed".to_string(),
@@ -819,7 +898,9 @@ impl AuthError {
                 }
             }
             // Handle other OAuth-related infrastructure errors as authentication failures
-            CommandError::Infrastructure { code, .. } if code.contains("oauth") || code.contains("provider") => {
+            CommandError::Infrastructure { code, .. }
+                if code.contains("oauth") || code.contains("provider") =>
+            {
                 Self::OAuth {
                     operation: operation.to_string(),
                     error_code: "authentication_failed".to_string(),
@@ -845,12 +926,14 @@ impl AuthError {
                 message: message.clone(),
                 status: StatusCode::BAD_REQUEST,
             },
-            CommandError::Business { code, .. } if code == "user_already_exists" => AuthError::OAuth {
-                operation: "signup".to_string(),
-                error_code: code.clone(),
-                message: "User with this email already exists".to_string(),
-                status: StatusCode::CONFLICT,
-            },
+            CommandError::Business { code, .. } if code == "user_already_exists" => {
+                AuthError::OAuth {
+                    operation: "signup".to_string(),
+                    error_code: code.clone(),
+                    message: "User with this email already exists".to_string(),
+                    status: StatusCode::CONFLICT,
+                }
+            }
             CommandError::Business { code, message } => AuthError::OAuth {
                 operation: "signup".to_string(),
                 error_code: code.clone(),
@@ -875,18 +958,22 @@ impl AuthError {
     /// Email/password login failed
     pub fn login_failed(command_error: &CommandError) -> Self {
         match command_error {
-            CommandError::Validation { code, .. } if code == "invalid_credentials" => AuthError::OAuth {
-                operation: "login".to_string(),
-                error_code: code.clone(),
-                message: "Invalid email or password".to_string(),
-                status: StatusCode::UNAUTHORIZED,
-            },
-            CommandError::Business { code, .. } if code == "email_not_verified" => AuthError::OAuth {
-                operation: "login".to_string(),
-                error_code: code.clone(),
-                message: "Please verify your email address before logging in".to_string(),
-                status: StatusCode::UNAUTHORIZED,
-            },
+            CommandError::Validation { code, .. } if code == "invalid_credentials" => {
+                AuthError::OAuth {
+                    operation: "login".to_string(),
+                    error_code: code.clone(),
+                    message: "Invalid email or password".to_string(),
+                    status: StatusCode::UNAUTHORIZED,
+                }
+            }
+            CommandError::Business { code, .. } if code == "email_not_verified" => {
+                AuthError::OAuth {
+                    operation: "login".to_string(),
+                    error_code: code.clone(),
+                    message: "Please verify your email address before logging in".to_string(),
+                    status: StatusCode::UNAUTHORIZED,
+                }
+            }
             CommandError::Validation { code, message } => AuthError::OAuth {
                 operation: "login".to_string(),
                 error_code: code.clone(),
@@ -917,24 +1004,28 @@ impl AuthError {
     /// Email verification failed
     pub fn verification_failed(command_error: &CommandError) -> Self {
         match command_error {
-            CommandError::Validation { code, .. } if code == "invalid_verification_token" => AuthError::OAuth {
-                operation: "verify".to_string(),
-                error_code: code.clone(),
-                message: "Invalid or expired verification token".to_string(),
-                status: StatusCode::BAD_REQUEST,
-            },
+            CommandError::Validation { code, .. } if code == "invalid_verification_token" => {
+                AuthError::OAuth {
+                    operation: "verify".to_string(),
+                    error_code: code.clone(),
+                    message: "Invalid or expired verification token".to_string(),
+                    status: StatusCode::BAD_REQUEST,
+                }
+            }
             CommandError::Business { code, .. } if code == "email_not_found" => AuthError::OAuth {
                 operation: "verify".to_string(),
                 error_code: code.clone(),
                 message: "Verification request not found".to_string(),
                 status: StatusCode::NOT_FOUND,
             },
-            CommandError::Business { code, .. } if code == "email_already_verified" => AuthError::OAuth {
-                operation: "verify".to_string(),
-                error_code: code.clone(),
-                message: "Email is already verified".to_string(),
-                status: StatusCode::BAD_REQUEST,
-            },
+            CommandError::Business { code, .. } if code == "email_already_verified" => {
+                AuthError::OAuth {
+                    operation: "verify".to_string(),
+                    error_code: code.clone(),
+                    message: "Email is already verified".to_string(),
+                    status: StatusCode::BAD_REQUEST,
+                }
+            }
             CommandError::Validation { code, message } => AuthError::OAuth {
                 operation: "verify".to_string(),
                 error_code: code.clone(),
@@ -981,46 +1072,36 @@ impl AuthError {
                     status: StatusCode::UNPROCESSABLE_ENTITY,
                 }
             }
-            CommandError::Business { code, .. } if code == "no_token_for_provider" => {
-                Self::OAuth {
-                    operation: "internal_token".to_string(),
-                    error_code: code.clone(),
-                    message: format!("No token available for the user and provider {}", provider),
-                    status: StatusCode::NOT_FOUND,
-                }
-            }
-            CommandError::Authentication { code, .. } if code == "user_not_found" => {
-                Self::OAuth {
-                    operation: "internal_token".to_string(),
-                    error_code: code.clone(),
-                    message: "Authentication failed".to_string(),
-                    status: StatusCode::UNAUTHORIZED,
-                }
-            }
-            CommandError::Validation { code, message } => {
-                Self::OAuth {
-                    operation: "internal_token".to_string(),
-                    error_code: code.clone(),
-                    message: message.clone(),
-                    status: StatusCode::BAD_REQUEST,
-                }
-            }
-            CommandError::Infrastructure { code, .. } => {
-                Self::OAuth {
-                    operation: "internal_token".to_string(),
-                    error_code: code.clone(),
-                    message: "Internal server error".to_string(),
-                    status: StatusCode::INTERNAL_SERVER_ERROR,
-                }
-            }
-            _ => {
-                Self::OAuth {
-                    operation: "internal_token".to_string(),
-                    error_code: "token_retrieval_failed".to_string(),
-                    message: "Failed to retrieve provider token".to_string(),
-                    status: StatusCode::INTERNAL_SERVER_ERROR,
-                }
-            }
+            CommandError::Business { code, .. } if code == "no_token_for_provider" => Self::OAuth {
+                operation: "internal_token".to_string(),
+                error_code: code.clone(),
+                message: format!("No token available for the user and provider {}", provider),
+                status: StatusCode::NOT_FOUND,
+            },
+            CommandError::Authentication { code, .. } if code == "user_not_found" => Self::OAuth {
+                operation: "internal_token".to_string(),
+                error_code: code.clone(),
+                message: "Authentication failed".to_string(),
+                status: StatusCode::UNAUTHORIZED,
+            },
+            CommandError::Validation { code, message } => Self::OAuth {
+                operation: "internal_token".to_string(),
+                error_code: code.clone(),
+                message: message.clone(),
+                status: StatusCode::BAD_REQUEST,
+            },
+            CommandError::Infrastructure { code, .. } => Self::OAuth {
+                operation: "internal_token".to_string(),
+                error_code: code.clone(),
+                message: "Internal server error".to_string(),
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+            },
+            _ => Self::OAuth {
+                operation: "internal_token".to_string(),
+                error_code: "token_retrieval_failed".to_string(),
+                message: "Failed to retrieve provider token".to_string(),
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+            },
         }
     }
 
@@ -1051,12 +1132,14 @@ impl AuthError {
                 message: "Registration session not found".to_string(),
                 status: StatusCode::BAD_REQUEST,
             },
-            CommandError::Validation { code, .. } if code == "invalid_username" => AuthError::OAuth {
-                operation: "complete_registration".to_string(),
-                error_code: code.clone(),
-                message: "Invalid username format".to_string(),
-                status: StatusCode::UNPROCESSABLE_ENTITY,
-            },
+            CommandError::Validation { code, .. } if code == "invalid_username" => {
+                AuthError::OAuth {
+                    operation: "complete_registration".to_string(),
+                    error_code: code.clone(),
+                    message: "Invalid username format".to_string(),
+                    status: StatusCode::UNPROCESSABLE_ENTITY,
+                }
+            }
             CommandError::Validation { code, message } => AuthError::OAuth {
                 operation: "complete_registration".to_string(),
                 error_code: code.clone(),
@@ -1087,12 +1170,14 @@ impl AuthError {
     /// Username check failed
     pub fn username_check_failed(command_error: &CommandError) -> Self {
         match command_error {
-            CommandError::Validation { code, .. } if code == "invalid_username" => AuthError::OAuth {
-                operation: "check_username".to_string(),
-                error_code: code.clone(),
-                message: "Invalid username format".to_string(),
-                status: StatusCode::BAD_REQUEST,
-            },
+            CommandError::Validation { code, .. } if code == "invalid_username" => {
+                AuthError::OAuth {
+                    operation: "check_username".to_string(),
+                    error_code: code.clone(),
+                    message: "Invalid username format".to_string(),
+                    status: StatusCode::BAD_REQUEST,
+                }
+            }
             CommandError::Validation { code, message } => AuthError::OAuth {
                 operation: "check_username".to_string(),
                 error_code: code.clone(),
@@ -1113,4 +1198,4 @@ impl AuthError {
             },
         }
     }
-} 
+}

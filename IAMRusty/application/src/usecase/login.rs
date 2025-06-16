@@ -1,23 +1,20 @@
 //! Login use case module for email/password authentication
 
-use domain::service::auth_service::{
-    AuthService, AuthError,
-};
-use domain::port::{
-    repository::{UserRepository, UserEmailRepository, EmailVerificationRepository},
-    service::{AuthTokenService, RegistrationTokenService},
-    event_publisher::EventPublisher,
-};
 use async_trait::async_trait;
+use domain::port::{
+    event_publisher::EventPublisher,
+    repository::{EmailVerificationRepository, UserEmailRepository, UserRepository},
+    service::{AuthTokenService, RegistrationTokenService},
+};
+use domain::service::auth_service::{AuthError, AuthService};
 use std::sync::Arc;
 use thiserror::Error;
 
 // Re-export types for command handlers
 pub use domain::service::auth_service::{
-    SignupRequest, SignupResponse, LoginRequest, LoginResponse,
-    VerifyEmailRequest, VerifyEmailResponse,
-    ResendVerificationEmailRequest, ResendVerificationEmailResponse,
-    PasswordService,
+    LoginRequest, LoginResponse, PasswordService, ResendVerificationEmailRequest,
+    ResendVerificationEmailResponse, SignupRequest, SignupResponse, VerifyEmailRequest,
+    VerifyEmailResponse,
 };
 
 /// Login use case errors for email/password authentication
@@ -25,34 +22,34 @@ pub use domain::service::auth_service::{
 pub enum LoginError {
     #[error("User already exists")]
     UserAlreadyExists,
-    
+
     #[error("User not found")]
     UserNotFound,
-    
+
     #[error("Invalid credentials")]
     InvalidCredentials,
-    
+
     #[error("Weak password")]
     WeakPassword,
-    
+
     #[error("Invalid email format")]
     InvalidEmail,
-    
+
     #[error("Email not verified")]
     EmailNotVerified,
-    
+
     #[error("Email not found")]
     EmailNotFound,
-    
+
     #[error("Email already verified")]
     EmailAlreadyVerified,
-    
+
     #[error("Invalid verification token")]
     InvalidVerificationToken,
-    
+
     #[error("Verification token expired")]
     VerificationTokenExpired,
-    
+
     #[error("Authentication service error: {0}")]
     AuthServiceError(String),
 }
@@ -80,8 +77,14 @@ impl From<AuthError> for LoginError {
 pub trait LoginUseCase: Send + Sync {
     async fn signup(&self, request: SignupRequest) -> Result<SignupResponse, LoginError>;
     async fn login(&self, request: LoginRequest) -> Result<LoginResponse, LoginError>;
-    async fn verify_email(&self, request: VerifyEmailRequest) -> Result<VerifyEmailResponse, LoginError>;
-    async fn resend_verification_email(&self, request: ResendVerificationEmailRequest) -> Result<ResendVerificationEmailResponse, LoginError>;
+    async fn verify_email(
+        &self,
+        request: VerifyEmailRequest,
+    ) -> Result<VerifyEmailResponse, LoginError>;
+    async fn resend_verification_email(
+        &self,
+        request: ResendVerificationEmailRequest,
+    ) -> Result<ResendVerificationEmailResponse, LoginError>;
 }
 
 /// Implementation of the login use case for email/password authentication
@@ -109,9 +112,7 @@ where
     EP: EventPublisher,
 {
     pub fn new(auth_service: Arc<AuthService<UR, UER, EVR, PS, TS, RTS, EP>>) -> Self {
-        Self {
-            auth_service,
-        }
+        Self { auth_service }
     }
 }
 
@@ -134,11 +135,23 @@ where
         self.auth_service.login(request).await.map_err(Into::into)
     }
 
-    async fn verify_email(&self, request: VerifyEmailRequest) -> Result<VerifyEmailResponse, LoginError> {
-        self.auth_service.verify_email(request).await.map_err(Into::into)
+    async fn verify_email(
+        &self,
+        request: VerifyEmailRequest,
+    ) -> Result<VerifyEmailResponse, LoginError> {
+        self.auth_service
+            .verify_email(request)
+            .await
+            .map_err(Into::into)
     }
 
-    async fn resend_verification_email(&self, request: ResendVerificationEmailRequest) -> Result<ResendVerificationEmailResponse, LoginError> {
-        self.auth_service.resend_verification_email(request).await.map_err(Into::into)
+    async fn resend_verification_email(
+        &self,
+        request: ResendVerificationEmailRequest,
+    ) -> Result<ResendVerificationEmailResponse, LoginError> {
+        self.auth_service
+            .resend_verification_email(request)
+            .await
+            .map_err(Into::into)
     }
-} 
+}

@@ -1,11 +1,11 @@
 use crate::entity::{
     provider::{ProviderTokens, ProviderUserProfile},
-    token::{JwkSet, TokenClaims, JwtToken, RefreshToken},
     registration_token::RegistrationTokenClaims,
+    token::{JwkSet, JwtToken, RefreshToken, TokenClaims},
 };
-use uuid::Uuid;
 use crate::error::DomainError;
 use async_trait::async_trait;
+use uuid::Uuid;
 
 /// Provider OAuth2 client interface
 #[async_trait::async_trait]
@@ -17,7 +17,10 @@ pub trait ProviderOAuth2Client {
     async fn exchange_code(&self, code: &str) -> Result<ProviderTokens, DomainError>;
 
     /// Get user profile from the provider
-    async fn get_user_profile(&self, tokens: &ProviderTokens) -> Result<ProviderUserProfile, DomainError>;
+    async fn get_user_profile(
+        &self,
+        tokens: &ProviderTokens,
+    ) -> Result<ProviderUserProfile, DomainError>;
 }
 
 /// JWT token encoder/decoder
@@ -35,13 +38,25 @@ pub trait JwtTokenEncoder: Send + Sync {
 /// Registration token service for managing RSA-signed registration tokens
 pub trait RegistrationTokenService: Send + Sync {
     /// Generate a registration token for email/password flow
-    fn generate_registration_token(&self, user_id: Uuid, email: String) -> Result<String, DomainError>;
+    fn generate_registration_token(
+        &self,
+        user_id: Uuid,
+        email: String,
+    ) -> Result<String, DomainError>;
 
     /// Generate a registration token for OAuth flow
-    fn generate_oauth_registration_token(&self, user_id: Uuid, email: String, provider_info: crate::entity::registration_token::ProviderInfo) -> Result<String, DomainError>;
+    fn generate_oauth_registration_token(
+        &self,
+        user_id: Uuid,
+        email: String,
+        provider_info: crate::entity::registration_token::ProviderInfo,
+    ) -> Result<String, DomainError>;
 
     /// Validate and decode a registration token
-    fn validate_registration_token(&self, token: &str) -> Result<RegistrationTokenClaims, DomainError>;
+    fn validate_registration_token(
+        &self,
+        token: &str,
+    ) -> Result<RegistrationTokenClaims, DomainError>;
 
     /// Check if a registration token is valid and not expired
     fn is_registration_token_valid(&self, token: &str) -> bool;
@@ -64,4 +79,4 @@ pub trait AuthTokenService: Send + Sync {
 
     /// Validate a refresh token
     async fn validate_refresh_token(&self, token: &str) -> Result<RefreshToken, Self::Error>;
-} 
+}

@@ -1,14 +1,14 @@
 // Include common test utilities and fixtures
-#[path = "common/mod.rs"] 
+#[path = "common/mod.rs"]
 mod common;
 #[path = "fixtures/mod.rs"]
 mod fixtures;
 
+use base64::{Engine as _, engine::general_purpose};
 use common::setup_test_server;
 use fixtures::{DbFixtures, GitHubFixtures};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use serial_test::serial;
-use base64::{engine::general_purpose, Engine as _};
 
 /// Helper function to decode JWT payload for testing
 fn decode_jwt_payload(jwt: &str) -> Result<Value, Box<dyn std::error::Error>> {
@@ -16,13 +16,13 @@ fn decode_jwt_payload(jwt: &str) -> Result<Value, Box<dyn std::error::Error>> {
     if parts.len() != 3 {
         return Err("Invalid JWT format".into());
     }
-    
+
     let payload_encoded = parts[1];
     let payload_padded = match payload_encoded.len() % 4 {
         0 => payload_encoded.to_string(),
         n => format!("{}{}", payload_encoded, "=".repeat(4 - n)),
     };
-    
+
     let decoded_bytes = general_purpose::STANDARD.decode(payload_padded)?;
     let payload_str = String::from_utf8(decoded_bytes)?;
     let payload: Value = serde_json::from_str(&payload_str)?;
@@ -36,7 +36,9 @@ fn decode_jwt_payload(jwt: &str) -> Result<Value, Box<dyn std::error::Error>> {
 #[tokio::test]
 #[serial]
 async fn test_registration_token_has_correct_structure() {
-    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
 
     let signup_data = json!({
         "email": "jwttest@example.com",
@@ -52,14 +54,14 @@ async fn test_registration_token_has_correct_structure() {
         .expect("Failed to send signup request");
 
     assert_eq!(response.status(), 201);
-    
+
     let response_body: Value = response.json().await.expect("Should return JSON response");
     let registration_token = response_body["registration_token"].as_str().unwrap();
 
     // Verify JWT structure
     let parts: Vec<&str> = registration_token.split('.').collect();
     assert_eq!(parts.len(), 3, "JWT should have 3 parts");
-    
+
     // Decode and verify payload
     let payload = decode_jwt_payload(registration_token).expect("Should decode JWT payload");
     assert_eq!(payload["email"].as_str().unwrap(), "jwttest@example.com");
@@ -70,7 +72,9 @@ async fn test_registration_token_has_correct_structure() {
 #[tokio::test]
 #[serial]
 async fn test_expired_token_returns_400() {
-    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
 
     // Use an obviously invalid token
     let expired_token = "invalid.token.here";
@@ -88,13 +92,19 @@ async fn test_expired_token_returns_400() {
         .await
         .expect("Failed to send completion request");
 
-    assert_eq!(response.status(), 400, "Should return 400 for invalid token");
+    assert_eq!(
+        response.status(),
+        400,
+        "Should return 400 for invalid token"
+    );
 }
 
 #[tokio::test]
 #[serial]
 async fn test_jwks_endpoint_accessible() {
-    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
 
     let response = client
         .get(&format!("{}/.well-known/jwks.json", base_url))
@@ -103,19 +113,21 @@ async fn test_jwks_endpoint_accessible() {
         .expect("Failed to get JWKS");
 
     assert_eq!(response.status(), 200, "JWKS endpoint should be accessible");
-    
+
     let jwks: Value = response.json().await.expect("Should return JSON");
     assert!(jwks["keys"].is_array(), "JWKS should contain keys array");
 }
 
 // =============================================================================
-// 🔄 EDGE CASES & RETRY SCENARIOS  
+// 🔄 EDGE CASES & RETRY SCENARIOS
 // =============================================================================
 
 #[tokio::test]
 #[serial]
 async fn test_same_email_retry_returns_new_token() {
-    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
 
     let signup_data = json!({
         "email": "retry@example.com",
@@ -149,16 +161,21 @@ async fn test_same_email_retry_returns_new_token() {
     let second_token = second_body["registration_token"].as_str().unwrap();
 
     // Tokens should be different
-    assert_ne!(first_token, second_token, "Should generate new token on retry");
+    assert_ne!(
+        first_token, second_token,
+        "Should generate new token on retry"
+    );
 }
 
 #[tokio::test]
 #[serial]
 async fn test_user_id_consistent_across_retries() {
-    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
 
     let signup_data = json!({
-        "email": "consistent@example.com", 
+        "email": "consistent@example.com",
         "password": "securePassword123"
     });
 
@@ -188,7 +205,10 @@ async fn test_user_id_consistent_across_retries() {
     let second_body: Value = second_response.json().await.expect("Should return JSON");
     let second_user_id = second_body["user"]["id"].as_str().unwrap();
 
-    assert_eq!(first_user_id, second_user_id, "User ID should remain consistent");
+    assert_eq!(
+        first_user_id, second_user_id,
+        "User ID should remain consistent"
+    );
 }
 
 // =============================================================================
@@ -198,7 +218,9 @@ async fn test_user_id_consistent_across_retries() {
 #[tokio::test]
 #[serial]
 async fn test_username_availability_check() {
-    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
 
     // Check available username
     let response = client
@@ -209,7 +231,7 @@ async fn test_username_availability_check() {
         .expect("Failed to check username");
 
     assert_eq!(response.status(), 200);
-    
+
     let response_body: Value = response.json().await.expect("Should return JSON");
     assert_eq!(response_body["available"].as_bool().unwrap(), true);
 }
@@ -217,7 +239,9 @@ async fn test_username_availability_check() {
 #[tokio::test]
 #[serial]
 async fn test_taken_username_with_suggestions() {
-    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
     let db = _fixture.db();
 
     // Pre-create user with taken username
@@ -236,10 +260,10 @@ async fn test_taken_username_with_suggestions() {
         .expect("Failed to check username");
 
     assert_eq!(response.status(), 200);
-    
+
     let response_body: Value = response.json().await.expect("Should return JSON");
     assert_eq!(response_body["available"].as_bool().unwrap(), false);
-    
+
     let suggestions = response_body["suggestions"].as_array().unwrap();
     assert!(suggestions.len() > 0, "Should provide suggestions");
 }
@@ -247,7 +271,9 @@ async fn test_taken_username_with_suggestions() {
 #[tokio::test]
 #[serial]
 async fn test_username_format_validation() {
-    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
 
     // Test too short username
     let response = client
@@ -257,8 +283,10 @@ async fn test_username_format_validation() {
         .await
         .expect("Failed to check username");
 
-    assert!(response.status() == 400 || response.status() == 422, 
-           "Should reject too short username");
+    assert!(
+        response.status() == 400 || response.status() == 422,
+        "Should reject too short username"
+    );
 
     // Test valid username
     let response = client
@@ -278,12 +306,14 @@ async fn test_username_format_validation() {
 #[tokio::test]
 #[serial]
 async fn test_email_validation_and_sanitization() {
-    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
 
     let test_cases = vec![
         ("valid@example.com", true),
         ("  trimmed@example.com  ", true), // Should be trimmed
-        ("UPPERCASE@EXAMPLE.COM", true), // Should be normalized
+        ("UPPERCASE@EXAMPLE.COM", true),   // Should be normalized
         ("invalid-email", false),
         ("@missing-local.com", false),
         ("", false),
@@ -304,11 +334,17 @@ async fn test_email_validation_and_sanitization() {
             .expect("Failed to send signup");
 
         if should_succeed {
-            assert!(response.status() == 201 || response.status() == 409, 
-                   "Valid email '{}' should succeed", email);
+            assert!(
+                response.status() == 201 || response.status() == 409,
+                "Valid email '{}' should succeed",
+                email
+            );
         } else {
-            assert!(response.status() == 400 || response.status() == 422, 
-                   "Invalid email '{}' should fail", email);
+            assert!(
+                response.status() == 400 || response.status() == 422,
+                "Invalid email '{}' should fail",
+                email
+            );
         }
     }
 }
@@ -316,7 +352,9 @@ async fn test_email_validation_and_sanitization() {
 #[tokio::test]
 #[serial]
 async fn test_username_injection_prevention() {
-    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
 
     // Get registration token
     let signup_data = json!({
@@ -333,14 +371,14 @@ async fn test_username_injection_prevention() {
         .expect("Failed to send signup");
 
     assert_eq!(signup_response.status(), 201);
-    
+
     let signup_body: Value = signup_response.json().await.expect("Should return JSON");
     let registration_token = signup_body["registration_token"].as_str().unwrap();
 
     // Test injection attempts
     let malicious_usernames = vec![
         "<script>alert('xss')</script>",
-        "'; DROP TABLE users; --", 
+        "'; DROP TABLE users; --",
         "../../../etc/passwd",
         "user\x00null",
     ];
@@ -359,15 +397,20 @@ async fn test_username_injection_prevention() {
             .await
             .expect("Failed to send completion");
 
-        assert!(response.status() == 400 || response.status() == 422,
-               "Should reject malicious username: '{}'", malicious_username);
+        assert!(
+            response.status() == 400 || response.status() == 422,
+            "Should reject malicious username: '{}'",
+            malicious_username
+        );
     }
 }
 
 #[tokio::test]
 #[serial]
 async fn test_no_user_enumeration_in_errors() {
-    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
 
     // Test login with non-existent email
     let login_data = json!({
@@ -384,15 +427,19 @@ async fn test_no_user_enumeration_in_errors() {
         .expect("Failed to send login");
 
     assert_eq!(response.status(), 401);
-    
+
     let error_json: Value = response.json().await.expect("Should return JSON");
     let error_response = &error_json["error"];
     let error_message = error_response["message"].as_str().unwrap_or("");
-    
+
     // Should not reveal user existence
     assert!(!error_message.to_lowercase().contains("user not found"));
     assert!(!error_message.to_lowercase().contains("email not found"));
-    assert!(error_message.to_lowercase().contains("invalid email or password"));
+    assert!(
+        error_message
+            .to_lowercase()
+            .contains("invalid email or password")
+    );
 }
 
 // =============================================================================
@@ -401,7 +448,9 @@ async fn test_no_user_enumeration_in_errors() {
 #[tokio::test]
 #[serial]
 async fn test_oauth_first_flow_with_github() {
-    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
 
     // Setup GitHub mock
     let github = GitHubFixtures::service().await;
@@ -416,16 +465,23 @@ async fn test_oauth_first_flow_with_github() {
         .expect("Failed to start OAuth");
 
     assert_eq!(start_response.status(), 303);
-    
+
     // Note: In a complete test, you would:
     // 1. Parse the redirect URL and state
     // 2. Simulate the OAuth callback
     // 3. Verify 202 response with registration token
     // 4. Complete registration with username
     // 5. Verify user can login with both OAuth and email/password
-    
+
     // For now, we verify the OAuth start works
-    let location = start_response.headers().get("location").unwrap().to_str().unwrap();
-    assert!(location.contains("github.com") || location.contains("localhost:3000"), 
-           "Should redirect to GitHub OAuth");
-} 
+    let location = start_response
+        .headers()
+        .get("location")
+        .unwrap()
+        .to_str()
+        .unwrap();
+    assert!(
+        location.contains("github.com") || location.contains("localhost:3000"),
+        "Should redirect to GitHub OAuth"
+    );
+}

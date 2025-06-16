@@ -9,7 +9,11 @@ use super::entity::user_email_verification;
 /// Read-only repository trait for email verification
 #[async_trait]
 pub trait EmailVerificationReadRepository: Send + Sync {
-    async fn find_by_email_and_token(&self, email: &str, token: &str) -> Result<Option<EmailVerification>, DomainError>;
+    async fn find_by_email_and_token(
+        &self,
+        email: &str,
+        token: &str,
+    ) -> Result<Option<EmailVerification>, DomainError>;
     async fn find_by_email(&self, email: &str) -> Result<Option<EmailVerification>, DomainError>;
 }
 
@@ -37,7 +41,11 @@ impl SeaOrmEmailVerificationReadRepository {
 
 #[async_trait]
 impl EmailVerificationReadRepository for SeaOrmEmailVerificationReadRepository {
-    async fn find_by_email_and_token(&self, email: &str, token: &str) -> Result<Option<EmailVerification>, DomainError> {
+    async fn find_by_email_and_token(
+        &self,
+        email: &str,
+        token: &str,
+    ) -> Result<Option<EmailVerification>, DomainError> {
         // Find the verification token with the farthest expiration date (most recent)
         // This ensures we get the latest token if somehow multiple exist
         let model = user_email_verification::Entity::find()
@@ -46,7 +54,9 @@ impl EmailVerificationReadRepository for SeaOrmEmailVerificationReadRepository {
             .order_by_desc(user_email_verification::Column::ExpiresAt)
             .one(self.db.as_ref())
             .await
-            .map_err(|e| DomainError::RepositoryError(format!("Failed to find email verification: {}", e)))?;
+            .map_err(|e| {
+                DomainError::RepositoryError(format!("Failed to find email verification: {}", e))
+            })?;
 
         Ok(model.map(|m| self.to_domain_entity(m)))
     }
@@ -59,7 +69,12 @@ impl EmailVerificationReadRepository for SeaOrmEmailVerificationReadRepository {
             .order_by_desc(user_email_verification::Column::ExpiresAt)
             .one(self.db.as_ref())
             .await
-            .map_err(|e| DomainError::RepositoryError(format!("Failed to find email verification by email: {}", e)))?;
+            .map_err(|e| {
+                DomainError::RepositoryError(format!(
+                    "Failed to find email verification by email: {}",
+                    e
+                ))
+            })?;
 
         Ok(model.map(|m| self.to_domain_entity(m)))
     }
@@ -93,4 +108,4 @@ mod tests {
         assert_eq!(model.email, "test@example.com");
         assert_eq!(model.verification_token, "token123");
     }
-} 
+}

@@ -1,14 +1,14 @@
 use async_trait::async_trait;
+use domain::entity::token::RefreshToken as DomainRefreshToken;
+use domain::port::repository::RefreshTokenWriteRepository;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, Set,
 };
 use std::sync::Arc;
-use uuid::Uuid;
-use domain::entity::token::RefreshToken as DomainRefreshToken;
-use domain::port::repository::RefreshTokenWriteRepository;
 use tracing::debug;
+use uuid::Uuid;
 
-use super::entity::{refresh_tokens, prelude::RefreshTokens};
+use super::entity::{prelude::RefreshTokens, refresh_tokens};
 
 /// SeaORM implementation of RefreshTokenWriteRepository
 #[derive(Clone)]
@@ -53,59 +53,62 @@ impl RefreshTokenWriteRepository for RefreshTokenWriteRepositoryImpl {
 
     async fn create(&self, token: DomainRefreshToken) -> Result<DomainRefreshToken, Self::Error> {
         debug!("Creating new refresh token for user ID: {}", token.user_id);
-        
+
         let model = Self::to_model(&token);
         let res = model.insert(self.db.as_ref()).await?;
-        
+
         Ok(Self::to_domain(res))
     }
 
     async fn update_validity(&self, token_id: Uuid, is_valid: bool) -> Result<(), Self::Error> {
-        debug!("Updating refresh token validity: id={}, is_valid={}", token_id, is_valid);
-        
+        debug!(
+            "Updating refresh token validity: id={}, is_valid={}",
+            token_id, is_valid
+        );
+
         let token = RefreshTokens::find_by_id(token_id)
             .one(self.db.as_ref())
             .await?;
-            
+
         if let Some(token) = token {
             let mut model = refresh_tokens::ActiveModel::from(token);
             model.is_valid = Set(is_valid);
-            
+
             model.update(self.db.as_ref()).await?;
             debug!("Updated refresh token validity");
         } else {
             debug!("Refresh token not found for update: {}", token_id);
         }
-        
+
         Ok(())
     }
 
     async fn delete_by_id(&self, token_id: Uuid) -> Result<(), Self::Error> {
         debug!("Deleting refresh token by ID: {}", token_id);
-        
+
         let result = RefreshTokens::delete_by_id(token_id)
             .exec(self.db.as_ref())
             .await?;
-            
+
         if result.rows_affected > 0 {
             debug!("Deleted refresh token: {}", token_id);
         } else {
             debug!("Refresh token not found for deletion: {}", token_id);
         }
-        
+
         Ok(())
     }
 
     async fn delete_by_user_id(&self, user_id: Uuid) -> Result<u64, Self::Error> {
         debug!("Deleting all refresh tokens for user ID: {}", user_id);
-        
+
         let result = RefreshTokens::delete_many()
             .filter(refresh_tokens::Column::UserId.eq(user_id))
             .exec(self.db.as_ref())
             .await?;
-            
+
         debug!("Deleted {} refresh tokens", result.rows_affected);
-        
+
         Ok(result.rows_affected)
     }
-} 
+}

@@ -1,8 +1,11 @@
-use wiremock::{Mock, MockServer, ResponseTemplate, matchers::{method, path, header, body_string_contains}};
-use serde::Serialize;
-use std::sync::Arc;
 use super::resources::*;
 use crate::fixtures::common::MockServerFixture;
+use serde::Serialize;
+use std::sync::Arc;
+use wiremock::{
+    Mock, MockServer, ResponseTemplate,
+    matchers::{body_string_contains, header, method, path},
+};
 
 /// GitHub service for mocking GitHub OAuth endpoints
 pub struct GitHubService {
@@ -15,8 +18,8 @@ impl GitHubService {
     pub async fn new() -> Self {
         let fixture = MockServerFixture::new().await;
         let server = fixture.server();
-        
-        Self { 
+
+        Self {
             server,
             _fixture: fixture,
         }
@@ -48,7 +51,7 @@ impl GitHubService {
             .respond_with(
                 ResponseTemplate::new(status_code)
                     .set_body_json(response)
-                    .insert_header("content-type", "application/json")
+                    .insert_header("content-type", "application/json"),
             )
             .mount(&*self.server)
             .await;
@@ -65,17 +68,26 @@ impl GitHubService {
         redirect_location: Option<String>,
     ) -> &Self {
         let mut response_template = ResponseTemplate::new(status_code);
-        
+
         if let Some(location) = redirect_location {
             response_template = response_template.insert_header("location", location);
         }
 
         Mock::given(method("GET"))
             .and(path("/login/oauth/authorize"))
-            .and(wiremock::matchers::query_param("client_id", &request.client_id))
-            .and(wiremock::matchers::query_param("redirect_uri", &request.redirect_uri))
+            .and(wiremock::matchers::query_param(
+                "client_id",
+                &request.client_id,
+            ))
+            .and(wiremock::matchers::query_param(
+                "redirect_uri",
+                &request.redirect_uri,
+            ))
             .and(wiremock::matchers::query_param("scope", &request.scope))
-            .and(wiremock::matchers::query_param("response_type", &request.response_type))
+            .and(wiremock::matchers::query_param(
+                "response_type",
+                &request.response_type,
+            ))
             // Don't match exact redirect_uri, scope, or state since they may vary
             .respond_with(response_template)
             .mount(&*self.server)
@@ -96,11 +108,14 @@ impl GitHubService {
             .and(path("/user"))
             .and(header("user-agent", &request.user_agent))
             .and(header("accept", &request.accept))
-            .and(header("authorization", format!("token {}", request.access_token)))
+            .and(header(
+                "authorization",
+                format!("token {}", request.access_token),
+            ))
             .respond_with(
                 ResponseTemplate::new(status_code)
                     .set_body_json(response)
-                    .insert_header("content-type", "application/json")
+                    .insert_header("content-type", "application/json"),
             )
             .mount(&*self.server)
             .await;
@@ -120,11 +135,14 @@ impl GitHubService {
             .and(path("/user/emails"))
             .and(header("user-agent", &request.user_agent))
             .and(header("accept", &request.accept))
-            .and(header("authorization", format!("token {}", request.access_token)))
+            .and(header(
+                "authorization",
+                format!("token {}", request.access_token),
+            ))
             .respond_with(
                 ResponseTemplate::new(status_code)
                     .set_body_json(response)
-                    .insert_header("content-type", "application/json")
+                    .insert_header("content-type", "application/json"),
             )
             .mount(&*self.server)
             .await;
@@ -145,7 +163,7 @@ impl GitHubService {
             .respond_with(
                 ResponseTemplate::new(status_code)
                     .set_body_json(response)
-                    .insert_header("content-type", "application/json")
+                    .insert_header("content-type", "application/json"),
             )
             .mount(&*self.server)
             .await;
@@ -161,19 +179,21 @@ impl GitHubService {
             200,
             GitHubTokenRequest::valid(),
             GitHubTokenResponse::success(),
-        ).await
+        )
+        .await
     }
 
     /// Setup successful OAuth authorization flow
     pub async fn setup_successful_oauth_authorization(&self) -> &Self {
         // Mock the authorization endpoint that redirects back with a code
         let callback_url = "http://127.0.0.1:8081/api/auth/github/callback?code=auth_code_from_github&state=login_state_67890";
-        
+
         self.oauth_authorize(
             302, // Temporary redirect
             GitHubAuthRequest::login_flow(),
             Some(callback_url.to_string()),
-        ).await
+        )
+        .await
     }
 
     /// Setup failed OAuth token exchange (invalid code)
@@ -182,7 +202,8 @@ impl GitHubService {
             400,
             GitHubTokenRequest::invalid_code(),
             GitHubError::invalid_grant(),
-        ).await
+        )
+        .await
     }
 
     /// Setup failed OAuth token exchange (invalid client)
@@ -191,7 +212,8 @@ impl GitHubService {
             401,
             GitHubTokenRequest::invalid_client(),
             GitHubError::invalid_client(),
-        ).await
+        )
+        .await
     }
 
     /// Setup successful user profile fetch for Arthur
@@ -200,16 +222,14 @@ impl GitHubService {
             200,
             GitHubUserRequest::authenticated(),
             GitHubUser::arthur(),
-        ).await
+        )
+        .await
     }
 
     /// Setup successful user profile fetch for Bob
     pub async fn setup_successful_user_profile_bob(&self) -> &Self {
-        self.user_profile(
-            200,
-            GitHubUserRequest::authenticated(),
-            GitHubUser::bob(),
-        ).await
+        self.user_profile(200, GitHubUserRequest::authenticated(), GitHubUser::bob())
+            .await
     }
 
     /// Setup failed user profile fetch (unauthorized)
@@ -218,7 +238,8 @@ impl GitHubService {
             401,
             GitHubUserRequest::invalid_token(),
             GitHubError::unauthorized(),
-        ).await
+        )
+        .await
     }
 
     /// Setup rate limit exceeded error
@@ -227,7 +248,8 @@ impl GitHubService {
             403,
             GitHubUserRequest::authenticated(),
             GitHubError::rate_limit_exceeded(),
-        ).await
+        )
+        .await
     }
 
     /// Setup server error
@@ -236,8 +258,9 @@ impl GitHubService {
             500,
             GitHubUserRequest::authenticated(),
             GitHubError::server_error(),
-        ).await
+        )
+        .await
     }
 }
 
-// Note: Automatic cleanup happens when GitHubService is dropped via the MockServerFixture 
+// Note: Automatic cleanup happens when GitHubService is dropped via the MockServerFixture

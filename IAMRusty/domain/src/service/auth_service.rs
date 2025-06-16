@@ -1,70 +1,70 @@
 //! Authentication service for email/password operations
 
 use crate::entity::{
+    email_verification::EmailVerification,
+    events::{DomainEvent, UserEmailVerifiedEvent, UserLoggedInEvent, UserSignedUpEvent},
     user::User,
     user_email::UserEmail,
-    email_verification::EmailVerification,
-    events::{DomainEvent, UserSignedUpEvent, UserLoggedInEvent, UserEmailVerifiedEvent},
-};
-use crate::port::{
-    repository::{UserRepository, UserEmailRepository, EmailVerificationRepository},
-    service::{AuthTokenService, RegistrationTokenService},
-    event_publisher::EventPublisher,
 };
 use crate::error::DomainError;
+use crate::port::{
+    event_publisher::EventPublisher,
+    repository::{EmailVerificationRepository, UserEmailRepository, UserRepository},
+    service::{AuthTokenService, RegistrationTokenService},
+};
 use async_trait::async_trait;
+use chrono::Utc;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use thiserror::Error;
-use uuid::Uuid;
-use serde::{Deserialize, Serialize};
-use chrono::Utc;
 use tracing::debug;
+use uuid::Uuid;
 
 /// Authentication service errors
 #[derive(Debug, Error)]
 pub enum AuthError {
     #[error("User already exists")]
     UserAlreadyExists,
-    
+
     #[error("User not found")]
     UserNotFound,
-    
+
     #[error("Invalid credentials")]
     InvalidCredentials,
-    
+
     #[error("Weak password")]
     WeakPassword,
-    
+
     #[error("Invalid email format")]
     InvalidEmail,
-    
+
     #[error("Email not verified")]
     EmailNotVerified,
-    
+
     #[error("Email not found")]
     EmailNotFound,
-    
+
     #[error("Email already verified")]
     EmailAlreadyVerified,
-    
+
     #[error("Invalid verification token")]
     InvalidVerificationToken,
-    
+
     #[error("Verification token expired")]
     VerificationTokenExpired,
-    
+
     #[error("Repository error: {0}")]
     RepositoryError(#[from] DomainError),
-    
+
     #[error("Event publishing error: {0}")]
     EventPublishingError(String),
-    
+
     #[error("Token service error: {0}")]
     TokenServiceError(Box<dyn std::error::Error + Send + Sync>),
-    
+
     #[error("Password hashing error: {0}")]
     PasswordHashingError(String),
-    
+
     #[error("Verification token generation error: {0}")]
     VerificationTokenGenerationError(String),
 }
@@ -226,12 +226,19 @@ where
 
     pub async fn signup(&self, request: SignupRequest) -> Result<SignupResponse, AuthError> {
         // Check if user already exists by email
-        if let Ok(Some(existing_email)) = self.user_email_repository.find_by_email(&request.email).await {
+        if let Ok(Some(existing_email)) = self
+            .user_email_repository
+            .find_by_email(&request.email)
+            .await
+        {
             // User exists - check if they already have password auth
-            let existing_user = self.user_repository
+            let existing_user = self
+                .user_repository
                 .find_by_id(existing_email.user_id)
                 .await
-                .map_err(|e| AuthError::RepositoryError(DomainError::RepositoryError(e.to_string())))?
+                .map_err(|e| {
+                    AuthError::RepositoryError(DomainError::RepositoryError(e.to_string()))
+                })?
                 .ok_or(AuthError::UserNotFound)?;
 
             if existing_user.password_hash.is_some() && existing_user.username.is_some() {
@@ -239,21 +246,31 @@ where
             }
 
             // Add password to existing user (OAuth user adding password auth)
-            let password_hash = self.password_service.hash_password(&request.password).await?;
+            let password_hash = self
+                .password_service
+                .hash_password(&request.password)
+                .await?;
             let mut updated_user = existing_user.clone();
             updated_user.password_hash = Some(password_hash);
-            
-            let updated_user = self.user_repository.update(updated_user).await
-                .map_err(|e| AuthError::RepositoryError(DomainError::RepositoryError(e.to_string())))?;
+
+            let updated_user = self
+                .user_repository
+                .update(updated_user)
+                .await
+                .map_err(|e| {
+                    AuthError::RepositoryError(DomainError::RepositoryError(e.to_string()))
+                })?;
 
             // Generate tokens if user has completed registration (has username)
             if let Some(username) = &updated_user.username {
-                let access_token = self.token_service
+                let access_token = self
+                    .token_service
                     .generate_access_token(updated_user.id)
                     .await
                     .map_err(|e| AuthError::TokenServiceError(Box::new(e)))?;
 
-                let refresh_token = self.token_service
+                let refresh_token = self
+                    .token_service
                     .generate_refresh_token(updated_user.id)
                     .await
                     .map_err(|e| AuthError::TokenServiceError(Box::new(e)))?;
@@ -266,15 +283,16 @@ where
                         avatar: updated_user.avatar_url,
                     },
                     access_token: access_token.token,
-                    expires_in: (access_token.expires_at.timestamp() - Utc::now().timestamp()) as u64,
+                    expires_in: (access_token.expires_at.timestamp() - Utc::now().timestamp())
+                        as u64,
                     refresh_token: refresh_token.token,
                     message: "Password authentication added to existing account".to_string(),
                 });
             }
 
-            
-        // Generate registration token (RSA-signed JWT)
-            let registration_token = self.registration_token_service
+            // Generate registration token (RSA-signed JWT)
+            let registration_token = self
+                .registration_token_service
                 .generate_registration_token(updated_user.id, request.email.clone())
                 .map_err(|e| AuthError::RepositoryError(e))?;
 
@@ -285,28 +303,37 @@ where
                 },
                 registration_token,
                 requires_username: true,
-                message: "Account created. Please choose a username to complete registration".to_string(),
-            })
+                message: "Account created. Please choose a username to complete registration"
+                    .to_string(),
+            });
         }
 
         // Create new user without username (incomplete registration)
-        let password_hash = self.password_service.hash_password(&request.password).await?;
+        let password_hash = self
+            .password_service
+            .hash_password(&request.password)
+            .await?;
         let user = User::new_incomplete_with_password(password_hash, None);
 
         // Save the user
-        let created_user = self.user_repository.create(user).await
-            .map_err(|e| AuthError::RepositoryError(DomainError::RepositoryError(e.to_string())))?;
+        let created_user =
+            self.user_repository.create(user).await.map_err(|e| {
+                AuthError::RepositoryError(DomainError::RepositoryError(e.to_string()))
+            })?;
 
         // Create the user email (unverified initially)
         let user_email = UserEmail::new(
             created_user.id,
             request.email.clone(),
-            true, // Primary email
+            true,  // Primary email
             false, // Not verified yet
         );
 
         // Save the user email
-        let _created_email = self.user_email_repository.create(user_email).await
+        let _created_email = self
+            .user_email_repository
+            .create(user_email)
+            .await
             .map_err(|e| AuthError::RepositoryError(DomainError::RepositoryError(e.to_string())))?;
 
         // Generate verification token
@@ -318,11 +345,14 @@ where
         );
 
         // Save the verification token
-        self.email_verification_repository.create(&email_verification).await
+        self.email_verification_repository
+            .create(&email_verification)
+            .await
             .map_err(|e| AuthError::RepositoryError(DomainError::RepositoryError(e.to_string())))?;
 
         // Generate registration token (RSA-signed JWT)
-        let registration_token = self.registration_token_service
+        let registration_token = self
+            .registration_token_service
             .generate_registration_token(created_user.id, request.email.clone())
             .map_err(|e| AuthError::RepositoryError(e))?;
 
@@ -333,31 +363,34 @@ where
             },
             registration_token,
             requires_username: true,
-            message: "Account created. Please choose a username to complete registration".to_string(),
+            message: "Account created. Please choose a username to complete registration"
+                .to_string(),
         })
     }
 
     pub async fn login(&self, request: LoginRequest) -> Result<LoginResponse, AuthError> {
         // Find user by email
-        let user_email = self.user_email_repository
+        let user_email = self
+            .user_email_repository
             .find_by_email(&request.email)
             .await
             .map_err(|e| AuthError::RepositoryError(DomainError::RepositoryError(e.to_string())))?
             .ok_or(AuthError::InvalidCredentials)?; // Don't leak user existence
 
         // Get the user
-        let user = self.user_repository
+        let user = self
+            .user_repository
             .find_by_id(user_email.user_id)
             .await
             .map_err(|e| AuthError::RepositoryError(DomainError::RepositoryError(e.to_string())))?
             .ok_or(AuthError::InvalidCredentials)?;
 
         // Check if user has a password (should not happen if signup worked correctly)
-        let password_hash = user.password_hash
-            .ok_or(AuthError::InvalidCredentials)?;
+        let password_hash = user.password_hash.ok_or(AuthError::InvalidCredentials)?;
 
         // Verify password first
-        let is_valid = self.password_service
+        let is_valid = self
+            .password_service
             .verify_password(&request.password, &password_hash)
             .await?;
 
@@ -369,10 +402,11 @@ where
         // This is because incomplete users cannot have verified emails
         if user.username.is_none() {
             // Generate registration token (RSA-signed JWT)
-            let registration_token = self.registration_token_service
+            let registration_token = self
+                .registration_token_service
                 .generate_registration_token(user.id, request.email.clone())
                 .map_err(|e| AuthError::RepositoryError(e))?;
-            
+
             return Ok(LoginResponse::RegistrationIncomplete {
                 registration_token,
                 message: "Account exists but registration is incomplete. Please complete registration with a username.".to_string(),
@@ -385,12 +419,14 @@ where
         }
 
         // Generate JWT access token and refresh token
-        let access_token = self.token_service
+        let access_token = self
+            .token_service
             .generate_access_token(user.id)
             .await
             .map_err(|e| AuthError::TokenServiceError(Box::new(e)))?;
 
-        let refresh_token = self.token_service
+        let refresh_token = self
+            .token_service
             .generate_refresh_token(user.id)
             .await
             .map_err(|e| AuthError::TokenServiceError(Box::new(e)))?;
@@ -420,11 +456,14 @@ where
         })
     }
 
-    pub async fn verify_email(&self, request: VerifyEmailRequest) -> Result<VerifyEmailResponse, AuthError> {
-
+    pub async fn verify_email(
+        &self,
+        request: VerifyEmailRequest,
+    ) -> Result<VerifyEmailResponse, AuthError> {
         debug!("Verifying email: {}", request.email);
         // Find verification token
-        let verification = self.email_verification_repository
+        let verification = self
+            .email_verification_repository
             .find_by_email_and_token(&request.email, &request.verification_token)
             .await
             .map_err(|e| AuthError::RepositoryError(DomainError::RepositoryError(e.to_string())))?;
@@ -432,12 +471,15 @@ where
         let verification = match verification {
             Some(v) => v,
             None => {
-                // Check if the email exists in user_emails to distinguish between 
+                // Check if the email exists in user_emails to distinguish between
                 // nonexistent email (404) vs invalid token (400)
-                let user_email_exists = self.user_email_repository
+                let user_email_exists = self
+                    .user_email_repository
                     .find_by_email(&request.email)
                     .await
-                    .map_err(|e| AuthError::RepositoryError(DomainError::RepositoryError(e.to_string())))?
+                    .map_err(|e| {
+                        AuthError::RepositoryError(DomainError::RepositoryError(e.to_string()))
+                    })?
                     .is_some();
 
                 if !user_email_exists {
@@ -454,7 +496,8 @@ where
         }
 
         // Find user email
-        let mut user_email = self.user_email_repository
+        let mut user_email = self
+            .user_email_repository
             .find_by_email(&request.email)
             .await
             .map_err(|e| AuthError::RepositoryError(DomainError::RepositoryError(e.to_string())))?
@@ -467,15 +510,32 @@ where
 
         // Mark email as verified
         user_email.verify();
-        let updated_email = self.user_email_repository.update(user_email).await
+        let updated_email = self
+            .user_email_repository
+            .update(user_email)
+            .await
             .map_err(|e| AuthError::RepositoryError(DomainError::RepositoryError(e.to_string())))?;
 
         // Clean up verification token after successful verification
-        if let Err(e) = self.email_verification_repository.delete_by_id(verification.id).await {
-            tracing::warn!("Failed to delete verification token after successful verification: {}", e);
+        if let Err(e) = self
+            .email_verification_repository
+            .delete_by_id(verification.id)
+            .await
+        {
+            tracing::warn!(
+                "Failed to delete verification token after successful verification: {}",
+                e
+            );
             // Try to delete by email as fallback
-            if let Err(e2) = self.email_verification_repository.delete_by_email(&request.email).await {
-                tracing::error!("Failed to delete verification token by email as fallback: {}", e2);
+            if let Err(e2) = self
+                .email_verification_repository
+                .delete_by_email(&request.email)
+                .await
+            {
+                tracing::error!(
+                    "Failed to delete verification token by email as fallback: {}",
+                    e2
+                );
                 // Don't fail the verification process if cleanup fails
             }
         }
@@ -496,9 +556,13 @@ where
         })
     }
 
-    pub async fn resend_verification_email(&self, request: ResendVerificationEmailRequest) -> Result<ResendVerificationEmailResponse, AuthError> {
+    pub async fn resend_verification_email(
+        &self,
+        request: ResendVerificationEmailRequest,
+    ) -> Result<ResendVerificationEmailResponse, AuthError> {
         // Find user by email
-        let user_email_result = self.user_email_repository
+        let user_email_result = self
+            .user_email_repository
             .find_by_email(&request.email)
             .await
             .map_err(|e| AuthError::RepositoryError(DomainError::RepositoryError(e.to_string())))?;
@@ -510,8 +574,16 @@ where
                 // Only proceed if email is not verified
                 if !user_email.is_verified {
                     // Delete any existing verification tokens for this email first
-                    if let Err(e) = self.email_verification_repository.delete_by_email(&request.email).await {
-                        tracing::warn!("Failed to delete existing verification tokens for {}: {}", request.email, e);
+                    if let Err(e) = self
+                        .email_verification_repository
+                        .delete_by_email(&request.email)
+                        .await
+                    {
+                        tracing::warn!(
+                            "Failed to delete existing verification tokens for {}: {}",
+                            request.email,
+                            e
+                        );
                         // Continue anyway - the create might still work if there were no existing tokens
                     }
 
@@ -524,12 +596,18 @@ where
                     );
 
                     // Save the verification token
-                    if let Err(e) = self.email_verification_repository.create(&email_verification).await {
+                    if let Err(e) = self
+                        .email_verification_repository
+                        .create(&email_verification)
+                        .await
+                    {
                         tracing::error!("Failed to create verification token: {}", e);
                         // Continue and return success to prevent information leakage
                     } else {
                         // Fetch user to include username for event
-                        if let Ok(Some(user)) = self.user_repository.find_by_id(user_email.user_id).await {
+                        if let Ok(Some(user)) =
+                            self.user_repository.find_by_id(user_email.user_id).await
+                        {
                             // Only publish event if user has a username (complete registration)
                             if let Some(username) = user.username {
                                 // Publish event to trigger email service
@@ -549,18 +627,26 @@ where
                     }
                 } else {
                     // Email is already verified - log but don't reveal this information
-                    tracing::debug!("Resend verification requested for already verified email: {}", request.email);
+                    tracing::debug!(
+                        "Resend verification requested for already verified email: {}",
+                        request.email
+                    );
                 }
             }
             None => {
                 // Email not found - log but don't reveal this information
-                tracing::debug!("Resend verification requested for non-existent email: {}", request.email);
+                tracing::debug!(
+                    "Resend verification requested for non-existent email: {}",
+                    request.email
+                );
             }
         }
 
         // Always return success response to prevent user enumeration attacks
-        Ok(ResendVerificationEmailResponse { 
-            message: "If your email is registered and unverified, a verification email has been sent.".to_string() 
+        Ok(ResendVerificationEmailResponse {
+            message:
+                "If your email is registered and unverified, a verification email has been sent."
+                    .to_string(),
         })
     }
 }

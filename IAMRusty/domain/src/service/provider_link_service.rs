@@ -7,7 +7,7 @@ use crate::entity::{
     user_email::UserEmail,
 };
 use crate::error::DomainError;
-use crate::port::repository::{UserRepository, UserEmailRepository, TokenRepository};
+use crate::port::repository::{TokenRepository, UserEmailRepository, UserRepository};
 
 /// Domain service for linking OAuth providers to existing users
 pub struct ProviderLinkService<UR, UER, TR>
@@ -41,11 +41,7 @@ where
     TR: TokenRepository,
 {
     /// Create a new ProviderLinkService
-    pub fn new(
-        user_repo: Arc<UR>,
-        user_email_repo: Arc<UER>,
-        token_repo: Arc<TR>,
-    ) -> Self {
+    pub fn new(user_repo: Arc<UR>, user_email_repo: Arc<UER>, token_repo: Arc<TR>) -> Self {
         Self {
             user_repo,
             user_email_repo,
@@ -71,17 +67,17 @@ where
         let user = self.load_user(user_id).await?;
 
         // Step 2: Check for provider conflicts
-        self.check_provider_conflicts(user_id, provider, &provider_user_id).await?;
+        self.check_provider_conflicts(user_id, provider, &provider_user_id)
+            .await?;
 
         // Step 3: Handle email from provider
-        let (new_email_added, new_email) = self.handle_provider_email(
-            user_id,
-            provider,
-            provider_profile.email,
-        ).await?;
+        let (new_email_added, new_email) = self
+            .handle_provider_email(user_id, provider, provider_profile.email)
+            .await?;
 
         // Step 4: Save provider tokens
-        self.save_provider_tokens(user_id, provider, provider_user_id, provider_tokens).await?;
+        self.save_provider_tokens(user_id, provider, provider_user_id, provider_tokens)
+            .await?;
 
         // Step 5: Get all user emails for response
         let emails = self.get_user_emails(user_id).await?;
@@ -116,19 +112,18 @@ where
     where
         <UR as UserRepository>::Error: std::error::Error + Send + Sync + 'static,
     {
-        let existing_user = self.user_repo
+        let existing_user = self
+            .user_repo
             .find_by_provider_user_id(provider, provider_user_id)
             .await
             .map_err(|e| DomainError::RepositoryError(e.to_string()))?;
 
         match existing_user {
-            Some(user) if user.id == user_id => {
-                Err(DomainError::BusinessRuleViolation(
-                    "Provider is already linked to your account".to_string()
-                ))
-            }
+            Some(user) if user.id == user_id => Err(DomainError::BusinessRuleViolation(
+                "Provider is already linked to your account".to_string(),
+            )),
             Some(_) => Err(DomainError::BusinessRuleViolation(
-                "Provider account is already linked to another user".to_string()
+                "Provider account is already linked to another user".to_string(),
             )),
             None => Ok(()),
         }
@@ -148,7 +143,8 @@ where
             return Ok((false, None));
         };
 
-        let existing_email = self.user_email_repo
+        let existing_email = self
+            .user_email_repo
             .find_by_email(&email)
             .await
             .map_err(|e| DomainError::RepositoryError(e.to_string()))?;
@@ -157,17 +153,22 @@ where
             Some(existing) if existing.user_id != user_id => {
                 tracing::error!(
                     "Email {} from provider {} already belongs to user {}, not adding to user {}",
-                    email, provider.as_str(), existing.user_id, user_id
+                    email,
+                    provider.as_str(),
+                    existing.user_id,
+                    user_id
                 );
                 Err(DomainError::BusinessRuleViolation(
-                    "Provider email is already associated with another user".to_string()
+                    "Provider email is already associated with another user".to_string(),
                 ))
             }
             Some(_) => Ok((false, None)), // Email already exists for this user
             None => {
                 // Create new secondary email
                 let user_email = UserEmail::new_secondary(user_id, email.clone(), false);
-                self.user_email_repo.create(user_email).await
+                self.user_email_repo
+                    .create(user_email)
+                    .await
                     .map_err(|e| DomainError::RepositoryError(e.to_string()))?;
                 Ok((true, Some(email)))
             }
@@ -201,4 +202,4 @@ where
             .await
             .map_err(|e| DomainError::RepositoryError(e.to_string()))
     }
-} 
+}

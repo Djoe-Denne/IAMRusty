@@ -3,42 +3,41 @@
 //! This crate provides the HTTP interface for the application,
 //! implementing the OpenAPI specification.
 
-use axum::{
-    Router,
-    routing::{get, post},
-    middleware,
-    http::StatusCode,
-    response::{Json, IntoResponse},
-};
-use tower_http::catch_panic::CatchPanicLayer;
-use serde_json::json;
-use std::sync::Arc;
-use std::net::SocketAddr;
 use application::{
-    usecase::{
-        user::UserUseCase,
-        token::TokenUseCase,
-        registration::RegistrationUseCase,
-    },
     command::GenericCommandService,
+    usecase::{registration::RegistrationUseCase, token::TokenUseCase, user::UserUseCase},
+};
+use axum::{
+    http::StatusCode,
+    middleware,
+    response::{IntoResponse, Json},
+    routing::{get, post},
+    Router,
 };
 use configuration::OAuthConfig;
+use serde_json::json;
+use std::net::SocketAddr;
+use std::sync::Arc;
+use tower_http::catch_panic::CatchPanicLayer;
 
-pub mod handlers;
 pub mod error;
 pub mod extractors;
+pub mod handlers;
 mod middleware_auth;
 pub mod oauth_state;
 pub mod validation;
 
-pub use handlers::{
-    auth::{oauth_callback, oauth_start, signup, login, verify_email, resend_verification_email, internal_provider_token, jwks, complete_registration, check_username},
-    user::get_user,
-    token::refresh_token,
-};
-pub use middleware_auth::auth;
 pub use error::{ApiError, AuthError, UniformErrorResponse, ValidationError};
 pub use extractors::ValidatedJson;
+pub use handlers::{
+    auth::{
+        check_username, complete_registration, internal_provider_token, jwks, login,
+        oauth_callback, oauth_start, resend_verification_email, signup, verify_email,
+    },
+    token::refresh_token,
+    user::get_user,
+};
+pub use middleware_auth::auth;
 use middleware_auth::auth as auth_middleware;
 
 /// Application state for HTTP handlers
@@ -120,37 +119,52 @@ pub async fn serve_with_config(state: AppState, config: ServerConfig) -> anyhow:
         .route("/api/auth/signup", post(signup))
         .route("/api/auth/login", post(login))
         .route("/api/auth/verify", post(verify_email))
-        .route("/api/auth/resend-verification", post(resend_verification_email))
-        .route("/api/auth/complete-registration", post(complete_registration))
+        .route(
+            "/api/auth/resend-verification",
+            post(resend_verification_email),
+        )
+        .route(
+            "/api/auth/complete-registration",
+            post(complete_registration),
+        )
         .route("/api/auth/username/check", get(check_username))
         .route("/api/auth/{provider_name}/start", get(oauth_start))
         .route("/api/auth/{provider_name}/callback", get(oauth_callback))
         .route("/api/token/refresh", post(refresh_token))
         .route(
             "/api/me",
-            get(get_user).route_layer(middleware::from_fn_with_state(state.clone(), auth_middleware)),
+            get(get_user).route_layer(middleware::from_fn_with_state(
+                state.clone(),
+                auth_middleware,
+            )),
         )
         .route(
             "/internal/{provider_name}/token",
-            post(internal_provider_token).route_layer(middleware::from_fn_with_state(state.clone(), auth_middleware)),
+            post(internal_provider_token).route_layer(middleware::from_fn_with_state(
+                state.clone(),
+                auth_middleware,
+            )),
         )
         .layer(CatchPanicLayer::custom(handle_panic))
         .with_state(state);
 
     if config.tls_enabled {
-        if let (Some(cert_path), Some(key_path), Some(tls_port)) = 
-            (config.tls_cert_path, config.tls_key_path, config.tls_port) {
-            
+        if let (Some(cert_path), Some(key_path), Some(tls_port)) =
+            (config.tls_cert_path, config.tls_key_path, config.tls_port)
+        {
             tracing::info!("Starting HTTPS server on {}:{}", config.host, tls_port);
-            
-            let tls_config = axum_server::tls_rustls::RustlsConfig::from_pem_file(cert_path, key_path).await?;
+
+            let tls_config =
+                axum_server::tls_rustls::RustlsConfig::from_pem_file(cert_path, key_path).await?;
             let addr: SocketAddr = format!("{}:{}", config.host, tls_port).parse()?;
-            
+
             axum_server::bind_rustls(addr, tls_config)
                 .serve(app.into_make_service())
                 .await?;
         } else {
-            return Err(anyhow::anyhow!("TLS enabled but certificate/key paths or port not provided"));
+            return Err(anyhow::anyhow!(
+                "TLS enabled but certificate/key paths or port not provided"
+            ));
         }
     } else {
         tracing::info!("Starting HTTP server on {}:{}", config.host, config.port);
@@ -160,4 +174,4 @@ pub async fn serve_with_config(state: AppState, config: ServerConfig) -> anyhow:
     }
 
     Ok(())
-} 
+}

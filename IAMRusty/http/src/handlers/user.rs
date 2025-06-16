@@ -1,11 +1,11 @@
+use crate::error::ApiError;
+use application::command::{user::GetUserCommand, CommandContext};
 use axum::{
+    extract::{Extension, State},
     Json,
-    extract::{State, Extension},
 };
 use serde::Serialize;
 use uuid::Uuid;
-use crate::error::ApiError;
-use application::command::{CommandContext, user::GetUserCommand};
 
 use tracing::debug;
 
@@ -28,18 +28,15 @@ pub async fn get_user(
     Extension(user_id): Extension<Uuid>,
 ) -> Result<Json<UserResponse>, ApiError> {
     debug!("Getting user profile for ID: {}", user_id);
-    
+
     let context = CommandContext::new()
         .with_user_id(user_id)
         .with_metadata("operation".to_string(), "get_user".to_string());
-    
+
     // Get the user using command service
     let command = GetUserCommand::new(user_id);
-    let user = state
-        .command_service
-        .execute(command, context)
-        .await?;
-    
+    let user = state.command_service.execute(command, context).await?;
+
     Ok(Json(UserResponse {
         id: user.user.id,
         username: user.user.username.unwrap_or_default(),
@@ -47,5 +44,3 @@ pub async fn get_user(
         avatar_url: user.user.avatar_url,
     }))
 }
-
- 

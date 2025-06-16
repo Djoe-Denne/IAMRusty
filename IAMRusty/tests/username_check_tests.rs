@@ -1,5 +1,5 @@
 // Username Check API Tests
-#[path = "common/mod.rs"] 
+#[path = "common/mod.rs"]
 mod common;
 #[path = "fixtures/mod.rs"]
 mod fixtures;
@@ -7,7 +7,7 @@ mod fixtures;
 use common::setup_test_server;
 use fixtures::DbFixtures;
 use reqwest::Client;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use serial_test::serial;
 
 fn create_test_client() -> Client {
@@ -20,7 +20,9 @@ fn create_test_client() -> Client {
 #[tokio::test]
 #[serial]
 async fn test_username_available() {
-    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
 
     let response = client
         .get(&format!("{}/api/auth/username/check", base_url))
@@ -30,7 +32,7 @@ async fn test_username_available() {
         .expect("Failed to check username");
 
     assert_eq!(response.status(), 200);
-    
+
     let body: Value = response.json().await.expect("Should return JSON");
     assert_eq!(body["available"].as_bool().unwrap(), true);
 }
@@ -38,7 +40,9 @@ async fn test_username_available() {
 #[tokio::test]
 #[serial]
 async fn test_username_taken() {
-    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
     let db = _fixture.db();
 
     // Create user
@@ -56,7 +60,7 @@ async fn test_username_taken() {
         .expect("Failed to check username");
 
     assert_eq!(response.status(), 200);
-    
+
     let body: Value = response.json().await.expect("Should return JSON");
     assert_eq!(body["available"].as_bool().unwrap(), false);
 }
@@ -64,7 +68,9 @@ async fn test_username_taken() {
 #[tokio::test]
 #[serial]
 async fn test_username_validation() {
-    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
 
     // Too short
     let response = client
@@ -85,4 +91,4 @@ async fn test_username_validation() {
         .expect("Failed to check username");
 
     assert_eq!(response.status(), 200);
-} 
+}

@@ -1,17 +1,16 @@
+use async_trait::async_trait;
+use domain::entity::{
+    provider::{Provider, ProviderTokens},
+    provider_link::ProviderLink,
+    token::RefreshToken,
+    user::User,
+};
 use domain::port::repository::{
-    UserReadRepository, UserWriteRepository,
-    TokenReadRepository, TokenWriteRepository,
-    RefreshTokenReadRepository, RefreshTokenWriteRepository,
+    RefreshTokenReadRepository, RefreshTokenWriteRepository, TokenReadRepository,
+    TokenWriteRepository, UserReadRepository, UserWriteRepository,
 };
 use sea_orm::DbErr;
 use uuid::Uuid;
-use domain::entity::{
-    provider::{Provider, ProviderTokens},
-    user::User,
-    token::RefreshToken,
-    provider_link::ProviderLink,
-};
-use async_trait::async_trait;
 
 /// Combined User Repository that delegates to separate read/write implementations
 #[derive(Clone)]
@@ -31,7 +30,10 @@ where
 {
     /// Create a new combined repository
     pub fn new(read_repo: R, write_repo: W) -> Self {
-        Self { read_repo, write_repo }
+        Self {
+            read_repo,
+            write_repo,
+        }
     }
 }
 
@@ -60,7 +62,9 @@ where
         provider: Provider,
         provider_user_id: &str,
     ) -> Result<Option<User>, Self::Error> {
-        self.read_repo.find_by_provider_user_id(provider, provider_user_id).await
+        self.read_repo
+            .find_by_provider_user_id(provider, provider_user_id)
+            .await
     }
 }
 
@@ -98,7 +102,10 @@ where
 {
     /// Create a new combined repository
     pub fn new(read_repo: R, write_repo: W) -> Self {
-        Self { read_repo, write_repo }
+        Self {
+            read_repo,
+            write_repo,
+        }
     }
 }
 
@@ -149,7 +156,9 @@ where
         provider_user_id: String,
         tokens: ProviderTokens,
     ) -> Result<(), Self::Error> {
-        self.write_repo.save_provider_tokens(user_id, provider, provider_user_id, tokens).await
+        self.write_repo
+            .save_provider_tokens(user_id, provider, provider_user_id, tokens)
+            .await
     }
 }
 
@@ -171,7 +180,10 @@ where
 {
     /// Create a new combined repository
     pub fn new(read_repo: R, write_repo: W) -> Self {
-        Self { read_repo, write_repo }
+        Self {
+            read_repo,
+            write_repo,
+        }
     }
 }
 
@@ -186,7 +198,7 @@ where
     async fn find_by_token(&self, token: &str) -> Result<Option<RefreshToken>, Self::Error> {
         self.read_repo.find_by_token(token).await
     }
-    
+
     async fn find_by_user_id(&self, user_id: Uuid) -> Result<Vec<RefreshToken>, Self::Error> {
         self.read_repo.find_by_user_id(user_id).await
     }
@@ -203,16 +215,16 @@ where
     async fn create(&self, token: RefreshToken) -> Result<RefreshToken, Self::Error> {
         self.write_repo.create(token).await
     }
-    
+
     async fn update_validity(&self, token_id: Uuid, is_valid: bool) -> Result<(), Self::Error> {
         self.write_repo.update_validity(token_id, is_valid).await
     }
-    
+
     async fn delete_by_id(&self, token_id: Uuid) -> Result<(), Self::Error> {
         self.write_repo.delete_by_id(token_id).await
     }
-    
+
     async fn delete_by_user_id(&self, user_id: Uuid) -> Result<u64, Self::Error> {
         self.write_repo.delete_by_user_id(user_id).await
     }
-} 
+}

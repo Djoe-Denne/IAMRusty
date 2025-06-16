@@ -1,14 +1,11 @@
 use async_trait::async_trait;
-use std::sync::Arc;
-use domain::service::RegistrationService;
 use domain::error::DomainError;
+use domain::service::RegistrationService;
+use std::sync::Arc;
 
 use crate::dto::auth::{
-    CompleteRegistrationRequest,
-    CompleteRegistrationResponse,
-    CheckUsernameRequest,
-    CheckUsernameResponse,
-    UserDto,
+    CheckUsernameRequest, CheckUsernameResponse, CompleteRegistrationRequest,
+    CompleteRegistrationResponse, UserDto,
 };
 
 /// Registration use case error - thin wrapper over domain errors
@@ -23,10 +20,16 @@ pub enum RegistrationError {
 #[async_trait]
 pub trait RegistrationUseCase: Send + Sync {
     /// Complete user registration with username
-    async fn complete_registration(&self, request: CompleteRegistrationRequest) -> Result<CompleteRegistrationResponse, RegistrationError>;
-    
+    async fn complete_registration(
+        &self,
+        request: CompleteRegistrationRequest,
+    ) -> Result<CompleteRegistrationResponse, RegistrationError>;
+
     /// Check username availability
-    async fn check_username(&self, request: CheckUsernameRequest) -> Result<CheckUsernameResponse, RegistrationError>;
+    async fn check_username(
+        &self,
+        request: CheckUsernameRequest,
+    ) -> Result<CheckUsernameResponse, RegistrationError>;
 }
 
 /// Registration use case implementation - thin orchestration layer
@@ -53,9 +56,13 @@ impl<RS> RegistrationUseCase for RegistrationUseCaseImpl<RS>
 where
     RS: RegistrationService + Send + Sync,
 {
-    async fn complete_registration(&self, request: CompleteRegistrationRequest) -> Result<CompleteRegistrationResponse, RegistrationError> {
+    async fn complete_registration(
+        &self,
+        request: CompleteRegistrationRequest,
+    ) -> Result<CompleteRegistrationResponse, RegistrationError> {
         // Delegate to domain service
-        let result = self.registration_service
+        let result = self
+            .registration_service
             .complete_registration(&request.registration_token, request.username)
             .await?;
 
@@ -73,9 +80,13 @@ where
         })
     }
 
-    async fn check_username(&self, request: CheckUsernameRequest) -> Result<CheckUsernameResponse, RegistrationError> {
+    async fn check_username(
+        &self,
+        request: CheckUsernameRequest,
+    ) -> Result<CheckUsernameResponse, RegistrationError> {
         // Delegate to domain service
-        let result = self.registration_service
+        let result = self
+            .registration_service
             .check_username(&request.username)
             .await?;
 
@@ -85,4 +96,4 @@ where
             suggestions: Some(result.suggestions),
         })
     }
-} 
+}

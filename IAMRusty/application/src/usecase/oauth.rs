@@ -1,19 +1,16 @@
 //! OAuth use case module for OAuth provider authentication
 
 use async_trait::async_trait;
-use domain::entity::{
-    provider::Provider,
-    user::User,
-};
-use domain::service::oauth_service::OAuthService;
+use domain::entity::{provider::Provider, user::User};
 use domain::error::DomainError;
 use domain::port::{
-    repository::{TokenRepository, UserRepository},
+    repository::{TokenRepository, UserEmailRepository, UserRepository},
     service::RegistrationTokenService,
 };
+use domain::service::oauth_service::OAuthService;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use thiserror::Error;
-use serde::{Deserialize, Serialize};
 
 /// OAuth use case error
 #[derive(Debug, Error)]
@@ -83,24 +80,29 @@ pub trait OAuthUseCase: Send + Sync {
 }
 
 /// OAuth use case implementation - thin orchestration layer
-pub struct OAuthUseCaseImpl<UR, TR, RTS>
+pub struct OAuthUseCaseImpl<UR, TR, UER, RTS>
 where
     UR: UserRepository,
     TR: TokenRepository,
+    UER: UserEmailRepository,
     RTS: RegistrationTokenService,
 {
-    oauth_service: Arc<OAuthService<UR, TR>>,
+    oauth_service: Arc<OAuthService<UR, TR, UER>>,
     registration_token_service: Arc<RTS>,
 }
 
-impl<UR, TR, RTS> OAuthUseCaseImpl<UR, TR, RTS>
+impl<UR, TR, UER, RTS> OAuthUseCaseImpl<UR, TR, UER, RTS>
 where
     UR: UserRepository,
     TR: TokenRepository,
+    UER: UserEmailRepository,
     RTS: RegistrationTokenService,
 {
     /// Create a new OAuthUseCaseImpl
-    pub fn new(oauth_service: Arc<OAuthService<UR, TR>>, registration_token_service: Arc<RTS>) -> Self {
+    pub fn new(
+        oauth_service: Arc<OAuthService<UR, TR, UER>>,
+        registration_token_service: Arc<RTS>,
+    ) -> Self {
         Self {
             oauth_service,
             registration_token_service,
@@ -109,13 +111,15 @@ where
 }
 
 #[async_trait]
-impl<UR, TR, RTS> OAuthUseCase for OAuthUseCaseImpl<UR, TR, RTS>
+impl<UR, TR, UER, RTS> OAuthUseCase for OAuthUseCaseImpl<UR, TR, UER, RTS>
 where
     UR: UserRepository + Send + Sync,
     TR: TokenRepository + Send + Sync,
+    UER: UserEmailRepository + Send + Sync,
     RTS: RegistrationTokenService + Send + Sync,
     <UR as UserRepository>::Error: std::error::Error + Send + Sync + 'static,
     <TR as TokenRepository>::Error: std::error::Error + Send + Sync + 'static,
+    <UER as UserEmailRepository>::Error: std::error::Error + Send + Sync + 'static,
 {
     fn generate_start_url(&self, provider: Provider) -> Result<String, OAuthError> {
         // Delegate to domain service
@@ -130,17 +134,19 @@ where
         code: String,
     ) -> Result<OAuthResponse, OAuthError> {
         // Delegate to domain service
-        let (user, jwt_token, email) = self.oauth_service
+        let (user, jwt_token, email) = self
+            .oauth_service
             .process_callback(provider.as_str(), &code)
             .await?;
 
         // Check if user is complete (has username) or needs registration
         if jwt_token.is_empty() {
             // User needs to complete registration - generate proper registration token
-            let registration_token = self.registration_token_service
+            let registration_token = self
+                .registration_token_service
                 .generate_registration_token(user.id, email.clone())
                 .map_err(|e| OAuthError::DomainError(e))?;
-            
+
             return Ok(OAuthResponse::Registration(OAuthRegistrationResponse {
                 registration_token,
                 provider_info: ProviderInfo {
@@ -157,4 +163,4 @@ where
             access_token: jwt_token,
         }))
     }
-} 
+}

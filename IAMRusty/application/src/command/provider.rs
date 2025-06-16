@@ -1,11 +1,11 @@
-use rustycog_command::{Command, CommandError, CommandHandler, CommandErrorMapper};
 use crate::usecase::{
-    link_provider::{LinkProviderUseCase, LinkProviderResponse, LinkProviderError},
-    provider::{ProviderUseCase, ProviderTokenResponse, ProviderError},
+    link_provider::{LinkProviderError, LinkProviderResponse, LinkProviderUseCase},
+    provider::{ProviderError, ProviderTokenResponse, ProviderUseCase},
 };
+use async_trait::async_trait;
 use domain::entity::provider::Provider;
 use domain::error::DomainError;
-use async_trait::async_trait;
+use rustycog_command::{Command, CommandError, CommandErrorMapper, CommandHandler};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -68,63 +68,54 @@ impl CommandErrorMapper for LinkProviderErrorMapper {
     fn map_error(&self, error: Box<dyn std::error::Error + Send + Sync>) -> CommandError {
         if let Some(link_error) = error.downcast_ref::<LinkProviderError>() {
             match link_error {
-                LinkProviderError::AuthError(_msg) => {
-                    CommandError::authentication(
-                        LinkProviderErrorCode::AuthenticationFailed.as_str(),
-                        "Authentication failed"
-                    )
-                }
+                LinkProviderError::AuthError(_msg) => CommandError::authentication(
+                    LinkProviderErrorCode::AuthenticationFailed.as_str(),
+                    "Authentication failed",
+                ),
                 LinkProviderError::DomainError(domain_error) => {
                     match domain_error {
-                        DomainError::UserNotFound => {
-                            CommandError::authentication(
-                                LinkProviderErrorCode::UserNotFound.as_str(),
-                                "Authentication failed"
-                            )
-                        }
-                        DomainError::BusinessRuleViolation(msg) => { //already linked to another user
+                        DomainError::UserNotFound => CommandError::authentication(
+                            LinkProviderErrorCode::UserNotFound.as_str(),
+                            "Authentication failed",
+                        ),
+                        DomainError::BusinessRuleViolation(msg) => {
+                            //already linked to another user
                             if msg.contains("already associated with another user") {
                                 CommandError::business(
                                     LinkProviderErrorCode::ProviderAlreadyLinked.as_str(),
-                                    msg.clone()
+                                    msg.clone(),
                                 )
                             } else if msg.contains("already linked to your account") {
                                 CommandError::business(
                                     LinkProviderErrorCode::ProviderAlreadyLinkedSameUser.as_str(),
-                                    msg.clone()
+                                    msg.clone(),
                                 )
                             } else {
                                 CommandError::business(
                                     LinkProviderErrorCode::BusinessRuleViolation.as_str(),
-                                    msg.clone()
+                                    msg.clone(),
                                 )
                             }
                         }
-                        DomainError::RepositoryError(msg) => {
-                            CommandError::infrastructure(
-                                LinkProviderErrorCode::RepositoryError.as_str(),
-                                format!("Database error: {}", msg)
-                            )
-                        }
-                        _ => {
-                            CommandError::infrastructure(
-                                LinkProviderErrorCode::RepositoryError.as_str(),
-                                domain_error.to_string()
-                            )
-                        }
+                        DomainError::RepositoryError(msg) => CommandError::infrastructure(
+                            LinkProviderErrorCode::RepositoryError.as_str(),
+                            format!("Database error: {}", msg),
+                        ),
+                        _ => CommandError::infrastructure(
+                            LinkProviderErrorCode::RepositoryError.as_str(),
+                            domain_error.to_string(),
+                        ),
                     }
                 }
-                LinkProviderError::ProviderNotConfigured(provider) => {
-                    CommandError::infrastructure(
-                        LinkProviderErrorCode::ProviderNotConfigured.as_str(),
-                        format!("Provider {} not configured", provider)
-                    )
-                }
+                LinkProviderError::ProviderNotConfigured(provider) => CommandError::infrastructure(
+                    LinkProviderErrorCode::ProviderNotConfigured.as_str(),
+                    format!("Provider {} not configured", provider),
+                ),
             }
         } else {
             CommandError::infrastructure(
                 LinkProviderErrorCode::RepositoryError.as_str(),
-                error.to_string()
+                error.to_string(),
             )
         }
     }
@@ -137,41 +128,31 @@ impl CommandErrorMapper for ProviderErrorMapper {
     fn map_error(&self, error: Box<dyn std::error::Error + Send + Sync>) -> CommandError {
         if let Some(provider_error) = error.downcast_ref::<ProviderError>() {
             match provider_error {
-                ProviderError::UserNotFound => {
-                    CommandError::authentication(
-                        ProviderErrorCode::UserNotFound.as_str(),
-                        "Authentication failed"
-                    )
-                }
-                ProviderError::ProviderNotSupported(provider) => {
-                    CommandError::validation(
-                        ProviderErrorCode::ProviderNotSupported.as_str(),
-                        format!("Unsupported provider: {}", provider)
-                    )
-                }
-                ProviderError::NoTokenForProvider => {
-                    CommandError::business(
-                        ProviderErrorCode::NoTokenForProvider.as_str(),
-                        "No token available for the user and provider"
-                    )
-                }
-                ProviderError::AuthError(msg) => {
-                    CommandError::authentication(
-                        ProviderErrorCode::AuthenticationFailed.as_str(),
-                        msg.clone()
-                    )
-                }
-                ProviderError::DbError(e) => {
-                    CommandError::infrastructure(
-                        ProviderErrorCode::DatabaseError.as_str(),
-                        format!("Database error: {}", e)
-                    )
-                }
+                ProviderError::UserNotFound => CommandError::authentication(
+                    ProviderErrorCode::UserNotFound.as_str(),
+                    "Authentication failed",
+                ),
+                ProviderError::ProviderNotSupported(provider) => CommandError::validation(
+                    ProviderErrorCode::ProviderNotSupported.as_str(),
+                    format!("Unsupported provider: {}", provider),
+                ),
+                ProviderError::NoTokenForProvider => CommandError::business(
+                    ProviderErrorCode::NoTokenForProvider.as_str(),
+                    "No token available for the user and provider",
+                ),
+                ProviderError::AuthError(msg) => CommandError::authentication(
+                    ProviderErrorCode::AuthenticationFailed.as_str(),
+                    msg.clone(),
+                ),
+                ProviderError::DbError(e) => CommandError::infrastructure(
+                    ProviderErrorCode::DatabaseError.as_str(),
+                    format!("Database error: {}", e),
+                ),
             }
         } else {
             CommandError::infrastructure(
                 ProviderErrorCode::DatabaseError.as_str(),
-                error.to_string()
+                error.to_string(),
             )
         }
     }
@@ -194,12 +175,7 @@ pub struct LinkProviderCommand {
 
 impl LinkProviderCommand {
     /// Create a new link provider command
-    pub fn new(
-        user_id: Uuid,
-        provider: Provider,
-        code: String,
-        redirect_uri: String,
-    ) -> Self {
+    pub fn new(user_id: Uuid, provider: Provider, code: String, redirect_uri: String) -> Self {
         Self {
             command_id: Uuid::new_v4(),
             user_id,
@@ -213,52 +189,52 @@ impl LinkProviderCommand {
 #[async_trait]
 impl Command for LinkProviderCommand {
     type Result = LinkProviderResponse;
-    
+
     fn command_type(&self) -> &'static str {
         "link_provider"
     }
-    
+
     fn command_id(&self) -> Uuid {
         self.command_id
     }
-    
+
     fn validate(&self) -> Result<(), CommandError> {
         if self.code.trim().is_empty() {
             return Err(CommandError::validation(
                 LinkProviderErrorCode::ValidationFailed.as_str(),
-                "Authorization code cannot be empty"
+                "Authorization code cannot be empty",
             ));
         }
-        
+
         if self.redirect_uri.trim().is_empty() {
             return Err(CommandError::validation(
                 LinkProviderErrorCode::ValidationFailed.as_str(),
-                "Redirect URI cannot be empty"
+                "Redirect URI cannot be empty",
             ));
         }
-        
+
         // Basic URL validation for redirect_uri
         if !self.redirect_uri.starts_with("http://") && !self.redirect_uri.starts_with("https://") {
             return Err(CommandError::validation(
                 LinkProviderErrorCode::ValidationFailed.as_str(),
-                "Redirect URI must be a valid HTTP/HTTPS URL"
+                "Redirect URI must be a valid HTTP/HTTPS URL",
             ));
         }
-        
+
         // Validate user_id is not nil
         if self.user_id.is_nil() {
             return Err(CommandError::validation(
                 LinkProviderErrorCode::ValidationFailed.as_str(),
-                "User ID cannot be nil"
+                "User ID cannot be nil",
             ));
         }
-        
+
         Ok(())
     }
 }
 
 /// Link provider command handler
-pub struct LinkProviderCommandHandler<L> 
+pub struct LinkProviderCommandHandler<L>
 where
     L: LinkProviderUseCase + ?Sized,
 {
@@ -282,7 +258,10 @@ impl<L> CommandHandler<LinkProviderCommand> for LinkProviderCommandHandler<L>
 where
     L: LinkProviderUseCase + Send + Sync + ?Sized,
 {
-    async fn handle(&self, command: LinkProviderCommand) -> Result<LinkProviderResponse, CommandError> {
+    async fn handle(
+        &self,
+        command: LinkProviderCommand,
+    ) -> Result<LinkProviderResponse, CommandError> {
         self.link_provider_use_case
             .link_provider(
                 command.user_id,
@@ -317,15 +296,15 @@ impl GenerateLinkProviderStartUrlCommand {
 #[async_trait]
 impl Command for GenerateLinkProviderStartUrlCommand {
     type Result = String;
-    
+
     fn command_type(&self) -> &'static str {
         "generate_link_provider_start_url"
     }
-    
+
     fn command_id(&self) -> Uuid {
         self.command_id
     }
-    
+
     fn validate(&self) -> Result<(), CommandError> {
         // Provider validation is handled by the enum itself
         Ok(())
@@ -333,7 +312,7 @@ impl Command for GenerateLinkProviderStartUrlCommand {
 }
 
 /// Generate link provider start URL command handler
-pub struct GenerateLinkProviderStartUrlCommandHandler<L> 
+pub struct GenerateLinkProviderStartUrlCommandHandler<L>
 where
     L: LinkProviderUseCase + ?Sized,
 {
@@ -353,11 +332,15 @@ where
 }
 
 #[async_trait]
-impl<L> CommandHandler<GenerateLinkProviderStartUrlCommand> for GenerateLinkProviderStartUrlCommandHandler<L>
+impl<L> CommandHandler<GenerateLinkProviderStartUrlCommand>
+    for GenerateLinkProviderStartUrlCommandHandler<L>
 where
     L: LinkProviderUseCase + Send + Sync + ?Sized,
 {
-    async fn handle(&self, command: GenerateLinkProviderStartUrlCommand) -> Result<String, CommandError> {
+    async fn handle(
+        &self,
+        command: GenerateLinkProviderStartUrlCommand,
+    ) -> Result<String, CommandError> {
         self.link_provider_use_case
             .generate_start_url(command.provider)
             .map_err(|e| LinkProviderErrorMapper.map_error(Box::new(e)))
@@ -389,30 +372,30 @@ impl GetProviderTokenCommand {
 #[async_trait]
 impl Command for GetProviderTokenCommand {
     type Result = ProviderTokenResponse;
-    
+
     fn command_type(&self) -> &'static str {
         "get_provider_token"
     }
-    
+
     fn command_id(&self) -> Uuid {
         self.command_id
     }
-    
+
     fn validate(&self) -> Result<(), CommandError> {
         // Validate user_id is not nil
         if self.user_id.is_nil() {
             return Err(CommandError::validation(
                 ProviderErrorCode::ValidationFailed.as_str(),
-                "User ID cannot be nil"
+                "User ID cannot be nil",
             ));
         }
-        
+
         Ok(())
     }
 }
 
 /// Get provider token command handler
-pub struct GetProviderTokenCommandHandler<P> 
+pub struct GetProviderTokenCommandHandler<P>
 where
     P: ProviderUseCase + ?Sized,
 {
@@ -425,9 +408,7 @@ where
 {
     /// Create a new get provider token command handler
     pub fn new(provider_use_case: Arc<P>) -> Self {
-        Self {
-            provider_use_case,
-        }
+        Self { provider_use_case }
     }
 }
 
@@ -436,7 +417,10 @@ impl<P> CommandHandler<GetProviderTokenCommand> for GetProviderTokenCommandHandl
 where
     P: ProviderUseCase + Send + Sync + ?Sized,
 {
-    async fn handle(&self, command: GetProviderTokenCommand) -> Result<ProviderTokenResponse, CommandError> {
+    async fn handle(
+        &self,
+        command: GetProviderTokenCommand,
+    ) -> Result<ProviderTokenResponse, CommandError> {
         self.provider_use_case
             .get_provider_token(command.user_id, command.provider)
             .await

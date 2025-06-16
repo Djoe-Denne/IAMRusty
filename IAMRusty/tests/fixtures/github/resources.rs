@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
-
+use serde_json::{Value, json};
 
 /// GitHub user data structure matching the API response
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -82,8 +81,12 @@ impl GitHubUserBuilder {
         GitHubUser {
             id: self.id.unwrap_or(12345),
             login: self.login.unwrap_or_else(|| "test_user".to_string()),
-            email: self.email.unwrap_or_else(|| Some("test@example.com".to_string())),
-            avatar_url: self.avatar_url.unwrap_or_else(|| Some("https://avatars.githubusercontent.com/u/12345?v=4".to_string())),
+            email: self
+                .email
+                .unwrap_or_else(|| Some("test@example.com".to_string())),
+            avatar_url: self.avatar_url.unwrap_or_else(|| {
+                Some("https://avatars.githubusercontent.com/u/12345?v=4".to_string())
+            }),
         }
     }
 }
@@ -293,7 +296,10 @@ impl GitHubError {
         Self {
             error: "rate_limit_exceeded".to_string(),
             error_description: Some("API rate limit exceeded".to_string()),
-            error_uri: Some("https://docs.github.com/rest/overview/resources-in-the-rest-api#rate-limiting".to_string()),
+            error_uri: Some(
+                "https://docs.github.com/rest/overview/resources-in-the-rest-api#rate-limiting"
+                    .to_string(),
+            ),
         }
     }
 
@@ -310,4 +316,4 @@ impl GitHubError {
     pub fn to_json(&self) -> Value {
         json!(self)
     }
-} 
+}

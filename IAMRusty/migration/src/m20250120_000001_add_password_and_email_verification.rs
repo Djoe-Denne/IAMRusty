@@ -11,11 +11,7 @@ impl MigrationTrait for Migration {
             .alter_table(
                 Table::alter()
                     .table(Users::Table)
-                    .add_column(
-                        ColumnDef::new(Users::PasswordHash)
-                            .string()
-                            .null()
-                    )
+                    .add_column(ColumnDef::new(Users::PasswordHash).string().null())
                     .to_owned(),
             )
             .await?;
@@ -108,11 +104,7 @@ impl MigrationTrait for Migration {
 
         // Drop user_email_verification table
         manager
-            .drop_table(
-                Table::drop()
-                    .table(UserEmailVerification::Table)
-                    .to_owned(),
-            )
+            .drop_table(Table::drop().table(UserEmailVerification::Table).to_owned())
             .await?;
 
         // Remove password_hash column from users table
@@ -144,4 +136,4 @@ enum UserEmailVerification {
     VerificationToken,
     ExpiresAt,
     CreatedAt,
-} 
+}

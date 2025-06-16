@@ -1,10 +1,10 @@
 use async_trait::async_trait;
-use thiserror::Error;
-use uuid::Uuid;
-use std::sync::Arc;
-use domain::service::{RefreshTokenService, RefreshTokenResponse as DomainRefreshTokenResponse};
 use domain::entity::token::JwkSet;
 use domain::error::DomainError;
+use domain::service::{RefreshTokenResponse as DomainRefreshTokenResponse, RefreshTokenService};
+use std::sync::Arc;
+use thiserror::Error;
+use uuid::Uuid;
 
 /// Token usecase error
 #[derive(Debug, Error)]
@@ -12,23 +12,23 @@ pub enum TokenError {
     /// Domain service error
     #[error("Domain service error: {0}")]
     DomainError(#[from] DomainError),
-    
+
     /// Repository error
     #[error("Repository error: {0}")]
     RepositoryError(String),
-    
+
     /// Token service error
     #[error("Token service error: {0}")]
     TokenServiceError(String),
-    
+
     /// Token not found
     #[error("Token not found")]
     TokenNotFound,
-    
+
     /// Token invalid
     #[error("Token invalid")]
     TokenInvalid,
-    
+
     /// Token expired
     #[error("Token expired")]
     TokenExpired,
@@ -62,14 +62,17 @@ impl From<DomainRefreshTokenResponse> for RefreshTokenResponse {
 #[async_trait]
 pub trait TokenUseCase: Send + Sync {
     /// Refresh an access token using a refresh token
-    async fn refresh_token(&self, refresh_token: String) -> Result<RefreshTokenResponse, TokenError>;
-    
+    async fn refresh_token(
+        &self,
+        refresh_token: String,
+    ) -> Result<RefreshTokenResponse, TokenError>;
+
     /// Revoke a refresh token
     async fn revoke_token(&self, refresh_token: String) -> Result<(), TokenError>;
-    
+
     /// Revoke all refresh tokens for a user
     async fn revoke_all_tokens(&self, user_id: Uuid) -> Result<u64, TokenError>;
-    
+
     /// Get the JSON Web Key Set (JWKS) for token verification
     fn get_jwks(&self) -> JwkSet;
 }
@@ -99,16 +102,20 @@ impl<RTS> TokenUseCase for TokenUseCaseImpl<RTS>
 where
     RTS: RefreshTokenService + Send + Sync,
 {
-    async fn refresh_token(&self, refresh_token: String) -> Result<RefreshTokenResponse, TokenError> {
+    async fn refresh_token(
+        &self,
+        refresh_token: String,
+    ) -> Result<RefreshTokenResponse, TokenError> {
         // Delegate to domain service
-        let domain_response = self.refresh_token_service
+        let domain_response = self
+            .refresh_token_service
             .refresh_token(refresh_token)
             .await?;
 
         // Convert domain result to use case DTO
         Ok(RefreshTokenResponse::from(domain_response))
     }
-    
+
     async fn revoke_token(&self, refresh_token: String) -> Result<(), TokenError> {
         // Delegate to domain service
         self.refresh_token_service
@@ -116,7 +123,7 @@ where
             .await
             .map_err(Into::into)
     }
-    
+
     async fn revoke_all_tokens(&self, user_id: Uuid) -> Result<u64, TokenError> {
         // Delegate to domain service
         self.refresh_token_service
@@ -129,4 +136,4 @@ where
         // Delegate to domain service
         self.refresh_token_service.get_jwks()
     }
-} 
+}

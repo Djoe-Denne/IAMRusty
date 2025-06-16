@@ -1,9 +1,8 @@
-pub mod github;
-pub mod gitlab;
 pub mod common;
 pub mod db;
+pub mod github;
+pub mod gitlab;
 
+pub use db::DbFixtures;
 pub use github::GitHubFixtures;
 pub use gitlab::GitLabFixtures;
-pub use db::DbFixtures;
- 

@@ -1,10 +1,9 @@
-use rustycog_command::{Command, CommandError, CommandHandler, CommandErrorMapper};
-use crate::usecase::login::{LoginUseCase, LoginRequest, LoginResponse, LoginError};
+use crate::usecase::login::{LoginError, LoginRequest, LoginResponse, LoginUseCase};
 use async_trait::async_trait;
+use rustycog_command::{Command, CommandError, CommandErrorMapper, CommandHandler};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
-
 
 /// Authentication error codes for consistent error handling
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -45,7 +44,9 @@ impl AuthErrorCode {
             AuthErrorCode::EventPublishingError => "event_publishing_error",
             AuthErrorCode::TokenServiceError => "token_service_error",
             AuthErrorCode::PasswordHashingError => "password_hashing_error",
-            AuthErrorCode::VerificationTokenGenerationError => "verification_token_generation_error",
+            AuthErrorCode::VerificationTokenGenerationError => {
+                "verification_token_generation_error"
+            }
             AuthErrorCode::AuthenticationFailed => "authentication_failed",
             AuthErrorCode::ValidationFailed => "validation_failed",
         }
@@ -59,71 +60,70 @@ impl CommandErrorMapper for AuthErrorMapper {
     fn map_error(&self, error: Box<dyn std::error::Error + Send + Sync>) -> CommandError {
         if let Some(error) = error.downcast_ref::<LoginError>() {
             match error {
-                LoginError::UserNotFound => CommandError::business(
-                    AuthErrorCode::UserNotFound.as_str(),
-                    "User not found"
-                ),
+                LoginError::UserNotFound => {
+                    CommandError::business(AuthErrorCode::UserNotFound.as_str(), "User not found")
+                }
                 LoginError::InvalidCredentials => CommandError::business(
                     AuthErrorCode::InvalidCredentials.as_str(),
-                    "Invalid credentials" // Don't leak user existence
+                    "Invalid credentials", // Don't leak user existence
                 ),
                 LoginError::EmailNotVerified => CommandError::business(
                     AuthErrorCode::EmailNotVerified.as_str(),
-                    "Email not verified"
+                    "Email not verified",
                 ),
                 LoginError::UserAlreadyExists => CommandError::business(
                     AuthErrorCode::UserAlreadyExists.as_str(),
-                    "User already exists"
+                    "User already exists",
                 ),
                 LoginError::WeakPassword => CommandError::validation(
                     AuthErrorCode::WeakPassword.as_str(),
-                    "Password is too weak"
+                    "Password is too weak",
                 ),
                 LoginError::InvalidEmail => CommandError::validation(
                     AuthErrorCode::InvalidEmail.as_str(),
-                    "Invalid email format"
+                    "Invalid email format",
                 ),
                 LoginError::EmailNotFound => CommandError::business(
                     AuthErrorCode::EmailNotFound.as_str(),
-                    "Invalid verification request" // Don't leak email existence
+                    "Invalid verification request", // Don't leak email existence
                 ),
                 LoginError::EmailAlreadyVerified => CommandError::business(
                     AuthErrorCode::EmailAlreadyVerified.as_str(),
-                    "Email is already verified"
+                    "Email is already verified",
                 ),
                 LoginError::InvalidVerificationToken => CommandError::validation(
                     AuthErrorCode::InvalidVerificationToken.as_str(),
-                    "Invalid or expired verification token"
+                    "Invalid or expired verification token",
                 ),
                 LoginError::VerificationTokenExpired => CommandError::validation(
                     AuthErrorCode::VerificationTokenExpired.as_str(),
-                    "Verification token has expired"
+                    "Verification token has expired",
                 ),
                 LoginError::AuthServiceError(msg) => {
                     if Self::is_authentication_related_error(msg) {
                         CommandError::validation(
                             AuthErrorCode::AuthenticationFailed.as_str(),
-                            format!("Authentication failed: {}", msg)
+                            format!("Authentication failed: {}", msg),
                         )
                     } else {
                         CommandError::infrastructure(
                             AuthErrorCode::RepositoryError.as_str(),
-                            msg.clone()
+                            msg.clone(),
                         )
                     }
-                },
+                }
             }
         } else {
             let error_msg = error.to_string();
             if Self::is_authentication_related_error(&error_msg) {
                 CommandError::validation(
                     AuthErrorCode::AuthenticationFailed.as_str(),
-                    format!("Authentication failed: {}", error_msg)
+                    format!("Authentication failed: {}", error_msg),
                 )
             } else {
                 CommandError::infrastructure(
                     AuthErrorCode::RepositoryError.as_str(),
-                    error.to_string()
+                    error.to_string(),
                 )
             }
         }
@@ -132,13 +132,13 @@ impl CommandErrorMapper for AuthErrorMapper {
 
 impl AuthErrorMapper {
     fn is_authentication_related_error(error_msg: &str) -> bool {
-        error_msg.contains("expired") || 
-        error_msg.contains("invalid") || 
-        error_msg.contains("Token expired") ||
-        error_msg.contains("Invalid token") ||
-        error_msg.contains("JWT error") ||
-        error_msg.contains("malformed") ||
-        error_msg.contains("signature")
+        error_msg.contains("expired")
+            || error_msg.contains("invalid")
+            || error_msg.contains("Token expired")
+            || error_msg.contains("Invalid token")
+            || error_msg.contains("JWT error")
+            || error_msg.contains("malformed")
+            || error_msg.contains("signature")
     }
 }
 
@@ -180,25 +180,25 @@ impl Command for PasswordLoginCommand {
         if self.email.trim().is_empty() {
             return Err(CommandError::validation(
                 AuthErrorCode::ValidationFailed.as_str(),
-                "Email cannot be empty"
+                "Email cannot be empty",
             ));
         }
-        
+
         if self.password.trim().is_empty() {
             return Err(CommandError::validation(
                 AuthErrorCode::ValidationFailed.as_str(),
-                "Password cannot be empty"
+                "Password cannot be empty",
             ));
         }
-        
+
         // Basic email format validation
         if !self.email.contains('@') || !self.email.contains('.') {
             return Err(CommandError::validation(
                 AuthErrorCode::InvalidEmail.as_str(),
-                "Invalid email format"
+                "Invalid email format",
             ));
         }
-        
+
         Ok(())
     }
 }
@@ -217,9 +217,7 @@ where
 {
     /// Create a new password login command handler
     pub fn new(login_use_case: Arc<A>) -> Self {
-        Self {
-            login_use_case,
-        }
+        Self { login_use_case }
     }
 }
 

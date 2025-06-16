@@ -6,13 +6,13 @@ use serde::{Deserialize, Serialize};
 pub struct UserProfileDto {
     /// User UUID
     pub id: String,
-    
+
     /// Username (optional for incomplete registrations)
     pub username: Option<String>,
-    
+
     /// Email address (populated separately from UserEmail entity)
     pub email: String,
-    
+
     /// Avatar URL
     pub avatar: Option<String>,
 }
@@ -38,4 +38,4 @@ impl From<User> for UserProfileDto {
             avatar: user.avatar_url,
         }
     }
-} 
+}

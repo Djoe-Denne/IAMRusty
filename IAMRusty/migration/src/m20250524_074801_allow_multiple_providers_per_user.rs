@@ -36,11 +36,7 @@ impl MigrationTrait for Migration {
             .alter_table(
                 Table::alter()
                     .table(Users::Table)
-                    .modify_column(
-                        ColumnDef::new(Users::Email)
-                            .string()
-                            .not_null(),
-                    )
+                    .modify_column(ColumnDef::new(Users::Email).string().not_null())
                     .to_owned(),
             )
             .await?;
@@ -98,11 +94,7 @@ impl MigrationTrait for Migration {
             .alter_table(
                 Table::alter()
                     .table(Users::Table)
-                    .modify_column(
-                        ColumnDef::new(Users::Email)
-                            .string()
-                            .null(),
-                    )
+                    .modify_column(ColumnDef::new(Users::Email).string().null())
                     .to_owned(),
             )
             .await?;
@@ -148,4 +140,4 @@ enum ProviderTokens {
     Table,
     Provider,
     ProviderUserId,
-} 
+}

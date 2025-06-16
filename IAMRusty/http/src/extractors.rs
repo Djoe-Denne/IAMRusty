@@ -1,3 +1,4 @@
+use crate::error::ValidationError;
 use axum::{
     extract::{rejection::JsonRejection, FromRequest, Request},
     http::StatusCode,
@@ -5,7 +6,6 @@ use axum::{
 };
 use serde::de::DeserializeOwned;
 use validator::Validate;
-use crate::error::ValidationError;
 
 /// Custom JSON extractor that validates using the validator crate
 /// and returns errors in our uniform format
@@ -40,36 +40,41 @@ where
 {
     type Rejection = ValidationError;
 
-    fn from_request(req: Request, state: &S) -> impl std::future::Future<Output = Result<Self, Self::Rejection>> + Send {
+    fn from_request(
+        req: Request,
+        state: &S,
+    ) -> impl std::future::Future<Output = Result<Self, Self::Rejection>> + Send {
         async move {
-            let Json(value) = Json::<T>::from_request(req, state).await
+            let Json(value) = Json::<T>::from_request(req, state)
+                .await
                 .map_err(|rejection| match rejection {
                     JsonRejection::JsonDataError(_) => ValidationError::new(
                         "invalid_json_data",
-                        "Invalid JSON data in request body"
+                        "Invalid JSON data in request body",
                     ),
                     JsonRejection::JsonSyntaxError(_) => ValidationError::new(
-                        "invalid_json_syntax", 
-                        "Invalid JSON syntax in request body"
-                    ).with_status(StatusCode::BAD_REQUEST),
+                        "invalid_json_syntax",
+                        "Invalid JSON syntax in request body",
+                    )
+                    .with_status(StatusCode::BAD_REQUEST),
                     JsonRejection::MissingJsonContentType(_) => ValidationError::new(
                         "missing_content_type",
-                        "Missing 'Content-Type: application/json' header"
+                        "Missing 'Content-Type: application/json' header",
                     ),
-                    JsonRejection::BytesRejection(_) => ValidationError::new(
-                        "request_body_error",
-                        "Failed to read request body"
-                    ).with_status(StatusCode::BAD_REQUEST),
+                    JsonRejection::BytesRejection(_) => {
+                        ValidationError::new("request_body_error", "Failed to read request body")
+                            .with_status(StatusCode::BAD_REQUEST)
+                    }
                     _ => ValidationError::new(
                         "json_extraction_error",
-                        "Failed to extract JSON from request"
-                    ).with_status(StatusCode::BAD_REQUEST),
+                        "Failed to extract JSON from request",
+                    )
+                    .with_status(StatusCode::BAD_REQUEST),
                 })?;
-            
-            value.validate()
-                .map_err(ValidationError::from)?;
-            
+
+            value.validate().map_err(ValidationError::from)?;
+
             Ok(ValidatedJson(value))
         }
     }
-} 
+}

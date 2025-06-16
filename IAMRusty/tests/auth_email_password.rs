@@ -1,18 +1,17 @@
 // Include common test utilities and fixtures
-#[path = "common/mod.rs"] 
+#[path = "common/mod.rs"]
 mod common;
 #[path = "fixtures/mod.rs"]
 mod fixtures;
 
 use common::setup_test_server;
 use fixtures::DbFixtures;
+use infra::auth::PasswordService;
 use reqwest::Client;
-use serde_json::{json, Value};
+use sea_orm::ConnectionTrait;
+use serde_json::{Value, json};
 use serial_test::serial;
 use uuid::Uuid;
-use sea_orm::ConnectionTrait;
-use infra::auth::PasswordService;
-
 
 // 🔐 Email/Password Authentication Tests
 // 📝 POST /auth/signup
@@ -21,7 +20,9 @@ use infra::auth::PasswordService;
 #[serial]
 async fn test_signup_duplicate_email_fails() {
     // Setup test server and database
-    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
 
     // Create first user
     let signup_data = json!({
@@ -70,22 +71,30 @@ async fn test_signup_duplicate_email_fails() {
         .expect("Failed to send second signup request");
 
     // ✅ Should return 409 Conflict for duplicate email
-    assert_eq!(response2.status(), 409, "Should return 409 for duplicate email");
+    assert_eq!(
+        response2.status(),
+        409,
+        "Should return 409 for duplicate email"
+    );
 
     let error_response: Value = response2
         .json()
         .await
         .expect("Should return JSON error response");
 
-    assert!(error_response.get("error").is_some() || error_response.get("message").is_some(), 
-           "Should contain error message");
+    assert!(
+        error_response.get("error").is_some() || error_response.get("message").is_some(),
+        "Should contain error message"
+    );
 }
 
 #[tokio::test]
 #[serial]
 async fn test_signup_invalid_email_format() {
     // Setup test server
-    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
 
     let invalid_emails = vec![
         "invalid-email",
@@ -93,7 +102,7 @@ async fn test_signup_invalid_email_format() {
         "@missing-local.com",
         "spaces in@email.com",
         "double@@domain.com",
-        ""
+        "",
     ];
 
     for invalid_email in invalid_emails {
@@ -111,7 +120,12 @@ async fn test_signup_invalid_email_format() {
             .expect("Failed to send signup request");
 
         // ✅ Should return 422 for invalid email format
-        assert_eq!(response.status(), 422, "Should return 422 for invalid email: {}", invalid_email);
+        assert_eq!(
+            response.status(),
+            422,
+            "Should return 422 for invalid email: {}",
+            invalid_email
+        );
     }
 }
 
@@ -119,13 +133,15 @@ async fn test_signup_invalid_email_format() {
 #[serial]
 async fn test_signup_weak_password_validation() {
     // Setup test server
-    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
 
     let weak_passwords = vec![
-        "", // Empty
-        "123", // Too short
-        "1234567", // Still too short (< 8 chars)
-        "password", // Common password  
+        "",         // Empty
+        "123",      // Too short
+        "1234567",  // Still too short (< 8 chars)
+        "password", // Common password
     ];
 
     for weak_password in weak_passwords {
@@ -143,7 +159,12 @@ async fn test_signup_weak_password_validation() {
             .expect("Failed to send signup request");
 
         // ✅ Should return 422 for weak password
-        assert_eq!(response.status(), 422, "Should return 422 for weak password: '{}'", weak_password);
+        assert_eq!(
+            response.status(),
+            422,
+            "Should return 422 for weak password: '{}'",
+            weak_password
+        );
     }
 }
 
@@ -151,12 +172,23 @@ async fn test_signup_weak_password_validation() {
 #[serial]
 async fn test_signup_missing_required_fields() {
     // Setup test server
-    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
 
     let test_cases = vec![
-        (json!({"email": "test@example.com", "password": "password123"}), "missing username"),
-        (json!({"username": "testuser", "password": "password123"}), "missing email"),
-        (json!({"username": "testuser", "email": "test@example.com"}), "missing password"),
+        (
+            json!({"email": "test@example.com", "password": "password123"}),
+            "missing username",
+        ),
+        (
+            json!({"username": "testuser", "password": "password123"}),
+            "missing email",
+        ),
+        (
+            json!({"username": "testuser", "email": "test@example.com"}),
+            "missing password",
+        ),
         (json!({}), "missing all fields"),
     ];
 
@@ -170,26 +202,31 @@ async fn test_signup_missing_required_fields() {
             .expect("Failed to send signup request");
 
         // ✅ Should return 422 for missing required fields
-        assert_eq!(response.status(), 422, "Should return 422 for {}", description);
+        assert_eq!(
+            response.status(),
+            422,
+            "Should return 422 for {}",
+            description
+        );
     }
 }
 
 // 🔑 POST /auth/login
 
-
-
 #[tokio::test]
 #[serial]
 async fn test_login_unverified_email_fails() {
     // Setup test server and database
-    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
 
     // Create unverified user
     let password_service = PasswordService::new();
     let hashed_password = password_service
         .hash_password("originalPassword123")
         .expect("Failed to hash password");
-    
+
     let user = DbFixtures::user()
         .username("unverifieduser")
         .password_hash(hashed_password)
@@ -221,29 +258,37 @@ async fn test_login_unverified_email_fails() {
         .expect("Failed to send login request");
 
     // ✅ Should return 401 for unverified email
-    assert_eq!(response.status(), 401, "Should return 401 for unverified email");
+    assert_eq!(
+        response.status(),
+        401,
+        "Should return 401 for unverified email"
+    );
 
     let error_response: Value = response
         .json()
         .await
         .expect("Should return JSON error response");
 
-    assert!(error_response.get("error").is_some() || error_response.get("message").is_some(), 
-           "Should contain error message about email verification");
+    assert!(
+        error_response.get("error").is_some() || error_response.get("message").is_some(),
+        "Should contain error message about email verification"
+    );
 }
 
 #[tokio::test]
 #[serial]
 async fn test_login_invalid_credentials() {
     // Setup test server and database
-    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
 
     // Create verified user
     let password_service = PasswordService::new();
     let hashed_password = password_service
         .hash_password("originalPassword123")
         .expect("Failed to hash password");
-    
+
     let user = DbFixtures::user()
         .username("testuser")
         .password_hash(hashed_password)
@@ -262,9 +307,21 @@ async fn test_login_invalid_credentials() {
 
     // Test cases for invalid credentials
     let invalid_cases = vec![
-        (json!({"email": "test@example.com", "password": "wrongpassword"}), "wrong password", 401),
-        (json!({"email": "nonexistent@example.com", "password": "anypassword"}), "nonexistent email", 401),
-        (json!({"email": "test@example.com", "password": ""}), "empty password", 422), // Validation error
+        (
+            json!({"email": "test@example.com", "password": "wrongpassword"}),
+            "wrong password",
+            401,
+        ),
+        (
+            json!({"email": "nonexistent@example.com", "password": "anypassword"}),
+            "nonexistent email",
+            401,
+        ),
+        (
+            json!({"email": "test@example.com", "password": ""}),
+            "empty password",
+            422,
+        ), // Validation error
     ];
 
     for (login_data, description, expected_status) in invalid_cases {
@@ -277,7 +334,13 @@ async fn test_login_invalid_credentials() {
             .expect("Failed to send login request");
 
         // ✅ Should return correct status code for each case
-        assert_eq!(response.status(), expected_status, "Should return {} for {}", expected_status, description);
+        assert_eq!(
+            response.status(),
+            expected_status,
+            "Should return {} for {}",
+            expected_status,
+            description
+        );
 
         let error_response: Value = response
             .json()
@@ -289,10 +352,13 @@ async fn test_login_invalid_credentials() {
             || error_response.get("message").is_some() 
             || error_response.get("errors").is_some()
             || error_response.get("password").is_some() // axum-valid field validation
-            || error_response.get("email").is_some();   // axum-valid field validation
-        
-        assert!(has_error_info, 
-               "Should contain error information for {}: {}", description, error_response);
+            || error_response.get("email").is_some(); // axum-valid field validation
+
+        assert!(
+            has_error_info,
+            "Should contain error information for {}: {}",
+            description, error_response
+        );
     }
 }
 
@@ -300,7 +366,9 @@ async fn test_login_invalid_credentials() {
 #[serial]
 async fn test_login_missing_required_fields() {
     // Setup test server
-    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
 
     let test_cases = vec![
         (json!({"password": "password123"}), "missing email"),
@@ -318,7 +386,12 @@ async fn test_login_missing_required_fields() {
             .expect("Failed to send login request");
 
         // ✅ Should return 422 for missing required fields
-        assert_eq!(response.status(), 422, "Should return 422 for {}", description);
+        assert_eq!(
+            response.status(),
+            422,
+            "Should return 422 for {}",
+            description
+        );
     }
 }
 
@@ -328,7 +401,9 @@ async fn test_login_missing_required_fields() {
 #[serial]
 async fn test_verify_email_success() {
     // Setup test server and database
-    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
     let db = _fixture.db();
 
     // Create user with unverified email
@@ -350,7 +425,7 @@ async fn test_verify_email_success() {
     // Create verification token
     let verification_token = "test_verification_token_123";
     let verification_id = Uuid::new_v4();
-    
+
     db.execute(sea_orm::Statement::from_string(
         sea_orm::DatabaseBackend::Postgres,
         format!(
@@ -377,47 +452,66 @@ async fn test_verify_email_success() {
         .expect("Failed to send verify request");
 
     // ✅ Should return 200 OK for successful verification
-    assert_eq!(response.status(), 200, "Should return 200 OK for successful verification");
+    assert_eq!(
+        response.status(),
+        200,
+        "Should return 200 OK for successful verification"
+    );
 
-    let response_body: Value = response
-        .json()
-        .await
-        .expect("Should return JSON response");
+    let response_body: Value = response.json().await.expect("Should return JSON response");
 
-    assert!(response_body.get("message").is_some(), "Should contain success message");
+    assert!(
+        response_body.get("message").is_some(),
+        "Should contain success message"
+    );
 
     // ✅ Verify email is marked as verified in database
     let email_verified = db
         .query_one(sea_orm::Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
-            format!("SELECT is_verified FROM user_emails WHERE email = '{}'", user_email.email()),
+            format!(
+                "SELECT is_verified FROM user_emails WHERE email = '{}'",
+                user_email.email()
+            ),
         ))
         .await
         .expect("Failed to query email verification status")
         .unwrap();
-    
-    let is_verified: bool = email_verified.try_get("", "is_verified").expect("Failed to get verification status");
+
+    let is_verified: bool = email_verified
+        .try_get("", "is_verified")
+        .expect("Failed to get verification status");
     assert!(is_verified, "Email should be marked as verified");
 
     // ✅ Verify verification token is deleted
     let token_count = db
         .query_one(sea_orm::Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
-            format!("SELECT COUNT(*) as count FROM user_email_verification WHERE email = '{}'", user_email.email()),
+            format!(
+                "SELECT COUNT(*) as count FROM user_email_verification WHERE email = '{}'",
+                user_email.email()
+            ),
         ))
         .await
         .expect("Failed to count verification tokens")
         .unwrap();
-    
-    let count: i64 = token_count.try_get("", "count").expect("Failed to get token count");
-    assert_eq!(count, 0, "Verification token should be deleted after successful verification");
+
+    let count: i64 = token_count
+        .try_get("", "count")
+        .expect("Failed to get token count");
+    assert_eq!(
+        count, 0,
+        "Verification token should be deleted after successful verification"
+    );
 }
 
 #[tokio::test]
 #[serial]
 async fn test_verify_email_invalid_token() {
     // Setup test server and database
-    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
     let db = _fixture.db();
 
     // Create user with unverified email
@@ -439,7 +533,7 @@ async fn test_verify_email_invalid_token() {
     // Create verification token
     let correct_token = "correct_token_123";
     let verification_id = Uuid::new_v4();
-    
+
     db.execute(sea_orm::Statement::from_string(
         sea_orm::DatabaseBackend::Postgres,
         format!(
@@ -466,22 +560,30 @@ async fn test_verify_email_invalid_token() {
         .expect("Failed to send verify request");
 
     // ✅ Should return 400 for invalid token
-    assert_eq!(response.status(), 400, "Should return 400 for invalid verification token");
+    assert_eq!(
+        response.status(),
+        400,
+        "Should return 400 for invalid verification token"
+    );
 
     let error_response: Value = response
         .json()
         .await
         .expect("Should return JSON error response");
 
-    assert!(error_response.get("error").is_some() || error_response.get("message").is_some(), 
-           "Should contain error message");
+    assert!(
+        error_response.get("error").is_some() || error_response.get("message").is_some(),
+        "Should contain error message"
+    );
 }
 
 #[tokio::test]
 #[serial]
 async fn test_verify_email_expired_token() {
     // Setup test server and database
-    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
     let db = _fixture.db();
 
     // Create user with unverified email
@@ -503,7 +605,7 @@ async fn test_verify_email_expired_token() {
     // Create expired verification token
     let verification_token = "expired_token_123";
     let verification_id = Uuid::new_v4();
-    
+
     db.execute(sea_orm::Statement::from_string(
         sea_orm::DatabaseBackend::Postgres,
         format!(
@@ -530,22 +632,30 @@ async fn test_verify_email_expired_token() {
         .expect("Failed to send verify request");
 
     // ✅ Should return 400 for expired token
-    assert_eq!(response.status(), 400, "Should return 400 for expired verification token");
+    assert_eq!(
+        response.status(),
+        400,
+        "Should return 400 for expired verification token"
+    );
 
     let error_response: Value = response
         .json()
         .await
         .expect("Should return JSON error response");
 
-    assert!(error_response.get("error").is_some() || error_response.get("message").is_some(), 
-           "Should contain error message about expired token");
+    assert!(
+        error_response.get("error").is_some() || error_response.get("message").is_some(),
+        "Should contain error message about expired token"
+    );
 }
 
 #[tokio::test]
 #[serial]
 async fn test_verify_email_nonexistent_email() {
     // Setup test server
-    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
 
     // Make verify request for nonexistent email
     let verify_data = json!({
@@ -562,22 +672,30 @@ async fn test_verify_email_nonexistent_email() {
         .expect("Failed to send verify request");
 
     // ✅ Should return 404 for nonexistent email
-    assert_eq!(response.status(), 404, "Should return 404 for nonexistent email");
+    assert_eq!(
+        response.status(),
+        404,
+        "Should return 404 for nonexistent email"
+    );
 
     let error_response: Value = response
         .json()
         .await
         .expect("Should return JSON error response");
 
-    assert!(error_response.get("error").is_some() || error_response.get("message").is_some(), 
-           "Should contain error message");
+    assert!(
+        error_response.get("error").is_some() || error_response.get("message").is_some(),
+        "Should contain error message"
+    );
 }
 
 #[tokio::test]
 #[serial]
 async fn test_verify_email_already_verified() {
     // Setup test server and database
-    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
     let db = _fixture.db();
 
     // Create user with already verified email
@@ -611,26 +729,37 @@ async fn test_verify_email_already_verified() {
         .expect("Failed to send verify request");
 
     // ✅ Should return 400 for already verified email
-    assert_eq!(response.status(), 400, "Should return 400 for already verified email");
+    assert_eq!(
+        response.status(),
+        400,
+        "Should return 400 for already verified email"
+    );
 
     let error_response: Value = response
         .json()
         .await
         .expect("Should return JSON error response");
 
-    assert!(error_response.get("error").is_some() || error_response.get("message").is_some(), 
-           "Should contain error message about already verified email");
+    assert!(
+        error_response.get("error").is_some() || error_response.get("message").is_some(),
+        "Should contain error message about already verified email"
+    );
 }
 
 #[tokio::test]
 #[serial]
 async fn test_verify_email_missing_required_fields() {
     // Setup test server
-    let (_fixture, base_url, client) = setup_test_server().await.expect("Failed to setup test server");
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
 
     let test_cases = vec![
         (json!({"verification_token": "token123"}), "missing email"),
-        (json!({"email": "test@example.com"}), "missing verification_token"),
+        (
+            json!({"email": "test@example.com"}),
+            "missing verification_token",
+        ),
         (json!({}), "missing both fields"),
     ];
 
@@ -644,10 +773,13 @@ async fn test_verify_email_missing_required_fields() {
             .expect("Failed to send verify request");
 
         // ✅ Should return 422 for missing required fields
-        assert_eq!(response.status(), 422, "Should return 422 for {}", description);
+        assert_eq!(
+            response.status(),
+            422,
+            "Should return 422 for {}",
+            description
+        );
     }
 }
 
 // 🔒 End-to-End Authentication Flow Tests
-
-

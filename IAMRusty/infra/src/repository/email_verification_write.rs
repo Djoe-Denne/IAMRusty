@@ -1,7 +1,9 @@
 use async_trait::async_trait;
 use domain::entity::email_verification::EmailVerification;
 use domain::error::DomainError;
-use sea_orm::{ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
+use sea_orm::{
+    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
+};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -26,7 +28,10 @@ impl SeaOrmEmailVerificationWriteRepository {
     }
 
     /// Convert domain EmailVerification to SeaORM ActiveModel
-    fn to_active_model(&self, verification: &EmailVerification) -> user_email_verification::ActiveModel {
+    fn to_active_model(
+        &self,
+        verification: &EmailVerification,
+    ) -> user_email_verification::ActiveModel {
         user_email_verification::ActiveModel {
             id: ActiveValue::Set(verification.id),
             email: ActiveValue::Set(verification.email.clone()),
@@ -41,11 +46,10 @@ impl SeaOrmEmailVerificationWriteRepository {
 impl EmailVerificationWriteRepository for SeaOrmEmailVerificationWriteRepository {
     async fn create(&self, verification: &EmailVerification) -> Result<(), DomainError> {
         let active_model = self.to_active_model(verification);
-        
-        active_model
-            .insert(self.db.as_ref())
-            .await
-            .map_err(|e| DomainError::RepositoryError(format!("Failed to create email verification: {}", e)))?;
+
+        active_model.insert(self.db.as_ref()).await.map_err(|e| {
+            DomainError::RepositoryError(format!("Failed to create email verification: {}", e))
+        })?;
 
         Ok(())
     }
@@ -55,7 +59,9 @@ impl EmailVerificationWriteRepository for SeaOrmEmailVerificationWriteRepository
             .filter(user_email_verification::Column::Email.eq(email))
             .exec(self.db.as_ref())
             .await
-            .map_err(|e| DomainError::RepositoryError(format!("Failed to delete email verification: {}", e)))?;
+            .map_err(|e| {
+                DomainError::RepositoryError(format!("Failed to delete email verification: {}", e))
+            })?;
 
         Ok(())
     }
@@ -65,7 +71,12 @@ impl EmailVerificationWriteRepository for SeaOrmEmailVerificationWriteRepository
             .filter(user_email_verification::Column::Id.eq(id))
             .exec(self.db.as_ref())
             .await
-            .map_err(|e| DomainError::RepositoryError(format!("Failed to delete email verification by id: {}", e)))?;
+            .map_err(|e| {
+                DomainError::RepositoryError(format!(
+                    "Failed to delete email verification by id: {}",
+                    e
+                ))
+            })?;
 
         Ok(())
     }
@@ -78,14 +89,11 @@ mod tests {
     #[test]
     fn test_email_verification_model() {
         // Simple test to verify the EmailVerification entity works
-        let verification = EmailVerification::new(
-            "test@example.com".to_string(),
-            "token123".to_string(),
-            24,
-        );
+        let verification =
+            EmailVerification::new("test@example.com".to_string(), "token123".to_string(), 24);
 
         assert_eq!(verification.email, "test@example.com");
         assert_eq!(verification.verification_token, "token123");
         assert!(!verification.is_expired());
     }
-} 
+}

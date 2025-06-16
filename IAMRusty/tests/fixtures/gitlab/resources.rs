@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
-
+use serde_json::{Value, json};
 
 /// GitLab user data structure matching the API response
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -23,7 +22,9 @@ impl GitLabUser {
             id: 54321,
             username: "alice".to_string(),
             email: Some("alice@example.com".to_string()),
-            avatar_url: Some("https://gitlab.com/uploads/-/system/user/avatar/54321/avatar.png".to_string()),
+            avatar_url: Some(
+                "https://gitlab.com/uploads/-/system/user/avatar/54321/avatar.png".to_string(),
+            ),
         }
     }
 
@@ -33,7 +34,9 @@ impl GitLabUser {
             id: 98765,
             username: "charlie".to_string(),
             email: Some("charlie@example.com".to_string()),
-            avatar_url: Some("https://gitlab.com/uploads/-/system/user/avatar/98765/avatar.png".to_string()),
+            avatar_url: Some(
+                "https://gitlab.com/uploads/-/system/user/avatar/98765/avatar.png".to_string(),
+            ),
         }
     }
 
@@ -43,7 +46,9 @@ impl GitLabUser {
             id: 11111,
             username: "private_gitlab_user".to_string(),
             email: None,
-            avatar_url: Some("https://gitlab.com/uploads/-/system/user/avatar/11111/avatar.png".to_string()),
+            avatar_url: Some(
+                "https://gitlab.com/uploads/-/system/user/avatar/11111/avatar.png".to_string(),
+            ),
         }
     }
 }
@@ -81,9 +86,15 @@ impl GitLabUserBuilder {
     pub fn build(self) -> GitLabUser {
         GitLabUser {
             id: self.id.unwrap_or(54321),
-            username: self.username.unwrap_or_else(|| "test_gitlab_user".to_string()),
-            email: self.email.unwrap_or_else(|| Some("test@gitlab.example.com".to_string())),
-            avatar_url: self.avatar_url.unwrap_or_else(|| Some("https://gitlab.com/uploads/-/system/user/avatar/54321/avatar.png".to_string())),
+            username: self
+                .username
+                .unwrap_or_else(|| "test_gitlab_user".to_string()),
+            email: self
+                .email
+                .unwrap_or_else(|| Some("test@gitlab.example.com".to_string())),
+            avatar_url: self.avatar_url.unwrap_or_else(|| {
+                Some("https://gitlab.com/uploads/-/system/user/avatar/54321/avatar.png".to_string())
+            }),
         }
     }
 }
@@ -278,4 +289,4 @@ impl GitLabError {
     pub fn to_json(&self) -> Value {
         json!(self)
     }
-} 
+}

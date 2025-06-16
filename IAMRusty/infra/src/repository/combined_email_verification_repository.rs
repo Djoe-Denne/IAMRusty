@@ -3,13 +3,17 @@ use domain::entity::email_verification::EmailVerification;
 use domain::error::DomainError;
 use domain::port::repository::{
     EmailVerificationReadRepository as DomainEmailVerificationReadRepository,
-    EmailVerificationWriteRepository as DomainEmailVerificationWriteRepository
+    EmailVerificationWriteRepository as DomainEmailVerificationWriteRepository,
 };
 use std::sync::Arc;
 use uuid::Uuid;
 
-use super::email_verification_read::{EmailVerificationReadRepository, SeaOrmEmailVerificationReadRepository};
-use super::email_verification_write::{EmailVerificationWriteRepository, SeaOrmEmailVerificationWriteRepository};
+use super::email_verification_read::{
+    EmailVerificationReadRepository, SeaOrmEmailVerificationReadRepository,
+};
+use super::email_verification_write::{
+    EmailVerificationWriteRepository, SeaOrmEmailVerificationWriteRepository,
+};
 
 /// Combined email verification repository that implements the domain's EmailVerificationRepository trait
 pub struct CombinedEmailVerificationRepository {
@@ -44,7 +48,11 @@ impl CombinedEmailVerificationRepository {
 impl DomainEmailVerificationReadRepository for CombinedEmailVerificationRepository {
     type Error = DomainError;
 
-    async fn find_by_email_and_token(&self, email: &str, token: &str) -> Result<Option<EmailVerification>, Self::Error> {
+    async fn find_by_email_and_token(
+        &self,
+        email: &str,
+        token: &str,
+    ) -> Result<Option<EmailVerification>, Self::Error> {
         self.read_repo.find_by_email_and_token(email, token).await
     }
 
@@ -80,4 +88,4 @@ mod tests {
         // In integration tests, we would use real database connections
         assert!(true); // This test just verifies the module compiles
     }
-} 
+}

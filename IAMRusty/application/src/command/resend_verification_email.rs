@@ -1,10 +1,12 @@
-use crate::usecase::login::{LoginUseCase, ResendVerificationEmailRequest, ResendVerificationEmailResponse};
 use super::signup::AuthErrorMapper; // Reuse existing mapper implementation
+use crate::usecase::login::{
+    LoginUseCase, ResendVerificationEmailRequest, ResendVerificationEmailResponse,
+};
 use async_trait::async_trait;
+use rustycog_command::CommandErrorMapper;
 use rustycog_command::{Command, CommandError, CommandHandler};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use rustycog_command::CommandErrorMapper;
 
 /// Resend verification email command
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -69,15 +71,17 @@ impl<A> CommandHandler<ResendVerificationEmailCommand> for ResendVerificationEma
 where
     A: LoginUseCase + Send + Sync + ?Sized,
 {
-    async fn handle(&self, command: ResendVerificationEmailCommand) -> Result<ResendVerificationEmailResponse, CommandError> {
+    async fn handle(
+        &self,
+        command: ResendVerificationEmailCommand,
+    ) -> Result<ResendVerificationEmailResponse, CommandError> {
         let request = ResendVerificationEmailRequest {
             email: command.email,
         };
 
-        self
-            .login_use_case
+        self.login_use_case
             .resend_verification_email(request)
             .await
             .map_err(|e| AuthErrorMapper.map_error(Box::new(e)))
     }
-} 
+}

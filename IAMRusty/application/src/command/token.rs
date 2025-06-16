@@ -1,6 +1,6 @@
-use rustycog_command::{Command, CommandError, CommandHandler, CommandErrorMapper};
-use crate::usecase::token::{TokenUseCase, RefreshTokenResponse, TokenError};
+use crate::usecase::token::{RefreshTokenResponse, TokenError, TokenUseCase};
 use async_trait::async_trait;
+use rustycog_command::{Command, CommandError, CommandErrorMapper, CommandHandler};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -44,56 +44,60 @@ impl CommandErrorMapper for TokenErrorMapper {
                     match domain_error {
                         DomainError::TokenNotFound => CommandError::authentication(
                             TokenErrorCode::TokenNotFound.as_str(),
-                            "Authentication failed: Token not found"
+                            "Authentication failed: Token not found",
                         ),
                         DomainError::TokenExpired => CommandError::authentication(
                             TokenErrorCode::TokenExpired.as_str(),
-                            "Authentication failed: Token expired"
+                            "Authentication failed: Token expired",
+                        ),
+                        DomainError::InvalidToken => CommandError::authentication(
+                            TokenErrorCode::TokenInvalid.as_str(),
+                            "Authentication failed: Invalid token",
                         ),
                         DomainError::TokenValidationFailed(_) => CommandError::authentication(
                             TokenErrorCode::TokenInvalid.as_str(),
-                            "Authentication failed: Token validation failed"
+                            "Authentication failed: Token validation failed",
                         ),
                         DomainError::RepositoryError(_) => CommandError::infrastructure(
                             TokenErrorCode::RepositoryError.as_str(),
-                            "Repository error during token operation"
+                            "Repository error during token operation",
                         ),
                         _ => CommandError::infrastructure(
                             TokenErrorCode::TokenServiceError.as_str(),
-                            "Token service error"
+                            "Token service error",
                         ),
                     }
-                },
+                }
                 TokenError::RepositoryError(_) => CommandError::infrastructure(
                     TokenErrorCode::RepositoryError.as_str(),
-                    error.to_string()
+                    error.to_string(),
                 ),
                 TokenError::TokenServiceError(inner) => {
                     let error_msg = inner.to_string();
                     if Self::is_authentication_related_error(&error_msg) {
                         CommandError::business(
                             TokenErrorCode::AuthenticationFailed.as_str(),
-                            format!("Authentication failed: {}", error_msg)
+                            format!("Authentication failed: {}", error_msg),
                         )
                     } else {
                         CommandError::infrastructure(
                             TokenErrorCode::TokenServiceError.as_str(),
-                            error.to_string()
+                            error.to_string(),
                         )
                     }
-                },
+                }
                 // Authentication-related token errors should return 401
                 TokenError::TokenNotFound => CommandError::authentication(
                     TokenErrorCode::TokenNotFound.as_str(),
-                    "Authentication failed: Invalid refresh token"
+                    "Authentication failed: Invalid refresh token",
                 ),
                 TokenError::TokenInvalid => CommandError::authentication(
                     TokenErrorCode::TokenInvalid.as_str(),
-                    "Authentication failed: Invalid refresh token"
+                    "Authentication failed: Invalid refresh token",
                 ),
                 TokenError::TokenExpired => CommandError::authentication(
                     TokenErrorCode::TokenExpired.as_str(),
-                    "Authentication failed: Expired refresh token"
+                    "Authentication failed: Expired refresh token",
                 ),
             }
         } else {
@@ -101,12 +105,12 @@ impl CommandErrorMapper for TokenErrorMapper {
             if Self::is_authentication_related_error(&error_msg) {
                 CommandError::validation(
                     TokenErrorCode::AuthenticationFailed.as_str(),
-                    format!("Authentication failed: {}", error_msg)
+                    format!("Authentication failed: {}", error_msg),
                 )
             } else {
                 CommandError::infrastructure(
                     TokenErrorCode::RepositoryError.as_str(),
-                    error.to_string()
+                    error.to_string(),
                 )
             }
         }
@@ -115,13 +119,13 @@ impl CommandErrorMapper for TokenErrorMapper {
 
 impl TokenErrorMapper {
     fn is_authentication_related_error(error_msg: &str) -> bool {
-        error_msg.contains("expired") || 
-        error_msg.contains("invalid") || 
-        error_msg.contains("Token expired") ||
-        error_msg.contains("Invalid token") ||
-        error_msg.contains("JWT error") ||
-        error_msg.contains("malformed") ||
-        error_msg.contains("signature")
+        error_msg.contains("expired")
+            || error_msg.contains("invalid")
+            || error_msg.contains("Token expired")
+            || error_msg.contains("Invalid token")
+            || error_msg.contains("JWT error")
+            || error_msg.contains("malformed")
+            || error_msg.contains("signature")
     }
 }
 
@@ -137,9 +141,9 @@ pub struct RefreshTokenCommand {
 impl RefreshTokenCommand {
     /// Create a new refresh token command
     pub fn new(refresh_token: String) -> Self {
-        Self { 
+        Self {
             command_id: Uuid::new_v4(),
-            refresh_token 
+            refresh_token,
         }
     }
 }
@@ -159,7 +163,7 @@ impl Command for RefreshTokenCommand {
         if self.refresh_token.trim().is_empty() {
             return Err(CommandError::validation(
                 TokenErrorCode::ValidationFailed.as_str(),
-                "Refresh token cannot be empty"
+                "Refresh token cannot be empty",
             ));
         }
         Ok(())
@@ -178,9 +182,9 @@ pub struct RevokeTokenCommand {
 impl RevokeTokenCommand {
     /// Create a new revoke token command
     pub fn new(refresh_token: String) -> Self {
-        Self { 
+        Self {
             command_id: Uuid::new_v4(),
-            refresh_token 
+            refresh_token,
         }
     }
 }
@@ -200,7 +204,7 @@ impl Command for RevokeTokenCommand {
         if self.refresh_token.trim().is_empty() {
             return Err(CommandError::validation(
                 TokenErrorCode::ValidationFailed.as_str(),
-                "Refresh token cannot be empty"
+                "Refresh token cannot be empty",
             ));
         }
         Ok(())
@@ -219,9 +223,9 @@ pub struct RevokeAllTokensCommand {
 impl RevokeAllTokensCommand {
     /// Create a new revoke all tokens command
     pub fn new(user_id: Uuid) -> Self {
-        Self { 
+        Self {
             command_id: Uuid::new_v4(),
-            user_id 
+            user_id,
         }
     }
 }
@@ -244,7 +248,7 @@ impl Command for RevokeAllTokensCommand {
 }
 
 /// Refresh token command handler
-pub struct RefreshTokenCommandHandler<T> 
+pub struct RefreshTokenCommandHandler<T>
 where
     T: TokenUseCase + ?Sized,
 {
@@ -257,9 +261,7 @@ where
 {
     /// Create a new refresh token command handler
     pub fn new(token_use_case: Arc<T>) -> Self {
-        Self {
-            token_use_case,
-        }
+        Self { token_use_case }
     }
 }
 
@@ -268,7 +270,10 @@ impl<T> CommandHandler<RefreshTokenCommand> for RefreshTokenCommandHandler<T>
 where
     T: TokenUseCase + Send + Sync + ?Sized,
 {
-    async fn handle(&self, command: RefreshTokenCommand) -> Result<RefreshTokenResponse, CommandError> {
+    async fn handle(
+        &self,
+        command: RefreshTokenCommand,
+    ) -> Result<RefreshTokenResponse, CommandError> {
         self.token_use_case
             .refresh_token(command.refresh_token)
             .await
@@ -277,7 +282,7 @@ where
 }
 
 /// Revoke token command handler
-pub struct RevokeTokenCommandHandler<T> 
+pub struct RevokeTokenCommandHandler<T>
 where
     T: TokenUseCase + ?Sized,
 {
@@ -290,9 +295,7 @@ where
 {
     /// Create a new revoke token command handler
     pub fn new(token_use_case: Arc<T>) -> Self {
-        Self {
-            token_use_case,
-        }
+        Self { token_use_case }
     }
 }
 
@@ -310,7 +313,7 @@ where
 }
 
 /// Revoke all tokens command handler
-pub struct RevokeAllTokensCommandHandler<T> 
+pub struct RevokeAllTokensCommandHandler<T>
 where
     T: TokenUseCase + ?Sized,
 {
@@ -323,9 +326,7 @@ where
 {
     /// Create a new revoke all tokens command handler
     pub fn new(token_use_case: Arc<T>) -> Self {
-        Self {
-            token_use_case,
-        }
+        Self { token_use_case }
     }
 }
 

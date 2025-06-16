@@ -1,21 +1,22 @@
 //! Kafka test container utilities
-//! 
+//!
 //! This module provides a Kafka container for integration tests to verify real
 //! event publishing functionality.
 
+use configuration::KafkaConfig;
+use infra::event_adapter::test_consumer::TestKafkaConsumer;
 use std::sync::Arc;
 use std::sync::OnceLock;
-use tokio::sync::Mutex;
-use testcontainers::{GenericImage, ImageExt, ContainerAsync, runners::AsyncRunner};
-use configuration::KafkaConfig;
-use tracing::{info, debug, warn};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
+use testcontainers::{ContainerAsync, GenericImage, ImageExt, runners::AsyncRunner};
+use tokio::sync::Mutex;
+use tracing::{debug, info, warn};
 use uuid;
-use infra::event_adapter::test_consumer::TestKafkaConsumer;
 
 /// Global test Kafka container instance
-static TEST_KAFKA_CONTAINER: OnceLock<Arc<Mutex<Option<Arc<TestKafkaContainer>>>>> = OnceLock::new();
+static TEST_KAFKA_CONTAINER: OnceLock<Arc<Mutex<Option<Arc<TestKafkaContainer>>>>> =
+    OnceLock::new();
 
 /// Flag to track if cleanup handler has been registered
 static KAFKA_CLEANUP_REGISTERED: AtomicBool = AtomicBool::new(false);
@@ -58,13 +59,13 @@ impl TestKafka {
         let container = get_or_create_test_kafka_container().await?;
         let brokers = container.brokers.clone();
         let topic = "test-user-events".to_string();
-        
+
         // Parse the brokers string to get host and port
         let parts: Vec<&str> = brokers.split(':').collect();
         if parts.len() == 2 {
             let host = parts[0];
             let port = parts[1];
-            
+
             // Set environment variables for Kafka configuration so our app config picks it up
             unsafe {
                 std::env::set_var("RUSTYCOG_KAFKA__HOST", host);
@@ -81,23 +82,20 @@ impl TestKafka {
                 std::env::set_var("RUSTYCOG_KAFKA__USER_EVENTS_TOPIC", &topic);
             }
         }
-        
+
         // Wait for Kafka to be ready
         Self::wait_for_kafka(&brokers).await?;
-        
-        Ok(Self {
-            brokers,
-            topic,
-        })
+
+        Ok(Self { brokers, topic })
     }
-    
+
     /// Wait for Kafka to be ready using a simple TCP connection test
     async fn wait_for_kafka(brokers: &str) -> Result<(), Box<dyn std::error::Error>> {
         info!("Waiting for Kafka to be ready...");
-        
+
         let max_attempts = 30;
         let mut attempts = 0;
-        
+
         while attempts < max_attempts {
             // Simple TCP connection test
             if let Ok(addr) = brokers.parse::<std::net::SocketAddr>() {
@@ -128,75 +126,111 @@ impl TestKafka {
                     }
                 }
             }
-            
+
             attempts += 1;
             if attempts < max_attempts {
-                debug!("Retrying Kafka connection in 1 second... (attempt {}/{})", attempts, max_attempts);
+                debug!(
+                    "Retrying Kafka connection in 1 second... (attempt {}/{})",
+                    attempts, max_attempts
+                );
                 tokio::time::sleep(Duration::from_secs(1)).await;
             }
         }
-        
-        Err(format!("Kafka failed to become ready after {} attempts", max_attempts).into())
+
+        Err(format!(
+            "Kafka failed to become ready after {} attempts",
+            max_attempts
+        )
+        .into())
     }
-    
+
     /// Wait for a message to be published to the topic
     /// This is a simplified version that waits for a certain duration
-    pub async fn wait_for_message(&self, timeout_secs: u64) -> Result<String, Box<dyn std::error::Error>> {
+    pub async fn wait_for_message(
+        &self,
+        timeout_secs: u64,
+    ) -> Result<String, Box<dyn std::error::Error>> {
         // For the test, we'll just wait and assume the message was published
         // In a real implementation, we'd need to consume from Kafka
         tokio::time::sleep(Duration::from_secs(timeout_secs.min(5))).await;
         Ok("mock_event_message".to_string())
     }
-    
+
     /// Get all messages from the topic using infra test consumer
-    pub async fn get_all_messages(&self, max_wait_secs: u64) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    pub async fn get_all_messages(
+        &self,
+        max_wait_secs: u64,
+    ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
         debug!("Creating test consumer for topic: {}", self.topic);
         let consumer = TestKafkaConsumer::new(&self.brokers, &self.topic).await?;
         consumer.get_all_messages(max_wait_secs).await
     }
-    
+
     /// Wait for a specific number of messages to be available
-    pub async fn wait_for_messages(&self, expected_count: usize, max_wait_secs: u64) -> Result<Vec<String>, Box<dyn std::error::Error>> {
-        debug!("Creating test consumer to wait for {} messages", expected_count);
+    pub async fn wait_for_messages(
+        &self,
+        expected_count: usize,
+        max_wait_secs: u64,
+    ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+        debug!(
+            "Creating test consumer to wait for {} messages",
+            expected_count
+        );
         let consumer = TestKafkaConsumer::new(&self.brokers, &self.topic).await?;
-        consumer.wait_for_messages(expected_count, max_wait_secs).await
+        consumer
+            .wait_for_messages(expected_count, max_wait_secs)
+            .await
     }
 }
 
 /// Get or create the global test Kafka container
-async fn get_or_create_test_kafka_container() -> Result<Arc<TestKafkaContainer>, Box<dyn std::error::Error>> {
-    let container_mutex = TEST_KAFKA_CONTAINER.get_or_init(|| {
-        Arc::new(Mutex::new(None))
-    });
-    
+async fn get_or_create_test_kafka_container()
+-> Result<Arc<TestKafkaContainer>, Box<dyn std::error::Error>> {
+    let container_mutex = TEST_KAFKA_CONTAINER.get_or_init(|| Arc::new(Mutex::new(None)));
+
     let mut container_guard = container_mutex.lock().await;
-    
+
     if let Some(ref container) = *container_guard {
         return Ok(container.clone());
     }
-    
+
     info!("Creating new Kafka test container");
-    
+
     // Clean up any existing container
     cleanup_existing_kafka_container().await;
-    
+
     // Clear only the Kafka port cache to ensure fresh random port generation
     // Don't clear all caches as that would interfere with database test containers
     KafkaConfig::clear_port_cache();
-    
+
     // Load configuration to understand Kafka settings
     let config = configuration::load_config()?;
     let kafka_config = &config.kafka;
-    
+
     // Use the configuration's port resolution mechanism
     let kafka_port = kafka_config.actual_port();
-    
+
     // Create Kafka container using Apache Kafka in KRaft mode (no Zookeeper needed)
     let kafka_image = GenericImage::new("apache/kafka", "3.7.0")
         .with_env_var("KAFKA_NODE_ID", "1")
-        .with_env_var("KAFKA_LISTENER_SECURITY_PROTOCOL_MAP", "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT")
-        .with_env_var("KAFKA_ADVERTISED_LISTENERS", &format!("PLAINTEXT://localhost:{},PLAINTEXT_HOST://localhost:{}", kafka_port, kafka_port))
-        .with_env_var("KAFKA_LISTENERS", &format!("PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093,PLAINTEXT_HOST://0.0.0.0:{}", kafka_port))
+        .with_env_var(
+            "KAFKA_LISTENER_SECURITY_PROTOCOL_MAP",
+            "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT",
+        )
+        .with_env_var(
+            "KAFKA_ADVERTISED_LISTENERS",
+            &format!(
+                "PLAINTEXT://localhost:{},PLAINTEXT_HOST://localhost:{}",
+                kafka_port, kafka_port
+            ),
+        )
+        .with_env_var(
+            "KAFKA_LISTENERS",
+            &format!(
+                "PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093,PLAINTEXT_HOST://0.0.0.0:{}",
+                kafka_port
+            ),
+        )
         .with_env_var("KAFKA_INTER_BROKER_LISTENER_NAME", "PLAINTEXT")
         .with_env_var("KAFKA_CONTROLLER_LISTENER_NAMES", "CONTROLLER")
         .with_env_var("KAFKA_CONTROLLER_QUORUM_VOTERS", "1@localhost:29093")
@@ -208,53 +242,56 @@ async fn get_or_create_test_kafka_container() -> Result<Arc<TestKafkaContainer>,
         .with_env_var("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "true")
         .with_env_var("CLUSTER_ID", "MkU3OEVBNTcwNTJENDM2Qk")
         .with_container_name("iam-test-kafka")
-        .with_mapped_port(kafka_port, testcontainers::core::ContainerPort::Tcp(kafka_port));
-    
+        .with_mapped_port(
+            kafka_port,
+            testcontainers::core::ContainerPort::Tcp(kafka_port),
+        );
+
     // Start Kafka
     info!("Starting Kafka container on port {}...", kafka_port);
     let kafka_container = kafka_image.start().await?;
-    
+
     let brokers = format!("localhost:{}", kafka_port);
-    
+
     info!("Test Kafka container started");
     info!("Brokers: {}", brokers);
-    
+
     // Wait for Kafka to be ready
     TestKafka::wait_for_kafka(&brokers).await?;
-    
+
     let test_container = Arc::new(TestKafkaContainer {
         container: kafka_container,
         brokers,
         port: kafka_port,
     });
-    
+
     *container_guard = Some(test_container.clone());
-    
+
     // Register cleanup handler on first container creation
     register_kafka_cleanup_handler().await;
-    
+
     Ok(test_container)
 }
 
 /// Clean up any existing Kafka containers
 async fn cleanup_existing_kafka_container() {
     use std::process::Command;
-    
+
     debug!("Checking for existing Kafka test containers");
-    
+
     let containers = ["iam-test-kafka"];
-    
+
     for container_name in &containers {
         // Stop the container
         let _ = Command::new("docker")
             .args(&["stop", container_name])
             .output();
-        
+
         // Remove the container
         let _ = Command::new("docker")
             .args(&["rm", "-f", container_name])
             .output();
-        
+
         debug!("Cleaned up container: {}", container_name);
     }
 }
@@ -264,7 +301,7 @@ async fn register_kafka_cleanup_handler() {
     if KAFKA_CLEANUP_REGISTERED.swap(true, Ordering::SeqCst) {
         return;
     }
-    
+
     info!("Registering Kafka test container cleanup handler");
 }
 
@@ -280,11 +317,14 @@ impl TestKafkaFixture {
         Ok(Self { kafka })
     }
 
-    
     /// Wait for and verify a specific event was published
-    pub async fn verify_event_published(&self, event_type: &str, timeout_secs: u64) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+    pub async fn verify_event_published(
+        &self,
+        event_type: &str,
+        timeout_secs: u64,
+    ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
         let messages = self.kafka.get_all_messages(timeout_secs).await?;
-        
+
         for message in messages {
             if let Ok(event) = serde_json::from_str::<serde_json::Value>(&message) {
                 if let Some(event_type_value) = event.get("event_type") {
@@ -294,10 +334,14 @@ impl TestKafkaFixture {
                 }
             }
         }
-        
-        Err(format!("Event with type '{}' not found within {} seconds", event_type, timeout_secs).into())
+
+        Err(format!(
+            "Event with type '{}' not found within {} seconds",
+            event_type, timeout_secs
+        )
+        .into())
     }
-    
+
     /// Cleanup Kafka container (for test cleanup)
     pub async fn cleanup_container() -> Result<(), Box<dyn std::error::Error>> {
         let container_mutex = TEST_KAFKA_CONTAINER.get();
@@ -305,7 +349,7 @@ impl TestKafkaFixture {
             let mut container_guard = container_mutex.lock().await;
             if let Some(container_arc) = container_guard.take() {
                 info!("Manually cleaning up test Kafka container");
-                
+
                 match Arc::try_unwrap(container_arc) {
                     Ok(container) => {
                         container.cleanup().await;
