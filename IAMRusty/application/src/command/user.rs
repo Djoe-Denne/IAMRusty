@@ -38,6 +38,32 @@ impl CommandErrorMapper for UserErrorMapper {
     fn map_error(&self, error: Box<dyn std::error::Error + Send + Sync>) -> CommandError {
         if let Some(user_error) = error.downcast_ref::<UserError>() {
             match user_error {
+                UserError::DomainError(domain_error) => {
+                    // Map domain errors to appropriate command errors
+                    use domain::error::DomainError;
+                    match domain_error {
+                        DomainError::UserNotFound => CommandError::authentication(
+                            UserErrorCode::UserNotFound.as_str(),
+                            "Authentication failed: User not found"
+                        ),
+                        DomainError::TokenValidationFailed(_) => CommandError::authentication(
+                            UserErrorCode::InvalidToken.as_str(),
+                            "Authentication failed: Token validation failed"
+                        ),
+                        DomainError::TokenExpired => CommandError::authentication(
+                            UserErrorCode::TokenExpired.as_str(),
+                            "Authentication failed: Token expired"
+                        ),
+                        DomainError::RepositoryError(_) => CommandError::infrastructure(
+                            UserErrorCode::RepositoryError.as_str(),
+                            "Repository error during user operation"
+                        ),
+                        _ => CommandError::infrastructure(
+                            UserErrorCode::TokenServiceError.as_str(),
+                            "User service error"
+                        ),
+                    }
+                },
                 UserError::RepositoryError(_) => CommandError::infrastructure(
                     UserErrorCode::RepositoryError.as_str(),
                     error.to_string()

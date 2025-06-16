@@ -148,18 +148,27 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
         infra::token::JwtAlgorithm::from(jwt_algorithm_config.clone()),
     ).unwrap());
 
-    // Create OAuth use case for OAuth flows
-    let oauth_usecase = OAuthUseCaseImpl::new(
-        Arc::new(github_auth_login),
-        Arc::new(gitlab_auth_login),
-        Arc::new(user_repo.clone()),
-        Arc::new(user_email_repo.clone()),
-        Arc::new(token_repo_login),
-        Arc::new(refresh_token_repo.clone()),
-        token_service.clone(),
-        registration_token_service.clone(),
-        event_publisher.clone(),
+    // Create OAuth service for OAuth flows  
+    let mut oauth_service = domain::service::oauth_service::OAuthService::new(
+        user_repo.clone(),
+        token_repo_login,
+        domain::service::TokenService::new(
+            Box::new(token_service.as_ref().clone()),
+            chrono::Duration::hours(1),
+        ),
     );
+    
+    // Register OAuth provider clients
+    oauth_service.register_provider_client(
+        domain::entity::provider::Provider::GitHub,
+        Box::new(github_auth_login),
+    );
+    oauth_service.register_provider_client(
+        domain::entity::provider::Provider::GitLab,
+        Box::new(gitlab_auth_login),
+    );
+    
+    let oauth_usecase = OAuthUseCaseImpl::new(Arc::new(oauth_service), registration_token_service.clone());
 
     // Create provider link service for domain business logic
     let provider_link_service = Arc::new(domain::service::ProviderLinkService::new(
@@ -174,16 +183,21 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
         provider_link_service,
     );
 
-    let user_usecase = UserUseCaseImpl::new(
+    // Create domain services
+    let user_service = Arc::new(domain::service::UserServiceImpl::new(
         Arc::new(user_repo.clone()),
         Arc::new(user_email_repo.clone()),
         token_service.clone(),
-    );
+    ));
     
-    let token_usecase = TokenUseCaseImpl::new(
+    let refresh_token_service = Arc::new(domain::service::RefreshTokenServiceImpl::new(
         Arc::new(refresh_token_repo.clone()),
         token_service.clone(),
-    );
+    ));
+    
+    // Create use cases with domain services
+    let user_usecase = UserUseCaseImpl::new(user_service.clone());
+    let token_usecase = TokenUseCaseImpl::new(refresh_token_service.clone());
 
 
 
@@ -250,17 +264,20 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
     );
     let provider_usecase = ProviderUseCaseImpl::new(Arc::new(provider_auth_service));
 
-    // Create separate instances for command service
-    let user_usecase_for_commands = UserUseCaseImpl::new(
+    // Create separate instances for command service (reuse domain services)
+    let user_service_for_commands = Arc::new(domain::service::UserServiceImpl::new(
         Arc::new(user_repo),
         Arc::new(user_email_repo),
         token_service.clone(),
-    );
+    ));
     
-    let token_usecase_for_commands = TokenUseCaseImpl::new(
+    let refresh_token_service_for_commands = Arc::new(domain::service::RefreshTokenServiceImpl::new(
         Arc::new(refresh_token_repo),
         token_service,
-    );
+    ));
+    
+    let user_usecase_for_commands = UserUseCaseImpl::new(user_service_for_commands);
+    let token_usecase_for_commands = TokenUseCaseImpl::new(refresh_token_service_for_commands);
 
     // Create command registry and service
     let registry = CommandRegistryFactory::create_iam_registry(

@@ -58,6 +58,7 @@ impl ErrorMapper<DomainError> for IAMErrorMapper {
             DomainError::RegistrationAlreadyComplete => ServiceError::business("Registration already completed".to_string()),
             DomainError::TokenServiceError(message) => ServiceError::infrastructure(format!("Token service error: {}", message)),
             DomainError::EventError(message) => ServiceError::infrastructure(format!("Event error: {}", message)),
+            DomainError::TokenNotFound => ServiceError::authentication("Token not found"),
         }
     }
 

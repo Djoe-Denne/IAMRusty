@@ -499,6 +499,9 @@ impl IntoResponse for ApiError {
                     DomainError::EventError(msg) => {
                         (StatusCode::INTERNAL_SERVER_ERROR, "event_error".to_string(), msg)
                     }
+                    DomainError::TokenNotFound => {
+                        (StatusCode::UNAUTHORIZED, "token_not_found".to_string(), "Token not found".to_string())
+                    }
                 }
             }
             ApiError::Command(cmd_error) => {
@@ -540,6 +543,11 @@ impl IntoResponse for ApiError {
                     UserError::TokenExpired => {
                         (StatusCode::UNAUTHORIZED, "token_expired".to_string(), "Token expired".to_string())
                     }
+                    UserError::DomainError(domain_error) => {
+                        // Delegate to domain error handling
+                        let domain_api_error = ApiError::Domain(domain_error.clone());
+                        return domain_api_error.into_response();
+                    }
                 }
             }
             ApiError::Token(token_error) => {
@@ -558,6 +566,11 @@ impl IntoResponse for ApiError {
                     }
                     TokenError::TokenExpired => {
                         (StatusCode::UNAUTHORIZED, "token_expired".to_string(), "Refresh token is expired".to_string())
+                    }
+                    TokenError::DomainError(domain_error) => {
+                        // Delegate to domain error handling
+                        let domain_api_error = ApiError::Domain(domain_error.clone());
+                        return domain_api_error.into_response();
                     }
                 }
             }
@@ -703,6 +716,33 @@ impl AuthError {
                     status: StatusCode::BAD_REQUEST,
                 }
             }
+            // Handle OAuth provider errors (invalid codes, user rejection, etc.) as authentication failures
+            CommandError::Infrastructure { code, .. } if code == "provider_error" => {
+                Self::OAuth {
+                    operation: operation.to_string(),
+                    error_code: "authentication_failed".to_string(),
+                    message: "Authentication failed".to_string(),
+                    status: StatusCode::UNAUTHORIZED,
+                }
+            }
+            // Handle retry exhausted errors that originated from OAuth provider failures
+            CommandError::RetryExhausted { message, .. } if message.contains("provider_error") || message.contains("OAuth") => {
+                Self::OAuth {
+                    operation: operation.to_string(),
+                    error_code: "authentication_failed".to_string(),
+                    message: "Authentication failed".to_string(),
+                    status: StatusCode::UNAUTHORIZED,
+                }
+            }
+            // Handle other OAuth-related infrastructure errors as authentication failures
+            CommandError::Infrastructure { code, .. } if code.contains("oauth") || code.contains("provider") => {
+                Self::OAuth {
+                    operation: operation.to_string(),
+                    error_code: "authentication_failed".to_string(),
+                    message: "Authentication failed".to_string(),
+                    status: StatusCode::UNAUTHORIZED,
+                }
+            }
             CommandError::Business { code, .. } => AuthError::OAuth {
                 operation: "login".to_string(),
                 error_code: code.clone(),
@@ -758,6 +798,33 @@ impl AuthError {
                     error_code: code.clone(),
                     message: message.clone(),
                     status: StatusCode::BAD_REQUEST,
+                }
+            }
+            // Handle OAuth provider errors (invalid codes, user rejection, etc.) as authentication failures
+            CommandError::Infrastructure { code, .. } if code == "provider_error" => {
+                Self::OAuth {
+                    operation: operation.to_string(),
+                    error_code: "authentication_failed".to_string(),
+                    message: "Authentication failed".to_string(),
+                    status: StatusCode::UNAUTHORIZED,
+                }
+            }
+            // Handle retry exhausted errors that originated from OAuth provider failures
+            CommandError::RetryExhausted { message, .. } if message.contains("provider_error") || message.contains("OAuth") => {
+                Self::OAuth {
+                    operation: operation.to_string(),
+                    error_code: "authentication_failed".to_string(),
+                    message: "Authentication failed".to_string(),
+                    status: StatusCode::UNAUTHORIZED,
+                }
+            }
+            // Handle other OAuth-related infrastructure errors as authentication failures
+            CommandError::Infrastructure { code, .. } if code.contains("oauth") || code.contains("provider") => {
+                Self::OAuth {
+                    operation: operation.to_string(),
+                    error_code: "authentication_failed".to_string(),
+                    message: "Authentication failed".to_string(),
+                    status: StatusCode::UNAUTHORIZED,
                 }
             }
             _ => Self::OAuth {

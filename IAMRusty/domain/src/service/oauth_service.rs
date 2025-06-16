@@ -72,7 +72,7 @@ where
         &self,
         provider_name: &str,
         code: &str,
-    ) -> Result<(User, String), DomainError> {
+    ) -> Result<(User, String, String), DomainError> {
         let provider = Provider::from_str(provider_name)
             .ok_or_else(|| DomainError::ProviderNotSupported(provider_name.to_string()))?;
         
@@ -91,8 +91,11 @@ where
         
         debug!("Retrieved user profile: {}", profile.username);
         
-        // Store the provider user ID before moving the profile
+        // Store the provider user ID and email before moving the profile
         let provider_user_id = profile.id.clone();
+        let email = profile.email.clone().ok_or_else(|| {
+            DomainError::UserProfileError("Email is required from OAuth provider".to_string())
+        })?;
         
         // Find or create the user
         let user = self.find_or_create_user(provider, profile).await?;
@@ -105,14 +108,16 @@ where
             .await
             .map_err(|e| DomainError::RepositoryError(e.to_string()))?;
 
-        // Ensure user has a username (complete registration)
-        let username = user.username.as_ref().ok_or(DomainError::UserNotFound)?;
-        
-        // Generate a JWT token
-        let jwt_token = self.token_service
-            .generate_token(&user.id.to_string(), username)?;
-
-        Ok((user, jwt_token))
+        // Check if user has a username (complete registration)
+        if let Some(username) = user.username.as_ref() {
+            // Generate a JWT token for complete users
+            let jwt_token = self.token_service
+                .generate_token(&user.id.to_string(), username)?;
+            Ok((user, jwt_token, email))
+        } else {
+            // Return incomplete user - let the use case handle the registration flow
+            Ok((user, String::new(), email)) // Empty JWT token indicates registration needed
+        }
     }
 
     /// Find a user by their ID
@@ -156,9 +161,8 @@ where
             return Ok(user);
         }
         
-        // Create a new user
-        let user = User::new(
-            profile.username,
+        // Create a new incomplete user (requires registration completion)
+        let user = User::new_incomplete(
             profile.avatar_url,
         );
         

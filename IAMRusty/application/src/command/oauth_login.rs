@@ -1,6 +1,6 @@
 use rustycog_command::{Command, CommandError, CommandHandler, CommandErrorMapper};
 use crate::usecase::{
-    oauth::{OAuthUseCase, OAuthError},
+    oauth::{OAuthUseCase, OAuthError, OAuthResponse},
 };
 use domain::entity::provider::Provider;
 use async_trait::async_trait;
@@ -41,26 +41,32 @@ impl CommandErrorMapper for OAuthLoginErrorMapper {
         // Try to downcast to known error types
         if let Some(oauth_error) = error.downcast_ref::<OAuthError>() {
             match oauth_error {
-                OAuthError::AuthError(_) => CommandError::business(
-                    OAuthLoginErrorCode::AuthenticationFailed.as_str(),
-                    "OAuth authentication failed"
-                ),
-                OAuthError::DbError(_) => CommandError::infrastructure(
-                    OAuthLoginErrorCode::DatabaseError.as_str(),
-                    "Database error during OAuth flow"
-                ),
-                OAuthError::TokenError(_) => CommandError::infrastructure(
-                    OAuthLoginErrorCode::TokenServiceError.as_str(),
-                    "Token service error during OAuth flow"
-                ),
-                OAuthError::EventPublishingError(_) => CommandError::infrastructure(
-                    OAuthLoginErrorCode::ProviderError.as_str(),
-                    "Event publishing error during OAuth flow"
-                ),
-                OAuthError::ProviderNotConfigured(_) => CommandError::infrastructure(
-                    OAuthLoginErrorCode::ProviderError.as_str(),
-                    "OAuth provider not configured"
-                ),
+                OAuthError::DomainError(domain_error) => {
+                    // Map domain errors to appropriate command errors
+                    use domain::error::DomainError;
+                    match domain_error {
+                        DomainError::UserNotFound => CommandError::business(
+                            OAuthLoginErrorCode::AuthenticationFailed.as_str(),
+                            "User not found"
+                        ),
+                        DomainError::ProviderNotSupported(_) => CommandError::business(
+                            OAuthLoginErrorCode::ProviderError.as_str(),
+                            "Provider not supported"
+                        ),
+                        DomainError::AuthorizationError(_) => CommandError::business(
+                            OAuthLoginErrorCode::AuthenticationFailed.as_str(),
+                            "Authorization failed"
+                        ),
+                        DomainError::RepositoryError(_) => CommandError::infrastructure(
+                            OAuthLoginErrorCode::DatabaseError.as_str(),
+                            "Database error during OAuth flow"
+                        ),
+                        _ => CommandError::infrastructure(
+                            OAuthLoginErrorCode::ProviderError.as_str(),
+                            "OAuth flow error"
+                        ),
+                    }
+                }
             }
         } else {
             // Check if it's an authentication-related error by message
@@ -101,25 +107,22 @@ pub struct OAuthLoginCommand {
     pub provider: Provider,
     /// Authorization code from OAuth callback
     pub code: String,
-    /// Redirect URI used in OAuth flow
-    pub redirect_uri: String,
 }
 
 impl OAuthLoginCommand {
     /// Create a new OAuth login command
-    pub fn new(provider: Provider, code: String, redirect_uri: String) -> Self {
+    pub fn new(provider: Provider, code: String) -> Self {
         Self {
             command_id: Uuid::new_v4(),
             provider,
             code,
-            redirect_uri,
         }
     }
 }
 
 #[async_trait]
 impl Command for OAuthLoginCommand {
-    type Result = crate::usecase::oauth::OAuthResult;
+    type Result = OAuthResponse;
     
     fn command_type(&self) -> &'static str {
         "oauth_login"
@@ -134,21 +137,6 @@ impl Command for OAuthLoginCommand {
             return Err(CommandError::validation(
                 OAuthLoginErrorCode::ValidationFailed.as_str(),
                 "Authorization code cannot be empty"
-            ));
-        }
-        
-        if self.redirect_uri.trim().is_empty() {
-            return Err(CommandError::validation(
-                OAuthLoginErrorCode::ValidationFailed.as_str(),
-                "Redirect URI cannot be empty"
-            ));
-        }
-        
-        // Basic URL validation for redirect_uri
-        if !self.redirect_uri.starts_with("http://") && !self.redirect_uri.starts_with("https://") {
-            return Err(CommandError::validation(
-                OAuthLoginErrorCode::ValidationFailed.as_str(),
-                "Redirect URI must be a valid HTTP/HTTPS URL"
             ));
         }
         
@@ -181,9 +169,9 @@ impl<O> CommandHandler<OAuthLoginCommand> for OAuthLoginCommandHandler<O>
 where
     O: OAuthUseCase + Send + Sync + ?Sized,
 {
-    async fn handle(&self, command: OAuthLoginCommand) -> Result<crate::usecase::oauth::OAuthResult, CommandError> {
+    async fn handle(&self, command: OAuthLoginCommand) -> Result<OAuthResponse, CommandError> {
         self.oauth_use_case
-            .oauth_login(command.provider, command.code, command.redirect_uri)
+            .oauth_login(command.provider, command.code)
             .await
             .map_err(|e| OAuthLoginErrorMapper.map_error(Box::new(e)))
     }

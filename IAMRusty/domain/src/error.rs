@@ -1,7 +1,7 @@
 use thiserror::Error;
 
 /// Domain-level errors
-#[derive(Debug, Error)]
+#[derive(Debug, Clone, Error)]
 pub enum DomainError {
     /// User not found
     #[error("User not found")]
@@ -46,6 +46,10 @@ pub enum DomainError {
     /// Token validation failed
     #[error("Token validation failed: {0}")]
     TokenValidationFailed(String),
+
+    /// Token not found
+    #[error("Token not found")]
+    TokenNotFound,
 
     /// Repository error
     #[error("Repository error: {0}")]

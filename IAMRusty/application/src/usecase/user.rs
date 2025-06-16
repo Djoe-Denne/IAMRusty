@@ -2,36 +2,46 @@ use async_trait::async_trait;
 use thiserror::Error;
 use uuid::Uuid;
 use std::sync::Arc;
-use domain::port::{
-    repository::{UserRepository, UserEmailRepository},
-    service::AuthTokenService,
-};
-use domain::entity::user::User;
+use domain::service::{UserService, UserProfile as DomainUserProfile};
+use domain::error::DomainError;
 
 /// User profile with email information
 #[derive(Debug, Clone)]
 pub struct UserProfile {
     /// User entity
-    pub user: User,
+    pub user: domain::entity::user::User,
     /// Primary email address
     pub email: Option<String>,
+}
+
+impl From<DomainUserProfile> for UserProfile {
+    fn from(domain_profile: DomainUserProfile) -> Self {
+        Self {
+            user: domain_profile.user,
+            email: domain_profile.email,
+        }
+    }
 }
 
 /// User usecase error
 #[derive(Debug, Error)]
 pub enum UserError {
+    /// Domain service error
+    #[error("Domain service error: {0}")]
+    DomainError(#[from] DomainError),
+    
     /// Repository error
     #[error("Repository error: {0}")]
-    RepositoryError(Box<dyn std::error::Error + Send + Sync>),
-
+    RepositoryError(String),
+    
     /// Token service error
     #[error("Token service error: {0}")]
-    TokenServiceError(Box<dyn std::error::Error + Send + Sync>),
-
+    TokenServiceError(String),
+    
     /// User not found
     #[error("User not found")]
     UserNotFound,
-
+    
     /// Invalid token
     #[error("Invalid token")]
     InvalidToken,
@@ -51,69 +61,46 @@ pub trait UserUseCase: Send + Sync {
     async fn validate_token(&self, token: &str) -> Result<Uuid, UserError>;
 }
 
-/// User use case implementation
-pub struct UserUseCaseImpl<UR, UER, T>
+/// User use case implementation - thin orchestration layer
+pub struct UserUseCaseImpl<US>
 where
-    UR: UserRepository,
-    UER: UserEmailRepository,
-    T: AuthTokenService,
+    US: UserService,
 {
-    user_repo: Arc<UR>,
-    user_email_repo: Arc<UER>,
-    token_service: Arc<T>,
+    user_service: Arc<US>,
 }
 
-impl<UR, UER, T> UserUseCaseImpl<UR, UER, T>
+impl<US> UserUseCaseImpl<US>
 where
-    UR: UserRepository,
-    UER: UserEmailRepository,
-    T: AuthTokenService,
+    US: UserService + Send + Sync,
 {
     /// Create a new UserUseCaseImpl
-    pub fn new(user_repo: Arc<UR>, user_email_repo: Arc<UER>, token_service: Arc<T>) -> Self {
+    pub fn new(user_service: Arc<US>) -> Self {
         Self {
-            user_repo,
-            user_email_repo,
-            token_service,
+            user_service,
         }
     }
 }
 
 #[async_trait]
-impl<UR, UER, T> UserUseCase for UserUseCaseImpl<UR, UER, T>
+impl<US> UserUseCase for UserUseCaseImpl<US>
 where
-    UR: UserRepository + Send + Sync,
-    UER: UserEmailRepository + Send + Sync,
-    T: AuthTokenService + Send + Sync,
-    <UR as UserRepository>::Error: std::error::Error + Send + Sync + 'static,
-    <UER as UserEmailRepository>::Error: std::error::Error + Send + Sync + 'static,
-    T::Error: std::error::Error + Send + Sync + 'static,
+    US: UserService + Send + Sync,
 {
     async fn get_user(&self, id: Uuid) -> Result<UserProfile, UserError> {
-        // Get the user
-        let user = self.user_repo
-            .find_by_id(id)
-            .await
-            .map_err(|e| UserError::RepositoryError(Box::new(e)))?
-            .ok_or(UserError::UserNotFound)?;
-        
-        // Get the primary email
-        let primary_email = self.user_email_repo
-            .find_primary_by_user_id(id)
-            .await
-            .map_err(|e| UserError::RepositoryError(Box::new(e)))?;
-        
-        Ok(UserProfile {
-            user,
-            email: primary_email.map(|email| email.email),
-        })
+        // Delegate to domain service
+        let domain_profile = self.user_service
+            .get_user_profile(id)
+            .await?;
+
+        // Convert domain result to use case DTO
+        Ok(UserProfile::from(domain_profile))
     }
     
     async fn validate_token(&self, token: &str) -> Result<Uuid, UserError> {
-        // Validate the token and get the user ID
-        self.token_service
-            .validate_access_token(token)
+        // Delegate to domain service
+        self.user_service
+            .validate_token(token)
             .await
-            .map_err(|e| UserError::TokenServiceError(Box::new(e)))
+            .map_err(Into::into)
     }
 } 

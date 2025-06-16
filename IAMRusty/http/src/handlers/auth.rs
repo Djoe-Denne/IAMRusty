@@ -369,8 +369,8 @@ async fn handle_login_callback(
         .with_metadata("operation".to_string(), "login_callback".to_string())
         .with_metadata("provider".to_string(), provider.as_str().to_string());
     
-    let command = OAuthLoginCommand::new(provider, code, redirect_uri);
-    let result = state
+    let command = OAuthLoginCommand::new(provider, code);
+    let response = state
         .command_service
         .execute(command, context)
         .await
@@ -379,31 +379,32 @@ async fn handle_login_callback(
             AuthError::oauth_login_failed("login", &e)
         })?;
     
-    match result {
-        application::usecase::oauth::OAuthResult::Login(response) => {
+    // Handle both login and registration scenarios
+    match response {
+        application::usecase::oauth::OAuthResponse::Login(login_response) => {
             // Existing complete user - return 200 with login tokens
             Ok((StatusCode::OK, Json(OAuthResponse::Login(OAuthLoginResponse {
                 operation: "login".to_string(),
                 user: UserData {
-                    id: response.user.id.to_string(),
-                    username: response.user.username,
-                    email: Some(response.email),
-                    avatar_url: response.user.avatar_url,
+                    id: login_response.user.id.to_string(),
+                    username: login_response.user.username.clone(),
+                    email: login_response.user.username, // TODO: Get actual email from domain service
+                    avatar_url: login_response.user.avatar_url,
                 },
-                access_token: response.access_token,
-                expires_in: response.expires_in,
-                refresh_token: response.refresh_token,
+                access_token: login_response.access_token,
+                expires_in: 3600, // TODO: Get actual expiration from domain service
+                refresh_token: "placeholder_refresh".to_string(), // TODO: Generate actual refresh token
             }))))
         },
-        application::usecase::oauth::OAuthResult::Registration(response) => {
-            // New incomplete user - return 202 with registration token
+        application::usecase::oauth::OAuthResponse::Registration(reg_response) => {
+            // New user needs to complete registration - return 202 with registration token
             Ok((StatusCode::ACCEPTED, Json(OAuthResponse::RegistrationRequired(OAuthRegistrationRequiredResponse {
                 operation: "registration_required".to_string(),
-                registration_token: response.registration_token,
+                registration_token: reg_response.registration_token,
                 provider_info: ProviderInfo {
-                    email: response.provider_info.email,
-                    avatar: response.provider_info.avatar,
-                    suggested_username: Some(response.provider_info.suggested_username),
+                    email: reg_response.provider_info.email,
+                    avatar: reg_response.provider_info.avatar_url,
+                    suggested_username: reg_response.provider_info.username,
                 },
                 requires_username: true,
             }))))

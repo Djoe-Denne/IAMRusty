@@ -1,37 +1,36 @@
 use async_trait::async_trait;
 use thiserror::Error;
-use chrono::Utc;
 use uuid::Uuid;
 use std::sync::Arc;
-use domain::{
-    entity::token::JwkSet,
-    port::{
-        repository::RefreshTokenRepository,
-        service::{AuthTokenService, JwtTokenEncoder},
-    },
-};
+use domain::service::{RefreshTokenService, RefreshTokenResponse as DomainRefreshTokenResponse};
+use domain::entity::token::JwkSet;
+use domain::error::DomainError;
 
 /// Token usecase error
 #[derive(Debug, Error)]
 pub enum TokenError {
+    /// Domain service error
+    #[error("Domain service error: {0}")]
+    DomainError(#[from] DomainError),
+    
     /// Repository error
     #[error("Repository error: {0}")]
-    RepositoryError(Box<dyn std::error::Error + Send + Sync>),
-
+    RepositoryError(String),
+    
     /// Token service error
     #[error("Token service error: {0}")]
-    TokenServiceError(Box<dyn std::error::Error + Send + Sync>),
-
+    TokenServiceError(String),
+    
     /// Token not found
-    #[error("Refresh token not found")]
+    #[error("Token not found")]
     TokenNotFound,
-
-    /// Token is invalid (revoked)
-    #[error("Refresh token is invalid")]
+    
+    /// Token invalid
+    #[error("Token invalid")]
     TokenInvalid,
-
-    /// Token is expired
-    #[error("Refresh token is expired")]
+    
+    /// Token expired
+    #[error("Token expired")]
     TokenExpired,
 }
 
@@ -46,6 +45,17 @@ pub struct RefreshTokenResponse {
     pub refresh_token: String,
     /// Refresh token expiration time in seconds
     pub refresh_expires_in: u64,
+}
+
+impl From<DomainRefreshTokenResponse> for RefreshTokenResponse {
+    fn from(domain_response: DomainRefreshTokenResponse) -> Self {
+        Self {
+            access_token: domain_response.access_token,
+            expires_in: domain_response.expires_in,
+            refresh_token: domain_response.refresh_token,
+            refresh_expires_in: domain_response.refresh_expires_in,
+        }
+    }
 }
 
 /// Token use case interface
@@ -64,132 +74,59 @@ pub trait TokenUseCase: Send + Sync {
     fn get_jwks(&self) -> JwkSet;
 }
 
-/// Token use case implementation
-pub struct TokenUseCaseImpl<R, T>
+/// Token use case implementation - thin orchestration layer
+pub struct TokenUseCaseImpl<RTS>
 where
-    R: RefreshTokenRepository,
-    T: AuthTokenService + JwtTokenEncoder,
+    RTS: RefreshTokenService,
 {
-    refresh_token_repo: Arc<R>,
-    token_service: Arc<T>,
+    refresh_token_service: Arc<RTS>,
 }
 
-impl<R, T> TokenUseCaseImpl<R, T>
+impl<RTS> TokenUseCaseImpl<RTS>
 where
-    R: RefreshTokenRepository,
-    T: AuthTokenService + JwtTokenEncoder,
+    RTS: RefreshTokenService,
 {
     /// Create a new TokenUseCaseImpl
-    pub fn new(refresh_token_repo: Arc<R>, token_service: Arc<T>) -> Self {
+    pub fn new(refresh_token_service: Arc<RTS>) -> Self {
         Self {
-            refresh_token_repo,
-            token_service,
+            refresh_token_service,
         }
     }
 }
 
 #[async_trait]
-impl<R, T> TokenUseCase for TokenUseCaseImpl<R, T>
+impl<RTS> TokenUseCase for TokenUseCaseImpl<RTS>
 where
-    R: RefreshTokenRepository + Send + Sync,
-    T: AuthTokenService + JwtTokenEncoder + Send + Sync,
-    <R as RefreshTokenRepository>::Error: std::error::Error + Send + Sync + 'static,
-    T::Error: std::error::Error + Send + Sync + 'static,
+    RTS: RefreshTokenService + Send + Sync,
 {
     async fn refresh_token(&self, refresh_token: String) -> Result<RefreshTokenResponse, TokenError> {
-        // Find the refresh token
-        let old_token = self.refresh_token_repo
-            .find_by_token(&refresh_token)
-            .await
-            .map_err(|e| TokenError::RepositoryError(Box::new(e)))?
-            .ok_or(TokenError::TokenNotFound)?;
-        
-        // Check if the token is valid
-        if !old_token.is_valid {
-            return Err(TokenError::TokenInvalid);
-        }
-        
-        // Check if the token is expired
-        let now = Utc::now();
-        if old_token.expires_at < now {
-            // Invalidate the expired token
-            self.refresh_token_repo
-                .update_validity(old_token.id, false)
-                .await
-                .map_err(|e| TokenError::RepositoryError(Box::new(e)))?;
-                
-            return Err(TokenError::TokenExpired);
-        }
-        
-        // Generate a new access token
-        let new_access_token = self.token_service
-            .generate_access_token(old_token.user_id)
-            .await
-            .map_err(|e| TokenError::TokenServiceError(Box::new(e)))?;
-        
-        // Generate a new refresh token
-        let new_refresh_token = self.token_service
-            .generate_refresh_token(old_token.user_id)
-            .await
-            .map_err(|e| TokenError::TokenServiceError(Box::new(e)))?;
-        
-        // Store the new refresh token in database
-        self.refresh_token_repo
-            .create(new_refresh_token.clone())
-            .await
-            .map_err(|e| TokenError::RepositoryError(Box::new(e)))?;
-        
-        // Delete the old refresh token from database (refresh token rotation)
-        self.refresh_token_repo
-            .delete_by_id(old_token.id)
-            .await
-            .map_err(|e| TokenError::RepositoryError(Box::new(e)))?;
-        
-        // Calculate expiration times in seconds
-        let access_expires_in = (new_access_token.expires_at - now)
-            .num_seconds()
-            .max(0) as u64;
-            
-        let refresh_expires_in = (new_refresh_token.expires_at - now)
-            .num_seconds()
-            .max(0) as u64;
-        
-        Ok(RefreshTokenResponse {
-            access_token: new_access_token.token,
-            expires_in: access_expires_in,
-            refresh_token: new_refresh_token.token,
-            refresh_expires_in,
-        })
+        // Delegate to domain service
+        let domain_response = self.refresh_token_service
+            .refresh_token(refresh_token)
+            .await?;
+
+        // Convert domain result to use case DTO
+        Ok(RefreshTokenResponse::from(domain_response))
     }
     
     async fn revoke_token(&self, refresh_token: String) -> Result<(), TokenError> {
-        // Find the refresh token
-        let token = self.refresh_token_repo
-            .find_by_token(&refresh_token)
+        // Delegate to domain service
+        self.refresh_token_service
+            .revoke_token(refresh_token)
             .await
-            .map_err(|e| TokenError::RepositoryError(Box::new(e)))?
-            .ok_or(TokenError::TokenNotFound)?;
-        
-        // Invalidate the token
-        self.refresh_token_repo
-            .update_validity(token.id, false)
-            .await
-            .map_err(|e| TokenError::RepositoryError(Box::new(e)))?;
-            
-        Ok(())
+            .map_err(Into::into)
     }
     
     async fn revoke_all_tokens(&self, user_id: Uuid) -> Result<u64, TokenError> {
-        // Delete all refresh tokens for the user
-        let count = self.refresh_token_repo
-            .delete_by_user_id(user_id)
+        // Delegate to domain service
+        self.refresh_token_service
+            .revoke_all_tokens(user_id)
             .await
-            .map_err(|e| TokenError::RepositoryError(Box::new(e)))?;
-            
-        Ok(count)
+            .map_err(Into::into)
     }
 
     fn get_jwks(&self) -> JwkSet {
-        self.token_service.jwks()
+        // Delegate to domain service
+        self.refresh_token_service.get_jwks()
     }
 } 
