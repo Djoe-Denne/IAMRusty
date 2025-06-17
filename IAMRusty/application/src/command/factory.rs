@@ -7,6 +7,13 @@ use super::{
         AuthErrorMapper as PasswordLoginAuthErrorMapper, PasswordLoginCommand,
         PasswordLoginCommandHandler,
     },
+    password_reset::{
+        RequestPasswordResetCommand, RequestPasswordResetCommandHandler,
+        ValidateResetTokenCommand, ValidateResetTokenCommandHandler,
+        ResetPasswordUnauthenticatedCommand, ResetPasswordUnauthenticatedCommandHandler,
+        ResetPasswordAuthenticatedCommand, ResetPasswordAuthenticatedCommandHandler,
+        PasswordResetErrorMapper,
+    },
     provider::{
         GenerateLinkProviderStartUrlCommand, GenerateLinkProviderStartUrlCommandHandler,
         GetProviderTokenCommand, GetProviderTokenCommandHandler, LinkProviderCommand,
@@ -33,7 +40,7 @@ use super::{
 };
 use crate::usecase::{
     link_provider::LinkProviderUseCase, login::LoginUseCase, oauth::OAuthUseCase,
-    provider::ProviderUseCase, registration::RegistrationUseCase, token::TokenUseCase,
+    password_reset::PasswordResetUseCase, provider::ProviderUseCase, registration::RegistrationUseCase, token::TokenUseCase,
     user::UserUseCase,
 };
 use rustycog_command::{CommandRegistry, CommandRegistryBuilder};
@@ -52,6 +59,7 @@ impl CommandRegistryFactory {
         user_usecase: Arc<dyn UserUseCase>,
         login_auth_usecase: Arc<dyn LoginUseCase>,
         registration_usecase: Arc<dyn RegistrationUseCase>,
+        password_reset_usecase: Arc<dyn PasswordResetUseCase>,
     ) -> CommandRegistry {
         let mut builder = CommandRegistryBuilder::new();
 
@@ -205,6 +213,35 @@ impl CommandRegistryFactory {
                 "check_username".to_string(),
                 check_username_handler,
                 registration_error_mapper,
+            );
+
+        // Register password reset commands
+        let request_password_reset_handler = Arc::new(RequestPasswordResetCommandHandler::new(password_reset_usecase.clone()));
+        let validate_reset_token_handler = Arc::new(ValidateResetTokenCommandHandler::new(password_reset_usecase.clone()));
+        let reset_password_unauthenticated_handler = Arc::new(ResetPasswordUnauthenticatedCommandHandler::new(password_reset_usecase.clone()));
+        let reset_password_authenticated_handler = Arc::new(ResetPasswordAuthenticatedCommandHandler::new(password_reset_usecase));
+        let password_reset_error_mapper = Arc::new(PasswordResetErrorMapper);
+
+        builder = builder
+            .register::<RequestPasswordResetCommand, _>(
+                "request_password_reset".to_string(),
+                request_password_reset_handler,
+                password_reset_error_mapper.clone(),
+            )
+            .register::<ValidateResetTokenCommand, _>(
+                "validate_reset_token".to_string(),
+                validate_reset_token_handler,
+                password_reset_error_mapper.clone(),
+            )
+            .register::<ResetPasswordUnauthenticatedCommand, _>(
+                "reset_password_unauthenticated".to_string(),
+                reset_password_unauthenticated_handler,
+                password_reset_error_mapper.clone(),
+            )
+            .register::<ResetPasswordAuthenticatedCommand, _>(
+                "reset_password_authenticated".to_string(),
+                reset_password_authenticated_handler,
+                password_reset_error_mapper,
             );
 
         builder.build()

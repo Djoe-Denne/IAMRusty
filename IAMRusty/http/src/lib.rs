@@ -34,6 +34,10 @@ pub use handlers::{
         check_username, complete_registration, internal_provider_token, jwks, login,
         oauth_callback, oauth_start, resend_verification_email, signup, verify_email,
     },
+    password_reset::{
+        request_password_reset, validate_reset_token, reset_password_unauthenticated,
+        reset_password_authenticated,
+    },
     token::refresh_token,
     user::get_user,
 };
@@ -128,12 +132,22 @@ pub async fn serve_with_config(state: AppState, config: ServerConfig) -> anyhow:
             post(complete_registration),
         )
         .route("/api/auth/username/check", get(check_username))
+        .route("/api/auth/password/reset-request", post(request_password_reset))
+        .route("/api/auth/password/reset-validate", post(validate_reset_token))
+        .route("/api/auth/password/reset-confirm", post(reset_password_unauthenticated))
         .route("/api/auth/{provider_name}/start", get(oauth_start))
         .route("/api/auth/{provider_name}/callback", get(oauth_callback))
         .route("/api/token/refresh", post(refresh_token))
         .route(
             "/api/me",
             get(get_user).route_layer(middleware::from_fn_with_state(
+                state.clone(),
+                auth_middleware,
+            )),
+        )
+        .route(
+            "/api/auth/password/reset-authenticated",
+            post(reset_password_authenticated).route_layer(middleware::from_fn_with_state(
                 state.clone(),
                 auth_middleware,
             )),

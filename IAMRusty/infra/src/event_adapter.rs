@@ -145,6 +145,7 @@ impl RustycogDomainEvent for IAMDomainEventAdapter {
             IAMDomainEvent::UserSignedUp(event) => event.base.occurred_at,
             IAMDomainEvent::UserEmailVerified(event) => event.base.occurred_at,
             IAMDomainEvent::UserLoggedIn(event) => event.base.occurred_at,
+            IAMDomainEvent::PasswordResetRequested(event) => event.base.occurred_at,
         }
     }
 
@@ -153,6 +154,7 @@ impl RustycogDomainEvent for IAMDomainEventAdapter {
             IAMDomainEvent::UserSignedUp(event) => event.base.version,
             IAMDomainEvent::UserEmailVerified(event) => event.base.version,
             IAMDomainEvent::UserLoggedIn(event) => event.base.version,
+            IAMDomainEvent::PasswordResetRequested(event) => event.base.version,
         }
     }
 
@@ -185,6 +187,11 @@ impl RustycogDomainEvent for IAMDomainEventAdapter {
             IAMDomainEvent::UserLoggedIn(event) => {
                 metadata.insert("email".to_string(), event.email.clone());
                 metadata.insert("login_method".to_string(), event.login_method.clone());
+            }
+            IAMDomainEvent::PasswordResetRequested(event) => {
+                metadata.insert("email".to_string(), event.email.clone());
+                metadata.insert("reset_token".to_string(), event.reset_token.clone());
+                metadata.insert("expires_at".to_string(), event.expires_at.to_rfc3339());
             }
         }
 

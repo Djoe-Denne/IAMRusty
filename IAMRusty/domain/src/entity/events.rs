@@ -13,6 +13,8 @@ pub enum DomainEvent {
     UserEmailVerified(UserEmailVerifiedEvent),
     /// User logged in successfully
     UserLoggedIn(UserLoggedInEvent),
+    /// User requested password reset
+    PasswordResetRequested(PasswordResetRequestedEvent),
 }
 
 /// Event triggered when a user signs up with email and password
@@ -54,6 +56,21 @@ pub struct UserLoggedInEvent {
     pub login_method: String,
 }
 
+/// Event triggered when a user requests password reset
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PasswordResetRequestedEvent {
+    #[serde(flatten)]
+    pub base: BaseEvent,
+    /// User ID
+    pub user_id: Uuid,
+    /// User's email address
+    pub email: String,
+    /// Raw reset token (not hashed)
+    pub reset_token: String,
+    /// When the token expires
+    pub expires_at: chrono::DateTime<chrono::Utc>,
+}
+
 impl UserSignedUpEvent {
     /// Create a new UserSignedUp event
     pub fn new(user_id: Uuid, email: String, username: String, email_verified: bool) -> Self {
@@ -90,6 +107,19 @@ impl UserLoggedInEvent {
     }
 }
 
+impl PasswordResetRequestedEvent {
+    /// Create a new PasswordResetRequested event
+    pub fn new(user_id: Uuid, email: String, reset_token: String, expires_at: chrono::DateTime<chrono::Utc>) -> Self {
+        Self {
+            base: BaseEvent::new("password_reset_requested".to_string(), user_id),
+            user_id,
+            email,
+            reset_token,
+            expires_at,
+        }
+    }
+}
+
 impl DomainEvent {
     /// Get the event ID for tracking
     pub fn event_id(&self) -> Uuid {
@@ -97,6 +127,7 @@ impl DomainEvent {
             DomainEvent::UserSignedUp(event) => event.base.event_id,
             DomainEvent::UserEmailVerified(event) => event.base.event_id,
             DomainEvent::UserLoggedIn(event) => event.base.event_id,
+            DomainEvent::PasswordResetRequested(event) => event.base.event_id,
         }
     }
 
@@ -106,6 +137,7 @@ impl DomainEvent {
             DomainEvent::UserSignedUp(event) => event.user_id,
             DomainEvent::UserEmailVerified(event) => event.user_id,
             DomainEvent::UserLoggedIn(event) => event.user_id,
+            DomainEvent::PasswordResetRequested(event) => event.user_id,
         }
     }
 
@@ -115,6 +147,7 @@ impl DomainEvent {
             DomainEvent::UserSignedUp(event) => &event.base.event_type,
             DomainEvent::UserEmailVerified(event) => &event.base.event_type,
             DomainEvent::UserLoggedIn(event) => &event.base.event_type,
+            DomainEvent::PasswordResetRequested(event) => &event.base.event_type,
         }
     }
 }

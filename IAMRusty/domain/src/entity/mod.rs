@@ -2,6 +2,7 @@
 
 pub mod email_verification;
 pub mod events;
+pub mod password_reset_token;
 pub mod provider;
 pub mod provider_link;
 pub mod registration_token;

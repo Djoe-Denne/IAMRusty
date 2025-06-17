@@ -1,5 +1,6 @@
 use crate::entity::{
     email_verification::EmailVerification,
+    password_reset_token::PasswordResetToken,
     provider::{Provider, ProviderTokens},
     provider_link::ProviderLink,
     token::RefreshToken,
@@ -298,4 +299,79 @@ where
     <T as EmailVerificationWriteRepository>::Error: std::error::Error + Send + Sync + 'static,
 {
     type Error = <T as EmailVerificationReadRepository>::Error;
+}
+
+/// Read operations for password reset tokens
+#[async_trait::async_trait]
+pub trait PasswordResetTokenReadRepository {
+    /// Error type returned by this repository
+    type Error: std::error::Error + Send + Sync + 'static;
+
+    /// Find a token by user ID and token hash
+    async fn find_by_user_and_token_hash(
+        &self,
+        user_id: Uuid,
+        token_hash: &str,
+    ) -> Result<Option<PasswordResetToken>, Self::Error>;
+
+    /// Find a token by token hash alone (used when user is unknown)
+    async fn find_by_token_hash(
+        &self,
+        token_hash: &str,
+    ) -> Result<Option<PasswordResetToken>, Self::Error>;
+
+    /// Find the most recent valid token for a user
+    async fn find_latest_valid_for_user(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Option<PasswordResetToken>, Self::Error>;
+
+    /// Find token by ID
+    async fn find_by_id(&self, id: Uuid) -> Result<Option<PasswordResetToken>, Self::Error>;
+
+    /// Count valid tokens for a user
+    async fn count_valid_for_user(&self, user_id: Uuid) -> Result<u64, Self::Error>;
+}
+
+/// Write operations for password reset tokens
+#[async_trait::async_trait]
+pub trait PasswordResetTokenWriteRepository {
+    /// Error type returned by this repository
+    type Error: std::error::Error + Send + Sync + 'static;
+
+    /// Create a new password reset token
+    async fn create(&self, token: &PasswordResetToken) -> Result<(), Self::Error>;
+
+    /// Update a token (typically to mark as used)
+    async fn update(&self, token: &PasswordResetToken) -> Result<(), Self::Error>;
+
+    /// Mark a token as used
+    async fn mark_as_used(&self, token_id: Uuid) -> Result<(), Self::Error>;
+
+    /// Delete expired tokens (cleanup operation)
+    async fn delete_expired(&self) -> Result<u64, Self::Error>;
+
+    /// Delete all tokens for a user
+    async fn delete_all_for_user(&self, user_id: Uuid) -> Result<u64, Self::Error>;
+}
+
+/// Combined read and write operations for password reset tokens
+#[async_trait::async_trait]
+pub trait PasswordResetTokenRepository: PasswordResetTokenReadRepository + PasswordResetTokenWriteRepository
+where
+    <Self as PasswordResetTokenReadRepository>::Error: std::error::Error + Send + Sync + 'static,
+    <Self as PasswordResetTokenWriteRepository>::Error: std::error::Error + Send + Sync + 'static,
+{
+    /// Error type for this repository
+    type Error: std::error::Error + Send + Sync + 'static;
+}
+
+// Blanket implementation for types that implement both read and write repositories
+impl<T> PasswordResetTokenRepository for T
+where
+    T: PasswordResetTokenReadRepository + PasswordResetTokenWriteRepository,
+    <T as PasswordResetTokenReadRepository>::Error: std::error::Error + Send + Sync + 'static,
+    <T as PasswordResetTokenWriteRepository>::Error: std::error::Error + Send + Sync + 'static,
+{
+    type Error = <T as PasswordResetTokenReadRepository>::Error;
 }

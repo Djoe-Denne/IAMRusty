@@ -1,6 +1,7 @@
 pub mod factory;
 pub mod oauth_login;
 pub mod password_login;
+pub mod password_reset;
 pub mod provider;
 pub mod registration;
 pub mod resend_verification_email;

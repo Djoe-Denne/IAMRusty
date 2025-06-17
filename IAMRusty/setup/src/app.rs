@@ -5,17 +5,20 @@ use tracing::info;
 
 use http_server::{AppState, ServerConfig as HttpServerConfig, serve_with_config};
 use infra::{
-    auth::{GitHubOAuth2Client, GitLabOAuth2Client, PasswordService, PasswordServiceAdapter},
+    auth::{GitHubOAuth2Client, GitLabOAuth2Client, PasswordService, PasswordServiceAdapter, PasswordResetServiceAdapter},
     db::DbConnectionPool,
     event_adapter::create_multi_queue_event_publisher_async,
     repository::{
         combined_email_verification_repository::CombinedEmailVerificationRepository,
+        combined_password_reset_token_repository::CombinedPasswordResetTokenRepository,
         combined_repository::{
             CombinedRefreshTokenRepository, CombinedTokenRepository, CombinedUserRepository,
         },
         combined_user_email_repository::CombinedUserEmailRepository,
         email_verification_read::SeaOrmEmailVerificationReadRepository,
         email_verification_write::SeaOrmEmailVerificationWriteRepository,
+        password_reset_token_read::PasswordResetTokenReadRepositoryImpl,
+        password_reset_token_write::PasswordResetTokenWriteRepositoryImpl,
         refresh_token_read::RefreshTokenReadRepositoryImpl,
         refresh_token_write::RefreshTokenWriteRepositoryImpl,
         token_read::TokenReadRepositoryImpl,
@@ -34,7 +37,7 @@ use application::{
     command::{CommandRegistryFactory, GenericCommandService},
     usecase::{
         link_provider::LinkProviderUseCaseImpl, login::LoginUseCaseImpl, oauth::OAuthUseCaseImpl,
-        provider::ProviderUseCaseImpl, registration::RegistrationUseCaseImpl,
+        password_reset::PasswordResetUseCaseImpl, provider::ProviderUseCaseImpl, registration::RegistrationUseCaseImpl,
         token::TokenUseCaseImpl, user::UserUseCaseImpl,
     },
 };
@@ -46,6 +49,47 @@ pub async fn build_and_run(config: AppConfig, app_config: ServerConfig) -> Resul
 }
 
 pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
+    let event_publisher = create_event_publisher_from_config(&config).await?;
+    build_app_state_with_event_publisher(config, event_publisher).await
+}
+
+/// Create the default event publisher from configuration
+async fn create_event_publisher_from_config(config: &AppConfig) -> Result<Arc<infra::event_adapter::MultiQueueEventPublisher>> {
+    // Create event publisher using configuration
+    // For now, create a multi-queue publisher that handles all configured queues
+    // You can modify this to handle specific queues by passing Some(queue_names_set)
+    //
+    // Examples:
+    //
+    // 1. Handle all queues (current behavior):
+    // let event_publisher = create_multi_queue_event_publisher_async(&config.queue, None).await?;
+    //
+    // 2. Handle only specific queues:
+    // let mut specific_queues = HashSet::new();
+    // specific_queues.insert("test-user-events".to_string());
+    // let event_publisher = create_multi_queue_event_publisher_async(&config.queue, Some(specific_queues)).await?;
+    //
+    // 3. Handle queues based on environment:
+    // let queue_names = if config.is_test_environment() {
+    //     let mut test_queues = HashSet::new();
+    //     test_queues.insert("test-user-events".to_string());
+    //     Some(test_queues)
+    // } else {
+    //     None // Handle all queues in production
+    // };
+    // let event_publisher = create_multi_queue_event_publisher_async(&config.queue, queue_names).await?;
+    let event_publisher = create_multi_queue_event_publisher_async(&config.queue, None).await?;
+    Ok(event_publisher)
+}
+
+/// Build app state with a custom event publisher (useful for testing)
+pub async fn build_app_state_with_event_publisher<EP>(
+    config: AppConfig, 
+    event_publisher: Arc<EP>
+) -> Result<AppState> 
+where
+    EP: domain::port::event_publisher::EventPublisher + Send + Sync + 'static,
+{
     info!("Building IAM service...");
 
     // Setup database connection pool
@@ -79,6 +123,16 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
         Arc::new(email_verification_write_repo),
     );
 
+    // Create password reset token repositories
+    let password_reset_read_repo =
+        PasswordResetTokenReadRepositoryImpl::new(db_pool.get_read_connection());
+    let password_reset_write_repo =
+        PasswordResetTokenWriteRepositoryImpl::new(db_pool.get_write_connection());
+    let password_reset_repo = CombinedPasswordResetTokenRepository::new(
+        Arc::new(password_reset_read_repo),
+        Arc::new(password_reset_write_repo),
+    );
+
     let token_read_repo = TokenReadRepositoryImpl::new(db_pool.get_read_connection());
     let token_write_repo = TokenWriteRepositoryImpl::new(db_pool.get_write_connection());
     let token_repo_login =
@@ -104,32 +158,7 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
 
     // Create password service
     let password_service = Arc::new(PasswordService::new());
-    let password_service_adapter = Arc::new(PasswordServiceAdapter::new(password_service));
-
-    // Create event publisher using configuration
-    // For now, create a multi-queue publisher that handles all configured queues
-    // You can modify this to handle specific queues by passing Some(queue_names_set)
-    //
-    // Examples:
-    //
-    // 1. Handle all queues (current behavior):
-    // let event_publisher = create_multi_queue_event_publisher_async(&config.queue, None).await?;
-    //
-    // 2. Handle only specific queues:
-    // let mut specific_queues = HashSet::new();
-    // specific_queues.insert("test-user-events".to_string());
-    // let event_publisher = create_multi_queue_event_publisher_async(&config.queue, Some(specific_queues)).await?;
-    //
-    // 3. Handle queues based on environment:
-    // let queue_names = if config.is_test_environment() {
-    //     let mut test_queues = HashSet::new();
-    //     test_queues.insert("test-user-events".to_string());
-    //     Some(test_queues)
-    // } else {
-    //     None // Handle all queues in production
-    // };
-    // let event_publisher = create_multi_queue_event_publisher_async(&config.queue, queue_names).await?;
-    let event_publisher = create_multi_queue_event_publisher_async(&config.queue, None).await?;
+    let password_service_adapter = Arc::new(PasswordServiceAdapter::new(password_service.clone()));
 
     // Create token service with secret resolved from configuration
     tracing::info!("Setting up JWT token service");
@@ -260,6 +289,22 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
     tracing::info!("Creating registration use case");
     let registration_usecase = Arc::new(RegistrationUseCaseImpl::new(registration_service));
 
+    // Create password reset use case
+    tracing::info!("Creating password reset service adapter");
+    let password_reset_service_adapter = Arc::new(PasswordResetServiceAdapter::new(
+        password_service.clone(),
+    ));
+
+    tracing::info!("Creating password reset use case");
+    let password_reset_usecase = Arc::new(PasswordResetUseCaseImpl::new(
+        Arc::new(user_repo.clone()),
+        Arc::new(user_email_repo.clone()),
+        Arc::new(password_reset_repo),
+        token_service.clone(),
+        event_publisher.clone(),
+        password_reset_service_adapter,
+    ));
+
     // Create provider usecase
     // For provider usecase, we only need the get_provider_token method from AuthService
     // which doesn't use the TokenService, so we can create a minimal one
@@ -324,6 +369,7 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
         Arc::new(user_usecase_for_commands),
         Arc::new(login_usecase),
         registration_usecase.clone(),
+        password_reset_usecase.clone(),
     );
     let command_service = Arc::new(GenericCommandService::new(Arc::new(registry)));
 

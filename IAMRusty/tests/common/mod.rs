@@ -3,6 +3,8 @@ pub mod db_utils;
 pub mod http_test;
 pub mod jwt_test_utils;
 pub mod test_server;
+pub mod mock_event_publisher;
+pub mod test_app_builder;
 
 #[cfg(test)]
 pub mod kafka_testcontainer;

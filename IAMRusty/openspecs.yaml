@@ -29,7 +29,7 @@ servers:
   - url: https://iam.example.com
 
 paths:
-  /auth/signup:
+  /api/auth/signup:
     post:
       summary: Sign up with email and password
       description: |
@@ -80,7 +80,7 @@ paths:
                   error: {type: string}
                   message: {type: string}
 
-  /auth/login:
+  /api/auth/login:
     post:
       summary: Log in with email and password
       description: Only works for users with completed registration (have username). Returns 423 if registration incomplete.
@@ -126,7 +126,7 @@ paths:
                   message: {type: string}
                   registration_token: {type: string, description: "RSA-signed JWT"}
           
-  /auth/verify:
+  /api/auth/verify:
     post:
       summary: Verify user email with a token
       requestBody:
@@ -154,7 +154,7 @@ paths:
         "422":
           description: Validation error (missing fields, invalid format)
 
-  /auth/resend-verification:
+  /api/auth/resend-verification:
     post:
       summary: Resend email verification token
       description: |
@@ -223,7 +223,212 @@ paths:
                       message: "Email field is required"
                       status: 422
 
-  /auth/{provider}/start:
+  /api/auth/password/reset-request:
+    post:
+      summary: Request password reset
+      description: |
+        Initiates a password reset process by generating a secure reset token and sending it via email.
+        
+        **Security Note:** This endpoint always returns a 200 OK response with a generic message 
+        to prevent user enumeration attacks. The actual behavior depends on the email status:
+        - If email exists and has password authentication: sends a password reset email
+        - If email doesn't exist or doesn't have password authentication: no action taken (silent success)
+        
+        **Token Management:** When a new reset token is created, any existing reset tokens 
+        for the same email are automatically invalidated to prevent token accumulation attacks.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: Email address to send password reset instructions
+              required:
+                - email
+      responses:
+        "200":
+          description: Generic success response (always returned for security)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "If your email is registered with password authentication, a reset link has been sent"
+        "422":
+          description: Validation error (invalid email format, missing fields)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                      status:
+                        type: integer
+                        example: 422
+
+  /api/auth/password/reset-validate:
+    post:
+      summary: Validate password reset token
+      description: |
+        Validates a password reset token without consuming it. Used to verify token validity 
+        before showing the password reset form.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token:
+                  type: string
+                  description: Password reset token from email
+              required:
+                - token
+      responses:
+        "200":
+          description: Token is valid
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid:
+                    type: boolean
+                    example: true
+                  email:
+                    type: string
+                    description: Email associated with the token (masked for privacy)
+                    example: "u***@example.com"
+        "400":
+          description: Invalid or expired token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: "Invalid or expired reset token"
+                      status:
+                        type: integer
+                        example: 400
+        "422":
+          description: Validation error (missing token field)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                      status:
+                        type: integer
+                        example: 422
+
+  /api/auth/password/reset-confirm:
+    post:
+      summary: Reset password (unauthenticated)
+      description: |
+        Resets the password using a valid reset token. This endpoint is for unauthenticated users 
+        who have received a reset token via email.
+        
+        **Security:** The reset token is consumed (invalidated) upon successful password reset.
+        All existing refresh tokens for the user are also invalidated for security.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token:
+                  type: string
+                  description: Password reset token from email
+                new_password:
+                  type: string
+                  minLength: 8
+                  description: New password (minimum 8 characters)
+              required:
+                - token
+                - new_password
+      responses:
+        "200":
+          description: Password successfully reset
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Password successfully reset"
+                  user:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      username:
+                        type: string
+                      email:
+                        type: string
+                  access_token:
+                    type: string
+                    description: New JWT access token
+                  expires_in:
+                    type: integer
+                    description: Access token expiration in seconds
+                  refresh_token:
+                    type: string
+                    description: New refresh token
+        "400":
+          description: Invalid or expired token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: "Invalid or expired reset token"
+                      status:
+                        type: integer
+                        example: 400
+        "422":
+          description: Validation error (weak password, missing fields)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                      status:
+                        type: integer
+                        example: 422
+
+  /api/auth/{provider}/start:
     get:
       summary: Start OAuth2 authentication or provider linking
       description: |
@@ -273,7 +478,7 @@ paths:
                   provider_name: {type: string}
                   error: {type: string}
 
-  /auth/{provider}/callback:
+  /api/auth/{provider}/callback:
     get:
       summary: OAuth2 callback handler for login and provider linking
       description: |
@@ -477,7 +682,7 @@ paths:
         "500":
           description: Error while communicating with the OAuth provider
 
-  /auth/complete-registration:
+  /api/auth/complete-registration:
     post:
       summary: Complete user registration with username choice
       description: |
@@ -545,7 +750,7 @@ paths:
         "422":
           description: Invalid username format or missing required fields
 
-  /auth/username/check:
+  /api/auth/username/check:
     get:
       summary: Check username availability
       parameters:
@@ -577,7 +782,7 @@ paths:
         "422":
           description: Username validation error (too short, missing parameter)
 
-  /token/refresh:
+  /api/token/refresh:
     post:
       summary: Refresh access token
       description: |
@@ -629,8 +834,99 @@ paths:
           description: Invalid or expired refresh token
         "422":
           description: Empty refresh token field
+
+  /api/auth/password/reset-authenticated:
+    post:
+      summary: Reset password (authenticated user)
+      description: |
+        Allows an authenticated user to change their password without requiring a reset token.
+        This endpoint requires a valid JWT token for authentication.
+        
+        **Security:** All existing refresh tokens for the user are invalidated after password change
+        for security purposes. The user will need to re-authenticate after this operation.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                current_password:
+                  type: string
+                  description: Current password for verification
+                new_password:
+                  type: string
+                  minLength: 8
+                  description: New password (minimum 8 characters)
+              required:
+                - current_password
+                - new_password
+      responses:
+        "200":
+          description: Password successfully changed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Password successfully changed"
+                  user:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      username:
+                        type: string
+                      email:
+                        type: string
+                  access_token:
+                    type: string
+                    description: New JWT access token
+                  expires_in:
+                    type: integer
+                    description: Access token expiration in seconds
+                  refresh_token:
+                    type: string
+                    description: New refresh token
+        "400":
+          description: Current password is incorrect
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: "Current password is incorrect"
+                      status:
+                        type: integer
+                        example: 400
+        "401":
+          description: Invalid or expired JWT token / missing Authorization header
+        "422":
+          description: Validation error (weak password, missing fields)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                      status:
+                        type: integer
+                        example: 422
           
-  /me:
+  /api/me:
     get:
       summary: Get current authenticated user
       security:
