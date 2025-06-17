@@ -1,937 +1,254 @@
 # Fixtures Guide
 
-Comprehensive guide for using the fixture system to mock external services in tests.
+Comprehensive guide for using the fixture system to mock external services and create test data in the IAM system.
 
 ## Table of Contents
 
 - [Overview](#overview)
 - [Architecture](#architecture)
+- [HTTP Service Fixtures](#http-service-fixtures)
+- [Database Fixtures](#database-fixtures)
 - [Usage Patterns](#usage-patterns)
 - [Available Fixtures](#available-fixtures)
-- [Database Fixtures](#database-fixtures)
-- [Writing Custom Fixtures](#writing-custom-fixtures)
 - [Best Practices](#best-practices)
 
 ## Overview
 
-The fixture system provides a structured approach to mocking external services using `wiremock`. It's designed to be:
+The fixture system provides structured mocking for external services and database entities using `wiremock` and builder patterns. Key features:
 
-- **Modular**: Each external service has its own fixture class
-- **Fluent**: Chainable API for easy test setup
-- **Reusable**: Pre-built resources and flows for common scenarios
-- **Type-safe**: Strongly typed inputs and outputs
-- **Integrated**: Works seamlessly with the test database system for complete integration testing
-- **Self-Cleaning**: Automatic mock cleanup between tests for perfect isolation
-- **Database-Aware**: Includes comprehensive database fixture system for entity creation and validation
+- **HTTP Service Mocking**: GitHub and GitLab OAuth endpoints
+- **Database Entity Creation**: Users, emails, tokens, and related entities
+- **Automatic Cleanup**: Mocks and database state reset between tests
+- **Type Safety**: Strongly typed builders and factory methods
+- **Fluent API**: Chainable methods for easy test setup
 
 ### Key Components
 
-1. **Service**: Main fixture class with fluent API for mocking endpoints
-2. **Resources**: Type-safe data structures for inputs/outputs
-3. **Flow**: Pre-made scenarios for common use cases
-4. **MockServerFixture**: Automatic cleanup mechanism for test isolation
-5. **DbFixtures**: Database entity fixtures with fluent API and validation
+- **Service Fixtures**: Mock external HTTP APIs (`GitHubFixtures`, `GitLabFixtures`)
+- **Database Fixtures**: Create and manage test entities (`DbFixtures`)
+- **Common Utilities**: Shared mock server management
+- **Builder Patterns**: Fluent APIs for entity creation
 
 ## Architecture
 
 ### Directory Structure
 
 ```
-tests/
-├── fixtures/
-│   ├── mod.rs                    # Main fixtures module
-│   ├── github/
-│   │   ├── mod.rs               # GitHub fixture exports
-│   │   ├── service.rs           # GitHubService (fluent API)
-│   │   └── resources.rs         # GitHub data structures
-│   ├── gitlab/
-│   │   ├── mod.rs               # GitLab fixture exports
-│   │   ├── service.rs           # GitLabService (fluent API)
-│   │   └── resources.rs         # GitLab data structures
-│   ├── db/
-│   │   ├── mod.rs               # Database fixture exports
-│   │   ├── common.rs            # Shared DB fixture traits
-│   │   ├── users.rs             # User entity fixtures
-│   │   ├── user_emails.rs       # UserEmail entity fixtures
-│   │   ├── provider_tokens.rs   # ProviderToken entity fixtures
-│   │   └── refresh_tokens.rs    # RefreshToken entity fixtures
-│   └── common/
-│       ├── mod.rs               # Common utilities
-│       └── wiremock_server.rs   # Shared wiremock server
+tests/fixtures/
+├── mod.rs                    # Main fixture exports
+├── github/
+│   ├── mod.rs               # GitHub fixture exports
+│   ├── service.rs           # GitHubService mock endpoints
+│   └── resources.rs         # GitHub data structures
+├── gitlab/
+│   ├── mod.rs               # GitLab fixture exports
+│   ├── service.rs           # GitLabService mock endpoints
+│   └── resources.rs         # GitLab data structures
+├── db/
+│   ├── mod.rs               # Database fixture exports and helpers
+│   ├── common.rs            # Shared traits and utilities
+│   ├── users.rs             # User entity fixtures
+│   ├── user_emails.rs       # UserEmail entity fixtures
+│   ├── provider_tokens.rs   # ProviderToken entity fixtures
+│   ├── refresh_tokens.rs    # RefreshToken entity fixtures
+│   ├── email_verification.rs # EmailVerification entity fixtures
+│   └── password_reset_tokens.rs # PasswordResetToken entity fixtures
+└── common/
+    ├── mod.rs               # Common utilities
+    └── wiremock_server.rs   # Shared wiremock server management
 ```
 
-### Class Hierarchy
+### Fixture Exports
 
-```
-ExternalServiceFixtures
-├── Service (Fluent API for endpoint mocking)
-│   ├── endpoint_name(status_code, inputs, outputs)
-│   ├── setup_successful_*() convenience methods
-│   └── setup_failed_*() convenience methods
-└── Resources (Type-safe data structures)
-    ├── User (with builder pattern)
-    ├── TokenRequest/TokenResponse
-    ├── UserRequest
-    └── Error
-```
+Available through `tests/fixtures/mod.rs`:
+- `GitHubFixtures` - GitHub OAuth service mocking
+- `GitLabFixtures` - GitLab OAuth service mocking  
+- `DbFixtures` - Database entity creation
 
-## Usage Patterns
+## HTTP Service Fixtures
 
-### Basic Service Mocking
+### GitHub Fixtures
 
-```rust
-#[tokio::test]
-async fn test_github_oauth_flow() {
-    let github = GitHubFixtures::service().await;
-    
-    // Mock token exchange endpoint
-    github
-        .oauth_token(200, 
-            GitHubTokenRequest::valid(),
-            GitHubTokenResponse::success()
-        )
-        .await;
-    
-    // Mock user profile endpoint
-    github
-        .user_profile(200,
-            GitHubUserRequest::authenticated(),
-            GitHubUser::arthur()
-        )
-        .await;
-    
-    // Your test logic here...
-}
-```
+**Implementation**: `tests/fixtures/github/service.rs`
 
-### Individual Method Calls
+The `GitHubService` provides mocking for GitHub OAuth endpoints with automatic cleanup through the `MockServerFixture`. Each service instance creates its own mock server that's automatically cleaned up when the service is dropped.
 
-```rust
-#[tokio::test]
-async fn test_github_error_scenarios() {
-    let github = GitHubFixtures::service().await;
-    
-    // Mock error scenarios using individual calls
-    github
-        .oauth_token(400, 
-            GitHubTokenRequest::invalid_code(),
-            GitHubError::invalid_grant()
-        )
-        .await;
-    
-    github
-        .user_profile(401,
-            GitHubUserRequest::invalid_token(),
-            GitHubError::unauthorized()
-        )
-        .await;
-    
-    // Test error handling...
-}
-```
+**Key Methods** (see `tests/fixtures/github/service.rs` for full implementation):
+- `oauth_token()` - Mock OAuth token exchange endpoint
+- `user_profile()` - Mock user profile fetch endpoint  
+- `user_emails()` - Mock user emails endpoint
+- `oauth_authorize()` - Mock OAuth authorization endpoint
+- Convenience methods: `setup_successful_token_exchange()`, `setup_successful_user_profile_arthur()`, etc.
 
-### Using Convenience Methods
+**Resources** (see `tests/fixtures/github/resources.rs`):
+- `GitHubUser` with factory methods (`arthur()`, `bob()`)
+- `GitHubTokenRequest/Response` for OAuth flows
+- `GitHubError` for error scenarios
 
-```rust
-#[tokio::test]
-async fn test_successful_github_login() {
-    let github = GitHubFixtures::service().await;
-    
-    // Setup complete successful flow using convenience methods
-    github.setup_successful_token_exchange().await;
-    github.setup_successful_user_profile_arthur().await;
-    
-    // Test the complete OAuth flow...
-}
-```
+### GitLab Fixtures
 
-### Resource Customization
+**Implementation**: `tests/fixtures/gitlab/service.rs`
 
-```rust
-#[tokio::test]
-async fn test_custom_user_data() {
-    let github = GitHubFixtures::service().await;
-    
-    let custom_user = GitHubUser::create()
-        .id(12345)
-        .login("custom_user")
-        .email(Some("custom@example.com"))
-        .avatar_url(Some("https://example.com/avatar.png"))
-        .build();
-    
-    github
-        .user_profile(200, 
-            GitHubUserRequest::authenticated(),
-            custom_user
-        )
-        .await;
-}
-```
+Similar structure to GitHub with GitLab-specific endpoints and data structures.
 
-### Integration with Test Database
-
-The fixture system works seamlessly with the test database system for complete integration testing:
-
-```rust
-mod common;
-mod fixtures;
-
-use common::TestFixture;
-use fixtures::GitHubFixtures;
-use serial_test::serial;
-
-#[tokio::test]
-#[serial]
-async fn test_complete_oauth_flow() {
-    // Setup test database
-    let test_fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let db = test_fixture.db();
-    let config = test_fixture.config();
-    
-    // Setup GitHub mock server
-    let github = GitHubFixtures::service().await;
-    github.setup_successful_token_exchange().await;
-    github.setup_successful_user_profile_arthur().await;
-    
-    // Test complete OAuth flow with database persistence
-    // - Mock external API calls with fixtures
-    // - Verify database state changes
-    // - Use real configuration from test fixture
-    
-    // Verify user was created in database
-    let user_count: i64 = db
-        .query_one(sea_orm::Statement::from_string(
-            sea_orm::DatabaseBackend::Postgres,
-            "SELECT COUNT(*) as count FROM users".to_string(),
-        ))
-        .await
-        .expect("Failed to count users")
-        .unwrap()
-        .try_get("", "count")
-        .expect("Failed to get count");
-    
-    assert_eq!(user_count, 1);
-}
-```
-
-### Automatic Mock Cleanup
-
-The fixture system includes automatic cleanup to ensure perfect test isolation:
-
-```rust
-#[tokio::test]
-async fn test_automatic_cleanup() {
-    // Each test gets a fresh set of mocks
-    let github = GitHubFixtures::service().await;
-    
-    // Setup mocks for this test
-    github.setup_successful_token_exchange().await;
-    github.setup_successful_user_profile_arthur().await;
-    
-    // Test logic here...
-    
-    // Mocks are automatically cleaned up when github service is dropped
-    // Next test will start with a completely clean slate
-}
-
-#[tokio::test]
-async fn test_no_interference() {
-    // This test won't see any mocks from the previous test
-    let github = GitHubFixtures::service().await;
-    
-    // Can setup completely different mocks without conflicts
-    github.setup_failed_token_exchange_invalid_code().await;
-    
-    // Perfect test isolation guaranteed
-}
-```
-
-#### Manual Reset (Optional)
-
-You can also manually reset mocks mid-test if needed:
-
-```rust
-#[tokio::test]
-async fn test_manual_reset() {
-    let github = GitHubFixtures::service().await;
-    
-    // Setup initial mocks
-    github.setup_successful_token_exchange().await;
-    
-    // Test first scenario...
-    
-    // Reset mocks mid-test
-    github.reset().await;
-    
-    // Setup different mocks for second scenario
-    github.setup_failed_token_exchange_invalid_code().await;
-    
-    // Test second scenario...
-}
-```
-
-## Available Fixtures
-
-### GitHubFixtures
-
-#### Service Methods
-
-| Method | Description | Parameters |
-|--------|-------------|------------|
-| `oauth_token()` | Mock OAuth token exchange | status_code, request, response |
-| `user_profile()` | Mock user profile fetch | status_code, request, response |
-| `user_emails()` | Mock user emails fetch | status_code, request, response |
-
-#### Resources
-
-| Resource | Description | Factory Methods |
-|----------|-------------|-----------------|
-| `User` | GitHub user data | `arthur()`, `bob()`, `create()` |
-| `TokenRequest` | Token exchange request | `valid()`, `invalid_code()` |
-| `TokenResponse` | Token exchange response | `success()`, `expired()` |
-| `Error` | GitHub API errors | `invalid_grant()`, `unauthorized()` |
-
-#### Convenience Methods
-
-| Method | Description |
-|--------|-------------|
-| `setup_successful_token_exchange()` | Mock successful OAuth token exchange |
-| `setup_successful_user_profile_arthur()` | Mock successful user profile for Arthur |
-| `setup_failed_token_exchange_invalid_code()` | Mock failed token exchange with invalid code |
-| `setup_failed_user_profile_unauthorized()` | Mock unauthorized user profile access |
-| `setup_rate_limit_exceeded()` | Mock rate limit exceeded error |
-
-### GitLabFixtures
-
-#### Service Methods
-
-| Method | Description | Parameters |
-|--------|-------------|------------|
-| `oauth_token()` | Mock OAuth token exchange | status_code, request, response |
-| `user_profile()` | Mock user profile fetch | status_code, request, response |
-
-#### Resources
-
-| Resource | Description | Factory Methods |
-|----------|-------------|-----------------|
-| `User` | GitLab user data | `alice()`, `charlie()`, `create()` |
-| `TokenRequest` | Token exchange request | `valid()`, `invalid_code()` |
-| `TokenResponse` | Token exchange response | `success()`, `expired()` |
-| `Error` | GitLab API errors | `invalid_grant()`, `unauthorized()` |
-
-#### Convenience Methods
-
-| Method | Description |
-|--------|-------------|
-| `setup_successful_token_exchange()` | Mock successful OAuth token exchange |
-| `setup_successful_user_profile_alice()` | Mock successful user profile for Alice |
-| `setup_failed_token_exchange_invalid_code()` | Mock failed token exchange with invalid code |
-| `setup_failed_user_profile_unauthorized()` | Mock unauthorized user profile access |
+**Example Usage in Tests**: See `tests/auth_oauth_start.rs` and `tests/auth_oauth_callback.rs` for complete examples.
 
 ## Database Fixtures
 
-The database fixture system provides a fluent API for creating and managing database entities in tests. It integrates seamlessly with the test database system and provides automatic cleanup through table truncation.
-
 ### Overview
 
-Database fixtures offer:
+Database fixtures provide a fluent API for creating test entities with automatic cleanup via table truncation between tests.
 
-- **Fluent API**: Chainable methods for entity creation
-- **Type Safety**: Strongly typed entity builders
-- **Factory Methods**: Pre-built entities for common scenarios
-- **Validation**: Check methods to verify entity state against database
-- **Integration**: Works with test database system for automatic cleanup
-- **Relationships**: Support for entity relationships and foreign keys
+**Implementation**: `tests/fixtures/db/mod.rs` with entity-specific builders in separate files.
 
-### Architecture
+### Key Features
 
-```
-DbFixtures
-├── user()           # User entity fixture builder
-├── user_email()     # UserEmail entity fixture builder  
-├── provider_token() # ProviderToken entity fixture builder
-└── refresh_token()  # RefreshToken entity fixture builder
-```
+- **Fluent Builder API**: Chainable methods for entity creation
+- **Factory Methods**: Pre-built entities for common scenarios (`arthur()`, `bob()`, `alice()`)
+- **Validation**: `check()` methods to verify entity state against database
+- **Helper Methods**: High-level methods for common test scenarios
+- **Automatic Cleanup**: Table truncation between tests ensures isolation
 
-Each entity fixture provides:
-- **Builder Pattern**: Fluent API for setting entity properties
-- **Factory Methods**: Pre-built entities (arthur(), bob(), alice(), etc.)
-- **Commit Method**: Persist entity to database
-- **Check Method**: Validate entity state against database
+### Helper Methods
 
-### Basic Usage
+The `DbFixtures` struct provides high-level helpers for common scenarios (see `tests/fixtures/db/mod.rs`):
 
-```rust
-mod common;
-mod fixtures;
-
-use common::TestFixture;
-use fixtures::DbFixtures;
-use serial_test::serial;
-
-#[tokio::test]
-#[serial]
-async fn test_user_creation() {
-    let test_fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let db = test_fixture.db();
-    
-    // Create a user using the fluent API
-    let user = DbFixtures::user()
-        .username("test_user")
-        .avatar_url(Some("https://example.com/avatar.png".to_string()))
-        .commit(db.clone())
-        .await
-        .expect("Failed to commit user");
-    
-    // Verify the user exists in the database
-    assert!(user.check(db.clone()).await.expect("Failed to check user"));
-    
-    // Access user properties
-    assert_eq!(user.username(), "test_user");
-    assert_eq!(user.avatar_url(), Some(&"https://example.com/avatar.png".to_string()));
-    
-    debug!("✅ User created with ID: {}", user.id());
-}
-```
-
-### Factory Methods
-
-Each entity fixture provides factory methods for common scenarios:
-
-```rust
-#[tokio::test]
-#[serial]
-async fn test_factory_methods() {
-    let test_fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let db = test_fixture.db();
-    
-    // Create users using factory methods
-    let arthur = DbFixtures::user().arthur().commit(db.clone()).await?;
-    let bob = DbFixtures::user().bob().commit(db.clone()).await?;
-    let alice = DbFixtures::user().alice().commit(db.clone()).await?;
-    
-    // Verify factory method data
-    assert_eq!(arthur.username(), "arthur");
-    assert_eq!(bob.username(), "bob");
-    assert_eq!(alice.username(), "alice");
-    
-    // All users should exist in database
-    assert!(arthur.check(db.clone()).await?);
-    assert!(bob.check(db.clone()).await?);
-    assert!(alice.check(db.clone()).await?);
-}
-```
-
-### Entity Relationships
-
-Create related entities with proper foreign key relationships:
-
-```rust
-#[tokio::test]
-#[serial]
-async fn test_entity_relationships() {
-    let test_fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let db = test_fixture.db();
-    
-    // Create a user first
-    let user = DbFixtures::user()
-        .arthur()
-        .commit(db.clone())
-        .await?;
-    
-    // Create related entities
-    let primary_email = DbFixtures::user_email()
-        .arthur_primary(user.id())
-        .commit(db.clone())
-        .await?;
-    
-    let github_token = DbFixtures::provider_token()
-        .arthur_github(user.id())
-        .commit(db.clone())
-        .await?;
-    
-    let refresh_token = DbFixtures::refresh_token()
-        .arthur_valid(user.id())
-        .commit(db.clone())
-        .await?;
-    
-    // Verify relationships
-    assert_eq!(primary_email.user_id(), user.id());
-    assert_eq!(github_token.user_id(), user.id());
-    assert_eq!(refresh_token.user_id(), user.id());
-    
-    // Verify all entities exist
-    assert!(user.check(db.clone()).await?);
-    assert!(primary_email.check(db.clone()).await?);
-    assert!(github_token.check(db.clone()).await?);
-    assert!(refresh_token.check(db.clone()).await?);
-}
-```
-
-### Custom Entity Data
-
-Use the fluent API to create entities with custom data:
-
-```rust
-#[tokio::test]
-#[serial]
-async fn test_custom_entity_data() {
-    let test_fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let db = test_fixture.db();
-    
-    // Create custom user
-    let custom_user = DbFixtures::user()
-        .username("custom_test_user")
-        .avatar_url(None)
-        .commit(db.clone())
-        .await?;
-    
-    // Create custom email with specific properties
-    let custom_email = DbFixtures::user_email()
-        .user_id(custom_user.id())
-        .email("custom@test.example.com")
-        .is_primary(true)
-        .is_verified(false) // Unverified primary email
-        .commit(db.clone())
-        .await?;
-    
-    // Create custom provider token
-    let custom_token = DbFixtures::provider_token()
-        .user_id(custom_user.id())
-        .provider("custom_provider")
-        .access_token("custom_access_token_123")
-        .refresh_token(None) // No refresh token
-        .expires_in(Some(1800)) // 30 minutes
-        .provider_user_id("custom_provider_user_456")
-        .commit(db.clone())
-        .await?;
-    
-    // Verify custom data
-    assert_eq!(custom_user.username(), "custom_test_user");
-    assert_eq!(custom_user.avatar_url(), None);
-    
-    assert_eq!(custom_email.email(), "custom@test.example.com");
-    assert!(custom_email.is_primary());
-    assert!(!custom_email.is_verified());
-    
-    assert_eq!(custom_token.provider(), "custom_provider");
-    assert_eq!(custom_token.access_token(), "custom_access_token_123");
-    assert_eq!(custom_token.refresh_token(), None);
-    assert_eq!(custom_token.expires_in(), Some(1800));
-}
-```
-
-### Fixture Validation with Check Methods
-
-The check methods validate that fixture data matches the current database state:
-
-```rust
-#[tokio::test]
-#[serial]
-async fn test_fixture_validation() {
-    let test_fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let db = test_fixture.db();
-    
-    // Create and commit a user fixture
-    let original_user = DbFixtures::user()
-        .username("original_user")
-        .avatar_url(Some("https://example.com/original.png".to_string()))
-        .commit(db.clone())
-        .await?;
-    
-    // Initially, the fixture should match the database
-    assert!(original_user.check(db.clone()).await?);
-    
-    // Manually modify the database (simulating external changes)
-    use sea_orm::{EntityTrait, ActiveModelTrait, ActiveValue};
-    use infra::repository::entity::users::{Entity as UsersEntity, ActiveModel as UserActiveModel};
-    
-    let mut user_active_model: UserActiveModel = UsersEntity::find_by_id(original_user.id())
-        .one(&*db)
-        .await?
-        .expect("User should exist")
-        .into();
-    
-    // Modify the user data directly in the database
-    user_active_model.username = ActiveValue::Set("modified_user".to_string());
-    user_active_model.avatar_url = ActiveValue::Set(Some("https://example.com/modified.png".to_string()));
-    
-    let _updated_user = user_active_model.update(&*db).await?;
-    
-    // The original fixture should now fail the check because the database has been updated
-    // but the original fixture still has the old data
-    let check_result = original_user.check(db.clone()).await?;
-    assert!(!check_result, "Original fixture should fail check after database was modified");
-    
-    // Verify the original fixture still has the old data (unchanged)
-    assert_eq!(original_user.username(), "original_user");
-    assert_eq!(original_user.avatar_url(), Some(&"https://example.com/original.png".to_string()));
-    
-    debug!("✅ Fixture validation correctly detected database changes");
-}
-```
+- `create_user_with_email_password()` - Complete user with email/password auth
+- `create_user_without_username()` - User without username (for registration flow)
+- `create_user_with_oauth_provider()` - User with OAuth provider setup
 
 ### Available Entity Fixtures
 
-#### User Fixtures
+| Entity | File | Key Builder Methods |
+|--------|------|---------------------|
+| User | `users.rs` | `username()`, `password_hash()`, `avatar_url()` |
+| UserEmail | `user_emails.rs` | `email()`, `is_primary()`, `is_verified()` |
+| ProviderToken | `provider_tokens.rs` | `provider()`, `access_token()`, `refresh_token()` |
+| RefreshToken | `refresh_tokens.rs` | `token()`, `is_valid()`, `expires_at()` |
+| EmailVerification | `email_verification.rs` | `token()`, `expires_at()`, `verified()` |
+| PasswordResetToken | `password_reset_tokens.rs` | `token()`, `expires_at()`, `used()` |
 
-| Method | Description |
-|--------|-------------|
-| `username(name)` | Set username |
-| `avatar_url(url)` | Set avatar URL (optional) |
-| `arthur()` | Create Arthur user (GitHub) |
-| `bob()` | Create Bob user (GitHub) |
-| `alice()` | Create Alice user (GitLab) |
-| `charlie()` | Create Charlie user (GitLab) |
-| `no_avatar()` | Create user without avatar |
+Each entity also provides factory methods for common test scenarios.
 
-#### User Email Fixtures
+## Usage Patterns
 
-| Method | Description |
-|--------|-------------|
-| `user_id(id)` | Set user ID (required) |
-| `email(email)` | Set email address |
-| `is_primary(bool)` | Set primary email flag |
-| `is_verified(bool)` | Set verified flag |
-| `arthur_primary(user_id)` | Arthur's primary email |
-| `arthur_github(user_id)` | Arthur's GitHub email |
-| `bob_primary(user_id)` | Bob's primary email |
-| `alice_primary(user_id)` | Alice's primary email |
-| `alice_gitlab(user_id)` | Alice's GitLab email |
+### Basic Test Structure
 
-#### Provider Token Fixtures
+**Pattern**: All integration tests follow this structure (see `tests/auth_oauth_start.rs`):
 
-| Method | Description |
-|--------|-------------|
-| `user_id(id)` | Set user ID (required) |
-| `provider(name)` | Set provider name |
-| `access_token(token)` | Set access token |
-| `refresh_token(token)` | Set refresh token (optional) |
-| `expires_in(seconds)` | Set expiration time |
-| `provider_user_id(id)` | Set provider user ID |
-| `github(user_id)` | Create GitHub token |
-| `gitlab(user_id)` | Create GitLab token |
-| `arthur_github(user_id)` | Arthur's GitHub token |
-| `bob_github(user_id)` | Bob's GitHub token |
-| `alice_gitlab(user_id)` | Alice's GitLab token |
+1. Setup test server and database with `setup_test_server()`
+2. Create external service fixtures if needed
+3. Create test data with database fixtures if needed
+4. Execute test operations
+5. Verify results (automatic cleanup happens)
 
-#### Refresh Token Fixtures
+### HTTP Service Mocking
 
-| Method | Description |
-|--------|-------------|
-| `user_id(id)` | Set user ID (required) |
-| `token(token)` | Set token string |
-| `is_valid(bool)` | Set validity flag |
-| `expires_at(time)` | Set expiration time |
-| `valid(user_id)` | Create valid token |
-| `expired(user_id)` | Create expired token |
-| `invalid(user_id)` | Create invalid token |
-| `arthur_valid(user_id)` | Arthur's valid token |
-| `bob_valid(user_id)` | Bob's valid token |
-| `alice_valid(user_id)` | Alice's valid token |
-
-### Integration with HTTP Fixtures
-
-Combine database and HTTP fixtures for complete integration testing:
+**Example**: See `tests/auth_oauth_start.rs` for OAuth flow testing:
 
 ```rust
-mod common;
-mod fixtures;
-
-use common::TestFixture;
-use fixtures::{DbFixtures, GitHubFixtures};
-use serial_test::serial;
-
-#[tokio::test]
-#[serial]
-async fn test_complete_oauth_integration() {
-    // Setup test database
-    let test_fixture = TestFixture::new().await.expect("Failed to create test fixture");
-    let db = test_fixture.db();
-    
-    // Setup GitHub mock server
-    let github = GitHubFixtures::service().await;
-    github.setup_successful_token_exchange().await;
-    github.setup_successful_user_profile_arthur().await;
-    
-    // Pre-create user in database
-    let user = DbFixtures::user()
-        .arthur()
-        .commit(db.clone())
-        .await?;
-    
-    let primary_email = DbFixtures::user_email()
-        .arthur_primary(user.id())
-        .commit(db.clone())
-        .await?;
-    
-    // Test OAuth flow with both mocked HTTP and real database
-    // - HTTP calls will hit the mocked GitHub server
-    // - Database operations will use the real test database
-    // - Entities created by fixtures provide expected test data
-    
-    // Verify initial state
-    assert!(user.check(db.clone()).await?);
-    assert!(primary_email.check(db.clone()).await?);
-    
-    // Run OAuth flow test...
-    // The test will use mocked HTTP responses and real database operations
-    
-    debug!("✅ Complete integration test with HTTP mocks and DB fixtures");
-    debug!("   GitHub mock URL: {}", github.base_url());
-    debug!("   User ID: {}", user.id());
-    debug!("   Primary email: {}", primary_email.email());
-}
+let _github = GitHubFixtures::service().await;
 ```
 
-### Best Practices for Database Fixtures
+The service automatically mocks GitHub endpoints for the duration of the test.
 
-1. **Use Serial Tests**: Always use `#[serial]` for database tests to ensure proper isolation
-2. **Factory Methods**: Prefer factory methods for common scenarios
-3. **Relationships**: Create parent entities before child entities
-4. **Validation**: Use check methods to verify entity state
-5. **Cleanup**: Rely on automatic table truncation for cleanup
-6. **Custom Data**: Use fluent API for test-specific entity data
-7. **Integration**: Combine with HTTP fixtures for complete testing
+### Database Entity Creation
 
-## Writing Custom Fixtures
-
-### Adding New Service Methods
-
+**Basic Usage**:
 ```rust
-impl GitHubService {
-    /// Mock a new custom endpoint
-    pub async fn new_endpoint(
-        &self,
-        method_name: &str,
-        path_pattern: &str,
-        status_code: u16,
-        response: impl Serialize,
-    ) -> &Self {
-        Mock::given(method(method_name))
-            .and(path(path_pattern))
-            .respond_with(
-                ResponseTemplate::new(status_code)
-                    .set_body_json(response)
-                    .insert_header("content-type", "application/json")
-            )
-            .mount(&*self.server)
-            .await;
-        
-        self
-    }
-    
-    /// Convenience method for common scenario
-    pub async fn setup_custom_scenario(&self) -> &Self {
-        self.oauth_token(200, GitHubTokenRequest::valid(), GitHubTokenResponse::success()).await;
-        self.user_profile(200, GitHubUserRequest::authenticated(), GitHubUser::arthur()).await;
-        self
-    }
-}
+let user = DbFixtures::user().arthur().commit(db.clone()).await?;
 ```
 
-### Adding New Resources
-
+**Custom Data**:
 ```rust
-/// New resource data structure
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GitHubNewResource {
-    pub field1: String,
-    pub field2: i32,
-}
-
-impl GitHubNewResource {
-    /// Create a builder for custom data
-    pub fn create() -> GitHubNewResourceBuilder {
-        GitHubNewResourceBuilder::default()
-    }
-    
-    /// Pre-built instance
-    pub fn default_instance() -> Self {
-        Self {
-            field1: "default_value".to_string(),
-            field2: 42,
-        }
-    }
-}
-
-/// Builder for new resource
-#[derive(Debug, Default)]
-pub struct GitHubNewResourceBuilder {
-    field1: Option<String>,
-    field2: Option<i32>,
-}
-
-impl GitHubNewResourceBuilder {
-    pub fn field1(mut self, field1: impl Into<String>) -> Self {
-        self.field1 = Some(field1.into());
-        self
-    }
-    
-    pub fn field2(mut self, field2: i32) -> Self {
-        self.field2 = Some(field2);
-        self
-    }
-    
-    pub fn build(self) -> GitHubNewResource {
-        GitHubNewResource {
-            field1: self.field1.unwrap_or_else(|| "default".to_string()),
-            field2: self.field2.unwrap_or(0),
-        }
-    }
-}
+let user = DbFixtures::user()
+    .username("custom_user")
+    .avatar_url(Some("https://example.com/avatar.png".to_string()))
+    .commit(db.clone()).await?;
 ```
 
-### Adding New Convenience Methods
-
+**Relationships**:
 ```rust
-impl GitHubService {
-    /// Setup a complete custom scenario
-    pub async fn setup_custom_flow(&self) -> &Self {
-        // Step 1: Mock token exchange
-        self.oauth_token(
-            200,
-            GitHubTokenRequest::valid(),
-            GitHubTokenResponse::success()
-        ).await;
-        
-        // Step 2: Mock user profile
-        self.user_profile(
-            200,
-            GitHubUserRequest::authenticated(),
-            GitHubUser::arthur()
-        ).await;
-        
-        // Step 3: Mock additional endpoints as needed
-        self.custom_endpoint(
-            "GET",
-            "/user/emails",
-            200,
-            json!([{"email": "arthur@example.com", "primary": true}])
-        ).await;
-        
-        self
-    }
-    
-    /// Setup error scenario
-    pub async fn setup_error_flow(&self) -> &Self {
-        self.setup_failed_token_exchange_invalid_code().await;
-        self.setup_failed_user_profile_unauthorized().await;
-        self
-    }
-}
+let user = DbFixtures::user().arthur().commit(db.clone()).await?;
+let email = DbFixtures::user_email()
+    .arthur_primary(user.id())
+    .commit(db.clone()).await?;
 ```
+
+### Integration Testing
+
+**Complete Pattern**: See `tests/signup_kafka.rs` for full integration example combining:
+- Database fixtures for test data
+- HTTP service fixtures for external APIs
+- Message queue testing for event verification
+
+## Available Fixtures
+
+### Service Fixtures
+
+| Fixture | File | Purpose |
+|---------|------|---------|
+| `GitHubFixtures::service()` | `github/service.rs` | GitHub OAuth endpoint mocking |
+| `GitLabFixtures::service()` | `gitlab/service.rs` | GitLab OAuth endpoint mocking |
+
+### Database Fixtures
+
+Access all through `DbFixtures`:
+
+| Method | Returns | Purpose |
+|--------|---------|---------|
+| `user()` | `UserFixtureBuilder` | Create users with optional username, password, avatar |
+| `user_email()` | `UserEmailFixtureBuilder` | Create user emails with primary/verified flags |
+| `provider_token()` | `ProviderTokenFixtureBuilder` | Create OAuth provider tokens |
+| `refresh_token()` | `RefreshTokenFixtureBuilder` | Create refresh tokens |
+| `email_verification()` | `EmailVerificationFixtureBuilder` | Create email verification tokens |
+| `password_reset_token()` | `PasswordResetTokenFixtureBuilder` | Create password reset tokens |
+
+Each builder provides both custom property methods and factory methods for common scenarios.
+
+### Factory Methods Available
+
+Common factory methods across entities:
+- **Users**: `arthur()`, `bob()`, `alice()`, `charlie()`, `no_avatar()`
+- **Emails**: `arthur_primary()`, `bob_primary()`, `alice_primary()`, etc.
+- **Tokens**: `github()`, `gitlab()`, `valid()`, `expired()`, `invalid()`
+
+See individual entity files in `tests/fixtures/db/` for complete lists.
 
 ## Best Practices
 
-### Naming Conventions
+### Test Organization
 
-1. **Service Methods**: Use endpoint names (`oauth_token`, `user_profile`)
-2. **Resources**: Use domain names (`User`, `Token`, `Error`)
-3. **Convenience Methods**: Use descriptive names (`setup_successful_*`, `setup_failed_*`)
+1. **Use Serial Tests**: Always use `#[serial]` for integration tests
+2. **Scope Fixtures**: Create fixtures within test scope for automatic cleanup  
+3. **Reference Examples**: See existing test files for established patterns
 
-### Resource Design
+### Resource Management
 
-1. **Factory Methods**: Provide common instances (`arthur()`, `bob()`)
-2. **Builder Pattern**: Use for complex customization (`create().field().build()`)
-3. **Validation**: Ensure resources match real API responses
+1. **Automatic Cleanup**: Fixtures clean up automatically via Drop traits
+2. **Database Isolation**: Table truncation ensures clean state between tests
+3. **Mock Isolation**: Each test gets fresh mock servers
+
+### Factory vs Custom Data
+
+1. **Use Factories**: Prefer factory methods (`arthur()`, `bob()`) for common scenarios
+2. **Custom When Needed**: Use fluent API for test-specific requirements
+3. **Relationships**: Create parent entities before children
 
 ### Error Handling
 
-1. **Comprehensive Coverage**: Mock all possible error scenarios
+1. **Comprehensive Testing**: Test both success and error scenarios
 2. **Realistic Errors**: Use actual error responses from APIs
-3. **Status Codes**: Match real HTTP status codes
+3. **Fixture Validation**: Use `check()` methods to verify entity state
 
-### Performance
+### Example References
 
-1. **Shared Servers**: Reuse MockServer instances when possible
-2. **Cleanup**: Ensure proper cleanup between tests
-3. **Parallel Safety**: Design fixtures to be thread-safe
+For complete, working examples:
 
-### Maintainability
+- **OAuth Flow Testing**: `tests/auth_oauth_start.rs`, `tests/auth_oauth_callback.rs`
+- **Database Entity Testing**: `tests/user.rs`, `tests/token.rs`
+- **Integration Testing**: `tests/signup_kafka.rs`, `tests/signup_sqs.rs`
+- **Authentication Flows**: `tests/auth_username_flow.rs`, `tests/auth_email_password.rs`
+- **Registration**: `tests/auth_complete_registration.rs`
 
-1. **Documentation**: Document all public methods and resources
-2. **Versioning**: Handle API version changes gracefully
-3. **Testing**: Test the fixtures themselves
-
-## Examples
-
-### Complete Test Example
-
-```rust
-use fixtures::{GitHubFixtures, GitLabFixtures};
-use fixtures::github::*;
-use fixtures::gitlab::*;
-
-#[tokio::test]
-async fn test_multi_provider_oauth() {
-    // Setup GitHub mocks
-    let github = GitHubFixtures::service().await;
-    github.setup_successful_token_exchange().await;
-    github.setup_successful_user_profile_arthur().await;
-    
-    // Setup GitLab mocks  
-    let gitlab = GitLabFixtures::service().await;
-    gitlab.setup_successful_token_exchange().await;
-    gitlab.setup_successful_user_profile_alice().await;
-    
-    // Test both providers...
-    debug!("🔗 GitHub mock URL: {}", github.base_url());
-    debug!("🔗 GitLab mock URL: {}", gitlab.base_url());
-}
-```
-
-### Custom Resource Example
-
-```rust
-#[tokio::test]
-async fn test_user_with_no_email() {
-    let github = GitHubFixtures::service().await;
-    
-    let user_without_email = GitHubUser::create()
-        .id(99999)
-        .login("no_email_user")
-        .email(None)  // No email provided
-        .avatar_url(None::<String>)
-        .build();
-    
-    github
-        .user_profile(200,
-            GitHubUserRequest::authenticated(),
-            user_without_email
-        )
-        .await;
-    
-    // Test handling of users without email...
-    debug!("✅ Custom user data mocked successfully");
-}
-```
-
-## Quick Start
-
-```rust
-mod fixtures;
-
-use fixtures::{GitHubFixtures, GitLabFixtures};
-use fixtures::github::*;
-
-#[tokio::test]
-async fn test_oauth_flow() {
-    // Create service fixture
-    let github = GitHubFixtures::service().await;
-    
-    // Mock successful OAuth flow
-    github
-        .oauth_token(200, GitHubTokenRequest::valid(), GitHubTokenResponse::success())
-        .await;
-    
-    github
-        .user_profile(200, GitHubUserRequest::authenticated(), GitHubUser::arthur())
-        .await;
-    
-    // Your test logic here...
-    debug!("✅ GitHub OAuth flow mocked at: {}", github.base_url());
-}
-```
-
-This fixture system provides a robust, maintainable, and developer-friendly approach to mocking external services in your tests. The system is now production-ready and includes comprehensive documentation, examples, and best practices. 
+The fixture system provides a robust foundation for testing external integrations and database operations while maintaining test isolation and developer productivity. 
