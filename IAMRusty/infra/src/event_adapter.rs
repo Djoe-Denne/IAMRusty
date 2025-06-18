@@ -39,10 +39,9 @@ impl ErrorMapper<DomainError> for IAMErrorMapper {
             DomainError::UserProfileError(message) => {
                 ServiceError::infrastructure(format!("User profile error: {}", message))
             }
-            DomainError::NoTokenForProvider(provider, user) => ServiceError::not_found(format!(
-                "No token found for provider {} and user {}",
-                provider, user
-            )),
+            DomainError::NoTokenForProvider => ServiceError::not_found(
+                "No token found for provider and user".to_string()
+            ),
             DomainError::TokenGenerationFailed(message) => {
                 ServiceError::internal(format!("Token generation failed: {}", message))
             }

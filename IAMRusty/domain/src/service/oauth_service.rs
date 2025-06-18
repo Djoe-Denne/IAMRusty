@@ -9,6 +9,7 @@ use crate::port::{
     service::ProviderOAuth2Client,
 };
 use tracing::{debug, info};
+use uuid::Uuid;
 
 use super::TokenService;
 
@@ -205,37 +206,66 @@ where
         Ok(created_user)
     }
 
-    /// Get a provider token for a user
+    /// Get provider tokens for a user
     pub async fn get_provider_token(
         &self,
-        user_id: &str,
-        provider_name: &str,
+        user_id: Uuid,
+        provider: Provider,
     ) -> Result<ProviderTokens, DomainError> {
-        let uuid = uuid::Uuid::parse_str(user_id).map_err(|_| DomainError::UserNotFound)?;
-
-        let provider = Provider::from_str(provider_name)
-            .ok_or_else(|| DomainError::ProviderNotSupported(provider_name.to_string()))?;
-
         // First verify that the user exists (security: don't reveal if user has tokens or not)
         let _user = self
             .user_repository
-            .find_by_id(uuid)
+            .find_by_id(user_id)
             .await
             .map_err(|e| DomainError::RepositoryError(e.to_string()))?
             .ok_or(DomainError::UserNotFound)?;
 
         let tokens = self
             .token_repository
-            .get_provider_tokens(uuid, provider)
+            .get_provider_tokens(user_id, provider)
             .await
             .map_err(|e| DomainError::RepositoryError(e.to_string()))?
-            .ok_or_else(|| {
-                DomainError::NoTokenForProvider(provider_name.to_string(), user_id.to_string())
-            })?;
+            .ok_or(DomainError::NoTokenForProvider)?;
 
-        debug!(user_id = %uuid, provider = %provider_name, "Retrieved provider token");
+        debug!(user_id = %user_id, provider = %provider.as_str(), "Retrieved provider token");
 
         Ok(tokens)
+    }
+
+    /// Revoke provider tokens for a user
+    pub async fn revoke_provider_token(
+        &self,
+        user_id: Uuid,
+        provider: Provider,
+    ) -> Result<(), DomainError> {
+        // First verify that the user exists
+        let _user = self
+            .user_repository
+            .find_by_id(user_id)
+            .await
+            .map_err(|e| DomainError::RepositoryError(e.to_string()))?
+            .ok_or(DomainError::UserNotFound)?;
+
+        // Check if tokens exist for this user and provider
+        let existing_tokens = self
+            .token_repository
+            .get_provider_tokens(user_id, provider)
+            .await
+            .map_err(|e| DomainError::RepositoryError(e.to_string()))?;
+
+        if existing_tokens.is_none() {
+            return Err(DomainError::NoTokenForProvider);
+        }
+
+        // Delete the tokens
+        self.token_repository
+            .delete_provider_tokens(user_id, provider)
+            .await
+            .map_err(|e| DomainError::RepositoryError(e.to_string()))?;
+
+        debug!(user_id = %user_id, provider = %provider.as_str(), "Revoked provider token");
+
+        Ok(())
     }
 }
 
@@ -904,7 +934,7 @@ mod tests {
             let auth_service = OAuthService::new(user_repo, token_repo, token_service);
 
             let result = auth_service
-                .get_provider_token(&user_id.to_string(), "github")
+                .get_provider_token(user_id, provider)
                 .await;
 
             assert_ok!(&result);
@@ -917,7 +947,7 @@ mod tests {
             let auth_service = auth_service();
 
             let result = auth_service
-                .get_provider_token("invalid-uuid", "github")
+                .get_provider_token(Uuid::new_v4(), Provider::GitHub)
                 .await;
 
             assert_err!(&result);
@@ -933,13 +963,13 @@ mod tests {
             let user_id = Uuid::new_v4();
 
             let result = auth_service
-                .get_provider_token(&user_id.to_string(), "unsupported")
+                .get_provider_token(user_id, Provider::GitHub)
                 .await;
 
             assert_err!(&result);
             match result.unwrap_err() {
                 DomainError::ProviderNotSupported(provider) => {
-                    assert_eq!(provider, "unsupported");
+                    assert_eq!(provider, Provider::GitHub);
                 }
                 _ => panic!("Expected ProviderNotSupported error"),
             }
@@ -959,15 +989,12 @@ mod tests {
             let auth_service = OAuthService::new(user_repo, token_repo, token_service);
 
             let result = auth_service
-                .get_provider_token(&user_id.to_string(), "github")
+                .get_provider_token(user_id, provider)
                 .await;
 
             assert_err!(&result);
             match result.unwrap_err() {
-                DomainError::NoTokenForProvider(provider_name, user_id_str) => {
-                    assert_eq!(provider_name, "github");
-                    assert_eq!(user_id_str, user_id.to_string());
-                }
+                DomainError::NoTokenForProvider => {}
                 _ => panic!("Expected NoTokenForProvider error"),
             }
         }

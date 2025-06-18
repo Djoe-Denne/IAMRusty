@@ -18,6 +18,9 @@ use super::{
         GenerateLinkProviderStartUrlCommand, GenerateLinkProviderStartUrlCommandHandler,
         GetProviderTokenCommand, GetProviderTokenCommandHandler, LinkProviderCommand,
         LinkProviderCommandHandler, LinkProviderErrorMapper, ProviderErrorMapper,
+        RevokeProviderTokenCommand, RevokeProviderTokenCommandHandler,
+        RelinkProviderCommand, RelinkProviderCommandHandler,
+        GenerateRelinkProviderStartUrlCommand, GenerateRelinkProviderStartUrlCommandHandler,
     },
     registration::{
         CheckUsernameCommand, CheckUsernameCommandHandler, CompleteRegistrationCommand,
@@ -86,7 +89,7 @@ impl CommandRegistryFactory {
             link_provider_usecase.clone(),
         ));
         let link_provider_start_url_handler = Arc::new(
-            GenerateLinkProviderStartUrlCommandHandler::new(link_provider_usecase),
+            GenerateLinkProviderStartUrlCommandHandler::new(link_provider_usecase.clone()),
         );
         let link_provider_error_mapper = Arc::new(LinkProviderErrorMapper);
 
@@ -104,14 +107,43 @@ impl CommandRegistryFactory {
 
         // Register provider token commands
         let get_provider_token_handler =
-            Arc::new(GetProviderTokenCommandHandler::new(provider_usecase));
+            Arc::new(GetProviderTokenCommandHandler::new(provider_usecase.clone()));
+        let revoke_provider_token_handler =
+            Arc::new(RevokeProviderTokenCommandHandler::new(provider_usecase));
         let provider_error_mapper = Arc::new(ProviderErrorMapper);
 
-        builder = builder.register::<GetProviderTokenCommand, _>(
-            "get_provider_token".to_string(),
-            get_provider_token_handler,
-            provider_error_mapper,
+        builder = builder
+            .register::<GetProviderTokenCommand, _>(
+                "get_provider_token".to_string(),
+                get_provider_token_handler,
+                provider_error_mapper.clone(),
+            )
+            .register::<RevokeProviderTokenCommand, _>(
+                "revoke_provider_token".to_string(),
+                revoke_provider_token_handler,
+                provider_error_mapper,
+            );
+
+        // Register relink provider commands
+        let relink_provider_handler = Arc::new(RelinkProviderCommandHandler::new(
+            link_provider_usecase.clone(),
+        ));
+        let relink_provider_start_url_handler = Arc::new(
+            GenerateRelinkProviderStartUrlCommandHandler::new(link_provider_usecase.clone()),
         );
+        let relink_provider_error_mapper = Arc::new(LinkProviderErrorMapper);
+
+        builder = builder
+            .register::<RelinkProviderCommand, _>(
+                "relink_provider".to_string(),
+                relink_provider_handler,
+                relink_provider_error_mapper.clone(),
+            )
+            .register::<GenerateRelinkProviderStartUrlCommand, _>(
+                "generate_relink_provider_start_url".to_string(),
+                relink_provider_start_url_handler,
+                relink_provider_error_mapper,
+            );
 
         // Register token commands
         let refresh_token_handler =
@@ -382,14 +414,47 @@ impl CommandRegistryFactory {
         provider_usecase: Arc<dyn ProviderUseCase>,
     ) -> CommandRegistryBuilder {
         let get_provider_token_handler =
-            Arc::new(GetProviderTokenCommandHandler::new(provider_usecase));
+            Arc::new(GetProviderTokenCommandHandler::new(provider_usecase.clone()));
+        let revoke_provider_token_handler =
+            Arc::new(RevokeProviderTokenCommandHandler::new(provider_usecase));
         let provider_error_mapper = Arc::new(ProviderErrorMapper);
 
-        CommandRegistryBuilder::new().register::<GetProviderTokenCommand, _>(
-            "get_provider_token".to_string(),
-            get_provider_token_handler,
-            provider_error_mapper,
-        )
+        CommandRegistryBuilder::new()
+            .register::<GetProviderTokenCommand, _>(
+                "get_provider_token".to_string(),
+                get_provider_token_handler,
+                provider_error_mapper.clone(),
+            )
+            .register::<RevokeProviderTokenCommand, _>(
+                "revoke_provider_token".to_string(),
+                revoke_provider_token_handler,
+                provider_error_mapper,
+            )
+    }
+
+    /// Create a registry builder with only relink provider commands
+    pub fn create_builder_with_relink_provider(
+        link_provider_usecase: Arc<dyn LinkProviderUseCase>,
+    ) -> CommandRegistryBuilder {
+        let relink_provider_handler = Arc::new(RelinkProviderCommandHandler::new(
+            link_provider_usecase.clone(),
+        ));
+        let relink_provider_start_url_handler = Arc::new(
+            GenerateRelinkProviderStartUrlCommandHandler::new(link_provider_usecase),
+        );
+        let relink_provider_error_mapper = Arc::new(LinkProviderErrorMapper);
+
+        CommandRegistryBuilder::new()
+            .register::<RelinkProviderCommand, _>(
+                "relink_provider".to_string(),
+                relink_provider_handler,
+                relink_provider_error_mapper.clone(),
+            )
+            .register::<GenerateRelinkProviderStartUrlCommand, _>(
+                "generate_relink_provider_start_url".to_string(),
+                relink_provider_start_url_handler,
+                relink_provider_error_mapper,
+            )
     }
 }
 

@@ -28,6 +28,7 @@ struct GitLabUser {
 pub struct GitLabOAuth2Client {
     client: BasicClient,
     user_url: String,
+    client_secret: String,
 }
 
 impl GitLabOAuth2Client {
@@ -42,13 +43,17 @@ impl GitLabOAuth2Client {
     ) -> Self {
         let client = BasicClient::new(
             ClientId::new(client_id),
-            Some(ClientSecret::new(client_secret)),
+            Some(ClientSecret::new(client_secret.clone())),
             AuthUrl::new(auth_url).unwrap(),
             Some(TokenUrl::new(token_url).unwrap()),
         )
         .set_redirect_uri(RedirectUrl::new(redirect_url).unwrap());
 
-        Self { client, user_url }
+        Self { 
+            client, 
+            user_url, 
+            client_secret,
+        }
     }
 
     /// Create a new GitLab OAuth2 client from a GitlabConfig
@@ -66,12 +71,16 @@ impl GitLabOAuth2Client {
 
 #[async_trait]
 impl ProviderOAuth2Client for GitLabOAuth2Client {
+    fn get_scope(&self) -> String {
+        "read_user".to_string()
+    }
+
     fn generate_authorize_url(&self) -> String {
         // Generate the authorization URL
         let (auth_url, _csrf_token) = self
             .client
             .authorize_url(|| oauth2::CsrfToken::new_random())
-            .add_scope(oauth2::Scope::new("read_user".to_string()))
+            .add_scope(oauth2::Scope::new(self.get_scope()))
             .url();
 
         auth_url.to_string()
@@ -169,10 +178,38 @@ impl OAuthService for GitLabOAuth2Client {
         ProviderOAuth2Client::generate_authorize_url(self)
     }
 
+    fn generate_relink_authorize_url(&self) -> String {
+        // For relink, we need to modify the redirect URI to use relink-callback
+        let redirect_uri = self.client.redirect_url()
+            .map(|url| {
+                let url_str = url.as_str();
+                // Replace /callback with /relink-callback
+                url_str.replace("/callback", "/relink-callback")
+            })
+            .unwrap_or_else(|| "http://localhost:8080/api/auth/gitlab/relink-callback".to_string());
+
+        // Create a temporary client with the relink redirect URI
+        let relink_client = BasicClient::new(
+            self.client.client_id().clone(),
+            Some(ClientSecret::new(self.client_secret.clone())),
+            self.client.auth_url().clone(),
+            self.client.token_url().cloned(),
+        )
+        .set_redirect_uri(RedirectUrl::new(redirect_uri).unwrap());
+
+        // Generate the authorization URL with relink redirect URI
+        let (auth_url, _csrf_token) = relink_client
+            .authorize_url(|| oauth2::CsrfToken::new_random())
+            .add_scope(oauth2::Scope::new(self.get_scope()))
+            .url();
+
+        auth_url.to_string()
+    }
+
     async fn exchange_code(
         &self,
         code: String,
-        _redirect_uri: String,
+        redirect_uri: String,
     ) -> Result<(ProviderTokens, ProviderUserProfile), Self::Error> {
         debug!("GitLab exchange_code called with code: {}", code);
         debug!(
@@ -181,13 +218,31 @@ impl OAuthService for GitLabOAuth2Client {
         );
         debug!("GitLab user URL: {}", self.user_url);
 
-        // Exchange code for tokens using ProviderOAuth2Client trait
-        let tokens = ProviderOAuth2Client::exchange_code(self, &code)
+        // Create a temporary client with the specified redirect URI for token exchange
+        let exchange_client = BasicClient::new(
+            self.client.client_id().clone(),
+            Some(ClientSecret::new(self.client_secret.clone())),
+            self.client.auth_url().clone(),
+            self.client.token_url().cloned(),
+        )
+        .set_redirect_uri(RedirectUrl::new(redirect_uri).unwrap());
+
+        // Exchange code for tokens using the temporary client
+        let token_result = exchange_client
+            .exchange_code(AuthorizationCode::new(code))
+            .request_async(async_http_client)
             .await
             .map_err(|e| {
-                debug!("GitLab token exchange failed: {}", e);
+                error!("Failed to exchange GitLab code for token: {}", e);
                 AuthError::AuthenticationError(format!("GitLab token exchange failed: {}", e))
             })?;
+
+        // Convert to domain ProviderTokens
+        let tokens = ProviderTokens {
+            access_token: token_result.access_token().secret().clone(),
+            refresh_token: token_result.refresh_token().map(|r| r.secret().clone()),
+            expires_in: token_result.expires_in().map(|e| e.as_secs()),
+        };
 
         debug!(
             "GitLab token exchange successful, access_token: {}",

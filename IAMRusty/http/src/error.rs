@@ -503,10 +503,10 @@ impl IntoResponse for ApiError {
                         "user_profile_error".to_string(),
                         msg,
                     ),
-                    DomainError::NoTokenForProvider(provider, user) => (
+                    DomainError::NoTokenForProvider => (
                         StatusCode::NOT_FOUND,
                         "no_token_for_provider".to_string(),
-                        format!("No token found for provider {} and user {}", provider, user),
+                        "No token found for provider and user".to_string(),
                     ),
                     DomainError::TokenGenerationFailed(msg) => (
                         StatusCode::INTERNAL_SERVER_ERROR,
@@ -912,6 +912,87 @@ impl AuthError {
                 operation: operation.to_string(),
                 error_code: "link_failed".to_string(),
                 message: "Link provider failed".to_string(),
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+            },
+        }
+    }
+
+    pub fn oauth_start_failed(command_error: &CommandError, provider: &str) -> Self {
+        match command_error {
+            CommandError::Validation { code, message } => Self::OAuth {
+                operation: "oauth_start".to_string(),
+                error_code: code.clone(),
+                message: message.clone(),
+                status: StatusCode::BAD_REQUEST,
+            },
+            CommandError::Business { code, .. } if code == "provider_not_supported" => {
+                Self::OAuth {
+                    operation: "oauth_start".to_string(),
+                    error_code: code.clone(),
+                    message: format!("Provider {} not supported", provider),
+                    status: StatusCode::UNPROCESSABLE_ENTITY,
+                }
+            }
+            _ => Self::OAuth {
+                operation: "oauth_start".to_string(),
+                error_code: "oauth_start_failed".to_string(),
+                message: "Failed to generate OAuth start URL".to_string(),
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+            },
+        }
+    }
+
+    pub fn link_provider_failed(command_error: &CommandError, provider: &str) -> Self {
+        match command_error {
+            CommandError::Business { code, .. } if code == "provider_already_linked_same_user" => {
+                Self::OAuth {
+                    operation: "link_provider".to_string(),
+                    error_code: code.clone(),
+                    message: format!("{} is already linked to your account", provider),
+                    status: StatusCode::CONFLICT,
+                }
+            }
+            CommandError::Business { code, .. } if code == "provider_already_linked" => {
+                Self::OAuth {
+                    operation: "link_provider".to_string(),
+                    error_code: code.clone(),
+                    message: format!(
+                        "This {} account is already linked to another user",
+                        provider
+                    ),
+                    status: StatusCode::CONFLICT,
+                }
+            }
+            CommandError::Business { code, .. } if code == "business_rule_violation" => {
+                Self::OAuth {
+                    operation: "link_provider".to_string(),
+                    error_code: code.clone(),
+                    message: "Cannot relink provider that is not currently linked".to_string(),
+                    status: StatusCode::UNPROCESSABLE_ENTITY,
+                }
+            }
+            CommandError::Business { code, .. } if code == "authentication_failed" => Self::OAuth {
+                operation: "link_provider".to_string(),
+                error_code: code.clone(),
+                message: "Authentication failed".to_string(),
+                status: StatusCode::UNAUTHORIZED,
+            },
+            CommandError::Business { code, .. } if code == "user_not_found" => Self::OAuth {
+                operation: "link_provider".to_string(),
+                error_code: code.clone(),
+                message: "User not found".to_string(),
+                status: StatusCode::NOT_FOUND,
+            },
+            CommandError::Validation { code, message } => Self::OAuth {
+                operation: "link_provider".to_string(),
+                error_code: code.clone(),
+                message: message.clone(),
+                status: StatusCode::BAD_REQUEST,
+            },
+            _ => Self::OAuth {
+                operation: "link_provider".to_string(),
+                error_code: "link_provider_failed".to_string(),
+                message: "Failed to link provider".to_string(),
                 status: StatusCode::INTERNAL_SERVER_ERROR,
             },
         }

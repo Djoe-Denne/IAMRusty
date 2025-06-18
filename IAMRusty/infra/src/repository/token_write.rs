@@ -86,4 +86,27 @@ impl TokenWriteRepository for TokenWriteRepositoryImpl {
 
         Ok(())
     }
+
+    async fn delete_provider_tokens(
+        &self,
+        user_id: Uuid,
+        provider: Provider,
+    ) -> Result<(), Self::Error> {
+        debug!(user_id = %user_id, provider = %provider.as_str(), "Deleting provider tokens");
+
+        let delete_result = ProviderTokensEntity::delete_many()
+            .filter(provider_tokens::Column::UserId.eq(user_id))
+            .filter(provider_tokens::Column::Provider.eq(provider.as_str()))
+            .exec(self.db.as_ref())
+            .await?;
+
+        debug!(
+            user_id = %user_id, 
+            provider = %provider.as_str(), 
+            deleted_count = delete_result.rows_affected,
+            "Deleted provider tokens"
+        );
+
+        Ok(())
+    }
 }

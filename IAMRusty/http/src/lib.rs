@@ -11,7 +11,7 @@ use axum::{
     http::StatusCode,
     middleware,
     response::{IntoResponse, Json},
-    routing::{get, post},
+    routing::{get, post, delete},
     Router,
 };
 use configuration::OAuthConfig;
@@ -33,6 +33,7 @@ pub use handlers::{
     auth::{
         check_username, complete_registration, internal_provider_token, jwks, login,
         oauth_callback, oauth_start, resend_verification_email, signup, verify_email,
+        revoke_provider_token, relink_provider_callback, generate_relink_provider_start_url,
     },
     password_reset::{
         request_password_reset, validate_reset_token, reset_password_unauthenticated,
@@ -155,6 +156,21 @@ pub async fn serve_with_config(state: AppState, config: ServerConfig) -> anyhow:
         .route(
             "/internal/{provider_name}/token",
             post(internal_provider_token).route_layer(middleware::from_fn_with_state(
+                state.clone(),
+                auth_middleware,
+            )),
+        )
+        .route(
+            "/internal/{provider_name}/revoke",
+            delete(revoke_provider_token).route_layer(middleware::from_fn_with_state(
+                state.clone(),
+                auth_middleware,
+            )),
+        )
+        .route("/api/auth/{provider_name}/relink-start", get(generate_relink_provider_start_url))
+        .route(
+            "/api/auth/{provider_name}/relink-callback",
+            get(relink_provider_callback).route_layer(middleware::from_fn_with_state(
                 state.clone(),
                 auth_middleware,
             )),

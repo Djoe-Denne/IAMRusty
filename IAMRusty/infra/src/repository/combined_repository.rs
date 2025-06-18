@@ -160,6 +160,16 @@ where
             .save_provider_tokens(user_id, provider, provider_user_id, tokens)
             .await
     }
+
+    async fn delete_provider_tokens(
+        &self,
+        user_id: Uuid,
+        provider: Provider,
+    ) -> Result<(), Self::Error> {
+        self.write_repo
+            .delete_provider_tokens(user_id, provider)
+            .await
+    }
 }
 
 /// Combined RefreshToken Repository that delegates to separate read/write implementations

@@ -36,8 +36,8 @@ pub enum DomainError {
     UserProfileError(String),
 
     /// No token found for provider and user
-    #[error("No token found for provider {0} and user {1}")]
-    NoTokenForProvider(String, String),
+    #[error("No token found for provider and user")]
+    NoTokenForProvider,
 
     /// Token generation failed
     #[error("Token generation failed: {0}")]

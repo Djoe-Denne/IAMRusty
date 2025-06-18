@@ -427,3 +427,270 @@ where
             .map_err(|e| ProviderErrorMapper.map_error(Box::new(e)))
     }
 }
+
+/// Revoke provider token command
+#[derive(Debug, Clone)]
+pub struct RevokeProviderTokenCommand {
+    /// Command instance ID
+    pub command_id: Uuid,
+    /// User ID to revoke the token for
+    pub user_id: Uuid,
+    /// OAuth provider
+    pub provider: Provider,
+}
+
+impl RevokeProviderTokenCommand {
+    /// Create a new revoke provider token command
+    pub fn new(user_id: Uuid, provider: Provider) -> Self {
+        Self {
+            command_id: Uuid::new_v4(),
+            user_id,
+            provider,
+        }
+    }
+}
+
+#[async_trait]
+impl Command for RevokeProviderTokenCommand {
+    type Result = ();
+
+    fn command_type(&self) -> &'static str {
+        "revoke_provider_token"
+    }
+
+    fn command_id(&self) -> Uuid {
+        self.command_id
+    }
+
+    fn validate(&self) -> Result<(), CommandError> {
+        // Validate user_id is not nil
+        if self.user_id.is_nil() {
+            return Err(CommandError::validation(
+                ProviderErrorCode::ValidationFailed.as_str(),
+                "User ID cannot be nil",
+            ));
+        }
+
+        Ok(())
+    }
+}
+
+/// Revoke provider token command handler
+pub struct RevokeProviderTokenCommandHandler<P>
+where
+    P: ProviderUseCase + ?Sized,
+{
+    provider_use_case: Arc<P>,
+}
+
+impl<P> RevokeProviderTokenCommandHandler<P>
+where
+    P: ProviderUseCase + ?Sized,
+{
+    /// Create a new revoke provider token command handler
+    pub fn new(provider_use_case: Arc<P>) -> Self {
+        Self { provider_use_case }
+    }
+}
+
+#[async_trait]
+impl<P> CommandHandler<RevokeProviderTokenCommand> for RevokeProviderTokenCommandHandler<P>
+where
+    P: ProviderUseCase + Send + Sync + ?Sized,
+{
+    async fn handle(&self, command: RevokeProviderTokenCommand) -> Result<(), CommandError> {
+        self.provider_use_case
+            .revoke_provider_token(command.user_id, command.provider)
+            .await
+            .map_err(|e| ProviderErrorMapper.map_error(Box::new(e)))
+    }
+}
+
+/// Relink provider command
+#[derive(Debug, Clone)]
+pub struct RelinkProviderCommand {
+    /// Command instance ID
+    pub command_id: Uuid,
+    /// User ID to relink the provider for
+    pub user_id: Uuid,
+    /// OAuth provider
+    pub provider: Provider,
+    /// Authorization code from OAuth callback
+    pub code: String,
+    /// Redirect URI used in OAuth flow
+    pub redirect_uri: String,
+}
+
+impl RelinkProviderCommand {
+    /// Create a new relink provider command
+    pub fn new(user_id: Uuid, provider: Provider, code: String, redirect_uri: String) -> Self {
+        Self {
+            command_id: Uuid::new_v4(),
+            user_id,
+            provider,
+            code,
+            redirect_uri,
+        }
+    }
+}
+
+#[async_trait]
+impl Command for RelinkProviderCommand {
+    type Result = LinkProviderResponse;
+
+    fn command_type(&self) -> &'static str {
+        "relink_provider"
+    }
+
+    fn command_id(&self) -> Uuid {
+        self.command_id
+    }
+
+    fn validate(&self) -> Result<(), CommandError> {
+        if self.code.trim().is_empty() {
+            return Err(CommandError::validation(
+                LinkProviderErrorCode::ValidationFailed.as_str(),
+                "Authorization code cannot be empty",
+            ));
+        }
+
+        if self.redirect_uri.trim().is_empty() {
+            return Err(CommandError::validation(
+                LinkProviderErrorCode::ValidationFailed.as_str(),
+                "Redirect URI cannot be empty",
+            ));
+        }
+
+        // Basic URL validation for redirect_uri
+        if !self.redirect_uri.starts_with("http://") && !self.redirect_uri.starts_with("https://") {
+            return Err(CommandError::validation(
+                LinkProviderErrorCode::ValidationFailed.as_str(),
+                "Redirect URI must be a valid HTTP/HTTPS URL",
+            ));
+        }
+
+        // Validate user_id is not nil
+        if self.user_id.is_nil() {
+            return Err(CommandError::validation(
+                LinkProviderErrorCode::ValidationFailed.as_str(),
+                "User ID cannot be nil",
+            ));
+        }
+
+        Ok(())
+    }
+}
+
+/// Relink provider command handler
+pub struct RelinkProviderCommandHandler<L>
+where
+    L: LinkProviderUseCase + ?Sized,
+{
+    link_provider_use_case: Arc<L>,
+}
+
+impl<L> RelinkProviderCommandHandler<L>
+where
+    L: LinkProviderUseCase + ?Sized,
+{
+    /// Create a new relink provider command handler
+    pub fn new(link_provider_use_case: Arc<L>) -> Self {
+        Self {
+            link_provider_use_case,
+        }
+    }
+}
+
+#[async_trait]
+impl<L> CommandHandler<RelinkProviderCommand> for RelinkProviderCommandHandler<L>
+where
+    L: LinkProviderUseCase + Send + Sync + ?Sized,
+{
+    async fn handle(
+        &self,
+        command: RelinkProviderCommand,
+    ) -> Result<LinkProviderResponse, CommandError> {
+        self.link_provider_use_case
+            .relink_provider(
+                command.user_id,
+                command.provider,
+                command.code,
+                command.redirect_uri,
+            )
+            .await
+            .map_err(|e| LinkProviderErrorMapper.map_error(Box::new(e)))
+    }
+}
+
+/// Generate OAuth start URL for relinking command
+#[derive(Debug, Clone)]
+pub struct GenerateRelinkProviderStartUrlCommand {
+    /// Command instance ID
+    pub command_id: Uuid,
+    /// OAuth provider
+    pub provider: Provider,
+}
+
+impl GenerateRelinkProviderStartUrlCommand {
+    /// Create a new generate relink provider start URL command
+    pub fn new(provider: Provider) -> Self {
+        Self {
+            command_id: Uuid::new_v4(),
+            provider,
+        }
+    }
+}
+
+#[async_trait]
+impl Command for GenerateRelinkProviderStartUrlCommand {
+    type Result = String;
+
+    fn command_type(&self) -> &'static str {
+        "generate_relink_provider_start_url"
+    }
+
+    fn command_id(&self) -> Uuid {
+        self.command_id
+    }
+
+    fn validate(&self) -> Result<(), CommandError> {
+        // Provider validation is handled by the enum itself
+        Ok(())
+    }
+}
+
+/// Generate relink provider start URL command handler
+pub struct GenerateRelinkProviderStartUrlCommandHandler<L>
+where
+    L: LinkProviderUseCase + ?Sized,
+{
+    link_provider_use_case: Arc<L>,
+}
+
+impl<L> GenerateRelinkProviderStartUrlCommandHandler<L>
+where
+    L: LinkProviderUseCase + ?Sized,
+{
+    /// Create a new generate relink provider start URL command handler
+    pub fn new(link_provider_use_case: Arc<L>) -> Self {
+        Self {
+            link_provider_use_case,
+        }
+    }
+}
+
+#[async_trait]
+impl<L> CommandHandler<GenerateRelinkProviderStartUrlCommand>
+    for GenerateRelinkProviderStartUrlCommandHandler<L>
+where
+    L: LinkProviderUseCase + Send + Sync + ?Sized,
+{
+    async fn handle(
+        &self,
+        command: GenerateRelinkProviderStartUrlCommand,
+    ) -> Result<String, CommandError> {
+        self.link_provider_use_case
+            .generate_relink_start_url(command.provider)
+            .map_err(|e| LinkProviderErrorMapper.map_error(Box::new(e)))
+    }
+}

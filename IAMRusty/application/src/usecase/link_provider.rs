@@ -45,8 +45,20 @@ pub trait LinkProviderUseCase: Send + Sync {
     /// Generate OAuth authorization URL for link provider flow
     fn generate_start_url(&self, provider: Provider) -> Result<String, LinkProviderError>;
 
+    /// Generate OAuth authorization URL for relink provider flow
+    fn generate_relink_start_url(&self, provider: Provider) -> Result<String, LinkProviderError>;
+
     /// Link a new OAuth provider to an existing authenticated user
     async fn link_provider(
+        &self,
+        user_id: Uuid,
+        provider: Provider,
+        code: String,
+        redirect_uri: String,
+    ) -> Result<LinkProviderResponse, LinkProviderError>;
+
+    /// Relink an existing OAuth provider to replace the existing token
+    async fn relink_provider(
         &self,
         user_id: Uuid,
         provider: Provider,
@@ -142,6 +154,11 @@ where
         Ok(auth_service.generate_authorize_url())
     }
 
+    fn generate_relink_start_url(&self, provider: Provider) -> Result<String, LinkProviderError> {
+        let auth_service = self.auth_factory.get_oauth_service(provider);
+        Ok(auth_service.generate_relink_authorize_url())
+    }
+
     async fn link_provider(
         &self,
         user_id: Uuid,
@@ -158,6 +175,33 @@ where
         let result = self
             .provider_link_service
             .link_provider_to_user(user_id, provider, profile.id.clone(), tokens, profile)
+            .await?;
+
+        // Step 3: Convert domain result to use case response
+        Ok(LinkProviderResponse {
+            user: result.user,
+            emails: result.emails,
+            new_email_added: result.new_email_added,
+            new_email: result.new_email,
+        })
+    }
+
+    async fn relink_provider(
+        &self,
+        user_id: Uuid,
+        provider: Provider,
+        code: String,
+        redirect_uri: String,
+    ) -> Result<LinkProviderResponse, LinkProviderError> {
+        // Step 1: Exchange code for tokens and profile
+        let (tokens, profile) = self
+            .fetch_provider_profile(provider, code, redirect_uri)
+            .await?;
+
+        // Step 2: Use domain service to relink (replace existing tokens)
+        let result = self
+            .provider_link_service
+            .relink_provider_for_user(user_id, provider, profile.id.clone(), tokens, profile)
             .await?;
 
         // Step 3: Convert domain result to use case response

@@ -5,7 +5,7 @@ use crate::{
 use application::command::{
     oauth_login::{GenerateOAuthStartUrlCommand, OAuthLoginCommand},
     password_login::PasswordLoginCommand,
-    provider::{GenerateLinkProviderStartUrlCommand, GetProviderTokenCommand, LinkProviderCommand},
+    provider::{GenerateLinkProviderStartUrlCommand, GetProviderTokenCommand, LinkProviderCommand, RevokeProviderTokenCommand, RelinkProviderCommand, GenerateRelinkProviderStartUrlCommand},
     registration::{CheckUsernameCommand, CompleteRegistrationCommand},
     resend_verification_email::ResendVerificationEmailCommand,
     signup::SignupCommand,
@@ -892,4 +892,187 @@ pub async fn check_username(
         available: response.available,
         suggestions: response.suggestions.unwrap_or_else(Vec::new),
     }))
+}
+
+/// Revoke provider token response
+#[derive(Debug, Serialize)]
+pub struct RevokeProviderTokenResponse {
+    /// Success message
+    pub message: String,
+}
+
+/// Handle revoke provider token request
+pub async fn revoke_provider_token(
+    State(state): State<AppState>,
+    Valid(Path(provider_path)): Valid<Path<ProviderPath>>,
+    auth_user: AuthUser,
+) -> Result<Json<RevokeProviderTokenResponse>, AuthError> {
+    debug!(
+        "Revoke provider token request for provider: {} and user: {}",
+        provider_path.provider_name, auth_user.user_id
+    );
+
+    // Parse the provider
+    let provider = match provider_path.provider_name.to_lowercase().as_str() {
+        "github" => Provider::GitHub,
+        "gitlab" => Provider::GitLab,
+        _ => return Err(AuthError::oauth_invalid_provider("revoke_provider_token")),
+    };
+
+    let command = RevokeProviderTokenCommand::new(auth_user.user_id, provider);
+
+    let context = CommandContext::new()
+        .with_user_id(auth_user.user_id)
+        .with_metadata(
+            "operation".to_string(),
+            "revoke_provider_token".to_string(),
+        )
+        .with_metadata("provider".to_string(), provider.as_str().to_string());
+
+    state
+        .command_service
+        .execute(command, context)
+        .await
+        .map_err(|e| {
+            error!("Failed to revoke provider token: {}", e);
+            AuthError::provider_token_failed(&e, provider.as_str())
+        })?;
+
+    Ok(Json(RevokeProviderTokenResponse {
+        message: format!("Provider {} token revoked successfully", provider.as_str()),
+    }))
+}
+
+/// OAuth start response for generating authorization URLs
+#[derive(Debug, Serialize)]
+pub struct OAuthStartResponse {
+    /// Authorization URL to redirect user to
+    pub auth_url: String,
+}
+
+/// Relink provider callback response
+#[derive(Debug, Serialize)]
+pub struct RelinkProviderCallbackResponse {
+    /// User data
+    pub user: UserData,
+    /// All user emails (including any newly added)
+    pub emails: Vec<EmailData>,
+    /// Whether a new email was added during relinking
+    pub new_email_added: bool,
+    /// The new email that was added (if any)
+    pub new_email: Option<String>,
+}
+
+/// Handle relink provider callback
+pub async fn relink_provider_callback(
+    State(state): State<AppState>,
+    Valid(Path(provider_path)): Valid<Path<ProviderPath>>,
+    Query(callback_request): Query<OAuthCallbackQuery>,
+    auth_user: AuthUser,
+) -> Result<Json<RelinkProviderCallbackResponse>, AuthError> {
+    debug!(
+        "Relink provider callback for provider: {} and user: {}",
+        provider_path.provider_name, auth_user.user_id
+    );
+
+    // Parse the provider
+    let provider = match provider_path.provider_name.to_lowercase().as_str() {
+        "github" => Provider::GitHub,
+        "gitlab" => Provider::GitLab,
+        _ => return Err(AuthError::oauth_invalid_provider("relink_provider")),
+    };
+
+    // Build redirect URI dynamically - use correct port 8081 for tests
+    let redirect_uri = format!(
+        "http://127.0.0.1:8081/api/auth/{}/relink-callback",
+        provider.as_str()
+    );
+
+    let code = callback_request.code.ok_or_else(|| {
+        AuthError::oauth_invalid_provider("relink_provider - missing code")
+    })?;
+
+    let command = RelinkProviderCommand::new(
+        auth_user.user_id,
+        provider,
+        code,
+        redirect_uri,
+    );
+
+    let context = CommandContext::new()
+        .with_user_id(auth_user.user_id)
+        .with_metadata(
+            "operation".to_string(),
+            "relink_provider_callback".to_string(),
+        )
+        .with_metadata("provider".to_string(), provider.as_str().to_string());
+
+    let result = state
+        .command_service
+        .execute(command, context)
+        .await
+        .map_err(|e| {
+            error!("Failed to relink provider: {}", e);
+            AuthError::link_provider_failed(&e, provider.as_str())
+        })?;
+
+    // Find primary email for user data
+    let primary_email = result.emails.iter()
+        .find(|e| e.is_primary)
+        .map(|e| e.email.clone());
+
+    Ok(Json(RelinkProviderCallbackResponse {
+        user: UserData {
+            id: result.user.id.to_string(),
+            username: result.user.username,
+            email: primary_email,
+            avatar_url: result.user.avatar_url,
+        },
+        emails: result.emails.into_iter().map(|e| EmailData {
+            id: e.id.to_string(),
+            email: e.email,
+            is_primary: e.is_primary,
+            is_verified: e.is_verified,
+        }).collect(),
+        new_email_added: result.new_email_added,
+        new_email: result.new_email,
+    }))
+}
+
+/// Handle generate relink provider start URL
+pub async fn generate_relink_provider_start_url(
+    State(state): State<AppState>,
+    Valid(Path(provider_path)): Valid<Path<ProviderPath>>,
+) -> Result<Json<OAuthStartResponse>, AuthError> {
+    debug!(
+        "Generate relink provider start URL for provider: {}",
+        provider_path.provider_name
+    );
+
+    // Parse the provider
+    let provider = match provider_path.provider_name.to_lowercase().as_str() {
+        "github" => Provider::GitHub,
+        "gitlab" => Provider::GitLab,
+        _ => return Err(AuthError::oauth_invalid_provider("generate_relink_provider_start_url")),
+    };
+
+    let command = GenerateRelinkProviderStartUrlCommand::new(provider);
+
+    let context = CommandContext::new()
+        .with_metadata(
+            "operation".to_string(),
+            "generate_relink_provider_start_url".to_string(),
+        )
+        .with_metadata("provider".to_string(), provider.as_str().to_string());
+
+    let auth_url = state
+        .command_service
+        .execute(command, context)
+        .await
+        .map_err(|e| {
+            error!("Failed to generate relink provider start URL: {}", e);
+            AuthError::oauth_start_failed(&e, provider.as_str())
+        })?;
+
+    Ok(Json(OAuthStartResponse { auth_url }))
 }

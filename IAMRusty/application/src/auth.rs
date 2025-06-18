@@ -29,6 +29,9 @@ pub trait OAuthService: Send + Sync {
     /// Generate OAuth authorization URL
     fn generate_authorize_url(&self) -> String;
 
+    /// Generate OAuth authorization URL for relink flow (different redirect URI)
+    fn generate_relink_authorize_url(&self) -> String;
+
     /// Exchange an authorization code for access tokens and user profile
     async fn exchange_code(
         &self,

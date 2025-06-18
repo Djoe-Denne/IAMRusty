@@ -90,6 +90,56 @@ where
         })
     }
 
+    /// Relink a provider for an existing user (replace existing tokens)
+    pub async fn relink_provider_for_user(
+        &self,
+        user_id: Uuid,
+        provider: Provider,
+        provider_user_id: String,
+        provider_tokens: ProviderTokens,
+        provider_profile: ProviderUserProfile,
+    ) -> Result<ProviderLinkResult, DomainError>
+    where
+        <UR as UserRepository>::Error: std::error::Error + Send + Sync + 'static,
+        <UER as UserEmailRepository>::Error: std::error::Error + Send + Sync + 'static,
+        <TR as TokenRepository>::Error: std::error::Error + Send + Sync + 'static,
+    {
+        // Step 1: Verify the user exists
+        let user = self.load_user(user_id).await?;
+
+        // Step 2: Verify user already has this provider linked
+        let existing_tokens = self
+            .token_repo
+            .get_provider_tokens(user_id, provider)
+            .await
+            .map_err(|e| DomainError::RepositoryError(e.to_string()))?;
+
+        if existing_tokens.is_none() {
+            return Err(DomainError::BusinessRuleViolation(
+                "Cannot relink provider that is not currently linked".to_string(),
+            ));
+        }
+
+        // Step 3: Handle email from provider (don't enforce uniqueness for relink)
+        let (new_email_added, new_email) = self
+            .handle_provider_email_for_relink(user_id, provider, provider_profile.email)
+            .await?;
+
+        // Step 4: Save provider tokens (this will replace existing ones)
+        self.save_provider_tokens(user_id, provider, provider_user_id, provider_tokens)
+            .await?;
+
+        // Step 5: Get all user emails for response
+        let emails = self.get_user_emails(user_id).await?;
+
+        Ok(ProviderLinkResult {
+            user,
+            emails,
+            new_email_added,
+            new_email,
+        })
+    }
+
     /// Verify user exists and return the user
     async fn load_user(&self, user_id: Uuid) -> Result<User, DomainError>
     where
@@ -161,6 +211,51 @@ where
                 Err(DomainError::BusinessRuleViolation(
                     "Provider email is already associated with another user".to_string(),
                 ))
+            }
+            Some(_) => Ok((false, None)), // Email already exists for this user
+            None => {
+                // Create new secondary email
+                let user_email = UserEmail::new_secondary(user_id, email.clone(), false);
+                self.user_email_repo
+                    .create(user_email)
+                    .await
+                    .map_err(|e| DomainError::RepositoryError(e.to_string()))?;
+                Ok((true, Some(email)))
+            }
+        }
+    }
+
+    /// Handle email from provider for relink - more lenient validation
+    async fn handle_provider_email_for_relink(
+        &self,
+        user_id: Uuid,
+        provider: Provider,
+        email: Option<String>,
+    ) -> Result<(bool, Option<String>), DomainError>
+    where
+        <UER as UserEmailRepository>::Error: std::error::Error + Send + Sync + 'static,
+    {
+        let Some(email) = email else {
+            return Ok((false, None));
+        };
+
+        let existing_email = self
+            .user_email_repo
+            .find_by_email(&email)
+            .await
+            .map_err(|e| DomainError::RepositoryError(e.to_string()))?;
+
+        match existing_email {
+            Some(existing) if existing.user_id != user_id => {
+                tracing::warn!(
+                    "Email {} from provider {} already belongs to user {}, skipping for relink to user {}",
+                    email,
+                    provider.as_str(),
+                    existing.user_id,
+                    user_id
+                );
+                // For relink, we don't fail if email belongs to another user
+                Ok((false, None))
             }
             Some(_) => Ok((false, None)), // Email already exists for this user
             None => {

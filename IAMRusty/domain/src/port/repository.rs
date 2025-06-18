@@ -170,6 +170,13 @@ pub trait TokenWriteRepository {
         provider_user_id: String,
         tokens: ProviderTokens,
     ) -> Result<(), Self::Error>;
+
+    /// Delete provider tokens for a user and provider
+    async fn delete_provider_tokens(
+        &self,
+        user_id: Uuid,
+        provider: Provider,
+    ) -> Result<(), Self::Error>;
 }
 
 /// Combined read and write operations for OAuth2 tokens

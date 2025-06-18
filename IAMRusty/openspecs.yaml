@@ -1008,6 +1008,154 @@ paths:
         "422":
           description: Unsupported provider
 
+  /internal/{provider}/revoke:
+    delete:
+      summary: Revoke user's provider access token
+      description: |
+        Revokes (deletes) the OAuth2 access token for the authenticated user and specified provider.
+        This permanently removes the user's authorization for the specified provider.
+        
+        **Idempotent**: Multiple calls to revoke the same token will return appropriate responses.
+        First call returns 200, subsequent calls return 404 (no token to revoke).
+      parameters:
+        - in: path
+          name: provider
+          required: true
+          description: OAuth2 provider name (github, gitlab). Case-insensitive.
+          schema:
+            type: string
+            enum: [github, gitlab]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Provider access token revoked successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: {type: string}
+              example:
+                message: "Provider GitHub token revoked successfully"
+        "401":
+          description: Invalid or expired JWT token / missing Authorization header
+        "404":
+          description: No token available for the user and provider / user not found
+        "422":
+          description: Unsupported provider
+
+  /api/auth/{provider}/relink-start:
+    get:
+      summary: Generate OAuth authorization URL for relinking provider
+      description: |
+        Generates an OAuth2 authorization URL for relinking an existing provider to the user's account.
+        This replaces the existing provider token with new credentials.
+        
+        **Use Case**: When a user wants to update their provider authorization or when their existing token has been revoked.
+        
+        **Note**: This endpoint does not require authentication - it simply generates the authorization URL.
+        The actual relinking happens in the callback endpoint which requires authentication.
+      parameters:
+        - in: path
+          name: provider
+          required: true
+          description: OAuth2 provider name (github, gitlab). Case-insensitive.
+          schema:
+            type: string
+            enum: [github, gitlab]
+      responses:
+        "200":
+          description: Authorization URL for provider relinking
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  auth_url: {type: string}
+              example:
+                auth_url: "https://github.com/login/oauth/authorize?client_id=..."
+        "422":
+          description: Unsupported provider
+
+  /api/auth/{provider}/relink-callback:
+    get:
+      summary: Handle OAuth callback for provider relinking
+      description: |
+        Handles the OAuth2 callback for relinking a provider to the authenticated user's account.
+        This replaces the existing provider token with the new authorization.
+        
+        **Security**: Requires JWT authentication to ensure only the token owner can relink their provider.
+        
+        **Business Rule**: The provider must already be linked to the user's account. To link a new provider,
+        use the standard `/api/auth/{provider}/callback` endpoint instead.
+      parameters:
+        - in: path
+          name: provider
+          required: true
+          description: OAuth2 provider name (github, gitlab). Case-insensitive.
+          schema:
+            type: string
+            enum: [github, gitlab]
+        - in: query
+          name: code
+          required: true
+          description: Authorization code from OAuth provider
+          schema:
+            type: string
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Provider successfully relinked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    type: object
+                    properties:
+                      id: {type: string}
+                      username: {type: string}
+                      email: {type: string}
+                      avatar_url: {type: string, nullable: true}
+                  emails:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: {type: string}
+                        email: {type: string}
+                        is_primary: {type: boolean}
+                        is_verified: {type: boolean}
+                  new_email_added: {type: boolean}
+                  new_email: {type: string, nullable: true}
+              example:
+                user:
+                  id: "123e4567-e89b-12d3-a456-426614174000"
+                  username: "john_doe"
+                  email: "john@example.com"
+                  avatar_url: "https://github.com/johndoe.png"
+                emails:
+                  - id: "email_1"
+                    email: "john@example.com"
+                    is_primary: true
+                    is_verified: true
+                new_email_added: false
+                new_email: null
+        "401":
+          description: Invalid or expired JWT token / missing Authorization header
+        "422":
+          description: |
+            Validation error or business rule violation:
+            - Unsupported provider
+            - Missing authorization code
+            - Provider not currently linked to user
+            - OAuth flow error
+        "500":
+          description: Internal server error during OAuth flow
+
 components:
   securitySchemes:
     bearerAuth:

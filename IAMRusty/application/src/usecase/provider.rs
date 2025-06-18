@@ -59,6 +59,13 @@ pub trait ProviderUseCase: Send + Sync {
         user_id: Uuid,
         provider: Provider,
     ) -> Result<ProviderTokenResponse, ProviderError>;
+
+    /// Revoke provider token for authenticated user
+    async fn revoke_provider_token(
+        &self,
+        user_id: Uuid,
+        provider: Provider,
+    ) -> Result<(), ProviderError>;
 }
 
 /// Provider use case implementation
@@ -101,28 +108,47 @@ where
         user_id: Uuid,
         provider: Provider,
     ) -> Result<ProviderTokenResponse, ProviderError> {
-        // Use the auth service to get provider token
-        let tokens = self
-            .auth_service
-            .get_provider_token(&user_id.to_string(), provider.as_str())
+        self.auth_service
+            .get_provider_token(user_id, provider)
+            .await
+            .map(Into::into)
+            .map_err(|e| match e {
+                domain::error::DomainError::UserNotFound => ProviderError::UserNotFound,
+                domain::error::DomainError::ProviderNotSupported(p) => {
+                    ProviderError::ProviderNotSupported(p)
+                }
+                domain::error::DomainError::NoTokenForProvider => ProviderError::NoTokenForProvider,
+                domain::error::DomainError::RepositoryError(msg) => {
+                    ProviderError::DbError(Box::new(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        msg,
+                    )))
+                }
+                _ => ProviderError::AuthError(e.to_string()),
+            })
+    }
+
+    async fn revoke_provider_token(
+        &self,
+        user_id: Uuid,
+        provider: Provider,
+    ) -> Result<(), ProviderError> {
+        self.auth_service
+            .revoke_provider_token(user_id, provider)
             .await
             .map_err(|e| match e {
                 domain::error::DomainError::UserNotFound => ProviderError::UserNotFound,
-                domain::error::DomainError::ProviderNotSupported(provider) => {
-                    ProviderError::ProviderNotSupported(provider)
+                domain::error::DomainError::ProviderNotSupported(p) => {
+                    ProviderError::ProviderNotSupported(p)
                 }
-                domain::error::DomainError::NoTokenForProvider(_, _) => {
-                    ProviderError::NoTokenForProvider
+                domain::error::DomainError::NoTokenForProvider => ProviderError::NoTokenForProvider,
+                domain::error::DomainError::RepositoryError(msg) => {
+                    ProviderError::DbError(Box::new(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        msg,
+                    )))
                 }
-                domain::error::DomainError::AuthorizationError(msg) => {
-                    ProviderError::AuthError(msg)
-                }
-                domain::error::DomainError::RepositoryError(msg) => ProviderError::DbError(
-                    Box::new(std::io::Error::new(std::io::ErrorKind::Other, msg)),
-                ),
                 _ => ProviderError::AuthError(e.to_string()),
-            })?;
-
-        Ok(ProviderTokenResponse::from(tokens))
+            })
     }
 }

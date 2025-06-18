@@ -77,6 +77,10 @@ where
         self.inner.generate_authorize_url()
     }
 
+    fn generate_relink_authorize_url(&self) -> String {
+        self.inner.generate_relink_authorize_url()
+    }
+
     async fn exchange_code(
         &self,
         code: String,
