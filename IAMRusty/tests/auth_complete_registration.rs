@@ -3,6 +3,7 @@
 mod common;
 #[path = "fixtures/mod.rs"]
 mod fixtures;
+mod utils;
 
 use base64::{Engine as _, engine::general_purpose};
 use common::setup_test_server;
@@ -162,7 +163,7 @@ async fn test_complete_registration_expired_token() {
     let email = "test@example.com".to_string();
     let config = _fixture.config();
 
-    let expired_token = common::jwt_test_utils::create_expired_registration_token_with_encoder(
+            let expired_token = utils::jwt::create_expired_registration_token_with_encoder(
         user_id, email, &config,
     )
     .expect("Failed to create expired registration token");

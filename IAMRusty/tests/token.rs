@@ -3,6 +3,7 @@
 mod common;
 #[path = "fixtures/mod.rs"]
 mod fixtures;
+mod utils;
 
 use chrono::{Duration, Utc};
 use common::{create_test_client, setup_test_server};
@@ -13,28 +14,8 @@ use sea_orm::{ConnectionTrait, DatabaseBackend, Statement};
 use serde_json::{Value, json};
 use serial_test::serial;
 use uuid::Uuid;
-
-/// Helper function to count entities in database
-async fn count_entities(
-    db: std::sync::Arc<sea_orm::DatabaseConnection>,
-    table: &str,
-) -> Result<i64, sea_orm::DbErr> {
-    let count: i64 = db
-        .query_one(Statement::from_string(
-            DatabaseBackend::Postgres,
-            format!("SELECT COUNT(*) as count FROM {}", table),
-        ))
-        .await?
-        .unwrap()
-        .try_get("", "count")?;
-    Ok(count)
-}
-
-/// Helper function to verify JWT token structure (basic validation)
-fn verify_jwt_structure(token: &str) -> bool {
-    let parts: Vec<&str> = token.split('.').collect();
-    parts.len() == 3 && !parts[0].is_empty() && !parts[1].is_empty() && !parts[2].is_empty()
-}
+use utils::jwt::JwtTestUtils;
+use utils::auth::AuthTestUtils;
 
 /// Helper function to create a test refresh token in the database
 async fn create_test_refresh_token(
@@ -152,7 +133,7 @@ async fn test_refresh_token_success_with_valid_refresh_token() {
 
     let access_token = response_json["access_token"].as_str().unwrap();
     assert!(
-        verify_jwt_structure(access_token),
+        JwtTestUtils::verify_jwt_structure(access_token),
         "Access token should have valid JWT structure"
     );
 
@@ -1087,7 +1068,7 @@ async fn test_refresh_token_response_format_matches_openapi_spec() {
     let access_token = response_json["access_token"].as_str().unwrap();
     assert!(!access_token.is_empty(), "access_token should not be empty");
     assert!(
-        verify_jwt_structure(access_token),
+        JwtTestUtils::verify_jwt_structure(access_token),
         "access_token should be valid JWT"
     );
 
@@ -1138,7 +1119,7 @@ async fn test_refresh_token_database_cleanup_on_rotation() {
     }
 
     // Count initial tokens
-    let initial_count = count_entities(db.clone(), "refresh_tokens")
+    let initial_count = AuthTestUtils::count_entities(db.clone(), "refresh_tokens")
         .await
         .expect("Failed to count tokens");
 
@@ -1159,7 +1140,7 @@ async fn test_refresh_token_database_cleanup_on_rotation() {
     let new_token = response_json["refresh_token"].as_str().unwrap();
 
     // Count tokens after refresh
-    let final_count = count_entities(db.clone(), "refresh_tokens")
+    let final_count = AuthTestUtils::count_entities(db.clone(), "refresh_tokens")
         .await
         .expect("Failed to count tokens");
 
@@ -1265,7 +1246,7 @@ async fn test_refresh_token_multiple_rotations_in_sequence() {
     }
 
     // ✅ Only the final token should exist in database
-    let final_count = count_entities(db.clone(), "refresh_tokens")
+    let final_count = AuthTestUtils::count_entities(db.clone(), "refresh_tokens")
         .await
         .expect("Failed to count tokens");
     assert_eq!(

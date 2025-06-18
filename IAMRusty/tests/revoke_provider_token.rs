@@ -2,11 +2,13 @@ use serial_test::serial;
 // Include common test utilities and fixtures
 mod common;
 mod fixtures;
+mod utils;
 
 use serde_json::Value;
 use uuid::Uuid;
 
-use common::{setup_test_server, jwt_test_utils::{create_valid_jwt_token_with_encoder, create_expired_jwt_token_with_encoder, create_invalid_jwt_token_with_encoder}};
+use common::setup_test_server;
+use utils::jwt::{create_valid_jwt_token_with_encoder, create_expired_jwt_token_with_encoder, create_invalid_jwt_token_with_encoder};
 use fixtures::DbFixtures;
 
 // 🔐 Internal Provider Token Revoke Endpoint Tests

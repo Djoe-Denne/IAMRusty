@@ -3,6 +3,7 @@
 mod common;
 #[path = "fixtures/mod.rs"]
 mod fixtures;
+mod utils;
 
 use base64::{Engine as _, engine::general_purpose};
 use common::setup_test_server;
@@ -12,56 +13,9 @@ use sea_orm::{ConnectionTrait, DatabaseBackend, Statement};
 use serde_json::Value;
 use serial_test::serial;
 use uuid::Uuid;
-
-/// Helper function to create a valid OAuth state for login operation
-fn create_login_state() -> String {
-    let state_data = serde_json::json!({
-        "operation": {
-            "type": "login"
-        },
-        "nonce": Uuid::new_v4().to_string()
-    });
-    general_purpose::URL_SAFE_NO_PAD.encode(state_data.to_string())
-}
-
-/// Helper function to create a valid OAuth state for link operation
-fn create_link_state(user_id: Uuid) -> String {
-    let state_data = serde_json::json!({
-        "operation": {
-            "type": "link",
-            "user_id": user_id.to_string()
-        },
-        "nonce": Uuid::new_v4().to_string()
-    });
-    general_purpose::URL_SAFE_NO_PAD.encode(state_data.to_string())
-}
-
-/// Helper function to create an invalid OAuth state
-fn create_invalid_state() -> String {
-    "invalid_base64_state".to_string()
-}
-
-/// Helper function to count entities in database
-async fn count_entities(
-    db: std::sync::Arc<sea_orm::DatabaseConnection>,
-    table: &str,
-) -> Result<i64, sea_orm::DbErr> {
-    let count: i64 = db
-        .query_one(Statement::from_string(
-            DatabaseBackend::Postgres,
-            format!("SELECT COUNT(*) as count FROM {}", table),
-        ))
-        .await?
-        .unwrap()
-        .try_get("", "count")?;
-    Ok(count)
-}
-
-/// Helper function to verify JWT token structure (basic validation)
-fn verify_jwt_structure(token: &str) -> bool {
-    let parts: Vec<&str> = token.split('.').collect();
-    parts.len() == 3 && !parts[0].is_empty() && !parts[1].is_empty() && !parts[2].is_empty()
-}
+use utils::oauth::OAuthTestUtils;
+use utils::jwt::JwtTestUtils;
+use utils::auth::AuthTestUtils;
 
 #[tokio::test]
 #[serial]
@@ -78,7 +32,7 @@ async fn test_oauth_callback_gitlab_successful_flow_creates_jwt_for_new_user() {
     gitlab.setup_successful_user_profile_alice().await;
 
     // Create valid state for login operation
-    let state = create_login_state();
+    let state = OAuthTestUtils::create_login_state();
 
     // Make callback request with authorization code
     let response = client
@@ -107,7 +61,7 @@ async fn test_oauth_callback_gitlab_successful_flow_creates_jwt_for_new_user() {
         .as_str()
         .expect("Response should contain registration token");
     assert!(
-        verify_jwt_structure(registration_token),
+        JwtTestUtils::verify_jwt_structure(registration_token),
         "Registration token should have valid structure"
     );
 
@@ -151,7 +105,7 @@ async fn test_oauth_callback_links_external_account_with_valid_link_state() {
     github.setup_successful_user_profile_arthur().await;
 
     // Create valid state for link operation with existing user ID
-    let state = create_link_state(existing_user.id());
+    let state = OAuthTestUtils::create_link_state(existing_user.id());
 
     // Make callback request for linking
     let response = client
@@ -179,7 +133,7 @@ async fn test_oauth_callback_links_external_account_with_valid_link_state() {
     );
 
     // ✅ Should NOT create new user (should still be 1)
-    let user_count = count_entities(db.clone(), "users")
+    let user_count = AuthTestUtils::count_entities(db.clone(), "users")
         .await
         .expect("Failed to count users");
     assert_eq!(
@@ -188,7 +142,7 @@ async fn test_oauth_callback_links_external_account_with_valid_link_state() {
     );
 
     // ✅ Should create provider token linked to existing user
-    let token_count = count_entities(db.clone(), "provider_tokens")
+    let token_count = AuthTestUtils::count_entities(db.clone(), "provider_tokens")
         .await
         .expect("Failed to count provider tokens");
     assert_eq!(token_count, 1, "Should create exactly one provider token");
@@ -270,7 +224,7 @@ async fn test_oauth_callback_associates_new_provider_for_same_user() {
     gitlab.setup_successful_user_profile_alice().await; // Using Alice profile for GitLab
 
     // Create valid state for link operation
-    let state = create_link_state(existing_user.id());
+            let state = OAuthTestUtils::create_link_state(existing_user.id());
 
     // Make callback request to associate GitLab with existing user
     let response = client
@@ -292,13 +246,13 @@ async fn test_oauth_callback_associates_new_provider_for_same_user() {
     assert_eq!(response_json["operation"], "link");
 
     // ✅ Should still have only one user
-    let user_count = count_entities(db.clone(), "users")
+    let user_count = AuthTestUtils::count_entities(db.clone(), "users")
         .await
         .expect("Failed to count users");
     assert_eq!(user_count, 1, "Should still have exactly one user");
 
     // ✅ Should now have two provider tokens (GitHub + GitLab)
-    let token_count = count_entities(db.clone(), "provider_tokens")
+    let token_count = AuthTestUtils::count_entities(db.clone(), "provider_tokens")
         .await
         .expect("Failed to count provider tokens");
     assert_eq!(
@@ -406,7 +360,7 @@ async fn test_oauth_callback_prevents_linking_provider_already_bound_to_another_
     github.setup_successful_user_profile_arthur().await;
 
     // Create valid state for link operation with second user ID
-    let state = create_link_state(second_user.id());
+            let state = OAuthTestUtils::create_link_state(second_user.id());
 
     // Attempt to link Arthur's GitHub account to second user (should fail)
     let response = client
@@ -441,13 +395,13 @@ async fn test_oauth_callback_prevents_linking_provider_already_bound_to_another_
     );
 
     // ✅ Should still have exactly two users (no new users created)
-    let user_count = count_entities(db.clone(), "users")
+    let user_count = AuthTestUtils::count_entities(db.clone(), "users")
         .await
         .expect("Failed to count users");
     assert_eq!(user_count, 2, "Should still have exactly two users");
 
     // ✅ Should still have exactly one provider token (no new tokens created)
-    let token_count = count_entities(db.clone(), "provider_tokens")
+    let token_count = AuthTestUtils::count_entities(db.clone(), "provider_tokens")
         .await
         .expect("Failed to count provider tokens");
     assert_eq!(
@@ -502,7 +456,7 @@ async fn test_oauth_callback_fails_on_invalid_authorization_code() {
     github.setup_failed_token_exchange_invalid_code().await;
 
     // Create valid state
-    let state = create_login_state();
+    let state = OAuthTestUtils::create_login_state();
 
     // Make callback request with invalid authorization code
     let response = client
@@ -538,7 +492,7 @@ async fn test_oauth_callback_fails_on_invalid_authorization_code() {
     );
 
     // ✅ Should not create any users or tokens
-    let user_count = count_entities(db.clone(), "users")
+    let user_count = AuthTestUtils::count_entities(db.clone(), "users")
         .await
         .expect("Failed to count users");
     assert_eq!(
@@ -546,7 +500,7 @@ async fn test_oauth_callback_fails_on_invalid_authorization_code() {
         "Should not create any users for invalid code"
     );
 
-    let token_count = count_entities(db.clone(), "provider_tokens")
+    let token_count = AuthTestUtils::count_entities(db.clone(), "provider_tokens")
         .await
         .expect("Failed to count provider tokens");
     assert_eq!(
@@ -569,7 +523,7 @@ async fn test_oauth_callback_fails_on_expired_authorization_code() {
     github.setup_failed_token_exchange_invalid_code().await; // Using invalid_code as expired_code may not exist
 
     // Create valid state
-    let state = create_login_state();
+    let state = OAuthTestUtils::create_login_state();
 
     // Make callback request with expired authorization code
     let response = client
@@ -605,7 +559,7 @@ async fn test_oauth_callback_fails_on_expired_authorization_code() {
     );
 
     // ✅ Should not create any users or tokens
-    let user_count = count_entities(db.clone(), "users")
+    let user_count = AuthTestUtils::count_entities(db.clone(), "users")
         .await
         .expect("Failed to count users");
     assert_eq!(
@@ -613,7 +567,7 @@ async fn test_oauth_callback_fails_on_expired_authorization_code() {
         "Should not create any users for expired code"
     );
 
-    let token_count = count_entities(db.clone(), "provider_tokens")
+    let token_count = AuthTestUtils::count_entities(db.clone(), "provider_tokens")
         .await
         .expect("Failed to count provider tokens");
     assert_eq!(
@@ -669,7 +623,7 @@ async fn test_oauth_callback_returns_400_on_missing_code_parameter() {
         .expect("Failed to setup test server");
 
     // Create valid state
-    let state = create_login_state();
+    let state = OAuthTestUtils::create_login_state();
 
     // Make callback request without code parameter
     let response = client
@@ -703,7 +657,7 @@ async fn test_oauth_callback_returns_400_on_invalid_state_format() {
         .expect("Failed to setup test server");
 
     // Create invalid state (not base64 encoded JSON)
-    let invalid_state = create_invalid_state();
+    let invalid_state = OAuthTestUtils::create_invalid_state();
 
     // Make callback request with invalid state format
     let response = client
@@ -790,7 +744,7 @@ async fn test_oauth_callback_returns_401_when_provider_refuses_user() {
     github.setup_failed_user_profile_unauthorized().await;
 
     // Create valid state
-    let state = create_login_state();
+    let state = OAuthTestUtils::create_login_state();
 
     // Make callback request where provider refuses user access
     let response = client
@@ -826,7 +780,7 @@ async fn test_oauth_callback_returns_401_when_provider_refuses_user() {
     );
 
     // ✅ Should not create any users or tokens
-    let user_count = count_entities(db.clone(), "users")
+    let user_count = AuthTestUtils::count_entities(db.clone(), "users")
         .await
         .expect("Failed to count users");
     assert_eq!(
@@ -834,7 +788,7 @@ async fn test_oauth_callback_returns_401_when_provider_refuses_user() {
         "Should not create any users when provider refuses"
     );
 
-    let token_count = count_entities(db.clone(), "provider_tokens")
+    let token_count = AuthTestUtils::count_entities(db.clone(), "provider_tokens")
         .await
         .expect("Failed to count provider tokens");
     assert_eq!(
@@ -858,7 +812,7 @@ async fn test_oauth_callback_returns_401_when_provider_rejects_user() {
     github.setup_failed_user_profile_unauthorized().await; // Using unauthorized as account_suspended may not exist
 
     // Create valid state
-    let state = create_login_state();
+    let state = OAuthTestUtils::create_login_state();
 
     // Make callback request where provider rejects user
     let response = client
@@ -894,7 +848,7 @@ async fn test_oauth_callback_returns_401_when_provider_rejects_user() {
     );
 
     // ✅ Should not create any users or tokens
-    let user_count = count_entities(db.clone(), "users")
+    let user_count = AuthTestUtils::count_entities(db.clone(), "users")
         .await
         .expect("Failed to count users");
     assert_eq!(
@@ -902,7 +856,7 @@ async fn test_oauth_callback_returns_401_when_provider_rejects_user() {
         "Should not create any users when provider rejects"
     );
 
-    let token_count = count_entities(db.clone(), "provider_tokens")
+    let token_count = AuthTestUtils::count_entities(db.clone(), "provider_tokens")
         .await
         .expect("Failed to count provider tokens");
     assert_eq!(
@@ -920,7 +874,7 @@ async fn test_oauth_callback_unsupported_provider_returns_422() {
         .expect("Failed to setup test server");
 
     // Create valid state
-    let state = create_login_state();
+    let state = OAuthTestUtils::create_login_state();
 
     // Test unsupported providers
     let unsupported_providers = vec!["facebook", "google", "twitter", "unknown"];
@@ -990,7 +944,7 @@ async fn test_oauth_callback_case_insensitive_providers() {
         }
 
         // Create fresh state for each test
-        let state = create_login_state();
+        let state = OAuthTestUtils::create_login_state();
 
         let response = client
             .get(&format!(

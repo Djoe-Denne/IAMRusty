@@ -1,13 +1,14 @@
 // Include common test utilities and fixtures
 mod common;
 mod fixtures;
+mod utils;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
 use chrono::{Duration, Utc};
-use common::jwt_test_utils::{
+use utils::jwt::{
     create_expired_jwt_token_with_encoder, create_invalid_jwt_token_with_encoder,
     create_valid_jwt_token_with_encoder,
 };

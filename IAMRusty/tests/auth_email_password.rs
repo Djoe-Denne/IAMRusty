@@ -3,6 +3,7 @@
 mod common;
 #[path = "fixtures/mod.rs"]
 mod fixtures;
+mod utils;
 
 use common::setup_test_server;
 use fixtures::DbFixtures;
@@ -12,6 +13,7 @@ use sea_orm::ConnectionTrait;
 use serde_json::{Value, json};
 use serial_test::serial;
 use uuid::Uuid;
+use utils::auth::AuthTestUtils;
 
 // 🔐 Email/Password Authentication Tests
 // 📝 POST /auth/signup

@@ -3,6 +3,7 @@
 mod common;
 #[path = "fixtures/mod.rs"]
 mod fixtures;
+mod utils;
 
 use chrono::{Duration, Utc};
 use common::{create_test_client, setup_test_server};
@@ -14,19 +15,19 @@ use uuid::Uuid;
 
 /// Create a valid JWT token for testing using the proper JWT service
 fn create_valid_jwt_token(user_id: Uuid, config: &configuration::AppConfig) -> String {
-    common::jwt_test_utils::create_valid_jwt_token_with_encoder(user_id, config)
+    utils::jwt::create_valid_jwt_token_with_encoder(user_id, config)
         .expect("Failed to create valid JWT token")
 }
 
 /// Create an expired JWT token for testing using the proper JWT service
 fn create_expired_jwt_token(user_id: Uuid, config: &configuration::AppConfig) -> String {
-    common::jwt_test_utils::create_expired_jwt_token_with_encoder(user_id, config)
+    utils::jwt::create_expired_jwt_token_with_encoder(user_id, config)
         .expect("Failed to create expired JWT token")
 }
 
 /// Create an invalid JWT token for testing using the proper JWT service
 fn create_invalid_signature_jwt_token(user_id: Uuid, config: &configuration::AppConfig) -> String {
-    common::jwt_test_utils::create_invalid_jwt_token_with_encoder(user_id, config)
+    utils::jwt::create_invalid_jwt_token_with_encoder(user_id, config)
         .expect("Failed to create invalid JWT token")
 }
 

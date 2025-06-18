@@ -3,9 +3,10 @@
 mod common;
 #[path = "fixtures/mod.rs"]
 mod fixtures;
+mod utils;
 
 use base64::{Engine as _, engine::general_purpose};
-use common::jwt_test_utils::create_expired_registration_token_with_encoder;
+use utils::jwt::create_expired_registration_token_with_encoder;
 use common::setup_test_server;
 use fixtures::{DbFixtures, GitHubFixtures};
 use sea_orm::ConnectionTrait;
