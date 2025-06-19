@@ -1,4 +1,5 @@
-pub mod common;
+// Common DB fixtures are now in rustycog-testing
+// pub mod common;
 pub mod email_verification;
 pub mod password_reset_tokens;
 pub mod provider_tokens;

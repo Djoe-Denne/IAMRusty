@@ -1,4 +1,4 @@
-use super::common::{CommittedFixture, DbFixture, TestData};
+use rustycog_testing::db::{CommittedFixture, DbFixture, TestData};
 use chrono::Utc;
 use sea_orm::prelude::DateTimeWithTimeZone;
 use sea_orm::{ActiveModelTrait, ActiveValue, DatabaseConnection, DbErr};
@@ -259,10 +259,4 @@ impl EmailVerificationFixture {
     }
 }
 
-// Add the TestData extension for verification tokens
-impl TestData {
-    /// Generate a verification token
-    pub fn verification_token() -> String {
-        format!("verify_{}", Self::random_string(32))
-    }
-}
+// TestData methods are now available through rustycog_testing

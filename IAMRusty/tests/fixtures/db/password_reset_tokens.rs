@@ -1,4 +1,4 @@
-use super::common::{CommittedFixture, DbFixture, TestData};
+use rustycog_testing::db::{CommittedFixture, DbFixture, TestData};
 use chrono::{DateTime, Utc};
 use domain::entity::password_reset_token::PasswordResetToken;
 use sea_orm::{ActiveModelTrait, ActiveValue, DatabaseConnection, DbErr};
@@ -285,9 +285,4 @@ impl PasswordResetTokenFixture {
     }
 }
 
-impl TestData {
-    /// Generate a test password reset token
-    pub fn password_reset_token() -> String {
-        PasswordResetToken::generate_raw_token()
-    }
-} 
+// TestData methods are now available through rustycog_testing 

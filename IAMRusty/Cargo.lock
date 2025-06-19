@@ -2651,6 +2651,7 @@ dependencies = [
  "rdkafka",
  "reqwest 0.12.15",
  "rustycog-events",
+ "rustycog-testing",
  "sea-orm",
  "sea-orm-cli",
  "sea-orm-migration",
@@ -4740,6 +4741,41 @@ dependencies = [
  "tokio",
  "tracing",
  "uuid",
+]
+
+[[package]]
+name = "rustycog-testing"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "application",
+ "async-trait",
+ "aws-config",
+ "aws-credential-types",
+ "aws-sdk-sqs",
+ "axum-test",
+ "chrono",
+ "configuration",
+ "ctrlc",
+ "domain",
+ "http_server",
+ "infra",
+ "libc",
+ "migration",
+ "rand 0.8.5",
+ "reqwest 0.12.15",
+ "rustycog-core",
+ "sea-orm",
+ "serde",
+ "serde_json",
+ "setup",
+ "testcontainers",
+ "testcontainers-modules",
+ "tokio",
+ "tracing",
+ "url",
+ "uuid",
+ "wiremock",
 ]
 
 [[package]]

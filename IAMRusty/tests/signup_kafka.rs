@@ -1,5 +1,4 @@
 // Include common test utilities and fixtures
-#[path = "common/mod.rs"]
 mod common;
 #[path = "fixtures/mod.rs"]
 mod fixtures;

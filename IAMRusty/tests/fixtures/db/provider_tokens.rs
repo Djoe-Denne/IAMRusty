@@ -1,4 +1,4 @@
-use super::common::{CommittedFixture, DbFixture, TestData};
+use rustycog_testing::db::{CommittedFixture, DbFixture, TestData};
 use chrono::NaiveDateTime;
 use sea_orm::{ActiveModelTrait, ActiveValue, DatabaseConnection, DbErr};
 use std::sync::Arc;

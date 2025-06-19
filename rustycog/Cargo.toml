@@ -7,7 +7,8 @@ members = [
     "rustycog-db",
     "rustycog-events",
     "rustycog-http",
-    "rustycog-config"
+    "rustycog-config",
+    "rustycog-testing"
 ]
 
 [workspace.package]
@@ -60,6 +61,16 @@ testcontainers = { version = "0.23", features = ["blocking"] }
 testcontainers-modules = { version = "0.11", features = ["postgres"] }
 axum-test = "17.3"
 wiremock = "0.6"
+reqwest = "0.12"
+rand = "0.8"
+
+# AWS Dependencies
+aws-config = "1.5"
+aws-credential-types = "1.2"  
+aws-sdk-sqs = "1.40"
+
+# URL parsing
+url = "2.5"
 
 # Macros
 proc-macro2 = "1.0"

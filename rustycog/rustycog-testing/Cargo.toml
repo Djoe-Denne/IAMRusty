@@ -11,4 +11,30 @@ rustycog-core = { path = "../rustycog-core" }
 testcontainers.workspace = true
 testcontainers-modules.workspace = true
 axum-test.workspace = true
-tokio.workspace = true 
+tokio.workspace = true
+async-trait.workspace = true
+anyhow.workspace = true
+chrono.workspace = true
+sea-orm.workspace = true
+uuid.workspace = true
+rand.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+wiremock.workspace = true
+reqwest.workspace = true
+aws-config.workspace = true
+aws-credential-types.workspace = true
+aws-sdk-sqs.workspace = true
+ctrlc = "3.4"
+libc = "0.2"
+url = "2.5"
+
+# Dependencies for IAM application specific imports
+configuration = { path = "../../IAMRusty/configuration" }
+setup = { path = "../../IAMRusty/setup" }
+application = { path = "../../IAMRusty/application" }
+domain = { path = "../../IAMRusty/domain" }
+infra = { path = "../../IAMRusty/infra" }
+http_server = { path = "../../IAMRusty/http" }
+migration = { path = "../../IAMRusty/migration" } 

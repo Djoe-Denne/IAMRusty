@@ -79,3 +79,4 @@ aws-config = "1.0"
 aws-credential-types = "1.0"
 infra = { path = "infra", features = ["test-utils"] }
 rustycog-events = { path = "../rustycog/rustycog-events", features = ["test-utils"] }
+rustycog-testing = { path = "../rustycog/rustycog-testing" }

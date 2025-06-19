@@ -116,5 +116,5 @@ impl Drop for MockServerFixture {
                 debug!("✅ Wiremock mocks cleaned up successfully");
             });
         }
-    }
-}
+          }
+  }

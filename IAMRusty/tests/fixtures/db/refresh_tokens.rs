@@ -1,4 +1,4 @@
-use super::common::{CommittedFixture, DbFixture, TestData};
+use rustycog_testing::db::{CommittedFixture, DbFixture, TestData};
 use chrono::Utc;
 use sea_orm::prelude::DateTimeWithTimeZone;
 use sea_orm::{ActiveModelTrait, ActiveValue, DatabaseConnection, DbErr};

@@ -1,5 +1,5 @@
 // Username Check API Tests
-#[path = "common/mod.rs"]
+
 mod common;
 #[path = "fixtures/mod.rs"]
 mod fixtures;
