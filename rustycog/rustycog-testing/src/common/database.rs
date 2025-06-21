@@ -3,8 +3,8 @@
 //! This module provides a single PostgreSQL container for all tests with table truncation
 //! between tests to ensure test isolation while maintaining performance.
 
-use configuration::{AppConfig, DatabaseConfig};
-use infra::db::DbConnectionPool;
+use rustycog_config::{ConfigLoader, DatabaseConfig, HasDbConfig};
+use rustycog_db::DbConnectionPool;
 use migration::{Migrator, MigratorTrait};
 use sea_orm::{ConnectionTrait, Database, DatabaseConnection, DbErr, Statement};
 use std::sync::Arc;
@@ -151,26 +151,6 @@ impl TestDatabase {
         Ok(tables)
     }
 
-    /// Create a test configuration with the test database URL
-    pub fn create_test_config(&self) -> AppConfig {
-        let mut config = create_base_test_config();
-        // Parse the test database URL and update the config
-        if let Ok(db_config) = DatabaseConfig::from_url(&self.database_url) {
-            config.database = db_config;
-        } else {
-            // Fallback to manual parsing if URL parsing fails
-            // Use the same settings as the loaded config would have
-            config.database = DatabaseConfig::new(
-                "postgres".to_string(),
-                "postgres".to_string(),
-                "localhost".to_string(),
-                0, // Use random port like the config
-                "iam_test".to_string(),
-            );
-        }
-        config
-    }
-
     /// Get the database connection for direct use
     pub fn get_connection(&self) -> Arc<DatabaseConnection> {
         self.connection.clone()
@@ -202,8 +182,7 @@ async fn get_or_create_test_container() -> Result<Arc<TestDatabaseContainer>, Db
     cleanup_existing_container().await;
 
     // Load test configuration to get database settings
-    let config = create_base_test_config();
-    let db_config = &config.database;
+    let db_config = create_base_test_config();
 
     // Determine the port to use
     let host_port = if db_config.port == 0 {
@@ -375,10 +354,11 @@ async fn register_cleanup_handler() {
 }
 
 /// Create a base test configuration
-fn create_base_test_config() -> AppConfig {
+fn create_base_test_config() -> DatabaseConfig 
+{
     // Load configuration from test.toml
     // The RUN_ENV=test environment variable should be set by the justfile
-    configuration::load_config().expect(
+    rustycog_config::load_config_part::<DatabaseConfig>("database").expect(
         "Failed to load test configuration. Make sure RUN_ENV=test is set and config/test.toml exists."
     )
 }
@@ -416,11 +396,6 @@ impl TestFixture {
         self.database.truncate_all_tables().await
     }
 
-    /// Get the test configuration
-    pub fn config(&self) -> AppConfig {
-        self.database.create_test_config()
-    }
-
     /// Cleanup the global test container (stops and removes it)
     pub async fn cleanup_container() -> Result<(), DbErr> {
         let container_mutex = TEST_CONTAINER.get();
@@ -430,7 +405,7 @@ impl TestFixture {
                 info!("Manually cleaning up test database container");
 
                 // Get the container name for fallback cleanup
-                let container_name = "iam-test-db";
+                let container_name = "test-db";
 
                 // Try to unwrap the Arc to get ownership
                 match Arc::try_unwrap(container_arc) {

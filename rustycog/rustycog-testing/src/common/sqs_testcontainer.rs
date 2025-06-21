@@ -6,7 +6,7 @@
 use aws_config::{BehaviorVersion, Region};
 use aws_credential_types::Credentials;
 use aws_sdk_sqs::{Client, Config, types::Message};
-use configuration::SqsConfig;
+use rustycog_config::{QueueConfig, SqsConfig, load_config_part};
 use serde_json::Value;
 use std::sync::Arc;
 use std::sync::OnceLock;
@@ -376,13 +376,13 @@ async fn get_or_create_test_sqs_container()
 
     if let Some(ref container) = *container_guard {
         // If container exists, we still need to load the config to return it
-        let config = configuration::load_config()?;
-        let sqs_config = match &config.queue {
-            configuration::QueueConfig::Sqs(sqs_config) => sqs_config.clone(),
-            configuration::QueueConfig::Kafka(_) => {
+        let queue_config = load_config_part::<QueueConfig>("queue").expect("failed to load queue config");
+        let sqs_config = match &queue_config {
+            QueueConfig::Sqs(sqs_config) => sqs_config.clone(),
+            QueueConfig::Kafka(_) => {
                 return Err("Configuration is set to Kafka, but SQS test container requires SQS configuration. Environment variables may not be set correctly.".into());
             }
-            configuration::QueueConfig::Disabled => {
+            QueueConfig::Disabled => {
                 return Err("Queue is disabled, but SQS test container requires SQS configuration. Environment variables may not be set correctly.".into());
             }
         };
@@ -398,13 +398,13 @@ async fn get_or_create_test_sqs_container()
     SqsConfig::clear_port_cache();
 
     // Load configuration to understand SQS settings
-    let config = configuration::load_config()?;
-    let sqs_config = match &config.queue {
-        configuration::QueueConfig::Sqs(sqs_config) => sqs_config.clone(),
-        configuration::QueueConfig::Kafka(_) => {
+    let queue_config = load_config_part::<QueueConfig>("queue").expect("failed to load queue config");
+    let sqs_config = match &queue_config {
+        QueueConfig::Sqs(sqs_config) => sqs_config.clone(),
+        QueueConfig::Kafka(_) => {
             return Err("Configuration is set to Kafka, but SQS test container requires SQS configuration. Environment variables may not be set correctly.".into());
         }
-        configuration::QueueConfig::Disabled => {
+        QueueConfig::Disabled => {
             return Err("Queue is disabled, but SQS test container requires SQS configuration. Environment variables may not be set correctly.".into());
         }
     };

@@ -9,6 +9,9 @@ license.workspace = true
 [dependencies]
 rustycog-core = { path = "../rustycog-core" }
 rustycog-http = { path = "../rustycog-http" }
+rustycog-db = { path = "../rustycog-db" }
+rustycog-config = { path = "../rustycog-config" }
+rustycog-events = { path = "../rustycog-events" }
 testcontainers.workspace = true
 testcontainers-modules.workspace = true
 axum-test.workspace = true
@@ -33,10 +36,7 @@ libc = "0.2"
 url = "2.5"
 
 # Dependencies for IAM application specific imports
-configuration = { path = "../../IAMRusty/configuration" }
 setup = { path = "../../IAMRusty/setup" }
 application = { path = "../../IAMRusty/application" }
 domain = { path = "../../IAMRusty/domain" }
-infra = { path = "../../IAMRusty/infra" }
-http_server = { path = "../../IAMRusty/http" }
 migration = { path = "../../IAMRusty/migration" } 

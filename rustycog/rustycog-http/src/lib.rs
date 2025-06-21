@@ -12,7 +12,7 @@ pub mod jwt_handler;
 pub use error::{GenericHttpError, ValidationError};
 pub use extractors::ValidatedJson;
 pub use middleware_auth::{AuthUser, auth_middleware};
-pub use builder::{RouteBuilder, ServerConfig, AppState};
+pub use builder::{RouteBuilder, AppState};
 pub use jwt_handler::{UserIdExtractor, UserIdExtractionHandler};
 
 use axum::{http::StatusCode, response::{Json, IntoResponse}};

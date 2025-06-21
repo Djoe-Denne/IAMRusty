@@ -5,7 +5,7 @@ use tracing::info;
 
 use rustycog_http::{AppState, UserIdExtractor};
 use http_server::{create_app_routes};
-use rustycog_http::ServerConfig as HttpServerConfig;
+use configuration::ServerConfig as HttpServerConfig;
 use infra::{
     auth::{GitHubOAuth2Client, GitLabOAuth2Client, PasswordService, PasswordServiceAdapter, PasswordResetServiceAdapter},
     db::DbConnectionPool,
@@ -45,13 +45,21 @@ use application::{
 };
 
 use crate::config::ServerConfig;
-pub async fn build_and_run(config: AppConfig, app_config: ServerConfig) -> Result<()> {
-    let app_state = build_app_state(config.clone()).await?;
+
+pub async fn build_and_run(config: AppConfig, app_config: ServerConfig, maybe_event_publisher: Option<Arc<infra::event_adapter::MultiQueueEventPublisher>>) -> Result<()> {
+    let app_state = build_app_state(config.clone(), maybe_event_publisher).await?;
     run_server(app_state, app_config).await
 }
 
-pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
-    let event_publisher = create_event_publisher_from_config(&config).await?;
+pub async fn build_app_state(config: AppConfig, maybe_event_publisher: Option<Arc<infra::event_adapter::MultiQueueEventPublisher>>) -> Result<AppState> {
+
+    let event_publisher: Arc<infra::event_adapter::MultiQueueEventPublisher>;
+    if maybe_event_publisher.is_some() {
+        event_publisher = maybe_event_publisher.unwrap();
+    } else {
+        event_publisher = create_event_publisher_from_config(&config).await?;
+    }
+
     build_app_state_with_event_publisher(config, event_publisher).await
 }
 
@@ -402,7 +410,7 @@ pub async fn run_server(app_state: AppState, app_config: ServerConfig) -> Result
         info!(
             "Starting HTTPS server on {}:{}",
             server_config.host,
-            server_config.tls_port.unwrap()
+            server_config.tls_port
         );
     } else {
         info!(

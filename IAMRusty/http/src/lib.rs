@@ -3,8 +3,9 @@
 //! This crate provides the HTTP interface for the application,
 //! implementing the OpenAPI specification.
 
+use configuration::ServerConfig;
 use rustycog_http::{
-    RouteBuilder, ServerConfig, AppState
+    RouteBuilder, AppState
 };
 
 pub mod error;

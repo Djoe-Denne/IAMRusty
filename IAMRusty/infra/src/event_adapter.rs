@@ -464,7 +464,3 @@ pub fn create_iam_event_adapter_registry(
     registry.set_default_adapter(Arc::new(IAMEventAdapter));
     registry
 }
-
-// Re-export the test consumer functionality when in test mode
-#[cfg(any(test, feature = "test-utils"))]
-pub use rustycog_events::test_consumer;

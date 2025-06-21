@@ -1,19 +1,18 @@
 use anyhow::Result;
 use base64::{Engine as _, engine::general_purpose};
 use chrono::{Duration, Utc};
-use configuration::AppConfig;
+use configuration::{AppConfig, JwtConfig};
 use domain::entity::registration_token::{RegistrationFlow, RegistrationTokenClaims};
 use domain::entity::token::TokenClaims;
 use domain::port::service::{JwtTokenEncoder, RegistrationTokenService};
 use infra::token::{JwtTokenService, registration_token_service::RegistrationTokenServiceImpl};
 use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
-use serde_json::Value;
 use uuid::Uuid;
 use base64;
 
 /// Create a JWT token service from configuration for testing
-fn create_jwt_service_from_config(config: &AppConfig) -> Result<JwtTokenService, anyhow::Error> {
-    let jwt_algorithm_config = config.jwt.create_jwt_algorithm()?;
+fn create_jwt_service_from_config(config: &JwtConfig) -> Result<JwtTokenService, anyhow::Error> {
+    let jwt_algorithm_config = config.create_jwt_algorithm()?;
 
     let jwt_algorithm = match jwt_algorithm_config {
         configuration::JwtAlgorithm::HS256(secret) => infra::token::JwtAlgorithm::HS256(secret),
@@ -28,16 +27,16 @@ fn create_jwt_service_from_config(config: &AppConfig) -> Result<JwtTokenService,
 
     Ok(JwtTokenService::with_refresh_expiration(
         jwt_algorithm,
-        config.jwt.expiration_seconds,
-        config.jwt.refresh_token_expiration_seconds,
+        config.expiration_seconds,
+        config.refresh_token_expiration_seconds,
     ))
 }
 
 /// Create a registration token service from configuration for testing
 fn create_registration_token_service_from_config(
-    config: &AppConfig,
+    config: &JwtConfig,
 ) -> Result<RegistrationTokenServiceImpl, anyhow::Error> {
-    let jwt_algorithm_config = config.jwt.create_jwt_algorithm()?;
+    let jwt_algorithm_config = config.create_jwt_algorithm()?;
 
     let jwt_algorithm = match jwt_algorithm_config {
         configuration::JwtAlgorithm::HS256(_) => {
@@ -65,7 +64,7 @@ impl JwtTestUtils {
     /// Create a valid JWT token for testing with JWT encoder
     pub fn create_valid_token(
         user_id: Uuid,
-        config: &AppConfig,
+        config: &JwtConfig,
     ) -> Result<String, anyhow::Error> {
         let jwt_service = create_jwt_service_from_config(config)?;
 
@@ -87,7 +86,7 @@ impl JwtTestUtils {
     /// Create an expired JWT token for testing
     pub fn create_expired_token(
         user_id: Uuid,
-        config: &AppConfig,
+        config: &JwtConfig,
     ) -> Result<String, anyhow::Error> {
         let jwt_service = create_jwt_service_from_config(config)?;
 
@@ -109,7 +108,7 @@ impl JwtTestUtils {
     /// Create an invalid JWT token for testing
     pub fn create_invalid_token(
         user_id: Uuid,
-        config: &AppConfig,
+        config: &JwtConfig,
     ) -> Result<String, anyhow::Error> {
         let jwt_service = create_jwt_service_from_config(config)?;
 
@@ -135,7 +134,7 @@ impl JwtTestUtils {
     pub fn create_valid_registration_token(
         user_id: Uuid,
         email: String,
-        config: &AppConfig,
+        config: &JwtConfig,
     ) -> Result<String, anyhow::Error> {
         let service = create_registration_token_service_from_config(config)?;
 
@@ -148,7 +147,7 @@ impl JwtTestUtils {
     pub fn create_expired_registration_token(
         user_id: Uuid,
         email: String,
-        config: &AppConfig,
+        config: &JwtConfig,
     ) -> Result<String, anyhow::Error> {
         // Create claims that are already expired
         let expired_claims = RegistrationTokenClaims {
@@ -163,7 +162,7 @@ impl JwtTestUtils {
         };
 
         // Get the algorithm config to encode manually
-        let jwt_algorithm_config = config.jwt.create_jwt_algorithm()?;
+        let jwt_algorithm_config = config.create_jwt_algorithm()?;
 
         let (encoding_key, kid) = match jwt_algorithm_config {
             configuration::JwtAlgorithm::RS256(key_pair) => {
@@ -189,7 +188,7 @@ impl JwtTestUtils {
     /// Create a JWT token with custom expiration
     pub fn create_token_with_expiration(
         user_id: Uuid,
-        config: &AppConfig,
+        config: &JwtConfig,
         expiration_hours: i64,
     ) -> Result<String, anyhow::Error> {
         if expiration_hours > 0 {
@@ -297,7 +296,7 @@ impl JwtTestUtils {
 /// Create a valid JWT token for testing with JWT encoder
 pub fn create_valid_jwt_token_with_encoder(
     user_id: Uuid,
-    config: &AppConfig,
+    config: &JwtConfig,
 ) -> Result<String, anyhow::Error> {
     JwtTestUtils::create_valid_token(user_id, config)
 }
@@ -305,7 +304,7 @@ pub fn create_valid_jwt_token_with_encoder(
 /// Create an expired JWT token for testing
 pub fn create_expired_jwt_token_with_encoder(
     user_id: Uuid,
-    config: &AppConfig,
+    config: &JwtConfig,
 ) -> Result<String, anyhow::Error> {
     JwtTestUtils::create_expired_token(user_id, config)
 }
@@ -313,7 +312,7 @@ pub fn create_expired_jwt_token_with_encoder(
 /// Create an invalid JWT token for testing
 pub fn create_invalid_jwt_token_with_encoder(
     user_id: Uuid,
-    config: &AppConfig,
+    config: &JwtConfig,
 ) -> Result<String, anyhow::Error> {
     JwtTestUtils::create_invalid_token(user_id, config)
 }
@@ -321,14 +320,14 @@ pub fn create_invalid_jwt_token_with_encoder(
 /// Create a JWT token with custom expiration
 pub fn create_jwt_token_with_expiration(
     user_id: Uuid,
-    config: AppConfig,
+    config: JwtConfig,
     expiration_hours: i64,
 ) -> Result<String, anyhow::Error> {
     JwtTestUtils::create_token_with_expiration(user_id, &config, expiration_hours)
 }
 
 /// Create an invalid JWT token
-pub fn create_invalid_jwt_token(user_id: Uuid, config: AppConfig) -> Result<String, anyhow::Error> {
+pub fn create_invalid_jwt_token(user_id: Uuid, config: JwtConfig) -> Result<String, anyhow::Error> {
     JwtTestUtils::create_invalid_token(user_id, &config)
 }
 
@@ -336,7 +335,7 @@ pub fn create_invalid_jwt_token(user_id: Uuid, config: AppConfig) -> Result<Stri
 pub fn create_valid_registration_token_with_encoder(
     user_id: Uuid,
     email: String,
-    config: &AppConfig,
+    config: &JwtConfig,
 ) -> Result<String, anyhow::Error> {
     JwtTestUtils::create_valid_registration_token(user_id, email, config)
 }
@@ -345,7 +344,7 @@ pub fn create_valid_registration_token_with_encoder(
 pub fn create_expired_registration_token_with_encoder(
     user_id: Uuid,
     email: String,
-    config: &AppConfig,
+    config: &JwtConfig,
 ) -> Result<String, anyhow::Error> {
     JwtTestUtils::create_expired_registration_token(user_id, email, config)
 } 

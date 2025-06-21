@@ -4,15 +4,11 @@ mod common;
 #[path = "fixtures/mod.rs"]
 mod fixtures;
 
-use common::{setup_test_server, mock_event_publisher::MockEventPublisher, test_app_builder::build_test_app_state_with_new_mock_events, TestFixture};
+use common::{setup_test_server, setup_test_server_with_mock_events};
 use fixtures::DbFixtures;
 use reqwest::StatusCode;
 use serde_json::{json, Value};
 use serial_test::serial;
-use std::sync::Arc;
-use configuration::load_config;
-use http_server::{AppState, serve_with_config, ServerConfig as HttpServerConfig};
-use std::time::Duration;
 
 // 🔐 Password Reset Tests
 // Tests for the complete password reset flow: request → validate → confirm
@@ -69,12 +65,13 @@ async fn test_password_reset_request_existing_user_success() {
     let events = mock_event_publisher.get_published_events();
     assert_eq!(events.len(), 1, "Should publish exactly one event for valid password reset");
     
-    match &events[0] {
-        domain::entity::events::DomainEvent::PasswordResetRequested(event) => {
-            assert_eq!(event.email, user_email, "Event should contain the correct email");
-        }
-        other => panic!("Expected PasswordResetRequested event, got: {:?}", other),
-    }
+    let event = &events[0];
+    assert_eq!(event.event_type, "password_reset_requested", "Event should be PasswordResetRequested");
+    
+    // Check the email in the event data
+    let email_from_event = event.get_json_string_field("email")
+        .expect("Event should contain email field");
+    assert_eq!(email_from_event, user_email, "Event should contain the correct email");
 }
 
 /// Tests password reset request for a non-existent email address.
@@ -1156,46 +1153,6 @@ async fn test_password_reset_case_insensitive_email() {
         .as_str()
         .unwrap()
         .contains("reset link has been sent"));
-}
-
-// ============================================================================
-// 📡 Event Publishing Verification Tests
-// ============================================================================
-
-/// Helper function to setup a test server with mock event publisher
-async fn setup_test_server_with_mock_events() -> Result<(TestFixture, String, reqwest::Client, Arc<MockEventPublisher>), Box<dyn std::error::Error>> {
-    let fixture = TestFixture::new().await?;
-    let config = load_config()?;
-    
-    let (app_state, mock_publisher) = build_test_app_state_with_new_mock_events(config.clone()).await?;
-    
-    // Start server with custom app state
-    let server_config = HttpServerConfig {
-        host: config.server.host.clone(),
-        port: config.server.port + 100, // Use different port to avoid conflicts
-        tls_enabled: false,
-        tls_cert_path: None,
-        tls_key_path: None,
-        tls_port: None,
-    };
-    
-    let base_url = format!("http://{}:{}", server_config.host, server_config.port);
-    
-    // Start server in background
-    tokio::spawn(async move {
-        if let Err(e) = serve_with_config(app_state, server_config).await {
-            tracing::error!("Test server failed: {}", e);
-        }
-    });
-    
-    // Give server time to start
-    tokio::time::sleep(Duration::from_millis(100)).await;
-    
-    let client = reqwest::Client::builder()
-        .redirect(reqwest::redirect::Policy::none())
-        .build()?;
-    
-    Ok((fixture, base_url, client, mock_publisher))
 }
 
 /// VERIFIES: Password reset request for existing user with email/password SHOULD publish PasswordResetRequested event

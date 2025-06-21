@@ -3,13 +3,14 @@
 //! This module provides a Kafka container for integration tests to verify real
 //! event publishing functionality.
 
-use configuration::KafkaConfig;
+use rustycog_config::{KafkaConfig, load_config_part};
 use std::sync::Arc;
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use testcontainers::{ContainerAsync, GenericImage, ImageExt, runners::AsyncRunner};
 use tokio::sync::Mutex;
+use rdkafka::consumer::Consumer;
 use tracing::{debug, info, warn};
 use uuid;
 
@@ -203,8 +204,7 @@ async fn get_or_create_test_kafka_container()
     KafkaConfig::clear_port_cache();
 
     // Load configuration to understand Kafka settings
-    let config = configuration::load_config()?;
-    let kafka_config = &config.kafka;
+    let kafka_config = load_config_part::<KafkaConfig>("kafka").expect("failed to load kafka config");
 
     // Use the configuration's port resolution mechanism
     let kafka_port = kafka_config.actual_port();

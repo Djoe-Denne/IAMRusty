@@ -8,6 +8,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use common::setup_test_server;
+use configuration::{load_config_part, JwtConfig};
 use utils::jwt::{create_valid_jwt_token_with_encoder, create_expired_jwt_token_with_encoder, create_invalid_jwt_token_with_encoder};
 use fixtures::DbFixtures;
 
@@ -38,7 +39,7 @@ async fn test_revoke_provider_token_github_success() {
         .expect("Failed to create provider token");
 
     // Create valid JWT token for authentication
-    let jwt_token = create_valid_jwt_token_with_encoder(user.id(), &_fixture.config())
+    let jwt_token = create_valid_jwt_token_with_encoder(user.id(), &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"))
         .expect("Failed to create JWT token");
 
     // Verify token exists before revoke
@@ -123,7 +124,7 @@ async fn test_revoke_provider_token_gitlab_success() {
         .expect("Failed to create provider token");
 
     // Create valid JWT token for authentication
-    let jwt_token = create_valid_jwt_token_with_encoder(user.id(), &_fixture.config())
+    let jwt_token = create_valid_jwt_token_with_encoder(user.id(), &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"))
         .expect("Failed to create JWT token");
 
     // Make request to revoke GitLab provider token
@@ -193,7 +194,7 @@ async fn test_revoke_provider_token_returns_401_when_token_is_expired() {
 
     // Create expired JWT token
     let user_id = Uuid::new_v4();
-    let expired_token = create_expired_jwt_token_with_encoder(user_id, &_fixture.config())
+    let expired_token = create_expired_jwt_token_with_encoder(user_id, &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"))
         .expect("Failed to create expired JWT token");
 
     // Make request with expired token
@@ -222,7 +223,7 @@ async fn test_revoke_provider_token_returns_401_when_token_has_invalid_signature
 
     // Create JWT token with invalid signature
     let user_id = Uuid::new_v4();
-    let invalid_token = create_invalid_jwt_token_with_encoder(user_id, &_fixture.config())
+    let invalid_token = create_invalid_jwt_token_with_encoder(user_id, &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"))
         .expect("Failed to create invalid signature JWT token");
 
     // Make request with invalid signature token
@@ -251,7 +252,7 @@ async fn test_revoke_provider_token_returns_422_when_provider_is_unsupported() {
 
     // Create valid JWT token
     let user_id = Uuid::new_v4();
-    let jwt_token = create_valid_jwt_token_with_encoder(user_id, &_fixture.config())
+    let jwt_token = create_valid_jwt_token_with_encoder(user_id, &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"))
         .expect("Failed to create JWT token");
 
     // Test unsupported providers
@@ -292,7 +293,7 @@ async fn test_revoke_provider_token_returns_404_when_no_token_for_provider() {
         .expect("Failed to create user");
 
     // Create valid JWT token for authentication
-    let jwt_token = create_valid_jwt_token_with_encoder(user.id(), &_fixture.config())
+    let jwt_token = create_valid_jwt_token_with_encoder(user.id(), &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"))
         .expect("Failed to create JWT token");
 
     // Make request to revoke GitHub token when user has no GitHub token
@@ -335,7 +336,7 @@ async fn test_revoke_provider_token_returns_401_when_user_not_found() {
 
     // Create valid JWT token for non-existent user
     let non_existent_user_id = Uuid::new_v4();
-    let jwt_token = create_valid_jwt_token_with_encoder(non_existent_user_id, &_fixture.config())
+    let jwt_token = create_valid_jwt_token_with_encoder(non_existent_user_id, &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"))
         .expect("Failed to create JWT token");
 
     // Make request to revoke token for non-existent user
@@ -389,7 +390,7 @@ async fn test_revoke_provider_token_idempotent_on_already_revoked() {
         .expect("Failed to create provider token");
 
     // Create valid JWT token for authentication
-    let jwt_token = create_valid_jwt_token_with_encoder(user.id(), &_fixture.config())
+    let jwt_token = create_valid_jwt_token_with_encoder(user.id(), &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"))
         .expect("Failed to create JWT token");
 
     // First revoke - should succeed
@@ -470,7 +471,7 @@ async fn test_revoke_provider_token_different_users_different_tokens() {
         .expect("Failed to create token2");
 
     // Revoke user1's token
-    let jwt_token1 = create_valid_jwt_token_with_encoder(user1.id(), &_fixture.config())
+    let jwt_token1 = create_valid_jwt_token_with_encoder(user1.id(), &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"))
         .expect("Failed to create JWT token for user1");
     let response1 = client
         .delete(&format!("{}/internal/github/revoke", base_url))
@@ -500,7 +501,7 @@ async fn test_revoke_provider_token_different_users_different_tokens() {
     );
 
     // User2 can still revoke their own token
-    let jwt_token2 = create_valid_jwt_token_with_encoder(user2.id(), &_fixture.config())
+    let jwt_token2 = create_valid_jwt_token_with_encoder(user2.id(), &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"))
         .expect("Failed to create JWT token for user2");
     let response2 = client
         .delete(&format!("{}/internal/github/revoke", base_url))

@@ -7,6 +7,7 @@ mod utils;
 
 use chrono::{Duration, Utc};
 use common::{create_test_client, setup_test_server};
+use configuration::{load_config_part, JwtConfig};
 use fixtures::{DbFixtures, GitHubFixtures, GitLabFixtures};
 use reqwest::Client;
 use serde_json::Value;
@@ -14,19 +15,19 @@ use serial_test::serial;
 use uuid::Uuid;
 
 /// Create a valid JWT token for testing using the proper JWT service
-fn create_valid_jwt_token(user_id: Uuid, config: &configuration::AppConfig) -> String {
+fn create_valid_jwt_token(user_id: Uuid, config: &JwtConfig) -> String {
     utils::jwt::create_valid_jwt_token_with_encoder(user_id, config)
         .expect("Failed to create valid JWT token")
 }
 
 /// Create an expired JWT token for testing using the proper JWT service
-fn create_expired_jwt_token(user_id: Uuid, config: &configuration::AppConfig) -> String {
+fn create_expired_jwt_token(user_id: Uuid, config: &JwtConfig) -> String {
     utils::jwt::create_expired_jwt_token_with_encoder(user_id, config)
         .expect("Failed to create expired JWT token")
 }
 
 /// Create an invalid JWT token for testing using the proper JWT service
-fn create_invalid_signature_jwt_token(user_id: Uuid, config: &configuration::AppConfig) -> String {
+fn create_invalid_signature_jwt_token(user_id: Uuid, config: &JwtConfig) -> String {
     utils::jwt::create_invalid_jwt_token_with_encoder(user_id, config)
         .expect("Failed to create invalid JWT token")
 }
@@ -57,7 +58,7 @@ async fn test_get_user_returns_correct_info_when_token_is_valid() {
         .expect("Failed to create primary email");
 
     // Create valid JWT token using proper configuration
-    let jwt_token = create_valid_jwt_token(user.id(), &_fixture.config());
+    let jwt_token = create_valid_jwt_token(user.id(), &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"));
 
     // Make request to /me endpoint
     let response = client
@@ -106,7 +107,7 @@ async fn test_get_user_returns_401_when_token_is_expired() {
 
     // Create expired JWT token
     let user_id = Uuid::new_v4();
-    let expired_token = create_expired_jwt_token(user_id, &_fixture.config());
+    let expired_token = create_expired_jwt_token(user_id, &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"));
 
     // Make request with expired token
     let response = client
@@ -208,7 +209,7 @@ async fn test_get_user_returns_401_when_token_has_invalid_signature() {
 
     // Create token with invalid signature
     let user_id = Uuid::new_v4();
-    let invalid_token = create_invalid_signature_jwt_token(user_id, &_fixture.config());
+    let invalid_token = create_invalid_signature_jwt_token(user_id, &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"));
 
     // Make request with invalid signature token
     let response = client
@@ -324,7 +325,7 @@ async fn test_get_user_returns_401_when_user_not_found_in_database() {
 
     // Create valid JWT token for non-existent user
     let non_existent_user_id = Uuid::new_v4();
-    let jwt_token = create_valid_jwt_token(non_existent_user_id, &_fixture.config());
+    let jwt_token = create_valid_jwt_token(non_existent_user_id, &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"));
 
     // Make request with token for non-existent user
     let response = client
@@ -398,7 +399,7 @@ async fn test_get_user_returns_correct_primary_email_when_user_has_multiple_emai
         .expect("Failed to create primary email");
 
     // Create valid JWT token
-    let jwt_token = create_valid_jwt_token(user.id(), &_fixture.config());
+    let jwt_token = create_valid_jwt_token(user.id(), &&load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"));
 
     // Make request to /me endpoint
     let response = client
@@ -441,7 +442,7 @@ async fn test_get_user_handles_user_with_no_primary_email() {
         .expect("Failed to create user");
 
     // Create valid JWT token
-    let jwt_token = create_valid_jwt_token(user.id(), &_fixture.config());
+    let jwt_token = create_valid_jwt_token(user.id(), &&load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"));
 
     // Make request to /me endpoint
     let response = client
@@ -494,7 +495,7 @@ async fn test_get_user_concurrent_requests_with_same_token() {
         .expect("Failed to create primary email");
 
     // Create valid JWT token
-    let jwt_token = create_valid_jwt_token(user.id(), &_fixture.config());
+    let jwt_token = create_valid_jwt_token(user.id(), &&load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"));
 
     // Make multiple concurrent requests with the same token
     let mut handles = vec![];
@@ -557,9 +558,8 @@ async fn test_get_user_security_jwt_claims_validation() {
         .expect("Failed to create primary email");
 
     // Get the JWT configuration to create custom tokens
-    let config = _fixture.config();
+    let config = load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config");
     let jwt_algorithm_config = config
-        .jwt
         .create_jwt_algorithm()
         .expect("Failed to create JWT algorithm");
 

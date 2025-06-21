@@ -20,22 +20,22 @@ async fn main() -> anyhow::Result<()> {
         port: config.server.port,
         tls_enabled: config.server.tls_enabled,
         tls_cert_path: if config.server.tls_enabled {
-            Some(config.server.tls_cert_path.clone())
+            config.server.tls_cert_path.clone()
         } else {
-            None
+            "".to_string()
         },
         tls_key_path: if config.server.tls_enabled {
-            Some(config.server.tls_key_path.clone())
+            config.server.tls_key_path.clone()
         } else {
-            None
+            "".to_string()
         },
         tls_port: if config.server.tls_enabled {
-            Some(config.server.tls_port)
+            config.server.tls_port
         } else {
-            None
+            0
         },
     };
 
     // Build and run the application
-    app::build_and_run(config, server_config).await
+    app::build_and_run(config, server_config, None).await
 }

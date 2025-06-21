@@ -8,6 +8,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use common::setup_test_server;
+use configuration::{load_config_part, JwtConfig};
 use utils::jwt::{create_valid_jwt_token_with_encoder, create_expired_jwt_token_with_encoder, create_invalid_jwt_token_with_encoder};
 use fixtures::{DbFixtures, GitHubFixtures, GitLabFixtures};
 
@@ -175,7 +176,7 @@ async fn test_relink_provider_callback_github_success() {
     github.setup_successful_user_profile_arthur().await;
 
     // Create valid JWT token for authentication
-    let jwt_token = create_valid_jwt_token_with_encoder(user.id(), &_fixture.config())
+    let jwt_token = create_valid_jwt_token_with_encoder(user.id(), &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"))
         .expect("Failed to create JWT token");
 
     // Make callback request to relink GitHub provider
@@ -261,7 +262,7 @@ async fn test_relink_provider_callback_returns_401_when_token_is_expired() {
 
     // Create expired JWT token
     let user_id = Uuid::new_v4();
-    let expired_token = create_expired_jwt_token_with_encoder(user_id, &_fixture.config())
+    let expired_token = create_expired_jwt_token_with_encoder(user_id, &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"))
         .expect("Failed to create expired JWT token");
 
     // Make request with expired token
@@ -291,7 +292,7 @@ async fn test_relink_provider_callback_returns_401_when_token_has_invalid_signat
 
     // Create JWT token with invalid signature
     let user_id = Uuid::new_v4();
-    let invalid_token = create_invalid_jwt_token_with_encoder(user_id, &_fixture.config())
+    let invalid_token = create_invalid_jwt_token_with_encoder(user_id, &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"))
         .expect("Failed to create invalid signature JWT token");
 
     // Make request with invalid signature token
@@ -321,7 +322,7 @@ async fn test_relink_provider_callback_returns_422_when_provider_is_unsupported(
 
     // Create valid JWT token
     let user_id = Uuid::new_v4();
-    let jwt_token = create_valid_jwt_token_with_encoder(user_id, &_fixture.config())
+    let jwt_token = create_valid_jwt_token_with_encoder(user_id, &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"))
         .expect("Failed to create JWT token");
 
     // Test unsupported providers
@@ -356,7 +357,7 @@ async fn test_relink_provider_callback_returns_422_when_missing_code_parameter()
 
     // Create valid JWT token
     let user_id = Uuid::new_v4();
-    let jwt_token = create_valid_jwt_token_with_encoder(user_id, &_fixture.config())
+    let jwt_token = create_valid_jwt_token_with_encoder(user_id, &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"))
         .expect("Failed to create JWT token");
 
     // Make request without code parameter
@@ -403,7 +404,7 @@ async fn test_relink_provider_callback_returns_422_when_provider_not_currently_l
     github.setup_successful_user_profile_arthur().await;
 
     // Create valid JWT token for authentication
-    let jwt_token = create_valid_jwt_token_with_encoder(user.id(), &_fixture.config())
+    let jwt_token = create_valid_jwt_token_with_encoder(user.id(), &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"))
         .expect("Failed to create JWT token");
 
     // Make callback request to relink GitHub provider (should fail - no existing link)
@@ -477,7 +478,7 @@ async fn test_relink_provider_callback_gitlab_success() {
     gitlab.setup_successful_user_profile_alice().await; // Using Alice profile for GitLab
 
     // Create valid JWT token for authentication
-    let jwt_token = create_valid_jwt_token_with_encoder(user.id(), &_fixture.config())
+    let jwt_token = create_valid_jwt_token_with_encoder(user.id(), &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"))
         .expect("Failed to create JWT token");
 
     // Make callback request to relink GitLab provider
@@ -549,7 +550,7 @@ async fn test_relink_provider_callback_user_with_multiple_providers() {
     github.setup_successful_user_profile_arthur().await;
 
     // Create valid JWT token for authentication
-    let jwt_token = create_valid_jwt_token_with_encoder(user.id(), &_fixture.config())
+    let jwt_token = create_valid_jwt_token_with_encoder(user.id(), &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"))
         .expect("Failed to create JWT token");
 
     // Make callback request to relink only GitHub provider

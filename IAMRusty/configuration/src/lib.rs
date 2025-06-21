@@ -6,12 +6,12 @@
 // Re-export core configuration from rustycog-config
 pub use rustycog_config::{
     clear_all_caches, generate_default_config_toml, load_config_fresh, load_config_with_cache,
-    setup_logging, CommandConfig, CommandRetryConfig, ConfigError, DatabaseConfig,
-    DatabaseCredentials, KafkaConfig, LoggingConfig, QueueConfig, ServerConfig, SetupServerConfig,
+    load_config_part, setup_logging, CommandConfig, CommandRetryConfig, ConfigError, DatabaseConfig,
+    DatabaseCredentials, KafkaConfig, LoggingConfig, QueueConfig, ServerConfig,
     SqsConfig,
 };
 
-use rustycog_config::{ConfigCache, ConfigLoader};
+use rustycog_config::{ConfigCache, ConfigLoader, HasDbConfig, HasQueueConfig, HasServerConfig, HasLoggingConfig};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -260,6 +260,16 @@ impl JwtConfig {
     }
 }
 
+impl Default for JwtConfig {
+    fn default() -> Self {
+        Self {
+            secret: SecretStorage::PlainText { value: "".to_string() },
+            expiration_seconds: default_jwt_expiration(),
+            refresh_token_expiration_seconds: default_refresh_token_expiration(),
+        }
+    }
+}
+
 /// JWT algorithm configuration
 /// This is re-exported from the infra crate to avoid circular dependencies
 /// It should match the JwtAlgorithm enum in infra::token::jwt_encoder
@@ -440,6 +450,49 @@ impl ConfigLoader<AppConfig> for AppConfig {
 
     fn config_prefix() -> &'static str {
         "IAM"
+    }
+}
+
+impl HasDbConfig for AppConfig {
+
+    fn db_config(&self) -> &DatabaseConfig {
+        &self.database
+    }
+
+    fn set_db_config(&mut self, config: DatabaseConfig) {
+        self.database = config;
+    }
+}
+
+impl HasQueueConfig for AppConfig {
+    fn queue_config(&self) -> &QueueConfig {
+        &self.queue
+    }
+
+    fn set_queue_config(&mut self, config: QueueConfig) {
+        self.queue = config;
+    }
+}
+
+impl HasServerConfig for AppConfig {
+
+    fn server_config(&self) -> &ServerConfig {
+        &self.server
+    }
+
+    fn set_server_config(&mut self, config: ServerConfig) {
+        self.server = config;
+    }
+}
+
+impl HasLoggingConfig for AppConfig {
+
+    fn logging_config(&self) -> &LoggingConfig {
+        &self.logging
+    }
+
+    fn set_logging_config(&mut self, config: LoggingConfig) {
+        self.logging = config;
     }
 }
 

@@ -3,6 +3,7 @@ use axum::{
 };
 use std::net::SocketAddr;
 use std::sync::Arc;
+use rustycog_config::ServerConfig;
 use tower_http::catch_panic::CatchPanicLayer;
 use rustycog_command::GenericCommandService;
 
@@ -27,45 +28,6 @@ impl AppState {
             command_service,
             user_id_extractor: Arc::new(user_id_extractor),
         }
-    }
-}
-
-/// Server configuration for HTTP/HTTPS
-#[derive(Debug, Clone)]
-pub struct ServerConfig {
-    pub host: String,
-    pub port: u16,
-    pub tls_enabled: bool,
-    pub tls_cert_path: Option<String>,
-    pub tls_key_path: Option<String>,
-    pub tls_port: Option<u16>,
-}
-
-impl ServerConfig {
-    /// Create a new ServerConfig with default values
-    pub fn new(host: impl Into<String>, port: u16) -> Self {
-        Self {
-            host: host.into(),
-            port,
-            tls_enabled: false,
-            tls_cert_path: None,
-            tls_key_path: None,
-            tls_port: None,
-        }
-    }
-
-    /// Enable TLS with certificate and key paths
-    pub fn with_tls(
-        mut self,
-        cert_path: impl Into<String>,
-        key_path: impl Into<String>,
-        tls_port: u16,
-    ) -> Self {
-        self.tls_enabled = true;
-        self.tls_cert_path = Some(cert_path.into());
-        self.tls_key_path = Some(key_path.into());
-        self.tls_port = Some(tls_port);
-        self
     }
 }
 
@@ -204,23 +166,15 @@ impl RouteBuilder {
         .with_state(self.state);
 
         if config.tls_enabled {
-            if let (Some(cert_path), Some(key_path), Some(tls_port)) =
-                (config.tls_cert_path, config.tls_key_path, config.tls_port)
-            {
-                tracing::info!("Starting HTTPS server on {}:{}", config.host, tls_port);
-    
-                let tls_config =
-                    axum_server::tls_rustls::RustlsConfig::from_pem_file(cert_path, key_path).await?;
-                let addr: SocketAddr = format!("{}:{}", config.host, tls_port).parse()?;
-    
-                axum_server::bind_rustls(addr, tls_config)
-                    .serve(app.into_make_service())
-                    .await?;
-            } else {
-                return Err(anyhow::anyhow!(
-                    "TLS enabled but certificate/key paths or port not provided"
-                ));
-            }
+            tracing::info!("Starting HTTPS server on {}:{}", config.host, config.tls_port);
+
+            let tls_config =
+                axum_server::tls_rustls::RustlsConfig::from_pem_file(config.tls_cert_path, config.tls_key_path).await?;
+            let addr: SocketAddr = format!("{}:{}", config.host, config.tls_port).parse()?;
+
+            axum_server::bind_rustls(addr, tls_config)
+                .serve(app.into_make_service())
+                .await?;            
         } else {
             tracing::info!("Starting HTTP server on {}:{}", config.host, config.port);
             let addr: SocketAddr = format!("{}:{}", config.host, config.port).parse()?;

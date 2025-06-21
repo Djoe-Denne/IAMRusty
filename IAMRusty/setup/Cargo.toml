@@ -11,6 +11,7 @@ infra = { path = "../infra" }
 http_server = { path = "../http" }
 configuration = { path = "../configuration" }
 rustycog-http = { path = "../../rustycog/rustycog-http" }
+rustycog-events = { path = "../../rustycog/rustycog-events" }
 
 # External dependencies
 anyhow = "1.0.82"

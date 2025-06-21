@@ -7,6 +7,7 @@ mod utils;
 
 use base64::{Engine as _, engine::general_purpose};
 use utils::jwt::{create_expired_registration_token_with_encoder, create_valid_jwt_token_with_encoder};
+use configuration::{load_config_part, JwtConfig};
 use common::setup_test_server;
 use fixtures::{DbFixtures, GitHubFixtures};
 use sea_orm::ConnectionTrait;
@@ -152,7 +153,7 @@ async fn test_oauth_provider_linked_to_different_user_returns_409() {
     github.setup_successful_user_profile_arthur().await; // Same profile as first user
 
     // Generate mock JWT for second user
-    let mock_jwt_second_user = create_valid_jwt_token_with_encoder(second_user.id(), &_fixture.config())
+    let mock_jwt_second_user = create_valid_jwt_token_with_encoder(second_user.id(), &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"))
         .expect("Failed to create JWT token");
 
     // Try to link GitHub from second user (should conflict)
@@ -377,7 +378,7 @@ async fn test_expired_registration_token_returns_400() {
         .await
         .expect("Failed to setup test server");
 
-    let config = configuration::load_config().expect("failed to load test config");
+    let config = &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config");
 
     let expired_token = create_expired_registration_token_with_encoder(
         Uuid::new_v4(),

@@ -1,5 +1,4 @@
-use crate::common::mock_event_publisher::MockEventPublisher;
-use domain::entity::events::DomainEvent;
+use crate::common::mock_event_publisher::{MockEventPublisher, CapturedEvent};
 use std::sync::Arc;
 
 /// Event Verification Test Utilities
@@ -23,15 +22,18 @@ impl EventTestUtils {
             "Exactly one PasswordResetRequested event should be published"
         );
 
-        match &events[0] {
-            DomainEvent::PasswordResetRequested(event) => {
-                assert_eq!(
-                    event.email, expected_email,
-                    "Event should contain the correct email"
-                );
-            }
-            other => panic!("Expected PasswordResetRequested event, got: {:?}", other),
-        }
+        let event = &events[0];
+        assert_eq!(
+            event.event_type, "password_reset_requested",
+            "Event should be PasswordResetRequested"
+        );
+        
+        let email_from_event = event.get_json_string_field("email")
+            .expect("Event should contain email field");
+        assert_eq!(
+            email_from_event, expected_email,
+            "Event should contain the correct email"
+        );
     }
 
     /// Assert that NO PasswordResetRequested event was published
@@ -55,47 +57,44 @@ impl EventTestUtils {
         expected_user_id: &str,
         expected_email: &str,
     ) {
-        let events = mock_publisher.get_published_events();
-        
-        let user_signed_up_events: Vec<_> = events
-            .iter()
-            .filter(|event| matches!(event, DomainEvent::UserSignedUp(_)))
-            .collect();
+        assert!(
+            mock_publisher.has_user_signed_up_event(),
+            "UserSignedUp event should be published"
+        );
 
+        let events = mock_publisher.get_user_signed_up_events();
         assert_eq!(
-            user_signed_up_events.len(),
+            events.len(),
             1,
             "Exactly one UserSignedUp event should be published"
         );
 
-        match &user_signed_up_events[0] {
-            DomainEvent::UserSignedUp(event) => {
-                assert_eq!(
-                    event.user_id.to_string(), expected_user_id,
-                    "Event should contain the correct user ID"
-                );
-                assert_eq!(
-                    event.email, expected_email,
-                    "Event should contain the correct email"
-                );
-            }
-            other => panic!("Expected UserSignedUp event, got: {:?}", other),
-        }
+        let event = &events[0];
+        assert_eq!(
+            event.event_type, "user_signed_up",
+            "Event should be UserSignedUp"
+        );
+        
+        let user_id_from_event = event.get_json_string_field("user_id")
+            .expect("Event should contain user_id field");
+        assert_eq!(
+            user_id_from_event, expected_user_id,
+            "Event should contain the correct user ID"
+        );
+        
+        let email_from_event = event.get_json_string_field("email")
+            .expect("Event should contain email field");
+        assert_eq!(
+            email_from_event, expected_email,
+            "Event should contain the correct email"
+        );
     }
 
     /// Assert that NO UserSignedUp event was published
     pub fn assert_no_user_signed_up_event_published(mock_publisher: &Arc<MockEventPublisher>) {
-        let events = mock_publisher.get_published_events();
-        
-        let user_signed_up_events: Vec<_> = events
-            .iter()
-            .filter(|event| matches!(event, DomainEvent::UserSignedUp(_)))
-            .collect();
-
-        assert_eq!(
-            user_signed_up_events.len(),
-            0,
-            "No UserSignedUp event should be published"
+        assert!(
+            !mock_publisher.has_user_signed_up_event(),
+            "UserSignedUp event should NOT be published"
         );
     }
 
@@ -115,7 +114,7 @@ impl EventTestUtils {
     }
 
     /// Get all published events for custom verification
-    pub fn get_published_events(mock_publisher: &Arc<MockEventPublisher>) -> Vec<DomainEvent> {
+    pub fn get_published_events(mock_publisher: &Arc<MockEventPublisher>) -> Vec<CapturedEvent> {
         mock_publisher.get_published_events()
     }
 
@@ -125,7 +124,7 @@ impl EventTestUtils {
         predicate: F,
         event_description: &str,
     ) where
-        F: Fn(&DomainEvent) -> bool,
+        F: Fn(&CapturedEvent) -> bool,
     {
         let events = mock_publisher.get_published_events();
         let matching_events: Vec<_> = events.iter().filter(|event| predicate(event)).collect();
@@ -143,7 +142,7 @@ impl EventTestUtils {
         predicate: F,
         event_description: &str,
     ) where
-        F: Fn(&DomainEvent) -> bool,
+        F: Fn(&CapturedEvent) -> bool,
     {
         let events = mock_publisher.get_published_events();
         let matching_events: Vec<_> = events.iter().filter(|event| predicate(event)).collect();

@@ -23,7 +23,7 @@ pub use adapter::*;
 pub enum ConcreteEventPublisher {
     Kafka(KafkaEventPublisher),
     Sqs(SqsEventPublisher),
-    NoOp(NoOpEventPublisher),
+    NoOp(Arc<dyn EventPublisher>),
 }
 
 #[async_trait]
@@ -79,7 +79,7 @@ pub fn create_event_publisher_from_queue_config(config: &QueueConfig) -> Result<
         },
         QueueConfig::Disabled => {
             tracing::info!("Queue disabled, using no-op event publisher");
-            Ok(Arc::new(ConcreteEventPublisher::NoOp(NoOpEventPublisher::new())))
+            Ok(Arc::new(ConcreteEventPublisher::NoOp(Arc::new(NoOpEventPublisher::new()))))
         }
     }
 }
@@ -103,12 +103,12 @@ pub fn create_kafka_event_publisher(config: &KafkaConfig) -> Result<Arc<Concrete
                     }
                     Err(e) => {
                         tracing::warn!("Failed to create Kafka event publisher in test mode, falling back to no-op: {}", e);
-                        return Ok(Arc::new(ConcreteEventPublisher::NoOp(NoOpEventPublisher::new())));
+                        return Ok(Arc::new(ConcreteEventPublisher::NoOp(Arc::new(NoOpEventPublisher::new()))));
                     }
                 }
             } else {
                 tracing::info!("Test mode: No Kafka test container detected or Kafka disabled, using no-op event publisher");
-                return Ok(Arc::new(ConcreteEventPublisher::NoOp(NoOpEventPublisher::new())));
+                return Ok(Arc::new(ConcreteEventPublisher::NoOp(Arc::new(NoOpEventPublisher::new()))));
             }
         }
         
@@ -117,7 +117,7 @@ pub fn create_kafka_event_publisher(config: &KafkaConfig) -> Result<Arc<Concrete
             // This branch should never be reached due to is_test_mode() check above,
             // but included for completeness
             tracing::info!("Test mode detected but test-utils feature not available, using no-op event publisher");
-            return Ok(Arc::new(ConcreteEventPublisher::NoOp(NoOpEventPublisher::new())));
+            return Ok(Arc::new(ConcreteEventPublisher::NoOp(Arc::new(NoOpEventPublisher::new()))));
         }
     }
     
@@ -131,12 +131,12 @@ pub fn create_kafka_event_publisher(config: &KafkaConfig) -> Result<Arc<Concrete
             Err(e) => {
                 tracing::warn!("Failed to create Kafka event publisher, falling back to no-op: {}", e);
                 // Fall back to no-op publisher if Kafka creation fails
-                Ok(Arc::new(ConcreteEventPublisher::NoOp(NoOpEventPublisher::new())))
+                Ok(Arc::new(ConcreteEventPublisher::NoOp(Arc::new(NoOpEventPublisher::new()))))
             }
         }
     } else {
         tracing::info!("Kafka disabled, using no-op event publisher");
-        Ok(Arc::new(ConcreteEventPublisher::NoOp(NoOpEventPublisher::new())))
+        Ok(Arc::new(ConcreteEventPublisher::NoOp(Arc::new(NoOpEventPublisher::new()))))
     }
 }
 
@@ -154,19 +154,19 @@ pub async fn create_sqs_event_publisher(config: &SqsConfig) -> Result<Arc<Concre
                     }
                     Err(e) => {
                         tracing::warn!("Failed to create SQS event publisher in test mode, falling back to no-op: {}", e);
-                        return Ok(Arc::new(ConcreteEventPublisher::NoOp(NoOpEventPublisher::new())));
+                        return Ok(Arc::new(ConcreteEventPublisher::NoOp(Arc::new(NoOpEventPublisher::new()))));
                     }
                 }
             } else {
                 tracing::info!("Test mode: SQS disabled, using no-op event publisher");
-                return Ok(Arc::new(ConcreteEventPublisher::NoOp(NoOpEventPublisher::new())));
+                return Ok(Arc::new(ConcreteEventPublisher::NoOp(Arc::new(NoOpEventPublisher::new()))));
             }
         }
         
         #[cfg(not(any(test, feature = "test-utils")))]
         {
             tracing::info!("Test mode detected but test-utils feature not available, using no-op event publisher");
-            return Ok(Arc::new(ConcreteEventPublisher::NoOp(NoOpEventPublisher::new())));
+            return Ok(Arc::new(ConcreteEventPublisher::NoOp(Arc::new(NoOpEventPublisher::new()))));
         }
     }
     
@@ -180,12 +180,12 @@ pub async fn create_sqs_event_publisher(config: &SqsConfig) -> Result<Arc<Concre
             Err(e) => {
                 tracing::warn!("Failed to create SQS event publisher, falling back to no-op: {}", e);
                 // Fall back to no-op publisher if SQS creation fails
-                Ok(Arc::new(ConcreteEventPublisher::NoOp(NoOpEventPublisher::new())))
+                Ok(Arc::new(ConcreteEventPublisher::NoOp(Arc::new(NoOpEventPublisher::new()))))
             }
         }
     } else {
         tracing::info!("SQS disabled, using no-op event publisher");
-        Ok(Arc::new(ConcreteEventPublisher::NoOp(NoOpEventPublisher::new())))
+        Ok(Arc::new(ConcreteEventPublisher::NoOp(Arc::new(NoOpEventPublisher::new()))))
     }
 }
 

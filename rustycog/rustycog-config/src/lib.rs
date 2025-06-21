@@ -46,31 +46,6 @@ impl Default for ServerConfig {
     }
 }
 
-impl ServerConfig {
-    /// Convert to setup ServerConfig format (for backward compatibility)
-    pub fn to_setup_config(&self) -> SetupServerConfig {
-        SetupServerConfig {
-            host: self.host.clone(),
-            port: self.port,
-            tls_enabled: self.tls_enabled,
-            tls_cert_path: if self.tls_enabled { Some(self.tls_cert_path.clone()) } else { None },
-            tls_key_path: if self.tls_enabled { Some(self.tls_key_path.clone()) } else { None },
-            tls_port: if self.tls_enabled { Some(self.tls_port) } else { None },
-        }
-    }
-}
-
-/// Setup server configuration (for backward compatibility with setup module)
-#[derive(Debug, Clone)]
-pub struct SetupServerConfig {
-    pub host: String,
-    pub port: u16,
-    pub tls_enabled: bool,
-    pub tls_cert_path: Option<String>,
-    pub tls_key_path: Option<String>,
-    pub tls_port: Option<u16>,
-}
-
 fn default_cert_path() -> String {
     "./certs/cert.pem".to_string()
 }
@@ -864,6 +839,26 @@ pub trait ConfigLoader<T>: Default + for<'de> Deserialize<'de> + Serialize + Clo
     fn config_prefix() -> &'static str;
 }
 
+pub trait HasDbConfig {
+    fn db_config(&self) -> &DatabaseConfig;
+    fn set_db_config(&mut self, config: DatabaseConfig);
+}
+
+pub trait HasQueueConfig {
+    fn queue_config(&self) -> &QueueConfig;
+    fn set_queue_config(&mut self, config: QueueConfig);
+}
+
+pub trait HasServerConfig {
+    fn server_config(&self) -> &ServerConfig;
+    fn set_server_config(&mut self, config: ServerConfig);
+}
+
+pub trait HasLoggingConfig {
+    fn logging_config(&self) -> &LoggingConfig;
+    fn set_logging_config(&mut self, config: LoggingConfig);
+}
+
 /// Load configuration with caching
 pub fn load_config_with_cache<T, C>() -> Result<T, ConfigError>
 where
@@ -891,6 +886,25 @@ pub fn load_config_fresh<T>() -> Result<T, ConfigError>
 where
     T: ConfigLoader<T>,
 {
+    let config = build_config_with_env_prefix(T::config_prefix())?;
+    
+    // Try to deserialize to the target type
+    match config.try_deserialize::<T>() {
+        Ok(app_config) => {
+            tracing::info!("Configuration loaded successfully");
+            Ok(app_config)
+        }
+        Err(e) => {
+            tracing::error!("Failed to deserialize configuration: {}", e);
+            tracing::info!("Falling back to default configuration");
+            Ok(T::create_default())
+        }
+    }
+}
+
+/// Helper function to build configuration with environment prefix
+/// Extracts common configuration loading logic
+fn build_config_with_env_prefix(env_prefix: &str) -> Result<Config, ConfigError> {
     use std::path::Path;
     use std::env;
     
@@ -929,28 +943,51 @@ where
         }
     }
     
-    // Add environment variable overrides with service-specific prefix
-    let prefix = T::config_prefix();
-    tracing::debug!("Loading environment variables with prefix: {}_", prefix);
+    // Add environment variable overrides with specified prefix
+    tracing::debug!("Loading environment variables with prefix: {}_", env_prefix);
     builder = builder.add_source(
-        Environment::with_prefix(prefix)
+        Environment::with_prefix(env_prefix)
             .separator("__")
             .try_parsing(true)
     );
     
-    // Build configuration
-    let config = builder.build()?;
+    // Build and return configuration
+    builder.build()
+}
+
+/// Load a specific configuration part (server, database, logging, queue, etc.)
+/// This is useful when you only need a specific part of the configuration
+/// rather than loading the entire application config.
+pub fn load_config_part<T>(section_name: &str) -> Result<T, ConfigError>
+where
+    T: for<'de> Deserialize<'de> + Default + Clone,
+{
+    // Use uppercase section name as environment prefix
+    let env_prefix = section_name.to_uppercase();
+    let config = build_config_with_env_prefix(&env_prefix)?;
     
-    // Try to deserialize to the target type
-    match config.try_deserialize::<T>() {
-        Ok(app_config) => {
-            tracing::info!("Configuration loaded successfully for environment: {}", env);
-            Ok(app_config)
+    tracing::info!("Loading {} configuration", section_name);
+    
+    // Try to deserialize the specific section
+    match config.get::<T>(section_name) {
+        Ok(parsed_config) => {
+            tracing::info!("{} configuration loaded successfully", section_name);
+            Ok(parsed_config)
         }
-        Err(e) => {
-            tracing::error!("Failed to deserialize configuration: {}", e);
-            tracing::info!("Falling back to default configuration");
-            Ok(T::create_default())
+        Err(_) => {
+            // Section not found or failed to parse, try to deserialize the entire config as the target type
+            // This handles cases where the config part is at the root level
+            match config.try_deserialize::<T>() {
+                Ok(parsed_config) => {
+                    tracing::info!("{} configuration loaded successfully from root", section_name);
+                    Ok(parsed_config)
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to load {} configuration: {}", section_name, e);
+                    tracing::info!("Using default {} configuration", section_name);
+                    Ok(T::default())
+                }
+            }
         }
     }
 }
@@ -962,6 +999,43 @@ pub fn clear_all_caches() {
     KafkaConfig::clear_port_cache();
     SqsConfig::clear_port_cache();
     println!("All configuration caches cleared");
+}
+
+/// Convenience functions for loading specific configuration parts
+
+/// Load server configuration
+pub fn load_server_config() -> Result<ServerConfig, ConfigError> {
+    load_config_part::<ServerConfig>("server")
+}
+
+/// Load database configuration  
+pub fn load_database_config() -> Result<DatabaseConfig, ConfigError> {
+    load_config_part::<DatabaseConfig>("database")
+}
+
+/// Load logging configuration
+pub fn load_logging_config() -> Result<LoggingConfig, ConfigError> {
+    load_config_part::<LoggingConfig>("logging")
+}
+
+/// Load command configuration
+pub fn load_command_config() -> Result<CommandConfig, ConfigError> {
+    load_config_part::<CommandConfig>("command")
+}
+
+/// Load queue configuration
+pub fn load_queue_config() -> Result<QueueConfig, ConfigError> {
+    load_config_part::<QueueConfig>("queue")
+}
+
+/// Load Kafka configuration
+pub fn load_kafka_config() -> Result<KafkaConfig, ConfigError> {
+    load_config_part::<KafkaConfig>("kafka")
+}
+
+/// Load SQS configuration
+pub fn load_sqs_config() -> Result<SqsConfig, ConfigError> {
+    load_config_part::<SqsConfig>("sqs")
 }
 
 /// Generate a default configuration file in TOML format
@@ -1276,38 +1350,6 @@ mod tests {
 
     mod server_config {
         use super::*;
-
-        #[rstest]
-        #[test]
-        fn to_setup_config_without_tls(sample_server_config: ServerConfig) {
-            let setup_config = sample_server_config.to_setup_config();
-            
-            assert_eq!(setup_config.host, sample_server_config.host);
-            assert_eq!(setup_config.port, sample_server_config.port);
-            assert!(!setup_config.tls_enabled);
-            assert!(setup_config.tls_cert_path.is_none());
-            assert!(setup_config.tls_key_path.is_none());
-            assert!(setup_config.tls_port.is_none());
-        }
-
-        #[test]
-        fn to_setup_config_with_tls() {
-            let config = ServerConfig {
-                host: "0.0.0.0".to_string(),
-                port: 8080,
-                tls_enabled: true,
-                tls_cert_path: "/path/to/cert.pem".to_string(),
-                tls_key_path: "/path/to/key.pem".to_string(),
-                tls_port: 8443,
-            };
-
-            let setup_config = config.to_setup_config();
-            
-            assert!(setup_config.tls_enabled);
-            assert_eq!(setup_config.tls_cert_path, Some("/path/to/cert.pem".to_string()));
-            assert_eq!(setup_config.tls_key_path, Some("/path/to/key.pem".to_string()));
-            assert_eq!(setup_config.tls_port, Some(8443));
-        }
 
         #[test]
         fn default_values_applied_correctly() {
@@ -1838,6 +1880,99 @@ mod tests {
             };
 
             assert_eq!(config.host, "::1");
+        }
+    }
+
+    mod load_config_part {
+        use super::*;
+        use std::env;
+
+        #[test]
+        fn load_config_part_returns_default_when_no_config_file() {
+            // Set environment to a non-existent config to test default fallback
+            env::set_var("RUN_ENV", "test_nonexistent");
+            
+            let result = load_config_part::<ServerConfig>("server");
+            assert_ok!(&result);
+            
+            let config = result.unwrap();
+            assert_eq!(config.host, "localhost");
+            assert_eq!(config.port, 8080);
+            
+            // Clean up
+            env::remove_var("RUN_ENV");
+        }
+
+        #[test]
+        fn load_config_part_uses_default_values_on_parse_error() {
+            // This tests the fallback to default when parsing fails
+            // Since we can't easily create a malformed config file in this test,
+            // we test that the function returns defaults when section is missing
+            let result = load_config_part::<DatabaseConfig>("nonexistent_section");
+            assert_ok!(&result);
+            
+            let config = result.unwrap();
+            assert_eq!(config.host, "localhost");
+            assert_eq!(config.port, 0); // Default uses random port
+        }
+
+        #[test]
+        fn convenience_functions_work() {
+            // Test that all convenience functions can be called without error
+            let _server = load_server_config();
+            let _database = load_database_config();
+            let _logging = load_logging_config();
+            let _command = load_command_config();
+            let _queue = load_queue_config();
+            let _kafka = load_kafka_config();
+            let _sqs = load_sqs_config();
+            
+            // All should return Ok with default values
+            assert_ok!(load_server_config());
+            assert_ok!(load_database_config());
+            assert_ok!(load_logging_config());
+            assert_ok!(load_command_config());
+            assert_ok!(load_queue_config());
+            assert_ok!(load_kafka_config());
+            assert_ok!(load_sqs_config());
+        }
+
+        #[test]
+        fn convenience_functions_return_expected_defaults() {
+            let server = assert_ok!(load_server_config());
+            assert_eq!(server.host, "localhost");
+            assert_eq!(server.port, 8080);
+            
+            let database = assert_ok!(load_database_config());
+            assert_eq!(database.host, "localhost");
+            assert_eq!(database.creds.username, "postgres");
+            
+            let logging = assert_ok!(load_logging_config());
+            assert_eq!(logging.level, "info");
+            
+            let command = assert_ok!(load_command_config());
+            assert_eq!(command.retry.max_attempts, 3);
+            
+            let kafka = assert_ok!(load_kafka_config());
+            assert_eq!(kafka.host, "localhost");
+            assert_eq!(kafka.port, 9092);
+            
+            let sqs = assert_ok!(load_sqs_config());
+            assert_eq!(sqs.host, "localhost");
+            assert_eq!(sqs.port, 4566);
+        }
+
+        #[test]
+        fn load_config_part_handles_different_section_names() {
+            // Test that the function can handle different section names
+            let result1 = load_config_part::<ServerConfig>("server");
+            let result2 = load_config_part::<ServerConfig>("webserver");
+            let result3 = load_config_part::<ServerConfig>("http");
+            
+            // All should return defaults since no config file exists
+            assert_ok!(result1);
+            assert_ok!(result2);
+            assert_ok!(result3);
         }
     }
 } 

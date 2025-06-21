@@ -5,10 +5,9 @@ mod common;
 mod fixtures;
 mod utils;
 
-use base64::{Engine as _, engine::general_purpose};
+use configuration::{JwtConfig, load_config_part};
 use common::setup_test_server;
 use fixtures::DbFixtures;
-use reqwest::Client;
 use sea_orm::ConnectionTrait;
 use serde_json::{Value, json};
 use serial_test::serial;
@@ -161,7 +160,7 @@ async fn test_complete_registration_expired_token() {
     // Create an expired registration token using the utility function
     let user_id = uuid::Uuid::new_v4();
     let email = "test@example.com".to_string();
-    let config = _fixture.config();
+    let config = load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config");
 
             let expired_token = utils::jwt::create_expired_registration_token_with_encoder(
         user_id, email, &config,

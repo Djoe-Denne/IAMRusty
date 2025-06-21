@@ -248,7 +248,7 @@ impl<TEvent, TError> AdaptedEventPublisherBuilder<TEvent, TError> {
             },
             QueueConfig::Disabled => {
                 tracing::info!("Queue disabled in adapter, using no-op event publisher");
-                Arc::new(crate::ConcreteEventPublisher::NoOp(crate::NoOpEventPublisher::new()))
+                Arc::new(crate::ConcreteEventPublisher::NoOp(Arc::new(crate::NoOpEventPublisher::new())))
             }
         };
 
@@ -276,7 +276,7 @@ impl<TEvent, TError> AdaptedEventPublisherBuilder<TEvent, TError> {
         let publisher = match &config {
             QueueConfig::Disabled => {
                 tracing::info!("Queue disabled in adapter, using no-op event publisher");
-                Arc::new(crate::ConcreteEventPublisher::NoOp(crate::NoOpEventPublisher::new()))
+                Arc::new(crate::ConcreteEventPublisher::NoOp(Arc::new(crate::NoOpEventPublisher::new())))
             },
             QueueConfig::Kafka(kafka_config) => crate::create_event_publisher(kafka_config)?,
             QueueConfig::Sqs(sqs_config) => crate::create_sqs_event_publisher(sqs_config).await?

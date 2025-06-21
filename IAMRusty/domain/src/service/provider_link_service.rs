@@ -149,7 +149,12 @@ where
             .find_by_id(user_id)
             .await
             .map_err(|e| DomainError::RepositoryError(e.to_string()))?
-            .ok_or(DomainError::UserNotFound)
+            .ok_or(
+                {
+                    tracing::error!("User not found for id: {}", user_id);
+                    DomainError::UserNotFound
+                }
+            )
     }
 
     /// Check if provider is already linked to another user or the same user
