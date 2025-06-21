@@ -1,123 +1,13 @@
 use application::command::CommandError;
 use application::usecase::{token::TokenError, user::UserError};
 use axum::{
-    extract::rejection::JsonRejection,
     http::StatusCode,
     response::{IntoResponse, Response},
     Json,
 };
 use domain::error::DomainError;
-use serde::Serialize;
+use rustycog_http::error::{UniformErrorResponse, ErrorDetails};
 use thiserror::Error;
-use validator::ValidationErrors as ValidatorValidationErrors;
-
-/// Uniform error response structure for all API errors
-#[derive(Debug, Serialize)]
-pub struct UniformErrorResponse {
-    pub error: ErrorDetails,
-}
-
-#[derive(Debug, Serialize)]
-pub struct ErrorDetails {
-    pub error_code: String,
-    pub message: String,
-    pub status: u16,
-}
-
-/// Custom validation error for uniform error format
-#[derive(Debug)]
-pub struct ValidationError {
-    pub error_code: String,
-    pub message: String,
-    pub status: StatusCode,
-}
-
-impl ValidationError {
-    pub fn new(error_code: impl Into<String>, message: impl Into<String>) -> Self {
-        Self {
-            error_code: error_code.into(),
-            message: message.into(),
-            status: StatusCode::UNPROCESSABLE_ENTITY,
-        }
-    }
-
-    pub fn with_status(mut self, status: StatusCode) -> Self {
-        self.status = status;
-        self
-    }
-}
-
-impl IntoResponse for ValidationError {
-    fn into_response(self) -> Response {
-        let body = Json(UniformErrorResponse {
-            error: ErrorDetails {
-                error_code: self.error_code,
-                message: self.message,
-                status: self.status.as_u16(),
-            },
-        });
-        (self.status, body).into_response()
-    }
-}
-
-/// Convert validator ValidationErrors to our uniform format
-impl From<ValidatorValidationErrors> for ValidationError {
-    fn from(errors: ValidatorValidationErrors) -> Self {
-        // Extract the first validation error for a clean message
-        let (field, error_info) = errors
-            .errors()
-            .iter()
-            .next()
-            .map(|(field, error_kind)| {
-                let first_error = match error_kind {
-                    validator::ValidationErrorsKind::Field(errors) => errors
-                        .first()
-                        .map(|e| (e.code.as_ref(), e.message.as_deref())),
-                    _ => None,
-                };
-                (field.as_ref(), first_error)
-            })
-            .unwrap_or(("unknown", None));
-
-        let (error_code, message) = if let Some((code, msg)) = error_info {
-            let formatted_message = msg.map(|s| s.to_string()).unwrap_or_else(|| match code {
-                "empty_string" | "empty_password" | "empty_email" | "empty_username" => {
-                    format!("{} is required", field.replace('_', " "))
-                }
-                "invalid_email_format" => "Invalid email format".to_string(),
-                "password_too_short" => "Password must be at least 8 characters long".to_string(),
-                "password_needs_letter" => "Password must contain at least one letter".to_string(),
-                "password_needs_digit" => "Password must contain at least one number".to_string(),
-                "password_too_common" => {
-                    "Password is too common, please choose a stronger password".to_string()
-                }
-                "invalid_username_format" => {
-                    "Username can only contain letters, numbers, underscores, and hyphens"
-                        .to_string()
-                }
-                "email_too_long" => "Email address is too long".to_string(),
-                "password_too_long" => "Password is too long".to_string(),
-                _ => format!("Invalid {}", field.replace('_', " ")),
-            });
-            (format!("validation_{}", code), formatted_message)
-        } else {
-            (
-                "validation_failed".to_string(),
-                "Validation failed".to_string(),
-            )
-        };
-
-        ValidationError::new(error_code, message)
-    }
-}
-
-/// Convert JSON parsing errors to our uniform format
-impl From<JsonRejection> for ValidationError {
-    fn from(_rejection: JsonRejection) -> Self {
-        ValidationError::new("invalid_json", "Invalid JSON format in request body")
-            .with_status(StatusCode::BAD_REQUEST)
-    }
-}
 
 /// API errors
 #[derive(Debug, Error)]

@@ -8,6 +8,7 @@ license.workspace = true
 
 [dependencies]
 rustycog-core = { path = "../rustycog-core" }
+rustycog-http = { path = "../rustycog-http" }
 testcontainers.workspace = true
 testcontainers-modules.workspace = true
 axum-test.workspace = true
@@ -26,6 +27,7 @@ reqwest.workspace = true
 aws-config.workspace = true
 aws-credential-types.workspace = true
 aws-sdk-sqs.workspace = true
+rdkafka.workspace = true
 ctrlc = "3.4"
 libc = "0.2"
 url = "2.5"

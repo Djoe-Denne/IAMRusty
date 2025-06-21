@@ -6,10 +6,10 @@ use axum::{
     response::Response,
 };
 use tracing::debug;
-
-use application::command::{user::ValidateTokenCommand, CommandContext, CommandError};
-use std::collections::HashMap;
 use uuid::Uuid;
+
+use crate::jwt_handler::UserIdExtractor;
+use std::sync::Arc;
 
 /// Authenticated user information extracted from middleware
 #[derive(Debug, Clone)]
@@ -43,9 +43,9 @@ fn extract_token(auth_header: &str) -> Option<&str> {
     }
 }
 
-/// Authentication middleware
-pub async fn auth(
-    State(state): State<crate::AppState>,
+/// Authentication middleware using simple user ID extractor
+pub async fn auth_middleware(
+    State(user_id_extractor): State<Arc<UserIdExtractor>>,
     req: Request<Body>,
     next: Next,
 ) -> Result<Response, StatusCode> {
@@ -59,37 +59,24 @@ pub async fn auth(
     // Extract the token
     let token = extract_token(auth_header).ok_or(StatusCode::UNAUTHORIZED)?;
 
-    // Create command context for token validation
+    // Get request ID for logging
     let request_id = req
         .headers()
         .get("x-request-id")
         .and_then(|h| h.to_str().ok())
         .map(|s| s.to_string());
-    let context = CommandContext {
-        execution_id: Uuid::new_v4(),
-        user_id: None,
-        request_id: request_id.clone(),
-        metadata: HashMap::new(),
-    };
 
     debug!(
         "Try to validate token for query {}",
         request_id.unwrap_or_default()
     );
 
-    // Validate the token using command service
-    let command = ValidateTokenCommand::new(token.to_string());
-    let user_id = state
-        .command_service
-        .execute(command, context)
-        .await
-        .map_err(|e| match e {
-            CommandError::Authentication { .. } => StatusCode::UNAUTHORIZED,
-            CommandError::Business { .. } => StatusCode::UNAUTHORIZED,
-            CommandError::Validation { .. } => StatusCode::UNAUTHORIZED,
-            CommandError::Infrastructure { .. } => StatusCode::INTERNAL_SERVER_ERROR,
-            CommandError::Timeout { .. } => StatusCode::INTERNAL_SERVER_ERROR,
-            CommandError::RetryExhausted { .. } => StatusCode::INTERNAL_SERVER_ERROR,
+    // Extract user ID from token (no verification)
+    let user_id = user_id_extractor
+        .extract_user_id(token)
+        .map_err(|e| {
+            debug!("User ID extraction failed: {}", e);
+            StatusCode::UNAUTHORIZED
         })?;
 
     // Add the user ID to the request extensions

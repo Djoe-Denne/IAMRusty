@@ -1,9 +1,10 @@
 use crate::error::ApiError;
 use application::command::{user::GetUserCommand, CommandContext};
 use axum::{
-    extract::{Extension, State},
+    extract::State,
     Json,
 };
+use rustycog_http::AuthUser;
 use serde::Serialize;
 use uuid::Uuid;
 
@@ -24,17 +25,17 @@ pub struct UserResponse {
 
 /// Get the current user's profile
 pub async fn get_user(
-    State(state): State<crate::AppState>,
-    Extension(user_id): Extension<Uuid>,
+    State(state): State<rustycog_http::AppState>,
+    auth_user: AuthUser,
 ) -> Result<Json<UserResponse>, ApiError> {
-    debug!("Getting user profile for ID: {}", user_id);
+    debug!("Getting user profile for ID: {}", auth_user.user_id);
 
     let context = CommandContext::new()
-        .with_user_id(user_id)
+        .with_user_id(auth_user.user_id)
         .with_metadata("operation".to_string(), "get_user".to_string());
 
     // Get the user using command service
-    let command = GetUserCommand::new(user_id);
+    let command = GetUserCommand::new(auth_user.user_id);
     let user = state.command_service.execute(command, context).await?;
 
     Ok(Json(UserResponse {

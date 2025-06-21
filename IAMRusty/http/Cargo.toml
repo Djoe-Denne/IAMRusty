@@ -8,6 +8,7 @@ edition = "2021"
 domain = { path = "../domain" }
 application = { path = "../application" }
 configuration = { path = "../configuration" }
+rustycog-http = { path = "../../rustycog/rustycog-http" }
 
 # Web & HTTP
 axum = { version = "0.8.4", features = ["macros", "json"] }

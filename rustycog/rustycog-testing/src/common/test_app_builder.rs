@@ -6,7 +6,7 @@
 use std::sync::Arc;
 use anyhow::Result;
 use configuration::AppConfig;
-use http_server::AppState;
+use rustycog_http::AppState;
 use setup::app::build_app_state_with_event_publisher;
 use crate::common::mock_event_publisher::MockEventPublisher;
 

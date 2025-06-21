@@ -10,9 +10,11 @@ use uuid::Uuid;
 
 pub mod registry;
 pub mod generic_service;
+pub mod token;
 
 pub use registry::*;
 pub use generic_service::*;
+pub use token::*;
 
 /// Command execution error
 #[derive(Debug, Error)]

@@ -1,7 +1,8 @@
 use crate::{
-    error::AuthError, extractors::ValidatedJson, middleware_auth::AuthUser,
-    oauth_state::OAuthState, validation::*, AppState,
+    error::AuthError, oauth_state::OAuthState, validation::*,
 };
+use rustycog_http::AppState;
+use rustycog_http::{ValidatedJson, AuthUser};
 use application::command::{
     oauth_login::{GenerateOAuthStartUrlCommand, OAuthLoginCommand},
     password_login::PasswordLoginCommand,
@@ -540,6 +541,7 @@ async fn handle_link_callback(
 }
 
 /// Handle email/password signup
+#[axum::debug_handler]
 pub async fn signup(
     State(state): State<AppState>,
     ValidatedJson(request): ValidatedJson<SignupRequest>,

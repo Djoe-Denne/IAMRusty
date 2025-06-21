@@ -2350,6 +2350,7 @@ dependencies = [
  "lazy_static",
  "regex",
  "rustls 0.23.27",
+ "rustycog-http",
  "serde",
  "serde_json",
  "thiserror 1.0.69",
@@ -4587,11 +4588,22 @@ dependencies = [
 name = "rustycog-http"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "async-trait",
  "axum",
+ "axum-server",
+ "axum-valid",
+ "rustycog-command",
  "rustycog-core",
  "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "tokio",
  "tower 0.4.13",
  "tower-http 0.5.2",
+ "tracing",
+ "uuid",
+ "validator",
 ]
 
 [[package]]
@@ -4624,8 +4636,10 @@ dependencies = [
  "libc",
  "migration",
  "rand 0.8.5",
+ "rdkafka",
  "reqwest 0.12.20",
  "rustycog-core",
+ "rustycog-http",
  "sea-orm",
  "serde",
  "serde_json",
@@ -5042,6 +5056,7 @@ dependencies = [
  "domain",
  "http_server",
  "infra",
+ "rustycog-http",
  "sha2",
  "tokio",
  "tracing",

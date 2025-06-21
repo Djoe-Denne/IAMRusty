@@ -3,29 +3,16 @@
 //! This crate provides the HTTP interface for the application,
 //! implementing the OpenAPI specification.
 
-use application::command::GenericCommandService;
-use axum::{
-    http::StatusCode,
-    middleware,
-    response::{IntoResponse, Json},
-    routing::{get, post, delete},
-    Router,
+use rustycog_http::{
+    RouteBuilder, ServerConfig, AppState
 };
 
-use serde_json::json;
-use std::net::SocketAddr;
-use std::sync::Arc;
-use tower_http::catch_panic::CatchPanicLayer;
-
 pub mod error;
-pub mod extractors;
 pub mod handlers;
-mod middleware_auth;
 pub mod oauth_state;
 pub mod validation;
 
-pub use error::{ApiError, AuthError, UniformErrorResponse, ValidationError};
-pub use extractors::ValidatedJson;
+pub use error::{ApiError, AuthError};
 pub use handlers::{
     auth::{
         check_username, complete_registration, internal_provider_token, jwks, login,
@@ -39,157 +26,32 @@ pub use handlers::{
     token::refresh_token,
     user::get_user,
 };
-pub use middleware_auth::auth;
-use middleware_auth::auth as auth_middleware;
 
-/// Application state for HTTP handlers
-#[derive(Clone)]
-pub struct AppState {
-    /// Command service for handling commands with cross-cutting concerns
-    pub command_service: Arc<GenericCommandService>
-}
-
-impl AppState {
-    /// Create a new AppState
-    pub fn new(
-        command_service: Arc<GenericCommandService>
-    ) -> Self {
-        Self {
-            command_service
-        }
-    }
-}
-
-/// Server configuration for HTTP/HTTPS
-pub struct ServerConfig {
-    pub host: String,
-    pub port: u16,
-    pub tls_enabled: bool,
-    pub tls_cert_path: Option<String>,
-    pub tls_key_path: Option<String>,
-    pub tls_port: Option<u16>,
-}
-
-/// Health check handler
-async fn health_check() -> &'static str {
-    "OK"
-}
-
-/// Handle panic in middleware
-fn handle_panic(err: Box<dyn std::any::Any + Send + 'static>) -> axum::response::Response {
-    let details = if let Some(s) = err.downcast_ref::<String>() {
-        s.clone()
-    } else if let Some(s) = err.downcast_ref::<&str>() {
-        s.to_string()
-    } else {
-        "Unknown panic".to_string()
-    };
-
-    tracing::error!("Service panicked: {}", details);
-
-    let body = Json(json!({
-        "error": {
-            "message": "Internal server error",
-            "status": 500,
-        }
-    }));
-
-    (StatusCode::INTERNAL_SERVER_ERROR, body).into_response()
-}
-
-/// Start the server with optional HTTPS support
-pub async fn serve_with_config(state: AppState, config: ServerConfig) -> anyhow::Result<()> {
-    let app = Router::new()
-        .route("/health", get(health_check))
-        .route("/.well-known/jwks.json", get(jwks))
-        .route("/api/auth/signup", post(signup))
-        .route("/api/auth/login", post(login))
-        .route("/api/auth/verify", post(verify_email))
-        .route(
-            "/api/auth/resend-verification",
-            post(resend_verification_email),
-        )
-        .route(
-            "/api/auth/complete-registration",
-            post(complete_registration),
-        )
-        .route("/api/auth/username/check", get(check_username))
-        .route("/api/auth/password/reset-request", post(request_password_reset))
-        .route("/api/auth/password/reset-validate", post(validate_reset_token))
-        .route("/api/auth/password/reset-confirm", post(reset_password_unauthenticated))
-        .route("/api/auth/{provider_name}/login", get(oauth_login_start))
-        .route("/api/auth/{provider_name}/callback", get(oauth_callback))
-        .route("/api/token/refresh", post(refresh_token))
-        .route(
-            "/api/me",
-            get(get_user).route_layer(middleware::from_fn_with_state(
-                state.clone(),
-                auth_middleware,
-            )),
-        )
-        .route(
-            "/api/auth/password/reset-authenticated",
-            post(reset_password_authenticated).route_layer(middleware::from_fn_with_state(
-                state.clone(),
-                auth_middleware,
-            )),
-        )
-        .route(
-            "/internal/{provider_name}/token",
-            post(internal_provider_token).route_layer(middleware::from_fn_with_state(
-                state.clone(),
-                auth_middleware,
-            )),
-        )
-        .route(
-            "/internal/{provider_name}/revoke",
-            delete(revoke_provider_token).route_layer(middleware::from_fn_with_state(
-                state.clone(),
-                auth_middleware,
-            )),
-        )
-        .route(
-            "/api/auth/{provider_name}/link",
-            get(oauth_link_start).route_layer(middleware::from_fn_with_state(
-                state.clone(),
-                auth_middleware,
-            )),
-        )
-        .route("/api/auth/{provider_name}/relink-start", get(generate_relink_provider_start_url))
-        .route(
-            "/api/auth/{provider_name}/relink-callback",
-            get(relink_provider_callback).route_layer(middleware::from_fn_with_state(
-                state.clone(),
-                auth_middleware,
-            )),
-        )
-        .layer(CatchPanicLayer::custom(handle_panic))
-        .with_state(state);
-
-    if config.tls_enabled {
-        if let (Some(cert_path), Some(key_path), Some(tls_port)) =
-            (config.tls_cert_path, config.tls_key_path, config.tls_port)
-        {
-            tracing::info!("Starting HTTPS server on {}:{}", config.host, tls_port);
-
-            let tls_config =
-                axum_server::tls_rustls::RustlsConfig::from_pem_file(cert_path, key_path).await?;
-            let addr: SocketAddr = format!("{}:{}", config.host, tls_port).parse()?;
-
-            axum_server::bind_rustls(addr, tls_config)
-                .serve(app.into_make_service())
-                .await?;
-        } else {
-            return Err(anyhow::anyhow!(
-                "TLS enabled but certificate/key paths or port not provided"
-            ));
-        }
-    } else {
-        tracing::info!("Starting HTTP server on {}:{}", config.host, config.port);
-        let addr: SocketAddr = format!("{}:{}", config.host, config.port).parse()?;
-        let listener = tokio::net::TcpListener::bind(addr).await?;
-        axum::serve(listener, app).await?;
-    }
-
-    Ok(())
+/// Create the application routes using the fluent builder API
+pub async fn create_app_routes(state: AppState, config: ServerConfig) -> anyhow::Result<()> {
+    RouteBuilder::new(state.clone())
+        .health_check()
+        // Public authentication routes
+        .get("/.well-known/jwks.json", jwks)
+        .post("/api/auth/signup", signup)
+        .post("/api/auth/login", login)
+        .post("/api/auth/verify", verify_email)
+        .post("/api/auth/resend-verification", resend_verification_email)
+        .post("/api/auth/complete-registration", complete_registration)
+        .get("/api/auth/username/check", check_username)
+        .post("/api/auth/password/reset-request", request_password_reset)
+        .post("/api/auth/password/reset-validate", validate_reset_token)
+        .post("/api/auth/password/reset-confirm", reset_password_unauthenticated)
+        .get("/api/auth/{provider_name}/login", oauth_login_start)
+        .get("/api/auth/{provider_name}/callback", oauth_callback)
+        .post("/api/token/refresh", refresh_token)
+        .get("/api/auth/{provider_name}/relink-start", generate_relink_provider_start_url)
+        // Authenticated routes
+        .authenticated_get("/api/me", get_user)
+        .authenticated_post("/api/auth/password/reset-authenticated", reset_password_authenticated)
+        .authenticated_post("/internal/{provider_name}/token", internal_provider_token)
+        .authenticated_delete("/internal/{provider_name}/revoke", revoke_provider_token)
+        .authenticated_get("/api/auth/{provider_name}/link", oauth_link_start)
+        .authenticated_get("/api/auth/{provider_name}/relink-callback", relink_provider_callback)
+        .build(config).await
 }

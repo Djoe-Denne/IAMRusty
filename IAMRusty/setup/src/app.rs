@@ -3,7 +3,9 @@ use chrono::Duration;
 use std::sync::Arc;
 use tracing::info;
 
-use http_server::{AppState, ServerConfig as HttpServerConfig, serve_with_config};
+use rustycog_http::{AppState, UserIdExtractor};
+use http_server::{create_app_routes};
+use rustycog_http::ServerConfig as HttpServerConfig;
 use infra::{
     auth::{GitHubOAuth2Client, GitLabOAuth2Client, PasswordService, PasswordServiceAdapter, PasswordResetServiceAdapter},
     db::DbConnectionPool,
@@ -373,10 +375,11 @@ where
     );
     let command_service = Arc::new(GenericCommandService::new(Arc::new(registry)));
 
+    // Create user ID extractor for authentication
+    let user_id_extractor = UserIdExtractor::new();
+
     // Create app state
-    let app_state = AppState::new(
-        command_service
-    );
+    let app_state = AppState::new(command_service, user_id_extractor);
 
     Ok(app_state)
 }
@@ -408,7 +411,7 @@ pub async fn run_server(app_state: AppState, app_config: ServerConfig) -> Result
         );
     }
 
-    serve_with_config(app_state, server_config).await?;
+    create_app_routes(app_state, server_config).await?;
 
     Ok(())
 }

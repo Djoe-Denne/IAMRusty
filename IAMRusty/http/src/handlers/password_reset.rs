@@ -1,7 +1,8 @@
 use crate::{
-    error::AuthError, extractors::ValidatedJson, middleware_auth::AuthUser,
-    validation::*, AppState,
+    error::AuthError, validation::*,
 };
+use rustycog_http::AppState;
+use rustycog_http::{ValidatedJson, AuthUser};
 use application::command::{
     password_reset::{
         RequestPasswordResetCommand, ValidateResetTokenCommand,
