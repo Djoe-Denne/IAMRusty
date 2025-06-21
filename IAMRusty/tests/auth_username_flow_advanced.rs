@@ -459,7 +459,7 @@ async fn test_oauth_first_flow_with_github() {
 
     // Step 1: Start OAuth flow
     let start_response = client
-        .get(&format!("{}/api/auth/github/start", base_url))
+        .get(&format!("{}/api/auth/github/login", base_url))
         .send()
         .await
         .expect("Failed to start OAuth");

@@ -635,7 +635,7 @@ async fn test_oauth_callback_new_user_returns_202_with_registration_token() {
 
     // Start OAuth flow
     let start_response = client
-        .get(&format!("{}/api/auth/github/start", base_url))
+        .get(&format!("{}/api/auth/github/login", base_url))
         .send()
         .await
         .expect("Failed to start OAuth flow");
@@ -702,7 +702,7 @@ async fn test_registration_token_contains_oauth_provider_info() {
 
     // Start OAuth flow
     let start_response = client
-        .get(&format!("{}/api/auth/github/start", base_url))
+        .get(&format!("{}/api/auth/github/login", base_url))
         .send()
         .await
         .expect("Failed to start OAuth flow");
@@ -1395,7 +1395,7 @@ async fn test_complete_email_first_flow() {
 
     // Start OAuth linking flow with authentication
     let oauth_start_response = client
-        .get(&format!("{}/api/auth/github/start", base_url))
+        .get(&format!("{}/api/auth/github/link", base_url))
         .header("Authorization", format!("Bearer {}", access_token))
         .send()
         .await
@@ -1425,7 +1425,7 @@ async fn test_complete_oauth_first_flow() {
 
     // Step 1: OAuth signup
     let start_response = client
-        .get(&format!("{}/api/auth/github/start", base_url))
+        .get(&format!("{}/api/auth/github/login", base_url))
         .send()
         .await
         .expect("Failed to start OAuth flow");

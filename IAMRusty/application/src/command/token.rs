@@ -247,6 +247,39 @@ impl Command for RevokeAllTokensCommand {
     }
 }
 
+/// Get JWKS command
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GetJwksCommand {
+    /// Command instance ID
+    pub command_id: Uuid,
+}
+
+impl GetJwksCommand {
+    /// Create a new get JWKS command
+    pub fn new() -> Self {
+        Self {
+            command_id: Uuid::new_v4(),
+        }
+    }
+}
+
+impl Command for GetJwksCommand {
+    type Result = domain::entity::token::JwkSet;
+
+    fn command_type(&self) -> &'static str {
+        "get_jwks"
+    }
+
+    fn command_id(&self) -> Uuid {
+        self.command_id
+    }
+
+    fn validate(&self) -> Result<(), CommandError> {
+        // No validation needed for JWKS
+        Ok(())
+    }
+}
+
 /// Refresh token command handler
 pub struct RefreshTokenCommandHandler<T>
 where
@@ -340,5 +373,37 @@ where
             .revoke_all_tokens(command.user_id)
             .await
             .map_err(|e| TokenErrorMapper.map_error(Box::new(e)))
+    }
+}
+
+/// Get JWKS command handler
+pub struct GetJwksCommandHandler<T>
+where
+    T: TokenUseCase + ?Sized,
+{
+    token_use_case: Arc<T>,
+}
+
+impl<T> GetJwksCommandHandler<T>
+where
+    T: TokenUseCase + ?Sized,
+{
+    /// Create a new get JWKS command handler
+    pub fn new(token_use_case: Arc<T>) -> Self {
+        Self { token_use_case }
+    }
+}
+
+#[async_trait]
+impl<T> CommandHandler<GetJwksCommand> for GetJwksCommandHandler<T>
+where
+    T: TokenUseCase + Send + Sync + ?Sized,
+{
+    async fn handle(
+        &self,
+        _command: GetJwksCommand,
+    ) -> Result<domain::entity::token::JwkSet, CommandError> {
+        // Get JWKS is synchronous, so we can call it directly
+        Ok(self.token_use_case.get_jwks())
     }
 }

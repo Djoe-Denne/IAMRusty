@@ -3,10 +3,7 @@
 //! This crate provides the HTTP interface for the application,
 //! implementing the OpenAPI specification.
 
-use application::{
-    command::GenericCommandService,
-    usecase::{registration::RegistrationUseCase, token::TokenUseCase, user::UserUseCase},
-};
+use application::command::GenericCommandService;
 use axum::{
     http::StatusCode,
     middleware,
@@ -14,7 +11,7 @@ use axum::{
     routing::{get, post, delete},
     Router,
 };
-use configuration::OAuthConfig;
+
 use serde_json::json;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -32,7 +29,7 @@ pub use extractors::ValidatedJson;
 pub use handlers::{
     auth::{
         check_username, complete_registration, internal_provider_token, jwks, login,
-        oauth_callback, oauth_start, resend_verification_email, signup, verify_email,
+        oauth_callback, oauth_login_start, oauth_link_start, resend_verification_email, signup, verify_email,
         revoke_provider_token, relink_provider_callback, generate_relink_provider_start_url,
     },
     password_reset::{
@@ -49,32 +46,16 @@ use middleware_auth::auth as auth_middleware;
 #[derive(Clone)]
 pub struct AppState {
     /// Command service for handling commands with cross-cutting concerns
-    pub command_service: Arc<GenericCommandService>,
-    /// User use case
-    pub user_usecase: Arc<dyn UserUseCase>,
-    /// Token use case
-    pub token_usecase: Arc<dyn TokenUseCase>,
-    /// Registration use case
-    pub registration_usecase: Arc<dyn RegistrationUseCase>,
-    /// OAuth configuration for accessing redirect URIs
-    pub oauth_config: OAuthConfig,
+    pub command_service: Arc<GenericCommandService>
 }
 
 impl AppState {
     /// Create a new AppState
     pub fn new(
-        command_service: Arc<GenericCommandService>,
-        user_usecase: Arc<dyn UserUseCase>,
-        token_usecase: Arc<dyn TokenUseCase>,
-        registration_usecase: Arc<dyn RegistrationUseCase>,
-        oauth_config: OAuthConfig,
+        command_service: Arc<GenericCommandService>
     ) -> Self {
         Self {
-            command_service,
-            user_usecase,
-            token_usecase,
-            registration_usecase,
-            oauth_config,
+            command_service
         }
     }
 }
@@ -136,7 +117,7 @@ pub async fn serve_with_config(state: AppState, config: ServerConfig) -> anyhow:
         .route("/api/auth/password/reset-request", post(request_password_reset))
         .route("/api/auth/password/reset-validate", post(validate_reset_token))
         .route("/api/auth/password/reset-confirm", post(reset_password_unauthenticated))
-        .route("/api/auth/{provider_name}/start", get(oauth_start))
+        .route("/api/auth/{provider_name}/login", get(oauth_login_start))
         .route("/api/auth/{provider_name}/callback", get(oauth_callback))
         .route("/api/token/refresh", post(refresh_token))
         .route(
@@ -163,6 +144,13 @@ pub async fn serve_with_config(state: AppState, config: ServerConfig) -> anyhow:
         .route(
             "/internal/{provider_name}/revoke",
             delete(revoke_provider_token).route_layer(middleware::from_fn_with_state(
+                state.clone(),
+                auth_middleware,
+            )),
+        )
+        .route(
+            "/api/auth/{provider_name}/link",
+            get(oauth_link_start).route_layer(middleware::from_fn_with_state(
                 state.clone(),
                 auth_middleware,
             )),

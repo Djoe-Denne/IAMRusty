@@ -6,7 +6,7 @@ mod fixtures;
 mod utils;
 
 use base64::{Engine as _, engine::general_purpose};
-use utils::jwt::create_expired_registration_token_with_encoder;
+use utils::jwt::{create_expired_registration_token_with_encoder, create_valid_jwt_token_with_encoder};
 use common::setup_test_server;
 use fixtures::{DbFixtures, GitHubFixtures};
 use sea_orm::ConnectionTrait;
@@ -89,7 +89,7 @@ async fn test_oauth_provider_already_linked_to_same_user() {
 
     // Try to link GitHub again with authentication
     let oauth_start_response = client
-        .get(&format!("{}/api/auth/github/start", base_url))
+        .get(&format!("{}/api/auth/github/login", base_url))
         .send()
         .await
         .expect("Failed to start OAuth linking");
@@ -152,11 +152,12 @@ async fn test_oauth_provider_linked_to_different_user_returns_409() {
     github.setup_successful_user_profile_arthur().await; // Same profile as first user
 
     // Generate mock JWT for second user
-    let mock_jwt_second_user = "mock_jwt_token_for_second_user";
+    let mock_jwt_second_user = create_valid_jwt_token_with_encoder(second_user.id(), &_fixture.config())
+        .expect("Failed to create JWT token");
 
     // Try to link GitHub from second user (should conflict)
     let oauth_start_response = client
-        .get(&format!("{}/api/auth/github/start", base_url))
+        .get(&format!("{}/api/auth/github/link", base_url))
         .header("Authorization", format!("Bearer {}", mock_jwt_second_user))
         .send()
         .await
@@ -192,13 +193,13 @@ async fn test_oauth_provider_linked_to_different_user_returns_409() {
             .json()
             .await
             .expect("Should return JSON response");
-        assert_eq!(error_response["operation"].as_str().unwrap(), "link");
+
         assert_eq!(
-            error_response["error"].as_str().unwrap(),
+            error_response["error"]["error_code"].as_str().unwrap(),
             "provider_already_linked"
         );
         assert!(
-            error_response["message"].is_string(),
+            error_response["error"]["message"].is_string(),
             "Should return error message"
         );
     }

@@ -375,11 +375,7 @@ where
 
     // Create app state
     let app_state = AppState::new(
-        command_service,
-        Arc::new(user_usecase),
-        Arc::new(token_usecase),
-        registration_usecase,
-        config.oauth.clone(),
+        command_service
     );
 
     Ok(app_state)

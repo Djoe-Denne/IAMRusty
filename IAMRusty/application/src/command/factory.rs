@@ -28,9 +28,9 @@ use super::{
     },
     signup::{AuthErrorMapper as SignupAuthErrorMapper, SignupCommand, SignupCommandHandler},
     token::{
-        RefreshTokenCommand, RefreshTokenCommandHandler, RevokeAllTokensCommand,
-        RevokeAllTokensCommandHandler, RevokeTokenCommand, RevokeTokenCommandHandler,
-        TokenErrorMapper,
+        GetJwksCommand, GetJwksCommandHandler, RefreshTokenCommand, RefreshTokenCommandHandler, 
+        RevokeAllTokensCommand, RevokeAllTokensCommandHandler, RevokeTokenCommand, 
+        RevokeTokenCommandHandler, TokenErrorMapper,
     },
     user::{
         GetUserCommand, GetUserCommandHandler, UserErrorMapper, ValidateTokenCommand,
@@ -149,7 +149,8 @@ impl CommandRegistryFactory {
         let refresh_token_handler =
             Arc::new(RefreshTokenCommandHandler::new(token_usecase.clone()));
         let revoke_token_handler = Arc::new(RevokeTokenCommandHandler::new(token_usecase.clone()));
-        let revoke_all_tokens_handler = Arc::new(RevokeAllTokensCommandHandler::new(token_usecase));
+        let revoke_all_tokens_handler = Arc::new(RevokeAllTokensCommandHandler::new(token_usecase.clone()));
+        let get_jwks_handler = Arc::new(GetJwksCommandHandler::new(token_usecase));
         let token_error_mapper = Arc::new(TokenErrorMapper);
 
         builder = builder
@@ -166,6 +167,11 @@ impl CommandRegistryFactory {
             .register::<RevokeAllTokensCommand, _>(
                 "revoke_all_tokens".to_string(),
                 revoke_all_tokens_handler,
+                token_error_mapper.clone(),
+            )
+            .register::<GetJwksCommand, _>(
+                "get_jwks".to_string(),
+                get_jwks_handler,
                 token_error_mapper,
             );
 

@@ -14,7 +14,7 @@ use application::command::{
 };
 use axum::{
     extract::{Path, Query, State},
-    http::{HeaderMap, StatusCode},
+    http::StatusCode,
     response::Redirect,
     Json,
 };
@@ -253,92 +253,97 @@ pub enum LoginResponse {
     },
 }
 
-/// Handle OAuth start - redirects to provider with appropriate state
-pub async fn oauth_start(
+/// Handle OAuth login start - redirects to provider for login (unauthenticated users)
+pub async fn oauth_login_start(
     State(state): State<AppState>,
     Valid(Path(provider_path)): Valid<Path<ProviderPath>>,
-    headers: HeaderMap,
 ) -> Result<Redirect, AuthError> {
-    debug!("OAuth start for provider: {}", provider_path.provider_name);
+    debug!("OAuth login start for provider: {}", provider_path.provider_name);
 
     // Parse the provider
     let provider = match provider_path.provider_name.to_lowercase().as_str() {
         "github" => Provider::GitHub,
         "gitlab" => Provider::GitLab,
-        _ => return Err(AuthError::oauth_invalid_provider("start")),
+        _ => return Err(AuthError::oauth_invalid_provider("login_start")),
     };
 
-    // Check if this is a login or link operation based on Authorization header
-    let oauth_state = if let Some(auth_header) = headers.get("Authorization") {
-        // Link operation - user is authenticated
-        let auth_str = auth_header
-            .to_str()
-            .map_err(|_e| AuthError::oauth_invalid_authorization_header("start"))?;
-
-        if !auth_str.starts_with("Bearer ") {
-            return Err(AuthError::oauth_invalid_authorization_header("start"));
-        }
-
-        let token = &auth_str[7..];
-
-        // Validate the token and get user ID
-        let user_id = state
-            .user_usecase
-            .validate_access_token(token)
-            .await
-            .map_err(|_e| AuthError::oauth_invalid_token("start"))?;
-
-        debug!("Creating link state for user: {}", user_id);
-        OAuthState::new_link(user_id)
-    } else {
-        // Login operation - user is not authenticated
-        debug!("Creating login state");
-        OAuthState::new_login()
-    };
+    // Create login state
+    debug!("Creating login state");
+    let oauth_state = OAuthState::new_login();
 
     // Encode the state
     let encoded_state = oauth_state
         .encode()
-        .map_err(|_e| AuthError::oauth_state_encoding_failed("start"))?;
+        .map_err(|_e| AuthError::oauth_state_encoding_failed("login_start"))?;
 
     // Generate provider authorization URL using the command service
     let context = CommandContext::new()
-        .with_metadata(
-            "operation".to_string(),
-            if oauth_state.is_login() {
-                "login_start".to_string()
-            } else {
-                "link_start".to_string()
-            },
-        )
+        .with_metadata("operation".to_string(), "login_start".to_string())
         .with_metadata("provider".to_string(), provider.as_str().to_string());
 
-    let base_auth_url = if oauth_state.is_login() {
-        // Login operation - use login command
-        let command = GenerateOAuthStartUrlCommand::new(provider);
-        state
-            .command_service
-            .execute(command, context)
-            .await
-            .map_err(|_e| AuthError::oauth_url_generation_failed("start"))?
-    } else {
-        // Link operation - use link provider command
-        let command = GenerateLinkProviderStartUrlCommand::new(provider);
-        state
-            .command_service
-            .execute(command, context)
-            .await
-            .map_err(|_e| AuthError::oauth_url_generation_failed("start"))?
-    };
+    let command = GenerateOAuthStartUrlCommand::new(provider);
+    let base_auth_url = state
+        .command_service
+        .execute(command, context)
+        .await
+        .map_err(|_e| AuthError::oauth_url_generation_failed("login_start"))?;
 
     // Parse the URL and add our state parameter
     let mut url =
-        url::Url::parse(&base_auth_url).map_err(|_e| AuthError::oauth_invalid_url("start"))?;
+        url::Url::parse(&base_auth_url).map_err(|_e| AuthError::oauth_invalid_url("login_start"))?;
 
     // Add the state parameter to the URL
     url.query_pairs_mut().append_pair("state", &encoded_state);
 
-    debug!("Redirecting to provider authorization URL");
+    debug!("Redirecting to provider authorization URL for login");
+    Ok(Redirect::to(url.as_str()))
+}
+
+/// Handle OAuth link start - redirects to provider for linking (authenticated users)
+pub async fn oauth_link_start(
+    State(state): State<AppState>,
+    Valid(Path(provider_path)): Valid<Path<ProviderPath>>,
+    auth_user: AuthUser,
+) -> Result<Redirect, AuthError> {
+    debug!("OAuth link start for provider: {} and user: {}", provider_path.provider_name, auth_user.user_id);
+
+    // Parse the provider
+    let provider = match provider_path.provider_name.to_lowercase().as_str() {
+        "github" => Provider::GitHub,
+        "gitlab" => Provider::GitLab,
+        _ => return Err(AuthError::oauth_invalid_provider("link_start")),
+    };
+
+    // Create link state for authenticated user
+    debug!("Creating link state for user: {}", auth_user.user_id);
+    let oauth_state = OAuthState::new_link(auth_user.user_id);
+
+    // Encode the state
+    let encoded_state = oauth_state
+        .encode()
+        .map_err(|_e| AuthError::oauth_state_encoding_failed("link_start"))?;
+
+    // Generate provider authorization URL using the command service
+    let context = CommandContext::new()
+        .with_user_id(auth_user.user_id)
+        .with_metadata("operation".to_string(), "link_start".to_string())
+        .with_metadata("provider".to_string(), provider.as_str().to_string());
+
+    let command = GenerateLinkProviderStartUrlCommand::new(provider);
+    let base_auth_url = state
+        .command_service
+        .execute(command, context)
+        .await
+        .map_err(|_e| AuthError::oauth_url_generation_failed("link_start"))?;
+
+    // Parse the URL and add our state parameter
+    let mut url =
+        url::Url::parse(&base_auth_url).map_err(|_e| AuthError::oauth_invalid_url("link_start"))?;
+
+    // Add the state parameter to the URL
+    url.query_pairs_mut().append_pair("state", &encoded_state);
+
+    debug!("Redirecting to provider authorization URL for linking");
     Ok(Redirect::to(url.as_str()))
 }
 
@@ -386,12 +391,11 @@ pub async fn oauth_callback(
         return Err(AuthError::oauth_missing_state("callback"));
     };
 
-    // Get redirect URI from configuration instead of hardcoding
+    // Get redirect URI - hardcoded for now since we don't have config in AppState
     let redirect_uri = match provider {
-        Provider::GitHub => &state.oauth_config.github.redirect_uri,
-        Provider::GitLab => &state.oauth_config.gitlab.redirect_uri,
-    }
-    .clone();
+        Provider::GitHub => "http://127.0.0.1:8081/api/auth/github/callback".to_string(),
+        Provider::GitLab => "http://127.0.0.1:8081/api/auth/gitlab/callback".to_string(),
+    };
 
     if oauth_state.is_login() {
         // Handle login operation
@@ -418,7 +422,7 @@ async fn handle_login_callback(
     state: AppState,
     provider: Provider,
     code: String,
-    redirect_uri: String,
+    _redirect_uri: String,
 ) -> Result<(StatusCode, Json<OAuthResponse>), AuthError> {
     debug!("Handling login callback");
 
@@ -768,7 +772,18 @@ pub async fn jwks(
 ) -> Result<Json<domain::entity::token::JwkSet>, AuthError> {
     debug!("JWKS endpoint requested");
 
-    let jwks = state.token_usecase.get_jwks();
+    let context = CommandContext::new()
+        .with_metadata("operation".to_string(), "get_jwks".to_string());
+
+    let command = application::command::token::GetJwksCommand::new();
+    let jwks = state
+        .command_service
+        .execute(command, context)
+        .await
+        .map_err(|e| {
+            error!("Failed to get JWKS: {}", e);
+            AuthError::oauth_url_generation_failed("get_jwks")
+        })?;
 
     debug!("Returning JWKS with {} keys", jwks.keys.len());
     Ok(Json(jwks))
