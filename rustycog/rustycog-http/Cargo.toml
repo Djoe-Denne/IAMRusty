@@ -18,8 +18,11 @@ serde_json.workspace = true
 thiserror.workspace = true
 async-trait.workspace = true
 uuid.workspace = true
+chrono.workspace = true
 tracing.workspace = true
 validator.workspace = true
+jsonwebtoken.workspace = true
+base64.workspace = true
 
 anyhow.workspace = true
 axum-server = { version = "0.7.1", features = ["tls-rustls"] }

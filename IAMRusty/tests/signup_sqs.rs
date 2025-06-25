@@ -3,10 +3,11 @@ mod common;
 #[path = "fixtures/mod.rs"]
 mod fixtures;
 
-use common::{TestFixture, TestSqsFixture, setup_test_server};
+use common::{IAMRustyTestDescriptor, TestFixture, TestSqsFixture, setup_test_server};
 use configuration;
 use serde_json::{Value, json};
 use serial_test::serial;
+use std::sync::Arc;
 
 // 🔥 SQS Integration Test
 #[tokio::test]
@@ -31,7 +32,7 @@ async fn test_signup_sqs_integration() {
     let config = configuration::load_config().expect("Should load config");
 
     // Setup database fixture
-    let _db_fixture = TestFixture::new()
+    let _db_fixture = TestFixture::new(Arc::new(IAMRustyTestDescriptor))
         .await
         .expect("Failed to create test fixture");
 

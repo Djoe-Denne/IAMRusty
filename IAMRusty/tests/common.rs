@@ -11,6 +11,7 @@ pub use rustycog_testing::{
     ServiceTestDescriptor,
 }; 
 
+use migration::{Migrator, MigratorTrait};
 use setup::app::{build_app_state_with_event_publisher, build_and_run};
 use infra::event_adapter::{MultiQueueEventPublisher, IAMEventPublisherAdapter, IAMEventAdapter, IAMErrorMapper};
 use configuration::{AppConfig, ServerConfig};
@@ -32,6 +33,11 @@ impl ServiceTestDescriptor for IAMRustyTestDescriptor {
 
     async fn run_app(&self, config: AppConfig, server_config: ServerConfig) -> anyhow::Result<()> {
         build_and_run(config, server_config, None).await
+    }
+
+    async fn run_migrations(&self, connection: &sea_orm::DatabaseConnection) -> anyhow::Result<()> {
+        Migrator::up(connection, None).await?;
+        Ok(())
     }
 }
 
@@ -57,6 +63,11 @@ impl ServiceTestDescriptor for IAMRustyTestDescriptorWithMockEvents {
         let event_adapter = Arc::new(IAMEventAdapter);
         let multi_queue_event_publisher = MultiQueueEventPublisher::new(vec![IAMEventPublisherAdapter::new(no_op_event_publisher, error_mapper, event_adapter)], HashSet::new());
         build_and_run(config, server_config, Some(Arc::new(multi_queue_event_publisher))).await
+    }
+
+    async fn run_migrations(&self, connection: &sea_orm::DatabaseConnection) -> anyhow::Result<()> {
+        Migrator::up(connection, None).await?;
+        Ok(())
     }
 }
 

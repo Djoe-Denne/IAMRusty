@@ -3,6 +3,7 @@
 mod common;
 #[path = "fixtures/mod.rs"]
 mod fixtures;
+mod utils;
 
 use common::{setup_test_server, setup_test_server_with_mock_events};
 use fixtures::DbFixtures;
@@ -763,7 +764,7 @@ async fn test_password_reset_authenticated_success() {
     let current_password = "currentpassword123";
     let new_password = "newpassword456";
     
-    DbFixtures::create_user_with_email_password(
+    let user = DbFixtures::create_user_with_email_password(
         &fixture.db(),
         user_email,
         current_password,
@@ -1108,7 +1109,7 @@ async fn test_password_reset_workflow_multiple_tokens() {
 
     // This could be either 200 (if multiple tokens allowed) or 400 (if all tokens invalidated)
     // Document the actual behavior here
-    println!("Second token usage result: {}", response.status());
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }
 
 /// Tests password reset request with case-insensitive email matching.

@@ -49,6 +49,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"]
 
 # Validation
 validator = { version = "0.20", features = ["derive"] }
+jsonwebtoken = "9.0.2"
 
 # Events/Kafka
 rdkafka = { version = "0.36", features = ["cmake-build", "tokio"] }
@@ -71,6 +72,7 @@ aws-sdk-sqs = "1.40"
 
 # URL parsing
 url = "2.5"
+base64 = "0.22.1"
 
 # Macros
 proc-macro2 = "1.0"

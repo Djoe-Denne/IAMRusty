@@ -17,26 +17,48 @@ services:
       timeout: 5s
       retries: 5
 
+  localstack:
+    image: localstack/localstack:3.0.2
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=sqs
+      - DEBUG=1
+      - SQS_ENDPOINT_STRATEGY=domain
+      - SKIP_INFRA_DOWNLOADS=1
+      - DISABLE_CORS_CHECKS=1
+      - EAGER_SERVICE_LOADING=1
+      # Use in-memory data to avoid volume mounting issues
+      - DATA_DIR=/var/lib/localstack
+    # Remove volume mount to avoid Windows issues
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
   iam-service:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: IAMRusty/Dockerfile
     ports:
       - "8080:8080"   # HTTP port
       - "8443:8443"   # HTTPS port
     environment:
-      - RUN_ENV=${RUN_ENV:-production}
-      - RUST_LOG=info,tower_http=debug
+      - RUN_ENV=development
       # Uncomment and set to enable HTTPS
       # - APP_SERVER_TLS_ENABLED=true
       # - APP_SERVER_TLS_CERT_PATH=/app/certs/cert.pem
       # - APP_SERVER_TLS_KEY_PATH=/app/certs/key.pem
     volumes:
-      - ./keys:/app/keys
+      - ./config/keys:/app/keys
       - ./config:/app/config
-      - ./certs:/app/certs  # Mount certificates directory
+      - ./config/certs:/app/certs  # Mount certificates directory
     depends_on:
       postgres:
+        condition: service_healthy
+      localstack:
         condition: service_healthy
 
 volumes:

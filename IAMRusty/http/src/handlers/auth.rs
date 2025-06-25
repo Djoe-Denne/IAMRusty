@@ -11,6 +11,7 @@ use application::command::{
     resend_verification_email::ResendVerificationEmailCommand,
     signup::SignupCommand,
     verify_email::VerifyEmailCommand,
+    user::GetUserCommand,
     CommandContext,
 };
 use axum::{
@@ -314,6 +315,19 @@ pub async fn oauth_link_start(
         "gitlab" => Provider::GitLab,
         _ => return Err(AuthError::oauth_invalid_provider("link_start")),
     };
+
+    // check if user exists 
+    let user_context = CommandContext::new()
+        .with_user_id(auth_user.user_id)
+        .with_metadata("operation".to_string(), "get_user".to_string());
+    let _user = state
+        .command_service
+        .execute(GetUserCommand::new(auth_user.user_id), user_context)
+        .await
+        .map_err(|_e| {
+            tracing::error!("User not found for id: {}", auth_user.user_id);
+            AuthError::oauth_invalid_token("link_start")
+        })?;
 
     // Create link state for authenticated user
     debug!("Creating link state for user: {}", auth_user.user_id);

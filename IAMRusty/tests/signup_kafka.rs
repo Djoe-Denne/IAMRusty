@@ -3,10 +3,11 @@ mod common;
 #[path = "fixtures/mod.rs"]
 mod fixtures;
 
-use common::{TestFixture, TestKafkaFixture, setup_test_server};
+use common::{IAMRustyTestDescriptor, TestFixture, TestKafkaFixture, setup_test_server};
 use configuration;
 use serde_json::{Value, json};
 use serial_test::serial;
+use std::sync::Arc;
 
 // 🔥 Kafka Integration Test
 #[tokio::test]
@@ -31,7 +32,7 @@ async fn test_signup_kafka_integration() {
     let config = configuration::load_config().expect("Should load config");
 
     // Setup database fixture
-    let _db_fixture = TestFixture::new()
+    let _db_fixture = TestFixture::new(Arc::new(IAMRustyTestDescriptor))
         .await
         .expect("Failed to create test fixture");
 

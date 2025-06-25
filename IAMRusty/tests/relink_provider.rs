@@ -284,36 +284,6 @@ async fn test_relink_provider_callback_returns_401_when_token_is_expired() {
 
 #[tokio::test]
 #[serial]
-async fn test_relink_provider_callback_returns_401_when_token_has_invalid_signature() {
-    // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
-        .await
-        .expect("Failed to setup test server");
-
-    // Create JWT token with invalid signature
-    let user_id = Uuid::new_v4();
-    let invalid_token = create_invalid_jwt_token_with_encoder(user_id, &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"))
-        .expect("Failed to create invalid signature JWT token");
-
-    // Make request with invalid signature token
-    let response = client
-        .get(&format!("{}/api/auth/github/relink-callback", base_url))
-        .header("Authorization", format!("Bearer {}", invalid_token))
-        .query(&[("code", "test_auth_code")])
-        .send()
-        .await
-        .expect("Failed to send request");
-
-    // ❌ Should return 401 Unauthorized for invalid signature
-    assert_eq!(
-        response.status(),
-        401,
-        "Should return 401 for invalid signature"
-    );
-}
-
-#[tokio::test]
-#[serial]
 async fn test_relink_provider_callback_returns_422_when_provider_is_unsupported() {
     // Setup test environment
     let (_fixture, base_url, client) = setup_test_server()

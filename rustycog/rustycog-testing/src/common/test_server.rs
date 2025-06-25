@@ -55,7 +55,7 @@ where D: ServiceTestDescriptor
 pub async fn setup_test_server<D>(descriptor: Arc<D>) -> Result<(TestFixture, String, Client), Box<dyn std::error::Error>>
 where D: ServiceTestDescriptor
 {
-    let fixture = TestFixture::new().await?;
+    let fixture = TestFixture::new(descriptor.clone()).await?;
     let base_url = get_test_server::<D>(descriptor.clone()).await?;
     let client = create_test_client();
     Ok((fixture, base_url, client))

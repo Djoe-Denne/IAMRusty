@@ -295,6 +295,11 @@ pub enum DomainError {
         message: String,
         invariant: String,
     },
+
+    
+    /// Authorization error
+    #[error("Authorization error: {0}")]
+    AuthorizationError(String),
 }
 
 impl From<DomainError> for ServiceError {
@@ -311,6 +316,9 @@ impl From<DomainError> for ServiceError {
             }
             DomainError::InvariantViolation { message, invariant } => {
                 ServiceError::business_with_code(message, invariant)
+            }
+            DomainError::AuthorizationError(message) => {
+                ServiceError::authorization(message)
             }
         }
     }

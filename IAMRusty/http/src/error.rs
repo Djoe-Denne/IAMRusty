@@ -117,7 +117,7 @@ pub enum AuthError {
     ProviderAlreadyLinked(String),
 
     /// User not found
-    #[error("User not found: {0}")]
+    #[error("Unauthorized")]
     UserNotFound(String),
 
     /// Link failed

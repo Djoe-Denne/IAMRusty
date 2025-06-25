@@ -4,8 +4,8 @@
 //! between tests to ensure test isolation while maintaining performance.
 
 use rustycog_config::{ConfigLoader, DatabaseConfig, HasDbConfig};
+use crate::common::ServiceTestDescriptor;
 use rustycog_db::DbConnectionPool;
-use migration::{Migrator, MigratorTrait};
 use sea_orm::{ConnectionTrait, Database, DatabaseConnection, DbErr, Statement};
 use std::sync::Arc;
 use std::sync::OnceLock;
@@ -54,7 +54,8 @@ pub struct TestDatabase {
 
 impl TestDatabase {
     /// Get or create the global test database instance
-    pub async fn new() -> Result<Self, DbErr> {
+    pub async fn new<D>(descriptor: Arc<D>) -> Result<Self, DbErr>
+    where D: ServiceTestDescriptor {
         let container = get_or_create_test_container().await?;
         let database_url = container.database_url.clone();
 
@@ -63,7 +64,7 @@ impl TestDatabase {
         let connection = pool.get_write_connection();
 
         // Run migrations
-        Self::run_migrations(&connection).await?;
+        Self::run_migrations(descriptor, &connection).await?;
 
         Ok(Self {
             pool,
@@ -73,9 +74,10 @@ impl TestDatabase {
     }
 
     /// Run database migrations
-    async fn run_migrations(connection: &DatabaseConnection) -> Result<(), DbErr> {
+    async fn run_migrations<D>(descriptor: Arc<D>, connection: &DatabaseConnection) -> Result<(), DbErr>
+    where D: ServiceTestDescriptor {
         info!("Running database migrations for test database");
-        Migrator::up(connection, None).await?;
+        descriptor.run_migrations(connection).await.map_err(|e| DbErr::Custom(e.to_string()))?;
         info!("Database migrations completed successfully");
         Ok(())
     }
@@ -372,8 +374,9 @@ pub struct TestFixture {
 
 impl TestFixture {
     /// Create a new test fixture with database cleanup
-    pub async fn new() -> Result<Self, DbErr> {
-        let database = TestDatabase::new()
+    pub async fn new<D>(descriptor: Arc<D>) -> Result<Self, DbErr>
+    where D: ServiceTestDescriptor {
+        let database = TestDatabase::new(descriptor)
             .await
             .expect("Failed to create test database");
 

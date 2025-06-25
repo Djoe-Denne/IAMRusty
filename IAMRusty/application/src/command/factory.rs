@@ -33,8 +33,7 @@ use super::{
         RevokeTokenCommandHandler, TokenErrorMapper,
     },
     user::{
-        GetUserCommand, GetUserCommandHandler, UserErrorMapper, ValidateTokenCommand,
-        ValidateTokenCommandHandler,
+        GetUserCommand, GetUserCommandHandler, UserErrorMapper
     },
     verify_email::{
         AuthErrorMapper as VerifyEmailAuthErrorMapper, VerifyEmailCommand,
@@ -177,7 +176,6 @@ impl CommandRegistryFactory {
 
         // Register user commands
         let get_user_handler = Arc::new(GetUserCommandHandler::new(user_usecase.clone()));
-        let validate_token_handler = Arc::new(ValidateTokenCommandHandler::new(user_usecase));
         let user_error_mapper = Arc::new(UserErrorMapper);
 
         builder = builder
@@ -185,11 +183,6 @@ impl CommandRegistryFactory {
                 "get_user".to_string(),
                 get_user_handler,
                 user_error_mapper.clone(),
-            )
-            .register::<ValidateTokenCommand, _>(
-                "validate_token".to_string(),
-                validate_token_handler,
-                user_error_mapper,
             );
 
         // Register auth commands
@@ -374,7 +367,6 @@ impl CommandRegistryFactory {
     /// Create a registry builder with only user commands
     pub fn create_builder_with_user(user_usecase: Arc<dyn UserUseCase>) -> CommandRegistryBuilder {
         let get_user_handler = Arc::new(GetUserCommandHandler::new(user_usecase.clone()));
-        let validate_token_handler = Arc::new(ValidateTokenCommandHandler::new(user_usecase));
         let user_error_mapper = Arc::new(UserErrorMapper);
 
         CommandRegistryBuilder::new()
@@ -382,11 +374,6 @@ impl CommandRegistryFactory {
                 "get_user".to_string(),
                 get_user_handler,
                 user_error_mapper.clone(),
-            )
-            .register::<ValidateTokenCommand, _>(
-                "validate_token".to_string(),
-                validate_token_handler,
-                user_error_mapper,
             )
     }
 

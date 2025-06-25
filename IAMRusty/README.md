@@ -126,6 +126,44 @@ The IAM service supports a flexible configuration system with multiple sources a
 3. The `.env` file is automatically loaded at application startup
 4. Override specific values using environment variables if needed
 
+## LocalStack Integration
+
+The IAM service integrates with LocalStack for local AWS SQS development and testing.
+
+### Starting LocalStack
+
+```bash
+docker-compose up -d localstack
+```
+
+### LocalStack Configuration
+
+LocalStack is configured to provide:
+- **SQS Service**: Available on `localhost:4566`
+- **Default Queue**: `user-events`
+- **Credentials**: `test` / `test` (for local development)
+- **Region**: `us-east-1`
+
+### Testing LocalStack
+
+Check if LocalStack is running:
+```bash
+# Check container status
+docker-compose ps
+
+# Check LocalStack health
+docker-compose logs localstack
+
+# Test SQS endpoint (if AWS CLI is installed)
+aws --endpoint-url=http://localhost:4566 sqs list-queues
+```
+
+### Platform-Specific Notes
+
+- **Windows**: Uses `docker-compose.windows.yml` which removes volume mounts that can cause issues on Windows
+- **Linux**: Uses `docker-compose.linux.yml` with Docker socket mounting for advanced features
+- **Cross-platform**: Uses `docker-compose.simple.yml` for maximum compatibility without persistent storage
+
 ## Database Management
 
 The service uses SeaORM for database operations with automatic migrations and entity generation.
@@ -417,125 +455,6 @@ These tests use both the test database system and fixture system for complete en
 ## API Documentation
 
 The API follows OpenAPI specification. See `openspecs.yaml` (v1.3.0) for complete API documentation.
-
-**Latest Updates (v1.3.0):**
-- Added provider linking functionality for authenticated users
-- Enhanced OAuth endpoints to support dual-purpose operation (login vs. linking)
-- Added comprehensive error handling for provider conflicts
-- Added new response schemas for link operations with email management
-
-### Main Endpoints
-
-- `GET /auth/{provider}/start` - Start OAuth2 authentication flow (supports both login and provider linking)
-- `GET /auth/{provider}/callback` - OAuth2 callback endpoint (returns different response based on operation)
-- `POST /token/refresh` - Refresh JWT token
-- `GET /me` - Get current authenticated user profile (primary email)
-- `GET /.well-known/jwks.json` - Public keys for JWT validation
-- `POST /internal/{provider}/token` - Get provider access token (internal)
-
-#### OAuth Authentication Endpoints
-
-**Login Flow** (for new/existing users):
-```http
-GET /auth/{provider}/start
-# No Authorization header required
-# Redirects to provider OAuth page
-# Returns JWT tokens and user profile on callback
-```
-
-**Provider Linking Flow** (for authenticated users):
-```http
-GET /auth/{provider}/start
-Authorization: Bearer <jwt-token>
-# Requires valid JWT token
-# Links provider to existing user account
-# Returns updated user profile with all emails on callback
-```
-
-### Example Usage
-
-```bash
-# Start GitHub OAuth login flow (for new users)
-curl "http://localhost:8080/auth/github/start"
-
-# Link GitHub to existing account (for authenticated users)
-curl -H "Authorization: Bearer <jwt-token>" \
-     "http://localhost:8080/auth/github/start"
-
-# Get user profile (requires valid JWT)
-curl -H "Authorization: Bearer <jwt-token>" "http://localhost:8080/me"
-
-# Refresh token
-curl -X POST "http://localhost:8080/token/refresh" \
-  -H "Content-Type: application/json" \
-  -d '{"refresh_token": "<refresh-token>"}'
-```
-
-#### Response Examples
-
-**Login Response** (after successful OAuth callback):
-```json
-{
-  "operation": "login",
-  "user": {
-    "id": "123e4567-e89b-12d3-a456-426614174000",
-    "username": "johndoe",
-    "email": "john@example.com",
-    "avatar_url": "https://avatars.githubusercontent.com/u/123456"
-  },
-  "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
-  "expires_in": 3600,
-  "refresh_token": "refresh_token_here"
-}
-```
-
-**Link Provider Response** (after successful provider linking):
-```json
-{
-  "operation": "link",
-  "message": "GitHub successfully linked",
-  "user": {
-    "id": "123e4567-e89b-12d3-a456-426614174000",
-    "username": "johndoe",
-    "email": "john@example.com",
-    "avatar_url": "https://avatars.githubusercontent.com/u/123456"
-  },
-  "emails": [
-    {
-      "id": "email-uuid-1",
-      "email": "john@example.com",
-      "is_primary": true,
-      "is_verified": true
-    },
-    {
-      "id": "email-uuid-2", 
-      "email": "john.github@example.com",
-      "is_primary": false,
-      "is_verified": false
-    }
-  ],
-  "new_email_added": true,
-  "new_email": "john.github@example.com"
-}
-```
-
-#### Error Responses
-
-The provider linking operation includes specific error handling:
-
-```json
-{
-  "operation": "link",
-  "error": "provider_already_linked",
-  "message": "This GitHub account is already linked to another user"
-}
-```
-
-Common error scenarios:
-- `provider_already_linked_to_same_user`: Provider is already linked to the same user
-- `provider_already_linked`: Provider account is linked to a different user
-- `user_not_found`: Authenticated user no longer exists
-- `auth_error`: Failed to authenticate with the OAuth provider
 
 ## Development
 

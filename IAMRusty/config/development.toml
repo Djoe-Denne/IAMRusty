@@ -1,52 +1,71 @@
-# Development environment configuration
+# IAM Service Default Configuration
 
 [server]
-host = "127.0.0.1"
+host = "0.0.0.0"
 port = 8080
+tls_enabled = false
+# tls_cert_path = "./certs/cert.pem"
+# tls_key_path = "./certs/key.pem"
+# tls_port = 8443
 
 [database]
-# Use a different database for development
+# Database connection details
+host = "postgres"
+port = 5432
 db = "iam_dev"
+# Database credentials
+[database.creds]
+username = "postgres"
+password = "postgres"
+
+# Specify read replicas if using a read/write split
+read_replicas = []
 
 [oauth.github]
-# Development GitHub OAuth settings
+client_id = "your-github-client-id"
+client_secret = "your-github-client-secret"
 redirect_uri = "http://localhost:8080/api/auth/github/callback"
+auth_url = "https://github.com/login/oauth/authorize"
+token_url = "https://github.com/login/oauth/access_token"
+user_url = "https://api.github.com/user"
 
 [oauth.gitlab]
-# Development GitLab OAuth settings  
+client_id = "your-gitlab-client-id"
+client_secret = "your-gitlab-client-secret"
 redirect_uri = "http://localhost:8080/api/auth/gitlab/callback"
+auth_url = "https://gitlab.com/oauth/authorize"
+token_url = "https://gitlab.com/oauth/token"
+user_url = "https://gitlab.com/api/v4/user"
 
 [jwt]
-secret = "dev-jwt-secret-key-for-development-only-32-bytes"
 expiration_seconds = 900  # 15 minutes
 refresh_token_expiration_seconds = 2592000  # 30 days
 
-# Kafka configuration for event publishing
-[kafka]
-enabled = true
-host = "localhost"
-port = 9092
-user_events_topic = "user-events"
-client_id = "iam-service-dev"
-timeout_ms = 5000
+# JWT secret configuration using PEM files for testing
+[jwt.secret]
+type = "pem_file"
+private_key_path = "./config/certs/key.pem"
+public_key_path = "./config/certs/public_key.pem"
+key_id = "jwt-key-test"
+
+# Queue configuration for testing - using SQS
+[queue]
+type = "sqs"
+enabled = true  # Enabled for real SQS integration tests
+region = "us-east-1"
+account_id = "000000000000"
+default_queue = "test-user-events"
+# Use new host/port configuration instead of endpoint_url
+host = "localstack"
+port = 4566 # Use random port for testing (will set EXTERNAL_SERVICE_PORTS_START)
+access_key_id = "test"
+secret_access_key = "test"
 max_retries = 3
-compression = "gzip"
-security_protocol = "plaintext"
+timeout_seconds = 30
 
-# For SSL development setup:
-# 1. Enable SSL feature in Cargo.toml: rdkafka = { features = ["cmake-build", "ssl", "tokio"] }
-# 2. Uncomment and configure the following:
-# security_protocol = "ssl"
-# ssl_ca_location = "probe"  # Use system CA certificates
-# ssl_certificate_location = "/path/to/client-cert.pem"  # Optional for mutual TLS
-# ssl_key_location = "/path/to/client-key.pem"  # Optional for mutual TLS
-# ssl_key_password = "client-key-password"  # Optional if key is encrypted
-
-# For SASL authentication (works with or without SSL):
-# sasl_mechanism = "PLAIN"  # or "SCRAM-SHA-256", "SCRAM-SHA-512"
-# sasl_username = "kafka-username"
-# sasl_password = "kafka-password"
-# security_protocol = "sasl_plaintext"  # or "sasl_ssl" if using SSL
+# Queue mappings for different event types
+[queue.queues]
+user_signed_up = "user-events"
 
 # Command configuration for development
 [command.retry]
@@ -60,11 +79,3 @@ use_jitter = false
 # Enable debug level logging
 [logging]
 level = "debug"
-
-# Command-specific overrides for development
-[command.overrides.test_command]
-max_attempts = 2
-base_delay_ms = 100
-max_delay_ms = 5000
-backoff_multiplier = 1.5
-use_jitter = false 

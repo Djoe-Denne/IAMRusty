@@ -8,12 +8,14 @@ pub mod extractors;
 pub mod middleware_auth;
 pub mod builder;
 pub mod jwt_handler;
+pub mod jwt;
 
 pub use error::{GenericHttpError, ValidationError};
 pub use extractors::ValidatedJson;
 pub use middleware_auth::{AuthUser, auth_middleware};
 pub use builder::{RouteBuilder, AppState};
 pub use jwt_handler::{UserIdExtractor, UserIdExtractionHandler};
+pub use jwt::{TokenClaims};
 
 use axum::{http::StatusCode, response::{Json, IntoResponse}};
 use serde_json::json;

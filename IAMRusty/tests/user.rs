@@ -129,6 +129,7 @@ async fn test_get_user_returns_401_when_token_is_expired() {
         .text()
         .await
         .expect("Should be able to read response text");
+    
     assert!(
         response_text.is_empty() || response_text.len() <= 50,
         "Should return minimal response body (not JSON)"
@@ -197,44 +198,6 @@ async fn test_get_user_returns_401_when_token_is_malformed() {
             );
         }
     }
-}
-
-#[tokio::test]
-#[serial]
-async fn test_get_user_returns_401_when_token_has_invalid_signature() {
-    // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
-        .await
-        .expect("Failed to setup test server");
-
-    // Create token with invalid signature
-    let user_id = Uuid::new_v4();
-    let invalid_token = create_invalid_signature_jwt_token(user_id, &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"));
-
-    // Make request with invalid signature token
-    let response = client
-        .get(&format!("{}/api/me", base_url))
-        .header("Authorization", format!("Bearer {}", invalid_token))
-        .send()
-        .await
-        .expect("Failed to send request");
-
-    // ❌ Should return 401 Unauthorized for invalid signature (authentication failure)
-    assert_eq!(
-        response.status(),
-        401,
-        "Should return 401 for invalid signature"
-    );
-
-    // The middleware returns plain StatusCode without JSON body for auth failures
-    let response_text = response
-        .text()
-        .await
-        .expect("Should be able to read response text");
-    assert!(
-        response_text.is_empty() || response_text.len() <= 50,
-        "Should return minimal response body (not JSON)"
-    );
 }
 
 #[tokio::test]

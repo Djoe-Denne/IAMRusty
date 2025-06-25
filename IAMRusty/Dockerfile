@@ -1,42 +1,45 @@
-FROM rust:1.75-slim as builder
+FROM rust:1.87-slim as builder
 
-WORKDIR /usr/src/app
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    cmake \
+    pkg-config \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy over manifests and dependencies first
-COPY Cargo.toml Cargo.lock ./
-COPY domain/Cargo.toml domain/
-COPY application/Cargo.toml application/
-COPY infra/Cargo.toml infra/
-COPY http/Cargo.toml http/
+WORKDIR /usr/src
 
-# Create dummy source files to build dependencies
-RUN mkdir -p domain/src application/src infra/src http/src src \
-    && echo "fn main() {}" > src/main.rs \
-    && echo "pub fn dummy() {}" > domain/src/lib.rs \
-    && echo "pub fn dummy() {}" > application/src/lib.rs \
-    && echo "pub fn dummy() {}" > infra/src/lib.rs \
-    && echo "pub fn dummy() {}" > http/src/lib.rs
+# Copy only the source code and manifests, not build artifacts
+COPY rustycog/Cargo.toml rustycog/
+COPY rustycog/rustycog-core rustycog/rustycog-core/
+COPY rustycog/rustycog-events rustycog/rustycog-events/
+COPY rustycog/rustycog-http rustycog/rustycog-http/
+COPY rustycog/rustycog-command rustycog/rustycog-command/
+COPY rustycog/rustycog-config rustycog/rustycog-config/
+COPY rustycog/rustycog-db rustycog/rustycog-db/
+COPY rustycog/rustycog-server rustycog/rustycog-server/
+COPY rustycog/rustycog-testing rustycog/rustycog-testing/
 
-# Build dependencies
+# Copy IAMRusty source files only (exclude target directory)
+COPY IAMRusty/Cargo.toml IAMRusty/Cargo.lock IAMRusty/
+COPY IAMRusty/domain IAMRusty/domain/
+COPY IAMRusty/application IAMRusty/application/
+COPY IAMRusty/infra IAMRusty/infra/
+COPY IAMRusty/http IAMRusty/http/
+COPY IAMRusty/migration IAMRusty/migration/
+COPY IAMRusty/setup IAMRusty/setup/
+COPY IAMRusty/configuration IAMRusty/configuration/
+COPY IAMRusty/src IAMRusty/src/
+
+# Set working directory to IAMRusty
+WORKDIR /usr/src/IAMRusty
+
+# Build the application and migration tool
 RUN cargo build --release
+RUN cd migration && cargo build --release
 
-# Remove the dummy source files
-RUN rm -rf domain/src application/src infra/src http/src src
-
-# Copy the actual source code
-COPY domain/src domain/src/
-COPY application/src application/src/
-COPY infra/src infra/src/
-COPY http/src http/src/
-COPY src src/
-
-# Touch the source files to trigger rebuild
-RUN find . -name "*.rs" -exec touch {} \;
-
-# Build the application
-RUN cargo build --release
-
-# Final stage
+# Final stage - minimal runtime image
 FROM debian:bookworm-slim
 
 WORKDIR /app
@@ -47,16 +50,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy the binary from the builder stage
-COPY --from=builder /usr/src/app/target/release/iam-service /app/iam-service
+# Copy the binaries from the builder stage
+COPY --from=builder /usr/src/IAMRusty/target/release/iam-service /app/iam-service
+COPY --from=builder /usr/src/IAMRusty/migration/target/release/migration /app/migration
 
-# Create a directory for keys
-RUN mkdir -p /app/keys /app/config
+# Copy entrypoint script
+COPY IAMRusty/docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
+
+# Create directories for application data
+RUN mkdir -p /app/keys /app/config /app/certs
 
 # Run as non-root user
 RUN adduser --disabled-password --gecos "" appuser \
     && chown -R appuser:appuser /app
 USER appuser
 
-# Set the entrypoint
-ENTRYPOINT ["/app/iam-service"] 
+# Set the entrypoint to run migrations first, then the service
+ENTRYPOINT ["/app/docker-entrypoint.sh"] 

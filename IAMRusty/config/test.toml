@@ -49,7 +49,7 @@ key_id = "jwt-key-test"
 
 # Enable maximum logging for tests
 [logging]
-level = "debug"
+level = ""
 
 # Command configuration for testing
 [command.retry]

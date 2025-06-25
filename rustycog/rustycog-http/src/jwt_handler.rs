@@ -1,10 +1,12 @@
 use async_trait::async_trait;
+use base64::{Engine as _, engine::general_purpose};
 use rustycog_command::{Command, CommandHandler, CommandError, ValidateTokenCommand};
 use std::sync::Arc;
-use tracing::debug;
+use tracing::{debug, error};
 use uuid::Uuid;
+use chrono::Utc;
 
-/// Simple user ID extractor (no verification)
+/// Simple user ID extractor with basic JWT validation
 #[derive(Clone)]
 pub struct UserIdExtractor {
     /// Default user ID to use (for testing/development)
@@ -26,35 +28,81 @@ impl UserIdExtractor {
         }
     }
 
-    /// Extract user ID from token (simple string parsing, no verification)
+    /// Extract user ID from token with basic validation (format and expiration)
     pub fn extract_user_id(&self, token: &str) -> Result<Uuid, CommandError> {
-        debug!("Extracting user ID from token (no verification)");
-
-        // If a default user ID is set, use it
-        if let Some(user_id) = self.default_user_id {
-            debug!("Using default user ID: {}", user_id);
-            return Ok(user_id);
+        debug!("Extracting user ID from token with basic validation");
+        
+        // Check JWT format (3 parts separated by dots)
+        let parts: Vec<&str> = token.split('.').collect();
+        if parts.len() != 3 {
+            return Err(CommandError::Authentication { 
+                code: "invalid_token".to_string(), 
+                message: "Invalid token format".to_string() 
+            });
         }
 
-        // Try to parse the token as a direct UUID
-        if let Ok(user_id) = Uuid::parse_str(token) {
-            debug!("Parsed token as UUID: {}", user_id);
-            return Ok(user_id);
+        // Decode the payload (second part)
+        let payload = String::from_utf8(
+            general_purpose::URL_SAFE_NO_PAD.decode(parts[1])
+                .map_err(|_| CommandError::Authentication { 
+                    code: "invalid_token".to_string(), 
+                    message: "Invalid token encoding".to_string() 
+                })?
+        ).map_err(|_| CommandError::Authentication { 
+            code: "invalid_token".to_string(), 
+            message: "Invalid token encoding".to_string() 
+        })?;
+
+        // Parse JSON payload
+        let payload_json: serde_json::Value = serde_json::from_str(&payload)
+            .map_err(|_| CommandError::Authentication { 
+                code: "invalid_token".to_string(), 
+                message: "Invalid token JSON".to_string() 
+            })?;
+
+        // Check for required claims - 'sub' (subject/user ID)
+        let sub = payload_json["sub"].as_str()
+            .ok_or_else(|| CommandError::Authentication { 
+                code: "invalid_token".to_string(), 
+                message: "Missing user ID in token".to_string() 
+            })?;
+
+        // Check for required claims - 'exp' (expiration time)
+        let exp = payload_json["exp"].as_i64()
+            .ok_or_else(|| CommandError::Authentication { 
+                code: "invalid_token".to_string(), 
+                message: "Missing expiration in token".to_string() 
+            })?;
+
+        // Check for required claims - 'iat' (issued at time)
+        let _iat = payload_json["iat"].as_i64()
+            .ok_or_else(|| CommandError::Authentication { 
+                code: "invalid_token".to_string(), 
+                message: "Missing issued at time in token".to_string() 
+            })?;
+
+        // Check for required claims - 'jti' (JWT ID)
+        let _jti = payload_json["jti"].as_str()
+            .ok_or_else(|| CommandError::Authentication { 
+                code: "invalid_token".to_string(), 
+                message: "Missing JWT ID in token".to_string() 
+            })?;
+
+        // Check if token is expired
+        let now = Utc::now().timestamp();
+        if exp <= now {
+            debug!("Token expired: exp={}, now={}", exp, now);
+            return Err(CommandError::Authentication { 
+                code: "token_expired".to_string(), 
+                message: "Token has expired".to_string() 
+            });
         }
 
-        // Try to extract from a simple format: "user:UUID"
-        if token.starts_with("user:") {
-            let user_id_str = &token[5..];
-            if let Ok(user_id) = Uuid::parse_str(user_id_str) {
-                debug!("Extracted user ID from 'user:' prefix: {}", user_id);
-                return Ok(user_id);
-            }
-        }
-
-        // If all else fails, generate a random UUID for development
-        let user_id = Uuid::new_v4();
-        debug!("Generated random user ID for development: {}", user_id);
-        Ok(user_id)
+        // Parse and return user ID
+        Uuid::parse_str(sub).map_err(|_| CommandError::Authentication { 
+            code: "invalid_token".to_string(), 
+            message: "Invalid user ID format".to_string() 
+        })
     }
 }
 

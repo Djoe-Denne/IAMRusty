@@ -8,6 +8,7 @@ use application::command::{
         RequestPasswordResetCommand, ValidateResetTokenCommand,
         ResetPasswordUnauthenticatedCommand, ResetPasswordAuthenticatedCommand,
     },
+    user::GetUserCommand,
     CommandContext,
 };
 use axum::{
@@ -180,6 +181,15 @@ pub async fn reset_password_authenticated(
     ValidatedJson(request): ValidatedJson<ResetPasswordAuthenticatedRequest>,
 ) -> Result<Json<ResetPasswordResponse>, AuthError> {
     debug!("Processing authenticated password reset for user: {}", auth_user.user_id);
+
+    // check if user exists 
+    let user_context = CommandContext::new()
+        .with_user_id(auth_user.user_id)
+        .with_metadata("operation".to_string(), "get_user".to_string());
+    let user = state.command_service.execute(GetUserCommand::new(auth_user.user_id), user_context).await
+        .map_err(|_e| {
+            AuthError::InvalidToken("Invalid token".to_string())
+        })?;
 
     let command = ResetPasswordAuthenticatedCommand::new(
         auth_user.user_id,

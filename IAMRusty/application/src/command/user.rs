@@ -156,47 +156,6 @@ impl Command for GetUserCommand {
     }
 }
 
-/// Validate token command
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ValidateTokenCommand {
-    /// Command instance ID
-    pub command_id: Uuid,
-    /// Token to validate
-    pub token: String,
-}
-
-impl ValidateTokenCommand {
-    /// Create a new validate token command
-    pub fn new(token: String) -> Self {
-        Self {
-            command_id: Uuid::new_v4(),
-            token,
-        }
-    }
-}
-
-impl Command for ValidateTokenCommand {
-    type Result = Uuid;
-
-    fn command_type(&self) -> &'static str {
-        "validate_token"
-    }
-
-    fn command_id(&self) -> Uuid {
-        self.command_id
-    }
-
-    fn validate(&self) -> Result<(), CommandError> {
-        if self.token.trim().is_empty() {
-            return Err(CommandError::validation(
-                UserErrorCode::ValidationFailed.as_str(),
-                "Token cannot be empty",
-            ));
-        }
-        Ok(())
-    }
-}
-
 /// Get user command handler
 pub struct GetUserCommandHandler<U>
 where
@@ -223,37 +182,6 @@ where
     async fn handle(&self, command: GetUserCommand) -> Result<UserProfile, CommandError> {
         self.user_use_case
             .get_user(command.user_id)
-            .await
-            .map_err(|e| UserErrorMapper.map_error(Box::new(e)))
-    }
-}
-
-/// Validate token command handler
-pub struct ValidateTokenCommandHandler<U>
-where
-    U: UserUseCase + ?Sized,
-{
-    user_use_case: Arc<U>,
-}
-
-impl<U> ValidateTokenCommandHandler<U>
-where
-    U: UserUseCase + ?Sized,
-{
-    /// Create a new validate token command handler
-    pub fn new(user_use_case: Arc<U>) -> Self {
-        Self { user_use_case }
-    }
-}
-
-#[async_trait]
-impl<U> CommandHandler<ValidateTokenCommand> for ValidateTokenCommandHandler<U>
-where
-    U: UserUseCase + Send + Sync + ?Sized,
-{
-    async fn handle(&self, command: ValidateTokenCommand) -> Result<Uuid, CommandError> {
-        self.user_use_case
-            .validate_access_token(&command.token)
             .await
             .map_err(|e| UserErrorMapper.map_error(Box::new(e)))
     }

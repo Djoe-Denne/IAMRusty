@@ -34,9 +34,3 @@ rdkafka.workspace = true
 ctrlc = "3.4"
 libc = "0.2"
 url = "2.5"
-
-# Dependencies for IAM application specific imports
-setup = { path = "../../IAMRusty/setup" }
-application = { path = "../../IAMRusty/application" }
-domain = { path = "../../IAMRusty/domain" }
-migration = { path = "../../IAMRusty/migration" } 

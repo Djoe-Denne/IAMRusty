@@ -5,4 +5,6 @@ pub trait ServiceTestDescriptor: Send + Sync + 'static {
     type Config: rustycog_config::ConfigLoader<Self::Config> + rustycog_config::HasServerConfig + rustycog_config::HasLoggingConfig + rustycog_config::HasDbConfig + Send + Sync + 'static;
     
     async fn run_app(&self, config: Self::Config, server_config: rustycog_config::ServerConfig) -> anyhow::Result<()>;
+
+    async fn run_migrations(&self, connection: &sea_orm::DatabaseConnection) -> anyhow::Result<()>;
 }
