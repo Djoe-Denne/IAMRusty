@@ -4735,6 +4735,7 @@ dependencies = [
  "chrono",
  "futures",
  "rdkafka",
+ "rustls 0.23.27",
  "rustycog-config",
  "rustycog-core",
  "serde",

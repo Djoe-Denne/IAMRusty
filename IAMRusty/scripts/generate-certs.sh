@@ -1,160 +1,198 @@
 #!/bin/bash
 
-# Generate certificates and JWT signing keys for development/testing
-# This script creates TLS certificates and RSA keys for JWT signing
+# Generate TLS certificates for HTTPS development/testing
+# This script creates self-signed TLS certificates for local development
 
 set -e
 
+# Default values
 CERT_DIR="./config/certs"
 DAYS=365
-JWT_KEY_SIZE=4096  # Larger key size for JWT validation
 TLS_KEY_SIZE=2048
+COMMON_NAME="localhost"
+
+# Color codes
+GREEN='\033[0;32m'
+CYAN='\033[0;36m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+WHITE='\033[0;37m'
+BLUE='\033[0;34m'
+MAGENTA='\033[0;35m'
+NC='\033[0m' # No Color
+
+# Function to print colored output
+print_color() {
+    echo -e "${1}${2}${NC}"
+}
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -d|--cert-dir)
+            CERT_DIR="$2"
+            shift 2
+            ;;
+        --days)
+            DAYS="$2"
+            shift 2
+            ;;
+        -s|--key-size)
+            TLS_KEY_SIZE="$2"
+            shift 2
+            ;;
+        -n|--common-name)
+            COMMON_NAME="$2"
+            shift 2
+            ;;
+        -h|--help)
+            echo "Usage: $0 [OPTIONS]"
+            echo "Options:"
+            echo "  -d, --cert-dir DIR    Certificate directory (default: ./config/certs)"
+            echo "  --days DAYS          Certificate validity in days (default: 365)"
+            echo "  -s, --key-size SIZE  TLS key size in bits (default: 2048)"
+            echo "  -n, --common-name CN Common name for certificate (default: localhost)"
+            echo "  -h, --help           Show this help message"
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            exit 1
+            ;;
+    esac
+done
 
 # Create certs directory if it doesn't exist
-mkdir -p "$CERT_DIR"
+if [ ! -d "$CERT_DIR" ]; then
+    mkdir -p "$CERT_DIR"
+    print_color $GREEN "Created directory: $CERT_DIR"
+fi
 
-echo "🔐 Generating certificates and JWT signing keys..."
-echo "   Target directory: $CERT_DIR"
-echo "   JWT key size: $JWT_KEY_SIZE bits"
-echo "   TLS key size: $TLS_KEY_SIZE bits"
+print_color $GREEN "Generating TLS certificates for HTTPS..."
+print_color $CYAN "   Target directory: $CERT_DIR"
+print_color $CYAN "   Key size: $TLS_KEY_SIZE bits"
+print_color $CYAN "   Valid for: $DAYS days"
+print_color $CYAN "   Common Name: $COMMON_NAME"
 echo ""
 
-# Generate JWT signing RSA key pair (high priority)
-echo "🔑 Generating JWT RSA private key ($JWT_KEY_SIZE bits)..."
-openssl genrsa -out "$CERT_DIR/key.pem" $JWT_KEY_SIZE
+# Check if OpenSSL is available
+if ! command -v openssl &> /dev/null; then
+    print_color $RED "Error: OpenSSL is not installed or not in PATH"
+    echo ""
+    print_color $YELLOW "Please install OpenSSL:"
+    print_color $WHITE "  Ubuntu/Debian: sudo apt-get install openssl"
+    print_color $WHITE "  CentOS/RHEL: sudo yum install openssl"
+    print_color $WHITE "  macOS: brew install openssl"
+    exit 1
+fi
 
-echo "🔑 Extracting JWT RSA public key..."
-openssl rsa -in "$CERT_DIR/key.pem" -pubout -out "$CERT_DIR/public_key.pem"
-
-# Verify the key pair
-echo "✅ Verifying JWT key pair..."
-openssl rsa -in "$CERT_DIR/key.pem" -check -noout
-
-echo "✅ JWT signing keys generated successfully!"
-echo ""
-
-# Generate TLS certificates (for HTTPS)
-echo "🔐 Generating TLS certificates..."
+print_color $YELLOW "Using OpenSSL for certificate generation..."
 
 # Generate CA private key
-echo "1. Generating CA private key..."
-openssl genrsa -out "$CERT_DIR/ca-key.pem" $TLS_KEY_SIZE
+print_color $WHITE "1. Generating CA private key..."
+if ! openssl genrsa -out "$CERT_DIR/ca-key.pem" $TLS_KEY_SIZE; then
+    print_color $RED "Failed to generate CA private key"
+    exit 1
+fi
 
 # Generate CA certificate
-echo "2. Generating CA certificate..."
-openssl req -new -x509 -key "$CERT_DIR/ca-key.pem" -out "$CERT_DIR/ca-cert.pem" -days $DAYS -subj "/C=FR/ST=FR/L=Nice/O=IAM Service/OU=Development/CN=IAM-CA"
+print_color $WHITE "2. Generating CA certificate..."
+if ! openssl req -new -x509 -key "$CERT_DIR/ca-key.pem" -out "$CERT_DIR/ca-cert.pem" -days $DAYS -subj "/C=FR/ST=FR/L=Nice/O=IAM Service/OU=Development/CN=IAM-CA"; then
+    print_color $RED "Failed to generate CA certificate"
+    exit 1
+fi
 
-# Generate server private key for TLS (separate from JWT keys)
-echo "3. Generating TLS server private key..."
-openssl genrsa -out "$CERT_DIR/tls-key.pem" $TLS_KEY_SIZE
+# Generate server private key for TLS
+print_color $WHITE "3. Generating TLS server private key..."
+if ! openssl genrsa -out "$CERT_DIR/tls-key.pem" $TLS_KEY_SIZE; then
+    print_color $RED "Failed to generate TLS private key"
+    exit 1
+fi
 
-# Generate server certificate signing request
-echo "4. Generating TLS certificate signing request..."
-openssl req -new -key "$CERT_DIR/tls-key.pem" -out "$CERT_DIR/server.csr" -subj "/C=FR/ST=FR/L=Nice/O=IAM Service/OU=Development/CN=localhost" -config <(
-cat <<EOF
+# Create temporary config file for certificate generation
+CONFIG_FILE="$CERT_DIR/temp-config.conf"
+cat > "$CONFIG_FILE" << EOF
 [req]
 distinguished_name = req_distinguished_name
-req_extensions = v3_req
-prompt = no
+req_extensions     = v3_req
+prompt             = no
 
 [req_distinguished_name]
-C = FR
+C  = FR
 ST = FR
-L = Nice
-O = IAM Service
+L  = Nice
+O  = IAM Service
 OU = Development
-CN = localhost
+CN = $COMMON_NAME
 
 [v3_req]
-keyUsage = keyEncipherment, dataEncipherment
-extendedKeyUsage = serverAuth
-subjectAltName = @alt_names
+keyUsage        = keyEncipherment, dataEncipherment
+extendedKeyUsage = clientAuth, serverAuth
+subjectAltName  = @alt_names
 
 [alt_names]
 DNS.1 = localhost
 DNS.2 = 127.0.0.1
-IP.1 = 127.0.0.1
-IP.2 = ::1
+IP.1  = 127.0.0.1
+IP.2  = ::1
 EOF
-)
+
+# Generate server certificate signing request
+print_color $WHITE "4. Generating TLS certificate signing request..."
+if ! openssl req -new -key "$CERT_DIR/tls-key.pem" -out "$CERT_DIR/server.csr" -config "$CONFIG_FILE"; then
+    print_color $RED "Failed to generate certificate signing request"
+    exit 1
+fi
 
 # Generate server certificate signed by CA
-echo "5. Generating TLS server certificate..."
-openssl x509 -req -in "$CERT_DIR/server.csr" -CA "$CERT_DIR/ca-cert.pem" -CAkey "$CERT_DIR/ca-key.pem" -CAcreateserial -out "$CERT_DIR/tls-cert.pem" -days $DAYS -extensions v3_req -extfile <(
-cat <<EOF
-[v3_req]
-keyUsage = keyEncipherment, dataEncipherment
-extendedKeyUsage = serverAuth
-subjectAltName = @alt_names
+print_color $WHITE "5. Generating TLS server certificate..."
+if ! openssl x509 -req -in "$CERT_DIR/server.csr" -CA "$CERT_DIR/ca-cert.pem" -CAkey "$CERT_DIR/ca-key.pem" -CAcreateserial -out "$CERT_DIR/tls-cert.pem" -days $DAYS -extensions v3_req -extfile "$CONFIG_FILE"; then
+    print_color $RED "Failed to generate server certificate"
+    exit 1
+fi
 
-[alt_names]
-DNS.1 = localhost
-DNS.2 = 127.0.0.1
-IP.1 = 127.0.0.1
-IP.2 = ::1
-EOF
-)
-
-# Clean up CSR file
-rm "$CERT_DIR/server.csr"
-
-# Set appropriate permissions
-chmod 600 "$CERT_DIR"/*.pem
+# Clean up temporary files
+rm -f "$CERT_DIR/server.csr" "$CONFIG_FILE"
 
 echo ""
-echo "🎉 All keys and certificates generated successfully!"
+print_color $GREEN "TLS certificates generated successfully!"
+
 echo ""
-echo "Generated files in $CERT_DIR/:"
-for file in "$CERT_DIR"/*; do
-    if [ -f "$file" ]; then
-        filename=$(basename "$file")
-        size=$(ls -lh "$file" | awk '{print $5}')
-        case "$filename" in
-            "key.pem")
-                echo "  🔑 $filename - JWT private key ($size)"
-                ;;
-            "public_key.pem")
-                echo "  🔑 $filename - JWT public key ($size)"
-                ;;
+print_color $CYAN "Generated TLS files in $CERT_DIR/:"
+
+# Display generated files
+for file in "ca-key.pem" "ca-cert.pem" "tls-key.pem" "tls-cert.pem"; do
+    if [ -f "$CERT_DIR/$file" ]; then
+        size=$(du -h "$CERT_DIR/$file" | cut -f1)
+        case $file in
             "tls-key.pem")
-                echo "  🔐 $filename - TLS private key ($size)"
+                print_color $BLUE "  $file - TLS private key ($size)"
                 ;;
             "tls-cert.pem")
-                echo "  📜 $filename - TLS certificate ($size)"
+                print_color $BLUE "  $file - TLS certificate ($size)"
                 ;;
             "ca-key.pem")
-                echo "  🔐 $filename - CA private key ($size)"
+                print_color $MAGENTA "  $file - CA private key ($size)"
                 ;;
             "ca-cert.pem")
-                echo "  📜 $filename - CA certificate ($size)"
-                ;;
-            *)
-                echo "  📄 $filename ($size)"
+                print_color $MAGENTA "  $file - CA certificate ($size)"
                 ;;
         esac
     fi
 done
 
 echo ""
-echo "🔧 Usage Instructions:"
+print_color $CYAN "Configuration for your service:"
+print_color $WHITE "  [server]"
+print_color $WHITE "  tls_enabled = true"
+print_color $WHITE "  tls_cert_path = \"$CERT_DIR/tls-cert.pem\""
+print_color $WHITE "  tls_key_path = \"$CERT_DIR/tls-key.pem\""
+print_color $WHITE "  tls_port = 8443"
 echo ""
-echo "For JWT Configuration (test.toml):"
-echo "  [jwt.secret]"
-echo "  type = \"pem_file\""
-echo "  private_key_path = \"$CERT_DIR/key.pem\""
-echo "  public_key_path = \"$CERT_DIR/public_key.pem\""
-echo "  key_id = \"jwt-key-test\""
+print_color $RED "Security Notes:"
+print_color $WHITE "  • These are self-signed certificates for development only!"
+print_color $WHITE "  • Browsers will show security warnings"
+print_color $WHITE "  • For production, use certificates from a trusted CA"
 echo ""
-echo "For TLS Configuration (production.toml):"
-echo "  [server]"
-echo "  tls_enabled = true"
-echo "  tls_cert_path = \"$CERT_DIR/tls-cert.pem\""
-echo "  tls_key_path = \"$CERT_DIR/tls-key.pem\""
-echo ""
-echo "To run tests:"
-echo "  RUN_ENV=test cargo test --test token"
-echo ""
-echo "⚠️  Security Notes:"
-echo "  • These are development/test keys only!"
-echo "  • JWT private keys should be kept secure in production"
-echo "  • For production, use proper key management (Vault, GCP, etc.)" 
+print_color $YELLOW "To trust the CA certificate in your browser:"
+print_color $WHITE "  Import $CERT_DIR/ca-cert.pem into your browser's trusted root certificates"

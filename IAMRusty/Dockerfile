@@ -52,7 +52,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Copy the binaries from the builder stage
 COPY --from=builder /usr/src/IAMRusty/target/release/iam-service /app/iam-service
-COPY --from=builder /usr/src/IAMRusty/migration/target/release/migration /app/migration
+COPY --from=builder /usr/src/IAMRusty/target/release/migration /app/migration
 
 # Copy entrypoint script
 COPY IAMRusty/docker-entrypoint.sh /app/docker-entrypoint.sh

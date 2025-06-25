@@ -12,5 +12,5 @@ echo "Running database migrations..."
 echo "Migrations completed successfully!"
 
 echo "Starting IAM service..."
-cd /usr/src/IAMRusty
+cd /app
 exec /app/iam-service 

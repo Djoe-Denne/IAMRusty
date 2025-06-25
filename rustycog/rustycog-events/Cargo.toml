@@ -13,6 +13,7 @@ rdkafka.workspace = true
 aws-sdk-sqs = "1.0"
 aws-config = "1.0"
 aws-credential-types = "1.0"
+rustls = { version = "0.23", features = ["aws_lc_rs"] }
 tokio.workspace = true
 async-trait.workspace = true
 serde.workspace = true

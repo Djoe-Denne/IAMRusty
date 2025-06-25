@@ -2,6 +2,18 @@
 //! 
 //! Event publishing and subscription utilities.
 
+use std::sync::Once;
+
+static CRYPTO_PROVIDER_INIT: Once = Once::new();
+
+/// Initialize the crypto provider for rustls
+/// This is called automatically when the library is first used
+fn init_crypto_provider() {
+    CRYPTO_PROVIDER_INIT.call_once(|| {
+        let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+    });
+}
+
 pub mod kafka;
 pub mod sqs;
 pub mod no_op;
@@ -142,6 +154,9 @@ pub fn create_kafka_event_publisher(config: &KafkaConfig) -> Result<Arc<Concrete
 
 /// Factory function to create an SQS event publisher
 pub async fn create_sqs_event_publisher(config: &SqsConfig) -> Result<Arc<ConcreteEventPublisher>, ServiceError> {
+    // Initialize crypto provider before any AWS SDK usage
+    init_crypto_provider();
+    
     // In test mode, only use SQS if explicitly enabled
     if is_test_mode() {
         #[cfg(any(test, feature = "test-utils"))]
