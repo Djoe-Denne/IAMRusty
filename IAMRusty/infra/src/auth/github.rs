@@ -5,11 +5,50 @@ use domain::entity::provider::{Provider, ProviderTokens, ProviderUserProfile};
 use domain::error::DomainError;
 use domain::port::service::ProviderOAuth2Client;
 use oauth2::{
-    basic::BasicClient, reqwest::async_http_client, AuthUrl, AuthorizationCode, ClientId,
+    basic::BasicClient, reqwest::{Error}, HttpRequest, HttpResponse, AuthUrl, AuthorizationCode, ClientId,
     ClientSecret, RedirectUrl, TokenResponse, TokenUrl,
 };
 use serde::Deserialize;
 use tracing::{debug, error};
+
+
+async fn async_http_client(
+    request: HttpRequest,
+) -> Result<HttpResponse, Error<reqwest::Error>> {
+    let client = {
+        let builder = reqwest::Client::builder();
+
+        // Following redirects opens the client up to SSRF vulnerabilities.
+        // but this is not possible to prevent on wasm targets
+        #[cfg(not(target_arch = "wasm32"))]
+        let builder = builder.redirect(reqwest::redirect::Policy::none());
+
+        builder.build().map_err(Error::Reqwest)?
+    };
+
+    debug!("request: {:?}", request);
+    debug!("string body: {:?}", String::from_utf8(request.body.clone()).unwrap());
+
+    let mut request_builder = client
+        .request(request.method, request.url.as_str())
+        .body(request.body);
+    for (name, value) in &request.headers {
+        request_builder = request_builder.header(name.as_str(), value.as_bytes());
+    }
+    let request = request_builder.build().map_err(Error::Reqwest)?;
+
+    let response = client.execute(request).await.map_err(Error::Reqwest)?;
+
+    let status_code = response.status();
+    let headers = response.headers().to_owned();
+    let chunks = response.bytes().await.map_err(Error::Reqwest)?;
+    debug!("response body: {:?}", String::from_utf8(chunks.to_vec()).unwrap());
+    Ok(HttpResponse {
+        status_code,
+        headers,
+        body: chunks.to_vec(),
+    })
+}
 
 /// GitHub user response from the API
 #[derive(Debug, Deserialize)]
@@ -22,6 +61,19 @@ struct GitHubUser {
     email: Option<String>,
     /// Avatar URL
     avatar_url: Option<String>,
+}
+
+/// GitHub email response from the emails API
+#[derive(Debug, Deserialize)]
+struct GitHubEmail {
+    /// Email address
+    email: String,
+    /// Whether this is the primary email
+    primary: bool,
+    /// Whether the email is verified
+    verified: bool,
+    /// Email visibility
+    visibility: Option<String>,
 }
 
 /// GitHub OAuth2 client
@@ -72,7 +124,7 @@ impl GitHubOAuth2Client {
 #[async_trait]
 impl ProviderOAuth2Client for GitHubOAuth2Client {
     fn get_scope(&self) -> String {
-        "user:email".to_string()
+        "user".to_string()
     }
 
     fn generate_authorize_url(&self) -> String {
@@ -83,6 +135,7 @@ impl ProviderOAuth2Client for GitHubOAuth2Client {
             .add_scope(oauth2::Scope::new(self.get_scope()))
             .url();
 
+        debug!("auth_url: {:?}", auth_url);
         auth_url.to_string()
     }
 
@@ -120,6 +173,7 @@ impl ProviderOAuth2Client for GitHubOAuth2Client {
         // Create HTTP client
         let client = reqwest::Client::new();
 
+        debug!("access token: {}", tokens.access_token);
         // Fetch user data from GitHub API
         let github_user = client
             .get(self.user_url.clone())
@@ -139,11 +193,43 @@ impl ProviderOAuth2Client for GitHubOAuth2Client {
                 DomainError::UserProfileError(format!("Failed to parse GitHub user: {}", e))
             })?;
 
+        // If email is null or empty, fetch from emails API
+        let email = if github_user.email.is_none() || github_user.email.as_ref().map_or(true, |e| e.is_empty()) {
+            debug!("User email is null or empty, fetching from emails API");
+            
+            let emails_url = format!("{}/emails", self.user_url);
+            let github_emails = client
+                .get(&emails_url)
+                .header("User-Agent", "IAM-Service")
+                .header("Accept", "application/vnd.github.v3+json")
+                .header("Authorization", format!("token {}", tokens.access_token))
+                .send()
+                .await
+                .map_err(|e| {
+                    error!("Failed to fetch GitHub user emails: {}", e);
+                    DomainError::UserProfileError(format!("GitHub emails API request failed: {}", e))
+                })?
+                .json::<Vec<GitHubEmail>>()
+                .await
+                .map_err(|e| {
+                    error!("Failed to parse GitHub emails response: {}", e);
+                    DomainError::UserProfileError(format!("Failed to parse GitHub emails: {}", e))
+                })?;
+
+            // Find the primary email
+            github_emails
+                .into_iter()
+                .find(|email| email.primary)
+                .map(|email| email.email)
+        } else {
+            github_user.email
+        };
+
         // Convert to domain ProviderUserProfile
         let profile = ProviderUserProfile {
             id: github_user.id.to_string(),
             username: github_user.login,
-            email: github_user.email,
+            email,
             avatar_url: github_user.avatar_url,
         };
 

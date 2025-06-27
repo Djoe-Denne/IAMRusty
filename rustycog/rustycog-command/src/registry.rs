@@ -58,6 +58,19 @@ impl RetryPolicy {
     }
 }
 
+// Conversion from rustycog_config::CommandRetryConfig to RetryPolicy
+impl From<&rustycog_config::CommandRetryConfig> for RetryPolicy {
+    fn from(config: &rustycog_config::CommandRetryConfig) -> Self {
+        Self {
+            max_attempts: config.max_attempts,
+            base_delay: Duration::from_millis(config.base_delay_ms),
+            max_delay: Duration::from_millis(config.max_delay_ms),
+            backoff_multiplier: config.backoff_multiplier,
+            use_jitter: config.use_jitter,
+        }
+    }
+}
+
 /// Registry configuration
 #[derive(Debug, Clone)]
 pub struct RegistryConfig {
@@ -72,6 +85,18 @@ impl Default for RegistryConfig {
         Self {
             default_timeout: Duration::from_secs(30),
             retry_policy: RetryPolicy::default(),
+            enable_metrics: true,
+            enable_tracing: true,
+        }
+    }
+}
+
+impl RegistryConfig {
+    /// Create a new RegistryConfig from a CommandRetryConfig
+    pub fn from_retry_config(retry_config: &rustycog_config::CommandRetryConfig) -> Self {
+        Self {
+            default_timeout: Duration::from_secs(30),
+            retry_policy: RetryPolicy::from(retry_config),
             enable_metrics: true,
             enable_tracing: true,
         }
@@ -333,7 +358,8 @@ impl CommandRegistry {
                     }
                     
                     // Check if we've reached max attempts
-                    if retry_attempts >= retry_policy.max_attempts {
+                    // When max_attempts is 0, we should not retry at all
+                    if retry_policy.max_attempts == 0 || retry_attempts >= retry_policy.max_attempts {
                         let duration = start_time.elapsed();
                         if self.config.enable_tracing {
                             error!(
@@ -371,7 +397,7 @@ impl CommandRegistry {
                     retry_attempts += 1;
                     let timeout_error = CommandError::timeout("command_timeout", "Command execution timed out");
                     
-                    if retry_attempts >= retry_policy.max_attempts {
+                    if retry_policy.max_attempts == 0 || retry_attempts >= retry_policy.max_attempts {
                         let duration = start_time.elapsed();
                         if self.config.enable_tracing {
                             error!(

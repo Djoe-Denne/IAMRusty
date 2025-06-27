@@ -33,8 +33,8 @@ password = "postgres"
 read_replicas = []
 
 [oauth.github]
-client_id = "your-github-client-id"
-client_secret = "your-github-client-secret"
+client_id = "Iv23liMmfDciF6YoCdIb"
+client_secret = "f0c7d8cdaa3aa77abf84f1ec1636a9bef03b955b"
 redirect_uri = "https://localhost:8443/api/auth/github/callback"
 auth_url = "https://github.com/login/oauth/authorize"
 token_url = "https://github.com/login/oauth/access_token"
@@ -71,7 +71,7 @@ user_signed_up = "user-events"
 # Command configuration for development
 [command.retry]
 # Faster retries for development
-max_attempts = 2
+max_attempts = 0
 base_delay_ms = 50
 max_delay_ms = 5000
 backoff_multiplier = 2.0

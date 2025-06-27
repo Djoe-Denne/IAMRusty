@@ -428,7 +428,7 @@ paths:
                         type: integer
                         example: 422
 
-  /api/auth/{provider}/start:
+  /api/auth/{provider}/login:
     get:
       summary: Start OAuth2 authentication or provider linking
       description: |

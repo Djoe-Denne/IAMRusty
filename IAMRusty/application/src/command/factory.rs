@@ -47,6 +47,7 @@ use crate::usecase::{
 };
 use rustycog_command::{CommandRegistry, CommandRegistryBuilder};
 use std::sync::Arc;
+use configuration::CommandConfig;
 
 /// Factory for creating a command registry with all standard commands registered
 pub struct CommandRegistryFactory;
@@ -62,8 +63,13 @@ impl CommandRegistryFactory {
         login_auth_usecase: Arc<dyn LoginUseCase>,
         registration_usecase: Arc<dyn RegistrationUseCase>,
         password_reset_usecase: Arc<dyn PasswordResetUseCase>,
+        command_config: CommandConfig,
     ) -> CommandRegistry {
-        let mut builder = CommandRegistryBuilder::new();
+        
+        // Create registry config from the loaded configuration
+        let registry_config = rustycog_command::registry::RegistryConfig::from_retry_config(&command_config.retry);
+        
+        let mut builder = CommandRegistryBuilder::with_config(registry_config);
 
         // Register OAuth login commands
         let oauth_login_handler = Arc::new(OAuthLoginCommandHandler::new(oauth_usecase.clone()));

@@ -380,6 +380,7 @@ where
         Arc::new(login_usecase),
         registration_usecase.clone(),
         password_reset_usecase.clone(),
+        config.command.clone(),
     );
     let command_service = Arc::new(GenericCommandService::new(Arc::new(registry)));
 

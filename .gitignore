@@ -11,10 +11,21 @@ target/
 # Rust documentation
 doc/
 
+# Node.js / Frontend
+node_modules
+dist
+dist-ssr
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
 # IDE and Editor Files
 # VSCode
 .vscode/
 *.code-workspace
+!.vscode/extensions.json
 
 # IntelliJ / CLion
 .idea/
@@ -53,6 +64,11 @@ $RECYCLE.BIN/
 *.msm
 *.msp
 *.lnk
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
 
 # macOS
 .DS_Store

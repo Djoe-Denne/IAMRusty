@@ -290,14 +290,30 @@ pub async fn oauth_login_start(
         .await
         .map_err(|_e| AuthError::oauth_url_generation_failed("login_start"))?;
 
-    // Parse the URL and add our state parameter
+    // Parse the URL and replace the state parameter with our own
     let mut url =
         url::Url::parse(&base_auth_url).map_err(|_e| AuthError::oauth_invalid_url("login_start"))?;
 
-    // Add the state parameter to the URL
-    url.query_pairs_mut().append_pair("state", &encoded_state);
+    // Remove any existing state parameter and add our own
+    let mut new_query_pairs = Vec::new();
+    for (key, value) in url.query_pairs() {
+        if key != "state" {
+            new_query_pairs.push((key.to_string(), value.to_string()));
+        }
+    }
+    new_query_pairs.push(("state".to_string(), encoded_state));
+    
+    // Clear existing query and set new query pairs
+    url.set_query(None);
+    {
+        let mut query_pairs = url.query_pairs_mut();
+        for (key, value) in new_query_pairs {
+            query_pairs.append_pair(&key, &value);
+        }
+        query_pairs.finish();
+    }
 
-    debug!("Redirecting to provider authorization URL for login");
+    debug!("Redirecting to provider authorization URL for login: {}", url.as_str());
     Ok(Redirect::to(url.as_str()))
 }
 
@@ -351,14 +367,30 @@ pub async fn oauth_link_start(
         .await
         .map_err(|_e| AuthError::oauth_url_generation_failed("link_start"))?;
 
-    // Parse the URL and add our state parameter
+    // Parse the URL and replace the state parameter with our own
     let mut url =
         url::Url::parse(&base_auth_url).map_err(|_e| AuthError::oauth_invalid_url("link_start"))?;
 
-    // Add the state parameter to the URL
-    url.query_pairs_mut().append_pair("state", &encoded_state);
+    // Remove any existing state parameter and add our own
+    let mut new_query_pairs = Vec::new();
+    for (key, value) in url.query_pairs() {
+        if key != "state" {
+            new_query_pairs.push((key.to_string(), value.to_string()));
+        }
+    }
+    new_query_pairs.push(("state".to_string(), encoded_state));
+    
+    // Clear existing query and set new query pairs
+    url.set_query(None);
+    {
+        let mut query_pairs = url.query_pairs_mut();
+        for (key, value) in new_query_pairs {
+            query_pairs.append_pair(&key, &value);
+        }
+        query_pairs.finish();
+    }
 
-    debug!("Redirecting to provider authorization URL for linking");
+    debug!("Redirecting to provider authorization URL for linking: {}", url.as_str());
     Ok(Redirect::to(url.as_str()))
 }
 

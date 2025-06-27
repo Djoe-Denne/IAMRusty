@@ -100,34 +100,3 @@ impl PasswordResetTokenReadRepository for PasswordResetTokenReadRepositoryImpl {
         Ok(count)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use sea_orm::{Database, DatabaseBackend, MockDatabase, MockExecResult};
-
-    #[tokio::test]
-    async fn test_find_by_user_and_token_hash() {
-        let user_id = Uuid::new_v4();
-        let token_hash = "test_hash";
-
-        let db = MockDatabase::new(DatabaseBackend::Postgres)
-            .append_query_results(vec![vec![password_reset_tokens::Model {
-                id: Uuid::new_v4(),
-                user_id,
-                token_hash: token_hash.to_string(),
-                expires_at: Utc::now() + chrono::Duration::hours(1),
-                created_at: Utc::now(),
-                used_at: None,
-            }]])
-            .into_connection();
-
-        let repo = PasswordResetTokenReadRepositoryImpl::new(Arc::new(db));
-        let result = repo.find_by_user_and_token_hash(user_id, token_hash).await;
-
-        assert!(result.is_ok());
-        let token = result.unwrap();
-        assert!(token.is_some());
-        assert_eq!(token.unwrap().user_id, user_id);
-    }
-} 

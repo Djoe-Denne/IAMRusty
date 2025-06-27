@@ -4677,6 +4677,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "inventory",
+ "rustycog-config",
  "rustycog-core",
  "serde",
  "thiserror 1.0.69",
