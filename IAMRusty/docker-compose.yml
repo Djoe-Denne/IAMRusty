@@ -61,5 +61,48 @@ services:
       localstack:
         condition: service_healthy
 
+  truncate-db:
+    image: postgres:15-alpine
+    environment:
+      PGPASSWORD: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      sh -c "
+        echo 'Truncating all database tables...' &&
+        psql -h postgres -U postgres -d iam_dev -c '
+          TRUNCATE TABLE 
+            password_reset_tokens,
+            user_email_verification,
+            refresh_tokens,
+            provider_tokens,
+            user_emails,
+            users
+          RESTART IDENTITY CASCADE;
+        ' &&
+        echo 'Database tables truncated successfully!'
+      "
+    profiles:
+      - tools
+
+  verify-emails:
+    image: postgres:15-alpine
+    environment:
+      PGPASSWORD: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      sh -c "
+        echo 'Verifying all emails...' &&
+        psql -h postgres -U postgres -d iam_dev -c '
+          UPDATE user_emails SET is_verified = true, updated_at = NOW() WHERE is_verified = false;
+        ' &&
+        echo 'Emails verified successfully!'
+      "
+    profiles:
+      - tools
+
 volumes:
   postgres-data: 

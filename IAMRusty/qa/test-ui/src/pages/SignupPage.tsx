@@ -61,12 +61,16 @@ export const SignupPage: React.FC = () => {
       const data = await response.json();
 
       if (response.ok) {
-        // Success - navigate to complete registration with token
-        const params = new URLSearchParams({
-          token: data.registration_token,
-          email: formData.email
-        });
-        navigate(`/complete-registration?${params.toString()}`);
+        if(response.status === 202) {
+          // Success - navigate to complete registration with token
+          const params = new URLSearchParams({
+            token: data.registration_token,
+            email: formData.email
+          });
+          navigate(`/complete-registration?${params.toString()}`);
+        } else {
+          navigate(`/ok?action=signup&user=${encodeURIComponent(data.user.username)}`);
+        }
       } else {
         // Handle specific error cases
         if (response.status === 409) {

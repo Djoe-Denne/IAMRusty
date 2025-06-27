@@ -40,6 +40,36 @@ export const KoPage: React.FC = () => {
           message: message || 'Please check your input and try again.',
           icon: AlertTriangle
         };
+      case 'oauth_error':
+        return {
+          title: 'OAuth Authentication Error',
+          message: searchParams.get('details') || 'OAuth authentication failed.',
+          icon: XCircle
+        };
+      case 'oauth_failed':
+        return {
+          title: 'OAuth Authentication Failed',
+          message: searchParams.get('details') || 'Authentication with the provider failed.',
+          icon: XCircle
+        };
+      case 'provider_conflict':
+        return {
+          title: 'Provider Already Linked',
+          message: searchParams.get('details') || 'This provider is already linked to another account.',
+          icon: AlertTriangle
+        };
+      case 'missing_parameters':
+        return {
+          title: 'Missing OAuth Parameters',
+          message: 'Required OAuth parameters are missing. Please try the authentication flow again.',
+          icon: AlertTriangle
+        };
+      case 'unknown_operation':
+        return {
+          title: 'Unknown Operation',
+          message: 'The OAuth response contains an unknown operation type.',
+          icon: AlertTriangle
+        };
       default:
         return {
           title: 'Error',

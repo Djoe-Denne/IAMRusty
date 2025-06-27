@@ -15,12 +15,19 @@ export const CompleteRegistrationPage: React.FC = () => {
 
   const registrationToken = searchParams.get('token');
   const email = searchParams.get('email');
+  const suggestedUsername = searchParams.get('suggested_username');
 
   useEffect(() => {
     if (!registrationToken) {
       navigate('/ko?error=missing_token');
     }
-  }, [registrationToken, navigate]);
+    
+    // Set suggested username if provided
+    if (suggestedUsername && !username) {
+      setUsername(suggestedUsername);
+      checkUsernameAvailability(suggestedUsername);
+    }
+  }, [registrationToken, navigate, suggestedUsername]);
 
   const checkUsernameAvailability = async (usernameToCheck: string) => {
     if (usernameToCheck.length < 3) {
