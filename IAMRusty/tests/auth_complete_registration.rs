@@ -38,7 +38,7 @@ async fn test_complete_registration_success() {
         .await
         .expect("Failed to send signup request");
 
-    assert_eq!(signup_response.status(), 201);
+    assert_eq!(signup_response.status(), 202);
 
     let signup_body: Value = signup_response
         .json()
@@ -230,7 +230,7 @@ async fn test_complete_registration_username_already_taken() {
         .await
         .expect("Failed to send signup request");
 
-    assert_eq!(signup_response.status(), 201);
+    assert_eq!(signup_response.status(), 202);
 
     let signup_body: Value = signup_response
         .json()
@@ -281,7 +281,7 @@ async fn test_complete_registration_invalid_username_format() {
         .await
         .expect("Failed to send signup request");
 
-    assert_eq!(signup_response.status(), 201);
+    assert_eq!(signup_response.status(), 202);
 
     let signup_body: Value = signup_response
         .json()
@@ -360,7 +360,7 @@ async fn test_complete_registration_valid_username_formats() {
             .await
             .expect("Failed to send signup request");
 
-        assert_eq!(signup_response.status(), 201);
+        assert_eq!(signup_response.status(), 202);
 
         let signup_body: Value = signup_response
             .json()
@@ -494,7 +494,7 @@ async fn test_registration_token_single_use() {
         .await
         .expect("Failed to send signup request");
 
-    assert_eq!(signup_response.status(), 201);
+    assert_eq!(signup_response.status(), 202);
 
     let signup_body: Value = signup_response
         .json()
@@ -566,7 +566,7 @@ async fn test_complete_registration_updates_user_record() {
         .await
         .expect("Failed to send signup request");
 
-    assert_eq!(signup_response.status(), 201);
+    assert_eq!(signup_response.status(), 202);
 
     let signup_body: Value = signup_response
         .json()
@@ -633,7 +633,7 @@ async fn test_complete_registration_user_can_login_afterward() {
         .await
         .expect("Failed to send signup request");
 
-    assert_eq!(signup_response.status(), 201);
+    assert_eq!(signup_response.status(), 202);
 
     let signup_body: Value = signup_response
         .json()

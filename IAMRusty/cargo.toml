@@ -9,6 +9,12 @@ license = "MIT OR Apache-2.0"
 [workspace]
 members = ["domain", "application", "infra", "http", "migration", "setup", "configuration"]
 
+[features]
+# Feature flags for testing and QA environments
+test-mode = []
+qa-mode = []
+
+
 [dependencies]
 # Internal workspace crates
 domain = { path = "domain" }

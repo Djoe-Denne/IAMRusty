@@ -79,7 +79,7 @@ async fn test_new_user_signup_returns_201_with_registration_token() {
     // Verify response
     assert_eq!(
         response.status(),
-        201,
+        202,
         "Should return 201 for new user signup"
     );
 
@@ -134,7 +134,7 @@ async fn test_registration_token_is_valid_rsa_signed_jwt() {
         .await
         .expect("Failed to send signup request");
 
-    assert_eq!(response.status(), 201);
+    assert_eq!(response.status(), 202);
     let response_body: Value = response.json().await.expect("Should return JSON response");
 
     let registration_token = response_body["registration_token"].as_str().unwrap();
@@ -178,7 +178,7 @@ async fn test_no_user_signed_up_event_triggered_at_signup() {
         .await
         .expect("Failed to send signup request");
 
-    assert_eq!(response.status(), 201);
+    assert_eq!(response.status(), 202);
 
     // Note: In a real implementation, you would check your event store/message queue
     // to verify that no user_signed_up event was triggered
@@ -211,7 +211,7 @@ async fn test_user_record_created_with_null_username_pending_status() {
         .await
         .expect("Failed to send signup request");
 
-    assert_eq!(response.status(), 201);
+    assert_eq!(response.status(), 202);
 
     let response_body: Value = response.json().await.expect("Should return JSON response");
     let user_id = response_body["user"]["id"].as_str().unwrap();
@@ -801,7 +801,7 @@ async fn test_complete_registration_valid_token_available_username_returns_200()
         .await
         .expect("Failed to send signup request");
 
-    assert_eq!(signup_response.status(), 201);
+    assert_eq!(signup_response.status(), 202);
 
     let signup_body: Value = signup_response
         .json()
@@ -880,7 +880,7 @@ async fn test_complete_registration_triggers_user_signed_up_event() {
         .await
         .expect("Failed to send signup request");
 
-    assert_eq!(signup_response.status(), 201);
+    assert_eq!(signup_response.status(), 202);
 
     let signup_body: Value = signup_response
         .json()
@@ -931,7 +931,7 @@ async fn test_complete_registration_invalidates_token_after_use() {
         .await
         .expect("Failed to send signup request");
 
-    assert_eq!(signup_response.status(), 201);
+    assert_eq!(signup_response.status(), 202);
 
     let signup_body: Value = signup_response
         .json()
@@ -1016,7 +1016,7 @@ async fn test_complete_registration_taken_username_returns_409() {
         .await
         .expect("Failed to send signup request");
 
-    assert_eq!(signup_response.status(), 201);
+    assert_eq!(signup_response.status(), 202);
 
     let signup_body: Value = signup_response
         .json()
@@ -1068,7 +1068,7 @@ async fn test_complete_registration_invalid_username_format_returns_422() {
         .await
         .expect("Failed to send signup request");
 
-    assert_eq!(signup_response.status(), 201);
+    assert_eq!(signup_response.status(), 202);
 
     let signup_body: Value = signup_response
         .json()
@@ -1284,7 +1284,7 @@ async fn test_complete_email_first_flow() {
         .await
         .expect("Failed to send signup request");
 
-    assert_eq!(signup_response.status(), 201);
+    assert_eq!(signup_response.status(), 202);
 
     let signup_body: Value = signup_response
         .json()

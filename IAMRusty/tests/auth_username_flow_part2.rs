@@ -232,7 +232,7 @@ async fn test_registration_token_has_correct_rsa_signature() {
         .await
         .expect("Failed to send signup request");
 
-    assert_eq!(signup_response.status(), 201);
+    assert_eq!(signup_response.status(), 202);
 
     let signup_body: Value = signup_response
         .json()
@@ -287,7 +287,7 @@ async fn test_registration_token_contains_required_claims() {
         .await
         .expect("Failed to send signup request");
 
-    assert_eq!(signup_response.status(), 201);
+    assert_eq!(signup_response.status(), 202);
 
     let signup_body: Value = signup_response
         .json()
@@ -347,7 +347,7 @@ async fn test_registration_token_expires_after_configured_duration() {
         .await
         .expect("Failed to send signup request");
 
-    assert_eq!(signup_response.status(), 201);
+    assert_eq!(signup_response.status(), 202);
 
     let signup_body: Value = signup_response
         .json()
@@ -447,7 +447,7 @@ async fn test_same_email_signup_after_incomplete_registration() {
         .await
         .expect("Failed to send first signup request");
 
-    assert_eq!(first_signup.status(), 201);
+    assert_eq!(first_signup.status(), 202);
 
     let first_body: Value = first_signup
         .json()
@@ -467,7 +467,7 @@ async fn test_same_email_signup_after_incomplete_registration() {
     // Should return 201 with new token
     assert_eq!(
         second_signup.status(),
-        201,
+        202,
         "Should allow retry with same email"
     );
 
@@ -507,7 +507,7 @@ async fn test_no_duplicate_user_records_created_on_retry() {
             .await
             .expect("Failed to send signup request");
 
-        assert_eq!(signup_response.status(), 201);
+        assert_eq!(signup_response.status(), 202);
     }
 
     // Verify only one user record exists
@@ -553,7 +553,7 @@ async fn test_user_id_remains_consistent_across_retries() {
         .await
         .expect("Failed to send first signup request");
 
-    assert_eq!(first_signup.status(), 201);
+    assert_eq!(first_signup.status(), 202);
 
     let first_body: Value = first_signup
         .json()
@@ -570,7 +570,7 @@ async fn test_user_id_remains_consistent_across_retries() {
         .await
         .expect("Failed to send second signup request");
 
-    assert_eq!(second_signup.status(), 201);
+    assert_eq!(second_signup.status(), 202);
 
     let second_body: Value = second_signup
         .json()
@@ -611,7 +611,7 @@ async fn test_user_signed_up_triggered_only_at_registration_completion() {
         .await
         .expect("Failed to send signup request");
 
-    assert_eq!(signup_response.status(), 201);
+    assert_eq!(signup_response.status(), 202);
 
     let signup_body: Value = signup_response
         .json()
@@ -715,7 +715,7 @@ async fn test_event_fired_after_successful_database_transaction() {
         .await
         .expect("Failed to send signup request");
 
-    assert_eq!(signup_response.status(), 201);
+    assert_eq!(signup_response.status(), 202);
 
     let signup_body: Value = signup_response
         .json()
@@ -789,7 +789,7 @@ async fn test_email_addresses_properly_validated_and_sanitized() {
 
         if should_succeed {
             assert!(
-                response.status() == 201 || response.status() == 409,
+                response.status() == 202 || response.status() == 409,
                 "Valid email '{}' should succeed or conflict",
                 email
             );
@@ -825,7 +825,7 @@ async fn test_username_input_sanitization_prevents_injection() {
         .await
         .expect("Failed to send signup request");
 
-    assert_eq!(signup_response.status(), 201);
+    assert_eq!(signup_response.status(), 202);
 
     let signup_body: Value = signup_response
         .json()

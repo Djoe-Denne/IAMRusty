@@ -637,7 +637,7 @@ pub async fn signup(
             message,
         } => {
             Ok((
-                StatusCode::CREATED,
+                StatusCode::ACCEPTED,
                 Json(SignupResponse::NewUser {
                     user: UserData {
                         id: user.id.to_string(),

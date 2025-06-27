@@ -40,7 +40,7 @@ async fn test_signup_duplicate_email_fails() {
         .await
         .expect("Failed to send first signup request");
 
-    assert_eq!(response1.status(), 201, "First signup should succeed");
+    assert_eq!(response1.status(), 202, "First signup should succeed");
 
     let signup_body: Value = response1.json().await.expect("Should return JSON");
     let registration_token = signup_body["registration_token"].as_str().unwrap();

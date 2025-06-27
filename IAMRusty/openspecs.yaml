@@ -33,7 +33,7 @@ paths:
     post:
       summary: Sign up with email and password
       description: |
-        Creates user account. Returns 201 for new user (requires username selection via /auth/complete-registration).
+        Creates user account. Returns 202 for new user (requires username selection via /auth/complete-registration).
         Returns 409 if email already has password authentication.
       requestBody:
         required: true
@@ -46,7 +46,7 @@ paths:
                 password: {type: string, minLength: 8}
               required: [email, password]
       responses:
-        "201":
+        "202":
           description: New user created - username required
           content:
             application/json:

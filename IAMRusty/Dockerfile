@@ -36,7 +36,7 @@ COPY IAMRusty/src IAMRusty/src/
 WORKDIR /usr/src/IAMRusty
 
 # Build the application and migration tool
-RUN cargo build --release
+RUN cargo build --release --features test-mode
 RUN cd migration && cargo build --release
 
 # Final stage - minimal runtime image

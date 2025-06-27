@@ -220,7 +220,14 @@ where
 
     /// Generate a verification token using UUID v4
     /// Simple, secure, and doesn't require crypto dependencies
+    /// In test/QA mode, returns a static token for predictable testing
     fn generate_verification_token(&self) -> String {
+        #[cfg(any(test, feature = "test-mode"))]
+        {
+            debug!("Generating test/QA verification token");
+            "VALIDATION_TOKEN".to_string()
+        }
+        #[cfg(not(any(test, feature = "test-mode")))] 
         Uuid::new_v4().to_string()
     }
 

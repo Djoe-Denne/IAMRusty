@@ -54,7 +54,7 @@ async fn test_registration_token_has_correct_structure() {
         .await
         .expect("Failed to send signup request");
 
-    assert_eq!(response.status(), 201);
+    assert_eq!(response.status(), 202);
 
     let response_body: Value = response.json().await.expect("Should return JSON response");
     let registration_token = response_body["registration_token"].as_str().unwrap();
@@ -144,7 +144,7 @@ async fn test_same_email_retry_returns_new_token() {
         .await
         .expect("Failed to send first signup");
 
-    assert_eq!(first_response.status(), 201);
+    assert_eq!(first_response.status(), 202);
     let first_body: Value = first_response.json().await.expect("Should return JSON");
     let first_token = first_body["registration_token"].as_str().unwrap();
 
@@ -157,7 +157,7 @@ async fn test_same_email_retry_returns_new_token() {
         .await
         .expect("Failed to send second signup");
 
-    assert_eq!(second_response.status(), 201, "Should allow retry");
+    assert_eq!(second_response.status(), 202, "Should allow retry");
     let second_body: Value = second_response.json().await.expect("Should return JSON");
     let second_token = second_body["registration_token"].as_str().unwrap();
 
@@ -189,7 +189,7 @@ async fn test_user_id_consistent_across_retries() {
         .await
         .expect("Failed to send first signup");
 
-    assert_eq!(first_response.status(), 201);
+    assert_eq!(first_response.status(), 202);
     let first_body: Value = first_response.json().await.expect("Should return JSON");
     let first_user_id = first_body["user"]["id"].as_str().unwrap();
 
@@ -202,7 +202,7 @@ async fn test_user_id_consistent_across_retries() {
         .await
         .expect("Failed to send second signup");
 
-    assert_eq!(second_response.status(), 201);
+    assert_eq!(second_response.status(), 202);
     let second_body: Value = second_response.json().await.expect("Should return JSON");
     let second_user_id = second_body["user"]["id"].as_str().unwrap();
 
@@ -336,7 +336,7 @@ async fn test_email_validation_and_sanitization() {
 
         if should_succeed {
             assert!(
-                response.status() == 201 || response.status() == 409,
+                response.status() == 202 || response.status() == 409,
                 "Valid email '{}' should succeed",
                 email
             );
@@ -371,7 +371,7 @@ async fn test_username_injection_prevention() {
         .await
         .expect("Failed to send signup");
 
-    assert_eq!(signup_response.status(), 201);
+    assert_eq!(signup_response.status(), 202);
 
     let signup_body: Value = signup_response.json().await.expect("Should return JSON");
     let registration_token = signup_body["registration_token"].as_str().unwrap();
