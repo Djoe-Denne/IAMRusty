@@ -947,6 +947,7 @@ fn build_config_with_env_prefix(env_prefix: &str) -> Result<Config, ConfigError>
     tracing::debug!("Loading environment variables with prefix: {}_", env_prefix);
     builder = builder.add_source(
         Environment::with_prefix(env_prefix)
+            .prefix_separator("_")
             .separator("__")
             .try_parsing(true)
     );

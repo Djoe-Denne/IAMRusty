@@ -9,6 +9,7 @@ use oauth2::{
     ClientSecret, RedirectUrl, TokenResponse, TokenUrl,
 };
 use serde::Deserialize;
+use std::env;
 use tracing::{debug, error};
 
 
@@ -100,6 +101,7 @@ impl GitHubOAuth2Client {
             Some(TokenUrl::new(token_url).unwrap()),
         )
         .set_redirect_uri(RedirectUrl::new(redirect_url).unwrap());
+
 
         Self { 
             client, 

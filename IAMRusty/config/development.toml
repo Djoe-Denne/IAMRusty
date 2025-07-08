@@ -34,7 +34,6 @@ read_replicas = []
 
 [oauth.github]
 client_id = "Iv23liMmfDciF6YoCdIb"
-client_secret = "f0c7d8cdaa3aa77abf84f1ec1636a9bef03b955b"
 redirect_uri = "http://localhost:5173/oauth/github/callback"
 auth_url = "https://github.com/login/oauth/authorize"
 token_url = "https://github.com/login/oauth/access_token"
