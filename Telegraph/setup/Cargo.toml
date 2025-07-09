@@ -1,0 +1,39 @@
+[package]
+name = "setup"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Internal crates
+domain = { path = "../domain" }
+application = { path = "../application" }
+infra = { path = "../infra" }
+http = { path = "../http" }
+configuration = { path = "../configuration" }
+
+# Configuration
+rustycog-config = { path = "../../rustycog/rustycog-config" }
+
+# Core error handling
+rustycog-core = { path = "../../rustycog/rustycog-core" }
+
+# HTTP and server
+rustycog-http = { path = "../../rustycog/rustycog-http" }
+rustycog-server = { path = "../../rustycog/rustycog-server" }
+
+# Events
+rustycog-events = { path = "../../rustycog/rustycog-events" }
+
+# Serialization
+serde = { version = "1.0.197", features = ["derive"] }
+
+# Error handling
+thiserror = "1.0.56"
+anyhow = "1.0.82"
+
+# Logging
+tracing = "0.1"
+
+# Async
+async-trait = "0.1.77"
+tokio = { version = "1.44", features = ["rt-multi-thread", "macros", "signal"] } 

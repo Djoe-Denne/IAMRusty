@@ -1,0 +1,403 @@
+//! Telegraph Communication Service Configuration
+//! 
+//! This crate provides configuration structures for the Telegraph communication service,
+//! including queue configuration, event routing, and communication modes.
+
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use indexmap::IndexMap;
+
+use rustycog_config::{
+    ConfigLoader, HasServerConfig, HasLoggingConfig, HasQueueConfig, 
+    ServerConfig, LoggingConfig, QueueConfig, ConfigError
+};
+
+/// Main Telegraph service configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TelegraphConfig {
+    /// Server configuration
+    #[serde(default)]
+    pub server: ServerConfig,
+    
+    /// Logging configuration
+    #[serde(default)]
+    pub logging: LoggingConfig,
+    
+    /// Queue configuration (SQS, Kafka, etc.)
+    #[serde(default)]
+    pub queue: QueueConfig,
+    
+    /// Telegraph-specific queue configurations
+    #[serde(default)]
+    pub queues: IndexMap<String, QueueEventConfig>,
+    
+    /// Communication configuration
+    #[serde(default)]
+    pub communication: CommunicationConfig,
+}
+
+/// Configuration for a specific queue and its events
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QueueEventConfig {
+    /// Events that this queue processes
+    pub events: Vec<String>,
+    
+    /// Event-specific configurations
+    #[serde(flatten)]
+    pub event_configs: HashMap<String, EventConfig>,
+}
+
+/// Configuration for how to handle a specific event
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EventConfig {
+    /// Communication modes to use for this event (notification, email, sms, etc.)
+    pub modes: Vec<String>,
+    
+    /// Additional event-specific settings
+    #[serde(default)]
+    pub settings: HashMap<String, String>,
+}
+
+/// Communication service configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CommunicationConfig {
+    /// Email service configuration
+    #[serde(default)]
+    pub email: EmailConfig,
+    
+    /// Push notification service configuration
+    #[serde(default)]
+    pub notification: NotificationConfig,
+    
+    /// SMS service configuration
+    #[serde(default)]
+    pub sms: SmsConfig,
+}
+
+/// Email service configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EmailConfig {
+    /// Whether email service is enabled
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    
+    /// Email service provider (dummy, smtp, ses, etc.)
+    #[serde(default = "default_email_provider")]
+    pub provider: String,
+    
+    /// SMTP configuration (if using SMTP provider)
+    #[serde(default)]
+    pub smtp: SmtpConfig,
+    
+    /// Default from address
+    #[serde(default = "default_from_email")]
+    pub from_address: String,
+    
+    /// Default from name
+    #[serde(default = "default_from_name")]
+    pub from_name: String,
+}
+
+/// SMTP configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SmtpConfig {
+    /// SMTP server host
+    #[serde(default = "default_smtp_host")]
+    pub host: String,
+    
+    /// SMTP server port
+    #[serde(default = "default_smtp_port")]
+    pub port: u16,
+    
+    /// Whether to use TLS
+    #[serde(default)]
+    pub use_tls: bool,
+    
+    /// SMTP username
+    #[serde(default)]
+    pub username: Option<String>,
+    
+    /// SMTP password
+    #[serde(default)]
+    pub password: Option<String>,
+}
+
+/// Push notification service configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NotificationConfig {
+    /// Whether push notification service is enabled
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    
+    /// Notification service provider (dummy, fcm, apns, etc.)
+    #[serde(default = "default_notification_provider")]
+    pub provider: String,
+    
+    /// Firebase Cloud Messaging configuration
+    #[serde(default)]
+    pub fcm: FcmConfig,
+    
+    /// Apple Push Notification Service configuration
+    #[serde(default)]
+    pub apns: ApnsConfig,
+}
+
+/// Firebase Cloud Messaging configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FcmConfig {
+    /// FCM project ID
+    #[serde(default)]
+    pub project_id: String,
+    
+    /// FCM service account key path
+    #[serde(default)]
+    pub service_account_key_path: Option<String>,
+}
+
+/// Apple Push Notification Service configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ApnsConfig {
+    /// APNS key ID
+    #[serde(default)]
+    pub key_id: String,
+    
+    /// APNS team ID
+    #[serde(default)]
+    pub team_id: String,
+    
+    /// APNS private key path
+    #[serde(default)]
+    pub private_key_path: Option<String>,
+    
+    /// Whether to use sandbox environment
+    #[serde(default)]
+    pub sandbox: bool,
+}
+
+/// SMS service configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SmsConfig {
+    /// Whether SMS service is enabled
+    #[serde(default)]
+    pub enabled: bool,
+    
+    /// SMS service provider (dummy, twilio, aws_sns, etc.)
+    #[serde(default = "default_sms_provider")]
+    pub provider: String,
+    
+    /// Twilio configuration
+    #[serde(default)]
+    pub twilio: TwilioConfig,
+}
+
+/// Twilio SMS configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TwilioConfig {
+    /// Twilio account SID
+    #[serde(default)]
+    pub account_sid: String,
+    
+    /// Twilio auth token
+    #[serde(default)]
+    pub auth_token: String,
+    
+    /// Default from phone number
+    #[serde(default)]
+    pub from_number: String,
+}
+
+// Default value functions
+fn default_true() -> bool { true }
+fn default_email_provider() -> String { "dummy".to_string() }
+fn default_from_email() -> String { "noreply@telegraph.com".to_string() }
+fn default_from_name() -> String { "Telegraph Service".to_string() }
+fn default_smtp_host() -> String { "localhost".to_string() }
+fn default_smtp_port() -> u16 { 587 }
+fn default_notification_provider() -> String { "dummy".to_string() }
+fn default_sms_provider() -> String { "dummy".to_string() }
+
+// Default implementations
+impl Default for TelegraphConfig {
+    fn default() -> Self {
+        Self {
+            server: ServerConfig::default(),
+            logging: LoggingConfig::default(),
+            queue: QueueConfig::default(),
+            queues: IndexMap::new(),
+            communication: CommunicationConfig::default(),
+        }
+    }
+}
+
+impl Default for QueueEventConfig {
+    fn default() -> Self {
+        Self {
+            events: vec![],
+            event_configs: HashMap::new(),
+        }
+    }
+}
+
+impl Default for EventConfig {
+    fn default() -> Self {
+        Self {
+            modes: vec!["notification".to_string()],
+            settings: HashMap::new(),
+        }
+    }
+}
+
+impl Default for CommunicationConfig {
+    fn default() -> Self {
+        Self {
+            email: EmailConfig::default(),
+            notification: NotificationConfig::default(),
+            sms: SmsConfig::default(),
+        }
+    }
+}
+
+impl Default for EmailConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_true(),
+            provider: default_email_provider(),
+            smtp: SmtpConfig::default(),
+            from_address: default_from_email(),
+            from_name: default_from_name(),
+        }
+    }
+}
+
+impl Default for SmtpConfig {
+    fn default() -> Self {
+        Self {
+            host: default_smtp_host(),
+            port: default_smtp_port(),
+            use_tls: false,
+            username: None,
+            password: None,
+        }
+    }
+}
+
+impl Default for NotificationConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_true(),
+            provider: default_notification_provider(),
+            fcm: FcmConfig::default(),
+            apns: ApnsConfig::default(),
+        }
+    }
+}
+
+impl Default for FcmConfig {
+    fn default() -> Self {
+        Self {
+            project_id: String::new(),
+            service_account_key_path: None,
+        }
+    }
+}
+
+impl Default for ApnsConfig {
+    fn default() -> Self {
+        Self {
+            key_id: String::new(),
+            team_id: String::new(),
+            private_key_path: None,
+            sandbox: true,
+        }
+    }
+}
+
+impl Default for SmsConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            provider: default_sms_provider(),
+            twilio: TwilioConfig::default(),
+        }
+    }
+}
+
+impl Default for TwilioConfig {
+    fn default() -> Self {
+        Self {
+            account_sid: String::new(),
+            auth_token: String::new(),
+            from_number: String::new(),
+        }
+    }
+}
+
+// Trait implementations for rustycog-config integration
+impl ConfigLoader<TelegraphConfig> for TelegraphConfig {
+    fn create_default() -> TelegraphConfig {
+        TelegraphConfig::default()
+    }
+    
+    fn config_prefix() -> &'static str {
+        "TELEGRAPH"
+    }
+}
+
+impl HasServerConfig for TelegraphConfig {
+    fn server_config(&self) -> &ServerConfig {
+        &self.server
+    }
+    
+    fn set_server_config(&mut self, config: ServerConfig) {
+        self.server = config;
+    }
+}
+
+impl HasLoggingConfig for TelegraphConfig {
+    fn logging_config(&self) -> &LoggingConfig {
+        &self.logging
+    }
+    
+    fn set_logging_config(&mut self, config: LoggingConfig) {
+        self.logging = config;
+    }
+}
+
+impl HasQueueConfig for TelegraphConfig {
+    fn queue_config(&self) -> &QueueConfig {
+        &self.queue
+    }
+    
+    fn set_queue_config(&mut self, config: QueueConfig) {
+        self.queue = config;
+    }
+}
+
+impl TelegraphConfig {
+    /// Get the configuration for a specific queue
+    pub fn get_queue_config(&self, queue_name: &str) -> Option<&QueueEventConfig> {
+        self.queues.get(queue_name)
+    }
+    
+    /// Get the event configuration for a specific event in a queue
+    pub fn get_event_config(&self, queue_name: &str, event_name: &str) -> Option<&EventConfig> {
+        self.get_queue_config(queue_name)?
+            .event_configs.get(event_name)
+    }
+    
+    /// Check if a queue should process a specific event
+    pub fn queue_handles_event(&self, queue_name: &str, event_name: &str) -> bool {
+        self.get_queue_config(queue_name)
+            .map(|config| config.events.contains(&event_name.to_string()))
+            .unwrap_or(false)
+    }
+    
+    /// Get all queues that handle a specific event
+    pub fn queues_for_event(&self, event_name: &str) -> Vec<&str> {
+        self.queues
+            .iter()
+            .filter(|(_, config)| config.events.contains(&event_name.to_string()))
+            .map(|(name, _)| name.as_str())
+            .collect()
+    }
+} 

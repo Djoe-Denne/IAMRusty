@@ -1,12 +1,18 @@
 [package]
-name = "domain"
+name = "application"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-# Events abstraction
+# Internal crates
+domain = { path = "../domain" }
+
+# Events and command framework
 rustycog-events = { path = "../../rustycog/rustycog-events" }
+rustycog-command = { path = "../../rustycog/rustycog-command" }
 rustycog-core = { path = "../../rustycog/rustycog-core" }
+
+# Shared events
 iam-events = { path = "../../iam-events" }
 
 # Utility
@@ -15,18 +21,16 @@ serde_json = "1.0.116"
 uuid = { version = "1.4.1", features = ["v4", "serde"] }
 chrono = { version = "0.4.31", features = ["serde"] }
 
-# Cryptography
-sha2 = "0.10"
-rand = "0.8"
-
 # Error handling
 thiserror = "1.0.56"
+anyhow = "1.0.82"
 
 # Logging
 tracing = "0.1"
 
 # Async
 async-trait = "0.1.77"
+tokio = { version = "1.44", features = ["rt-multi-thread", "macros"] }
 
 [dev-dependencies]
 tokio = { version = "1.44", features = ["rt-multi-thread", "macros", "test-util"] }

@@ -1,0 +1,64 @@
+[package]
+name = "infra"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Internal crates
+domain = { path = "../domain" }
+application = { path = "../application" }
+
+# Configuration
+rustycog-config = { path = "../../rustycog/rustycog-config" }
+
+# Events
+rustycog-events = { path = "../../rustycog/rustycog-events" }
+iam-events = { path = "../../iam-events" }
+
+# Core error handling
+rustycog-core = { path = "../../rustycog/rustycog-core" }
+
+# HTTP client
+reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
+
+# Serialization
+serde = { version = "1.0.197", features = ["derive"] }
+serde_json = "1.0.120"
+
+# Base64 encoding/decoding
+base64 = "0.22.1"
+
+# Utility
+uuid = { version = "1.4.1", features = ["v4", "serde"] }
+chrono = { version = "0.4.31", features = ["serde"] }
+
+# Error handling
+thiserror = "1.0.56"
+anyhow = "1.0.82"
+
+# Logging
+tracing = "0.1"
+
+# Async
+async-trait = "0.1.77"
+tokio = { version = "1.44", features = ["rt-multi-thread", "macros"] }
+
+# Email
+lettre = { version = "0.11.7", features = ["smtp-transport", "pool", "hostname", "builder", "tokio1-native-tls"], default-features = false }
+
+# AWS SDK for SES and SNS
+aws-config = { version = "1.5.8", features = ["behavior-version-latest"] }
+aws-sdk-ses = { version = "1.46.0", features = ["behavior-version-latest"] }
+aws-sdk-sns = { version = "1.46.0", features = ["behavior-version-latest"] }
+aws-sdk-sqs = { version = "1.46.0", features = ["behavior-version-latest"] }
+aws-credential-types = "1.2.1"
+
+[dev-dependencies]
+tokio = { version = "1.44", features = ["rt-multi-thread", "macros", "test-util"] }
+mockall = "0.13.0"
+rstest = "0.23.0"
+tokio-test = "0.4.4"
+
+[features]
+default = []
+test-utils = ["rustycog-events/test-utils"] 

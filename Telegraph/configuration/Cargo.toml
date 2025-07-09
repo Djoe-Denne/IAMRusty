@@ -1,0 +1,27 @@
+[package]
+name = "configuration"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Configuration framework
+rustycog-config = { path = "../../rustycog/rustycog-config" }
+
+# Serialization
+serde = { version = "1.0.197", features = ["derive"] }
+config = "0.14.0"
+
+# Utility
+chrono = { version = "0.4.31", features = ["serde"] }
+uuid = { version = "1.4.1", features = ["v4", "serde"] }
+
+# Error handling
+anyhow = "1.0.82"
+thiserror = "1.0.56"
+
+# Collections
+indexmap = { version = "2.0", features = ["serde"] }
+
+[dev-dependencies]
+tokio = { version = "1.44", features = ["rt-multi-thread", "macros", "test-util"] }
+serde_json = "1.0.116" 

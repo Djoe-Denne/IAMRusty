@@ -1,12 +1,15 @@
 use async_trait::async_trait;
 use crate::event::{DomainEvent, EventPublisher};
+use crate::{EventConsumer, EventHandler};
 use rustycog_core::error::ServiceError;
 use rustycog_config::SqsConfig;
 use aws_sdk_sqs::{Client, Config};
 use aws_config::{BehaviorVersion, Region};
 use aws_credential_types::Credentials;
-use tracing::{debug, error, info};
-use serde_json::json;
+use tracing::{debug, error, info, warn};
+use serde_json::{json, Value};
+use std::sync::Arc;
+use tokio::time::{Duration, sleep};
 
 /// SQS event publisher implementation
 pub struct SqsEventPublisher {
@@ -339,5 +342,270 @@ impl EventPublisher for SqsEventPublisher {
                 )))
             }
         }
+    }
+} 
+
+/// SQS event consumer implementation
+pub struct SqsEventConsumer {
+    client: Client,
+    config: SqsConfig,
+    should_stop: Arc<std::sync::atomic::AtomicBool>,
+}
+
+impl SqsEventConsumer {
+    /// Create a new SQS event consumer from configuration
+    pub async fn new(config: SqsConfig) -> Result<Self, ServiceError> {
+        let client = SqsEventPublisher::create_client(&config).await?;
+        
+        Ok(Self {
+            client,
+            config,
+            should_stop: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        })
+    }
+
+    /// Parse message body into a domain event
+    fn parse_message_body(&self, body: &str) -> Result<Box<dyn DomainEvent>, ServiceError> {
+        let message: Value = serde_json::from_str(body)
+            .map_err(|e| ServiceError::infrastructure(format!("Failed to parse SQS message: {}", e)))?;
+
+        // Extract basic event information
+        let event_id = message.get("event_id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ServiceError::infrastructure("Missing event_id in SQS message".to_string()))?;
+
+        let event_type = message.get("event_type")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ServiceError::infrastructure("Missing event_type in SQS message".to_string()))?;
+
+        let aggregate_id = message.get("aggregate_id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ServiceError::infrastructure("Missing aggregate_id in SQS message".to_string()))?;
+
+        let occurred_at = message.get("occurred_at")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ServiceError::infrastructure("Missing occurred_at in SQS message".to_string()))?;
+
+        let version = message.get("version")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(1) as i32;
+
+        let data = message.get("data")
+            .ok_or_else(|| ServiceError::infrastructure("Missing data in SQS message".to_string()))?;
+
+        let metadata = message.get("metadata")
+            .and_then(|v| v.as_object())
+            .cloned()
+            .unwrap_or_default();
+
+        // Create a generic domain event from the parsed data
+        let event = GenericDomainEvent {
+            event_id: event_id.to_string(),
+            event_type: event_type.to_string(),
+            aggregate_id: aggregate_id.to_string(),
+            occurred_at: occurred_at.to_string(),
+            version,
+            data: data.clone(),
+            metadata,
+        };
+
+        Ok(Box::new(event))
+    }
+
+    /// Poll for messages and handle them
+    async fn poll_and_handle_messages<H>(&self, handler: &H) -> Result<(), ServiceError>
+    where
+        H: EventHandler + Send + Sync,
+    {
+        let queue_url = self.config.default_queue_url();
+        
+        match self.client
+            .receive_message()
+            .queue_url(&queue_url)
+            .max_number_of_messages(10) // SQS max
+            .wait_time_seconds(20) // Long polling
+            .send()
+            .await
+        {
+            Ok(response) => {
+                if let Some(messages) = response.messages {
+                    for message in messages {
+                        if let Some(body) = message.body() {
+                            match self.parse_message_body(body) {
+                                Ok(event) => {
+                                    if handler.supports_event_type(&event.event_type()) {
+                                        if let Err(e) = handler.handle_event(event).await {
+                                            warn!(
+                                                error = %e,
+                                                message_id = message.message_id().unwrap_or("unknown"),
+                                                "Failed to handle message"
+                                            );
+                                            continue;
+                                        }
+                                    } else {
+                                        debug!(
+                                            event_type = event.event_type(),
+                                            "Handler doesn't support event type, skipping"
+                                        );
+                                    }
+
+                                    // Delete the message after successful processing
+                                    if let Some(receipt_handle) = message.receipt_handle() {
+                                        if let Err(e) = self.client
+                                            .delete_message()
+                                            .queue_url(&queue_url)
+                                            .receipt_handle(receipt_handle)
+                                            .send()
+                                            .await
+                                        {
+                                            warn!(
+                                                error = %e,
+                                                message_id = message.message_id().unwrap_or("unknown"),
+                                                "Failed to delete processed message"
+                                            );
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    warn!(
+                                        error = %e,
+                                        message_id = message.message_id().unwrap_or("unknown"),
+                                        "Failed to parse message body"
+                                    );
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    debug!("No messages received from SQS");
+                }
+            }
+            Err(e) => {
+                error!(
+                    error = %e,
+                    queue_url = queue_url,
+                    "Failed to receive messages from SQS"
+                );
+                return Err(ServiceError::infrastructure(format!("SQS receive error: {}", e)));
+            }
+        }
+
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl EventConsumer for SqsEventConsumer {
+    async fn start<H>(&self, handler: H) -> Result<(), ServiceError>
+    where
+        H: EventHandler + Send + Sync + 'static,
+    {
+        if !self.config.enabled {
+            info!("SQS consumer disabled, not starting");
+            return Ok(());
+        }
+
+        info!("Starting SQS event consumer");
+        self.should_stop.store(false, std::sync::atomic::Ordering::SeqCst);
+
+        let handler = Arc::new(handler);
+        
+        while !self.should_stop.load(std::sync::atomic::Ordering::SeqCst) {
+            if let Err(e) = self.poll_and_handle_messages(handler.as_ref()).await {
+                error!(error = %e, "Error polling SQS messages");
+                // Sleep for a bit before retrying to avoid tight loop on errors
+                sleep(Duration::from_secs(5)).await;
+            }
+        }
+
+        info!("SQS event consumer stopped");
+        Ok(())
+    }
+
+    async fn stop(&self) -> Result<(), ServiceError> {
+        info!("Stopping SQS event consumer");
+        self.should_stop.store(true, std::sync::atomic::Ordering::SeqCst);
+        Ok(())
+    }
+
+    async fn health_check(&self) -> Result<(), ServiceError> {
+        if !self.config.enabled {
+            return Ok(());
+        }
+
+        debug!("Performing SQS consumer health check");
+
+        // Try to get queue attributes as a health check
+        match self.client
+            .get_queue_attributes()
+            .queue_url(&self.config.default_queue_url())
+            .attribute_names(aws_sdk_sqs::types::QueueAttributeName::ApproximateNumberOfMessages)
+            .send()
+            .await 
+        {
+            Ok(_) => {
+                debug!("✅ SQS consumer health check passed");
+                Ok(())
+            }
+            Err(aws_error) => {
+                error!(
+                    queue_url = %self.config.default_queue_url(),
+                    error = %aws_error,
+                    "❌ SQS consumer health check failed"
+                );
+                Err(ServiceError::infrastructure(format!(
+                    "SQS consumer health check failed: {}", 
+                    aws_error
+                )))
+            }
+        }
+    }
+}
+
+/// Generic domain event implementation for parsing SQS messages
+#[derive(Debug, Clone)]
+struct GenericDomainEvent {
+    event_id: String,
+    event_type: String,
+    aggregate_id: String,
+    occurred_at: String,
+    version: i32,
+    data: Value,
+    metadata: serde_json::Map<String, Value>,
+}
+
+impl DomainEvent for GenericDomainEvent {
+    fn event_id(&self) -> uuid::Uuid {
+        uuid::Uuid::parse_str(&self.event_id).unwrap_or_else(|_| uuid::Uuid::new_v4())
+    }
+
+    fn event_type(&self) -> &str {
+        &self.event_type
+    }
+
+    fn aggregate_id(&self) -> uuid::Uuid {
+        uuid::Uuid::parse_str(&self.aggregate_id).unwrap_or_else(|_| uuid::Uuid::new_v4())
+    }
+
+    fn occurred_at(&self) -> chrono::DateTime<chrono::Utc> {
+        chrono::DateTime::parse_from_rfc3339(&self.occurred_at)
+            .map(|dt| dt.with_timezone(&chrono::Utc))
+            .unwrap_or_else(|_| chrono::Utc::now())
+    }
+
+    fn version(&self) -> u32 {
+        self.version as u32
+    }
+
+    fn to_json(&self) -> Result<String, ServiceError> {
+        serde_json::to_string(&self.data)
+            .map_err(|e| ServiceError::infrastructure(format!("Failed to serialize event data: {}", e)))
+    }
+
+    fn metadata(&self) -> std::collections::HashMap<String, String> {
+        self.metadata
+            .iter()
+            .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
+            .collect()
     }
 } 

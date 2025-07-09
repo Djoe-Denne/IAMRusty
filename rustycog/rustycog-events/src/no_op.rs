@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use rustycog_core::error::ServiceError;
 use crate::event::{DomainEvent, EventPublisher};
+use crate::{EventConsumer, EventHandler};
 use tracing;
 
 /// No-op event publisher for testing and development
@@ -40,6 +41,47 @@ impl EventPublisher for NoOpEventPublisher {
         for event in events {
             self.publish(event).await?;
         }
+        Ok(())
+    }
+
+    async fn health_check(&self) -> Result<(), ServiceError> {
+        // Always healthy since no-op
+        Ok(())
+    }
+}
+
+/// No-op event consumer for testing and development
+/// 
+/// This consumer doesn't actually consume events from anywhere,
+/// but provides a valid implementation for development environments
+/// where event consumption is not needed.
+pub struct NoOpEventConsumer;
+
+impl NoOpEventConsumer {
+    /// Create a new NoOpEventConsumer
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl Default for NoOpEventConsumer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[async_trait]
+impl EventConsumer for NoOpEventConsumer {
+    async fn start<H>(&self, _handler: H) -> Result<(), ServiceError>
+    where
+        H: EventHandler + Send + Sync + 'static,
+    {
+        tracing::info!("No-op event consumer started (no events will be consumed)");
+        Ok(())
+    }
+
+    async fn stop(&self) -> Result<(), ServiceError> {
+        tracing::info!("No-op event consumer stopped");
         Ok(())
     }
 
