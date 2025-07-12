@@ -1,7 +1,7 @@
 //! Event processors for Telegraph communication service
 
 use async_trait::async_trait;
-use domain::{DomainError, EmailService, SmsService, NotificationService};
+use telegraph_domain::{DomainError, EmailService, SmsService, NotificationService};
 use iam_events::{IamDomainEvent, UserSignedUpEvent, UserEmailVerifiedEvent, PasswordResetRequestedEvent};
 use rustycog_events::DomainEvent;
 use std::sync::Arc;

@@ -1,0 +1,145 @@
+[workspace]
+resolver = "2"
+members = [
+    # Core shared crates
+    "iam-events",
+    
+    # RustyCog framework crates
+    "rustycog/rustycog-core",
+    "rustycog/rustycog-server", 
+    "rustycog/rustycog-command",
+    "rustycog/rustycog-db",
+    "rustycog/rustycog-events",
+    "rustycog/rustycog-http",
+    "rustycog/rustycog-config",
+    "rustycog/rustycog-testing",
+    
+    # IAMRusty service crates
+    "IAMRusty",
+    # Telegraph service crates
+    "Telegraph"
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["Djoé Denne <djoe.denne@gmail.com>"]
+description = "AIForAll microservices platform"
+license = "MIT OR Apache-2.0"
+
+[workspace.dependencies]
+# Core async runtime
+tokio = { version = "1.44", features = ["rt-multi-thread", "macros", "signal"] }
+futures = "0.3.30"
+async-trait = "0.1.77"
+
+# Serialization
+serde = { version = "1.0.197", features = ["derive"] }
+serde_json = "1.0.120"
+
+# Utility
+uuid = { version = "1.4.1", features = ["v4", "serde"] }
+chrono = { version = "0.4.31", features = ["serde"] }
+base64 = "0.22.1"
+url = "2.5.0"
+rand = "0.8.5"
+
+# Error handling
+anyhow = "1.0.82"
+thiserror = "2.0.11"
+
+# Configuration
+config = "0.14.1"
+dotenvy = "0.15.7"
+toml = "0.8.23"
+
+# Logging and tracing
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.19", features = ["env-filter", "fmt", "json"] }
+
+# Web framework
+axum = { version = "0.8.4", features = ["macros", "json"] }
+tower = { version = "0.4.13", features = ["util"] }
+tower-http = { version = "0.5.2", features = ["trace", "catch-panic"] }
+hyper = "1.3"
+
+# HTTP client
+reqwest = { version = "0.12.0", features = ["json", "rustls-tls"] }
+
+# Database
+sea-orm = { version = "1.1.11", features = ["sqlx-postgres", "runtime-tokio-rustls", "macros"] }
+sea-orm-migration = { version = "1.1.11" }
+sea-orm-cli = "1.1.11"
+sqlx = { version = "0.8.2", features = ["postgres", "runtime-tokio-rustls", "uuid", "chrono"] }
+
+# Auth
+oauth2 = { version = "4.4.2", features = ["reqwest"] }
+openidconnect = { version = "4.0.0", features = ["reqwest"] }
+jsonwebtoken = "9.0.2"
+
+# Password hashing
+argon2 = "0.5.3"
+
+# Events/Kafka
+rdkafka = { version = "0.36.2", features = ["cmake-build", "tokio"] }
+
+# AWS Dependencies
+aws-config = { version = "1.5.8", features = ["behavior-version-latest"] }
+aws-credential-types = "1.2.3"
+aws-sdk-sqs = { version = "1.74.0", features = ["behavior-version-latest"] }
+aws-sdk-ses = { version = "1.46.0", features = ["behavior-version-latest"] }
+aws-sdk-sns = { version = "1.46.0", features = ["behavior-version-latest"] }
+aws-sdk-sts = "1.76.0"
+aws-sdk-sso = "1.74.0"
+aws-sdk-ssooidc = "1.75.0"
+
+# Email
+lettre = { version = "0.11.7", features = ["smtp-transport", "pool", "hostname", "builder", "tokio1-native-tls"], default-features = false }
+
+# Validation
+validator = { version = "0.20", features = ["derive"] }
+
+# Collection utilities
+indexmap = { version = "2.10.0", features = ["serde"] }
+
+# Crypto
+rsa = { version = "0.9", features = ["pem"] }
+pem = "3.0"
+
+# Testing dependencies
+tokio-test = "0.4.4"
+axum-test = "17.3.0"
+wiremock = "0.6.0"
+testcontainers = { version = "0.23.1", features = ["blocking"] }
+testcontainers-modules = { version = "0.11.0", features = ["postgres", "localstack"] }
+serial_test = "3.0.0"
+ctrlc = "3.4.0"
+libc = "0.2"
+ctor = "0.2.0"
+mockall = "0.13.0"
+rstest = "0.23.0"
+claims = "0.7.1"
+
+# Proc macros
+proc-macro2 = "1.0"
+quote = "1.0"
+syn = { version = "2.0", features = ["full"] }
+
+[workspace.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+all = "warn"
+pedantic = "warn"
+nursery = "warn"
+cargo = "warn"
+# Allow some pedantic lints that are too strict
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow" 

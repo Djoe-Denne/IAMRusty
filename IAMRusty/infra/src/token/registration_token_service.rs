@@ -1,7 +1,7 @@
 use base64::{engine::general_purpose, Engine as _};
-use domain::entity::registration_token::{ProviderInfo, RegistrationFlow, RegistrationTokenClaims};
-use domain::error::DomainError;
-use domain::port::service::RegistrationTokenService;
+use iam_domain::entity::registration_token::{ProviderInfo, RegistrationFlow, RegistrationTokenClaims};
+use iam_domain::error::DomainError;
+use iam_domain::port::service::RegistrationTokenService;
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use tracing::{debug, error};
 use uuid::Uuid;

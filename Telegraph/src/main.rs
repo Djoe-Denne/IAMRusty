@@ -1,30 +1,24 @@
-use anyhow::Result;
-use tracing::{info, Level};
-use tracing_subscriber;
-
-use setup::{config::TelegraphConfig, AppBuilder};
+use telegraph_configuration::load_config;
+use telegraph_setup::{app, config};
+use tracing::info;
 
 #[tokio::main]
-async fn main() -> Result<()> {
-    // Setup basic logging
-    tracing_subscriber::fmt()
-        .with_max_level(Level::INFO)
-        .init();
-    
-    info!("Starting Telegraph Communication Service");
-    
-    // Create default configuration
-    let config = TelegraphConfig::default();
-    
-    info!("Configuration loaded successfully");
-    
-    // Start the Telegraph service
-    let app = AppBuilder::new(config).build().await?;
-    
-    info!("Telegraph service is ready to start!");
-    
-    // Run the service
-    app.run().await?;
-    
-    Ok(())
+async fn main() -> Result<(), anyhow::Error> {
+    let config = load_config()?;
+
+    // Initialize logging
+    config::setup_logging(&config.logging.level);
+    info!(
+        "Configuration loaded with log level: {}",
+        config.logging.level
+    );
+
+    // Build and run the application
+    app::AppBuilder::new(config)
+        .build()
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to build application: {}", e))?
+        .run()
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to run application: {}", e))
 } 

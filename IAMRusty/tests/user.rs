@@ -7,7 +7,7 @@ mod utils;
 
 use chrono::{Duration, Utc};
 use common::{create_test_client, setup_test_server};
-use configuration::{load_config_part, JwtConfig};
+use iam_configuration::{load_config_part, JwtConfig};
 use fixtures::{DbFixtures, GitHubFixtures, GitLabFixtures};
 use reqwest::Client;
 use serde_json::Value;
@@ -528,11 +528,11 @@ async fn test_get_user_security_jwt_claims_validation() {
 
     // Get algorithm and keys for manual token creation
     let (algorithm, encoding_key) = match jwt_algorithm_config {
-        configuration::JwtAlgorithm::HS256(secret) => (
+        iam_domain::JwtAlgorithm::HS256(secret) => (
             jsonwebtoken::Algorithm::HS256,
             jsonwebtoken::EncodingKey::from_secret(secret.as_bytes()),
         ),
-        configuration::JwtAlgorithm::RS256(key_pair) => (
+        iam_domain::JwtAlgorithm::RS256(key_pair) => (
             jsonwebtoken::Algorithm::RS256,
             jsonwebtoken::EncodingKey::from_rsa_pem(key_pair.private_key.as_bytes())
                 .expect("Failed to create RSA encoding key"),

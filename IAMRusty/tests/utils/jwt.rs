@@ -1,11 +1,11 @@
 use anyhow::Result;
 use base64::{Engine as _, engine::general_purpose};
 use chrono::{Duration, Utc};
-use configuration::{AppConfig, JwtConfig};
-use domain::entity::registration_token::{RegistrationFlow, RegistrationTokenClaims};
-use domain::entity::token::TokenClaims;
-use domain::port::service::{JwtTokenEncoder, RegistrationTokenService};
-use infra::token::{JwtTokenService, registration_token_service::RegistrationTokenServiceImpl};
+use iam_configuration::{AppConfig, JwtConfig};
+use iam_domain::entity::registration_token::{RegistrationFlow, RegistrationTokenClaims};
+use iam_domain::entity::token::TokenClaims;
+use iam_domain::port::service::{JwtTokenEncoder, RegistrationTokenService};
+use iam_infra::token::{JwtTokenService, registration_token_service::RegistrationTokenServiceImpl};
 use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
 use uuid::Uuid;
 use base64;
@@ -15,8 +15,8 @@ fn create_jwt_service_from_config(config: &JwtConfig) -> Result<JwtTokenService,
     let jwt_algorithm_config = config.create_jwt_algorithm()?;
 
     let jwt_algorithm = match jwt_algorithm_config {
-        configuration::JwtAlgorithm::HS256(secret) => infra::token::JwtAlgorithm::HS256(secret),
-        configuration::JwtAlgorithm::RS256(key_pair) => {
+        iam_domain::JwtAlgorithm::HS256(secret) => infra::token::JwtAlgorithm::HS256(secret),
+        iam_domain::JwtAlgorithm::RS256(key_pair) => {
             infra::token::JwtAlgorithm::RS256(domain::entity::token::JwtKeyPair {
                 private_key: key_pair.private_key,
                 public_key: key_pair.public_key,
@@ -39,12 +39,12 @@ fn create_registration_token_service_from_config(
     let jwt_algorithm_config = config.create_jwt_algorithm()?;
 
     let jwt_algorithm = match jwt_algorithm_config {
-        configuration::JwtAlgorithm::HS256(_) => {
+        iam_domain::JwtAlgorithm::HS256(_) => {
             return Err(anyhow::anyhow!(
                 "Registration tokens must use RSA256 algorithm"
             ));
         }
-        configuration::JwtAlgorithm::RS256(key_pair) => {
+        iam_domain::JwtAlgorithm::RS256(key_pair) => {
             infra::token::JwtAlgorithm::RS256(domain::entity::token::JwtKeyPair {
                 private_key: key_pair.private_key,
                 public_key: key_pair.public_key,
@@ -165,7 +165,7 @@ impl JwtTestUtils {
         let jwt_algorithm_config = config.create_jwt_algorithm()?;
 
         let (encoding_key, kid) = match jwt_algorithm_config {
-            configuration::JwtAlgorithm::RS256(key_pair) => {
+            iam_domain::JwtAlgorithm::RS256(key_pair) => {
                 let encoding_key = EncodingKey::from_rsa_pem(key_pair.private_key.as_bytes())
                     .map_err(|e| anyhow::anyhow!("Failed to create encoding key: {}", e))?;
                 (encoding_key, Some(key_pair.kid))

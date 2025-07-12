@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use tracing::{info, error};
 
-use domain::{DomainError, EventProcessor};
+use telegraph_domain::{DomainError, EventProcessor};
 use crate::command::ProcessEventCommand;
 
 /// Use case for handling event processing operations

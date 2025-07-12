@@ -1,12 +1,16 @@
 [package]
-name = "infra"
-version = "0.1.0"
-edition = "2021"
+name = "telegraph-infra"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Telegraph infrastructure layer"
+license.workspace = true
 
 [dependencies]
 # Internal crates
-domain = { path = "../domain" }
-application = { path = "../application" }
+telegraph-domain = { path = "../domain" }
+telegraph-application = { path = "../application" }
+telegraph-configuration = { path = "../configuration" }
 
 # Configuration
 rustycog-config = { path = "../../rustycog/rustycog-config" }
@@ -19,45 +23,45 @@ iam-events = { path = "../../iam-events" }
 rustycog-core = { path = "../../rustycog/rustycog-core" }
 
 # HTTP client
-reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
+reqwest = { workspace = true }
 
 # Serialization
-serde = { version = "1.0.197", features = ["derive"] }
-serde_json = "1.0.120"
+serde = { workspace = true }
+serde_json = { workspace = true }
 
 # Base64 encoding/decoding
-base64 = "0.22.1"
+base64 = { workspace = true }
 
 # Utility
-uuid = { version = "1.4.1", features = ["v4", "serde"] }
-chrono = { version = "0.4.31", features = ["serde"] }
+uuid = { workspace = true }
+chrono = { workspace = true }
 
 # Error handling
-thiserror = "1.0.56"
-anyhow = "1.0.82"
+thiserror = { workspace = true }
+anyhow = { workspace = true }
 
 # Logging
-tracing = "0.1"
+tracing = { workspace = true }
 
 # Async
-async-trait = "0.1.77"
-tokio = { version = "1.44", features = ["rt-multi-thread", "macros"] }
+async-trait = { workspace = true }
+tokio = { workspace = true }
 
 # Email
-lettre = { version = "0.11.7", features = ["smtp-transport", "pool", "hostname", "builder", "tokio1-native-tls"], default-features = false }
+lettre = { workspace = true }
 
 # AWS SDK for SES and SNS
-aws-config = { version = "1.5.8", features = ["behavior-version-latest"] }
-aws-sdk-ses = { version = "1.46.0", features = ["behavior-version-latest"] }
-aws-sdk-sns = { version = "1.46.0", features = ["behavior-version-latest"] }
-aws-sdk-sqs = { version = "1.46.0", features = ["behavior-version-latest"] }
-aws-credential-types = "1.2.1"
+aws-config = { workspace = true }
+aws-sdk-ses = { workspace = true }
+aws-sdk-sns = { workspace = true }
+aws-sdk-sqs = { workspace = true }
+aws-credential-types = { workspace = true }
 
 [dev-dependencies]
-tokio = { version = "1.44", features = ["rt-multi-thread", "macros", "test-util"] }
-mockall = "0.13.0"
-rstest = "0.23.0"
-tokio-test = "0.4.4"
+tokio = { workspace = true }
+mockall = { workspace = true }
+rstest = { workspace = true }
+tokio-test = { workspace = true }
 
 [features]
 default = []

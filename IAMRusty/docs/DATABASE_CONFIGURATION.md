@@ -182,7 +182,7 @@ IAM_DATABASE__CREDS__USERNAME=admin
 The `DatabaseConfig` provides methods to construct connection strings:
 
 ```rust
-use configuration::load_config;
+use iam-configuration::load_config;
 
 // Load configuration
 let config = load_config()?;
@@ -218,7 +218,7 @@ let db_config = DatabaseConfig::from_url("postgres://user:pass@host:5432/db")?;
 ### Working with Connection Pools
 
 ```rust
-use infra::db::DbConnectionPool;
+use iam-infra::db::DbConnectionPool;
 
 // Create connection pool from configuration
 let pool = DbConnectionPool::new(&config.database).await?;

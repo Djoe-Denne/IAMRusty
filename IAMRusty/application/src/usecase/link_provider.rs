@@ -3,9 +3,9 @@
 use crate::auth::OAuthService;
 use crate::usecase::factory::OAuthProviderFactory;
 use async_trait::async_trait;
-use domain::entity::{provider::Provider, user::User, user_email::UserEmail};
-use domain::error::DomainError;
-use domain::service::ProviderLinkService;
+use iam_domain::entity::{provider::Provider, user::User, user_email::UserEmail};
+use iam_domain::error::DomainError;
+use iam_domain::service::ProviderLinkService;
 use std::sync::Arc;
 use thiserror::Error;
 use uuid::Uuid;
@@ -72,9 +72,9 @@ pub struct LinkProviderUseCaseImpl<GH, GL, UR, UER, TR>
 where
     GH: OAuthService + 'static,
     GL: OAuthService + 'static,
-    UR: domain::port::repository::UserRepository,
-    UER: domain::port::repository::UserEmailRepository,
-    TR: domain::port::repository::TokenRepository,
+    UR: iam_domain::port::repository::UserRepository,
+    UER: iam_domain::port::repository::UserEmailRepository,
+    TR: iam_domain::port::repository::TokenRepository,
 {
     auth_factory: Arc<OAuthProviderFactory<GH, GL>>,
     provider_link_service: Arc<ProviderLinkService<UR, UER, TR>>,
@@ -84,9 +84,9 @@ impl<GH, GL, UR, UER, TR> LinkProviderUseCaseImpl<GH, GL, UR, UER, TR>
 where
     GH: OAuthService + 'static,
     GL: OAuthService + 'static,
-    UR: domain::port::repository::UserRepository,
-    UER: domain::port::repository::UserEmailRepository,
-    TR: domain::port::repository::TokenRepository,
+    UR: iam_domain::port::repository::UserRepository,
+    UER: iam_domain::port::repository::UserEmailRepository,
+    TR: iam_domain::port::repository::TokenRepository,
 {
     /// Create a new LinkProviderUseCaseImpl
     pub fn new(
@@ -110,8 +110,8 @@ where
         redirect_uri: String,
     ) -> Result<
         (
-            domain::entity::provider::ProviderTokens,
-            domain::entity::provider::ProviderUserProfile,
+            iam_domain::entity::provider::ProviderTokens,
+            iam_domain::entity::provider::ProviderUserProfile,
         ),
         LinkProviderError,
     >
@@ -137,16 +137,16 @@ impl<GH, GL, UR, UER, TR> LinkProviderUseCase for LinkProviderUseCaseImpl<GH, GL
 where
     GH: OAuthService + Send + Sync + 'static,
     GL: OAuthService + Send + Sync + 'static,
-    UR: domain::port::repository::UserRepository + Send + Sync,
-    UER: domain::port::repository::UserEmailRepository + Send + Sync,
-    TR: domain::port::repository::TokenRepository + Send + Sync,
+    UR: iam_domain::port::repository::UserRepository + Send + Sync,
+    UER: iam_domain::port::repository::UserEmailRepository + Send + Sync,
+    TR: iam_domain::port::repository::TokenRepository + Send + Sync,
     <GH as OAuthService>::Error: std::error::Error + Send + Sync + 'static,
     <GL as OAuthService>::Error: std::error::Error + Send + Sync + 'static,
-    <UR as domain::port::repository::UserRepository>::Error:
+    <UR as iam_domain::port::repository::UserRepository>::Error:
         std::error::Error + Send + Sync + 'static,
-    <UER as domain::port::repository::UserEmailRepository>::Error:
+    <UER as iam_domain::port::repository::UserEmailRepository>::Error:
         std::error::Error + Send + Sync + 'static,
-    <TR as domain::port::repository::TokenRepository>::Error:
+    <TR as iam_domain::port::repository::TokenRepository>::Error:
         std::error::Error + Send + Sync + 'static,
 {
     fn generate_start_url(&self, provider: Provider) -> Result<String, LinkProviderError> {

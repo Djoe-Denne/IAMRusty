@@ -2,14 +2,14 @@
 
 use tracing::{info, error};
 use std::sync::Arc;
-use domain::{EmailService, SmsService, NotificationService, CommunicationService};
-use infra::{
+use telegraph_domain::{EmailService, SmsService, NotificationService, CommunicationService};
+use telegraph_infra::{
     communication::{EmailAdapter, SmsAdapter, NotificationAdapter, CompositeCommunicationService},
     event::EventConsumer,
 };
-use application::usecase::CommunicationUseCase;
+use telegraph_application::usecase::CommunicationUseCase;
 
-use crate::config::TelegraphConfig;
+use telegraph_configuration::TelegraphConfig;
 
 /// Telegraph application context
 pub struct TelegraphApp {
@@ -55,7 +55,7 @@ impl TelegraphApp {
         // Create event consumer
         let event_consumer = Arc::new(
             EventConsumer::new(
-                &self.config.queue,
+                self.config.clone(),
                 email_service.clone(),
                 sms_service.clone(),
                 notification_service.clone(),

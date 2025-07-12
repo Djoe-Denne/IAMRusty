@@ -1,9 +1,10 @@
-use application::auth::{AuthError, OAuthService};
+use iam_domain::service::AuthError;
+use iam_application::auth::OAuthService;
 use async_trait::async_trait;
-use configuration::GitLabConfig;
-use domain::entity::provider::{Provider, ProviderTokens, ProviderUserProfile};
-use domain::error::DomainError;
-use domain::port::service::ProviderOAuth2Client;
+use iam_configuration::GitLabConfig;
+use iam_domain::entity::provider::{Provider, ProviderTokens, ProviderUserProfile};
+use iam_domain::error::DomainError;
+use iam_domain::port::service::ProviderOAuth2Client;
 use oauth2::{
     basic::BasicClient, reqwest::async_http_client, AuthUrl, AuthorizationCode, ClientId,
     ClientSecret, RedirectUrl, TokenResponse, TokenUrl,
@@ -234,7 +235,7 @@ impl OAuthService for GitLabOAuth2Client {
             .await
             .map_err(|e| {
                 error!("Failed to exchange GitLab code for token: {}", e);
-                AuthError::AuthenticationError(format!("GitLab token exchange failed: {}", e))
+                AuthError::InvalidCredentials
             })?;
 
         // Convert to domain ProviderTokens
@@ -254,7 +255,7 @@ impl OAuthService for GitLabOAuth2Client {
             .await
             .map_err(|e| {
                 debug!("GitLab profile fetch failed: {}", e);
-                AuthError::AuthenticationError(format!("GitLab profile fetch failed: {}", e))
+                AuthError::InvalidCredentials
             })?;
 
         debug!("GitLab profile fetch successful: {}", profile.username);

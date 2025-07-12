@@ -1,8 +1,8 @@
 //! Provider use case module
 
 use async_trait::async_trait;
-use domain::entity::provider::{Provider, ProviderTokens};
-use domain::service::oauth_service::OAuthService;
+use iam_domain::entity::provider::{Provider, ProviderTokens};
+use iam_domain::service::oauth_service::OAuthService;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use thiserror::Error;
@@ -71,18 +71,18 @@ pub trait ProviderUseCase: Send + Sync {
 /// Provider use case implementation
 pub struct ProviderUseCaseImpl<U, T, UE>
 where
-    U: domain::port::repository::UserRepository,
-    T: domain::port::repository::TokenRepository,
-    UE: domain::port::repository::UserEmailRepository,
+    U: iam_domain::port::repository::UserRepository,
+    T: iam_domain::port::repository::TokenRepository,
+    UE: iam_domain::port::repository::UserEmailRepository,
 {
     auth_service: Arc<OAuthService<U, T, UE>>,
 }
 
 impl<U, T, UE> ProviderUseCaseImpl<U, T, UE>
 where
-    U: domain::port::repository::UserRepository,
-    T: domain::port::repository::TokenRepository,
-    UE: domain::port::repository::UserEmailRepository,
+    U: iam_domain::port::repository::UserRepository,
+    T: iam_domain::port::repository::TokenRepository,
+    UE: iam_domain::port::repository::UserEmailRepository,
 {
     /// Create a new ProviderUseCaseImpl
     pub fn new(auth_service: Arc<OAuthService<U, T, UE>>) -> Self {
@@ -93,14 +93,14 @@ where
 #[async_trait]
 impl<U, T, UE> ProviderUseCase for ProviderUseCaseImpl<U, T, UE>
 where
-    U: domain::port::repository::UserRepository + Send + Sync,
-    T: domain::port::repository::TokenRepository + Send + Sync,
-    UE: domain::port::repository::UserEmailRepository + Send + Sync,
-    <U as domain::port::repository::UserRepository>::Error:
+    U: iam_domain::port::repository::UserRepository + Send + Sync,
+    T: iam_domain::port::repository::TokenRepository + Send + Sync,
+    UE: iam_domain::port::repository::UserEmailRepository + Send + Sync,
+    <U as iam_domain::port::repository::UserRepository>::Error:
         std::error::Error + Send + Sync + 'static,
-    <T as domain::port::repository::TokenRepository>::Error:
+    <T as iam_domain::port::repository::TokenRepository>::Error:
         std::error::Error + Send + Sync + 'static,
-    <UE as domain::port::repository::UserEmailRepository>::Error:
+    <UE as iam_domain::port::repository::UserEmailRepository>::Error:
         std::error::Error + Send + Sync + 'static,
 {
     async fn get_provider_token(
@@ -113,12 +113,12 @@ where
             .await
             .map(Into::into)
             .map_err(|e| match e {
-                domain::error::DomainError::UserNotFound => ProviderError::UserNotFound,
-                domain::error::DomainError::ProviderNotSupported(p) => {
+                iam_domain::error::DomainError::UserNotFound => ProviderError::UserNotFound,
+                iam_domain::error::DomainError::ProviderNotSupported(p) => {
                     ProviderError::ProviderNotSupported(p)
                 }
-                domain::error::DomainError::NoTokenForProvider => ProviderError::NoTokenForProvider,
-                domain::error::DomainError::RepositoryError(msg) => {
+                iam_domain::error::DomainError::NoTokenForProvider => ProviderError::NoTokenForProvider,
+                iam_domain::error::DomainError::RepositoryError(msg) => {
                     ProviderError::DbError(Box::new(std::io::Error::new(
                         std::io::ErrorKind::Other,
                         msg,
@@ -137,12 +137,12 @@ where
             .revoke_provider_token(user_id, provider)
             .await
             .map_err(|e| match e {
-                domain::error::DomainError::UserNotFound => ProviderError::UserNotFound,
-                domain::error::DomainError::ProviderNotSupported(p) => {
+                iam_domain::error::DomainError::UserNotFound => ProviderError::UserNotFound,
+                iam_domain::error::DomainError::ProviderNotSupported(p) => {
                     ProviderError::ProviderNotSupported(p)
                 }
-                domain::error::DomainError::NoTokenForProvider => ProviderError::NoTokenForProvider,
-                domain::error::DomainError::RepositoryError(msg) => {
+                iam_domain::error::DomainError::NoTokenForProvider => ProviderError::NoTokenForProvider,
+                iam_domain::error::DomainError::RepositoryError(msg) => {
                     ProviderError::DbError(Box::new(std::io::Error::new(
                         std::io::ErrorKind::Other,
                         msg,

@@ -4,7 +4,7 @@ mod common;
 #[path = "fixtures/mod.rs"]
 mod fixtures;
 
-use application::usecase::login::PasswordService as AppPasswordService;
+use iam_configuration::usecase::login::PasswordService as AppPasswordService;
 use base64::{Engine as _, engine::general_purpose};
 use common::setup_test_server;
 use fixtures::{DbFixtures, GitHubFixtures};

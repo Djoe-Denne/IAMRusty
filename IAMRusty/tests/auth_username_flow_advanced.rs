@@ -6,7 +6,7 @@ mod fixtures;
 
 use base64::{Engine as _, engine::general_purpose};
 use common::setup_test_server;
-use configuration::{load_config_part, JwtConfig};
+use iam_configuration::{load_config_part, JwtConfig};
 use fixtures::{DbFixtures, GitHubFixtures};
 use serde_json::{Value, json};
 use serial_test::serial;

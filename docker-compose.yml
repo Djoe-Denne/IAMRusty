@@ -1,0 +1,140 @@
+version: '3.8'
+
+services:
+  # Shared Infrastructure
+  postgres:
+    image: postgres:15-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_DB: iam_dev
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - aiforall-network
+
+  localstack:
+    image: localstack/localstack:3.0.2
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=sqs
+      - DEBUG=1
+      - SQS_ENDPOINT_STRATEGY=domain
+      - SKIP_INFRA_DOWNLOADS=1
+      - DISABLE_CORS_CHECKS=1
+      - EAGER_SERVICE_LOADING=1
+      - DATA_DIR=/var/lib/localstack
+    volumes:
+      - ./IAMRusty/scripts/localstack-init.sh:/etc/localstack/init/ready.d/init-aws.sh
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - aiforall-network
+
+  # IAMRusty Service
+  iam-service:
+    build:
+      context: .
+      dockerfile: IAMRusty/Dockerfile
+    ports:
+      - "8080:8080"   # HTTP port
+      - "8443:8443"   # HTTPS port
+    env_file:
+      - IAMRusty/.env
+    environment:
+      - RUST_ENVIRONMENT=development
+    volumes:
+      - ./IAMRusty/config/keys:/app/keys
+      - ./IAMRusty/config:/app/config
+      - ./IAMRusty/config/certs:/app/certs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+    networks:
+      - aiforall-network
+
+  # Telegraph Communication Service
+  telegraph-service:
+    build:
+      context: .
+      dockerfile: Telegraph/Dockerfile
+    ports:
+      - "8081:8080"   # HTTP port (different from IAM to avoid conflicts)
+    environment:
+      - RUST_ENVIRONMENT=development
+    volumes:
+      - ./Telegraph/config:/app/config
+    depends_on:
+      localstack:
+        condition: service_healthy
+    networks:
+      - aiforall-network
+
+  # Database Management Tools
+  truncate-db:
+    image: postgres:15-alpine
+    environment:
+      PGPASSWORD: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      sh -c "
+        echo 'Truncating all database tables...' &&
+        psql -h postgres -U postgres -d iam_dev -c '
+          TRUNCATE TABLE 
+            password_reset_tokens,
+            user_email_verification,
+            refresh_tokens,
+            provider_tokens,
+            user_emails,
+            users
+          RESTART IDENTITY CASCADE;
+        ' &&
+        echo 'Database tables truncated successfully!'
+      "
+    profiles:
+      - tools
+    networks:
+      - aiforall-network
+
+  verify-emails:
+    image: postgres:15-alpine
+    environment:
+      PGPASSWORD: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      sh -c "
+        echo 'Verifying all emails...' &&
+        psql -h postgres -U postgres -d iam_dev -c '
+          UPDATE user_emails SET is_verified = true, updated_at = NOW() WHERE is_verified = false;
+        ' &&
+        echo 'Emails verified successfully!'
+      "
+    profiles:
+      - tools
+    networks:
+      - aiforall-network
+
+volumes:
+  postgres-data:
+
+networks:
+  aiforall-network:
+    driver: bridge 

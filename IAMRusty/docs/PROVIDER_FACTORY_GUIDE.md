@@ -70,8 +70,8 @@ Create a new auth service for your provider:
 
 ```rust
 // infra/src/auth/google.rs
-use application::auth::{AuthService, AuthError};
-use domain::entity::provider::{Provider, ProviderTokens, ProviderUserProfile};
+use iam-configuration::auth::{AuthService, AuthError};
+use iam-domain::entity::provider::{Provider, ProviderTokens, ProviderUserProfile};
 use async_trait::async_trait;
 
 pub struct GoogleAuthService {
@@ -294,8 +294,8 @@ Here's a minimal working example:
 
 ```rust
 // infra/src/auth/google.rs
-use application::auth::{AuthService, AuthError};
-use domain::entity::provider::{Provider, ProviderTokens, ProviderUserProfile};
+use iam-configuration::auth::{AuthService, AuthError};
+use iam-domain::entity::provider::{Provider, ProviderTokens, ProviderUserProfile};
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};

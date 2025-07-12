@@ -1,4 +1,4 @@
-use domain::entity::user::User;
+use iam_domain::entity::user::User;
 use serde::{Deserialize, Serialize};
 
 /// User profile DTO for HTTP responses

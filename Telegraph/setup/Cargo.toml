@@ -1,15 +1,18 @@
 [package]
-name = "setup"
-version = "0.1.0"
-edition = "2021"
+name = "telegraph-setup"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Telegraph setup layer"
+license.workspace = true
 
 [dependencies]
 # Internal crates
-domain = { path = "../domain" }
-application = { path = "../application" }
-infra = { path = "../infra" }
-http = { path = "../http" }
-configuration = { path = "../configuration" }
+telegraph-domain = { path = "../domain" }
+telegraph-application = { path = "../application" }
+telegraph-infra = { path = "../infra" }
+telegraph-http_server = { path = "../http" }
+telegraph-configuration = { path = "../configuration" }
 
 # Configuration
 rustycog-config = { path = "../../rustycog/rustycog-config" }
@@ -25,15 +28,15 @@ rustycog-server = { path = "../../rustycog/rustycog-server" }
 rustycog-events = { path = "../../rustycog/rustycog-events" }
 
 # Serialization
-serde = { version = "1.0.197", features = ["derive"] }
+serde = { workspace = true }
 
 # Error handling
-thiserror = "1.0.56"
-anyhow = "1.0.82"
+thiserror = { workspace = true }
+anyhow = { workspace = true }
 
 # Logging
-tracing = "0.1"
+tracing = { workspace = true }
 
 # Async
-async-trait = "0.1.77"
-tokio = { version = "1.44", features = ["rt-multi-thread", "macros", "signal"] } 
+async-trait = { workspace = true }
+tokio = { workspace = true } 

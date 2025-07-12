@@ -1,11 +1,11 @@
 use async_trait::async_trait;
-use domain::entity::{
+use iam_domain::entity::{
     provider::{Provider, ProviderTokens},
     provider_link::ProviderLink,
     token::RefreshToken,
     user::User,
 };
-use domain::port::repository::{
+use iam_domain::port::repository::{
     RefreshTokenReadRepository, RefreshTokenWriteRepository, TokenReadRepository,
     TokenWriteRepository, UserReadRepository, UserWriteRepository,
 };

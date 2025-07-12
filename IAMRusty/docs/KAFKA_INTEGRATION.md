@@ -125,7 +125,7 @@ Kafka messages include headers for easier consumption:
 ### KafkaConfig Methods
 
 ```rust
-use configuration::KafkaConfig;
+use iam-configuration::KafkaConfig;
 
 // Create new configuration
 let config = KafkaConfig::new(

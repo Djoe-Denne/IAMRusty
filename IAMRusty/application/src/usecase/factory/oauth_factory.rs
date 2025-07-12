@@ -1,7 +1,7 @@
 use crate::usecase::oauth::{OAuthUseCase, OAuthUseCaseImpl};
-use domain::port::repository::{TokenRepository, UserEmailRepository, UserRepository};
-use domain::port::service::{AuthTokenService, RegistrationTokenService};
-use domain::service::oauth_service::OAuthService;
+use iam_domain::port::repository::{TokenRepository, UserEmailRepository, UserRepository};
+use iam_domain::port::service::{AuthTokenService, RegistrationTokenService};
+use iam_domain::service::oauth_service::OAuthService;
 use std::sync::Arc;
 
 /// Factory for creating the OAuth use case with its dependencies
@@ -37,16 +37,16 @@ impl OAuthFactory {
 mod tests {
     use super::*;
     use async_trait::async_trait;
-    use domain::entity::provider::{Provider, ProviderTokens, ProviderUserProfile};
-    use domain::entity::provider_link::ProviderLink;
-    use domain::entity::user::User;
-    use domain::entity::user_email::UserEmail;
-    use domain::error::DomainError;
-    use domain::port::repository::{
+    use iam_domain::entity::provider::{Provider, ProviderTokens, ProviderUserProfile};
+    use iam_domain::entity::provider_link::ProviderLink;
+    use iam_domain::entity::user::User;
+    use iam_domain::entity::user_email::UserEmail;
+    use iam_domain::error::DomainError;
+    use iam_domain::port::repository::{
         TokenReadRepository, TokenWriteRepository, UserEmailReadRepository,
         UserEmailWriteRepository, UserReadRepository, UserWriteRepository,
     };
-    use domain::service::TokenService;
+    use iam_domain::service::TokenService;
     use uuid::Uuid;
 
     // Mock implementations for testing

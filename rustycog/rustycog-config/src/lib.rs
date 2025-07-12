@@ -365,7 +365,7 @@ impl SqsConfig {
 
     /// Build the full queue URL for a given queue name
     pub fn build_queue_url(&self, queue_name: &str) -> String {
-        if self.host == "localhost" {
+        if self.host == "localhost" || self.host == "localstack" {
             // For LocalStack or custom endpoint
             format!("http://{}:{}/000000000000/{}", self.host, self.actual_port(), queue_name)
         } else {
@@ -437,12 +437,12 @@ impl SqsConfig {
             return Some(url.clone());
         }
         
-        // If host is localhost (default), construct URL from host/port
-        if self.host == "localhost" {
+        // If host is localhost or localstack, construct URL from host/port
+        if self.host == "localhost" || self.host == "localstack" {
             let port = self.actual_port();
             Some(format!("http://{}:{}", self.host, port))
         } else {
-            // For non-localhost hosts, assume it's AWS (no custom endpoint needed)
+            // For non-localhost/localstack hosts, assume it's AWS (no custom endpoint needed)
             None
         }
     }

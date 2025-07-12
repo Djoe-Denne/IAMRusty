@@ -1,0 +1,56 @@
+# Telegraph Communication Service Development Configuration
+
+[server]
+host = "0.0.0.0"
+port = 8080
+tls_enabled = false
+
+[logging]
+level = "info"
+
+# Queue configuration for development - using shared SQS with IAMRusty
+[queue]
+type = "sqs"
+enabled = true
+region = "us-east-1"
+account_id = "000000000000"
+default_queue = "user-events"
+# Use localstack service name for Docker Compose
+host = "localstack"
+port = 4566
+access_key_id = "test"
+secret_access_key = "test"
+max_retries = 3
+timeout_seconds = 30
+
+# Telegraph-specific queue configurations
+# This queue should match the one IAMRusty publishes to
+[queues.user-events]
+events = ["user_signed_up", "password_reset_requested"]
+
+# Event-specific configuration for user_signed_up event
+[queues.user-events.user_signed_up]
+modes = ["email"]
+
+[queues.user-events.password_reset_requested]
+modes = ["email"]
+
+# Communication service configuration
+[communication.email]
+enabled = true
+provider = "dummy"  # "dummy", "smtp", "ses"
+from_address = "noreply@aiforall.com"
+from_name = "AI For All"
+
+[communication.email.smtp]
+host = "localhost"
+port = 587
+use_tls = false
+
+[communication.notification]
+enabled = true
+provider = "dummy"  # "dummy", "fcm", "apns"
+
+[communication.sms]
+enabled = false
+provider = "dummy"  # "dummy", "twilio", "aws_sns" 

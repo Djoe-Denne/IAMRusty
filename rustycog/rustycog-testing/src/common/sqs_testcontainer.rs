@@ -419,7 +419,7 @@ async fn get_or_create_test_sqs_container()
         .with_env_var("DATA_DIR", "/tmp/localstack/data")
         .with_env_var("DOCKER_HOST", "unix:///var/run/docker.sock")
         .with_env_var("HOST_TMP_FOLDER", "/tmp")
-        .with_container_name("iam-test-localstack-sqs")
+        .with_container_name("iam_test-localstack-sqs")
         .with_mapped_port(sqs_port, testcontainers::core::ContainerPort::Tcp(4566)); // LocalStack default port
 
     // Start LocalStack
@@ -451,7 +451,7 @@ async fn cleanup_existing_sqs_container() {
 
     debug!("Checking for existing SQS LocalStack test containers");
 
-    let containers = ["iam-test-localstack-sqs"];
+    let containers = ["iam_test-localstack-sqs"];
 
     for container_name in &containers {
         // Stop the container

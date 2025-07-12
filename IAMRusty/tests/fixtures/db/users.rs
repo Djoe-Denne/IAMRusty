@@ -5,7 +5,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 // Import the entity types
-use infra::repository::entity::users::{
+use iam_infra::repository::entity::users::{
     ActiveModel as UserActiveModel, Entity as UsersEntity, Model as UserModel,
 };
 

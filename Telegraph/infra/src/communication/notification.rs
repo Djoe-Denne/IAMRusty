@@ -1,7 +1,7 @@
 //! Push notification communication adapter
 
 use async_trait::async_trait;
-use domain::{DomainError, NotificationService};
+use telegraph_domain::{DomainError, NotificationService};
 use std::collections::HashMap;
 use reqwest::Client;
 use serde_json::{json, Value};

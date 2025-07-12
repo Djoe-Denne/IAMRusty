@@ -40,7 +40,7 @@ impl CommandErrorMapper for TokenErrorMapper {
             match token_error {
                 TokenError::DomainError(domain_error) => {
                     // Map domain errors to appropriate command errors
-                    use domain::error::DomainError;
+                    use iam_domain::error::DomainError;
                     match domain_error {
                         DomainError::TokenNotFound => CommandError::authentication(
                             TokenErrorCode::TokenNotFound.as_str(),
@@ -264,7 +264,7 @@ impl GetJwksCommand {
 }
 
 impl Command for GetJwksCommand {
-    type Result = domain::entity::token::JwkSet;
+    type Result = iam_domain::entity::token::JwkSet;
 
     fn command_type(&self) -> &'static str {
         "get_jwks"
@@ -402,7 +402,7 @@ where
     async fn handle(
         &self,
         _command: GetJwksCommand,
-    ) -> Result<domain::entity::token::JwkSet, CommandError> {
+    ) -> Result<iam_domain::entity::token::JwkSet, CommandError> {
         // Get JWKS is synchronous, so we can call it directly
         Ok(self.token_use_case.get_jwks())
     }

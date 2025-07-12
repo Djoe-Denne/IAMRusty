@@ -48,16 +48,16 @@ token_url = "https://gitlab.com/oauth/token"
 user_url = "https://gitlab.com/api/v4/user"
 
 
-# Queue configuration for testing - using SQS
+# Queue configuration for development - using SQS with LocalStack
 [queue]
 type = "sqs"
 enabled = true  # Enabled for real SQS integration tests
 region = "us-east-1"
 account_id = "000000000000"
-default_queue = "test-user-events"
-# Use new host/port configuration instead of endpoint_url
+default_queue = "user-events"
+# Use localstack service name for Docker Compose
 host = "localstack"
-port = 4566 # Use random port for testing (will set EXTERNAL_SERVICE_PORTS_START)
+port = 4566
 access_key_id = "test"
 secret_access_key = "test"
 max_retries = 3

@@ -1,9 +1,9 @@
-use application::auth::{AuthError, OAuthService};
+use iam_application::auth::{AuthError, OAuthService};
 use async_trait::async_trait;
-use configuration::GitHubConfig;
-use domain::entity::provider::{Provider, ProviderTokens, ProviderUserProfile};
-use domain::error::DomainError;
-use domain::port::service::ProviderOAuth2Client;
+use iam_configuration::GitHubConfig;
+use iam_domain::entity::provider::{Provider, ProviderTokens, ProviderUserProfile};
+use iam_domain::error::DomainError;
+use iam_domain::port::service::ProviderOAuth2Client;
 use oauth2::{
     basic::BasicClient, reqwest::{Error}, HttpRequest, HttpResponse, AuthUrl, AuthorizationCode, ClientId,
     ClientSecret, RedirectUrl, TokenResponse, TokenUrl,

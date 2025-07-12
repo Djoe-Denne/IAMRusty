@@ -1,11 +1,11 @@
 //! Password reset use case module
 
 use async_trait::async_trait;
-use domain::entity::{
+use iam_domain::entity::{
     events::{DomainEvent, PasswordResetRequestedEvent},
     password_reset_token::PasswordResetToken,
 };
-use domain::port::{
+use iam_domain::port::{
     event_publisher::EventPublisher,
     repository::{PasswordResetTokenRepository, UserEmailRepository, UserRepository},
     service::AuthTokenService,

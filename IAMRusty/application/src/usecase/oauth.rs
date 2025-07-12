@@ -1,13 +1,13 @@
 //! OAuth use case module for OAuth provider authentication
 
 use async_trait::async_trait;
-use domain::entity::{provider::Provider, user::User};
-use domain::error::DomainError;
-use domain::port::{
+use iam_domain::entity::{provider::Provider, user::User};
+use iam_domain::error::DomainError;
+use iam_domain::port::{
     repository::{TokenRepository, UserEmailRepository, UserRepository},
     service::{AuthTokenService, RegistrationTokenService},
 };
-use domain::service::oauth_service::OAuthService;
+use iam_domain::service::oauth_service::OAuthService;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use thiserror::Error;
@@ -160,7 +160,7 @@ where
                 .generate_oauth_registration_token(
                     user.id,
                     email.clone(),
-                    domain::entity::registration_token::ProviderInfo {
+                    iam_domain::entity::registration_token::ProviderInfo {
                         email: email.clone(),
                         suggested_username: user.username.clone().unwrap_or_else(|| "".to_string()), // Default to empty string if no username
                         avatar: user.avatar_url.clone(),

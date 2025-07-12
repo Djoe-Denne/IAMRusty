@@ -10,7 +10,7 @@ pub enum HttpError {
     Validation { message: String },
     
     #[error("Domain error: {0}")]
-    Domain(#[from] domain::DomainError),
+    Domain(#[from] telegraph_domain::DomainError),
     
     #[error("Internal server error")]
     Internal,

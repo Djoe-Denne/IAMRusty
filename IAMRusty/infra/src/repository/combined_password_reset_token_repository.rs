@@ -1,6 +1,6 @@
 use async_trait::async_trait;
-use domain::entity::password_reset_token::PasswordResetToken;
-use domain::port::repository::{
+use iam_domain::entity::password_reset_token::PasswordResetToken;
+use iam_domain::port::repository::{
     PasswordResetTokenReadRepository, PasswordResetTokenWriteRepository,
 };
 use std::sync::Arc;

@@ -6,7 +6,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 // Import the entity types
-use infra::repository::entity::user_email_verification::{
+use iam_infra::repository::entity::user_email_verification::{
     ActiveModel as EmailVerificationActiveModel, Entity as EmailVerificationEntity,
     Model as EmailVerificationModel,
 };

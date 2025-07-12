@@ -3,8 +3,8 @@ use crate::usecase::{
     provider::{ProviderError, ProviderTokenResponse, ProviderUseCase},
 };
 use async_trait::async_trait;
-use domain::entity::provider::Provider;
-use domain::error::DomainError;
+use iam_domain::entity::provider::Provider;
+use iam_domain::error::DomainError;
 use rustycog_command::{Command, CommandError, CommandErrorMapper, CommandHandler};
 use std::sync::Arc;
 use uuid::Uuid;

@@ -1,7 +1,7 @@
 //! Email communication adapter
 
 use async_trait::async_trait;
-use domain::{DomainError, EmailService};
+use telegraph_domain::{DomainError, EmailService};
 use lettre::{AsyncTransport, AsyncSmtpTransport, Tokio1Executor, Message, message::header::ContentType};
 use lettre::transport::smtp::authentication::Credentials;
 use lettre::transport::smtp::client::{Tls, TlsParameters};
@@ -100,7 +100,7 @@ impl EmailService for EmailAdapter {
         subject: &str,
         text_body: &str,
         html_body: Option<&str>,
-        attachments: &[domain::port::communication::EmailAttachment],
+        attachments: &[telegraph_domain::port::communication::EmailAttachment],
     ) -> Result<String, DomainError> {
         info!(
             to = to,

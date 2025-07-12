@@ -8,7 +8,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use common::setup_test_server;
-use configuration::{load_config_part, JwtConfig};
+use iam_configuration::{load_config_part, JwtConfig};
 use utils::jwt::{create_valid_jwt_token_with_encoder, create_expired_jwt_token_with_encoder, create_invalid_jwt_token_with_encoder};
 use fixtures::DbFixtures;
 

@@ -47,7 +47,7 @@ use crate::usecase::{
 };
 use rustycog_command::{CommandRegistry, CommandRegistryBuilder};
 use std::sync::Arc;
-use configuration::CommandConfig;
+use iam_configuration::CommandConfig;
 
 /// Factory for creating a command registry with all standard commands registered
 pub struct CommandRegistryFactory;

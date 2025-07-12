@@ -240,7 +240,7 @@ async fn get_or_create_test_kafka_container()
         .with_env_var("KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS", "0")
         .with_env_var("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "true")
         .with_env_var("CLUSTER_ID", "MkU3OEVBNTcwNTJENDM2Qk")
-        .with_container_name("iam-test-kafka")
+        .with_container_name("iam_test-kafka")
         .with_mapped_port(
             kafka_port,
             testcontainers::core::ContainerPort::Tcp(kafka_port),
@@ -278,7 +278,7 @@ async fn cleanup_existing_kafka_container() {
 
     debug!("Checking for existing Kafka test containers");
 
-    let containers = ["iam-test-kafka"];
+    let containers = ["iam_test-kafka"];
 
     for container_name in &containers {
         // Stop the container

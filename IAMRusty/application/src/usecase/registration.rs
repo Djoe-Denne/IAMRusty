@@ -1,6 +1,6 @@
 use async_trait::async_trait;
-use domain::error::DomainError;
-use domain::service::RegistrationService;
+use iam_domain::error::DomainError;
+use iam_domain::service::RegistrationService;
 use std::sync::Arc;
 
 use crate::dto::auth::{

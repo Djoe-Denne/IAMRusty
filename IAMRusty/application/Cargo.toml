@@ -1,12 +1,12 @@
 [package]
-name = "application"
-version = "0.1.0"
-edition = "2021"
+name = "iam-application"
+version.workspace = true
+edition.workspace = true
 
 [dependencies]
 # Internal crates
-domain = { path = "../domain" }
-configuration = { path = "../configuration" }
+iam-domain = { path = "../domain" }
+iam-configuration = { path = "../configuration" }
 
 # RustyCog command framework
 rustycog-command = { path = "../../rustycog/rustycog-command" }
@@ -14,28 +14,28 @@ rustycog-command = { path = "../../rustycog/rustycog-command" }
 rustycog-events = { path = "../../rustycog/rustycog-events" } 
 
 # Utility
-serde = { version = "1.0.197", features = ["derive"] }
-serde_json = "1.0.116"
-uuid = { version = "1.4.1", features = ["v4", "serde"] }
-chrono = { version = "0.4.31", features = ["serde"] }
-url = "2.5"
-rand = "0.8.5"
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+url = { workspace = true }
+rand = { workspace = true }
 
 # Cryptography
 hmac = "0.12"
 sha2 = "0.10"
-base64 = "0.22"
+base64 = { workspace = true }
 
 # Error handling
-thiserror = "1.0.64"
-anyhow = "1.0.82"
+thiserror = { workspace = true }
+anyhow = { workspace = true }
 
 # Logging
-tracing = "0.1.40"
+tracing = { workspace = true }
 
 # Async
-async-trait = "0.1.77"
-tokio = { version = "1.44", features = ["rt-multi-thread", "macros", "time"] }
+async-trait = { workspace = true }
+tokio = { workspace = true, features = ["time"] }
 fastrand = "2.0"
 
 # Compile-time plugin system
@@ -43,10 +43,10 @@ inventory = "0.3"
 
 [dev-dependencies]
 # Testing libraries for comprehensive unit testing
-mockall = "0.13.0"
-rstest = "0.23.0"
-tokio-test = "0.4.4"
-claims = "0.7.1"
-serde_json = "1.0.140"
-tokio = { version = "1.44", features = ["rt-multi-thread", "macros", "test-util"] }
-async-trait = "0.1.77" 
+mockall = { workspace = true }
+rstest = { workspace = true }
+tokio-test = { workspace = true }
+claims = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true, features = ["test-util"] }
+async-trait = { workspace = true } 

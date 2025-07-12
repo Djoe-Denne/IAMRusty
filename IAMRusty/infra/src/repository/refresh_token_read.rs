@@ -1,6 +1,6 @@
 use async_trait::async_trait;
-use domain::entity::token::RefreshToken as DomainRefreshToken;
-use domain::port::repository::RefreshTokenReadRepository;
+use iam_domain::entity::token::RefreshToken as DomainRefreshToken;
+use iam_domain::port::repository::RefreshTokenReadRepository;
 use sea_orm::{ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter};
 use std::sync::Arc;
 use tracing::debug;

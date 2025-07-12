@@ -1,7 +1,7 @@
 //! Auth provider factory for creating provider-specific authentication services
 
 use crate::auth::{AuthError as OAuthError, OAuthService};
-use domain::entity::provider::Provider;
+use iam_domain::entity::provider::Provider;
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -87,8 +87,8 @@ where
         redirect_uri: String,
     ) -> Result<
         (
-            domain::entity::provider::ProviderTokens,
-            domain::entity::provider::ProviderUserProfile,
+            iam_domain::entity::provider::ProviderTokens,
+            iam_domain::entity::provider::ProviderUserProfile,
         ),
         Self::Error,
     > {

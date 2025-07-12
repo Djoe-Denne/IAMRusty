@@ -1,6 +1,6 @@
 use async_trait::async_trait;
-use domain::error::DomainError;
-use domain::service::{UserProfile as DomainUserProfile, UserService};
+use iam_domain::error::DomainError;
+use iam_domain::service::{UserProfile as DomainUserProfile, UserService};
 use std::sync::Arc;
 use thiserror::Error;
 use uuid::Uuid;
@@ -9,7 +9,7 @@ use uuid::Uuid;
 #[derive(Debug, Clone)]
 pub struct UserProfile {
     /// User entity
-    pub user: domain::entity::user::User,
+    pub user: iam_domain::entity::user::User,
     /// Primary email address
     pub email: Option<String>,
 }

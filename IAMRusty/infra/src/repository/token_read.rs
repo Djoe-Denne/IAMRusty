@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 use chrono::Utc;
-use domain::entity::provider::{Provider, ProviderTokens};
-use domain::entity::provider_link::ProviderLink;
-use domain::port::repository::TokenReadRepository;
+use iam_domain::entity::provider::{Provider, ProviderTokens};
+use iam_domain::entity::provider_link::ProviderLink;
+use iam_domain::port::repository::TokenReadRepository;
 use sea_orm::{ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter};
 use std::sync::Arc;
 use tracing::debug;

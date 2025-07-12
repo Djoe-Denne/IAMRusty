@@ -1,7 +1,7 @@
 //! Mock email service for testing
 
 use async_trait::async_trait;
-use domain::{DomainError, EmailService};
+use telegraph_domain::{DomainError, EmailService};
 use tracing::{info, debug};
 use std::sync::{Arc, Mutex};
 
@@ -74,7 +74,7 @@ impl EmailService for MockEmailAdapter {
         subject: &str,
         text_body: &str,
         html_body: Option<&str>,
-        attachments: &[domain::port::communication::EmailAttachment],
+        attachments: &[telegraph_domain::port::communication::EmailAttachment],
     ) -> Result<String, DomainError> {
         info!(
             to = to,

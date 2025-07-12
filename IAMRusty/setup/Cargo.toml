@@ -1,15 +1,15 @@
 [package]
-name = "setup"
+name = "iam-setup"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
 # Internal workspace crates
-domain = { path = "../domain" }
-application = { path = "../application" }
-infra = { path = "../infra" }
-http_server = { path = "../http" }
-configuration = { path = "../configuration" }
+iam-domain = { path = "../domain" }
+iam-application = { path = "../application" }
+iam-infra = { path = "../infra" }
+iam-http_server = { path = "../http" }
+iam-configuration = { path = "../configuration" }
 rustycog-http = { path = "../../rustycog/rustycog-http" }
 rustycog-events = { path = "../../rustycog/rustycog-events" }
 

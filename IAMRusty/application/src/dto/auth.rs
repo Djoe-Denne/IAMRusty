@@ -1,4 +1,4 @@
-use domain::entity::provider::ProviderTokens;
+use iam_domain::entity::provider::ProviderTokens;
 use serde::{Deserialize, Serialize};
 
 use super::UserProfileDto;

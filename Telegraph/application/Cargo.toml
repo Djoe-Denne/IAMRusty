@@ -1,11 +1,14 @@
 [package]
-name = "application"
-version = "0.1.0"
-edition = "2021"
+name = "telegraph-application"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Telegraph application layer"
+license.workspace = true
 
 [dependencies]
 # Internal crates
-domain = { path = "../domain" }
+telegraph-domain = { path = "../domain" }
 
 # Events and command framework
 rustycog-events = { path = "../../rustycog/rustycog-events" }
@@ -16,26 +19,26 @@ rustycog-core = { path = "../../rustycog/rustycog-core" }
 iam-events = { path = "../../iam-events" }
 
 # Utility
-serde = { version = "1.0.197", features = ["derive"] }
-serde_json = "1.0.116"
-uuid = { version = "1.4.1", features = ["v4", "serde"] }
-chrono = { version = "0.4.31", features = ["serde"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
 
 # Error handling
-thiserror = "1.0.56"
-anyhow = "1.0.82"
+thiserror = { workspace = true }
+anyhow = { workspace = true }
 
 # Logging
-tracing = "0.1"
+tracing = { workspace = true }
 
 # Async
-async-trait = "0.1.77"
-tokio = { version = "1.44", features = ["rt-multi-thread", "macros"] }
+async-trait = { workspace = true }
+tokio = { workspace = true }
 
 [dev-dependencies]
-tokio = { version = "1.44", features = ["rt-multi-thread", "macros", "test-util"] }
+tokio = { workspace = true }
 # Testing libraries for comprehensive unit testing
-mockall = "0.13.0"
-rstest = "0.23.0"
-tokio-test = "0.4.4"
-claims = "0.7.1" 
+mockall = { workspace = true }
+rstest = { workspace = true }
+tokio-test = { workspace = true }
+claims = { workspace = true } 

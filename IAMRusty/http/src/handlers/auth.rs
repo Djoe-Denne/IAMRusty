@@ -3,7 +3,7 @@ use crate::{
 };
 use rustycog_http::AppState;
 use rustycog_http::{ValidatedJson, AuthUser};
-use application::command::{
+use iam_application::command::{
     oauth_login::{GenerateOAuthStartUrlCommand, OAuthLoginCommand},
     password_login::PasswordLoginCommand,
     provider::{GenerateLinkProviderStartUrlCommand, GetProviderTokenCommand, LinkProviderCommand, RevokeProviderTokenCommand, RelinkProviderCommand, GenerateRelinkProviderStartUrlCommand},
@@ -21,7 +21,7 @@ use axum::{
     Json,
 };
 use axum_valid::Valid;
-use domain::entity::provider::Provider;
+use iam_domain::entity::provider::Provider;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error};
 use url;
@@ -489,7 +489,7 @@ async fn handle_login_callback(
 
     // Handle both login and registration scenarios
     match response {
-        application::usecase::oauth::OAuthResponse::Login(login_response) => {
+        iam_application::usecase::oauth::OAuthResponse::Login(login_response) => {
             // Existing complete user - return 200 with login tokens
             Ok((
                 StatusCode::OK,
@@ -507,7 +507,7 @@ async fn handle_login_callback(
                 })),
             ))
         }
-        application::usecase::oauth::OAuthResponse::Registration(reg_response) => {
+        iam_application::usecase::oauth::OAuthResponse::Registration(reg_response) => {
             // New user needs to complete registration - return 202 with registration token
             Ok((
                 StatusCode::ACCEPTED,
@@ -609,7 +609,7 @@ pub async fn signup(
         })?;
 
     match response {
-        domain::service::auth_service::SignupResponse::ExistingUser {
+        iam_domain::service::auth_service::SignupResponse::ExistingUser {
             user,
             access_token,
             expires_in,
@@ -630,7 +630,7 @@ pub async fn signup(
                 message,
             }),
         )),
-        domain::service::auth_service::SignupResponse::RegistrationRequired {
+        iam_domain::service::auth_service::SignupResponse::RegistrationRequired {
             user,
             registration_token,
             requires_username,
@@ -676,7 +676,7 @@ pub async fn login(
         })?;
 
     match response {
-        domain::service::auth_service::LoginResponse::Success {
+        iam_domain::service::auth_service::LoginResponse::Success {
             user,
             access_token,
             expires_in,
@@ -692,7 +692,7 @@ pub async fn login(
             expires_in,
             refresh_token,
         })),
-        domain::service::auth_service::LoginResponse::RegistrationIncomplete {
+        iam_domain::service::auth_service::LoginResponse::RegistrationIncomplete {
             registration_token,
             message,
         } => Err(AuthError::RegistrationIncomplete {
@@ -817,13 +817,13 @@ pub async fn internal_provider_token(
 /// This endpoint is used by reverse proxies and services like Istio to validate JWT tokens
 pub async fn jwks(
     State(state): State<AppState>,
-) -> Result<Json<domain::entity::token::JwkSet>, AuthError> {
+) -> Result<Json<iam_domain::entity::token::JwkSet>, AuthError> {
     debug!("JWKS endpoint requested");
 
     let context = CommandContext::new()
         .with_metadata("operation".to_string(), "get_jwks".to_string());
 
-    let command = application::command::token::GetJwksCommand::new();
+    let command = iam_application::command::token::GetJwksCommand::new();
     let jwks = state
         .command_service
         .execute(command, context)

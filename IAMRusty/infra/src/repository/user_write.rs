@@ -1,8 +1,8 @@
 use super::entity::{prelude::Users, users};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use domain::entity::user::User as DomainUser;
-use domain::port::repository::UserWriteRepository;
+use iam_domain::entity::user::User as DomainUser;
+use iam_domain::port::repository::UserWriteRepository;
 use sea_orm::{ActiveModelTrait, ActiveValue, DatabaseConnection, DbErr, EntityTrait, Set};
 use std::sync::Arc;
 use tracing::{debug, error};

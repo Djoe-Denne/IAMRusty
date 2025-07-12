@@ -1,5 +1,5 @@
-use configuration::load_config;
-use setup::{app, config};
+use iam_configuration::load_config;
+use iam_setup::{app, config};
 use tracing::info;
 
 #[tokio::main]

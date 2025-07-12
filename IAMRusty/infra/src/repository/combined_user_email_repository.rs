@@ -1,6 +1,6 @@
 use async_trait::async_trait;
-use domain::entity::user_email::UserEmail;
-use domain::port::repository::{UserEmailReadRepository, UserEmailWriteRepository};
+use iam_domain::entity::user_email::UserEmail;
+use iam_domain::port::repository::{UserEmailReadRepository, UserEmailWriteRepository};
 use sea_orm::DbErr;
 use uuid::Uuid;
 

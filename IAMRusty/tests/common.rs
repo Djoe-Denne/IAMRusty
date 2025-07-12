@@ -12,9 +12,9 @@ pub use rustycog_testing::{
 }; 
 
 use migration::{Migrator, MigratorTrait};
-use setup::app::{build_app_state_with_event_publisher, build_and_run};
-use infra::event_adapter::{MultiQueueEventPublisher, IAMEventPublisherAdapter, IAMEventAdapter, IAMErrorMapper};
-use configuration::{AppConfig, ServerConfig};
+use iam_setup::app::{build_app_state_with_event_publisher, build_and_run};
+use iam_infra::event_adapter::{MultiQueueEventPublisher, IAMEventPublisherAdapter, IAMEventAdapter, IAMErrorMapper};
+use iam_configuration::{AppConfig, ServerConfig};
 use std::sync::Arc;
 use reqwest::Client;
 use async_trait::async_trait;

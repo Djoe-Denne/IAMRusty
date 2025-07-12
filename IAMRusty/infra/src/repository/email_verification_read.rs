@@ -1,6 +1,6 @@
 use async_trait::async_trait;
-use domain::entity::email_verification::EmailVerification;
-use domain::error::DomainError;
+use iam_domain::entity::email_verification::EmailVerification;
+use iam_domain::error::DomainError;
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder};
 use std::sync::Arc;
 

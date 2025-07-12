@@ -1,0 +1,55 @@
+# Telegraph Communication Service Configuration
+
+[server]
+host = "localhost"
+port = 8080
+tls_enabled = false
+
+[logging]
+level = "info"
+
+# Queue configuration for testing - using SQS
+[queue]
+type = "sqs"
+enabled = true  # Enabled for real SQS integration tests
+region = "us-east-1"
+account_id = "000000000000"
+# Use new host/port configuration instead of endpoint_url
+host = "localhost"
+port = 0  # Use random port for testing (will set EXTERNAL_SERVICE_PORTS_START)
+access_key_id = "test"
+secret_access_key = "test"
+max_retries = 3
+timeout_seconds = 30
+
+# Telegraph-specific queue configurations
+# Example: ma_premiere_queue handles user_signed_up and user_email_verified events
+[queues.test-user-events]
+events = ["user_signed_up", "password_reset_requested"]
+
+# Event-specific configuration for user_signed_up event
+[queues.test-user-events.user_signed_up]
+modes = ["email"]
+
+[queues.test-user-events.password_reset_requested]
+modes = ["email"]
+
+# Communication service configuration
+[communication.email]
+enabled = true
+provider = "dummy"  # "dummy", "smtp", "ses"
+from_address = "noreply@telegraph.com"
+from_name = "Telegraph Service"
+
+[communication.email.smtp]
+host = "localhost"
+port = 587
+use_tls = false
+
+[communication.notification]
+enabled = true
+provider = "dummy"  # "dummy", "fcm", "apns"
+
+[communication.sms]
+enabled = false
+provider = "dummy"  # "dummy", "twilio", "aws_sns" 

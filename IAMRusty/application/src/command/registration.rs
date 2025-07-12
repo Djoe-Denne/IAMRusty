@@ -9,7 +9,7 @@ use crate::dto::auth::{
     CompleteRegistrationResponse,
 };
 use crate::usecase::registration::{RegistrationError, RegistrationUseCase};
-use domain::error::DomainError;
+use iam_domain::error::DomainError;
 
 /// Error codes for registration-related operations
 #[derive(Debug, Clone)]

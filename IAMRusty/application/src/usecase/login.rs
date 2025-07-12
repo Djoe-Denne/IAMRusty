@@ -1,17 +1,17 @@
 //! Login use case module for email/password authentication
 
 use async_trait::async_trait;
-use domain::port::{
+use iam_domain::port::{
     event_publisher::EventPublisher,
     repository::{EmailVerificationRepository, UserEmailRepository, UserRepository},
     service::{AuthTokenService, RegistrationTokenService},
 };
-use domain::service::auth_service::{AuthError, AuthService};
+use iam_domain::service::auth_service::{AuthError, AuthService};
 use std::sync::Arc;
 use thiserror::Error;
 
 // Re-export types for command handlers
-pub use domain::service::auth_service::{
+pub use iam_domain::service::auth_service::{
     LoginRequest, LoginResponse, PasswordService, ResendVerificationEmailRequest,
     ResendVerificationEmailResponse, SignupRequest, SignupResponse, VerifyEmailRequest,
     VerifyEmailResponse,

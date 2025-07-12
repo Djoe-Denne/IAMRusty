@@ -1,11 +1,11 @@
-use application::command::CommandError;
-use application::usecase::{token::TokenError, user::UserError};
+use iam_application::command::CommandError;
+use iam_application::usecase::{token::TokenError, user::UserError};
 use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
     Json,
 };
-use domain::error::DomainError;
+use iam_domain::error::DomainError;
 use rustycog_http::error::{UniformErrorResponse, ErrorDetails};
 use thiserror::Error;
 

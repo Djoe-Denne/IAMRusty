@@ -1,5 +1,5 @@
 use crate::error::ApiError;
-use application::command::{user::GetUserCommand, CommandContext};
+use iam_application::command::{user::GetUserCommand, CommandContext};
 use axum::{
     extract::State,
     Json,

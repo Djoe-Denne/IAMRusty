@@ -40,7 +40,7 @@ impl CommandErrorMapper for UserErrorMapper {
             match user_error {
                 UserError::DomainError(domain_error) => {
                     // Map domain errors to appropriate command errors
-                    use domain::error::DomainError;
+                    use iam_domain::error::DomainError;
                     match domain_error {
                         DomainError::UserNotFound => CommandError::authentication(
                             UserErrorCode::UserNotFound.as_str(),

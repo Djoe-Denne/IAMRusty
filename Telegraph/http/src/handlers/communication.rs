@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use std::collections::HashMap;
 
-use domain::{CommunicationMode, MessagePriority};
+use telegraph_domain::{CommunicationMode, MessagePriority};
 
 /// Request to send a message via HTTP API
 #[derive(Debug, Deserialize)]

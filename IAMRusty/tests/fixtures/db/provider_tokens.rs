@@ -5,7 +5,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 // Import the entity types
-use infra::repository::entity::provider_tokens::{
+use iam_infra::repository::entity::provider_tokens::{
     ActiveModel as ProviderTokenActiveModel, Entity as ProviderTokensEntity,
     Model as ProviderTokenModel,
 };

@@ -1,6 +1,6 @@
 use crate::usecase::oauth::{OAuthError, OAuthResponse, OAuthUseCase};
 use async_trait::async_trait;
-use domain::entity::provider::Provider;
+use iam_domain::entity::provider::Provider;
 use rustycog_command::{Command, CommandError, CommandErrorMapper, CommandHandler};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -41,7 +41,7 @@ impl CommandErrorMapper for OAuthLoginErrorMapper {
             match oauth_error {
                 OAuthError::DomainError(domain_error) => {
                     // Map domain errors to appropriate command errors
-                    use domain::error::DomainError;
+                    use iam_domain::error::DomainError;
                     match domain_error {
                         DomainError::UserNotFound => CommandError::business(
                             OAuthLoginErrorCode::AuthenticationFailed.as_str(),

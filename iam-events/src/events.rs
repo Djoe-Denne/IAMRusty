@@ -7,15 +7,19 @@ use rustycog_core::error::ServiceError;
 
 /// IAM domain events that can be published to external systems
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
+#[serde(tag = "event_type")]
 pub enum IamDomainEvent {
     /// User signed up with email/password
+    #[serde(rename = "user_signed_up")]
     UserSignedUp(UserSignedUpEvent),
     /// User verified their email
+    #[serde(rename = "user_email_verified")]
     UserEmailVerified(UserEmailVerifiedEvent),
     /// User logged in successfully
+    #[serde(rename = "user_logged_in")]
     UserLoggedIn(UserLoggedInEvent),
     /// User requested password reset
+    #[serde(rename = "password_reset_requested")]
     PasswordResetRequested(PasswordResetRequestedEvent),
 }
 

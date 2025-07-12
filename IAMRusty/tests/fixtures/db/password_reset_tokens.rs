@@ -1,12 +1,12 @@
 use rustycog_testing::db::{CommittedFixture, DbFixture, TestData};
 use chrono::{DateTime, Utc};
-use domain::entity::password_reset_token::PasswordResetToken;
+use iam_domain::entity::password_reset_token::PasswordResetToken;
 use sea_orm::{ActiveModelTrait, ActiveValue, DatabaseConnection, DbErr};
 use std::sync::Arc;
 use uuid::Uuid;
 
 // Import the entity types
-use infra::repository::entity::password_reset_tokens::{
+use iam_infra::repository::entity::password_reset_tokens::{
     ActiveModel as PasswordResetTokenActiveModel, Entity as PasswordResetTokensEntity,
     Model as PasswordResetTokenModel,
 };

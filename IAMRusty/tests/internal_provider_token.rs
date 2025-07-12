@@ -6,7 +6,7 @@ mod utils;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
-use configuration::{JwtConfig, load_config_part};
+use iam_configuration::{JwtConfig, load_config_part};
 use chrono::{Duration, Utc};
 
 use utils::jwt::{

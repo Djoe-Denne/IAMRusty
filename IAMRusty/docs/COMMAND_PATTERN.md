@@ -130,7 +130,7 @@ The extensible command system consists of four main components:
 The main service interface that replaces `DynCommandService`. It provides a type-safe way to execute any registered command.
 
 ```rust
-use application::command::{GenericCommandService, CommandContext};
+use iam-configuration::command::{GenericCommandService, CommandContext};
 
 // Execute any registered command
 let result = service.execute(command, context).await?;
@@ -175,7 +175,7 @@ registry.execute_command(command, context).await?;
 A builder for constructing command registries with a fluent API.
 
 ```rust
-use application::command::{CommandRegistryBuilder, CommandErrorMapper};
+use iam-configuration::command::{CommandRegistryBuilder, CommandErrorMapper};
 
 let registry = CommandRegistryBuilder::new()
     .register::<MyCommand, _>(
@@ -202,7 +202,7 @@ let registry = CommandRegistryBuilder::new()
 Pre-configured factory methods for common command sets.
 
 ```rust
-use application::command::CommandRegistryFactory;
+use iam-configuration::command::CommandRegistryFactory;
 
 // Create registry with all IAM commands
 let registry = CommandRegistryFactory::create_iam_registry(
@@ -295,7 +295,7 @@ The new system is designed to be backward compatible, allowing gradual migration
 ```rust
 use uuid::Uuid;
 use async_trait::async_trait;
-use application::command::{Command, CommandError};
+use iam-configuration::command::{Command, CommandError};
 
 #[derive(Debug, Clone)]
 pub struct MyCustomCommand {
@@ -338,7 +338,7 @@ impl Command for MyCustomCommand {
 
 ```rust
 use async_trait::async_trait;
-use application::command::{CommandHandler, CommandError};
+use iam-configuration::command::{CommandHandler, CommandError};
 
 pub struct MyCustomCommandHandler {
     // Dependencies (repositories, services, etc.)
@@ -362,7 +362,7 @@ impl CommandHandler<MyCustomCommand> for MyCustomCommandHandler {
 ### Step 3: Create Error Mapper
 
 ```rust
-use application::command::{CommandErrorMapper, CommandError};
+use iam-configuration::command::{CommandErrorMapper, CommandError};
 
 pub struct MyCustomErrorMapper;
 

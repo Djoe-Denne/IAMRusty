@@ -1,31 +1,32 @@
 //! Event consumer for processing IAM domain events
 
 use async_trait::async_trait;
-use domain::{DomainError, IamEventHandler};
+use telegraph_domain::{DomainError, IamEventHandler};
 use iam_events::{IamDomainEvent, DomainEvent};
 use rustycog_events::{EventConsumer as RustycogEventConsumer, EventHandler, ConcreteEventConsumer, create_event_consumer_from_queue_config};
-use rustycog_config::QueueConfig;
 use rustycog_core::error::ServiceError;
 use std::sync::Arc;
 use serde_json;
-use tracing::{info, error};
+use tracing::{info, error, debug};
 use crate::event::processors::{CommunicationEventProcessor, CompositeEventProcessor};
+use telegraph_configuration::TelegraphConfig;
 
 /// Telegraph event consumer using rustycog-events
 pub struct EventConsumer {
     inner_consumer: Arc<ConcreteEventConsumer>,
     event_processor: Arc<dyn CommunicationEventProcessor>,
+    config: TelegraphConfig,
 }
 
 impl EventConsumer {
     /// Create a new event consumer from configuration with communication services
     pub async fn new(
-        queue_config: &QueueConfig,
-        email_service: Arc<dyn domain::EmailService>,
-        sms_service: Arc<dyn domain::SmsService>,
-        notification_service: Arc<dyn domain::NotificationService>,
+        config: TelegraphConfig,
+        email_service: Arc<dyn telegraph_domain::EmailService>,
+        sms_service: Arc<dyn telegraph_domain::SmsService>,
+        notification_service: Arc<dyn telegraph_domain::NotificationService>,
     ) -> Result<Self, DomainError> {
-        let inner_consumer = create_event_consumer_from_queue_config(queue_config)
+        let inner_consumer = create_event_consumer_from_queue_config(&config.queue)
             .await
             .map_err(|e| DomainError::InfrastructureError(format!("Failed to create event consumer: {}", e)))?;
         
@@ -39,6 +40,7 @@ impl EventConsumer {
         Ok(Self {
             inner_consumer,
             event_processor,
+            config,
         })
     }
     
@@ -46,8 +48,17 @@ impl EventConsumer {
     pub async fn start(&self) -> Result<(), DomainError> {
         info!("Starting Telegraph event consumer");
         
+        // Log the configured queues and events for debugging
+        for (queue_name, queue_config) in &self.config.queues {
+            info!(
+                queue_name = %queue_name,
+                events = ?queue_config.events,
+                "📋 Queue configuration loaded"
+            );
+        }
+        
         // Create a handler that adapts rustycog-events to IAM events
-        let handler = TelegraphEventHandler::new();
+        let handler = TelegraphEventHandler::new(self.config.clone());
         
         self.inner_consumer
             .start(handler)
@@ -119,18 +130,28 @@ impl IamEventHandler for EventConsumer {
 }
 
 /// Telegraph event handler that adapts rustycog-events to IAM events
-pub struct TelegraphEventHandler;
+pub struct TelegraphEventHandler {
+    config: TelegraphConfig,
+}
 
 impl TelegraphEventHandler {
     /// Create a new Telegraph event handler
-    pub fn new() -> Self {
-        Self
+    pub fn new(config: TelegraphConfig) -> Self {
+        Self {
+            config,
+        }
     }
 }
 
 #[async_trait]
 impl EventHandler for TelegraphEventHandler {
     async fn handle_event(&self, event: Box<dyn rustycog_events::DomainEvent>) -> Result<(), ServiceError> {
+        info!(
+            event_id = %event.event_id(),
+            event_type = event.event_type(),
+            "🎯 Telegraph received event from SQS!"
+        );
+        
         // Convert the generic domain event to an IAM domain event
         // This is a simplified conversion - in practice you might need more sophisticated parsing
         match self.convert_to_iam_event(event.as_ref()) {
@@ -165,10 +186,40 @@ impl EventHandler for TelegraphEventHandler {
     }
     
     fn supports_event_type(&self, event_type: &str) -> bool {
-        // Support IAM-related events
-        event_type.starts_with("iam.") || 
-        event_type.starts_with("user.") ||
-        event_type.starts_with("auth.")
+        // Check if any configured queue supports this event type
+        let mut supports = false;
+        let mut supporting_queues = Vec::new();
+        
+        for (queue_name, queue_config) in &self.config.queues {
+            if queue_config.events.contains(&event_type.to_string()) {
+                supports = true;
+                supporting_queues.push(queue_name.clone());
+            }
+        }
+        
+        if supports {
+            info!(
+                event_type = event_type,
+                supporting_queues = ?supporting_queues,
+                "✅ Event type supported by configuration"
+            );
+        } else {
+            // Log discarded event - base data at INFO level
+            info!(
+                event_type = event_type,
+                configured_queues = ?self.config.queues.keys().collect::<Vec<_>>(),
+                "❌ Event type not supported by any configured queue - discarding"
+            );
+            
+            // Log full configuration details at DEBUG level
+            debug!(
+                event_type = event_type,
+                full_queue_config = ?self.config.queues,
+                "🔍 Full queue configuration for discarded event"
+            );
+        }
+        
+        supports
     }
 }
 

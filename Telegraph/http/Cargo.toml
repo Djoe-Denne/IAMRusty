@@ -1,12 +1,15 @@
 [package]
-name = "http"
-version = "0.1.0"
-edition = "2021"
+name = "telegraph-http_server"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Telegraph HTTP server layer"
+license.workspace = true
 
 [dependencies]
 # Internal crates
-domain = { path = "../domain" }
-application = { path = "../application" }
+telegraph-domain = { path = "../domain" }
+telegraph-application = { path = "../application" }
 
 # HTTP framework
 rustycog-http = { path = "../../rustycog/rustycog-http" }
@@ -16,28 +19,28 @@ rustycog-server = { path = "../../rustycog/rustycog-server" }
 rustycog-core = { path = "../../rustycog/rustycog-core" }
 
 # Serialization
-serde = { version = "1.0.197", features = ["derive"] }
-serde_json = "1.0.116"
+serde = { workspace = true }
+serde_json = { workspace = true }
 
 # Utility
-uuid = { version = "1.4.1", features = ["v4", "serde"] }
-chrono = { version = "0.4.31", features = ["serde"] }
+uuid = { workspace = true }
+chrono = { workspace = true }
 
 # Error handling
-thiserror = "1.0.56"
-anyhow = "1.0.82"
+thiserror = { workspace = true }
+anyhow = { workspace = true }
 
 # Logging
-tracing = "0.1"
+tracing = { workspace = true }
 
 # Async
-async-trait = "0.1.77"
-tokio = { version = "1.44", features = ["rt-multi-thread", "macros"] }
+async-trait = { workspace = true }
+tokio = { workspace = true }
 
 # Validation
-validator = { version = "0.18.1", features = ["derive"] }
+validator = { workspace = true }
 
 [dev-dependencies]
-tokio = { version = "1.44", features = ["rt-multi-thread", "macros", "test-util"] }
-mockall = "0.13.0"
-rstest = "0.23.0" 
+tokio = { workspace = true }
+mockall = { workspace = true }
+rstest = { workspace = true } 

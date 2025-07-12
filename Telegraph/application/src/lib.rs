@@ -12,4 +12,4 @@ pub use command::*;
 pub use usecase::*;
 
 // Re-export domain types for convenience
-pub use domain::*; 
+pub use telegraph_domain::*; 

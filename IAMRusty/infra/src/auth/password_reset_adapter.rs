@@ -1,6 +1,6 @@
 use super::PasswordService;
-use application::usecase::password_reset::PasswordService as PasswordResetPasswordService;
-use application::usecase::password_reset::PasswordResetError;
+use iam_application::usecase::password_reset::PasswordService as PasswordResetPasswordService;
+use iam_application::usecase::password_reset::PasswordResetError;
 use async_trait::async_trait;
 use std::sync::Arc;
 
@@ -33,7 +33,7 @@ impl PasswordResetPasswordService for PasswordResetServiceAdapter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use domain::error::DomainError;
+    use iam_domain::error::DomainError;
 
     #[tokio::test]
     async fn test_hash_password() {

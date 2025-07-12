@@ -199,7 +199,7 @@ async fn get_or_create_test_container() -> Result<Arc<TestDatabaseContainer>, Db
         .with_env_var("POSTGRES_DB", &db_config.db)
         .with_env_var("POSTGRES_USER", &db_config.creds.username)
         .with_env_var("POSTGRES_PASSWORD", &db_config.creds.password)
-        .with_container_name("iam-test-db") // Static name for easy cleanup
+        .with_container_name("iam_test-db") // Static name for easy cleanup
         .with_mapped_port(host_port, testcontainers::core::ContainerPort::Tcp(5432)); // Map host port to container port 5432
 
     let container = postgres_image
@@ -236,19 +236,19 @@ async fn get_or_create_test_container() -> Result<Arc<TestDatabaseContainer>, Db
 async fn cleanup_existing_container() {
     use std::process::Command;
 
-    debug!("Checking for existing test container 'iam-test-db'");
+    debug!("Checking for existing test container 'iam_test-db'");
 
     // Try to stop the container if it's running
     let stop_result = Command::new("docker")
-        .args(&["stop", "iam-test-db"])
+        .args(&["stop", "iam_test-db"])
         .output();
 
     match stop_result {
         Ok(output) if output.status.success() => {
-            debug!("Stopped existing container 'iam-test-db'");
+            debug!("Stopped existing container 'iam_test-db'");
         }
         Ok(_) => {
-            debug!("Container 'iam-test-db' was not running or doesn't exist");
+            debug!("Container 'iam_test-db' was not running or doesn't exist");
         }
         Err(e) => {
             debug!("Failed to stop container: {}", e);
@@ -257,15 +257,15 @@ async fn cleanup_existing_container() {
 
     // Try to remove the container
     let rm_result = Command::new("docker")
-        .args(&["rm", "-f", "iam-test-db"])
+        .args(&["rm", "-f", "iam_test-db"])
         .output();
 
     match rm_result {
         Ok(output) if output.status.success() => {
-            debug!("Removed existing container 'iam-test-db'");
+            debug!("Removed existing container 'iam_test-db'");
         }
         Ok(_) => {
-            debug!("Container 'iam-test-db' was already removed or doesn't exist");
+            debug!("Container 'iam_test-db' was already removed or doesn't exist");
         }
         Err(e) => {
             debug!("Failed to remove container: {}", e);
@@ -336,9 +336,9 @@ async fn register_cleanup_handler() {
         // Use direct docker command to cleanup the specific container
         use std::process::Command;
         let _ = Command::new("docker")
-            .args(&["stop", "iam-test-db"])
+            .args(&["stop", "iam_test-db"])
             .output();
-        let _ = Command::new("docker").args(&["rm", "iam-test-db"]).output();
+        let _ = Command::new("docker").args(&["rm", "iam_test-db"]).output();
 
         std::process::exit(0);
     });

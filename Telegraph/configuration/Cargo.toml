@@ -1,27 +1,30 @@
 [package]
-name = "configuration"
-version = "0.1.0"
-edition = "2021"
+name = "telegraph-configuration"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Telegraph configuration layer"
+license.workspace = true
 
 [dependencies]
 # Configuration framework
 rustycog-config = { path = "../../rustycog/rustycog-config" }
 
 # Serialization
-serde = { version = "1.0.197", features = ["derive"] }
-config = "0.14.0"
+serde = { workspace = true }
+config = { workspace = true }
 
 # Utility
-chrono = { version = "0.4.31", features = ["serde"] }
-uuid = { version = "1.4.1", features = ["v4", "serde"] }
+chrono = { workspace = true }
+uuid = { workspace = true }
 
 # Error handling
-anyhow = "1.0.82"
-thiserror = "1.0.56"
+anyhow = { workspace = true }
+thiserror = { workspace = true }
 
 # Collections
-indexmap = { version = "2.0", features = ["serde"] }
+indexmap = { workspace = true }
 
 [dev-dependencies]
-tokio = { version = "1.44", features = ["rt-multi-thread", "macros", "test-util"] }
-serde_json = "1.0.116" 
+tokio = { workspace = true }
+serde_json = { workspace = true } 

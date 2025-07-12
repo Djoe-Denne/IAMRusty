@@ -1,7 +1,7 @@
 use super::PasswordService;
-use application::usecase::login::PasswordService as AppPasswordService;
+use iam_application::usecase::login::PasswordService as AppPasswordService;
 use async_trait::async_trait;
-use domain::service::auth_service::AuthError;
+use iam_domain::service::auth_service::AuthError;
 use std::sync::Arc;
 
 /// Adapter that bridges the application's PasswordService trait with the infrastructure implementation

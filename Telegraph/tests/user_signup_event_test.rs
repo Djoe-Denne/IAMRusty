@@ -10,7 +10,7 @@ mod common;
 use common::*;
 use iam_events::{IamDomainEvent, UserSignedUpEvent};
 use rustycog_events::event::BaseEvent;
-use domain::IamEventHandler;
+use telegraph_domain::IamEventHandler;
 use serial_test::serial;
 use uuid::Uuid;
 

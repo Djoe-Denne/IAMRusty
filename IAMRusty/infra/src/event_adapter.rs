@@ -5,9 +5,9 @@
 //! separation.
 
 use async_trait::async_trait;
-use domain::entity::events::DomainEvent as IAMDomainEvent;
-use domain::error::DomainError;
-use domain::port::event_publisher::EventPublisher;
+use iam_domain::entity::events::DomainEvent as IAMDomainEvent;
+use iam_domain::error::DomainError;
+use iam_domain::port::event_publisher::EventPublisher;
 use rustycog_config::{KafkaConfig, QueueConfig};
 use rustycog_core::error::ServiceError;
 use rustycog_events::{
@@ -167,7 +167,7 @@ impl RustycogDomainEvent for IAMDomainEventAdapter {
         let mut metadata = HashMap::new();
 
         // Add common metadata
-        metadata.insert("source".to_string(), "iam-rusty".to_string());
+        metadata.insert("source".to_string(), "iam_rusty".to_string());
         metadata.insert("version".to_string(), "1".to_string());
 
         // Add event-specific metadata

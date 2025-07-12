@@ -1,13 +1,13 @@
 [package]
-name = "http_server"
+name = "iam-http_server"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 # Internal crates
-domain = { path = "../domain" }
-application = { path = "../application" }
-configuration = { path = "../configuration" }
+iam-domain = { path = "../domain" }
+iam-application = { path = "../application" }
+iam-configuration = { path = "../configuration" }
 rustycog-http = { path = "../../rustycog/rustycog-http" }
 
 # Web & HTTP

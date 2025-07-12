@@ -8,7 +8,7 @@ mod utils;
 use chrono::{Duration, Utc};
 use common::{create_test_client, setup_test_server};
 use fixtures::{DbFixtures, GitHubFixtures, GitLabFixtures};
-use infra::auth::PasswordService;
+use iam_infra::auth::PasswordService;
 use reqwest::Client;
 use sea_orm::{ConnectionTrait, DatabaseBackend, Statement};
 use serde_json::{Value, json};

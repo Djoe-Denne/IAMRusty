@@ -7,7 +7,7 @@ mod utils;
 
 use base64::{Engine as _, engine::general_purpose};
 use utils::jwt::{create_expired_registration_token_with_encoder, create_valid_jwt_token_with_encoder};
-use configuration::{load_config_part, JwtConfig};
+use iam_configuration::{load_config_part, JwtConfig};
 use common::setup_test_server;
 use fixtures::{DbFixtures, GitHubFixtures};
 use sea_orm::ConnectionTrait;

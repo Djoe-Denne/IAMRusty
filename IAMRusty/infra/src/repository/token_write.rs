@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use chrono::Utc;
-use domain::entity::provider::{Provider, ProviderTokens};
-use domain::port::repository::TokenWriteRepository;
+use iam_domain::entity::provider::{Provider, ProviderTokens};
+use iam_domain::port::repository::TokenWriteRepository;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, Set,
 };

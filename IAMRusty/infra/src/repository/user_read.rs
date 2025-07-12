@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use domain::entity::{provider::Provider, user::User as DomainUser};
-use domain::port::repository::UserReadRepository;
+use iam_domain::entity::{provider::Provider, user::User as DomainUser};
+use iam_domain::port::repository::UserReadRepository;
 use sea_orm::{ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter};
 use std::sync::Arc;
 use tracing::debug;

@@ -1,5 +1,5 @@
 use crate::{error::ApiError, validation::*};
-use application::command::{token::RefreshTokenCommand, CommandContext};
+use iam_application::command::{token::RefreshTokenCommand, CommandContext};
 use axum::{extract::State, Json};
 use axum_valid::Valid;
 use serde::{Deserialize, Serialize};

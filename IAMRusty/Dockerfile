@@ -10,7 +10,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /usr/src
 
-# Copy only the source code and manifests, not build artifacts
+# Copy shared dependencies
+COPY iam-events iam-events/
+
+# Copy rustycog workspace
 COPY rustycog/Cargo.toml rustycog/
 COPY rustycog/rustycog-core rustycog/rustycog-core/
 COPY rustycog/rustycog-events rustycog/rustycog-events/

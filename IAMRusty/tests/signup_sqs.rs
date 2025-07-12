@@ -4,7 +4,7 @@ mod common;
 mod fixtures;
 
 use common::{IAMRustyTestDescriptor, TestFixture, TestSqsFixture, setup_test_server};
-use configuration;
+use iam_configuration;
 use serde_json::{Value, json};
 use serial_test::serial;
 use std::sync::Arc;
@@ -26,10 +26,10 @@ async fn test_signup_sqs_integration() {
     println!("🔧 Queue URL: {}", sqs_fixture.sqs.queue_url);
 
     // Clear configuration cache and restart with test environment
-    configuration::clear_config_cache();
+    iam_domain::clear_config_cache();
 
     // Load configuration
-    let config = configuration::load_config().expect("Should load config");
+    let config = iam_domain::load_config().expect("Should load config");
 
     // Setup database fixture
     let _db_fixture = TestFixture::new(Arc::new(IAMRustyTestDescriptor))
@@ -50,7 +50,7 @@ async fn test_signup_sqs_integration() {
 
     // Verify SQS configuration
     match &config.queue {
-        configuration::QueueConfig::Sqs(sqs_config) => {
+        iam_domain::QueueConfig::Sqs(sqs_config) => {
             println!(
                 "🔧 SQS config - enabled: {}, endpoint: {}, region: {}",
                 sqs_config.enabled,

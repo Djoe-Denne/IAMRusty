@@ -8,7 +8,7 @@ pub mod user_emails;
 pub mod users;
 
 // Re-export all fixtures for easy access
-use infra::auth::PasswordService;
+use iam_infra::auth::PasswordService;
 use sea_orm::{DatabaseConnection, DbErr};
 use std::sync::Arc;
 use uuid::Uuid;

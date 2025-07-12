@@ -1,6 +1,6 @@
 use async_trait::async_trait;
-use domain::entity::token::RefreshToken as DomainRefreshToken;
-use domain::port::repository::RefreshTokenWriteRepository;
+use iam_domain::entity::token::RefreshToken as DomainRefreshToken;
+use iam_domain::port::repository::RefreshTokenWriteRepository;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, Set,
 };

@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use tracing::info;
 
-use domain::{
+use telegraph_domain::{
     DomainError, CommunicationService, MessageDelivery,
     CommunicationMessage, MessageRecipient, MessageContent
 };

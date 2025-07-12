@@ -3,7 +3,7 @@ use crate::{
 };
 use rustycog_http::AppState;
 use rustycog_http::{ValidatedJson, AuthUser};
-use application::command::{
+use iam_application::command::{
     password_reset::{
         RequestPasswordResetCommand, ValidateResetTokenCommand,
         ResetPasswordUnauthenticatedCommand, ResetPasswordAuthenticatedCommand,

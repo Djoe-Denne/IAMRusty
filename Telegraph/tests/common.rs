@@ -3,17 +3,17 @@
 //! Provides test infrastructure following rustycog-testing patterns
 //! and Telegraph-specific test setup
 
-use configuration::TelegraphConfig;
+use telegraph_configuration::TelegraphConfig;
 use std::sync::Arc;
 use rustycog_events::{ConcreteEventPublisher, create_event_publisher_from_queue_config, create_sqs_event_publisher, EventPublisher, DomainEvent};
 use rustycog_config::QueueConfig;
 use rustycog_core::error::ServiceError;
 use async_trait::async_trait;
-use infra::{
+use telegraph_infra::{
     communication::{MockEmailAdapter, SmsAdapter, NotificationAdapter},
     event::EventConsumer,
 };
-use domain::{EmailService, SmsService, NotificationService, IamEventHandler};
+use telegraph_domain::{EmailService, SmsService, NotificationService, IamEventHandler};
 
 /// Custom test event publisher that routes events directly to the consumer
 pub struct TestEventPublisher {
@@ -108,8 +108,8 @@ impl TelegraphTestFixture {
     }
     
     /// Process an event directly through the event consumer (for testing)
-    pub async fn process_event_directly(&self, event: &iam_events::IamDomainEvent) -> Result<(), domain::DomainError> {
-        use domain::IamEventHandler;
+    pub async fn process_event_directly(&self, event: &iam_events::IamDomainEvent) -> Result<(), telegraph_domain::DomainError> {
+        use telegraph_domain::IamEventHandler;
         self.event_consumer.handle_event(event).await
     }
     
@@ -137,7 +137,7 @@ pub async fn setup_telegraph_test_server() -> Result<(TelegraphTestFixture, Arc<
     // Create event consumer using the same logic as app.rs
     let event_consumer = Arc::new(
         EventConsumer::new(
-            &config.queue,
+            config.clone(),
             email_service.clone(),
             sms_service.clone(),
             notification_service.clone(),

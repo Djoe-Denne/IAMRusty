@@ -1,7 +1,7 @@
 //! SMS communication adapter
 
 use async_trait::async_trait;
-use domain::{DomainError, SmsService};
+use telegraph_domain::{DomainError, SmsService};
 use aws_sdk_sns::{Client as SnsClient, Config as SnsConfig};
 use aws_config::{BehaviorVersion, Region};
 use aws_credential_types::Credentials;

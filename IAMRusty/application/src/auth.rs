@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use domain::entity::provider::{Provider, ProviderTokens, ProviderUserProfile};
+use iam_domain::entity::provider::{Provider, ProviderTokens, ProviderUserProfile};
 
 /// Authentication service error
 #[derive(Debug, thiserror::Error)]

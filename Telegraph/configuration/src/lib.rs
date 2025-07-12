@@ -9,8 +9,10 @@ use indexmap::IndexMap;
 
 use rustycog_config::{
     ConfigLoader, HasServerConfig, HasLoggingConfig, HasQueueConfig, 
-    ServerConfig, LoggingConfig, QueueConfig, ConfigError
+    LoggingConfig, QueueConfig, ConfigError, load_config_fresh
 };
+
+pub use rustycog_config::{ServerConfig, setup_logging};
 
 /// Main Telegraph service configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -401,3 +403,10 @@ impl TelegraphConfig {
             .collect()
     }
 } 
+
+/// Load configuration from environment and config files
+/// This function caches the configuration to ensure consistent behavior,
+/// especially for random port generation in database configuration.
+pub fn load_config() -> Result<TelegraphConfig, ConfigError> {
+    load_config_fresh::<TelegraphConfig>()
+}

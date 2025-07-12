@@ -1,10 +1,10 @@
 use async_trait::async_trait;
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use chrono::{Duration, Utc};
-use configuration;
-use domain::entity::token::{Jwk, JwkSet, JwtKeyPair, JwtToken, RefreshToken, TokenClaims};
-use domain::error::DomainError;
-use domain::port::service::{AuthTokenService, JwtTokenEncoder};
+
+use iam_domain::entity::token::{Jwk, JwkSet, JwtKeyPair, JwtToken, RefreshToken, TokenClaims};
+use iam_domain::error::DomainError;
+use iam_domain::port::service::{AuthTokenService, JwtTokenEncoder};
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use rand::Rng;
 use rsa::{pkcs8::DecodePublicKey, traits::PublicKeyParts, RsaPublicKey};
@@ -41,18 +41,7 @@ pub enum JwtAlgorithm {
     HS256(String),
 }
 
-impl From<configuration::JwtAlgorithm> for JwtAlgorithm {
-    fn from(config_alg: configuration::JwtAlgorithm) -> Self {
-        match config_alg {
-            configuration::JwtAlgorithm::HS256(secret) => Self::HS256(secret),
-            configuration::JwtAlgorithm::RS256(key_pair) => Self::RS256(JwtKeyPair {
-                private_key: key_pair.private_key,
-                public_key: key_pair.public_key,
-                kid: key_pair.kid,
-            }),
-        }
-    }
-}
+
 
 /// Unified JWT token service that handles both encoding/decoding and token management
 #[derive(Clone)]

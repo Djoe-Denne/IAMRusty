@@ -1,12 +1,12 @@
 //! Composite communication service implementation
 
 use async_trait::async_trait;
-use domain::{
+use telegraph_domain::{
     DomainError, CommunicationService, EmailService, SmsService, NotificationService,
     CommunicationMessage, MessageDelivery, CommunicationMode, MessageContent
 };
-use domain::port::EmailAttachment as PortEmailAttachment;
-use domain::entity::EmailAttachment as EntityEmailAttachment;
+use telegraph_domain::port::EmailAttachment as PortEmailAttachment;
+use telegraph_domain::entity::EmailAttachment as EntityEmailAttachment;
 use std::sync::Arc;
 use tracing::{info, error};
 

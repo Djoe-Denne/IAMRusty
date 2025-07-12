@@ -5,7 +5,7 @@ mod common;
 mod fixtures;
 mod utils;
 
-use configuration::{JwtConfig, load_config_part};
+use iam_configuration::{JwtConfig, load_config_part};
 use common::setup_test_server;
 use fixtures::DbFixtures;
 use sea_orm::ConnectionTrait;

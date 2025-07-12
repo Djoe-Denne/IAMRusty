@@ -7,7 +7,7 @@ mod utils;
 
 use common::setup_test_server;
 use fixtures::DbFixtures;
-use infra::auth::PasswordService;
+use iam_infra::auth::PasswordService;
 use reqwest::Client;
 use sea_orm::ConnectionTrait;
 use serde_json::{Value, json};

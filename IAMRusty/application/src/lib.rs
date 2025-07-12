@@ -9,4 +9,4 @@ pub mod dto;
 pub mod usecase;
 
 // Re-export configuration for backward compatibility
-pub use configuration::*;
+pub use iam_configuration::*;
