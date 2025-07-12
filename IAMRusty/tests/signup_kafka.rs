@@ -3,10 +3,13 @@ mod common;
 #[path = "fixtures/mod.rs"]
 mod fixtures;
 
-use common::{IAMRustyTestDescriptor, TestFixture, TestKafkaFixture, setup_test_server};
-use iam_configuration;
-use serde_json::{Value, json};
 use serial_test::serial;
+use serde_json::{json, Value};
+use common::*;
+
+use iam_configuration::{clear_config_cache, load_config};
+use iam_configuration;
+use rustycog_testing::TestKafkaFixture;
 use std::sync::Arc;
 
 // 🔥 Kafka Integration Test
@@ -26,10 +29,10 @@ async fn test_signup_kafka_integration() {
     println!("🔧 Topic: {}", kafka_fixture.kafka.topic);
 
     // Clear configuration cache and restart with test environment
-    iam_domain::clear_config_cache();
+    clear_config_cache();
 
     // Load configuration
-    let config = iam_domain::load_config().expect("Should load config");
+    let config = load_config().expect("Should load config");
 
     // Setup database fixture
     let _db_fixture = TestFixture::new(Arc::new(IAMRustyTestDescriptor))

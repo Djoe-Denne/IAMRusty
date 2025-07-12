@@ -126,7 +126,7 @@ impl OAuthTestUtils {
         // Verify redirect_uri contains correct callback path
         let redirect_uri = params.get("redirect_uri").unwrap();
         assert!(
-            redirect_uri.contains(&format!("/api/auth/{}/callback", provider)),
+            redirect_uri.contains(&format!("/oauth/{}/callback", provider)),
             "redirect_uri should point to correct callback endpoint for provider '{}'",
             provider
         );

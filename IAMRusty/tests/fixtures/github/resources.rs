@@ -106,7 +106,7 @@ impl GitHubAuthRequest {
     pub fn standard() -> Self {
         Self {
             client_id: "test_client_id".to_string(),
-            redirect_uri: "http://127.0.0.1:8081/api/auth/github/callback".to_string(),
+            redirect_uri: "http://127.0.0.1:8081/oauth/github/callback".to_string(),
             scope: "user:email".to_string(),
             state: "test_state_12345".to_string(),
             response_type: "code".to_string(),
@@ -117,7 +117,7 @@ impl GitHubAuthRequest {
     pub fn login_flow() -> Self {
         Self {
             client_id: "test_client_id".to_string(),
-            redirect_uri: "http://127.0.0.1:8081/api/auth/github/callback".to_string(),
+            redirect_uri: "http://127.0.0.1:8081/oauth/github/callback".to_string(),
             scope: "user:email".to_string(),
             state: "login_state_67890".to_string(),
             response_type: "code".to_string(),
@@ -128,7 +128,7 @@ impl GitHubAuthRequest {
     pub fn linking_flow() -> Self {
         Self {
             client_id: "test_client_id".to_string(),
-            redirect_uri: "http://127.0.0.1:8081/api/auth/github/callback".to_string(),
+            redirect_uri: "http://127.0.0.1:8081/oauth/github/callback".to_string(),
             scope: "user:email".to_string(),
             state: "link_state_99999".to_string(),
             response_type: "code".to_string(),

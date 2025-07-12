@@ -4,7 +4,7 @@ mod common;
 #[path = "fixtures/mod.rs"]
 mod fixtures;
 
-use iam_configuration::usecase::login::PasswordService as AppPasswordService;
+use iam_application::usecase::login::PasswordService as AppPasswordService;
 use base64::{Engine as _, engine::general_purpose};
 use common::setup_test_server;
 use fixtures::{DbFixtures, GitHubFixtures};
@@ -392,8 +392,8 @@ async fn test_login_completed_user_returns_200_with_tokens() {
     let db = _fixture.db();
 
     // Hash the password using the password service
-    let password_service = Arc::new(infra::auth::PasswordService::new());
-    let password_adapter = infra::auth::PasswordServiceAdapter::new(password_service);
+    let password_service = Arc::new(iam_infra::auth::PasswordService::new());
+    let password_adapter = iam_infra::auth::PasswordServiceAdapter::new(password_service);
     let password_hash = password_adapter
         .hash_password("validPassword123")
         .await
@@ -473,8 +473,8 @@ async fn test_login_incomplete_user_returns_423_with_registration_token() {
     let db = _fixture.db();
 
     // Hash the password using the password service
-    let password_service = Arc::new(infra::auth::PasswordService::new());
-    let password_adapter = infra::auth::PasswordServiceAdapter::new(password_service);
+    let password_service = Arc::new(iam_infra::auth::PasswordService::new());
+    let password_adapter = iam_infra::auth::PasswordServiceAdapter::new(password_service);
     let password_hash = password_adapter
         .hash_password("validPassword123")
         .await
@@ -543,8 +543,8 @@ async fn test_login_invalid_credentials_returns_401() {
     let db = _fixture.db();
 
     // Hash the password using the password service
-    let password_service = Arc::new(infra::auth::PasswordService::new());
-    let password_adapter = infra::auth::PasswordServiceAdapter::new(password_service);
+    let password_service = Arc::new(iam_infra::auth::PasswordService::new());
+    let password_adapter = iam_infra::auth::PasswordServiceAdapter::new(password_service);
     let password_hash = password_adapter
         .hash_password("correctPassword123")
         .await

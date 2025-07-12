@@ -1,17 +1,18 @@
-// Re-export everything from rustycog-testing for backward compatibility
+// Test utilities from rustycog-testing
 pub use rustycog_testing::*;
-
-// Specific re-exports for commonly used functions
 pub use rustycog_testing::{
-    create_test_client, 
+    common::*,
+    db::*,
+    create_test_client,
     TestFixture,
     TestKafkaFixture,
     TestSqsFixture,
-    MockEventPublisher,
-    ServiceTestDescriptor,
-}; 
+};
 
-use migration::{Migrator, MigratorTrait};
+// Migration crate import - use the correct crate name
+use iammigration::{Migrator, MigratorTrait};
+
+// IAM imports
 use iam_setup::app::{build_app_state_with_event_publisher, build_and_run};
 use iam_infra::event_adapter::{MultiQueueEventPublisher, IAMEventPublisherAdapter, IAMEventAdapter, IAMErrorMapper};
 use iam_configuration::{AppConfig, ServerConfig};

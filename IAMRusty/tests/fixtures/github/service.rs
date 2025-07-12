@@ -186,7 +186,7 @@ impl GitHubService {
     /// Setup successful OAuth authorization flow
     pub async fn setup_successful_oauth_authorization(&self) -> &Self {
         // Mock the authorization endpoint that redirects back with a code
-        let callback_url = "http://127.0.0.1:8081/api/auth/github/callback?code=auth_code_from_github&state=login_state_67890";
+        let callback_url = "http://127.0.0.1:8081/oauth/github/callback?code=auth_code_from_github&state=login_state_67890";
 
         self.oauth_authorize(
             302, // Temporary redirect
