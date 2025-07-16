@@ -1,46 +1,8 @@
-FROM rust:1.87-slim as builder
+# Get build image argument
+ARG BUILD_IMAGE=local/build-artifacts:latest
 
-# Install build dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    cmake \
-    pkg-config \
-    libssl-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /usr/src
-
-# Copy shared dependencies
-COPY iam-events iam-events/
-
-# Copy rustycog workspace
-COPY rustycog/Cargo.toml rustycog/
-COPY rustycog/rustycog-core rustycog/rustycog-core/
-COPY rustycog/rustycog-events rustycog/rustycog-events/
-COPY rustycog/rustycog-http rustycog/rustycog-http/
-COPY rustycog/rustycog-command rustycog/rustycog-command/
-COPY rustycog/rustycog-config rustycog/rustycog-config/
-COPY rustycog/rustycog-db rustycog/rustycog-db/
-COPY rustycog/rustycog-server rustycog/rustycog-server/
-COPY rustycog/rustycog-testing rustycog/rustycog-testing/
-
-# Copy IAMRusty source files only (exclude target directory)
-COPY IAMRusty/Cargo.toml IAMRusty/Cargo.lock IAMRusty/
-COPY IAMRusty/domain IAMRusty/domain/
-COPY IAMRusty/application IAMRusty/application/
-COPY IAMRusty/infra IAMRusty/infra/
-COPY IAMRusty/http IAMRusty/http/
-COPY IAMRusty/migration IAMRusty/migration/
-COPY IAMRusty/setup IAMRusty/setup/
-COPY IAMRusty/configuration IAMRusty/configuration/
-COPY IAMRusty/src IAMRusty/src/
-
-# Set working directory to IAMRusty
-WORKDIR /usr/src/IAMRusty
-
-# Build the application and migration tool
-RUN cargo build --release --features test-mode
-RUN cd migration && cargo build --release
+# Copy artifacts from build image
+FROM ${BUILD_IMAGE} as build-source
 
 # Final stage - minimal runtime image
 FROM debian:bookworm-slim
@@ -54,8 +16,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy the binaries from the builder stage
-COPY --from=builder /usr/src/IAMRusty/target/release/iam-service /app/iam-service
-COPY --from=builder /usr/src/IAMRusty/target/release/migration /app/migration
+COPY --from=build-source /app/target/release/iam-service /app/iam-service
+COPY --from=build-source /app/target/release/iammigration /app/migration
 
 # Copy entrypoint script
 COPY IAMRusty/docker-entrypoint.sh /app/docker-entrypoint.sh

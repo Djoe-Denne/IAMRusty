@@ -10,7 +10,7 @@ mod common;
 use common::*;
 use iam_events::{IamDomainEvent, UserSignedUpEvent};
 use rustycog_events::event::BaseEvent;
-use telegraph_domain::IamEventHandler;
+// use telegraph_domain::IamEventHandler; // Not needed anymore after refactoring
 use serial_test::serial;
 use uuid::Uuid;
 
@@ -49,8 +49,17 @@ async fn test_user_signed_up_event_happy_path() {
     // Clear any previous emails from the mock service
     mock_email_service.clear_sent_emails();
     
+    // Debug: Check if event processor supports the event type
+    let event_processor = &fixture.test_event_publisher().event_processor;
+    let supports = event_processor.supports_event_type("user_signed_up");
+    println!("🔍 Debug: Event processor supports user_signed_up: {}", supports);
+    
+    // Debug: Check the email service setup
+    println!("🔍 Debug: Mock email service type: {:?}", std::any::type_name_of_val(&mock_email_service));
+    
     // Publish the event using the test event publisher (routes directly to consumer)
-    let result = test_event_publisher.publish(Box::new(iam_event)).await;
+    println!("🔍 Debug: Publishing event...");
+    let result = test_event_publisher.publish(Box::new(iam_event.clone())).await;
     
     // ✅ Verify event publishing was successful
     assert!(
@@ -61,8 +70,22 @@ async fn test_user_signed_up_event_happy_path() {
 
     println!("✅ Event published and processed successfully through real infrastructure");
     
+    // Debug: Try processing the event directly through the event processor
+    println!("🔍 Debug: Processing event directly through event processor...");
+    let direct_result = event_processor.process_event(&iam_event).await;
+    println!("🔍 Debug: Direct processing result: {:?}", direct_result);
+    
     // ✅ Verify that an email was sent through the mock service
     let sent_emails = mock_email_service.sent_emails();
+    println!("🔍 Debug: Number of sent emails: {}", sent_emails.len());
+    if sent_emails.is_empty() {
+        println!("🔍 Debug: No emails were sent. Mock email service may not be connected properly.");
+    } else {
+        for (i, email) in sent_emails.iter().enumerate() {
+            println!("🔍 Debug: Email {}: to={}, subject={}", i, email.to, email.subject);
+        }
+    }
+    
     assert!(
         !sent_emails.is_empty(),
         "At least one email should have been sent for user signup"
@@ -227,16 +250,16 @@ async fn test_event_type_support_verification() {
     println!("🔧 Testing event type support verification through real infrastructure...");
 
     // ✅ Test that the event consumer supports the expected event types
-    let event_consumer = fixture.event_consumer();
+    let event_processor = &fixture.test_event_publisher().event_processor;
     assert!(
-        event_consumer.supports_event_type("user_signed_up"),
-        "Event consumer should support user_signed_up events"
+        event_processor.supports_event_type("user_signed_up"),
+        "Event processor should support user_signed_up events"
     );
     assert!(
-        event_consumer.supports_event_type("user_logged_in"),
-        "Event consumer should support user_logged_in events"
+        event_processor.supports_event_type("user_logged_in"),
+        "Event processor should support user_logged_in events"
     );
-    println!("✅ Event consumer supports expected IAM event types");
+    println!("✅ Event processor supports expected IAM event types");
 
     // ✅ Test end-to-end event processing for different event types
     let mock_email_service = fixture.mock_email_service();

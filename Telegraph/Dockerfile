@@ -1,50 +1,28 @@
-# Build stage
-FROM rust:1.87-alpine AS builder
+# Get build image argument
+ARG BUILD_IMAGE=local/build-artifacts:latest
 
-# Install dependencies
-RUN apk add --no-cache \
-    musl-dev \
-    openssl-dev \
-    openssl-libs-static \
-    cmake \
-    g++ \
-    make \
-    pkgconfig
+# Copy artifacts from build image
+FROM ${BUILD_IMAGE} as build-source
 
-# Set working directory
-WORKDIR /usr/src/app
-
-# Copy shared dependencies
-COPY iam-events ./iam-events
-
-# Copy rustycog workspace  
-COPY rustycog ./rustycog
-
-# Copy Telegraph workspace
-COPY Telegraph ./Telegraph
-
-# Build the application
-WORKDIR /usr/src/app/Telegraph
-RUN cargo build --release
-
-# Runtime stage
-FROM alpine:3.18
+# Final stage - minimal runtime image
+FROM debian:bookworm-slim
 
 # Install runtime dependencies
-RUN apk add --no-cache \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
-    libgcc \
-    curl
+    libssl-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
 # Create app user and directory
-RUN adduser -D -s /bin/sh appuser
+RUN adduser --disabled-password --gecos "" appuser
 WORKDIR /app
 
-# Copy the binary
-COPY --from=builder /usr/src/app/Telegraph/target/release/telegraph-service /app/telegraph-service
+# Copy the binary from builder stage
+COPY --from=build-source /app/target/release/telegraph-service /app/telegraph-service
 
 # Copy configuration files
-COPY --from=builder /usr/src/app/Telegraph/config /app/config
+COPY Telegraph/config /app/config
 
 # Change ownership
 RUN chown -R appuser:appuser /app

@@ -52,14 +52,18 @@ impl TelegraphApp {
             )
         );
         
-        // Create event consumer
-        let event_consumer = Arc::new(
-            EventConsumer::new(
-                self.config.clone(),
+        // Create event processor
+        let event_processor = Arc::new(
+            telegraph_infra::event::processors::CompositeEventProcessor::with_all_processors(
                 email_service.clone(),
                 sms_service.clone(),
                 notification_service.clone(),
             )
+        );
+        
+        // Create event consumer
+        let event_consumer = Arc::new(
+            EventConsumer::new(self.config.clone())
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to create event consumer: {}", e))?
         );
@@ -73,7 +77,7 @@ impl TelegraphApp {
         
         // Start event consumer
         info!("🚀 Starting event consumer");
-        event_consumer.start().await
+        event_consumer.start(event_processor).await
             .map_err(|e| anyhow::anyhow!("Failed to start event consumer: {}", e))?;
         
         info!("✅ Telegraph service started successfully and is processing events");

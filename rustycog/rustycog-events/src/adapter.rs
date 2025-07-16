@@ -49,6 +49,7 @@ impl<TEvent, TError> GenericEventPublisherAdapter<TEvent, TError> {
     /// Publish a single event
     pub async fn publish(&self, event: TEvent) -> Result<(), TError> {
         let rustycog_event = self.event_adapter.adapt_event(event);
+        tracing::info!("Publishing event: {:?}", rustycog_event);
         
         self.inner
             .publish(rustycog_event)

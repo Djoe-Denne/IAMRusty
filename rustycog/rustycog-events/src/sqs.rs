@@ -61,13 +61,18 @@ impl SqsEventPublisher {
 
     /// Serialize domain event to SQS message body
     fn serialize_event(&self, event: &dyn DomainEvent) -> Result<String, ServiceError> {
+        // Get the event JSON and parse it back to a Value so it's properly structured in the data field
+        let event_json_str = event.to_json()?;
+        let event_data: serde_json::Value = serde_json::from_str(&event_json_str)
+            .map_err(|e| ServiceError::infrastructure(format!("Failed to parse event JSON: {}", e)))?;
+
         let message_body = json!({
             "event_id": event.event_id(),
             "event_type": event.event_type(),
             "aggregate_id": event.aggregate_id(),
             "occurred_at": event.occurred_at(),
             "version": event.version(),
-            "data": event.to_json()?,
+            "data": event_data,
             "metadata": event.metadata()
         });
 

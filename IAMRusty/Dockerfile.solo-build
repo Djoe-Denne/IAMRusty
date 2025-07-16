@@ -1,0 +1,18 @@
+FROM rust:1.87-slim as builder
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    cmake \
+    pkg-config \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /usr/src
+
+# Copy entire workspace (for efficient dependency building)
+COPY . .
+
+# Build IAMRusty service and migration tool
+RUN cargo build --release --bin iam-service --features test-mode
+RUN cargo build --release --bin iammigration

@@ -1,6 +1,20 @@
 version: '3.8'
 
 services:
+  # Build stage: create an image with compiled artifacts
+  build-artifacts:
+    build:
+      context: .
+      dockerfile: Dockerfile.build
+      target: artifacts  # We'll modify Dockerfile.build to have this target
+    image: local/build-artifacts:latest
+    volumes:
+      - ./docker-build-stage:/usr/src/target
+    environment:
+      - RUST_ENVIRONMENT=development
+    networks:
+      - aiforall-network
+    
   # Shared Infrastructure
   postgres:
     image: postgres:15-alpine
@@ -64,6 +78,8 @@ services:
         condition: service_healthy
       localstack:
         condition: service_healthy
+      build-artifacts:
+        condition: service_completed_successfully
     networks:
       - aiforall-network
 
@@ -81,6 +97,8 @@ services:
     depends_on:
       localstack:
         condition: service_healthy
+      build-artifacts:
+        condition: service_completed_successfully
     networks:
       - aiforall-network
 
