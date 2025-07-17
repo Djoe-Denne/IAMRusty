@@ -59,6 +59,10 @@ pub struct EventConfig {
     /// Communication modes to use for this event (notification, email, sms, etc.)
     pub modes: Vec<String>,
     
+    /// Template name prefix for this event (e.g., "user_signed_up")
+    #[serde(default)]
+    pub template: Option<String>,
+    
     /// Additional event-specific settings
     #[serde(default)]
     pub settings: HashMap<String, String>,
@@ -78,6 +82,10 @@ pub struct CommunicationConfig {
     /// SMS service configuration
     #[serde(default)]
     pub sms: SmsConfig,
+    
+    /// Template service configuration
+    #[serde(default)]
+    pub template: TemplateConfig,
 }
 
 /// Email service configuration
@@ -232,6 +240,34 @@ pub struct TwilioConfig {
     pub from_number: String,
 }
 
+/// Template service configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TemplateConfig {
+    /// Whether template service is enabled
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    
+    /// Template directory path
+    #[serde(default = "default_template_dir")]
+    pub template_dir: String,
+    
+    /// Template file extensions for different formats
+    #[serde(default)]
+    pub extensions: TemplateExtensions,
+}
+
+/// Template file extensions configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TemplateExtensions {
+    /// Extension for HTML email templates
+    #[serde(default = "default_html_extension")]
+    pub html: String,
+    
+    /// Extension for plain text email templates
+    #[serde(default = "default_text_extension")]
+    pub text: String,
+}
+
 // Default value functions
 fn default_true() -> bool { true }
 fn default_email_provider() -> String { "dummy".to_string() }
@@ -242,6 +278,9 @@ fn default_smtp_port() -> u16 { 587 }
 fn default_notification_provider() -> String { "dummy".to_string() }
 fn default_sms_provider() -> String { "dummy".to_string() }
 fn default_mailjet_version() -> String { "v3".to_string() }
+fn default_template_dir() -> String { "templates".to_string() }
+fn default_html_extension() -> String { "html".to_string() }
+fn default_text_extension() -> String { "txt".to_string() }
 
 // Default implementations
 impl Default for TelegraphConfig {
@@ -270,6 +309,7 @@ impl Default for EventConfig {
     fn default() -> Self {
         Self {
             modes: vec!["notification".to_string()],
+            template: None,
             settings: HashMap::new(),
         }
     }
@@ -281,6 +321,7 @@ impl Default for CommunicationConfig {
             email: EmailConfig::default(),
             notification: NotificationConfig::default(),
             sms: SmsConfig::default(),
+            template: TemplateConfig::default(),
         }
     }
 }
@@ -367,6 +408,25 @@ impl Default for TwilioConfig {
             account_sid: String::new(),
             auth_token: String::new(),
             from_number: String::new(),
+        }
+    }
+}
+
+impl Default for TemplateConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_true(),
+            template_dir: default_template_dir(),
+            extensions: TemplateExtensions::default(),
+        }
+    }
+}
+
+impl Default for TemplateExtensions {
+    fn default() -> Self {
+        Self {
+            html: default_html_extension(),
+            text: default_text_extension(),
         }
     }
 }

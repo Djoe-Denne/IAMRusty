@@ -25,6 +25,18 @@ pub enum DomainError {
     #[error("Message template not found: {0}")]
     TemplateNotFound(String),
     
+    /// Template loading error
+    #[error("Template load error: {0}")]
+    TemplateLoadError(String),
+    
+    /// Template rendering error
+    #[error("Template render error: {0}")]
+    TemplateRenderError(String),
+    
+    /// Operation not supported
+    #[error("Operation not supported: {0}")]
+    OperationNotSupported(String),
+    
     /// Communication mode not supported
     #[error("Communication mode not supported: {0}")]
     UnsupportedMode(String),
@@ -82,6 +94,21 @@ impl DomainError {
     /// Create a template not found error
     pub fn template_not_found(template: impl Into<String>) -> Self {
         Self::TemplateNotFound(template.into())
+    }
+    
+    /// Create a template load error
+    pub fn template_load_error(msg: impl Into<String>) -> Self {
+        Self::TemplateLoadError(msg.into())
+    }
+    
+    /// Create a template render error
+    pub fn template_render_error(msg: impl Into<String>) -> Self {
+        Self::TemplateRenderError(msg.into())
+    }
+    
+    /// Create an operation not supported error
+    pub fn operation_not_supported(msg: impl Into<String>) -> Self {
+        Self::OperationNotSupported(msg.into())
     }
     
     /// Create an unsupported mode error

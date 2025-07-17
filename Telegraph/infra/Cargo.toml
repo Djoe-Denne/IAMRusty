@@ -53,6 +53,9 @@ tokio = { workspace = true }
 # Email
 lettre = { workspace = true }
 
+# Templating
+tera = "1.19"
+
 # AWS SDK for SES and SNS
 aws-config = { workspace = true }
 aws-sdk-ses = { workspace = true }

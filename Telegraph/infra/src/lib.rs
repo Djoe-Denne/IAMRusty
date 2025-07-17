@@ -1,14 +1,14 @@
-//! # Telegraph Infrastructure
+//! Telegraph Infrastructure Layer
 //! 
-//! Infrastructure layer for the Telegraph communication service.
-//! This crate contains adapters for external services like email,
-//! SMS, push notifications, and event queues.
+//! This crate provides infrastructure implementations for the Telegraph communication service.
 
 pub mod communication;
 pub mod event;
 pub mod repository;
+pub mod template;
 
-// Re-export commonly used types
+// Re-export all public interfaces
 pub use communication::*;
 pub use event::*;
-pub use repository::*; 
+pub use repository::*;
+pub use template::*; 

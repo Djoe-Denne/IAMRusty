@@ -2,10 +2,11 @@
 
 use tracing::{info, error};
 use std::sync::Arc;
-use telegraph_domain::{EmailService, SmsService, NotificationService, CommunicationService};
+use telegraph_domain::{EmailService, SmsService, NotificationService, CommunicationService, TemplateService};
 use telegraph_infra::{
     communication::{EmailAdapter, SmsAdapter, NotificationAdapter, CompositeCommunicationService},
     event::EventConsumer,
+    template::TeraTemplateService,
 };
 use telegraph_application::usecase::CommunicationUseCase;
 
@@ -43,6 +44,12 @@ impl TelegraphApp {
             NotificationAdapter::new_default()
         );
         
+        // Create template service
+        let template_service: Arc<dyn TemplateService> = Arc::new(
+            TeraTemplateService::new(self.config.communication.template.clone())
+                .map_err(|e| anyhow::anyhow!("Failed to create template service: {}", e))?
+        );
+        
         // Create composite communication service
         let communication_service: Arc<dyn CommunicationService> = Arc::new(
             CompositeCommunicationService::new(
@@ -56,6 +63,7 @@ impl TelegraphApp {
         let event_processor = Arc::new(
             telegraph_infra::event::processors::CompositeEventProcessor::with_all_processors(
                 email_service.clone(),
+                template_service.clone(),
                 sms_service.clone(),
                 notification_service.clone(),
             )

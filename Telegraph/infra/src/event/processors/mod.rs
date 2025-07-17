@@ -18,7 +18,7 @@ mod processor {
     //! Core processor definitions and composite processor
 
     use async_trait::async_trait;
-    use telegraph_domain::{DomainError, EmailService, SmsService, NotificationService};
+    use telegraph_domain::{DomainError, EmailService, SmsService, NotificationService, TemplateService};
     use iam_events::IamDomainEvent;
     use rustycog_events::DomainEvent;
     use std::sync::Arc;
@@ -60,11 +60,12 @@ mod processor {
         /// Create a composite processor with all communication types
         pub fn with_all_processors(
             email_service: Arc<dyn EmailService>,
+            template_service: Arc<dyn TemplateService>,
             sms_service: Arc<dyn SmsService>,
             notification_service: Arc<dyn NotificationService>,
         ) -> Self {
             Self::new()
-                .add_processor(Arc::new(EmailEventProcessor::new(email_service)))
+                .add_processor(Arc::new(EmailEventProcessor::new(email_service, template_service)))
                 .add_processor(Arc::new(SmsEventProcessor::new(sms_service)))
                 .add_processor(Arc::new(NotificationEventProcessor::new(notification_service)))
         }

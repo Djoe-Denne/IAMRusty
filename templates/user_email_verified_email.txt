@@ -1,0 +1,17 @@
+Hello!
+
+Great news! Your email address has been successfully verified.
+
+✓ Email: {{ email }}
+✓ User ID: {{ user_id }}
+✓ Verification Status: Complete
+
+Your Telegraph account is now fully active and you can enjoy all features of our platform.
+
+Thank you for verifying your email address!
+
+Best regards,
+The Telegraph Team
+
+---
+This email was sent to {{ email }}. If you have any questions, please contact our support team. 

@@ -43,13 +43,16 @@ events = ["user_signed_up", "password_reset_requested", "user_email_verified"]
 # Event-specific configuration for user_signed_up event
 [queues.test-user-events.user_signed_up]
 modes = ["email"]
+template = "user_signed_up"
 
 [queues.test-user-events.password_reset_requested]
 modes = ["email"]
+template = "password_reset_requested"
 
 # Event-specific configuration for user_email_verified event - creates database notification
 [queues.test-user-events.user_email_verified]
 modes = ["notification"]
+template = "user_email_verified"
 
 # Communication service configuration
 [communication.email]

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Verified Successfully</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
+        .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+        .success-box { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; padding: 20px; border-radius: 6px; margin: 20px 0; }
+        .verification-details { background: white; padding: 20px; border-radius: 6px; border-left: 4px solid #28a745; margin: 20px 0; }
+        .checkmark { color: #28a745; font-size: 18px; font-weight: bold; }
+        .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>✅ Email Verified Successfully!</h1>
+    </div>
+    
+    <div class="content">
+        <div class="success-box">
+            <h2>Great news!</h2>
+            <p>Your email address has been successfully verified.</p>
+        </div>
+        
+        <div class="verification-details">
+            <h3>Verification Details:</h3>
+            <ul>
+                <li><span class="checkmark">✓</span> <strong>Email:</strong> {{ email }}</li>
+                <li><span class="checkmark">✓</span> <strong>User ID:</strong> {{ user_id }}</li>
+                <li><span class="checkmark">✓</span> <strong>Verification Status:</strong> Complete</li>
+            </ul>
+        </div>
+        
+        <p>Your Telegraph account is now fully active and you can enjoy all features of our platform.</p>
+        
+        <p>Thank you for verifying your email address!</p>
+        
+        <p><strong>Best regards,</strong><br>The Telegraph Team</p>
+        
+        <div class="footer">
+            <p>This email was sent to {{ email }}. If you have any questions, please contact our support team.</p>
+        </div>
+    </div>
+</body>
+</html> 
