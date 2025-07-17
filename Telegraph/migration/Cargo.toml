@@ -1,0 +1,23 @@
+[package]
+name = "telegraph-migration"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "telegraphmigration"
+path = "src/lib.rs"
+
+[[bin]]
+name = "telegraphmigration"
+path = "src/main.rs"
+
+[dependencies]
+async-std = { version = "1", features = ["attributes", "tokio1"] }
+
+[dependencies.sea-orm-migration]
+version = "1.1.0"
+features = [
+  "runtime-tokio-rustls",  # `ASYNC_RUNTIME` feature
+  "sqlx-postgres",         # `DATABASE_DRIVER` feature
+] 

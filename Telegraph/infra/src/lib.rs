@@ -6,7 +6,9 @@
 
 pub mod communication;
 pub mod event;
+pub mod repository;
 
 // Re-export commonly used types
 pub use communication::*;
-pub use event::*; 
+pub use event::*;
+pub use repository::*; 

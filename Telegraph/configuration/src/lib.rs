@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use indexmap::IndexMap;
 
 use rustycog_config::{
-    ConfigLoader, HasServerConfig, HasLoggingConfig, HasQueueConfig, 
+    ConfigLoader, HasServerConfig, HasLoggingConfig, HasQueueConfig, HasDbConfig, DatabaseConfig,
     LoggingConfig, QueueConfig, ConfigError, load_config_fresh
 };
 
@@ -36,6 +36,10 @@ pub struct TelegraphConfig {
     /// Communication configuration
     #[serde(default)]
     pub communication: CommunicationConfig,
+
+    /// Database configuration
+    #[serde(default)]
+    pub database: DatabaseConfig,
 }
 
 /// Configuration for a specific queue and its events
@@ -83,13 +87,17 @@ pub struct EmailConfig {
     #[serde(default = "default_true")]
     pub enabled: bool,
     
-    /// Email service provider (dummy, smtp, ses, etc.)
+    /// Email service provider (dummy, smtp, ses, mailjet, etc.)
     #[serde(default = "default_email_provider")]
     pub provider: String,
     
     /// SMTP configuration (if using SMTP provider)
     #[serde(default)]
     pub smtp: SmtpConfig,
+    
+    /// Mailjet configuration (if using Mailjet provider)
+    #[serde(default)]
+    pub mailjet: MailjetConfig,
     
     /// Default from address
     #[serde(default = "default_from_email")]
@@ -122,6 +130,22 @@ pub struct SmtpConfig {
     /// SMTP password
     #[serde(default)]
     pub password: Option<String>,
+}
+
+/// Mailjet configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MailjetConfig {
+    /// Mailjet API public key 
+    #[serde(default)]
+    pub public_key: String,
+    
+    /// Mailjet API private key (MJ_APIKEY_PRIVATE)
+    #[serde(default)]
+    pub private_key: String,
+    
+    /// Mailjet API version (v3 or v3.1)
+    #[serde(default = "default_mailjet_version")]
+    pub version: String,
 }
 
 /// Push notification service configuration
@@ -217,6 +241,7 @@ fn default_smtp_host() -> String { "localhost".to_string() }
 fn default_smtp_port() -> u16 { 587 }
 fn default_notification_provider() -> String { "dummy".to_string() }
 fn default_sms_provider() -> String { "dummy".to_string() }
+fn default_mailjet_version() -> String { "v3".to_string() }
 
 // Default implementations
 impl Default for TelegraphConfig {
@@ -227,6 +252,7 @@ impl Default for TelegraphConfig {
             queue: QueueConfig::default(),
             queues: IndexMap::new(),
             communication: CommunicationConfig::default(),
+            database: DatabaseConfig::default(),
         }
     }
 }
@@ -265,6 +291,7 @@ impl Default for EmailConfig {
             enabled: default_true(),
             provider: default_email_provider(),
             smtp: SmtpConfig::default(),
+            mailjet: MailjetConfig::default(),
             from_address: default_from_email(),
             from_name: default_from_name(),
         }
@@ -279,6 +306,16 @@ impl Default for SmtpConfig {
             use_tls: false,
             username: None,
             password: None,
+        }
+    }
+}
+
+impl Default for MailjetConfig {
+    fn default() -> Self {
+        Self {
+            public_key: String::new(),
+            private_key: String::new(),
+            version: default_mailjet_version(),
         }
     }
 }
@@ -372,6 +409,16 @@ impl HasQueueConfig for TelegraphConfig {
     
     fn set_queue_config(&mut self, config: QueueConfig) {
         self.queue = config;
+    }
+}
+
+impl HasDbConfig for TelegraphConfig {
+    fn db_config(&self) -> &DatabaseConfig {
+        &self.database
+    }
+    
+    fn set_db_config(&mut self, config: DatabaseConfig) {
+        self.database = config;
     }
 }
 

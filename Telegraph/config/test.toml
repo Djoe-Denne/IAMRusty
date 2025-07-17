@@ -8,6 +8,19 @@ tls_enabled = false
 [logging]
 level = "info"
 
+[database]
+# Database connection details for Telegraph notifications (test environment)
+host = "localhost"
+port = 0  # Use test container port
+db = "telegraph_test"
+# Database credentials
+[database.creds]
+username = "postgres"
+password = "postgres"
+
+# Specify read replicas if using a read/write split
+read_replicas = []
+
 # Queue configuration for testing - using SQS
 [queue]
 type = "sqs"
@@ -25,7 +38,7 @@ timeout_seconds = 30
 # Telegraph-specific queue configurations
 # Example: ma_premiere_queue handles user_signed_up and user_email_verified events
 [queues.test-user-events]
-events = ["user_signed_up", "password_reset_requested"]
+events = ["user_signed_up", "password_reset_requested", "user_email_verified"]
 
 # Event-specific configuration for user_signed_up event
 [queues.test-user-events.user_signed_up]
@@ -33,6 +46,10 @@ modes = ["email"]
 
 [queues.test-user-events.password_reset_requested]
 modes = ["email"]
+
+# Event-specific configuration for user_email_verified event - creates database notification
+[queues.test-user-events.user_email_verified]
+modes = ["notification"]
 
 # Communication service configuration
 [communication.email]

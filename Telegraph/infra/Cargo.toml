@@ -15,6 +15,9 @@ telegraph-configuration = { path = "../configuration" }
 # Configuration
 rustycog-config = { path = "../../rustycog/rustycog-config" }
 
+# ORM & PostgreSQL
+sea-orm = { workspace = true }
+
 # Events
 rustycog-events = { path = "../../rustycog/rustycog-events" }
 iam-events = { path = "../../iam-events" }

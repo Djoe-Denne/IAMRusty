@@ -8,6 +8,19 @@ tls_enabled = false
 [logging]
 level = "info"
 
+[database]
+# Database connection details for Telegraph notifications (development)
+host = "db"  # Use Docker Compose service name
+port = 5432
+db = "telegraph_dev"
+# Database credentials
+[database.creds]
+username = "postgres"
+password = "postgres"
+
+# Specify read replicas if using a read/write split
+read_replicas = []
+
 # Queue configuration for development - using shared SQS with IAMRusty
 [queue]
 type = "sqs"

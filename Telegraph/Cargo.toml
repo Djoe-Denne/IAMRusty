@@ -19,6 +19,7 @@ telegraph-infra = { path = "infra" }
 telegraph-http_server = { path = "http" }
 telegraph-configuration = { path = "configuration" }
 telegraph-setup = { path = "setup" }
+telegraph-migration = { path = "migration" }
 
 # Shared crates
 iam-events = { path = "../iam-events" }
@@ -30,6 +31,10 @@ rustycog-config = { path = "../rustycog/rustycog-config" }
 axum = { workspace = true }
 tokio = { workspace = true }
 hyper = { workspace = true }
+
+# ORM & PostgreSQL
+sea-orm = { workspace = true }
+sea-orm-migration = { workspace = true, optional = true }
 
 # Utility
 serde = { workspace = true }
