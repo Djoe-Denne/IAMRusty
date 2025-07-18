@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use tracing::{info, error};
 
-use telegraph_domain::{DomainError, EventProcessor};
+use telegraph_domain::{DomainError, EventProcessor, EventContext, EventRecipient};
 use crate::command::ProcessEventCommand;
 
 /// Use case for handling event processing operations
@@ -22,32 +22,28 @@ impl EventProcessingUseCase {
     
     /// Process an IAM domain event
     pub async fn process_event(&self, command: ProcessEventCommand) -> Result<(), DomainError> {
-        info!(
-            event_id = %command.event_id(),
-            event_type = command.event_type(),
-            user_id = %command.user_id(),
-            queue_name = %command.queue_name,
-            attempt = command.attempt,
-            "Processing IAM domain event"
-        );
+        // Extract values for logging before converting the command
+        let event_id = command.event_id();
+        let event_type = command.event_type().to_string();
+        let attempt = command.attempt;
         
         // Process the event through the domain event processor
-        let result = self.event_processor.process_event(&command.event).await;
+        let result = self.event_processor.process_event(&command.into()).await;
         
         match &result {
             Ok(()) => {
                 info!(
-                    event_id = %command.event_id(),
-                    event_type = command.event_type(),
+                    event_id = %event_id,
+                    event_type = %event_type,
                     "Event processed successfully"
                 );
             }
             Err(e) => {
                 error!(
-                    event_id = %command.event_id(),
-                    event_type = command.event_type(),
+                    event_id = %event_id,
+                    event_type = %event_type,
                     error = %e,
-                    attempt = command.attempt,
+                    attempt = attempt,
                     "Event processing failed"
                 );
             }
@@ -70,3 +66,20 @@ impl EventProcessingUseCaseTrait for EventProcessingUseCase {
         self.process_event(command).await
     }
 } 
+
+/// Mapper for Event command to Event context
+impl From<ProcessEventCommand> for EventContext {
+    fn from(command: ProcessEventCommand) -> Self {
+        EventContext {
+            event_id: command.event_id(),
+            event_type: command.event_type().to_string(),
+            recipient: EventRecipient {
+                user_id: command.recipient.user_id,
+                email: command.recipient.email,
+            },
+            event: command.event,
+            attempt: command.attempt,
+            metadata: command.metadata,
+        }
+    }
+}

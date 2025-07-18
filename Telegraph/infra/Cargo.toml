@@ -12,6 +12,9 @@ telegraph-domain = { path = "../domain" }
 telegraph-application = { path = "../application" }
 telegraph-configuration = { path = "../configuration" }
 
+# Command pattern
+rustycog-command = { path = "../../rustycog/rustycog-command" }
+
 # Configuration
 rustycog-config = { path = "../../rustycog/rustycog-config" }
 

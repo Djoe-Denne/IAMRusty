@@ -4,22 +4,25 @@ use async_trait::async_trait;
 use iam_events::{IamDomainEvent, DomainEvent};
 use rustycog_events::{EventConsumer as RustycogEventConsumer, EventHandler, ConcreteEventConsumer, create_event_consumer_from_queue_config};
 use rustycog_core::error::ServiceError;
+use rustycog_command::{GenericCommandService, CommandContext};
 use std::sync::Arc;
 use serde_json;
 use tracing::{info, error, debug};
-use crate::event::processors::{CommunicationEventProcessor, CompositeEventProcessor};
 use telegraph_configuration::TelegraphConfig;
+use telegraph_application::command::ProcessEventCommand;
 
 /// Telegraph event consumer using rustycog-events
 pub struct EventConsumer {
     inner_consumer: Arc<ConcreteEventConsumer>,
     config: TelegraphConfig,
+    command_service: Arc<GenericCommandService>,
 }
 
 impl EventConsumer {
-    /// Create a new event consumer from configuration
+    /// Create a new event consumer from configuration with command service
     pub async fn new(
         config: TelegraphConfig,
+        command_service: Arc<GenericCommandService>,
     ) -> Result<Self, telegraph_domain::DomainError> {
         let inner_consumer = create_event_consumer_from_queue_config(&config.queue)
             .await
@@ -28,15 +31,13 @@ impl EventConsumer {
         Ok(Self {
             inner_consumer,
             config,
+            command_service,
         })
     }
     
     /// Start consuming events from queues
-    pub async fn start(
-        &self,
-        event_processor: Arc<dyn CommunicationEventProcessor>,
-    ) -> Result<(), telegraph_domain::DomainError> {
-        info!("Starting Telegraph event consumer");
+    pub async fn start(&self) -> Result<(), telegraph_domain::DomainError> {
+        info!("Starting Telegraph event consumer with command service");
         
         // Log the configured queues and events for debugging
         for (queue_name, queue_config) in &self.config.queues {
@@ -47,8 +48,8 @@ impl EventConsumer {
             );
         }
         
-        // Create a handler that processes IAM events directly
-        let handler = TelegraphEventHandler::new(self.config.clone(), event_processor);
+        // Create a handler that uses command service
+        let handler = TelegraphEventHandler::new(self.config.clone(), self.command_service.clone());
         
         self.inner_consumer
             .start(handler)
@@ -81,21 +82,21 @@ impl EventConsumer {
     }
 }
 
-/// Telegraph event handler that processes IAM events directly
+/// Telegraph event handler that uses command service for processing
 pub struct TelegraphEventHandler {
     config: TelegraphConfig,
-    event_processor: Arc<dyn CommunicationEventProcessor>,
+    command_service: Arc<GenericCommandService>,
 }
 
 impl TelegraphEventHandler {
     /// Create a new Telegraph event handler
     pub fn new(
         config: TelegraphConfig,
-        event_processor: Arc<dyn CommunicationEventProcessor>,
+        command_service: Arc<GenericCommandService>,
     ) -> Self {
         Self {
             config,
-            event_processor,
+            command_service,
         }
     }
 }
@@ -103,51 +104,33 @@ impl TelegraphEventHandler {
 #[async_trait]
 impl EventHandler for TelegraphEventHandler {
     async fn handle_event(&self, event: Box<dyn rustycog_events::DomainEvent>) -> Result<(), ServiceError> {
+        let event_id = event.event_id();
+
         info!(
-            event_id = %event.event_id(),
-            event_type = event.event_type(),
+            event_id = %event_id,
             "🎯 Telegraph received event from queue!"
         );
         
-        // Convert the generic domain event to an IAM domain event
-        match self.convert_to_iam_event(event.as_ref()) {
-            Ok(iam_event) => {
+        // Create process event command
+        let command = ProcessEventCommand::new(event.into());
+        let context = CommandContext::new();
+        
+        // Execute command through command service
+        match self.command_service.execute(command, context).await {
+            Ok(()) => {
                 info!(
-                    event_id = %iam_event.event_id(),
-                    event_type = iam_event.event_type(),
-                    user_id = %iam_event.user_id(),
-                    "Processing IAM domain event in Telegraph"
+                    event_id = %event_id,
+                    "Event processed successfully via command service"
                 );
-                
-                // Process the event through communication processors
-                match self.event_processor.process_event(&iam_event).await {
-                    Ok(()) => {
-                        info!(
-                            event_id = %iam_event.event_id(),
-                            event_type = iam_event.event_type(),
-                            "Event processed successfully by communication processors"
-                        );
-                        Ok(())
-                    }
-                    Err(e) => {
-                        error!(
-                            event_id = %iam_event.event_id(),
-                            event_type = iam_event.event_type(),
-                            error = %e,
-                            "Failed to process event through communication processors"
-                        );
-                        Err(ServiceError::infrastructure(format!("Event processing failed: {}", e)))
-                    }
-                }
+                Ok(())
             }
             Err(e) => {
                 error!(
-                    event_id = %event.event_id(),
-                    event_type = event.event_type(),
+                    event_id = %event_id,
                     error = %e,
-                    "Failed to convert event to IAM event"
+                    "Failed to process event via command service"
                 );
-                Err(e)
+                Err(ServiceError::infrastructure(format!("Command execution failed: {}", e)))
             }
         }
     }
@@ -189,15 +172,3 @@ impl EventHandler for TelegraphEventHandler {
         supports
     }
 }
-
-impl TelegraphEventHandler {
-    /// Convert a generic domain event to an IAM domain event
-    fn convert_to_iam_event(&self, event: &dyn rustycog_events::DomainEvent) -> Result<IamDomainEvent, ServiceError> {
-        // With the producer fix, the event data is now properly structured as a JSON object
-        let event_json = event.to_json()?;
-        
-        // Deserialize the properly formatted JSON directly as an IamDomainEvent
-        serde_json::from_str(&event_json)
-            .map_err(|e| ServiceError::infrastructure(format!("Failed to deserialize IAM event: {}", e)))
-    }
-} 

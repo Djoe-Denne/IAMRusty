@@ -7,7 +7,6 @@
 pub mod entity;
 pub mod error;
 pub mod port;
-pub mod service;
 
 // Re-export commonly used types
 pub use error::DomainError;
@@ -19,13 +18,10 @@ pub use entity::{
     MessageTemplate, TemplateContent, RenderedTemplate
 };
 
-// Re-export services
-pub use service::*;
-
 // Re-export ports (specific items to avoid conflicts)
 pub use port::{
     CommunicationService, EmailService, NotificationService, SmsService,
-    TemplateService, EventProcessor, IamEventHandler, EventContext
+    TemplateService, EventProcessor, EventHandler, EventContext, EventRecipient
 };
 
 // Re-export IAM events for convenience

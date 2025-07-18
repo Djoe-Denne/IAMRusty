@@ -1,0 +1,19 @@
+{{subject}}
+
+Hi there,
+
+Great news! Your email address ({{email}}) has been successfully verified.
+
+Your Telegraph account is now fully activated and ready to use.
+
+Account details:
+- User ID: {{user_id}}
+- Email: {{email}}
+
+Thank you for confirming your email address. This helps us keep your account secure.
+
+Best regards,
+The Telegraph Team
+
+---
+This confirmation was sent to {{email}}. 

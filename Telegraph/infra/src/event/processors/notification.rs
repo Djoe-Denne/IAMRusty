@@ -1,13 +1,28 @@
 //! Notification event processors for Telegraph communication service
 
 use async_trait::async_trait;
-use telegraph_domain::{DomainError, NotificationService};
+use telegraph_domain::{DomainError, NotificationService, EventHandler};
 use iam_events::{IamDomainEvent, UserSignedUpEvent, UserEmailVerifiedEvent, PasswordResetRequestedEvent};
 use std::sync::Arc;
 use tracing::info;
 use crate::repository::combined_notification_repository::CombinedNotificationRepository;
 use serde_json::json;
-use super::processor::CommunicationEventProcessor;
+
+/// Message content for send message command
+#[derive(Debug, Clone)]
+pub struct  EventContentNotification {
+    /// Notification title
+    title: String,
+    /// Notification body
+    body: String,
+    /// Notification data payload
+    data: HashMap<String, String>,
+    /// Notification icon
+    icon: Option<String>,
+    /// Click action
+    click_action: Option<String>,
+    
+}
 
 /// Push notification event processor
 pub struct NotificationEventProcessor {
@@ -24,8 +39,8 @@ impl NotificationEventProcessor {
 }
 
 #[async_trait]
-impl CommunicationEventProcessor for NotificationEventProcessor {
-    async fn process_event(&self, event: &IamDomainEvent) -> Result<(), DomainError> {
+impl EventHandler for NotificationEventProcessor {
+    async fn handle_event(&self, event: &IamDomainEvent) -> Result<(), DomainError> {
         match event {
             IamDomainEvent::UserSignedUp(signup_event) => {
                 // Push notifications for welcome/signup events
@@ -62,6 +77,10 @@ impl CommunicationEventProcessor for NotificationEventProcessor {
     
     fn supports_event_type(&self, event_type: &str) -> bool {
         matches!(event_type, "user_signed_up" | "user_logged_in")
+    }
+    
+    fn priority(&self) -> u32 {
+        100 // Default priority
     }
 }
 
@@ -226,8 +245,8 @@ impl DatabaseNotificationProcessor {
 }
 
 #[async_trait]
-impl CommunicationEventProcessor for DatabaseNotificationProcessor {
-    async fn process_event(&self, event: &IamDomainEvent) -> Result<(), DomainError> {
+impl EventHandler for DatabaseNotificationProcessor {
+    async fn handle_event(&self, event: &IamDomainEvent) -> Result<(), DomainError> {
         match event {
             IamDomainEvent::UserEmailVerified(verification_event) => {
                 self.create_email_verification_notification(verification_event).await
@@ -251,5 +270,9 @@ impl CommunicationEventProcessor for DatabaseNotificationProcessor {
             event_type,
             "user_email_verified" | "user_signed_up" | "password_reset_requested"
         )
+    }
+    
+    fn priority(&self) -> u32 {
+        100 // Default priority
     }
 } 

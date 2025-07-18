@@ -13,6 +13,10 @@ pub trait TemplateService: Send + Sync {
     /// Get a template by name and communication mode
     async fn get_template(&self, name: &str, mode: &CommunicationMode) -> Result<MessageTemplate, DomainError>;
     
+    /// Find template name for an event type and communication mode
+    /// This method uses configuration to determine the correct template naming convention
+    async fn find_template(&self, event_type: &str, mode: &CommunicationMode) -> Result<String, DomainError>;
+    
     /// Render a template with variables
     async fn render_template(
         &self,

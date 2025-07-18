@@ -186,6 +186,43 @@ impl TemplateService for TeraTemplateService {
         Ok(template)
     }
     
+    async fn find_template(&self, event_type: &str, mode: &CommunicationMode) -> Result<String, DomainError> {
+        // Build the expected template name using the event type and mode
+        let template_name = format!("{}_{}", event_type, mode.to_string());
+        
+        // Check if template files exist for this template name
+        if self.template_files_exist(&template_name, mode).await {
+            debug!(
+                event_type = %event_type,
+                mode = %mode,
+                template_name = %template_name,
+                "Found template for event type"
+            );
+            Ok(template_name)
+        } else {
+            // If the full template name doesn't exist, try just the event type
+            if self.template_files_exist(event_type, mode).await {
+                debug!(
+                    event_type = %event_type,
+                    mode = %mode,
+                    template_name = %event_type,
+                    "Found template using event type directly"
+                );
+                Ok(event_type.to_string())
+            } else {
+                error!(
+                    event_type = %event_type,
+                    mode = %mode,
+                    template_dir = %self.config.template_dir,
+                    "No template found for event type"
+                );
+                Err(DomainError::template_not_found(
+                    format!("No template found for event type '{}' and mode '{}'", event_type, mode)
+                ))
+            }
+        }
+    }
+    
     async fn render_template(
         &self,
         template_name: &str,

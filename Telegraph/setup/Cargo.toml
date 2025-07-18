@@ -17,6 +17,9 @@ telegraph-configuration = { path = "../configuration" }
 # Configuration
 rustycog-config = { path = "../../rustycog/rustycog-config" }
 
+# Command pattern
+rustycog-command = { path = "../../rustycog/rustycog-command" }
+
 # Core error handling
 rustycog-core = { path = "../../rustycog/rustycog-core" }
 

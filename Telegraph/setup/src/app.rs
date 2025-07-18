@@ -2,13 +2,18 @@
 
 use tracing::{info, error};
 use std::sync::Arc;
-use telegraph_domain::{EmailService, SmsService, NotificationService, CommunicationService, TemplateService};
+use telegraph_domain::{EmailService, SmsService, NotificationService, CommunicationService, TemplateService, EventProcessor};
 use telegraph_infra::{
     communication::{EmailAdapter, SmsAdapter, NotificationAdapter, CompositeCommunicationService},
     event::EventConsumer,
     template::TeraTemplateService,
+    event::processors::CompositeEventProcessor,
 };
-use telegraph_application::usecase::CommunicationUseCase;
+use telegraph_application::{
+    usecase::{CommunicationUseCase, EventProcessingUseCase},
+    command::TelegraphCommandRegistryFactory,
+};
+use rustycog_command::GenericCommandService;
 
 use telegraph_configuration::TelegraphConfig;
 
@@ -59,9 +64,9 @@ impl TelegraphApp {
             )
         );
         
-        // Create event processor
-        let event_processor = Arc::new(
-            telegraph_infra::event::processors::CompositeEventProcessor::with_all_processors(
+        // Create event processor (domain-level event processor)
+        let domain_event_processor: Arc<dyn EventProcessor> = Arc::new(
+            CompositeEventProcessor::with_all_processors(
                 email_service.clone(),
                 template_service.clone(),
                 sms_service.clone(),
@@ -69,23 +74,38 @@ impl TelegraphApp {
             )
         );
         
-        // Create event consumer
-        let event_consumer = Arc::new(
-            EventConsumer::new(self.config.clone())
-                .await
-                .map_err(|e| anyhow::anyhow!("Failed to create event consumer: {}", e))?
-        );
-        
         // Create use cases
         let _communication_usecase = Arc::new(CommunicationUseCase::new(
             communication_service.clone(),
         ));
         
+        let event_processing_usecase = Arc::new(EventProcessingUseCase::new(
+            domain_event_processor,
+        ));
+        
+        // Create command registry and service
+        let command_registry = Arc::new(
+            TelegraphCommandRegistryFactory::create_telegraph_registry(
+                event_processing_usecase.clone(),
+            )
+        );
+        
+        let command_service = Arc::new(
+            GenericCommandService::new(command_registry)
+        );
+        
+        // Create event consumer with command service
+        let event_consumer = Arc::new(
+            EventConsumer::new(self.config.clone(), command_service.clone())
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to create event consumer: {}", e))?
+        );
+        
         info!("✅ Telegraph application initialized successfully");
         
         // Start event consumer
         info!("🚀 Starting event consumer");
-        event_consumer.start(event_processor).await
+        event_consumer.start().await
             .map_err(|e| anyhow::anyhow!("Failed to start event consumer: {}", e))?;
         
         info!("✅ Telegraph service started successfully and is processing events");

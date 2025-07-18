@@ -1,0 +1,22 @@
+{{subject}}
+
+Hi {{username}},
+
+Welcome to Telegraph! We're excited to have you as part of our community.
+
+Your account details:
+- User ID: {{user_id}}
+- Email: {{email}}
+- Email Verified: {{email_verified}}
+
+{% if email_verified == "false" %}
+Please check your email and click the verification link to activate your account.
+{% endif %}
+
+If you have any questions, feel free to reach out to our support team.
+
+Best regards,
+The Telegraph Team
+
+---
+This email was sent to {{email}}. 

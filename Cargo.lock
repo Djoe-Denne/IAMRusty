@@ -6290,6 +6290,7 @@ dependencies = [
  "mockall",
  "reqwest 0.12.22",
  "rstest",
+ "rustycog-command",
  "rustycog-config",
  "rustycog-core",
  "rustycog-events",
@@ -6374,6 +6375,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "rustycog-command",
  "rustycog-config",
  "rustycog-core",
  "rustycog-events",

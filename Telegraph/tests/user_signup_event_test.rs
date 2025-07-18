@@ -8,26 +8,40 @@
 mod common;
 
 use common::*;
+
+#[path = "fixtures/mod.rs"]
+mod fixtures;
+
+use fixtures::SmtpFixtures;
 use iam_events::{IamDomainEvent, UserSignedUpEvent};
-use rustycog_events::event::BaseEvent;
-// use telegraph_domain::IamEventHandler; // Not needed anymore after refactoring
+use rustycog_events::{event::BaseEvent, EventPublisher};
 use serial_test::serial;
 use uuid::Uuid;
+use wiremock::matchers::body_string_contains;
 
 /// Test that Telegraph correctly processes UserSignedUp events and sends welcome emails
 #[tokio::test]
 #[serial]
 async fn test_user_signed_up_event_happy_path() {
     // Setup test infrastructure with real producer/consumer
-    let (fixture, test_event_publisher) = setup_telegraph_test_server()
+    let (fixture, _, _, test_event_publisher) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
 
-    // Create a test UserSignedUp event
+    // Setup SMTP mock server
+    let smtp_service = SmtpFixtures::service().await;
+    
+    // Create expected email data
     let user_id = Uuid::new_v4();
     let test_email = "test.user@example.com";
     let test_username = "testuser";
     
+    let expected_email = fixtures::smtp::resources::SmtpEmail::user_signup_welcome(test_email, test_username);
+    
+    // Mock successful email sending sequence
+    smtp_service.mock_successful_email_send(&expected_email).await;
+    
+    // Create a test UserSignedUp event
     let user_signed_up_event = UserSignedUpEvent {
         base: BaseEvent::new("user_signed_up".to_string(), user_id),
         user_id,
@@ -37,84 +51,31 @@ async fn test_user_signed_up_event_happy_path() {
     };
 
     let iam_event = IamDomainEvent::UserSignedUp(user_signed_up_event);
-
-    println!("📧 Testing user signup event processing...");
-    println!("   User ID: {}", user_id);
-    println!("   Email: {}", test_email);
-    println!("   Username: {}", test_username);
-
-    // Use the fixture's services instead of creating new ones
-    let mock_email_service = fixture.mock_email_service();
-
-    // Clear any previous emails from the mock service
-    mock_email_service.clear_sent_emails();
-    
-    // Debug: Check if event processor supports the event type
-    let event_processor = &fixture.test_event_publisher().event_processor;
-    let supports = event_processor.supports_event_type("user_signed_up");
-    println!("🔍 Debug: Event processor supports user_signed_up: {}", supports);
-    
-    // Debug: Check the email service setup
-    println!("🔍 Debug: Mock email service type: {:?}", std::any::type_name_of_val(&mock_email_service));
     
     // Publish the event using the test event publisher (routes directly to consumer)
     println!("🔍 Debug: Publishing event...");
     let result = test_event_publisher.publish(Box::new(iam_event.clone())).await;
     
-    // ✅ Verify event publishing was successful
+    // Verify event was published successfully
+    assert!(result.is_ok(), "Event should be published successfully: {:?}", result);
+    
+    // Wait for the event to be processed and email to be sent
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+    
+    // Verify that email was sent
     assert!(
-        result.is_ok(), 
-        "Event publishing should succeed, but got error: {:?}", 
-        result.err()
-    );
-
-    println!("✅ Event published and processed successfully through real infrastructure");
-    
-    // Debug: Try processing the event directly through the event processor
-    println!("🔍 Debug: Processing event directly through event processor...");
-    let direct_result = event_processor.process_event(&iam_event).await;
-    println!("🔍 Debug: Direct processing result: {:?}", direct_result);
-    
-    // ✅ Verify that an email was sent through the mock service
-    let sent_emails = mock_email_service.sent_emails();
-    println!("🔍 Debug: Number of sent emails: {}", sent_emails.len());
-    if sent_emails.is_empty() {
-        println!("🔍 Debug: No emails were sent. Mock email service may not be connected properly.");
-    } else {
-        for (i, email) in sent_emails.iter().enumerate() {
-            println!("🔍 Debug: Email {}: to={}, subject={}", i, email.to, email.subject);
-        }
-    }
-    
-    assert!(
-        !sent_emails.is_empty(),
-        "At least one email should have been sent for user signup"
+        smtp_service.verify_email_sent("Welcome to AI For All!", test_email).await,
+        "Welcome email should have been sent to the user"
     );
     
-    // ✅ Verify the welcome email was sent to the correct recipient
-    assert!(
-        mock_email_service.was_email_sent_to(test_email),
-        "Welcome email should have been sent to the user's email address"
+    // Verify exactly one email was sent
+    assert_eq!(
+        smtp_service.email_count().await,
+        1,
+        "Exactly one email should have been sent"
     );
     
-    let user_emails = mock_email_service.emails_for_recipient(test_email);
-    assert!(!user_emails.is_empty(), "User should have received emails");
-    
-    let welcome_email = &user_emails[0];
-    assert!(
-        welcome_email.subject.contains("Welcome"),
-        "Email subject should contain 'Welcome', got: '{}'", 
-        welcome_email.subject
-    );
-    
-    assert!(
-        welcome_email.text_body.contains(test_username),
-        "Email body should contain the username '{}', got: '{}'", 
-        test_username, welcome_email.text_body
-    );
-
-    println!("✅ Welcome email verified - sent to correct recipient with proper content");
-    println!("✅ Integration test completed: event published → processed → email sent");
+    println!("✅ UserSignedUp event processed successfully and welcome email sent");
 }
 
 /// Test that Telegraph email processor handles UserSignedUp events with proper email content
@@ -122,14 +83,22 @@ async fn test_user_signed_up_event_happy_path() {
 #[serial]
 async fn test_user_signed_up_email_content_verification() {
     // Setup test infrastructure with real producer/consumer
-    let (fixture, test_event_publisher) = setup_telegraph_test_server()
+    let (fixture, _, _, test_event_publisher) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
+
+    // Setup SMTP mock server
+    let smtp_service = SmtpFixtures::service().await;
 
     // Create test data
     let user_id = Uuid::new_v4();
     let test_email = "content.test@example.com";
     let test_username = "content_tester";
+    
+    let expected_email = fixtures::smtp::resources::SmtpEmail::user_signup_welcome(test_email, test_username);
+    
+    // Mock successful email sending with detailed content verification
+    smtp_service.mock_successful_email_send(&expected_email).await;
     
     let user_signed_up_event = UserSignedUpEvent {
         base: BaseEvent::new("user_signed_up".to_string(), user_id),
@@ -141,51 +110,42 @@ async fn test_user_signed_up_email_content_verification() {
 
     let iam_event = IamDomainEvent::UserSignedUp(user_signed_up_event);
 
-    println!("🔍 Testing welcome email content verification...");
-    
-    // Get mock email service for verification
-    let mock_email_service = fixture.mock_email_service();
-    mock_email_service.clear_sent_emails();
-
-    // Publish the event using the test event publisher
+    // Publish the event
     let result = test_event_publisher.publish(Box::new(iam_event)).await;
-
-    // ✅ Verify event publishing and processing succeeded
-    assert!(result.is_ok(), "Email event publishing and processing should succeed");
+    assert!(result.is_ok(), "Event should be published successfully");
     
-    // ✅ Verify email content in detail
-    let sent_emails = mock_email_service.sent_emails();
-    assert!(!sent_emails.is_empty(), "At least one email should have been sent");
+    // Wait for event processing
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
     
-    let welcome_email = &sent_emails[0];
+    // Verify the email content was sent correctly
+    let sent_requests = smtp_service.received_requests().await;
     
-    // Verify subject contains welcome message
+    // Find the DATA request (contains email content)
+    let data_request = sent_requests.iter()
+        .find(|req| req.url.path() == "/smtp/data")
+        .expect("Should have a DATA request for email content");
+    
+    let email_body = String::from_utf8_lossy(&data_request.body);
+    
+    // Verify email contains expected content
     assert!(
-        welcome_email.subject.contains("Welcome"),
-        "Subject should contain 'Welcome', got: '{}'", 
-        welcome_email.subject
+        email_body.contains("Welcome to AI For All!"),
+        "Email should contain welcome subject"
+    );
+    assert!(
+        email_body.contains(test_email),
+        "Email should contain recipient address"
+    );
+    assert!(
+        email_body.contains(test_username),
+        "Email should contain username in content"
+    );
+    assert!(
+        email_body.contains("noreply@telegraph.com"),
+        "Email should be sent from correct address"
     );
     
-    // Verify body contains the username
-    assert!(
-        welcome_email.text_body.contains(test_username),
-        "Body should contain username '{}', got: '{}'", 
-        test_username, welcome_email.text_body
-    );
-    
-    // Verify email is sent to correct recipient
-    assert_eq!(welcome_email.to, test_email, "Email should be sent to correct recipient");
-    
-    // Verify HTML version exists if provided
-    if let Some(html_body) = &welcome_email.html_body {
-        assert!(
-            html_body.contains(test_username),
-            "HTML body should also contain username '{}', got: '{}'", 
-            test_username, html_body
-        );
-    }
-
-    println!("✅ Welcome email content verification completed successfully");
+    println!("✅ Email content verification successful");
 }
 
 /// Test error handling when processing malformed events
@@ -193,15 +153,14 @@ async fn test_user_signed_up_email_content_verification() {
 #[serial]
 async fn test_event_processing_error_handling() {
     // Setup test infrastructure with real producer/consumer
-    let (fixture, test_event_publisher) = setup_telegraph_test_server()
+    let (fixture, _, _, test_event_publisher) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
 
-    println!("⚠️ Testing error handling for event processing...");
-
-    // Get mock email service for verification
-    let mock_email_service = fixture.mock_email_service();
-    mock_email_service.clear_sent_emails();
+    // Setup SMTP mock server
+    let smtp_service = SmtpFixtures::service().await;
+    let expected_email = fixtures::smtp::resources::SmtpEmail::user_signup_welcome("test@example.com", "testuser");
+    smtp_service.mock_successful_email_send(&expected_email).await;
 
     // Test with other event types that should be handled gracefully
     let user_id = Uuid::new_v4();
@@ -216,26 +175,21 @@ async fn test_event_processing_error_handling() {
 
     let login_iam_event = IamDomainEvent::UserLoggedIn(login_event);
     let login_result = test_event_publisher.publish(Box::new(login_iam_event)).await;
-
-    // ✅ Login events should be published and processed successfully
-    assert!(
-        login_result.is_ok(),
-        "Login event publishing and processing should succeed, got error: {:?}",
-        login_result.err()
-    );
-
-    // ✅ Verify that no welcome emails were sent for login events
-    let sent_emails = mock_email_service.sent_emails();
-    let welcome_emails: Vec<_> = sent_emails.iter()
-        .filter(|email| email.subject.contains("Welcome"))
-        .collect();
     
-    assert!(
-        welcome_emails.is_empty(),
-        "No welcome emails should be sent for login events"
+    // Verify event was published (should not fail)
+    assert!(login_result.is_ok(), "UserLoggedIn event should be published successfully");
+    
+    // Wait for potential processing
+    tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
+    
+    // Verify no email was sent for UserLoggedIn event
+    assert_eq!(
+        smtp_service.email_count().await,
+        0,
+        "No email should be sent for UserLoggedIn event"
     );
-
-    println!("✅ Login event handled correctly (no welcome email sent)");
+    
+    println!("✅ Error handling test passed - non-signup events handled gracefully");
 }
 
 /// Test event type support verification using real infrastructure  
@@ -243,49 +197,53 @@ async fn test_event_processing_error_handling() {
 #[serial]
 async fn test_event_type_support_verification() {
     // Setup test infrastructure with real producer/consumer
-    let (fixture, test_event_publisher) = setup_telegraph_test_server()
+    let (fixture, _, _, test_event_publisher) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
-
-    println!("🔧 Testing event type support verification through real infrastructure...");
-
-    // ✅ Test that the event consumer supports the expected event types
-    let event_processor = &fixture.test_event_publisher().event_processor;
-    assert!(
-        event_processor.supports_event_type("user_signed_up"),
-        "Event processor should support user_signed_up events"
-    );
-    assert!(
-        event_processor.supports_event_type("user_logged_in"),
-        "Event processor should support user_logged_in events"
-    );
-    println!("✅ Event processor supports expected IAM event types");
-
-    // ✅ Test end-to-end event processing for different event types
-    let mock_email_service = fixture.mock_email_service();
-    mock_email_service.clear_sent_emails();
-
+    
+    // Setup SMTP mock server
+    let smtp_service = SmtpFixtures::service().await;
+    
     // Test multiple event types to verify they're all processed
     let user_id = Uuid::new_v4();
+    let test_email = "test@example.com";
+    let test_username = "testuser";
+    
+    let expected_email = fixtures::smtp::resources::SmtpEmail::user_signup_welcome(test_email, test_username);
+    smtp_service.mock_successful_email_send(&expected_email).await;
     
     // 1. UserSignedUp event - should trigger welcome email
     let signup_event = iam_events::UserSignedUpEvent {
         base: BaseEvent::new("user_signed_up".to_string(), user_id),
         user_id,
-        email: "test@example.com".to_string(),
-        username: "testuser".to_string(),
+        email: test_email.to_string(),
+        username: test_username.to_string(),
         email_verified: false,
     };
     
     let signup_iam_event = IamDomainEvent::UserSignedUp(signup_event);
     let result = test_event_publisher.publish(Box::new(signup_iam_event)).await;
+  
     assert!(result.is_ok(), "UserSignedUp event should be published and processed successfully");
+    
+    // Wait for processing
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+    
+    // Verify welcome email was sent for UserSignedUp
+    assert_eq!(
+        smtp_service.email_count().await,
+        1,
+        "Welcome email should be sent for UserSignedUp event"
+    );
+    
+    // Reset SMTP mock for next test
+    smtp_service.reset().await;
     
     // 2. UserLoggedIn event - should be processed but no welcome email
     let login_event = iam_events::UserLoggedInEvent {
         base: BaseEvent::new("user_logged_in".to_string(), user_id),
         user_id,
-        email: "test@example.com".to_string(),
+        email: test_email.to_string(),
         login_method: "email_password".to_string(),
     };
     
@@ -293,17 +251,15 @@ async fn test_event_type_support_verification() {
     let result = test_event_publisher.publish(Box::new(login_iam_event)).await;
     assert!(result.is_ok(), "UserLoggedIn event should be published and processed successfully");
     
-    // ✅ Verify that only signup events trigger welcome emails
-    let sent_emails = mock_email_service.sent_emails();
-    let welcome_emails: Vec<_> = sent_emails.iter()
-        .filter(|email| email.subject.contains("Welcome"))
-        .collect();
+    // Wait for processing
+    tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
     
+    // Verify no email was sent for UserLoggedIn event
     assert_eq!(
-        welcome_emails.len(), 1,
-        "Only one welcome email should be sent (for signup event)"
+        smtp_service.email_count().await,
+        0,
+        "No email should be sent for UserLoggedIn event"
     );
-
-    println!("✅ End-to-end event publishing and processing verified for multiple event types");
-    println!("✅ Event type support verification completed successfully");
+    
+    println!("✅ Event type support verification successful");
 } 
