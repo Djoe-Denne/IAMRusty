@@ -1,0 +1,13 @@
+Welcome to Telegraph!
+
+Hello {{username}}!
+
+Your account has been created successfully with email {{email}}.
+
+{% if email_verified %}
+Your email has been verified and you're ready to go!
+{% else %}
+Please check your email to verify your account.
+{% endif %}
+
+Welcome aboard! 

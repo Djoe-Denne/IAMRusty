@@ -7,21 +7,27 @@
 pub mod entity;
 pub mod error;
 pub mod port;
+pub mod service;
 
 // Re-export commonly used types
 pub use error::DomainError;
 
 // Re-export entities
 pub use entity::{
-    CommunicationMessage, MessageRecipient, MessageContent, MessageDelivery,
-    CommunicationMode, MessagePriority, EmailAttachment,
-    MessageTemplate, TemplateContent, RenderedTemplate
+    CommunicationMode, MessageTemplate, TemplateContent, RenderedTemplate, Communication, EmailCommunication, NotificationCommunication,
+    CommunicationRecipient, CommunicationDescriptor, EmailDescriptor, NotificationDescriptor,
+    MessageDelivery, DeliveryStatus,
 };
 
 // Re-export ports (specific items to avoid conflicts)
 pub use port::{
-    CommunicationService, EmailService, NotificationService, SmsService,
-    TemplateService, EventProcessor, EventHandler, EventContext, EventRecipient
+    EmailProvider, NotificationRepository,
+    TemplateService, EventExtractor, EventProcessor, EventHandler, EventContext, EventRecipient
+};
+
+// Re-export services
+pub use service::{
+    CommunicationFactory, EmailService, NotificationService
 };
 
 // Re-export IAM events for convenience

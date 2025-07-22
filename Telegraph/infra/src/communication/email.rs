@@ -1,7 +1,7 @@
 //! Email communication adapter
 
 use async_trait::async_trait;
-use telegraph_domain::{DomainError, EmailService};
+use telegraph_domain::{DomainError, port::communication::EmailProvider, entity::communication::EmailCommunication};
 use lettre::{AsyncTransport, AsyncSmtpTransport, Tokio1Executor, Message, message::header::ContentType};
 use lettre::transport::smtp::authentication::Credentials;
 use lettre::transport::smtp::client::{Tls, TlsParameters};
@@ -93,20 +93,15 @@ impl EmailAdapter {
 }
 
 #[async_trait]
-impl EmailService for EmailAdapter {
+impl EmailProvider for EmailAdapter {
     async fn send_email(
         &self,
-        to: &str,
-        subject: &str,
-        text_body: &str,
-        html_body: Option<&str>,
-        attachments: &[telegraph_domain::port::communication::EmailAttachment],
+        email: &EmailCommunication,
     ) -> Result<String, DomainError> {
         info!(
-            to = to,
-            subject = subject,
-            has_html = html_body.is_some(),
-            attachments = attachments.len(),
+            to = email.recipient.email.as_ref().unwrap(),
+            subject = email.subject,
+            has_html = email.html_body.is_some(),
             "Sending email via SMTP"
         );
         
@@ -114,16 +109,16 @@ impl EmailService for EmailAdapter {
         let from_address = format!("{} <{}>", self.config.from_name, self.config.from_email);
         let mut message_builder = Message::builder()
             .from(from_address.parse().map_err(|e| DomainError::InfrastructureError(format!("Invalid from address: {}", e)))?)
-            .to(to.parse().map_err(|e| DomainError::invalid_email(format!("Invalid to address: {}", e)))?)
-            .subject(subject);
+            .to(email.recipient.email.as_ref().unwrap().parse().map_err(|e| DomainError::invalid_email(format!("Invalid to address: {}", e)))?)
+            .subject(email.subject.clone());
 
         // Set message body
-        let message = if let Some(html) = html_body {
+        let message = if let Some(html) = email.html_body.clone() {
             // Send both text and HTML
             let body = lettre::message::MultiPart::alternative()
                 .singlepart(lettre::message::SinglePart::builder()
                     .header(ContentType::TEXT_PLAIN)
-                    .body(text_body.to_string()))
+                    .body(email.text_body.to_string()))
                 .singlepart(lettre::message::SinglePart::builder()
                     .header(ContentType::TEXT_HTML)
                     .body(html.to_string()));
@@ -131,14 +126,8 @@ impl EmailService for EmailAdapter {
             message_builder.multipart(body)
         } else {
             // Send only text
-            message_builder.body(text_body.to_string())
+            message_builder.body(email.text_body.to_string())
         }.map_err(|e| DomainError::InfrastructureError(format!("Failed to build email message: {}", e)))?;
-
-        // Note: This implementation doesn't handle attachments yet
-        // You would need to extend lettre::message::MultiPart::mixed() for attachments
-        if !attachments.is_empty() {
-            debug!("Email attachments not yet implemented, sending without attachments");
-        }
 
         // Send the email
         match self.mailer.send(message).await {
@@ -146,7 +135,7 @@ impl EmailService for EmailAdapter {
                 let delivery_id = response.first_line().unwrap_or("unknown").to_string();
                 info!(
                     delivery_id = %delivery_id,
-                    to = to,
+                    to = email.recipient.email.as_ref().unwrap(),
                     "Email sent successfully via SMTP"
                 );
                 Ok(delivery_id)
@@ -154,8 +143,8 @@ impl EmailService for EmailAdapter {
             Err(e) => {
                 error!(
                     error = %e,
-                    to = to,
-                    subject = subject,
+                    to = email.recipient.email.as_ref().unwrap(),
+                    subject = email.subject,
                     "Failed to send email via SMTP"
                 );
                 Err(DomainError::InfrastructureError(format!("Failed to send email: {}", e)))

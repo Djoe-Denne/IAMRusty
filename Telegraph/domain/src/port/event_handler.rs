@@ -13,9 +13,6 @@ pub trait EventHandler: Send + Sync {
     /// Handle an IAM domain event and convert it to communication messages
     async fn handle_event(&self, event: &EventContext) -> Result<(), DomainError>;
     
-    /// Check if this handler supports a specific event type
-    fn supports_event_type(&self, event_type: &str) -> bool;
-    
     /// Get the priority of this handler (higher numbers = higher priority)
     fn priority(&self) -> u32 {
         100 // Default priority

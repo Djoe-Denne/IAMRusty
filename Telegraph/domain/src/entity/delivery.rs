@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
 
-use super::message::CommunicationMode;
+use super::communication::CommunicationMode;
 
 /// Message delivery record tracking the status of a sent message
 #[derive(Debug, Clone, Serialize, Deserialize)]

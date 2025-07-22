@@ -6,50 +6,57 @@ pub mod notification;
 // Re-export all processor types and traits from the processor submodule
 pub use processor::{
     EmailEventProcessor,
-    NotificationEventProcessor,
     DatabaseNotificationProcessor,
     CompositeEventProcessor,
+    EventHandlerConfig,
 };
 
 mod processor {
     //! Core processor definitions and composite processor
 
     use async_trait::async_trait;
-    use telegraph_domain::{DomainError, EmailService, NotificationService, TemplateService, EventHandler, EventProcessor, EventContext};
+    use telegraph_domain::{DomainError, EmailService, NotificationService, CommunicationFactory, EventHandler, EventProcessor, EventContext};
     use std::sync::Arc;
     use tracing::{info, error, warn};
-
+    use std::collections::HashMap;
     pub use super::email::EmailEventProcessor;
-    pub use super::notification::{NotificationEventProcessor, DatabaseNotificationProcessor};
+    pub use super::notification::DatabaseNotificationProcessor;
+
+    pub struct EventHandlerConfig {
+        pub event_mapping: HashMap<String, Vec<String>>,
+    }
 
     /// Composite event processor that routes events to multiple processors
     pub struct CompositeEventProcessor {
-        event_handlers: Vec<Arc<dyn EventHandler>>,
+        event_handlers: HashMap<String, Arc<dyn EventHandler>>,
+        config: EventHandlerConfig,
     }
 
     impl CompositeEventProcessor {
         /// Create a new composite event processor
-        pub fn new() -> Self {
+        pub fn new(config: EventHandlerConfig) -> Self {
             Self {
-                event_handlers: Vec::new(),
+                event_handlers: HashMap::new(),
+                config,
             }
         }
         
         /// Add an event handler to the composite
-        pub fn add_handler(mut self, handler: Arc<dyn EventHandler>) -> Self {
-            self.event_handlers.push(handler);
+        pub fn add_handler(mut self, name: String, handler: Arc<dyn EventHandler>) -> Self {
+            self.event_handlers.insert(name, handler);
             self
         }
         
         /// Create a composite processor with all communication types
         pub fn with_all_processors(
-            email_service: Arc<dyn EmailService>,
-            template_service: Arc<dyn TemplateService>,
-            notification_service: Arc<dyn NotificationService>,
+            config: EventHandlerConfig,
+            email_service: Arc<EmailService>,
+            communication_factory: Arc<CommunicationFactory>,
+            notification_service: Arc<NotificationService>,
         ) -> Self {
-            Self::new()
-                .add_handler(Arc::new(EmailEventProcessor::new(email_service, template_service)))
-                .add_handler(Arc::new(NotificationEventProcessor::new(notification_service)))
+            Self::new(config)
+                .add_handler("email".to_string(), Arc::new(EmailEventProcessor::new(email_service, communication_factory.clone())))
+                .add_handler("notification".to_string(), Arc::new(DatabaseNotificationProcessor::new(notification_service, communication_factory)))
         }
     }
 
@@ -60,9 +67,9 @@ mod processor {
             let mut errors = Vec::new();
             let mut processed_count = 0;
             
-            for handler in &self.event_handlers {
-                if handler.supports_event_type(event.event_type.as_str()) {
-                    match handler.handle_event(event).await {
+            if let Some(handlers) = self.config.event_mapping.get(&event.event_type) {
+                for handler in handlers {
+                    match self.event_handlers.get(handler).unwrap().handle_event(event).await {
                         Ok(()) => {
                             processed_count += 1;
                         }
@@ -77,7 +84,7 @@ mod processor {
                         }
                     }
                 }
-            }
+            }            
             
             if !errors.is_empty() {
                 warn!(
@@ -110,10 +117,6 @@ mod processor {
             Ok(())
         }
         
-        fn supports_event_type(&self, event_type: &str) -> bool {
-            self.event_handlers.iter().any(|h| h.supports_event_type(event_type))
-        }
-        
         fn priority(&self) -> u32 {
             // Use default priority for composite processor
             100
@@ -129,11 +132,11 @@ mod processor {
         }
         
         fn get_handlers_for_event(&self, event_type: &str) -> Vec<&dyn EventHandler> {
-            self.event_handlers
-                .iter()
-                .filter(|handler| handler.supports_event_type(event_type))
-                .map(|handler| handler.as_ref())
-                .collect()
+            if let Some(handlers) = self.config.event_mapping.get(event_type) {
+                handlers.iter().map(|handler| self.event_handlers.get(handler).unwrap().as_ref()).collect()
+            } else {
+                Vec::new()
+            }
         }
     }
 } 

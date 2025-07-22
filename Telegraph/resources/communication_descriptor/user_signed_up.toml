@@ -1,0 +1,8 @@
+[email]
+subject = "Welcome ! Please validate your email"
+template = "user_signed_up"
+mode = "html" # or "text"
+
+[notification]
+title = "Welcome to Telegraph!"
+template = "user_signed_up"

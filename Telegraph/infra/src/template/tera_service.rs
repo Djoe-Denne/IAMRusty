@@ -12,7 +12,7 @@ use tracing::{info, warn, error, debug};
 
 use telegraph_domain::{
     DomainError, TemplateService, MessageTemplate, RenderedTemplate, 
-    CommunicationMode, TemplateContent
+    CommunicationMode, TemplateContent, Communication
 };
 use telegraph_configuration::TemplateConfig;
 
@@ -174,11 +174,6 @@ impl TemplateService for TeraTemplateService {
                     default_data: HashMap::new(),
                 }
             }
-            CommunicationMode::Sms => {
-                TemplateContent::Sms {
-                    text: "SMS text placeholder".to_string(),
-                }
-            }
         };
         
         let template = MessageTemplate::new(name.to_string(), mode.clone(), content)?;
@@ -194,7 +189,7 @@ impl TemplateService for TeraTemplateService {
         if self.template_files_exist(&template_name, mode).await {
             debug!(
                 event_type = %event_type,
-                mode = %mode,
+                mode = %mode.to_string(),
                 template_name = %template_name,
                 "Found template for event type"
             );
@@ -204,7 +199,7 @@ impl TemplateService for TeraTemplateService {
             if self.template_files_exist(event_type, mode).await {
                 debug!(
                     event_type = %event_type,
-                    mode = %mode,
+                    mode = %mode.to_string(),
                     template_name = %event_type,
                     "Found template using event type directly"
                 );
@@ -212,7 +207,7 @@ impl TemplateService for TeraTemplateService {
             } else {
                 error!(
                     event_type = %event_type,
-                    mode = %mode,
+                    mode = %mode.to_string(),
                     template_dir = %self.config.template_dir,
                     "No template found for event type"
                 );
@@ -286,13 +281,6 @@ impl TemplateService for TeraTemplateService {
                     data: HashMap::new(),
                 })
             }
-            CommunicationMode::Sms => {
-                let text = self.render_tera_template(&text_template, variables).await?;
-                
-                Ok(RenderedTemplate::Sms {
-                    text,
-                })
-            }
         }
     }
     
@@ -349,7 +337,7 @@ impl TemplateService for TeraTemplateService {
             let modes = if let Some(filter_mode) = mode {
                 vec![filter_mode.clone()]
             } else {
-                vec![CommunicationMode::Email, CommunicationMode::Notification, CommunicationMode::Sms]
+                vec![CommunicationMode::Email, CommunicationMode::Notification]
             };
             
             for template_mode in modes {

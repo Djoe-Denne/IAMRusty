@@ -1,5 +1,6 @@
 pub mod resources;
 pub mod service;
+pub mod testcontainer;
 
 /// Main SMTP fixtures namespace for testing email sending
 pub struct SmtpFixtures;

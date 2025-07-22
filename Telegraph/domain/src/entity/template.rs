@@ -6,7 +6,7 @@ use uuid::Uuid;
 use chrono::{DateTime, Utc};
 
 use crate::error::DomainError;
-use super::message::CommunicationMode;
+use super::communication::CommunicationMode;
 
 /// Message template for generating standardized messages
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -172,7 +172,6 @@ impl MessageTemplate {
         match (mode, content) {
             (CommunicationMode::Email, TemplateContent::Email { .. }) => Ok(()),
             (CommunicationMode::Notification, TemplateContent::Notification { .. }) => Ok(()),
-            (CommunicationMode::Sms, TemplateContent::Sms { .. }) => Ok(()),
             _ => Err(DomainError::invalid_message(
                 format!("Communication mode {:?} does not match template content type", mode)
             )),

@@ -1,16 +1,17 @@
 //! Application setup for Telegraph
 
+use std::collections::HashMap;
 use tracing::{info, error};
 use std::sync::Arc;
-use telegraph_domain::{EmailService, SmsService, NotificationService, CommunicationService, TemplateService, EventProcessor};
+use telegraph_domain::{EmailService, SmsService, NotificationService, CommunicationService, TemplateService, EventProcessor, EventExtractor, CommunicationFactory};
 use telegraph_infra::{
     communication::{EmailAdapter, SmsAdapter, NotificationAdapter, CompositeCommunicationService},
-    event::EventConsumer,
+    event::{EventConsumer, JsonEventExtractor},
     template::TeraTemplateService,
-    event::processors::CompositeEventProcessor,
+    event::processors::{CompositeEventProcessor, EventHandlerConfig},
 };
 use telegraph_application::{
-    usecase::{CommunicationUseCase, EventProcessingUseCase},
+    usecase::EventProcessingUseCase,
     command::TelegraphCommandRegistryFactory,
 };
 use rustycog_command::GenericCommandService;
@@ -37,8 +38,19 @@ impl TelegraphApp {
         info!("Starting Telegraph service and initializing components");
         
         // Create communication adapters
+        let email_config = telegraph_infra::communication::EmailConfig {
+            smtp_host: self.config.communication.email.smtp.host.clone(),
+            smtp_port: self.config.communication.email.smtp.port,
+            smtp_username: self.config.communication.email.smtp.username.clone().unwrap_or_default(),
+            smtp_password: self.config.communication.email.smtp.password.clone().unwrap_or_default(),
+            from_email: self.config.communication.email.from_address.clone(),
+            from_name: self.config.communication.email.from_name.clone(),
+            use_tls: self.config.communication.email.smtp.use_tls,
+        };
+        
         let email_service: Arc<dyn EmailService> = Arc::new(
-            EmailAdapter::new_default()
+            EmailAdapter::new(email_config)
+                .map_err(|e| anyhow::anyhow!("Failed to create email adapter: {}", e))?
         );
         
         let sms_service: Arc<dyn SmsService> = Arc::new(
@@ -55,6 +67,21 @@ impl TelegraphApp {
                 .map_err(|e| anyhow::anyhow!("Failed to create template service: {}", e))?
         );
         
+        // Create event extractor for JSON processing
+        let event_extractor: Arc<dyn EventExtractor> = Arc::new(
+            JsonEventExtractor::new()
+        );
+        
+        // Create communication factory (using hardcoded path for now - should be configurable)
+        let descriptor_dir = std::path::PathBuf::from("resources/communication_descriptor");
+        let communication_factory = Arc::new(
+            CommunicationFactory::new(
+                template_service.clone(),
+                event_extractor,
+                descriptor_dir,
+            )
+        );
+        
         // Create composite communication service
         let communication_service: Arc<dyn CommunicationService> = Arc::new(
             CompositeCommunicationService::new(
@@ -64,21 +91,28 @@ impl TelegraphApp {
             )
         );
         
+        let mut event_mapping = HashMap::new();
+        let queues_config = self.config.queues.clone();
+        for (_, event_config) in queues_config {
+            for event_name in event_config.events {
+                info!("Adding event mapping for event: {} with modes: {:?}", event_name, event_config.event_configs.get(&event_name).unwrap().modes);
+                event_mapping.insert(event_name.clone(), event_config.event_configs.get(&event_name).unwrap().modes.clone());
+            }
+        }
+        let event_handler_config = EventHandlerConfig {
+            event_mapping,
+        };
         // Create event processor (domain-level event processor)
         let domain_event_processor: Arc<dyn EventProcessor> = Arc::new(
             CompositeEventProcessor::with_all_processors(
+                event_handler_config,
                 email_service.clone(),
-                template_service.clone(),
-                sms_service.clone(),
+                communication_factory.clone(),
                 notification_service.clone(),
             )
         );
         
         // Create use cases
-        let _communication_usecase = Arc::new(CommunicationUseCase::new(
-            communication_service.clone(),
-        ));
-        
         let event_processing_usecase = Arc::new(EventProcessingUseCase::new(
             domain_event_processor,
         ));

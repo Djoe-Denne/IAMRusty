@@ -1,13 +1,6 @@
 // Test utilities from rustycog-testing
 pub use rustycog_testing::*;
-pub use rustycog_testing::{
-    common::*,
-    db::*,
-    create_test_client,
-    TestFixture,
-    TestKafkaFixture,
-    TestSqsFixture,
-};
+pub use rustycog_testing::TestFixture;
 
 // Migration crate import - use the correct crate name
 use iammigration::{Migrator, MigratorTrait};
@@ -29,7 +22,7 @@ pub struct IAMRustyTestDescriptorWithMockEvents {
 }
 
 #[async_trait]
-impl ServiceTestDescriptor for IAMRustyTestDescriptor {
+impl ServiceTestDescriptor<TestFixture> for IAMRustyTestDescriptor {
     type Config = AppConfig;
 
     async fn run_app(&self, config: AppConfig, server_config: ServerConfig) -> anyhow::Result<()> {
@@ -40,10 +33,21 @@ impl ServiceTestDescriptor for IAMRustyTestDescriptor {
         Migrator::up(connection, None).await?;
         Ok(())
     }
+
+    fn has_db(&self) -> bool {
+        true
+    }
+
+    fn has_sqs(&self) -> bool {
+        false
+    }
 }
 
 pub async fn setup_test_server() -> Result<(TestFixture, String, Client), Box<dyn std::error::Error>> {
-    rustycog_testing::setup_test_server::<IAMRustyTestDescriptor>(Arc::new(IAMRustyTestDescriptor)).await
+    let descriptor = Arc::new(IAMRustyTestDescriptor);
+    let fixture = TestFixture::new(descriptor.clone()).await?;
+    let (server_url, client) = rustycog_testing::setup_test_server::<IAMRustyTestDescriptor, TestFixture>(descriptor).await?;
+    Ok((fixture, server_url, client))
 }
 
 impl IAMRustyTestDescriptorWithMockEvents {
@@ -55,7 +59,7 @@ impl IAMRustyTestDescriptorWithMockEvents {
 }
 
 #[async_trait]
-impl ServiceTestDescriptor for IAMRustyTestDescriptorWithMockEvents {
+impl ServiceTestDescriptor<TestFixture> for IAMRustyTestDescriptorWithMockEvents {
     type Config = AppConfig;
 
     async fn run_app(&self, config: AppConfig, server_config: ServerConfig) -> anyhow::Result<()> {
@@ -70,11 +74,20 @@ impl ServiceTestDescriptor for IAMRustyTestDescriptorWithMockEvents {
         Migrator::up(connection, None).await?;
         Ok(())
     }
+
+    fn has_db(&self) -> bool {
+        true
+    }
+
+    fn has_sqs(&self) -> bool {
+        false // but maybe yes ?
+    }
 }
 
 pub async fn setup_test_server_with_mock_events() -> Result<(TestFixture, String, Client, Arc<MockEventPublisher>), Box<dyn std::error::Error>> {
-    let descriptor = IAMRustyTestDescriptorWithMockEvents::new();
+    let descriptor = Arc::new(IAMRustyTestDescriptorWithMockEvents::new());
+    let fixture = TestFixture::new(descriptor.clone()).await?;
     let mock_event_publisher = descriptor.mock_event_publisher.clone();
-    let (fixture, base_url, client) = rustycog_testing::setup_test_server::<IAMRustyTestDescriptorWithMockEvents>(Arc::new(descriptor)).await?;
+    let (base_url, client) = rustycog_testing::setup_test_server::<IAMRustyTestDescriptorWithMockEvents, TestFixture>(descriptor).await?;
     Ok((fixture, base_url, client, mock_event_publisher))
 }

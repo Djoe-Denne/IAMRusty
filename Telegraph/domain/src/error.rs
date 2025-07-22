@@ -68,6 +68,10 @@ pub enum DomainError {
     /// Infrastructure error (external service failure)
     #[error("Infrastructure error: {0}")]
     InfrastructureError(String),
+
+    /// Notification not found
+    #[error("Notification not found: {0}")]
+    NotificationNotFound(String),
 }
 
 impl DomainError {
@@ -149,6 +153,11 @@ impl DomainError {
     /// Create an infrastructure error
     pub fn infrastructure_error(msg: impl Into<String>) -> Self {
         Self::InfrastructureError(msg.into())
+    }
+    
+    /// Create a notification not found error
+    pub fn notification_not_found(msg: impl Into<String>) -> Self {
+        Self::NotificationNotFound(msg.into())
     }
     
     /// Check if this is a recoverable error (should retry)

@@ -1,5 +1,3 @@
-{{subject}}
-
 Hi {{username}},
 
 Welcome to Telegraph! We're excited to have you as part of our community.

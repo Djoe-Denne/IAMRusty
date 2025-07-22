@@ -1,108 +1,106 @@
 use uuid::Uuid;
-use chrono::{DateTime, Utc};
 use anyhow::Result;
+use std::sync::Arc;
+use async_trait::async_trait;
 
 use crate::repository::entity::{notifications, notification_deliveries};
-use crate::repository::notification_read::NotificationReadRepository;
-use crate::repository::notification_write::NotificationWriteRepository;
 use telegraph_domain::error::DomainError;
+use telegraph_domain::entity::{communication::NotificationCommunication, delivery::MessageDelivery};
+use telegraph_domain::port::repository::{NotificationReadRepository, NotificationWriteRepository};
 
 /// Combined Notification Repository that delegates to separate read/write implementations
 #[derive(Clone)]
 pub struct CombinedNotificationRepository {
-    read_repo: NotificationReadRepository,
-    write_repo: NotificationWriteRepository,
+    read_repo: Arc<dyn NotificationReadRepository>,
+    write_repo: Arc<dyn NotificationWriteRepository>,
 }
 
 impl CombinedNotificationRepository {
     /// Create a new combined repository
-    pub fn new(read_repo: NotificationReadRepository, write_repo: NotificationWriteRepository) -> Self {
+    pub fn new(read_repo: Arc<dyn NotificationReadRepository>, write_repo: Arc<dyn NotificationWriteRepository>) -> Self {
         Self {
             read_repo,
             write_repo,
         }
     }
+}
+
+#[async_trait::async_trait]
+impl NotificationReadRepository for CombinedNotificationRepository {
 
     // Read operations - delegate to read repository
-    
     /// Get notifications for a user
-    pub async fn get_user_notifications(
+    async fn get_user_notifications(
         &self,
         user_id: Uuid,
         page: u64,
         per_page: u64,
         unread_only: bool,
-    ) -> Result<(Vec<notifications::Model>, u64), DomainError> {
+    ) -> Result<(Vec<NotificationCommunication>, u64), DomainError> {
         self.read_repo.get_user_notifications(user_id, page, per_page, unread_only).await
     }
 
     /// Get a notification by ID
-    pub async fn get_notification(&self, notification_id: Uuid) -> Result<Option<notifications::Model>, DomainError> {
+    async fn get_notification(&self, notification_id: Uuid) -> Result<Option<NotificationCommunication>, DomainError> {
         self.read_repo.get_notification(notification_id).await
     }
 
     /// Get delivery records for a notification
-    pub async fn get_notification_deliveries(
+    async fn get_notification_deliveries(
         &self,
         notification_id: Uuid,
-    ) -> Result<Vec<notification_deliveries::Model>, DomainError> {
+    ) -> Result<Vec<MessageDelivery>, DomainError> {
         self.read_repo.get_notification_deliveries(notification_id).await
     }
 
-    /// Get pending deliveries for retry
-    pub async fn get_pending_deliveries(&self) -> Result<Vec<notification_deliveries::Model>, DomainError> {
-        self.read_repo.get_pending_deliveries().await
-    }
+}
+
+#[async_trait::async_trait]
+impl NotificationWriteRepository for CombinedNotificationRepository {
 
     // Write operations - delegate to write repository
 
     /// Create a new notification
-    pub async fn create_notification(
+    async fn create_notification(
         &self,
-        user_id: Uuid,
-        title: String,
-        content: Vec<u8>,
-        content_type: String,
-        priority: i16,
-        expires_at: Option<DateTime<Utc>>,
-    ) -> Result<notifications::Model, DomainError> {
-        self.write_repo.create_notification(user_id, title, content, content_type, priority, expires_at).await
+        notification: NotificationCommunication,
+    ) -> Result<NotificationCommunication, DomainError> {
+        self.write_repo.create_notification(notification).await
     }
 
     /// Mark notification as read
-    pub async fn mark_as_read(&self, notification_id: Uuid) -> Result<notifications::Model, DomainError> {
+    async fn mark_as_read(&self, notification_id: Uuid) -> Result<NotificationCommunication, DomainError> {
         self.write_repo.mark_as_read(notification_id).await
     }
 
     /// Delete expired notifications
-    pub async fn delete_expired_notifications(&self) -> Result<u64, DomainError> {
+    async fn delete_expired_notifications(&self) -> Result<u64, DomainError> {
         self.write_repo.delete_expired_notifications().await
     }
 
     /// Create a delivery record for a notification
-    pub async fn create_delivery(
+    async fn create_delivery(
         &self,
-        notification_id: Uuid,
-        delivery_method: String,
-    ) -> Result<notification_deliveries::Model, DomainError> {
-        self.write_repo.create_delivery(notification_id, delivery_method).await
+        delivery: MessageDelivery,
+    ) -> Result<MessageDelivery, DomainError> {
+        self.write_repo.create_delivery(delivery).await
     }
 
     /// Update delivery status
-    pub async fn update_delivery_status(
+    async fn update_delivery_status(
         &self,
         delivery_id: Uuid,
         status: String,
         error_message: Option<String>,
-    ) -> Result<notification_deliveries::Model, DomainError> {
+    ) -> Result<MessageDelivery, DomainError> {
         self.write_repo.update_delivery_status(delivery_id, status, error_message).await
     }
 
     /// Increment delivery attempt count
-    pub async fn increment_delivery_attempt(
+    async fn increment_delivery_attempt(
         &self,
         delivery_id: Uuid,
-    ) -> Result<notification_deliveries::Model, DomainError> {
+    ) -> Result<MessageDelivery, DomainError> {
         self.write_repo.increment_delivery_attempt(delivery_id).await
     }
 } 

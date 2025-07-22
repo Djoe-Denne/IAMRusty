@@ -17,6 +17,8 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
+tokio = { workspace = true, features = ["fs"] }
+toml = { workspace = true }
 
 # Error handling
 thiserror = { workspace = true }

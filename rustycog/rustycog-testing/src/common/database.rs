@@ -5,6 +5,7 @@
 
 use rustycog_config::{ConfigLoader, DatabaseConfig, HasDbConfig};
 use crate::common::ServiceTestDescriptor;
+use crate::common::sqs_testcontainer::TestSqs;
 use rustycog_db::DbConnectionPool;
 use sea_orm::{ConnectionTrait, Database, DatabaseConnection, DbErr, Statement};
 use std::sync::Arc;
@@ -54,8 +55,8 @@ pub struct TestDatabase {
 
 impl TestDatabase {
     /// Get or create the global test database instance
-    pub async fn new<D>(descriptor: Arc<D>) -> Result<Self, DbErr>
-    where D: ServiceTestDescriptor {
+    pub async fn new<D, T>(descriptor: Arc<D>) -> Result<Self, DbErr>
+    where D: ServiceTestDescriptor<T>, T: Send + Sync + 'static {
         let container = get_or_create_test_container().await?;
         let database_url = container.database_url.clone();
 
@@ -74,8 +75,8 @@ impl TestDatabase {
     }
 
     /// Run database migrations
-    async fn run_migrations<D>(descriptor: Arc<D>, connection: &DatabaseConnection) -> Result<(), DbErr>
-    where D: ServiceTestDescriptor {
+    async fn run_migrations<D, T>(descriptor: Arc<D>, connection: &DatabaseConnection) -> Result<(), DbErr>
+    where D: ServiceTestDescriptor<T>, T: Send + Sync + 'static {
         info!("Running database migrations for test database");
         descriptor.run_migrations(connection).await.map_err(|e| DbErr::Custom(e.to_string()))?;
         info!("Database migrations completed successfully");
@@ -367,36 +368,59 @@ fn create_base_test_config() -> DatabaseConfig
 
 /// Test fixture that automatically cleans up after each test
 pub struct TestFixture {
-    pub database: TestDatabase,
+    pub database: Option<TestDatabase>,
+    pub sqs: Option<TestSqs>,
     /// Flag to track if this fixture should cleanup the container on drop
     cleanup_container_on_drop: bool,
 }
 
 impl TestFixture {
     /// Create a new test fixture with database cleanup
-    pub async fn new<D>(descriptor: Arc<D>) -> Result<Self, DbErr>
-    where D: ServiceTestDescriptor {
-        let database = TestDatabase::new(descriptor)
-            .await
-            .expect("Failed to create test database");
+    pub async fn new<D, T>(descriptor: Arc<D>) -> Result<Self, DbErr>
+    where D: ServiceTestDescriptor<T>, T: Send + Sync + 'static {
+        let database = if descriptor.has_db() {
+            Some(TestDatabase::new(descriptor.clone())
+                .await
+                .expect("Failed to create test database"))
+        } else {
+            None
+        };
+
+        let sqs = if descriptor.has_sqs() {
+            Some(TestSqs::new().await.expect("Failed to create test SQS"))
+        } else {
+            None
+        };
 
         // Clean up any existing data
-        database.truncate_all_tables().await?;
+        if let Some(database) = &database {
+            database.truncate_all_tables().await?;
+        }
 
         Ok(Self {
             database,
+            sqs,
             cleanup_container_on_drop: false,
         })
     }
 
     /// Get the database connection
     pub fn db(&self) -> Arc<DatabaseConnection> {
-        self.database.get_connection()
+        self.database.as_ref().unwrap().get_connection()
+    }
+
+    /// Get the SQS client
+    pub fn sqs(&self) -> &TestSqs {
+        self.sqs.as_ref().unwrap()
     }
 
     /// Manual cleanup (automatically called on drop)
     pub async fn cleanup(&self) -> Result<(), DbErr> {
-        self.database.truncate_all_tables().await
+        if let Some(database) = &self.database {
+            database.truncate_all_tables().await
+        } else {
+            Ok(())
+        }
     }
 
     /// Cleanup the global test container (stops and removes it)
@@ -477,7 +501,7 @@ impl Drop for TestFixture {
     fn drop(&mut self) {
         // Schedule cleanup in a blocking context
         if let Ok(rt) = tokio::runtime::Handle::try_current() {
-            let database = self.database.connection.clone();
+            let database = self.database.as_ref().unwrap().get_connection().clone();
             let cleanup_container = self.cleanup_container_on_drop;
 
             rt.spawn(async move {

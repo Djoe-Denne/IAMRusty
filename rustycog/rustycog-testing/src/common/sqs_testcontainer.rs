@@ -7,7 +7,9 @@ use aws_config::{BehaviorVersion, Region};
 use aws_credential_types::Credentials;
 use aws_sdk_sqs::{Client, Config, types::Message};
 use rustycog_config::{QueueConfig, SqsConfig, load_config_part};
-use serde_json::Value;
+use rustycog_events::event::DomainEvent;
+use rustycog_core::error::ServiceError;
+use serde_json::{Value, json};
 use std::sync::Arc;
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -196,7 +198,7 @@ impl TestSqs {
         Ok(queue_url)
     }
 
-    /// Send a test message to the queue
+    /// Send a test message to the queue (raw string)
     pub async fn send_message(
         &self,
         message_body: &str,
@@ -215,6 +217,52 @@ impl TestSqs {
         debug!("Message sent with ID: {}", message_id);
 
         Ok(message_id)
+    }
+
+    /// Send a domain event to the queue (formatted like the SQS publisher)
+    pub async fn send_event(
+        &self,
+        event: &dyn DomainEvent,
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        debug!("Sending domain event to queue: {}", self.queue_url);
+
+        // Format the event the same way the SQS publisher does
+        let message_body = self.serialize_event(event)?;
+
+        let result = self
+            .client
+            .send_message()
+            .queue_url(&self.queue_url)
+            .message_body(message_body)
+            .send()
+            .await?;
+
+        let message_id = result.message_id().unwrap_or("unknown").to_string();
+        debug!("Event sent with ID: {}", message_id);
+
+        Ok(message_id)
+    }
+
+    /// Serialize domain event to SQS message body (same as SQS publisher)
+    fn serialize_event(&self, event: &dyn DomainEvent) -> Result<String, Box<dyn std::error::Error>> {
+        // Get the event JSON and parse it back to a Value so it's properly structured in the data field
+        let event_json_str = event.to_json()
+            .map_err(|e| format!("Failed to get event JSON: {}", e))?;
+        let event_data: serde_json::Value = serde_json::from_str(&event_json_str)
+            .map_err(|e| format!("Failed to parse event JSON: {}", e))?;
+
+        let message_body = json!({
+            "event_id": event.event_id(),
+            "event_type": event.event_type(),
+            "aggregate_id": event.aggregate_id(),
+            "occurred_at": event.occurred_at(),
+            "version": event.version(),
+            "data": event_data,
+            "metadata": event.metadata()
+        });
+
+        serde_json::to_string(&message_body)
+            .map_err(|e| format!("Failed to serialize event for SQS: {}", e).into())
     }
 
     /// Receive messages from the queue

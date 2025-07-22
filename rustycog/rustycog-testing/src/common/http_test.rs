@@ -3,8 +3,8 @@ use rustycog_config::{load_config_fresh, HasServerConfig, HasLoggingConfig, Serv
 use tracing::debug;
 use std::sync::Arc;
 
-pub async fn spawn_test_server<D>(descriptor: Arc<D>) -> anyhow::Result<()> 
-where D: ServiceTestDescriptor
+pub async fn spawn_test_server<D, T>(descriptor: Arc<D>) -> anyhow::Result<()> 
+where D: ServiceTestDescriptor<T>, T: Send + Sync + 'static
 {
     // Use your real config loading logic
     let config = load_config_fresh::<D::Config>().expect("failed to load config");

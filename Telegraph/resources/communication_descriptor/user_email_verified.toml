@@ -1,0 +1,3 @@
+[notification]
+title = "Email Verified Successfully"
+template = "user_email_verified" 

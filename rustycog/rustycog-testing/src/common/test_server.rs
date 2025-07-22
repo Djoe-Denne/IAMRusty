@@ -11,8 +11,8 @@ use tracing::debug;
 static TEST_SERVER: OnceLock<Arc<Mutex<Option<JoinHandle<()>>>>> = OnceLock::new();
 
 /// Get or create the global test server instance
-pub async fn get_test_server<D>(descriptor: Arc<D>) -> Result<String, Box<dyn std::error::Error>> 
-where D: ServiceTestDescriptor
+pub async fn get_test_server<D, T>(descriptor: Arc<D>) -> Result<String, Box<dyn std::error::Error>> 
+where D: ServiceTestDescriptor<T>, T: Send + Sync + 'static
 {
     let server_mutex = TEST_SERVER.get_or_init(|| Arc::new(Mutex::new(None)));
 
@@ -36,7 +36,7 @@ where D: ServiceTestDescriptor
 
         // Start the server using the existing spawn_test_server function
         let server_handle = tokio::spawn(async move {
-            if let Err(e) = spawn_test_server::<D>(descriptor.clone()).await {
+            if let Err(e) = spawn_test_server::<D, T>(descriptor.clone()).await {
                 debug!("Server failed to start: {}", e);
             }
         });
@@ -52,13 +52,12 @@ where D: ServiceTestDescriptor
 }
 
 // method that return a test fixture, base_url and client
-pub async fn setup_test_server<D>(descriptor: Arc<D>) -> Result<(TestFixture, String, Client), Box<dyn std::error::Error>>
-where D: ServiceTestDescriptor
+pub async fn setup_test_server<D, T>(descriptor: Arc<D>) -> Result<(String, Client), Box<dyn std::error::Error>>
+where D: ServiceTestDescriptor<T>, T: Send + Sync + 'static
 {
-    let fixture = TestFixture::new(descriptor.clone()).await?;
-    let base_url = get_test_server::<D>(descriptor.clone()).await?;
+    let base_url = get_test_server::<D, T>(descriptor.clone()).await?;
     let client = create_test_client();
-    Ok((fixture, base_url, client))
+    Ok((base_url, client))
 }
 
 pub fn create_test_client() -> Client {
