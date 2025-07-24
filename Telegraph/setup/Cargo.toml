@@ -23,6 +23,9 @@ rustycog-command = { path = "../../rustycog/rustycog-command" }
 # Core error handling
 rustycog-core = { path = "../../rustycog/rustycog-core" }
 
+# db handling
+rustycog-db = { path = "../../rustycog/rustycog-db" }
+
 # HTTP and server
 rustycog-http = { path = "../../rustycog/rustycog-http" }
 rustycog-server = { path = "../../rustycog/rustycog-server" }

@@ -1,21 +1,18 @@
 use uuid::Uuid;
 use anyhow::Result;
 use std::sync::Arc;
-use async_trait::async_trait;
-
-use crate::repository::entity::{notifications, notification_deliveries};
 use telegraph_domain::error::DomainError;
 use telegraph_domain::entity::{communication::NotificationCommunication, delivery::MessageDelivery};
-use telegraph_domain::port::repository::{NotificationReadRepository, NotificationWriteRepository};
+use telegraph_domain::port::repository::{NotificationReadRepository, NotificationWriteRepository, NotificationRepository};
 
 /// Combined Notification Repository that delegates to separate read/write implementations
 #[derive(Clone)]
-pub struct CombinedNotificationRepository {
+pub struct CombinedNotificationRepositoryImpl {
     read_repo: Arc<dyn NotificationReadRepository>,
     write_repo: Arc<dyn NotificationWriteRepository>,
 }
 
-impl CombinedNotificationRepository {
+impl CombinedNotificationRepositoryImpl {
     /// Create a new combined repository
     pub fn new(read_repo: Arc<dyn NotificationReadRepository>, write_repo: Arc<dyn NotificationWriteRepository>) -> Self {
         Self {
@@ -26,7 +23,7 @@ impl CombinedNotificationRepository {
 }
 
 #[async_trait::async_trait]
-impl NotificationReadRepository for CombinedNotificationRepository {
+impl NotificationReadRepository for CombinedNotificationRepositoryImpl {
 
     // Read operations - delegate to read repository
     /// Get notifications for a user
@@ -56,7 +53,7 @@ impl NotificationReadRepository for CombinedNotificationRepository {
 }
 
 #[async_trait::async_trait]
-impl NotificationWriteRepository for CombinedNotificationRepository {
+impl NotificationWriteRepository for CombinedNotificationRepositoryImpl {
 
     // Write operations - delegate to write repository
 
@@ -104,3 +101,5 @@ impl NotificationWriteRepository for CombinedNotificationRepository {
         self.write_repo.increment_delivery_attempt(delivery_id).await
     }
 } 
+
+impl NotificationRepository for CombinedNotificationRepositoryImpl {}

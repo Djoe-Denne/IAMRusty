@@ -423,16 +423,17 @@ impl SqsEventConsumer {
         H: EventHandler + Send + Sync,
     {
         let queue_url = self.config.default_queue_url();
-        
+        info!("Polling for messages from SQS: {:?}", queue_url);
         match self.client
             .receive_message()
             .queue_url(&queue_url)
             .max_number_of_messages(10) // SQS max
-            .wait_time_seconds(20) // Long polling
+            .wait_time_seconds(2) // Long polling
             .send()
             .await
         {
             Ok(response) => {
+                info!("Received messages from SQS: {:?}", response);
                 if let Some(messages) = response.messages {
                     for message in messages {
                         if let Some(body) = message.body() {
@@ -482,7 +483,7 @@ impl SqsEventConsumer {
                         }
                     }
                 } else {
-                    debug!("No messages received from SQS");
+                    info!("No messages received from SQS");
                 }
             }
             Err(e) => {
@@ -519,7 +520,7 @@ impl EventConsumer for SqsEventConsumer {
             if let Err(e) = self.poll_and_handle_messages(handler.as_ref()).await {
                 error!(error = %e, "Error polling SQS messages");
                 // Sleep for a bit before retrying to avoid tight loop on errors
-                sleep(Duration::from_secs(5)).await;
+                sleep(Duration::from_millis(500)).await;
             }
         }
 

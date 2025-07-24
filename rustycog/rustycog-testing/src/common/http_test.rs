@@ -3,6 +3,14 @@ use rustycog_config::{load_config_fresh, HasServerConfig, HasLoggingConfig, Serv
 use tracing::debug;
 use std::sync::Arc;
 
+pub async fn build_test_app<D, T>(descriptor: Arc<D>) -> anyhow::Result<()>
+where D: ServiceTestDescriptor<T>, T: Send + Sync + 'static
+{
+    let config = load_config_fresh::<D::Config>().expect("failed to load config");
+    debug!("🔄 Building test app with configuration:");
+    descriptor.build_app(config).await
+}
+
 pub async fn spawn_test_server<D, T>(descriptor: Arc<D>) -> anyhow::Result<()> 
 where D: ServiceTestDescriptor<T>, T: Send + Sync + 'static
 {
@@ -47,6 +55,5 @@ where D: ServiceTestDescriptor<T>, T: Send + Sync + 'static
     );
 
     // Build and run the application - this should run indefinitely
-    debug!("🔄 Starting server...");
-    descriptor.run_app(config, server_config).await
+    descriptor.run_app(server_config).await
 }

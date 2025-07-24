@@ -23,10 +23,13 @@ use wiremock::matchers::body_string_contains;
 #[tokio::test]
 #[serial]
 async fn test_user_signed_up_event_happy_path() {
+
     // Setup test infrastructure with real producer/consumer and SMTP testcontainer
     let (fixture, _, _) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
+
+    println!("Test server setup complete");
 
     let test_event_publisher = fixture.sqs();
     let smtp_container = fixture.smtp();
@@ -49,18 +52,25 @@ async fn test_user_signed_up_event_happy_path() {
     
     // Publish the event using the test event publisher (routes directly to consumer)
     let result = test_event_publisher.send_event(&iam_event).await;
+
+    println!("Event published successfully: {:?}", result);
     
     // Verify event was published successfully
     assert!(result.is_ok(), "Event should be published successfully: {:?}", result);
-    
-    // Wait for the event to be processed and email to be sent
-    tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+
+    let mut has_email = false;
+    for i in 0..25 {
+        println!("Waiting for event to be processed and email to be sent: {}", i);
+        // Wait for the event to be processed and email to be sent
+        tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+        if smtp_container.has_email("Welcome ! Please validate your email", test_email).await {
+            has_email = true;
+            break;
+        }
+    }
     
     // Verify that email was sent to MailHog
-    assert!(
-        smtp_container.has_email("Welcome ! Please validate your email", test_email).await,
-        "Welcome email should have been sent to the user"
-    );
+    assert!(has_email, "Welcome email should have been sent to the user");
     
     // Verify exactly one email was sent
     assert_eq!(
@@ -105,9 +115,14 @@ async fn test_user_signed_up_email_content_verification() {
     let result = test_event_publisher.send_event(&iam_event).await;
     assert!(result.is_ok(), "Event should be published successfully");
     
-    // Wait for event processing
-    tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
-    
+    for i in 0..10 {
+        println!("Waiting for event to be processed and email to be sent: {}", i);
+        // Wait for the event to be processed and email to be sent
+        tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+        if smtp_container.email_count().await > 0 {
+            break;
+        }
+    }   
     // Verify the email was sent and get the content
     let emails = smtp_container.get_emails().await.expect("Failed to get emails");
     assert_eq!(emails.len(), 1, "Should have exactly one email");
@@ -163,7 +178,7 @@ async fn test_event_processing_error_handling() {
     assert!(login_result.is_ok(), "UserLoggedIn event should be published successfully");
     
     // Wait for potential processing
-    tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
+    tokio::time::sleep(tokio::time::Duration::from_millis(5000)).await;
     
     // Verify no email was sent for UserLoggedIn event
     assert_eq!(
@@ -206,7 +221,14 @@ async fn test_event_type_support_verification() {
     assert!(result.is_ok(), "UserSignedUp event should be published and processed successfully");
     
     // Wait for processing
-    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+    for i in 0..10 {
+        println!("Waiting for event to be processed and email to be sent: {}", i);
+        // Wait for the event to be processed and email to be sent
+        tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+        if smtp_container.email_count().await > 0 {
+            break;
+        }
+    }
     
     // Verify welcome email was sent for UserSignedUp
     assert_eq!(
@@ -231,7 +253,7 @@ async fn test_event_type_support_verification() {
     assert!(result.is_ok(), "UserLoggedIn event should be published and processed successfully");
     
     // Wait for processing
-    tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
+    tokio::time::sleep(tokio::time::Duration::from_millis(5000)).await;
     
     // Verify no email was sent for UserLoggedIn event
     assert_eq!(

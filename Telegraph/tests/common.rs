@@ -4,7 +4,7 @@
 //! and Telegraph-specific test setup
 
 use telegraph_configuration::{TelegraphConfig, load_config, setup_logging};
-use telegraph_setup::app::AppBuilder;
+use telegraph_setup::app::{AppBuilder, TelegraphApp};
 use rustycog_config::ServerConfig;
 use std::sync::Arc;
 use async_trait::async_trait;
@@ -12,6 +12,8 @@ use rustycog_testing::*;
 use rustycog_testing::sqs_testcontainer::TestSqs;
 use telegraphmigration::{Migrator, MigratorTrait};
 use reqwest::Client;
+use std::sync::OnceLock;
+use tokio::sync::Mutex;
 
 #[path = "fixtures/mod.rs"]
 mod fixtures;
@@ -19,6 +21,7 @@ mod fixtures;
 use fixtures::*;
 use fixtures::smtp::testcontainer::TestSmtp;
 
+static mut APP: Option<TelegraphApp> = None;
 /// Telegraph test descriptor following rustycog-testing patterns
 pub struct TelegraphTestDescriptor;
 
@@ -26,12 +29,16 @@ pub struct TelegraphTestDescriptor;
 impl ServiceTestDescriptor<TelegraphTestFixture> for TelegraphTestDescriptor {
     type Config = TelegraphConfig;
 
-    async fn run_app(&self, config: TelegraphConfig, _server_config: ServerConfig) -> anyhow::Result<()> {    
-        AppBuilder::new(config)
+    async fn build_app(&self, config: TelegraphConfig) -> anyhow::Result<()> {    
+        let app = AppBuilder::new(config)
             .build()
-            .await?
-            .run()
             .await?;
+        unsafe { APP.replace(app); }
+        Ok(())
+    }
+    
+    async fn run_app(&self, _server_config: ServerConfig) -> anyhow::Result<()> {    
+        unsafe { APP.as_ref().unwrap().run().await?; }
         Ok(())
     }
 
@@ -96,8 +103,10 @@ impl TelegraphTestFixture {
 pub async fn setup_test_server() -> Result<(TelegraphTestFixture, String, Client), Box<dyn std::error::Error>> {
     let descriptor = Arc::new(TelegraphTestDescriptor);
     let fixture = TelegraphTestFixture::new(descriptor.clone()).await?;
+    fixture.smtp().clear_emails().await.expect("Failed to clear emails");
     // Start the Telegraph server
     let (server_url, client) = rustycog_testing::setup_test_server::<TelegraphTestDescriptor, TelegraphTestFixture>(descriptor).await?;
-    
+
+
     Ok((fixture, server_url, client))
 }

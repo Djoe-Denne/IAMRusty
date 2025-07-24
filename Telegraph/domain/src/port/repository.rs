@@ -46,4 +46,4 @@ pub trait NotificationWriteRepository: Send + Sync {
 }
 
 #[async_trait::async_trait]
-pub trait NotificationRepository: NotificationReadRepository + NotificationWriteRepository {}
+pub trait NotificationRepository: Send + Sync + NotificationReadRepository + NotificationWriteRepository {}

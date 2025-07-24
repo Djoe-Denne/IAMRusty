@@ -10,7 +10,7 @@ pub mod sqs_testcontainer;
 
 pub use database::*;
 pub use db_utils::*;
-pub use http_test::spawn_test_server;
+pub use http_test::{build_test_app, spawn_test_server};
 pub use test_server::get_test_server;
 pub use mock_event_publisher::*;
 

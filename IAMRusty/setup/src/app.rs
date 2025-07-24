@@ -1,6 +1,6 @@
 use anyhow::Result;
 use chrono::Duration;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use tracing::info;
 
 use rustycog_http::{AppState, UserIdExtractor};
@@ -46,8 +46,16 @@ use iam_application::{
 
 use crate::config::ServerConfig;
 
-pub async fn build_and_run(config: AppConfig, app_config: ServerConfig, maybe_event_publisher: Option<Arc<iam_infra::event_adapter::MultiQueueEventPublisher>>) -> Result<()> {
+static APP_STATE: OnceLock<AppState> = OnceLock::new();
+
+pub async fn build(config: AppConfig, maybe_event_publisher: Option<Arc<iam_infra::event_adapter::MultiQueueEventPublisher>>) -> Result<()> {
     let app_state = build_app_state(config.clone(), maybe_event_publisher).await?;
+    APP_STATE.set(app_state).map_err(|_| anyhow::anyhow!("App state already initialized"))?;
+    Ok(())
+}
+
+pub async fn run(app_config: ServerConfig) -> Result<()> {
+    let app_state = APP_STATE.get().ok_or_else(|| anyhow::anyhow!("App state not initialized"))?.clone();
     run_server(app_state, app_config).await
 }
 

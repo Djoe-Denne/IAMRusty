@@ -162,11 +162,11 @@ impl FixtureBuilder<notification_deliveries::Model> for NotificationDeliveryFixt
             delivery_method: Set(self.delivery_method),
             status: Set(self.status),
             attempt_count: Set(self.attempt_count),
-            last_attempt_at: Set(self.last_attempt_at.map(|dt| dt.naive_utc())),
-            delivered_at: Set(self.delivered_at.map(|dt| dt.naive_utc())),
+            last_attempt_at: Set(self.last_attempt_at),
+            delivered_at: Set(self.delivered_at),
             error_message: Set(self.error_message),
-            created_at: Set(Utc::now().naive_utc()),
-            updated_at: Set(Utc::now().naive_utc()),
+            created_at: Set(Utc::now()),
+            updated_at: Set(Utc::now()),
         };
 
         let result = notification_deliveries::Entity::insert(delivery)

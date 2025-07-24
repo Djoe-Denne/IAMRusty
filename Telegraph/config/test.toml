@@ -6,7 +6,7 @@ port = 8080
 tls_enabled = false
 
 [logging]
-level = "info"
+level = ""
 
 [database]
 # Database connection details for Telegraph notifications (test environment)

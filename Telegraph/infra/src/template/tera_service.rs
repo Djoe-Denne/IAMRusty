@@ -149,37 +149,6 @@ impl TeraTemplateService {
 
 #[async_trait]
 impl TemplateService for TeraTemplateService {
-    async fn get_template(&self, name: &str, mode: &CommunicationMode) -> Result<MessageTemplate, DomainError> {
-        if !self.template_files_exist(name, mode).await {
-            return Err(DomainError::template_not_found(
-                format!("Template '{}' for mode '{}' not found", name, mode)
-            ));
-        }
-        
-        // Create a basic MessageTemplate for file-based templates
-        // Note: This is a simplified approach - in a full implementation,
-        // you might want to read template metadata from companion files
-        let content = match mode {
-            CommunicationMode::Email => {
-                TemplateContent::Email {
-                    subject: format!("{} Subject", name), // This could be read from a metadata file
-                    html_body: Some("HTML content placeholder".to_string()),
-                    text_body: "Text content placeholder".to_string(),
-                }
-            }
-            CommunicationMode::Notification => {
-                TemplateContent::Notification {
-                    title: format!("{} Notification", name),
-                    body: "Notification body placeholder".to_string(),
-                    default_data: HashMap::new(),
-                }
-            }
-        };
-        
-        let template = MessageTemplate::new(name.to_string(), mode.clone(), content)?;
-        
-        Ok(template)
-    }
     
     async fn find_template(&self, event_type: &str, mode: &CommunicationMode) -> Result<String, DomainError> {
         // Build the expected template name using the event type and mode
@@ -282,82 +251,6 @@ impl TemplateService for TeraTemplateService {
                 })
             }
         }
-    }
-    
-    async fn create_template(&self, _template: MessageTemplate) -> Result<(), DomainError> {
-        // File-based templates are created by placing files in the template directory
-        // This operation is not supported for file-based templates
-        Err(DomainError::operation_not_supported(
-            "Creating templates is not supported for file-based template service. Place template files in the template directory instead.".to_string()
-        ))
-    }
-    
-    async fn update_template(&self, _id: Uuid, _template: MessageTemplate) -> Result<(), DomainError> {
-        // File-based templates are updated by modifying files in the template directory
-        // This operation is not supported for file-based templates
-        Err(DomainError::operation_not_supported(
-            "Updating templates is not supported for file-based template service. Modify template files in the template directory instead.".to_string()
-        ))
-    }
-    
-    async fn delete_template(&self, _id: Uuid) -> Result<(), DomainError> {
-        // File-based templates are deleted by removing files from the template directory
-        // This operation is not supported for file-based templates
-        Err(DomainError::operation_not_supported(
-            "Deleting templates is not supported for file-based template service. Remove template files from the template directory instead.".to_string()
-        ))
-    }
-    
-    async fn list_templates(&self, mode: Option<&CommunicationMode>) -> Result<Vec<MessageTemplate>, DomainError> {
-        let tera = self.tera.read().await;
-        let template_names: Vec<&str> = tera.get_template_names().collect();
-        
-        let mut templates = Vec::new();
-        
-        // Parse template names to find unique template prefixes
-        let mut template_map: HashMap<String, Vec<&str>> = HashMap::new();
-        
-        for template_name in template_names {
-            // Parse filename: template_prefix_mode.extension
-            if let Some(stem) = Path::new(template_name).file_stem() {
-                if let Some(stem_str) = stem.to_str() {
-                    let parts: Vec<&str> = stem_str.rsplitn(2, '_').collect();
-                    if parts.len() == 2 {
-                        let template_prefix = parts[1];
-                        template_map.entry(template_prefix.to_string())
-                            .or_insert_with(Vec::new)
-                            .push(template_name);
-                    }
-                }
-            }
-        }
-        
-        // Create MessageTemplate objects for each unique template
-        for (template_prefix, _files) in template_map {
-            let modes = if let Some(filter_mode) = mode {
-                vec![filter_mode.clone()]
-            } else {
-                vec![CommunicationMode::Email, CommunicationMode::Notification]
-            };
-            
-            for template_mode in modes {
-                if self.template_files_exist(&template_prefix, &template_mode).await {
-                    match self.get_template(&template_prefix, &template_mode).await {
-                        Ok(template) => templates.push(template),
-                        Err(e) => {
-                            warn!(
-                                template = %template_prefix,
-                                mode = %template_mode,
-                                error = %e,
-                                "Failed to load template"
-                            );
-                        }
-                    }
-                }
-            }
-        }
-        
-        Ok(templates)
     }
     
     async fn template_exists(&self, name: &str, mode: &CommunicationMode) -> Result<bool, DomainError> {

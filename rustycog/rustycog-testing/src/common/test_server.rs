@@ -1,4 +1,4 @@
-use crate::common::{TestFixture, spawn_test_server, ServiceTestDescriptor};
+use crate::common::{build_test_app, TestFixture, spawn_test_server, ServiceTestDescriptor};
 use rustycog_config::{load_config_part, ServerConfig};
 use reqwest::Client;
 use std::sync::Arc;
@@ -33,6 +33,8 @@ where D: ServiceTestDescriptor<T>, T: Send + Sync + 'static
             debug!("🔄 Previous server has stopped, starting a new one...");
             *server_guard = None;
         }
+
+        build_test_app::<D, T>(descriptor.clone()).await?;
 
         // Start the server using the existing spawn_test_server function
         let server_handle = tokio::spawn(async move {

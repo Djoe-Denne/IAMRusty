@@ -136,7 +136,7 @@ impl MessageTemplate {
                     data.insert(format!("var_{}", key), value.clone());
                 }
                 
-                Ok(RenderedTemplate::Notification {
+            Ok(RenderedTemplate::Notification {
                     title: Self::replace_placeholders(title, &merged_variables)?,
                     body: Self::replace_placeholders(body, &merged_variables)?,
                     data,

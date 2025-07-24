@@ -59,9 +59,9 @@ pub fn to_domain_delivery(model: notification_deliveries::Model) -> Result<Messa
         attempts: model.attempt_count as u32,
         provider_message_id: None, // Could be stored in metadata if needed
         metadata: HashMap::new(),
-        created_at: DateTime::<Utc>::from_naive_utc_and_offset(model.created_at, Utc),
-        updated_at: DateTime::<Utc>::from_naive_utc_and_offset(model.updated_at, Utc),
-        delivered_at: model.delivered_at.map(|dt| DateTime::<Utc>::from_naive_utc_and_offset(dt, Utc)),
+        created_at: model.created_at,
+        updated_at: model.updated_at,
+        delivered_at: model.delivered_at,
         error_details: model.error_message,
     })
 }
@@ -83,12 +83,12 @@ pub fn to_infra_notification(notification: NotificationCommunication) -> Result<
         user_id: ActiveValue::Set(user_id),
         title: ActiveValue::Set(title),
         content: ActiveValue::Set(notification.body.as_bytes().to_vec()),
-        content_type: ActiveValue::Set("application/json".to_string()),
+        content_type: ActiveValue::Set("application/text".to_string()),
         is_read: ActiveValue::Set(false),
         priority: ActiveValue::Set(priority),
         expires_at: ActiveValue::NotSet, // Could be calculated based on priority or content
-        created_at: ActiveValue::Set(Utc::now().naive_utc()),
-        updated_at: ActiveValue::Set(Utc::now().naive_utc()),
+        created_at: ActiveValue::Set(Utc::now()),
+        updated_at: ActiveValue::Set(Utc::now()),
         read_at: ActiveValue::NotSet,
     })
 }
@@ -105,9 +105,9 @@ pub fn to_infra_delivery(delivery: MessageDelivery) -> notification_deliveries::
         status: ActiveValue::Set(status),
         attempt_count: ActiveValue::Set(delivery.attempts as i16),
         last_attempt_at: ActiveValue::NotSet,
-        delivered_at: ActiveValue::Set(delivery.delivered_at.map(|dt| dt.naive_utc())),
+        delivered_at: ActiveValue::Set(delivery.delivered_at),
         error_message: ActiveValue::Set(delivery.error_details),
-        created_at: ActiveValue::Set(delivery.created_at.naive_utc()),
-        updated_at: ActiveValue::Set(delivery.updated_at.naive_utc()),
+        created_at: ActiveValue::Set(delivery.created_at),
+        updated_at: ActiveValue::Set(delivery.updated_at),
     }
 } 

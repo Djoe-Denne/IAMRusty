@@ -160,10 +160,10 @@ impl FixtureBuilder<notifications::Model> for NotificationFixtureBuilder {
             content_type: Set(self.content_type),
             is_read: Set(self.is_read),
             priority: Set(self.priority),
-            expires_at: Set(self.expires_at.map(|dt| dt.naive_utc())),
-            created_at: Set(Utc::now().naive_utc()),
-            updated_at: Set(Utc::now().naive_utc()),
-            read_at: Set(self.read_at.map(|dt| dt.naive_utc())),
+            expires_at: Set(self.expires_at),
+            created_at: Set(Utc::now()),
+            updated_at: Set(Utc::now()),
+            read_at: Set(self.read_at),
         };
 
         let result = notifications::Entity::insert(notification)

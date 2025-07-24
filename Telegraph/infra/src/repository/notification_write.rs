@@ -49,7 +49,7 @@ impl NotificationWriteRepository for NotificationWriteRepositoryImpl {
     async fn mark_as_read(&self, notification_id: Uuid) -> Result<NotificationCommunication, DomainError> {
         debug!("Marking notification as read: {}", notification_id);
         
-        let now = Utc::now().naive_utc();
+        let now = Utc::now();
         
         let result = notifications::Entity::update_many()
             .col_expr(notifications::Column::IsRead, Expr::value(true))
@@ -79,7 +79,7 @@ impl NotificationWriteRepository for NotificationWriteRepositoryImpl {
         debug!("Deleting expired notifications");
         
         let result = notifications::Entity::delete_many()
-            .filter(notifications::Column::ExpiresAt.lt(Utc::now().naive_utc()))
+            .filter(notifications::Column::ExpiresAt.lt(Utc::now()))
             .exec(self.db.as_ref())
             .await
             .map_err(|e| DomainError::infrastructure_error(format!("Failed to delete expired notifications: {}", e)))?;
@@ -113,7 +113,7 @@ impl NotificationWriteRepository for NotificationWriteRepositoryImpl {
     ) -> Result<MessageDelivery, DomainError> {
         debug!("Updating delivery status for delivery: {} to status: {}", delivery_id, status);
         
-        let now = Utc::now().naive_utc();
+        let now = Utc::now();
         
         let mut update = notification_deliveries::Entity::update_many()
             .col_expr(notification_deliveries::Column::Status, Expr::value(status.clone()))
@@ -152,7 +152,7 @@ impl NotificationWriteRepository for NotificationWriteRepositoryImpl {
     ) -> Result<MessageDelivery, DomainError> {
         debug!("Incrementing delivery attempt for delivery: {}", delivery_id);
         
-        let now = Utc::now().naive_utc();
+        let now = Utc::now();
         
         let result = notification_deliveries::Entity::update_many()
             .col_expr(notification_deliveries::Column::AttemptCount, 

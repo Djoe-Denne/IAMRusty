@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use std::collections::HashMap;
 
-use telegraph_domain::{CommunicationMode, MessagePriority};
+use telegraph_domain::{CommunicationMode};
 
 /// Request to send a message via HTTP API
 #[derive(Debug, Deserialize)]
@@ -15,9 +15,6 @@ pub struct SendMessageRequest {
     pub content: ApiMessageContent,
     /// Communication mode
     pub mode: CommunicationMode,
-    /// Message priority
-    #[serde(default)]
-    pub priority: MessagePriority,
     /// Message metadata
     #[serde(default)]
     pub metadata: HashMap<String, String>,

@@ -7,4 +7,4 @@ mod mappers;
 // Re-export commonly used types
 pub use notification_read::NotificationReadRepositoryImpl;
 pub use notification_write::NotificationWriteRepositoryImpl;
-pub use combined_notification_repository::CombinedNotificationRepository; 
+pub use combined_notification_repository::CombinedNotificationRepositoryImpl;

@@ -4,4 +4,4 @@ Your email address {{email}} has been successfully verified.
 
 You can now access all features of your Telegraph account.
 
-Thank you! 
+Thank you!

@@ -61,7 +61,6 @@ pub struct TestSqs {
 impl TestSqs {
     /// Get or create the global test SQS instance
     pub async fn new() -> Result<Self, Box<dyn std::error::Error>> {
-        println!("Creating new SQS LocalStack test container");
         let (_container, sqs_config) = get_or_create_test_sqs_container().await?;
         let host = sqs_config.host.clone();
         let port = sqs_config.actual_port();
@@ -224,7 +223,7 @@ impl TestSqs {
         &self,
         event: &dyn DomainEvent,
     ) -> Result<String, Box<dyn std::error::Error>> {
-        debug!("Sending domain event to queue: {}", self.queue_url);
+        info!("Sending domain event to queue: {}", self.queue_url);
 
         // Format the event the same way the SQS publisher does
         let message_body = self.serialize_event(event)?;
@@ -238,7 +237,7 @@ impl TestSqs {
             .await?;
 
         let message_id = result.message_id().unwrap_or("unknown").to_string();
-        debug!("Event sent with ID: {}", message_id);
+        info!("Event sent with ID: {}", message_id);
 
         Ok(message_id)
     }

@@ -48,9 +48,14 @@ async fn test_user_email_verified_event_creates_database_notification() {
         result.err()
     );
     
-    // ✅ Verify that a notification was created in the database
-    let notifications_after = db
-        .query_all(sea_orm::Statement::from_string(
+    let mut notifications_after = vec![];
+    // Wait for the event to be processed and notification to be created
+    for i in 0..5 {
+        if i > 0 {
+            println!("Waiting for event to be processed and notification to be created: {}", i);
+        }
+        tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+        notifications_after = db.query_all(sea_orm::Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
             format!(
                 "SELECT * FROM notifications WHERE user_id = '{}'",
@@ -59,13 +64,12 @@ async fn test_user_email_verified_event_creates_database_notification() {
         ))
         .await
         .expect("Failed to get notifications after event processing");
-    
-    assert!(
-        notifications_after.len() > 0,
-        "A new notification should have been created. Before: {}, After: {}",
-        0,
-        notifications_after.len()
-    );
+        if notifications_after.len() > 0 {
+            break;
+        }
+    }
+
+    assert!(notifications_after.len() > 0, "A new notification should have been created. Before: {}, After: {}", 0, notifications_after.len());
     
     // Find the notification created for our event
     let new_notification = notifications_after
@@ -77,20 +81,14 @@ async fn test_user_email_verified_event_creates_database_notification() {
     assert_eq!(new_notification.try_get::<Uuid>("", "user_id").unwrap(), user_id, "Notification should be for the correct user");
     assert_eq!(new_notification.try_get::<String>("", "title").unwrap(), "Email Verified Successfully", "Notification should have correct title");
     assert!(!new_notification.try_get::<bool>("", "is_read").unwrap(), "Notification should be unread initially");
-    assert_eq!(new_notification.try_get::<i16>("", "priority").unwrap(), 2, "Email verification should have medium priority");
-    assert_eq!(new_notification.try_get::<String>("", "content_type").unwrap(), "application/json", "Content should be JSON");
+    assert_eq!(new_notification.try_get::<i16>("", "priority").unwrap(), 1, "Email verification should have high priority");
+    assert_eq!(new_notification.try_get::<String>("", "content_type").unwrap(), "application/text", "Content should be text");
     
     // ✅ Verify notification content JSON
-    let content_json: String = new_notification.try_get::<String>("", "content").unwrap();
-    let content: serde_json::Value = serde_json::from_str(&content_json).unwrap();
+    let content_bytes: Vec<u8> = new_notification.try_get::<Vec<u8>>("", "content").unwrap();
+    let content = String::from_utf8(content_bytes).unwrap();
+    assert_eq!(content, "Email Verified Successfully\n\nYour email address verified.user@example.com has been successfully verified.\n\nYou can now access all features of your Telegraph account.\n\nThank you!");
     
-    assert_eq!(content["event_type"], "user_email_verified", "Event type should be correct");
-    assert_eq!(content["user_id"], user_id.to_string(), "User ID should match");
-    assert_eq!(content["email"], test_email, "Email should match");
-    assert_eq!(content["action"], "email_verification_completed", "Action should be correct");
-    assert!(content["message"].as_str().unwrap().contains("successfully verified"), "Message should indicate successful verification");
-
-    println!("✅ Database notification verified - correct content and metadata");
     
     // ✅ Verify that a delivery record was created
     let deliveries = db
@@ -98,7 +96,7 @@ async fn test_user_email_verified_event_creates_database_notification() {
             sea_orm::DatabaseBackend::Postgres,
             format!(
                 "SELECT * FROM notification_deliveries WHERE notification_id = '{}'",
-                new_notification.try_get::<i32>("", "id").unwrap()
+                new_notification.try_get::<Uuid>("", "id").unwrap()
             ),
         ))
         .await
@@ -107,10 +105,10 @@ async fn test_user_email_verified_event_creates_database_notification() {
     assert!(!deliveries.is_empty(), "At least one delivery record should exist");
     
     let delivery = &deliveries[0];
-    assert_eq!(delivery.try_get::<i32>("", "notification_id").unwrap(), new_notification.try_get::<i32>("", "id").unwrap(), "Delivery should be linked to notification");
-    assert_eq!(delivery.try_get::<String>("", "delivery_method").unwrap(), "in_app", "Delivery method should be in_app");
+    assert_eq!(delivery.try_get::<Uuid>("", "notification_id").unwrap(), new_notification.try_get::<Uuid>("", "id").unwrap(), "Delivery should be linked to notification");
+    assert_eq!(delivery.try_get::<String>("", "delivery_method").unwrap(), "notification", "Delivery method should be notification");
     assert_eq!(delivery.try_get::<String>("", "status").unwrap(), "pending", "Delivery should be pending initially");
-    assert_eq!(delivery.try_get::<i32>("", "attempt_count").unwrap(), 0, "No delivery attempts should have been made yet");
+    assert_eq!(delivery.try_get::<i16>("", "attempt_count").unwrap(), 0, "No delivery attempts should have been made yet");
 
 }
 
@@ -146,32 +144,40 @@ async fn test_multiple_email_verified_events_create_separate_notifications() {
         assert!(result.is_ok(), "Event publishing should succeed for {}", email);
         
     }
-
+    let mut notifications = vec![];
+    for i in 0..5 {
+        if i > 0 {
+            println!("Waiting for event to be processed and notification to be created: {}", i);
+        }
+        tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+        notifications = db.query_all(sea_orm::Statement::from_string(
+            sea_orm::DatabaseBackend::Postgres,
+            format!(
+                "SELECT * FROM notifications WHERE user_id = '{}'",
+                user_id
+            ),
+        ))
+        .await
+        .expect("Failed to get notifications after event processing");
+        if notifications.len() == 3 {
+            break;
+        }
+    }
+    
     // ✅ Verify that 3 separate notifications were created
-    let notifications = db
-    .query_all(sea_orm::Statement::from_string(
-        sea_orm::DatabaseBackend::Postgres,
-        format!(
-            "SELECT * FROM notifications WHERE user_id = '{}'",
-            user_id
-        ),
-    ))
-    .await
-    .expect("Failed to get notifications");
-
     assert_eq!(notifications.len(), 3, "Should have created 3 separate notifications");
     
     // ✅ Verify all notifications have correct content
     for notification in &notifications {
         assert_eq!(notification.try_get::<Uuid>("", "user_id").unwrap(), user_id, "All notifications should be for same user");
         assert_eq!(notification.try_get::<String>("", "title").unwrap(), "Email Verified Successfully", "All should have same title");
-        assert_eq!(notification.try_get::<i16>("", "priority").unwrap(), 2, "All should have medium priority");
-        
-        let content_json: String = notification.try_get::<String>("", "content").unwrap();
-        let content: serde_json::Value = serde_json::from_str(&content_json).unwrap();
-        
-        assert_eq!(content["event_type"], "user_email_verified", "Event type should match");
-        assert_eq!(content["action"], "email_verification_completed", "Action should match");
+        assert_eq!(notification.try_get::<i16>("", "priority").unwrap(), 1, "All should have high priority");
+        let content_bytes: Vec<u8> = notification.try_get::<Vec<u8>>("", "content").unwrap();
+        let content = String::from_utf8(content_bytes).unwrap();
+        assert!(content.contains("Email Verified Successfully\n\nYour email address"), "Content should contain 'Email Verified Successfully\n\nYour email address'");
+        assert!(content.contains("has been successfully verified."), "Content should contain 'has been successfully verified.'");
+        assert!(content.contains("You can now access all features of your Telegraph account."), "Content should contain 'You can now access all features of your Telegraph account.'");
+        assert!(content.contains("Thank you!"), "Content should contain 'Thank you!'");
     }
 
 }
@@ -207,6 +213,23 @@ async fn test_different_users_email_verified_events() {
         assert!(result.is_ok(), "Event publishing should succeed for user {}", user_id);
     }
 
+    
+    for i in 0..5 {
+        if i > 0 {
+            println!("Waiting for event to be processed and notification to be created: {}", i);
+        }
+        tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+        let notifications = db.query_all(sea_orm::Statement::from_string(
+            sea_orm::DatabaseBackend::Postgres,
+                "SELECT * FROM notifications",
+        ))
+        .await
+        .expect("Failed to get notifications after event processing");
+        if notifications.len() == 3 {
+            break;
+        }
+    }
+
     // ✅ Verify each user has exactly one notification
     for (user_id, email) in &users {
         let user_notifications = db
@@ -225,10 +248,9 @@ async fn test_different_users_email_verified_events() {
         let notification = &user_notifications[0];
         assert_eq!(notification.try_get::<Uuid>("", "user_id").unwrap(), *user_id, "Notification should belong to correct user");
         
-        let content_json: String = notification.try_get::<String>("", "content").unwrap();
-        let content: serde_json::Value = serde_json::from_str(&content_json).unwrap();
-        
-        assert_eq!(content["email"], *email, "Email in notification should match event email");
+        let content_bytes: Vec<u8> = notification.try_get::<Vec<u8>>("", "content").unwrap();
+        let content = String::from_utf8(content_bytes).unwrap();
+        assert_eq!(content, format!("Email Verified Successfully\n\nYour email address {} has been successfully verified.\n\nYou can now access all features of your Telegraph account.\n\nThank you!", email));
         
     }
 } 
