@@ -12,6 +12,7 @@ use crate::{handle_panic, health_check, jwt_handler::UserIdExtractor, middleware
 /// Application state for HTTP handlers
 #[derive(Clone)]
 pub struct AppState {
+    pub running: bool,
     /// Command service for handling commands with cross-cutting concerns
     pub command_service: Arc<GenericCommandService>,
     /// User ID extractor for authentication
@@ -25,6 +26,7 @@ impl AppState {
         user_id_extractor: UserIdExtractor,
     ) -> Self {
         Self {
+            running: false,
             command_service,
             user_id_extractor: Arc::new(user_id_extractor),
         }

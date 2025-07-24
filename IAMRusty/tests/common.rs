@@ -6,7 +6,7 @@ pub use rustycog_testing::TestFixture;
 use iammigration::{Migrator, MigratorTrait};
 
 // IAM imports
-use iam_setup::app::{build, run};
+use iam_setup::app::{build_and_run};
 use iam_infra::event_adapter::{MultiQueueEventPublisher, IAMEventPublisherAdapter, IAMEventAdapter, IAMErrorMapper};
 use iam_configuration::{AppConfig, ServerConfig};
 use std::sync::Arc;
@@ -25,12 +25,12 @@ pub struct IAMRustyTestDescriptorWithMockEvents {
 impl ServiceTestDescriptor<TestFixture> for IAMRustyTestDescriptor {
     type Config = AppConfig;
 
-    async fn build_app(&self, config: AppConfig) -> anyhow::Result<()> {
-        build(config, None).await
+    async fn build_app(&self, _config: AppConfig, _server_config: ServerConfig) -> anyhow::Result<()> {
+        Ok(())
     }
 
-    async fn run_app(&self, server_config: ServerConfig) -> anyhow::Result<()> {
-        run(server_config).await
+    async fn run_app(&self, config: AppConfig, server_config: ServerConfig) -> anyhow::Result<()> {
+        build_and_run(config, server_config, None).await
     }
 
     async fn run_migrations(&self, connection: &sea_orm::DatabaseConnection) -> anyhow::Result<()> {
@@ -66,16 +66,17 @@ impl IAMRustyTestDescriptorWithMockEvents {
 impl ServiceTestDescriptor<TestFixture> for IAMRustyTestDescriptorWithMockEvents {
     type Config = AppConfig;
 
-    async fn build_app(&self, config: AppConfig) -> anyhow::Result<()> {
+    async fn build_app(&self, _config: AppConfig, _server_config: ServerConfig) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    async fn run_app(&self, _config: AppConfig, server_config: ServerConfig) -> anyhow::Result<()> {
+        
         let no_op_event_publisher = Arc::new(rustycog_events::ConcreteEventPublisher::NoOp(self.mock_event_publisher.clone()));
         let error_mapper = Arc::new(IAMErrorMapper);
         let event_adapter = Arc::new(IAMEventAdapter);
         let multi_queue_event_publisher = MultiQueueEventPublisher::new(vec![IAMEventPublisherAdapter::new(no_op_event_publisher, error_mapper, event_adapter)], HashSet::new());
-        build(config, Some(Arc::new(multi_queue_event_publisher))).await
-    }
-
-    async fn run_app(&self, server_config: ServerConfig) -> anyhow::Result<()> {
-        run(server_config).await
+        build_and_run(_config, server_config, Some(Arc::new(multi_queue_event_publisher))).await
     }
 
     async fn run_migrations(&self, connection: &sea_orm::DatabaseConnection) -> anyhow::Result<()> {

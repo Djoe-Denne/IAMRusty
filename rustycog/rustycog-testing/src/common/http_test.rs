@@ -8,7 +8,7 @@ where D: ServiceTestDescriptor<T>, T: Send + Sync + 'static
 {
     let config = load_config_fresh::<D::Config>().expect("failed to load config");
     debug!("🔄 Building test app with configuration:");
-    descriptor.build_app(config).await
+    descriptor.build_app(config, ServerConfig::default()).await
 }
 
 pub async fn spawn_test_server<D, T>(descriptor: Arc<D>) -> anyhow::Result<()> 
@@ -55,5 +55,5 @@ where D: ServiceTestDescriptor<T>, T: Send + Sync + 'static
     );
 
     // Build and run the application - this should run indefinitely
-    descriptor.run_app(server_config).await
+    descriptor.run_app(config, server_config).await
 }

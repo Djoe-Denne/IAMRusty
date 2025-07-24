@@ -10,6 +10,7 @@ use fixtures::DbFixtures;
 use reqwest::StatusCode;
 use serde_json::{json, Value};
 use serial_test::serial;
+use iam_domain::entity::events::{PasswordResetRequestedEvent, IamDomainEvent};
 
 // 🔐 Password Reset Tests
 // Tests for the complete password reset flow: request → validate → confirm
@@ -69,10 +70,17 @@ async fn test_password_reset_request_existing_user_success() {
     let event = &events[0];
     assert_eq!(event.event_type, "password_reset_requested", "Event should be PasswordResetRequested");
     
-    // Check the email in the event data
-    let email_from_event = event.get_json_string_field("email")
-        .expect("Event should contain email field");
-    assert_eq!(email_from_event, user_email, "Event should contain the correct email");
+    // Parse the JSON data as IamDomainEvent to handle the envelope structure
+    let event_domain: IamDomainEvent = serde_json::from_str(event.json_data.as_str()).unwrap();
+    
+    // Extract the PasswordResetRequested event
+    match event_domain {
+        IamDomainEvent::PasswordResetRequested(password_reset_event) => {
+            // Check the email in the event data
+            assert_eq!(password_reset_event.email, user_email, "Event should contain the correct email");
+        }
+        _ => panic!("Expected PasswordResetRequested event"),
+    }
 }
 
 /// Tests password reset request for a non-existent email address.
