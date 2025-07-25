@@ -10,7 +10,7 @@ level = "info"
 
 [database]
 # Database connection details for Telegraph notifications (development)
-host = "db"  # Use Docker Compose service name
+host = "postgres"  # Use Docker Compose service name
 port = 5432
 db = "telegraph_dev"
 # Database credentials
@@ -59,19 +59,15 @@ template = "user_email_verified"
 # Communication service configuration
 [communication.email]
 enabled = true
-provider = "dummy"  # "dummy", "smtp", "ses"
-from_address = "noreply@aiforall.com"
+provider = "smtp"  # "dummy", "smtp", "ses"
+from_address = "noreply@oodhive.org"
 from_name = "AI For All"
 
 [communication.email.smtp]
-host = "localhost"
+host = "smtp.tem.scaleway.com"
 port = 587
-use_tls = false
+use_tls = true
 
-[communication.notification]
+[communication.template]
 enabled = true
-provider = "dummy"  # "dummy", "fcm", "apns"
-
-[communication.sms]
-enabled = false
-provider = "dummy"  # "dummy", "twilio", "aws_sns" 
+template_dir = "resources/templates" 

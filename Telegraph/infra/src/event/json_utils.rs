@@ -6,33 +6,37 @@ use telegraph_domain::DomainError;
 
 /// Convert a serde_json::Value to HashMap<String, String>
 /// Flattens nested objects using dot notation (e.g., "user.email")
-pub fn json_to_string_map(value: &Value) -> Result<HashMap<String, String>, DomainError> {
+pub fn json_to_string_map(value: &Value, skip_root_key: bool) -> Result<HashMap<String, String>, DomainError> {
     let mut map = HashMap::new();
-    flatten_json_value(value, "", &mut map)?;
+    flatten_json_value(value, "", &mut map, skip_root_key)?;
     Ok(map)
 }
 
 /// Recursively flatten a JSON value into dot-notation string keys
-pub fn flatten_json_value(value: &Value, prefix: &str, map: &mut HashMap<String, String>) -> Result<(), DomainError> {
+pub fn flatten_json_value(value: &Value, prefix: &str, map: &mut HashMap<String, String>, skip_root_key: bool) -> Result<(), DomainError> {
     match value {
         Value::Object(obj) => {
             for (key, val) in obj {
-                let new_key = if prefix.is_empty() {
+                let new_key = if skip_root_key {
+                    "".to_string()
+                } else if prefix.is_empty() {
                     key.clone()
                 } else {
                     format!("{}.{}", prefix, key)
                 };
-                flatten_json_value(val, &new_key, map)?;
+                flatten_json_value(val,&new_key, map, false)?;
             }
         }
         Value::Array(arr) => {
             for (index, val) in arr.iter().enumerate() {
-                let new_key = if prefix.is_empty() {
+                let new_key = if skip_root_key {
+                    "".to_string()
+                } else if prefix.is_empty() {
                     index.to_string()
                 } else {
                     format!("{}.{}", prefix, index)
                 };
-                flatten_json_value(val, &new_key, map)?;
+                flatten_json_value(val, &new_key, map, false)?;
             }
         }
         Value::String(s) => {

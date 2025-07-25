@@ -29,7 +29,7 @@ pub struct TelegraphTestDescriptor;
 impl ServiceTestDescriptor<TelegraphTestFixture> for TelegraphTestDescriptor {
     type Config = TelegraphConfig;
 
-    async fn build_app(&self, config: TelegraphConfig) -> anyhow::Result<()> {    
+    async fn build_app(&self, config: TelegraphConfig, server_config: ServerConfig) -> anyhow::Result<()> {    
         let app = AppBuilder::new(config)
             .build()
             .await?;
@@ -37,7 +37,7 @@ impl ServiceTestDescriptor<TelegraphTestFixture> for TelegraphTestDescriptor {
         Ok(())
     }
     
-    async fn run_app(&self, _server_config: ServerConfig) -> anyhow::Result<()> {    
+    async fn run_app(&self, config: TelegraphConfig, server_config: ServerConfig) -> anyhow::Result<()> {    
         unsafe { APP.as_ref().unwrap().run().await?; }
         Ok(())
     }

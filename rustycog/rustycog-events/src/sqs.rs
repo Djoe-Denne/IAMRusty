@@ -423,7 +423,6 @@ impl SqsEventConsumer {
         H: EventHandler + Send + Sync,
     {
         let queue_url = self.config.default_queue_url();
-        info!("Polling for messages from SQS: {:?}", queue_url);
         match self.client
             .receive_message()
             .queue_url(&queue_url)
@@ -433,7 +432,6 @@ impl SqsEventConsumer {
             .await
         {
             Ok(response) => {
-                info!("Received messages from SQS: {:?}", response);
                 if let Some(messages) = response.messages {
                     for message in messages {
                         if let Some(body) = message.body() {

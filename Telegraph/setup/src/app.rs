@@ -41,6 +41,7 @@ impl TelegraphApp {
             from_name: config.communication.email.from_name.clone(),
             use_tls: config.communication.email.smtp.use_tls,
         };
+        println!("Email config: {:?}", email_config);
         let email_adapter = EmailAdapter::new(email_config)
                                           .map_err(|e| anyhow::anyhow!("Failed to create email adapter: {}", e))?;
 

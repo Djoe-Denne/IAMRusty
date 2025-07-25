@@ -24,6 +24,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_USER: postgres
       POSTGRES_DB: iam_dev
+      # Multiple databases can be created using init scripts
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -80,6 +81,8 @@ services:
         condition: service_healthy
       build-artifacts:
         condition: service_completed_successfully
+      create-databases:
+        condition: service_completed_successfully
     networks:
       - aiforall-network
 
@@ -90,14 +93,16 @@ services:
       dockerfile: Telegraph/Dockerfile
     ports:
       - "8081:8080"   # HTTP port (different from IAM to avoid conflicts)
-    environment:
-      - RUST_ENVIRONMENT=development
+    env_file:
+      - Telegraph/.env
     volumes:
       - ./Telegraph/config:/app/config
     depends_on:
       localstack:
         condition: service_healthy
       build-artifacts:
+        condition: service_completed_successfully
+      create-databases:
         condition: service_completed_successfully
     networks:
       - aiforall-network
@@ -107,13 +112,14 @@ services:
     image: postgres:15-alpine
     environment:
       PGPASSWORD: postgres
+      TARGET_DB: ${TARGET_DB:-iam_dev}  # Allow specifying which database to truncate
     depends_on:
       postgres:
         condition: service_healthy
     command: >
       sh -c "
-        echo 'Truncating all database tables...' &&
-        psql -h postgres -U postgres -d iam_dev -c '
+        echo 'Truncating all tables in database: $${TARGET_DB}...' &&
+        psql -h postgres -U postgres -d $${TARGET_DB} -c '
           TRUNCATE TABLE 
             password_reset_tokens,
             user_email_verification,
@@ -123,14 +129,31 @@ services:
             users
           RESTART IDENTITY CASCADE;
         ' &&
-        echo 'Database tables truncated successfully!'
+        echo 'Database tables truncated successfully in $${TARGET_DB}!'
       "
-    profiles:
-      - tools
     networks:
       - aiforall-network
 
   verify-emails:
+    image: postgres:15-alpine
+    environment:
+      PGPASSWORD: postgres
+      TARGET_DB: ${TARGET_DB:-iam_dev}  # Allow specifying which database to verify emails in
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      sh -c "
+        echo 'Verifying all emails in database: $${TARGET_DB}...' &&
+        psql -h postgres -U postgres -d $${TARGET_DB} -c '
+          UPDATE user_emails SET is_verified = true, updated_at = NOW() WHERE is_verified = false;
+        ' &&
+        echo 'Emails verified successfully in $${TARGET_DB}!'
+      "
+    networks:
+      - aiforall-network
+
+  list-databases:
     image: postgres:15-alpine
     environment:
       PGPASSWORD: postgres
@@ -139,14 +162,32 @@ services:
         condition: service_healthy
     command: >
       sh -c "
-        echo 'Verifying all emails...' &&
-        psql -h postgres -U postgres -d iam_dev -c '
-          UPDATE user_emails SET is_verified = true, updated_at = NOW() WHERE is_verified = false;
-        ' &&
-        echo 'Emails verified successfully!'
+        echo 'Available databases:' &&
+        psql -h postgres -U postgres -d postgres -c '
+          SELECT datname FROM pg_database WHERE datistemplate = false ORDER BY datname;
+        '
       "
-    profiles:
-      - tools
+    networks:
+      - aiforall-network
+
+  create-databases:
+    image: postgres:15-alpine
+    environment:
+      PGPASSWORD: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      sh -c "
+        echo 'Creating databases...' &&
+        psql -h postgres -U postgres -c 'DROP DATABASE IF EXISTS  iam_dev;' &&
+        psql -h postgres -U postgres -c 'DROP DATABASE IF EXISTS telegraph_dev;' &&
+        psql -h postgres -U postgres -c 'CREATE DATABASE iam_dev;' &&
+        psql -h postgres -U postgres -c 'CREATE DATABASE telegraph_dev;' &&
+        psql -h postgres -U postgres -c 'GRANT ALL PRIVILEGES ON DATABASE iam_dev TO postgres;' &&
+        psql -h postgres -U postgres -c 'GRANT ALL PRIVILEGES ON DATABASE telegraph_dev TO postgres;' &&
+        echo 'Databases created successfully!'
+      "
     networks:
       - aiforall-network
 

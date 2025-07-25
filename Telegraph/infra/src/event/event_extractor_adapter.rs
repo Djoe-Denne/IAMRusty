@@ -27,6 +27,6 @@ impl EventExtractor for JsonEventExtractor {
             .map_err(|e| DomainError::EventProcessingError(format!("Failed to serialize event to JSON: {}", e)))?;
 
         // Convert JSON to HashMap<String, String> for template variables
-        json_to_string_map(&event_json)
+        json_to_string_map(&event_json, true)
     }
 } 

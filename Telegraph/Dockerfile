@@ -20,9 +20,16 @@ WORKDIR /app
 
 # Copy the binary from builder stage
 COPY --from=build-source /app/target/release/telegraph-service /app/telegraph-service
+COPY --from=build-source /app/target/release/telegraphmigration /app/migration
+
+# Copy entrypoint script
+COPY Telegraph/docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
 
 # Copy configuration files
 COPY Telegraph/config /app/config
+
+COPY Telegraph/resources /app/resources
 
 # Change ownership
 RUN chown -R appuser:appuser /app
@@ -36,4 +43,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD curl -f http://localhost:8080/health || exit 1
 
 # Set entrypoint
-ENTRYPOINT ["./telegraph-service"] 
+ENTRYPOINT ["/app/docker-entrypoint.sh"] 

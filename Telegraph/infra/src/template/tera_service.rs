@@ -198,14 +198,16 @@ impl TemplateService for TeraTemplateService {
                 format!("Template '{}' for mode '{}' not found", template_name, mode)
             ));
         }
+        info!("rendering template: {}. with variables: {:?}", template_name, variables);
         
         let (text_template, html_template) = self.get_template_paths(template_name, mode);
         
         match mode {
             CommunicationMode::Email => {
+                info!("rendering email template");
                 // Render text template (required)
                 let text_body = self.render_tera_template(&text_template, variables).await?;
-                
+                info!("rendered text template: {}", text_body);
                 // Render HTML template (optional)
                 let html_body = if let Some(html_template_name) = html_template {
                     match self.render_tera_template(&html_template_name, variables).await {

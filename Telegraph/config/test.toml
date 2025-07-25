@@ -62,14 +62,6 @@ host = "localhost"
 port = 1025
 use_tls = false
 
-[communication.notification]
-enabled = true
-provider = "dummy"  # "dummy", "fcm", "apns"
-
-[communication.sms]
-enabled = false
-provider = "dummy"  # "dummy", "twilio", "aws_sns"
-
 [communication.template]
 enabled = true
 template_dir = "resources/templates" 

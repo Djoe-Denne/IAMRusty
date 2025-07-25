@@ -79,10 +79,6 @@ pub struct CommunicationConfig {
     #[serde(default)]
     pub notification: NotificationConfig,
     
-    /// SMS service configuration
-    #[serde(default)]
-    pub sms: SmsConfig,
-    
     /// Template service configuration
     #[serde(default)]
     pub template: TemplateConfig,
@@ -102,10 +98,6 @@ pub struct EmailConfig {
     /// SMTP configuration (if using SMTP provider)
     #[serde(default)]
     pub smtp: SmtpConfig,
-    
-    /// Mailjet configuration (if using Mailjet provider)
-    #[serde(default)]
-    pub mailjet: MailjetConfig,
     
     /// Default from address
     #[serde(default = "default_from_email")]
@@ -208,38 +200,6 @@ pub struct ApnsConfig {
     pub sandbox: bool,
 }
 
-/// SMS service configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SmsConfig {
-    /// Whether SMS service is enabled
-    #[serde(default)]
-    pub enabled: bool,
-    
-    /// SMS service provider (dummy, twilio, aws_sns, etc.)
-    #[serde(default = "default_sms_provider")]
-    pub provider: String,
-    
-    /// Twilio configuration
-    #[serde(default)]
-    pub twilio: TwilioConfig,
-}
-
-/// Twilio SMS configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TwilioConfig {
-    /// Twilio account SID
-    #[serde(default)]
-    pub account_sid: String,
-    
-    /// Twilio auth token
-    #[serde(default)]
-    pub auth_token: String,
-    
-    /// Default from phone number
-    #[serde(default)]
-    pub from_number: String,
-}
-
 /// Template service configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TemplateConfig {
@@ -320,7 +280,6 @@ impl Default for CommunicationConfig {
         Self {
             email: EmailConfig::default(),
             notification: NotificationConfig::default(),
-            sms: SmsConfig::default(),
             template: TemplateConfig::default(),
         }
     }
@@ -332,7 +291,6 @@ impl Default for EmailConfig {
             enabled: default_true(),
             provider: default_email_provider(),
             smtp: SmtpConfig::default(),
-            mailjet: MailjetConfig::default(),
             from_address: default_from_email(),
             from_name: default_from_name(),
         }
@@ -388,26 +346,6 @@ impl Default for ApnsConfig {
             team_id: String::new(),
             private_key_path: None,
             sandbox: true,
-        }
-    }
-}
-
-impl Default for SmsConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            provider: default_sms_provider(),
-            twilio: TwilioConfig::default(),
-        }
-    }
-}
-
-impl Default for TwilioConfig {
-    fn default() -> Self {
-        Self {
-            account_sid: String::new(),
-            auth_token: String::new(),
-            from_number: String::new(),
         }
     }
 }
