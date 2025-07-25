@@ -8,30 +8,41 @@ use telegraph_domain::DomainError;
 /// Flattens nested objects using dot notation (e.g., "user.email")
 pub fn json_to_string_map(value: &Value, skip_root_key: bool) -> Result<HashMap<String, String>, DomainError> {
     let mut map = HashMap::new();
-    flatten_json_value(value, "", &mut map, skip_root_key)?;
+    
+    if skip_root_key {
+        // If we're skipping the root key, we expect the root to be an object
+        // and we want to extract its fields directly (not nested under the root key)
+        if let Value::Object(obj) = value {
+            for (key, val) in obj {
+                flatten_json_value(val, key, &mut map, false)?;
+            }
+        } else {
+            // If root is not an object, just flatten normally
+            flatten_json_value(value, "", &mut map, false)?;
+        }
+    } else {
+        flatten_json_value(value, "", &mut map, false)?;
+    }
+    
     Ok(map)
 }
 
 /// Recursively flatten a JSON value into dot-notation string keys
-pub fn flatten_json_value(value: &Value, prefix: &str, map: &mut HashMap<String, String>, skip_root_key: bool) -> Result<(), DomainError> {
+pub fn flatten_json_value(value: &Value, prefix: &str, map: &mut HashMap<String, String>, _skip_root_key: bool) -> Result<(), DomainError> {
     match value {
         Value::Object(obj) => {
             for (key, val) in obj {
-                let new_key = if skip_root_key {
-                    "".to_string()
-                } else if prefix.is_empty() {
+                let new_key = if prefix.is_empty() {
                     key.clone()
                 } else {
                     format!("{}.{}", prefix, key)
                 };
-                flatten_json_value(val,&new_key, map, false)?;
+                flatten_json_value(val, &new_key, map, false)?;
             }
         }
         Value::Array(arr) => {
             for (index, val) in arr.iter().enumerate() {
-                let new_key = if skip_root_key {
-                    "".to_string()
-                } else if prefix.is_empty() {
+                let new_key = if prefix.is_empty() {
                     index.to_string()
                 } else {
                     format!("{}.{}", prefix, index)
@@ -40,16 +51,24 @@ pub fn flatten_json_value(value: &Value, prefix: &str, map: &mut HashMap<String,
             }
         }
         Value::String(s) => {
-            map.insert(prefix.to_string(), s.clone());
+            if !prefix.is_empty() {
+                map.insert(prefix.to_string(), s.clone());
+            }
         }
         Value::Number(n) => {
-            map.insert(prefix.to_string(), n.to_string());
+            if !prefix.is_empty() {
+                map.insert(prefix.to_string(), n.to_string());
+            }
         }
         Value::Bool(b) => {
-            map.insert(prefix.to_string(), b.to_string());
+            if !prefix.is_empty() {
+                map.insert(prefix.to_string(), b.to_string());
+            }
         }
         Value::Null => {
-            map.insert(prefix.to_string(), "null".to_string());
+            if !prefix.is_empty() {
+                map.insert(prefix.to_string(), "null".to_string());
+            }
         }
     }
     Ok(())

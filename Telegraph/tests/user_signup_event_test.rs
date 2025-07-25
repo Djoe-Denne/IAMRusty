@@ -46,6 +46,8 @@ async fn test_user_signed_up_event_happy_path() {
         email: test_email.to_string(),
         username: test_username.to_string(),
         email_verified: false,
+        verification_token: Some("test-verification-token-123".to_string()),
+        verification_url: None, // Telegraph will build URL from environment variables
     };
 
     let iam_event = IamDomainEvent::UserSignedUp(user_signed_up_event);
@@ -107,6 +109,8 @@ async fn test_user_signed_up_email_content_verification() {
         email: test_email.to_string(),
         username: test_username.to_string(),
         email_verified: false,
+        verification_token: Some("test-verification-token-123".to_string()),
+        verification_url: None, // Telegraph will build URL from environment variables
     };
 
     let iam_event = IamDomainEvent::UserSignedUp(user_signed_up_event);
@@ -213,6 +217,8 @@ async fn test_event_type_support_verification() {
         email: test_email.to_string(),
         username: test_username.to_string(),
         email_verified: false,
+        verification_token: Some("test-verification-multi-token-789".to_string()),
+        verification_url: None, // Telegraph will build URL from environment variables
     };
     
     let signup_iam_event = IamDomainEvent::UserSignedUp(signup_event);

@@ -231,6 +231,8 @@ where
         Uuid::new_v4().to_string()
     }
 
+
+
     pub async fn signup(&self, request: SignupRequest) -> Result<SignupResponse, AuthError> {
         // Check if user already exists by email
         if let Ok(Some(existing_email)) = self
@@ -618,11 +620,14 @@ where
                             // Only publish event if user has a username (complete registration)
                             if let Some(username) = user.username {
                                 // Publish event to trigger email service
+                                // Telegraph will build the verification URL from environment variables
                                 let event = DomainEvent::UserSignedUp(UserSignedUpEvent::new(
                                     user_email.user_id,
                                     request.email.clone(),
                                     username,
                                     false,
+                                    Some(email_verification.verification_token.clone()),
+                                    None, // Telegraph will build the URL
                                 ));
 
                                 if let Err(e) = self.event_publisher.publish(event).await {

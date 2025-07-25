@@ -1,7 +1,7 @@
 # IAM Service Default Configuration
 
 [server]
-host = "0.0.0.0"
+host = "0.0.0.0"  # Required for Docker networking
 port = 8080
 tls_enabled = true
 tls_cert_path = "./config/certs/tls-cert.pem"

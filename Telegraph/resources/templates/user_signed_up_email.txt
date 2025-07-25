@@ -8,7 +8,16 @@ Your account details:
 - Email Verified: {{email_verified}}
 
 {% if email_verified == "false" %}
-Please check your email and click the verification link to activate your account.
+Please verify your email address to activate your account:
+
+{% if verification_token and base_host and verify_url %}
+Verification Link: {{base_host}}{{verify_url}}?email={{email}}&token={{verification_token}}
+
+Or copy and paste this link into your browser:
+{{base_host}}{{verify_url}}?email={{email}}&token={{verification_token}}
+{% else %}
+Please check your email for the verification link.
+{% endif %}
 {% endif %}
 
 If you have any questions, feel free to reach out to our support team.

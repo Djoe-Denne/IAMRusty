@@ -2755,6 +2755,7 @@ dependencies = [
  "mockall",
  "rand 0.8.5",
  "rstest",
+ "rustycog-config",
  "rustycog-core",
  "rustycog-events",
  "serde",
@@ -2764,6 +2765,7 @@ dependencies = [
  "tokio",
  "tokio-test",
  "tracing",
+ "urlencoding",
  "uuid",
 ]
 

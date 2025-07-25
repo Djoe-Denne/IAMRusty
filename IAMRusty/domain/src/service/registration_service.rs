@@ -9,9 +9,10 @@ use crate::entity::{
 use crate::error::DomainError;
 use crate::port::{
     event_publisher::EventPublisher,
-    repository::{UserEmailRepository, UserReadRepository, UserWriteRepository},
+    repository::{EmailVerificationRepository, UserEmailRepository, UserReadRepository, UserWriteRepository},
     service::{AuthTokenService, RegistrationTokenService},
 };
+
 
 /// Registration completion result
 #[derive(Debug)]
@@ -60,7 +61,7 @@ impl UsernameValidator {
         let mut suggestions = Vec::new();
 
         // Add numeric suffixes
-        for i in 1..=4 {
+        for _i in 1..=4 {
             // Add timestamp-based suffix (simpler than rand)
             use std::time::{SystemTime, UNIX_EPOCH};
             let timestamp = SystemTime::now()
@@ -89,11 +90,12 @@ pub trait RegistrationService: Send + Sync {
 }
 
 /// Registration service implementation
-pub struct RegistrationServiceImpl<UR, UW, UER, RTS, TS, EP>
+pub struct RegistrationServiceImpl<UR, UW, UER, EVR, RTS, TS, EP>
 where
     UR: UserReadRepository,
     UW: UserWriteRepository,
     UER: UserEmailRepository,
+    EVR: EmailVerificationRepository,
     RTS: RegistrationTokenService,
     TS: AuthTokenService,
     EP: EventPublisher,
@@ -101,16 +103,18 @@ where
     user_read_repo: Arc<UR>,
     user_write_repo: Arc<UW>,
     user_email_repo: Arc<UER>,
+    email_verification_repo: Arc<EVR>,
     registration_token_service: Arc<RTS>,
     token_service: Arc<TS>,
     event_publisher: Arc<EP>,
 }
 
-impl<UR, UW, UER, RTS, TS, EP> RegistrationServiceImpl<UR, UW, UER, RTS, TS, EP>
+impl<UR, UW, UER, EVR, RTS, TS, EP> RegistrationServiceImpl<UR, UW, UER, EVR, RTS, TS, EP>
 where
     UR: UserReadRepository + Send + Sync,
     UW: UserWriteRepository + Send + Sync,
     UER: UserEmailRepository + Send + Sync,
+    EVR: EmailVerificationRepository + Send + Sync,
     RTS: RegistrationTokenService + Send + Sync,
     TS: AuthTokenService + Send + Sync,
     EP: EventPublisher + Send + Sync,
@@ -119,6 +123,7 @@ where
         user_read_repo: Arc<UR>,
         user_write_repo: Arc<UW>,
         user_email_repo: Arc<UER>,
+        email_verification_repo: Arc<EVR>,
         registration_token_service: Arc<RTS>,
         token_service: Arc<TS>,
         event_publisher: Arc<EP>,
@@ -127,26 +132,31 @@ where
             user_read_repo,
             user_write_repo,
             user_email_repo,
+            email_verification_repo,
             registration_token_service,
             token_service,
             event_publisher,
         }
     }
+
+
 }
 
 #[async_trait]
-impl<UR, UW, UER, RTS, TS, EP> RegistrationService
-    for RegistrationServiceImpl<UR, UW, UER, RTS, TS, EP>
+impl<UR, UW, UER, EVR, RTS, TS, EP> RegistrationService
+    for RegistrationServiceImpl<UR, UW, UER, EVR, RTS, TS, EP>
 where
     UR: UserReadRepository + Send + Sync,
     UW: UserWriteRepository + Send + Sync,
     UER: UserEmailRepository + Send + Sync,
+    EVR: EmailVerificationRepository + Send + Sync,
     RTS: RegistrationTokenService + Send + Sync,
     TS: AuthTokenService + Send + Sync,
     EP: EventPublisher + Send + Sync,
     <UR as UserReadRepository>::Error: std::error::Error + Send + Sync + 'static,
     <UW as UserWriteRepository>::Error: std::error::Error + Send + Sync + 'static,
     <UER as UserEmailRepository>::Error: std::error::Error + Send + Sync + 'static,
+    <EVR as EmailVerificationRepository>::Error: std::error::Error + Send + Sync + 'static,
     <TS as AuthTokenService>::Error: std::error::Error + Send + Sync + 'static,
 {
     async fn complete_registration(
@@ -218,11 +228,27 @@ where
         // Publish UserSignedUp event only for email/password flows
         // OAuth flows don't need this event since the email is already verified by the provider
         if token_claims.is_email_password_flow() {
+            // Get verification token if email is not verified
+            // Telegraph will build the verification URL from environment variables
+            let verification_token = if !user_email.is_verified {
+                match self.email_verification_repo.find_by_email(&user_email.email).await {
+                    Ok(Some(verification)) => Some(verification.verification_token),
+                    _ => {
+                        tracing::warn!("No verification token found for unverified email: {}", user_email.email);
+                        None
+                    }
+                }
+            } else {
+                None
+            };
+
             let event = DomainEvent::UserSignedUp(UserSignedUpEvent::new(
                 user_id,
                 user_email.email.clone(),
                 username.clone(),
                 user_email.is_verified,
+                verification_token,
+                None, // Telegraph will build the URL
             ));
 
             if let Err(e) = self.event_publisher.publish(event).await {

@@ -16,6 +16,7 @@ use super::email_verification_write::{
 };
 
 /// Combined email verification repository that implements the domain's EmailVerificationRepository trait
+#[derive(Clone)]
 pub struct CombinedEmailVerificationRepository {
     read_repo: Arc<dyn EmailVerificationReadRepository>,
     write_repo: Arc<dyn EmailVerificationWriteRepository>,

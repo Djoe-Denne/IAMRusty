@@ -12,6 +12,9 @@
         .account-details { background: #e8f4fd; padding: 15px; border-radius: 6px; margin: 20px 0; }
         .status-verified { color: #28a745; font-weight: bold; }
         .status-pending { color: #ffc107; font-weight: bold; }
+        .verify-button { background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; padding: 15px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold; margin: 20px 0; text-align: center; }
+        .verify-button:hover { background: linear-gradient(135deg, #218838 0%, #1e7e34 100%); }
+        .verify-box { background: #e8f4fd; padding: 20px; border-radius: 6px; border-left: 4px solid #28a745; margin: 20px 0; text-align: center; }
         .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; }
     </style>
 </head>
@@ -41,6 +44,21 @@
                 </li>
             </ul>
         </div>
+        
+        {% if email_verified == "false" %}
+        <div class="verify-box">
+            <h3>📧 Verify Your Email Address</h3>
+            <p>To complete your registration and activate your account, please verify your email address:</p>
+            {% if verification_token and base_host and verify_url %}
+            {% set verification_link = base_host ~ verify_url ~ "?email=" ~ email ~ "&token=" ~ verification_token %}
+            <a href="{{ verification_link }}" class="verify-button">✓ Verify Email Address</a>
+            <p><small>Or copy and paste this link into your browser:</small></p>
+            <p><small><a href="{{ verification_link }}">{{ verification_link }}</a></small></p>
+            {% else %}
+            <p>Please check your email for the verification link.</p>
+            {% endif %}
+        </div>
+        {% endif %}
         
         <p>Thank you for joining our community! We look forward to helping you communicate effectively.</p>
         

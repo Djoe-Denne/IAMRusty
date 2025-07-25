@@ -31,6 +31,10 @@ pub struct UserSignedUpEvent {
     pub username: String,
     /// Whether the email is verified
     pub email_verified: bool,
+    /// Email verification token (for unverified emails)
+    pub verification_token: Option<String>,
+    /// Email verification URL (for unverified emails)
+    pub verification_url: Option<String>,
 }
 
 /// Event triggered when a user verifies their email
@@ -75,13 +79,15 @@ pub struct PasswordResetRequestedEvent {
 // Event constructors
 impl UserSignedUpEvent {
     /// Create a new UserSignedUp event
-    pub fn new(user_id: Uuid, email: String, username: String, email_verified: bool) -> Self {
+    pub fn new(user_id: Uuid, email: String, username: String, email_verified: bool, verification_token: Option<String>, verification_url: Option<String>) -> Self {
         Self {
             base: BaseEvent::new("user_signed_up".to_string(), user_id),
             user_id,
             email,
             username,
             email_verified,
+            verification_token,
+            verification_url,
         }
     }
 }

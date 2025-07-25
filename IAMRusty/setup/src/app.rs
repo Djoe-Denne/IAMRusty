@@ -1,6 +1,6 @@
 use anyhow::Result;
 use chrono::Duration;
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 use tracing::info;
 
 use rustycog_http::{AppState, UserIdExtractor};
@@ -265,16 +265,12 @@ where
         Arc::new(refresh_token_repo.clone()),
         token_service.clone(),
     ));
-
-    // Create use cases with domain services
-    let user_usecase = UserUseCaseImpl::new(user_service.clone());
-    let token_usecase = TokenUseCaseImpl::new(refresh_token_service.clone());
-
+    
     tracing::info!("Creating auth service for login use case");
     let auth_service = Arc::new(iam_domain::service::auth_service::AuthService::new(
         Arc::new(user_repo.clone()),
         Arc::new(user_email_repo.clone()),
-        Arc::new(email_verification_repo),
+        Arc::new(email_verification_repo.clone()),
         password_service_adapter.clone(),
         token_service.clone(),
         registration_token_service.clone(),
@@ -290,6 +286,7 @@ where
         Arc::new(user_repo.clone()),
         Arc::new(user_repo.clone()),
         Arc::new(user_email_repo.clone()),
+        Arc::new(email_verification_repo.clone()),
         registration_token_service.clone(),
         token_service.clone(),
         event_publisher.clone(),

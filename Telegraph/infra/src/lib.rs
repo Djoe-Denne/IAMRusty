@@ -3,6 +3,7 @@
 //! This crate provides infrastructure implementations for the Telegraph communication service.
 
 pub mod communication;
+pub mod environment;
 pub mod event;
 pub mod repository;
 pub mod template;

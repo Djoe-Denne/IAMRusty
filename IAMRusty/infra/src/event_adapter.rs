@@ -179,6 +179,12 @@ impl RustycogDomainEvent for IAMDomainEventAdapter {
                     "email_verified".to_string(),
                     event.email_verified.to_string(),
                 );
+                if let Some(token) = &event.verification_token {
+                    metadata.insert("verification_token".to_string(), token.clone());
+                }
+                if let Some(url) = &event.verification_url {
+                    metadata.insert("verification_url".to_string(), url.clone());
+                }
             }
             IAMDomainEvent::UserEmailVerified(event) => {
                 metadata.insert("email".to_string(), event.email.clone());

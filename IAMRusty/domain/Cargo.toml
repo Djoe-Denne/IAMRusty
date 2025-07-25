@@ -7,6 +7,7 @@ edition.workspace = true
 # Events abstraction
 rustycog-events = { path = "../../rustycog/rustycog-events" }
 rustycog-core = { path = "../../rustycog/rustycog-core" }
+rustycog-config = { path = "../../rustycog/rustycog-config" }
 iam-events = { path = "../../iam-events" }
 
 # Utility
@@ -14,6 +15,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
+urlencoding = "2.1"
 
 # Cryptography
 sha2 = "0.10"

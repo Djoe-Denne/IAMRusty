@@ -15,6 +15,7 @@ use telegraph_domain::{
     CommunicationMode, TemplateContent, Communication
 };
 use telegraph_configuration::TemplateConfig;
+use crate::environment::template_env_service::TemplateEnvironmentService;
 
 /// File-based template service using Tera template engine
 pub struct TeraTemplateService {
@@ -24,6 +25,8 @@ pub struct TeraTemplateService {
     config: TemplateConfig,
     /// Template directory path
     template_dir: PathBuf,
+    /// Environment variable service for template variables
+    env_service: TemplateEnvironmentService,
 }
 
 impl TeraTemplateService {
@@ -56,6 +59,7 @@ impl TeraTemplateService {
             tera: Arc::new(RwLock::new(tera)),
             config,
             template_dir,
+            env_service: TemplateEnvironmentService::new(),
         })
     }
     
@@ -198,7 +202,16 @@ impl TemplateService for TeraTemplateService {
                 format!("Template '{}' for mode '{}' not found", template_name, mode)
             ));
         }
-        info!("rendering template: {}. with variables: {:?}", template_name, variables);
+        
+        // Merge event variables with environment template variables
+        let env_variables = self.env_service.get_template_variables();
+        let mut merged_variables = env_variables;
+        // Event variables override environment variables
+        for (key, value) in variables {
+            merged_variables.insert(key.clone(), value.clone());
+        }
+        
+        info!("rendering template: {} with variables: {:?}", template_name, merged_variables);
         
         let (text_template, html_template) = self.get_template_paths(template_name, mode);
         
@@ -206,11 +219,11 @@ impl TemplateService for TeraTemplateService {
             CommunicationMode::Email => {
                 info!("rendering email template");
                 // Render text template (required)
-                let text_body = self.render_tera_template(&text_template, variables).await?;
+                let text_body = self.render_tera_template(&text_template, &merged_variables).await?;
                 info!("rendered text template: {}", text_body);
                 // Render HTML template (optional)
                 let html_body = if let Some(html_template_name) = html_template {
-                    match self.render_tera_template(&html_template_name, variables).await {
+                    match self.render_tera_template(&html_template_name, &merged_variables).await {
                         Ok(html) => Some(html),
                         Err(e) => {
                             warn!(
@@ -230,7 +243,7 @@ impl TemplateService for TeraTemplateService {
                 // 2. Extracted from the first line of the template
                 // 3. Configured separately
                 // For now, we'll use a simple approach
-                let subject = variables.get("subject")
+                let subject = merged_variables.get("subject")
                     .unwrap_or(&format!("{} Email", template_name))
                     .clone();
                 
@@ -241,8 +254,8 @@ impl TemplateService for TeraTemplateService {
                 })
             }
             CommunicationMode::Notification => {
-                let body = self.render_tera_template(&text_template, variables).await?;
-                let title = variables.get("title")
+                let body = self.render_tera_template(&text_template, &merged_variables).await?;
+                let title = merged_variables.get("title")
                     .unwrap_or(&format!("{} Notification", template_name))
                     .clone();
                 
