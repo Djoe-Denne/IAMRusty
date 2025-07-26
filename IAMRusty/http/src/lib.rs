@@ -36,7 +36,7 @@ pub async fn create_app_routes(state: AppState, config: ServerConfig) -> anyhow:
         .get("/.well-known/jwks.json", jwks)
         .post("/api/auth/signup", signup)
         .post("/api/auth/login", login)
-        .post("/api/auth/verify", verify_email)
+        .get("/api/auth/verify", verify_email)
         .post("/api/auth/resend-verification", resend_verification_email)
         .post("/api/auth/complete-registration", complete_registration)
         .get("/api/auth/username/check", check_username)

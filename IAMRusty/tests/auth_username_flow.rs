@@ -1353,15 +1353,9 @@ async fn test_complete_email_first_flow() {
         .expect("Failed to get verification token");
 
     // Verify the email
-    let verify_data = json!({
-        "email": "flowtest@example.com",
-        "verification_token": verification_token
-    });
-
     let verify_response = client
-        .post(&format!("{}/api/auth/verify", base_url))
-        .header("Content-Type", "application/json")
-        .json(&verify_data)
+        .get(&format!("{}/api/auth/verify", base_url))
+        .query(&[("email", "flowtest@example.com"), ("token", &verification_token)])
         .send()
         .await
         .expect("Failed to send verify request");
@@ -1506,15 +1500,9 @@ async fn test_complete_oauth_first_flow() {
         .await
         .expect("Failed to create verification token");
 
-    let verify_data = json!({
-        "email": user_email,
-        "verification_token": verification_token.verification_token()
-    });
-
     let verify_response = client
-        .post(&format!("{}/api/auth/verify", base_url))
-        .header("Content-Type", "application/json")
-        .json(&verify_data)
+        .get(&format!("{}/api/auth/verify", base_url))
+        .query(&[("email", user_email), ("token", verification_token.verification_token())])
         .send()
         .await
         .expect("Failed to send verify request");

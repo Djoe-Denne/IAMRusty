@@ -206,9 +206,9 @@ pub struct LoginRequest {
     pub password: String,
 }
 
-/// Email verification request
+/// Email verification request (query parameters)
 #[derive(Debug, Deserialize, Validate)]
-pub struct VerifyEmailRequest {
+pub struct VerifyEmailQuery {
     #[validate(custom(
         function = "crate::validation::validate_email_format",
         message = "Invalid email format"
@@ -218,7 +218,7 @@ pub struct VerifyEmailRequest {
         function = "crate::validation::validate_verification_token",
         message = "Invalid verification token format"
     ))]
-    pub verification_token: String,
+    pub token: String,
 }
 
 /// Resend verification email request
@@ -705,7 +705,7 @@ pub async fn login(
 /// Handle email verification
 pub async fn verify_email(
     State(state): State<AppState>,
-    ValidatedJson(request): ValidatedJson<VerifyEmailRequest>,
+    Valid(Query(request)): Valid<Query<VerifyEmailQuery>>,
 ) -> Result<Json<SuccessResponse>, AuthError> {
     debug!("Email verification for: {}", request.email);
 
@@ -713,7 +713,7 @@ pub async fn verify_email(
         .with_metadata("operation".to_string(), "verify_email".to_string())
         .with_metadata("email".to_string(), request.email.clone());
 
-    let command = VerifyEmailCommand::new(request.email, request.verification_token);
+    let command = VerifyEmailCommand::new(request.email, request.token);
     let response = state
         .command_service
         .execute(command, context)

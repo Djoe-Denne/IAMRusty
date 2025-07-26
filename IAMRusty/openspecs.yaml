@@ -127,23 +127,22 @@ paths:
                   registration_token: {type: string, description: "RSA-signed JWT"}
           
   /api/auth/verify:
-    post:
+    get:
       summary: Verify user email with a token
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                email:
-                  type: string
-                  format: email
-                verification_token:
-                  type: string
-              required:
-                - email
-                - verification_token
+      parameters:
+        - in: query
+          name: email
+          required: true
+          description: Email address to verify
+          schema:
+            type: string
+            format: email
+        - in: query
+          name: token
+          required: true
+          description: Email verification token
+          schema:
+            type: string
       responses:
         "200":
           description: Email successfully verified

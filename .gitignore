@@ -25,6 +25,7 @@ lerna-debug.log*
 # IDE and Editor Files
 # VSCode
 .vscode/
+.VSCodeCounter/
 *.code-workspace
 !.vscode/extensions.json
 

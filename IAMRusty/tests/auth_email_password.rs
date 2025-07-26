@@ -440,15 +440,9 @@ async fn test_verify_email_success() {
     .expect("Failed to create verification record");
 
     // Make verify request
-    let verify_data = json!({
-        "email": "unverified@example.com",
-        "verification_token": verification_token
-    });
-
     let response = client
-        .post(&format!("{}/api/auth/verify", base_url))
-        .header("Content-Type", "application/json")
-        .json(&verify_data)
+        .get(&format!("{}/api/auth/verify", base_url))
+        .query(&[("email", "unverified@example.com"), ("token", verification_token)])
         .send()
         .await
         .expect("Failed to send verify request");
@@ -548,15 +542,9 @@ async fn test_verify_email_invalid_token() {
     .expect("Failed to create verification record");
 
     // Test with wrong token
-    let verify_data = json!({
-        "email": "unverified@example.com",
-        "verification_token": "wrong_token_456"
-    });
-
     let response = client
-        .post(&format!("{}/api/auth/verify", base_url))
-        .header("Content-Type", "application/json")
-        .json(&verify_data)
+        .get(&format!("{}/api/auth/verify", base_url))
+        .query(&[("email", "unverified@example.com"), ("token", "wrong_token_456")])
         .send()
         .await
         .expect("Failed to send verify request");
@@ -620,15 +608,9 @@ async fn test_verify_email_expired_token() {
     .expect("Failed to create verification record");
 
     // Make verify request with expired token
-    let verify_data = json!({
-        "email": "unverified@example.com",
-        "verification_token": verification_token
-    });
-
     let response = client
-        .post(&format!("{}/api/auth/verify", base_url))
-        .header("Content-Type", "application/json")
-        .json(&verify_data)
+        .get(&format!("{}/api/auth/verify", base_url))
+        .query(&[("email", "unverified@example.com"), ("token", verification_token)])
         .send()
         .await
         .expect("Failed to send verify request");
@@ -660,15 +642,9 @@ async fn test_verify_email_nonexistent_email() {
         .expect("Failed to setup test server");
 
     // Make verify request for nonexistent email
-    let verify_data = json!({
-        "email": "nonexistent@example.com",
-        "verification_token": "any_token_123"
-    });
-
     let response = client
-        .post(&format!("{}/api/auth/verify", base_url))
-        .header("Content-Type", "application/json")
-        .json(&verify_data)
+        .get(&format!("{}/api/auth/verify", base_url))
+        .query(&[("email", "nonexistent@example.com"), ("token", "any_token_123")])
         .send()
         .await
         .expect("Failed to send verify request");
@@ -717,15 +693,9 @@ async fn test_verify_email_already_verified() {
         .expect("Failed to create user email");
 
     // Make verify request for already verified email
-    let verify_data = json!({
-        "email": "already_verified@example.com",
-        "verification_token": "any_token_123"
-    });
-
     let response = client
-        .post(&format!("{}/api/auth/verify", base_url))
-        .header("Content-Type", "application/json")
-        .json(&verify_data)
+        .get(&format!("{}/api/auth/verify", base_url))
+        .query(&[("email", "already_verified@example.com"), ("token", "any_token_123")])
         .send()
         .await
         .expect("Failed to send verify request");
@@ -757,28 +727,24 @@ async fn test_verify_email_missing_required_fields() {
         .expect("Failed to setup test server");
 
     let test_cases = vec![
-        (json!({"verification_token": "token123"}), "missing email"),
-        (
-            json!({"email": "test@example.com"}),
-            "missing verification_token",
-        ),
-        (json!({}), "missing both fields"),
+        (vec![("token", "token123")], "missing email"),
+        (vec![("email", "test@example.com")], "missing token"),
+        (vec![], "missing both fields"),
     ];
 
-    for (verify_data, description) in test_cases {
+    for (query_params, description) in test_cases {
         let response = client
-            .post(&format!("{}/api/auth/verify", base_url))
-            .header("Content-Type", "application/json")
-            .json(&verify_data)
+            .get(&format!("{}/api/auth/verify", base_url))
+            .query(&query_params)
             .send()
             .await
             .expect("Failed to send verify request");
 
-        // ✅ Should return 422 for missing required fields
+        // ✅ Should return 400 for missing required fields
         assert_eq!(
             response.status(),
-            422,
-            "Should return 422 for {}",
+            400,
+            "Should return 400 for {}",
             description
         );
     }
