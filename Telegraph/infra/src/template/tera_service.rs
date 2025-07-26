@@ -211,7 +211,7 @@ impl TemplateService for TeraTemplateService {
             merged_variables.insert(key.clone(), value.clone());
         }
         
-        info!("rendering template: {} with variables: {:?}", template_name, merged_variables);
+        debug!("rendering template: {} with variables: {:?}", template_name, merged_variables);
         
         let (text_template, html_template) = self.get_template_paths(template_name, mode);
         
