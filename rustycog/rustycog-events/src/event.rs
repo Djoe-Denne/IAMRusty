@@ -33,38 +33,38 @@ pub trait DomainEvent: Send + Sync + std::fmt::Debug {
 
 /// Event publisher trait for publishing domain events
 #[async_trait]
-pub trait EventPublisher: Send + Sync {
+pub trait EventPublisher<TError>: Send + Sync {
     /// Publish a single event
-    async fn publish(&self, event: Box<dyn DomainEvent>) -> Result<(), ServiceError>;
+    async fn publish(&self, event: &Box<dyn DomainEvent>) -> Result<(), TError>;
     
     /// Publish multiple events in a batch
-    async fn publish_batch(&self, events: Vec<Box<dyn DomainEvent>>) -> Result<(), ServiceError>;
+    async fn publish_batch(&self, events: &Vec<Box<dyn DomainEvent>>) -> Result<(), TError>;
     
     /// Health check for the event publisher
-    async fn health_check(&self) -> Result<(), ServiceError>;
+    async fn health_check(&self) -> Result<(), TError>;
 }
 
 /// Event subscriber trait for consuming domain events
 #[async_trait]
-pub trait EventSubscriber: Send + Sync {
+pub trait EventSubscriber<TError>: Send + Sync {
     /// Subscribe to events of a specific type
-    async fn subscribe(&self, event_type: &str) -> Result<(), ServiceError>;
+    async fn subscribe(&self, event_type: &str) -> Result<(), TError>;
     
     /// Unsubscribe from events of a specific type
-    async fn unsubscribe(&self, event_type: &str) -> Result<(), ServiceError>;
+    async fn unsubscribe(&self, event_type: &str) -> Result<(), TError>;
     
     /// Start consuming events
-    async fn start_consuming(&self) -> Result<(), ServiceError>;
+    async fn start_consuming(&self) -> Result<(), TError>;
     
     /// Stop consuming events
-    async fn stop_consuming(&self) -> Result<(), ServiceError>;
+    async fn stop_consuming(&self) -> Result<(), TError>;
 }
 
 /// Event handler trait for processing domain events
 #[async_trait]
-pub trait EventHandler<E: DomainEvent>: Send + Sync {
+pub trait EventHandler<E: DomainEvent, TError>: Send + Sync {
     /// Handle a domain event
-    async fn handle(&self, event: E) -> Result<(), ServiceError>;
+    async fn handle(&self, event: E) -> Result<(), TError>;
 }
 
 /// Base implementation for domain events

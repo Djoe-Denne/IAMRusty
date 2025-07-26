@@ -13,4 +13,9 @@ impl UrlUtils {
     pub fn url_decode(value: &str) -> String {
         urlencoding::decode(value).unwrap_or_default().to_string()
     }
+
+    /// Build a verification URL from email and token
+    pub fn build_verification_url() -> String {
+        format!("/api/auth/verify")
+    }
 } 

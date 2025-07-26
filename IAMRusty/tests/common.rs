@@ -7,7 +7,9 @@ use iammigration::{Migrator, MigratorTrait};
 
 // IAM imports
 use iam_setup::app::{build_and_run};
-use iam_infra::event_adapter::{MultiQueueEventPublisher, IAMEventPublisherAdapter, IAMEventAdapter, IAMErrorMapper};
+use iam_infra::event_adapter::{IAMErrorMapper};
+use rustycog_events::adapter::{GenericEventPublisherAdapter, MultiQueueEventPublisher};
+use iam_domain::error::DomainError;
 use iam_configuration::{AppConfig, ServerConfig};
 use std::sync::Arc;
 use reqwest::Client;
@@ -74,9 +76,9 @@ impl ServiceTestDescriptor<TestFixture> for IAMRustyTestDescriptorWithMockEvents
         
         let no_op_event_publisher = Arc::new(rustycog_events::ConcreteEventPublisher::NoOp(self.mock_event_publisher.clone()));
         let error_mapper = Arc::new(IAMErrorMapper);
-        let event_adapter = Arc::new(IAMEventAdapter);
-        let multi_queue_event_publisher = MultiQueueEventPublisher::new(vec![IAMEventPublisherAdapter::new(no_op_event_publisher, error_mapper, event_adapter)], HashSet::new());
-        build_and_run(_config, server_config, Some(Arc::new(multi_queue_event_publisher))).await
+        let multi_queue_event_publisher = MultiQueueEventPublisher::new(vec![GenericEventPublisherAdapter::<DomainError>::new(no_op_event_publisher, error_mapper)], HashSet::new());
+        build_and_run(_config, server_config, Some(Arc::new(multi_queue_event_publisher))).await?;
+        Ok(())
     }
 
     async fn run_migrations(&self, connection: &sea_orm::DatabaseConnection) -> anyhow::Result<()> {

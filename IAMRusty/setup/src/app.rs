@@ -34,6 +34,8 @@ use iam_infra::{
 };
 
 use iam_configuration::AppConfig;
+use iam_domain::error::DomainError;
+use rustycog_events::{adapter::MultiQueueEventPublisher, event::EventPublisher};
 
 use iam_application::{
     command::{CommandRegistryFactory, GenericCommandService},
@@ -47,14 +49,14 @@ use iam_application::{
 use crate::config::ServerConfig;
 
 
-pub async fn build_and_run(config: AppConfig, server_config: ServerConfig, maybe_event_publisher: Option<Arc<iam_infra::event_adapter::MultiQueueEventPublisher>>) -> Result<()> {
+pub async fn build_and_run(config: AppConfig, server_config: ServerConfig, maybe_event_publisher: Option<Arc<MultiQueueEventPublisher<DomainError>>>) -> Result<()> {
     let app_state = build_app_state(config.clone(), maybe_event_publisher).await?;
     run_server(app_state, server_config).await
 }
 
-pub async fn build_app_state(config: AppConfig, maybe_event_publisher: Option<Arc<iam_infra::event_adapter::MultiQueueEventPublisher>>) -> Result<AppState> {
+pub async fn build_app_state(config: AppConfig, maybe_event_publisher: Option<Arc<MultiQueueEventPublisher<DomainError>>>) -> Result<AppState> {
 
-    let event_publisher: Arc<iam_infra::event_adapter::MultiQueueEventPublisher>;
+    let event_publisher: Arc<MultiQueueEventPublisher<DomainError>>;
     if maybe_event_publisher.is_some() {
         event_publisher = maybe_event_publisher.unwrap();
     } else {
@@ -65,7 +67,7 @@ pub async fn build_app_state(config: AppConfig, maybe_event_publisher: Option<Ar
 }
 
 /// Create the default event publisher from configuration
-async fn create_event_publisher_from_config(config: &AppConfig) -> Result<Arc<iam_infra::event_adapter::MultiQueueEventPublisher>> {
+async fn create_event_publisher_from_config(config: &AppConfig) -> Result<Arc<MultiQueueEventPublisher<DomainError>>> {
     // Create event publisher using configuration
     // For now, create a multi-queue publisher that handles all configured queues
     // You can modify this to handle specific queues by passing Some(queue_names_set)
@@ -99,7 +101,7 @@ pub async fn build_app_state_with_event_publisher<EP>(
     event_publisher: Arc<EP>
 ) -> Result<AppState> 
 where
-    EP: iam_domain::port::event_publisher::EventPublisher + Send + Sync + 'static,
+    EP: EventPublisher<DomainError> + Send + Sync + 'static,
 {
     info!("Building IAM service...");
 

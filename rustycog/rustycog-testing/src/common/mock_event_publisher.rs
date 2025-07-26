@@ -135,8 +135,8 @@ impl Default for MockEventPublisher {
 }
 
 #[async_trait]
-impl EventPublisher for MockEventPublisher {
-    async fn publish(&self, event: Box<dyn DomainEvent>) -> Result<(), ServiceError> {
+impl EventPublisher<ServiceError> for MockEventPublisher {
+    async fn publish(&self, event: &Box<dyn DomainEvent>) -> Result<(), ServiceError> {
         // Capture event information and serialize for test verification
         let captured_event = CapturedEvent {
             event_type: event.event_type().to_string(),
@@ -153,7 +153,7 @@ impl EventPublisher for MockEventPublisher {
         Ok(())
     }
 
-    async fn publish_batch(&self, events: Vec<Box<dyn DomainEvent>>) -> Result<(), ServiceError> {
+    async fn publish_batch(&self, events: &Vec<Box<dyn DomainEvent>>) -> Result<(), ServiceError> {
         // Capture all events for test verification
         let mut stored_events = self.published_events.lock().unwrap();
         for event in events {

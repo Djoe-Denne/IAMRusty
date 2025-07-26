@@ -6,29 +6,24 @@ use telegraph_domain::DomainError;
 
 /// Convert a serde_json::Value to HashMap<String, String>
 /// Flattens nested objects using dot notation (e.g., "user.email")
-pub fn json_to_string_map(value: &Value, skip_root_key: bool) -> Result<HashMap<String, String>, DomainError> {
+pub fn json_to_string_map(value: &Value) -> Result<HashMap<String, String>, DomainError> {
     let mut map = HashMap::new();
-    
-    if skip_root_key {
-        // If we're skipping the root key, we expect the root to be an object
-        // and we want to extract its fields directly (not nested under the root key)
-        if let Value::Object(obj) = value {
-            for (key, val) in obj {
-                flatten_json_value(val, key, &mut map, false)?;
-            }
-        } else {
-            // If root is not an object, just flatten normally
-            flatten_json_value(value, "", &mut map, false)?;
+
+    // If we're skipping the root key, we expect the root to be an object
+    // and we want to extract its fields directly (not nested under the root key)
+    if let Value::Object(obj) = value {
+        for (key, val) in obj {
+            flatten_json_value(val, &key, &mut map)?;
         }
     } else {
-        flatten_json_value(value, "", &mut map, false)?;
+        // If root is not an object, just flatten normally
+        flatten_json_value(value, &"".to_string(), &mut map)?;
     }
-    
     Ok(map)
 }
 
 /// Recursively flatten a JSON value into dot-notation string keys
-pub fn flatten_json_value(value: &Value, prefix: &str, map: &mut HashMap<String, String>, _skip_root_key: bool) -> Result<(), DomainError> {
+pub fn flatten_json_value(value: &Value, prefix: &str, map: &mut HashMap<String, String>) -> Result<(), DomainError> {
     match value {
         Value::Object(obj) => {
             for (key, val) in obj {
@@ -37,7 +32,7 @@ pub fn flatten_json_value(value: &Value, prefix: &str, map: &mut HashMap<String,
                 } else {
                     format!("{}.{}", prefix, key)
                 };
-                flatten_json_value(val, &new_key, map, false)?;
+                flatten_json_value(val, &new_key, map)?;
             }
         }
         Value::Array(arr) => {
@@ -47,7 +42,7 @@ pub fn flatten_json_value(value: &Value, prefix: &str, map: &mut HashMap<String,
                 } else {
                     format!("{}.{}", prefix, index)
                 };
-                flatten_json_value(val, &new_key, map, false)?;
+                flatten_json_value(val, &new_key, map)?;
             }
         }
         Value::String(s) => {

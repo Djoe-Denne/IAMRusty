@@ -7,14 +7,19 @@ use rustycog_core::error::ServiceError;
 
 /// IAM domain events that can be published to external systems
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "event_type", content = "data")]
 pub enum IamDomainEvent {
     /// User signed up with email/password
+    #[serde(rename = "user_signed_up")]
     UserSignedUp(UserSignedUpEvent),
     /// User verified their email
+    #[serde(rename = "user_email_verified")]
     UserEmailVerified(UserEmailVerifiedEvent),
     /// User logged in successfully
+    #[serde(rename = "user_logged_in")]
     UserLoggedIn(UserLoggedInEvent),
     /// User requested password reset
+    #[serde(rename = "password_reset_requested")]
     PasswordResetRequested(PasswordResetRequestedEvent),
 }
 
@@ -300,12 +305,8 @@ impl DomainEvent for IamDomainEvent {
     }
 
     fn to_json(&self) -> Result<String, ServiceError> {
-        match self {
-            IamDomainEvent::UserSignedUp(event) => event.to_json(),
-            IamDomainEvent::UserEmailVerified(event) => event.to_json(),
-            IamDomainEvent::UserLoggedIn(event) => event.to_json(),
-            IamDomainEvent::PasswordResetRequested(event) => event.to_json(),
-        }
+        serde_json::to_string(self)
+            .map_err(|e| ServiceError::internal(&format!("Failed to serialize event: {}", e)))
     }
 
     fn metadata(&self) -> HashMap<String, String> {
@@ -330,3 +331,9 @@ impl IamDomainEvent {
         }
     }
 } 
+
+impl From<IamDomainEvent> for Box<dyn DomainEvent + 'static> {
+    fn from(event: IamDomainEvent) -> Self {
+        Box::new(event)
+    }
+}

@@ -8,10 +8,10 @@ use crate::entity::{
 };
 use crate::error::DomainError;
 use crate::port::{
-    event_publisher::EventPublisher,
     repository::{EmailVerificationRepository, UserEmailRepository, UserRepository},
     service::{AuthTokenService, RegistrationTokenService},
 };
+use rustycog_events::event::EventPublisher;
 use async_trait::async_trait;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
@@ -19,6 +19,8 @@ use std::sync::Arc;
 use thiserror::Error;
 use tracing::debug;
 use uuid::Uuid;
+
+use crate::utils;
 
 /// Authentication service errors
 #[derive(Debug, Error)]
@@ -177,7 +179,7 @@ where
     PS: PasswordService,
     TS: AuthTokenService,
     RTS: RegistrationTokenService,
-    EP: EventPublisher,
+    EP: EventPublisher<DomainError>,
 {
     user_repository: Arc<UR>,
     user_email_repository: Arc<UER>,
@@ -196,7 +198,7 @@ where
     PS: PasswordService,
     TS: AuthTokenService,
     RTS: RegistrationTokenService,
-    EP: EventPublisher,
+    EP: EventPublisher<DomainError>,
 {
     pub fn new(
         user_repository: Arc<UR>,
@@ -441,13 +443,13 @@ where
             .map_err(|e| AuthError::TokenServiceError(Box::new(e)))?;
 
         // Publish UserLoggedIn event
-        let event = DomainEvent::UserLoggedIn(UserLoggedInEvent::new(
+        let event: Box<dyn rustycog_events::event::DomainEvent + 'static> = DomainEvent::UserLoggedIn(UserLoggedInEvent::new(
             user.id,
             request.email.clone(),
             "email_password".to_string(),
-        ));
+        )).into();
 
-        if let Err(e) = self.event_publisher.publish(event).await {
+        if let Err(e) = self.event_publisher.publish(&event).await {
             tracing::warn!("Failed to publish UserLoggedIn event: {}", e);
             // Don't fail the login for event publishing errors
         }
@@ -555,7 +557,7 @@ where
             request.email,
         ));
 
-        if let Err(e) = self.event_publisher.publish(event).await {
+        if let Err(e) = self.event_publisher.publish(&event.into()).await {
             tracing::warn!("Failed to publish UserEmailVerified event: {}", e);
             // Don't fail the verification for event publishing errors
         }
@@ -621,16 +623,16 @@ where
                             if let Some(username) = user.username {
                                 // Publish event to trigger email service
                                 // Telegraph will build the verification URL from environment variables
-                                let event = DomainEvent::UserSignedUp(UserSignedUpEvent::new(
+                                let event: Box<dyn rustycog_events::event::DomainEvent + 'static> = DomainEvent::UserSignedUp(UserSignedUpEvent::new(
                                     user_email.user_id,
                                     request.email.clone(),
                                     username,
                                     false,
-                                    Some(email_verification.verification_token.clone()),
-                                    None, // Telegraph will build the URL
-                                ));
+                                    Some(email_verification.verification_token.clone()), 
+                                    Some(utils::UrlUtils::build_verification_url()),
+                                )).into();
 
-                                if let Err(e) = self.event_publisher.publish(event).await {
+                                if let Err(e) = self.event_publisher.publish(&event).await {
                                     tracing::warn!("Failed to publish UserSignedUp event: {}", e);
                                     // Don't fail the resend for event publishing errors
                                 }

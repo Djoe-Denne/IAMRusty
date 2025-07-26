@@ -6,10 +6,11 @@ use iam_domain::entity::{
     password_reset_token::PasswordResetToken,
 };
 use iam_domain::port::{
-    event_publisher::EventPublisher,
     repository::{PasswordResetTokenRepository, UserEmailRepository, UserRepository},
     service::AuthTokenService,
 };
+use iam_domain::error::DomainError;
+use rustycog_events::event::EventPublisher;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use thiserror::Error;
@@ -127,7 +128,7 @@ where
     UER: UserEmailRepository,
     PRTR: PasswordResetTokenRepository,
     TS: AuthTokenService,
-    EP: EventPublisher,
+    EP: EventPublisher<DomainError>,
     PS: PasswordService,
 {
     user_repository: Arc<UR>,
@@ -151,7 +152,7 @@ where
     UER: UserEmailRepository,
     PRTR: PasswordResetTokenRepository,
     TS: AuthTokenService,
-    EP: EventPublisher,
+    EP: EventPublisher<DomainError>,
     PS: PasswordService,
 {
     /// Create a new password reset use case
@@ -182,7 +183,7 @@ where
     UER: UserEmailRepository + Send + Sync,
     PRTR: PasswordResetTokenRepository + Send + Sync,
     TS: AuthTokenService + Send + Sync,
-    EP: EventPublisher + Send + Sync,
+    EP: EventPublisher<DomainError> + Send + Sync,
     PS: PasswordService + Send + Sync,
 
 {
@@ -224,7 +225,7 @@ where
                             ),
                         );
 
-                        if let Err(e) = self.event_publisher.publish(event).await {
+                        if let Err(e) = self.event_publisher.publish(&event.into()).await {
                             tracing::warn!(
                                 "Failed to publish password reset requested event: {}",
                                 e

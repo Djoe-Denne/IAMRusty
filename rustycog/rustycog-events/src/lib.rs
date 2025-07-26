@@ -35,12 +35,22 @@ pub use adapter::*;
 pub enum ConcreteEventPublisher {
     Kafka(KafkaEventPublisher),
     Sqs(SqsEventPublisher),
-    NoOp(Arc<dyn EventPublisher>),
+    NoOp(Arc<dyn EventPublisher<ServiceError>>),
+}
+
+impl ConcreteEventPublisher {
+    pub async fn new(config: &QueueConfig) -> Result<Self, ServiceError> {
+        match config {
+            QueueConfig::Kafka(kafka_config) => Ok(ConcreteEventPublisher::Kafka(KafkaEventPublisher::new(kafka_config.clone()).await?)),
+            QueueConfig::Sqs(sqs_config) => Ok(ConcreteEventPublisher::Sqs(SqsEventPublisher::new(sqs_config.clone()).await?)),
+            QueueConfig::Disabled => Ok(ConcreteEventPublisher::NoOp(Arc::new(NoOpEventPublisher::new()))),
+        }
+    }
 }
 
 #[async_trait]
-impl EventPublisher for ConcreteEventPublisher {
-    async fn publish(&self, event: Box<dyn DomainEvent>) -> Result<(), ServiceError> {
+impl EventPublisher<ServiceError> for ConcreteEventPublisher {
+    async fn publish(&self, event: &Box<dyn DomainEvent>) -> Result<(), ServiceError> {
         match self {
             ConcreteEventPublisher::Kafka(kafka) => kafka.publish(event).await,
             ConcreteEventPublisher::Sqs(sqs) => sqs.publish(event).await,
@@ -48,7 +58,7 @@ impl EventPublisher for ConcreteEventPublisher {
         }
     }
 
-    async fn publish_batch(&self, events: Vec<Box<dyn DomainEvent>>) -> Result<(), ServiceError> {
+    async fn publish_batch(&self, events: &Vec<Box<dyn DomainEvent>>) -> Result<(), ServiceError> {
         match self {
             ConcreteEventPublisher::Kafka(kafka) => kafka.publish_batch(events).await,
             ConcreteEventPublisher::Sqs(sqs) => sqs.publish_batch(events).await,
@@ -81,14 +91,10 @@ fn is_test_mode() -> bool {
 }
 
 /// Factory function to create an event publisher based on queue configuration
-pub fn create_event_publisher_from_queue_config(config: &QueueConfig) -> Result<Arc<ConcreteEventPublisher>, ServiceError> {
+pub async fn create_event_publisher_from_queue_config(config: &QueueConfig) -> Result<Arc<ConcreteEventPublisher>, ServiceError> {
     match config {
-        QueueConfig::Kafka(kafka_config) => create_kafka_event_publisher(kafka_config),
-        QueueConfig::Sqs(_sqs_config) => {
-            // SQS creation is async, so we need to use a runtime context or make this function async
-            // For now, we'll need to handle this at the application level
-            Err(ServiceError::internal("SQS publisher creation must be done with create_sqs_event_publisher directly (async function)"))
-        },
+        QueueConfig::Kafka(kafka_config) => create_kafka_event_publisher(kafka_config).await,
+        QueueConfig::Sqs(_sqs_config) => create_sqs_event_publisher(_sqs_config).await,
         QueueConfig::Disabled => {
             tracing::info!("Queue disabled, using no-op event publisher");
             Ok(Arc::new(ConcreteEventPublisher::NoOp(Arc::new(NoOpEventPublisher::new()))))
@@ -97,19 +103,19 @@ pub fn create_event_publisher_from_queue_config(config: &QueueConfig) -> Result<
 }
 
 /// Factory function to create a Kafka event publisher based on configuration (legacy support)
-pub fn create_event_publisher(config: &KafkaConfig) -> Result<Arc<ConcreteEventPublisher>, ServiceError> {
-    create_kafka_event_publisher(config)
+pub async fn create_event_publisher(config: &KafkaConfig) -> Result<Arc<ConcreteEventPublisher>, ServiceError> {
+    create_kafka_event_publisher(config).await
 }
 
 /// Factory function to create a Kafka event publisher
-pub fn create_kafka_event_publisher(config: &KafkaConfig) -> Result<Arc<ConcreteEventPublisher>, ServiceError> {
+pub async fn create_kafka_event_publisher(config: &KafkaConfig) -> Result<Arc<ConcreteEventPublisher>, ServiceError> {
     // In test mode, only use Kafka if explicitly enabled AND a test container is running
     if is_test_mode() {
         #[cfg(any(test, feature = "test-utils"))]
         {
             if config.enabled && is_test_kafka_container_running() {
                 tracing::info!("Test mode: Test Kafka container detected, using Kafka event publisher");
-                match KafkaEventPublisher::new(config.clone()) {
+                match KafkaEventPublisher::new(config.clone()).await {
                     Ok(publisher) => {
                         return Ok(Arc::new(ConcreteEventPublisher::Kafka(publisher)));
                     }
@@ -135,7 +141,7 @@ pub fn create_kafka_event_publisher(config: &KafkaConfig) -> Result<Arc<Concrete
     
     // Production mode: use the original logic
     if config.enabled {
-        match KafkaEventPublisher::new(config.clone()) {
+        match KafkaEventPublisher::new(config.clone()).await {
             Ok(publisher) => {
                 tracing::info!("Created Kafka event publisher");
                 Ok(Arc::new(ConcreteEventPublisher::Kafka(publisher)))

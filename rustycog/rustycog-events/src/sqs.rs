@@ -131,8 +131,8 @@ impl SqsEventPublisher {
 }
 
 #[async_trait]
-impl EventPublisher for SqsEventPublisher {
-    async fn publish(&self, event: Box<dyn DomainEvent>) -> Result<(), ServiceError> {
+impl EventPublisher<ServiceError> for SqsEventPublisher {
+    async fn publish(&self, event: &Box<dyn DomainEvent>) -> Result<(), ServiceError> {
         if !self.config.enabled {
             debug!(
                 event_id = %event.event_id(),
@@ -197,7 +197,7 @@ impl EventPublisher for SqsEventPublisher {
         }
     }
 
-    async fn publish_batch(&self, events: Vec<Box<dyn DomainEvent>>) -> Result<(), ServiceError> {
+    async fn publish_batch(&self, events: &Vec<Box<dyn DomainEvent>>) -> Result<(), ServiceError> {
         if !self.config.enabled {
             debug!(
                 event_count = events.len(),

@@ -2,11 +2,12 @@
 
 use async_trait::async_trait;
 use iam_domain::port::{
-    event_publisher::EventPublisher,
     repository::{EmailVerificationRepository, UserEmailRepository, UserRepository},
     service::{AuthTokenService, RegistrationTokenService},
 };
+use iam_domain::error::DomainError;
 use iam_domain::service::auth_service::{AuthError, AuthService};
+use rustycog_events::event::EventPublisher;
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -96,7 +97,7 @@ where
     PS: PasswordService,
     TS: AuthTokenService,
     RTS: RegistrationTokenService,
-    EP: EventPublisher,
+    EP: EventPublisher<DomainError>,
 {
     auth_service: Arc<AuthService<UR, UER, EVR, PS, TS, RTS, EP>>,
 }
@@ -109,7 +110,7 @@ where
     PS: PasswordService,
     TS: AuthTokenService,
     RTS: RegistrationTokenService,
-    EP: EventPublisher,
+    EP: EventPublisher<DomainError>,
 {
     pub fn new(auth_service: Arc<AuthService<UR, UER, EVR, PS, TS, RTS, EP>>) -> Self {
         Self { auth_service }
@@ -125,7 +126,7 @@ where
     PS: PasswordService + Send + Sync,
     TS: AuthTokenService + Send + Sync,
     RTS: RegistrationTokenService + Send + Sync,
-    EP: EventPublisher + Send + Sync,
+    EP: EventPublisher<DomainError> + Send + Sync,
 {
     async fn signup(&self, request: SignupRequest) -> Result<SignupResponse, LoginError> {
         self.auth_service.signup(request).await.map_err(Into::into)

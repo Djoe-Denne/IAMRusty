@@ -8,11 +8,11 @@ use crate::entity::{
 };
 use crate::error::DomainError;
 use crate::port::{
-    event_publisher::EventPublisher,
     repository::{EmailVerificationRepository, UserEmailRepository, UserReadRepository, UserWriteRepository},
     service::{AuthTokenService, RegistrationTokenService},
 };
-
+use crate::utils;
+use rustycog_events::event::EventPublisher;
 
 /// Registration completion result
 #[derive(Debug)]
@@ -98,7 +98,7 @@ where
     EVR: EmailVerificationRepository,
     RTS: RegistrationTokenService,
     TS: AuthTokenService,
-    EP: EventPublisher,
+    EP: EventPublisher<DomainError>,
 {
     user_read_repo: Arc<UR>,
     user_write_repo: Arc<UW>,
@@ -117,7 +117,7 @@ where
     EVR: EmailVerificationRepository + Send + Sync,
     RTS: RegistrationTokenService + Send + Sync,
     TS: AuthTokenService + Send + Sync,
-    EP: EventPublisher + Send + Sync,
+    EP: EventPublisher<DomainError> + Send + Sync,
 {
     pub fn new(
         user_read_repo: Arc<UR>,
@@ -152,7 +152,7 @@ where
     EVR: EmailVerificationRepository + Send + Sync,
     RTS: RegistrationTokenService + Send + Sync,
     TS: AuthTokenService + Send + Sync,
-    EP: EventPublisher + Send + Sync,
+    EP: EventPublisher<DomainError> + Send + Sync,
     <UR as UserReadRepository>::Error: std::error::Error + Send + Sync + 'static,
     <UW as UserWriteRepository>::Error: std::error::Error + Send + Sync + 'static,
     <UER as UserEmailRepository>::Error: std::error::Error + Send + Sync + 'static,
@@ -248,10 +248,10 @@ where
                 username.clone(),
                 user_email.is_verified,
                 verification_token,
-                None, // Telegraph will build the URL
+                Some(utils::UrlUtils::build_verification_url()),
             ));
 
-            if let Err(e) = self.event_publisher.publish(event).await {
+            if let Err(e) = self.event_publisher.publish(&event.into()).await {
                 tracing::warn!("Failed to publish UserSignedUp event: {}", e);
                 // Don't fail the registration for event publishing errors
             }

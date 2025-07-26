@@ -47,7 +47,7 @@ async fn test_user_signed_up_event_happy_path() {
         username: test_username.to_string(),
         email_verified: false,
         verification_token: Some("test-verification-token-123".to_string()),
-        verification_url: None, // Telegraph will build URL from environment variables
+        verification_url: Some("/api/auth/verify".to_string()), // Telegraph will build URL from environment variables
     };
 
     let iam_event = IamDomainEvent::UserSignedUp(user_signed_up_event);
@@ -84,6 +84,21 @@ async fn test_user_signed_up_event_happy_path() {
     // Get the emails for additional verification
     let emails = smtp_container.get_emails().await.expect("Failed to get emails");
     let email = &emails[0];
+    let verification_url = "https://oodhive.org/api/auth/verify".to_string();
+
+    // Verify email contains expected content
+    assert!(
+        email.text.contains(test_email),
+        "Email should contain recipient address"
+    );
+    assert!(
+        email.text.contains(test_username),
+        "Email should contain username in content: {}", email.text
+    );
+    assert!(
+        email.text.contains(&verification_url),
+        "Email should contain validation link"
+    );
 }
 
 /// Test that Telegraph email processor handles UserSignedUp events with proper email content
