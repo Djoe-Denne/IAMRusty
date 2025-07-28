@@ -1,0 +1,37 @@
+[package]
+name = "{{SERVICE_NAME}}-domain"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "{{SERVICE_NAME}} domain layer"
+license.workspace = true
+
+[dependencies]
+# Events abstraction
+rustycog-events = { path = "../../rustycog/rustycog-events" }
+rustycog-core = { path = "../../rustycog/rustycog-core" }
+rustycog-config = { path = "../../rustycog/rustycog-config" }
+iam-events = { path = "../../iam-events" }
+
+# Utility
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+# Async
+async-trait = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+# Testing libraries for comprehensive unit testing
+mockall = { workspace = true }
+rstest = { workspace = true }
+tokio-test = { workspace = true }
+claims = { workspace = true } 

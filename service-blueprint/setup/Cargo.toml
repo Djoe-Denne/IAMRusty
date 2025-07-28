@@ -1,0 +1,51 @@
+[package]
+name = "{{SERVICE_NAME}}-setup"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "{{SERVICE_NAME}} setup and dependency injection"
+license.workspace = true
+
+[dependencies]
+# Internal crates
+{{SERVICE_NAME}}-domain = { path = "../domain" }
+{{SERVICE_NAME}}-application = { path = "../application" }
+{{SERVICE_NAME}}-infra = { path = "../infra" }
+{{SERVICE_NAME}}-http_server = { path = "../http" }
+{{SERVICE_NAME}}-configuration = { path = "../configuration" }
+
+# Shared infrastructure
+rustycog-config = { path = "../../rustycog/rustycog-config" }
+rustycog-http = { path = "../../rustycog/rustycog-http" }
+rustycog-events = { path = "../../rustycog/rustycog-events" }
+rustycog-db = { path = "../../rustycog/rustycog-db" }
+
+# Web framework
+axum = { workspace = true }
+tokio = { workspace = true }
+hyper = { workspace = true }
+
+# Database
+sea-orm = { workspace = true }
+sea-orm-migration = { workspace = true }
+
+# Utility
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Async
+async-trait = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
+tokio-test = { workspace = true } 

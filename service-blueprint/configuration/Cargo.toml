@@ -1,0 +1,27 @@
+[package]
+name = "{{SERVICE_NAME}}-configuration"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "{{SERVICE_NAME}} service configuration"
+license.workspace = true
+
+[dependencies]
+# Configuration utilities
+rustycog-config = { path = "../../rustycog/rustycog-config" }
+
+# Serialization
+serde = { workspace = true }
+toml = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+# Collections
+indexmap = "2.0"
+
+[dev-dependencies]
+tokio = { workspace = true } 

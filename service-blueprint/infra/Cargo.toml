@@ -1,0 +1,70 @@
+[package]
+name = "{{SERVICE_NAME}}-infra"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "{{SERVICE_NAME}} infrastructure layer"
+license.workspace = true
+
+[features]
+# Test utilities feature
+test-utils = ["mockall"]
+
+[dependencies]
+# Internal crates
+{{SERVICE_NAME}}-domain = { path = "../domain" }
+
+# Database ORM
+sea-orm = { workspace = true }
+sea-orm-migration = { workspace = true }
+
+# Events and messaging
+rustycog-events = { path = "../../rustycog/rustycog-events" }
+rustycog-core = { path = "../../rustycog/rustycog-core" }
+rustycog-db = { path = "../../rustycog/rustycog-db" }
+iam-events = { path = "../../iam-events" }
+
+# AWS SDK
+aws-sdk-sqs = { workspace = true }
+aws-config = { workspace = true }
+aws-credential-types = { workspace = true }
+
+# HTTP client
+reqwest = { workspace = true }
+
+# Utility
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+tokio = { workspace = true }
+url = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+# Async
+async-trait = { workspace = true }
+
+# Caching (optional)
+redis = { version = "0.24", optional = true }
+
+# File storage (optional)
+aws-sdk-s3 = { workspace = true, optional = true }
+
+# Email services (optional)
+lettre = { version = "0.11", optional = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
+# Testing libraries
+mockall = { workspace = true }
+rstest = { workspace = true }
+tokio-test = { workspace = true }
+claims = { workspace = true }
+testcontainers = { workspace = true }
+testcontainers-modules = { workspace = true } 
