@@ -14,9 +14,14 @@ telegraph-application = { path = "../application" }
 # HTTP framework
 rustycog-http = { path = "../../rustycog/rustycog-http" }
 rustycog-server = { path = "../../rustycog/rustycog-server" }
+rustycog-command = { path = "../../rustycog/rustycog-command" }
+rustycog-config = { path = "../../rustycog/rustycog-config" }
 
 # Core error handling
 rustycog-core = { path = "../../rustycog/rustycog-core" }
+
+# Axum and related dependencies
+axum = { workspace = true }
 
 # Serialization
 serde = { workspace = true }
@@ -38,6 +43,7 @@ async-trait = { workspace = true }
 tokio = { workspace = true }
 
 # Validation
+axum-valid = { workspace = true }
 validator = { workspace = true }
 
 [dev-dependencies]

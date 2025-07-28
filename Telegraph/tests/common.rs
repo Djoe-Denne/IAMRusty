@@ -38,7 +38,7 @@ impl ServiceTestDescriptor<TelegraphTestFixture> for TelegraphTestDescriptor {
     }
     
     async fn run_app(&self, config: TelegraphConfig, server_config: ServerConfig) -> anyhow::Result<()> {    
-        unsafe { APP.as_ref().unwrap().run().await?; }
+        unsafe { APP.as_ref().unwrap().run(server_config).await?; }
         Ok(())
     }
 

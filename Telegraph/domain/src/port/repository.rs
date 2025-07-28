@@ -13,13 +13,16 @@ use uuid::Uuid;
 pub trait NotificationReadRepository: Send + Sync {
 
     /// Get notifications for a user
-    async fn get_user_notifications(&self, user_id: Uuid, page: u64, per_page: u64, unread_only: bool) -> Result<(Vec<NotificationCommunication>, u64), DomainError>;
+    async fn get_user_notifications(&self, user_id: Uuid, page: u8, per_page: u8, unread_only: bool) -> Result<(Vec<NotificationCommunication>, u64), DomainError>;
 
     /// Get a notification by id
     async fn get_notification(&self, notification_id: Uuid) -> Result<Option<NotificationCommunication>, DomainError>;
 
     /// Get notification deliveries
     async fn get_notification_deliveries(&self, notification_id: Uuid) -> Result<Vec<MessageDelivery>, DomainError>;
+
+    /// Count unread notifications for a user
+    async fn count_unread_notifications(&self, user_id: Uuid) -> Result<u64, DomainError>;
 
 }
 

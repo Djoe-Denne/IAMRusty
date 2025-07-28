@@ -59,6 +59,7 @@ tracing-subscriber = { version = "0.3.19", features = ["env-filter", "fmt", "jso
 
 # Web framework
 axum = { version = "0.8.4", features = ["macros", "json"] }
+axum-valid = { version = "0.24", features = ["validator", "422", "into_json"] }
 tower = { version = "0.4.13", features = ["util"] }
 tower-http = { version = "0.5.2", features = ["trace", "catch-panic"] }
 hyper = "1.3"

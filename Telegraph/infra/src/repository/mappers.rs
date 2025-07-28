@@ -30,6 +30,10 @@ pub fn to_domain_notification(model: notifications::Model) -> Result<Notificatio
         title: model.title,
         body: content_str,
         data: HashMap::new(),
+        is_read: Some(model.is_read),
+        created_at: Some(model.created_at),
+        updated_at: Some(model.updated_at),
+        read_at: model.read_at,
     })
 }
 
@@ -84,12 +88,12 @@ pub fn to_infra_notification(notification: NotificationCommunication) -> Result<
         title: ActiveValue::Set(title),
         content: ActiveValue::Set(notification.body.as_bytes().to_vec()),
         content_type: ActiveValue::Set("application/text".to_string()),
-        is_read: ActiveValue::Set(false),
+        is_read: ActiveValue::Set(notification.is_read.unwrap_or(false)),
         priority: ActiveValue::Set(priority),
         expires_at: ActiveValue::NotSet, // Could be calculated based on priority or content
-        created_at: ActiveValue::Set(Utc::now()),
-        updated_at: ActiveValue::Set(Utc::now()),
-        read_at: ActiveValue::NotSet,
+        created_at: ActiveValue::Set(notification.created_at.unwrap_or_else(|| Utc::now())),
+        updated_at: ActiveValue::Set(notification.updated_at.unwrap_or_else(|| Utc::now())),
+        read_at: ActiveValue::Set(notification.read_at),
     })
 }
 

@@ -1,0 +1,349 @@
+openapi: 3.1.0
+info:
+  title: Telegraph Notification Service API
+  version: 1.0.0
+  description: |
+    Telegraph is a communication service that handles notifications for users.
+    
+    **Authentication:**
+    - All endpoints require JWT authentication via Bearer token
+    - JWT tokens must be issued by the IAM service
+    - User ID is extracted from the JWT token for authorization
+    
+    **Features:**
+    - Get user notifications with pagination and filtering
+    - Count unread notifications
+    - Mark notifications as read
+    - Real-time notification processing via SQS
+    
+    **Notification Model:**
+    - Each notification belongs to a specific user
+    - Notifications can be marked as read/unread
+    - Notifications have timestamps for creation and read status
+    - Content includes title and body text
+
+servers:
+  - url: https://telegraph.example.com
+
+paths:
+  /api/notifications:
+    get:
+      summary: Get user notifications
+      description: |
+        Retrieves notifications for the authenticated user with pagination and filtering options.
+        
+        **Pagination:**
+        - Default page size is 20 notifications
+        - Maximum page size is 100 notifications
+        - Page numbers start from 0
+        
+        **Filtering:**
+        - `unread_only`: When true, returns only unread notifications
+        - Default behavior returns all notifications (read and unread)
+        
+        **Ordering:**
+        - Notifications are ordered by creation date (newest first)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          required: false
+          description: Page number for pagination (starts from 0)
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - in: query
+          name: per_page
+          required: false
+          description: Number of notifications per page (max 100)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - in: query
+          name: unread_only
+          required: false
+          description: Filter to show only unread notifications
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "200":
+          description: Notifications retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  notifications:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Notification'
+                  total_count:
+                    type: integer
+                    description: Total number of notifications (respecting filters)
+                  page:
+                    type: integer
+                    description: Current page number
+                  per_page:
+                    type: integer
+                    description: Number of notifications per page
+                  has_more:
+                    type: boolean
+                    description: Whether there are more pages available
+              example:
+                notifications:
+                  - id: "123e4567-e89b-12d3-a456-426614174000"
+                    title: "Welcome to the platform"
+                    body: "Thank you for signing up! Here's how to get started..."
+                    is_read: false
+                    created_at: "2024-01-15T10:30:00Z"
+                    read_at: null
+                  - id: "123e4567-e89b-12d3-a456-426614174001"
+                    title: "Password changed"
+                    body: "Your password was successfully changed."
+                    is_read: true
+                    created_at: "2024-01-14T15:20:00Z"
+                    read_at: "2024-01-14T16:45:00Z"
+                total_count: 42
+                page: 0
+                per_page: 20
+                has_more: true
+        "400":
+          description: Invalid query parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "per_page cannot exceed 100"
+        "401":
+          description: Invalid or missing JWT token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "403":
+          description: User not authorized to access notifications
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/notifications/unread-count:
+    get:
+      summary: Get unread notification count
+      description: |
+        Returns the count of unread notifications for the authenticated user.
+        
+        **Use Cases:**
+        - Display notification badge counts in UI
+        - Check for new notifications without fetching full notification list
+        - Real-time notification counters
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Unread count retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  unread_count:
+                    type: integer
+                    minimum: 0
+                    description: Number of unread notifications for the user
+              example:
+                unread_count: 5
+        "401":
+          description: Invalid or missing JWT token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/notifications/{id}/read:
+    put:
+      summary: Mark notification as read
+      description: |
+        Marks a specific notification as read for the authenticated user.
+        
+        **Security:**
+        - Users can only mark their own notifications as read
+        - Attempting to mark another user's notification returns 403 Forbidden
+        
+        **Idempotent:**
+        - Marking an already read notification as read will succeed
+        - The read timestamp is updated each time
+        
+        **Effect:**
+        - Sets `is_read` to true
+        - Sets `read_at` to current timestamp
+        - Updates `updated_at` timestamp
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          description: UUID of the notification to mark as read
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Notification marked as read successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  notification:
+                    $ref: '#/components/schemas/Notification'
+                  success:
+                    type: boolean
+                    example: true
+              example:
+                notification:
+                  id: "123e4567-e89b-12d3-a456-426614174000"
+                  title: "Welcome to the platform"
+                  body: "Thank you for signing up! Here's how to get started..."
+                  is_read: true
+                  created_at: "2024-01-15T10:30:00Z"
+                  read_at: "2024-01-15T11:15:00Z"
+                success: true
+        "400":
+          description: Invalid notification ID format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "401":
+          description: Invalid or missing JWT token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "403":
+          description: Notification does not belong to the authenticated user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Notification does not belong to this user"
+        "404":
+          description: Notification not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Notification not found"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /health:
+    get:
+      summary: Health check endpoint
+      description: Returns the health status of the Telegraph service
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "healthy"
+                  timestamp:
+                    type: string
+                    format: date-time
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT token issued by the IAM service. Include in the Authorization header as:
+        `Authorization: Bearer <token>`
+
+  schemas:
+    Notification:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique identifier for the notification
+        title:
+          type: string
+          description: Notification title/subject
+        body:
+          type: string
+          description: Notification content/message
+        is_read:
+          type: boolean
+          description: Whether the notification has been read
+        created_at:
+          type: string
+          format: date-time
+          description: When the notification was created
+        read_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the notification was marked as read (null if unread)
+      required:
+        - id
+        - title
+        - body
+        - is_read
+        - created_at
+      example:
+        id: "123e4567-e89b-12d3-a456-426614174000"
+        title: "System maintenance scheduled"
+        body: "We will be performing system maintenance on January 20th from 2-4 AM UTC."
+        is_read: false
+        created_at: "2024-01-15T10:30:00Z"
+        read_at: null
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message describing what went wrong
+        timestamp:
+          type: string
+          format: date-time
+          description: When the error occurred
+      required:
+        - error
+      example:
+        error: "Notification not found"
+        timestamp: "2024-01-15T10:30:00Z" 

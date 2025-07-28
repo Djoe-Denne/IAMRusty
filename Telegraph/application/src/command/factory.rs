@@ -5,8 +5,11 @@
 
 use super::{
     ProcessEventCommand, ProcessEventCommandHandler, ProcessEventErrorMapper,
+    GetNotificationsCommand, GetNotificationsCommandHandler, GetNotificationsErrorMapper,
+    GetUnreadCountCommand, GetUnreadCountCommandHandler, GetUnreadCountErrorMapper,
+    MarkNotificationReadCommand, MarkNotificationReadCommandHandler, MarkNotificationReadErrorMapper,
 };
-use crate::usecase::EventProcessingUseCaseTrait;
+use crate::usecase::{EventProcessingUseCaseTrait, NotificationUseCaseTrait};
 use rustycog_command::{CommandRegistry, CommandRegistryBuilder};
 use std::sync::Arc;
 
@@ -17,6 +20,7 @@ impl TelegraphCommandRegistryFactory {
     /// Create a command registry with all Telegraph commands registered
     pub fn create_telegraph_registry(
         event_processing_usecase: Arc<dyn EventProcessingUseCaseTrait>,
+        notification_usecase: Arc<dyn NotificationUseCaseTrait>,
     ) -> CommandRegistry {
         let mut builder = CommandRegistryBuilder::new();
 
@@ -28,6 +32,34 @@ impl TelegraphCommandRegistryFactory {
             "process_event".to_string(),
             process_event_handler,
             process_event_error_mapper,
+        );
+
+        // Register notification commands
+        let get_notifications_handler = Arc::new(GetNotificationsCommandHandler::new(notification_usecase.clone()));
+        let get_notifications_error_mapper = Arc::new(GetNotificationsErrorMapper);
+
+        builder = builder.register::<GetNotificationsCommand, _>(
+            "get_notifications".to_string(),
+            get_notifications_handler,
+            get_notifications_error_mapper,
+        );
+
+        let get_unread_count_handler = Arc::new(GetUnreadCountCommandHandler::new(notification_usecase.clone()));
+        let get_unread_count_error_mapper = Arc::new(GetUnreadCountErrorMapper);
+
+        builder = builder.register::<GetUnreadCountCommand, _>(
+            "get_unread_count".to_string(),
+            get_unread_count_handler,
+            get_unread_count_error_mapper,
+        );
+
+        let mark_notification_read_handler = Arc::new(MarkNotificationReadCommandHandler::new(notification_usecase));
+        let mark_notification_read_error_mapper = Arc::new(MarkNotificationReadErrorMapper);
+
+        builder = builder.register::<MarkNotificationReadCommand, _>(
+            "mark_notification_read".to_string(),
+            mark_notification_read_handler,
+            mark_notification_read_error_mapper,
         );
 
         builder.build()

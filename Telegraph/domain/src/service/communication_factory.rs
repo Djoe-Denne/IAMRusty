@@ -122,6 +122,10 @@ impl CommunicationFactory {
             title,
             body,
             data,
+            is_read: None,
+            created_at: None,
+            updated_at: None,
+            read_at: None,
         })
     }
 

@@ -29,8 +29,8 @@ impl NotificationReadRepository for NotificationReadRepositoryImpl {
     async fn get_user_notifications(
         &self,
         user_id: Uuid,
-        page: u64,
-        per_page: u64,
+        page: u8,
+        per_page: u8,
         unread_only: bool,
     ) -> Result<(Vec<NotificationCommunication>, u64), DomainError> {
         debug!("Reading notifications for user: {}", user_id);
@@ -43,11 +43,11 @@ impl NotificationReadRepository for NotificationReadRepositoryImpl {
             query = query.filter(notifications::Column::IsRead.eq(false));
         }
 
-        let paginator = query.paginate(self.db.as_ref(), per_page);
+        let paginator = query.paginate(self.db.as_ref(), per_page as u64);
         let total = paginator.num_items().await
             .map_err(|e| DomainError::infrastructure_error(format!("Failed to count notifications: {}", e)))?;
 
-        let notifications = paginator.fetch_page(page).await
+        let notifications = paginator.fetch_page(page as u64).await
             .map_err(|e| DomainError::infrastructure_error(format!("Failed to fetch notifications: {}", e)))?;
 
         let domain_notifications: Result<Vec<NotificationCommunication>, DomainError> = notifications
@@ -93,5 +93,19 @@ impl NotificationReadRepository for NotificationReadRepositoryImpl {
             .collect();
 
         domain_deliveries
+    }
+
+    /// Count unread notifications for a user
+    async fn count_unread_notifications(&self, user_id: Uuid) -> Result<u64, DomainError> {
+        debug!("Counting unread notifications for user: {}", user_id);
+        
+        let count = notifications::Entity::find()
+            .filter(notifications::Column::UserId.eq(user_id))
+            .filter(notifications::Column::IsRead.eq(false))
+            .count(self.db.as_ref())
+            .await
+            .map_err(|e| DomainError::infrastructure_error(format!("Failed to count unread notifications: {}", e)))?;
+
+        Ok(count)
     }
 }

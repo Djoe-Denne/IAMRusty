@@ -2,9 +2,10 @@ use sea_orm::*;
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
 use async_trait::async_trait;
+use std::sync::Arc;
 
 use telegraph_infra::repository::entity::notification_deliveries;
-use super::common::{FixtureBuilder, FixtureFactory};
+use rustycog_testing::db::{CommittedFixture, DbFixture, TestData};
 
 /// Builder for notification delivery fixtures
 #[derive(Clone, Debug)]
@@ -29,6 +30,11 @@ impl NotificationDeliveryFixtureBuilder {
             delivered_at: None,
             error_message: None,
         }
+    }
+
+    pub async fn commit(self, db: &DatabaseConnection) -> Result<NotificationDeliveryFixture, DbErr> {
+        let fixture = DbFixture::commit(self, &*db).await?;
+        Ok(NotificationDeliveryFixture { inner: fixture })
     }
 
     /// Set the notification ID
@@ -154,46 +160,88 @@ impl NotificationDeliveryFixtureBuilder {
 }
 
 #[async_trait]
-impl FixtureBuilder<notification_deliveries::Model> for NotificationDeliveryFixtureBuilder {
-    async fn commit(self, db: DatabaseConnection) -> anyhow::Result<notification_deliveries::Model> {
-        let delivery = notification_deliveries::ActiveModel {
-            id: Set(Uuid::new_v4()),
-            notification_id: Set(self.notification_id),
-            delivery_method: Set(self.delivery_method),
-            status: Set(self.status),
-            attempt_count: Set(self.attempt_count),
-            last_attempt_at: Set(self.last_attempt_at),
-            delivered_at: Set(self.delivered_at),
-            error_message: Set(self.error_message),
-            created_at: Set(Utc::now()),
-            updated_at: Set(Utc::now()),
-        };
-
-        let result = notification_deliveries::Entity::insert(delivery)
-            .exec_with_returning(&db)
-            .await?;
-
-        Ok(result)
+impl DbFixture<notification_deliveries::Entity, notification_deliveries::Model, notification_deliveries::ActiveModel> for NotificationDeliveryFixtureBuilder {
+    async fn commit(self, db: &DatabaseConnection) -> Result<CommittedFixture<notification_deliveries::Model>, DbErr> {
+        let active_model = self.model();
+        let model = active_model.insert(db).await?;
+        Ok(CommittedFixture::new(model))
     }
 
-    async fn check(&self, db: &DatabaseConnection, entity: &notification_deliveries::Model) -> anyhow::Result<bool> {
-        let found = notification_deliveries::Entity::find_by_id(entity.id)
-            .one(db)
-            .await?;
+    fn model(&self) -> notification_deliveries::ActiveModel {
+        let now = TestData::now();
 
-        if let Some(found) = found {
-            Ok(found.notification_id == self.notification_id
-                && found.delivery_method == self.delivery_method
-                && found.status == self.status
-                && found.attempt_count == self.attempt_count)
-        } else {
-            Ok(false)
+        notification_deliveries::ActiveModel {
+            id: ActiveValue::Set(Uuid::new_v4()),
+            notification_id: ActiveValue::Set(self.notification_id),
+            delivery_method: ActiveValue::Set(self.delivery_method.clone()),
+            status: ActiveValue::Set(self.status.clone()),
+            attempt_count: ActiveValue::Set(self.attempt_count),
+            last_attempt_at: ActiveValue::Set(self.last_attempt_at),
+            delivered_at: ActiveValue::Set(self.delivered_at),
+            error_message: ActiveValue::Set(self.error_message.clone()),
+            created_at: ActiveValue::Set(now),
+            updated_at: ActiveValue::Set(now),
         }
     }
 }
 
-impl FixtureFactory<NotificationDeliveryFixtureBuilder> for NotificationDeliveryFixtureBuilder {
-    fn default() -> NotificationDeliveryFixtureBuilder {
-        NotificationDeliveryFixtureBuilder::new()
+#[derive(Debug, Clone)]
+pub struct NotificationDeliveryFixture {
+    inner: CommittedFixture<notification_deliveries::Model>,
+}
+
+impl NotificationDeliveryFixture {
+
+    pub async fn check(&self, db: Arc<DatabaseConnection>) -> Result<bool, DbErr> {
+        use sea_orm::EntityTrait;
+        let found = notification_deliveries::Entity::find_by_id(self.id())
+            .one(&*db)
+            .await?;
+
+        Ok(found.is_some())
     }
-} 
+
+    pub fn model(&self) -> &notification_deliveries::Model {
+        self.inner.model()
+    }
+
+    pub fn id(&self) -> Uuid {
+        self.model().id
+    }
+
+    pub fn notification_id(&self) -> Uuid {
+        self.model().notification_id
+    }
+
+    pub fn delivery_method(&self) -> &String {
+        &self.model().delivery_method
+    }
+
+    pub fn status(&self) -> &String {
+        &self.model().status
+    }
+
+    pub fn attempt_count(&self) -> i16 {
+        self.model().attempt_count
+    }
+
+    pub fn last_attempt_at(&self) -> Option<DateTime<Utc>> {
+        self.model().last_attempt_at
+    }
+
+    pub fn delivered_at(&self) -> Option<DateTime<Utc>> {
+        self.model().delivered_at
+    }
+
+    pub fn error_message(&self) -> Option<&String> {
+        self.model().error_message.as_ref()
+    }
+
+    pub fn created_at(&self) -> DateTime<Utc> {
+        self.model().created_at
+    }
+
+    pub fn updated_at(&self) -> DateTime<Utc> {
+        self.model().updated_at
+    }
+}

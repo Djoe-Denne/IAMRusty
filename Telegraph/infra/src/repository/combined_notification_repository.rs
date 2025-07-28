@@ -30,8 +30,8 @@ impl NotificationReadRepository for CombinedNotificationRepositoryImpl {
     async fn get_user_notifications(
         &self,
         user_id: Uuid,
-        page: u64,
-        per_page: u64,
+        page: u8,
+        per_page: u8,
         unread_only: bool,
     ) -> Result<(Vec<NotificationCommunication>, u64), DomainError> {
         self.read_repo.get_user_notifications(user_id, page, per_page, unread_only).await
@@ -48,6 +48,10 @@ impl NotificationReadRepository for CombinedNotificationRepositoryImpl {
         notification_id: Uuid,
     ) -> Result<Vec<MessageDelivery>, DomainError> {
         self.read_repo.get_notification_deliveries(notification_id).await
+    }
+
+    async fn count_unread_notifications(&self, user_id: Uuid) -> Result<u64, DomainError> {
+        self.read_repo.count_unread_notifications(user_id).await
     }
 
 }

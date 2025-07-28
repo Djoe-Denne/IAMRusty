@@ -28,6 +28,10 @@ pub struct NotificationCommunication {
     pub title: String,
     pub body: String,
     pub data: HashMap<String, String>,
+    pub is_read: Option<bool>,
+    pub created_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub updated_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub read_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 /// Communication enum for different modes

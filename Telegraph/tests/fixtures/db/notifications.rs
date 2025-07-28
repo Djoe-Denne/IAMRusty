@@ -3,9 +3,11 @@ use uuid::Uuid;
 use chrono::{DateTime, Utc};
 use async_trait::async_trait;
 use serde_json::json;
+use std::sync::Arc;
 
 use telegraph_infra::repository::entity::notifications;
 use super::common::{FixtureBuilder, FixtureFactory};
+use rustycog_testing::db::{CommittedFixture, DbFixture, TestData};
 
 /// Builder for notification fixtures
 #[derive(Clone, Debug)]
@@ -37,6 +39,11 @@ impl NotificationFixtureBuilder {
             expires_at: None,
             read_at: None,
         }
+    }
+
+    pub async fn commit(self, db: &DatabaseConnection) -> Result<NotificationFixture, DbErr> {
+        let fixture = DbFixture::commit(self, &*db).await?;
+        Ok(NotificationFixture { inner: fixture })
     }
 
     /// Set the user ID
@@ -150,42 +157,28 @@ impl NotificationFixtureBuilder {
 }
 
 #[async_trait]
-impl FixtureBuilder<notifications::Model> for NotificationFixtureBuilder {
-    async fn commit(self, db: DatabaseConnection) -> anyhow::Result<notifications::Model> {
-        let notification = notifications::ActiveModel {
-            id: Set(Uuid::new_v4()),
-            user_id: Set(self.user_id),
-            title: Set(self.title),
-            content: Set(self.content),
-            content_type: Set(self.content_type),
-            is_read: Set(self.is_read),
-            priority: Set(self.priority),
-            expires_at: Set(self.expires_at),
-            created_at: Set(Utc::now()),
-            updated_at: Set(Utc::now()),
-            read_at: Set(self.read_at),
-        };
-
-        let result = notifications::Entity::insert(notification)
-            .exec_with_returning(&db)
-            .await?;
-
-        Ok(result)
+impl DbFixture<notifications::Entity, notifications::Model, notifications::ActiveModel> for NotificationFixtureBuilder {
+    async fn commit(self, db: &DatabaseConnection) -> Result<CommittedFixture<notifications::Model>, DbErr> {
+        let active_model = self.model();
+        let model = active_model.insert(db).await?;
+        Ok(CommittedFixture::new(model))
     }
 
-    async fn check(&self, db: &DatabaseConnection, entity: &notifications::Model) -> anyhow::Result<bool> {
-        let found = notifications::Entity::find_by_id(entity.id)
-            .one(db)
-            .await?;
+    fn model(&self) -> notifications::ActiveModel {
+        let now = TestData::now();
 
-        if let Some(found) = found {
-            Ok(found.user_id == self.user_id
-                && found.title == self.title
-                && found.content == self.content
-                && found.is_read == self.is_read
-                && found.priority == self.priority)
-        } else {
-            Ok(false)
+        notifications::ActiveModel {
+            id: ActiveValue::Set(Uuid::new_v4()),
+            user_id: ActiveValue::Set(self.user_id),
+            title: ActiveValue::Set(self.title.clone()),
+            content: ActiveValue::Set(self.content.clone()),
+            content_type: ActiveValue::Set(self.content_type.clone()),
+            is_read: ActiveValue::Set(self.is_read),
+            priority: ActiveValue::Set(self.priority),
+            expires_at: ActiveValue::Set(self.expires_at),
+            created_at: ActiveValue::Set(now),
+            updated_at: ActiveValue::Set(now),
+            read_at: ActiveValue::Set(self.read_at),
         }
     }
 }
@@ -195,3 +188,68 @@ impl FixtureFactory<NotificationFixtureBuilder> for NotificationFixtureBuilder {
         NotificationFixtureBuilder::new()
     }
 } 
+
+#[derive(Debug, Clone)]
+pub struct NotificationFixture {
+    inner: CommittedFixture<notifications::Model>,
+}
+
+impl NotificationFixture {
+
+    pub async fn check(&self, db: Arc<DatabaseConnection>) -> Result<bool, DbErr> {
+        use sea_orm::EntityTrait;
+        let found = notifications::Entity::find_by_id(self.id())
+            .one(&*db)
+            .await?;
+
+        Ok(found.is_some())
+    }
+
+    pub fn model(&self) -> &notifications::Model {
+        self.inner.model()
+    }
+
+    pub fn id(&self) -> Uuid {
+        self.model().id
+    }
+
+    pub fn user_id(&self) -> Uuid {
+        self.model().user_id
+    }
+
+    pub fn title(&self) -> &String {
+        &self.model().title
+    }
+    
+    pub fn content(&self) -> &Vec<u8> {
+        &self.model().content
+    }
+
+    pub fn content_type(&self) -> &String {
+        &self.model().content_type
+    }
+
+    pub fn is_read(&self) -> bool {
+        self.model().is_read
+    }
+
+    pub fn priority(&self) -> i16 {
+        self.model().priority
+    }
+
+    pub fn expires_at(&self) -> Option<DateTime<Utc>> {
+        self.model().expires_at
+    }
+
+    pub fn read_at(&self) -> Option<DateTime<Utc>> {
+        self.model().read_at
+    }
+
+    pub fn created_at(&self) -> DateTime<Utc> {
+        self.model().created_at
+    }
+
+    pub fn updated_at(&self) -> DateTime<Utc> {
+        self.model().updated_at
+    }
+}

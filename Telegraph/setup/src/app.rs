@@ -12,16 +12,20 @@ use telegraph_infra::{
     repository::{NotificationReadRepositoryImpl, NotificationWriteRepositoryImpl, CombinedNotificationRepositoryImpl},
 };
 use telegraph_application::{
-    usecase::EventProcessingUseCase,
+    usecase::{EventProcessingUseCase, NotificationUseCaseImpl},
     command::TelegraphCommandRegistryFactory,
 };
 use rustycog_command::GenericCommandService;
 use rustycog_db::DbConnectionPool;
 use telegraph_configuration::TelegraphConfig;
+use rustycog_http::{AppState, UserIdExtractor};
+use rustycog_config::ServerConfig;
+use telegraph_http_server::create_app_routes;
 
 /// Telegraph application context
 pub struct TelegraphApp {
     config: TelegraphConfig,
+    state: AppState,
     event_consumer: Arc<EventConsumer>,
 }
 
@@ -41,7 +45,6 @@ impl TelegraphApp {
             from_name: config.communication.email.from_name.clone(),
             use_tls: config.communication.email.smtp.use_tls,
         };
-        println!("Email config: {:?}", email_config);
         let email_adapter = EmailAdapter::new(email_config)
                                           .map_err(|e| anyhow::anyhow!("Failed to create email adapter: {}", e))?;
 
@@ -112,10 +115,14 @@ impl TelegraphApp {
             domain_event_processor,
         ));
         
+        // Create notification use case
+        let notification_usecase = Arc::new(NotificationUseCaseImpl::new(notification_service.clone()));
+
         // Create command registry and service
         let command_registry = Arc::new(
             TelegraphCommandRegistryFactory::create_telegraph_registry(
                 event_processing_usecase.clone(),
+                notification_usecase,
             )
         );
         
@@ -130,15 +137,21 @@ impl TelegraphApp {
         
         info!("✅ Telegraph application initialized successfully");
         
+        let state = AppState {
+            command_service: command_service.clone(),
+            user_id_extractor: Arc::new(UserIdExtractor::new()),
+            running: true,
+        };
         
         Ok(Self {
             config,
             event_consumer: Arc::new(event_consumer),
+            state,
         })
     }
     
     /// Start the Telegraph service
-    pub async fn run(&self) -> Result<(), anyhow::Error> {
+    pub async fn run(&self, config: ServerConfig) -> Result<(), anyhow::Error> {
         // Start event consumer in a separate task
         info!("🚀 Starting event consumer in parallel task");
         let consumer_handle = {
@@ -152,9 +165,23 @@ impl TelegraphApp {
             })
         };
         
-        info!("✅ Telegraph service started successfully and is processing events");
+        // Start axum server in a separate task
+        info!("🚀 Starting HTTP server in parallel task");
+        let server_handle = {
+            let state = self.state.clone();
+            let config = config.clone();
+            tokio::spawn(async move {
+                if let Err(e) = create_app_routes(state, config).await {
+                    error!("HTTP server failed: {}", e);
+                    return Err(e);
+                }
+                Ok(())
+            })
+        };
         
-        // Wait for shutdown signal
+        info!("✅ Telegraph service started successfully - both event consumer and HTTP server are running");
+        
+        // Wait for shutdown signal or any service to complete/fail
         tokio::select! {
             _ = tokio::signal::ctrl_c() => {
                 info!("Shutdown signal received, stopping Telegraph service");
@@ -171,6 +198,21 @@ impl TelegraphApp {
                     Err(e) => {
                         error!("Event consumer task panicked: {}", e);
                         return Err(anyhow::anyhow!("Event consumer task panicked: {}", e));
+                    }
+                }
+            }
+            result = server_handle => {
+                match result {
+                    Ok(Ok(())) => {
+                        info!("HTTP server completed successfully");
+                    }
+                    Ok(Err(e)) => {
+                        error!("HTTP server failed: {}", e);
+                        return Err(anyhow::anyhow!("HTTP server failed: {}", e));
+                    }
+                    Err(e) => {
+                        error!("HTTP server task panicked: {}", e);
+                        return Err(anyhow::anyhow!("HTTP server task panicked: {}", e));
                     }
                 }
             }

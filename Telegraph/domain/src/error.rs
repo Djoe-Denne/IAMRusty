@@ -72,6 +72,10 @@ pub enum DomainError {
     /// Notification not found
     #[error("Notification not found: {0}")]
     NotificationNotFound(String),
+
+    /// Unauthorized access
+    #[error("Unauthorized: {0}")]
+    Unauthorized(String),
 }
 
 impl DomainError {
@@ -158,6 +162,11 @@ impl DomainError {
     /// Create a notification not found error
     pub fn notification_not_found(msg: impl Into<String>) -> Self {
         Self::NotificationNotFound(msg.into())
+    }
+
+    /// Create an unauthorized error
+    pub fn unauthorized(msg: impl Into<String>) -> Self {
+        Self::Unauthorized(msg.into())
     }
     
     /// Check if this is a recoverable error (should retry)

@@ -35,6 +35,9 @@ tracing = { workspace = true }
 async-trait = { workspace = true }
 tokio = { workspace = true }
 
+# Validation
+validator = { workspace = true }
+
 [dev-dependencies]
 tokio = { workspace = true }
 # Testing libraries for comprehensive unit testing

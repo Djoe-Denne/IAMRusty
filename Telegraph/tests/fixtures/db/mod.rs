@@ -5,6 +5,7 @@ pub mod notification_deliveries;
 use std::sync::Arc;
 use sea_orm::DatabaseConnection;
 use telegraphmigration::{Migrator, MigratorTrait};
+use rustycog_testing::db::TestData;
 
 pub use common::*;
 pub use notifications::*;
@@ -36,16 +37,16 @@ impl DbFixtures {
         let notification = Self::notification()
             .user_id(user_id)
             .title("Test Notification".to_string())
-            .commit(db.clone())
+            .commit(&db)
             .await?;
 
         let delivery = Self::notification_delivery()
-            .notification_id(notification.id)
+            .notification_id(notification.id())
             .delivery_method(delivery_method.to_string())
-            .commit(db)
+            .commit(&db)
             .await?;
 
-        Ok((notification, delivery))
+        Ok((notification.model().clone(), delivery.model().clone()))
     }
 
     /// Helper method to create a read notification
@@ -53,13 +54,15 @@ impl DbFixtures {
         db: DatabaseConnection,
         user_id: uuid::Uuid,
     ) -> anyhow::Result<telegraph_infra::repository::entity::notifications::Model> {
-        Self::notification()
+        let notification = Self::notification()
             .user_id(user_id)
             .title("Read Notification".to_string())
             .is_read(true)
             .read_at(Some(chrono::Utc::now()))
-            .commit(db)
-            .await
+            .commit(&db)
+            .await?;
+
+        Ok(notification.model().clone())
     }
 
     /// Helper method to create an expired notification
@@ -67,13 +70,15 @@ impl DbFixtures {
         db: DatabaseConnection,
         user_id: uuid::Uuid,
     ) -> anyhow::Result<telegraph_infra::repository::entity::notifications::Model> {
-        let expired_date = chrono::Utc::now() - chrono::Duration::hours(1);
-        Self::notification()
+        let expired_date = TestData::now() - chrono::Duration::hours(1);
+        let notification = Self::notification()
             .user_id(user_id)
             .title("Expired Notification".to_string())
             .expires_at(Some(expired_date))
-            .commit(db)
-            .await
+            .commit(&db)
+            .await?;
+
+        Ok(notification.model().clone())
     }
 
     /// Clean up function to truncate all tables between tests
