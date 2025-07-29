@@ -1,0 +1,50 @@
+[package]
+name = "hive-setup"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Application setup and dependency injection for Hive service"
+license.workspace = true
+
+[dependencies]
+# All layers
+hive-domain = { path = "../domain" }
+hive-application = { path = "../application" }
+hive-infra = { path = "../infra" }
+hive-http = { path = "../http" }
+hive-configuration = { path = "../configuration" }
+hive-migration = { path = "../migration" }
+
+# Dependencies
+rustycog-server = { path = "../../rustycog/rustycog-server" }
+
+# HTTP framework
+axum = { workspace = true }
+
+# Database
+sea-orm = { workspace = true }
+sea-orm-migration = { workspace = true }
+
+# Async runtime
+tokio = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# UUID
+uuid = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Tracing
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# HTTP client
+reqwest = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true } 

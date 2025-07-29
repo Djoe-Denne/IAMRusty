@@ -1,0 +1,37 @@
+[package]
+name = "hive-domain"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Domain layer for Hive organization management service"
+license.workspace = true
+
+[dependencies]
+# Events
+hive-events = { path = "../../hive-events" }
+
+rustycog-events = { path = "../../rustycog/rustycog-events" }
+rustycog-core = { path = "../../rustycog/rustycog-core" }
+rustycog-config = { path = "../../rustycog/rustycog-config" }
+
+# Async traits
+async-trait = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Date/Time
+chrono = { workspace = true }
+
+# UUID
+uuid = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+
+# Validation
+validator = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true } 

@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     # Core shared crates
     "iam-events",
+    "hive-events",
     
     # RustyCog framework crates
     "rustycog/rustycog-core",
@@ -17,7 +18,8 @@ members = [
     # IAMRusty service crates
     "IAMRusty",
     # Telegraph service crates
-    "Telegraph"
+    "Telegraph",
+    "Hive"
 ]
 
 [workspace.package]

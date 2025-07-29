@@ -1,0 +1,25 @@
+[package]
+name = "hive-events"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Domain events for Hive organization management service"
+license.workspace = true
+
+[dependencies]
+# Events abstraction
+rustycog-events = { path = "../rustycog/rustycog-events" }
+rustycog-core = { path = "../rustycog/rustycog-core" }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Date/Time
+chrono = { workspace = true }
+
+# UUID
+uuid = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true } 

@@ -1,0 +1,42 @@
+[package]
+name = "hive-http"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "HTTP layer for Hive organization management service"
+license.workspace = true
+
+[dependencies]
+# Domain and application layers
+hive-domain = { path = "../domain" }
+hive-application = { path = "../application" }
+
+# HTTP framework
+axum = { workspace = true }
+
+# HTTP specific dependencies
+rustycog-http = { path = "../../rustycog/rustycog-http" }
+
+
+# Async traits
+async-trait = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# UUID
+uuid = { workspace = true }
+
+# Validation
+validator = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+
+# Tracing
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
+axum-test = "15.0.1" 

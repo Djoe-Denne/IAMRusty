@@ -1,0 +1,49 @@
+[package]
+name = "hive-infra"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Infrastructure layer for Hive organization management service"
+license.workspace = true
+
+[dependencies]
+# Domain and application layers
+hive-domain = { path = "../domain" }
+hive-application = { path = "../application" }
+
+# Shared crates
+iam-events = { path = "../../iam-events" }
+rustycog-events = { path = "../../rustycog/rustycog-events" }
+
+# Async traits
+async-trait = { workspace = true }
+
+# ORM & Database
+sea-orm = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Date/Time
+chrono = { workspace = true }
+
+# UUID
+uuid = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+
+# HTTP client for external providers
+reqwest = { workspace = true }
+
+# Email sending
+lettre = { workspace = true }
+
+[features]
+test-utils = []
+
+[dev-dependencies]
+tokio = { workspace = true }
+testcontainers = { workspace = true }
+testcontainers-modules = { workspace = true } 

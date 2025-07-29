@@ -1,0 +1,171 @@
+-- Core Organization Tables
+CREATE TABLE organizations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(255) NOT NULL,
+    slug VARCHAR(100) NOT NULL UNIQUE, -- for URLs: /org/my-company
+    description TEXT,
+    avatar_url VARCHAR(500),
+    
+    -- Reference to IAM user who owns/created the org
+    owner_user_id UUID NOT NULL, -- references iam_db.users.id
+    
+    -- Organization settings
+    settings JSONB DEFAULT '{}', -- flexible settings storage
+    
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Roles within organizations (flexible, org-specific)
+CREATE TABLE organization_roles (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    
+    name VARCHAR(100) NOT NULL, -- "Admin", "Developer", "Viewer"
+    description TEXT,
+    
+    -- Permissions as JSON for flexibility
+    permissions JSONB NOT NULL DEFAULT '[]', -- ["read:repos", "write:issues", "admin:org"]
+    
+    -- System roles vs custom roles
+    is_system_default BOOLEAN DEFAULT FALSE, -- Admin, Member, Viewer
+    
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    
+    UNIQUE(organization_id, name)
+);
+
+-- Users' membership in organizations
+CREATE TABLE organization_members (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    
+    -- Reference to IAM user
+    user_id UUID NOT NULL, -- references iam_db.users.id
+    
+    -- Role in this organization
+    role_id UUID NOT NULL REFERENCES organization_roles(id),
+    
+    -- Invitation/membership status
+    status VARCHAR(20) DEFAULT 'active', -- 'pending', 'active', 'suspended'
+    
+    -- Metadata about membership
+    invited_by_user_id UUID, -- references iam_db.users.id
+    invited_at TIMESTAMP WITH TIME ZONE,
+    joined_at TIMESTAMP WITH TIME ZONE,
+    
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    
+    UNIQUE(organization_id, user_id)
+);
+
+-- Third-party provider configurations (for future sync)
+CREATE TABLE external_providers (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    
+    -- Provider info
+    provider_type VARCHAR(50) NOT NULL, -- 'github', 'confluence', 'gitlab'
+    name VARCHAR(100) NOT NULL, -- Display name
+    
+    -- Configuration template/schema
+    config_schema JSONB, -- JSON schema for validating provider configs
+    
+    -- Is this provider active/available?
+    is_active BOOLEAN DEFAULT TRUE,
+    
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Per-organization external provider links
+CREATE TABLE organization_external_links (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    provider_id UUID NOT NULL REFERENCES external_providers(id),
+    
+    -- Provider-specific configuration
+    provider_config JSONB NOT NULL, -- { "org_name": "my-github-org", "access_token": "...", etc }
+    
+    -- Sync settings
+    sync_enabled BOOLEAN DEFAULT FALSE,
+    sync_settings JSONB DEFAULT '{}', -- { "sync_members": true, "role_mapping": {...} }
+    
+    -- Last sync info
+    last_sync_at TIMESTAMP WITH TIME ZONE,
+    last_sync_status VARCHAR(20), -- 'success', 'failed', 'partial'
+    sync_error TEXT,
+    
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    
+    UNIQUE(organization_id, provider_id)
+);
+
+-- Sync job history (for debugging and monitoring)
+CREATE TABLE sync_jobs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_external_link_id UUID NOT NULL REFERENCES organization_external_links(id) ON DELETE CASCADE,
+    
+    -- Job info
+    job_type VARCHAR(50) NOT NULL, -- 'full_sync', 'incremental_sync', 'members_only'
+    status VARCHAR(20) NOT NULL, -- 'running', 'completed', 'failed'
+    
+    -- Results
+    items_processed INTEGER DEFAULT 0,
+    items_created INTEGER DEFAULT 0,
+    items_updated INTEGER DEFAULT 0,
+    items_failed INTEGER DEFAULT 0,
+    
+    -- Timing
+    started_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    completed_at TIMESTAMP WITH TIME ZONE,
+    
+    -- Error details
+    error_message TEXT,
+    details JSONB, -- Additional context, logs, etc.
+    
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Invitation system
+CREATE TABLE organization_invitations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    
+    -- Who's being invited
+    email VARCHAR(255) NOT NULL,
+    role_id UUID NOT NULL REFERENCES organization_roles(id),
+    
+    -- Invitation details
+    invited_by_user_id UUID NOT NULL, -- references iam_db.users.id
+    token VARCHAR(100) NOT NULL UNIQUE, -- secure random token for accepting
+    
+    -- Status and expiry
+    status VARCHAR(20) DEFAULT 'pending', -- 'pending', 'accepted', 'expired', 'cancelled'
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    accepted_at TIMESTAMP WITH TIME ZONE,
+    
+    -- Optional message
+    message TEXT,
+    
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    
+    UNIQUE(organization_id, email, status) -- Can't have multiple pending invites for same email
+);
+
+-- Indexes for performance
+CREATE INDEX idx_organizations_owner ON organizations(owner_user_id);
+CREATE INDEX idx_organizations_slug ON organizations(slug);
+CREATE INDEX idx_org_members_user ON organization_members(user_id);
+CREATE INDEX idx_org_members_org ON organization_members(organization_id);
+CREATE INDEX idx_org_members_status ON organization_members(status);
+CREATE INDEX idx_external_links_org ON organization_external_links(organization_id);
+CREATE INDEX idx_external_links_sync ON organization_external_links(sync_enabled, last_sync_at);
+CREATE INDEX idx_sync_jobs_link ON sync_jobs(organization_external_link_id);
+CREATE INDEX idx_sync_jobs_status ON sync_jobs(status, started_at);
+CREATE INDEX idx_invitations_token ON organization_invitations(token);
+CREATE INDEX idx_invitations_email ON organization_invitations(email, status);
+
+-- Default system roles
+INSERT INTO external_providers (provider_type, name, config_schema) VALUES 
+('github', 'GitHub', '{"type": "object", "properties": {"org_name": {"type": "string"}, "access_token": {"type": "string"}}}'),

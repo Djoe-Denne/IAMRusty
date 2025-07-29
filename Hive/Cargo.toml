@@ -1,0 +1,81 @@
+[package]
+name = "hive-service"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Organization management service for the AIForAll platform"
+license.workspace = true
+
+[features]
+# Feature flags for testing and QA environments
+test-mode = []
+qa-mode = []
+
+[dependencies]
+# Internal workspace crates
+hive-domain = { path = "domain" }
+hive-application = { path = "application" }
+hive-infra = { path = "infra" }
+hive-http = { path = "http" }
+hive-configuration = { path = "configuration" }
+hive-setup = { path = "setup" }
+hive-migration = { path = "migration" }
+
+# Shared crates
+hive-events = { path = "../hive-events" }
+rustycog-config = { path = "../rustycog/rustycog-config" }
+
+# Web & HTTP
+axum = { workspace = true }
+tokio = { workspace = true }
+hyper = { workspace = true }
+
+# ORM & PostgreSQL
+sea-orm = { workspace = true }
+sea-orm-migration = { workspace = true, optional = true }
+
+# Utility
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+dotenvy = { workspace = true }
+config = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Logging and tracing
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Middleware / tower layers
+tower = { workspace = true }
+tower-http = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
+axum-test = { workspace = true }
+tokio-test = { workspace = true }
+wiremock = { workspace = true }
+testcontainers = { workspace = true }
+testcontainers-modules = { workspace = true }
+url = { workspace = true }
+futures = { workspace = true }
+tracing-subscriber = { workspace = true }
+serial_test = { workspace = true }
+ctrlc = { workspace = true }
+libc = { workspace = true }
+ctor = { workspace = true }
+rand = { workspace = true }
+async-trait = { workspace = true }
+reqwest = { workspace = true }
+base64 = { workspace = true }
+aws-sdk-sqs = { workspace = true }
+aws-config = { workspace = true }
+aws-credential-types = { workspace = true }
+hive-infra = { path = "infra", features = ["test-utils"] }
+rustycog-events = { path = "../rustycog/rustycog-events", features = ["test-utils"] }
+rustycog-testing = { path = "../rustycog/rustycog-testing" }
+rustycog-core = { path = "../rustycog/rustycog-core" } 

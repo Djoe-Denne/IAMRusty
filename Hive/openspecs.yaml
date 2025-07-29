@@ -1,0 +1,1260 @@
+openapi: 3.0.3
+info:
+  title: Organization Management API
+  description: |
+    API for managing organizations, members, roles, and external provider integrations.
+    
+    ## Authentication
+    All endpoints require Bearer token authentication.
+    
+    ## Rate Limiting
+    API calls are rate limited per user/organization.
+    
+    ## Pagination
+    List endpoints support cursor-based pagination using `cursor` and `limit` parameters.
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: api-support@example.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.example.com
+    description: Production server
+  - url: https://staging-api.example.com
+    description: Staging server
+
+security:
+  - bearerAuth: []
+
+paths:
+  # =============================================================================
+  # Organizations
+  # =============================================================================
+  /api/organizations:
+    get:
+      summary: List organizations
+      description: Get organizations the authenticated user has access to
+      tags: [Organizations]
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - name: role
+          in: query
+          description: Filter by user's role in organization
+          schema:
+            type: string
+            enum: [owner, admin, member, viewer]
+        - name: search
+          in: query
+          description: Search organizations by name or slug
+          schema:
+            type: string
+            maxLength: 100
+      responses:
+        200:
+          description: List of organizations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Organization'
+                  pagination:
+                    $ref: '#/components/schemas/PaginationResponse'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        429:
+          $ref: '#/components/responses/RateLimited'
+
+    post:
+      summary: Create organization
+      description: Create a new organization
+      tags: [Organizations]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrganizationRequest'
+      responses:
+        201:
+          description: Organization created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        409:
+          description: Organization slug already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/organizations/{orgId}:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+    
+    get:
+      summary: Get organization
+      description: Get organization details
+      tags: [Organizations]
+      responses:
+        200:
+          description: Organization details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      summary: Update organization
+      description: Update organization details (requires admin role)
+      tags: [Organizations]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOrganizationRequest'
+      responses:
+        200:
+          description: Organization updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      summary: Delete organization
+      description: Delete organization (requires owner role)
+      tags: [Organizations]
+      responses:
+        204:
+          description: Organization deleted successfully
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+  # =============================================================================
+  # Members
+  # =============================================================================
+  /api/organizations/{orgId}/members:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+    
+    get:
+      summary: List organization members
+      description: Get all members of an organization
+      tags: [Members]
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - name: role
+          in: query
+          description: Filter by role
+          schema:
+            type: string
+        - name: status
+          in: query
+          description: Filter by member status
+          schema:
+            type: string
+            enum: [active, pending, suspended]
+      responses:
+        200:
+          description: List of organization members
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OrganizationMember'
+                  pagination:
+                    $ref: '#/components/schemas/PaginationResponse'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+    post:
+      summary: Invite member to organization
+      description: Send an invitation to join the organization
+      tags: [Members]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InviteMemberRequest'
+      responses:
+        201:
+          description: Invitation sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationInvitation'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        409:
+          description: User already member or invitation pending
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/organizations/{orgId}/members/{userId}:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - $ref: '#/components/parameters/UserId'
+    
+    get:
+      summary: Get organization member
+      description: Get details of a specific organization member
+      tags: [Members]
+      responses:
+        200:
+          description: Member details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationMember'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      summary: Update organization member
+      description: Update member role or status (requires admin role)
+      tags: [Members]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMemberRequest'
+      responses:
+        200:
+          description: Member updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationMember'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      summary: Remove organization member
+      description: Remove member from organization (requires admin role)
+      tags: [Members]
+      responses:
+        204:
+          description: Member removed successfully
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+  # =============================================================================
+  # Roles
+  # =============================================================================
+  /api/organizations/{orgId}/roles:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+    
+    get:
+      summary: List organization roles
+      description: Get all roles defined for an organization
+      tags: [Roles]
+      responses:
+        200:
+          description: List of roles
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OrganizationRole'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+    post:
+      summary: Create organization role
+      description: Create a new custom role (requires admin role)
+      tags: [Roles]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRoleRequest'
+      responses:
+        201:
+          description: Role created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationRole'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        409:
+          description: Role name already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/organizations/{orgId}/roles/{roleId}:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - $ref: '#/components/parameters/RoleId'
+    
+    put:
+      summary: Update organization role
+      description: Update role permissions (requires admin role, cannot modify system roles)
+      tags: [Roles]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateRoleRequest'
+      responses:
+        200:
+          description: Role updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationRole'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      summary: Delete organization role
+      description: Delete custom role (requires admin role, cannot delete system roles)
+      tags: [Roles]
+      responses:
+        204:
+          description: Role deleted successfully
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+        409:
+          description: Cannot delete role with assigned members
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # =============================================================================
+  # External Links
+  # =============================================================================
+  /api/organizations/{orgId}/external-links:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+    
+    get:
+      summary: List external provider links
+      description: Get all external provider connections for organization
+      tags: [External Links]
+      responses:
+        200:
+          description: List of external links
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ExternalLink'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+    post:
+      summary: Create external provider link
+      description: Connect organization to external provider (requires admin role)
+      tags: [External Links]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateExternalLinkRequest'
+      responses:
+        201:
+          description: External link created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExternalLink'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+
+  /api/organizations/{orgId}/external-links/{linkId}:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - $ref: '#/components/parameters/LinkId'
+    
+    get:
+      summary: Get external link details
+      description: Get details of specific external provider link
+      tags: [External Links]
+      responses:
+        200:
+          description: External link details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExternalLink'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      summary: Update external link
+      description: Update external provider configuration (requires admin role)
+      tags: [External Links]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateExternalLinkRequest'
+      responses:
+        200:
+          description: External link updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExternalLink'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      summary: Delete external link
+      description: Remove external provider connection (requires admin role)
+      tags: [External Links]
+      responses:
+        204:
+          description: External link deleted successfully
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+  # =============================================================================
+  # Sync Operations
+  # =============================================================================
+  /api/organizations/{orgId}/external-links/{linkId}/sync:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - $ref: '#/components/parameters/LinkId'
+    
+    post:
+      summary: Trigger sync operation
+      description: Start synchronization with external provider (requires admin role)
+      tags: [Sync Operations]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TriggerSyncRequest'
+      responses:
+        202:
+          description: Sync operation started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncJob'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+        409:
+          description: Sync already in progress
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/organizations/{orgId}/sync-jobs/{jobId}:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+      - $ref: '#/components/parameters/JobId'
+    
+    get:
+      summary: Get sync job status
+      description: Get status and details of sync operation
+      tags: [Sync Operations]
+      responses:
+        200:
+          description: Sync job details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncJob'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+  /api/organizations/{orgId}/sync-jobs:
+    parameters:
+      - $ref: '#/components/parameters/OrgId'
+    
+    get:
+      summary: List sync jobs
+      description: Get history of sync operations for organization
+      tags: [Sync Operations]
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - name: status
+          in: query
+          description: Filter by job status
+          schema:
+            type: string
+            enum: [running, completed, failed]
+      responses:
+        200:
+          description: List of sync jobs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SyncJob'
+                  pagination:
+                    $ref: '#/components/schemas/PaginationResponse'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+
+  # =============================================================================
+  # Invitations
+  # =============================================================================
+  /api/invitations/{token}:
+    parameters:
+      - name: token
+        in: path
+        required: true
+        description: Invitation token
+        schema:
+          type: string
+    
+    get:
+      summary: Get invitation details
+      description: Get invitation details (no authentication required)
+      tags: [Invitations]
+      security: [] # No auth required for viewing invitations
+      responses:
+        200:
+          description: Invitation details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationInvitation'
+        404:
+          $ref: '#/components/responses/NotFound'
+        410:
+          description: Invitation expired or already used
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/invitations/{token}/accept:
+    parameters:
+      - name: token
+        in: path
+        required: true
+        description: Invitation token
+        schema:
+          type: string
+    
+    post:
+      summary: Accept invitation
+      description: Accept organization invitation (requires authentication)
+      tags: [Invitations]
+      responses:
+        200:
+          description: Invitation accepted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationMember'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        404:
+          $ref: '#/components/responses/NotFound'
+        410:
+          description: Invitation expired or already used
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/invitations/{token}/decline:
+    parameters:
+      - name: token
+        in: path
+        required: true
+        description: Invitation token
+        schema:
+          type: string
+    
+    post:
+      summary: Decline invitation
+      description: Decline organization invitation (no authentication required)
+      tags: [Invitations]
+      security: [] # No auth required for declining
+      responses:
+        204:
+          description: Invitation declined successfully
+        404:
+          $ref: '#/components/responses/NotFound'
+        410:
+          description: Invitation expired or already used
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+# =============================================================================
+# Components
+# =============================================================================
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    OrgId:
+      name: orgId
+      in: path
+      required: true
+      description: Organization ID
+      schema:
+        type: string
+        format: uuid
+    
+    UserId:
+      name: userId
+      in: path
+      required: true
+      description: User ID
+      schema:
+        type: string
+        format: uuid
+    
+    RoleId:
+      name: roleId
+      in: path
+      required: true
+      description: Role ID
+      schema:
+        type: string
+        format: uuid
+    
+    LinkId:
+      name: linkId
+      in: path
+      required: true
+      description: External link ID
+      schema:
+        type: string
+        format: uuid
+    
+    JobId:
+      name: jobId
+      in: path
+      required: true
+      description: Sync job ID
+      schema:
+        type: string
+        format: uuid
+    
+    Cursor:
+      name: cursor
+      in: query
+      description: Pagination cursor
+      schema:
+        type: string
+    
+    Limit:
+      name: limit
+      in: query
+      description: Number of items per page (max 100)
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+
+  schemas:
+    # =============================================================================
+    # Core Entities
+    # =============================================================================
+    Organization:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 255
+        slug:
+          type: string
+          maxLength: 100
+          pattern: '^[a-z0-9-]+$'
+        description:
+          type: string
+          nullable: true
+        avatar_url:
+          type: string
+          format: uri
+          nullable: true
+        owner_user_id:
+          type: string
+          format: uuid
+        settings:
+          type: object
+          additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required: [id, name, slug, owner_user_id, created_at, updated_at]
+
+    OrganizationMember:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        role_id:
+          type: string
+          format: uuid
+        role_name:
+          type: string
+          description: Role name for convenience
+        status:
+          type: string
+          enum: [active, pending, suspended]
+        invited_by_user_id:
+          type: string
+          format: uuid
+          nullable: true
+        invited_at:
+          type: string
+          format: date-time
+          nullable: true
+        joined_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required: [id, user_id, role_id, status, created_at, updated_at]
+
+    OrganizationRole:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        organization_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 100
+        description:
+          type: string
+          nullable: true
+        permissions:
+          type: array
+          items:
+            type: string
+          description: Array of permission strings
+        is_system_default:
+          type: boolean
+          description: Whether this is a system role (cannot be deleted)
+        created_at:
+          type: string
+          format: date-time
+      required: [id, organization_id, name, permissions, is_system_default, created_at]
+
+    ExternalLink:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        organization_id:
+          type: string
+          format: uuid
+        provider_type:
+          type: string
+          enum: [github, confluence, gitlab]
+        provider_name:
+          type: string
+          description: Display name for this provider connection
+        provider_config:
+          type: object
+          additionalProperties: true
+          description: Provider-specific configuration (sensitive fields masked)
+        sync_enabled:
+          type: boolean
+        sync_settings:
+          type: object
+          additionalProperties: true
+        last_sync_at:
+          type: string
+          format: date-time
+          nullable: true
+        last_sync_status:
+          type: string
+          enum: [success, failed, partial]
+          nullable: true
+        sync_error:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required: [id, organization_id, provider_type, provider_name, sync_enabled, created_at, updated_at]
+
+    SyncJob:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        organization_external_link_id:
+          type: string
+          format: uuid
+        job_type:
+          type: string
+          enum: [full_sync, incremental_sync, members_only]
+        status:
+          type: string
+          enum: [running, completed, failed]
+        items_processed:
+          type: integer
+          minimum: 0
+        items_created:
+          type: integer
+          minimum: 0
+        items_updated:
+          type: integer
+          minimum: 0
+        items_failed:
+          type: integer
+          minimum: 0
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        error_message:
+          type: string
+          nullable: true
+        details:
+          type: object
+          additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
+      required: [id, organization_external_link_id, job_type, status, started_at, created_at]
+
+    OrganizationInvitation:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        organization_id:
+          type: string
+          format: uuid
+        organization_name:
+          type: string
+          description: Organization name for convenience
+        email:
+          type: string
+          format: email
+        role_id:
+          type: string
+          format: uuid
+        role_name:
+          type: string
+          description: Role name for convenience
+        invited_by_user_id:
+          type: string
+          format: uuid
+        token:
+          type: string
+        status:
+          type: string
+          enum: [pending, accepted, expired, cancelled]
+        expires_at:
+          type: string
+          format: date-time
+        accepted_at:
+          type: string
+          format: date-time
+          nullable: true
+        message:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+      required: [id, organization_id, email, role_id, invited_by_user_id, token, status, expires_at, created_at]
+
+    # =============================================================================
+    # Request/Response Objects
+    # =============================================================================
+    CreateOrganizationRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        slug:
+          type: string
+          maxLength: 100
+          pattern: '^[a-z0-9-]+$'
+        description:
+          type: string
+          maxLength: 1000
+          nullable: true
+        avatar_url:
+          type: string
+          format: uri
+          nullable: true
+      required: [name, slug]
+
+    UpdateOrganizationRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 1000
+          nullable: true
+        avatar_url:
+          type: string
+          format: uri
+          nullable: true
+        settings:
+          type: object
+          additionalProperties: true
+
+    InviteMemberRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        role_id:
+          type: string
+          format: uuid
+        message:
+          type: string
+          maxLength: 500
+          nullable: true
+      required: [email, role_id]
+
+    UpdateMemberRequest:
+      type: object
+      properties:
+        role_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [active, suspended]
+
+    CreateRoleRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 500
+          nullable: true
+        permissions:
+          type: array
+          items:
+            type: string
+          minItems: 1
+      required: [name, permissions]
+
+    UpdateRoleRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 500
+          nullable: true
+        permissions:
+          type: array
+          items:
+            type: string
+          minItems: 1
+
+    CreateExternalLinkRequest:
+      type: object
+      properties:
+        provider_type:
+          type: string
+          enum: [github, confluence, gitlab]
+        provider_name:
+          type: string
+          maxLength: 100
+        provider_config:
+          type: object
+          additionalProperties: true
+          description: Provider-specific configuration
+        sync_settings:
+          type: object
+          additionalProperties: true
+          description: Sync configuration
+      required: [provider_type, provider_name, provider_config]
+
+    UpdateExternalLinkRequest:
+      type: object
+      properties:
+        provider_name:
+          type: string
+          maxLength: 100
+        provider_config:
+          type: object
+          additionalProperties: true
+        sync_enabled:
+          type: boolean
+        sync_settings:
+          type: object
+          additionalProperties: true
+
+    TriggerSyncRequest:
+      type: object
+      properties:
+        sync_type:
+          type: string
+          enum: [full_sync, incremental_sync, members_only]
+          default: incremental_sync
+        dry_run:
+          type: boolean
+          default: false
+          description: If true, simulate sync without making changes
+
+    # =============================================================================
+    # Common Objects
+    # =============================================================================
+    PaginationResponse:
+      type: object
+      properties:
+        next_cursor:
+          type: string
+          nullable: true
+        has_more:
+          type: boolean
+        total_count:
+          type: integer
+          nullable: true
+          description: Total count (may be null for performance reasons)
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message describing what went wrong
+        timestamp:
+          type: string
+          format: date-time
+          description: When the error occurred
+      required:
+        - error
+      example:
+        error: "Organization not found"
+        timestamp: "2024-01-15T10:30:00Z"
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    Forbidden:
+      description: Access forbidden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    RateLimited:
+      description: Rate limit exceeded
+      headers:
+        Retry-After:
+          description: Seconds to wait before retrying
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+tags:
+  - name: Organizations
+    description: Organization management operations
+  - name: Members
+    description: Organization member management
+  - name: Roles
+    description: Organization role management
+  - name: External Links
+    description: External provider integration management
+  - name: Sync Operations
+    description: Data synchronization operations
+  - name: Invitations
+    description: Organization invitation management
