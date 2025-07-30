@@ -1,7 +1,7 @@
-use std::sync::Arc;
-use crate::port::communication::EmailProvider;
+use crate::entity::communication::EmailCommunication;
 use crate::error::DomainError;
-use crate::entity::{communication::EmailCommunication};
+use crate::port::communication::EmailProvider;
+use std::sync::Arc;
 
 pub struct EmailService {
     email_provider: Arc<dyn EmailProvider>,

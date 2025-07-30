@@ -1,65 +1,120 @@
-use uuid::Uuid;
 use serde_json::Value;
+use uuid::Uuid;
 
-use crate::{
-    entity::*,
-    error::DomainError,
-    port::*,
-};
+use crate::{entity::*, error::DomainError, port::*, service::{member_service::MemberService, role_service::RoleService}};
 
 /// Domain service for organization management
-pub struct OrganizationServiceImpl<OR, MR, RR>
+pub struct OrganizationServiceImpl<OR, MS, RS>
 where
     OR: OrganizationRepository,
-    MR: OrganizationMemberRepository,
-    RR: RolePermissionRepository,
+    MS: MemberService,
+    RS: RoleService,
 {
     organization_repo: OR,
-    member_repo: MR,
-    role_repo: RR,
+    member_service: MS,
+    role_service: RS,
 }
 
 #[async_trait::async_trait]
-pub trait OrganizationService {
-    async fn create_organization(&self, organization: &Organization) -> Result<Organization, DomainError>;
-    async fn update_organization(&self, id: &Uuid, name: Option<String>, description: Option<String>, avatar_url: Option<String>, settings: Option<Value>, requesting_user_id: &Uuid) -> Result<Organization, DomainError>;
-    async fn delete_organization(&self, id: &Uuid, requesting_user_id: &Uuid) -> Result<(), DomainError>;
+pub trait OrganizationService: Send + Sync {
+    /**
+     * Create a new organization with default roles
+     * 
+     * @param organization - The organization to create
+     */
+    async fn create_organization(
+        &self,
+        organization: &Organization,
+    ) -> Result<Organization, DomainError>;
+
+    /**
+     * Update an organization
+     * 
+     * @param id - The ID of the organization to update
+     */
+    async fn update_organization(
+        &self,
+        id: &Uuid,
+        name: Option<String>,
+        description: Option<String>,
+        avatar_url: Option<String>,
+        settings: Option<Value>,
+        requesting_user_id: &Uuid,
+    ) -> Result<Organization, DomainError>;
+
+    /**
+     * Delete an organization
+     * 
+     * @param id - The ID of the organization to delete
+     */
+    async fn delete_organization(
+        &self,
+        id: &Uuid,
+        requesting_user_id: &Uuid,
+    ) -> Result<(), DomainError>;
+
+    /**
+     * Get an organization by ID
+     * 
+     * @param id - The ID of the organization to get
+     */
     async fn get_organization(&self, id: &Uuid) -> Result<Organization, DomainError>;
+
+    /**
+     * Get an organization by slug
+     * 
+     * @param slug - The slug of the organization to get
+     */
     async fn get_organization_by_slug(&self, slug: &str) -> Result<Organization, DomainError>;
-    async fn list_user_organizations(&self, user_id: &Uuid, page: u32, page_size: u32) -> Result<Vec<Organization>, DomainError>;
-    async fn search_organizations(&self, name_pattern: &str, _user_id: Option<Uuid>, page: u32, page_size: u32) -> Result<Vec<Organization>, DomainError>;
-    async fn check_admin_permission(&self, organization_id: &Uuid, user_id: &Uuid) -> Result<(), DomainError>;
-    async fn check_read_permission(&self, organization_id: &Uuid, user_id: &Uuid) -> Result<(), DomainError>;
-    async fn create_default_roles(&self, organization_id: &Uuid) -> Result<(), DomainError>;
-    async fn add_owner_as_member(&self, organization: &Organization, owner_user_id: Uuid) -> Result<(), DomainError>;
+
+    /**
+     * List organizations for a user
+     * 
+     * @param user_id - The ID of the user to list the organizations for
+     */
+    async fn list_user_organizations(
+        &self,
+        user_id: &Uuid,
+        page: u32,
+        page_size: u32,
+    ) -> Result<Vec<Organization>, DomainError>;
+
+    /**
+     * Search organizations by name
+     * 
+     * @param name_pattern - The pattern to search for
+     */
+    async fn search_organizations(
+        &self,
+        name_pattern: &str,
+        _user_id: Option<Uuid>,
+        page: u32,
+        page_size: u32,
+    ) -> Result<Vec<Organization>, DomainError>;
 }
 
-impl<OR, MR, RR> OrganizationServiceImpl<OR, MR, RR>
+impl<OR, MS, RS> OrganizationServiceImpl<OR, MS, RS>
 where
     OR: OrganizationRepository,
-    MR: OrganizationMemberRepository,
-    RR: RolePermissionRepository,
+    MS: MemberService,
+    RS: RoleService,
 {
     /// Create a new organization service
-    pub fn new(
-        organization_repo: OR,
-        member_repo: MR,
-        role_repo: RR,
-    ) -> Self {
+    pub fn new(organization_repo: OR, member_service: MS, role_service: RS) -> Self {
         Self {
             organization_repo,
-            member_repo,
-            role_repo,
+            member_service,
+            role_service,
         }
     }
 }
 
 #[async_trait::async_trait]
-impl<OR, MR, RR> OrganizationService for OrganizationServiceImpl<OR, MR, RR>
+impl<OR, MS, RS> OrganizationService for OrganizationServiceImpl<OR, MS, RS>
 where
     OR: OrganizationRepository,
-    MR: OrganizationMemberRepository,
-    RR: RolePermissionRepository,
+    MS: MemberService,
+    RS: RoleService,
 {
     /// Create a new organization with default roles
     async fn create_organization(
@@ -67,7 +122,11 @@ where
         organization: &Organization,
     ) -> Result<Organization, DomainError> {
         // Business rule: Check if organization with same slug already exists
-        if self.organization_repo.exists_by_slug(&organization.slug).await? {
+        if self
+            .organization_repo
+            .exists_by_slug(&organization.slug)
+            .await?
+        {
             return Err(DomainError::resource_already_exists(
                 "Organization",
                 &format!("slug={}", organization.slug),
@@ -77,10 +136,13 @@ where
         let saved_org = self.organization_repo.save(&organization).await?;
 
         // Create default system roles for the organization
-        self.create_default_roles(&saved_org.id).await?;
+        let default_roles = self.role_service.create_default_roles(&saved_org.id).await?;
+
+        let owner_role_permission = self.role_service.find_role_permission("organization", "owner", default_roles).await?;
 
         // Add owner as the first member with Owner role
-        self.add_owner_as_member(&saved_org, organization.owner_user_id).await?;
+        self.member_service.add_member(saved_org.id, organization.owner_user_id, vec![owner_role_permission], None)
+            .await?;
 
         Ok(saved_org)
     }
@@ -103,7 +165,7 @@ where
             .ok_or_else(|| DomainError::entity_not_found("Organization", &id.to_string()))?;
 
         // Business rule: Only owner or admin can update organization
-        self.check_admin_permission(id, requesting_user_id).await?;
+        self.role_service.check_admin_permission(id, requesting_user_id, "organization").await?;
 
         // Apply updates
         if let Some(new_name) = name {
@@ -148,13 +210,11 @@ where
             ));
         }
 
-        // Business rule: Cannot delete organization with active members (other than owner)
-        let member_count = self.member_repo.count_active_by_organization(id).await?;
-        if member_count > 1 {
-            return Err(DomainError::business_rule_violation(
-                "Cannot delete organization with active members. Remove all members first.",
-            ));
-        }
+        // Delete all members
+        self.member_service.remove_organization_members(organization.id).await?;
+
+        // Delete all roles
+        self.role_service.delete_organization_roles(id).await?;
 
         // Delete the organization (cascade will handle related entities)
         self.organization_repo.delete_by_id(id).await?;
@@ -179,132 +239,27 @@ where
     }
 
     /// List organizations for a user
-    async fn list_user_organizations(&self, user_id: &Uuid, page: u32, page_size: u32) -> Result<Vec<Organization>, DomainError> {
+    async fn list_user_organizations(
+        &self,
+        user_id: &Uuid,
+        page: u32,
+        page_size: u32,
+    ) -> Result<Vec<Organization>, DomainError> {
         self.organization_repo
             .find_by_user_membership(user_id, page, page_size)
             .await
     }
 
     /// Search organizations by name
-    async fn search_organizations(&self, name_pattern: &str, _user_id: Option<Uuid>, page: u32, page_size: u32) -> Result<Vec<Organization>, DomainError> {
+    async fn search_organizations(
+        &self,
+        name_pattern: &str,
+        _user_id: Option<Uuid>,
+        page: u32,
+        page_size: u32,
+    ) -> Result<Vec<Organization>, DomainError> {
         self.organization_repo
             .search_by_name(name_pattern, page, page_size)
             .await
-    }
-
-    /// Check if user has admin permission in organization
-    async fn check_admin_permission(
-        &self,
-        organization_id: &Uuid,
-        user_id: &Uuid,
-    ) -> Result<(), DomainError> {
-        // Find the organization
-        let organization = self
-            .organization_repo
-            .find_by_id(organization_id)
-            .await?
-            .ok_or_else(|| DomainError::entity_not_found("Organization", &organization_id.to_string()))?;
-
-        // Owner always has admin permission
-        if organization.is_owned_by(user_id) {
-            return Ok(());
-        }
-
-        // Check if user is a member with admin role
-        let member = self
-            .member_repo
-            .find_by_organization_and_user(organization_id, user_id)
-            .await?;
-
-        if let Some(member) = member {
-            if member.is_active() {
-                // Get the role and check if it has admin permissions
-                let role = self
-                    .role_repo
-                    .find_by_id(&member.role_id)
-                    .await?
-                    .ok_or_else(|| DomainError::entity_not_found("OrganizationRole", &member.role_id.to_string()))?;
-
-                if role.is_admin() {
-                    return Ok(());
-                }
-            }
-        }
-
-        Err(DomainError::permission_denied(
-            "User does not have admin permission in this organization",
-        ))
-    }
-
-    /// Check if user has read permission in organization
-    async fn check_read_permission(
-        &self,
-        organization_id: &Uuid,
-        user_id: &Uuid,
-    ) -> Result<(), DomainError> {
-        // Find the organization
-        let organization = self
-            .organization_repo
-            .find_by_id(organization_id)
-            .await?
-            .ok_or_else(|| DomainError::entity_not_found("Organization", &organization_id.to_string()))?;
-
-        // Owner always has read permission
-        if organization.is_owned_by(user_id) {
-            return Ok(());
-        }
-
-        // Check if user is an active member
-        let member = self
-            .member_repo
-            .find_by_organization_and_user(organization_id, user_id)
-            .await?;
-
-        if let Some(member) = member {
-            if member.is_active() {
-                return Ok(());
-            }
-        }
-
-        Err(DomainError::permission_denied(
-            "User does not have permission to access this organization",
-        ))
-    }
-
-    /// Create default system roles for a new organization
-    async fn create_default_roles(&self, organization_id: &Uuid) -> Result<(), DomainError> {
-        let system_roles = vec![
-            SystemRole::Owner,
-            SystemRole::Admin,
-            SystemRole::Member,
-            SystemRole::Viewer,
-        ];
-
-        for system_role in system_roles {
-            let role = OrganizationRole::new_system_role(*organization_id, system_role);
-            self.role_repo.save(&role).await?;
-        }
-
-        Ok(())
-    }
-
-    /// Add organization owner as the first member
-    async fn add_owner_as_member(
-        &self,
-        organization: &Organization,
-        owner_user_id: Uuid,
-    ) -> Result<(), DomainError> {
-        // Find the Owner role
-        let owner_role = self
-            .role_repo
-            .find_by_organization_and_name(&organization.id, "Owner")
-            .await?
-            .ok_or_else(|| DomainError::internal_error("Owner role not found after creation"))?;
-
-        // Create member record for the owner
-        let member = OrganizationMember::new(organization.id, owner_user_id, owner_role.id);
-        self.member_repo.save(&member).await?;
-
-        Ok(())
     }
 }

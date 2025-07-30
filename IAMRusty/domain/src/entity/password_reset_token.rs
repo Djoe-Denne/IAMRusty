@@ -25,7 +25,7 @@ impl PasswordResetToken {
     pub fn new(user_id: Uuid, raw_token: &str, expiration_hours: i64) -> Self {
         let now = Utc::now();
         let expires_at = now + Duration::hours(expiration_hours);
-        
+
         Self {
             id: Uuid::new_v4(),
             user_id,
@@ -73,7 +73,7 @@ impl PasswordResetToken {
         use rand::Rng;
         const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
         const TOKEN_LEN: usize = 32;
-        
+
         let mut rng = rand::thread_rng();
         (0..TOKEN_LEN)
             .map(|_| {
@@ -131,7 +131,7 @@ mod tests {
         let raw_token = "test_token_123";
         let hash1 = PasswordResetToken::hash_token(raw_token);
         let hash2 = PasswordResetToken::hash_token(raw_token);
-        
+
         assert_eq!(hash1, hash2);
         assert_ne!(hash1, PasswordResetToken::hash_token("different_token"));
     }
@@ -140,13 +140,13 @@ mod tests {
     fn test_generate_raw_token() {
         let token1 = PasswordResetToken::generate_raw_token();
         let token2 = PasswordResetToken::generate_raw_token();
-        
+
         assert_eq!(token1.len(), 32);
         assert_eq!(token2.len(), 32);
         assert_ne!(token1, token2); // Should be different
-        
+
         // Should only contain alphanumeric characters
         assert!(token1.chars().all(|c| c.is_alphanumeric()));
         assert!(token2.chars().all(|c| c.is_alphanumeric()));
     }
-} 
+}

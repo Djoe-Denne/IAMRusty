@@ -43,4 +43,4 @@ async fn main() -> Result<(), anyhow::Error> {
         .run(server_config)
         .await
         .map_err(|e| anyhow::anyhow!("Failed to run application: {}", e))
-} 
+}

@@ -1,6 +1,7 @@
 use crate::usecase::password_reset::{
-    PasswordResetError, PasswordResetUseCase, RequestPasswordResetRequest, RequestPasswordResetResponse,
-    ValidateResetTokenRequest, ValidateResetTokenResponse, ResetPasswordResponse, ResetPasswordRequest,
+    PasswordResetError, PasswordResetUseCase, RequestPasswordResetRequest,
+    RequestPasswordResetResponse, ResetPasswordRequest, ResetPasswordResponse,
+    ValidateResetTokenRequest, ValidateResetTokenResponse,
 };
 use async_trait::async_trait;
 use rustycog_command::{Command, CommandError, CommandErrorMapper, CommandHandler};
@@ -73,7 +74,9 @@ where
 {
     /// Create a new request password reset command handler
     pub fn new(password_reset_use_case: Arc<A>) -> Self {
-        Self { password_reset_use_case }
+        Self {
+            password_reset_use_case,
+        }
     }
 }
 
@@ -82,7 +85,10 @@ impl<A> CommandHandler<RequestPasswordResetCommand> for RequestPasswordResetComm
 where
     A: PasswordResetUseCase + Send + Sync + ?Sized,
 {
-    async fn handle(&self, command: RequestPasswordResetCommand) -> Result<RequestPasswordResetResponse, CommandError> {
+    async fn handle(
+        &self,
+        command: RequestPasswordResetCommand,
+    ) -> Result<RequestPasswordResetResponse, CommandError> {
         let request = RequestPasswordResetRequest {
             email: command.email,
         };
@@ -152,7 +158,9 @@ where
 {
     /// Create a new validate reset token command handler
     pub fn new(password_reset_use_case: Arc<A>) -> Self {
-        Self { password_reset_use_case }
+        Self {
+            password_reset_use_case,
+        }
     }
 }
 
@@ -161,7 +169,10 @@ impl<A> CommandHandler<ValidateResetTokenCommand> for ValidateResetTokenCommandH
 where
     A: PasswordResetUseCase + Send + Sync + ?Sized,
 {
-    async fn handle(&self, command: ValidateResetTokenCommand) -> Result<ValidateResetTokenResponse, CommandError> {
+    async fn handle(
+        &self,
+        command: ValidateResetTokenCommand,
+    ) -> Result<ValidateResetTokenResponse, CommandError> {
         let request = ValidateResetTokenRequest {
             reset_token: command.reset_token,
         };
@@ -248,16 +259,22 @@ where
 {
     /// Create a new reset password unauthenticated command handler
     pub fn new(password_reset_use_case: Arc<A>) -> Self {
-        Self { password_reset_use_case }
+        Self {
+            password_reset_use_case,
+        }
     }
 }
 
 #[async_trait]
-impl<A> CommandHandler<ResetPasswordUnauthenticatedCommand> for ResetPasswordUnauthenticatedCommandHandler<A>
+impl<A> CommandHandler<ResetPasswordUnauthenticatedCommand>
+    for ResetPasswordUnauthenticatedCommandHandler<A>
 where
     A: PasswordResetUseCase + Send + Sync + ?Sized,
 {
-    async fn handle(&self, command: ResetPasswordUnauthenticatedCommand) -> Result<ResetPasswordResponse, CommandError> {
+    async fn handle(
+        &self,
+        command: ResetPasswordUnauthenticatedCommand,
+    ) -> Result<ResetPasswordResponse, CommandError> {
         let request = ResetPasswordRequest {
             email: None,
             reset_token: Some(command.reset_token),
@@ -334,18 +351,28 @@ where
 {
     /// Create a new reset password authenticated command handler
     pub fn new(password_reset_use_case: Arc<A>) -> Self {
-        Self { password_reset_use_case }
+        Self {
+            password_reset_use_case,
+        }
     }
 }
 
 #[async_trait]
-impl<A> CommandHandler<ResetPasswordAuthenticatedCommand> for ResetPasswordAuthenticatedCommandHandler<A>
+impl<A> CommandHandler<ResetPasswordAuthenticatedCommand>
+    for ResetPasswordAuthenticatedCommandHandler<A>
 where
     A: PasswordResetUseCase + Send + Sync + ?Sized,
 {
-    async fn handle(&self, command: ResetPasswordAuthenticatedCommand) -> Result<ResetPasswordResponse, CommandError> {
+    async fn handle(
+        &self,
+        command: ResetPasswordAuthenticatedCommand,
+    ) -> Result<ResetPasswordResponse, CommandError> {
         self.password_reset_use_case
-            .reset_password_authenticated(command.user_id, command.current_password, command.new_password)
+            .reset_password_authenticated(
+                command.user_id,
+                command.current_password,
+                command.new_password,
+            )
             .await
             .map_err(|e| PasswordResetErrorMapper.map_error(Box::new(e)))
     }
@@ -432,24 +459,18 @@ impl CommandErrorMapper for PasswordResetErrorMapper {
                     PasswordResetErrorCode::ValidationFailed.as_str(),
                     "Password does not meet security requirements",
                 ),
-                PasswordResetError::RepositoryError(msg) => {
-                    CommandError::infrastructure(
-                        PasswordResetErrorCode::RepositoryError.as_str(),
-                        format!("Repository error: {}", msg),
-                    )
-                }
-                PasswordResetError::EventPublishingError(msg) => {
-                    CommandError::infrastructure(
-                        PasswordResetErrorCode::EventPublishingError.as_str(),
-                        format!("Event publishing error: {}", msg),
-                    )
-                }
-                PasswordResetError::ServiceError(msg) => {
-                    CommandError::infrastructure(
-                        PasswordResetErrorCode::TokenServiceError.as_str(),
-                        format!("Service error: {}", msg),
-                    )
-                }
+                PasswordResetError::RepositoryError(msg) => CommandError::infrastructure(
+                    PasswordResetErrorCode::RepositoryError.as_str(),
+                    format!("Repository error: {}", msg),
+                ),
+                PasswordResetError::EventPublishingError(msg) => CommandError::infrastructure(
+                    PasswordResetErrorCode::EventPublishingError.as_str(),
+                    format!("Event publishing error: {}", msg),
+                ),
+                PasswordResetError::ServiceError(msg) => CommandError::infrastructure(
+                    PasswordResetErrorCode::TokenServiceError.as_str(),
+                    format!("Service error: {}", msg),
+                ),
             }
         } else {
             // Handle unknown errors
@@ -495,4 +516,4 @@ impl PasswordResetErrorMapper {
             || error_msg.contains("missing")
             || error_msg.contains("empty")
     }
-} 
+}

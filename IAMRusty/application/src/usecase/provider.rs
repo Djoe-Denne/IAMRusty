@@ -117,13 +117,12 @@ where
                 iam_domain::error::DomainError::ProviderNotSupported(p) => {
                     ProviderError::ProviderNotSupported(p)
                 }
-                iam_domain::error::DomainError::NoTokenForProvider => ProviderError::NoTokenForProvider,
-                iam_domain::error::DomainError::RepositoryError(msg) => {
-                    ProviderError::DbError(Box::new(std::io::Error::new(
-                        std::io::ErrorKind::Other,
-                        msg,
-                    )))
+                iam_domain::error::DomainError::NoTokenForProvider => {
+                    ProviderError::NoTokenForProvider
                 }
+                iam_domain::error::DomainError::RepositoryError(msg) => ProviderError::DbError(
+                    Box::new(std::io::Error::new(std::io::ErrorKind::Other, msg)),
+                ),
                 _ => ProviderError::AuthError(e.to_string()),
             })
     }
@@ -141,13 +140,12 @@ where
                 iam_domain::error::DomainError::ProviderNotSupported(p) => {
                     ProviderError::ProviderNotSupported(p)
                 }
-                iam_domain::error::DomainError::NoTokenForProvider => ProviderError::NoTokenForProvider,
-                iam_domain::error::DomainError::RepositoryError(msg) => {
-                    ProviderError::DbError(Box::new(std::io::Error::new(
-                        std::io::ErrorKind::Other,
-                        msg,
-                    )))
+                iam_domain::error::DomainError::NoTokenForProvider => {
+                    ProviderError::NoTokenForProvider
                 }
+                iam_domain::error::DomainError::RepositoryError(msg) => ProviderError::DbError(
+                    Box::new(std::io::Error::new(std::io::ErrorKind::Other, msg)),
+                ),
                 _ => ProviderError::AuthError(e.to_string()),
             })
     }

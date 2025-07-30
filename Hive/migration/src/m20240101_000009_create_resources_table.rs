@@ -13,26 +13,17 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(
                         ColumnDef::new(Resources::Id)
-                            .uuid()
+                            .string_len(36)
                             .not_null()
-                            .primary_key()
-                            .extra("DEFAULT gen_random_uuid()".to_owned()),
+                            .primary_key(),
                     )
                     .col(
                         ColumnDef::new(Resources::ResourceType)
                             .string_len(50)
                             .not_null(),
                     )
-                    .col(
-                        ColumnDef::new(Resources::Name)
-                            .string_len(100)
-                            .not_null(),
-                    )
-                    .col(
-                        ColumnDef::new(Resources::Description)
-                            .text()
-                            .null(),
-                    )
+                    .col(ColumnDef::new(Resources::Name).string_len(100).not_null())
+                    .col(ColumnDef::new(Resources::Description).text().null())
                     .col(
                         ColumnDef::new(Resources::CreatedAt)
                             .timestamp_with_time_zone()
@@ -96,7 +87,7 @@ impl MigrationTrait for Migration {
                         "Invitations".into(),
                         "Organization invitations".into(),
                     ])
-                    .to_owned()
+                    .to_owned(),
             )
             .await?;
 
@@ -118,4 +109,4 @@ enum Resources {
     Name,
     Description,
     CreatedAt,
-} 
+}

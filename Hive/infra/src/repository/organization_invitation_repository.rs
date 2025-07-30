@@ -43,8 +43,8 @@ impl OrganizationInvitationRepositoryImpl {
         Ok(OrganizationInvitation {
             id: model.id,
             organization_id: model.organization_id,
-            email: model.email,
-            role_id: model.role_id,
+            aggregate_id: model.aggregate_id,
+            role_permissions: model.role_permissions.try_into(),
             invited_by_user_id: model.invited_by_user_id,
             token: model.token,
             status,
@@ -67,8 +67,8 @@ impl OrganizationInvitationRepositoryImpl {
         organization_invitations::ActiveModel {
             id: ActiveValue::Set(invitation.id),
             organization_id: ActiveValue::Set(invitation.organization_id),
-            email: ActiveValue::Set(invitation.email.clone()),
-            role_id: ActiveValue::Set(invitation.role_id),
+            aggregate_id: ActiveValue::Set(invitation.aggregate_id.clone()),
+            role_permissions: ActiveValue::Set(Json(invitation.role_permissions)),
             invited_by_user_id: ActiveValue::Set(invitation.invited_by_user_id),
             token: ActiveValue::Set(invitation.token.clone()),
             status: ActiveValue::Set(status_str.to_string()),
@@ -128,11 +128,11 @@ impl OrganizationInvitationRepository for OrganizationInvitationRepositoryImpl {
         Ok(result)
     }
 
-    async fn find_by_email(&self, email: &str) -> Result<Vec<OrganizationInvitation>, DomainError> {
-        debug!("Finding organization invitations by email: {}", email);
+    async fn find_by_aggregate_id(&self, aggregate_id: &str) -> Result<Vec<OrganizationInvitation>, DomainError> {
+        debug!("Finding organization invitations by aggregate id: {}", aggregate_id);
         
         let invitations = OrganizationInvitations::find()
-            .filter(organization_invitations::Column::Email.eq(email))
+            .filter(organization_invitations::Column::AggregateId.eq(aggregate_id))
             .order_by(organization_invitations::Column::CreatedAt, Order::Desc)
             .all(self.db.as_ref())
             .await
@@ -145,17 +145,18 @@ impl OrganizationInvitationRepository for OrganizationInvitationRepositoryImpl {
         Ok(result)
     }
 
-    async fn find_pending_by_organization_and_email(
+    async fn find_by_organization_and_aggregate_id_status(
         &self,
         organization_id: &Uuid,
-        email: &str,
+        aggregate_id: &str,
+        status: &InvitationStatus,
     ) -> Result<Option<OrganizationInvitation>, DomainError> {
-        debug!("Finding pending invitation by org {} and email {}", organization_id, email);
+        debug!("Finding invitation by org {} and aggregate id {} and status {:?}", organization_id, aggregate_id, status);
         
         let invitation = OrganizationInvitations::find()
             .filter(organization_invitations::Column::OrganizationId.eq(*organization_id))
-            .filter(organization_invitations::Column::Email.eq(email))
-            .filter(organization_invitations::Column::Status.eq("Pending"))
+            .filter(organization_invitations::Column::AggregateId.eq(aggregate_id))
+            .filter(organization_invitations::Column::Status.eq(status))
             .one(self.db.as_ref())
             .await
             .map_err(DomainError::from)?;
@@ -222,8 +223,8 @@ impl OrganizationInvitationRepository for OrganizationInvitationRepositoryImpl {
         let saved_model = organization_invitations::Model {
             id: result.id.unwrap(),
             organization_id: result.organization_id.unwrap(),
-            email: result.email.unwrap(),
-            role_id: result.role_id.unwrap(),
+            aggregate_id: result.aggregate_id.unwrap(),
+            role_permissions: result.role_permissions.unwrap(),
             invited_by_user_id: result.invited_by_user_id.unwrap(),
             token: result.token.unwrap(),
             status: result.status.unwrap(),

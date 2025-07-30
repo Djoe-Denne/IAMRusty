@@ -10,23 +10,23 @@ use rustycog_core::error::ServiceError;
 /// Core trait for domain events
 pub trait DomainEvent: Send + Sync + std::fmt::Debug {
     /// Get the event type identifier
-    fn event_type(&self) -> & str;
-    
+    fn event_type(&self) -> &str;
+
     /// Get the event ID
     fn event_id(&self) -> Uuid;
-    
+
     /// Get the aggregate ID that this event relates to
     fn aggregate_id(&self) -> Uuid;
-    
+
     /// Get the timestamp when this event occurred
     fn occurred_at(&self) -> chrono::DateTime<chrono::Utc>;
-    
+
     /// Get the event version for schema evolution
     fn version(&self) -> u32;
-    
+
     /// Serialize the event to JSON
     fn to_json(&self) -> Result<String, ServiceError>;
-    
+
     /// Get event metadata
     fn metadata(&self) -> HashMap<String, String>;
 }
@@ -36,10 +36,10 @@ pub trait DomainEvent: Send + Sync + std::fmt::Debug {
 pub trait EventPublisher<TError>: Send + Sync {
     /// Publish a single event
     async fn publish(&self, event: &Box<dyn DomainEvent>) -> Result<(), TError>;
-    
+
     /// Publish multiple events in a batch
     async fn publish_batch(&self, events: &Vec<Box<dyn DomainEvent>>) -> Result<(), TError>;
-    
+
     /// Health check for the event publisher
     async fn health_check(&self) -> Result<(), TError>;
 }
@@ -49,13 +49,13 @@ pub trait EventPublisher<TError>: Send + Sync {
 pub trait EventSubscriber<TError>: Send + Sync {
     /// Subscribe to events of a specific type
     async fn subscribe(&self, event_type: &str) -> Result<(), TError>;
-    
+
     /// Unsubscribe from events of a specific type
     async fn unsubscribe(&self, event_type: &str) -> Result<(), TError>;
-    
+
     /// Start consuming events
     async fn start_consuming(&self) -> Result<(), TError>;
-    
+
     /// Stop consuming events
     async fn stop_consuming(&self) -> Result<(), TError>;
 }
@@ -96,16 +96,16 @@ impl BaseEvent {
             metadata: HashMap::new(),
         }
     }
-    
+
     /// Add metadata to the event
     pub fn with_metadata(mut self, key: String, value: String) -> Self {
         self.metadata.insert(key, value);
         self
     }
-    
+
     /// Set the event version
     pub fn with_version(mut self, version: u32) -> Self {
         self.version = version;
         self
     }
-} 
+}

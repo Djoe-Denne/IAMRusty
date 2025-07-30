@@ -1,23 +1,20 @@
+use chrono::Utc;
 use std::sync::Arc;
 use uuid::Uuid;
-use chrono::Utc;
 
-use hive_domain::{
-    DomainError, Organization,
-    service::OrganizationService,
-};
+use hive_domain::{service::OrganizationService, DomainError, Organization};
 use hive_events::{
-    HiveDomainEvent, OrganizationCreatedEvent, OrganizationUpdatedEvent, OrganizationDeletedEvent,
+    HiveDomainEvent, OrganizationCreatedEvent, OrganizationDeletedEvent, OrganizationUpdatedEvent,
 };
 use rustycog_events::{EventPublisher, MultiQueueEventPublisher};
 
 use crate::{
-    ApplicationError,
     dto::{
-        CreateOrganizationRequest, UpdateOrganizationRequest, 
-        OrganizationResponse, OrganizationListResponse, 
-        OrganizationSearchRequest, PaginationRequest, PaginationResponse
-    }
+        CreateOrganizationRequest, OrganizationListResponse, OrganizationResponse,
+        OrganizationSearchRequest, PaginationRequest, PaginationResponse,
+        UpdateOrganizationRequest,
+    },
+    ApplicationError,
 };
 
 pub struct OrganizationUseCase {
@@ -88,11 +85,30 @@ impl OrganizationUseCase {
         user_id: Uuid,
     ) -> Result<(), ApplicationError> {
         let updated_fields = vec![
-            if request.name.is_some() { "name".to_string() } else { "".to_string() },
-            if request.description.is_some() { "description".to_string() } else { "".to_string() },
-            if request.avatar_url.is_some() { "avatar_url".to_string() } else { "".to_string() },
-            if request.settings.is_some() { "settings".to_string() } else { "".to_string() },
-        ].into_iter().filter(|field| *field != "".to_string()).collect::<Vec<String>>();
+            if request.name.is_some() {
+                "name".to_string()
+            } else {
+                "".to_string()
+            },
+            if request.description.is_some() {
+                "description".to_string()
+            } else {
+                "".to_string()
+            },
+            if request.avatar_url.is_some() {
+                "avatar_url".to_string()
+            } else {
+                "".to_string()
+            },
+            if request.settings.is_some() {
+                "settings".to_string()
+            } else {
+                "".to_string()
+            },
+        ]
+        .into_iter()
+        .filter(|field| *field != "".to_string())
+        .collect::<Vec<String>>();
 
         let event = HiveDomainEvent::OrganizationUpdated(OrganizationUpdatedEvent::new(
             organization.id,
@@ -101,7 +117,7 @@ impl OrganizationUseCase {
             user_id,
             Utc::now(),
         ));
-    
+
         self.event_publisher
             .publish(&event.into())
             .await
@@ -121,8 +137,8 @@ impl OrganizationUseCase {
             organization.name.clone(),
             user_id,
             Utc::now(),
-            ));
-    
+        ));
+
         self.event_publisher
             .publish(&event.into())
             .await
@@ -130,7 +146,6 @@ impl OrganizationUseCase {
 
         Ok(())
     }
-    
 
     pub async fn create_organization(
         &self,
@@ -143,9 +158,13 @@ impl OrganizationUseCase {
             request.slug.clone(),
             request.description.clone(),
             user_id,
-        ).map_err(ApplicationError::Domain)?;
+        )
+        .map_err(ApplicationError::Domain)?;
 
-        let saved_org = self.organization_service.create_organization(&organization).await
+        let saved_org = self
+            .organization_service
+            .create_organization(&organization)
+            .await
             .map_err(ApplicationError::Domain)?;
 
         // Publish domain event
@@ -159,12 +178,14 @@ impl OrganizationUseCase {
         organization_id: Uuid,
         user_id: Option<Uuid>,
     ) -> Result<OrganizationResponse, ApplicationError> {
-        let _authorized = self.role_service
+        let _authorized = self
+            .role_service
             .check_read_permission(&organization_id, &user_id)
             .await
             .map_err(ApplicationError::Domain)?;
-        
-        let organization = self.organization_service
+
+        let organization = self
+            .organization_service
             .get_organization(&organization_id)
             .await
             .map_err(ApplicationError::Domain)?;
@@ -178,25 +199,36 @@ impl OrganizationUseCase {
         request: UpdateOrganizationRequest,
         user_id: Uuid,
     ) -> Result<OrganizationResponse, ApplicationError> {
-        let _authorized = self.role_service
+        let _authorized = self
+            .role_service
             .check_admin_permission(&organization_id, &user_id)
             .await
             .map_err(ApplicationError::Domain)?;
 
         // Get existing organization
-        let mut organization: Organization = self.organization_service
+        let mut organization: Organization = self
+            .organization_service
             .get_organization(&organization_id)
             .await
             .map_err(ApplicationError::Domain)?;
 
         // Save the updated organization
-        let updated_organization = self.organization_service
-            .update_organization(&organization_id, request.name, request.description, request.avatar_url, request.settings, &user_id)
+        let updated_organization = self
+            .organization_service
+            .update_organization(
+                &organization_id,
+                request.name,
+                request.description,
+                request.avatar_url,
+                request.settings,
+                &user_id,
+            )
             .await
             .map_err(ApplicationError::Domain)?;
 
         // Publish domain event
-        self.publish_organization_updated_event(&updated_organization, request, user_id).await?;
+        self.publish_organization_updated_event(&updated_organization, request, user_id)
+            .await?;
 
         Ok(self.organization_to_response(&updated_organization))
     }
@@ -207,16 +239,17 @@ impl OrganizationUseCase {
         user_id: Uuid,
     ) -> Result<(), ApplicationError> {
         // Get organization for event
-        let organization = self.organization_service
+        let organization = self
+            .organization_service
             .get_organization(&organization_id)
             .await
             .map_err(ApplicationError::Domain)?
-            .ok_or_else(|| ApplicationError::Domain(
-                DomainError::EntityNotFound {
+            .ok_or_else(|| {
+                ApplicationError::Domain(DomainError::EntityNotFound {
                     entity_type: "Organization".to_string(),
                     id: organization_id.to_string(),
-                }
-            ))?;
+                })
+            })?;
 
         // Use domain service to delete organization
         self.organization_service
@@ -225,7 +258,8 @@ impl OrganizationUseCase {
             .map_err(ApplicationError::Domain)?;
 
         // Publish domain event
-        self.publish_organization_deleted_event(&organization, user_id).await?;
+        self.publish_organization_deleted_event(&organization, user_id)
+            .await?;
 
         Ok(())
     }
@@ -236,7 +270,8 @@ impl OrganizationUseCase {
         user_id: Uuid,
         pagination: PaginationRequest,
     ) -> Result<OrganizationListResponse, ApplicationError> {
-        let organizations = self.organization_service
+        let organizations = self
+            .organization_service
             .list_user_organizations(user_id, pagination.page(), pagination.page_size())
             .await
             .map_err(ApplicationError::Domain)?;
@@ -248,13 +283,20 @@ impl OrganizationUseCase {
             total_items: total_count,
             has_next: total_pages > pagination.page(),
             has_previous: pagination.page() > 1,
-            next_cursor: if total_pages > pagination.page() { Some(pagination.page() + 1) } else { None },
-            previous_cursor: if pagination.page() > 1 { Some(pagination.page() - 1) } else { None },
+            next_cursor: if total_pages > pagination.page() {
+                Some(pagination.page() + 1)
+            } else {
+                None
+            },
+            previous_cursor: if pagination.page() > 1 {
+                Some(pagination.page() - 1)
+            } else {
+                None
+            },
             page_size: pagination.page_size(),
             total_pages,
         };
 
-        
         let organizations: Vec<OrganizationResponse> = organizations
             .iter()
             .map(|org| self.organization_to_response(org))
@@ -271,7 +313,8 @@ impl OrganizationUseCase {
         request: OrganizationSearchRequest,
         user_id: Option<Uuid>,
     ) -> Result<OrganizationListResponse, ApplicationError> {
-        let organizations = self.organization_service
+        let organizations = self
+            .organization_service
             .search_organizations(
                 request.query.as_deref(),
                 user_id,
@@ -282,14 +325,23 @@ impl OrganizationUseCase {
             .map_err(ApplicationError::Domain)?;
 
         let total_count = organizations.len();
-        let total_pages = (total_count as f64 / request.pagination.page_size() as f64).ceil() as u32;
+        let total_pages =
+            (total_count as f64 / request.pagination.page_size() as f64).ceil() as u32;
         let pagination_response = PaginationResponse {
             current_page: request.pagination.page(),
             total_items: total_count,
             has_next: total_pages > request.pagination.page(),
             has_previous: request.pagination.page() > 1,
-            next_cursor: if total_pages > request.pagination.page() { Some(request.pagination.page() + 1) } else { None },
-            previous_cursor: if request.pagination.page() > 1 { Some(request.pagination.page() - 1) } else { None },
+            next_cursor: if total_pages > request.pagination.page() {
+                Some(request.pagination.page() + 1)
+            } else {
+                None
+            },
+            previous_cursor: if request.pagination.page() > 1 {
+                Some(request.pagination.page() - 1)
+            } else {
+                None
+            },
             page_size: request.pagination.page_size(),
             total_pages,
         };
@@ -303,4 +355,4 @@ impl OrganizationUseCase {
             pagination: pagination_response,
         })
     }
-} 
+}

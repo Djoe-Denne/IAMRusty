@@ -1,5 +1,5 @@
-use rustycog_testing::db::{CommittedFixture, DbFixture, TestData};
 use chrono::Utc;
+use rustycog_testing::db::{CommittedFixture, DbFixture, TestData};
 use sea_orm::prelude::DateTimeWithTimeZone;
 use sea_orm::{ActiveModelTrait, ActiveValue, DatabaseConnection, DbErr};
 use std::sync::Arc;

@@ -169,4 +169,4 @@ enum PasswordResetTokens {
 enum Users {
     Table,
     Id,
-} 
+}

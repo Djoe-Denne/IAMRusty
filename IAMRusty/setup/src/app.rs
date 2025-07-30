@@ -3,11 +3,13 @@ use chrono::Duration;
 use std::sync::Arc;
 use tracing::info;
 
-use rustycog_http::{AppState, UserIdExtractor};
-use iam_http_server::{create_app_routes};
 use iam_configuration::ServerConfig as HttpServerConfig;
+use iam_http_server::create_app_routes;
 use iam_infra::{
-    auth::{GitHubOAuth2Client, GitLabOAuth2Client, PasswordService, PasswordServiceAdapter, PasswordResetServiceAdapter},
+    auth::{
+        GitHubOAuth2Client, GitLabOAuth2Client, PasswordResetServiceAdapter, PasswordService,
+        PasswordServiceAdapter,
+    },
     db::DbConnectionPool,
     event_adapter::create_multi_queue_event_publisher_async,
     repository::{
@@ -32,6 +34,7 @@ use iam_infra::{
     },
     token::JwtTokenService,
 };
+use rustycog_http::{AppState, UserIdExtractor};
 
 use iam_configuration::AppConfig;
 use iam_domain::error::DomainError;
@@ -41,21 +44,26 @@ use iam_application::{
     command::{CommandRegistryFactory, GenericCommandService},
     usecase::{
         link_provider::LinkProviderUseCaseImpl, login::LoginUseCaseImpl, oauth::OAuthUseCaseImpl,
-        password_reset::PasswordResetUseCaseImpl, provider::ProviderUseCaseImpl, registration::RegistrationUseCaseImpl,
-        token::TokenUseCaseImpl, user::UserUseCaseImpl,
+        password_reset::PasswordResetUseCaseImpl, provider::ProviderUseCaseImpl,
+        registration::RegistrationUseCaseImpl, token::TokenUseCaseImpl, user::UserUseCaseImpl,
     },
 };
 
 use crate::config::ServerConfig;
 
-
-pub async fn build_and_run(config: AppConfig, server_config: ServerConfig, maybe_event_publisher: Option<Arc<MultiQueueEventPublisher<DomainError>>>) -> Result<()> {
+pub async fn build_and_run(
+    config: AppConfig,
+    server_config: ServerConfig,
+    maybe_event_publisher: Option<Arc<MultiQueueEventPublisher<DomainError>>>,
+) -> Result<()> {
     let app_state = build_app_state(config.clone(), maybe_event_publisher).await?;
     run_server(app_state, server_config).await
 }
 
-pub async fn build_app_state(config: AppConfig, maybe_event_publisher: Option<Arc<MultiQueueEventPublisher<DomainError>>>) -> Result<AppState> {
-
+pub async fn build_app_state(
+    config: AppConfig,
+    maybe_event_publisher: Option<Arc<MultiQueueEventPublisher<DomainError>>>,
+) -> Result<AppState> {
     let event_publisher: Arc<MultiQueueEventPublisher<DomainError>>;
     if maybe_event_publisher.is_some() {
         event_publisher = maybe_event_publisher.unwrap();
@@ -67,7 +75,9 @@ pub async fn build_app_state(config: AppConfig, maybe_event_publisher: Option<Ar
 }
 
 /// Create the default event publisher from configuration
-async fn create_event_publisher_from_config(config: &AppConfig) -> Result<Arc<MultiQueueEventPublisher<DomainError>>> {
+async fn create_event_publisher_from_config(
+    config: &AppConfig,
+) -> Result<Arc<MultiQueueEventPublisher<DomainError>>> {
     // Create event publisher using configuration
     // For now, create a multi-queue publisher that handles all configured queues
     // You can modify this to handle specific queues by passing Some(queue_names_set)
@@ -97,9 +107,9 @@ async fn create_event_publisher_from_config(config: &AppConfig) -> Result<Arc<Mu
 
 /// Build app state with a custom event publisher (useful for testing)
 pub async fn build_app_state_with_event_publisher<EP>(
-    config: AppConfig, 
-    event_publisher: Arc<EP>
-) -> Result<AppState> 
+    config: AppConfig,
+    event_publisher: Arc<EP>,
+) -> Result<AppState>
 where
     EP: EventPublisher<DomainError> + Send + Sync + 'static,
 {
@@ -215,8 +225,7 @@ where
     // Create registration token service
     tracing::info!("Creating registration token service");
     let registration_token_service = Arc::new(
-        iam_infra::token::RegistrationTokenServiceImpl::new(jwt_algorithm.clone())
-        .unwrap(),
+        iam_infra::token::RegistrationTokenServiceImpl::new(jwt_algorithm.clone()).unwrap(),
     );
 
     // Create OAuth service for OAuth flows
@@ -240,8 +249,11 @@ where
         Box::new(gitlab_auth_login),
     );
 
-    let oauth_usecase =
-        OAuthUseCaseImpl::new(Arc::new(oauth_service), registration_token_service.clone(), token_service.clone());
+    let oauth_usecase = OAuthUseCaseImpl::new(
+        Arc::new(oauth_service),
+        registration_token_service.clone(),
+        token_service.clone(),
+    );
 
     // Create provider link service for domain business logic
     let provider_link_service = Arc::new(iam_domain::service::ProviderLinkService::new(
@@ -267,7 +279,7 @@ where
         Arc::new(refresh_token_repo.clone()),
         token_service.clone(),
     ));
-    
+
     tracing::info!("Creating auth service for login use case");
     let auth_service = Arc::new(iam_domain::service::auth_service::AuthService::new(
         Arc::new(user_repo.clone()),
@@ -299,9 +311,8 @@ where
 
     // Create password reset use case
     tracing::info!("Creating password reset service adapter");
-    let password_reset_service_adapter = Arc::new(PasswordResetServiceAdapter::new(
-        password_service.clone(),
-    ));
+    let password_reset_service_adapter =
+        Arc::new(PasswordResetServiceAdapter::new(password_service.clone()));
 
     tracing::info!("Creating password reset use case");
     let password_reset_usecase = Arc::new(PasswordResetUseCaseImpl::new(
@@ -329,7 +340,8 @@ where
         fn decode(
             &self,
             _token: &str,
-        ) -> Result<iam_domain::entity::token::TokenClaims, iam_domain::error::DomainError> {
+        ) -> Result<iam_domain::entity::token::TokenClaims, iam_domain::error::DomainError>
+        {
             Err(iam_domain::error::DomainError::InvalidToken)
         }
         fn jwks(&self) -> iam_domain::entity::token::JwkSet {
@@ -361,9 +373,11 @@ where
         token_service.clone(),
     ));
 
-    let refresh_token_service_for_commands = Arc::new(
-        iam_domain::service::RefreshTokenServiceImpl::new(Arc::new(refresh_token_repo), token_service),
-    );
+    let refresh_token_service_for_commands =
+        Arc::new(iam_domain::service::RefreshTokenServiceImpl::new(
+            Arc::new(refresh_token_repo),
+            token_service,
+        ));
 
     let user_usecase_for_commands = UserUseCaseImpl::new(user_service_for_commands);
     let token_usecase_for_commands = TokenUseCaseImpl::new(refresh_token_service_for_commands);
@@ -408,8 +422,7 @@ pub async fn run_server(app_state: AppState, app_config: ServerConfig) -> Result
     if server_config.tls_enabled {
         info!(
             "Starting HTTPS server on {}:{}",
-            server_config.host,
-            server_config.tls_port
+            server_config.host, server_config.tls_port
         );
     } else {
         info!(

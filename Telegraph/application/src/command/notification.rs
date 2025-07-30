@@ -1,15 +1,14 @@
+use crate::usecase::{
+    GetNotificationsInput, GetNotificationsResponse, GetUnreadCountInput, GetUnreadCountResponse,
+    MarkNotificationReadInput, MarkNotificationReadResponse, NotificationUseCaseError,
+    NotificationUseCaseTrait,
+};
+use async_trait::async_trait;
+use rustycog_command::{Command, CommandError, CommandErrorMapper, CommandHandler};
+use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
-use serde::Deserialize;
 use validator::Validate;
-use async_trait::async_trait;
-use rustycog_command::{Command, CommandHandler, CommandErrorMapper, CommandError};
-use crate::usecase::{
-    NotificationUseCaseTrait, NotificationUseCaseError,
-    GetNotificationsInput, GetNotificationsResponse,
-    GetUnreadCountInput, GetUnreadCountResponse,
-    MarkNotificationReadInput, MarkNotificationReadResponse,
-};
 
 /// Command to get user notifications with pagination and filtering
 #[derive(Debug, Clone, Validate)]
@@ -24,7 +23,12 @@ pub struct GetNotificationsCommand {
 }
 
 impl GetNotificationsCommand {
-    pub fn new(user_id: Uuid, page: Option<u8>, per_page: Option<u8>, unread_only: Option<bool>) -> Self {
+    pub fn new(
+        user_id: Uuid,
+        page: Option<u8>,
+        per_page: Option<u8>,
+        unread_only: Option<bool>,
+    ) -> Self {
         Self {
             command_id: Uuid::new_v4(),
             user_id,
@@ -48,8 +52,9 @@ impl Command for GetNotificationsCommand {
     }
 
     fn validate(&self) -> Result<(), CommandError> {
-        Validate::validate(self)
-            .map_err(|e| CommandError::validation("VALIDATION_ERROR", format!("Validation failed: {}", e)))
+        Validate::validate(self).map_err(|e| {
+            CommandError::validation("VALIDATION_ERROR", format!("Validation failed: {}", e))
+        })
     }
 }
 
@@ -60,13 +65,18 @@ pub struct GetNotificationsCommandHandler {
 
 impl GetNotificationsCommandHandler {
     pub fn new(notification_usecase: Arc<dyn NotificationUseCaseTrait>) -> Self {
-        Self { notification_usecase }
+        Self {
+            notification_usecase,
+        }
     }
 }
 
 #[async_trait]
 impl CommandHandler<GetNotificationsCommand> for GetNotificationsCommandHandler {
-    async fn handle(&self, command: GetNotificationsCommand) -> Result<GetNotificationsResponse, CommandError> {
+    async fn handle(
+        &self,
+        command: GetNotificationsCommand,
+    ) -> Result<GetNotificationsResponse, CommandError> {
         let input = GetNotificationsInput {
             user_id: command.user_id,
             page: command.page,
@@ -74,7 +84,9 @@ impl CommandHandler<GetNotificationsCommand> for GetNotificationsCommandHandler 
             unread_only: command.unread_only,
         };
 
-        self.notification_usecase.get_notifications(input).await
+        self.notification_usecase
+            .get_notifications(input)
+            .await
             .map_err(|e| match e {
                 NotificationUseCaseError::ValidationError(msg) => {
                     CommandError::validation("VALIDATION_ERROR", msg)
@@ -136,18 +148,25 @@ pub struct GetUnreadCountCommandHandler {
 
 impl GetUnreadCountCommandHandler {
     pub fn new(notification_usecase: Arc<dyn NotificationUseCaseTrait>) -> Self {
-        Self { notification_usecase }
+        Self {
+            notification_usecase,
+        }
     }
 }
 
 #[async_trait]
 impl CommandHandler<GetUnreadCountCommand> for GetUnreadCountCommandHandler {
-    async fn handle(&self, command: GetUnreadCountCommand) -> Result<GetUnreadCountResponse, CommandError> {
+    async fn handle(
+        &self,
+        command: GetUnreadCountCommand,
+    ) -> Result<GetUnreadCountResponse, CommandError> {
         let input = GetUnreadCountInput {
             user_id: command.user_id,
         };
 
-        self.notification_usecase.get_unread_count(input).await
+        self.notification_usecase
+            .get_unread_count(input)
+            .await
             .map_err(|e| match e {
                 NotificationUseCaseError::ValidationError(msg) => {
                     CommandError::validation("VALIDATION_ERROR", msg)
@@ -201,10 +220,16 @@ impl Command for MarkNotificationReadCommand {
     fn validate(&self) -> Result<(), CommandError> {
         // Basic validation that IDs are not nil
         if self.notification_id == Uuid::nil() {
-            return Err(CommandError::validation("INVALID_NOTIFICATION_ID", "Notification ID cannot be nil"));
+            return Err(CommandError::validation(
+                "INVALID_NOTIFICATION_ID",
+                "Notification ID cannot be nil",
+            ));
         }
         if self.user_id == Uuid::nil() {
-            return Err(CommandError::validation("INVALID_USER_ID", "User ID cannot be nil"));
+            return Err(CommandError::validation(
+                "INVALID_USER_ID",
+                "User ID cannot be nil",
+            ));
         }
         Ok(())
     }
@@ -217,19 +242,26 @@ pub struct MarkNotificationReadCommandHandler {
 
 impl MarkNotificationReadCommandHandler {
     pub fn new(notification_usecase: Arc<dyn NotificationUseCaseTrait>) -> Self {
-        Self { notification_usecase }
+        Self {
+            notification_usecase,
+        }
     }
 }
 
 #[async_trait]
 impl CommandHandler<MarkNotificationReadCommand> for MarkNotificationReadCommandHandler {
-    async fn handle(&self, command: MarkNotificationReadCommand) -> Result<MarkNotificationReadResponse, CommandError> {
+    async fn handle(
+        &self,
+        command: MarkNotificationReadCommand,
+    ) -> Result<MarkNotificationReadResponse, CommandError> {
         let input = MarkNotificationReadInput {
             notification_id: command.notification_id,
             user_id: command.user_id,
         };
 
-        self.notification_usecase.mark_notification_read(input).await
+        self.notification_usecase
+            .mark_notification_read(input)
+            .await
             .map_err(|e| match e {
                 NotificationUseCaseError::ValidationError(msg) => {
                     CommandError::validation("VALIDATION_ERROR", msg)
@@ -248,4 +280,4 @@ impl CommandErrorMapper for MarkNotificationReadErrorMapper {
     fn map_error(&self, error: Box<dyn std::error::Error + Send + Sync>) -> CommandError {
         CommandError::infrastructure("INFRASTRUCTURE_ERROR", error.to_string())
     }
-} 
+}

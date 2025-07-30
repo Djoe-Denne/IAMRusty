@@ -1,7 +1,4 @@
-use super::{
-    registry::CommandRegistry,
-    CommandContext, CommandError, Command,
-};
+use super::{registry::CommandRegistry, Command, CommandContext, CommandError};
 use std::sync::Arc;
 
 /// Generic command service that works with any registered commands
@@ -46,10 +43,13 @@ impl Clone for GenericCommandService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{registry::{CommandRegistryBuilder, CommandErrorMapper}, CommandHandler};
+    use crate::{
+        registry::{CommandErrorMapper, CommandRegistryBuilder},
+        CommandHandler,
+    };
     use async_trait::async_trait;
-    use uuid::Uuid;
     use std::sync::Arc;
+    use uuid::Uuid;
 
     // Test command implementation
     #[derive(Debug, Clone)]
@@ -80,7 +80,10 @@ mod tests {
 
         fn validate(&self) -> Result<(), CommandError> {
             if self.data.is_empty() {
-                Err(CommandError::validation("empty_data", "Data cannot be empty"))
+                Err(CommandError::validation(
+                    "empty_data",
+                    "Data cannot be empty",
+                ))
             } else {
                 Ok(())
             }
@@ -110,15 +113,15 @@ mod tests {
     async fn test_generic_service_execution() {
         let handler = Arc::new(TestHandler);
         let error_mapper = Arc::new(TestErrorMapper);
-        
+
         let registry = CommandRegistryBuilder::new()
             .register::<TestCommand, _>("test_command".to_string(), handler, error_mapper)
             .build();
-        
+
         let service = GenericCommandService::new(Arc::new(registry));
         let command = TestCommand::new("test data".to_string());
         let context = CommandContext::new();
-        
+
         let result = service.execute(command, context).await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "Processed: test data");
@@ -128,14 +131,14 @@ mod tests {
     fn test_generic_service_lists_commands() {
         let handler = Arc::new(TestHandler);
         let error_mapper = Arc::new(TestErrorMapper);
-        
+
         let registry = CommandRegistryBuilder::new()
             .register::<TestCommand, _>("test_command".to_string(), handler, error_mapper)
             .build();
-        
+
         let service = GenericCommandService::new(Arc::new(registry));
         let commands = service.list_available_commands();
-        
+
         assert_eq!(commands, vec!["test_command"]);
     }
 
@@ -143,13 +146,13 @@ mod tests {
     fn test_generic_service_supports_command() {
         let handler = Arc::new(TestHandler);
         let error_mapper = Arc::new(TestErrorMapper);
-        
+
         let registry = CommandRegistryBuilder::new()
             .register::<TestCommand, _>("test_command".to_string(), handler, error_mapper)
             .build();
-        
+
         let service = GenericCommandService::new(Arc::new(registry));
-        
+
         assert!(service.supports_command("test_command"));
         assert!(!service.supports_command("unknown_command"));
     }
@@ -158,14 +161,14 @@ mod tests {
     fn test_generic_service_clone() {
         let handler = Arc::new(TestHandler);
         let error_mapper = Arc::new(TestErrorMapper);
-        
+
         let registry = CommandRegistryBuilder::new()
             .register::<TestCommand, _>("test_command".to_string(), handler, error_mapper)
             .build();
-        
+
         let service = GenericCommandService::new(Arc::new(registry));
         let cloned_service = service.clone();
-        
+
         assert!(cloned_service.supports_command("test_command"));
     }
 
@@ -173,22 +176,22 @@ mod tests {
     async fn test_generic_service_validation_error() {
         let handler = Arc::new(TestHandler);
         let error_mapper = Arc::new(TestErrorMapper);
-        
+
         let registry = CommandRegistryBuilder::new()
             .register::<TestCommand, _>("test_command".to_string(), handler, error_mapper)
             .build();
-        
+
         let service = GenericCommandService::new(Arc::new(registry));
         let command = TestCommand::new("".to_string()); // Empty data should fail validation
         let context = CommandContext::new();
-        
+
         let result = service.execute(command, context).await;
         assert!(result.is_err());
-        
+
         if let Err(CommandError::Validation { code: _, message }) = result {
             assert!(message.contains("Data cannot be empty"));
         } else {
             panic!("Expected validation error");
         }
     }
-} 
+}

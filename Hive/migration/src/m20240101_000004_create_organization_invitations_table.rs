@@ -24,18 +24,18 @@ impl MigrationTrait for Migration {
                             .not_null(),
                     )
                     .col(
-                        ColumnDef::new(OrganizationInvitations::Email)
+                        ColumnDef::new(OrganizationInvitations::AggregateId)
                             .string_len(255)
-                            .not_null(),
-                    )
-                    .col(
-                        ColumnDef::new(OrganizationInvitations::RoleId)
-                            .uuid()
                             .not_null(),
                     )
                     .col(
                         ColumnDef::new(OrganizationInvitations::InvitedByUserId)
                             .uuid()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(OrganizationInvitations::RolePermissions)
+                            .json()
                             .not_null(),
                     )
                     .col(
@@ -74,15 +74,12 @@ impl MigrationTrait for Migration {
                     .foreign_key(
                         ForeignKey::create()
                             .name("fk_organization_invitations_organization_id")
-                            .from(OrganizationInvitations::Table, OrganizationInvitations::OrganizationId)
+                            .from(
+                                OrganizationInvitations::Table,
+                                OrganizationInvitations::OrganizationId,
+                            )
                             .to(Organizations::Table, Organizations::Id)
                             .on_delete(ForeignKeyAction::Cascade),
-                    )
-                    .foreign_key(
-                        ForeignKey::create()
-                            .name("fk_organization_invitations_role_id")
-                            .from(OrganizationInvitations::Table, OrganizationInvitations::RoleId)
-                            .to(OrganizationRoles::Table, OrganizationRoles::Id),
                     )
                     .to_owned(),
             )
@@ -104,9 +101,9 @@ impl MigrationTrait for Migration {
             .create_index(
                 Index::create()
                     .if_not_exists()
-                    .name("idx_organization_invitations_email_status")
+                    .name("idx_organization_invitations_aggregate_id_status")
                     .table(OrganizationInvitations::Table)
-                    .col(OrganizationInvitations::Email)
+                    .col(OrganizationInvitations::AggregateId)
                     .col(OrganizationInvitations::Status)
                     .to_owned(),
             )
@@ -139,10 +136,10 @@ impl MigrationTrait for Migration {
             .create_index(
                 Index::create()
                     .if_not_exists()
-                    .name("idx_organization_invitations_org_email_status")
+                    .name("idx_organization_invitations_org_aggregate_id_status")
                     .table(OrganizationInvitations::Table)
                     .col(OrganizationInvitations::OrganizationId)
-                    .col(OrganizationInvitations::Email)
+                    .col(OrganizationInvitations::AggregateId)
                     .col(OrganizationInvitations::Status)
                     .unique()
                     .to_owned(),
@@ -154,7 +151,11 @@ impl MigrationTrait for Migration {
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         manager
-            .drop_table(Table::drop().table(OrganizationInvitations::Table).to_owned())
+            .drop_table(
+                Table::drop()
+                    .table(OrganizationInvitations::Table)
+                    .to_owned(),
+            )
             .await
     }
 }
@@ -176,13 +177,13 @@ enum OrganizationInvitations {
     Table,
     Id,
     OrganizationId,
-    Email,
-    RoleId,
+    AggregateId,
     InvitedByUserId,
+    RolePermissions,
     Token,
     Status,
     ExpiresAt,
     AcceptedAt,
     Message,
     CreatedAt,
-} 
+}

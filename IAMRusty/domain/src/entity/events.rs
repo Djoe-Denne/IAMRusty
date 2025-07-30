@@ -1,5 +1,5 @@
 //! Re-export IAM domain events from the shared iam_events crate
-//! 
+//!
 //! This module provides backward compatibility for the IAMRusty service
 //! while using the shared iam_events crate that can be consumed by other services.
 

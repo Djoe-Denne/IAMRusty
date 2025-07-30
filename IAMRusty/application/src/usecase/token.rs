@@ -1,7 +1,9 @@
 use async_trait::async_trait;
 use iam_domain::entity::token::JwkSet;
 use iam_domain::error::DomainError;
-use iam_domain::service::{RefreshTokenResponse as DomainRefreshTokenResponse, RefreshTokenService};
+use iam_domain::service::{
+    RefreshTokenResponse as DomainRefreshTokenResponse, RefreshTokenService,
+};
 use std::sync::Arc;
 use thiserror::Error;
 use uuid::Uuid;

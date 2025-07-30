@@ -1,5 +1,5 @@
-use chrono::{Duration, Utc};
 use base64::{engine::general_purpose, Engine as _};
+use chrono::{Duration, Utc};
 use uuid::Uuid;
 
 /// Create a JWT token for the given user ID with valid payload and random key
@@ -19,10 +19,13 @@ pub fn create_jwt_token(user_id: Uuid) -> String {
 
     let token = encode(&header, &payload, key).unwrap();
     token
-    
 }
 
-fn encode(header: &serde_json::Value, payload: &serde_json::Value, key: &[u8]) -> Result<String, anyhow::Error> {
+fn encode(
+    header: &serde_json::Value,
+    payload: &serde_json::Value,
+    key: &[u8],
+) -> Result<String, anyhow::Error> {
     let header_str = serde_json::to_string(header)?;
     let payload_str = serde_json::to_string(payload)?;
 
@@ -31,5 +34,8 @@ fn encode(header: &serde_json::Value, payload: &serde_json::Value, key: &[u8]) -
 
     let signature = "fake_signature";
 
-    Ok(format!("{}.{}.{}", header_base64, payload_base64, signature))
+    Ok(format!(
+        "{}.{}.{}",
+        header_base64, payload_base64, signature
+    ))
 }

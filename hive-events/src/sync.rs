@@ -44,7 +44,13 @@ pub struct SyncJobCompletedEvent {
 // =============================================================================
 
 impl SyncJobStartedEvent {
-    pub fn new(organization_id: Uuid, external_link_id: Uuid, sync_job_id: Uuid, job_type: String, started_at: DateTime<Utc>) -> Self {
+    pub fn new(
+        organization_id: Uuid,
+        external_link_id: Uuid,
+        sync_job_id: Uuid,
+        job_type: String,
+        started_at: DateTime<Utc>,
+    ) -> Self {
         Self {
             base: BaseEvent::new("sync_job_started".to_string(), organization_id),
             organization_id,
@@ -57,7 +63,19 @@ impl SyncJobStartedEvent {
 }
 
 impl SyncJobCompletedEvent {
-    pub fn new(organization_id: Uuid, external_link_id: Uuid, sync_job_id: Uuid, job_type: String, status: String, items_processed: i32, items_created: i32, items_updated: i32, items_failed: i32, error_message: Option<String>, completed_at: DateTime<Utc>) -> Self {
+    pub fn new(
+        organization_id: Uuid,
+        external_link_id: Uuid,
+        sync_job_id: Uuid,
+        job_type: String,
+        status: String,
+        items_processed: i32,
+        items_created: i32,
+        items_updated: i32,
+        items_failed: i32,
+        error_message: Option<String>,
+        completed_at: DateTime<Utc>,
+    ) -> Self {
         Self {
             base: BaseEvent::new("sync_job_completed".to_string(), organization_id),
             organization_id,

@@ -1,28 +1,32 @@
 //! Mappers for converting between domain and infrastructure entities
 
-use sea_orm::*;
-use uuid::Uuid;
 use chrono::{DateTime, Utc};
+use sea_orm::*;
 use std::collections::HashMap;
+use uuid::Uuid;
 
-use crate::repository::entity::{notifications, notification_deliveries};
-use telegraph_domain::error::DomainError;
+use crate::repository::entity::{notification_deliveries, notifications};
 use telegraph_domain::entity::{
-    communication::{NotificationCommunication, CommunicationRecipient}, delivery::MessageDelivery,
-    communication::CommunicationMode, DeliveryStatus
+    communication::CommunicationMode,
+    communication::{CommunicationRecipient, NotificationCommunication},
+    delivery::MessageDelivery,
+    DeliveryStatus,
 };
+use telegraph_domain::error::DomainError;
 
 /// Convert a database notification model to a domain model
-pub fn to_domain_notification(model: notifications::Model) -> Result<NotificationCommunication, DomainError> {
+pub fn to_domain_notification(
+    model: notifications::Model,
+) -> Result<NotificationCommunication, DomainError> {
     // Deserialize content from JSON bytes
     let content_str = String::from_utf8(model.content)
         .map_err(|e| DomainError::infrastructure_error(format!("Invalid UTF-8 content: {}", e)))?;
-    
+
     // Create recipient - for notifications we primarily use user_id
     let recipient = CommunicationRecipient {
         user_id: Some(model.user_id),
         email: None,
-        };
+    };
 
     Ok(NotificationCommunication {
         recipient,
@@ -38,7 +42,9 @@ pub fn to_domain_notification(model: notifications::Model) -> Result<Notificatio
 }
 
 /// Convert a database delivery model to a domain model
-pub fn to_domain_delivery(model: notification_deliveries::Model) -> Result<MessageDelivery, DomainError> {
+pub fn to_domain_delivery(
+    model: notification_deliveries::Model,
+) -> Result<MessageDelivery, DomainError> {
     // Map delivery_method string to CommunicationMode
     let mode = CommunicationMode::Notification;
 
@@ -52,7 +58,12 @@ pub fn to_domain_delivery(model: notification_deliveries::Model) -> Result<Messa
         "rejected" => DeliveryStatus::Rejected,
         "bounced" => DeliveryStatus::Bounced,
         "read" => DeliveryStatus::Read,
-        _ => return Err(DomainError::infrastructure_error(format!("Unknown delivery status: {}", model.status))),
+        _ => {
+            return Err(DomainError::infrastructure_error(format!(
+                "Unknown delivery status: {}",
+                model.status
+            )))
+        }
     };
 
     Ok(MessageDelivery {
@@ -71,13 +82,16 @@ pub fn to_domain_delivery(model: notification_deliveries::Model) -> Result<Messa
 }
 
 /// Convert a domain notification to an infrastructure active model
-pub fn to_infra_notification(notification: NotificationCommunication) -> Result<notifications::ActiveModel, DomainError> {
+pub fn to_infra_notification(
+    notification: NotificationCommunication,
+) -> Result<notifications::ActiveModel, DomainError> {
     // Map priority enum to i16
     let priority = 1;
 
     // Extract user_id from recipient
-    let user_id = notification.recipient.user_id
-        .ok_or_else(|| DomainError::invalid_recipient("User ID is required for notifications".to_string()))?;
+    let user_id = notification.recipient.user_id.ok_or_else(|| {
+        DomainError::invalid_recipient("User ID is required for notifications".to_string())
+    })?;
 
     // Extract title from content for database storage
     let title = notification.title;
@@ -114,4 +128,4 @@ pub fn to_infra_delivery(delivery: MessageDelivery) -> notification_deliveries::
         created_at: ActiveValue::Set(delivery.created_at),
         updated_at: ActiveValue::Set(delivery.updated_at),
     }
-} 
+}

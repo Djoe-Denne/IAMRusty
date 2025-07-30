@@ -2,7 +2,9 @@ use async_trait::async_trait;
 use chrono::Utc;
 use iam_domain::entity::password_reset_token::PasswordResetToken;
 use iam_domain::port::repository::PasswordResetTokenReadRepository;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder};
+use sea_orm::{
+    ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
+};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -67,7 +69,7 @@ impl PasswordResetTokenReadRepository for PasswordResetTokenReadRepositoryImpl {
         user_id: Uuid,
     ) -> Result<Option<PasswordResetToken>, Self::Error> {
         let now = Utc::now();
-        
+
         let result = PasswordResetTokens::find()
             .filter(password_reset_tokens::Column::UserId.eq(user_id))
             .filter(password_reset_tokens::Column::ExpiresAt.gt(now))
@@ -89,7 +91,7 @@ impl PasswordResetTokenReadRepository for PasswordResetTokenReadRepositoryImpl {
 
     async fn count_valid_for_user(&self, user_id: Uuid) -> Result<u64, Self::Error> {
         let now = Utc::now();
-        
+
         let count = PasswordResetTokens::find()
             .filter(password_reset_tokens::Column::UserId.eq(user_id))
             .filter(password_reset_tokens::Column::ExpiresAt.gt(now))

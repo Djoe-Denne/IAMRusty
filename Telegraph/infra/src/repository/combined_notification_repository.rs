@@ -1,9 +1,13 @@
-use uuid::Uuid;
 use anyhow::Result;
 use std::sync::Arc;
+use telegraph_domain::entity::{
+    communication::NotificationCommunication, delivery::MessageDelivery,
+};
 use telegraph_domain::error::DomainError;
-use telegraph_domain::entity::{communication::NotificationCommunication, delivery::MessageDelivery};
-use telegraph_domain::port::repository::{NotificationReadRepository, NotificationWriteRepository, NotificationRepository};
+use telegraph_domain::port::repository::{
+    NotificationReadRepository, NotificationRepository, NotificationWriteRepository,
+};
+use uuid::Uuid;
 
 /// Combined Notification Repository that delegates to separate read/write implementations
 #[derive(Clone)]
@@ -14,7 +18,10 @@ pub struct CombinedNotificationRepositoryImpl {
 
 impl CombinedNotificationRepositoryImpl {
     /// Create a new combined repository
-    pub fn new(read_repo: Arc<dyn NotificationReadRepository>, write_repo: Arc<dyn NotificationWriteRepository>) -> Self {
+    pub fn new(
+        read_repo: Arc<dyn NotificationReadRepository>,
+        write_repo: Arc<dyn NotificationWriteRepository>,
+    ) -> Self {
         Self {
             read_repo,
             write_repo,
@@ -24,7 +31,6 @@ impl CombinedNotificationRepositoryImpl {
 
 #[async_trait::async_trait]
 impl NotificationReadRepository for CombinedNotificationRepositoryImpl {
-
     // Read operations - delegate to read repository
     /// Get notifications for a user
     async fn get_user_notifications(
@@ -34,11 +40,16 @@ impl NotificationReadRepository for CombinedNotificationRepositoryImpl {
         per_page: u8,
         unread_only: bool,
     ) -> Result<(Vec<NotificationCommunication>, u64), DomainError> {
-        self.read_repo.get_user_notifications(user_id, page, per_page, unread_only).await
+        self.read_repo
+            .get_user_notifications(user_id, page, per_page, unread_only)
+            .await
     }
 
     /// Get a notification by ID
-    async fn get_notification(&self, notification_id: Uuid) -> Result<Option<NotificationCommunication>, DomainError> {
+    async fn get_notification(
+        &self,
+        notification_id: Uuid,
+    ) -> Result<Option<NotificationCommunication>, DomainError> {
         self.read_repo.get_notification(notification_id).await
     }
 
@@ -47,18 +58,18 @@ impl NotificationReadRepository for CombinedNotificationRepositoryImpl {
         &self,
         notification_id: Uuid,
     ) -> Result<Vec<MessageDelivery>, DomainError> {
-        self.read_repo.get_notification_deliveries(notification_id).await
+        self.read_repo
+            .get_notification_deliveries(notification_id)
+            .await
     }
 
     async fn count_unread_notifications(&self, user_id: Uuid) -> Result<u64, DomainError> {
         self.read_repo.count_unread_notifications(user_id).await
     }
-
 }
 
 #[async_trait::async_trait]
 impl NotificationWriteRepository for CombinedNotificationRepositoryImpl {
-
     // Write operations - delegate to write repository
 
     /// Create a new notification
@@ -70,7 +81,10 @@ impl NotificationWriteRepository for CombinedNotificationRepositoryImpl {
     }
 
     /// Mark notification as read
-    async fn mark_as_read(&self, notification_id: Uuid) -> Result<NotificationCommunication, DomainError> {
+    async fn mark_as_read(
+        &self,
+        notification_id: Uuid,
+    ) -> Result<NotificationCommunication, DomainError> {
         self.write_repo.mark_as_read(notification_id).await
     }
 
@@ -94,7 +108,9 @@ impl NotificationWriteRepository for CombinedNotificationRepositoryImpl {
         status: String,
         error_message: Option<String>,
     ) -> Result<MessageDelivery, DomainError> {
-        self.write_repo.update_delivery_status(delivery_id, status, error_message).await
+        self.write_repo
+            .update_delivery_status(delivery_id, status, error_message)
+            .await
     }
 
     /// Increment delivery attempt count
@@ -102,8 +118,10 @@ impl NotificationWriteRepository for CombinedNotificationRepositoryImpl {
         &self,
         delivery_id: Uuid,
     ) -> Result<MessageDelivery, DomainError> {
-        self.write_repo.increment_delivery_attempt(delivery_id).await
+        self.write_repo
+            .increment_delivery_attempt(delivery_id)
+            .await
     }
-} 
+}
 
 impl NotificationRepository for CombinedNotificationRepositoryImpl {}

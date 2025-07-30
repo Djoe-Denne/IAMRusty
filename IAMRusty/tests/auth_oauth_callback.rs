@@ -5,17 +5,17 @@ mod common;
 mod fixtures;
 mod utils;
 
-use base64::{Engine as _, engine::general_purpose};
+use base64::{engine::general_purpose, Engine as _};
 use common::setup_test_server;
 use fixtures::{DbFixtures, GitHubFixtures, GitLabFixtures};
 use reqwest::Client;
 use sea_orm::{ConnectionTrait, DatabaseBackend, Statement};
 use serde_json::Value;
 use serial_test::serial;
-use uuid::Uuid;
-use utils::oauth::OAuthTestUtils;
-use utils::jwt::JwtTestUtils;
 use utils::auth::AuthTestUtils;
+use utils::jwt::JwtTestUtils;
+use utils::oauth::OAuthTestUtils;
+use uuid::Uuid;
 
 #[tokio::test]
 #[serial]
@@ -125,12 +125,10 @@ async fn test_oauth_callback_links_external_account_with_valid_link_state() {
     let response_json: Value = response.json().await.expect("Should return JSON response");
 
     assert_eq!(response_json["operation"], "link");
-    assert!(
-        response_json["message"]
-            .as_str()
-            .unwrap()
-            .contains("successfully linked")
-    );
+    assert!(response_json["message"]
+        .as_str()
+        .unwrap()
+        .contains("successfully linked"));
 
     // ✅ Should NOT create new user (should still be 1)
     let user_count = AuthTestUtils::count_entities(db.clone(), "users")
@@ -175,18 +173,14 @@ async fn test_oauth_callback_links_external_account_with_valid_link_state() {
     assert_eq!(provider, "github", "Provider should be GitHub");
 
     // ✅ Verify existing user and email are unchanged
-    assert!(
-        existing_user
-            .check(db.clone())
-            .await
-            .expect("Failed to check existing user")
-    );
-    assert!(
-        primary_email
-            .check(db.clone())
-            .await
-            .expect("Failed to check primary email")
-    );
+    assert!(existing_user
+        .check(db.clone())
+        .await
+        .expect("Failed to check existing user"));
+    assert!(primary_email
+        .check(db.clone())
+        .await
+        .expect("Failed to check primary email"));
 }
 
 #[tokio::test]
@@ -224,7 +218,7 @@ async fn test_oauth_callback_associates_new_provider_for_same_user() {
     gitlab.setup_successful_user_profile_alice().await; // Using Alice profile for GitLab
 
     // Create valid state for link operation
-            let state = OAuthTestUtils::create_link_state(existing_user.id());
+    let state = OAuthTestUtils::create_link_state(existing_user.id());
 
     // Make callback request to associate GitLab with existing user
     let response = client
@@ -293,24 +287,18 @@ async fn test_oauth_callback_associates_new_provider_for_same_user() {
     );
 
     // ✅ Verify original entities are unchanged
-    assert!(
-        existing_user
-            .check(db.clone())
-            .await
-            .expect("Failed to check existing user")
-    );
-    assert!(
-        primary_email
-            .check(db.clone())
-            .await
-            .expect("Failed to check primary email")
-    );
-    assert!(
-        github_token
-            .check(db.clone())
-            .await
-            .expect("Failed to check GitHub token")
-    );
+    assert!(existing_user
+        .check(db.clone())
+        .await
+        .expect("Failed to check existing user"));
+    assert!(primary_email
+        .check(db.clone())
+        .await
+        .expect("Failed to check primary email"));
+    assert!(github_token
+        .check(db.clone())
+        .await
+        .expect("Failed to check GitHub token"));
 }
 
 #[tokio::test]
@@ -360,7 +348,7 @@ async fn test_oauth_callback_prevents_linking_provider_already_bound_to_another_
     github.setup_successful_user_profile_arthur().await;
 
     // Create valid state for link operation with second user ID
-            let state = OAuthTestUtils::create_link_state(second_user.id());
+    let state = OAuthTestUtils::create_link_state(second_user.id());
 
     // Attempt to link Arthur's GitHub account to second user (should fail)
     let response = client
@@ -410,36 +398,26 @@ async fn test_oauth_callback_prevents_linking_provider_already_bound_to_another_
     );
 
     // ✅ Verify original entities are unchanged
-    assert!(
-        first_user
-            .check(db.clone())
-            .await
-            .expect("Failed to check first user")
-    );
-    assert!(
-        first_user_email
-            .check(db.clone())
-            .await
-            .expect("Failed to check first user email")
-    );
-    assert!(
-        first_user_github_token
-            .check(db.clone())
-            .await
-            .expect("Failed to check first user GitHub token")
-    );
-    assert!(
-        second_user
-            .check(db.clone())
-            .await
-            .expect("Failed to check second user")
-    );
-    assert!(
-        second_user_email
-            .check(db.clone())
-            .await
-            .expect("Failed to check second user email")
-    );
+    assert!(first_user
+        .check(db.clone())
+        .await
+        .expect("Failed to check first user"));
+    assert!(first_user_email
+        .check(db.clone())
+        .await
+        .expect("Failed to check first user email"));
+    assert!(first_user_github_token
+        .check(db.clone())
+        .await
+        .expect("Failed to check first user GitHub token"));
+    assert!(second_user
+        .check(db.clone())
+        .await
+        .expect("Failed to check second user"));
+    assert!(second_user_email
+        .check(db.clone())
+        .await
+        .expect("Failed to check second user email"));
 }
 
 #[tokio::test]

@@ -1,5 +1,5 @@
 //! Integration tests for Telegraph notification HTTP endpoints
-//! 
+//!
 //! Tests the complete HTTP API for notification management:
 //! 1. GET /api/notifications - Get user notifications with pagination/filtering
 //! 2. GET /api/notifications/unread-count - Get unread notification count
@@ -12,17 +12,16 @@ mod common;
 #[path = "fixtures/mod.rs"]
 mod fixtures;
 
+use axum::http::{header, StatusCode};
 use common::*;
+use sea_orm::EntityTrait;
+use serde_json::Value;
 use serial_test::serial;
 use uuid::Uuid;
-use serde_json::Value;
-use axum::http::{header, StatusCode};
-use sea_orm::EntityTrait;
 
-use fixtures::db::{NotificationFixtureBuilder};
-use telegraph_infra::repository::entity::notifications;
+use fixtures::db::NotificationFixtureBuilder;
 use rustycog_testing::http::jwt::create_jwt_token;
-
+use telegraph_infra::repository::entity::notifications;
 
 /// Test successful retrieval of user notifications with default pagination
 #[tokio::test]
@@ -65,7 +64,8 @@ async fn test_get_notifications_success_default_pagination() {
         .expect("Failed to create other user notification");
 
     // Make request to get notifications
-    let response = client.get(format!("{}/api/notifications", base_url))
+    let response = client
+        .get(format!("{}/api/notifications", base_url))
         .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
         .send()
         .await
@@ -84,16 +84,26 @@ async fn test_get_notifications_success_default_pagination() {
     assert!(result.get("has_more").is_some());
 
     let notifications = result["notifications"].as_array().unwrap();
-    assert_eq!(notifications.len(), 2, "Should return 2 notifications for the user");
-    
+    assert_eq!(
+        notifications.len(),
+        2,
+        "Should return 2 notifications for the user"
+    );
+
     // ✅ Verify notification content and ordering (newest first)
     let first_notif = &notifications[0];
     let second_notif = &notifications[1];
-    
-    assert_eq!(first_notif["title"].as_str().unwrap(), "Second notification");
+
+    assert_eq!(
+        first_notif["title"].as_str().unwrap(),
+        "Second notification"
+    );
     assert_eq!(first_notif["is_read"].as_bool().unwrap(), true);
-    
-    assert_eq!(second_notif["title"].as_str().unwrap(), "First notification");
+
+    assert_eq!(
+        second_notif["title"].as_str().unwrap(),
+        "First notification"
+    );
     assert_eq!(second_notif["is_read"].as_bool().unwrap(), false);
 
     // ✅ Verify pagination metadata
@@ -141,7 +151,8 @@ async fn test_get_notifications_unread_only_filter() {
         .expect("Failed to create unread notification 2");
 
     // Test unread_only=true
-    let response = client.get(format!("{}/api/notifications?unread_only=true", base_url))
+    let response = client
+        .get(format!("{}/api/notifications?unread_only=true", base_url))
         .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
         .send()
         .await
@@ -152,7 +163,11 @@ async fn test_get_notifications_unread_only_filter() {
     let result: Value = response.json().await.expect("Failed to parse response");
 
     let notifications = result["notifications"].as_array().unwrap();
-    assert_eq!(notifications.len(), 2, "Should return only unread notifications");
+    assert_eq!(
+        notifications.len(),
+        2,
+        "Should return only unread notifications"
+    );
     assert_eq!(result["total_count"].as_u64().unwrap(), 2);
 
     // Verify all returned notifications are unread
@@ -185,7 +200,8 @@ async fn test_get_notifications_pagination() {
     }
 
     // Test first page with per_page=2
-    let response = client.get(format!("{}/api/notifications?page=0&per_page=2", base_url))
+    let response = client
+        .get(format!("{}/api/notifications?page=0&per_page=2", base_url))
         .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
         .send()
         .await
@@ -196,14 +212,19 @@ async fn test_get_notifications_pagination() {
     let result: Value = response.json().await.expect("Failed to parse response");
 
     let notifications = result["notifications"].as_array().unwrap();
-    assert_eq!(notifications.len(), 2, "Should return 2 notifications per page");
+    assert_eq!(
+        notifications.len(),
+        2,
+        "Should return 2 notifications per page"
+    );
     assert_eq!(result["total_count"].as_u64().unwrap(), 5);
     assert_eq!(result["page"].as_u64().unwrap(), 0);
     assert_eq!(result["per_page"].as_u64().unwrap(), 2);
     assert_eq!(result["has_more"].as_bool().unwrap(), true);
 
     // Test second page
-    let response = client.get(format!("{}/api/notifications?page=1&per_page=2", base_url))
+    let response = client
+        .get(format!("{}/api/notifications?page=1&per_page=2", base_url))
         .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
         .send()
         .await
@@ -214,7 +235,11 @@ async fn test_get_notifications_pagination() {
     let result: Value = response.json().await.expect("Failed to parse response");
 
     let notifications = result["notifications"].as_array().unwrap();
-    assert_eq!(notifications.len(), 2, "Should return 2 notifications on second page");
+    assert_eq!(
+        notifications.len(),
+        2,
+        "Should return 2 notifications on second page"
+    );
     assert_eq!(result["page"].as_u64().unwrap(), 1);
     assert_eq!(result["has_more"].as_bool().unwrap(), true);
 }
@@ -227,7 +252,8 @@ async fn test_get_notifications_missing_auth() {
         .await
         .expect("Failed to setup Telegraph test server");
 
-    let response = client.get(format!("{}/api/notifications", base_url))
+    let response = client
+        .get(format!("{}/api/notifications", base_url))
         .send()
         .await
         .expect("Failed to send request");
@@ -243,7 +269,8 @@ async fn test_get_notifications_invalid_auth() {
         .await
         .expect("Failed to setup Telegraph test server");
 
-    let response = client.get(format!("{}/api/notifications", base_url))
+    let response = client
+        .get(format!("{}/api/notifications", base_url))
         .header(header::AUTHORIZATION, "Bearer invalid_token")
         .send()
         .await
@@ -256,14 +283,15 @@ async fn test_get_notifications_invalid_auth() {
 #[tokio::test]
 #[serial]
 async fn test_get_notifications_validation_error() {
-    let (_, base_url    , client) = setup_test_server()
+    let (_, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
 
     let user_id = Uuid::new_v4();
     let jwt_token = create_jwt_token(user_id);
 
-    let response = client.get(format!("{}/api/notifications?per_page=150", base_url)) // Exceeds max of 100
+    let response = client
+        .get(format!("{}/api/notifications?per_page=150", base_url)) // Exceeds max of 100
         .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
         .send()
         .await
@@ -315,7 +343,8 @@ async fn test_get_unread_count_success() {
         .await
         .expect("Failed to create other user unread notification");
 
-    let response = client.get(format!("{}/api/notifications/unread-count", base_url))
+    let response = client
+        .get(format!("{}/api/notifications/unread-count", base_url))
         .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
         .send()
         .await
@@ -326,7 +355,11 @@ async fn test_get_unread_count_success() {
 
     let result: Value = response.json().await.expect("Failed to parse response");
 
-    assert_eq!(result["unread_count"].as_u64().unwrap(), 2, "Should count only this user's unread notifications");
+    assert_eq!(
+        result["unread_count"].as_u64().unwrap(),
+        2,
+        "Should count only this user's unread notifications"
+    );
 }
 
 /// Test unread count with no notifications
@@ -340,7 +373,8 @@ async fn test_get_unread_count_empty() {
     let user_id = Uuid::new_v4();
     let jwt_token = create_jwt_token(user_id);
 
-    let response = client.get(format!("{}/api/notifications/unread-count", base_url))
+    let response = client
+        .get(format!("{}/api/notifications/unread-count", base_url))
         .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
         .send()
         .await
@@ -350,7 +384,11 @@ async fn test_get_unread_count_empty() {
 
     let result: Value = response.json().await.expect("Failed to parse response");
 
-    assert_eq!(result["unread_count"].as_u64().unwrap(), 0, "Should return 0 for users with no notifications");
+    assert_eq!(
+        result["unread_count"].as_u64().unwrap(),
+        0,
+        "Should return 0 for users with no notifications"
+    );
 }
 
 /// Test unread count authentication requirements
@@ -361,7 +399,8 @@ async fn test_get_unread_count_auth_required() {
         .await
         .expect("Failed to setup Telegraph test server");
 
-    let response = client.get(format!("{}/api/notifications/unread-count", base_url))
+    let response = client
+        .get(format!("{}/api/notifications/unread-count", base_url))
         .send()
         .await
         .expect("Failed to send request");
@@ -398,10 +437,20 @@ async fn test_mark_notification_read_success() {
         .await
         .expect("Failed to fetch notification")
         .expect("Notification should exist");
-    assert!(!initial_notification.is_read, "Notification should initially be unread");
-    assert!(initial_notification.read_at.is_none(), "read_at should initially be None");
+    assert!(
+        !initial_notification.is_read,
+        "Notification should initially be unread"
+    );
+    assert!(
+        initial_notification.read_at.is_none(),
+        "read_at should initially be None"
+    );
 
-    let response = client.put(format!("{}/api/notifications/{}/read", base_url, notification_id))
+    let response = client
+        .put(format!(
+            "{}/api/notifications/{}/read",
+            base_url, notification_id
+        ))
         .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
         .send()
         .await
@@ -414,11 +463,17 @@ async fn test_mark_notification_read_success() {
 
     assert_eq!(result["success"].as_bool().unwrap(), true);
     assert!(result["notification"].is_object());
-    
+
     let notification_response = &result["notification"];
-    assert_eq!(notification_response["id"].as_str().unwrap(), notification_id.to_string());
+    assert_eq!(
+        notification_response["id"].as_str().unwrap(),
+        notification_id.to_string()
+    );
     assert_eq!(notification_response["is_read"].as_bool().unwrap(), true);
-    assert!(notification_response["read_at"].is_string(), "read_at should be set");
+    assert!(
+        notification_response["read_at"].is_string(),
+        "read_at should be set"
+    );
 
     // ✅ Verify database state changed
     let updated_notification = notifications::Entity::find_by_id(notification_id)
@@ -426,10 +481,19 @@ async fn test_mark_notification_read_success() {
         .await
         .expect("Failed to fetch notification")
         .expect("Notification should exist");
-    
-    assert!(updated_notification.is_read, "Notification should be marked as read in database");
-    assert!(updated_notification.read_at.is_some(), "read_at should be set in database");
-    assert!(updated_notification.updated_at > initial_notification.updated_at, "updated_at should be newer");
+
+    assert!(
+        updated_notification.is_read,
+        "Notification should be marked as read in database"
+    );
+    assert!(
+        updated_notification.read_at.is_some(),
+        "read_at should be set in database"
+    );
+    assert!(
+        updated_notification.updated_at > initial_notification.updated_at,
+        "updated_at should be newer"
+    );
 }
 
 /// Test marking notification as read - notification not found
@@ -444,7 +508,11 @@ async fn test_mark_notification_read_not_found() {
     let jwt_token = create_jwt_token(user_id);
     let nonexistent_id = Uuid::new_v4();
 
-    let response = client.put(format!("{}/api/notifications/{}/read", base_url  , nonexistent_id))
+    let response = client
+        .put(format!(
+            "{}/api/notifications/{}/read",
+            base_url, nonexistent_id
+        ))
         .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
         .send()
         .await
@@ -476,7 +544,12 @@ async fn test_mark_notification_read_unauthorized() {
         .expect("Failed to create notification");
 
     // Try to mark as read using other_user's JWT
-    let response = client.put(format!("{}/api/notifications/{}/read", base_url, notification.id()))
+    let response = client
+        .put(format!(
+            "{}/api/notifications/{}/read",
+            base_url,
+            notification.id()
+        ))
         .header(header::AUTHORIZATION, format!("Bearer {}", other_user_jwt))
         .send()
         .await
@@ -490,9 +563,15 @@ async fn test_mark_notification_read_unauthorized() {
         .await
         .expect("Failed to fetch notification")
         .expect("Notification should exist");
-    
-    assert!(!unchanged_notification.is_read, "Notification should remain unread");
-    assert!(unchanged_notification.read_at.is_none(), "read_at should remain None");
+
+    assert!(
+        !unchanged_notification.is_read,
+        "Notification should remain unread"
+    );
+    assert!(
+        unchanged_notification.read_at.is_none(),
+        "read_at should remain None"
+    );
 }
 
 /// Test marking notification as read - invalid notification ID format
@@ -506,7 +585,8 @@ async fn test_mark_notification_read_invalid_id() {
     let user_id = Uuid::new_v4();
     let jwt_token = create_jwt_token(user_id);
 
-    let response = client.put(format!("{}/api/notifications/invalid-uuid/read", base_url))
+    let response = client
+        .put(format!("{}/api/notifications/invalid-uuid/read", base_url))
         .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
         .send()
         .await
@@ -525,7 +605,11 @@ async fn test_mark_notification_read_missing_auth() {
 
     let notification_id = Uuid::new_v4();
 
-    let response = client.put(format!("{}/api/notifications/{}/read", base_url, notification_id))
+    let response = client
+        .put(format!(
+            "{}/api/notifications/{}/read",
+            base_url, notification_id
+        ))
         .send()
         .await
         .expect("Failed to send request");
@@ -562,12 +646,19 @@ async fn test_mark_notification_read_idempotent() {
         .await
         .expect("Failed to fetch notification")
         .expect("Notification should exist");
-    
-    assert!(initial_notification.is_read, "Notification should be read initially");
+
+    assert!(
+        initial_notification.is_read,
+        "Notification should be read initially"
+    );
     let initial_read_at = initial_notification.read_at.expect("read_at should be set");
 
     // Mark as read again
-    let response = client.put(format!("{}/api/notifications/{}/read", base_url, notification_id))
+    let response = client
+        .put(format!(
+            "{}/api/notifications/{}/read",
+            base_url, notification_id
+        ))
         .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
         .send()
         .await
@@ -587,10 +678,18 @@ async fn test_mark_notification_read_idempotent() {
         .await
         .expect("Failed to fetch notification")
         .expect("Notification should exist");
-    
-    assert!(updated_notification.is_read, "Notification should still be read");
-    let new_read_at = updated_notification.read_at.expect("read_at should still be set");
-    assert!(new_read_at >= initial_read_at, "read_at should be updated or same");
+
+    assert!(
+        updated_notification.is_read,
+        "Notification should still be read"
+    );
+    let new_read_at = updated_notification
+        .read_at
+        .expect("read_at should still be set");
+    assert!(
+        new_read_at >= initial_read_at,
+        "read_at should be updated or same"
+    );
 }
 
 /// Helper function to create a test JWT token (you'll need to implement this based on your JWT creation logic)
@@ -630,7 +729,8 @@ async fn test_notification_lifecycle_complete() {
         .expect("Failed to create notification 2");
 
     // Step 2: Check unread count (should be 2)
-    let response = client.get(format!("{}/api/notifications/unread-count", base_url))
+    let response = client
+        .get(format!("{}/api/notifications/unread-count", base_url))
         .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
         .send()
         .await
@@ -642,7 +742,8 @@ async fn test_notification_lifecycle_complete() {
     assert_eq!(count_result["unread_count"].as_u64().unwrap(), 2);
 
     // Step 3: Get all notifications (should see both unread)
-    let response = client.get(format!("{}/api/notifications", base_url))
+    let response = client
+        .get(format!("{}/api/notifications", base_url))
         .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
         .send()
         .await
@@ -657,7 +758,12 @@ async fn test_notification_lifecycle_complete() {
     assert_eq!(list_result["total_count"].as_u64().unwrap(), 2);
 
     // Step 4: Mark one notification as read
-    let response = client.put(format!("{}/api/notifications/{}/read", base_url, notification1.id()))
+    let response = client
+        .put(format!(
+            "{}/api/notifications/{}/read",
+            base_url,
+            notification1.id()
+        ))
         .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
         .send()
         .await
@@ -666,7 +772,8 @@ async fn test_notification_lifecycle_complete() {
     assert_eq!(response.status(), StatusCode::OK);
 
     // Step 5: Check unread count again (should be 1)
-    let response = client.get(format!("{}/api/notifications/unread-count", base_url))
+    let response = client
+        .get(format!("{}/api/notifications/unread-count", base_url))
         .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
         .send()
         .await
@@ -678,7 +785,8 @@ async fn test_notification_lifecycle_complete() {
     assert_eq!(count_result2["unread_count"].as_u64().unwrap(), 1);
 
     // Step 6: Get only unread notifications (should see only one)
-    let response = client.get(format!("{}/api/notifications?unread_only=true", base_url))
+    let response = client
+        .get(format!("{}/api/notifications?unread_only=true", base_url))
         .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
         .send()
         .await
@@ -691,6 +799,9 @@ async fn test_notification_lifecycle_complete() {
     let unread_notifications = unread_result["notifications"].as_array().unwrap();
     assert_eq!(unread_notifications.len(), 1);
     assert_eq!(unread_result["total_count"].as_u64().unwrap(), 1);
-    assert_eq!(unread_notifications[0]["id"].as_str().unwrap(), notification2.id().to_string());
+    assert_eq!(
+        unread_notifications[0]["id"].as_str().unwrap(),
+        notification2.id().to_string()
+    );
     assert_eq!(unread_notifications[0]["is_read"].as_bool().unwrap(), false);
-} 
+}

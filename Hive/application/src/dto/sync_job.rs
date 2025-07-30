@@ -1,9 +1,9 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use chrono::{DateTime, Utc};
 use validator::Validate;
 
-use crate::dto::{PaginationResponse};
+use crate::dto::PaginationResponse;
 
 // =============================================================================
 // Sync Job Request DTOs
@@ -72,4 +72,4 @@ pub struct SyncJobLogEntry {
     pub level: String, // "info", "warn", "error"
     pub message: String,
     pub details: Option<serde_json::Value>,
-} 
+}

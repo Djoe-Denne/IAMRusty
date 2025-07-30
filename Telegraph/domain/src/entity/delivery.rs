@@ -1,9 +1,9 @@
 //! Message delivery domain entities for Telegraph communication service
 
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
-use chrono::{DateTime, Utc};
 
 use super::communication::CommunicationMode;
 
@@ -81,7 +81,7 @@ impl MessageDelivery {
     /// Create a new message delivery record
     pub fn new(message_id: Uuid, mode: CommunicationMode) -> Self {
         let now = Utc::now();
-        
+
         Self {
             id: Uuid::new_v4(),
             message_id,
@@ -96,13 +96,13 @@ impl MessageDelivery {
             error_details: None,
         }
     }
-    
+
     /// Mark delivery as processing
     pub fn mark_processing(&mut self) {
         self.status = DeliveryStatus::Processing;
         self.updated_at = Utc::now();
     }
-    
+
     /// Mark delivery as sent with provider message ID
     pub fn mark_sent(&mut self, provider_message_id: Option<String>) {
         self.status = DeliveryStatus::Sent;
@@ -110,7 +110,7 @@ impl MessageDelivery {
         self.updated_at = Utc::now();
         self.attempts += 1;
     }
-    
+
     /// Mark delivery as successful
     pub fn mark_delivered(&mut self) {
         self.status = DeliveryStatus::Delivered;
@@ -118,7 +118,7 @@ impl MessageDelivery {
         self.updated_at = Utc::now();
         self.error_details = None;
     }
-    
+
     /// Mark delivery as failed
     pub fn mark_failed(&mut self, error_details: String) {
         self.status = DeliveryStatus::Failed;
@@ -126,7 +126,7 @@ impl MessageDelivery {
         self.updated_at = Utc::now();
         self.attempts += 1;
     }
-    
+
     /// Mark delivery as rejected
     pub fn mark_rejected(&mut self, error_details: String) {
         self.status = DeliveryStatus::Rejected;
@@ -134,47 +134,54 @@ impl MessageDelivery {
         self.updated_at = Utc::now();
         self.attempts += 1;
     }
-    
+
     /// Mark delivery as bounced
     pub fn mark_bounced(&mut self, error_details: String) {
         self.status = DeliveryStatus::Bounced;
         self.error_details = Some(error_details);
         self.updated_at = Utc::now();
     }
-    
+
     /// Mark message as read
     pub fn mark_read(&mut self) {
         self.status = DeliveryStatus::Read;
         self.updated_at = Utc::now();
     }
-    
+
     /// Add metadata to the delivery record
     pub fn add_metadata(&mut self, key: String, value: String) {
         self.metadata.insert(key, value);
         self.updated_at = Utc::now();
     }
-    
+
     /// Check if delivery can be retried
     pub fn can_retry(&self, max_attempts: u32) -> bool {
         matches!(self.status, DeliveryStatus::Failed) && self.attempts < max_attempts
     }
-    
+
     /// Check if delivery is in a final state
     pub fn is_final(&self) -> bool {
         matches!(
             self.status,
-            DeliveryStatus::Delivered | DeliveryStatus::Rejected | DeliveryStatus::Bounced | DeliveryStatus::Read
+            DeliveryStatus::Delivered
+                | DeliveryStatus::Rejected
+                | DeliveryStatus::Bounced
+                | DeliveryStatus::Read
         )
     }
-    
+
     /// Check if delivery was successful
     pub fn is_successful(&self) -> bool {
-        matches!(self.status, DeliveryStatus::Delivered | DeliveryStatus::Read)
+        matches!(
+            self.status,
+            DeliveryStatus::Delivered | DeliveryStatus::Read
+        )
     }
-    
+
     /// Get delivery duration if available
     pub fn delivery_duration(&self) -> Option<chrono::Duration> {
-        self.delivered_at.map(|delivered| delivered - self.created_at)
+        self.delivered_at
+            .map(|delivered| delivered - self.created_at)
     }
 }
 
@@ -192,21 +199,21 @@ impl DeliveryAttempt {
             duration_ms: None,
         }
     }
-    
+
     /// Mark attempt as successful
     pub fn mark_success(&mut self, provider_response: Option<String>, duration_ms: Option<u64>) {
         self.status = DeliveryStatus::Sent;
         self.provider_response = provider_response;
         self.duration_ms = duration_ms;
     }
-    
+
     /// Mark attempt as failed
     pub fn mark_failed(&mut self, error_message: String, duration_ms: Option<u64>) {
         self.status = DeliveryStatus::Failed;
         self.error_message = Some(error_message);
         self.duration_ms = duration_ms;
     }
-    
+
     /// Mark attempt as rejected
     pub fn mark_rejected(&mut self, error_message: String, duration_ms: Option<u64>) {
         self.status = DeliveryStatus::Rejected;
@@ -228,4 +235,4 @@ impl std::fmt::Display for DeliveryStatus {
             DeliveryStatus::Read => write!(f, "read"),
         }
     }
-} 
+}

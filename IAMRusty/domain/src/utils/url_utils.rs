@@ -8,7 +8,7 @@ impl UrlUtils {
     pub fn url_encode(value: &str) -> String {
         urlencoding::encode(value).to_string()
     }
-    
+
     /// URL decode a string value  
     pub fn url_decode(value: &str) -> String {
         urlencoding::decode(value).unwrap_or_default().to_string()
@@ -18,4 +18,4 @@ impl UrlUtils {
     pub fn build_verification_url() -> String {
         format!("/api/auth/verify")
     }
-} 
+}

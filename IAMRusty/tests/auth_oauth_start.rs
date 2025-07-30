@@ -4,7 +4,7 @@ mod common;
 #[path = "fixtures/mod.rs"]
 mod fixtures;
 
-use base64::{Engine as _, engine::general_purpose};
+use base64::{engine::general_purpose, Engine as _};
 use common::setup_test_server;
 use fixtures::{GitHubFixtures, GitLabFixtures};
 use reqwest::Client;
@@ -396,7 +396,7 @@ async fn test_oauth_start_with_auth_header_link_operation() {
     // The response might be empty or contain error details
     // Let's be flexible about the response format since this is an auth middleware response
     let response_text = response.text().await.unwrap_or_default();
-    
+
     // Just verify we got an unauthorized response - the exact format may vary
     // based on the auth middleware implementation
     println!("Response for invalid token: {}", response_text);
@@ -439,9 +439,12 @@ async fn test_oauth_start_invalid_auth_header_formats() {
         // The response might be empty or contain error details
         // Let's be flexible about the response format since this is an auth middleware response
         let response_text = response.text().await.unwrap_or_default();
-        
+
         // Just verify we got an unauthorized response - the exact format may vary
-        println!("Response for invalid header '{}': {}", invalid_header, response_text);
+        println!(
+            "Response for invalid header '{}': {}",
+            invalid_header, response_text
+        );
     }
 }
 

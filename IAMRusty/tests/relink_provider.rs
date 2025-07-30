@@ -8,9 +8,12 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use common::setup_test_server;
-use iam_configuration::{load_config_part, JwtConfig};
-use utils::jwt::{create_valid_jwt_token_with_encoder, create_expired_jwt_token_with_encoder, create_invalid_jwt_token_with_encoder};
 use fixtures::{DbFixtures, GitHubFixtures, GitLabFixtures};
+use iam_configuration::{load_config_part, JwtConfig};
+use utils::jwt::{
+    create_expired_jwt_token_with_encoder, create_invalid_jwt_token_with_encoder,
+    create_valid_jwt_token_with_encoder,
+};
 
 // 🔗 Relink Provider Endpoint Tests
 // 📍 GET /api/auth/{provider}/relink-start
@@ -49,7 +52,7 @@ async fn test_generate_relink_provider_start_url_github_success() {
     let auth_url = response_json["auth_url"]
         .as_str()
         .expect("auth_url should be a string");
-    
+
     println!("auth_url: {}", auth_url);
     // ✅ Should be a valid GitHub OAuth URL
     assert!(
@@ -60,10 +63,7 @@ async fn test_generate_relink_provider_start_url_github_success() {
         auth_url.contains("client_id="),
         "Auth URL should contain client_id"
     );
-    assert!(
-        auth_url.contains("scope="),
-        "Auth URL should contain scope"
-    );
+    assert!(auth_url.contains("scope="), "Auth URL should contain scope");
     assert!(
         auth_url.contains("redirect_uri="),
         "Auth URL should contain redirect_uri"
@@ -101,7 +101,7 @@ async fn test_generate_relink_provider_start_url_gitlab_success() {
     let auth_url = response_json["auth_url"]
         .as_str()
         .expect("auth_url should be a string");
-    
+
     // ✅ Should be a valid GitLab OAuth URL
     assert!(
         auth_url.starts_with("http://localhost:3000/oauth/authorize"),
@@ -176,8 +176,11 @@ async fn test_relink_provider_callback_github_success() {
     github.setup_successful_user_profile_arthur().await;
 
     // Create valid JWT token for authentication
-    let jwt_token = create_valid_jwt_token_with_encoder(user.id(), &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"))
-        .expect("Failed to create JWT token");
+    let jwt_token = create_valid_jwt_token_with_encoder(
+        user.id(),
+        &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
+    )
+    .expect("Failed to create JWT token");
 
     // Make callback request to relink GitHub provider
     let response = client
@@ -203,7 +206,8 @@ async fn test_relink_provider_callback_github_success() {
         "Response should contain user object"
     );
     assert_eq!(
-        response_json["user"]["id"], user.id().to_string(),
+        response_json["user"]["id"],
+        user.id().to_string(),
         "Should return correct user ID"
     );
 
@@ -262,8 +266,11 @@ async fn test_relink_provider_callback_returns_401_when_token_is_expired() {
 
     // Create expired JWT token
     let user_id = Uuid::new_v4();
-    let expired_token = create_expired_jwt_token_with_encoder(user_id, &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"))
-        .expect("Failed to create expired JWT token");
+    let expired_token = create_expired_jwt_token_with_encoder(
+        user_id,
+        &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
+    )
+    .expect("Failed to create expired JWT token");
 
     // Make request with expired token
     let response = client
@@ -292,15 +299,21 @@ async fn test_relink_provider_callback_returns_422_when_provider_is_unsupported(
 
     // Create valid JWT token
     let user_id = Uuid::new_v4();
-    let jwt_token = create_valid_jwt_token_with_encoder(user_id, &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"))
-        .expect("Failed to create JWT token");
+    let jwt_token = create_valid_jwt_token_with_encoder(
+        user_id,
+        &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
+    )
+    .expect("Failed to create JWT token");
 
     // Test unsupported providers
     let unsupported_providers = vec!["facebook", "twitter", "linkedin", "invalid"];
 
     for provider in unsupported_providers {
         let response = client
-            .get(&format!("{}/api/auth/{}/relink-callback", base_url, provider))
+            .get(&format!(
+                "{}/api/auth/{}/relink-callback",
+                base_url, provider
+            ))
             .header("Authorization", format!("Bearer {}", jwt_token))
             .query(&[("code", "test_auth_code")])
             .send()
@@ -327,8 +340,11 @@ async fn test_relink_provider_callback_returns_422_when_missing_code_parameter()
 
     // Create valid JWT token
     let user_id = Uuid::new_v4();
-    let jwt_token = create_valid_jwt_token_with_encoder(user_id, &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"))
-        .expect("Failed to create JWT token");
+    let jwt_token = create_valid_jwt_token_with_encoder(
+        user_id,
+        &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
+    )
+    .expect("Failed to create JWT token");
 
     // Make request without code parameter
     let response = client
@@ -374,8 +390,11 @@ async fn test_relink_provider_callback_returns_422_when_provider_not_currently_l
     github.setup_successful_user_profile_arthur().await;
 
     // Create valid JWT token for authentication
-    let jwt_token = create_valid_jwt_token_with_encoder(user.id(), &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"))
-        .expect("Failed to create JWT token");
+    let jwt_token = create_valid_jwt_token_with_encoder(
+        user.id(),
+        &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
+    )
+    .expect("Failed to create JWT token");
 
     // Make callback request to relink GitHub provider (should fail - no existing link)
     let response = client
@@ -402,7 +421,7 @@ async fn test_relink_provider_callback_returns_422_when_provider_not_currently_l
         response_json["error"].is_object(),
         "Should return error object"
     );
-    
+
     // Should indicate business rule violation
     let error_message = response_json["error"]["message"]
         .as_str()
@@ -448,8 +467,11 @@ async fn test_relink_provider_callback_gitlab_success() {
     gitlab.setup_successful_user_profile_alice().await; // Using Alice profile for GitLab
 
     // Create valid JWT token for authentication
-    let jwt_token = create_valid_jwt_token_with_encoder(user.id(), &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"))
-        .expect("Failed to create JWT token");
+    let jwt_token = create_valid_jwt_token_with_encoder(
+        user.id(),
+        &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
+    )
+    .expect("Failed to create JWT token");
 
     // Make callback request to relink GitLab provider
     let response = client
@@ -471,7 +493,8 @@ async fn test_relink_provider_callback_gitlab_success() {
 
     // ✅ Should contain user data
     assert_eq!(
-        response_json["user"]["id"], user.id().to_string(),
+        response_json["user"]["id"],
+        user.id().to_string(),
         "Should return correct user ID"
     );
 
@@ -520,8 +543,11 @@ async fn test_relink_provider_callback_user_with_multiple_providers() {
     github.setup_successful_user_profile_arthur().await;
 
     // Create valid JWT token for authentication
-    let jwt_token = create_valid_jwt_token_with_encoder(user.id(), &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"))
-        .expect("Failed to create JWT token");
+    let jwt_token = create_valid_jwt_token_with_encoder(
+        user.id(),
+        &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
+    )
+    .expect("Failed to create JWT token");
 
     // Make callback request to relink only GitHub provider
     let response = client

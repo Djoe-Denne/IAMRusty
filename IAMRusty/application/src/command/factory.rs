@@ -8,19 +8,18 @@ use super::{
         PasswordLoginCommandHandler,
     },
     password_reset::{
-        RequestPasswordResetCommand, RequestPasswordResetCommandHandler,
-        ValidateResetTokenCommand, ValidateResetTokenCommandHandler,
-        ResetPasswordUnauthenticatedCommand, ResetPasswordUnauthenticatedCommandHandler,
+        PasswordResetErrorMapper, RequestPasswordResetCommand, RequestPasswordResetCommandHandler,
         ResetPasswordAuthenticatedCommand, ResetPasswordAuthenticatedCommandHandler,
-        PasswordResetErrorMapper,
+        ResetPasswordUnauthenticatedCommand, ResetPasswordUnauthenticatedCommandHandler,
+        ValidateResetTokenCommand, ValidateResetTokenCommandHandler,
     },
     provider::{
         GenerateLinkProviderStartUrlCommand, GenerateLinkProviderStartUrlCommandHandler,
+        GenerateRelinkProviderStartUrlCommand, GenerateRelinkProviderStartUrlCommandHandler,
         GetProviderTokenCommand, GetProviderTokenCommandHandler, LinkProviderCommand,
         LinkProviderCommandHandler, LinkProviderErrorMapper, ProviderErrorMapper,
-        RevokeProviderTokenCommand, RevokeProviderTokenCommandHandler,
-        RelinkProviderCommand, RelinkProviderCommandHandler,
-        GenerateRelinkProviderStartUrlCommand, GenerateRelinkProviderStartUrlCommandHandler,
+        RelinkProviderCommand, RelinkProviderCommandHandler, RevokeProviderTokenCommand,
+        RevokeProviderTokenCommandHandler,
     },
     registration::{
         CheckUsernameCommand, CheckUsernameCommandHandler, CompleteRegistrationCommand,
@@ -28,13 +27,11 @@ use super::{
     },
     signup::{AuthErrorMapper as SignupAuthErrorMapper, SignupCommand, SignupCommandHandler},
     token::{
-        GetJwksCommand, GetJwksCommandHandler, RefreshTokenCommand, RefreshTokenCommandHandler, 
-        RevokeAllTokensCommand, RevokeAllTokensCommandHandler, RevokeTokenCommand, 
+        GetJwksCommand, GetJwksCommandHandler, RefreshTokenCommand, RefreshTokenCommandHandler,
+        RevokeAllTokensCommand, RevokeAllTokensCommandHandler, RevokeTokenCommand,
         RevokeTokenCommandHandler, TokenErrorMapper,
     },
-    user::{
-        GetUserCommand, GetUserCommandHandler, UserErrorMapper
-    },
+    user::{GetUserCommand, GetUserCommandHandler, UserErrorMapper},
     verify_email::{
         AuthErrorMapper as VerifyEmailAuthErrorMapper, VerifyEmailCommand,
         VerifyEmailCommandHandler,
@@ -42,12 +39,12 @@ use super::{
 };
 use crate::usecase::{
     link_provider::LinkProviderUseCase, login::LoginUseCase, oauth::OAuthUseCase,
-    password_reset::PasswordResetUseCase, provider::ProviderUseCase, registration::RegistrationUseCase, token::TokenUseCase,
-    user::UserUseCase,
+    password_reset::PasswordResetUseCase, provider::ProviderUseCase,
+    registration::RegistrationUseCase, token::TokenUseCase, user::UserUseCase,
 };
+use iam_configuration::CommandConfig;
 use rustycog_command::{CommandRegistry, CommandRegistryBuilder};
 use std::sync::Arc;
-use iam_configuration::CommandConfig;
 
 /// Factory for creating a command registry with all standard commands registered
 pub struct CommandRegistryFactory;
@@ -65,10 +62,10 @@ impl CommandRegistryFactory {
         password_reset_usecase: Arc<dyn PasswordResetUseCase>,
         command_config: CommandConfig,
     ) -> CommandRegistry {
-        
         // Create registry config from the loaded configuration
-        let registry_config = rustycog_command::registry::RegistryConfig::from_retry_config(&command_config.retry);
-        
+        let registry_config =
+            rustycog_command::registry::RegistryConfig::from_retry_config(&command_config.retry);
+
         let mut builder = CommandRegistryBuilder::with_config(registry_config);
 
         // Register OAuth login commands
@@ -111,8 +108,9 @@ impl CommandRegistryFactory {
             );
 
         // Register provider token commands
-        let get_provider_token_handler =
-            Arc::new(GetProviderTokenCommandHandler::new(provider_usecase.clone()));
+        let get_provider_token_handler = Arc::new(GetProviderTokenCommandHandler::new(
+            provider_usecase.clone(),
+        ));
         let revoke_provider_token_handler =
             Arc::new(RevokeProviderTokenCommandHandler::new(provider_usecase));
         let provider_error_mapper = Arc::new(ProviderErrorMapper);
@@ -154,7 +152,8 @@ impl CommandRegistryFactory {
         let refresh_token_handler =
             Arc::new(RefreshTokenCommandHandler::new(token_usecase.clone()));
         let revoke_token_handler = Arc::new(RevokeTokenCommandHandler::new(token_usecase.clone()));
-        let revoke_all_tokens_handler = Arc::new(RevokeAllTokensCommandHandler::new(token_usecase.clone()));
+        let revoke_all_tokens_handler =
+            Arc::new(RevokeAllTokensCommandHandler::new(token_usecase.clone()));
         let get_jwks_handler = Arc::new(GetJwksCommandHandler::new(token_usecase));
         let token_error_mapper = Arc::new(TokenErrorMapper);
 
@@ -184,12 +183,11 @@ impl CommandRegistryFactory {
         let get_user_handler = Arc::new(GetUserCommandHandler::new(user_usecase.clone()));
         let user_error_mapper = Arc::new(UserErrorMapper);
 
-        builder = builder
-            .register::<GetUserCommand, _>(
-                "get_user".to_string(),
-                get_user_handler,
-                user_error_mapper.clone(),
-            );
+        builder = builder.register::<GetUserCommand, _>(
+            "get_user".to_string(),
+            get_user_handler,
+            user_error_mapper.clone(),
+        );
 
         // Register auth commands
         let signup_handler = Arc::new(SignupCommandHandler::new(login_auth_usecase.clone()));
@@ -253,10 +251,18 @@ impl CommandRegistryFactory {
             );
 
         // Register password reset commands
-        let request_password_reset_handler = Arc::new(RequestPasswordResetCommandHandler::new(password_reset_usecase.clone()));
-        let validate_reset_token_handler = Arc::new(ValidateResetTokenCommandHandler::new(password_reset_usecase.clone()));
-        let reset_password_unauthenticated_handler = Arc::new(ResetPasswordUnauthenticatedCommandHandler::new(password_reset_usecase.clone()));
-        let reset_password_authenticated_handler = Arc::new(ResetPasswordAuthenticatedCommandHandler::new(password_reset_usecase));
+        let request_password_reset_handler = Arc::new(RequestPasswordResetCommandHandler::new(
+            password_reset_usecase.clone(),
+        ));
+        let validate_reset_token_handler = Arc::new(ValidateResetTokenCommandHandler::new(
+            password_reset_usecase.clone(),
+        ));
+        let reset_password_unauthenticated_handler = Arc::new(
+            ResetPasswordUnauthenticatedCommandHandler::new(password_reset_usecase.clone()),
+        );
+        let reset_password_authenticated_handler = Arc::new(
+            ResetPasswordAuthenticatedCommandHandler::new(password_reset_usecase),
+        );
         let password_reset_error_mapper = Arc::new(PasswordResetErrorMapper);
 
         builder = builder
@@ -375,12 +381,11 @@ impl CommandRegistryFactory {
         let get_user_handler = Arc::new(GetUserCommandHandler::new(user_usecase.clone()));
         let user_error_mapper = Arc::new(UserErrorMapper);
 
-        CommandRegistryBuilder::new()
-            .register::<GetUserCommand, _>(
-                "get_user".to_string(),
-                get_user_handler,
-                user_error_mapper.clone(),
-            )
+        CommandRegistryBuilder::new().register::<GetUserCommand, _>(
+            "get_user".to_string(),
+            get_user_handler,
+            user_error_mapper.clone(),
+        )
     }
 
     /// Create a registry builder with only link provider commands
@@ -412,8 +417,9 @@ impl CommandRegistryFactory {
     pub fn create_builder_with_provider(
         provider_usecase: Arc<dyn ProviderUseCase>,
     ) -> CommandRegistryBuilder {
-        let get_provider_token_handler =
-            Arc::new(GetProviderTokenCommandHandler::new(provider_usecase.clone()));
+        let get_provider_token_handler = Arc::new(GetProviderTokenCommandHandler::new(
+            provider_usecase.clone(),
+        ));
         let revoke_provider_token_handler =
             Arc::new(RevokeProviderTokenCommandHandler::new(provider_usecase));
         let provider_error_mapper = Arc::new(ProviderErrorMapper);

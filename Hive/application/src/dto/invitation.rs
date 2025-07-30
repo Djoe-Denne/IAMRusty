@@ -1,9 +1,9 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use chrono::{DateTime, Utc};
 use validator::Validate;
 
-use crate::dto::{PaginationResponse};
+use crate::dto::PaginationResponse;
 
 // =============================================================================
 // Invitation Request DTOs
@@ -55,4 +55,4 @@ pub struct InvitationDetailsResponse {
     pub invited_by_name: Option<String>,
     pub expires_at: DateTime<Utc>,
     pub message: Option<String>,
-} 
+}

@@ -3,4 +3,4 @@ pub mod service;
 
 // Re-export for convenience
 pub use repository::*;
-pub use service::*; 
+pub use service::*;

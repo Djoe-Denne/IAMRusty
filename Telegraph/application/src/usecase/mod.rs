@@ -4,4 +4,4 @@ pub mod notification;
 
 // Re-export all use cases
 pub use event_processing::*;
-pub use notification::*; 
+pub use notification::*;

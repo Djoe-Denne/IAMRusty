@@ -1,4 +1,4 @@
-use base64::{Engine as _, engine::general_purpose};
+use base64::{engine::general_purpose, Engine as _};
 use serde_json::Value;
 use std::collections::HashMap;
 use url::Url;
@@ -60,12 +60,13 @@ impl OAuthTestUtils {
 
     /// Assert OAuth state has valid structure and operation type
     pub fn assert_state_operation(state: &str, expected_operation: &str) {
-        let decoded_state = Self::decode_state(state)
-            .expect("Should be able to decode OAuth state");
+        let decoded_state =
+            Self::decode_state(state).expect("Should be able to decode OAuth state");
 
         assert_eq!(
             decoded_state["operation"]["type"], expected_operation,
-            "State should contain {} operation type", expected_operation
+            "State should contain {} operation type",
+            expected_operation
         );
         assert!(
             decoded_state["nonce"].is_string(),
@@ -75,8 +76,8 @@ impl OAuthTestUtils {
 
     /// Assert OAuth state has link operation with user ID
     pub fn assert_link_state_with_user_id(state: &str, expected_user_id: Uuid) {
-        let decoded_state = Self::decode_state(state)
-            .expect("Should be able to decode OAuth state");
+        let decoded_state =
+            Self::decode_state(state).expect("Should be able to decode OAuth state");
 
         assert_eq!(
             decoded_state["operation"]["type"], "link",
@@ -91,28 +92,30 @@ impl OAuthTestUtils {
 
     /// Assert redirect URL contains required OAuth parameters
     pub fn assert_oauth_redirect_params(location: &str, provider: &str) {
-        let (_, params) = Self::parse_redirect_url(location)
-            .expect("Should be able to parse redirect URL");
+        let (_, params) =
+            Self::parse_redirect_url(location).expect("Should be able to parse redirect URL");
 
         // Verify all required OAuth2 parameters are present
         let required_params = vec![
             "client_id",
-            "redirect_uri", 
+            "redirect_uri",
             "scope",
             "response_type",
             "state",
         ];
-        
+
         for param in required_params {
             assert!(
                 params.contains_key(param),
                 "Should have required OAuth2 parameter '{}' for provider '{}'",
-                param, provider
+                param,
+                provider
             );
             assert!(
                 !params.get(param).unwrap().is_empty(),
                 "OAuth2 parameter '{}' should not be empty for provider '{}'",
-                param, provider
+                param,
+                provider
             );
         }
 
@@ -141,4 +144,4 @@ impl OAuthTestUtils {
             "All OAuth states should be unique"
         );
     }
-} 
+}

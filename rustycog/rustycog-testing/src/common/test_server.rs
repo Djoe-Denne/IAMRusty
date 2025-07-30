@@ -1,6 +1,6 @@
-use crate::common::{build_test_app, TestFixture, spawn_test_server, ServiceTestDescriptor};
-use rustycog_config::{load_config_part, ServerConfig};
+use crate::common::{build_test_app, spawn_test_server, ServiceTestDescriptor, TestFixture};
 use reqwest::Client;
+use rustycog_config::{load_config_part, ServerConfig};
 use std::sync::Arc;
 use std::sync::OnceLock;
 use tokio::sync::Mutex;
@@ -11,8 +11,10 @@ use tracing::debug;
 static TEST_SERVER: OnceLock<Arc<Mutex<Option<JoinHandle<()>>>>> = OnceLock::new();
 
 /// Get or create the global test server instance
-pub async fn get_test_server<D, T>(descriptor: Arc<D>) -> Result<String, Box<dyn std::error::Error>> 
-where D: ServiceTestDescriptor<T>, T: Send + Sync + 'static
+pub async fn get_test_server<D, T>(descriptor: Arc<D>) -> Result<String, Box<dyn std::error::Error>>
+where
+    D: ServiceTestDescriptor<T>,
+    T: Send + Sync + 'static,
 {
     let server_mutex = TEST_SERVER.get_or_init(|| Arc::new(Mutex::new(None)));
 
@@ -24,7 +26,8 @@ where D: ServiceTestDescriptor<T>, T: Send + Sync + 'static
         Some(handle) => handle.is_finished(), // Server handle exists but task is finished
     };
 
-    let server_config = load_config_part::<ServerConfig>("server").expect("failed to load server config");
+    let server_config =
+        load_config_part::<ServerConfig>("server").expect("failed to load server config");
     let base_url = format!("http://{}:{}", server_config.host, server_config.port);
 
     if needs_new_server {
@@ -54,8 +57,12 @@ where D: ServiceTestDescriptor<T>, T: Send + Sync + 'static
 }
 
 // method that return a test fixture, base_url and client
-pub async fn setup_test_server<D, T>(descriptor: Arc<D>) -> Result<(String, Client), Box<dyn std::error::Error>>
-where D: ServiceTestDescriptor<T>, T: Send + Sync + 'static
+pub async fn setup_test_server<D, T>(
+    descriptor: Arc<D>,
+) -> Result<(String, Client), Box<dyn std::error::Error>>
+where
+    D: ServiceTestDescriptor<T>,
+    T: Send + Sync + 'static,
 {
     let base_url = get_test_server::<D, T>(descriptor.clone()).await?;
     let client = create_test_client();

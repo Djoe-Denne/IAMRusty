@@ -1,13 +1,10 @@
 use async_trait::async_trait;
+use rustycog_command::{Command, CommandError, CommandHandler};
 use std::sync::Arc;
 use uuid::Uuid;
-use rustycog_command::{Command, CommandHandler, CommandError};
 
-use crate::{
-    dto::{
-        CreateRoleRequest, UpdateRoleRequest, RoleResponse, RoleListResponse,
-        PaginationRequest
-    }
+use crate::dto::{
+    CreateRoleRequest, PaginationRequest, RoleListResponse, RoleResponse, UpdateRoleRequest,
 };
 
 // Placeholder role use case trait
@@ -82,7 +79,10 @@ impl Command for CreateRoleCommand {
 
     fn validate(&self) -> Result<(), CommandError> {
         if self.request.name.trim().is_empty() {
-            return Err(CommandError::validation("empty_name", "Role name cannot be empty"));
+            return Err(CommandError::validation(
+                "empty_name",
+                "Role name cannot be empty",
+            ));
         }
         Ok(())
     }
@@ -229,7 +229,12 @@ pub struct UpdateRoleCommand {
 }
 
 impl UpdateRoleCommand {
-    pub fn new(organization_id: Uuid, role_id: Uuid, request: UpdateRoleRequest, user_id: Uuid) -> Self {
+    pub fn new(
+        organization_id: Uuid,
+        role_id: Uuid,
+        request: UpdateRoleRequest,
+        user_id: Uuid,
+    ) -> Self {
         Self {
             command_id: Uuid::new_v4(),
             organization_id,
@@ -255,7 +260,10 @@ impl Command for UpdateRoleCommand {
     fn validate(&self) -> Result<(), CommandError> {
         if let Some(ref name) = self.request.name {
             if name.trim().is_empty() {
-                return Err(CommandError::validation("empty_name", "Role name cannot be empty"));
+                return Err(CommandError::validation(
+                    "empty_name",
+                    "Role name cannot be empty",
+                ));
             }
         }
         Ok(())
@@ -276,7 +284,12 @@ impl UpdateRoleCommandHandler {
 impl CommandHandler<UpdateRoleCommand> for UpdateRoleCommandHandler {
     async fn handle(&self, command: UpdateRoleCommand) -> Result<RoleResponse, CommandError> {
         self.role_usecase
-            .update_role(command.organization_id, command.role_id, command.request, command.user_id)
+            .update_role(
+                command.organization_id,
+                command.role_id,
+                command.request,
+                command.user_id,
+            )
             .await
             .map_err(|e| CommandError::business("update_role_failed", &e.to_string()))
     }
@@ -346,4 +359,4 @@ impl RoleErrorMapper {
     pub fn from_application_error(error: crate::ApplicationError) -> CommandError {
         CommandError::business("role_operation_failed", &error.to_string())
     }
-} 
+}

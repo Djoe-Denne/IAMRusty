@@ -7,7 +7,7 @@ mod fixtures;
 use common::setup_test_server;
 use fixtures::DbFixtures;
 use reqwest::Client;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use serial_test::serial;
 
 fn create_test_client() -> Client {

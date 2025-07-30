@@ -9,7 +9,7 @@ use common::setup_test_server;
 use fixtures::DbFixtures;
 use reqwest::Client;
 use sea_orm::ConnectionTrait;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use serial_test::serial;
 use uuid::Uuid;
 
@@ -94,12 +94,10 @@ async fn test_resend_verification_success() {
     assert!(count > 0, "New verification token should be created");
 
     // ✅ Verify email is still unverified (only resend, not auto-verify)
-    assert!(
-        user_email
-            .check(db.clone())
-            .await
-            .expect("Failed to check user email")
-    );
+    assert!(user_email
+        .check(db.clone())
+        .await
+        .expect("Failed to check user email"));
     let email_status = db
         .query_one(sea_orm::Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
@@ -635,12 +633,10 @@ async fn test_resend_verification_database_consistency() {
     );
 
     // ✅ Verify user email record is unchanged (still unverified)
-    assert!(
-        user_email
-            .check(db.clone())
-            .await
-            .expect("Failed to check user email")
-    );
+    assert!(user_email
+        .check(db.clone())
+        .await
+        .expect("Failed to check user email"));
 
     // ✅ Verify user record is unchanged
     assert!(user.check(db.clone()).await.expect("Failed to check user"));

@@ -1,13 +1,13 @@
-use axum::{
-    Router, middleware,
-};
+use axum::{middleware, Router};
+use rustycog_command::GenericCommandService;
+use rustycog_config::ServerConfig;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use rustycog_config::ServerConfig;
 use tower_http::catch_panic::CatchPanicLayer;
-use rustycog_command::GenericCommandService;
 
-use crate::{handle_panic, health_check, jwt_handler::UserIdExtractor, middleware_auth::auth_middleware};
+use crate::{
+    handle_panic, health_check, jwt_handler::UserIdExtractor, middleware_auth::auth_middleware,
+};
 
 /// Application state for HTTP handlers
 #[derive(Clone)]
@@ -49,7 +49,11 @@ impl RouteBuilder {
     }
 
     /// Add a route with a method router
-    pub fn route(mut self, path: &str, method_router: axum::routing::MethodRouter<AppState>) -> Self {
+    pub fn route(
+        mut self,
+        path: &str,
+        method_router: axum::routing::MethodRouter<AppState>,
+    ) -> Self {
         self.router = self.router.route(path, method_router);
         self
     }
@@ -100,10 +104,13 @@ impl RouteBuilder {
         H: axum::handler::Handler<T, AppState>,
         T: 'static,
     {
-        self.router = self.router.route(path, axum::routing::get(handler).route_layer(middleware::from_fn_with_state(
-            self.state.user_id_extractor.clone(),
-            auth_middleware
-        )));
+        self.router = self.router.route(
+            path,
+            axum::routing::get(handler).route_layer(middleware::from_fn_with_state(
+                self.state.user_id_extractor.clone(),
+                auth_middleware,
+            )),
+        );
         self
     }
 
@@ -113,10 +120,13 @@ impl RouteBuilder {
         H: axum::handler::Handler<T, AppState>,
         T: 'static,
     {
-        self.router = self.router.route(path, axum::routing::post(handler).route_layer(middleware::from_fn_with_state(
-            self.state.user_id_extractor.clone(),
-            auth_middleware
-        )));
+        self.router = self.router.route(
+            path,
+            axum::routing::post(handler).route_layer(middleware::from_fn_with_state(
+                self.state.user_id_extractor.clone(),
+                auth_middleware,
+            )),
+        );
         self
     }
 
@@ -126,10 +136,13 @@ impl RouteBuilder {
         H: axum::handler::Handler<T, AppState>,
         T: 'static,
     {
-        self.router = self.router.route(path, axum::routing::put(handler).route_layer(middleware::from_fn_with_state(
-            self.state.user_id_extractor.clone(),
-            auth_middleware
-        )));
+        self.router = self.router.route(
+            path,
+            axum::routing::put(handler).route_layer(middleware::from_fn_with_state(
+                self.state.user_id_extractor.clone(),
+                auth_middleware,
+            )),
+        );
         self
     }
 
@@ -139,16 +152,21 @@ impl RouteBuilder {
         H: axum::handler::Handler<T, AppState>,
         T: 'static,
     {
-        self.router = self.router.route(path, axum::routing::delete(handler).route_layer(middleware::from_fn_with_state(
-            self.state.user_id_extractor.clone(),
-            auth_middleware
-        )));
+        self.router = self.router.route(
+            path,
+            axum::routing::delete(handler).route_layer(middleware::from_fn_with_state(
+                self.state.user_id_extractor.clone(),
+                auth_middleware,
+            )),
+        );
         self
     }
 
     /// Add a health check endpoint
     pub fn health_check(mut self) -> Self {
-        self.router = self.router.route("/health", axum::routing::get(health_check));
+        self.router = self
+            .router
+            .route("/health", axum::routing::get(health_check));
         self
     }
 
@@ -161,29 +179,37 @@ impl RouteBuilder {
     /// Build the final router with panic handling
     pub async fn build(self, config: ServerConfig) -> anyhow::Result<()>
     where
-        AppState: Clone + Send + Sync + 'static
+        AppState: Clone + Send + Sync + 'static,
     {
-        let app = self.router
-        .layer(CatchPanicLayer::custom(handle_panic))
-        .with_state(self.state);
+        let app = self
+            .router
+            .layer(CatchPanicLayer::custom(handle_panic))
+            .with_state(self.state);
 
         if config.tls_enabled {
-            tracing::info!("Starting HTTPS server on {}:{}", config.host, config.tls_port);
+            tracing::info!(
+                "Starting HTTPS server on {}:{}",
+                config.host,
+                config.tls_port
+            );
 
-            let tls_config =
-                axum_server::tls_rustls::RustlsConfig::from_pem_file(config.tls_cert_path, config.tls_key_path).await?;
+            let tls_config = axum_server::tls_rustls::RustlsConfig::from_pem_file(
+                config.tls_cert_path,
+                config.tls_key_path,
+            )
+            .await?;
             let addr: SocketAddr = format!("{}:{}", config.host, config.tls_port).parse()?;
 
             axum_server::bind_rustls(addr, tls_config)
                 .serve(app.into_make_service())
-                .await?;            
+                .await?;
         } else {
             tracing::info!("Starting HTTP server on {}:{}", config.host, config.port);
             let addr: SocketAddr = format!("{}:{}", config.host, config.port).parse()?;
             let listener = tokio::net::TcpListener::bind(addr).await?;
             axum::serve(listener, app).await?;
         }
-    
+
         Ok(())
     }
 }

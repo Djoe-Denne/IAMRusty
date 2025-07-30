@@ -3,22 +3,22 @@ mod common;
 mod fixtures;
 mod utils;
 
+use chrono::{Duration, Utc};
+use iam_configuration::{load_config_part, JwtConfig};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
-use iam_configuration::{JwtConfig, load_config_part};
-use chrono::{Duration, Utc};
 
+use common::setup_test_server;
+use fixtures::DbFixtures;
+use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
+use reqwest::Client;
+use serial_test::serial;
+use tokio;
 use utils::jwt::{
     create_expired_jwt_token_with_encoder, create_invalid_jwt_token_with_encoder,
     create_valid_jwt_token_with_encoder,
 };
-use common::setup_test_server;
-use fixtures::DbFixtures;
-use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
-use reqwest::Client;
-use serial_test::serial;
-use tokio;
 
 /// Create a common HTTP client for tests
 fn create_test_client() -> Client {
@@ -124,8 +124,11 @@ async fn test_internal_provider_token_github_success_returns_access_token() {
         .expect("Failed to create provider token");
 
     // Create valid JWT token for authentication using the new encoder-based method
-    let jwt_token = create_valid_jwt_token_with_encoder(user.id(), &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"))
-        .expect("Failed to create JWT token");
+    let jwt_token = create_valid_jwt_token_with_encoder(
+        user.id(),
+        &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
+    )
+    .expect("Failed to create JWT token");
 
     // Make request to internal provider token endpoint
     let response = client
@@ -184,8 +187,11 @@ async fn test_internal_provider_token_gitlab_success_returns_access_token() {
         .expect("Failed to create provider token");
 
     // Create valid JWT token for authentication using the new encoder-based method
-    let jwt_token = create_valid_jwt_token_with_encoder(user.id(), &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"))
-        .expect("Failed to create JWT token");
+    let jwt_token = create_valid_jwt_token_with_encoder(
+        user.id(),
+        &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
+    )
+    .expect("Failed to create JWT token");
 
     // Make request to internal provider token endpoint
     let response = client
@@ -249,8 +255,11 @@ async fn test_internal_provider_token_returns_401_when_token_is_expired() {
 
     // Create expired JWT token using the new encoder-based method
     let user_id = Uuid::new_v4();
-    let expired_token = create_expired_jwt_token_with_encoder(user_id, &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"))
-        .expect("Failed to create expired JWT token");
+    let expired_token = create_expired_jwt_token_with_encoder(
+        user_id,
+        &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
+    )
+    .expect("Failed to create expired JWT token");
 
     // Make request with expired token
     let response = client
@@ -279,8 +288,11 @@ async fn test_internal_provider_token_returns_401_when_token_has_invalid_signatu
 
     // Create JWT token with invalid signature using the new encoder-based method
     let user_id = Uuid::new_v4();
-    let invalid_token = create_invalid_jwt_token_with_encoder(user_id, &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"))
-        .expect("Failed to create invalid signature JWT token");
+    let invalid_token = create_invalid_jwt_token_with_encoder(
+        user_id,
+        &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
+    )
+    .expect("Failed to create invalid signature JWT token");
 
     // Make request with invalid signature token
     let response = client
@@ -309,8 +321,11 @@ async fn test_internal_provider_token_returns_422_when_provider_is_unsupported()
 
     // Create valid JWT token using the new encoder-based method
     let user_id = Uuid::new_v4();
-    let jwt_token = create_valid_jwt_token_with_encoder(user_id, &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"))
-        .expect("Failed to create JWT token");
+    let jwt_token = create_valid_jwt_token_with_encoder(
+        user_id,
+        &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
+    )
+    .expect("Failed to create JWT token");
 
     // Test unsupported providers
     let unsupported_providers = vec!["facebook", "twitter", "linkedin", "invalid"];
@@ -350,8 +365,11 @@ async fn test_internal_provider_token_returns_404_when_no_token_for_provider() {
         .expect("Failed to create user");
 
     // Create valid JWT token for authentication using the new encoder-based method
-    let jwt_token = create_valid_jwt_token_with_encoder(user.id(), &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"))
-        .expect("Failed to create JWT token");
+    let jwt_token = create_valid_jwt_token_with_encoder(
+        user.id(),
+        &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
+    )
+    .expect("Failed to create JWT token");
 
     // Make request for GitHub token when user has no GitHub token
     let response = client
@@ -394,8 +412,11 @@ async fn test_internal_provider_token_returns_401_when_user_not_found() {
 
     // Create valid JWT token for a user that doesn't exist in database using the new encoder-based method
     let non_existent_user_id = Uuid::new_v4();
-    let jwt_token = create_valid_jwt_token_with_encoder(non_existent_user_id, &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"))
-        .expect("Failed to create JWT token");
+    let jwt_token = create_valid_jwt_token_with_encoder(
+        non_existent_user_id,
+        &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
+    )
+    .expect("Failed to create JWT token");
 
     // Make request with token for non-existent user
     let response = client
@@ -471,8 +492,11 @@ async fn test_internal_provider_token_case_insensitive_providers() {
         .expect("Failed to create provider token");
 
     // Create valid JWT token for authentication using the new encoder-based method
-    let jwt_token = create_valid_jwt_token_with_encoder(user.id(), &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"))
-        .expect("Failed to create JWT token");
+    let jwt_token = create_valid_jwt_token_with_encoder(
+        user.id(),
+        &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
+    )
+    .expect("Failed to create JWT token");
 
     // Test different case variations of GitHub
     let provider_variations = vec!["github", "GitHub", "GITHUB"];
@@ -532,8 +556,11 @@ async fn test_internal_provider_token_different_users_different_tokens() {
         .expect("Failed to create token2");
 
     // Test user 1 using the new encoder-based method
-    let jwt_token1 = create_valid_jwt_token_with_encoder(user1.id(), &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"))
-        .expect("Failed to create JWT token for user1");
+    let jwt_token1 = create_valid_jwt_token_with_encoder(
+        user1.id(),
+        &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
+    )
+    .expect("Failed to create JWT token for user1");
     let response1 = client
         .post(&format!("{}/internal/github/token", base_url))
         .header("Authorization", format!("Bearer {}", jwt_token1))
@@ -548,8 +575,11 @@ async fn test_internal_provider_token_different_users_different_tokens() {
         .expect("Should have access_token");
 
     // Test user 2 using the new encoder-based method
-    let jwt_token2 = create_valid_jwt_token_with_encoder(user2.id(), &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"))
-        .expect("Failed to create JWT token for user2");
+    let jwt_token2 = create_valid_jwt_token_with_encoder(
+        user2.id(),
+        &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
+    )
+    .expect("Failed to create JWT token for user2");
     let response2 = client
         .post(&format!("{}/internal/github/token", base_url))
         .header("Authorization", format!("Bearer {}", jwt_token2))
@@ -609,8 +639,11 @@ async fn test_internal_provider_token_user_with_multiple_providers() {
         .expect("Failed to create GitLab token");
 
     // Create valid JWT token for authentication using the new encoder-based method
-    let jwt_token = create_valid_jwt_token_with_encoder(user.id(), &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"))
-        .expect("Failed to create JWT token");
+    let jwt_token = create_valid_jwt_token_with_encoder(
+        user.id(),
+        &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
+    )
+    .expect("Failed to create JWT token");
 
     // Test GitHub token retrieval
     let github_response = client
@@ -661,8 +694,11 @@ async fn test_internal_provider_token_concurrent_requests_same_user() {
         .expect("Failed to create provider token");
 
     // Create valid JWT token for authentication using the new encoder-based method
-    let jwt_token = create_valid_jwt_token_with_encoder(user.id(), &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"))
-        .expect("Failed to create JWT token");
+    let jwt_token = create_valid_jwt_token_with_encoder(
+        user.id(),
+        &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
+    )
+    .expect("Failed to create JWT token");
 
     // Make multiple concurrent requests
     let concurrent_requests = 5;

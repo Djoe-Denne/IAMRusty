@@ -11,10 +11,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create and initialize application
     let app = Application::new(config).await?;
 
-    tracing::info!("Hive service is ready! Listening on {}", app.server_address());
+    tracing::info!(
+        "Hive service is ready! Listening on {}",
+        app.server_address()
+    );
 
     // Start the HTTP server
     app.serve().await?;
 
     Ok(())
-} 
+}

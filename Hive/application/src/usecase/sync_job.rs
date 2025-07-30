@@ -2,16 +2,16 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use hive_domain::{DomainError, port::repository::SyncJobRepository};
-use hive_events::{SyncJobStartedEvent, SyncJobCompletedEvent, event_types};
-use rustycog_events::{MultiQueueEventPublisher, DomainEvent};
+use hive_domain::{port::repository::SyncJobRepository, DomainError};
+use hive_events::{event_types, SyncJobCompletedEvent, SyncJobStartedEvent};
+use rustycog_events::{DomainEvent, MultiQueueEventPublisher};
 
 use crate::{
-    ApplicationError,
     dto::{
-        StartSyncJobRequest, SyncJobResponse, SyncJobListResponse,
-        SyncJobStatusResponse, SyncJobLogsResponse
-    }
+        StartSyncJobRequest, SyncJobListResponse, SyncJobLogsResponse, SyncJobResponse,
+        SyncJobStatusResponse,
+    },
+    ApplicationError,
 };
 
 #[async_trait]
@@ -48,9 +48,9 @@ impl SyncJobUseCase for SyncJobUseCaseImpl {
         request: StartSyncJobRequest,
     ) -> Result<SyncJobResponse, ApplicationError> {
         // TODO: Implement sync job creation
-        
+
         let job_id = Uuid::new_v4();
-        
+
         // Publish started event
         let event = SyncJobStartedEvent {
             organization_id,
@@ -60,15 +60,13 @@ impl SyncJobUseCase for SyncJobUseCaseImpl {
             started_at: chrono::Utc::now(),
         };
 
-        let domain_event: Box<dyn DomainEvent> = Box::new(
-            rustycog_events::event::Event::new(
-                event_types::SYNC_JOB_STARTED,
-                serde_json::to_value(event).map_err(|e| {
-                    ApplicationError::internal_error(&format!("Failed to serialize event: {}", e))
-                })?,
-                organization_id,
-            )
-        );
+        let domain_event: Box<dyn DomainEvent> = Box::new(rustycog_events::event::Event::new(
+            event_types::SYNC_JOB_STARTED,
+            serde_json::to_value(event).map_err(|e| {
+                ApplicationError::internal_error(&format!("Failed to serialize event: {}", e))
+            })?,
+            organization_id,
+        ));
 
         self.event_publisher
             .publish(&domain_event)
@@ -91,4 +89,4 @@ impl SyncJobUseCase for SyncJobUseCaseImpl {
             details: None,
         })
     }
-} 
+}

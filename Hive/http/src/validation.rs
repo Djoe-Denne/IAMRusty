@@ -4,10 +4,10 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Json},
 };
+use chrono;
 use hive_application::{ApiErrorResponse, ApiValidationError};
 use serde::de::DeserializeOwned;
 use validator::Validate;
-use chrono;
 
 use crate::error::HttpError;
 
@@ -23,11 +23,12 @@ where
     type Rejection = HttpError;
 
     async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection> {
-        let Json(value) = Json::<T>::from_request(req, state).await.map_err(|_| {
-            HttpError::Validation {
-                message: "Invalid JSON payload".to_string(),
-            }
-        })?;
+        let Json(value) =
+            Json::<T>::from_request(req, state)
+                .await
+                .map_err(|_| HttpError::Validation {
+                    message: "Invalid JSON payload".to_string(),
+                })?;
 
         // Validate the payload
         match value.validate() {
@@ -101,4 +102,4 @@ pub fn validate_pagination(
     }
 
     Ok((page, page_size))
-} 
+}

@@ -9,4 +9,4 @@ pub use common::*;
 pub use db::*;
 pub use events::*;
 pub use http::*;
-pub use wiremock::*; 
+pub use wiremock::*;

@@ -3,4 +3,4 @@ pub mod config;
 
 // Re-export key types
 pub use app::*;
-pub use config::*; 
+pub use config::*;

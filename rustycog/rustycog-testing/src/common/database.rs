@@ -3,15 +3,15 @@
 //! This module provides a single PostgreSQL container for all tests with table truncation
 //! between tests to ensure test isolation while maintaining performance.
 
-use rustycog_config::{ConfigLoader, DatabaseConfig, HasDbConfig};
-use crate::common::ServiceTestDescriptor;
 use crate::common::sqs_testcontainer::TestSqs;
+use crate::common::ServiceTestDescriptor;
+use rustycog_config::{ConfigLoader, DatabaseConfig, HasDbConfig};
 use rustycog_db::DbConnectionPool;
 use sea_orm::{ConnectionTrait, Database, DatabaseConnection, DbErr, Statement};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::sync::OnceLock;
-use std::sync::atomic::{AtomicBool, Ordering};
-use testcontainers::{ContainerAsync, GenericImage, ImageExt, runners::AsyncRunner};
+use testcontainers::{runners::AsyncRunner, ContainerAsync, GenericImage, ImageExt};
 use tokio::sync::Mutex;
 use tracing::{debug, info, warn};
 
@@ -56,7 +56,10 @@ pub struct TestDatabase {
 impl TestDatabase {
     /// Get or create the global test database instance
     pub async fn new<D, T>(descriptor: Arc<D>) -> Result<Self, DbErr>
-    where D: ServiceTestDescriptor<T>, T: Send + Sync + 'static {
+    where
+        D: ServiceTestDescriptor<T>,
+        T: Send + Sync + 'static,
+    {
         let container = get_or_create_test_container().await?;
         let database_url = container.database_url.clone();
 
@@ -75,10 +78,19 @@ impl TestDatabase {
     }
 
     /// Run database migrations
-    async fn run_migrations<D, T>(descriptor: Arc<D>, connection: &DatabaseConnection) -> Result<(), DbErr>
-    where D: ServiceTestDescriptor<T>, T: Send + Sync + 'static {
+    async fn run_migrations<D, T>(
+        descriptor: Arc<D>,
+        connection: &DatabaseConnection,
+    ) -> Result<(), DbErr>
+    where
+        D: ServiceTestDescriptor<T>,
+        T: Send + Sync + 'static,
+    {
         info!("Running database migrations for test database");
-        descriptor.run_migrations(connection).await.map_err(|e| DbErr::Custom(e.to_string()))?;
+        descriptor
+            .run_migrations(connection)
+            .await
+            .map_err(|e| DbErr::Custom(e.to_string()))?;
         info!("Database migrations completed successfully");
         Ok(())
     }
@@ -276,7 +288,7 @@ async fn cleanup_existing_container() {
 
 /// Wait for the database to be ready for connections
 async fn wait_for_database(database_url: &str) -> Result<(), DbErr> {
-    use tokio::time::{Duration, sleep, timeout};
+    use tokio::time::{sleep, timeout, Duration};
 
     info!("Waiting for database to be ready...");
 
@@ -357,8 +369,7 @@ async fn register_cleanup_handler() {
 }
 
 /// Create a base test configuration
-fn create_base_test_config() -> DatabaseConfig 
-{
+fn create_base_test_config() -> DatabaseConfig {
     // Load configuration from test.toml
     // The RUN_ENV=test environment variable should be set by the justfile
     rustycog_config::load_config_part::<DatabaseConfig>("database").expect(
@@ -377,11 +388,16 @@ pub struct TestFixture {
 impl TestFixture {
     /// Create a new test fixture with database cleanup
     pub async fn new<D, T>(descriptor: Arc<D>) -> Result<Self, DbErr>
-    where D: ServiceTestDescriptor<T>, T: Send + Sync + 'static {
+    where
+        D: ServiceTestDescriptor<T>,
+        T: Send + Sync + 'static,
+    {
         let database = if descriptor.has_db() {
-            Some(TestDatabase::new(descriptor.clone())
-                .await
-                .expect("Failed to create test database"))
+            Some(
+                TestDatabase::new(descriptor.clone())
+                    .await
+                    .expect("Failed to create test database"),
+            )
         } else {
             None
         };

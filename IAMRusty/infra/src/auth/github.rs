@@ -1,21 +1,18 @@
-use iam_application::auth::{AuthError, OAuthService};
 use async_trait::async_trait;
+use iam_application::auth::{AuthError, OAuthService};
 use iam_configuration::GitHubConfig;
 use iam_domain::entity::provider::{Provider, ProviderTokens, ProviderUserProfile};
 use iam_domain::error::DomainError;
 use iam_domain::port::service::ProviderOAuth2Client;
 use oauth2::{
-    basic::BasicClient, reqwest::{Error}, HttpRequest, HttpResponse, AuthUrl, AuthorizationCode, ClientId,
-    ClientSecret, RedirectUrl, TokenResponse, TokenUrl,
+    basic::BasicClient, reqwest::Error, AuthUrl, AuthorizationCode, ClientId, ClientSecret,
+    HttpRequest, HttpResponse, RedirectUrl, TokenResponse, TokenUrl,
 };
 use serde::Deserialize;
 use std::env;
 use tracing::{debug, error};
 
-
-async fn async_http_client(
-    request: HttpRequest,
-) -> Result<HttpResponse, Error<reqwest::Error>> {
+async fn async_http_client(request: HttpRequest) -> Result<HttpResponse, Error<reqwest::Error>> {
     let client = {
         let builder = reqwest::Client::builder();
 
@@ -28,7 +25,10 @@ async fn async_http_client(
     };
 
     debug!("request: {:?}", request);
-    debug!("string body: {:?}", String::from_utf8(request.body.clone()).unwrap());
+    debug!(
+        "string body: {:?}",
+        String::from_utf8(request.body.clone()).unwrap()
+    );
 
     let mut request_builder = client
         .request(request.method, request.url.as_str())
@@ -43,7 +43,10 @@ async fn async_http_client(
     let status_code = response.status();
     let headers = response.headers().to_owned();
     let chunks = response.bytes().await.map_err(Error::Reqwest)?;
-    debug!("response body: {:?}", String::from_utf8(chunks.to_vec()).unwrap());
+    debug!(
+        "response body: {:?}",
+        String::from_utf8(chunks.to_vec()).unwrap()
+    );
     Ok(HttpResponse {
         status_code,
         headers,
@@ -102,10 +105,9 @@ impl GitHubOAuth2Client {
         )
         .set_redirect_uri(RedirectUrl::new(redirect_url).unwrap());
 
-
-        Self { 
-            client, 
-            user_url, 
+        Self {
+            client,
+            user_url,
             client_secret,
         }
     }
@@ -196,9 +198,11 @@ impl ProviderOAuth2Client for GitHubOAuth2Client {
             })?;
 
         // If email is null or empty, fetch from emails API
-        let email = if github_user.email.is_none() || github_user.email.as_ref().map_or(true, |e| e.is_empty()) {
+        let email = if github_user.email.is_none()
+            || github_user.email.as_ref().map_or(true, |e| e.is_empty())
+        {
             debug!("User email is null or empty, fetching from emails API");
-            
+
             let emails_url = format!("{}/emails", self.user_url);
             let github_emails = client
                 .get(&emails_url)
@@ -209,7 +213,10 @@ impl ProviderOAuth2Client for GitHubOAuth2Client {
                 .await
                 .map_err(|e| {
                     error!("Failed to fetch GitHub user emails: {}", e);
-                    DomainError::UserProfileError(format!("GitHub emails API request failed: {}", e))
+                    DomainError::UserProfileError(format!(
+                        "GitHub emails API request failed: {}",
+                        e
+                    ))
                 })?
                 .json::<Vec<GitHubEmail>>()
                 .await
@@ -258,7 +265,9 @@ impl OAuthService for GitHubOAuth2Client {
 
     fn generate_relink_authorize_url(&self) -> String {
         // For relink, we need to modify the redirect URI to use relink-callback
-        let redirect_uri = self.client.redirect_url()
+        let redirect_uri = self
+            .client
+            .redirect_url()
             .map(|url| {
                 let url_str = url.as_str();
                 // Replace /callback with /relink-callback

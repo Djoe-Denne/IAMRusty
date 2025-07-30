@@ -3,21 +3,24 @@
 //! This crate provides reusable HTTP components and utilities for building
 //! web APIs with consistent error handling, validation, and middleware.
 
+pub mod builder;
 pub mod error;
 pub mod extractors;
-pub mod middleware_auth;
-pub mod builder;
-pub mod jwt_handler;
 pub mod jwt;
+pub mod jwt_handler;
+pub mod middleware_auth;
 
+pub use builder::{AppState, RouteBuilder};
 pub use error::{GenericHttpError, ValidationError};
 pub use extractors::ValidatedJson;
-pub use middleware_auth::{AuthUser, auth_middleware};
-pub use builder::{RouteBuilder, AppState};
-pub use jwt_handler::{UserIdExtractor, UserIdExtractionHandler};
-pub use jwt::{TokenClaims};
+pub use jwt::TokenClaims;
+pub use jwt_handler::{UserIdExtractionHandler, UserIdExtractor};
+pub use middleware_auth::{auth_middleware, AuthUser};
 
-use axum::{http::StatusCode, response::{Json, IntoResponse}};
+use axum::{
+    http::StatusCode,
+    response::{IntoResponse, Json},
+};
 use serde_json::json;
 
 /// Health check handler
@@ -45,4 +48,4 @@ pub fn handle_panic(err: Box<dyn std::any::Any + Send + 'static>) -> axum::respo
     }));
 
     (StatusCode::INTERNAL_SERVER_ERROR, body).into_response()
-} 
+}

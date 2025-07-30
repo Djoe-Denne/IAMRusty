@@ -11,9 +11,9 @@ use crate::port::{
     repository::{EmailVerificationRepository, UserEmailRepository, UserRepository},
     service::{AuthTokenService, RegistrationTokenService},
 };
-use rustycog_events::event::EventPublisher;
 use async_trait::async_trait;
 use chrono::Utc;
+use rustycog_events::event::EventPublisher;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use thiserror::Error;
@@ -229,11 +229,9 @@ where
             debug!("Generating test/QA verification token");
             "VALIDATION_TOKEN".to_string()
         }
-        #[cfg(not(any(test, feature = "test-mode")))] 
+        #[cfg(not(any(test, feature = "test-mode")))]
         Uuid::new_v4().to_string()
     }
-
-
 
     pub async fn signup(&self, request: SignupRequest) -> Result<SignupResponse, AuthError> {
         // Check if user already exists by email
@@ -443,11 +441,13 @@ where
             .map_err(|e| AuthError::TokenServiceError(Box::new(e)))?;
 
         // Publish UserLoggedIn event
-        let event: Box<dyn rustycog_events::event::DomainEvent + 'static> = DomainEvent::UserLoggedIn(UserLoggedInEvent::new(
-            user.id,
-            request.email.clone(),
-            "email_password".to_string(),
-        )).into();
+        let event: Box<dyn rustycog_events::event::DomainEvent + 'static> =
+            DomainEvent::UserLoggedIn(UserLoggedInEvent::new(
+                user.id,
+                request.email.clone(),
+                "email_password".to_string(),
+            ))
+            .into();
 
         if let Err(e) = self.event_publisher.publish(&event).await {
             tracing::warn!("Failed to publish UserLoggedIn event: {}", e);
@@ -623,14 +623,16 @@ where
                             if let Some(username) = user.username {
                                 // Publish event to trigger email service
                                 // Telegraph will build the verification URL from environment variables
-                                let event: Box<dyn rustycog_events::event::DomainEvent + 'static> = DomainEvent::UserSignedUp(UserSignedUpEvent::new(
-                                    user_email.user_id,
-                                    request.email.clone(),
-                                    username,
-                                    false,
-                                    Some(email_verification.verification_token.clone()), 
-                                    Some(utils::UrlUtils::build_verification_url()),
-                                )).into();
+                                let event: Box<dyn rustycog_events::event::DomainEvent + 'static> =
+                                    DomainEvent::UserSignedUp(UserSignedUpEvent::new(
+                                        user_email.user_id,
+                                        request.email.clone(),
+                                        username,
+                                        false,
+                                        Some(email_verification.verification_token.clone()),
+                                        Some(utils::UrlUtils::build_verification_url()),
+                                    ))
+                                    .into();
 
                                 if let Err(e) = self.event_publisher.publish(&event).await {
                                     tracing::warn!("Failed to publish UserSignedUp event: {}", e);

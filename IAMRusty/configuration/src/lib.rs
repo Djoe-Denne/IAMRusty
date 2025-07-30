@@ -5,13 +5,15 @@
 
 // Re-export core configuration from rustycog-config
 pub use rustycog_config::{
-    clear_all_caches, generate_default_config_toml, load_config_fresh, load_config_with_cache,
-    load_config_part, setup_logging, CommandConfig, CommandRetryConfig, ConfigError, DatabaseConfig,
-    DatabaseCredentials, KafkaConfig, LoggingConfig, QueueConfig, ServerConfig,
+    clear_all_caches, generate_default_config_toml, load_config_fresh, load_config_part,
+    load_config_with_cache, setup_logging, CommandConfig, CommandRetryConfig, ConfigError,
+    DatabaseConfig, DatabaseCredentials, KafkaConfig, LoggingConfig, QueueConfig, ServerConfig,
     SqsConfig,
 };
 
-use rustycog_config::{ConfigCache, ConfigLoader, HasDbConfig, HasQueueConfig, HasServerConfig, HasLoggingConfig};
+use rustycog_config::{
+    ConfigCache, ConfigLoader, HasDbConfig, HasLoggingConfig, HasQueueConfig, HasServerConfig,
+};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -263,7 +265,9 @@ impl JwtConfig {
 impl Default for JwtConfig {
     fn default() -> Self {
         Self {
-            secret: SecretStorage::PlainText { value: "".to_string() },
+            secret: SecretStorage::PlainText {
+                value: "".to_string(),
+            },
             expiration_seconds: default_jwt_expiration(),
             refresh_token_expiration_seconds: default_refresh_token_expiration(),
         }
@@ -454,7 +458,6 @@ impl ConfigLoader<AppConfig> for AppConfig {
 }
 
 impl HasDbConfig for AppConfig {
-
     fn db_config(&self) -> &DatabaseConfig {
         &self.database
     }
@@ -475,7 +478,6 @@ impl HasQueueConfig for AppConfig {
 }
 
 impl HasServerConfig for AppConfig {
-
     fn server_config(&self) -> &ServerConfig {
         &self.server
     }
@@ -486,7 +488,6 @@ impl HasServerConfig for AppConfig {
 }
 
 impl HasLoggingConfig for AppConfig {
-
     fn logging_config(&self) -> &LoggingConfig {
         &self.logging
     }

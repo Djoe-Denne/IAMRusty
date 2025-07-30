@@ -29,21 +29,13 @@ impl MigrationTrait for Migration {
                             .not_null()
                             .unique_key(),
                     )
-                    .col(
-                        ColumnDef::new(Organizations::Description)
-                            .text()
-                            .null(),
-                    )
+                    .col(ColumnDef::new(Organizations::Description).text().null())
                     .col(
                         ColumnDef::new(Organizations::AvatarUrl)
                             .string_len(500)
                             .null(),
                     )
-                    .col(
-                        ColumnDef::new(Organizations::OwnerUserId)
-                            .uuid()
-                            .not_null(),
-                    )
+                    .col(ColumnDef::new(Organizations::OwnerUserId).uuid().not_null())
                     .col(
                         ColumnDef::new(Organizations::Settings)
                             .json_binary()
@@ -122,4 +114,4 @@ enum Organizations {
     Settings,
     CreatedAt,
     UpdatedAt,
-} 
+}

@@ -1,14 +1,14 @@
 use async_trait::async_trait;
+use rustycog_command::{Command, CommandError, CommandHandler};
 use std::sync::Arc;
 use uuid::Uuid;
-use rustycog_command::{Command, CommandHandler, CommandError};
 
 use crate::{
-    usecase::ExternalLinkUseCase,
     dto::{
-        CreateExternalLinkRequest, UpdateExternalLinkRequest, ToggleSyncRequest,
-        ExternalLinkResponse, ExternalLinkListResponse, ConnectionTestResponse
-    }
+        ConnectionTestResponse, CreateExternalLinkRequest, ExternalLinkListResponse,
+        ExternalLinkResponse, ToggleSyncRequest, UpdateExternalLinkRequest,
+    },
+    usecase::ExternalLinkUseCase,
 };
 
 #[derive(Debug, Clone)]
@@ -53,13 +53,18 @@ pub struct CreateExternalLinkCommandHandler {
 
 impl CreateExternalLinkCommandHandler {
     pub fn new(external_link_usecase: Arc<dyn ExternalLinkUseCase>) -> Self {
-        Self { external_link_usecase }
+        Self {
+            external_link_usecase,
+        }
     }
 }
 
 #[async_trait]
 impl CommandHandler<CreateExternalLinkCommand> for CreateExternalLinkCommandHandler {
-    async fn handle(&self, command: CreateExternalLinkCommand) -> Result<ExternalLinkResponse, CommandError> {
+    async fn handle(
+        &self,
+        command: CreateExternalLinkCommand,
+    ) -> Result<ExternalLinkResponse, CommandError> {
         self.external_link_usecase
             .create_link(command.organization_id, command.request, command.user_id)
             .await
@@ -73,4 +78,4 @@ impl ExternalLinkErrorMapper {
     pub fn from_application_error(error: crate::ApplicationError) -> CommandError {
         CommandError::business("external_link_operation_failed", &error.to_string())
     }
-} 
+}

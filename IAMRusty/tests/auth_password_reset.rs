@@ -7,10 +7,10 @@ mod utils;
 
 use common::{setup_test_server, setup_test_server_with_mock_events};
 use fixtures::DbFixtures;
+use iam_domain::entity::events::{IamDomainEvent, PasswordResetRequestedEvent};
 use reqwest::StatusCode;
 use serde_json::{json, Value};
 use serial_test::serial;
-use iam_domain::entity::events::{PasswordResetRequestedEvent, IamDomainEvent};
 
 // 🔐 Password Reset Tests
 // Tests for the complete password reset flow: request → validate → confirm
@@ -33,7 +33,7 @@ async fn test_password_reset_request_existing_user_success() {
     // Create a user with email/password authentication
     let user_email = "reset-test@example.com";
     let user_password = "securepassword123";
-    
+
     DbFixtures::create_user_with_email_password(
         &fixture.db(),
         user_email,
@@ -56,7 +56,7 @@ async fn test_password_reset_request_existing_user_success() {
 
     // ✅ Should return 200 for security (no user enumeration)
     assert_eq!(response.status(), StatusCode::OK);
-    
+
     let body: Value = response.json().await.expect("Failed to parse response");
     assert!(body["message"]
         .as_str()
@@ -65,19 +65,29 @@ async fn test_password_reset_request_existing_user_success() {
 
     // ✅ VERIFY: Event should be published for valid password reset request
     let events = mock_event_publisher.get_published_events();
-    assert_eq!(events.len(), 1, "Should publish exactly one event for valid password reset");
-    
+    assert_eq!(
+        events.len(),
+        1,
+        "Should publish exactly one event for valid password reset"
+    );
+
     let event = &events[0];
-    assert_eq!(event.event_type, "password_reset_requested", "Event should be PasswordResetRequested");
-    
+    assert_eq!(
+        event.event_type, "password_reset_requested",
+        "Event should be PasswordResetRequested"
+    );
+
     // Parse the JSON data as IamDomainEvent to handle the envelope structure
     let event_domain: IamDomainEvent = serde_json::from_str(event.json_data.as_str()).unwrap();
-    
+
     // Extract the PasswordResetRequested event
     match event_domain {
         IamDomainEvent::PasswordResetRequested(password_reset_event) => {
             // Check the email in the event data
-            assert_eq!(password_reset_event.email, user_email, "Event should contain the correct email");
+            assert_eq!(
+                password_reset_event.email, user_email,
+                "Event should contain the correct email"
+            );
         }
         _ => panic!("Expected PasswordResetRequested event"),
     }
@@ -107,7 +117,7 @@ async fn test_password_reset_request_nonexistent_email_security() {
 
     // ✅ Should return 200 for security (no user enumeration)
     assert_eq!(response.status(), StatusCode::OK);
-    
+
     let body: Value = response.json().await.expect("Failed to parse response");
     assert!(body["message"]
         .as_str()
@@ -116,7 +126,11 @@ async fn test_password_reset_request_nonexistent_email_security() {
 
     // ✅ VERIFY: NO event should be published for non-existent email (security)
     let events = mock_event_publisher.get_published_events();
-    assert_eq!(events.len(), 0, "Should NOT publish any events for non-existent email");
+    assert_eq!(
+        events.len(),
+        0,
+        "Should NOT publish any events for non-existent email"
+    );
 }
 
 /// Tests password reset request for a user who only has OAuth authentication (no password).
@@ -153,7 +167,7 @@ async fn test_password_reset_request_oauth_only_user_security() {
 
     // ✅ Should return 200 for security (no user enumeration)
     assert_eq!(response.status(), StatusCode::OK);
-    
+
     let body: Value = response.json().await.expect("Failed to parse response");
     assert!(body["message"]
         .as_str()
@@ -162,7 +176,11 @@ async fn test_password_reset_request_oauth_only_user_security() {
 
     // ✅ VERIFY: NO event should be published for OAuth-only user (security)
     let events = mock_event_publisher.get_published_events();
-    assert_eq!(events.len(), 0, "Should NOT publish any events for OAuth-only user without password");
+    assert_eq!(
+        events.len(),
+        0,
+        "Should NOT publish any events for OAuth-only user without password"
+    );
 }
 
 /// Tests password reset request with various invalid email formats.
@@ -272,10 +290,10 @@ async fn test_password_reset_validate_valid_token() {
         .await
         .expect("Failed to setup test server");
 
-    // Create user and generate reset token  
+    // Create user and generate reset token
     let user_email = "validate-test@example.com";
     let user_password = "securepassword123";
-    
+
     let user = DbFixtures::create_user_with_email_password(
         &fixture.db(),
         user_email,
@@ -305,10 +323,10 @@ async fn test_password_reset_validate_valid_token() {
 
     // ✅ Should return 200 for valid token
     assert_eq!(response.status(), StatusCode::OK);
-    
+
     let body: Value = response.json().await.expect("Failed to parse response");
     assert_eq!(body["valid"], true);
-    
+
     // Email should be masked for privacy
     let masked_email = body["email"].as_str().unwrap();
     assert!(masked_email.contains("*"));
@@ -328,7 +346,7 @@ async fn test_password_reset_validate_expired_token() {
     // Create user and generate expired reset token
     let user_email = "expired-test@example.com";
     let user_password = "securepassword123";
-    
+
     let user = DbFixtures::create_user_with_email_password(
         &fixture.db(),
         user_email,
@@ -358,7 +376,7 @@ async fn test_password_reset_validate_expired_token() {
 
     // ✅ Should return 400 for expired token
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-    
+
     let body: Value = response.json().await.expect("Failed to parse response");
     assert!(body["error"]["message"]
         .as_str()
@@ -379,7 +397,7 @@ async fn test_password_reset_validate_used_token() {
     // Create user and generate used reset token
     let user_email = "used-test@example.com";
     let user_password = "securepassword123";
-    
+
     let user = DbFixtures::create_user_with_email_password(
         &fixture.db(),
         user_email,
@@ -409,7 +427,7 @@ async fn test_password_reset_validate_used_token() {
 
     // ✅ Should return 400 for used token
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-    
+
     let body: Value = response.json().await.expect("Failed to parse response");
     assert!(body["error"]["message"]
         .as_str()
@@ -440,7 +458,7 @@ async fn test_password_reset_validate_invalid_token() {
 
     // ✅ Should return 400 for invalid token
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-    
+
     let body: Value = response.json().await.expect("Failed to parse response");
     assert!(body["error"]["message"]
         .as_str()
@@ -489,7 +507,7 @@ async fn test_password_reset_confirm_unauthenticated_success() {
     let user_email = "reset-confirm-test@example.com";
     let old_password = "oldpassword123";
     let new_password = "newpassword456";
-    
+
     let user = DbFixtures::create_user_with_email_password(
         &fixture.db(),
         user_email,
@@ -520,16 +538,20 @@ async fn test_password_reset_confirm_unauthenticated_success() {
 
     // ✅ Should return 200 for successful reset
     assert_eq!(response.status(), StatusCode::OK);
-    
+
     let body: Value = response.json().await.expect("Failed to parse response");
     assert!(body["message"]
         .as_str()
         .unwrap()
         .contains("successfully reset"));
-    
+
     // Should not return auth tokens - user must log in manually after password reset
-    assert!(body["access_token"].is_null() || !body.as_object().unwrap().contains_key("access_token"));
-    assert!(body["refresh_token"].is_null() || !body.as_object().unwrap().contains_key("refresh_token"));
+    assert!(
+        body["access_token"].is_null() || !body.as_object().unwrap().contains_key("access_token")
+    );
+    assert!(
+        body["refresh_token"].is_null() || !body.as_object().unwrap().contains_key("refresh_token")
+    );
     assert!(body["user"].is_null() || !body.as_object().unwrap().contains_key("user"));
     assert!(body["expires_in"].is_null() || !body.as_object().unwrap().contains_key("expires_in"));
 
@@ -575,7 +597,7 @@ async fn test_password_reset_confirm_token_reuse_prevention() {
     // Create user and generate reset token
     let user_email = "reuse-test@example.com";
     let user_password = "oldpassword123";
-    
+
     let user = DbFixtures::create_user_with_email_password(
         &fixture.db(),
         user_email,
@@ -620,7 +642,7 @@ async fn test_password_reset_confirm_token_reuse_prevention() {
 
     // ✅ Should fail - token should be invalidated after first use
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-    
+
     let body: Value = response.json().await.expect("Failed to parse response");
     assert!(body["error"]["message"]
         .as_str()
@@ -641,7 +663,7 @@ async fn test_password_reset_confirm_weak_password() {
     // Create user and generate reset token
     let user_email = "weak-password-test@example.com";
     let user_password = "oldpassword123";
-    
+
     let user = DbFixtures::create_user_with_email_password(
         &fixture.db(),
         user_email,
@@ -659,9 +681,9 @@ async fn test_password_reset_confirm_weak_password() {
     let reset_token = reset_token_fixture.token();
 
     let weak_passwords = vec![
-        "",         // Empty
-        "123",      // Too short
-        "1234567",  // Still too short (< 8 chars)
+        "",        // Empty
+        "123",     // Too short
+        "1234567", // Still too short (< 8 chars)
     ];
 
     for weak_password in weak_passwords {
@@ -710,7 +732,7 @@ async fn test_password_reset_confirm_invalid_token() {
 
     // ✅ Should return 400 for invalid token
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-    
+
     let body: Value = response.json().await.expect("Failed to parse response");
     assert!(body["error"]["message"]
         .as_str()
@@ -771,7 +793,7 @@ async fn test_password_reset_authenticated_success() {
     let user_email = "auth-reset-test@example.com";
     let current_password = "currentpassword123";
     let new_password = "newpassword456";
-    
+
     let user = DbFixtures::create_user_with_email_password(
         &fixture.db(),
         user_email,
@@ -794,12 +816,18 @@ async fn test_password_reset_authenticated_success() {
         .expect("Failed to send login request");
 
     assert_eq!(login_response.status(), StatusCode::OK);
-    let login_body: Value = login_response.json().await.expect("Failed to parse login response");
+    let login_body: Value = login_response
+        .json()
+        .await
+        .expect("Failed to parse login response");
     let access_token = login_body["access_token"].as_str().unwrap();
 
     // Reset password with authentication
     let response = client
-        .post(&format!("{}/api/auth/password/reset-authenticated", base_url))
+        .post(&format!(
+            "{}/api/auth/password/reset-authenticated",
+            base_url
+        ))
         .header("Content-Type", "application/json")
         .header("Authorization", format!("Bearer {}", access_token))
         .json(&json!({
@@ -812,16 +840,20 @@ async fn test_password_reset_authenticated_success() {
 
     // ✅ Should return 200 for successful password change
     assert_eq!(response.status(), StatusCode::OK);
-    
+
     let body: Value = response.json().await.expect("Failed to parse response");
     assert!(body["message"]
         .as_str()
         .unwrap()
         .contains("successfully changed"));
-    
+
     // Should not return auth tokens - user remains authenticated with existing token
-    assert!(body["access_token"].is_null() || !body.as_object().unwrap().contains_key("access_token"));
-    assert!(body["refresh_token"].is_null() || !body.as_object().unwrap().contains_key("refresh_token"));
+    assert!(
+        body["access_token"].is_null() || !body.as_object().unwrap().contains_key("access_token")
+    );
+    assert!(
+        body["refresh_token"].is_null() || !body.as_object().unwrap().contains_key("refresh_token")
+    );
     assert!(body["user"].is_null() || !body.as_object().unwrap().contains_key("user"));
     assert!(body["expires_in"].is_null() || !body.as_object().unwrap().contains_key("expires_in"));
 
@@ -867,7 +899,7 @@ async fn test_password_reset_authenticated_wrong_current_password() {
     // Create user and login
     let user_email = "wrong-password-test@example.com";
     let current_password = "currentpassword123";
-    
+
     DbFixtures::create_user_with_email_password(
         &fixture.db(),
         user_email,
@@ -889,12 +921,18 @@ async fn test_password_reset_authenticated_wrong_current_password() {
         .await
         .expect("Failed to send login request");
 
-    let login_body: Value = login_response.json().await.expect("Failed to parse login response");
+    let login_body: Value = login_response
+        .json()
+        .await
+        .expect("Failed to parse login response");
     let access_token = login_body["access_token"].as_str().unwrap();
 
     // Try to reset password with wrong current password
     let response = client
-        .post(&format!("{}/api/auth/password/reset-authenticated", base_url))
+        .post(&format!(
+            "{}/api/auth/password/reset-authenticated",
+            base_url
+        ))
         .header("Content-Type", "application/json")
         .header("Authorization", format!("Bearer {}", access_token))
         .json(&json!({
@@ -907,7 +945,7 @@ async fn test_password_reset_authenticated_wrong_current_password() {
 
     // ✅ Should return 400 for incorrect current password
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-    
+
     let body: Value = response.json().await.expect("Failed to parse response");
     assert!(body["error"]["message"]
         .as_str()
@@ -927,7 +965,10 @@ async fn test_password_reset_authenticated_no_auth_header() {
 
     // Try to reset password without authentication
     let response = client
-        .post(&format!("{}/api/auth/password/reset-authenticated", base_url))
+        .post(&format!(
+            "{}/api/auth/password/reset-authenticated",
+            base_url
+        ))
         .header("Content-Type", "application/json")
         .json(&json!({
             "current_password": "currentpassword123",
@@ -953,7 +994,10 @@ async fn test_password_reset_authenticated_invalid_token() {
 
     // Try to reset password with invalid token
     let response = client
-        .post(&format!("{}/api/auth/password/reset-authenticated", base_url))
+        .post(&format!(
+            "{}/api/auth/password/reset-authenticated",
+            base_url
+        ))
         .header("Content-Type", "application/json")
         .header("Authorization", "Bearer invalid-jwt-token")
         .json(&json!({
@@ -981,7 +1025,7 @@ async fn test_password_reset_authenticated_weak_password() {
     // Create user and login
     let user_email = "weak-auth-test@example.com";
     let current_password = "currentpassword123";
-    
+
     DbFixtures::create_user_with_email_password(
         &fixture.db(),
         user_email,
@@ -1003,14 +1047,20 @@ async fn test_password_reset_authenticated_weak_password() {
         .await
         .expect("Failed to send login request");
 
-    let login_body: Value = login_response.json().await.expect("Failed to parse login response");
+    let login_body: Value = login_response
+        .json()
+        .await
+        .expect("Failed to parse login response");
     let access_token = login_body["access_token"].as_str().unwrap();
 
     let weak_passwords = vec!["", "123", "1234567"];
 
     for weak_password in weak_passwords {
         let response = client
-            .post(&format!("{}/api/auth/password/reset-authenticated", base_url))
+            .post(&format!(
+                "{}/api/auth/password/reset-authenticated",
+                base_url
+            ))
             .header("Content-Type", "application/json")
             .header("Authorization", format!("Bearer {}", access_token))
             .json(&json!({
@@ -1048,7 +1098,7 @@ async fn test_password_reset_workflow_multiple_tokens() {
     // Create user
     let user_email = "multiple-tokens@example.com";
     let user_password = "oldpassword123";
-    
+
     let user = DbFixtures::create_user_with_email_password(
         &fixture.db(),
         user_email,
@@ -1133,7 +1183,7 @@ async fn test_password_reset_case_insensitive_email() {
     // Create user with lowercase email
     let user_email = "case-test@example.com";
     let user_password = "securepassword123";
-    
+
     DbFixtures::create_user_with_email_password(
         &fixture.db(),
         user_email,
@@ -1156,7 +1206,7 @@ async fn test_password_reset_case_insensitive_email() {
 
     // ✅ Should handle case-insensitive email lookup
     assert_eq!(response.status(), StatusCode::OK);
-    
+
     let body: Value = response.json().await.expect("Failed to parse response");
     assert!(body["message"]
         .as_str()
@@ -1178,7 +1228,7 @@ async fn test_password_reset_request_event_published_for_valid_user() {
     // Create a user with email/password authentication
     let user_email = "event-test@example.com";
     let user_password = "securepassword123";
-    
+
     DbFixtures::create_user_with_email_password(
         &fixture.db(),
         user_email,
@@ -1201,7 +1251,7 @@ async fn test_password_reset_request_event_published_for_valid_user() {
 
     // ✅ Should return 200 for security
     assert_eq!(response.status(), StatusCode::OK);
-    
+
     let body: Value = response.json().await.expect("Failed to parse response");
     assert!(body["message"]
         .as_str()
@@ -1211,9 +1261,13 @@ async fn test_password_reset_request_event_published_for_valid_user() {
     // 🎯 VERIFY: Event WAS published
     assert!(mock_publisher.has_password_reset_requested_event(), 
         "PasswordResetRequested event should be published for valid user with password authentication");
-    
+
     let events = mock_publisher.get_password_reset_requested_events();
-    assert_eq!(events.len(), 1, "Exactly one PasswordResetRequested event should be published");
+    assert_eq!(
+        events.len(),
+        1,
+        "Exactly one PasswordResetRequested event should be published"
+    );
 }
 
 /// VERIFIES: Password reset request for non-existent email should NOT publish PasswordResetRequested event
@@ -1240,7 +1294,7 @@ async fn test_password_reset_request_no_event_for_nonexistent_email() {
 
     // ✅ Should return 200 for security (same as valid case)
     assert_eq!(response.status(), StatusCode::OK);
-    
+
     let body: Value = response.json().await.expect("Failed to parse response");
     assert!(body["message"]
         .as_str()
@@ -1248,11 +1302,16 @@ async fn test_password_reset_request_no_event_for_nonexistent_email() {
         .contains("reset link has been sent"));
 
     // 🎯 VERIFY: Event was NOT published
-    assert!(!mock_publisher.has_password_reset_requested_event(), 
-        "PasswordResetRequested event should NOT be published for non-existent email");
-    
-    assert_eq!(mock_publisher.get_event_count(), 0, 
-        "No events should be published for non-existent email");
+    assert!(
+        !mock_publisher.has_password_reset_requested_event(),
+        "PasswordResetRequested event should NOT be published for non-existent email"
+    );
+
+    assert_eq!(
+        mock_publisher.get_event_count(),
+        0,
+        "No events should be published for non-existent email"
+    );
 }
 
 /// VERIFIES: Password reset request for OAuth-only user should NOT publish PasswordResetRequested event
@@ -1289,7 +1348,7 @@ async fn test_password_reset_request_no_event_for_oauth_only_user() {
 
     // ✅ Should return 200 for security (same as valid case)
     assert_eq!(response.status(), StatusCode::OK);
-    
+
     let body: Value = response.json().await.expect("Failed to parse response");
     assert!(body["message"]
         .as_str()
@@ -1297,9 +1356,14 @@ async fn test_password_reset_request_no_event_for_oauth_only_user() {
         .contains("reset link has been sent"));
 
     // 🎯 VERIFY: Event was NOT published
-    assert!(!mock_publisher.has_password_reset_requested_event(), 
-        "PasswordResetRequested event should NOT be published for OAuth-only user");
-    
-    assert_eq!(mock_publisher.get_event_count(), 0, 
-        "No events should be published for OAuth-only user");
-} 
+    assert!(
+        !mock_publisher.has_password_reset_requested_event(),
+        "PasswordResetRequested event should NOT be published for OAuth-only user"
+    );
+
+    assert_eq!(
+        mock_publisher.get_event_count(),
+        0,
+        "No events should be published for OAuth-only user"
+    );
+}

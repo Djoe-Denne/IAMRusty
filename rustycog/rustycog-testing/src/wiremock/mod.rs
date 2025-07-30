@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use tokio::sync::OnceCell;
 use tracing::{debug, info};
 use wiremock::MockServer;
@@ -116,5 +116,5 @@ impl Drop for MockServerFixture {
                 debug!("✅ Wiremock mocks cleaned up successfully");
             });
         }
-          }
-  }
+    }
+}

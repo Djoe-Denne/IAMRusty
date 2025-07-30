@@ -1,14 +1,14 @@
 use async_trait::async_trait;
+use rustycog_command::{Command, CommandError, CommandHandler};
 use std::sync::Arc;
 use uuid::Uuid;
-use rustycog_command::{Command, CommandHandler, CommandError};
 
 use crate::{
-    usecase::MemberUseCase,
     dto::{
-        PaginationRequest, AddMemberRequest, UpdateMemberRequest,
-        MemberResponse, MemberListResponse
-    }
+        AddMemberRequest, MemberListResponse, MemberResponse, PaginationRequest,
+        UpdateMemberRequest,
+    },
+    usecase::MemberUseCase,
 };
 
 // Add Member Command
@@ -62,7 +62,11 @@ impl AddMemberCommandHandler {
 impl CommandHandler<AddMemberCommand> for AddMemberCommandHandler {
     async fn handle(&self, command: AddMemberCommand) -> Result<MemberResponse, CommandError> {
         self.member_usecase
-            .add_member(command.organization_id, command.request, command.added_by_user_id)
+            .add_member(
+                command.organization_id,
+                command.request,
+                command.added_by_user_id,
+            )
             .await
             .map_err(|e| CommandError::business("add_member_failed", &e.to_string()))
     }
@@ -119,7 +123,11 @@ impl RemoveMemberCommandHandler {
 impl CommandHandler<RemoveMemberCommand> for RemoveMemberCommandHandler {
     async fn handle(&self, command: RemoveMemberCommand) -> Result<(), CommandError> {
         self.member_usecase
-            .remove_member(command.organization_id, command.user_id, command.removed_by_user_id)
+            .remove_member(
+                command.organization_id,
+                command.user_id,
+                command.removed_by_user_id,
+            )
             .await
             .map_err(|e| CommandError::business("remove_member_failed", &e.to_string()))
     }
@@ -173,7 +181,10 @@ impl ListMembersCommandHandler {
 
 #[async_trait]
 impl CommandHandler<ListMembersCommand> for ListMembersCommandHandler {
-    async fn handle(&self, command: ListMembersCommand) -> Result<MemberListResponse, CommandError> {
+    async fn handle(
+        &self,
+        command: ListMembersCommand,
+    ) -> Result<MemberListResponse, CommandError> {
         self.member_usecase
             .list_members(command.organization_id, command.pagination, Uuid::new_v4()) // TODO: Get user_id from context
             .await
@@ -287,7 +298,10 @@ impl UpdateMemberCommandHandler {
 impl CommandHandler<UpdateMemberCommand> for UpdateMemberCommandHandler {
     async fn handle(&self, command: UpdateMemberCommand) -> Result<MemberResponse, CommandError> {
         // TODO: Implement update_member in MemberUseCase
-        Err(CommandError::business("update_member_not_implemented", "Update member functionality not yet implemented"))
+        Err(CommandError::business(
+            "update_member_not_implemented",
+            "Update member functionality not yet implemented",
+        ))
     }
 }
 
@@ -298,4 +312,4 @@ impl MemberErrorMapper {
     pub fn from_application_error(error: crate::ApplicationError) -> CommandError {
         CommandError::business("member_operation_failed", &error.to_string())
     }
-} 
+}

@@ -23,11 +23,7 @@ impl MigrationTrait for Migration {
                             .uuid()
                             .not_null(),
                     )
-                    .col(
-                        ColumnDef::new(ExternalLinks::ProviderId)
-                            .uuid()
-                            .not_null(),
-                    )
+                    .col(ColumnDef::new(ExternalLinks::ProviderId).uuid().not_null())
                     .col(
                         ColumnDef::new(ExternalLinks::ProviderConfig)
                             .json_binary()
@@ -55,11 +51,7 @@ impl MigrationTrait for Migration {
                             .string_len(20)
                             .null(),
                     )
-                    .col(
-                        ColumnDef::new(ExternalLinks::SyncError)
-                            .text()
-                            .null(),
-                    )
+                    .col(ColumnDef::new(ExternalLinks::SyncError).text().null())
                     .col(
                         ColumnDef::new(ExternalLinks::CreatedAt)
                             .timestamp_with_time_zone()
@@ -163,4 +155,4 @@ enum ExternalLinks {
     SyncError,
     CreatedAt,
     UpdatedAt,
-} 
+}

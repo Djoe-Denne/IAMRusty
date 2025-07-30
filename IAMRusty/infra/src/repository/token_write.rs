@@ -101,8 +101,8 @@ impl TokenWriteRepository for TokenWriteRepositoryImpl {
             .await?;
 
         debug!(
-            user_id = %user_id, 
-            provider = %provider.as_str(), 
+            user_id = %user_id,
+            provider = %provider.as_str(),
             deleted_count = delete_result.rows_affected,
             "Deleted provider tokens"
         );

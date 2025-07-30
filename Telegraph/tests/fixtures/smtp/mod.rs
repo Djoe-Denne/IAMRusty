@@ -10,4 +10,4 @@ impl SmtpFixtures {
     pub async fn service() -> service::SmtpService {
         service::SmtpService::new().await
     }
-} 
+}

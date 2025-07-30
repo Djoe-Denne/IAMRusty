@@ -1,7 +1,7 @@
 //! JSON utility functions for template variable processing
 
-use std::collections::HashMap;
 use serde_json::Value;
+use std::collections::HashMap;
 use telegraph_domain::DomainError;
 
 /// Convert a serde_json::Value to HashMap<String, String>
@@ -23,7 +23,11 @@ pub fn json_to_string_map(value: &Value) -> Result<HashMap<String, String>, Doma
 }
 
 /// Recursively flatten a JSON value into dot-notation string keys
-pub fn flatten_json_value(value: &Value, prefix: &str, map: &mut HashMap<String, String>) -> Result<(), DomainError> {
+pub fn flatten_json_value(
+    value: &Value,
+    prefix: &str,
+    map: &mut HashMap<String, String>,
+) -> Result<(), DomainError> {
     match value {
         Value::Object(obj) => {
             for (key, val) in obj {

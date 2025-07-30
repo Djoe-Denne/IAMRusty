@@ -1,14 +1,14 @@
 use async_trait::async_trait;
+use rustycog_command::{Command, CommandError, CommandHandler};
 use std::sync::Arc;
 use uuid::Uuid;
-use rustycog_command::{Command, CommandHandler, CommandError};
 
 use crate::{
-    usecase::SyncJobUseCase,
     dto::{
-        StartSyncJobRequest, SyncJobResponse, SyncJobListResponse,
-        SyncJobStatusResponse, SyncJobLogsResponse
-    }
+        StartSyncJobRequest, SyncJobListResponse, SyncJobLogsResponse, SyncJobResponse,
+        SyncJobStatusResponse,
+    },
+    usecase::SyncJobUseCase,
 };
 
 #[derive(Debug, Clone)]
@@ -71,4 +71,4 @@ impl SyncJobErrorMapper {
     pub fn from_application_error(error: crate::ApplicationError) -> CommandError {
         CommandError::business("sync_job_operation_failed", &error.to_string())
     }
-} 
+}

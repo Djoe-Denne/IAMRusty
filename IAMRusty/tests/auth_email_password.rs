@@ -10,10 +10,10 @@ use fixtures::DbFixtures;
 use iam_infra::auth::PasswordService;
 use reqwest::Client;
 use sea_orm::ConnectionTrait;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use serial_test::serial;
-use uuid::Uuid;
 use utils::auth::AuthTestUtils;
+use uuid::Uuid;
 
 // 🔐 Email/Password Authentication Tests
 // 📝 POST /auth/signup
@@ -442,7 +442,10 @@ async fn test_verify_email_success() {
     // Make verify request
     let response = client
         .get(&format!("{}/api/auth/verify", base_url))
-        .query(&[("email", "unverified@example.com"), ("token", verification_token)])
+        .query(&[
+            ("email", "unverified@example.com"),
+            ("token", verification_token),
+        ])
         .send()
         .await
         .expect("Failed to send verify request");
@@ -544,7 +547,10 @@ async fn test_verify_email_invalid_token() {
     // Test with wrong token
     let response = client
         .get(&format!("{}/api/auth/verify", base_url))
-        .query(&[("email", "unverified@example.com"), ("token", "wrong_token_456")])
+        .query(&[
+            ("email", "unverified@example.com"),
+            ("token", "wrong_token_456"),
+        ])
         .send()
         .await
         .expect("Failed to send verify request");
@@ -610,7 +616,10 @@ async fn test_verify_email_expired_token() {
     // Make verify request with expired token
     let response = client
         .get(&format!("{}/api/auth/verify", base_url))
-        .query(&[("email", "unverified@example.com"), ("token", verification_token)])
+        .query(&[
+            ("email", "unverified@example.com"),
+            ("token", verification_token),
+        ])
         .send()
         .await
         .expect("Failed to send verify request");
@@ -644,7 +653,10 @@ async fn test_verify_email_nonexistent_email() {
     // Make verify request for nonexistent email
     let response = client
         .get(&format!("{}/api/auth/verify", base_url))
-        .query(&[("email", "nonexistent@example.com"), ("token", "any_token_123")])
+        .query(&[
+            ("email", "nonexistent@example.com"),
+            ("token", "any_token_123"),
+        ])
         .send()
         .await
         .expect("Failed to send verify request");
@@ -695,7 +707,10 @@ async fn test_verify_email_already_verified() {
     // Make verify request for already verified email
     let response = client
         .get(&format!("{}/api/auth/verify", base_url))
-        .query(&[("email", "already_verified@example.com"), ("token", "any_token_123")])
+        .query(&[
+            ("email", "already_verified@example.com"),
+            ("token", "any_token_123"),
+        ])
         .send()
         .await
         .expect("Failed to send verify request");

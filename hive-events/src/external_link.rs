@@ -26,7 +26,14 @@ pub struct ExternalLinkCreatedEvent {
 // =============================================================================
 
 impl ExternalLinkCreatedEvent {
-    pub fn new(organization_id: Uuid, organization_name: String, external_link_id: Uuid, provider_type: String, created_by_user_id: Uuid, created_at: DateTime<Utc>) -> Self {
+    pub fn new(
+        organization_id: Uuid,
+        organization_name: String,
+        external_link_id: Uuid,
+        provider_type: String,
+        created_by_user_id: Uuid,
+        created_at: DateTime<Utc>,
+    ) -> Self {
         Self {
             base: BaseEvent::new("external_link_created".to_string(), organization_id),
             organization_id,

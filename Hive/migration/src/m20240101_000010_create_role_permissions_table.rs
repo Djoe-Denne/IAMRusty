@@ -13,29 +13,24 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(
                         ColumnDef::new(RolePermissions::Id)
-                            .uuid()
+                            .string_len(36)
                             .not_null()
-                            .primary_key()
-                            .extra("DEFAULT gen_random_uuid()".to_owned()),
+                            .primary_key(),
                     )
                     .col(
                         ColumnDef::new(RolePermissions::Name)
                             .string_len(100)
                             .not_null(),
                     )
-                    .col(
-                        ColumnDef::new(RolePermissions::Description)
-                            .text()
-                            .null(),
-                    )
+                    .col(ColumnDef::new(RolePermissions::Description).text().null())
                     .col(
                         ColumnDef::new(RolePermissions::PermissionId)
-                            .uuid()
+                            .string_len(36)
                             .not_null(),
                     )
                     .col(
                         ColumnDef::new(RolePermissions::ResourceId)
-                            .uuid()
+                            .string_len(36)
                             .not_null(),
                     )
                     .col(
@@ -44,7 +39,6 @@ impl MigrationTrait for Migration {
                             .not_null()
                             .default(Expr::current_timestamp()),
                     )
-
                     .foreign_key(
                         ForeignKey::create()
                             .name("fk_role_permissions_permission_id")
@@ -59,18 +53,6 @@ impl MigrationTrait for Migration {
                             .to(Resources::Table, Resources::Id)
                             .on_delete(ForeignKeyAction::Cascade),
                     )
-                    .to_owned(),
-            )
-            .await?;
-
-        // Create index on organization_role_id
-        manager
-            .create_index(
-                Index::create()
-                    .if_not_exists()
-                    .name("idx_role_permissions_organization_role_id")
-                    .table(RolePermissions::Table)
-                    .col(RolePermissions::OrganizationRoleId)
                     .to_owned(),
             )
             .await?;
@@ -144,4 +126,4 @@ enum Permissions {
 enum Resources {
     Table,
     Id,
-} 
+}

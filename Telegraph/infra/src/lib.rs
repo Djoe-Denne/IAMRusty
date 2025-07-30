@@ -1,5 +1,5 @@
 //! Telegraph Infrastructure Layer
-//! 
+//!
 //! This crate provides infrastructure implementations for the Telegraph communication service.
 
 pub mod communication;
@@ -12,4 +12,4 @@ pub mod template;
 pub use communication::*;
 pub use event::*;
 pub use repository::*;
-pub use template::*; 
+pub use template::*;

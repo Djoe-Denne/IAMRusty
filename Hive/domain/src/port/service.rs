@@ -2,45 +2,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{DomainError, ProviderType};
-
-// Import events from hive-events crate
-use hive_events::{
-    OrganizationCreatedEvent, OrganizationUpdatedEvent, OrganizationDeletedEvent,
-    MemberInvitedEvent, MemberJoinedEvent, MemberRemovedEvent,
-    InvitationCreatedEvent, InvitationAcceptedEvent, InvitationExpiredEvent,
-    ExternalLinkCreatedEvent, SyncJobStartedEvent, SyncJobCompletedEvent,
-};
-
-/// External provider service trait for GitHub integration
-#[async_trait]
-pub trait GitHubProviderService {
-    async fn test_connection(&self, config: &serde_json::Value) -> Result<bool, DomainError>;
-    async fn sync_members(&self, config: &serde_json::Value) -> Result<Vec<ExternalMember>, DomainError>;
-    async fn get_organization_info(&self, config: &serde_json::Value) -> Result<ExternalOrganizationInfo, DomainError>;
-    async fn get_members(&self, config: &serde_json::Value) -> Result<Vec<ExternalMember>, DomainError>;
-    async fn is_member(&self, config: &serde_json::Value, username: &str) -> Result<bool, DomainError>;
-}
-
-/// External provider service trait for GitLab integration
-#[async_trait]
-pub trait GitLabProviderService {
-    async fn test_connection(&self, config: &serde_json::Value) -> Result<bool, DomainError>;
-    async fn sync_members(&self, config: &serde_json::Value) -> Result<Vec<ExternalMember>, DomainError>;
-    async fn get_organization_info(&self, config: &serde_json::Value) -> Result<ExternalOrganizationInfo, DomainError>;
-    async fn get_members(&self, config: &serde_json::Value) -> Result<Vec<ExternalMember>, DomainError>;
-    async fn is_member(&self, config: &serde_json::Value, username: &str) -> Result<bool, DomainError>;
-}
-
-/// External provider service trait for Confluence integration
-#[async_trait]
-pub trait ConfluenceProviderService {
-    async fn test_connection(&self, config: &serde_json::Value) -> Result<bool, DomainError>;
-    async fn sync_members(&self, config: &serde_json::Value) -> Result<Vec<ExternalMember>, DomainError>;
-    async fn get_organization_info(&self, config: &serde_json::Value) -> Result<ExternalOrganizationInfo, DomainError>;
-    async fn get_members(&self, config: &serde_json::Value) -> Result<Vec<ExternalMember>, DomainError>;
-    async fn is_member(&self, config: &serde_json::Value, username: &str) -> Result<bool, DomainError>;
-}
+use crate::{DomainError, ProviderType, entity::organization_member_role_permission::OrganizationMemberRolePermission};
 
 /// Generic external provider service trait
 #[async_trait]
@@ -49,7 +11,23 @@ pub trait ExternalProviderService {
     async fn get_provider_info(&self) -> Result<ExternalProviderInfo, DomainError>;
     async fn validate_config(&self, config: &serde_json::Value) -> Result<(), DomainError>;
     async fn test_connection(&self, config: &serde_json::Value) -> Result<bool, DomainError>;
-    async fn sync_members(&self, config: &serde_json::Value) -> Result<Vec<ExternalMember>, DomainError>;
+    async fn sync_members(
+        &self,
+        config: &serde_json::Value,
+    ) -> Result<Vec<ExternalMember>, DomainError>;
+    async fn get_organization_info(
+        &self,
+        config: &serde_json::Value,
+    ) -> Result<ExternalOrganizationInfo, DomainError>;
+    async fn get_members(
+        &self,
+        config: &serde_json::Value,
+    ) -> Result<Vec<ExternalMember>, DomainError>;
+    async fn is_member(
+        &self,
+        config: &serde_json::Value,
+        username: &str,
+    ) -> Result<bool, DomainError>;
 }
 
 // External provider data types
@@ -83,4 +61,13 @@ pub struct ExternalProviderInfo {
     pub description: String,
     pub config_schema: serde_json::Value,
     pub supported_features: Vec<String>,
-} 
+}
+
+#[async_trait]
+pub trait RoleEngine: Send + Sync {
+    async fn derive_role(
+        &self,
+        roles: Vec<OrganizationMemberRolePermission>,
+        organization_settings: serde_json::Value,
+    ) -> Result<Vec<OrganizationMemberRolePermission>, DomainError>;
+}

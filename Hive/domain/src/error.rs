@@ -100,4 +100,4 @@ impl DomainError {
             message: message.to_string(),
         }
     }
-} 
+}

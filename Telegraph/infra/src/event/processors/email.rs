@@ -1,9 +1,9 @@
 //! Email event processor for Telegraph communication service
 
 use async_trait::async_trait;
-use telegraph_domain::{DomainError, CommunicationFactory, EventHandler, EventContext};
-use telegraph_domain::service::EmailService;
 use std::sync::Arc;
+use telegraph_domain::service::EmailService;
+use telegraph_domain::{CommunicationFactory, DomainError, EventContext, EventHandler};
 use tracing::info;
 
 /// Email communication event processor
@@ -14,13 +14,16 @@ pub struct EmailEventProcessor {
 
 impl EmailEventProcessor {
     /// Create a new email event processor
-    pub fn new(email_service: Arc<EmailService>, communication_factory: Arc<CommunicationFactory>) -> Self {
+    pub fn new(
+        email_service: Arc<EmailService>,
+        communication_factory: Arc<CommunicationFactory>,
+    ) -> Self {
         Self {
             email_service,
             communication_factory,
         }
     }
-    
+
     /// Process an IAM domain event with the communication factory
     pub async fn process(&self, event: &EventContext) -> Result<(), DomainError> {
         info!(
@@ -31,18 +34,20 @@ impl EmailEventProcessor {
         );
 
         // Build email communication using the factory
-        let email_communication = self.communication_factory
+        let email_communication = self
+            .communication_factory
             .build_email_communication(event)
             .await?;
 
         // Validate recipient has email
-        let email = email_communication.recipient.email.as_ref()
-            .ok_or(DomainError::EventProcessingError("No email address found in communication".to_string()))?;
+        let email = email_communication.recipient.email.as_ref().ok_or(
+            DomainError::EventProcessingError(
+                "No email address found in communication".to_string(),
+            ),
+        )?;
 
         // Send the email using the communication content
-        self.email_service
-            .send_email(&email_communication)
-            .await?;
+        self.email_service.send_email(&email_communication).await?;
 
         info!(
             event_id = %event.event_id,
@@ -61,8 +66,8 @@ impl EventHandler for EmailEventProcessor {
     async fn handle_event(&self, event: &EventContext) -> Result<(), DomainError> {
         self.process(event).await
     }
-    
+
     fn priority(&self) -> u32 {
         100 // Default priority
     }
-} 
+}

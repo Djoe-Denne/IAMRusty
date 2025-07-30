@@ -1,42 +1,30 @@
 use super::{
-    organization::{
-        CreateOrganizationCommand, CreateOrganizationCommandHandler,
-        GetOrganizationCommand, GetOrganizationCommandHandler,
-        UpdateOrganizationCommand, UpdateOrganizationCommandHandler,
-        DeleteOrganizationCommand, DeleteOrganizationCommandHandler,
-        ListOrganizationsCommand, ListOrganizationsCommandHandler,
-        SearchOrganizationsCommand, SearchOrganizationsCommandHandler,
-        OrganizationErrorMapper,
-    },
-    member::{
-        AddMemberCommand, AddMemberCommandHandler,
-        RemoveMemberCommand, RemoveMemberCommandHandler,
-        ListMembersCommand, ListMembersCommandHandler,
-        GetMemberCommand, GetMemberCommandHandler,
-        UpdateMemberCommand, UpdateMemberCommandHandler,
-        MemberErrorMapper,
+    external_link::{
+        CreateExternalLinkCommand, CreateExternalLinkCommandHandler, ExternalLinkErrorMapper,
     },
     invitation::{
-        CreateInvitationCommand, CreateInvitationCommandHandler,
-        ListInvitationsCommand, ListInvitationsCommandHandler,
-        CancelInvitationCommand, CancelInvitationCommandHandler,
-        AcceptInvitationCommand, AcceptInvitationCommandHandler,
-        GetInvitationByTokenCommand, GetInvitationByTokenCommandHandler,
-        ResendInvitationCommand, ResendInvitationCommandHandler,
-        InvitationErrorMapper,
+        AcceptInvitationCommand, AcceptInvitationCommandHandler, CancelInvitationCommand,
+        CancelInvitationCommandHandler, CreateInvitationCommand, CreateInvitationCommandHandler,
+        GetInvitationByTokenCommand, GetInvitationByTokenCommandHandler, InvitationErrorMapper,
+        ListInvitationsCommand, ListInvitationsCommandHandler, ResendInvitationCommand,
+        ResendInvitationCommandHandler,
     },
-    external_link::{
-        CreateExternalLinkCommand, CreateExternalLinkCommandHandler,
-        ExternalLinkErrorMapper,
+    member::{
+        AddMemberCommand, AddMemberCommandHandler, GetMemberCommand, GetMemberCommandHandler,
+        ListMembersCommand, ListMembersCommandHandler, MemberErrorMapper, RemoveMemberCommand,
+        RemoveMemberCommandHandler, UpdateMemberCommand, UpdateMemberCommandHandler,
     },
-    sync_job::{
-        StartSyncJobCommand, StartSyncJobCommandHandler,
-        SyncJobErrorMapper,
+    organization::{
+        CreateOrganizationCommand, CreateOrganizationCommandHandler, DeleteOrganizationCommand,
+        DeleteOrganizationCommandHandler, GetOrganizationCommand, GetOrganizationCommandHandler,
+        ListOrganizationsCommand, ListOrganizationsCommandHandler, OrganizationErrorMapper,
+        SearchOrganizationsCommand, SearchOrganizationsCommandHandler, UpdateOrganizationCommand,
+        UpdateOrganizationCommandHandler,
     },
+    sync_job::{StartSyncJobCommand, StartSyncJobCommandHandler, SyncJobErrorMapper},
 };
 use crate::usecase::{
-    OrganizationUseCase, MemberUseCase, InvitationUseCase, 
-    ExternalLinkUseCase, SyncJobUseCase
+    ExternalLinkUseCase, InvitationUseCase, MemberUseCase, OrganizationUseCase, SyncJobUseCase,
 };
 use rustycog_command::{CommandRegistry, CommandRegistryBuilder};
 use std::sync::Arc;
@@ -56,12 +44,23 @@ impl HiveCommandRegistryFactory {
         let mut builder = CommandRegistryBuilder::new();
 
         // Register organization commands
-        let create_org_handler = Arc::new(CreateOrganizationCommandHandler::new(organization_usecase.clone()));
-        let get_org_handler = Arc::new(GetOrganizationCommandHandler::new(organization_usecase.clone()));
-        let update_org_handler = Arc::new(UpdateOrganizationCommandHandler::new(organization_usecase.clone()));
-        let delete_org_handler = Arc::new(DeleteOrganizationCommandHandler::new(organization_usecase.clone()));
-        let list_org_handler = Arc::new(ListOrganizationsCommandHandler::new(organization_usecase.clone()));
-        let search_org_handler = Arc::new(SearchOrganizationsCommandHandler::new(organization_usecase));
+        let create_org_handler = Arc::new(CreateOrganizationCommandHandler::new(
+            organization_usecase.clone(),
+        ));
+        let get_org_handler = Arc::new(GetOrganizationCommandHandler::new(
+            organization_usecase.clone(),
+        ));
+        let update_org_handler = Arc::new(UpdateOrganizationCommandHandler::new(
+            organization_usecase.clone(),
+        ));
+        let delete_org_handler = Arc::new(DeleteOrganizationCommandHandler::new(
+            organization_usecase.clone(),
+        ));
+        let list_org_handler = Arc::new(ListOrganizationsCommandHandler::new(
+            organization_usecase.clone(),
+        ));
+        let search_org_handler =
+            Arc::new(SearchOrganizationsCommandHandler::new(organization_usecase));
         let org_error_mapper = Arc::new(OrganizationErrorMapper);
 
         builder = builder
@@ -98,7 +97,8 @@ impl HiveCommandRegistryFactory {
 
         // Register member commands
         let add_member_handler = Arc::new(AddMemberCommandHandler::new(member_usecase.clone()));
-        let remove_member_handler = Arc::new(RemoveMemberCommandHandler::new(member_usecase.clone()));
+        let remove_member_handler =
+            Arc::new(RemoveMemberCommandHandler::new(member_usecase.clone()));
         let list_members_handler = Arc::new(ListMembersCommandHandler::new(member_usecase.clone()));
         let get_member_handler = Arc::new(GetMemberCommandHandler::new(member_usecase.clone()));
         let update_member_handler = Arc::new(UpdateMemberCommandHandler::new(member_usecase));
@@ -132,12 +132,23 @@ impl HiveCommandRegistryFactory {
             );
 
         // Register invitation commands
-        let create_invitation_handler = Arc::new(CreateInvitationCommandHandler::new(invitation_usecase.clone()));
-        let list_invitations_handler = Arc::new(ListInvitationsCommandHandler::new(invitation_usecase.clone()));
-        let cancel_invitation_handler = Arc::new(CancelInvitationCommandHandler::new(invitation_usecase.clone()));
-        let accept_invitation_handler = Arc::new(AcceptInvitationCommandHandler::new(invitation_usecase.clone()));
-        let get_invitation_by_token_handler = Arc::new(GetInvitationByTokenCommandHandler::new(invitation_usecase.clone()));
-        let resend_invitation_handler = Arc::new(ResendInvitationCommandHandler::new(invitation_usecase));
+        let create_invitation_handler = Arc::new(CreateInvitationCommandHandler::new(
+            invitation_usecase.clone(),
+        ));
+        let list_invitations_handler = Arc::new(ListInvitationsCommandHandler::new(
+            invitation_usecase.clone(),
+        ));
+        let cancel_invitation_handler = Arc::new(CancelInvitationCommandHandler::new(
+            invitation_usecase.clone(),
+        ));
+        let accept_invitation_handler = Arc::new(AcceptInvitationCommandHandler::new(
+            invitation_usecase.clone(),
+        ));
+        let get_invitation_by_token_handler = Arc::new(GetInvitationByTokenCommandHandler::new(
+            invitation_usecase.clone(),
+        ));
+        let resend_invitation_handler =
+            Arc::new(ResendInvitationCommandHandler::new(invitation_usecase));
         let invitation_error_mapper = Arc::new(InvitationErrorMapper);
 
         builder = builder
@@ -173,26 +184,25 @@ impl HiveCommandRegistryFactory {
             );
 
         // Register external link commands
-        let create_external_link_handler = Arc::new(CreateExternalLinkCommandHandler::new(external_link_usecase));
+        let create_external_link_handler =
+            Arc::new(CreateExternalLinkCommandHandler::new(external_link_usecase));
         let external_link_error_mapper = Arc::new(ExternalLinkErrorMapper);
 
-        builder = builder
-            .register::<CreateExternalLinkCommand, _>(
-                "create_external_link".to_string(),
-                create_external_link_handler,
-                external_link_error_mapper,
-            );
+        builder = builder.register::<CreateExternalLinkCommand, _>(
+            "create_external_link".to_string(),
+            create_external_link_handler,
+            external_link_error_mapper,
+        );
 
         // Register sync job commands
         let start_sync_job_handler = Arc::new(StartSyncJobCommandHandler::new(sync_job_usecase));
         let sync_job_error_mapper = Arc::new(SyncJobErrorMapper);
 
-        builder = builder
-            .register::<StartSyncJobCommand, _>(
-                "start_sync_job".to_string(),
-                start_sync_job_handler,
-                sync_job_error_mapper,
-            );
+        builder = builder.register::<StartSyncJobCommand, _>(
+            "start_sync_job".to_string(),
+            start_sync_job_handler,
+            sync_job_error_mapper,
+        );
 
         builder.build()
     }
@@ -206,12 +216,23 @@ impl HiveCommandRegistryFactory {
     pub fn create_builder_with_organizations(
         organization_usecase: Arc<dyn OrganizationUseCase>,
     ) -> CommandRegistryBuilder {
-        let create_org_handler = Arc::new(CreateOrganizationCommandHandler::new(organization_usecase.clone()));
-        let get_org_handler = Arc::new(GetOrganizationCommandHandler::new(organization_usecase.clone()));
-        let update_org_handler = Arc::new(UpdateOrganizationCommandHandler::new(organization_usecase.clone()));
-        let delete_org_handler = Arc::new(DeleteOrganizationCommandHandler::new(organization_usecase.clone()));
-        let list_org_handler = Arc::new(ListOrganizationsCommandHandler::new(organization_usecase.clone()));
-        let search_org_handler = Arc::new(SearchOrganizationsCommandHandler::new(organization_usecase));
+        let create_org_handler = Arc::new(CreateOrganizationCommandHandler::new(
+            organization_usecase.clone(),
+        ));
+        let get_org_handler = Arc::new(GetOrganizationCommandHandler::new(
+            organization_usecase.clone(),
+        ));
+        let update_org_handler = Arc::new(UpdateOrganizationCommandHandler::new(
+            organization_usecase.clone(),
+        ));
+        let delete_org_handler = Arc::new(DeleteOrganizationCommandHandler::new(
+            organization_usecase.clone(),
+        ));
+        let list_org_handler = Arc::new(ListOrganizationsCommandHandler::new(
+            organization_usecase.clone(),
+        ));
+        let search_org_handler =
+            Arc::new(SearchOrganizationsCommandHandler::new(organization_usecase));
         let org_error_mapper = Arc::new(OrganizationErrorMapper);
 
         CommandRegistryBuilder::new()
@@ -272,30 +293,30 @@ impl HiveCommandRegistryFactory {
     pub fn create_builder_with_invitations(
         invitation_usecase: Arc<dyn InvitationUseCase>,
     ) -> CommandRegistryBuilder {
-        let create_invitation_handler = Arc::new(CreateInvitationCommandHandler::new(invitation_usecase));
+        let create_invitation_handler =
+            Arc::new(CreateInvitationCommandHandler::new(invitation_usecase));
         let invitation_error_mapper = Arc::new(InvitationErrorMapper);
 
-        CommandRegistryBuilder::new()
-            .register::<CreateInvitationCommand, _>(
-                "create_invitation".to_string(),
-                create_invitation_handler,
-                invitation_error_mapper,
-            )
+        CommandRegistryBuilder::new().register::<CreateInvitationCommand, _>(
+            "create_invitation".to_string(),
+            create_invitation_handler,
+            invitation_error_mapper,
+        )
     }
 
     /// Create a registry builder with only external link commands
     pub fn create_builder_with_external_links(
         external_link_usecase: Arc<dyn ExternalLinkUseCase>,
     ) -> CommandRegistryBuilder {
-        let create_external_link_handler = Arc::new(CreateExternalLinkCommandHandler::new(external_link_usecase));
+        let create_external_link_handler =
+            Arc::new(CreateExternalLinkCommandHandler::new(external_link_usecase));
         let external_link_error_mapper = Arc::new(ExternalLinkErrorMapper);
 
-        CommandRegistryBuilder::new()
-            .register::<CreateExternalLinkCommand, _>(
-                "create_external_link".to_string(),
-                create_external_link_handler,
-                external_link_error_mapper,
-            )
+        CommandRegistryBuilder::new().register::<CreateExternalLinkCommand, _>(
+            "create_external_link".to_string(),
+            create_external_link_handler,
+            external_link_error_mapper,
+        )
     }
 
     /// Create a registry builder with only sync job commands
@@ -305,12 +326,11 @@ impl HiveCommandRegistryFactory {
         let start_sync_job_handler = Arc::new(StartSyncJobCommandHandler::new(sync_job_usecase));
         let sync_job_error_mapper = Arc::new(SyncJobErrorMapper);
 
-        CommandRegistryBuilder::new()
-            .register::<StartSyncJobCommand, _>(
-                "start_sync_job".to_string(),
-                start_sync_job_handler,
-                sync_job_error_mapper,
-            )
+        CommandRegistryBuilder::new().register::<StartSyncJobCommand, _>(
+            "start_sync_job".to_string(),
+            start_sync_job_handler,
+            sync_job_error_mapper,
+        )
     }
 }
 
@@ -326,4 +346,4 @@ mod tests {
 
         assert!(command_types.is_empty());
     }
-} 
+}

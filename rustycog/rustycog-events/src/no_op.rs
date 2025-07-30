@@ -1,11 +1,11 @@
-use async_trait::async_trait;
-use rustycog_core::error::ServiceError;
 use crate::event::{DomainEvent, EventPublisher};
 use crate::{EventConsumer, EventHandler};
+use async_trait::async_trait;
+use rustycog_core::error::ServiceError;
 use tracing;
 
 /// No-op event publisher for testing and development
-/// 
+///
 /// This publisher doesn't actually publish events anywhere,
 /// but provides a valid implementation for development environments
 /// where event publishing is not needed.
@@ -51,7 +51,7 @@ impl EventPublisher<ServiceError> for NoOpEventPublisher {
 }
 
 /// No-op event consumer for testing and development
-/// 
+///
 /// This consumer doesn't actually consume events from anywhere,
 /// but provides a valid implementation for development environments
 /// where event consumption is not needed.
@@ -89,4 +89,4 @@ impl EventConsumer for NoOpEventConsumer {
         // Always healthy since no-op
         Ok(())
     }
-} 
+}

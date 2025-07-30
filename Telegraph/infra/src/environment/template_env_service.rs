@@ -15,7 +15,7 @@ impl TemplateEnvironmentService {
 
     /// Get all environment variables starting with "TELEGRAPH__TEMPLATE__"
     /// Returns a map with lowercase keys and '__' replaced with '.'
-    /// 
+    ///
     /// Example:
     /// - TELEGRAPH__TEMPLATE__BASE_URL=https://example.com becomes base.url=https://example.com
     /// - TELEGRAPH__TEMPLATE__VERIFY__URL=https://example.com/verify becomes verify.url=https://example.com/verify
@@ -23,17 +23,18 @@ impl TemplateEnvironmentService {
         let mut variables = HashMap::new();
         let prefix = "TELEGRAPH__TEMPLATE__";
 
-        debug!("Scanning environment variables for template variables with prefix: {}", prefix);
+        debug!(
+            "Scanning environment variables for template variables with prefix: {}",
+            prefix
+        );
 
         for (key, value) in env::vars() {
             if key.starts_with(prefix) {
                 // Remove the prefix
                 let template_key = &key[prefix.len()..];
-                
+
                 // Convert to lowercase and replace '__' with '.'
-                let normalized_key = template_key
-                    .to_lowercase()
-                    .replace("__", ".");
+                let normalized_key = template_key.to_lowercase().replace("__", ".");
 
                 debug!(
                     env_var = %key,
@@ -47,7 +48,10 @@ impl TemplateEnvironmentService {
         }
 
         if variables.is_empty() {
-            warn!("No template environment variables found with prefix: {}", prefix);
+            warn!(
+                "No template environment variables found with prefix: {}",
+                prefix
+            );
         } else {
             debug!("Found {} template environment variables", variables.len());
         }
@@ -59,9 +63,11 @@ impl TemplateEnvironmentService {
     /// The key should be in the format that would result after normalization
     /// (lowercase, with '.' as separators)
     pub fn get_template_variable(&self, key: &str) -> Option<String> {
-        let env_key = format!("TELEGRAPH__TEMPLATE__{}", 
-            key.to_uppercase().replace(".", "__"));
-        
+        let env_key = format!(
+            "TELEGRAPH__TEMPLATE__{}",
+            key.to_uppercase().replace(".", "__")
+        );
+
         match env::var(&env_key) {
             Ok(value) => {
                 debug!(
@@ -104,7 +110,7 @@ mod tests {
     fn test_get_template_variables_empty() {
         let service = TemplateEnvironmentService::new();
         let variables = service.get_template_variables();
-        
+
         // May or may not be empty depending on environment, just check it returns a map
         assert!(variables.len() >= 0);
     }
@@ -128,18 +134,23 @@ mod tests {
     #[test]
     fn test_env_key_construction() {
         let service = TemplateEnvironmentService::new();
-        
+
         // Test the reverse transformation for get_template_variable
         let test_cases = vec![
             ("base.url", "TELEGRAPH__TEMPLATE__BASE__URL"),
             ("verify.url", "TELEGRAPH__TEMPLATE__VERIFY__URL"),
-            ("reset.password.url", "TELEGRAPH__TEMPLATE__RESET__PASSWORD__URL"),
+            (
+                "reset.password.url",
+                "TELEGRAPH__TEMPLATE__RESET__PASSWORD__URL",
+            ),
         ];
 
         for (key, expected_env_key) in test_cases {
-            let env_key = format!("TELEGRAPH__TEMPLATE__{}", 
-                key.to_uppercase().replace(".", "__"));
+            let env_key = format!(
+                "TELEGRAPH__TEMPLATE__{}",
+                key.to_uppercase().replace(".", "__")
+            );
             assert_eq!(env_key, expected_env_key);
         }
     }
-} 
+}

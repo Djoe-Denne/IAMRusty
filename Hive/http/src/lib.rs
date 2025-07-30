@@ -1,13 +1,13 @@
-use rustycog_http::{RouteBuilder, AppState};
 use hive_configuration::ServerConfig;
+use rustycog_http::{AppState, RouteBuilder};
 
 pub mod error;
 pub mod handlers;
 pub mod validation;
 
-pub use error::{HttpError};
+pub use error::HttpError;
 pub use handlers::*;
-pub use validation::{ValidatedJson, validate_query_params, validate_pagination};
+pub use validation::{validate_pagination, validate_query_params, ValidatedJson};
 
 /// Create the application routes using the fluent builder API
 pub async fn create_app_routes(state: AppState, config: ServerConfig) -> anyhow::Result<()> {
@@ -23,20 +23,45 @@ pub async fn create_app_routes(state: AppState, config: ServerConfig) -> anyhow:
         .authenticated_get("/api/organizations", list_organizations)
         // Member routes
         .authenticated_post("/api/organizations/{organization_id}/members", add_member)
-        .authenticated_delete("/api/organizations/{organization_id}/members/{user_id}", remove_member)
+        .authenticated_delete(
+            "/api/organizations/{organization_id}/members/{user_id}",
+            remove_member,
+        )
         .authenticated_get("/api/organizations/{organization_id}/members", list_members)
-        .authenticated_get("/api/organizations/{organization_id}/members/{user_id}", get_member)
+        .authenticated_get(
+            "/api/organizations/{organization_id}/members/{user_id}",
+            get_member,
+        )
         // Invitation routes
-        .authenticated_post("/api/organizations/{organization_id}/invitations", create_invitation)
+        .authenticated_post(
+            "/api/organizations/{organization_id}/invitations",
+            create_invitation,
+        )
         // External link routes
-        .authenticated_post("/api/organizations/{organization_id}/external-links", create_external_link)
+        .authenticated_post(
+            "/api/organizations/{organization_id}/external-links",
+            create_external_link,
+        )
         // Sync job routes
-        .authenticated_post("/api/organizations/{organization_id}/sync-jobs", start_sync_job)
+        .authenticated_post(
+            "/api/organizations/{organization_id}/sync-jobs",
+            start_sync_job,
+        )
         // Role routes
         .authenticated_post("/api/organizations/{organization_id}/roles", create_role)
         .authenticated_get("/api/organizations/{organization_id}/roles", list_roles)
-        .authenticated_get("/api/organizations/{organization_id}/roles/{role_id}", get_role)
-        .authenticated_put("/api/organizations/{organization_id}/roles/{role_id}", update_role)
-        .authenticated_delete("/api/organizations/{organization_id}/roles/{role_id}", delete_role)
-        .build(config).await
-} 
+        .authenticated_get(
+            "/api/organizations/{organization_id}/roles/{role_id}",
+            get_role,
+        )
+        .authenticated_put(
+            "/api/organizations/{organization_id}/roles/{role_id}",
+            update_role,
+        )
+        .authenticated_delete(
+            "/api/organizations/{organization_id}/roles/{role_id}",
+            delete_role,
+        )
+        .build(config)
+        .await
+}

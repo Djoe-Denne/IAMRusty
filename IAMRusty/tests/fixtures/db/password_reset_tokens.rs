@@ -1,6 +1,6 @@
-use rustycog_testing::db::{CommittedFixture, DbFixture, TestData};
 use chrono::{DateTime, Utc};
 use iam_domain::entity::password_reset_token::PasswordResetToken;
+use rustycog_testing::db::{CommittedFixture, DbFixture, TestData};
 use sea_orm::{ActiveModelTrait, ActiveValue, DatabaseConnection, DbErr};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -88,9 +88,12 @@ impl PasswordResetTokenFixtureBuilder {
         self,
         db: Arc<DatabaseConnection>,
     ) -> Result<PasswordResetTokenFixture, DbErr> {
-        let raw_token = self.raw_token.clone().unwrap_or_else(Self::generate_raw_token);
+        let raw_token = self
+            .raw_token
+            .clone()
+            .unwrap_or_else(Self::generate_raw_token);
         let fixture = DbFixture::commit(self, &*db).await?;
-        Ok(PasswordResetTokenFixture { 
+        Ok(PasswordResetTokenFixture {
             inner: fixture,
             raw_token,
         })
@@ -134,26 +137,22 @@ impl PasswordResetTokenFixtureBuilder {
 
     /// Create Arthur's password reset token
     pub fn arthur_reset(self, user_id: Uuid) -> Self {
-        self.valid(user_id)
-            .raw_token("arthur_reset_token_123")
+        self.valid(user_id).raw_token("arthur_reset_token_123")
     }
 
     /// Create Bob's password reset token
     pub fn bob_reset(self, user_id: Uuid) -> Self {
-        self.valid(user_id)
-            .raw_token("bob_reset_token_456")
+        self.valid(user_id).raw_token("bob_reset_token_456")
     }
 
     /// Create Alice's password reset token
     pub fn alice_reset(self, user_id: Uuid) -> Self {
-        self.valid(user_id)
-            .raw_token("alice_reset_token_789")
+        self.valid(user_id).raw_token("alice_reset_token_789")
     }
 
     /// Create a token for test user
     pub fn test_reset(self, user_id: Uuid) -> Self {
-        self.valid(user_id)
-            .raw_token(Self::generate_raw_token())
+        self.valid(user_id).raw_token(Self::generate_raw_token())
     }
 
     // Helper methods
@@ -190,7 +189,10 @@ impl DbFixture<PasswordResetTokensEntity, PasswordResetTokenModel, PasswordReset
 
     fn model(&self) -> PasswordResetTokenActiveModel {
         let now = Utc::now();
-        let raw_token = self.raw_token.clone().unwrap_or_else(Self::generate_raw_token);
+        let raw_token = self
+            .raw_token
+            .clone()
+            .unwrap_or_else(Self::generate_raw_token);
 
         PasswordResetTokenActiveModel {
             id: ActiveValue::Set(self.id.unwrap_or_else(TestData::uuid)),
@@ -213,8 +215,11 @@ impl PasswordResetTokenFixture {
     /// Check if this password reset token exists in the database
     pub async fn check(&self, db: Arc<DatabaseConnection>) -> Result<bool, DbErr> {
         use sea_orm::EntityTrait;
-        
-        if let Some(token) = PasswordResetTokensEntity::find_by_id(self.id()).one(&*db).await? {
+
+        if let Some(token) = PasswordResetTokensEntity::find_by_id(self.id())
+            .one(&*db)
+            .await?
+        {
             Ok(token.user_id == self.user_id()
                 && token.token_hash == PasswordResetToken::hash_token(&self.raw_token)
                 && token.used_at == self.used_at())
@@ -285,4 +290,4 @@ impl PasswordResetTokenFixture {
     }
 }
 
-// TestData methods are now available through rustycog_testing 
+// TestData methods are now available through rustycog_testing

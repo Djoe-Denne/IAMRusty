@@ -1,19 +1,4 @@
-use crate::{
-    error::AuthError, oauth_state::OAuthState, validation::*,
-};
-use rustycog_http::AppState;
-use rustycog_http::{ValidatedJson, AuthUser};
-use iam_application::command::{
-    oauth_login::{GenerateOAuthStartUrlCommand, OAuthLoginCommand},
-    password_login::PasswordLoginCommand,
-    provider::{GenerateLinkProviderStartUrlCommand, GetProviderTokenCommand, LinkProviderCommand, RevokeProviderTokenCommand, RelinkProviderCommand, GenerateRelinkProviderStartUrlCommand},
-    registration::{CheckUsernameCommand, CompleteRegistrationCommand},
-    resend_verification_email::ResendVerificationEmailCommand,
-    signup::SignupCommand,
-    verify_email::VerifyEmailCommand,
-    user::GetUserCommand,
-    CommandContext,
-};
+use crate::{error::AuthError, oauth_state::OAuthState, validation::*};
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
@@ -21,7 +6,24 @@ use axum::{
     Json,
 };
 use axum_valid::Valid;
+use iam_application::command::{
+    oauth_login::{GenerateOAuthStartUrlCommand, OAuthLoginCommand},
+    password_login::PasswordLoginCommand,
+    provider::{
+        GenerateLinkProviderStartUrlCommand, GenerateRelinkProviderStartUrlCommand,
+        GetProviderTokenCommand, LinkProviderCommand, RelinkProviderCommand,
+        RevokeProviderTokenCommand,
+    },
+    registration::{CheckUsernameCommand, CompleteRegistrationCommand},
+    resend_verification_email::ResendVerificationEmailCommand,
+    signup::SignupCommand,
+    user::GetUserCommand,
+    verify_email::VerifyEmailCommand,
+    CommandContext,
+};
 use iam_domain::entity::provider::Provider;
+use rustycog_http::AppState;
+use rustycog_http::{AuthUser, ValidatedJson};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error};
 use url;
@@ -260,7 +262,10 @@ pub async fn oauth_login_start(
     State(state): State<AppState>,
     Valid(Path(provider_path)): Valid<Path<ProviderPath>>,
 ) -> Result<Redirect, AuthError> {
-    debug!("OAuth login start for provider: {}", provider_path.provider_name);
+    debug!(
+        "OAuth login start for provider: {}",
+        provider_path.provider_name
+    );
 
     // Parse the provider
     let provider = match provider_path.provider_name.to_lowercase().as_str() {
@@ -291,8 +296,8 @@ pub async fn oauth_login_start(
         .map_err(|_e| AuthError::oauth_url_generation_failed("login_start"))?;
 
     // Parse the URL and replace the state parameter with our own
-    let mut url =
-        url::Url::parse(&base_auth_url).map_err(|_e| AuthError::oauth_invalid_url("login_start"))?;
+    let mut url = url::Url::parse(&base_auth_url)
+        .map_err(|_e| AuthError::oauth_invalid_url("login_start"))?;
 
     // Remove any existing state parameter and add our own
     let mut new_query_pairs = Vec::new();
@@ -302,7 +307,7 @@ pub async fn oauth_login_start(
         }
     }
     new_query_pairs.push(("state".to_string(), encoded_state));
-    
+
     // Clear existing query and set new query pairs
     url.set_query(None);
     {
@@ -313,7 +318,10 @@ pub async fn oauth_login_start(
         query_pairs.finish();
     }
 
-    debug!("Redirecting to provider authorization URL for login: {}", url.as_str());
+    debug!(
+        "Redirecting to provider authorization URL for login: {}",
+        url.as_str()
+    );
     Ok(Redirect::to(url.as_str()))
 }
 
@@ -323,7 +331,10 @@ pub async fn oauth_link_start(
     Valid(Path(provider_path)): Valid<Path<ProviderPath>>,
     auth_user: AuthUser,
 ) -> Result<Redirect, AuthError> {
-    debug!("OAuth link start for provider: {} and user: {}", provider_path.provider_name, auth_user.user_id);
+    debug!(
+        "OAuth link start for provider: {} and user: {}",
+        provider_path.provider_name, auth_user.user_id
+    );
 
     // Parse the provider
     let provider = match provider_path.provider_name.to_lowercase().as_str() {
@@ -332,7 +343,7 @@ pub async fn oauth_link_start(
         _ => return Err(AuthError::oauth_invalid_provider("link_start")),
     };
 
-    // check if user exists 
+    // check if user exists
     let user_context = CommandContext::new()
         .with_user_id(auth_user.user_id)
         .with_metadata("operation".to_string(), "get_user".to_string());
@@ -379,7 +390,7 @@ pub async fn oauth_link_start(
         }
     }
     new_query_pairs.push(("state".to_string(), encoded_state));
-    
+
     // Clear existing query and set new query pairs
     url.set_query(None);
     {
@@ -390,7 +401,10 @@ pub async fn oauth_link_start(
         query_pairs.finish();
     }
 
-    debug!("Redirecting to provider authorization URL for linking: {}", url.as_str());
+    debug!(
+        "Redirecting to provider authorization URL for linking: {}",
+        url.as_str()
+    );
     Ok(Redirect::to(url.as_str()))
 }
 
@@ -820,8 +834,8 @@ pub async fn jwks(
 ) -> Result<Json<iam_domain::entity::token::JwkSet>, AuthError> {
     debug!("JWKS endpoint requested");
 
-    let context = CommandContext::new()
-        .with_metadata("operation".to_string(), "get_jwks".to_string());
+    let context =
+        CommandContext::new().with_metadata("operation".to_string(), "get_jwks".to_string());
 
     let command = iam_application::command::token::GetJwksCommand::new();
     let jwks = state
@@ -986,10 +1000,7 @@ pub async fn revoke_provider_token(
 
     let context = CommandContext::new()
         .with_user_id(auth_user.user_id)
-        .with_metadata(
-            "operation".to_string(),
-            "revoke_provider_token".to_string(),
-        )
+        .with_metadata("operation".to_string(), "revoke_provider_token".to_string())
         .with_metadata("provider".to_string(), provider.as_str().to_string());
 
     state
@@ -1051,16 +1062,11 @@ pub async fn relink_provider_callback(
         provider.as_str()
     );
 
-    let code = callback_request.code.ok_or_else(|| {
-        AuthError::oauth_invalid_provider("relink_provider - missing code")
-    })?;
+    let code = callback_request
+        .code
+        .ok_or_else(|| AuthError::oauth_invalid_provider("relink_provider - missing code"))?;
 
-    let command = RelinkProviderCommand::new(
-        auth_user.user_id,
-        provider,
-        code,
-        redirect_uri,
-    );
+    let command = RelinkProviderCommand::new(auth_user.user_id, provider, code, redirect_uri);
 
     let context = CommandContext::new()
         .with_user_id(auth_user.user_id)
@@ -1080,7 +1086,9 @@ pub async fn relink_provider_callback(
         })?;
 
     // Find primary email for user data
-    let primary_email = result.emails.iter()
+    let primary_email = result
+        .emails
+        .iter()
         .find(|e| e.is_primary)
         .map(|e| e.email.clone());
 
@@ -1091,12 +1099,16 @@ pub async fn relink_provider_callback(
             email: primary_email,
             avatar_url: result.user.avatar_url,
         },
-        emails: result.emails.into_iter().map(|e| EmailData {
-            id: e.id.to_string(),
-            email: e.email,
-            is_primary: e.is_primary,
-            is_verified: e.is_verified,
-        }).collect(),
+        emails: result
+            .emails
+            .into_iter()
+            .map(|e| EmailData {
+                id: e.id.to_string(),
+                email: e.email,
+                is_primary: e.is_primary,
+                is_verified: e.is_verified,
+            })
+            .collect(),
         new_email_added: result.new_email_added,
         new_email: result.new_email,
     }))
@@ -1116,7 +1128,11 @@ pub async fn generate_relink_provider_start_url(
     let provider = match provider_path.provider_name.to_lowercase().as_str() {
         "github" => Provider::GitHub,
         "gitlab" => Provider::GitLab,
-        _ => return Err(AuthError::oauth_invalid_provider("generate_relink_provider_start_url")),
+        _ => {
+            return Err(AuthError::oauth_invalid_provider(
+                "generate_relink_provider_start_url",
+            ))
+        }
     };
 
     let command = GenerateRelinkProviderStartUrlCommand::new(provider);

@@ -1,14 +1,14 @@
 //! Mock event publisher for testing event publishing behavior
-//! 
+//!
 //! This allows tests to verify that events are correctly sent or not sent
 //! based on the business logic, without requiring a real message queue.
 
-use std::sync::{Arc, Mutex};
-use std::collections::HashMap;
 use async_trait::async_trait;
+use rustycog_core::error::ServiceError;
 use rustycog_events::event::EventPublisher;
 use rustycog_events::DomainEvent;
-use rustycog_core::error::ServiceError;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
 /// Captured event information for testing
@@ -31,14 +31,15 @@ impl CapturedEvent {
 
     /// Get a field from the parsed JSON data
     pub fn get_json_field(&self, field_name: &str) -> Option<serde_json::Value> {
-        self.parse_json().ok().and_then(|json| {
-            json.get(field_name).cloned()
-        })
+        self.parse_json()
+            .ok()
+            .and_then(|json| json.get(field_name).cloned())
     }
 
     /// Get a string field from the parsed JSON data
     pub fn get_json_string_field(&self, field_name: &str) -> Option<String> {
-        self.get_json_field(field_name).and_then(|v| v.as_str().map(|s| s.to_string()))
+        self.get_json_field(field_name)
+            .and_then(|v| v.as_str().map(|s| s.to_string()))
     }
 }
 
@@ -71,7 +72,8 @@ impl MockEventPublisher {
     /// Get events by type
     pub fn get_events_by_type(&self, event_type: &str) -> Vec<CapturedEvent> {
         let events = self.published_events.lock().unwrap();
-        events.iter()
+        events
+            .iter()
             .filter(|event| event.event_type == event_type)
             .cloned()
             .collect()
@@ -147,7 +149,7 @@ impl EventPublisher<ServiceError> for MockEventPublisher {
             json_data: event.to_json()?,
             metadata: event.metadata(),
         };
-        
+
         let mut events = self.published_events.lock().unwrap();
         events.push(captured_event);
         Ok(())
@@ -175,4 +177,4 @@ impl EventPublisher<ServiceError> for MockEventPublisher {
         // Mock is always healthy
         Ok(())
     }
-} 
+}

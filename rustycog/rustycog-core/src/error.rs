@@ -1,5 +1,5 @@
 //! Core error types for RustyCog
-//! 
+//!
 //! This module defines the fundamental error types used throughout the RustyCog ecosystem.
 
 use serde::{Deserialize, Serialize};
@@ -10,7 +10,7 @@ use thiserror::Error;
 pub enum ServiceError {
     /// Validation error - input data is invalid
     #[error("Validation error: {message}")]
-    Validation { 
+    Validation {
         message: String,
         field: Option<String>,
         code: Option<String>,
@@ -18,14 +18,14 @@ pub enum ServiceError {
 
     /// Authentication error - user is not authenticated
     #[error("Authentication error: {message}")]
-    Authentication { 
+    Authentication {
         message: String,
         code: Option<String>,
     },
 
     /// Authorization error - user is not authorized to perform this action
     #[error("Authorization error: {message}")]
-    Authorization { 
+    Authorization {
         message: String,
         resource: Option<String>,
         action: Option<String>,
@@ -33,21 +33,21 @@ pub enum ServiceError {
 
     /// Business logic error - domain rules violated
     #[error("Business error: {message}")]
-    Business { 
+    Business {
         message: String,
         code: Option<String>,
     },
 
     /// Infrastructure error - external systems, database, etc.
     #[error("Infrastructure error: {message}")]
-    Infrastructure { 
+    Infrastructure {
         message: String,
         error_source: Option<String>,
     },
 
     /// Not found error - requested resource doesn't exist
     #[error("Not found: {message}")]
-    NotFound { 
+    NotFound {
         message: String,
         resource_type: Option<String>,
         resource_id: Option<String>,
@@ -55,35 +55,35 @@ pub enum ServiceError {
 
     /// Conflict error - resource already exists or state conflict
     #[error("Conflict: {message}")]
-    Conflict { 
+    Conflict {
         message: String,
         resource_type: Option<String>,
     },
 
     /// Rate limit exceeded
     #[error("Rate limit exceeded: {message}")]
-    RateLimit { 
+    RateLimit {
         message: String,
         retry_after: Option<u64>,
     },
 
     /// Service unavailable - temporary failure
     #[error("Service unavailable: {message}")]
-    ServiceUnavailable { 
+    ServiceUnavailable {
         message: String,
         retry_after: Option<u64>,
     },
 
     /// Timeout error
     #[error("Timeout: {message}")]
-    Timeout { 
+    Timeout {
         message: String,
         operation: Option<String>,
     },
 
     /// Internal error - unexpected system error
     #[error("Internal error: {message}")]
-    Internal { 
+    Internal {
         message: String,
         error_id: Option<String>,
     },
@@ -110,9 +110,9 @@ impl ServiceError {
 
     /// Create a validation error with field and code
     pub fn validation_with_code(
-        message: impl Into<String>, 
-        field: impl Into<String>, 
-        code: impl Into<String>
+        message: impl Into<String>,
+        field: impl Into<String>,
+        code: impl Into<String>,
     ) -> Self {
         Self::Validation {
             message: message.into(),
@@ -171,7 +171,10 @@ impl ServiceError {
     }
 
     /// Create an infrastructure error with source
-    pub fn infrastructure_with_source(message: impl Into<String>, source: impl Into<String>) -> Self {
+    pub fn infrastructure_with_source(
+        message: impl Into<String>,
+        source: impl Into<String>,
+    ) -> Self {
         Self::Infrastructure {
             message: message.into(),
             error_source: Some(source.into()),
@@ -189,9 +192,9 @@ impl ServiceError {
 
     /// Create a not found error with resource information
     pub fn not_found_resource(
-        message: impl Into<String>, 
-        resource_type: impl Into<String>, 
-        resource_id: impl Into<String>
+        message: impl Into<String>,
+        resource_type: impl Into<String>,
+        resource_id: impl Into<String>,
     ) -> Self {
         Self::NotFound {
             message: message.into(),
@@ -237,10 +240,10 @@ impl ServiceError {
     pub fn is_retryable(&self) -> bool {
         matches!(
             self,
-            Self::Infrastructure { .. } | 
-            Self::ServiceUnavailable { .. } | 
-            Self::Timeout { .. } |
-            Self::RateLimit { .. }
+            Self::Infrastructure { .. }
+                | Self::ServiceUnavailable { .. }
+                | Self::Timeout { .. }
+                | Self::RateLimit { .. }
         )
     }
 
@@ -262,21 +265,18 @@ impl ServiceError {
 }
 
 /// Domain error type for business logic errors
-/// 
+///
 /// This is a more specific error type that domain services can use
 /// and will be mapped to ServiceError by the application layer.
 #[derive(Debug, Error, Clone, Serialize, Deserialize)]
 pub enum DomainError {
     /// Business rule violation
     #[error("Business rule violation: {message}")]
-    BusinessRuleViolation { 
-        message: String,
-        rule: String,
-    },
+    BusinessRuleViolation { message: String, rule: String },
 
     /// Invalid state transition
     #[error("Invalid state transition: {message}")]
-    InvalidStateTransition { 
+    InvalidStateTransition {
         message: String,
         from_state: String,
         to_state: String,
@@ -284,19 +284,15 @@ pub enum DomainError {
 
     /// Resource not found in domain
     #[error("Resource not found: {message}")]
-    ResourceNotFound { 
+    ResourceNotFound {
         message: String,
         resource_type: String,
     },
 
     /// Invariant violation
     #[error("Invariant violation: {message}")]
-    InvariantViolation { 
-        message: String,
-        invariant: String,
-    },
+    InvariantViolation { message: String, invariant: String },
 
-    
     /// Authorization error
     #[error("Authorization error: {0}")]
     AuthorizationError(String),
@@ -311,15 +307,14 @@ impl From<DomainError> for ServiceError {
             DomainError::InvalidStateTransition { message, .. } => {
                 ServiceError::business_with_code(message, "invalid_state_transition")
             }
-            DomainError::ResourceNotFound { message, resource_type } => {
-                ServiceError::not_found_resource(message, resource_type, "unknown")
-            }
+            DomainError::ResourceNotFound {
+                message,
+                resource_type,
+            } => ServiceError::not_found_resource(message, resource_type, "unknown"),
             DomainError::InvariantViolation { message, invariant } => {
                 ServiceError::business_with_code(message, invariant)
             }
-            DomainError::AuthorizationError(message) => {
-                ServiceError::authorization(message)
-            }
+            DomainError::AuthorizationError(message) => ServiceError::authorization(message),
         }
     }
-} 
+}

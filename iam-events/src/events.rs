@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
 
-use rustycog_events::event::{BaseEvent, DomainEvent};
 use rustycog_core::error::ServiceError;
+use rustycog_events::event::{BaseEvent, DomainEvent};
 
 /// IAM domain events that can be published to external systems
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -84,7 +84,14 @@ pub struct PasswordResetRequestedEvent {
 // Event constructors
 impl UserSignedUpEvent {
     /// Create a new UserSignedUp event
-    pub fn new(user_id: Uuid, email: String, username: String, email_verified: bool, verification_token: Option<String>, verification_url: Option<String>) -> Self {
+    pub fn new(
+        user_id: Uuid,
+        email: String,
+        username: String,
+        email_verified: bool,
+        verification_token: Option<String>,
+        verification_url: Option<String>,
+    ) -> Self {
         Self {
             base: BaseEvent::new("user_signed_up".to_string(), user_id),
             user_id,
@@ -122,7 +129,12 @@ impl UserLoggedInEvent {
 
 impl PasswordResetRequestedEvent {
     /// Create a new PasswordResetRequested event
-    pub fn new(user_id: Uuid, email: String, reset_token: String, expires_at: chrono::DateTime<chrono::Utc>) -> Self {
+    pub fn new(
+        user_id: Uuid,
+        email: String,
+        reset_token: String,
+        expires_at: chrono::DateTime<chrono::Utc>,
+    ) -> Self {
         Self {
             base: BaseEvent::new("password_reset_requested".to_string(), user_id),
             user_id,
@@ -330,7 +342,7 @@ impl IamDomainEvent {
             IamDomainEvent::PasswordResetRequested(event) => event.user_id,
         }
     }
-} 
+}
 
 impl From<IamDomainEvent> for Box<dyn DomainEvent + 'static> {
     fn from(event: IamDomainEvent) -> Self {

@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 
 /// GitHub user data structure matching the API response
 #[derive(Debug, Clone, Serialize, Deserialize)]

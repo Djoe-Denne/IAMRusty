@@ -2,10 +2,10 @@
 
 use async_trait::async_trait;
 use std::sync::Arc;
-use tracing::{info, error};
+use tracing::{error, info};
 
-use telegraph_domain::{DomainError, EventProcessor, EventContext, EventRecipient};
 use crate::command::ProcessEventCommand;
+use telegraph_domain::{DomainError, EventContext, EventProcessor, EventRecipient};
 
 /// Use case for handling event processing operations
 pub struct EventProcessingUseCase {
@@ -15,21 +15,19 @@ pub struct EventProcessingUseCase {
 impl EventProcessingUseCase {
     /// Create a new event processing use case
     pub fn new(event_processor: Arc<dyn EventProcessor>) -> Self {
-        Self {
-            event_processor,
-        }
+        Self { event_processor }
     }
-    
+
     /// Process an IAM domain event
     pub async fn process_event(&self, command: ProcessEventCommand) -> Result<(), DomainError> {
         // Extract values for logging before converting the command
         let event_id = command.event_id();
         let event_type = command.event_type().to_string();
         let attempt = command.attempt;
-        
+
         // Process the event through the domain event processor
         let result = self.event_processor.process_event(&command.into()).await;
-        
+
         match &result {
             Ok(()) => {
                 info!(
@@ -48,7 +46,7 @@ impl EventProcessingUseCase {
                 );
             }
         }
-        
+
         result
     }
 }
@@ -65,7 +63,7 @@ impl EventProcessingUseCaseTrait for EventProcessingUseCase {
     async fn process_event(&self, command: ProcessEventCommand) -> Result<(), DomainError> {
         self.process_event(command).await
     }
-} 
+}
 
 /// Mapper for Event command to Event context
 impl From<ProcessEventCommand> for EventContext {

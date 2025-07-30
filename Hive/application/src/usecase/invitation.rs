@@ -2,16 +2,16 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use hive_domain::{DomainError, port::repository::OrganizationInvitationRepository};
-use hive_events::{InvitationCreatedEvent, InvitationAcceptedEvent, event_types};
-use rustycog_events::{MultiQueueEventPublisher, DomainEvent};
+use hive_domain::{port::repository::OrganizationInvitationRepository, DomainError};
+use hive_events::{event_types, InvitationAcceptedEvent, InvitationCreatedEvent};
+use rustycog_events::{DomainEvent, MultiQueueEventPublisher};
 
 use crate::{
-    ApplicationError, 
     dto::{
-        PaginationRequest, CreateInvitationRequest, InvitationResponse,
-        InvitationListResponse, InvitationDetailsResponse
-    }
+        CreateInvitationRequest, InvitationDetailsResponse, InvitationListResponse,
+        InvitationResponse, PaginationRequest,
+    },
+    ApplicationError,
 };
 
 #[async_trait]
@@ -23,11 +23,8 @@ pub trait InvitationUseCase: Send + Sync {
         invited_by_user_id: Uuid,
     ) -> Result<InvitationResponse, ApplicationError>;
 
-    async fn accept_invitation(
-        &self,
-        token: String,
-        user_id: Uuid,
-    ) -> Result<(), ApplicationError>;
+    async fn accept_invitation(&self, token: String, user_id: Uuid)
+        -> Result<(), ApplicationError>;
 }
 
 pub struct InvitationUseCaseImpl {
@@ -56,7 +53,7 @@ impl InvitationUseCase for InvitationUseCaseImpl {
         invited_by_user_id: Uuid,
     ) -> Result<InvitationResponse, ApplicationError> {
         // TODO: Implement invitation creation logic
-        
+
         // Placeholder event publishing
         let event = InvitationCreatedEvent {
             organization_id,
@@ -69,15 +66,13 @@ impl InvitationUseCase for InvitationUseCaseImpl {
             expires_at: chrono::Utc::now() + chrono::Duration::days(7),
         };
 
-        let domain_event: Box<dyn DomainEvent> = Box::new(
-            rustycog_events::event::Event::new(
-                event_types::INVITATION_CREATED,
-                serde_json::to_value(event).map_err(|e| {
-                    ApplicationError::internal_error(&format!("Failed to serialize event: {}", e))
-                })?,
-                organization_id,
-            )
-        );
+        let domain_event: Box<dyn DomainEvent> = Box::new(rustycog_events::event::Event::new(
+            event_types::INVITATION_CREATED,
+            serde_json::to_value(event).map_err(|e| {
+                ApplicationError::internal_error(&format!("Failed to serialize event: {}", e))
+            })?,
+            organization_id,
+        ));
 
         self.event_publisher
             .publish(&domain_event)
@@ -102,4 +97,4 @@ impl InvitationUseCase for InvitationUseCaseImpl {
         // TODO: Implement invitation acceptance logic
         Ok(())
     }
-} 
+}

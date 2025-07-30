@@ -10,9 +10,9 @@ pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: Uuid,
     pub organization_id: Uuid,
-    pub email: String,
-    pub role_id: Uuid,
+    pub aggregate_id: String,
     pub invited_by_user_id: Uuid,
+    pub role_permissions: Json,
     pub token: String,
     pub status: String,
     pub expires_at: DateTime<Utc>,

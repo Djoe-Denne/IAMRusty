@@ -32,10 +32,7 @@ impl ResourceRepositoryImpl {
 
     /// Convert a database model to a domain resource
     fn to_domain(model: resources::Model) -> Result<Resource, DomainError> {
-        let resource_type = ResourceType::from_str(&model.resource_type)?;
         Ok(Resource {
-            id: model.id,
-            resource_type,
             name: model.name,
             description: model.description,
             created_at: model.created_at,
@@ -70,7 +67,7 @@ impl ResourceRepository for ResourceRepositoryImpl {
         }
     }
 
-    async fn find_by_type(&self, resource_type: &ResourceType) -> Result<Option<Resource>, DomainError> {
+    async fn find_by_type(&self, resource_type: &String) -> Result<Option<Resource>, DomainError> {
         debug!("Finding resource by type: {}", resource_type.as_str());
         
         let resource = Resources::find()

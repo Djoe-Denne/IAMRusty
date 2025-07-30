@@ -1,22 +1,22 @@
 use async_trait::async_trait;
+use chrono::Utc;
 use std::sync::Arc;
 use uuid::Uuid;
-use chrono::Utc;
 
 use hive_domain::{
-    DomainError, Organization, OrganizationMember, OrganizationRole,
-    service::MemberService,
     port::repository::{OrganizationMemberRepository, OrganizationRepository},
+    service::MemberService,
+    DomainError, Organization, OrganizationMember, OrganizationRole,
 };
-use hive_events::{MemberJoinedEvent, MemberRemovedEvent, event_types};
-use rustycog_events::{MultiQueueEventPublisher, DomainEvent};
+use hive_events::{event_types, MemberJoinedEvent, MemberRemovedEvent};
+use rustycog_events::{DomainEvent, MultiQueueEventPublisher};
 
 use crate::{
-    ApplicationError,
     dto::{
-        PaginationRequest, AddMemberRequest, UpdateMemberRequest,
-        MemberResponse, MemberListResponse
-    }
+        AddMemberRequest, MemberListResponse, MemberResponse, PaginationRequest,
+        UpdateMemberRequest,
+    },
+    ApplicationError,
 };
 
 /// Use case trait for member operations
@@ -110,15 +110,13 @@ impl MemberUseCaseImpl {
             joined_at: member.joined_at().unwrap_or_else(|| Utc::now()),
         };
 
-        let domain_event: Box<dyn DomainEvent> = Box::new(
-            rustycog_events::event::Event::new(
-                event_types::MEMBER_JOINED,
-                serde_json::to_value(event).map_err(|e| {
-                    ApplicationError::internal_error(&format!("Failed to serialize event: {}", e))
-                })?,
-                member.organization_id(),
-            )
-        );
+        let domain_event: Box<dyn DomainEvent> = Box::new(rustycog_events::event::Event::new(
+            event_types::MEMBER_JOINED,
+            serde_json::to_value(event).map_err(|e| {
+                ApplicationError::internal_error(&format!("Failed to serialize event: {}", e))
+            })?,
+            member.organization_id(),
+        ));
 
         self.event_publisher
             .publish(&domain_event)
@@ -146,15 +144,13 @@ impl MemberUseCaseImpl {
             removed_at: Utc::now(),
         };
 
-        let domain_event: Box<dyn DomainEvent> = Box::new(
-            rustycog_events::event::Event::new(
-                event_types::MEMBER_REMOVED,
-                serde_json::to_value(event).map_err(|e| {
-                    ApplicationError::internal_error(&format!("Failed to serialize event: {}", e))
-                })?,
-                organization_id,
-            )
-        );
+        let domain_event: Box<dyn DomainEvent> = Box::new(rustycog_events::event::Event::new(
+            event_types::MEMBER_REMOVED,
+            serde_json::to_value(event).map_err(|e| {
+                ApplicationError::internal_error(&format!("Failed to serialize event: {}", e))
+            })?,
+            organization_id,
+        ));
 
         self.event_publisher
             .publish(&domain_event)
@@ -174,26 +170,34 @@ impl MemberUseCase for MemberUseCaseImpl {
         added_by_user_id: Uuid,
     ) -> Result<MemberResponse, ApplicationError> {
         // Get organization for validation and events
-        let organization = self.organization_repository
+        let organization = self
+            .organization_repository
             .find_by_id(organization_id)
             .await
             .map_err(ApplicationError::Domain)?
-            .ok_or_else(|| ApplicationError::Domain(
-                DomainError::EntityNotFound {
+            .ok_or_else(|| {
+                ApplicationError::Domain(DomainError::EntityNotFound {
                     entity_type: "Organization".to_string(),
                     id: organization_id.to_string(),
-                }
-            ))?;
+                })
+            })?;
 
         // Use domain service to add member
-        let member = self.member_service
-            .add_member(organization_id, request.user_id, request.role_id, added_by_user_id)
+        let member = self
+            .member_service
+            .add_member(
+                organization_id,
+                request.user_id,
+                request.role_id,
+                added_by_user_id,
+            )
             .await
             .map_err(ApplicationError::Domain)?;
 
         // Publish domain event
         // TODO: Get role name from role repository
-        self.publish_member_joined_event(&member, organization.name(), "Member").await?;
+        self.publish_member_joined_event(&member, organization.name(), "Member")
+            .await?;
 
         Ok(self.member_to_response(&member))
     }
@@ -205,16 +209,17 @@ impl MemberUseCase for MemberUseCaseImpl {
         removed_by_user_id: Uuid,
     ) -> Result<(), ApplicationError> {
         // Get organization for validation and events
-        let organization = self.organization_repository
+        let organization = self
+            .organization_repository
             .find_by_id(organization_id)
             .await
             .map_err(ApplicationError::Domain)?
-            .ok_or_else(|| ApplicationError::Domain(
-                DomainError::EntityNotFound {
+            .ok_or_else(|| {
+                ApplicationError::Domain(DomainError::EntityNotFound {
                     entity_type: "Organization".to_string(),
                     id: organization_id.to_string(),
-                }
-            ))?;
+                })
+            })?;
 
         // Use domain service to remove member
         self.member_service
@@ -230,7 +235,8 @@ impl MemberUseCase for MemberUseCaseImpl {
             user_id,
             "user@example.com", // Placeholder
             removed_by_user_id,
-        ).await?;
+        )
+        .await?;
 
         Ok(())
     }
@@ -242,8 +248,9 @@ impl MemberUseCase for MemberUseCaseImpl {
         requesting_user_id: Uuid,
     ) -> Result<MemberListResponse, ApplicationError> {
         // TODO: Add permission check
-        
-        let (members, total_count) = self.member_repository
+
+        let (members, total_count) = self
+            .member_repository
             .find_by_organization_id(organization_id, pagination.page(), pagination.page_size())
             .await
             .map_err(ApplicationError::Domain)?;
@@ -253,7 +260,8 @@ impl MemberUseCase for MemberUseCaseImpl {
             .map(|member| self.member_to_response(member))
             .collect();
 
-        let total_pages = (total_count.unwrap_or(0) as f64 / pagination.page_size() as f64).ceil() as u32;
+        let total_pages =
+            (total_count.unwrap_or(0) as f64 / pagination.page_size() as f64).ceil() as u32;
         let has_next = pagination.page() < total_pages;
 
         Ok(MemberListResponse {
@@ -287,17 +295,18 @@ impl MemberUseCase for MemberUseCaseImpl {
     ) -> Result<MemberResponse, ApplicationError> {
         // TODO: Add permission check
 
-        let member = self.member_repository
+        let member = self
+            .member_repository
             .find_by_organization_and_user(organization_id, user_id)
             .await
             .map_err(ApplicationError::Domain)?
-            .ok_or_else(|| ApplicationError::Domain(
-                DomainError::EntityNotFound {
+            .ok_or_else(|| {
+                ApplicationError::Domain(DomainError::EntityNotFound {
                     entity_type: "OrganizationMember".to_string(),
                     id: format!("{}:{}", organization_id, user_id),
-                }
-            ))?;
+                })
+            })?;
 
         Ok(self.member_to_response(&member))
     }
-} 
+}

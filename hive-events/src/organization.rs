@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use rustycog_events::{DomainEvent, BaseEvent};
+use rustycog_events::{BaseEvent, DomainEvent};
 
 // =============================================================================
 // Organization Events
@@ -48,7 +48,13 @@ pub struct OrganizationDeletedEvent {
 // =============================================================================
 
 impl OrganizationCreatedEvent {
-    pub fn new(organization_id: Uuid, organization_name: String, organization_slug: String, owner_user_id: Uuid, created_at: DateTime<Utc>) -> Self {
+    pub fn new(
+        organization_id: Uuid,
+        organization_name: String,
+        organization_slug: String,
+        owner_user_id: Uuid,
+        created_at: DateTime<Utc>,
+    ) -> Self {
         Self {
             base: BaseEvent::new("organization_created".to_string(), organization_id),
             organization_id,
@@ -61,7 +67,13 @@ impl OrganizationCreatedEvent {
 }
 
 impl OrganizationUpdatedEvent {
-    pub fn new(organization_id: Uuid, organization_name: String, updated_fields: Vec<String>, updated_by_user_id: Uuid, updated_at: DateTime<Utc>) -> Self {
+    pub fn new(
+        organization_id: Uuid,
+        organization_name: String,
+        updated_fields: Vec<String>,
+        updated_by_user_id: Uuid,
+        updated_at: DateTime<Utc>,
+    ) -> Self {
         Self {
             base: BaseEvent::new("organization_updated".to_string(), organization_id),
             organization_id,
@@ -74,7 +86,12 @@ impl OrganizationUpdatedEvent {
 }
 
 impl OrganizationDeletedEvent {
-    pub fn new(organization_id: Uuid, organization_name: String, deleted_by_user_id: Uuid, deleted_at: DateTime<Utc>) -> Self {
+    pub fn new(
+        organization_id: Uuid,
+        organization_name: String,
+        deleted_by_user_id: Uuid,
+        deleted_at: DateTime<Utc>,
+    ) -> Self {
         Self {
             base: BaseEvent::new("organization_deleted".to_string(), organization_id),
             organization_id,
@@ -84,4 +101,3 @@ impl OrganizationDeletedEvent {
         }
     }
 }
-

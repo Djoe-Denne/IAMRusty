@@ -83,7 +83,9 @@ impl Organization {
     /// Validate organization name
     fn validate_name(name: &str) -> Result<(), DomainError> {
         if name.trim().is_empty() {
-            return Err(DomainError::invalid_input("Organization name cannot be empty"));
+            return Err(DomainError::invalid_input(
+                "Organization name cannot be empty",
+            ));
         }
 
         if name.len() > 255 {
@@ -98,7 +100,9 @@ impl Organization {
     /// Validate organization slug
     fn validate_slug(slug: &str) -> Result<(), DomainError> {
         if slug.trim().is_empty() {
-            return Err(DomainError::invalid_input("Organization slug cannot be empty"));
+            return Err(DomainError::invalid_input(
+                "Organization slug cannot be empty",
+            ));
         }
 
         if slug.len() > 100 {
@@ -157,7 +161,7 @@ mod tests {
     #[test]
     fn test_validate_slug_invalid_format() {
         let owner_id = Uuid::new_v4();
-        
+
         // Test invalid characters
         let result = Organization::new("Test".to_string(), "test@org".to_string(), None, owner_id);
         assert!(result.is_err());
@@ -179,7 +183,8 @@ mod tests {
             "test-org".to_string(),
             None,
             owner_id,
-        ).unwrap();
+        )
+        .unwrap();
 
         let original_updated_at = org.updated_at;
 
@@ -193,4 +198,4 @@ mod tests {
         org.update_description(Some("New description".to_string()));
         assert_eq!(org.description, Some("New description".to_string()));
     }
-} 
+}

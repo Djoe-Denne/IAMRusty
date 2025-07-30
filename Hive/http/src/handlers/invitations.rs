@@ -2,14 +2,14 @@ use axum::{
     extract::{Path, Query, State},
     response::Json,
 };
-use rustycog_http::{AppState, AuthUser, ValidatedJson};
-use rustycog_command::CommandContext;
 use hive_application::{
-    PaginationRequest, CreateInvitationRequest, InvitationResponse,
-    InvitationListResponse, InvitationDetailsResponse,
-    CreateInvitationCommand, ListInvitationsCommand, CancelInvitationCommand,
-    AcceptInvitationCommand, GetInvitationByTokenCommand, ResendInvitationCommand,
+    AcceptInvitationCommand, CancelInvitationCommand, CreateInvitationCommand,
+    CreateInvitationRequest, GetInvitationByTokenCommand, InvitationDetailsResponse,
+    InvitationListResponse, InvitationResponse, ListInvitationsCommand, PaginationRequest,
+    ResendInvitationCommand,
 };
+use rustycog_command::CommandContext;
+use rustycog_http::{AppState, AuthUser, ValidatedJson};
 use uuid::Uuid;
 
 use crate::error::HttpError;
@@ -23,17 +23,18 @@ pub async fn create_invitation(
     ValidatedJson(request): ValidatedJson<CreateInvitationRequest>,
 ) -> Result<Json<InvitationResponse>, HttpError> {
     tracing::info!("Creating invitation for organization: {}", organization_id);
-    
+
     let command = CreateInvitationCommand::new(organization_id, request, auth_user.user_id);
     let context = CommandContext::new().with_user_id(auth_user.user_id);
-    
-    let result = state.command_service
+
+    let result = state
+        .command_service
         .execute(command, context)
         .await
         .map_err(|e| HttpError::Internal {
             message: format!("Command execution failed: {}", e),
         })?;
-    
+
     Ok(Json(result))
 }
 
@@ -45,17 +46,18 @@ pub async fn list_invitations(
     Query(pagination): Query<PaginationRequest>,
 ) -> Result<Json<()>, HttpError> {
     tracing::info!("Listing invitations for organization: {}", organization_id);
-    
+
     let command = ListInvitationsCommand::new(organization_id, pagination);
     let context = CommandContext::new().with_user_id(auth_user.user_id);
-    
-    let result = state.command_service
+
+    let result = state
+        .command_service
         .execute(command, context)
         .await
         .map_err(|e| HttpError::Internal {
             message: format!("Command execution failed: {}", e),
         })?;
-    
+
     Ok(Json(result))
 }
 
@@ -70,17 +72,18 @@ pub async fn get_invitation(
         invitation_id,
         organization_id
     );
-    
+
     let command = CancelInvitationCommand::new(organization_id, invitation_id);
     let context = CommandContext::new().with_user_id(auth_user.user_id);
-    
-    let result = state.command_service
+
+    let result = state
+        .command_service
         .execute(command, context)
         .await
         .map_err(|e| HttpError::Internal {
             message: format!("Command execution failed: {}", e),
         })?;
-    
+
     Ok(Json(result))
 }
 
@@ -95,7 +98,7 @@ pub async fn cancel_invitation(
         invitation_id,
         organization_id
     );
-    
+
     Err(HttpError::Internal {
         message: "Not implemented".to_string(),
     })
@@ -108,17 +111,18 @@ pub async fn accept_invitation(
     Path(token): Path<String>,
 ) -> Result<Json<()>, HttpError> {
     tracing::info!("Accepting invitation with token: {}", token);
-    
+
     let command = AcceptInvitationCommand::new(token);
     let context = CommandContext::new().with_user_id(auth_user.user_id);
-    
-    let result = state.command_service
+
+    let result = state
+        .command_service
         .execute(command, context)
         .await
         .map_err(|e| HttpError::Internal {
             message: format!("Command execution failed: {}", e),
         })?;
-    
+
     Ok(Json(result))
 }
 
@@ -129,17 +133,18 @@ pub async fn get_invitation_by_token(
     Path(token): Path<String>,
 ) -> Result<Json<()>, HttpError> {
     tracing::info!("Getting invitation details for token: {}", token);
-    
+
     let command = GetInvitationByTokenCommand::new(token);
     let context = CommandContext::new().with_user_id(auth_user.user_id);
-    
-    let result = state.command_service
+
+    let result = state
+        .command_service
         .execute(command, context)
         .await
         .map_err(|e| HttpError::Internal {
             message: format!("Command execution failed: {}", e),
         })?;
-    
+
     Ok(Json(result))
 }
 
@@ -154,16 +159,17 @@ pub async fn resend_invitation(
         invitation_id,
         organization_id
     );
-    
+
     let command = ResendInvitationCommand::new(organization_id, invitation_id);
     let context = CommandContext::new().with_user_id(auth_user.user_id);
-    
-    let result = state.command_service
+
+    let result = state
+        .command_service
         .execute(command, context)
         .await
         .map_err(|e| HttpError::Internal {
             message: format!("Command execution failed: {}", e),
         })?;
-    
+
     Ok(Json(result))
 }

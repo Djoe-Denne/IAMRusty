@@ -1,9 +1,6 @@
 use crate::error::ApiError;
+use axum::{extract::State, Json};
 use iam_application::command::{user::GetUserCommand, CommandContext};
-use axum::{
-    extract::State,
-    Json,
-};
 use rustycog_http::AuthUser;
 use serde::Serialize;
 use uuid::Uuid;

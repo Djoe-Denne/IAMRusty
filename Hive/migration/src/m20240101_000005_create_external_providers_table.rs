@@ -145,16 +145,8 @@ impl MigrationTrait for Migration {
                         ExternalProviders::Name,
                         ExternalProviders::ConfigSchema,
                     ])
-                    .values_panic([
-                        "github".into(),
-                        "GitHub".into(),
-                        github_schema.into(),
-                    ])
-                    .values_panic([
-                        "gitlab".into(),
-                        "GitLab".into(),
-                        gitlab_schema.into(),
-                    ])
+                    .values_panic(["github".into(), "GitHub".into(), github_schema.into()])
+                    .values_panic(["gitlab".into(), "GitLab".into(), gitlab_schema.into()])
                     .values_panic([
                         "confluence".into(),
                         "Confluence".into(),
@@ -183,4 +175,4 @@ enum ExternalProviders {
     ConfigSchema,
     IsActive,
     CreatedAt,
-} 
+}

@@ -3,8 +3,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::error::DomainError;
 use super::ProviderType;
+use crate::error::DomainError;
 
 /// External link entity representing connection between organization and external provider
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -135,14 +135,14 @@ impl ExternalLink {
     fn validate_provider_config(config: &Value) -> Result<(), DomainError> {
         if !config.is_object() {
             return Err(DomainError::invalid_input(
-                "Provider config must be a JSON object"
+                "Provider config must be a JSON object",
             ));
         }
 
         let config_obj = config.as_object().unwrap();
         if config_obj.is_empty() {
             return Err(DomainError::invalid_input(
-                "Provider config cannot be empty"
+                "Provider config cannot be empty",
             ));
         }
 
@@ -298,4 +298,4 @@ mod tests {
         ));
         assert!(SyncStatus::from_str("invalid").is_err());
     }
-} 
+}

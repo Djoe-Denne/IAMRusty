@@ -1,9 +1,9 @@
 use chrono::{DateTime, Utc};
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 use validator::Validate;
-use regex::Regex;
 
 use crate::Organization;
 
@@ -15,18 +15,29 @@ lazy_static::lazy_static! {
 /// DTO for creating a new organization
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct CreateOrganizationRequest {
-    #[validate(length(min = 1, max = 255, message = "Name must be between 1 and 255 characters"))]
+    #[validate(length(
+        min = 1,
+        max = 255,
+        message = "Name must be between 1 and 255 characters"
+    ))]
     pub name: String,
-    
+
     #[validate(
-        length(min = 1, max = 100, message = "Slug must be between 1 and 100 characters"),
-        regex(path = "RE_SLUG", message = "Slug must contain only lowercase letters, numbers, and hyphens")
+        length(
+            min = 1,
+            max = 100,
+            message = "Slug must be between 1 and 100 characters"
+        ),
+        regex(
+            path = "RE_SLUG",
+            message = "Slug must contain only lowercase letters, numbers, and hyphens"
+        )
     )]
     pub slug: String,
-    
+
     #[validate(length(max = 1000, message = "Description cannot exceed 1000 characters"))]
     pub description: Option<String>,
-    
+
     #[validate(url(message = "Avatar URL must be a valid URL"))]
     pub avatar_url: Option<String>,
 }
@@ -34,15 +45,19 @@ pub struct CreateOrganizationRequest {
 /// DTO for updating an organization
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct UpdateOrganizationRequest {
-    #[validate(length(min = 1, max = 255, message = "Name must be between 1 and 255 characters"))]
+    #[validate(length(
+        min = 1,
+        max = 255,
+        message = "Name must be between 1 and 255 characters"
+    ))]
     pub name: Option<String>,
-    
+
     #[validate(length(max = 1000, message = "Description cannot exceed 1000 characters"))]
     pub description: Option<String>,
-    
+
     #[validate(url(message = "Avatar URL must be a valid URL"))]
     pub avatar_url: Option<String>,
-    
+
     pub settings: Option<Value>,
 }
 
@@ -58,7 +73,7 @@ pub struct OrganizationResponse {
     pub settings: Value,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
-    
+
     // Additional computed fields
     pub member_count: Option<i64>,
     pub role_count: Option<i64>,
@@ -78,13 +93,13 @@ pub struct OrganizationListResponse {
 pub struct OrganizationSearchRequest {
     #[validate(length(min = 1, message = "Search term cannot be empty"))]
     pub query: String,
-    
+
     #[validate(range(min = 1, max = 100, message = "Page size must be between 1 and 100"))]
     pub page_size: Option<u32>,
-    
+
     #[validate(range(min = 1, message = "Page must be at least 1"))]
     pub page: Option<u32>,
-    
+
     pub role_filter: Option<String>,
 }
 
@@ -189,9 +204,9 @@ mod tests {
         assert!(valid_request.validate().is_ok());
 
         let invalid_request = CreateOrganizationRequest {
-            name: "".to_string(), // Empty name should fail
-            slug: "Test@Org".to_string(), // Invalid slug format
-            description: Some("x".repeat(1001)), // Too long description
+            name: "".to_string(),                      // Empty name should fail
+            slug: "Test@Org".to_string(),              // Invalid slug format
+            description: Some("x".repeat(1001)),       // Too long description
             avatar_url: Some("not-a-url".to_string()), // Invalid URL
         };
         assert!(invalid_request.validate().is_err());
@@ -205,8 +220,9 @@ mod tests {
             "test-org".to_string(),
             Some("Test Description".to_string()),
             owner_id,
-        ).unwrap();
-        
+        )
+        .unwrap();
+
         let response: OrganizationResponse = org.into();
         assert_eq!(response.name, "Test Org");
         assert_eq!(response.slug, "test-org");
@@ -225,10 +241,10 @@ mod tests {
 
         let invalid_request = OrganizationSearchRequest {
             query: "".to_string(), // Empty query should fail
-            page_size: Some(101), // Too large page size
-            page: Some(0), // Invalid page number
+            page_size: Some(101),  // Too large page size
+            page: Some(0),         // Invalid page number
             role_filter: None,
         };
         assert!(invalid_request.validate().is_err());
     }
-} 
+}

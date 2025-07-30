@@ -92,7 +92,10 @@ where
     }
 
     async fn mark_as_used(&self, token_id: Uuid) -> Result<(), Self::Error> {
-        self.write_repo.mark_as_used(token_id).await.map_err(Into::into)
+        self.write_repo
+            .mark_as_used(token_id)
+            .await
+            .map_err(Into::into)
     }
 
     async fn delete_expired(&self) -> Result<u64, Self::Error> {
@@ -100,6 +103,9 @@ where
     }
 
     async fn delete_all_for_user(&self, user_id: Uuid) -> Result<u64, Self::Error> {
-        self.write_repo.delete_all_for_user(user_id).await.map_err(Into::into)
+        self.write_repo
+            .delete_all_for_user(user_id)
+            .await
+            .map_err(Into::into)
     }
 }

@@ -1,12 +1,12 @@
-use iam_application::command::CommandError;
-use iam_application::usecase::{token::TokenError, user::UserError};
 use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
     Json,
 };
+use iam_application::command::CommandError;
+use iam_application::usecase::{token::TokenError, user::UserError};
 use iam_domain::error::DomainError;
-use rustycog_http::error::{UniformErrorResponse, ErrorDetails};
+use rustycog_http::error::{ErrorDetails, UniformErrorResponse};
 use thiserror::Error;
 
 /// API errors
@@ -1177,7 +1177,8 @@ impl AuthError {
             _ => AuthError::OAuth {
                 operation: "password_reset_request".to_string(),
                 error_code: "success".to_string(),
-                message: "If a matching account was found, a password reset email has been sent".to_string(),
+                message: "If a matching account was found, a password reset email has been sent"
+                    .to_string(),
                 status: StatusCode::OK,
             },
         }
@@ -1198,12 +1199,14 @@ impl AuthError {
                 message: "Invalid or expired reset token".to_string(),
                 status: StatusCode::BAD_REQUEST,
             },
-            CommandError::Validation { code, .. } if code == "token_already_used" => AuthError::OAuth {
-                operation: "password_reset_validate".to_string(),
-                error_code: code.clone(),
-                message: "Invalid or expired reset token".to_string(),
-                status: StatusCode::BAD_REQUEST,
-            },
+            CommandError::Validation { code, .. } if code == "token_already_used" => {
+                AuthError::OAuth {
+                    operation: "password_reset_validate".to_string(),
+                    error_code: code.clone(),
+                    message: "Invalid or expired reset token".to_string(),
+                    status: StatusCode::BAD_REQUEST,
+                }
+            }
             CommandError::Validation { code, message } => AuthError::OAuth {
                 operation: "password_reset_validate".to_string(),
                 error_code: code.clone(),
@@ -1240,18 +1243,22 @@ impl AuthError {
                 message: "Invalid or expired reset token".to_string(),
                 status: StatusCode::BAD_REQUEST,
             },
-            CommandError::Validation { code, .. } if code == "token_already_used" => AuthError::OAuth {
-                operation: "password_reset_confirm".to_string(),
-                error_code: code.clone(),
-                message: "Invalid or expired reset token".to_string(),
-                status: StatusCode::BAD_REQUEST,
-            },
-            CommandError::Validation { code, .. } if code == "validation_failed" => AuthError::OAuth {
-                operation: "password_reset_confirm".to_string(),
-                error_code: code.clone(),
-                message: "Password does not meet security requirements".to_string(),
-                status: StatusCode::BAD_REQUEST,
-            },
+            CommandError::Validation { code, .. } if code == "token_already_used" => {
+                AuthError::OAuth {
+                    operation: "password_reset_confirm".to_string(),
+                    error_code: code.clone(),
+                    message: "Invalid or expired reset token".to_string(),
+                    status: StatusCode::BAD_REQUEST,
+                }
+            }
+            CommandError::Validation { code, .. } if code == "validation_failed" => {
+                AuthError::OAuth {
+                    operation: "password_reset_confirm".to_string(),
+                    error_code: code.clone(),
+                    message: "Password does not meet security requirements".to_string(),
+                    status: StatusCode::BAD_REQUEST,
+                }
+            }
             CommandError::Validation { code, message } => AuthError::OAuth {
                 operation: "password_reset_confirm".to_string(),
                 error_code: code.clone(),
@@ -1276,24 +1283,30 @@ impl AuthError {
     /// Password reset authenticated failed
     pub fn password_reset_authenticated_failed(command_error: &CommandError) -> Self {
         match command_error {
-            CommandError::Validation { code, .. } if code == "incorrect_current_password" => AuthError::OAuth {
-                operation: "password_reset_authenticated".to_string(),
-                error_code: code.clone(),
-                message: "Current password is incorrect".to_string(),
-                status: StatusCode::BAD_REQUEST,
-            },
-            CommandError::Validation { code, .. } if code == "validation_failed" => AuthError::OAuth {
-                operation: "password_reset_authenticated".to_string(),
-                error_code: code.clone(),
-                message: "Password validation failed".to_string(),
-                status: StatusCode::UNPROCESSABLE_ENTITY,
-            },
-            CommandError::Business { code, .. } if code == "anti_enumeration_security" => AuthError::OAuth {
-                operation: "password_reset_authenticated".to_string(),
-                error_code: code.clone(),
-                message: "Password reset request processed".to_string(),
-                status: StatusCode::INTERNAL_SERVER_ERROR,
-            },
+            CommandError::Validation { code, .. } if code == "incorrect_current_password" => {
+                AuthError::OAuth {
+                    operation: "password_reset_authenticated".to_string(),
+                    error_code: code.clone(),
+                    message: "Current password is incorrect".to_string(),
+                    status: StatusCode::BAD_REQUEST,
+                }
+            }
+            CommandError::Validation { code, .. } if code == "validation_failed" => {
+                AuthError::OAuth {
+                    operation: "password_reset_authenticated".to_string(),
+                    error_code: code.clone(),
+                    message: "Password validation failed".to_string(),
+                    status: StatusCode::UNPROCESSABLE_ENTITY,
+                }
+            }
+            CommandError::Business { code, .. } if code == "anti_enumeration_security" => {
+                AuthError::OAuth {
+                    operation: "password_reset_authenticated".to_string(),
+                    error_code: code.clone(),
+                    message: "Password reset request processed".to_string(),
+                    status: StatusCode::INTERNAL_SERVER_ERROR,
+                }
+            }
             _ => AuthError::OAuth {
                 operation: "password_reset_authenticated".to_string(),
                 error_code: "reset_failed".to_string(),

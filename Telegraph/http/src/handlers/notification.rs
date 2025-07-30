@@ -1,20 +1,20 @@
 use std::string;
 
+use crate::validation::validate_uuid_v4;
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
     response::Json,
 };
 use axum_valid::Valid;
-use validator::Validate;
-use serde::Deserialize;
-use uuid::Uuid;
-use rustycog_http::{AppState, AuthUser};
 use rustycog_command::CommandContext;
+use rustycog_http::{AppState, AuthUser};
+use serde::Deserialize;
 use telegraph_application::command::{
     GetNotificationsCommand, GetUnreadCountCommand, MarkNotificationReadCommand,
 };
-use crate::validation::validate_uuid_v4;
+use uuid::Uuid;
+use validator::Validate;
 
 /// Query parameters for getting notifications
 #[derive(Debug, Deserialize, Validate)]
@@ -58,8 +58,8 @@ pub async fn get_notifications(
     let context = CommandContext::new().with_user_id(auth_user.user_id);
     match app_state.command_service.execute(command, context).await {
         Ok(response) => {
-            let json_response = serde_json::to_value(response)
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            let json_response =
+                serde_json::to_value(response).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
             Ok(Json(json_response))
         }
         Err(error) => {
@@ -93,15 +93,17 @@ pub async fn get_unread_count(
     let context = CommandContext::new().with_user_id(auth_user.user_id);
     match app_state.command_service.execute(command, context).await {
         Ok(response) => {
-            let json_response = serde_json::to_value(response)
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            let json_response =
+                serde_json::to_value(response).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
             Ok(Json(json_response))
         }
         Err(error) => {
             tracing::error!("Failed to get unread count: {:?}", error);
             match &error {
                 rustycog_command::CommandError::Validation { .. } => Err(StatusCode::BAD_REQUEST),
-                rustycog_command::CommandError::Business { .. } => Err(StatusCode::UNPROCESSABLE_ENTITY),
+                rustycog_command::CommandError::Business { .. } => {
+                    Err(StatusCode::UNPROCESSABLE_ENTITY)
+                }
                 _ => Err(StatusCode::INTERNAL_SERVER_ERROR),
             }
         }
@@ -117,15 +119,17 @@ pub async fn mark_notification_read(
     State(app_state): State<AppState>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     // UUID is already validated by the path parameter validation
-    let uuid: Uuid = notification_id.id.parse()
+    let uuid: Uuid = notification_id
+        .id
+        .parse()
         .expect("UUID should be valid after validation");
     let command = MarkNotificationReadCommand::new(uuid, auth_user.user_id);
 
     let context = CommandContext::new().with_user_id(auth_user.user_id);
     match app_state.command_service.execute(command, context).await {
         Ok(response) => {
-            let json_response = serde_json::to_value(response)
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            let json_response =
+                serde_json::to_value(response).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
             Ok(Json(json_response))
         }
         Err(error) => {
@@ -146,4 +150,4 @@ pub async fn mark_notification_read(
             }
         }
     }
-} 
+}

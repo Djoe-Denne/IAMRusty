@@ -4,17 +4,20 @@ use async_trait::async_trait;
 use std::collections::HashMap;
 use uuid::Uuid;
 
+use crate::entity::{CommunicationMode, MessageTemplate, RenderedTemplate};
 use crate::error::DomainError;
-use crate::entity::{MessageTemplate, RenderedTemplate, CommunicationMode};
 
 /// Port for template management and rendering
 #[async_trait]
 pub trait TemplateService: Send + Sync {
-    
     /// Find template name for an event type and communication mode
     /// This method uses configuration to determine the correct template naming convention
-    async fn find_template(&self, event_type: &str, mode: &CommunicationMode) -> Result<String, DomainError>;
-    
+    async fn find_template(
+        &self,
+        event_type: &str,
+        mode: &CommunicationMode,
+    ) -> Result<String, DomainError>;
+
     /// Render a template with variables
     async fn render_template(
         &self,
@@ -22,8 +25,11 @@ pub trait TemplateService: Send + Sync {
         mode: &CommunicationMode,
         variables: &HashMap<String, String>,
     ) -> Result<RenderedTemplate, DomainError>;
-    
-    
+
     /// Check if a template exists
-    async fn template_exists(&self, name: &str, mode: &CommunicationMode) -> Result<bool, DomainError>;
+    async fn template_exists(
+        &self,
+        name: &str,
+        mode: &CommunicationMode,
+    ) -> Result<bool, DomainError>;
 }

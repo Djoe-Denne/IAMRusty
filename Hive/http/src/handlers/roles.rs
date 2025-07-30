@@ -2,14 +2,12 @@ use axum::{
     extract::{Path, Query, State},
     response::Json,
 };
-use rustycog_http::{AppState, AuthUser, ValidatedJson};
-use rustycog_command::CommandContext;
 use hive_application::{
-    PaginationRequest, CreateRoleRequest, UpdateRoleRequest,
-    RoleResponse, RoleListResponse,
-    CreateRoleCommand, ListRolesCommand, GetRoleCommand,
-    UpdateRoleCommand, DeleteRoleCommand,
+    CreateRoleCommand, CreateRoleRequest, DeleteRoleCommand, GetRoleCommand, ListRolesCommand,
+    PaginationRequest, RoleListResponse, RoleResponse, UpdateRoleCommand, UpdateRoleRequest,
 };
+use rustycog_command::CommandContext;
+use rustycog_http::{AppState, AuthUser, ValidatedJson};
 use uuid::Uuid;
 
 use crate::error::HttpError;
@@ -23,17 +21,18 @@ pub async fn create_role(
     ValidatedJson(request): ValidatedJson<CreateRoleRequest>,
 ) -> Result<Json<RoleResponse>, HttpError> {
     tracing::info!("Creating role for organization: {}", organization_id);
-    
+
     let command = CreateRoleCommand::new(organization_id, request, auth_user.user_id);
     let context = CommandContext::new().with_user_id(auth_user.user_id);
-    
-    let result = state.command_service
+
+    let result = state
+        .command_service
         .execute(command, context)
         .await
         .map_err(|e| HttpError::Internal {
             message: format!("Command execution failed: {}", e),
         })?;
-    
+
     Ok(Json(result))
 }
 
@@ -46,17 +45,18 @@ pub async fn list_roles(
     Query(pagination): Query<PaginationRequest>,
 ) -> Result<Json<RoleListResponse>, HttpError> {
     tracing::info!("Listing roles for organization: {}", organization_id);
-    
+
     let command = ListRolesCommand::new(organization_id, pagination);
     let context = CommandContext::new().with_user_id(auth_user.user_id);
-    
-    let result = state.command_service
+
+    let result = state
+        .command_service
         .execute(command, context)
         .await
         .map_err(|e| HttpError::Internal {
             message: format!("Command execution failed: {}", e),
         })?;
-    
+
     Ok(Json(result))
 }
 
@@ -72,17 +72,18 @@ pub async fn get_role(
         role_id,
         organization_id
     );
-    
+
     let command = GetRoleCommand::new(organization_id, role_id);
     let context = CommandContext::new().with_user_id(auth_user.user_id);
-    
-    let result = state.command_service
+
+    let result = state
+        .command_service
         .execute(command, context)
         .await
         .map_err(|e| HttpError::Internal {
             message: format!("Command execution failed: {}", e),
         })?;
-    
+
     Ok(Json(result))
 }
 
@@ -99,17 +100,18 @@ pub async fn update_role(
         role_id,
         organization_id
     );
-    
+
     let command = UpdateRoleCommand::new(organization_id, role_id, request, auth_user.user_id);
     let context = CommandContext::new().with_user_id(auth_user.user_id);
-    
-    let result = state.command_service
+
+    let result = state
+        .command_service
         .execute(command, context)
         .await
         .map_err(|e| HttpError::Internal {
             message: format!("Command execution failed: {}", e),
         })?;
-    
+
     Ok(Json(result))
 }
 
@@ -125,16 +127,17 @@ pub async fn delete_role(
         role_id,
         organization_id
     );
-    
+
     let command = DeleteRoleCommand::new(organization_id, role_id, auth_user.user_id);
     let context = CommandContext::new().with_user_id(auth_user.user_id);
-    
-    let result = state.command_service
+
+    let result = state
+        .command_service
         .execute(command, context)
         .await
         .map_err(|e| HttpError::Internal {
             message: format!("Command execution failed: {}", e),
         })?;
-    
+
     Ok(Json(result))
 }

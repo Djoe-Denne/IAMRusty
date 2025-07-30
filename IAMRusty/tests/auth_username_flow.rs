@@ -4,12 +4,12 @@ mod common;
 #[path = "fixtures/mod.rs"]
 mod fixtures;
 
-use iam_application::usecase::login::PasswordService as AppPasswordService;
-use base64::{Engine as _, engine::general_purpose};
+use base64::{engine::general_purpose, Engine as _};
 use common::setup_test_server;
 use fixtures::{DbFixtures, GitHubFixtures};
+use iam_application::usecase::login::PasswordService as AppPasswordService;
 use sea_orm::ConnectionTrait;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use serial_test::serial;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -1355,7 +1355,10 @@ async fn test_complete_email_first_flow() {
     // Verify the email
     let verify_response = client
         .get(&format!("{}/api/auth/verify", base_url))
-        .query(&[("email", "flowtest@example.com"), ("token", &verification_token)])
+        .query(&[
+            ("email", "flowtest@example.com"),
+            ("token", &verification_token),
+        ])
         .send()
         .await
         .expect("Failed to send verify request");
@@ -1502,7 +1505,10 @@ async fn test_complete_oauth_first_flow() {
 
     let verify_response = client
         .get(&format!("{}/api/auth/verify", base_url))
-        .query(&[("email", user_email), ("token", verification_token.verification_token())])
+        .query(&[
+            ("email", user_email),
+            ("token", verification_token.verification_token()),
+        ])
         .send()
         .await
         .expect("Failed to send verify request");

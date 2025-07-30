@@ -1,10 +1,10 @@
-use iam_domain::service::AuthError;
-use iam_application::auth::OAuthService;
 use async_trait::async_trait;
+use iam_application::auth::OAuthService;
 use iam_configuration::GitLabConfig;
 use iam_domain::entity::provider::{Provider, ProviderTokens, ProviderUserProfile};
 use iam_domain::error::DomainError;
 use iam_domain::port::service::ProviderOAuth2Client;
+use iam_domain::service::AuthError;
 use oauth2::{
     basic::BasicClient, reqwest::async_http_client, AuthUrl, AuthorizationCode, ClientId,
     ClientSecret, RedirectUrl, TokenResponse, TokenUrl,
@@ -50,9 +50,9 @@ impl GitLabOAuth2Client {
         )
         .set_redirect_uri(RedirectUrl::new(redirect_url).unwrap());
 
-        Self { 
-            client, 
-            user_url, 
+        Self {
+            client,
+            user_url,
             client_secret,
         }
     }
@@ -181,7 +181,9 @@ impl OAuthService for GitLabOAuth2Client {
 
     fn generate_relink_authorize_url(&self) -> String {
         // For relink, we need to modify the redirect URI to use relink-callback
-        let redirect_uri = self.client.redirect_url()
+        let redirect_uri = self
+            .client
+            .redirect_url()
             .map(|url| {
                 let url_str = url.as_str();
                 // Replace /callback with /relink-callback

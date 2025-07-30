@@ -11,4 +11,4 @@ pub use communication::*;
 pub use event_extractor::*;
 pub use event_handler::*;
 pub use repository::*;
-pub use template::*; 
+pub use template::*;

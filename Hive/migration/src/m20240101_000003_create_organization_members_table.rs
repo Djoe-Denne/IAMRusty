@@ -29,11 +29,6 @@ impl MigrationTrait for Migration {
                             .not_null(),
                     )
                     .col(
-                        ColumnDef::new(OrganizationMembers::RoleId)
-                            .uuid()
-                            .not_null(),
-                    )
-                    .col(
                         ColumnDef::new(OrganizationMembers::Status)
                             .string_len(20)
                             .not_null()
@@ -69,15 +64,12 @@ impl MigrationTrait for Migration {
                     .foreign_key(
                         ForeignKey::create()
                             .name("fk_organization_members_organization_id")
-                            .from(OrganizationMembers::Table, OrganizationMembers::OrganizationId)
+                            .from(
+                                OrganizationMembers::Table,
+                                OrganizationMembers::OrganizationId,
+                            )
                             .to(Organizations::Table, Organizations::Id)
                             .on_delete(ForeignKeyAction::Cascade),
-                    )
-                    .foreign_key(
-                        ForeignKey::create()
-                            .name("fk_organization_members_role_id")
-                            .from(OrganizationMembers::Table, OrganizationMembers::RoleId)
-                            .to(OrganizationRoles::Table, OrganizationRoles::Id),
                     )
                     .to_owned(),
             )
@@ -159,11 +151,10 @@ enum OrganizationMembers {
     Id,
     OrganizationId,
     UserId,
-    RoleId,
     Status,
     InvitedByUserId,
     InvitedAt,
     JoinedAt,
     CreatedAt,
     UpdatedAt,
-} 
+}

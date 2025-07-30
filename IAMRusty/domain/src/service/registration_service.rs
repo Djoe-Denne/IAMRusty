@@ -8,7 +8,9 @@ use crate::entity::{
 };
 use crate::error::DomainError;
 use crate::port::{
-    repository::{EmailVerificationRepository, UserEmailRepository, UserReadRepository, UserWriteRepository},
+    repository::{
+        EmailVerificationRepository, UserEmailRepository, UserReadRepository, UserWriteRepository,
+    },
     service::{AuthTokenService, RegistrationTokenService},
 };
 use crate::utils;
@@ -138,8 +140,6 @@ where
             event_publisher,
         }
     }
-
-
 }
 
 #[async_trait]
@@ -231,10 +231,17 @@ where
             // Get verification token if email is not verified
             // Telegraph will build the verification URL from environment variables
             let verification_token = if !user_email.is_verified {
-                match self.email_verification_repo.find_by_email(&user_email.email).await {
+                match self
+                    .email_verification_repo
+                    .find_by_email(&user_email.email)
+                    .await
+                {
                     Ok(Some(verification)) => Some(verification.verification_token),
                     _ => {
-                        tracing::warn!("No verification token found for unverified email: {}", user_email.email);
+                        tracing::warn!(
+                            "No verification token found for unverified email: {}",
+                            user_email.email
+                        );
                         None
                     }
                 }

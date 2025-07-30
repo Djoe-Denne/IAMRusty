@@ -272,15 +272,19 @@ pub fn mask_email(email: &str) -> String {
         if domain_parts.len() >= 2 {
             let domain_name = domain_parts[0];
             let tld = domain_parts[domain_parts.len() - 1];
-            
+
             let masked_domain_name = if domain_name.len() <= 1 {
                 "*".to_string()
             } else if domain_name.len() <= 3 {
                 format!("{}*", &domain_name[0..1])
             } else {
-                format!("{}***{}", &domain_name[0..1], &domain_name[domain_name.len()-1..])
+                format!(
+                    "{}***{}",
+                    &domain_name[0..1],
+                    &domain_name[domain_name.len() - 1..]
+                )
             };
-            
+
             format!("{}.{}", masked_domain_name, tld)
         } else {
             "***.***".to_string()

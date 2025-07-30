@@ -2,14 +2,13 @@ use axum::{
     extract::{Path, Query, State},
     response::Json,
 };
-use rustycog_http::{AppState, AuthUser, ValidatedJson};
-use rustycog_command::CommandContext;
 use hive_application::{
-    PaginationRequest, AddMemberRequest, UpdateMemberRequest,
-    MemberResponse, MemberListResponse,
-    AddMemberCommand, RemoveMemberCommand, ListMembersCommand, 
-    GetMemberCommand, UpdateMemberCommand,
+    AddMemberCommand, AddMemberRequest, GetMemberCommand, ListMembersCommand, MemberListResponse,
+    MemberResponse, PaginationRequest, RemoveMemberCommand, UpdateMemberCommand,
+    UpdateMemberRequest,
 };
+use rustycog_command::CommandContext;
+use rustycog_http::{AppState, AuthUser, ValidatedJson};
 use uuid::Uuid;
 
 use crate::error::HttpError;
@@ -23,17 +22,18 @@ pub async fn add_member(
     ValidatedJson(request): ValidatedJson<AddMemberRequest>,
 ) -> Result<Json<MemberResponse>, HttpError> {
     tracing::info!("Adding member to organization: {}", organization_id);
-    
+
     let command = AddMemberCommand::new(organization_id, request, auth_user.user_id);
     let context = CommandContext::new().with_user_id(auth_user.user_id);
-    
-    let result = state.command_service
+
+    let result = state
+        .command_service
         .execute(command, context)
         .await
         .map_err(|e| HttpError::Internal {
             message: format!("Command execution failed: {}", e),
         })?;
-    
+
     Ok(Json(result))
 }
 
@@ -46,17 +46,18 @@ pub async fn list_members(
     Query(pagination): Query<PaginationRequest>,
 ) -> Result<Json<MemberListResponse>, HttpError> {
     tracing::info!("Listing members for organization: {}", organization_id);
-    
+
     let command = ListMembersCommand::new(organization_id, pagination);
     let context = CommandContext::new().with_user_id(auth_user.user_id);
-    
-    let result = state.command_service
+
+    let result = state
+        .command_service
         .execute(command, context)
         .await
         .map_err(|e| HttpError::Internal {
             message: format!("Command execution failed: {}", e),
         })?;
-    
+
     Ok(Json(result))
 }
 
@@ -72,17 +73,18 @@ pub async fn get_member(
         user_id,
         organization_id
     );
-    
+
     let command = GetMemberCommand::new(organization_id, user_id);
     let context = CommandContext::new().with_user_id(auth_user.user_id);
-    
-    let result = state.command_service
+
+    let result = state
+        .command_service
         .execute(command, context)
         .await
         .map_err(|e| HttpError::Internal {
             message: format!("Command execution failed: {}", e),
         })?;
-    
+
     Ok(Json(result))
 }
 
@@ -98,17 +100,18 @@ pub async fn remove_member(
         user_id,
         organization_id
     );
-    
+
     let command = RemoveMemberCommand::new(organization_id, user_id, auth_user.user_id);
     let context = CommandContext::new().with_user_id(auth_user.user_id);
-    
-    let result = state.command_service
+
+    let result = state
+        .command_service
         .execute(command, context)
         .await
         .map_err(|e| HttpError::Internal {
             message: format!("Command execution failed: {}", e),
         })?;
-    
+
     Ok(Json(result))
 }
 
@@ -124,17 +127,18 @@ pub async fn update_member(
         user_id,
         organization_id
     );
-    
+
     let command = UpdateMemberCommand::new(organization_id, user_id, request);
     let context = CommandContext::new().with_user_id(auth_user.user_id);
-    
-    let result = state.command_service
+
+    let result = state
+        .command_service
         .execute(command, context)
         .await
         .map_err(|e| HttpError::Internal {
             message: format!("Command execution failed: {}", e),
         })?;
-    
+
     Ok(Json(result))
 }
 
@@ -149,16 +153,17 @@ pub async fn remove_member(
         user_id,
         organization_id
     );
-    
+
     let command = RemoveMemberCommand::new(organization_id, user_id, auth_user.user_id);
     let context = CommandContext::new().with_user_id(auth_user.user_id);
-    
-    let result = state.command_service
+
+    let result = state
+        .command_service
         .execute(command, context)
         .await
         .map_err(|e| HttpError::Internal {
             message: format!("Command execution failed: {}", e),
         })?;
-    
+
     Ok(Json(result))
 }

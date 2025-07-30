@@ -1,4 +1,4 @@
-use crate::common::mock_event_publisher::{MockEventPublisher, CapturedEvent};
+use crate::common::mock_event_publisher::{CapturedEvent, MockEventPublisher};
 use std::sync::Arc;
 
 /// Event Verification Test Utilities
@@ -27,8 +27,9 @@ impl EventTestUtils {
             event.event_type, "password_reset_requested",
             "Event should be PasswordResetRequested"
         );
-        
-        let email_from_event = event.get_json_string_field("email")
+
+        let email_from_event = event
+            .get_json_string_field("email")
             .expect("Event should contain email field");
         assert_eq!(
             email_from_event, expected_email,
@@ -74,15 +75,17 @@ impl EventTestUtils {
             event.event_type, "user_signed_up",
             "Event should be UserSignedUp"
         );
-        
-        let user_id_from_event = event.get_json_string_field("user_id")
+
+        let user_id_from_event = event
+            .get_json_string_field("user_id")
             .expect("Event should contain user_id field");
         assert_eq!(
             user_id_from_event, expected_user_id,
             "Event should contain the correct user ID"
         );
-        
-        let email_from_event = event.get_json_string_field("email")
+
+        let email_from_event = event
+            .get_json_string_field("email")
             .expect("Event should contain email field");
         assert_eq!(
             email_from_event, expected_email,
@@ -153,4 +156,4 @@ impl EventTestUtils {
             event_description
         );
     }
-} 
+}

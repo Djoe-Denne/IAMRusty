@@ -1,11 +1,11 @@
 //! Login use case module for email/password authentication
 
 use async_trait::async_trait;
+use iam_domain::error::DomainError;
 use iam_domain::port::{
     repository::{EmailVerificationRepository, UserEmailRepository, UserRepository},
     service::{AuthTokenService, RegistrationTokenService},
 };
-use iam_domain::error::DomainError;
 use iam_domain::service::auth_service::{AuthError, AuthService};
 use rustycog_events::event::EventPublisher;
 use std::sync::Arc;

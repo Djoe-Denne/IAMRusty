@@ -9,8 +9,7 @@ use rustycog_config::QueueConfig;
 use rustycog_core::error::ServiceError;
 use rustycog_events::{
     adapter::{ErrorMapper, GenericEventPublisherAdapter, MultiQueueEventPublisher},
-    ConcreteEventPublisher, 
-    create_event_publisher_from_queue_config,
+    create_event_publisher_from_queue_config, ConcreteEventPublisher,
 };
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -35,9 +34,9 @@ impl ErrorMapper<DomainError> for IAMErrorMapper {
             DomainError::UserProfileError(message) => {
                 ServiceError::infrastructure(format!("User profile error: {}", message))
             }
-            DomainError::NoTokenForProvider => ServiceError::not_found(
-                "No token found for provider and user".to_string()
-            ),
+            DomainError::NoTokenForProvider => {
+                ServiceError::not_found("No token found for provider and user".to_string())
+            }
             DomainError::TokenGenerationFailed(message) => {
                 ServiceError::internal(format!("Token generation failed: {}", message))
             }
@@ -100,8 +99,9 @@ impl ErrorMapper<DomainError> for IAMErrorMapper {
 pub async fn create_event_publisher_with_queue_config(
     config: &QueueConfig,
 ) -> Result<Arc<ConcreteEventPublisher>, DomainError> {
-    create_event_publisher_from_queue_config(config).await
-    .map_err(|service_error| IAMErrorMapper.from_service_error(service_error))
+    create_event_publisher_from_queue_config(config)
+        .await
+        .map_err(|service_error| IAMErrorMapper.from_service_error(service_error))
 }
 
 /// Factory function to create a multi-queue event publisher with specific queue names
@@ -152,7 +152,8 @@ pub async fn create_multi_queue_event_publisher_async(
 
     // For now, create a single publisher (we can extend this later to create multiple publishers for different queues)
     let adapted_publisher = create_event_publisher_with_queue_config(config).await?;
-    let publisher = GenericEventPublisherAdapter::<DomainError>::new(adapted_publisher, error_mapper);
+    let publisher =
+        GenericEventPublisherAdapter::<DomainError>::new(adapted_publisher, error_mapper);
 
     Ok(Arc::new(MultiQueueEventPublisher::new(
         vec![publisher],

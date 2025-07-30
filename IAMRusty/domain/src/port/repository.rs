@@ -364,7 +364,8 @@ pub trait PasswordResetTokenWriteRepository {
 
 /// Combined read and write operations for password reset tokens
 #[async_trait::async_trait]
-pub trait PasswordResetTokenRepository: PasswordResetTokenReadRepository + PasswordResetTokenWriteRepository
+pub trait PasswordResetTokenRepository:
+    PasswordResetTokenReadRepository + PasswordResetTokenWriteRepository
 where
     <Self as PasswordResetTokenReadRepository>::Error: std::error::Error + Send + Sync + 'static,
     <Self as PasswordResetTokenWriteRepository>::Error: std::error::Error + Send + Sync + 'static,

@@ -1,5 +1,5 @@
 //! Integration tests for Telegraph notification error scenarios and edge cases
-//! 
+//!
 //! Tests error handling, validation, and boundary conditions:
 //! 1. Invalid input validation
 //! 2. Database constraint violations
@@ -12,13 +12,13 @@ mod common;
 #[path = "fixtures/mod.rs"]
 mod fixtures;
 
+use axum::http::{header, StatusCode};
 use common::*;
+use serde_json::Value;
 use serial_test::serial;
 use uuid::Uuid;
-use serde_json::Value;
-use axum::http::{header, StatusCode};
 
-use fixtures::db::{NotificationFixtureBuilder};
+use fixtures::db::NotificationFixtureBuilder;
 use rustycog_testing::http::jwt::create_jwt_token;
 
 /// Test parameter validation - negative page numbers
@@ -32,14 +32,14 @@ async fn test_get_notifications_negative_page() {
     let user_id = Uuid::new_v4();
     let jwt_token = create_jwt_token(user_id);
 
-    let response = client.get(format!("{}/api/notifications?page=-1", base_url))
+    let response = client
+        .get(format!("{}/api/notifications?page=-1", base_url))
         .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
         .send()
         .await
         .expect("Failed to send request");
 
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-
 }
 
 /// Test parameter validation - per_page exceeds maximum limit
@@ -53,7 +53,8 @@ async fn test_get_notifications_per_page_exceeds_limit() {
     let user_id = Uuid::new_v4();
     let jwt_token = create_jwt_token(user_id);
 
-    let response = client.get(format!("{}/api/notifications?per_page=101", base_url))
+    let response = client
+        .get(format!("{}/api/notifications?per_page=101", base_url))
         .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
         .send()
         .await
@@ -73,7 +74,8 @@ async fn test_get_notifications_per_page_zero() {
     let user_id = Uuid::new_v4();
     let jwt_token = create_jwt_token(user_id);
 
-    let response = client.get(format!("{}/api/notifications?per_page=0", base_url))
+    let response = client
+        .get(format!("{}/api/notifications?per_page=0", base_url))
         .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
         .send()
         .await
@@ -102,17 +104,19 @@ async fn test_get_notifications_malformed_params() {
     ];
 
     for uri in malformed_requests {
-        let response = client.get(uri.clone())
+        let response = client
+            .get(uri.clone())
             .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
             .send()
             .await
             .expect("Failed to send request");
 
         assert!(
-            response.status() == StatusCode::BAD_REQUEST || 
-            response.status() == StatusCode::UNPROCESSABLE_ENTITY,
+            response.status() == StatusCode::BAD_REQUEST
+                || response.status() == StatusCode::UNPROCESSABLE_ENTITY,
             "Malformed request {} should return 400 or 422, got {}",
-            uri, response.status()
+            uri,
+            response.status()
         );
     }
 }
@@ -140,7 +144,11 @@ async fn test_mark_notification_read_invalid_uuid_formats() {
     ];
 
     for invalid_uuid in invalid_uuids {
-        let response = client.put(format!("{}/api/notifications/{}/read", base_url, invalid_uuid))
+        let response = client
+            .put(format!(
+                "{}/api/notifications/{}/read",
+                base_url, invalid_uuid
+            ))
             .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
             .send()
             .await
@@ -149,7 +157,7 @@ async fn test_mark_notification_read_invalid_uuid_formats() {
         assert_eq!(
             response.status(),
             StatusCode::UNPROCESSABLE_ENTITY,
-            "Invalid UUID {} should return 422", 
+            "Invalid UUID {} should return 422",
             invalid_uuid
         );
     }
@@ -164,16 +172,20 @@ async fn test_jwt_validation_edge_cases() {
         .expect("Failed to setup Telegraph test server");
 
     let test_cases = vec![
-        ("", StatusCode::UNAUTHORIZED), // Empty token
-        ("Bearer", StatusCode::UNAUTHORIZED), // Missing token part
-        ("Bearer ", StatusCode::UNAUTHORIZED), // Empty token after Bearer
-        ("Basic dGVzdDp0ZXN0", StatusCode::UNAUTHORIZED), // Wrong auth type
+        ("", StatusCode::UNAUTHORIZED),                         // Empty token
+        ("Bearer", StatusCode::UNAUTHORIZED),                   // Missing token part
+        ("Bearer ", StatusCode::UNAUTHORIZED),                  // Empty token after Bearer
+        ("Basic dGVzdDp0ZXN0", StatusCode::UNAUTHORIZED),       // Wrong auth type
         ("Bearer invalid.jwt.token", StatusCode::UNAUTHORIZED), // Invalid JWT
-        ("Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9", StatusCode::UNAUTHORIZED), // Incomplete JWT
+        (
+            "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9",
+            StatusCode::UNAUTHORIZED,
+        ), // Incomplete JWT
     ];
 
     for (auth_header, expected_status) in test_cases {
-        let response = client.get(format!("{}/api/notifications", base_url))
+        let response = client
+            .get(format!("{}/api/notifications", base_url))
             .header(header::AUTHORIZATION, auth_header)
             .send()
             .await
@@ -182,8 +194,9 @@ async fn test_jwt_validation_edge_cases() {
         assert_eq!(
             response.status(),
             expected_status,
-            "Auth header '{}' should return {}", 
-            auth_header, expected_status
+            "Auth header '{}' should return {}",
+            auth_header,
+            expected_status
         );
     }
 }
@@ -200,12 +213,13 @@ async fn test_page_number_error_handling() {
     let jwt_token = create_jwt_token(user_id);
 
     // Request an extremely large page that might cause memory issues
-    let response = client.get(format!("{}/api/notifications?page=101", base_url))
+    let response = client
+        .get(format!("{}/api/notifications?page=101", base_url))
         .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
         .send()
         .await
         .expect("Failed to send request");
-    
+
     // Should handle gracefully - either return empty results or appropriate error
     assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
 }
@@ -222,7 +236,8 @@ async fn test_empty_database_scenarios() {
     let jwt_token = create_jwt_token(user_id);
 
     // Test get notifications with no data
-    let response = client.get(format!("{}/api/notifications", base_url))
+    let response = client
+        .get(format!("{}/api/notifications", base_url))
         .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
         .send()
         .await
@@ -237,7 +252,8 @@ async fn test_empty_database_scenarios() {
     assert_eq!(result["has_more"].as_bool().unwrap(), false);
 
     // Test unread count with no data
-    let count_response = client.get(format!("{}/api/notifications/unread-count", base_url))
+    let count_response = client
+        .get(format!("{}/api/notifications/unread-count", base_url))
         .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
         .send()
         .await
@@ -245,7 +261,10 @@ async fn test_empty_database_scenarios() {
 
     assert_eq!(count_response.status(), StatusCode::OK);
 
-    let count_result: Value = count_response.json().await.expect("Failed to parse response");
+    let count_result: Value = count_response
+        .json()
+        .await
+        .expect("Failed to parse response");
 
     assert_eq!(count_result["unread_count"].as_u64().unwrap(), 0);
 }
@@ -272,20 +291,42 @@ async fn test_pagination_boundary_conditions() {
 
     // Test edge cases around the single notification
     let test_cases = vec![
-        (format!("{}/api/notifications?page=0&per_page=1", base_url), 1, false), // Exact match
-        (format!("{}/api/notifications?page=0&per_page=2", base_url), 1, false), // per_page > available
-        (format!("{}/api/notifications?page=1&per_page=1", base_url), 0, false), // page beyond data
-        (format!("{}/api/notifications?page=0&per_page=100", base_url), 1, false), // large per_page
+        (
+            format!("{}/api/notifications?page=0&per_page=1", base_url),
+            1,
+            false,
+        ), // Exact match
+        (
+            format!("{}/api/notifications?page=0&per_page=2", base_url),
+            1,
+            false,
+        ), // per_page > available
+        (
+            format!("{}/api/notifications?page=1&per_page=1", base_url),
+            0,
+            false,
+        ), // page beyond data
+        (
+            format!("{}/api/notifications?page=0&per_page=100", base_url),
+            1,
+            false,
+        ), // large per_page
     ];
 
     for (uri, expected_count, expected_has_more) in test_cases {
-        let response = client.get(uri.clone())
+        let response = client
+            .get(uri.clone())
             .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
             .send()
             .await
             .expect("Failed to send request");
 
-        assert_eq!(response.status(), StatusCode::OK, "Request to {} should succeed", uri);
+        assert_eq!(
+            response.status(),
+            StatusCode::OK,
+            "Request to {} should succeed",
+            uri
+        );
 
         let result: Value = response.json().await.expect("Failed to parse response");
 
@@ -293,14 +334,16 @@ async fn test_pagination_boundary_conditions() {
             result["notifications"].as_array().unwrap().len(),
             expected_count,
             "URI {} should return {} notifications",
-            uri, expected_count
+            uri,
+            expected_count
         );
-        
+
         assert_eq!(
             result["has_more"].as_bool().unwrap(),
             expected_has_more,
             "URI {} should have has_more={}",
-            uri, expected_has_more
+            uri,
+            expected_has_more
         );
     }
 }

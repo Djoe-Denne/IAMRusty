@@ -22,4 +22,4 @@ impl HealthChecker for BasicHealthChecker {
     async fn check(&self) -> HealthStatus {
         HealthStatus::Healthy
     }
-} 
+}

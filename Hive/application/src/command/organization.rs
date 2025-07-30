@@ -1,16 +1,15 @@
 use async_trait::async_trait;
+use rustycog_command::{Command, CommandError, CommandHandler};
 use std::sync::Arc;
 use uuid::Uuid;
-use rustycog_command::{Command, CommandHandler, CommandError};
 
 use crate::{
-    ApplicationError,
-    usecase::{OrganizationUseCase},
     dto::{
-        CreateOrganizationRequest, UpdateOrganizationRequest, 
-        OrganizationResponse, OrganizationListResponse, 
-        OrganizationSearchRequest, PaginationRequest
-    }
+        CreateOrganizationRequest, OrganizationListResponse, OrganizationResponse,
+        OrganizationSearchRequest, PaginationRequest, UpdateOrganizationRequest,
+    },
+    usecase::OrganizationUseCase,
+    ApplicationError,
 };
 
 // =============================================================================
@@ -50,14 +49,14 @@ impl Command for CreateOrganizationCommand {
         if self.request.name.trim().is_empty() {
             return Err(CommandError::validation(
                 "empty_name",
-                "Organization name cannot be empty"
+                "Organization name cannot be empty",
             ));
         }
 
         if self.request.slug.trim().is_empty() {
             return Err(CommandError::validation(
                 "empty_slug",
-                "Organization slug cannot be empty"
+                "Organization slug cannot be empty",
             ));
         }
 
@@ -71,13 +70,18 @@ pub struct CreateOrganizationCommandHandler {
 
 impl CreateOrganizationCommandHandler {
     pub fn new(organization_usecase: Arc<OrganizationUseCase>) -> Self {
-        Self { organization_usecase }
+        Self {
+            organization_usecase,
+        }
     }
 }
 
 #[async_trait]
 impl CommandHandler<CreateOrganizationCommand> for CreateOrganizationCommandHandler {
-    async fn handle(&self, command: CreateOrganizationCommand) -> Result<OrganizationResponse, CommandError> {
+    async fn handle(
+        &self,
+        command: CreateOrganizationCommand,
+    ) -> Result<OrganizationResponse, CommandError> {
         self.organization_usecase
             .create_organization(command.request, command.user_id)
             .await
@@ -130,13 +134,18 @@ pub struct GetOrganizationCommandHandler {
 
 impl GetOrganizationCommandHandler {
     pub fn new(organization_usecase: Arc<OrganizationUseCase>) -> Self {
-        Self { organization_usecase }
+        Self {
+            organization_usecase,
+        }
     }
 }
 
 #[async_trait]
 impl CommandHandler<GetOrganizationCommand> for GetOrganizationCommandHandler {
-    async fn handle(&self, command: GetOrganizationCommand) -> Result<OrganizationResponse, CommandError> {
+    async fn handle(
+        &self,
+        command: GetOrganizationCommand,
+    ) -> Result<OrganizationResponse, CommandError> {
         self.organization_usecase
             .get_organization(command.organization_id, command.user_id)
             .await
@@ -184,7 +193,7 @@ impl Command for UpdateOrganizationCommand {
             if name.trim().is_empty() {
                 return Err(CommandError::validation(
                     "empty_name",
-                    "Organization name cannot be empty"
+                    "Organization name cannot be empty",
                 ));
             }
         }
@@ -199,13 +208,18 @@ pub struct UpdateOrganizationCommandHandler {
 
 impl UpdateOrganizationCommandHandler {
     pub fn new(organization_usecase: Arc<OrganizationUseCase>) -> Self {
-        Self { organization_usecase }
+        Self {
+            organization_usecase,
+        }
     }
 }
 
 #[async_trait]
 impl CommandHandler<UpdateOrganizationCommand> for UpdateOrganizationCommandHandler {
-    async fn handle(&self, command: UpdateOrganizationCommand) -> Result<OrganizationResponse, CommandError> {
+    async fn handle(
+        &self,
+        command: UpdateOrganizationCommand,
+    ) -> Result<OrganizationResponse, CommandError> {
         self.organization_usecase
             .update_organization(command.organization_id, command.request, command.user_id)
             .await
@@ -257,7 +271,9 @@ pub struct DeleteOrganizationCommandHandler {
 
 impl DeleteOrganizationCommandHandler {
     pub fn new(organization_usecase: Arc<OrganizationUseCase>) -> Self {
-        Self { organization_usecase }
+        Self {
+            organization_usecase,
+        }
     }
 }
 
@@ -315,13 +331,18 @@ pub struct ListOrganizationsCommandHandler {
 
 impl ListOrganizationsCommandHandler {
     pub fn new(organization_usecase: Arc<OrganizationUseCase>) -> Self {
-        Self { organization_usecase }
+        Self {
+            organization_usecase,
+        }
     }
 }
 
 #[async_trait]
 impl CommandHandler<ListOrganizationsCommand> for ListOrganizationsCommandHandler {
-    async fn handle(&self, command: ListOrganizationsCommand) -> Result<OrganizationListResponse, CommandError> {
+    async fn handle(
+        &self,
+        command: ListOrganizationsCommand,
+    ) -> Result<OrganizationListResponse, CommandError> {
         self.organization_usecase
             .list_organizations(command.user_id, command.pagination)
             .await
@@ -373,13 +394,18 @@ pub struct SearchOrganizationsCommandHandler {
 
 impl SearchOrganizationsCommandHandler {
     pub fn new(organization_usecase: Arc<OrganizationUseCase>) -> Self {
-        Self { organization_usecase }
+        Self {
+            organization_usecase,
+        }
     }
 }
 
 #[async_trait]
 impl CommandHandler<SearchOrganizationsCommand> for SearchOrganizationsCommandHandler {
-    async fn handle(&self, command: SearchOrganizationsCommand) -> Result<OrganizationListResponse, CommandError> {
+    async fn handle(
+        &self,
+        command: SearchOrganizationsCommand,
+    ) -> Result<OrganizationListResponse, CommandError> {
         self.organization_usecase
             .search_organizations(command.request, command.user_id)
             .await
@@ -416,4 +442,4 @@ impl OrganizationErrorMapper {
             }
         }
     }
-} 
+}

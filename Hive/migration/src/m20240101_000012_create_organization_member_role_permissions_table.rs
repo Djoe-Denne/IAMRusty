@@ -42,14 +42,20 @@ impl MigrationTrait for Migration {
                     .foreign_key(
                         ForeignKey::create()
                             .name("fk_org_member_role_permissions_organization_id")
-                            .from(OrganizationMemberRolePermissions::Table, OrganizationMemberRolePermissions::OrganizationId)
+                            .from(
+                                OrganizationMemberRolePermissions::Table,
+                                OrganizationMemberRolePermissions::OrganizationId,
+                            )
                             .to(Organizations::Table, Organizations::Id)
                             .on_delete(ForeignKeyAction::Cascade),
                     )
                     .foreign_key(
                         ForeignKey::create()
                             .name("fk_org_member_role_permissions_role_permission_id")
-                            .from(OrganizationMemberRolePermissions::Table, OrganizationMemberRolePermissions::RolePermissionId)
+                            .from(
+                                OrganizationMemberRolePermissions::Table,
+                                OrganizationMemberRolePermissions::RolePermissionId,
+                            )
                             .to(RolePermissions::Table, RolePermissions::Id)
                             .on_delete(ForeignKeyAction::Cascade),
                     )
@@ -102,7 +108,11 @@ impl MigrationTrait for Migration {
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         manager
-            .drop_table(Table::drop().table(OrganizationMemberRolePermissions::Table).to_owned())
+            .drop_table(
+                Table::drop()
+                    .table(OrganizationMemberRolePermissions::Table)
+                    .to_owned(),
+            )
             .await
     }
 }
@@ -127,4 +137,4 @@ enum Organizations {
 enum RolePermissions {
     Table,
     Id,
-} 
+}

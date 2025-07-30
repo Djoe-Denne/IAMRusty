@@ -2,13 +2,12 @@ use axum::{
     extract::{Path, State},
     response::Json,
 };
-use rustycog_http::{AppState, AuthUser, ValidatedJson};
-use rustycog_command::CommandContext;
 use hive_application::{
-    CreateExternalLinkRequest, UpdateExternalLinkRequest, ToggleSyncRequest,
-    ExternalLinkResponse, ExternalLinkListResponse, ConnectionTestResponse,
-    CreateExternalLinkCommand,
+    ConnectionTestResponse, CreateExternalLinkCommand, CreateExternalLinkRequest,
+    ExternalLinkListResponse, ExternalLinkResponse, ToggleSyncRequest, UpdateExternalLinkRequest,
 };
+use rustycog_command::CommandContext;
+use rustycog_http::{AppState, AuthUser, ValidatedJson};
 use uuid::Uuid;
 
 use crate::error::HttpError;
@@ -21,17 +20,21 @@ pub async fn create_external_link(
     auth_user: AuthUser,
     ValidatedJson(request): ValidatedJson<CreateExternalLinkRequest>,
 ) -> Result<Json<ExternalLinkResponse>, HttpError> {
-    tracing::info!("Creating external link for organization: {}", organization_id);
-    
+    tracing::info!(
+        "Creating external link for organization: {}",
+        organization_id
+    );
+
     let command = CreateExternalLinkCommand::new(organization_id, request, auth_user.user_id);
     let context = CommandContext::new().with_user_id(auth_user.user_id);
-    
-    let result = state.command_service
+
+    let result = state
+        .command_service
         .execute(command, context)
         .await
         .map_err(|e| HttpError::Internal {
             message: format!("Command execution failed: {}", e),
         })?;
-    
+
     Ok(Json(result))
-} 
+}

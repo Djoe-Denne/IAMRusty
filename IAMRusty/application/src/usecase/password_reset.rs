@@ -5,11 +5,11 @@ use iam_domain::entity::{
     events::{DomainEvent, PasswordResetRequestedEvent},
     password_reset_token::PasswordResetToken,
 };
+use iam_domain::error::DomainError;
 use iam_domain::port::{
     repository::{PasswordResetTokenRepository, UserEmailRepository, UserRepository},
     service::AuthTokenService,
 };
-use iam_domain::error::DomainError;
 use rustycog_events::event::EventPublisher;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -80,7 +80,7 @@ pub struct ValidateResetTokenResponse {
 /// Reset password request
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResetPasswordRequest {
-    pub email: Option<String>, // Required for unauthenticated mode
+    pub email: Option<String>,       // Required for unauthenticated mode
     pub reset_token: Option<String>, // Required for unauthenticated mode
     pub new_password: String,
 }
@@ -143,7 +143,8 @@ where
 #[async_trait]
 pub trait PasswordService: Send + Sync {
     async fn hash_password(&self, password: &str) -> Result<String, PasswordResetError>;
-    async fn verify_password(&self, password: &str, hash: &str) -> Result<bool, PasswordResetError>;
+    async fn verify_password(&self, password: &str, hash: &str)
+        -> Result<bool, PasswordResetError>;
 }
 
 impl<UR, UER, PRTR, TS, EP, PS> PasswordResetUseCaseImpl<UR, UER, PRTR, TS, EP, PS>
@@ -185,7 +186,6 @@ where
     TS: AuthTokenService + Send + Sync,
     EP: EventPublisher<DomainError> + Send + Sync,
     PS: PasswordService + Send + Sync,
-
 {
     async fn request_password_reset(
         &self,
@@ -216,14 +216,13 @@ where
                         .await
                     {
                         // Publish event
-                        let event = DomainEvent::PasswordResetRequested(
-                            PasswordResetRequestedEvent::new(
+                        let event =
+                            DomainEvent::PasswordResetRequested(PasswordResetRequestedEvent::new(
                                 user.id,
                                 request.email.clone(),
                                 raw_token,
                                 reset_token.expires_at,
-                            ),
-                        );
+                            ));
 
                         if let Err(e) = self.event_publisher.publish(&event.into()).await {
                             tracing::warn!(
@@ -298,7 +297,11 @@ where
 
         // Verify current password
         if let Some(password_hash) = user.password_hash {
-            if !self.password_service.verify_password(&current_password, &password_hash).await? {
+            if !self
+                .password_service
+                .verify_password(&current_password, &password_hash)
+                .await?
+            {
                 return Err(PasswordResetError::IncorrectCurrentPassword);
             }
         } else {
@@ -321,11 +324,7 @@ where
             .delete_all_for_user(user_id)
             .await
         {
-            tracing::warn!(
-                "Failed to delete reset tokens for user {}: {}",
-                user_id,
-                e
-            );
+            tracing::warn!("Failed to delete reset tokens for user {}: {}", user_id, e);
         }
 
         Ok(ResetPasswordResponse {
@@ -337,7 +336,9 @@ where
         &self,
         request: ResetPasswordRequest,
     ) -> Result<ResetPasswordResponse, PasswordResetError> {
-        let reset_token = request.reset_token.ok_or(PasswordResetError::InvalidResetToken)?;
+        let reset_token = request
+            .reset_token
+            .ok_or(PasswordResetError::InvalidResetToken)?;
 
         // Hash the provided token
         let token_hash = PasswordResetToken::hash_token(&reset_token);
@@ -368,7 +369,10 @@ where
             .ok_or(PasswordResetError::UserNotFound)?;
 
         // Hash new password
-        let password_hash = self.password_service.hash_password(&request.new_password).await?;
+        let password_hash = self
+            .password_service
+            .hash_password(&request.new_password)
+            .await?;
 
         // Update user password
         user.password_hash = Some(password_hash);
@@ -401,4 +405,4 @@ where
             message: "Password has been successfully reset".to_string(),
         })
     }
-} 
+}

@@ -3,9 +3,8 @@ use rustycog_testing::wiremock::MockServerFixture;
 use serde::Serialize;
 use std::sync::Arc;
 use wiremock::{
-    Mock, MockServer, ResponseTemplate,
-    matchers::{method, path, header, query_param, body_string_contains},
-    Request,
+    matchers::{body_string_contains, header, method, path, query_param},
+    Mock, MockServer, Request, ResponseTemplate,
 };
 
 /// SMTP service for mocking SMTP server endpoints
@@ -80,11 +79,7 @@ impl SmtpService {
     }
 
     /// Mock SMTP authentication
-    pub async fn mock_auth(
-        &self,
-        auth_request: SmtpAuthRequest,
-        response: SmtpResponse,
-    ) -> &Self {
+    pub async fn mock_auth(&self, auth_request: SmtpAuthRequest, response: SmtpResponse) -> &Self {
         Mock::given(method("POST"))
             .and(path("/smtp/auth"))
             .and(body_string_contains(&auth_request.username))
@@ -134,12 +129,11 @@ impl SmtpService {
 
     /// Mock DATA command (email content)
     pub async fn mock_data(&self, expected_email: &SmtpEmail, response: SmtpResponse) -> &Self {
-        let mut mock = Mock::given(method("POST"))
-            .and(path("/smtp/data"));
+        let mut mock = Mock::given(method("POST")).and(path("/smtp/data"));
 
         // Add matchers for email content
         mock = mock.and(body_string_contains(&expected_email.subject));
-        
+
         for to_addr in &expected_email.to {
             mock = mock.and(body_string_contains(to_addr));
         }
@@ -148,19 +142,20 @@ impl SmtpService {
             // Match part of the text body to allow for template variations
             let text_words: Vec<&str> = text_body.split_whitespace().take(3).collect();
             for word in text_words {
-                if word.len() > 2 { // Skip short words like "Hi"
+                if word.len() > 2 {
+                    // Skip short words like "Hi"
                     mock = mock.and(body_string_contains(word));
                 }
             }
         }
 
         mock.respond_with(
-                ResponseTemplate::new(if response.code >= 400 { 400 } else { 200 })
-                    .set_body_json(&response)
-                    .insert_header("content-type", "application/json"),
-            )
-            .mount(&*self.server)
-            .await;
+            ResponseTemplate::new(if response.code >= 400 { 400 } else { 200 })
+                .set_body_json(&response)
+                .insert_header("content-type", "application/json"),
+        )
+        .mount(&*self.server)
+        .await;
 
         self
     }
@@ -183,34 +178,12 @@ impl SmtpService {
     /// Mock full successful email sending sequence
     pub async fn mock_successful_email_send(&self, expected_email: &SmtpEmail) -> &Self {
         // Mock all SMTP commands for a successful email send
-        self.mock_greeting(SmtpResponse::service_ready()).await
-            .mock_ehlo(SmtpCapabilities::default_localhost()).await
-            .mock_mail_from(&expected_email.from, SmtpResponse::ok()).await;
-
-        // Mock RCPT TO for each recipient
-        for to_addr in &expected_email.to {
-            self.mock_rcpt_to(to_addr, SmtpResponse::ok()).await;
-        }
-
-        self.mock_data(
-            expected_email, 
-            SmtpResponse::message_accepted(
-                &expected_email.message_id.clone().unwrap_or("test-msg-123".to_string())
-            )
-        ).await
-        .mock_quit(SmtpResponse::closing()).await
-    }
-
-    /// Mock email sending with authentication
-    pub async fn mock_authenticated_email_send(
-        &self, 
-        auth_request: SmtpAuthRequest,
-        expected_email: &SmtpEmail,
-    ) -> &Self {
-        self.mock_greeting(SmtpResponse::service_ready()).await
-            .mock_ehlo(SmtpCapabilities::default_localhost()).await
-            .mock_auth(auth_request, SmtpResponse::auth_success()).await
-            .mock_mail_from(&expected_email.from, SmtpResponse::ok()).await;
+        self.mock_greeting(SmtpResponse::service_ready())
+            .await
+            .mock_ehlo(SmtpCapabilities::default_localhost())
+            .await
+            .mock_mail_from(&expected_email.from, SmtpResponse::ok())
+            .await;
 
         // Mock RCPT TO for each recipient
         for to_addr in &expected_email.to {
@@ -220,25 +193,71 @@ impl SmtpService {
         self.mock_data(
             expected_email,
             SmtpResponse::message_accepted(
-                &expected_email.message_id.clone().unwrap_or("test-msg-123".to_string())
-            )
-        ).await
-        .mock_quit(SmtpResponse::closing()).await
+                &expected_email
+                    .message_id
+                    .clone()
+                    .unwrap_or("test-msg-123".to_string()),
+            ),
+        )
+        .await
+        .mock_quit(SmtpResponse::closing())
+        .await
+    }
+
+    /// Mock email sending with authentication
+    pub async fn mock_authenticated_email_send(
+        &self,
+        auth_request: SmtpAuthRequest,
+        expected_email: &SmtpEmail,
+    ) -> &Self {
+        self.mock_greeting(SmtpResponse::service_ready())
+            .await
+            .mock_ehlo(SmtpCapabilities::default_localhost())
+            .await
+            .mock_auth(auth_request, SmtpResponse::auth_success())
+            .await
+            .mock_mail_from(&expected_email.from, SmtpResponse::ok())
+            .await;
+
+        // Mock RCPT TO for each recipient
+        for to_addr in &expected_email.to {
+            self.mock_rcpt_to(to_addr, SmtpResponse::ok()).await;
+        }
+
+        self.mock_data(
+            expected_email,
+            SmtpResponse::message_accepted(
+                &expected_email
+                    .message_id
+                    .clone()
+                    .unwrap_or("test-msg-123".to_string()),
+            ),
+        )
+        .await
+        .mock_quit(SmtpResponse::closing())
+        .await
     }
 
     /// Mock authentication failure
     pub async fn mock_auth_failure(&self, auth_request: SmtpAuthRequest) -> &Self {
-        self.mock_greeting(SmtpResponse::service_ready()).await
-            .mock_ehlo(SmtpCapabilities::default_localhost()).await
-            .mock_auth(auth_request, SmtpResponse::auth_failed()).await
+        self.mock_greeting(SmtpResponse::service_ready())
+            .await
+            .mock_ehlo(SmtpCapabilities::default_localhost())
+            .await
+            .mock_auth(auth_request, SmtpResponse::auth_failed())
+            .await
     }
 
     /// Mock recipient rejection (550 error)
     pub async fn mock_recipient_rejection(&self, to_email: &str) -> &Self {
-        self.mock_greeting(SmtpResponse::service_ready()).await
-            .mock_ehlo(SmtpCapabilities::default_localhost()).await
-            .mock_mail_from("noreply@telegraph.com", SmtpResponse::ok()).await
-            .mock_rcpt_to(to_email, SmtpResponse::mailbox_unavailable()).await
+        self.mock_greeting(SmtpResponse::service_ready())
+            .await
+            .mock_ehlo(SmtpCapabilities::default_localhost())
+            .await
+            .mock_mail_from("noreply@telegraph.com", SmtpResponse::ok())
+            .await
+            .mock_rcpt_to(to_email, SmtpResponse::mailbox_unavailable())
+            .await
     }
 
     /// Get all received requests for inspection
@@ -247,9 +266,13 @@ impl SmtpService {
     }
 
     /// Check if a specific email was sent by inspecting requests
-    pub async fn verify_email_sent(&self, expected_subject: &str, expected_recipient: &str) -> bool {
+    pub async fn verify_email_sent(
+        &self,
+        expected_subject: &str,
+        expected_recipient: &str,
+    ) -> bool {
         let requests = self.received_requests().await;
-        
+
         // Look for DATA request containing our email
         requests.iter().any(|req| {
             if req.url.path() == "/smtp/data" {
@@ -264,7 +287,10 @@ impl SmtpService {
     /// Get count of emails sent (DATA commands received)
     pub async fn email_count(&self) -> usize {
         let requests = self.received_requests().await;
-        requests.iter().filter(|req| req.url.path() == "/smtp/data").count()
+        requests
+            .iter()
+            .filter(|req| req.url.path() == "/smtp/data")
+            .count()
     }
 
     /// Advanced mock for testing specific SMTP scenarios
@@ -329,4 +355,4 @@ impl<'a> SmtpScenarioBuilder<'a> {
     pub async fn build(self) -> &'a SmtpService {
         self.service
     }
-} 
+}

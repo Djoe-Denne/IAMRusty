@@ -2,65 +2,48 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::error::DomainError;
+use crate::{error::DomainError, entity::{permission::Permission, resource::Resource}};
 
 /// Role permission entity representing a named permission-resource combination
 /// This acts like a permission group/template that can be assigned to users
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct RolePermission {
+pub struct RolePermission { 
     pub id: Uuid,
     pub name: String,
     pub description: Option<String>,
-    pub permission_id: Uuid,
-    pub resource_id: Uuid,
+    pub permission: Permission,
+    pub resource: Resource,
     pub created_at: DateTime<Utc>,
 }
 
 impl RolePermission {
     /// Create a new role permission
     pub fn new(
+        id: Uuid,
         name: String,
         description: Option<String>,
-        permission_id: Uuid,
-        resource_id: Uuid,
-    ) -> Result<Self, DomainError> {
-        Self::validate_name(&name)?;
-        
-        Ok(Self {
-            id: Uuid::new_v4(),
+        permission: &Permission,
+        resource: &Resource,
+        created_at: DateTime<Utc>,
+    ) -> Self {
+        Self {
+            id,
             name,
             description,
-            permission_id,
-            resource_id,
-            created_at: Utc::now(),
-        })
+            permission: permission.clone(),
+            resource: resource.clone(),
+            created_at,
+        }
     }
-    
+
     /// Update role permission name
-    pub fn update_name(&mut self, new_name: String) -> Result<(), DomainError> {
-        Self::validate_name(&new_name)?;
+    pub fn update_name(&mut self, new_name: String) {
         self.name = new_name;
-        Ok(())
     }
-    
+
     /// Update role permission description
     pub fn update_description(&mut self, new_description: Option<String>) {
         self.description = new_description;
-    }
-    
-    /// Validate role permission name
-    fn validate_name(name: &str) -> Result<(), DomainError> {
-        if name.trim().is_empty() {
-            return Err(DomainError::invalid_input("Role permission name cannot be empty"));
-        }
-        
-        if name.len() > 100 {
-            return Err(DomainError::invalid_input(
-                "Role permission name cannot be longer than 100 characters",
-            ));
-        }
-        
-        Ok(())
     }
 }
 
@@ -78,4 +61,4 @@ impl PermissionResourceCombo {
             resource_type,
         }
     }
-} 
+}

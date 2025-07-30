@@ -10,4 +10,4 @@ pub use port::*;
 pub use service::*;
 
 // Re-export events
-pub use hive_events::*; 
+pub use hive_events::*;

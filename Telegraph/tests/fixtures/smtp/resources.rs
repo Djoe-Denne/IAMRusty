@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 
 /// SMTP email message structure for testing
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -30,7 +30,7 @@ impl SmtpEmail {
             subject: "Welcome to AI For All!".to_string(),
             text_body: Some(format!("Welcome {}, thank you for signing up!", username)),
             html_body: Some(format!(
-                "<h1>Welcome {}!</h1><p>Thank you for signing up to AI For All.</p>", 
+                "<h1>Welcome {}!</h1><p>Thank you for signing up to AI For All.</p>",
                 username
             )),
             message_id: Some("test-message-id-123".to_string()),
@@ -47,7 +47,7 @@ impl SmtpEmail {
             subject: "Password Reset Request".to_string(),
             text_body: Some(format!("Hi {}, you requested a password reset.", username)),
             html_body: Some(format!(
-                "<h1>Password Reset</h1><p>Hi {}, you requested a password reset.</p>", 
+                "<h1>Password Reset</h1><p>Hi {}, you requested a password reset.</p>",
                 username
             )),
             message_id: Some("test-password-reset-456".to_string()),
@@ -62,9 +62,12 @@ impl SmtpEmail {
             cc: None,
             bcc: None,
             subject: "Email Verification".to_string(),
-            text_body: Some(format!("Hi {}, please verify your email address.", username)),
+            text_body: Some(format!(
+                "Hi {}, please verify your email address.",
+                username
+            )),
             html_body: Some(format!(
-                "<h1>Email Verification</h1><p>Hi {}, please verify your email address.</p>", 
+                "<h1>Email Verification</h1><p>Hi {}, please verify your email address.</p>",
                 username
             )),
             message_id: Some("test-email-verify-789".to_string()),
@@ -128,7 +131,9 @@ impl SmtpEmailBuilder {
 
     pub fn build(self) -> SmtpEmail {
         SmtpEmail {
-            from: self.from.unwrap_or_else(|| "noreply@telegraph.com".to_string()),
+            from: self
+                .from
+                .unwrap_or_else(|| "noreply@telegraph.com".to_string()),
             to: self.to,
             cc: self.cc,
             bcc: self.bcc,
@@ -315,4 +320,4 @@ impl SmtpCapabilities {
         }
         lines
     }
-} 
+}

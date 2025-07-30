@@ -1,5 +1,7 @@
 use base64::{engine::general_purpose, Engine as _};
-use iam_domain::entity::registration_token::{ProviderInfo, RegistrationFlow, RegistrationTokenClaims};
+use iam_domain::entity::registration_token::{
+    ProviderInfo, RegistrationFlow, RegistrationTokenClaims,
+};
 use iam_domain::error::DomainError;
 use iam_domain::port::service::RegistrationTokenService;
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation};

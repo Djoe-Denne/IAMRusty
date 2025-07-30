@@ -1,9 +1,9 @@
-use std::sync::Arc;
-use uuid::Uuid;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+use telegraph_domain::entity::communication::NotificationCommunication;
 use telegraph_domain::error::DomainError;
 use telegraph_domain::service::NotificationService;
-use telegraph_domain::entity::communication::NotificationCommunication;
+use uuid::Uuid;
 
 /// Input for getting user notifications
 #[derive(Debug, Clone, Deserialize)]
@@ -77,9 +77,18 @@ impl From<DomainError> for NotificationUseCaseError {
 /// Trait for notification-related usecases
 #[async_trait::async_trait]
 pub trait NotificationUseCaseTrait: Send + Sync {
-    async fn get_notifications(&self, input: GetNotificationsInput) -> Result<GetNotificationsResponse, NotificationUseCaseError>;
-    async fn get_unread_count(&self, input: GetUnreadCountInput) -> Result<GetUnreadCountResponse, NotificationUseCaseError>;
-    async fn mark_notification_read(&self, input: MarkNotificationReadInput) -> Result<MarkNotificationReadResponse, NotificationUseCaseError>;
+    async fn get_notifications(
+        &self,
+        input: GetNotificationsInput,
+    ) -> Result<GetNotificationsResponse, NotificationUseCaseError>;
+    async fn get_unread_count(
+        &self,
+        input: GetUnreadCountInput,
+    ) -> Result<GetUnreadCountResponse, NotificationUseCaseError>;
+    async fn mark_notification_read(
+        &self,
+        input: MarkNotificationReadInput,
+    ) -> Result<MarkNotificationReadResponse, NotificationUseCaseError>;
 }
 
 /// Implementation of notification usecases
@@ -109,7 +118,10 @@ impl NotificationUseCaseImpl {
 
 #[async_trait::async_trait]
 impl NotificationUseCaseTrait for NotificationUseCaseImpl {
-    async fn get_notifications(&self, input: GetNotificationsInput) -> Result<GetNotificationsResponse, NotificationUseCaseError> {
+    async fn get_notifications(
+        &self,
+        input: GetNotificationsInput,
+    ) -> Result<GetNotificationsResponse, NotificationUseCaseError> {
         // Set defaults
         let page = input.page.unwrap_or(0);
         let per_page = input.per_page.unwrap_or(20);
@@ -117,7 +129,9 @@ impl NotificationUseCaseTrait for NotificationUseCaseImpl {
 
         // Validate per_page limit
         if per_page > 100 {
-            return Err(NotificationUseCaseError::ValidationError("per_page cannot exceed 100".to_string()));
+            return Err(NotificationUseCaseError::ValidationError(
+                "per_page cannot exceed 100".to_string(),
+            ));
         }
 
         // Get notifications from domain service
@@ -144,7 +158,10 @@ impl NotificationUseCaseTrait for NotificationUseCaseImpl {
         })
     }
 
-    async fn get_unread_count(&self, input: GetUnreadCountInput) -> Result<GetUnreadCountResponse, NotificationUseCaseError> {
+    async fn get_unread_count(
+        &self,
+        input: GetUnreadCountInput,
+    ) -> Result<GetUnreadCountResponse, NotificationUseCaseError> {
         let unread_count = self
             .notification_service
             .count_unread_notifications(input.user_id)
@@ -153,7 +170,10 @@ impl NotificationUseCaseTrait for NotificationUseCaseImpl {
         Ok(GetUnreadCountResponse { unread_count })
     }
 
-    async fn mark_notification_read(&self, input: MarkNotificationReadInput) -> Result<MarkNotificationReadResponse, NotificationUseCaseError> {
+    async fn mark_notification_read(
+        &self,
+        input: MarkNotificationReadInput,
+    ) -> Result<MarkNotificationReadResponse, NotificationUseCaseError> {
         let updated_notification = self
             .notification_service
             .mark_notification_as_read(input.notification_id, input.user_id)
@@ -166,4 +186,4 @@ impl NotificationUseCaseTrait for NotificationUseCaseImpl {
             success: true,
         })
     }
-} 
+}

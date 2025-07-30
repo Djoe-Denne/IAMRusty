@@ -81,17 +81,13 @@ impl DbFixtures {
         Ok(user)
     }
 
-
-
     /// Create a user without username (for registration flow testing)
     pub async fn create_user_without_username(
         db: &DatabaseConnection,
         email: &str,
     ) -> Result<users::UserFixture, DbErr> {
         // Create user without username
-        let user = Self::user()
-            .commit(Arc::new(db.clone()))
-            .await?;
+        let user = Self::user().commit(Arc::new(db.clone())).await?;
 
         // Create primary email
         Self::user_email()
@@ -141,12 +137,7 @@ impl DbFixtures {
                     .commit(Arc::new(db.clone()))
                     .await?
             }
-            _ => {
-                return Err(DbErr::Custom(format!(
-                    "Unsupported provider: {}",
-                    provider
-                )))
-            }
+            _ => return Err(DbErr::Custom(format!("Unsupported provider: {}", provider))),
         };
 
         Ok((user, provider_token))

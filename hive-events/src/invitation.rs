@@ -51,7 +51,16 @@ pub struct InvitationExpiredEvent {
 // =============================================================================
 
 impl InvitationCreatedEvent {
-    pub fn new(organization_id: Uuid, organization_name: String, invitation_id: Uuid, email: String, role_name: String, invited_by_user_id: Uuid, invitation_token: String, expires_at: DateTime<Utc>) -> Self {
+    pub fn new(
+        organization_id: Uuid,
+        organization_name: String,
+        invitation_id: Uuid,
+        email: String,
+        role_name: String,
+        invited_by_user_id: Uuid,
+        invitation_token: String,
+        expires_at: DateTime<Utc>,
+    ) -> Self {
         Self {
             base: BaseEvent::new("invitation_created".to_string(), organization_id),
             organization_id,
@@ -67,7 +76,13 @@ impl InvitationCreatedEvent {
 }
 
 impl InvitationAcceptedEvent {
-    pub fn new(organization_id: Uuid, organization_name: String, invitation_id: Uuid, user_id: Uuid, accepted_at: DateTime<Utc>) -> Self {
+    pub fn new(
+        organization_id: Uuid,
+        organization_name: String,
+        invitation_id: Uuid,
+        user_id: Uuid,
+        accepted_at: DateTime<Utc>,
+    ) -> Self {
         Self {
             base: BaseEvent::new("invitation_accepted".to_string(), organization_id),
             organization_id,
@@ -80,7 +95,13 @@ impl InvitationAcceptedEvent {
 }
 
 impl InvitationExpiredEvent {
-    pub fn new(organization_id: Uuid, organization_name: String, invitation_id: Uuid, email: String, expired_at: DateTime<Utc>) -> Self {
+    pub fn new(
+        organization_id: Uuid,
+        organization_name: String,
+        invitation_id: Uuid,
+        email: String,
+        expired_at: DateTime<Utc>,
+    ) -> Self {
         Self {
             base: BaseEvent::new("invitation_expired".to_string(), organization_id),
             organization_id,

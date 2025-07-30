@@ -3,8 +3,8 @@ use rustycog_testing::wiremock::MockServerFixture;
 use serde::Serialize;
 use std::sync::Arc;
 use wiremock::{
-    Mock, MockServer, ResponseTemplate,
     matchers::{body_string_contains, header, method, path},
+    Mock, MockServer, ResponseTemplate,
 };
 
 /// GitLab service for mocking GitLab OAuth endpoints

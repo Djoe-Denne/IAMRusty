@@ -1,6 +1,6 @@
-use sea_orm::{ConnectionTrait, DatabaseBackend, Statement, DatabaseConnection};
-use std::sync::Arc;
+use sea_orm::{ConnectionTrait, DatabaseBackend, DatabaseConnection, Statement};
 use serde_json::Value;
+use std::sync::Arc;
 use uuid::Uuid;
 
 /// Authentication test utilities for user management and database operations
@@ -64,10 +64,22 @@ impl AuthTestUtils {
 
     /// Assert that response has expected authentication success structure
     pub fn assert_auth_success_response(response: &Value) {
-        assert!(response["access_token"].is_string(), "Should contain access_token");
-        assert!(response["refresh_token"].is_string(), "Should contain refresh_token");
-        assert!(response["expires_in"].is_number(), "Should contain expires_in");
-        assert!(response["refresh_expires_in"].is_number(), "Should contain refresh_expires_in");
+        assert!(
+            response["access_token"].is_string(),
+            "Should contain access_token"
+        );
+        assert!(
+            response["refresh_token"].is_string(),
+            "Should contain refresh_token"
+        );
+        assert!(
+            response["expires_in"].is_number(),
+            "Should contain expires_in"
+        );
+        assert!(
+            response["refresh_expires_in"].is_number(),
+            "Should contain refresh_expires_in"
+        );
     }
 
     /// Assert that response has expected error structure
@@ -83,4 +95,4 @@ impl AuthTestUtils {
         let parts: Vec<&str> = token.split('.').collect();
         parts.len() == 3 && !parts[0].is_empty() && !parts[1].is_empty() && !parts[2].is_empty()
     }
-} 
+}

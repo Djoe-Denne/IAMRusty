@@ -46,10 +46,9 @@ where
         let Json(value) = Json::<T>::from_request(req, state)
             .await
             .map_err(|rejection| match rejection {
-                JsonRejection::JsonDataError(_) => ValidationError::new(
-                    "invalid_json_data",
-                    "Invalid JSON data in request body",
-                ),
+                JsonRejection::JsonDataError(_) => {
+                    ValidationError::new("invalid_json_data", "Invalid JSON data in request body")
+                }
                 JsonRejection::JsonSyntaxError(_) => ValidationError::new(
                     "invalid_json_syntax",
                     "Invalid JSON syntax in request body",

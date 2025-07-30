@@ -23,16 +23,8 @@ impl MigrationTrait for Migration {
                             .uuid()
                             .not_null(),
                     )
-                    .col(
-                        ColumnDef::new(SyncJobs::JobType)
-                            .string_len(50)
-                            .not_null(),
-                    )
-                    .col(
-                        ColumnDef::new(SyncJobs::Status)
-                            .string_len(20)
-                            .not_null(),
-                    )
+                    .col(ColumnDef::new(SyncJobs::JobType).string_len(50).not_null())
+                    .col(ColumnDef::new(SyncJobs::Status).string_len(20).not_null())
                     .col(
                         ColumnDef::new(SyncJobs::ItemsProcessed)
                             .integer()
@@ -68,11 +60,7 @@ impl MigrationTrait for Migration {
                             .timestamp_with_time_zone()
                             .null(),
                     )
-                    .col(
-                        ColumnDef::new(SyncJobs::ErrorMessage)
-                            .text()
-                            .null(),
-                    )
+                    .col(ColumnDef::new(SyncJobs::ErrorMessage).text().null())
                     .col(
                         ColumnDef::new(SyncJobs::Details)
                             .json_binary()
@@ -163,4 +151,4 @@ enum SyncJobs {
     ErrorMessage,
     Details,
     CreatedAt,
-} 
+}

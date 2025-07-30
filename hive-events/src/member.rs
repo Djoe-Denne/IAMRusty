@@ -1,5 +1,5 @@
 //! Hive Domain Events
-//! 
+//!
 //! This crate contains all domain events for the Hive organization management service.
 //! Events are used for inter-service communication, particularly with the Telegraph
 //! notification service.
@@ -62,7 +62,17 @@ pub struct MemberRemovedEvent {
 // =============================================================================
 
 impl MemberInvitedEvent {
-    pub fn new(organization_id: Uuid, organization_name: String, invitation_id: Uuid, email: String, role_name: String, invited_by_user_id: Uuid, invitation_token: String, expires_at: DateTime<Utc>, message: Option<String>) -> Self {
+    pub fn new(
+        organization_id: Uuid,
+        organization_name: String,
+        invitation_id: Uuid,
+        email: String,
+        role_name: String,
+        invited_by_user_id: Uuid,
+        invitation_token: String,
+        expires_at: DateTime<Utc>,
+        message: Option<String>,
+    ) -> Self {
         Self {
             base: BaseEvent::new("member_invited".to_string(), organization_id),
             organization_id,
@@ -79,7 +89,13 @@ impl MemberInvitedEvent {
 }
 
 impl MemberJoinedEvent {
-    pub fn new(organization_id: Uuid, organization_name: String, user_id: Uuid, role_name: String, joined_at: DateTime<Utc>) -> Self {
+    pub fn new(
+        organization_id: Uuid,
+        organization_name: String,
+        user_id: Uuid,
+        role_name: String,
+        joined_at: DateTime<Utc>,
+    ) -> Self {
         Self {
             base: BaseEvent::new("member_joined".to_string(), organization_id),
             organization_id,
@@ -90,5 +106,3 @@ impl MemberJoinedEvent {
         }
     }
 }
-
-

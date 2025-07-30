@@ -1,25 +1,25 @@
 //! Hive Domain Events
-//! 
+//!
 //! This crate contains all domain events for the Hive organization management service.
 //! Events are used for inter-service communication, particularly with the Telegraph
 //! notification service.
 
-pub mod organization;
-pub mod member;
-pub mod invitation;
 pub mod external_link;
+pub mod invitation;
+pub mod member;
+pub mod organization;
 pub mod sync;
 
-pub use organization::*;
-pub use member::*;
-pub use invitation::*;
 pub use external_link::*;
+pub use invitation::*;
+pub use member::*;
+pub use organization::*;
 pub use sync::*;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 use std::collections::HashMap;
+use uuid::Uuid;
 
 use rustycog_core::error::ServiceError;
 use rustycog_events::DomainEvent;

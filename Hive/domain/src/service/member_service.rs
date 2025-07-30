@@ -1,87 +1,158 @@
 use uuid::Uuid;
 
-use crate::{
-    entity::*,
-    error::DomainError,
-    port::*,
-};
+use crate::{entity::*, error::DomainError, port::*, service::role_service::RoleService};
 
 /// Domain service for organization member management
-pub struct MemberServiceImpl<MR, OR, RR>
+pub struct MemberServiceImpl<MR, OR, RS>
 where
     MR: OrganizationMemberRepository,
     OR: OrganizationRepository,
-    RR: OrganizationRoleRepository,
+    RS: RoleService,
 {
     member_repo: MR,
     organization_repo: OR,
-    role_repo: RR,
+    role_service: RS,
 }
 
 #[async_trait::async_trait]
-pub trait MemberService {
-    async fn add_member(&self, organization_id: Uuid, user_id: Uuid, role_id: Uuid, added_by_user_id: Uuid) -> Result<OrganizationMember, DomainError>;
-    async fn remove_member(&self, organization_id: Uuid, user_id: Uuid, removed_by_user_id: Uuid) -> Result<(), DomainError>;
-    async fn update_member_role(&self, organization_id: Uuid, user_id: Uuid, new_role_id: Uuid, updated_by_user_id: Uuid) -> Result<OrganizationMember, DomainError>;
-    async fn get_member(&self, organization_id: Uuid, user_id: Uuid) -> Result<OrganizationMember, DomainError>;
-    async fn list_members(&self, organization_id: Uuid) -> Result<Vec<OrganizationMember>, DomainError>;
-    async fn list_active_members(&self, organization_id: Uuid) -> Result<Vec<OrganizationMember>, DomainError>;
-    async fn check_member_management_permission(&self, organization_id: &Uuid, user_id: &Uuid) -> Result<(), DomainError>;
+pub trait MemberService: Send + Sync {
+    /**
+     * Add a member to an organization
+     * 
+     * @param organization_id - The ID of the organization to add the member to
+     * @param user_id - The ID of the user to add as a member
+     * @param roles - The roles to assign to the member
+     * @param added_by_user_id - The ID of the user who added the member. If Option empty, bypass permission check, used for system operations such as owner creation
+     */
+    async fn add_member(
+        &self,
+        organization_id: Uuid,
+        user_id: Uuid,
+        roles: Vec<RolePermission>,
+        added_by_user_id: Option<Uuid>,
+    ) -> Result<OrganizationMember, DomainError>;
+
+    /**
+     * Remove a member from an organization
+     * 
+     * @param organization_id - The ID of the organization to remove the member from
+     * @param user_id - The ID of the user to remove as a member
+     * @param removed_by_user_id - The ID of the user who removed the member. If Option empty, bypass permission check, used for system operations such as owner removal
+     */
+    async fn remove_member(
+        &self,
+        organization_id: Uuid,
+        user_id: Uuid,
+        removed_by_user_id: Uuid,
+    ) -> Result<(), DomainError>;
+
+    /**
+     * Remove all members from an organization
+     * 
+     * @param organization_id - The ID of the organization to remove the members from
+     */
+    async fn remove_organization_members(&self, organization_id: Uuid) -> Result<(), DomainError>;
+
+    /**
+     * Get a member by organization and user ID
+     * 
+     * @param organization_id - The ID of the organization to get the member from
+     * @param user_id - The ID of the user to get as a member
+     */
+    async fn get_member(
+        &self,
+        organization_id: Uuid,
+        user_id: Uuid,
+    ) -> Result<OrganizationMember, DomainError>;
+
+    /**
+     * List all members of an organization
+     * 
+     * @param organization_id - The ID of the organization to list the members of
+     */
+    async fn list_members(
+        &self,
+        organization_id: Uuid,
+    ) -> Result<Vec<OrganizationMember>, DomainError>;
+
+    /**
+     * List active members of an organization
+     * 
+     * @param organization_id - The ID of the organization to list the active members of
+     */
+    async fn list_active_members(
+        &self,
+        organization_id: Uuid,
+    ) -> Result<Vec<OrganizationMember>, DomainError>;
+
+    /**
+     * Update a member's role
+     * 
+     * @param organization_id - The ID of the organization to update the member's role in
+     * @param member_id - The ID of the member to update the role of
+     * @param roles - The roles to assign to the member
+     */
+    async fn update_member_roles(
+        &self,
+        organization_id: Uuid,
+        member_id: Uuid,
+        roles: Vec<RolePermission>,
+    ) -> Result<OrganizationMember, DomainError>;
 }
 
-impl<MR, OR, RR> MemberServiceImpl<MR, OR, RR>
+impl<MR, OR, RS> MemberServiceImpl<MR, OR, RS>
 where
     MR: OrganizationMemberRepository,
     OR: OrganizationRepository,
-    RR: OrganizationRoleRepository,
+    RS: RoleService,
 {
     /// Create a new member service
-    pub fn new(
-        member_repo: MR,
-        organization_repo: OR,
-        role_repo: RR,
-    ) -> Self {
+    pub fn new(member_repo: MR, organization_repo: OR, role_service: RS) -> Self {
         Self {
             member_repo,
             organization_repo,
-            role_repo,
+            role_service,
         }
+    }
+
+    
+    async fn update_member_roles(
+        &self,
+        member: &mut OrganizationMember,
+        roles: Vec<RolePermission>,
+    ) -> Result<OrganizationMember, DomainError> {
+        let new_roles = self.role_service.add_roles(&member.organization_id, &member.id, roles).await?;
+        member.update_roles(new_roles);
+        self.member_repo.save(member).await
     }
 }
 
 #[async_trait::async_trait]
-impl<MR, OR, RR> MemberService for MemberServiceImpl<MR, OR, RR>
+impl<MR, OR, RS> MemberService for MemberServiceImpl<MR, OR, RS>
 where
     MR: OrganizationMemberRepository,
     OR: OrganizationRepository,
-    RR: OrganizationRoleRepository,
+    RS: RoleService,
 {
     /// Add a member to an organization
     async fn add_member(
         &self,
         organization_id: Uuid,
         user_id: Uuid,
-        role_id: Uuid,
-        added_by_user_id: Uuid,
+        roles: Vec<RolePermission>,
+        added_by_user_id: Option<Uuid>,
     ) -> Result<OrganizationMember, DomainError> {
         // Validate organization exists
         let organization = self
             .organization_repo
             .find_by_id(&organization_id)
             .await?
-            .ok_or_else(|| DomainError::entity_not_found("Organization", &organization_id.to_string()))?;
+            .ok_or_else(|| {
+                DomainError::entity_not_found("Organization", &organization_id.to_string())
+            })?;
 
-        // Validate role exists and belongs to organization
-        let role = self
-            .role_repo
-            .find_by_id(&role_id)
-            .await?
-            .ok_or_else(|| DomainError::entity_not_found("OrganizationRole", &role_id.to_string()))?;
-
-        if role.organization_id != organization_id {
-            return Err(DomainError::business_rule_violation(
-                "Role does not belong to the specified organization",
-            ));
+        if added_by_user_id.is_some() && !self.role_service.check_write_permission(&organization_id, &added_by_user_id.unwrap(), "members").await? {
+            return Err(DomainError::permission_denied("User does not have permission to add members"));
         }
 
         // Business rule: Check if user is already a member
@@ -90,34 +161,20 @@ where
             .find_by_organization_and_user(&organization_id, &user_id)
             .await?
         {
-            if existing_member.is_active() {
-                return Err(DomainError::resource_already_exists(
-                    "OrganizationMember",
-                    &format!("user_id={}, organization_id={}", user_id, organization_id),
-                ));
-            }
-            // If member exists but is not active, we can reactivate them
-            let mut updated_member = existing_member;
-            updated_member.reactivate()?;
-            updated_member.update_role(role_id);
-            return self.member_repo.save(&updated_member).await;
-        }
-
-        // Business rule: Check permission to add members
-        self.check_member_management_permission(&organization_id, &added_by_user_id).await?;
-
-        // Business rule: Cannot add owner to same organization again
-        if organization.is_owned_by(&user_id) {
-            return Err(DomainError::business_rule_violation(
-                "Organization owner is automatically a member",
+            return Err(DomainError::resource_already_exists(
+                "OrganizationMember",
+                &format!("user_id={}, organization_id={}", user_id, organization_id),
             ));
         }
 
         // Create new member
-        let member = OrganizationMember::new_from_invitation(organization_id, user_id, role_id, added_by_user_id);
-        let saved_member = self.member_repo.save(&member).await?;
+        let member = OrganizationMember::new(organization_id, user_id, added_by_user_id.clone());
+        let mut saved_member = self.member_repo.save(&member).await?;
 
-        Ok(saved_member)
+        // Add roles to member
+        let updated_member = self.update_member_roles(&mut saved_member, roles).await?;
+
+        Ok(updated_member)
     }
 
     /// Remove a member from an organization
@@ -132,7 +189,9 @@ where
             .organization_repo
             .find_by_id(&organization_id)
             .await?
-            .ok_or_else(|| DomainError::entity_not_found("Organization", &organization_id.to_string()))?;
+            .ok_or_else(|| {
+                DomainError::entity_not_found("Organization", &organization_id.to_string())
+            })?;
 
         // Business rule: Cannot remove organization owner
         if organization.is_owned_by(&user_id) {
@@ -146,13 +205,16 @@ where
             .member_repo
             .find_by_organization_and_user(&organization_id, &user_id)
             .await?
-            .ok_or_else(|| DomainError::entity_not_found(
-                "OrganizationMember",
-                &format!("user_id={}, organization_id={}", user_id, organization_id),
-            ))?;
+            .ok_or_else(|| {
+                DomainError::entity_not_found(
+                    "OrganizationMember",
+                    &format!("user_id={}, organization_id={}", user_id, organization_id),
+                )
+            })?;
 
         // Business rule: Check permission to remove members
-        self.check_member_management_permission(&organization_id, &removed_by_user_id).await?;
+        self.role_service.check_write_permission(&organization_id, &removed_by_user_id, "members")
+            .await?;
 
         // Business rule: Cannot remove yourself unless you're the owner
         if user_id == removed_by_user_id && !organization.is_owned_by(&removed_by_user_id) {
@@ -167,59 +229,22 @@ where
         Ok(())
     }
 
+    /// Remove all members from an organization
+
+    async fn remove_organization_members(&self, organization_id: Uuid) -> Result<(), DomainError> {
+        self.member_repo.delete_by_organization(&organization_id).await?;
+        Ok(())
+    }
+
     /// Update a member's role
-    async fn update_member_role(
+    async fn update_member_roles(
         &self,
         organization_id: Uuid,
         user_id: Uuid,
-        new_role_id: Uuid,
-        updated_by_user_id: Uuid,
+        roles: Vec<RolePermission>,
     ) -> Result<OrganizationMember, DomainError> {
-        // Validate organization exists
-        let organization = self
-            .organization_repo
-            .find_by_id(&organization_id)
-            .await?
-            .ok_or_else(|| DomainError::entity_not_found("Organization", &organization_id.to_string()))?;
-
-        // Validate new role exists and belongs to organization
-        let role = self
-            .role_repo
-            .find_by_id(&new_role_id)
-            .await?
-            .ok_or_else(|| DomainError::entity_not_found("OrganizationRole", &new_role_id.to_string()))?;
-
-        if role.organization_id != organization_id {
-            return Err(DomainError::business_rule_violation(
-                "Role does not belong to the specified organization",
-            ));
-        }
-
-        // Find the member
-        let mut member = self
-            .member_repo
-            .find_by_organization_and_user(&organization_id, &user_id)
-            .await?
-            .ok_or_else(|| DomainError::entity_not_found(
-                "OrganizationMember",
-                &format!("user_id={}, organization_id={}", user_id, organization_id),
-            ))?;
-
-        // Business rule: Cannot change owner's role
-        if organization.is_owned_by(&user_id) {
-            return Err(DomainError::business_rule_violation(
-                "Cannot change organization owner's role",
-            ));
-        }
-
-        // Business rule: Check permission to update member roles
-        self.check_member_management_permission(&organization_id, &updated_by_user_id).await?;
-
-        // Update member role
-        member.update_role(new_role_id);
-        let updated_member = self.member_repo.save(&member).await?;
-
-        Ok(updated_member)
+        let mut member = self.get_member(organization_id, user_id).await?;
+        self.update_member_roles(&mut member, roles).await
     }
 
     /// Get a member by organization and user ID
@@ -231,10 +256,12 @@ where
         self.member_repo
             .find_by_organization_and_user(&organization_id, &user_id)
             .await?
-            .ok_or_else(|| DomainError::entity_not_found(
-                "OrganizationMember",
-                &format!("user_id={}, organization_id={}", user_id, organization_id),
-            ))
+            .ok_or_else(|| {
+                DomainError::entity_not_found(
+                    "OrganizationMember",
+                    &format!("user_id={}, organization_id={}", user_id, organization_id),
+                )
+            })
     }
 
     /// List all members of an organization
@@ -246,7 +273,9 @@ where
         self.organization_repo
             .find_by_id(&organization_id)
             .await?
-            .ok_or_else(|| DomainError::entity_not_found("Organization", &organization_id.to_string()))?;
+            .ok_or_else(|| {
+                DomainError::entity_not_found("Organization", &organization_id.to_string())
+            })?;
 
         self.member_repo
             .find_by_organization(&organization_id)
@@ -262,54 +291,12 @@ where
         self.organization_repo
             .find_by_id(&organization_id)
             .await?
-            .ok_or_else(|| DomainError::entity_not_found("Organization", &organization_id.to_string()))?;
+            .ok_or_else(|| {
+                DomainError::entity_not_found("Organization", &organization_id.to_string())
+            })?;
 
         self.member_repo
             .find_by_organization_and_status(&organization_id, &MemberStatus::Active)
             .await
     }
-
-    /// Check if user has permission to manage members (add/remove/update)
-    async fn check_member_management_permission(
-        &self,
-        organization_id: &Uuid,
-        user_id: &Uuid,
-    ) -> Result<(), DomainError> {
-        // Find the organization
-        let organization = self
-            .organization_repo
-            .find_by_id(organization_id)
-            .await?
-            .ok_or_else(|| DomainError::entity_not_found("Organization", &organization_id.to_string()))?;
-
-        // Owner always has permission
-        if organization.is_owned_by(user_id) {
-            return Ok(());
-        }
-
-        // Check if user is a member with admin role
-        let member = self
-            .member_repo
-            .find_by_organization_and_user(organization_id, user_id)
-            .await?;
-
-        if let Some(member) = member {
-            if member.is_active() {
-                // Get the role and check if it has admin permissions
-                let role = self
-                    .role_repo
-                    .find_by_id(&member.role_id)
-                    .await?
-                    .ok_or_else(|| DomainError::entity_not_found("OrganizationRole", &member.role_id.to_string()))?;
-
-                if role.is_admin() {
-                    return Ok(());
-                }
-            }
-        }
-
-        Err(DomainError::permission_denied(
-            "User does not have permission to manage members in this organization",
-        ))
-    }
-} 
+}

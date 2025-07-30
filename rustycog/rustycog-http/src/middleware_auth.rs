@@ -72,12 +72,10 @@ pub async fn auth_middleware(
     );
 
     // Extract user ID from token (no verification)
-    let user_id = user_id_extractor
-        .extract_user_id(token)
-        .map_err(|e| {
-            debug!("User ID extraction failed: {}", e);
-            StatusCode::UNAUTHORIZED
-        })?;
+    let user_id = user_id_extractor.extract_user_id(token).map_err(|e| {
+        debug!("User ID extraction failed: {}", e);
+        StatusCode::UNAUTHORIZED
+    })?;
 
     // Add the user ID to the request extensions
     let mut req = req;

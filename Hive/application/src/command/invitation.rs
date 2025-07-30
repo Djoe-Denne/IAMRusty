@@ -1,14 +1,14 @@
 use async_trait::async_trait;
+use rustycog_command::{Command, CommandError, CommandHandler};
 use std::sync::Arc;
 use uuid::Uuid;
-use rustycog_command::{Command, CommandHandler, CommandError};
 
 use crate::{
-    usecase::InvitationUseCase,
     dto::{
-        CreateInvitationRequest, InvitationResponse, InvitationListResponse,
-        InvitationDetailsResponse, PaginationRequest
-    }
+        CreateInvitationRequest, InvitationDetailsResponse, InvitationListResponse,
+        InvitationResponse, PaginationRequest,
+    },
+    usecase::InvitationUseCase,
 };
 
 #[derive(Debug, Clone)]
@@ -20,7 +20,11 @@ pub struct CreateInvitationCommand {
 }
 
 impl CreateInvitationCommand {
-    pub fn new(organization_id: Uuid, request: CreateInvitationRequest, invited_by_user_id: Uuid) -> Self {
+    pub fn new(
+        organization_id: Uuid,
+        request: CreateInvitationRequest,
+        invited_by_user_id: Uuid,
+    ) -> Self {
         Self {
             command_id: Uuid::new_v4(),
             organization_id,
@@ -59,9 +63,16 @@ impl CreateInvitationCommandHandler {
 
 #[async_trait]
 impl CommandHandler<CreateInvitationCommand> for CreateInvitationCommandHandler {
-    async fn handle(&self, command: CreateInvitationCommand) -> Result<InvitationResponse, CommandError> {
+    async fn handle(
+        &self,
+        command: CreateInvitationCommand,
+    ) -> Result<InvitationResponse, CommandError> {
         self.invitation_usecase
-            .create_invitation(command.organization_id, command.request, command.invited_by_user_id)
+            .create_invitation(
+                command.organization_id,
+                command.request,
+                command.invited_by_user_id,
+            )
             .await
             .map_err(|e| CommandError::business("create_invitation_failed", &e.to_string()))
     }
@@ -114,9 +125,15 @@ impl ListInvitationsCommandHandler {
 
 #[async_trait]
 impl CommandHandler<ListInvitationsCommand> for ListInvitationsCommandHandler {
-    async fn handle(&self, command: ListInvitationsCommand) -> Result<InvitationListResponse, CommandError> {
+    async fn handle(
+        &self,
+        command: ListInvitationsCommand,
+    ) -> Result<InvitationListResponse, CommandError> {
         // TODO: Implement list_invitations in InvitationUseCase
-        Err(CommandError::business("list_invitations_not_implemented", "List invitations functionality not yet implemented"))
+        Err(CommandError::business(
+            "list_invitations_not_implemented",
+            "List invitations functionality not yet implemented",
+        ))
     }
 }
 
@@ -169,7 +186,10 @@ impl CancelInvitationCommandHandler {
 impl CommandHandler<CancelInvitationCommand> for CancelInvitationCommandHandler {
     async fn handle(&self, command: CancelInvitationCommand) -> Result<(), CommandError> {
         // TODO: Implement cancel_invitation in InvitationUseCase
-        Err(CommandError::business("cancel_invitation_not_implemented", "Cancel invitation functionality not yet implemented"))
+        Err(CommandError::business(
+            "cancel_invitation_not_implemented",
+            "Cancel invitation functionality not yet implemented",
+        ))
     }
 }
 
@@ -203,7 +223,10 @@ impl Command for AcceptInvitationCommand {
 
     fn validate(&self) -> Result<(), CommandError> {
         if self.token.trim().is_empty() {
-            return Err(CommandError::validation("empty_token", "Invitation token cannot be empty"));
+            return Err(CommandError::validation(
+                "empty_token",
+                "Invitation token cannot be empty",
+            ));
         }
         Ok(())
     }
@@ -259,7 +282,10 @@ impl Command for GetInvitationByTokenCommand {
 
     fn validate(&self) -> Result<(), CommandError> {
         if self.token.trim().is_empty() {
-            return Err(CommandError::validation("empty_token", "Invitation token cannot be empty"));
+            return Err(CommandError::validation(
+                "empty_token",
+                "Invitation token cannot be empty",
+            ));
         }
         Ok(())
     }
@@ -277,9 +303,15 @@ impl GetInvitationByTokenCommandHandler {
 
 #[async_trait]
 impl CommandHandler<GetInvitationByTokenCommand> for GetInvitationByTokenCommandHandler {
-    async fn handle(&self, command: GetInvitationByTokenCommand) -> Result<InvitationDetailsResponse, CommandError> {
+    async fn handle(
+        &self,
+        command: GetInvitationByTokenCommand,
+    ) -> Result<InvitationDetailsResponse, CommandError> {
         // TODO: Implement get_invitation_by_token in InvitationUseCase
-        Err(CommandError::business("get_invitation_by_token_not_implemented", "Get invitation by token functionality not yet implemented"))
+        Err(CommandError::business(
+            "get_invitation_by_token_not_implemented",
+            "Get invitation by token functionality not yet implemented",
+        ))
     }
 }
 
@@ -332,7 +364,10 @@ impl ResendInvitationCommandHandler {
 impl CommandHandler<ResendInvitationCommand> for ResendInvitationCommandHandler {
     async fn handle(&self, command: ResendInvitationCommand) -> Result<(), CommandError> {
         // TODO: Implement resend_invitation in InvitationUseCase
-        Err(CommandError::business("resend_invitation_not_implemented", "Resend invitation functionality not yet implemented"))
+        Err(CommandError::business(
+            "resend_invitation_not_implemented",
+            "Resend invitation functionality not yet implemented",
+        ))
     }
 }
 
@@ -342,4 +377,4 @@ impl InvitationErrorMapper {
     pub fn from_application_error(error: crate::ApplicationError) -> CommandError {
         CommandError::business("invitation_operation_failed", &error.to_string())
     }
-} 
+}

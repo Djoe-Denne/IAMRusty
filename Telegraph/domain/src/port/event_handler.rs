@@ -1,8 +1,8 @@
 //! Event handler port interfaces for Telegraph service
 
 use async_trait::async_trait;
-use uuid::Uuid;
 use std::sync::Arc;
+use uuid::Uuid;
 
 use crate::error::DomainError;
 use rustycog_events::DomainEvent;
@@ -12,7 +12,7 @@ use rustycog_events::DomainEvent;
 pub trait EventHandler: Send + Sync {
     /// Handle an IAM domain event and convert it to communication messages
     async fn handle_event(&self, event: &EventContext) -> Result<(), DomainError>;
-    
+
     /// Get the priority of this handler (higher numbers = higher priority)
     fn priority(&self) -> u32 {
         100 // Default priority
@@ -24,7 +24,7 @@ pub trait EventHandler: Send + Sync {
 pub trait EventProcessor: Send + Sync {
     /// Process an event with appropriate handlers
     async fn process_event(&self, event: &EventContext) -> Result<(), DomainError>;
-    
+
     /// Get handlers for a specific event type
     fn get_handlers_for_event(&self, event_type: &str) -> Vec<&dyn EventHandler>;
 }
@@ -44,8 +44,7 @@ pub struct EventContext {
     pub attempt: u32,
     /// Additional context metadata
     pub metadata: std::collections::HashMap<String, String>,
-} 
-
+}
 
 /// Recipient information for send message command
 #[derive(Debug)]
@@ -54,5 +53,4 @@ pub struct EventRecipient {
     pub user_id: Option<Uuid>,
     /// Email address (for email messages)
     pub email: Option<String>,
- 
 }

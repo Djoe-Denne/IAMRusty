@@ -18,21 +18,9 @@ impl MigrationTrait for Migration {
                             .not_null()
                             .primary_key(),
                     )
-                    .col(
-                        ColumnDef::new(Notifications::UserId)
-                            .uuid()
-                            .not_null(),
-                    )
-                    .col(
-                        ColumnDef::new(Notifications::Title)
-                            .string()
-                            .not_null(),
-                    )
-                    .col(
-                        ColumnDef::new(Notifications::Content)
-                            .binary()
-                            .not_null(),
-                    )
+                    .col(ColumnDef::new(Notifications::UserId).uuid().not_null())
+                    .col(ColumnDef::new(Notifications::Title).string().not_null())
+                    .col(ColumnDef::new(Notifications::Content).binary().not_null())
                     .col(
                         ColumnDef::new(Notifications::ContentType)
                             .string()
@@ -141,7 +129,10 @@ impl MigrationTrait for Migration {
                     .foreign_key(
                         ForeignKey::create()
                             .name("fk_notification_deliveries_notification_id")
-                            .from(NotificationDeliveries::Table, NotificationDeliveries::NotificationId)
+                            .from(
+                                NotificationDeliveries::Table,
+                                NotificationDeliveries::NotificationId,
+                            )
                             .to(Notifications::Table, Notifications::Id)
                             .on_delete(ForeignKeyAction::Cascade),
                     )
@@ -223,7 +214,11 @@ impl MigrationTrait for Migration {
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // Drop tables in reverse order due to foreign key constraints
         manager
-            .drop_table(Table::drop().table(NotificationDeliveries::Table).to_owned())
+            .drop_table(
+                Table::drop()
+                    .table(NotificationDeliveries::Table)
+                    .to_owned(),
+            )
             .await?;
 
         manager
@@ -263,4 +258,4 @@ pub enum NotificationDeliveries {
     ErrorMessage,
     CreatedAt,
     UpdatedAt,
-} 
+}

@@ -1,13 +1,13 @@
-use sea_orm::*;
-use uuid::Uuid;
-use chrono::{DateTime, Utc};
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
+use sea_orm::*;
 use serde_json::json;
 use std::sync::Arc;
+use uuid::Uuid;
 
-use telegraph_infra::repository::entity::notifications;
 use super::common::{FixtureBuilder, FixtureFactory};
 use rustycog_testing::db::{CommittedFixture, DbFixture, TestData};
+use telegraph_infra::repository::entity::notifications;
 
 /// Builder for notification fixtures
 #[derive(Clone, Debug)]
@@ -28,7 +28,7 @@ impl NotificationFixtureBuilder {
             "message": "Default notification content",
             "action": "none"
         });
-        
+
         Self {
             user_id: Uuid::new_v4(),
             title: "Test Notification".to_string(),
@@ -97,7 +97,7 @@ impl NotificationFixtureBuilder {
     }
 
     // Factory methods for common scenarios
-    
+
     /// Create a high priority notification
     pub fn high_priority(mut self) -> Self {
         self.priority = 1;
@@ -157,8 +157,13 @@ impl NotificationFixtureBuilder {
 }
 
 #[async_trait]
-impl DbFixture<notifications::Entity, notifications::Model, notifications::ActiveModel> for NotificationFixtureBuilder {
-    async fn commit(self, db: &DatabaseConnection) -> Result<CommittedFixture<notifications::Model>, DbErr> {
+impl DbFixture<notifications::Entity, notifications::Model, notifications::ActiveModel>
+    for NotificationFixtureBuilder
+{
+    async fn commit(
+        self,
+        db: &DatabaseConnection,
+    ) -> Result<CommittedFixture<notifications::Model>, DbErr> {
         let active_model = self.model();
         let model = active_model.insert(db).await?;
         Ok(CommittedFixture::new(model))
@@ -187,7 +192,7 @@ impl FixtureFactory<NotificationFixtureBuilder> for NotificationFixtureBuilder {
     fn default() -> NotificationFixtureBuilder {
         NotificationFixtureBuilder::new()
     }
-} 
+}
 
 #[derive(Debug, Clone)]
 pub struct NotificationFixture {
@@ -195,7 +200,6 @@ pub struct NotificationFixture {
 }
 
 impl NotificationFixture {
-
     pub async fn check(&self, db: Arc<DatabaseConnection>) -> Result<bool, DbErr> {
         use sea_orm::EntityTrait;
         let found = notifications::Entity::find_by_id(self.id())
@@ -220,7 +224,7 @@ impl NotificationFixture {
     pub fn title(&self) -> &String {
         &self.model().title
     }
-    
+
     pub fn content(&self) -> &Vec<u8> {
         &self.model().content
     }

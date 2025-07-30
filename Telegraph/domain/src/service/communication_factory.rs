@@ -3,14 +3,12 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tracing::{warn, debug};
+use tracing::{debug, warn};
 
 use crate::{
-    DomainError,
-    EventExtractor, TemplateService,
-    Communication, EmailCommunication, NotificationCommunication, 
-    CommunicationRecipient, CommunicationDescriptor,
-    RenderedTemplate, EventContext, CommunicationMode,
+    Communication, CommunicationDescriptor, CommunicationMode, CommunicationRecipient, DomainError,
+    EmailCommunication, EventContext, EventExtractor, NotificationCommunication, RenderedTemplate,
+    TemplateService,
 };
 
 /// Communication factory service that builds communications from TOML descriptors
@@ -35,25 +33,39 @@ impl CommunicationFactory {
     }
 
     /// Build email communication from event context
-    pub async fn build_email_communication(&self, event: &EventContext) -> Result<EmailCommunication, DomainError> {
+    pub async fn build_email_communication(
+        &self,
+        event: &EventContext,
+    ) -> Result<EmailCommunication, DomainError> {
         // Load communication descriptor for the event type
         let descriptor = self.load_descriptor(&event.event_type).await?;
-        
+
         let email_desc = descriptor.email.ok_or_else(|| {
-            DomainError::EventProcessingError(format!("No email configuration found for event type '{}'", event.event_type))
+            DomainError::EventProcessingError(format!(
+                "No email configuration found for event type '{}'",
+                event.event_type
+            ))
         })?;
 
         // Extract variables from the event
-        let variables = self.event_extractor.extract_variables(event.event.as_ref()).await?;
+        let variables = self
+            .event_extractor
+            .extract_variables(event.event.as_ref())
+            .await?;
 
         // Render the template using the template service
-        let rendered_template = self.template_service
+        let rendered_template = self
+            .template_service
             .render_template(&email_desc.template, &CommunicationMode::Email, &variables)
             .await?;
 
         // Extract email content from rendered template
         let (subject, html_body, text_body) = match rendered_template {
-            RenderedTemplate::Email { subject, html_body, text_body } => {
+            RenderedTemplate::Email {
+                subject,
+                html_body,
+                text_body,
+            } => {
                 // Use subject from descriptor or template variables, fallback to rendered subject
                 let final_subject = if !email_desc.subject.is_empty() {
                     self.interpolate_string(&email_desc.subject, &variables)
@@ -62,7 +74,11 @@ impl CommunicationFactory {
                 };
                 (final_subject, html_body, text_body)
             }
-            _ => return Err(DomainError::EventProcessingError("Template did not render to email content".to_string())),
+            _ => {
+                return Err(DomainError::EventProcessingError(
+                    "Template did not render to email content".to_string(),
+                ))
+            }
         };
 
         // Build recipient from event context
@@ -80,20 +96,34 @@ impl CommunicationFactory {
     }
 
     /// Build notification communication from event context
-    pub async fn build_notification_communication(&self, event: &EventContext) -> Result<NotificationCommunication, DomainError> {
+    pub async fn build_notification_communication(
+        &self,
+        event: &EventContext,
+    ) -> Result<NotificationCommunication, DomainError> {
         // Load communication descriptor for the event type
         let descriptor = self.load_descriptor(&event.event_type).await?;
-        
+
         let notification_desc = descriptor.notification.ok_or_else(|| {
-            DomainError::EventProcessingError(format!("No notification configuration found for event type '{}'", event.event_type))
+            DomainError::EventProcessingError(format!(
+                "No notification configuration found for event type '{}'",
+                event.event_type
+            ))
         })?;
 
         // Extract variables from the event
-        let variables = self.event_extractor.extract_variables(event.event.as_ref()).await?;
+        let variables = self
+            .event_extractor
+            .extract_variables(event.event.as_ref())
+            .await?;
 
         // Render the template using the template service
-        let rendered_template = self.template_service
-            .render_template(&notification_desc.template, &CommunicationMode::Notification, &variables)
+        let rendered_template = self
+            .template_service
+            .render_template(
+                &notification_desc.template,
+                &CommunicationMode::Notification,
+                &variables,
+            )
             .await?;
 
         // Extract notification content from rendered template
@@ -107,7 +137,11 @@ impl CommunicationFactory {
                 };
                 (final_title, body, data)
             }
-            _ => return Err(DomainError::EventProcessingError("Template did not render to notification content".to_string())),
+            _ => {
+                return Err(DomainError::EventProcessingError(
+                    "Template did not render to notification content".to_string(),
+                ))
+            }
         };
 
         // Build recipient from event context
@@ -130,7 +164,10 @@ impl CommunicationFactory {
     }
 
     /// Build any communication based on the available descriptors
-    pub async fn build_communication(&self, event: &EventContext) -> Result<Vec<Communication>, DomainError> {
+    pub async fn build_communication(
+        &self,
+        event: &EventContext,
+    ) -> Result<Vec<Communication>, DomainError> {
         let descriptor = self.load_descriptor(&event.event_type).await?;
         let mut communications = Vec::new();
 
@@ -151,7 +188,9 @@ impl CommunicationFactory {
         // Build notification communication if configured
         if descriptor.notification.is_some() {
             match self.build_notification_communication(event).await {
-                Ok(notification_comm) => communications.push(Communication::Notification(notification_comm)),
+                Ok(notification_comm) => {
+                    communications.push(Communication::Notification(notification_comm))
+                }
                 Err(e) => {
                     warn!(
                         event_type = %event.event_type,
@@ -163,9 +202,10 @@ impl CommunicationFactory {
         }
 
         if communications.is_empty() {
-            return Err(DomainError::EventProcessingError(
-                format!("No valid communication configurations found for event type '{}'", event.event_type)
-            ));
+            return Err(DomainError::EventProcessingError(format!(
+                "No valid communication configurations found for event type '{}'",
+                event.event_type
+            )));
         }
 
         debug!(
@@ -178,25 +218,37 @@ impl CommunicationFactory {
     }
 
     /// Load communication descriptor from TOML file
-    async fn load_descriptor(&self, event_type: &str) -> Result<CommunicationDescriptor, DomainError> {
+    async fn load_descriptor(
+        &self,
+        event_type: &str,
+    ) -> Result<CommunicationDescriptor, DomainError> {
         let descriptor_path = self.descriptor_dir.join(format!("{}.toml", event_type));
-        
+
         if !descriptor_path.exists() {
-            return Err(DomainError::EventProcessingError(
-                format!("Communication descriptor not found for event type '{}' at path '{}'", 
-                    event_type, descriptor_path.display())
-            ));
+            return Err(DomainError::EventProcessingError(format!(
+                "Communication descriptor not found for event type '{}' at path '{}'",
+                event_type,
+                descriptor_path.display()
+            )));
         }
 
-        let content = tokio::fs::read_to_string(&descriptor_path).await
-            .map_err(|e| DomainError::EventProcessingError(
-                format!("Failed to read descriptor file '{}': {}", descriptor_path.display(), e)
-            ))?;
+        let content = tokio::fs::read_to_string(&descriptor_path)
+            .await
+            .map_err(|e| {
+                DomainError::EventProcessingError(format!(
+                    "Failed to read descriptor file '{}': {}",
+                    descriptor_path.display(),
+                    e
+                ))
+            })?;
 
-        let descriptor: CommunicationDescriptor = toml::from_str(&content)
-            .map_err(|e| DomainError::EventProcessingError(
-                format!("Failed to parse descriptor file '{}': {}", descriptor_path.display(), e)
-            ))?;
+        let descriptor: CommunicationDescriptor = toml::from_str(&content).map_err(|e| {
+            DomainError::EventProcessingError(format!(
+                "Failed to parse descriptor file '{}': {}",
+                descriptor_path.display(),
+                e
+            ))
+        })?;
 
         debug!(
             event_type = %event_type,
@@ -208,7 +260,11 @@ impl CommunicationFactory {
     }
 
     /// Simple string interpolation for descriptor fields
-    fn interpolate_string(&self, template_str: &str, variables: &HashMap<String, String>) -> String {
+    fn interpolate_string(
+        &self,
+        template_str: &str,
+        variables: &HashMap<String, String>,
+    ) -> String {
         let mut result = template_str.to_string();
         for (key, value) in variables {
             let placeholder = format!("{{{}}}", key);
@@ -216,4 +272,4 @@ impl CommunicationFactory {
         }
         result
     }
-} 
+}

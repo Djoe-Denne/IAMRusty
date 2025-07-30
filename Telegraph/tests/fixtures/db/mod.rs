@@ -1,15 +1,15 @@
 pub mod common;
-pub mod notifications;
 pub mod notification_deliveries;
+pub mod notifications;
 
-use std::sync::Arc;
-use sea_orm::DatabaseConnection;
-use telegraphmigration::{Migrator, MigratorTrait};
 use rustycog_testing::db::TestData;
+use sea_orm::DatabaseConnection;
+use std::sync::Arc;
+use telegraphmigration::{Migrator, MigratorTrait};
 
 pub use common::*;
-pub use notifications::*;
 pub use notification_deliveries::*;
+pub use notifications::*;
 
 /// Database fixtures for Telegraph
 pub struct DbFixtures;
@@ -84,22 +84,20 @@ impl DbFixtures {
     /// Clean up function to truncate all tables between tests
     pub async fn cleanup(db: &DatabaseConnection) -> anyhow::Result<()> {
         use sea_orm::*;
-        
+
         // Truncate in reverse order due to foreign key constraints
-        db.execute(
-            Statement::from_string(
-                DbBackend::Postgres,
-                "TRUNCATE TABLE notification_deliveries CASCADE".to_owned(),
-            )
-        ).await?;
-        
-        db.execute(
-            Statement::from_string(
-                DbBackend::Postgres,
-                "TRUNCATE TABLE notifications CASCADE".to_owned(),
-            )
-        ).await?;
+        db.execute(Statement::from_string(
+            DbBackend::Postgres,
+            "TRUNCATE TABLE notification_deliveries CASCADE".to_owned(),
+        ))
+        .await?;
+
+        db.execute(Statement::from_string(
+            DbBackend::Postgres,
+            "TRUNCATE TABLE notifications CASCADE".to_owned(),
+        ))
+        .await?;
 
         Ok(())
     }
-} 
+}

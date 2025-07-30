@@ -210,11 +210,8 @@ mod tests {
 
     #[test]
     fn test_create_external_provider() {
-        let provider = ExternalProvider::new(
-            ProviderType::GitHub,
-            "Custom GitHub".to_string(),
-            None,
-        );
+        let provider =
+            ExternalProvider::new(ProviderType::GitHub, "Custom GitHub".to_string(), None);
 
         assert!(provider.is_ok());
         let provider = provider.unwrap();
@@ -270,18 +267,10 @@ mod tests {
 
     #[test]
     fn test_validate_name() {
-        let result = ExternalProvider::new(
-            ProviderType::GitHub,
-            "".to_string(),
-            None,
-        );
+        let result = ExternalProvider::new(ProviderType::GitHub, "".to_string(), None);
         assert!(result.is_err());
 
-        let result = ExternalProvider::new(
-            ProviderType::GitHub,
-            "a".repeat(101),
-            None,
-        );
+        let result = ExternalProvider::new(ProviderType::GitHub, "a".repeat(101), None);
         assert!(result.is_err());
     }
 
@@ -295,4 +284,4 @@ mod tests {
         provider.activate();
         assert!(provider.is_active);
     }
-} 
+}

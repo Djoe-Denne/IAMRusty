@@ -1,21 +1,15 @@
-use crate::{
-    error::AuthError, validation::*,
-};
-use rustycog_http::AppState;
-use rustycog_http::{ValidatedJson, AuthUser};
+use crate::{error::AuthError, validation::*};
+use axum::{extract::State, http::StatusCode, Json};
 use iam_application::command::{
     password_reset::{
-        RequestPasswordResetCommand, ValidateResetTokenCommand,
-        ResetPasswordUnauthenticatedCommand, ResetPasswordAuthenticatedCommand,
+        RequestPasswordResetCommand, ResetPasswordAuthenticatedCommand,
+        ResetPasswordUnauthenticatedCommand, ValidateResetTokenCommand,
     },
     user::GetUserCommand,
     CommandContext,
 };
-use axum::{
-    extract::State,
-    http::StatusCode,
-    Json,
-};
+use rustycog_http::AppState;
+use rustycog_http::{AuthUser, ValidatedJson};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error};
 use validator::Validate;
@@ -96,7 +90,10 @@ pub async fn request_password_reset(
     State(state): State<AppState>,
     ValidatedJson(request): ValidatedJson<RequestPasswordResetRequest>,
 ) -> Result<Json<RequestPasswordResetResponse>, AuthError> {
-    debug!("Processing password reset request for email: {}", request.email);
+    debug!(
+        "Processing password reset request for email: {}",
+        request.email
+    );
 
     let command = RequestPasswordResetCommand::new(request.email);
     let context = CommandContext::default();
@@ -116,7 +113,8 @@ pub async fn request_password_reset(
 
     // Always return success message for security
     Ok(Json(RequestPasswordResetResponse {
-        message: "If an account with that email exists, a password reset link has been sent.".to_string(),
+        message: "If an account with that email exists, a password reset link has been sent."
+            .to_string(),
     }))
 }
 
@@ -132,14 +130,17 @@ pub async fn validate_reset_token(
 
     match state.command_service.execute(command, context).await {
         Ok(result) => {
-            let masked_email = result.email.as_ref().map(|email| crate::validation::mask_email(email));
-            
+            let masked_email = result
+                .email
+                .as_ref()
+                .map(|email| crate::validation::mask_email(email));
+
             Ok(Json(ValidateResetTokenResponse {
                 valid: true,
                 message: "Reset token is valid".to_string(),
                 email: masked_email,
             }))
-        },
+        }
         Err(e) => {
             error!("Token validation failed: {:?}", e);
             Err(AuthError::password_reset_validate_failed(&e))
@@ -152,12 +153,12 @@ pub async fn reset_password_unauthenticated(
     State(state): State<AppState>,
     ValidatedJson(request): ValidatedJson<ResetPasswordUnauthenticatedRequest>,
 ) -> Result<Json<ResetPasswordResponse>, AuthError> {
-    debug!("Processing unauthenticated password reset with token: {}", request.token);
-
-    let command = ResetPasswordUnauthenticatedCommand::new(
-        request.token,
-        request.new_password,
+    debug!(
+        "Processing unauthenticated password reset with token: {}",
+        request.token
     );
+
+    let command = ResetPasswordUnauthenticatedCommand::new(request.token, request.new_password);
     let context = CommandContext::default();
 
     match state.command_service.execute(command, context).await {
@@ -180,16 +181,20 @@ pub async fn reset_password_authenticated(
     auth_user: AuthUser,
     ValidatedJson(request): ValidatedJson<ResetPasswordAuthenticatedRequest>,
 ) -> Result<Json<ResetPasswordResponse>, AuthError> {
-    debug!("Processing authenticated password reset for user: {}", auth_user.user_id);
+    debug!(
+        "Processing authenticated password reset for user: {}",
+        auth_user.user_id
+    );
 
-    // check if user exists 
+    // check if user exists
     let user_context = CommandContext::new()
         .with_user_id(auth_user.user_id)
         .with_metadata("operation".to_string(), "get_user".to_string());
-    let user = state.command_service.execute(GetUserCommand::new(auth_user.user_id), user_context).await
-        .map_err(|_e| {
-            AuthError::InvalidToken("Invalid token".to_string())
-        })?;
+    let user = state
+        .command_service
+        .execute(GetUserCommand::new(auth_user.user_id), user_context)
+        .await
+        .map_err(|_e| AuthError::InvalidToken("Invalid token".to_string()))?;
 
     let command = ResetPasswordAuthenticatedCommand::new(
         auth_user.user_id,
@@ -210,4 +215,4 @@ pub async fn reset_password_authenticated(
             Err(AuthError::password_reset_authenticated_failed(&e))
         }
     }
-} 
+}

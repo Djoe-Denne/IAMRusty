@@ -1,14 +1,14 @@
 use anyhow::Result;
-use base64::{Engine as _, engine::general_purpose};
-use chrono::{Duration, Utc};
-use iam_configuration::{AppConfig, JwtConfig, JwtAlgorithm};
-use iam_domain::entity::registration_token::{RegistrationFlow, RegistrationTokenClaims};
-use iam_domain::entity::token::{TokenClaims, JwtKeyPair};
-use iam_domain::port::service::{JwtTokenEncoder, RegistrationTokenService};
-use iam_infra::token::{JwtTokenService, registration_token_service::RegistrationTokenServiceImpl};
-use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
-use uuid::Uuid;
 use base64;
+use base64::{engine::general_purpose, Engine as _};
+use chrono::{Duration, Utc};
+use iam_configuration::{AppConfig, JwtAlgorithm, JwtConfig};
+use iam_domain::entity::registration_token::{RegistrationFlow, RegistrationTokenClaims};
+use iam_domain::entity::token::{JwtKeyPair, TokenClaims};
+use iam_domain::port::service::{JwtTokenEncoder, RegistrationTokenService};
+use iam_infra::token::{registration_token_service::RegistrationTokenServiceImpl, JwtTokenService};
+use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
+use uuid::Uuid;
 
 /// Create a JWT token service from configuration for testing
 fn create_jwt_service_from_config(config: &JwtConfig) -> Result<JwtTokenService, anyhow::Error> {
@@ -16,13 +16,11 @@ fn create_jwt_service_from_config(config: &JwtConfig) -> Result<JwtTokenService,
 
     let jwt_algorithm = match jwt_algorithm_config {
         JwtAlgorithm::HS256(secret) => iam_infra::token::JwtAlgorithm::HS256(secret),
-        JwtAlgorithm::RS256(key_pair) => {
-            iam_infra::token::JwtAlgorithm::RS256(JwtKeyPair {
-                private_key: key_pair.private_key,
-                public_key: key_pair.public_key,
-                kid: key_pair.kid,
-            })
-        }
+        JwtAlgorithm::RS256(key_pair) => iam_infra::token::JwtAlgorithm::RS256(JwtKeyPair {
+            private_key: key_pair.private_key,
+            public_key: key_pair.public_key,
+            kid: key_pair.kid,
+        }),
     };
 
     Ok(JwtTokenService::with_refresh_expiration(
@@ -44,13 +42,11 @@ fn create_registration_token_service_from_config(
                 "Registration tokens must use RSA256 algorithm"
             ));
         }
-        JwtAlgorithm::RS256(key_pair) => {
-            iam_infra::token::JwtAlgorithm::RS256(JwtKeyPair {
-                private_key: key_pair.private_key,
-                public_key: key_pair.public_key,
-                kid: key_pair.kid,
-            })
-        }
+        JwtAlgorithm::RS256(key_pair) => iam_infra::token::JwtAlgorithm::RS256(JwtKeyPair {
+            private_key: key_pair.private_key,
+            public_key: key_pair.public_key,
+            kid: key_pair.kid,
+        }),
     };
 
     RegistrationTokenServiceImpl::new(jwt_algorithm)
@@ -62,10 +58,7 @@ pub struct JwtTestUtils;
 
 impl JwtTestUtils {
     /// Create a valid JWT token for testing with JWT encoder
-    pub fn create_valid_token(
-        user_id: Uuid,
-        config: &JwtConfig,
-    ) -> Result<String, anyhow::Error> {
+    pub fn create_valid_token(user_id: Uuid, config: &JwtConfig) -> Result<String, anyhow::Error> {
         let jwt_service = create_jwt_service_from_config(config)?;
 
         let claims = TokenClaims {
@@ -218,12 +211,10 @@ impl JwtTestUtils {
 
         // Decode the payload (second part)
         match general_purpose::URL_SAFE_NO_PAD.decode(parts[1]) {
-            Ok(decoded) => {
-                match String::from_utf8(decoded) {
-                    Ok(json_str) => serde_json::from_str(&json_str).ok(),
-                    Err(_) => None,
-                }
-            }
+            Ok(decoded) => match String::from_utf8(decoded) {
+                Ok(json_str) => serde_json::from_str(&json_str).ok(),
+                Err(_) => None,
+            },
             Err(_) => None,
         }
     }
@@ -240,7 +231,7 @@ impl JwtTestUtils {
     /// Assert JWT payload contains expected claims
     pub fn assert_payload_claims(token: &str, expected_claims: &[&str]) {
         let payload = Self::decode_payload(token).expect("Should decode JWT payload");
-        
+
         for claim in expected_claims {
             assert!(
                 payload.get(claim).is_some(),
@@ -262,7 +253,10 @@ impl JwtTestUtils {
     pub fn assert_subject(token: &str, expected_subject: &str) {
         let payload = Self::decode_payload(token).expect("Should decode JWT payload");
         let subject = payload["sub"].as_str().expect("Should have sub claim");
-        assert_eq!(subject, expected_subject, "JWT subject should match expected value");
+        assert_eq!(
+            subject, expected_subject,
+            "JWT subject should match expected value"
+        );
     }
 
     /// Create a simple test JWT token (not cryptographically valid, just for structure testing)
@@ -281,7 +275,7 @@ impl JwtTestUtils {
         if parts.len() != 3 {
             return None;
         }
-        
+
         // This is a basic implementation for testing - in real scenarios you'd want proper JWT decoding
         match general_purpose::URL_SAFE_NO_PAD.decode(parts[1]) {
             Ok(decoded) => String::from_utf8(decoded).ok(),
@@ -347,4 +341,4 @@ pub fn create_expired_registration_token_with_encoder(
     config: &JwtConfig,
 ) -> Result<String, anyhow::Error> {
     JwtTestUtils::create_expired_registration_token(user_id, email, config)
-} 
+}

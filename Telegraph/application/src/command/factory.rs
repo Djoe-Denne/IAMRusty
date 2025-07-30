@@ -1,13 +1,14 @@
 //! Command factory for Telegraph application
-//! 
+//!
 //! This module provides factory methods for creating command registries
 //! with Telegraph-specific commands registered.
 
 use super::{
-    ProcessEventCommand, ProcessEventCommandHandler, ProcessEventErrorMapper,
     GetNotificationsCommand, GetNotificationsCommandHandler, GetNotificationsErrorMapper,
     GetUnreadCountCommand, GetUnreadCountCommandHandler, GetUnreadCountErrorMapper,
-    MarkNotificationReadCommand, MarkNotificationReadCommandHandler, MarkNotificationReadErrorMapper,
+    MarkNotificationReadCommand, MarkNotificationReadCommandHandler,
+    MarkNotificationReadErrorMapper, ProcessEventCommand, ProcessEventCommandHandler,
+    ProcessEventErrorMapper,
 };
 use crate::usecase::{EventProcessingUseCaseTrait, NotificationUseCaseTrait};
 use rustycog_command::{CommandRegistry, CommandRegistryBuilder};
@@ -25,7 +26,8 @@ impl TelegraphCommandRegistryFactory {
         let mut builder = CommandRegistryBuilder::new();
 
         // Register process event command
-        let process_event_handler = Arc::new(ProcessEventCommandHandler::new(event_processing_usecase));
+        let process_event_handler =
+            Arc::new(ProcessEventCommandHandler::new(event_processing_usecase));
         let process_event_error_mapper = Arc::new(ProcessEventErrorMapper);
 
         builder = builder.register::<ProcessEventCommand, _>(
@@ -35,7 +37,9 @@ impl TelegraphCommandRegistryFactory {
         );
 
         // Register notification commands
-        let get_notifications_handler = Arc::new(GetNotificationsCommandHandler::new(notification_usecase.clone()));
+        let get_notifications_handler = Arc::new(GetNotificationsCommandHandler::new(
+            notification_usecase.clone(),
+        ));
         let get_notifications_error_mapper = Arc::new(GetNotificationsErrorMapper);
 
         builder = builder.register::<GetNotificationsCommand, _>(
@@ -44,7 +48,9 @@ impl TelegraphCommandRegistryFactory {
             get_notifications_error_mapper,
         );
 
-        let get_unread_count_handler = Arc::new(GetUnreadCountCommandHandler::new(notification_usecase.clone()));
+        let get_unread_count_handler = Arc::new(GetUnreadCountCommandHandler::new(
+            notification_usecase.clone(),
+        ));
         let get_unread_count_error_mapper = Arc::new(GetUnreadCountErrorMapper);
 
         builder = builder.register::<GetUnreadCountCommand, _>(
@@ -53,7 +59,9 @@ impl TelegraphCommandRegistryFactory {
             get_unread_count_error_mapper,
         );
 
-        let mark_notification_read_handler = Arc::new(MarkNotificationReadCommandHandler::new(notification_usecase));
+        let mark_notification_read_handler = Arc::new(MarkNotificationReadCommandHandler::new(
+            notification_usecase,
+        ));
         let mark_notification_read_error_mapper = Arc::new(MarkNotificationReadErrorMapper);
 
         builder = builder.register::<MarkNotificationReadCommand, _>(
@@ -74,7 +82,8 @@ impl TelegraphCommandRegistryFactory {
     pub fn create_builder_with_event_processing(
         event_processing_usecase: Arc<dyn EventProcessingUseCaseTrait>,
     ) -> CommandRegistryBuilder {
-        let process_event_handler = Arc::new(ProcessEventCommandHandler::new(event_processing_usecase));
+        let process_event_handler =
+            Arc::new(ProcessEventCommandHandler::new(event_processing_usecase));
         let process_event_error_mapper = Arc::new(ProcessEventErrorMapper);
 
         CommandRegistryBuilder::new().register::<ProcessEventCommand, _>(
@@ -97,4 +106,4 @@ mod tests {
 
         assert!(command_types.is_empty());
     }
-} 
+}

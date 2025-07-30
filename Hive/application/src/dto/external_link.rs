@@ -1,9 +1,9 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use chrono::{DateTime, Utc};
 use validator::Validate;
 
-use crate::dto::{PaginationResponse};
+use crate::dto::PaginationResponse;
 
 // =============================================================================
 // External Link Request DTOs
@@ -67,4 +67,4 @@ pub struct ConnectionTestResponse {
     pub success: bool,
     pub message: String,
     pub details: Option<serde_json::Value>,
-} 
+}

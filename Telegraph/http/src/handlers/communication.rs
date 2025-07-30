@@ -1,10 +1,10 @@
 //! Communication HTTP handlers
 
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 use std::collections::HashMap;
+use uuid::Uuid;
 
-use telegraph_domain::{CommunicationMode};
+use telegraph_domain::CommunicationMode;
 
 /// Request to send a message via HTTP API
 #[derive(Debug, Deserialize)]
@@ -55,9 +55,7 @@ pub enum ApiMessageContent {
         click_action: Option<String>,
     },
     /// SMS message
-    Sms {
-        text: String,
-    },
+    Sms { text: String },
 }
 
 /// Response for successful message sending
@@ -69,4 +67,4 @@ pub struct SendMessageResponse {
     pub delivery_id: Uuid,
     /// Delivery status
     pub status: String,
-} 
+}

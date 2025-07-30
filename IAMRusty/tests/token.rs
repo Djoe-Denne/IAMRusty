@@ -11,11 +11,11 @@ use fixtures::{DbFixtures, GitHubFixtures, GitLabFixtures};
 use iam_infra::auth::PasswordService;
 use reqwest::Client;
 use sea_orm::{ConnectionTrait, DatabaseBackend, Statement};
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use serial_test::serial;
-use uuid::Uuid;
-use utils::jwt::JwtTestUtils;
 use utils::auth::AuthTestUtils;
+use utils::jwt::JwtTestUtils;
+use uuid::Uuid;
 
 /// Helper function to create a test refresh token in the database
 async fn create_test_refresh_token(
@@ -1698,6 +1698,6 @@ fn verify_jwt_signature_with_hmac_secret(
 
 // Helper function to decode base64url (used by JWT)
 fn base64_url_decode(input: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-    use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+    use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
     Ok(URL_SAFE_NO_PAD.decode(input)?)
 }

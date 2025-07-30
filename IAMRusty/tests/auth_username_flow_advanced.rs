@@ -4,11 +4,11 @@ mod common;
 #[path = "fixtures/mod.rs"]
 mod fixtures;
 
-use base64::{Engine as _, engine::general_purpose};
+use base64::{engine::general_purpose, Engine as _};
 use common::setup_test_server;
-use iam_configuration::{load_config_part, JwtConfig};
 use fixtures::{DbFixtures, GitHubFixtures};
-use serde_json::{Value, json};
+use iam_configuration::{load_config_part, JwtConfig};
+use serde_json::{json, Value};
 use serial_test::serial;
 
 /// Helper function to decode JWT payload for testing
@@ -436,11 +436,9 @@ async fn test_no_user_enumeration_in_errors() {
     // Should not reveal user existence
     assert!(!error_message.to_lowercase().contains("user not found"));
     assert!(!error_message.to_lowercase().contains("email not found"));
-    assert!(
-        error_message
-            .to_lowercase()
-            .contains("invalid email or password")
-    );
+    assert!(error_message
+        .to_lowercase()
+        .contains("invalid email or password"));
 }
 
 // =============================================================================

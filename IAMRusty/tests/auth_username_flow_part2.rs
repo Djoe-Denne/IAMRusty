@@ -5,16 +5,18 @@ mod common;
 mod fixtures;
 mod utils;
 
-use base64::{Engine as _, engine::general_purpose};
-use utils::jwt::{create_expired_registration_token_with_encoder, create_valid_jwt_token_with_encoder};
-use iam_configuration::{load_config_part, JwtConfig};
+use base64::{engine::general_purpose, Engine as _};
 use common::setup_test_server;
 use fixtures::{DbFixtures, GitHubFixtures};
+use iam_configuration::{load_config_part, JwtConfig};
 use sea_orm::ConnectionTrait;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use serial_test::serial;
 use std::collections::HashMap;
 use url::Url;
+use utils::jwt::{
+    create_expired_registration_token_with_encoder, create_valid_jwt_token_with_encoder,
+};
 use uuid::Uuid;
 
 /// Helper function to decode and verify JWT structure (for testing)
@@ -153,8 +155,11 @@ async fn test_oauth_provider_linked_to_different_user_returns_409() {
     github.setup_successful_user_profile_arthur().await; // Same profile as first user
 
     // Generate mock JWT for second user
-    let mock_jwt_second_user = create_valid_jwt_token_with_encoder(second_user.id(), &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"))
-        .expect("Failed to create JWT token");
+    let mock_jwt_second_user = create_valid_jwt_token_with_encoder(
+        second_user.id(),
+        &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
+    )
+    .expect("Failed to create JWT token");
 
     // Try to link GitHub from second user (should conflict)
     let oauth_start_response = client

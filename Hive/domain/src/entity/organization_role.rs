@@ -11,25 +11,25 @@ pub mod permissions {
     pub const READ_ORG: &str = "read:org";
     pub const WRITE_ORG: &str = "write:org";
     pub const DELETE_ORG: &str = "delete:org";
-    
+
     // Member permissions
     pub const ADMIN_MEMBERS: &str = "admin:members";
     pub const READ_MEMBERS: &str = "read:members";
     pub const WRITE_MEMBERS: &str = "write:members";
-    
+
     // Role permissions
     pub const ADMIN_ROLES: &str = "admin:roles";
     pub const READ_ROLES: &str = "read:roles";
     pub const WRITE_ROLES: &str = "write:roles";
-    
+
     // External permissions
     pub const ADMIN_EXTERNAL: &str = "admin:external";
-    
+
     // Issue permissions (for custom roles)
     pub const READ_ISSUES: &str = "read:issues";
     pub const WRITE_ISSUES: &str = "write:issues";
     pub const DELETE_ISSUES: &str = "delete:issues";
-    
+
     /// Get all valid permissions
     pub fn all_permissions() -> Vec<&'static str> {
         vec![
@@ -49,7 +49,7 @@ pub mod permissions {
             DELETE_ISSUES,
         ]
     }
-    
+
     /// Check if a permission is valid
     pub fn is_valid_permission(permission: &str) -> bool {
         all_permissions().contains(&permission)
@@ -100,10 +100,7 @@ impl OrganizationRole {
     }
 
     /// Create a system default role
-    pub fn new_system_role(
-        organization_id: Uuid,
-        system_role: SystemRole,
-    ) -> Self {
+    pub fn new_system_role(organization_id: Uuid, system_role: SystemRole) -> Self {
         let (name, permission_list) = match system_role {
             SystemRole::Owner => (
                 "Owner".to_string(),
@@ -143,12 +140,7 @@ impl OrganizationRole {
                     permissions::READ_ROLES,
                 ],
             ),
-            SystemRole::Viewer => (
-                "Viewer".to_string(),
-                vec![
-                    permissions::READ_ORG,
-                ],
-            ),
+            SystemRole::Viewer => ("Viewer".to_string(), vec![permissions::READ_ORG]),
         };
 
         Self {
@@ -176,7 +168,10 @@ impl OrganizationRole {
     }
 
     /// Update role description
-    pub fn update_description(&mut self, new_description: Option<String>) -> Result<(), DomainError> {
+    pub fn update_description(
+        &mut self,
+        new_description: Option<String>,
+    ) -> Result<(), DomainError> {
         if self.is_system_default {
             return Err(DomainError::business_rule_violation(
                 "Cannot update description of system default role",
@@ -207,7 +202,8 @@ impl OrganizationRole {
 
     /// Check if role has admin permissions for the organization
     pub fn is_admin(&self) -> bool {
-        self.has_permission(permissions::ADMIN_ORG) || self.has_permission(permissions::ADMIN_MEMBERS)
+        self.has_permission(permissions::ADMIN_ORG)
+            || self.has_permission(permissions::ADMIN_MEMBERS)
     }
 
     /// Validate role name
@@ -240,12 +236,13 @@ impl OrganizationRole {
                     "Permission must be in format 'action:resource'",
                 ));
             }
-            
+
             // Validate against known permissions
             if !permissions::is_valid_permission(permission) {
-                return Err(DomainError::invalid_input(
-                    &format!("Unknown permission: {}", permission),
-                ));
+                return Err(DomainError::invalid_input(&format!(
+                    "Unknown permission: {}",
+                    permission
+                )));
             }
         }
 

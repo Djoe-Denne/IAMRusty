@@ -33,12 +33,11 @@ impl PermissionRepositoryImpl {
     /// Convert a database model to a domain permission
     fn to_domain(model: permissions::Model) -> Result<Permission, DomainError> {
         let level = PermissionLevel::from_str(&model.level)?;
-        Ok(Permission {
-            id: model.id,
-            level,
-            description: model.description,
-            created_at: model.created_at,
-        })
+        Ok(Permission::new(
+            PermissionLevel::from_str(level),
+            model.description,
+            model.created_at,
+        ))
     }
 
     /// Convert a domain permission to a database active model

@@ -1,15 +1,15 @@
 //! Generic adapter system for integrating different domain types with rustycog-events
-//! 
+//!
 //! This module provides a flexible adapter pattern that allows any project to integrate
 //! their own domain events and error types with rustycog-events, while maintaining
 //! type safety and allowing custom mappings.
 
-use std::sync::Arc;
-use std::collections::HashMap;
-use rustycog_core::error::ServiceError;
 use crate::ConcreteEventPublisher;
 use async_trait::async_trait;
+use rustycog_core::error::ServiceError;
+use std::collections::HashMap;
 use std::collections::HashSet;
+use std::sync::Arc;
 
 use crate::event::{DomainEvent, EventPublisher};
 
@@ -17,7 +17,7 @@ use crate::event::{DomainEvent, EventPublisher};
 pub trait ErrorMapper<E>: Send + Sync {
     /// Map a custom error type to ServiceError
     fn to_service_error(&self, error: E) -> ServiceError;
-    
+
     /// Map a ServiceError back to custom error type
     fn from_service_error(&self, error: ServiceError) -> E;
 }
@@ -43,7 +43,7 @@ impl<TError> GenericEventPublisherAdapter<TError> {
     /// Publish a single event
     pub async fn publish(&self, event: &Box<dyn DomainEvent>) -> Result<(), TError> {
         tracing::info!("Publishing event: {:?}", event);
-        
+
         self.inner
             .publish(event)
             .await
@@ -67,8 +67,6 @@ impl<TError> GenericEventPublisherAdapter<TError> {
     }
 }
 
-
-
 /// Multi-queue event publisher that can publish to multiple queues
 pub struct MultiQueueEventPublisher<TError> {
     publishers: Vec<GenericEventPublisherAdapter<TError>>,
@@ -77,7 +75,10 @@ pub struct MultiQueueEventPublisher<TError> {
 
 impl<TError> MultiQueueEventPublisher<TError> {
     /// Create a new multi-queue event publisher
-    pub fn new(publishers: Vec<GenericEventPublisherAdapter<TError>>, queue_names: HashSet<String>) -> Self {
+    pub fn new(
+        publishers: Vec<GenericEventPublisherAdapter<TError>>,
+        queue_names: HashSet<String>,
+    ) -> Self {
         Self {
             publishers,
             queue_names,
@@ -105,7 +106,7 @@ impl<TError> EventPublisher<TError> for MultiQueueEventPublisher<TError> {
         Ok(())
     }
 
-    async fn publish_batch(&self, events: &Vec<Box<dyn DomainEvent>>) -> Result<(), TError> {        
+    async fn publish_batch(&self, events: &Vec<Box<dyn DomainEvent>>) -> Result<(), TError> {
         for publisher in &self.publishers {
             publisher.publish_batch(events).await?;
         }

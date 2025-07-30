@@ -2,13 +2,12 @@ use axum::{
     extract::{Path, State},
     response::Json,
 };
-use rustycog_http::{AppState, AuthUser, ValidatedJson};
-use rustycog_command::CommandContext;
 use hive_application::{
-    StartSyncJobRequest, SyncJobResponse, SyncJobListResponse,
-    SyncJobStatusResponse, SyncJobLogsResponse,
-    StartSyncJobCommand,
+    StartSyncJobCommand, StartSyncJobRequest, SyncJobListResponse, SyncJobLogsResponse,
+    SyncJobResponse, SyncJobStatusResponse,
 };
+use rustycog_command::CommandContext;
+use rustycog_http::{AppState, AuthUser, ValidatedJson};
 use uuid::Uuid;
 
 use crate::error::HttpError;
@@ -22,16 +21,17 @@ pub async fn start_sync_job(
     ValidatedJson(request): ValidatedJson<StartSyncJobRequest>,
 ) -> Result<Json<SyncJobResponse>, HttpError> {
     tracing::info!("Starting sync job for organization: {}", organization_id);
-    
+
     let command = StartSyncJobCommand::new(organization_id, request);
     let context = CommandContext::new().with_user_id(auth_user.user_id);
-    
-    let result = state.command_service
+
+    let result = state
+        .command_service
         .execute(command, context)
         .await
         .map_err(|e| HttpError::Internal {
             message: format!("Command execution failed: {}", e),
         })?;
-    
+
     Ok(Json(result))
-} 
+}

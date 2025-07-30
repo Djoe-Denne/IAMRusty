@@ -1,5 +1,5 @@
-use thiserror::Error;
 use hive_domain::DomainError;
+use thiserror::Error;
 
 /// Application-specific errors
 #[derive(Debug, Error)]
@@ -103,4 +103,4 @@ impl ValidationError {
             code: Some(code.to_string()),
         }
     }
-} 
+}

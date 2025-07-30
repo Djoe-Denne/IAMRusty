@@ -73,16 +73,12 @@ impl SyncJob {
                 self.error_message = None;
                 Ok(())
             }
-            SyncJobStatus::Completed => {
-                Err(DomainError::business_rule_violation(
-                    "Job is already completed",
-                ))
-            }
-            SyncJobStatus::Failed => {
-                Err(DomainError::business_rule_violation(
-                    "Cannot complete a failed job",
-                ))
-            }
+            SyncJobStatus::Completed => Err(DomainError::business_rule_violation(
+                "Job is already completed",
+            )),
+            SyncJobStatus::Failed => Err(DomainError::business_rule_violation(
+                "Cannot complete a failed job",
+            )),
         }
     }
 
@@ -95,16 +91,12 @@ impl SyncJob {
                 self.error_message = Some(error_message);
                 Ok(())
             }
-            SyncJobStatus::Completed => {
-                Err(DomainError::business_rule_violation(
-                    "Cannot fail a completed job",
-                ))
-            }
-            SyncJobStatus::Failed => {
-                Err(DomainError::business_rule_violation(
-                    "Job is already failed",
-                ))
-            }
+            SyncJobStatus::Completed => Err(DomainError::business_rule_violation(
+                "Cannot fail a completed job",
+            )),
+            SyncJobStatus::Failed => Err(DomainError::business_rule_violation(
+                "Job is already failed",
+            )),
         }
     }
 
@@ -309,7 +301,7 @@ mod tests {
 
         let error_msg = "Connection timeout".to_string();
         let result = job.fail(error_msg.clone());
-        
+
         assert!(result.is_ok());
         assert!(job.is_failed());
         assert!(job.is_finished());
@@ -397,4 +389,4 @@ mod tests {
         ));
         assert!(SyncJobStatus::from_str("invalid").is_err());
     }
-} 
+}

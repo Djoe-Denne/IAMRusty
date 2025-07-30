@@ -48,4 +48,4 @@ impl Model {
     pub fn is_valid(&self) -> bool {
         !self.is_expired() && !self.is_used()
     }
-} 
+}

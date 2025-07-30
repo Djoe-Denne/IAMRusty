@@ -1,9 +1,9 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use chrono::{DateTime, Utc};
 use validator::Validate;
 
-use crate::dto::{PaginationResponse};
+use crate::dto::PaginationResponse;
 
 // =============================================================================
 // Role Request DTOs
@@ -50,4 +50,4 @@ pub struct RoleResponse {
 pub struct RoleListResponse {
     pub roles: Vec<RoleResponse>,
     pub pagination: PaginationResponse,
-} 
+}

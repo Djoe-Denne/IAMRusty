@@ -1,17 +1,19 @@
-use sea_orm::*;
-use uuid::Uuid;
-use chrono::Utc;
 use anyhow::Result;
-use std::sync::Arc;
+use chrono::Utc;
 use sea_orm::sea_query::Expr;
+use sea_orm::*;
+use std::sync::Arc;
+use uuid::Uuid;
 
 use tracing::debug;
 
-use crate::repository::entity::{notifications, notification_deliveries};
+use crate::repository::entity::{notification_deliveries, notifications};
 use crate::repository::mappers;
+use telegraph_domain::entity::{
+    communication::NotificationCommunication, delivery::MessageDelivery,
+};
 use telegraph_domain::error::DomainError;
 use telegraph_domain::port::repository::NotificationWriteRepository;
-use telegraph_domain::entity::{communication::NotificationCommunication, delivery::MessageDelivery};
 
 /// Repository for writing notifications
 #[derive(Clone)]
@@ -27,30 +29,37 @@ impl NotificationWriteRepositoryImpl {
 
 #[async_trait::async_trait]
 impl NotificationWriteRepository for NotificationWriteRepositoryImpl {
-
     /// Create a new notification
     async fn create_notification(
         &self,
         notification: NotificationCommunication,
     ) -> Result<NotificationCommunication, DomainError> {
-        debug!("Creating notification for user: {:?}", notification.recipient.user_id);
-        
+        debug!(
+            "Creating notification for user: {:?}",
+            notification.recipient.user_id
+        );
+
         let active_model = mappers::to_infra_notification(notification)?;
-        
+
         let result = notifications::Entity::insert(active_model)
             .exec_with_returning(self.db.as_ref())
             .await
-            .map_err(|e| DomainError::infrastructure_error(format!("Failed to create notification: {}", e)))?;
+            .map_err(|e| {
+                DomainError::infrastructure_error(format!("Failed to create notification: {}", e))
+            })?;
 
         mappers::to_domain_notification(result)
     }
 
     /// Mark notification as read
-    async fn mark_as_read(&self, notification_id: Uuid) -> Result<NotificationCommunication, DomainError> {
+    async fn mark_as_read(
+        &self,
+        notification_id: Uuid,
+    ) -> Result<NotificationCommunication, DomainError> {
         debug!("Marking notification as read: {}", notification_id);
-        
+
         let now = Utc::now();
-        
+
         let result = notifications::Entity::update_many()
             .col_expr(notifications::Column::IsRead, Expr::value(true))
             .col_expr(notifications::Column::ReadAt, Expr::value(now))
@@ -58,18 +67,36 @@ impl NotificationWriteRepository for NotificationWriteRepositoryImpl {
             .filter(notifications::Column::Id.eq(notification_id))
             .exec(self.db.as_ref())
             .await
-            .map_err(|e| DomainError::infrastructure_error(format!("Failed to mark notification as read: {}", e)))?;
+            .map_err(|e| {
+                DomainError::infrastructure_error(format!(
+                    "Failed to mark notification as read: {}",
+                    e
+                ))
+            })?;
 
         if result.rows_affected == 0 {
-            return Err(DomainError::notification_not_found(format!("Notification not found: {}", notification_id)));
+            return Err(DomainError::notification_not_found(format!(
+                "Notification not found: {}",
+                notification_id
+            )));
         }
 
         // Fetch the updated notification
         let updated_notification = notifications::Entity::find_by_id(notification_id)
             .one(self.db.as_ref())
             .await
-            .map_err(|e| DomainError::infrastructure_error(format!("Failed to fetch updated notification: {}", e)))?
-            .ok_or_else(|| DomainError::notification_not_found(format!("Notification not found after update: {}", notification_id)))?;
+            .map_err(|e| {
+                DomainError::infrastructure_error(format!(
+                    "Failed to fetch updated notification: {}",
+                    e
+                ))
+            })?
+            .ok_or_else(|| {
+                DomainError::notification_not_found(format!(
+                    "Notification not found after update: {}",
+                    notification_id
+                ))
+            })?;
 
         mappers::to_domain_notification(updated_notification)
     }
@@ -77,12 +104,17 @@ impl NotificationWriteRepository for NotificationWriteRepositoryImpl {
     /// Delete expired notifications
     async fn delete_expired_notifications(&self) -> Result<u64, DomainError> {
         debug!("Deleting expired notifications");
-        
+
         let result = notifications::Entity::delete_many()
             .filter(notifications::Column::ExpiresAt.lt(Utc::now()))
             .exec(self.db.as_ref())
             .await
-            .map_err(|e| DomainError::infrastructure_error(format!("Failed to delete expired notifications: {}", e)))?;
+            .map_err(|e| {
+                DomainError::infrastructure_error(format!(
+                    "Failed to delete expired notifications: {}",
+                    e
+                ))
+            })?;
 
         Ok(result.rows_affected)
     }
@@ -92,14 +124,22 @@ impl NotificationWriteRepository for NotificationWriteRepositoryImpl {
         &self,
         delivery: MessageDelivery,
     ) -> Result<MessageDelivery, DomainError> {
-        debug!("Creating delivery record for message: {}", delivery.message_id);
-        
+        debug!(
+            "Creating delivery record for message: {}",
+            delivery.message_id
+        );
+
         let active_model = mappers::to_infra_delivery(delivery);
-        
+
         let result = notification_deliveries::Entity::insert(active_model)
             .exec_with_returning(self.db.as_ref())
             .await
-            .map_err(|e| DomainError::infrastructure_error(format!("Failed to create delivery record: {}", e)))?;
+            .map_err(|e| {
+                DomainError::infrastructure_error(format!(
+                    "Failed to create delivery record: {}",
+                    e
+                ))
+            })?;
 
         mappers::to_domain_delivery(result)
     }
@@ -111,36 +151,60 @@ impl NotificationWriteRepository for NotificationWriteRepositoryImpl {
         status: String,
         error_message: Option<String>,
     ) -> Result<MessageDelivery, DomainError> {
-        debug!("Updating delivery status for delivery: {} to status: {}", delivery_id, status);
-        
+        debug!(
+            "Updating delivery status for delivery: {} to status: {}",
+            delivery_id, status
+        );
+
         let now = Utc::now();
-        
+
         let mut update = notification_deliveries::Entity::update_many()
-            .col_expr(notification_deliveries::Column::Status, Expr::value(status.clone()))
+            .col_expr(
+                notification_deliveries::Column::Status,
+                Expr::value(status.clone()),
+            )
             .col_expr(notification_deliveries::Column::UpdatedAt, Expr::value(now))
-            .col_expr(notification_deliveries::Column::ErrorMessage, Expr::value(error_message))
+            .col_expr(
+                notification_deliveries::Column::ErrorMessage,
+                Expr::value(error_message),
+            )
             .filter(notification_deliveries::Column::Id.eq(delivery_id));
-        
+
         // If status is delivered, set delivered_at timestamp
         if status == "delivered" {
-            update = update.col_expr(notification_deliveries::Column::DeliveredAt, Expr::value(now));
+            update = update.col_expr(
+                notification_deliveries::Column::DeliveredAt,
+                Expr::value(now),
+            );
         }
-        
-        let result = update
-            .exec(self.db.as_ref())
-            .await
-            .map_err(|e| DomainError::infrastructure_error(format!("Failed to update delivery status: {}", e)))?;
+
+        let result = update.exec(self.db.as_ref()).await.map_err(|e| {
+            DomainError::infrastructure_error(format!("Failed to update delivery status: {}", e))
+        })?;
 
         if result.rows_affected == 0 {
-            return Err(DomainError::notification_not_found(format!("Delivery record not found: {}", delivery_id)));
+            return Err(DomainError::notification_not_found(format!(
+                "Delivery record not found: {}",
+                delivery_id
+            )));
         }
 
         // Fetch the updated delivery
         let updated_delivery = notification_deliveries::Entity::find_by_id(delivery_id)
             .one(self.db.as_ref())
             .await
-            .map_err(|e| DomainError::infrastructure_error(format!("Failed to fetch updated delivery: {}", e)))?
-            .ok_or_else(|| DomainError::notification_not_found(format!("Delivery record not found after update: {}", delivery_id)))?;
+            .map_err(|e| {
+                DomainError::infrastructure_error(format!(
+                    "Failed to fetch updated delivery: {}",
+                    e
+                ))
+            })?
+            .ok_or_else(|| {
+                DomainError::notification_not_found(format!(
+                    "Delivery record not found after update: {}",
+                    delivery_id
+                ))
+            })?;
 
         mappers::to_domain_delivery(updated_delivery)
     }
@@ -150,31 +214,57 @@ impl NotificationWriteRepository for NotificationWriteRepositoryImpl {
         &self,
         delivery_id: Uuid,
     ) -> Result<MessageDelivery, DomainError> {
-        debug!("Incrementing delivery attempt for delivery: {}", delivery_id);
-        
+        debug!(
+            "Incrementing delivery attempt for delivery: {}",
+            delivery_id
+        );
+
         let now = Utc::now();
-        
+
         let result = notification_deliveries::Entity::update_many()
-            .col_expr(notification_deliveries::Column::AttemptCount, 
-                Expr::col(notification_deliveries::Column::AttemptCount).add(1))
-            .col_expr(notification_deliveries::Column::LastAttemptAt, Expr::value(now))
+            .col_expr(
+                notification_deliveries::Column::AttemptCount,
+                Expr::col(notification_deliveries::Column::AttemptCount).add(1),
+            )
+            .col_expr(
+                notification_deliveries::Column::LastAttemptAt,
+                Expr::value(now),
+            )
             .col_expr(notification_deliveries::Column::UpdatedAt, Expr::value(now))
             .filter(notification_deliveries::Column::Id.eq(delivery_id))
             .exec(self.db.as_ref())
             .await
-            .map_err(|e| DomainError::infrastructure_error(format!("Failed to increment delivery attempt: {}", e)))?;
+            .map_err(|e| {
+                DomainError::infrastructure_error(format!(
+                    "Failed to increment delivery attempt: {}",
+                    e
+                ))
+            })?;
 
         if result.rows_affected == 0 {
-            return Err(DomainError::notification_not_found(format!("Delivery record not found: {}", delivery_id)));
+            return Err(DomainError::notification_not_found(format!(
+                "Delivery record not found: {}",
+                delivery_id
+            )));
         }
 
         // Fetch the updated delivery
         let updated_delivery = notification_deliveries::Entity::find_by_id(delivery_id)
             .one(self.db.as_ref())
             .await
-            .map_err(|e| DomainError::infrastructure_error(format!("Failed to fetch updated delivery: {}", e)))?
-            .ok_or_else(|| DomainError::notification_not_found(format!("Delivery record not found after update: {}", delivery_id)))?;
+            .map_err(|e| {
+                DomainError::infrastructure_error(format!(
+                    "Failed to fetch updated delivery: {}",
+                    e
+                ))
+            })?
+            .ok_or_else(|| {
+                DomainError::notification_not_found(format!(
+                    "Delivery record not found after update: {}",
+                    delivery_id
+                ))
+            })?;
 
         mappers::to_domain_delivery(updated_delivery)
     }
-} 
+}

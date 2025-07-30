@@ -41,8 +41,6 @@ pub enum JwtAlgorithm {
     HS256(String),
 }
 
-
-
 /// Unified JWT token service that handles both encoding/decoding and token management
 #[derive(Clone)]
 pub struct JwtTokenService {

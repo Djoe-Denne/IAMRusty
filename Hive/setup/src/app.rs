@@ -1,19 +1,19 @@
 use std::sync::Arc;
 
+use hive_application::{
+    ExternalLinkUseCaseImpl, HiveCommandRegistryFactory, InvitationUseCaseImpl, MemberUseCaseImpl,
+    OrganizationUseCaseImpl, SyncJobUseCaseImpl,
+};
 use hive_configuration::ServiceConfig;
 use hive_http::create_app_routes;
-use hive_application::{
-    HiveCommandRegistryFactory, OrganizationUseCaseImpl, MemberUseCaseImpl,
-    InvitationUseCaseImpl, ExternalLinkUseCaseImpl, SyncJobUseCaseImpl,
-};
 use hive_infra::{
-    GitHubProvider, GitLabProvider, ConfluenceProvider,
-    create_event_publisher_with_queue_config, TelegraphEventPublisher
+    create_event_publisher_with_queue_config, ConfluenceProvider, GitHubProvider, GitLabProvider,
+    TelegraphEventPublisher,
 };
 use hive_migration::Migrator;
 use rustycog_command::GenericCommandService;
+use rustycog_events::{ErrorMapper, MultiQueueEventPublisher};
 use rustycog_http::{AppState, UserIdExtractor};
-use rustycog_events::{MultiQueueEventPublisher, ErrorMapper};
 use sea_orm::{Database, DatabaseConnection};
 use sea_orm_migration::MigratorTrait;
 use thiserror::Error;
@@ -62,8 +62,13 @@ impl Application {
         let event_publisher = setup_event_publisher(&config).await?;
 
         // Setup use cases
-        let (organization_usecase, member_usecase, invitation_usecase, external_link_usecase, sync_job_usecase) = 
-            setup_use_cases(db.clone(), event_publisher).await?;
+        let (
+            organization_usecase,
+            member_usecase,
+            invitation_usecase,
+            external_link_usecase,
+            sync_job_usecase,
+        ) = setup_use_cases(db.clone(), event_publisher).await?;
 
         // Setup command registry
         let command_registry = HiveCommandRegistryFactory::create_hive_registry(
@@ -85,16 +90,13 @@ impl Application {
 
         tracing::info!("Hive application initialized successfully");
 
-        Ok(Application {
-            config,
-            state,
-        })
+        Ok(Application { config, state })
     }
 
     /// Start the HTTP server
     pub async fn serve(self) -> Result<(), SetupError> {
         tracing::info!("Starting Hive HTTP server...");
-        
+
         create_app_routes(self.state, self.config.server)
             .await
             .map_err(|e| SetupError::ServerError {
@@ -152,7 +154,9 @@ async fn run_migrations(db: &DatabaseConnection) -> Result<(), SetupError> {
 }
 
 /// Setup event publisher for Telegraph communication
-async fn setup_event_publisher(config: &ServiceConfig) -> Result<Arc<TelegraphEventPublisher>, SetupError> {
+async fn setup_event_publisher(
+    config: &ServiceConfig,
+) -> Result<Arc<TelegraphEventPublisher>, SetupError> {
     tracing::info!("Setting up event publisher for Telegraph service...");
 
     if !config.external_services.events.enabled {
@@ -175,16 +179,19 @@ async fn setup_event_publisher(config: &ServiceConfig) -> Result<Arc<TelegraphEv
 async fn setup_use_cases(
     db: DatabaseConnection,
     event_publisher: Arc<TelegraphEventPublisher>,
-) -> Result<(
-    Arc<dyn hive_application::OrganizationUseCase>,
-    Arc<dyn hive_application::MemberUseCase>,
-    Arc<dyn hive_application::InvitationUseCase>,
-    Arc<dyn hive_application::ExternalLinkUseCase>,
-    Arc<dyn hive_application::SyncJobUseCase>,
-), SetupError> {
+) -> Result<
+    (
+        Arc<dyn hive_application::OrganizationUseCase>,
+        Arc<dyn hive_application::MemberUseCase>,
+        Arc<dyn hive_application::InvitationUseCase>,
+        Arc<dyn hive_application::ExternalLinkUseCase>,
+        Arc<dyn hive_application::SyncJobUseCase>,
+    ),
+    SetupError,
+> {
     // Create error mapper for domain errors
     let error_mapper = Arc::new(DomainErrorMapper);
-    
+
     // Create MultiQueueEventPublisher with domain error mapping
     let multi_queue_publisher = Arc::new(MultiQueueEventPublisher::new(
         vec![rustycog_events::GenericEventPublisherAdapter::new(
@@ -196,7 +203,7 @@ async fn setup_use_cases(
 
     // TODO: Setup repositories when infrastructure layer is ready
     // For now, create placeholder use cases
-    
+
     // Create organization use case
     let organization_usecase = Arc::new(OrganizationUseCaseImpl::new(
         todo!("organization_service"),
@@ -243,7 +250,10 @@ async fn setup_use_cases(
 struct DomainErrorMapper;
 
 impl ErrorMapper<hive_domain::DomainError> for DomainErrorMapper {
-    fn from_service_error(&self, error: rustycog_core::error::ServiceError) -> hive_domain::DomainError {
+    fn from_service_error(
+        &self,
+        error: rustycog_core::error::ServiceError,
+    ) -> hive_domain::DomainError {
         hive_domain::DomainError::Internal {
             message: error.to_string(),
         }
@@ -251,7 +261,9 @@ impl ErrorMapper<hive_domain::DomainError> for DomainErrorMapper {
 }
 
 /// Setup external providers
-fn setup_external_providers(config: &ServiceConfig) -> (GitHubProvider, GitLabProvider, ConfluenceProvider) {
+fn setup_external_providers(
+    config: &ServiceConfig,
+) -> (GitHubProvider, GitLabProvider, ConfluenceProvider) {
     tracing::info!("Setting up external providers...");
 
     let github = GitHubProvider::new();
@@ -271,12 +283,12 @@ fn setup_external_providers(config: &ServiceConfig) -> (GitHubProvider, GitLabPr
 /// Setup repositories
 async fn setup_repositories(_db: &DatabaseConnection) -> Result<(), SetupError> {
     tracing::info!("Setting up repositories...");
-    
+
     // TODO: Initialize repository implementations
     // let organization_repo = PostgresOrganizationRepository::new(db.clone());
     // let member_repo = PostgresOrganizationMemberRepository::new(db.clone());
     // ... etc
-    
+
     tracing::info!("Repositories initialized");
     Ok(())
-} 
+}

@@ -86,7 +86,7 @@ pub struct EmailDescriptor {
 pub struct NotificationDescriptor {
     pub title: String,
     pub template: String,
-} 
+}
 
 impl std::fmt::Display for CommunicationMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

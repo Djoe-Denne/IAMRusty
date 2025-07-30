@@ -1,11 +1,11 @@
-use sea_orm::*;
-use uuid::Uuid;
-use chrono::{DateTime, Utc};
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
+use sea_orm::*;
 use std::sync::Arc;
+use uuid::Uuid;
 
-use telegraph_infra::repository::entity::notification_deliveries;
 use rustycog_testing::db::{CommittedFixture, DbFixture, TestData};
+use telegraph_infra::repository::entity::notification_deliveries;
 
 /// Builder for notification delivery fixtures
 #[derive(Clone, Debug)]
@@ -32,7 +32,10 @@ impl NotificationDeliveryFixtureBuilder {
         }
     }
 
-    pub async fn commit(self, db: &DatabaseConnection) -> Result<NotificationDeliveryFixture, DbErr> {
+    pub async fn commit(
+        self,
+        db: &DatabaseConnection,
+    ) -> Result<NotificationDeliveryFixture, DbErr> {
         let fixture = DbFixture::commit(self, &*db).await?;
         Ok(NotificationDeliveryFixture { inner: fixture })
     }
@@ -149,7 +152,11 @@ impl NotificationDeliveryFixtureBuilder {
 
     /// Create a delivery with retry attempts
     pub fn retried(mut self, attempts: i16) -> Self {
-        self.status = if attempts >= 3 { "failed".to_string() } else { "pending".to_string() };
+        self.status = if attempts >= 3 {
+            "failed".to_string()
+        } else {
+            "pending".to_string()
+        };
         self.attempt_count = attempts;
         self.last_attempt_at = Some(Utc::now() - chrono::Duration::minutes(1));
         if attempts >= 3 {
@@ -160,8 +167,17 @@ impl NotificationDeliveryFixtureBuilder {
 }
 
 #[async_trait]
-impl DbFixture<notification_deliveries::Entity, notification_deliveries::Model, notification_deliveries::ActiveModel> for NotificationDeliveryFixtureBuilder {
-    async fn commit(self, db: &DatabaseConnection) -> Result<CommittedFixture<notification_deliveries::Model>, DbErr> {
+impl
+    DbFixture<
+        notification_deliveries::Entity,
+        notification_deliveries::Model,
+        notification_deliveries::ActiveModel,
+    > for NotificationDeliveryFixtureBuilder
+{
+    async fn commit(
+        self,
+        db: &DatabaseConnection,
+    ) -> Result<CommittedFixture<notification_deliveries::Model>, DbErr> {
         let active_model = self.model();
         let model = active_model.insert(db).await?;
         Ok(CommittedFixture::new(model))
@@ -191,7 +207,6 @@ pub struct NotificationDeliveryFixture {
 }
 
 impl NotificationDeliveryFixture {
-
     pub async fn check(&self, db: Arc<DatabaseConnection>) -> Result<bool, DbErr> {
         use sea_orm::EntityTrait;
         let found = notification_deliveries::Entity::find_by_id(self.id())

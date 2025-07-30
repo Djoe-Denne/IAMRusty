@@ -1,18 +1,24 @@
 use crate::common::ServiceTestDescriptor;
-use rustycog_config::{load_config_fresh, HasServerConfig, HasLoggingConfig, ServerConfig, setup_logging};
-use tracing::debug;
+use rustycog_config::{
+    load_config_fresh, setup_logging, HasLoggingConfig, HasServerConfig, ServerConfig,
+};
 use std::sync::Arc;
+use tracing::debug;
 
 pub async fn build_test_app<D, T>(descriptor: Arc<D>) -> anyhow::Result<()>
-where D: ServiceTestDescriptor<T>, T: Send + Sync + 'static
+where
+    D: ServiceTestDescriptor<T>,
+    T: Send + Sync + 'static,
 {
     let config = load_config_fresh::<D::Config>().expect("failed to load config");
     debug!("🔄 Building test app with configuration:");
     descriptor.build_app(config, ServerConfig::default()).await
 }
 
-pub async fn spawn_test_server<D, T>(descriptor: Arc<D>) -> anyhow::Result<()> 
-where D: ServiceTestDescriptor<T>, T: Send + Sync + 'static
+pub async fn spawn_test_server<D, T>(descriptor: Arc<D>) -> anyhow::Result<()>
+where
+    D: ServiceTestDescriptor<T>,
+    T: Send + Sync + 'static,
 {
     // Use your real config loading logic
     let config = load_config_fresh::<D::Config>().expect("failed to load config");
@@ -51,7 +57,8 @@ where D: ServiceTestDescriptor<T>, T: Send + Sync + 'static
 
     debug!(
         "🌐 Test server will listen on: http://{}:{}",
-        config.server_config().host, config.server_config().port
+        config.server_config().host,
+        config.server_config().port
     );
 
     // Build and run the application - this should run indefinitely

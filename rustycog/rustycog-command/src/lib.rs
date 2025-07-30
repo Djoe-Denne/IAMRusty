@@ -1,5 +1,5 @@
 //! # RustyCog Command
-//! 
+//!
 //! Generic command pattern implementation with registry and execution framework.
 
 use async_trait::async_trait;
@@ -8,12 +8,12 @@ use std::fmt::Debug;
 use thiserror::Error;
 use uuid::Uuid;
 
-pub mod registry;
 pub mod generic_service;
+pub mod registry;
 pub mod token;
 
-pub use registry::*;
 pub use generic_service::*;
+pub use registry::*;
 pub use token::*;
 
 /// Command execution error
@@ -30,15 +30,15 @@ pub enum CommandError {
     /// Business logic error
     #[error("Business error [{code}]: {message}")]
     Business { code: String, message: String },
-    
+
     /// Infrastructure error (database, external services, etc.)
     #[error("Infrastructure error [{code}]: {message}")]
     Infrastructure { code: String, message: String },
-    
+
     /// Timeout error
     #[error("Command execution timeout [{code}]: {message}")]
     Timeout { code: String, message: String },
-    
+
     /// Retry exhausted error
     #[error("Maximum retries exhausted [{code}]: {message}")]
     RetryExhausted { code: String, message: String },
@@ -123,13 +123,13 @@ impl CommandError {
 pub trait Command: Debug + Send + Sync {
     /// The result type returned by this command
     type Result: Send + Sync;
-    
+
     /// Unique identifier for this command type
     fn command_type(&self) -> &'static str;
-    
+
     /// Unique identifier for this command instance
     fn command_id(&self) -> Uuid;
-    
+
     /// Validate the command before execution
     fn validate(&self) -> Result<(), CommandError>;
 }
@@ -163,17 +163,17 @@ impl CommandContext {
             metadata: std::collections::HashMap::new(),
         }
     }
-    
+
     pub fn with_user_id(mut self, user_id: Uuid) -> Self {
         self.user_id = Some(user_id);
         self
     }
-    
+
     pub fn with_request_id(mut self, request_id: String) -> Self {
         self.request_id = Some(request_id);
         self
     }
-    
+
     pub fn with_metadata(mut self, key: String, value: String) -> Self {
         self.metadata.insert(key, value);
         self
@@ -199,4 +199,4 @@ pub struct CommandMetrics {
     pub retry_attempts: u32,
     /// Error type (if failed)
     pub error_type: Option<String>,
-} 
+}

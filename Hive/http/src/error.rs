@@ -2,10 +2,10 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Json, Response},
 };
+use chrono;
 use hive_application::{ApiErrorResponse, ApplicationError};
 use hive_domain::DomainError;
 use thiserror::Error;
-use chrono;
 
 /// HTTP-specific errors
 #[derive(Debug, Error)]
@@ -45,55 +45,45 @@ impl IntoResponse for HttpError {
                 // Convert ApplicationError to appropriate HTTP status and response
                 match app_error {
                     ApplicationError::Domain(domain_error) => match domain_error {
-                        DomainError::EntityNotFound { .. } => (
-                            StatusCode::NOT_FOUND,
-                            ApiErrorResponse::from(app_error),
-                        ),
-                        DomainError::InvalidInput { .. } => (
-                            StatusCode::BAD_REQUEST,
-                            ApiErrorResponse::from(app_error),
-                        ),
+                        DomainError::EntityNotFound { .. } => {
+                            (StatusCode::NOT_FOUND, ApiErrorResponse::from(app_error))
+                        }
+                        DomainError::InvalidInput { .. } => {
+                            (StatusCode::BAD_REQUEST, ApiErrorResponse::from(app_error))
+                        }
                         DomainError::BusinessRuleViolation { .. } => (
                             StatusCode::UNPROCESSABLE_ENTITY,
                             ApiErrorResponse::from(app_error),
                         ),
-                        DomainError::Unauthorized { .. } => (
-                            StatusCode::UNAUTHORIZED,
-                            ApiErrorResponse::from(app_error),
-                        ),
-                        DomainError::ResourceAlreadyExists { .. } => (
-                            StatusCode::CONFLICT,
-                            ApiErrorResponse::from(app_error),
-                        ),
-                        DomainError::PermissionDenied { .. } => (
-                            StatusCode::FORBIDDEN,
-                            ApiErrorResponse::from(app_error),
-                        ),
-                        DomainError::ExternalServiceError { .. } => (
-                            StatusCode::BAD_GATEWAY,
-                            ApiErrorResponse::from(app_error),
-                        ),
-                        DomainError::ConcurrentAccess { .. } => (
-                            StatusCode::CONFLICT,
-                            ApiErrorResponse::from(app_error),
-                        ),
+                        DomainError::Unauthorized { .. } => {
+                            (StatusCode::UNAUTHORIZED, ApiErrorResponse::from(app_error))
+                        }
+                        DomainError::ResourceAlreadyExists { .. } => {
+                            (StatusCode::CONFLICT, ApiErrorResponse::from(app_error))
+                        }
+                        DomainError::PermissionDenied { .. } => {
+                            (StatusCode::FORBIDDEN, ApiErrorResponse::from(app_error))
+                        }
+                        DomainError::ExternalServiceError { .. } => {
+                            (StatusCode::BAD_GATEWAY, ApiErrorResponse::from(app_error))
+                        }
+                        DomainError::ConcurrentAccess { .. } => {
+                            (StatusCode::CONFLICT, ApiErrorResponse::from(app_error))
+                        }
                         DomainError::Internal { .. } => (
                             StatusCode::INTERNAL_SERVER_ERROR,
                             ApiErrorResponse::from(app_error),
                         ),
                     },
-                    ApplicationError::ValidationError(_) => (
-                        StatusCode::BAD_REQUEST,
-                        ApiErrorResponse::from(app_error),
-                    ),
-                    ApplicationError::ExternalService { .. } => (
-                        StatusCode::BAD_GATEWAY,
-                        ApiErrorResponse::from(app_error),
-                    ),
-                    ApplicationError::ConcurrentOperation { .. } => (
-                        StatusCode::CONFLICT,
-                        ApiErrorResponse::from(app_error),
-                    ),
+                    ApplicationError::ValidationError(_) => {
+                        (StatusCode::BAD_REQUEST, ApiErrorResponse::from(app_error))
+                    }
+                    ApplicationError::ExternalService { .. } => {
+                        (StatusCode::BAD_GATEWAY, ApiErrorResponse::from(app_error))
+                    }
+                    ApplicationError::ConcurrentOperation { .. } => {
+                        (StatusCode::CONFLICT, ApiErrorResponse::from(app_error))
+                    }
                     ApplicationError::RateLimit { .. } => (
                         StatusCode::TOO_MANY_REQUESTS,
                         ApiErrorResponse::from(app_error),
@@ -196,4 +186,4 @@ impl IntoResponse for HttpError {
 
         (status, Json(error_response)).into_response()
     }
-} 
+}

@@ -43,7 +43,7 @@ impl OrganizationMemberRepositoryImpl {
             id: model.id,
             organization_id: model.organization_id,
             user_id: model.user_id,
-            role_id: model.role_id,
+            roles: vec![],
             status,
             invited_by_user_id: model.invited_by_user_id,
             invited_at: model.invited_at,
@@ -65,7 +65,6 @@ impl OrganizationMemberRepositoryImpl {
             id: ActiveValue::Set(member.id),
             organization_id: ActiveValue::Set(member.organization_id),
             user_id: ActiveValue::Set(member.user_id),
-            role_id: ActiveValue::Set(member.role_id),
             status: ActiveValue::Set(status_str.to_string()),
             invited_by_user_id: ActiveValue::Set(member.invited_by_user_id),
             invited_at: ActiveValue::Set(member.invited_at),
@@ -228,7 +227,6 @@ impl OrganizationMemberRepository for OrganizationMemberRepositoryImpl {
             id: result.id.unwrap(),
             organization_id: result.organization_id.unwrap(),
             user_id: result.user_id.unwrap(),
-            role_id: result.role_id.unwrap(),
             status: result.status.unwrap(),
             invited_by_user_id: result.invited_by_user_id.unwrap(),
             invited_at: result.invited_at.unwrap(),
@@ -253,6 +251,12 @@ impl OrganizationMemberRepository for OrganizationMemberRepositoryImpl {
         }
 
         Ok(())
+    }
+
+    async fn delete_by_organization(&self, organization_id: &Uuid) -> Result<(), DomainError> {
+        debug!("Deleting organization members by organization: {}", organization_id);
+        
+        let result = OrganizationMembers::delete_many().filter(organization_members::Column::OrganizationId.eq(*organization_id)).exec(self.db.as_ref()).await.map_err(DomainError::from)?;
     }
 
     async fn count_by_organization(&self, organization_id: &Uuid) -> Result<i64, DomainError> {

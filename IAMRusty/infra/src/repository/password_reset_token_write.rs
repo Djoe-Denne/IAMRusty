@@ -2,10 +2,8 @@ use async_trait::async_trait;
 use chrono::Utc;
 use iam_domain::entity::password_reset_token::PasswordResetToken;
 use iam_domain::port::repository::PasswordResetTokenWriteRepository;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set,
-};
 use sea_orm::prelude::Expr;
+use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -65,24 +63,27 @@ impl PasswordResetTokenWriteRepository for PasswordResetTokenWriteRepositoryImpl
 
     async fn mark_as_used(&self, token_id: Uuid) -> Result<(), Self::Error> {
         let now = Utc::now();
-        
+
         PasswordResetTokens::update_many()
             .filter(password_reset_tokens::Column::Id.eq(token_id))
-            .col_expr(password_reset_tokens::Column::UsedAt, Expr::value(Some(now)))
+            .col_expr(
+                password_reset_tokens::Column::UsedAt,
+                Expr::value(Some(now)),
+            )
             .exec(self.db.as_ref())
             .await?;
-        
+
         Ok(())
     }
 
     async fn delete_expired(&self) -> Result<u64, Self::Error> {
         let now = Utc::now();
-        
+
         let result = PasswordResetTokens::delete_many()
             .filter(password_reset_tokens::Column::ExpiresAt.lt(now))
             .exec(self.db.as_ref())
             .await?;
-        
+
         Ok(result.rows_affected)
     }
 
@@ -91,7 +92,7 @@ impl PasswordResetTokenWriteRepository for PasswordResetTokenWriteRepositoryImpl
             .filter(password_reset_tokens::Column::UserId.eq(user_id))
             .exec(self.db.as_ref())
             .await?;
-        
+
         Ok(result.rows_affected)
     }
 }

@@ -5,16 +5,16 @@
 
 use aws_config::{BehaviorVersion, Region};
 use aws_credential_types::Credentials;
-use aws_sdk_sqs::{Client, Config, types::Message};
-use rustycog_config::{QueueConfig, SqsConfig, load_config_part};
-use rustycog_events::event::DomainEvent;
+use aws_sdk_sqs::{types::Message, Client, Config};
+use rustycog_config::{load_config_part, QueueConfig, SqsConfig};
 use rustycog_core::error::ServiceError;
-use serde_json::{Value, json};
+use rustycog_events::event::DomainEvent;
+use serde_json::{json, Value};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::sync::OnceLock;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
-use testcontainers::{ContainerAsync, GenericImage, ImageExt, runners::AsyncRunner};
+use testcontainers::{runners::AsyncRunner, ContainerAsync, GenericImage, ImageExt};
 use tokio::sync::Mutex;
 use tracing::{debug, error, info, warn};
 use uuid;
@@ -243,9 +243,13 @@ impl TestSqs {
     }
 
     /// Serialize domain event to SQS message body (same as SQS publisher)
-    fn serialize_event(&self, event: &dyn DomainEvent) -> Result<String, Box<dyn std::error::Error>> {
+    fn serialize_event(
+        &self,
+        event: &dyn DomainEvent,
+    ) -> Result<String, Box<dyn std::error::Error>> {
         // Get the event JSON and parse it back to a Value so it's properly structured in the data field
-        let event_json_str = event.to_json()
+        let event_json_str = event
+            .to_json()
             .map_err(|e| format!("Failed to get event JSON: {}", e))?;
         let event_data: serde_json::Value = serde_json::from_str(&event_json_str)
             .map_err(|e| format!("Failed to parse event JSON: {}", e))?;
@@ -415,15 +419,16 @@ impl TestSqs {
 }
 
 /// Get or create the global test SQS container
-async fn get_or_create_test_sqs_container()
--> Result<(Arc<TestSqsContainer>, SqsConfig), Box<dyn std::error::Error>> {
+async fn get_or_create_test_sqs_container(
+) -> Result<(Arc<TestSqsContainer>, SqsConfig), Box<dyn std::error::Error>> {
     let container_mutex = TEST_SQS_CONTAINER.get_or_init(|| Arc::new(Mutex::new(None)));
 
     let mut container_guard = container_mutex.lock().await;
 
     if let Some(ref container) = *container_guard {
         // If container exists, we still need to load the config to return it
-        let queue_config = load_config_part::<QueueConfig>("queue").expect("failed to load queue config");
+        let queue_config =
+            load_config_part::<QueueConfig>("queue").expect("failed to load queue config");
         let sqs_config = match &queue_config {
             QueueConfig::Sqs(sqs_config) => sqs_config.clone(),
             QueueConfig::Kafka(_) => {
@@ -445,7 +450,8 @@ async fn get_or_create_test_sqs_container()
     SqsConfig::clear_port_cache();
 
     // Load configuration to understand SQS settings
-    let queue_config = load_config_part::<QueueConfig>("queue").expect("failed to load queue config");
+    let queue_config =
+        load_config_part::<QueueConfig>("queue").expect("failed to load queue config");
     let sqs_config = match &queue_config {
         QueueConfig::Sqs(sqs_config) => sqs_config.clone(),
         QueueConfig::Kafka(_) => {

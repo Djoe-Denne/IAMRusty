@@ -35,15 +35,21 @@ impl Command for ValidateTokenCommand {
 
     fn validate(&self) -> Result<(), CommandError> {
         if self.token.trim().is_empty() {
-            return Err(CommandError::validation("empty_token", "Token cannot be empty"));
+            return Err(CommandError::validation(
+                "empty_token",
+                "Token cannot be empty",
+            ));
         }
 
         // Basic JWT format validation (three parts separated by dots)
         let parts: Vec<&str> = self.token.split('.').collect();
         if parts.len() != 3 {
-            return Err(CommandError::validation("invalid_token_format", "Invalid JWT token format"));
+            return Err(CommandError::validation(
+                "invalid_token_format",
+                "Invalid JWT token format",
+            ));
         }
 
         Ok(())
     }
-} 
+}

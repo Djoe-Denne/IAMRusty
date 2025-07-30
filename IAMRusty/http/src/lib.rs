@@ -4,9 +4,7 @@
 //! implementing the OpenAPI specification.
 
 use iam_configuration::ServerConfig;
-use rustycog_http::{
-    RouteBuilder, AppState
-};
+use rustycog_http::{AppState, RouteBuilder};
 
 pub mod error;
 pub mod handlers;
@@ -16,13 +14,14 @@ pub mod validation;
 pub use error::{ApiError, AuthError};
 pub use handlers::{
     auth::{
-        check_username, complete_registration, internal_provider_token, jwks, login,
-        oauth_callback, oauth_login_start, oauth_link_start, resend_verification_email, signup, verify_email,
-        revoke_provider_token, relink_provider_callback, generate_relink_provider_start_url,
+        check_username, complete_registration, generate_relink_provider_start_url,
+        internal_provider_token, jwks, login, oauth_callback, oauth_link_start, oauth_login_start,
+        relink_provider_callback, resend_verification_email, revoke_provider_token, signup,
+        verify_email,
     },
     password_reset::{
-        request_password_reset, validate_reset_token, reset_password_unauthenticated,
-        reset_password_authenticated,
+        request_password_reset, reset_password_authenticated, reset_password_unauthenticated,
+        validate_reset_token,
     },
     token::refresh_token,
     user::get_user,
@@ -42,17 +41,30 @@ pub async fn create_app_routes(state: AppState, config: ServerConfig) -> anyhow:
         .get("/api/auth/username/check", check_username)
         .post("/api/auth/password/reset-request", request_password_reset)
         .post("/api/auth/password/reset-validate", validate_reset_token)
-        .post("/api/auth/password/reset-confirm", reset_password_unauthenticated)
+        .post(
+            "/api/auth/password/reset-confirm",
+            reset_password_unauthenticated,
+        )
         .get("/api/auth/{provider_name}/login", oauth_login_start)
         .get("/api/auth/{provider_name}/callback", oauth_callback)
         .post("/api/token/refresh", refresh_token)
-        .get("/api/auth/{provider_name}/relink-start", generate_relink_provider_start_url)
+        .get(
+            "/api/auth/{provider_name}/relink-start",
+            generate_relink_provider_start_url,
+        )
         // Authenticated routes
         .authenticated_get("/api/me", get_user)
-        .authenticated_post("/api/auth/password/reset-authenticated", reset_password_authenticated)
+        .authenticated_post(
+            "/api/auth/password/reset-authenticated",
+            reset_password_authenticated,
+        )
         .authenticated_post("/internal/{provider_name}/token", internal_provider_token)
         .authenticated_delete("/internal/{provider_name}/revoke", revoke_provider_token)
         .authenticated_get("/api/auth/{provider_name}/link", oauth_link_start)
-        .authenticated_get("/api/auth/{provider_name}/relink-callback", relink_provider_callback)
-        .build(config).await
+        .authenticated_get(
+            "/api/auth/{provider_name}/relink-callback",
+            relink_provider_callback,
+        )
+        .build(config)
+        .await
 }

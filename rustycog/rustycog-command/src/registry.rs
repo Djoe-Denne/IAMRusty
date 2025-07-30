@@ -1,11 +1,11 @@
-use super::{Command, CommandError, CommandHandler, CommandContext, CommandMetrics};
+use super::{Command, CommandContext, CommandError, CommandHandler, CommandMetrics};
 use async_trait::async_trait;
 use std::any::Any;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tracing::{info, warn, error};
 use tokio::time::timeout;
+use tracing::{error, info, warn};
 
 /// Retry policy configuration
 #[derive(Debug, Clone)]
@@ -33,12 +33,12 @@ impl RetryPolicy {
     pub fn calculate_delay(&self, attempt: u32) -> Duration {
         let base_delay_ms = self.base_delay.as_millis() as f64;
         let exponential_delay = base_delay_ms * self.backoff_multiplier.powi(attempt as i32);
-        
+
         let mut delay = Duration::from_millis(exponential_delay as u64);
         if delay > self.max_delay {
             delay = self.max_delay;
         }
-        
+
         if self.use_jitter {
             // Simple jitter using system time - not cryptographically secure but sufficient for retry jitter
             let time_nanos = std::time::SystemTime::now()
@@ -49,12 +49,15 @@ impl RetryPolicy {
             let jitter_factor = 1.0 + jitter;
             delay = Duration::from_millis((delay.as_millis() as f64 * jitter_factor) as u64);
         }
-        
+
         delay
     }
-    
+
     pub fn is_retryable(&self, error: &CommandError) -> bool {
-        matches!(error, CommandError::Infrastructure { .. } | CommandError::Timeout { .. })
+        matches!(
+            error,
+            CommandError::Infrastructure { .. } | CommandError::Timeout { .. }
+        )
     }
 }
 
@@ -141,16 +144,16 @@ pub trait DynCommandHandler: Send + Sync {
         command: Box<dyn Any + Send>,
         _context: CommandContext,
     ) -> Result<Box<dyn Any + Send>, CommandError>;
-    
+
     /// Get the command type this handler supports
     fn command_type(&self) -> &'static str;
-    
+
     /// Get the error mapper for this handler
     fn error_mapper(&self) -> Arc<dyn CommandErrorMapper>;
 }
 
 /// Wrapper that implements DynCommandHandler for concrete command handlers
-pub struct CommandHandlerWrapper<C, H> 
+pub struct CommandHandlerWrapper<C, H>
 where
     C: Command + 'static,
     H: CommandHandler<C>,
@@ -186,10 +189,10 @@ where
         _context: CommandContext,
     ) -> Result<Box<dyn Any + Send>, CommandError> {
         // Downcast the command to the expected type
-        let command = command
-            .downcast::<C>()
-            .map_err(|_| CommandError::infrastructure("invalid_command_type", "Invalid command type"))?;
-        
+        let command = command.downcast::<C>().map_err(|_| {
+            CommandError::infrastructure("invalid_command_type", "Invalid command type")
+        })?;
+
         // Execute the command and handle errors
         match self.handler.handle(*command).await {
             Ok(result) => Ok(Box::new(result)),
@@ -200,13 +203,13 @@ where
             }
         }
     }
-    
+
     fn command_type(&self) -> &'static str {
         // We need to get this from a sample command, but we can't create one here
         // This will be set when registering
         std::any::type_name::<C>()
     }
-    
+
     fn error_mapper(&self) -> Arc<dyn CommandErrorMapper> {
         self.error_mapper.clone()
     }
@@ -228,7 +231,7 @@ impl CommandRegistry {
             metrics_collector: Arc::new(LoggingMetricsCollector),
         }
     }
-    
+
     /// Create a new command registry with custom configuration
     pub fn with_config(config: RegistryConfig) -> Self {
         Self {
@@ -237,7 +240,7 @@ impl CommandRegistry {
             metrics_collector: Arc::new(LoggingMetricsCollector),
         }
     }
-    
+
     /// Create a new command registry with custom configuration and metrics collector
     pub fn with_config_and_metrics(
         config: RegistryConfig,
@@ -249,7 +252,7 @@ impl CommandRegistry {
             metrics_collector,
         }
     }
-    
+
     /// Register a command handler with its error mapper
     pub fn register<C, H>(
         &mut self,
@@ -263,12 +266,12 @@ impl CommandRegistry {
         let wrapper = Arc::new(CommandHandlerWrapper::new(handler, error_mapper));
         self.handlers.insert(command_type, wrapper);
     }
-    
+
     /// Get a handler for a command type
     pub fn get_handler(&self, command_type: &str) -> Option<Arc<dyn DynCommandHandler>> {
         self.handlers.get(command_type).cloned()
     }
-    
+
     /// Execute a command through the registry with full cross-cutting concerns
     pub async fn execute_command<C: Command + Clone + 'static>(
         &self,
@@ -278,7 +281,7 @@ impl CommandRegistry {
         let command_type = command.command_type();
         let start_time = Instant::now();
         let mut retry_attempts = 0;
-        
+
         if self.config.enable_tracing {
             info!(
                 command_type = %command_type,
@@ -287,7 +290,7 @@ impl CommandRegistry {
                 "Starting command execution"
             );
         }
-        
+
         // Validate command first
         if let Err(validation_error) = command.validate() {
             if self.config.enable_tracing {
@@ -299,21 +302,23 @@ impl CommandRegistry {
             }
             return Err(validation_error);
         }
-        
+
         // Get handler
-        let handler = self.get_handler(command_type)
-            .ok_or_else(|| CommandError::infrastructure(
+        let handler = self.get_handler(command_type).ok_or_else(|| {
+            CommandError::infrastructure(
                 "handler_not_found",
-                format!("No handler registered for command type: {}", command_type)
-            ))?;
-        
+                format!("No handler registered for command type: {}", command_type),
+            )
+        })?;
+
         let retry_policy = &self.config.retry_policy;
-        
+
         // Retry loop
         loop {
-            let execution_future = self.execute_once(handler.clone(), command.clone(), context.clone());
+            let execution_future =
+                self.execute_once(handler.clone(), command.clone(), context.clone());
             let execution_result = timeout(self.config.default_timeout, execution_future).await;
-            
+
             match execution_result {
                 Ok(Ok(result)) => {
                     // Success
@@ -326,17 +331,18 @@ impl CommandRegistry {
                             "Command executed successfully"
                         );
                     }
-                    
+
                     if self.config.enable_metrics {
-                        self.record_success_metrics(&command, duration, retry_attempts).await;
+                        self.record_success_metrics(&command, duration, retry_attempts)
+                            .await;
                     }
-                    
+
                     return Ok(result);
                 }
                 Ok(Err(e)) => {
                     // Command failed
                     retry_attempts += 1;
-                    
+
                     // Check if error is retryable
                     if !retry_policy.is_retryable(&e) {
                         let duration = start_time.elapsed();
@@ -349,17 +355,19 @@ impl CommandRegistry {
                                 "Command execution failed - error not retryable"
                             );
                         }
-                        
+
                         if self.config.enable_metrics {
-                            self.record_failure_metrics(&command, start_time, retry_attempts, &e).await;
+                            self.record_failure_metrics(&command, start_time, retry_attempts, &e)
+                                .await;
                         }
-                        
+
                         return Err(e);
                     }
-                    
+
                     // Check if we've reached max attempts
                     // When max_attempts is 0, we should not retry at all
-                    if retry_policy.max_attempts == 0 || retry_attempts >= retry_policy.max_attempts {
+                    if retry_policy.max_attempts == 0 || retry_attempts >= retry_policy.max_attempts
+                    {
                         let duration = start_time.elapsed();
                         if self.config.enable_tracing {
                             error!(
@@ -370,14 +378,18 @@ impl CommandRegistry {
                                 "Command execution failed after maximum retries"
                             );
                         }
-                        
+
                         if self.config.enable_metrics {
-                            self.record_failure_metrics(&command, start_time, retry_attempts, &e).await;
+                            self.record_failure_metrics(&command, start_time, retry_attempts, &e)
+                                .await;
                         }
-                        
-                        return Err(CommandError::retry_exhausted("max_retries_exceeded", e.to_string()));
+
+                        return Err(CommandError::retry_exhausted(
+                            "max_retries_exceeded",
+                            e.to_string(),
+                        ));
                     }
-                    
+
                     // Calculate delay and retry
                     let delay = retry_policy.calculate_delay(retry_attempts - 1);
                     if self.config.enable_tracing {
@@ -389,15 +401,17 @@ impl CommandRegistry {
                             "Command failed, retrying"
                         );
                     }
-                    
+
                     tokio::time::sleep(delay).await;
                 }
                 Err(_) => {
                     // Timeout
                     retry_attempts += 1;
-                    let timeout_error = CommandError::timeout("command_timeout", "Command execution timed out");
-                    
-                    if retry_policy.max_attempts == 0 || retry_attempts >= retry_policy.max_attempts {
+                    let timeout_error =
+                        CommandError::timeout("command_timeout", "Command execution timed out");
+
+                    if retry_policy.max_attempts == 0 || retry_attempts >= retry_policy.max_attempts
+                    {
                         let duration = start_time.elapsed();
                         if self.config.enable_tracing {
                             error!(
@@ -407,14 +421,23 @@ impl CommandRegistry {
                                 "Command execution timed out after retries"
                             );
                         }
-                        
+
                         if self.config.enable_metrics {
-                            self.record_failure_metrics(&command, start_time, retry_attempts, &timeout_error).await;
+                            self.record_failure_metrics(
+                                &command,
+                                start_time,
+                                retry_attempts,
+                                &timeout_error,
+                            )
+                            .await;
                         }
-                        
-                        return Err(CommandError::retry_exhausted("timeout_retries_exceeded", "Timeout after retries"));
+
+                        return Err(CommandError::retry_exhausted(
+                            "timeout_retries_exceeded",
+                            "Timeout after retries",
+                        ));
                     }
-                    
+
                     let delay = retry_policy.calculate_delay(retry_attempts - 1);
                     if self.config.enable_tracing {
                         warn!(
@@ -424,13 +447,13 @@ impl CommandRegistry {
                             "Command timed out, retrying"
                         );
                     }
-                    
+
                     tokio::time::sleep(delay).await;
                 }
             }
         }
     }
-    
+
     /// Execute command once without retry logic
     async fn execute_once<C: Command + 'static>(
         &self,
@@ -439,14 +462,14 @@ impl CommandRegistry {
         context: CommandContext,
     ) -> Result<C::Result, CommandError> {
         let result = handler.execute_dyn(Box::new(command), context).await?;
-        
+
         // Downcast result back to expected type
         result
             .downcast::<C::Result>()
             .map(|boxed| *boxed)
             .map_err(|_| CommandError::infrastructure("invalid_result_type", "Invalid result type"))
     }
-    
+
     async fn record_success_metrics<C: Command>(
         &self,
         command: &C,
@@ -460,10 +483,10 @@ impl CommandRegistry {
             retry_attempts,
             error_type: None,
         };
-        
+
         self.metrics_collector.record_metrics(metrics).await;
     }
-    
+
     async fn record_failure_metrics<C: Command>(
         &self,
         command: &C,
@@ -479,10 +502,10 @@ impl CommandRegistry {
             retry_attempts,
             error_type: Some(format!("{:?}", error)),
         };
-        
+
         self.metrics_collector.record_metrics(metrics).await;
     }
-    
+
     /// List all registered command types
     pub fn list_command_types(&self) -> Vec<String> {
         self.handlers.keys().cloned().collect()
@@ -507,14 +530,14 @@ impl CommandRegistryBuilder {
             registry: CommandRegistry::new(),
         }
     }
-    
+
     /// Create a new registry builder with custom configuration
     pub fn with_config(config: RegistryConfig) -> Self {
         Self {
             registry: CommandRegistry::with_config(config),
         }
     }
-    
+
     /// Create a new registry builder with custom configuration and metrics collector
     pub fn with_config_and_metrics(
         config: RegistryConfig,
@@ -524,7 +547,7 @@ impl CommandRegistryBuilder {
             registry: CommandRegistry::with_config_and_metrics(config, metrics_collector),
         }
     }
-    
+
     /// Register a command handler with error mapper
     pub fn register<C, H>(
         mut self,
@@ -536,10 +559,11 @@ impl CommandRegistryBuilder {
         C: Command + 'static,
         H: CommandHandler<C> + 'static,
     {
-        self.registry.register::<C, H>(command_type, handler, error_mapper);
+        self.registry
+            .register::<C, H>(command_type, handler, error_mapper);
         self
     }
-    
+
     /// Build the registry
     pub fn build(self) -> CommandRegistry {
         self.registry

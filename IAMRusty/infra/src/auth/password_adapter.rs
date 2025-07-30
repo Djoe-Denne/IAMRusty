@@ -1,6 +1,6 @@
 use super::PasswordService;
-use iam_application::usecase::login::PasswordService as AppPasswordService;
 use async_trait::async_trait;
+use iam_application::usecase::login::PasswordService as AppPasswordService;
 use iam_domain::service::auth_service::AuthError;
 use std::sync::Arc;
 
