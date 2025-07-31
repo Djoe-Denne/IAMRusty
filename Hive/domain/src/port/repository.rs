@@ -62,6 +62,8 @@ pub trait OrganizationMemberRepository: Send + Sync {
     async fn find_by_organization(
         &self,
         organization_id: &Uuid,
+        page: u32,
+        page_size: u32,
     ) -> Result<Vec<OrganizationMember>, DomainError>;
 
     /// Find all organizations a user is a member of
@@ -133,10 +135,16 @@ pub trait ResourceRepository: Send + Sync {
 #[async_trait]
 pub trait RolePermissionRepository: Send + Sync {
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<RolePermission>, DomainError>;
-    async fn find_by_organization_resource_permission(
+    async fn find_by_organization_role(
         &self,
         organization_id: &Uuid,
-        role_permission: &RolePermission,
+        resource_type: &str,
+        permission: &str,
+    ) -> Result<Option<RolePermission>, DomainError>;
+    async fn find_by_organization_roles(
+        &self,
+        organization_id: &Uuid,
+        role_permissions: &Vec<RolePermission>,
     ) -> Result<Vec<RolePermission>, DomainError>;
     async fn save(&self, organization_id: &Uuid, role_permission: &RolePermission) -> Result<RolePermission, DomainError>;
     async fn delete_by_organization(&self, organization_id: &Uuid) -> Result<(), DomainError>;

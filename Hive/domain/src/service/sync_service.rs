@@ -1,96 +1,149 @@
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
-use crate::{entity::*, error::DomainError, port::*};
+use crate::{
+    entity::*, 
+    error::DomainError, 
+    port::{repository::*, service::*},
+    service::{
+        role_service::RoleService,
+        organization_service::OrganizationService,
+        member_service::MemberService,
+        invitation_service::InvitationService,
+    },
+};
 
 /// Domain service for sync job management
-pub struct SyncServiceImpl<SR, LR, OR>
+pub struct SyncServiceImpl<SR, LR, OR, RS, OS, MS, IS>
 where
     SR: SyncJobRepository,
     LR: ExternalLinkRepository,
     OR: OrganizationRepository,
+    RS: RoleService,
+    OS: OrganizationService,
+    MS: MemberService,
+    IS: InvitationService,
 {
     sync_job_repo: SR,
     external_link_repo: LR,
     organization_repo: OR,
+    role_service: RS,
+    organization_service: OS,
+    member_service: MS,
+    invitation_service: IS,
+}
+
+/// Result of a member sync operation
+#[derive(Debug, Clone)]
+pub struct SyncResult {
+    pub members_found: u32,
+    pub members_added: u32,
+    pub members_invited: u32,
+    pub errors: Vec<String>,
 }
 
 #[async_trait::async_trait]
-pub trait SyncService {
+pub trait SyncService: Send + Sync {
     async fn start_sync_job(
         &self,
         external_link_id: Uuid,
         job_type: SyncJobType,
         requested_by_user_id: Uuid,
     ) -> Result<SyncJob, DomainError>;
-    async fn update_sync_job_progress(
+
+    /**
+     * Execute sync for organization info
+     * 
+     * @param sync_job_id - The ID of the sync job
+     * @param provider_client - The external provider client
+     */
+    async fn sync_organization_info(
         &self,
-        job_id: Uuid,
-        items_processed: i32,
-        items_created: i32,
-        items_updated: i32,
-        items_failed: i32,
-        details: Option<serde_json::Value>,
-    ) -> Result<SyncJob, DomainError>;
-    async fn complete_sync_job(
+        sync_job_id: Uuid,
+        provider_client: &dyn ExternalProviderClient,
+    ) -> Result<Organization, DomainError>;
+
+    /**
+     * Execute sync for members
+     * 
+     * @param sync_job_id - The ID of the sync job
+     * @param provider_client - The external provider client
+     * @param auto_invite - Whether to automatically invite new members found
+     */
+    async fn sync_members(
         &self,
-        job_id: Uuid,
-        final_stats: Option<(i32, i32, i32, i32)>,
-        details: Option<serde_json::Value>,
-    ) -> Result<SyncJob, DomainError>;
+        sync_job_id: Uuid,
+        provider_client: &dyn ExternalProviderClient,
+        auto_invite: bool,
+    ) -> Result<SyncResult, DomainError>;
 }
 
-impl<SR, LR, OR> SyncServiceImpl<SR, LR, OR>
+impl<SR, LR, OR, RS, OS, MS, IS> SyncServiceImpl<SR, LR, OR, RS, OS, MS, IS>
 where
     SR: SyncJobRepository,
     LR: ExternalLinkRepository,
     OR: OrganizationRepository,
+    RS: RoleService,
+    OS: OrganizationService,
+    MS: MemberService,
+    IS: InvitationService,
 {
     /// Create a new sync service
-    pub fn new(sync_job_repo: SR, external_link_repo: LR, organization_repo: OR) -> Self {
+    pub fn new(
+        sync_job_repo: SR, 
+        external_link_repo: LR, 
+        organization_repo: OR,
+        role_service: RS,
+        organization_service: OS,
+        member_service: MS,
+        invitation_service: IS,
+    ) -> Self {
         Self {
             sync_job_repo,
             external_link_repo,
             organization_repo,
+            role_service,
+            organization_service,
+            member_service,
+            invitation_service,
         }
     }
 
-    /// Check if user has permission to manage sync jobs
-    async fn check_sync_permission(
+    /// Update organization info from external provider data
+    async fn update_organization_from_external(
         &self,
         organization_id: &Uuid,
-        user_id: &Uuid,
-    ) -> Result<(), DomainError> {
-        // Find the organization
-        let organization = self
-            .organization_repo
-            .find_by_id(organization_id)
-            .await?
-            .ok_or_else(|| {
-                DomainError::entity_not_found("Organization", &organization_id.to_string())
-            })?;
+        external_org_info: &ExternalOrganizationInfo,
+        requesting_user_id: &Uuid,
+    ) -> Result<Organization, DomainError> {
+        // Update organization with external info
+        let updated_org = self
+            .organization_service
+            .update_organization(
+                organization_id.clone(),
+                Some(external_org_info.display_name.clone().unwrap_or(external_org_info.name.clone())),
+                external_org_info.description.clone(),
+                external_org_info.avatar_url.clone(),
+                None, // Don't override settings
+                requesting_user_id.clone(),
+            )
+            .await?;
 
-        // Owner always has permission
-        if organization.is_owned_by(user_id) {
-            return Ok(());
-        }
-
-        // For sync operations, we'll allow any active member for now
-        // In a more complex system, you might want specific sync permissions
-        // TODO: Implement proper permission checking with member repository
-
-        Err(DomainError::business_rule_violation(
-            "You do not have permission to manage sync jobs for this organization",
-        ))
+        Ok(updated_org)
     }
 }
 
+
 #[async_trait::async_trait]
-impl<SR, LR, OR> SyncService for SyncServiceImpl<SR, LR, OR>
+impl<SR, LR, OR, RS, OS, MS, IS> SyncService for SyncServiceImpl<SR, LR, OR, RS, OS, MS, IS>
 where
     SR: SyncJobRepository,
     LR: ExternalLinkRepository,
     OR: OrganizationRepository,
+    RS: RoleService,
+    OS: OrganizationService,
+    MS: MemberService,
+    IS: InvitationService,
 {
     /// Start a new sync job
     async fn start_sync_job(
@@ -109,7 +162,7 @@ where
             })?;
 
         // Business rule: Check permission to start sync jobs
-        self.check_sync_permission(&external_link.organization_id, &requested_by_user_id)
+        self.role_service.check_admin_permission(&external_link.organization_id, &requested_by_user_id, "organization")
             .await?;
 
         // Business rule: Sync must be enabled for the external link
@@ -138,92 +191,164 @@ where
         Ok(saved_job)
     }
 
-    /// Update sync job progress
-    async fn update_sync_job_progress(
+    /// Execute sync for organization info
+    async fn sync_organization_info(
         &self,
-        job_id: Uuid,
-        items_processed: i32,
-        items_created: i32,
-        items_updated: i32,
-        items_failed: i32,
-        details: Option<serde_json::Value>,
-    ) -> Result<SyncJob, DomainError> {
+        sync_job_id: Uuid,
+        provider_client: &dyn ExternalProviderClient,
+    ) -> Result<Organization, DomainError> {
         // Find the sync job
-        let mut sync_job = self
+        let sync_job = self
             .sync_job_repo
-            .find_by_id(&job_id)
+            .find_by_id(&sync_job_id)
             .await?
-            .ok_or_else(|| DomainError::entity_not_found("SyncJob", &job_id.to_string()))?;
+            .ok_or_else(|| DomainError::entity_not_found("SyncJob", &sync_job_id.to_string()))?;
 
-        // Business rule: Can only update running jobs
-        if !sync_job.is_running() {
-            return Err(DomainError::business_rule_violation(
-                "Can only update progress for running sync jobs",
-            ));
-        }
-
-        // Update progress
-        sync_job.update_progress(items_processed, items_created, items_updated, items_failed);
-
-        if let Some(details) = details {
-            sync_job.update_details(details);
-        }
-
-        let updated_job = self.sync_job_repo.save(&sync_job).await?;
-
-        Ok(updated_job)
-    }
-
-    /// Complete a sync job successfully
-    async fn complete_sync_job(
-        &self,
-        job_id: Uuid,
-        final_stats: Option<(i32, i32, i32, i32)>, // (processed, created, updated, failed)
-        details: Option<serde_json::Value>,
-    ) -> Result<SyncJob, DomainError> {
-        // Find the sync job
-        let mut sync_job = self
-            .sync_job_repo
-            .find_by_id(&job_id)
-            .await?
-            .ok_or_else(|| DomainError::entity_not_found("SyncJob", &job_id.to_string()))?;
-
-        // Business rule: Can only complete running jobs
-        if !sync_job.is_running() {
-            return Err(DomainError::business_rule_violation(
-                "Can only complete running sync jobs",
-            ));
-        }
-
-        // Update final stats if provided
-        if let Some((processed, created, updated, failed)) = final_stats {
-            sync_job.update_progress(processed, created, updated, failed);
-        }
-
-        // Complete the job
-        sync_job.complete_successfully()?;
-        if let Some(details) = details {
-            sync_job.update_details(details)?;
-        }
-
-        // Update external link last sync info
+        // Find the external link
         let external_link = self
             .external_link_repo
             .find_by_id(&sync_job.organization_external_link_id)
             .await?
-            .ok_or_else(|| {
-                DomainError::entity_not_found(
-                    "ExternalLink",
-                    &sync_job.organization_external_link_id.to_string(),
+            .ok_or_else(|| DomainError::entity_not_found("ExternalLink", &sync_job.organization_external_link_id.to_string()))?;
+
+        // Get organization info from external provider
+        let external_org_info = provider_client
+            .get_organization_info(&external_link.provider_config)
+            .await?;
+
+        // Update organization with external info
+        // Use organization owner as the requesting user for updates
+        let organization = self
+            .organization_repo
+            .find_by_id(&external_link.organization_id)
+            .await?
+            .ok_or_else(|| DomainError::entity_not_found("Organization", &external_link.organization_id.to_string()))?;
+
+        let updated_org = self
+            .update_organization_from_external(
+                &external_link.organization_id,
+                &external_org_info,
+                &organization.owner_user_id,
+            )
+            .await?;
+
+        Ok(updated_org)
+    }
+
+    /// Execute sync for members
+    async fn sync_members(
+        &self,
+        sync_job_id: Uuid,
+        provider_client: &dyn ExternalProviderClient,
+        auto_invite: bool,
+    ) -> Result<SyncResult, DomainError> {
+        // Find the sync job
+        let sync_job = self
+            .sync_job_repo
+            .find_by_id(&sync_job_id)
+            .await?
+            .ok_or_else(|| DomainError::entity_not_found("SyncJob", &sync_job_id.to_string()))?;
+
+        // Find the external link
+        let external_link = self
+            .external_link_repo
+            .find_by_id(&sync_job.organization_external_link_id)
+            .await?
+            .ok_or_else(|| DomainError::entity_not_found("ExternalLink", &sync_job.organization_external_link_id.to_string()))?;
+
+        // Get members from external provider
+        let external_members = provider_client
+            .get_members(&external_link.provider_config)
+            .await?;
+
+        let mut result = SyncResult {
+            members_found: external_members.len() as u32,
+            members_added: 0,
+            members_invited: 0,
+            errors: Vec::new(),
+        };
+
+        // Process each external member
+        for external_member in external_members {
+            if !external_member.is_active {
+                continue; // Skip inactive members
+            }
+
+            // For now, we'll invite by email if available, otherwise skip
+            let invite_identifier = match &external_member.email {
+                Some(email) => email.clone(),
+                None => {
+                    result.errors.push(format!(
+                        "External member {} has no email address, skipping",
+                        external_member.username
+                    ));
+                    continue;
+                }
+            };
+
+            // Check if user is already a member
+            // Note: This is a simplified check. In a real implementation, you might want to
+            // maintain a mapping of external IDs to internal user IDs
+            let existing_invitation = self
+                .invitation_service
+                .get_invitation_by_organization_invited_aggregate_id(
+                    external_link.organization_id,
+                    &invite_identifier,
                 )
-            })?;
+                .await;
 
-        let mut updated_link = external_link;
-        updated_link.record_sync_success();
-        self.external_link_repo.save(&updated_link).await?;
+            if existing_invitation.is_ok() {
+                continue; // Already invited
+            }
 
-        let updated_job = self.sync_job_repo.save(&sync_job).await?;
+            if auto_invite {
+                // Get role permissions for this external member
+                let role_permissions = external_member.roles.clone();
 
-        Ok(updated_job)
+                // Skip if no role permissions are available
+                if role_permissions.is_empty() {
+                    result.errors.push(format!(
+                        "External member {} has no role permissions, skipping",
+                        external_member.username
+                    ));
+                    continue;
+                }
+
+                // Get organization for owner information
+                let organization = self
+                    .organization_repo
+                    .find_by_id(&external_link.organization_id)
+                    .await?
+                    .ok_or_else(|| DomainError::entity_not_found("Organization", &external_link.organization_id.to_string()))?;
+
+                // Create invitation
+                let invitation_message = Some(format!(
+                    "You have been invited to join {} organization based on your membership in the connected {:?} organization.",
+                    organization.name,
+                    provider_client.provider_type()
+                ));
+
+                match self
+                    .invitation_service
+                    .create_invitation_by_email(
+                        external_link.organization_id,
+                        invite_identifier,
+                        role_permissions,
+                        organization.owner_user_id, // Invitations are sent by the organization owner
+                        invitation_message,
+                        None, // Use default expiry
+                    )
+                    .await
+                {
+                    Ok(_) => result.members_invited += 1,
+                    Err(e) => result.errors.push(format!(
+                        "Failed to invite {}: {}",
+                        external_member.username, e
+                    )),
+                }
+            }
+        }
+
+        Ok(result)
     }
 }

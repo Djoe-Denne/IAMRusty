@@ -1,7 +1,3 @@
-pub mod github;
-pub mod gitlab;
-pub mod confluence;
+pub mod external_provider_client;
 
-pub use github::*;
-pub use gitlab::*;
-pub use confluence::*; 
+pub use external_provider_client::*;

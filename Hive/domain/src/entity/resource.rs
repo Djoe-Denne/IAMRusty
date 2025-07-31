@@ -9,7 +9,7 @@ use crate::error::DomainError;
 pub struct Resource {
     pub name: String,
     pub description: Option<String>,
-    pub created_at: DateTime<Utc>,
+    pub created_at: Option<DateTime<Utc>>,
 }
 
 impl Resource {
@@ -17,12 +17,18 @@ impl Resource {
     pub fn new(
         name: String,
         description: Option<String>,
-        created_at: DateTime<Utc>,
-    ) -> Result<Self, DomainError> {
-        Ok(Self {
+        created_at: Option<DateTime<Utc>>,
+    ) -> Self {
+        Self {
             name,
             description,
             created_at,
-        })
+        }
+    }
+}
+
+impl From<String> for Resource {
+    fn from(name: String) -> Self {
+        Self::new(name, None, None)
     }
 }

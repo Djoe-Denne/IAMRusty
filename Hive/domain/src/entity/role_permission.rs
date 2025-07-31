@@ -8,23 +8,23 @@ use crate::{error::DomainError, entity::{permission::Permission, resource::Resou
 /// This acts like a permission group/template that can be assigned to users
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RolePermission { 
-    pub id: Uuid,
-    pub name: String,
+    pub id: Option<Uuid>,
+    pub name: Option<String>,
     pub description: Option<String>,
     pub permission: Permission,
     pub resource: Resource,
-    pub created_at: DateTime<Utc>,
+    pub created_at: Option<DateTime<Utc>>,
 }
 
 impl RolePermission {
     /// Create a new role permission
     pub fn new(
-        id: Uuid,
-        name: String,
+        id: Option<Uuid>,
+        name: Option<String>,
         description: Option<String>,
         permission: &Permission,
         resource: &Resource,
-        created_at: DateTime<Utc>,
+        created_at: Option<DateTime<Utc>>,
     ) -> Self {
         Self {
             id,
@@ -38,12 +38,12 @@ impl RolePermission {
 
     /// Update role permission name
     pub fn update_name(&mut self, new_name: String) {
-        self.name = new_name;
+        self.name = Some(new_name);
     }
 
     /// Update role permission description
-    pub fn update_description(&mut self, new_description: Option<String>) {
-        self.description = new_description;
+    pub fn update_description(&mut self, new_description: String) {
+        self.description = Some(new_description);
     }
 }
 

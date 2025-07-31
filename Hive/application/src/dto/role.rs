@@ -3,51 +3,83 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use validator::Validate;
 
-use crate::dto::PaginationResponse;
+use hive_domain::entity::{Permission, PermissionLevel, Resource, RolePermission};
 
 // =============================================================================
 // Role Request DTOs
 // =============================================================================
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum MemberRolePermission {
+    Read,
+    Write,
+    Delete,
+    Admin,
+}
+
+impl From<MemberRolePermission> for &str {
+
+    fn from(permission: MemberRolePermission) -> Self {
+        match permission {
+            MemberRolePermission::Read => "read",
+            MemberRolePermission::Write => "write",
+            MemberRolePermission::Delete => "delete",
+            MemberRolePermission::Admin => "admin",
+        }
+    }
+}
+
+impl From<String> for MemberRolePermission {
+    fn from(permission: String) -> Self {
+        match permission.to_lowercase().as_str() {
+            "read" => MemberRolePermission::Read,
+            "write" => MemberRolePermission::Write,
+            "delete" => MemberRolePermission::Delete,
+            "admin" => MemberRolePermission::Admin,
+            _ => panic!("Invalid member role permission"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
+pub struct MemberRole {
+    pub resource: String,
+    pub permissions: MemberRolePermission,
+}
+
 /// DTO for creating a new role
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
-pub struct CreateRoleRequest {
-    #[validate(length(min = 1, max = 100))]
+pub struct CreateMemberRoleRequest {
     pub name: String,
     pub description: Option<String>,
-    pub permissions: Vec<String>,
-    pub is_system_default: Option<bool>,
+    pub roles: Vec<MemberRole>,
 }
 
 /// DTO for updating a role
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
-pub struct UpdateRoleRequest {
-    #[validate(length(min = 1, max = 100))]
+pub struct UpdateMemberRoleRequest {
     pub name: Option<String>,
     pub description: Option<String>,
-    pub permissions: Option<Vec<String>>,
+    pub roles: Option<Vec<MemberRole>>,
 }
 
-// =============================================================================
-// Role Response DTOs
-// =============================================================================
-
-/// DTO for role response
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RoleResponse {
-    pub id: Uuid,
-    pub organization_id: Uuid,
-    pub name: String,
-    pub description: Option<String>,
-    pub permissions: Vec<String>,
-    pub is_system_default: bool,
-    pub member_count: Option<i64>, // Number of members with this role
-    pub created_at: DateTime<Utc>,
+impl From<&MemberRole> for RolePermission {
+    fn from(member_role: &MemberRole) -> Self {
+        RolePermission::new(None, None, None, &member_role.permissions.into(), &member_role.resource.clone().into(), None)
+    }
 }
 
-/// DTO for paginated list of roles
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RoleListResponse {
-    pub roles: Vec<RoleResponse>,
-    pub pagination: PaginationResponse,
+impl From<RolePermission> for MemberRole {
+    fn from(role_permission: RolePermission) -> Self {
+        MemberRole {
+            resource: role_permission.resource.name,
+            permissions: role_permission.permission.level.to_string().into(),
+        }
+    }
+}
+
+impl From<MemberRolePermission> for Permission {
+    fn from(permission: MemberRolePermission) -> Self {
+        Permission::new(PermissionLevel::from_str(permission.into()).unwrap(), None, Utc::now())
+    }
 }

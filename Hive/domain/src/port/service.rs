@@ -2,11 +2,11 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{DomainError, ProviderType, entity::organization_member_role_permission::OrganizationMemberRolePermission};
+use crate::{entity::organization_member_role_permission::OrganizationMemberRolePermission, DomainError, ProviderType, RolePermission};
 
 /// Generic external provider service trait
 #[async_trait]
-pub trait ExternalProviderService {
+pub trait ExternalProviderClient: Send + Sync {
     fn provider_type(&self) -> ProviderType;
     async fn get_provider_info(&self) -> Result<ExternalProviderInfo, DomainError>;
     async fn validate_config(&self, config: &serde_json::Value) -> Result<(), DomainError>;
@@ -39,7 +39,7 @@ pub struct ExternalMember {
     pub email: Option<String>,
     pub display_name: Option<String>,
     pub avatar_url: Option<String>,
-    pub role: Option<String>,
+    pub roles: Vec<RolePermission>,
     pub is_active: bool,
 }
 

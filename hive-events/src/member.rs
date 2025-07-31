@@ -10,6 +10,8 @@ use uuid::Uuid;
 
 use rustycog_events::BaseEvent;
 
+use crate::Role;
+
 // =============================================================================
 // Member Events
 // =============================================================================
@@ -24,7 +26,7 @@ pub struct MemberInvitedEvent {
     pub organization_name: String,
     pub invitation_id: Uuid,
     pub email: String,
-    pub role_name: String,
+    pub roles: Vec<Role>,
     pub invited_by_user_id: Uuid,
     pub invitation_token: String,
     pub expires_at: DateTime<Utc>,
@@ -39,8 +41,20 @@ pub struct MemberJoinedEvent {
     pub organization_id: Uuid,
     pub organization_name: String,
     pub user_id: Uuid,
-    pub role_name: String,
+    pub roles: Vec<Role>,
     pub joined_at: DateTime<Utc>,
+}
+
+/// Event published when a member's roles are updated
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MemberRolesUpdatedEvent {
+    #[serde(flatten)]
+    pub base: BaseEvent,
+    pub organization_id: Uuid,
+    pub organization_name: String,
+    pub user_id: Uuid,
+    pub roles: Vec<Role>,
+    pub updated_at: DateTime<Utc>,
 }
 
 /// Event published when a member is removed from an organization
@@ -67,7 +81,7 @@ impl MemberInvitedEvent {
         organization_name: String,
         invitation_id: Uuid,
         email: String,
-        role_name: String,
+        roles: Vec<Role>,
         invited_by_user_id: Uuid,
         invitation_token: String,
         expires_at: DateTime<Utc>,
@@ -79,7 +93,7 @@ impl MemberInvitedEvent {
             organization_name,
             invitation_id,
             email,
-            role_name,
+            roles,
             invited_by_user_id,
             invitation_token,
             expires_at,
@@ -93,7 +107,7 @@ impl MemberJoinedEvent {
         organization_id: Uuid,
         organization_name: String,
         user_id: Uuid,
-        role_name: String,
+        roles: Vec<Role>,
         joined_at: DateTime<Utc>,
     ) -> Self {
         Self {
@@ -101,8 +115,49 @@ impl MemberJoinedEvent {
             organization_id,
             organization_name,
             user_id,
-            role_name,
+            roles,
             joined_at,
+        }
+    }
+}
+
+impl MemberRolesUpdatedEvent {
+
+    pub fn new(
+        organization_id: Uuid,
+        organization_name: String,
+        user_id: Uuid,
+        roles: Vec<Role>,
+        updated_at: DateTime<Utc>,
+    ) -> Self {
+        Self {
+            base: BaseEvent::new("member_roles_updated".to_string(), organization_id),
+            organization_id,
+            organization_name,
+            user_id,
+            roles,
+            updated_at,
+        }
+    }
+}
+
+impl MemberRemovedEvent {
+    pub fn new(
+        organization_id: &Uuid,
+        organization_name: String,
+        user_id: &Uuid,
+        user_email: String,
+        removed_by_user_id: &Uuid,
+        removed_at: DateTime<Utc>,
+    ) -> Self {
+        Self {
+            base: BaseEvent::new("member_removed".to_string(), organization_id.clone()),
+            organization_id: organization_id.clone(),
+            organization_name,
+            user_id: user_id.clone(),
+            user_email,
+            removed_by_user_id,
+            removed_at,
         }
     }
 }

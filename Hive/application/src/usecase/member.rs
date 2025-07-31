@@ -4,17 +4,18 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use hive_domain::{
+    entity::RolePermission,
     port::repository::{OrganizationMemberRepository, OrganizationRepository},
-    service::MemberService,
+    service::{MemberService, OrganizationService, RoleService},
     DomainError, Organization, OrganizationMember, OrganizationRole,
 };
-use hive_events::{event_types, MemberJoinedEvent, MemberRemovedEvent};
-use rustycog_events::{DomainEvent, MultiQueueEventPublisher};
+use hive_events::{HiveDomainEvent, MemberJoinedEvent, MemberRemovedEvent, Role};
+use rustycog_events::EventPublisher;
 
 use crate::{
     dto::{
         AddMemberRequest, MemberListResponse, MemberResponse, PaginationRequest,
-        UpdateMemberRequest,
+        UpdateMemberRequest, role::MemberRole,
     },
     ApplicationError,
 };
@@ -42,7 +43,7 @@ pub trait MemberUseCase: Send + Sync {
     async fn list_members(
         &self,
         organization_id: Uuid,
-        pagination: PaginationRequest,
+        pagination: &PaginationRequest,
         requesting_user_id: Uuid,
     ) -> Result<MemberListResponse, ApplicationError>;
 
@@ -58,23 +59,20 @@ pub trait MemberUseCase: Send + Sync {
 /// Implementation of member use case
 pub struct MemberUseCaseImpl {
     member_service: Arc<dyn MemberService>,
-    member_repository: Arc<dyn OrganizationMemberRepository>,
-    organization_repository: Arc<dyn OrganizationRepository>,
-    event_publisher: Arc<MultiQueueEventPublisher<DomainError>>,
+    organization_service: Arc<dyn OrganizationService>,
+    event_publisher: Arc<dyn EventPublisher<DomainError>>,
 }
 
 impl MemberUseCaseImpl {
     /// Create a new member use case instance
     pub fn new(
         member_service: Arc<dyn MemberService>,
-        member_repository: Arc<dyn OrganizationMemberRepository>,
-        organization_repository: Arc<dyn OrganizationRepository>,
-        event_publisher: Arc<MultiQueueEventPublisher<DomainError>>,
+        organization_service: Arc<dyn OrganizationService>,
+        event_publisher: Arc<dyn EventPublisher<DomainError>>,
     ) -> Self {
         Self {
             member_service,
-            member_repository,
-            organization_repository,
+            organization_service,
             event_publisher,
         }
     }
@@ -82,16 +80,15 @@ impl MemberUseCaseImpl {
     /// Convert domain OrganizationMember to response DTO
     fn member_to_response(&self, member: &OrganizationMember) -> MemberResponse {
         MemberResponse {
-            id: member.id(),
-            organization_id: member.organization_id(),
-            user_id: member.user_id(),
-            role_id: member.role_id(),
-            status: member.status().to_string(),
-            joined_at: member.joined_at(),
-            invited_by_user_id: member.invited_by_user_id(),
-            invited_at: member.invited_at(),
-            created_at: member.created_at(),
-            updated_at: member.updated_at(),
+            id: member.id,
+            organization_id: member.organization_id,
+            user_id: member.user_id,
+            status: member.status.clone().into(),
+            joined_at: member.joined_at,
+            invited_by_user_id: member.invited_by_user_id,
+            invited_at: member.invited_at,
+            created_at: member.created_at,
+            updated_at: member.updated_at,
         }
     }
 
@@ -100,26 +97,19 @@ impl MemberUseCaseImpl {
         &self,
         member: &OrganizationMember,
         organization_name: &str,
-        role_name: &str,
+        roles: &Vec<RolePermission>,
     ) -> Result<(), ApplicationError> {
-        let event = MemberJoinedEvent {
-            organization_id: member.organization_id(),
-            organization_name: organization_name.to_string(),
-            user_id: member.user_id(),
-            role_name: role_name.to_string(),
-            joined_at: member.joined_at().unwrap_or_else(|| Utc::now()),
-        };
-
-        let domain_event: Box<dyn DomainEvent> = Box::new(rustycog_events::event::Event::new(
-            event_types::MEMBER_JOINED,
-            serde_json::to_value(event).map_err(|e| {
-                ApplicationError::internal_error(&format!("Failed to serialize event: {}", e))
-            })?,
-            member.organization_id(),
+        let roles = roles.iter().map(|role| Role::new(role.permission.clone(), role.resource.clone())).collect();
+        let event = HiveDomainEvent::MemberJoined(MemberJoinedEvent::new(
+            member.organization_id,
+            organization_name.to_string(),
+            member.user_id,
+            roles,
+            member.joined_at.unwrap_or_else(|| Utc::now()),
         ));
 
         self.event_publisher
-            .publish(&domain_event)
+            .publish(&event.into())
             .await
             .map_err(|e| ApplicationError::Domain(e))?;
 
@@ -129,31 +119,23 @@ impl MemberUseCaseImpl {
     /// Publish member removed event
     async fn publish_member_removed_event(
         &self,
-        organization_id: Uuid,
+        organization_id: &Uuid,
         organization_name: &str,
-        user_id: Uuid,
+        user_id: &Uuid,
         user_email: &str,
-        removed_by_user_id: Uuid,
+        removed_by_user_id: &Uuid,
     ) -> Result<(), ApplicationError> {
-        let event = MemberRemovedEvent {
-            organization_id,
-            organization_name: organization_name.to_string(),
-            user_id,
-            user_email: user_email.to_string(),
-            removed_by_user_id,
-            removed_at: Utc::now(),
-        };
-
-        let domain_event: Box<dyn DomainEvent> = Box::new(rustycog_events::event::Event::new(
-            event_types::MEMBER_REMOVED,
-            serde_json::to_value(event).map_err(|e| {
-                ApplicationError::internal_error(&format!("Failed to serialize event: {}", e))
-            })?,
-            organization_id,
+        let event = HiveDomainEvent::MemberRemoved(MemberRemovedEvent::new(
+            organization_id.clone(),
+            organization_name.to_string(),
+            user_id.clone(),
+            user_email.to_string(),
+            removed_by_user_id.clone(),
+            Utc::now(),
         ));
 
         self.event_publisher
-            .publish(&domain_event)
+            .publish(&event.into())
             .await
             .map_err(|e| ApplicationError::Domain(e))?;
 
@@ -171,32 +153,28 @@ impl MemberUseCase for MemberUseCaseImpl {
     ) -> Result<MemberResponse, ApplicationError> {
         // Get organization for validation and events
         let organization = self
-            .organization_repository
-            .find_by_id(organization_id)
+            .organization_service
+            .get_organization(&organization_id)
             .await
-            .map_err(ApplicationError::Domain)?
-            .ok_or_else(|| {
-                ApplicationError::Domain(DomainError::EntityNotFound {
-                    entity_type: "Organization".to_string(),
-                    id: organization_id.to_string(),
-                })
-            })?;
+            .map_err(ApplicationError::Domain)?;
+
+        let role_permissions = request.roles.iter().map(|role| role.into()).collect();
 
         // Use domain service to add member
         let member = self
             .member_service
             .add_member(
-                organization_id,
+                organization_id.clone(),
                 request.user_id,
-                request.role_id,
-                added_by_user_id,
+                role_permissions,
+                Some(added_by_user_id),
             )
             .await
             .map_err(ApplicationError::Domain)?;
 
         // Publish domain event
         // TODO: Get role name from role repository
-        self.publish_member_joined_event(&member, organization.name(), "Member")
+        self.publish_member_joined_event(&member, &organization.name, role_permissions)
             .await?;
 
         Ok(self.member_to_response(&member))
@@ -210,16 +188,10 @@ impl MemberUseCase for MemberUseCaseImpl {
     ) -> Result<(), ApplicationError> {
         // Get organization for validation and events
         let organization = self
-            .organization_repository
-            .find_by_id(organization_id)
+            .organization_service
+            .get_organization(&organization_id)
             .await
-            .map_err(ApplicationError::Domain)?
-            .ok_or_else(|| {
-                ApplicationError::Domain(DomainError::EntityNotFound {
-                    entity_type: "Organization".to_string(),
-                    id: organization_id.to_string(),
-                })
-            })?;
+            .map_err(ApplicationError::Domain)?;
 
         // Use domain service to remove member
         self.member_service
@@ -230,11 +202,11 @@ impl MemberUseCase for MemberUseCaseImpl {
         // Publish domain event
         // TODO: Get user email from IAM service
         self.publish_member_removed_event(
-            organization_id,
-            organization.name(),
-            user_id,
+            &organization_id,
+            &organization.name,
+            &user_id,
             "user@example.com", // Placeholder
-            removed_by_user_id,
+            &removed_by_user_id,
         )
         .await?;
 
@@ -244,14 +216,14 @@ impl MemberUseCase for MemberUseCaseImpl {
     async fn list_members(
         &self,
         organization_id: Uuid,
-        pagination: PaginationRequest,
+        pagination: &PaginationRequest,
         requesting_user_id: Uuid,
     ) -> Result<MemberListResponse, ApplicationError> {
         // TODO: Add permission check
 
-        let (members, total_count) = self
-            .member_repository
-            .find_by_organization_id(organization_id, pagination.page(), pagination.page_size())
+        let members = self
+            .member_service
+            .list_members(organization_id, pagination.page(), pagination.page_size(), requesting_user_id)
             .await
             .map_err(ApplicationError::Domain)?;
 
@@ -260,29 +232,29 @@ impl MemberUseCase for MemberUseCaseImpl {
             .map(|member| self.member_to_response(member))
             .collect();
 
-        let total_pages =
-            (total_count.unwrap_or(0) as f64 / pagination.page_size() as f64).ceil() as u32;
+        let total_count = members.len() as i64;
+        let total_pages = (total_count as f64 / pagination.page_size() as f64).ceil() as u32;
         let has_next = pagination.page() < total_pages;
 
         Ok(MemberListResponse {
             members,
             pagination: crate::dto::PaginationResponse {
                 current_page: pagination.page(),
-                total_items: total_count,
+                total_items: Some(total_count),
                 has_next,
                 has_previous: pagination.page() > 1,
                 next_cursor: if has_next {
-                    Some(pagination.page() + 1)
+                    Some((pagination.page() + 1).to_string())
                 } else {
                     None
                 },
                 previous_cursor: if pagination.page() > 1 {
-                    Some(pagination.page() - 1)
+                    Some((pagination.page() - 1).to_string())
                 } else {
                     None
                 },
                 page_size: pagination.page_size(),
-                total_pages,
+                total_pages: Some(total_pages),
             },
         })
     }
@@ -296,16 +268,10 @@ impl MemberUseCase for MemberUseCaseImpl {
         // TODO: Add permission check
 
         let member = self
-            .member_repository
-            .find_by_organization_and_user(organization_id, user_id)
+            .member_service
+            .get_member(organization_id, user_id, requesting_user_id)
             .await
-            .map_err(ApplicationError::Domain)?
-            .ok_or_else(|| {
-                ApplicationError::Domain(DomainError::EntityNotFound {
-                    entity_type: "OrganizationMember".to_string(),
-                    id: format!("{}:{}", organization_id, user_id),
-                })
-            })?;
+            .map_err(ApplicationError::Domain)?;
 
         Ok(self.member_to_response(&member))
     }

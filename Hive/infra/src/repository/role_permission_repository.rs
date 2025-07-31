@@ -75,13 +75,27 @@ impl RolePermissionRepository for RolePermissionRepositoryImpl {
         Ok(role_permission.map(Self::to_domain))
     }
 
-    async fn find_by_organization_resource_permission(&self, organization_id: &Uuid, role_permission: &RolePermission) -> Result<Vec<RolePermission>, DomainError> {
-        debug!("Finding role permissions by organization ID: {} and resource type: {} and permission ID: {}", organization_id, role_permission.resource_id, role_permission.permission_id);
+    async fn find_by_organization_role(&self, organization_id: &Uuid, resource_type: &str, permission: &str) -> Result<Option<RolePermission>, DomainError> {
+        debug!("Finding role permissions by organization ID: {} and resource type: {} and permission ID: {}", organization_id, resource_type, permission);
 
         let role_permissions = RolePermissions::find()
             .filter(role_permissions::Column::OrganizationId.eq(*organization_id))
-            .filter(role_permissions::Column::ResourceId.eq(role_permission.resource_id))
-            .filter(role_permissions::Column::PermissionId.eq(role_permission.permission_id))
+            .filter(role_permissions::Column::ResourceId.eq(resource_type))
+            .filter(role_permissions::Column::PermissionId.eq(permission))
+            .all(self.db.as_ref())
+            .await
+            .map_err(DomainError::from)?;
+
+        Ok(role_permissions.into_iter().map(Self::to_domain).next())
+    }
+
+    async fn find_by_organization_roles(&self, organization_id: &Uuid, role_permissions: &Vec<RolePermission>) -> Result<Vec<RolePermission>, DomainError> {
+        debug!("Finding role permissions by organization ID: {} and role permissions: {:?}", organization_id, role_permissions);
+
+        let role_permissions = RolePermissions::find()
+            .filter(role_permissions::Column::OrganizationId.eq(*organization_id))
+            .filter(role_permissions::Column::ResourceId.in_array(role_permissions.iter().map(|role| role.resource_id).collect()))
+            .filter(role_permissions::Column::PermissionId.in_array(role_permissions.iter().map(|role| role.permission_id).collect()))
             .all(self.db.as_ref())
             .await
             .map_err(DomainError::from)?;

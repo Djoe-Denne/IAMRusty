@@ -27,6 +27,16 @@ pub enum MemberStatus {
     Suspended,
 }
 
+impl From<MemberStatus> for String {
+    fn from(status: MemberStatus) -> Self {
+        match status {
+            MemberStatus::Pending => "pending".to_string(),
+            MemberStatus::Active => "active".to_string(),
+            MemberStatus::Suspended => "suspended".to_string(),
+        }
+    }
+}
+
 impl OrganizationMember {
     /// Create a new organization member (for direct addition)
     pub fn new(organization_id: Uuid, user_id: Uuid, invited_by_user_id: Option<Uuid>) -> Self {

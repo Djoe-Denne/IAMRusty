@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use validator::Validate;
 
-use crate::dto::PaginationResponse;
+use crate::dto::{PaginationResponse, role::MemberRole};
 
 // =============================================================================
 // Member Request DTOs
@@ -13,14 +13,21 @@ use crate::dto::PaginationResponse;
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct AddMemberRequest {
     pub user_id: Uuid,
-    pub role_id: Uuid,
+    pub roles: Vec<MemberRole>,
 }
 
 /// DTO for updating a member's role or status
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct UpdateMemberRequest {
-    pub role_id: Option<Uuid>,
-    pub status: Option<String>,
+    pub roles: Vec<MemberRole>,
+    pub status: Option<MemberStatus>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum MemberStatus {
+    Pending,
+    Active,
+    Suspended,
 }
 
 // =============================================================================
@@ -33,7 +40,6 @@ pub struct MemberResponse {
     pub id: Uuid,
     pub organization_id: Uuid,
     pub user_id: Uuid,
-    pub role_id: Uuid,
     pub status: String,
     pub invited_by_user_id: Option<Uuid>,
     pub invited_at: Option<DateTime<Utc>>,

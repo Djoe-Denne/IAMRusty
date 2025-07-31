@@ -34,12 +34,12 @@ pub trait OrganizationService: Send + Sync {
      */
     async fn update_organization(
         &self,
-        id: &Uuid,
+        id: Uuid,
         name: Option<String>,
         description: Option<String>,
         avatar_url: Option<String>,
         settings: Option<Value>,
-        requesting_user_id: &Uuid,
+        requesting_user_id: Uuid,
     ) -> Result<Organization, DomainError>;
 
     /**
@@ -49,8 +49,8 @@ pub trait OrganizationService: Send + Sync {
      */
     async fn delete_organization(
         &self,
-        id: &Uuid,
-        requesting_user_id: &Uuid,
+        id: Uuid,
+        requesting_user_id: Uuid,
     ) -> Result<(), DomainError>;
 
     /**
@@ -138,7 +138,7 @@ where
         // Create default system roles for the organization
         let default_roles = self.role_service.create_default_roles(&saved_org.id).await?;
 
-        let owner_role_permission = self.role_service.find_role_permission("organization", "owner", default_roles).await?;
+        let owner_role_permission = self.role_service.find_role_permissions("organization", "owner", default_roles).await?;
 
         // Add owner as the first member with Owner role
         self.member_service.add_member(saved_org.id, organization.owner_user_id, vec![owner_role_permission], None)
@@ -150,22 +150,22 @@ where
     /// Update organization details
     async fn update_organization(
         &self,
-        id: &Uuid,
+        id: Uuid,
         name: Option<String>,
         description: Option<String>,
         avatar_url: Option<String>,
         settings: Option<Value>,
-        requesting_user_id: &Uuid,
+        requesting_user_id: Uuid,
     ) -> Result<Organization, DomainError> {
         // Find the organization
         let mut organization = self
             .organization_repo
-            .find_by_id(id)
+            .find_by_id(&id)
             .await?
             .ok_or_else(|| DomainError::entity_not_found("Organization", &id.to_string()))?;
 
         // Business rule: Only owner or admin can update organization
-        self.role_service.check_admin_permission(id, requesting_user_id, "organization").await?;
+        self.role_service.check_admin_permission(&id, &requesting_user_id, "organization").await?;
 
         // Apply updates
         if let Some(new_name) = name {
@@ -193,31 +193,31 @@ where
     /// Delete organization
     async fn delete_organization(
         &self,
-        id: &Uuid,
-        requesting_user_id: &Uuid,
+        id: Uuid,
+        requesting_user_id: Uuid,
     ) -> Result<(), DomainError> {
         // Find the organization
         let organization = self
             .organization_repo
-            .find_by_id(id)
+            .find_by_id(&id)
             .await?
             .ok_or_else(|| DomainError::entity_not_found("Organization", &id.to_string()))?;
 
         // Business rule: Only owner can delete organization
-        if !organization.is_owned_by(requesting_user_id) {
+        if !organization.is_owned_by(&requesting_user_id) {
             return Err(DomainError::permission_denied(
                 "Only organization owner can delete the organization",
             ));
         }
 
         // Delete all members
-        self.member_service.remove_organization_members(organization.id).await?;
+        self.member_service.remove_organization_members(organization.id, requesting_user_id).await?;
 
         // Delete all roles
-        self.role_service.delete_organization_roles(id).await?;
+        self.role_service.delete_organization_roles(&id).await?;
 
         // Delete the organization (cascade will handle related entities)
-        self.organization_repo.delete_by_id(id).await?;
+        self.organization_repo.delete_by_id(&id).await?;
 
         Ok(())
     }
@@ -225,7 +225,7 @@ where
     /// Get organization by ID
     async fn get_organization(&self, id: &Uuid) -> Result<Organization, DomainError> {
         self.organization_repo
-            .find_by_id(id)
+            .find_by_id(&id)
             .await?
             .ok_or_else(|| DomainError::entity_not_found("Organization", &id.to_string()))
     }

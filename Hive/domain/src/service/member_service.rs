@@ -51,18 +51,20 @@ pub trait MemberService: Send + Sync {
      * 
      * @param organization_id - The ID of the organization to remove the members from
      */
-    async fn remove_organization_members(&self, organization_id: Uuid) -> Result<(), DomainError>;
+    async fn remove_organization_members(&self, organization_id: Uuid, removed_by_user_id: Uuid) -> Result<(), DomainError>;
 
     /**
      * Get a member by organization and user ID
      * 
      * @param organization_id - The ID of the organization to get the member from
      * @param user_id - The ID of the user to get as a member
+     * @param requesting_user_id - The ID of the user who is requesting the member
      */
     async fn get_member(
         &self,
         organization_id: Uuid,
         user_id: Uuid,
+        requesting_user_id: Uuid,
     ) -> Result<OrganizationMember, DomainError>;
 
     /**
@@ -73,6 +75,9 @@ pub trait MemberService: Send + Sync {
     async fn list_members(
         &self,
         organization_id: Uuid,
+        page: u32,
+        page_size: u32,
+        requesting_user_id: Uuid,
     ) -> Result<Vec<OrganizationMember>, DomainError>;
 
     /**
@@ -91,12 +96,14 @@ pub trait MemberService: Send + Sync {
      * @param organization_id - The ID of the organization to update the member's role in
      * @param member_id - The ID of the member to update the role of
      * @param roles - The roles to assign to the member
+     * @param requesting_user_id - The ID of the user who is requesting the member
      */
     async fn update_member_roles(
         &self,
         organization_id: Uuid,
         member_id: Uuid,
         roles: Vec<RolePermission>,
+        requesting_user_id: Uuid,
     ) -> Result<OrganizationMember, DomainError>;
 }
 
@@ -143,7 +150,7 @@ where
         added_by_user_id: Option<Uuid>,
     ) -> Result<OrganizationMember, DomainError> {
         // Validate organization exists
-        let organization = self
+        let _ = self
             .organization_repo
             .find_by_id(&organization_id)
             .await?
@@ -156,7 +163,7 @@ where
         }
 
         // Business rule: Check if user is already a member
-        if let Some(existing_member) = self
+        if let Some(_) = self
             .member_repo
             .find_by_organization_and_user(&organization_id, &user_id)
             .await?
@@ -170,6 +177,8 @@ where
         // Create new member
         let member = OrganizationMember::new(organization_id, user_id, added_by_user_id.clone());
         let mut saved_member = self.member_repo.save(&member).await?;
+
+        let roles = self.role_service.find_role_permissions_by_organization(&organization_id, &roles).await?;
 
         // Add roles to member
         let updated_member = self.update_member_roles(&mut saved_member, roles).await?;
@@ -231,7 +240,11 @@ where
 
     /// Remove all members from an organization
 
-    async fn remove_organization_members(&self, organization_id: Uuid) -> Result<(), DomainError> {
+    async fn remove_organization_members(&self, organization_id: Uuid, removed_by_user_id: Uuid) -> Result<(), DomainError> {
+        if !self.role_service.check_write_permission(&organization_id, &removed_by_user_id, "members").await? {
+            return Err(DomainError::permission_denied("User does not have permission to remove members"));
+        }
+
         self.member_repo.delete_by_organization(&organization_id).await?;
         Ok(())
     }
@@ -242,8 +255,13 @@ where
         organization_id: Uuid,
         user_id: Uuid,
         roles: Vec<RolePermission>,
+        requesting_user_id: Uuid,
     ) -> Result<OrganizationMember, DomainError> {
-        let mut member = self.get_member(organization_id, user_id).await?;
+        if !self.role_service.check_write_permission(&organization_id, &requesting_user_id, "members").await? {
+            return Err(DomainError::permission_denied("User does not have permission to update member roles"));
+        }
+
+        let mut member = self.get_member(organization_id, user_id, requesting_user_id).await?;
         self.update_member_roles(&mut member, roles).await
     }
 
@@ -252,7 +270,12 @@ where
         &self,
         organization_id: Uuid,
         user_id: Uuid,
+        requesting_user_id: Uuid,
     ) -> Result<OrganizationMember, DomainError> {
+        if !self.role_service.check_read_permission(&organization_id, &requesting_user_id, "members").await? {
+            return Err(DomainError::permission_denied("User does not have permission to get members"));
+        }
+
         self.member_repo
             .find_by_organization_and_user(&organization_id, &user_id)
             .await?
@@ -268,17 +291,17 @@ where
     async fn list_members(
         &self,
         organization_id: Uuid,
+        page: u32,
+        page_size: u32,
+        requesting_user_id: Uuid,
     ) -> Result<Vec<OrganizationMember>, DomainError> {
-        // Validate organization exists
-        self.organization_repo
-            .find_by_id(&organization_id)
-            .await?
-            .ok_or_else(|| {
-                DomainError::entity_not_found("Organization", &organization_id.to_string())
-            })?;
+
+        if !self.role_service.check_read_permission(&organization_id, &requesting_user_id, "members").await? {
+            return Err(DomainError::permission_denied("User does not have permission to list members"));
+        }
 
         self.member_repo
-            .find_by_organization(&organization_id)
+            .find_by_organization(&organization_id, page, page_size)
             .await
     }
 

@@ -4,6 +4,8 @@ use uuid::Uuid;
 
 use rustycog_events::BaseEvent;
 
+use crate::Role;
+
 /// Event published when an invitation is created
 /// This triggers an email notification via Telegraph
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -14,7 +16,7 @@ pub struct InvitationCreatedEvent {
     pub organization_name: String,
     pub invitation_id: Uuid,
     pub email: String,
-    pub role_name: String,
+    pub roles: Vec<Role>,
     pub invited_by_user_id: Uuid,
     pub invitation_token: String,
     pub expires_at: DateTime<Utc>,
@@ -56,7 +58,7 @@ impl InvitationCreatedEvent {
         organization_name: String,
         invitation_id: Uuid,
         email: String,
-        role_name: String,
+        roles: Vec<Role>,
         invited_by_user_id: Uuid,
         invitation_token: String,
         expires_at: DateTime<Utc>,
@@ -67,7 +69,7 @@ impl InvitationCreatedEvent {
             organization_name,
             invitation_id,
             email,
-            role_name,
+            roles,
             invited_by_user_id,
             invitation_token,
             expires_at,

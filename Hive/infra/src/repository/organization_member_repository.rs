@@ -111,12 +111,14 @@ impl OrganizationMemberRepository for OrganizationMemberRepositoryImpl {
         }
     }
 
-    async fn find_by_organization(&self, organization_id: &Uuid) -> Result<Vec<OrganizationMember>, DomainError> {
+    async fn find_by_organization(&self, organization_id: &Uuid, page: u32, page_size: u32) -> Result<Vec<OrganizationMember>, DomainError> {
         debug!("Finding organization members by organization: {}", organization_id);
         
         let members = OrganizationMembers::find()
             .filter(organization_members::Column::OrganizationId.eq(*organization_id))
             .order_by(organization_members::Column::CreatedAt, Order::Desc)
+            .offset((page - 1) * page_size)
+            .limit(page_size)
             .all(self.db.as_ref())
             .await
             .map_err(DomainError::from)?;

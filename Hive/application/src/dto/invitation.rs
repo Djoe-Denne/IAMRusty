@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use validator::Validate;
 
-use crate::dto::PaginationResponse;
+use crate::dto::{PaginationResponse, MemberRole};
 
 // =============================================================================
 // Invitation Request DTOs
@@ -14,7 +14,7 @@ use crate::dto::PaginationResponse;
 pub struct CreateInvitationRequest {
     #[validate(email)]
     pub email: String,
-    pub role_id: Uuid,
+    pub roles: Vec<MemberRole>,
     pub message: Option<String>,
 }
 
@@ -29,8 +29,7 @@ pub struct InvitationResponse {
     pub organization_id: Uuid,
     pub organization_name: String,
     pub email: String,
-    pub role_id: Uuid,
-    pub role_name: String,
+    pub roles: Vec<MemberRole>,
     pub status: String,
     pub invited_by_user_id: Uuid,
     pub token: String,

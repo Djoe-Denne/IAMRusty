@@ -2,15 +2,12 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use hive_domain::{port::repository::OrganizationInvitationRepository, DomainError};
-use hive_events::{event_types, InvitationAcceptedEvent, InvitationCreatedEvent};
-use rustycog_events::{DomainEvent, MultiQueueEventPublisher};
+use hive_domain::{service::invitation_service::InvitationService, DomainError, entity::RolePermission};
+use hive_events::{HiveDomainEvent, InvitationCreatedEvent, Role};
+use rustycog_events::EventPublisher;
 
 use crate::{
-    dto::{
-        CreateInvitationRequest, InvitationDetailsResponse, InvitationListResponse,
-        InvitationResponse, PaginationRequest,
-    },
+    dto::*,
     ApplicationError,
 };
 
@@ -19,28 +16,63 @@ pub trait InvitationUseCase: Send + Sync {
     async fn create_invitation(
         &self,
         organization_id: Uuid,
-        request: CreateInvitationRequest,
+        request: &CreateInvitationRequest,
         invited_by_user_id: Uuid,
     ) -> Result<InvitationResponse, ApplicationError>;
 
     async fn accept_invitation(&self, token: String, user_id: Uuid)
         -> Result<(), ApplicationError>;
+
+    async fn cancel_invitation(&self, invitation_id: Uuid) -> Result<(), ApplicationError>;
+
+    async fn get_invitation(&self, invitation_id: Uuid) -> Result<InvitationResponse, ApplicationError>;
 }
 
 pub struct InvitationUseCaseImpl {
-    invitation_repository: Arc<dyn OrganizationInvitationRepository>,
-    event_publisher: Arc<MultiQueueEventPublisher<DomainError>>,
+    invitation_service: Arc<dyn InvitationService>,
+    event_publisher: Arc<dyn EventPublisher<DomainError>>,
 }
 
 impl InvitationUseCaseImpl {
     pub fn new(
-        invitation_repository: Arc<dyn OrganizationInvitationRepository>,
-        event_publisher: Arc<MultiQueueEventPublisher<DomainError>>,
+        invitation_service: Arc<dyn InvitationService>,
+        event_publisher: Arc<dyn EventPublisher<DomainError>>,
     ) -> Self {
         Self {
-            invitation_repository,
+            invitation_service,
             event_publisher,
         }
+    }
+
+    /// Publish invitation created event
+    async fn publish_invitation_created_event(
+        &self,
+        organization_id: Uuid,
+        organization_name: &str,
+        invitation_id: Uuid,
+        email: &str,
+        role_permissions: &Vec<RolePermission>,
+        invited_by_user_id: Uuid,
+        invitation_token: &str,
+        expires_at: chrono::DateTime<chrono::Utc>,
+    ) -> Result<(), ApplicationError> {
+        let event = HiveDomainEvent::InvitationCreated(InvitationCreatedEvent::new(
+            organization_id,
+            organization_name.to_string(),
+            invitation_id,
+            email.to_string(),
+            role_permissions.iter().map(|role| Role::new(role.permission.clone(), role.resource.clone())).collect(),
+            invited_by_user_id,
+            invitation_token.to_string(),
+            expires_at,
+        ));
+
+        self.event_publisher
+            .publish(&event.into())
+            .await
+            .map_err(|e| ApplicationError::Domain(e))?;
+
+        Ok(())
     }
 }
 
@@ -49,52 +81,51 @@ impl InvitationUseCase for InvitationUseCaseImpl {
     async fn create_invitation(
         &self,
         organization_id: Uuid,
-        request: CreateInvitationRequest,
+        request: &CreateInvitationRequest,
         invited_by_user_id: Uuid,
     ) -> Result<InvitationResponse, ApplicationError> {
-        // TODO: Implement invitation creation logic
+        let role_permissions = request.roles.iter().map(|role| role.into()).collect();
+        let invitation = self.invitation_service
+        .create_invitation_by_email(organization_id.clone(), request.email.clone(), role_permissions, invited_by_user_id.clone(), request.message.clone(), None)
+        .await
+        .map_err(|e| ApplicationError::Domain(e))?;
 
-        // Placeholder event publishing
-        let event = InvitationCreatedEvent {
+        self.publish_invitation_created_event(
             organization_id,
-            organization_name: "Test Org".to_string(),
-            invitation_id: Uuid::new_v4(),
-            email: request.email.clone(),
-            role_name: "Member".to_string(),
+            &invitation.organization_name,
+            invitation.id,
+            &invitation.aggregate_id,
+            &invitation.role_permissions,
             invited_by_user_id,
-            invitation_token: "token".to_string(),
-            expires_at: chrono::Utc::now() + chrono::Duration::days(7),
-        };
+            &invitation.token,
+            invitation.expires_at,
+        ).await?;
 
-        let domain_event: Box<dyn DomainEvent> = Box::new(rustycog_events::event::Event::new(
-            event_types::INVITATION_CREATED,
-            serde_json::to_value(event).map_err(|e| {
-                ApplicationError::internal_error(&format!("Failed to serialize event: {}", e))
-            })?,
-            organization_id,
-        ));
-
-        self.event_publisher
-            .publish(&domain_event)
-            .await
-            .map_err(|e| ApplicationError::Domain(e))?;
-
-        // Return placeholder response
-        Ok(InvitationResponse {
-            id: Uuid::new_v4(),
-            organization_id,
-            email: request.email,
-            role_id: request.role_id,
-            status: "pending".to_string(),
-        })
+        Ok(self.invitation_to_response(&invitation))
     }
 
     async fn accept_invitation(
         &self,
-        token: String,
-        user_id: Uuid,
+        token: &String,
+        user_id: &Uuid,
     ) -> Result<(), ApplicationError> {
-        // TODO: Implement invitation acceptance logic
+        let invitation = self.invitation_service.accept_invitation(token, user_id).await
+        .map_err(|e| ApplicationError::Domain(e))?;
+
         Ok(())
+    }
+
+    async fn cancel_invitation(&self, invitation_id: &Uuid) -> Result<(), ApplicationError> {
+        let invitation = self.invitation_service.cancel_invitation(invitation_id).await
+        .map_err(|e| ApplicationError::Domain(e))?;
+
+        Ok(())
+    }
+    
+    async fn get_invitation(&self, invitation_id: &Uuid) -> Result<InvitationResponse, ApplicationError> {
+        let invitation = self.invitation_service.get_invitation(invitation_id).await
+        .map_err(|e| ApplicationError::Domain(e))?;
+
+        Ok(invitation)
     }
 }

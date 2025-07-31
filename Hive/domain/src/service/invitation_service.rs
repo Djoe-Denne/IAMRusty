@@ -18,7 +18,7 @@ where
 }
 
 #[async_trait::async_trait]
-pub trait InvitationService {
+pub trait InvitationService: Send + Sync {
     /**
      * Create an invitation to join an organization by email. used for non existing users
      * 

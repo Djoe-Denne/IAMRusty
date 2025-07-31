@@ -8,6 +8,7 @@ pub mod external_link;
 pub mod invitation;
 pub mod member;
 pub mod organization;
+pub mod role;
 pub mod sync;
 
 pub use external_link::*;
@@ -15,6 +16,7 @@ pub use invitation::*;
 pub use member::*;
 pub use organization::*;
 pub use sync::*;
+pub use role::*;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};

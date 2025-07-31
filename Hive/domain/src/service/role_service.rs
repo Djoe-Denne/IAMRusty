@@ -88,7 +88,15 @@ pub trait RoleService: Send + Sync {
      * @param permission - The permission to find the role permission for
      * @param role_permissions - The list of role permissions to search in
      */
-    async fn find_role_permission(&self, resource_type: &str, permission: &str, role_permissions: Vec<RolePermission>) -> Result<RolePermission, DomainError>;
+    async fn find_role_permissions(&self, resource_type: &str, permission: &str, role_permissions: Vec<RolePermission>) -> Result<RolePermission, DomainError>;
+
+    /**
+     * Find role permissions by organization ID
+     * 
+     * @param organization_id - The ID of the organization to find the role permissions for
+     * @param role_permissions - The list of role permissions to search in
+     */
+    async fn find_role_permissions_by_organization(&self, organization_id: &Uuid, role_permissions: &Vec<RolePermission>) -> Result<Vec<RolePermission>, DomainError>;
 
     /**
      * Add roles to a member
@@ -247,7 +255,7 @@ where
         for permission in &permissions {
             for resource in &resources {
                 let name = format!("{}:{}", resource.name, permission.level.as_str());
-                let role = RolePermission::new(Uuid::new_v4(), name, None, permission, resource, Utc::now());
+                let role = RolePermission::new(None, Some(name), None, permission, resource, Some(Utc::now()));
                 let role = self.role_permission_repo.save(organization_id, &role).await.map_err(|e| DomainError::Internal {
                     message: e.to_string(),
                 })?;
@@ -265,7 +273,7 @@ where
         Ok(())
     }
 
-    async fn find_role_permission(&self, resource_type: &str, permission: &str, role_permissions: Vec<RolePermission>) -> Result<RolePermission, DomainError> {
+    async fn find_role_permissions(&self, resource_type: &str, permission: &str, role_permissions: Vec<RolePermission>) -> Result<RolePermission, DomainError> {
         role_permissions.iter().find(|role_permission| role_permission.resource.name == resource_type && role_permission.permission.level.as_str() == permission).ok_or(DomainError::entity_not_found(
             "RolePermission",
             &format!("resource_type={}, permission={}", resource_type, permission),
@@ -279,5 +287,13 @@ where
             new_roles.push(self.member_role_repo.save(&new_role).await.map_err(|e| DomainError::BusinessRuleViolation { rule: "Trying to add roles to a unexisting member".to_string() })?);
         }
         Ok(new_roles)
+    }
+
+    async fn find_role_permissions_by_organization(&self, organization_id: &Uuid, role_permissions: &Vec<RolePermission>) -> Result<Vec<RolePermission>, DomainError> {
+        let roles = self.role_permission_repo.find_by_organization_roles(organization_id, &role_permissions).await.map_err(|e| DomainError::Internal {
+            message: e.to_string(),
+        })?;
+
+        Ok(roles)
     }
 }
