@@ -1,11 +1,13 @@
 use async_trait::async_trait;
-use rustycog_command::{Command, CommandError, CommandHandler};
+use rustycog_command::{Command, CommandError, CommandErrorMapper, CommandHandler};
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::dto::{
-    CreateRoleRequest, PaginationRequest, RoleListResponse, RoleResponse, UpdateRoleRequest,
-};
+use crate::{
+    dto::{
+    role::{CreateMemberRoleRequest, MemberRole, UpdateMemberRoleRequest},
+    PaginationRequest,
+}, ApplicationError};
 
 // Placeholder role use case trait
 #[async_trait]
@@ -13,29 +15,29 @@ pub trait RoleUseCase: Send + Sync {
     async fn create_role(
         &self,
         organization_id: Uuid,
-        request: CreateRoleRequest,
+        request: &CreateMemberRoleRequest,
         user_id: Uuid,
-    ) -> Result<RoleResponse, crate::ApplicationError>;
+    ) -> Result<MemberRole, crate::ApplicationError>;
 
     async fn list_roles(
         &self,
         organization_id: Uuid,
-        pagination: PaginationRequest,
-    ) -> Result<RoleListResponse, crate::ApplicationError>;
+        pagination: &PaginationRequest,
+    ) -> Result<Vec<MemberRole>, crate::ApplicationError>;
 
     async fn get_role(
         &self,
         organization_id: Uuid,
         role_id: Uuid,
-    ) -> Result<RoleResponse, crate::ApplicationError>;
+    ) -> Result<MemberRole, crate::ApplicationError>;
 
     async fn update_role(
         &self,
         organization_id: Uuid,
         role_id: Uuid,
-        request: UpdateRoleRequest,
+        request: &UpdateMemberRoleRequest,
         user_id: Uuid,
-    ) -> Result<RoleResponse, crate::ApplicationError>;
+    ) -> Result<MemberRole, crate::ApplicationError>;
 
     async fn delete_role(
         &self,
@@ -50,16 +52,16 @@ pub trait RoleUseCase: Send + Sync {
 pub struct CreateRoleCommand {
     pub command_id: Uuid,
     pub organization_id: Uuid,
-    pub request: CreateRoleRequest,
+    pub request: CreateMemberRoleRequest,
     pub user_id: Uuid,
 }
 
 impl CreateRoleCommand {
-    pub fn new(organization_id: Uuid, request: CreateRoleRequest, user_id: Uuid) -> Self {
+    pub fn new(organization_id: Uuid, request: &CreateMemberRoleRequest, user_id: Uuid) -> Self {
         Self {
             command_id: Uuid::new_v4(),
             organization_id,
-            request,
+            request: request.clone(),
             user_id,
         }
     }
@@ -67,7 +69,7 @@ impl CreateRoleCommand {
 
 #[async_trait]
 impl Command for CreateRoleCommand {
-    type Result = RoleResponse;
+    type Result = MemberRole;
 
     fn command_type(&self) -> &'static str {
         "create_role"
@@ -100,9 +102,9 @@ impl CreateRoleCommandHandler {
 
 #[async_trait]
 impl CommandHandler<CreateRoleCommand> for CreateRoleCommandHandler {
-    async fn handle(&self, command: CreateRoleCommand) -> Result<RoleResponse, CommandError> {
+    async fn handle(&self, command: CreateRoleCommand) -> Result<MemberRole, CommandError> {
         self.role_usecase
-            .create_role(command.organization_id, command.request, command.user_id)
+            .create_role(command.organization_id, &command.request, command.user_id)
             .await
             .map_err(|e| CommandError::business("create_role_failed", &e.to_string()))
     }
@@ -128,7 +130,7 @@ impl ListRolesCommand {
 
 #[async_trait]
 impl Command for ListRolesCommand {
-    type Result = RoleListResponse;
+    type Result = Vec<MemberRole>;
 
     fn command_type(&self) -> &'static str {
         "list_roles"
@@ -155,9 +157,9 @@ impl ListRolesCommandHandler {
 
 #[async_trait]
 impl CommandHandler<ListRolesCommand> for ListRolesCommandHandler {
-    async fn handle(&self, command: ListRolesCommand) -> Result<RoleListResponse, CommandError> {
+    async fn handle(&self, command: ListRolesCommand) -> Result<Vec<MemberRole>, CommandError> {
         self.role_usecase
-            .list_roles(command.organization_id, command.pagination)
+            .list_roles(command.organization_id, &command.pagination)
             .await
             .map_err(|e| CommandError::business("list_roles_failed", &e.to_string()))
     }
@@ -183,7 +185,7 @@ impl GetRoleCommand {
 
 #[async_trait]
 impl Command for GetRoleCommand {
-    type Result = RoleResponse;
+    type Result = MemberRole;
 
     fn command_type(&self) -> &'static str {
         "get_role"
@@ -210,7 +212,7 @@ impl GetRoleCommandHandler {
 
 #[async_trait]
 impl CommandHandler<GetRoleCommand> for GetRoleCommandHandler {
-    async fn handle(&self, command: GetRoleCommand) -> Result<RoleResponse, CommandError> {
+    async fn handle(&self, command: GetRoleCommand) -> Result<MemberRole, CommandError> {
         self.role_usecase
             .get_role(command.organization_id, command.role_id)
             .await
@@ -224,7 +226,7 @@ pub struct UpdateRoleCommand {
     pub command_id: Uuid,
     pub organization_id: Uuid,
     pub role_id: Uuid,
-    pub request: UpdateRoleRequest,
+    pub request: UpdateMemberRoleRequest,
     pub user_id: Uuid,
 }
 
@@ -232,14 +234,14 @@ impl UpdateRoleCommand {
     pub fn new(
         organization_id: Uuid,
         role_id: Uuid,
-        request: UpdateRoleRequest,
+        request: &UpdateMemberRoleRequest,
         user_id: Uuid,
     ) -> Self {
         Self {
             command_id: Uuid::new_v4(),
             organization_id,
             role_id,
-            request,
+            request: request.clone(),
             user_id,
         }
     }
@@ -247,7 +249,7 @@ impl UpdateRoleCommand {
 
 #[async_trait]
 impl Command for UpdateRoleCommand {
-    type Result = RoleResponse;
+    type Result = MemberRole;
 
     fn command_type(&self) -> &'static str {
         "update_role"
@@ -282,12 +284,12 @@ impl UpdateRoleCommandHandler {
 
 #[async_trait]
 impl CommandHandler<UpdateRoleCommand> for UpdateRoleCommandHandler {
-    async fn handle(&self, command: UpdateRoleCommand) -> Result<RoleResponse, CommandError> {
+    async fn handle(&self, command: UpdateRoleCommand) -> Result<MemberRole, CommandError> {
         self.role_usecase
             .update_role(
                 command.organization_id,
                 command.role_id,
-                command.request,
+                &command.request,
                 command.user_id,
             )
             .await
@@ -355,8 +357,31 @@ impl CommandHandler<DeleteRoleCommand> for DeleteRoleCommandHandler {
 // Error Mapper
 pub struct RoleErrorMapper;
 
-impl RoleErrorMapper {
-    pub fn from_application_error(error: crate::ApplicationError) -> CommandError {
-        CommandError::business("role_operation_failed", &error.to_string())
+impl CommandErrorMapper for RoleErrorMapper {
+    fn map_error(&self, error: Box<dyn std::error::Error + Send + Sync>) -> CommandError {
+        if let Some(error) = error.downcast_ref::<ApplicationError>() {
+            match error {
+                ApplicationError::Domain(domain_error) => {
+                    CommandError::business("domain_error", &domain_error.to_string())
+                }
+                ApplicationError::ValidationError(_) => {
+                    CommandError::validation("validation_failed", &error.to_string())
+                }
+                ApplicationError::ExternalService { .. } => {
+                    CommandError::infrastructure("external_error", &error.to_string())
+                }
+                ApplicationError::ConcurrentOperation { .. } => {
+                    CommandError::business("concurrent_operation", &error.to_string())
+                }
+                ApplicationError::RateLimit { .. } => {
+                    CommandError::business("rate_limit", &error.to_string())
+                }
+                ApplicationError::Internal { .. } => {
+                    CommandError::infrastructure("internal_error", &error.to_string())
+                }
+            }
+        } else {
+            CommandError::business("unknown_error", &error.to_string())
+        }
     }
 }

@@ -4,10 +4,9 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use hive_domain::{
-    entity::RolePermission,
-    port::repository::{OrganizationMemberRepository, OrganizationRepository},
-    service::{MemberService, OrganizationService, RoleService},
-    DomainError, Organization, OrganizationMember, OrganizationRole,
+    entity::{Permission, RolePermission, Resource},
+    service::{MemberService, OrganizationService},
+    DomainError, OrganizationMember,
 };
 use hive_events::{HiveDomainEvent, MemberJoinedEvent, MemberRemovedEvent, Role};
 use rustycog_events::EventPublisher;
@@ -15,7 +14,6 @@ use rustycog_events::EventPublisher;
 use crate::{
     dto::{
         AddMemberRequest, MemberListResponse, MemberResponse, PaginationRequest,
-        UpdateMemberRequest, role::MemberRole,
     },
     ApplicationError,
 };
@@ -27,7 +25,7 @@ pub trait MemberUseCase: Send + Sync {
     async fn add_member(
         &self,
         organization_id: Uuid,
-        request: AddMemberRequest,
+        request: &AddMemberRequest,
         added_by_user_id: Uuid,
     ) -> Result<MemberResponse, ApplicationError>;
 
@@ -99,7 +97,7 @@ impl MemberUseCaseImpl {
         organization_name: &str,
         roles: &Vec<RolePermission>,
     ) -> Result<(), ApplicationError> {
-        let roles = roles.iter().map(|role| Role::new(role.permission.clone(), role.resource.clone())).collect();
+        let roles = roles.iter().map(|role| Role::new(role.permission.level.as_str().to_string(), role.resource.name.clone())).collect();
         let event = HiveDomainEvent::MemberJoined(MemberJoinedEvent::new(
             member.organization_id,
             organization_name.to_string(),
@@ -119,11 +117,11 @@ impl MemberUseCaseImpl {
     /// Publish member removed event
     async fn publish_member_removed_event(
         &self,
-        organization_id: &Uuid,
+        organization_id: Uuid,
         organization_name: &str,
-        user_id: &Uuid,
+        user_id: Uuid,
         user_email: &str,
-        removed_by_user_id: &Uuid,
+        removed_by_user_id: Uuid,
     ) -> Result<(), ApplicationError> {
         let event = HiveDomainEvent::MemberRemoved(MemberRemovedEvent::new(
             organization_id.clone(),
@@ -148,7 +146,7 @@ impl MemberUseCase for MemberUseCaseImpl {
     async fn add_member(
         &self,
         organization_id: Uuid,
-        request: AddMemberRequest,
+        request: &AddMemberRequest,
         added_by_user_id: Uuid,
     ) -> Result<MemberResponse, ApplicationError> {
         // Get organization for validation and events
@@ -158,7 +156,7 @@ impl MemberUseCase for MemberUseCaseImpl {
             .await
             .map_err(ApplicationError::Domain)?;
 
-        let role_permissions = request.roles.iter().map(|role| role.into()).collect();
+        let role_permissions: Vec<RolePermission> = request.roles.iter().map(|role| role.into()).collect();
 
         // Use domain service to add member
         let member = self
@@ -166,7 +164,7 @@ impl MemberUseCase for MemberUseCaseImpl {
             .add_member(
                 organization_id.clone(),
                 request.user_id,
-                role_permissions,
+                role_permissions.clone(),
                 Some(added_by_user_id),
             )
             .await
@@ -174,7 +172,7 @@ impl MemberUseCase for MemberUseCaseImpl {
 
         // Publish domain event
         // TODO: Get role name from role repository
-        self.publish_member_joined_event(&member, &organization.name, role_permissions)
+        self.publish_member_joined_event(&member, &organization.name, &role_permissions)
             .await?;
 
         Ok(self.member_to_response(&member))
@@ -202,11 +200,11 @@ impl MemberUseCase for MemberUseCaseImpl {
         // Publish domain event
         // TODO: Get user email from IAM service
         self.publish_member_removed_event(
-            &organization_id,
+            organization_id,
             &organization.name,
-            &user_id,
+            user_id,
             "user@example.com", // Placeholder
-            &removed_by_user_id,
+            removed_by_user_id,
         )
         .await?;
 

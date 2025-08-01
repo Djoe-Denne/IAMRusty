@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use rustycog_command::{Command, CommandError, CommandHandler};
+use rustycog_command::{Command, CommandError, CommandErrorMapper, CommandHandler};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -9,6 +9,7 @@ use crate::{
         ExternalLinkResponse, ToggleSyncRequest, UpdateExternalLinkRequest,
     },
     usecase::ExternalLinkUseCase,
+    ApplicationError,
 };
 
 #[derive(Debug, Clone)]
@@ -20,11 +21,11 @@ pub struct CreateExternalLinkCommand {
 }
 
 impl CreateExternalLinkCommand {
-    pub fn new(organization_id: Uuid, request: CreateExternalLinkRequest, user_id: Uuid) -> Self {
+    pub fn new(organization_id: Uuid, request: &CreateExternalLinkRequest, user_id: Uuid) -> Self {
         Self {
             command_id: Uuid::new_v4(),
             organization_id,
-            request,
+            request: request.clone(),
             user_id,
         }
     }
@@ -66,7 +67,7 @@ impl CommandHandler<CreateExternalLinkCommand> for CreateExternalLinkCommandHand
         command: CreateExternalLinkCommand,
     ) -> Result<ExternalLinkResponse, CommandError> {
         self.external_link_usecase
-            .create_link(command.organization_id, command.request, command.user_id)
+            .create_link(command.organization_id, &command.request, command.user_id)
             .await
             .map_err(|e| CommandError::business("create_external_link_failed", &e.to_string()))
     }
@@ -74,8 +75,31 @@ impl CommandHandler<CreateExternalLinkCommand> for CreateExternalLinkCommandHand
 
 pub struct ExternalLinkErrorMapper;
 
-impl ExternalLinkErrorMapper {
-    pub fn from_application_error(error: crate::ApplicationError) -> CommandError {
-        CommandError::business("external_link_operation_failed", &error.to_string())
+impl CommandErrorMapper for ExternalLinkErrorMapper {
+    fn map_error(&self, error: Box<dyn std::error::Error + Send + Sync>) -> CommandError {
+        if let Some(error) = error.downcast_ref::<ApplicationError>() {
+            match error {
+                ApplicationError::Domain(domain_error) => {
+                    CommandError::business("domain_error", &domain_error.to_string())
+                }
+                ApplicationError::ValidationError(_) => {
+                    CommandError::validation("validation_failed", &error.to_string())
+                }
+                ApplicationError::ExternalService { .. } => {
+                    CommandError::infrastructure("external_error", &error.to_string())
+                }
+                ApplicationError::ConcurrentOperation { .. } => {
+                    CommandError::business("concurrent_operation", &error.to_string())
+                }
+                ApplicationError::RateLimit { .. } => {
+                    CommandError::business("rate_limit", &error.to_string())
+                }
+                ApplicationError::Internal { .. } => {
+                    CommandError::infrastructure("internal_error", &error.to_string())
+                }
+            }
+        } else {
+            CommandError::infrastructure("unknown_error", &error.to_string())
+        }
     }
 }

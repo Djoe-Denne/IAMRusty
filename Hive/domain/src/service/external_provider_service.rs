@@ -12,7 +12,7 @@ use crate::{
 };
 
 /// Domain service for external provider integration
-pub struct ExternalProviderServiceImpl<OR, ELR, EPR, OS, RS, SS>
+pub struct ExternalProviderServiceImpl<OR, ELR, EPR, OS, RS, SS, PC>
 where
     OR: OrganizationRepository,
     ELR: ExternalLinkRepository,
@@ -20,6 +20,7 @@ where
     OS: OrganizationService,
     RS: RoleService,
     SS: SyncService,
+    PC: ExternalProviderClient,
 {
     organization_repo: OR,
     external_link_repo: ELR,
@@ -27,6 +28,7 @@ where
     organization_service: OS,
     role_service: RS,
     sync_service: SS,
+    provider_client: PC,
 }
 
 #[async_trait::async_trait]
@@ -43,7 +45,7 @@ pub trait ExternalProviderService: Send + Sync {
         &self,
         organization_id: Uuid,
         provider_id: Uuid,
-        provider_config: serde_json::Value,
+        provider_config: &serde_json::Value,
         requesting_user_id: Uuid,
     ) -> Result<ExternalLink, DomainError>;
 
@@ -71,7 +73,6 @@ pub trait ExternalProviderService: Send + Sync {
         &self,
         provider_id: Uuid,
         provider_config: &serde_json::Value,
-        provider_client: &dyn ExternalProviderClient,
     ) -> Result<bool, DomainError>;
 
     /**
@@ -97,7 +98,7 @@ pub trait ExternalProviderService: Send + Sync {
     ) -> Result<Vec<ExternalLink>, DomainError>;
 }
 
-impl<OR, ELR, EPR, OS, RS, SS> ExternalProviderServiceImpl<OR, ELR, EPR, OS, RS, SS>
+impl<OR, ELR, EPR, OS, RS, SS, PC> ExternalProviderServiceImpl<OR, ELR, EPR, OS, RS, SS, PC>
 where
     OR: OrganizationRepository,
     ELR: ExternalLinkRepository,
@@ -105,6 +106,7 @@ where
     OS: OrganizationService,
     RS: RoleService,
     SS: SyncService,
+    PC: ExternalProviderClient,
 {
     /// Create a new external provider service
     pub fn new(
@@ -114,6 +116,7 @@ where
         organization_service: OS,
         role_service: RS,
         sync_service: SS,
+        provider_client: PC,
     ) -> Self {
         Self {
             organization_repo,
@@ -122,12 +125,13 @@ where
             organization_service,
             role_service,
             sync_service,
+            provider_client,
         }
     }
 }
 
 #[async_trait::async_trait]
-impl<OR, ELR, EPR, OS, RS, SS> ExternalProviderService for ExternalProviderServiceImpl<OR, ELR, EPR, OS, RS, SS>
+impl<OR, ELR, EPR, OS, RS, SS, PC> ExternalProviderService for ExternalProviderServiceImpl<OR, ELR, EPR, OS, RS, SS, PC>
 where
     OR: OrganizationRepository,
     ELR: ExternalLinkRepository,
@@ -135,13 +139,14 @@ where
     OS: OrganizationService,
     RS: RoleService,
     SS: SyncService,
+    PC: ExternalProviderClient,
 {
     /// Link an organization to an external provider
     async fn link_organization(
         &self,
         organization_id: Uuid,
         provider_id: Uuid,
-        provider_config: serde_json::Value,
+        provider_config: &serde_json::Value,
         requesting_user_id: Uuid,
     ) -> Result<ExternalLink, DomainError> {
         // Validate organization exists
@@ -178,8 +183,10 @@ where
         // Create new external link
         let external_link = ExternalLink::new(
             organization_id,
+            organization.name,
             provider_id,
-            provider_config,
+            provider.name,
+            provider_config.clone(),
             Some(serde_json::json!({})), // Default sync settings
         )?;
 
@@ -224,7 +231,6 @@ where
         &self,
         provider_id: Uuid,
         provider_config: &serde_json::Value,
-        provider_client: &dyn ExternalProviderClient,
     ) -> Result<bool, DomainError> {
         // Validate provider exists
         let _provider = self
@@ -234,10 +240,10 @@ where
             .ok_or_else(|| DomainError::entity_not_found("ExternalProvider", &provider_id.to_string()))?;
 
         // Validate configuration
-        provider_client.validate_config(provider_config).await?;
+        self.provider_client.validate_config(provider_config).await?;
 
         // Test connection
-        let connection_ok = provider_client.test_connection(provider_config).await?;
+        let connection_ok = self.provider_client.test_connection(provider_config).await?;
 
         Ok(connection_ok)
     }

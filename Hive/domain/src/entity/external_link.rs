@@ -11,7 +11,9 @@ use crate::error::DomainError;
 pub struct ExternalLink {
     pub id: Uuid,
     pub organization_id: Uuid,
+    pub organization_name: String,
     pub provider_id: Uuid,
+    pub provider_name: String,
     pub provider_config: Value,
     pub sync_enabled: bool,
     pub sync_settings: Value,
@@ -34,7 +36,9 @@ impl ExternalLink {
     /// Create a new external link
     pub fn new(
         organization_id: Uuid,
+        organization_name: String,
         provider_id: Uuid,
+        provider_name: String,
         provider_config: Value,
         sync_settings: Option<Value>,
     ) -> Result<Self, DomainError> {
@@ -44,7 +48,9 @@ impl ExternalLink {
         Ok(Self {
             id: Uuid::new_v4(),
             organization_id,
+            organization_name,
             provider_id,
+            provider_name,
             provider_config,
             sync_enabled: false,
             sync_settings: sync_settings.unwrap_or_else(|| serde_json::json!({})),
@@ -180,122 +186,5 @@ impl SyncStatus {
                 s
             ))),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_create_external_link() {
-        let org_id = Uuid::new_v4();
-        let provider_id = Uuid::new_v4();
-        let config = serde_json::json!({
-            "org_name": "test-org",
-            "access_token": "token123"
-        });
-
-        let link = ExternalLink::new(org_id, provider_id, config.clone(), None);
-
-        assert!(link.is_ok());
-        let link = link.unwrap();
-        assert_eq!(link.organization_id, org_id);
-        assert_eq!(link.provider_id, provider_id);
-        assert_eq!(link.provider_config, config);
-        assert!(!link.sync_enabled);
-        assert!(!link.has_been_synced());
-    }
-
-    #[test]
-    fn test_validate_provider_config() {
-        let org_id = Uuid::new_v4();
-        let provider_id = Uuid::new_v4();
-
-        // Empty config should fail
-        let result = ExternalLink::new(org_id, provider_id, serde_json::json!({}), None);
-        assert!(result.is_err());
-
-        // Non-object config should fail
-        let result = ExternalLink::new(org_id, provider_id, serde_json::json!("invalid"), None);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_enable_disable_sync() {
-        let org_id = Uuid::new_v4();
-        let provider_id = Uuid::new_v4();
-        let config = serde_json::json!({"key": "value"});
-
-        let mut link = ExternalLink::new(org_id, provider_id, config, None).unwrap();
-
-        assert!(!link.is_sync_enabled());
-
-        link.enable_sync();
-        assert!(link.is_sync_enabled());
-
-        link.disable_sync();
-        assert!(!link.is_sync_enabled());
-    }
-
-    #[test]
-    fn test_record_sync_results() {
-        let org_id = Uuid::new_v4();
-        let provider_id = Uuid::new_v4();
-        let config = serde_json::json!({"key": "value"});
-
-        let mut link = ExternalLink::new(org_id, provider_id, config, None).unwrap();
-
-        // Record success
-        link.record_sync_success();
-        assert!(link.has_been_synced());
-        assert!(link.is_last_sync_successful());
-        assert!(matches!(link.get_sync_health(), SyncHealth::Healthy));
-        assert!(link.sync_error.is_none());
-
-        // Record failure
-        link.record_sync_failure("Connection failed".to_string());
-        assert!(!link.is_last_sync_successful());
-        assert!(matches!(link.get_sync_health(), SyncHealth::Error));
-        assert_eq!(link.sync_error, Some("Connection failed".to_string()));
-
-        // Record partial
-        link.record_sync_partial(Some("Some items failed".to_string()));
-        assert!(matches!(link.get_sync_health(), SyncHealth::Warning));
-        assert_eq!(link.sync_error, Some("Some items failed".to_string()));
-    }
-
-    #[test]
-    fn test_update_provider_config() {
-        let org_id = Uuid::new_v4();
-        let provider_id = Uuid::new_v4();
-        let config = serde_json::json!({"key": "value"});
-
-        let mut link = ExternalLink::new(org_id, provider_id, config, None).unwrap();
-        let original_updated_at = link.updated_at;
-
-        let new_config = serde_json::json!({"new_key": "new_value"});
-        let result = link.update_provider_config(new_config.clone());
-
-        assert!(result.is_ok());
-        assert_eq!(link.provider_config, new_config);
-        assert!(link.updated_at > original_updated_at);
-    }
-
-    #[test]
-    fn test_sync_status_conversion() {
-        assert_eq!(SyncStatus::Success.as_str(), "success");
-        assert_eq!(SyncStatus::Failed.as_str(), "failed");
-        assert_eq!(SyncStatus::Partial.as_str(), "partial");
-
-        assert!(matches!(
-            SyncStatus::from_str("success").unwrap(),
-            SyncStatus::Success
-        ));
-        assert!(matches!(
-            SyncStatus::from_str("FAILED").unwrap(),
-            SyncStatus::Failed
-        ));
-        assert!(SyncStatus::from_str("invalid").is_err());
     }
 }

@@ -91,7 +91,7 @@ pub trait OrganizationUseCase: Send + Sync {
     async fn search_organizations(
         &self,
         request: &OrganizationSearchRequest,
-        user_id: Uuid,
+        user_id: Option<Uuid>,
     ) -> Result<OrganizationListResponse, ApplicationError>;
 }
 
@@ -370,13 +370,13 @@ impl OrganizationUseCase for OrganizationUseCaseImpl {
     async fn search_organizations(
         &self,
         request: &OrganizationSearchRequest,
-        user_id: Uuid,
+        user_id: Option<Uuid>,
     ) -> Result<OrganizationListResponse, ApplicationError> {
         let organizations = self
             .organization_service
             .search_organizations(
                 &request.query,
-                Some(user_id),
+                user_id,
                 request.page.unwrap_or(1) as u32,
                 request.page_size.unwrap_or(10) as u32,
             )

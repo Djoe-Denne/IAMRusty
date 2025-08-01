@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use rustycog_command::{Command, CommandError, CommandHandler};
+use rustycog_command::{Command, CommandError, CommandErrorMapper, CommandHandler};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -9,6 +9,7 @@ use crate::{
         UpdateMemberRequest,
     },
     usecase::MemberUseCase,
+    ApplicationError,
 };
 
 // Add Member Command
@@ -21,11 +22,11 @@ pub struct AddMemberCommand {
 }
 
 impl AddMemberCommand {
-    pub fn new(organization_id: Uuid, request: AddMemberRequest, added_by_user_id: Uuid) -> Self {
+    pub fn new(organization_id: Uuid, request: &AddMemberRequest, added_by_user_id: Uuid) -> Self {
         Self {
             command_id: Uuid::new_v4(),
             organization_id,
-            request,
+            request: request.clone(),
             added_by_user_id,
         }
     }
@@ -64,7 +65,7 @@ impl CommandHandler<AddMemberCommand> for AddMemberCommandHandler {
         self.member_usecase
             .add_member(
                 command.organization_id,
-                command.request,
+                &command.request,
                 command.added_by_user_id,
             )
             .await
@@ -82,7 +83,7 @@ pub struct RemoveMemberCommand {
 }
 
 impl RemoveMemberCommand {
-    pub fn new(organization_id: Uuid, user_id: Uuid, removed_by_user_id: Uuid) -> Self {
+    pub fn new(organization_id: Uuid, user_id: Uuid, removed_by_user_id: Uuid) -> Self { // TODO: Get removed_by_user_id from context
         Self {
             command_id: Uuid::new_v4(),
             organization_id,
@@ -186,7 +187,7 @@ impl CommandHandler<ListMembersCommand> for ListMembersCommandHandler {
         command: ListMembersCommand,
     ) -> Result<MemberListResponse, CommandError> {
         self.member_usecase
-            .list_members(command.organization_id, command.pagination, Uuid::new_v4()) // TODO: Get user_id from context
+            .list_members(command.organization_id, &command.pagination, Uuid::new_v4()) // TODO: Get user_id from context
             .await
             .map_err(|e| CommandError::business("list_members_failed", &e.to_string()))
     }
@@ -257,12 +258,12 @@ pub struct UpdateMemberCommand {
 }
 
 impl UpdateMemberCommand {
-    pub fn new(organization_id: Uuid, user_id: Uuid, request: UpdateMemberRequest) -> Self {
+    pub fn new(organization_id: Uuid, user_id: Uuid, request: &UpdateMemberRequest) -> Self {
         Self {
             command_id: Uuid::new_v4(),
             organization_id,
             user_id,
-            request,
+            request: request.clone(),
         }
     }
 }
@@ -308,8 +309,31 @@ impl CommandHandler<UpdateMemberCommand> for UpdateMemberCommandHandler {
 // Error Mapper
 pub struct MemberErrorMapper;
 
-impl MemberErrorMapper {
-    pub fn from_application_error(error: crate::ApplicationError) -> CommandError {
-        CommandError::business("member_operation_failed", &error.to_string())
+impl CommandErrorMapper for MemberErrorMapper {
+    fn map_error(&self, error: Box<dyn std::error::Error + Send + Sync>) -> CommandError {
+        if let Some(error) = error.downcast_ref::<ApplicationError>() {
+            match error {
+                ApplicationError::Domain(domain_error) => {
+                    CommandError::business("domain_error", &domain_error.to_string())
+                }
+                ApplicationError::ValidationError(_) => {
+                    CommandError::validation("validation_failed", &error.to_string())
+                }
+                ApplicationError::ExternalService { .. } => {
+                    CommandError::infrastructure("external_error", &error.to_string())
+                }
+                ApplicationError::ConcurrentOperation { .. } => {
+                    CommandError::business("concurrent_operation", &error.to_string())
+                }
+                ApplicationError::RateLimit { .. } => {
+                    CommandError::business("rate_limit", &error.to_string())
+                }
+                ApplicationError::Internal { .. } => {
+                    CommandError::infrastructure("internal_error", &error.to_string())
+                }
+            }
+        } else {
+            CommandError::infrastructure("unknown_error", &error.to_string())
+        }
     }
 }

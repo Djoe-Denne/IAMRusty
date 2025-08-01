@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use hive_domain::{service::invitation_service::InvitationService, DomainError, entity::RolePermission};
+use hive_domain::{service::invitation_service::InvitationService, DomainError, entity::{RolePermission, OrganizationInvitation}};
 use hive_events::{HiveDomainEvent, InvitationCreatedEvent, Role};
 use rustycog_events::EventPublisher;
 
@@ -44,6 +44,22 @@ impl InvitationUseCaseImpl {
         }
     }
 
+    fn invitation_to_response(&self, invitation: &OrganizationInvitation) -> InvitationResponse {
+        InvitationResponse {
+            id: invitation.id,
+            organization_id: invitation.organization_id,
+            organization_name: invitation.organization_name.clone(),
+            email: invitation.aggregate_id.clone(),
+            roles: invitation.role_permissions.iter().map(|role| role.clone().into()).collect(),
+            expires_at: invitation.expires_at,
+            created_at: invitation.created_at,
+            status: invitation.status.as_str().to_string(),
+            message: invitation.message.clone(),
+            invited_by_user_id: invitation.invited_by_user_id,
+            token: invitation.token.clone(),
+            accepted_at: invitation.accepted_at,
+        }
+    }
     /// Publish invitation created event
     async fn publish_invitation_created_event(
         &self,
@@ -61,7 +77,7 @@ impl InvitationUseCaseImpl {
             organization_name.to_string(),
             invitation_id,
             email.to_string(),
-            role_permissions.iter().map(|role| Role::new(role.permission.clone(), role.resource.clone())).collect(),
+            role_permissions.iter().map(|role| Role::new(role.permission.level.as_str().to_string(), role.resource.name.clone())).collect(),
             invited_by_user_id,
             invitation_token.to_string(),
             expires_at,
@@ -92,7 +108,7 @@ impl InvitationUseCase for InvitationUseCaseImpl {
 
         self.publish_invitation_created_event(
             organization_id,
-            &invitation.organization_name,
+            &invitation.organization_name.clone(),
             invitation.id,
             &invitation.aggregate_id,
             &invitation.role_permissions,
@@ -106,8 +122,9 @@ impl InvitationUseCase for InvitationUseCaseImpl {
 
     async fn accept_invitation(
         &self,
-        token: &String,
-        user_id: &Uuid,
+        token: String,
+        user_id: Uuid,
+
     ) -> Result<(), ApplicationError> {
         let invitation = self.invitation_service.accept_invitation(token, user_id).await
         .map_err(|e| ApplicationError::Domain(e))?;
@@ -115,17 +132,17 @@ impl InvitationUseCase for InvitationUseCaseImpl {
         Ok(())
     }
 
-    async fn cancel_invitation(&self, invitation_id: &Uuid) -> Result<(), ApplicationError> {
+    async fn cancel_invitation(&self, invitation_id: Uuid) -> Result<(), ApplicationError> {
         let invitation = self.invitation_service.cancel_invitation(invitation_id).await
         .map_err(|e| ApplicationError::Domain(e))?;
 
         Ok(())
     }
     
-    async fn get_invitation(&self, invitation_id: &Uuid) -> Result<InvitationResponse, ApplicationError> {
+    async fn get_invitation(&self, invitation_id: Uuid) -> Result<InvitationResponse, ApplicationError> {
         let invitation = self.invitation_service.get_invitation(invitation_id).await
         .map_err(|e| ApplicationError::Domain(e))?;
 
-        Ok(invitation)
+        Ok(self.invitation_to_response(&invitation))
     }
 }

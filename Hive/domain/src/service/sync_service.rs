@@ -14,7 +14,7 @@ use crate::{
 };
 
 /// Domain service for sync job management
-pub struct SyncServiceImpl<SR, LR, OR, RS, OS, MS, IS>
+pub struct SyncServiceImpl<SR, LR, OR, RS, OS, MS, IS, PC>
 where
     SR: SyncJobRepository,
     LR: ExternalLinkRepository,
@@ -23,6 +23,7 @@ where
     OS: OrganizationService,
     MS: MemberService,
     IS: InvitationService,
+    PC: ExternalProviderClient,
 {
     sync_job_repo: SR,
     external_link_repo: LR,
@@ -31,6 +32,7 @@ where
     organization_service: OS,
     member_service: MS,
     invitation_service: IS,
+    provider_client: PC,
 }
 
 /// Result of a member sync operation
@@ -55,30 +57,26 @@ pub trait SyncService: Send + Sync {
      * Execute sync for organization info
      * 
      * @param sync_job_id - The ID of the sync job
-     * @param provider_client - The external provider client
      */
     async fn sync_organization_info(
         &self,
-        sync_job_id: Uuid,
-        provider_client: &dyn ExternalProviderClient,
+        sync_job_id: Uuid, 
     ) -> Result<Organization, DomainError>;
 
     /**
      * Execute sync for members
      * 
      * @param sync_job_id - The ID of the sync job
-     * @param provider_client - The external provider client
      * @param auto_invite - Whether to automatically invite new members found
      */
     async fn sync_members(
         &self,
         sync_job_id: Uuid,
-        provider_client: &dyn ExternalProviderClient,
         auto_invite: bool,
     ) -> Result<SyncResult, DomainError>;
 }
 
-impl<SR, LR, OR, RS, OS, MS, IS> SyncServiceImpl<SR, LR, OR, RS, OS, MS, IS>
+impl<SR, LR, OR, RS, OS, MS, IS, PC> SyncServiceImpl<SR, LR, OR, RS, OS, MS, IS, PC>
 where
     SR: SyncJobRepository,
     LR: ExternalLinkRepository,
@@ -87,6 +85,7 @@ where
     OS: OrganizationService,
     MS: MemberService,
     IS: InvitationService,
+    PC: ExternalProviderClient,
 {
     /// Create a new sync service
     pub fn new(
@@ -97,24 +96,17 @@ where
         organization_service: OS,
         member_service: MS,
         invitation_service: IS,
+        provider_client: PC,
     ) -> Self {
-        Self {
-            sync_job_repo,
-            external_link_repo,
-            organization_repo,
-            role_service,
-            organization_service,
-            member_service,
-            invitation_service,
-        }
+        Self { sync_job_repo, external_link_repo, organization_repo, role_service, organization_service, member_service, invitation_service, provider_client }
     }
 
     /// Update organization info from external provider data
     async fn update_organization_from_external(
         &self,
-        organization_id: &Uuid,
+        organization_id: Uuid,
         external_org_info: &ExternalOrganizationInfo,
-        requesting_user_id: &Uuid,
+        requesting_user_id: Uuid,
     ) -> Result<Organization, DomainError> {
         // Update organization with external info
         let updated_org = self
@@ -135,7 +127,7 @@ where
 
 
 #[async_trait::async_trait]
-impl<SR, LR, OR, RS, OS, MS, IS> SyncService for SyncServiceImpl<SR, LR, OR, RS, OS, MS, IS>
+impl<SR, LR, OR, RS, OS, MS, IS, PC> SyncService for SyncServiceImpl<SR, LR, OR, RS, OS, MS, IS, PC>
 where
     SR: SyncJobRepository,
     LR: ExternalLinkRepository,
@@ -144,6 +136,7 @@ where
     OS: OrganizationService,
     MS: MemberService,
     IS: InvitationService,
+    PC: ExternalProviderClient,
 {
     /// Start a new sync job
     async fn start_sync_job(
@@ -195,7 +188,6 @@ where
     async fn sync_organization_info(
         &self,
         sync_job_id: Uuid,
-        provider_client: &dyn ExternalProviderClient,
     ) -> Result<Organization, DomainError> {
         // Find the sync job
         let sync_job = self
@@ -212,7 +204,7 @@ where
             .ok_or_else(|| DomainError::entity_not_found("ExternalLink", &sync_job.organization_external_link_id.to_string()))?;
 
         // Get organization info from external provider
-        let external_org_info = provider_client
+        let external_org_info = self.provider_client
             .get_organization_info(&external_link.provider_config)
             .await?;
 
@@ -226,9 +218,9 @@ where
 
         let updated_org = self
             .update_organization_from_external(
-                &external_link.organization_id,
+                external_link.organization_id.clone(),
                 &external_org_info,
-                &organization.owner_user_id,
+                organization.owner_user_id.clone(),
             )
             .await?;
 
@@ -239,7 +231,6 @@ where
     async fn sync_members(
         &self,
         sync_job_id: Uuid,
-        provider_client: &dyn ExternalProviderClient,
         auto_invite: bool,
     ) -> Result<SyncResult, DomainError> {
         // Find the sync job
@@ -257,7 +248,7 @@ where
             .ok_or_else(|| DomainError::entity_not_found("ExternalLink", &sync_job.organization_external_link_id.to_string()))?;
 
         // Get members from external provider
-        let external_members = provider_client
+        let external_members = self.provider_client
             .get_members(&external_link.provider_config)
             .await?;
 
@@ -267,6 +258,20 @@ where
             members_invited: 0,
             errors: Vec::new(),
         };
+
+        // Get organization for owner information
+        let organization = self
+            .organization_repo
+            .find_by_id(&external_link.organization_id)
+            .await?
+            .ok_or_else(|| DomainError::entity_not_found("Organization", &external_link.organization_id.to_string()))?;
+
+        // Create invitation
+        let invitation_message = Some(format!(
+            "You have been invited to join {} organization based on your membership in the connected {:?} organization.",
+            organization.name,
+            external_link.provider_name
+        ));
 
         // Process each external member
         for external_member in external_members {
@@ -314,20 +319,6 @@ where
                     continue;
                 }
 
-                // Get organization for owner information
-                let organization = self
-                    .organization_repo
-                    .find_by_id(&external_link.organization_id)
-                    .await?
-                    .ok_or_else(|| DomainError::entity_not_found("Organization", &external_link.organization_id.to_string()))?;
-
-                // Create invitation
-                let invitation_message = Some(format!(
-                    "You have been invited to join {} organization based on your membership in the connected {:?} organization.",
-                    organization.name,
-                    provider_client.provider_type()
-                ));
-
                 match self
                     .invitation_service
                     .create_invitation_by_email(
@@ -335,7 +326,7 @@ where
                         invite_identifier,
                         role_permissions,
                         organization.owner_user_id, // Invitations are sent by the organization owner
-                        invitation_message,
+                        invitation_message.clone(),
                         None, // Use default expiry
                     )
                     .await

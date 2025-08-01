@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use rustycog_command::{Command, CommandError, CommandHandler};
+use rustycog_command::{Command, CommandError, CommandErrorMapper, CommandHandler};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -65,11 +65,11 @@ impl Command for CreateOrganizationCommand {
 }
 
 pub struct CreateOrganizationCommandHandler {
-    organization_usecase: Arc<OrganizationUseCase>,
+    organization_usecase: Arc<dyn OrganizationUseCase>,
 }
 
 impl CreateOrganizationCommandHandler {
-    pub fn new(organization_usecase: Arc<OrganizationUseCase>) -> Self {
+    pub fn new(organization_usecase: Arc<dyn OrganizationUseCase>) -> Self {
         Self {
             organization_usecase,
         }
@@ -83,7 +83,7 @@ impl CommandHandler<CreateOrganizationCommand> for CreateOrganizationCommandHand
         command: CreateOrganizationCommand,
     ) -> Result<OrganizationResponse, CommandError> {
         self.organization_usecase
-            .create_organization(command.request, command.user_id)
+            .create_organization(&command.request, command.user_id)
             .await
             .map_err(|e| CommandError::business("create_failed", &e.to_string()))
     }
@@ -129,11 +129,11 @@ impl Command for GetOrganizationCommand {
 }
 
 pub struct GetOrganizationCommandHandler {
-    organization_usecase: Arc<OrganizationUseCase>,
+    organization_usecase: Arc<dyn OrganizationUseCase>,
 }
 
 impl GetOrganizationCommandHandler {
-    pub fn new(organization_usecase: Arc<OrganizationUseCase>) -> Self {
+    pub fn new(organization_usecase: Arc<dyn OrganizationUseCase>) -> Self {
         Self {
             organization_usecase,
         }
@@ -147,7 +147,7 @@ impl CommandHandler<GetOrganizationCommand> for GetOrganizationCommandHandler {
         command: GetOrganizationCommand,
     ) -> Result<OrganizationResponse, CommandError> {
         self.organization_usecase
-            .get_organization(command.organization_id, command.user_id)
+            .get_organization(command.organization_id, command.user_id.unwrap())
             .await
             .map_err(|e| CommandError::business("get_failed", &e.to_string()))
     }
@@ -203,11 +203,11 @@ impl Command for UpdateOrganizationCommand {
 }
 
 pub struct UpdateOrganizationCommandHandler {
-    organization_usecase: Arc<OrganizationUseCase>,
+    organization_usecase: Arc<dyn OrganizationUseCase>,
 }
 
 impl UpdateOrganizationCommandHandler {
-    pub fn new(organization_usecase: Arc<OrganizationUseCase>) -> Self {
+    pub fn new(organization_usecase: Arc<dyn OrganizationUseCase>) -> Self {
         Self {
             organization_usecase,
         }
@@ -221,7 +221,7 @@ impl CommandHandler<UpdateOrganizationCommand> for UpdateOrganizationCommandHand
         command: UpdateOrganizationCommand,
     ) -> Result<OrganizationResponse, CommandError> {
         self.organization_usecase
-            .update_organization(command.organization_id, command.request, command.user_id)
+            .update_organization(command.organization_id, &command.request, command.user_id)
             .await
             .map_err(|e| CommandError::business("update_failed", &e.to_string()))
     }
@@ -266,11 +266,11 @@ impl Command for DeleteOrganizationCommand {
 }
 
 pub struct DeleteOrganizationCommandHandler {
-    organization_usecase: Arc<OrganizationUseCase>,
+    organization_usecase: Arc<dyn OrganizationUseCase>,
 }
 
 impl DeleteOrganizationCommandHandler {
-    pub fn new(organization_usecase: Arc<OrganizationUseCase>) -> Self {
+    pub fn new(organization_usecase: Arc<dyn OrganizationUseCase>) -> Self {
         Self {
             organization_usecase,
         }
@@ -326,11 +326,11 @@ impl Command for ListOrganizationsCommand {
 }
 
 pub struct ListOrganizationsCommandHandler {
-    organization_usecase: Arc<OrganizationUseCase>,
+    organization_usecase: Arc<dyn OrganizationUseCase>,
 }
 
 impl ListOrganizationsCommandHandler {
-    pub fn new(organization_usecase: Arc<OrganizationUseCase>) -> Self {
+    pub fn new(organization_usecase: Arc<dyn OrganizationUseCase>) -> Self {
         Self {
             organization_usecase,
         }
@@ -344,7 +344,7 @@ impl CommandHandler<ListOrganizationsCommand> for ListOrganizationsCommandHandle
         command: ListOrganizationsCommand,
     ) -> Result<OrganizationListResponse, CommandError> {
         self.organization_usecase
-            .list_organizations(command.user_id, command.pagination)
+            .list_organizations(command.user_id, &command.pagination)
             .await
             .map_err(|e| CommandError::business("list_failed", &e.to_string()))
     }
@@ -389,11 +389,11 @@ impl Command for SearchOrganizationsCommand {
 }
 
 pub struct SearchOrganizationsCommandHandler {
-    organization_usecase: Arc<OrganizationUseCase>,
+    organization_usecase: Arc<dyn OrganizationUseCase>,
 }
 
 impl SearchOrganizationsCommandHandler {
-    pub fn new(organization_usecase: Arc<OrganizationUseCase>) -> Self {
+    pub fn new(organization_usecase: Arc<dyn OrganizationUseCase>) -> Self {
         Self {
             organization_usecase,
         }
@@ -407,7 +407,7 @@ impl CommandHandler<SearchOrganizationsCommand> for SearchOrganizationsCommandHa
         command: SearchOrganizationsCommand,
     ) -> Result<OrganizationListResponse, CommandError> {
         self.organization_usecase
-            .search_organizations(command.request, command.user_id)
+            .search_organizations(&command.request, command.user_id)
             .await
             .map_err(|e| CommandError::business("search_failed", &e.to_string()))
     }
@@ -419,27 +419,31 @@ impl CommandHandler<SearchOrganizationsCommand> for SearchOrganizationsCommandHa
 
 pub struct OrganizationErrorMapper;
 
-impl OrganizationErrorMapper {
-    pub fn from_application_error(error: ApplicationError) -> CommandError {
-        match error {
-            ApplicationError::Domain(domain_error) => {
-                CommandError::business("domain_error", &domain_error.to_string())
+impl CommandErrorMapper for OrganizationErrorMapper {
+    fn map_error(&self, error: Box<dyn std::error::Error + Send + Sync>) -> CommandError {
+        if let Some(error) = error.downcast_ref::<ApplicationError>() {
+            match error {
+                ApplicationError::Domain(domain_error) => {
+                    CommandError::business("domain_error", &domain_error.to_string())
+                }
+                ApplicationError::ValidationError(_) => {
+                    CommandError::validation("validation_failed", &error.to_string())
+                }
+                ApplicationError::ExternalService { .. } => {
+                    CommandError::infrastructure("external_error", &error.to_string())
+                }
+                ApplicationError::ConcurrentOperation { .. } => {
+                    CommandError::business("concurrent_operation", &error.to_string())
+                }
+                ApplicationError::RateLimit { .. } => {
+                    CommandError::business("rate_limit", &error.to_string())
+                }
+                ApplicationError::Internal { .. } => {
+                    CommandError::infrastructure("internal_error", &error.to_string())
+                }
             }
-            ApplicationError::ValidationError(_) => {
-                CommandError::validation("validation_failed", &error.to_string())
-            }
-            ApplicationError::External { .. } => {
-                CommandError::infrastructure("external_error", &error.to_string())
-            }
-            ApplicationError::ConcurrentOperation { .. } => {
-                CommandError::business("concurrent_operation", &error.to_string())
-            }
-            ApplicationError::RateLimit { .. } => {
-                CommandError::business("rate_limit", &error.to_string())
-            }
-            ApplicationError::Internal { .. } => {
-                CommandError::infrastructure("internal_error", &error.to_string())
-            }
+        } else {
+            CommandError::business("unknown_error", &error.to_string())
         }
     }
 }

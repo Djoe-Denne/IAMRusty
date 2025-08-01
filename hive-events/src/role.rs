@@ -15,3 +15,9 @@ pub struct Role {
     pub permission: String,
     pub resource: String,
 }
+
+impl Role {
+    pub fn new(permission: String, resource: String) -> Self {
+        Self { permission, resource }
+    }
+}

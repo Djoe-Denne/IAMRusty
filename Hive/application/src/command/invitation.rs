@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use rustycog_command::{Command, CommandError, CommandHandler};
+use rustycog_command::{Command, CommandError, CommandErrorMapper, CommandHandler};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -9,6 +9,7 @@ use crate::{
         InvitationResponse, PaginationRequest,
     },
     usecase::InvitationUseCase,
+    ApplicationError,
 };
 
 #[derive(Debug, Clone)]
@@ -70,7 +71,7 @@ impl CommandHandler<CreateInvitationCommand> for CreateInvitationCommandHandler 
         self.invitation_usecase
             .create_invitation(
                 command.organization_id,
-                command.request,
+                &command.request,
                 command.invited_by_user_id,
             )
             .await
@@ -373,8 +374,31 @@ impl CommandHandler<ResendInvitationCommand> for ResendInvitationCommandHandler 
 
 pub struct InvitationErrorMapper;
 
-impl InvitationErrorMapper {
-    pub fn from_application_error(error: crate::ApplicationError) -> CommandError {
-        CommandError::business("invitation_operation_failed", &error.to_string())
+impl CommandErrorMapper for InvitationErrorMapper {
+    fn map_error(&self, error: Box<dyn std::error::Error + Send + Sync>) -> CommandError {
+        if let Some(error) = error.downcast_ref::<ApplicationError>() {
+            match error {
+                ApplicationError::Domain(domain_error) => {
+                    CommandError::business("domain_error", &domain_error.to_string())
+                }
+                ApplicationError::ValidationError(_) => {
+                    CommandError::validation("validation_failed", &error.to_string())
+                }
+                ApplicationError::ExternalService { .. } => {
+                    CommandError::infrastructure("external_error", &error.to_string())
+                }
+                ApplicationError::ConcurrentOperation { .. } => {
+                    CommandError::business("concurrent_operation", &error.to_string())
+                }
+                ApplicationError::RateLimit { .. } => {
+                    CommandError::business("rate_limit", &error.to_string())
+                }
+                ApplicationError::Internal { .. } => {
+                    CommandError::infrastructure("internal_error", &error.to_string())
+                }
+            }
+        } else {
+            CommandError::infrastructure("unknown_error", &error.to_string())
+        }
     }
 }

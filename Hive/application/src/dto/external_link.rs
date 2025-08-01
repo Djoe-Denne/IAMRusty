@@ -43,7 +43,6 @@ pub struct ExternalLinkResponse {
     pub organization_id: Uuid,
     pub provider_id: Uuid,
     pub provider_name: String,
-    pub provider_type: String,
     pub provider_config: serde_json::Value,
     pub sync_enabled: bool,
     pub sync_settings: serde_json::Value,

@@ -143,18 +143,18 @@ impl MemberRolesUpdatedEvent {
 
 impl MemberRemovedEvent {
     pub fn new(
-        organization_id: &Uuid,
+        organization_id: Uuid,
         organization_name: String,
-        user_id: &Uuid,
+        user_id: Uuid,
         user_email: String,
-        removed_by_user_id: &Uuid,
+        removed_by_user_id: Uuid,
         removed_at: DateTime<Utc>,
     ) -> Self {
         Self {
             base: BaseEvent::new("member_removed".to_string(), organization_id.clone()),
             organization_id: organization_id.clone(),
             organization_name,
-            user_id: user_id.clone(),
+            user_id,
             user_email,
             removed_by_user_id,
             removed_at,
