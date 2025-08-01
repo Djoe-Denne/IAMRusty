@@ -14,6 +14,8 @@ hive-application = { path = "../application" }
 # Shared crates
 iam-events = { path = "../../iam-events" }
 rustycog-events = { path = "../../rustycog/rustycog-events" }
+rustycog-config = { path = "../../rustycog/rustycog-config" }
+rustycog-core = { path = "../../rustycog/rustycog-core" }
 
 # Async traits
 async-trait = { workspace = true }
@@ -30,6 +32,10 @@ chrono = { workspace = true }
 
 # UUID
 uuid = { workspace = true }
+
+# Logging and tracing
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
 
 # Error handling
 thiserror = { workspace = true }

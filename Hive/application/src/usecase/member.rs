@@ -13,7 +13,7 @@ use rustycog_events::EventPublisher;
 
 use crate::{
     dto::{
-        AddMemberRequest, MemberListResponse, MemberResponse, PaginationRequest,
+        AddMemberRequest, MemberListResponse, MemberResponse, PaginationRequest, UpdateMemberRolesRequest,
     },
     ApplicationError,
 };
@@ -26,7 +26,7 @@ pub trait MemberUseCase: Send + Sync {
         &self,
         organization_id: Uuid,
         request: &AddMemberRequest,
-        added_by_user_id: Uuid,
+        user_id: Uuid,
     ) -> Result<MemberResponse, ApplicationError>;
 
     /// Remove a member from an organization
@@ -34,15 +34,24 @@ pub trait MemberUseCase: Send + Sync {
         &self,
         organization_id: Uuid,
         user_id: Uuid,
-        removed_by_user_id: Uuid,
+        requesting_user_id: Uuid,
     ) -> Result<(), ApplicationError>;
+
+    /// Update a member's role
+    async fn update_member(
+        &self,
+        organization_id: Uuid,
+        user_id: Uuid,
+        request: &UpdateMemberRolesRequest,
+        requesting_user_id: Uuid,
+    ) -> Result<MemberResponse, ApplicationError>;
 
     /// List organization members
     async fn list_members(
         &self,
         organization_id: Uuid,
         pagination: &PaginationRequest,
-        requesting_user_id: Uuid,
+        user_id: Option<Uuid>,
     ) -> Result<MemberListResponse, ApplicationError>;
 
     /// Get a specific member
@@ -50,7 +59,7 @@ pub trait MemberUseCase: Send + Sync {
         &self,
         organization_id: Uuid,
         user_id: Uuid,
-        requesting_user_id: Uuid,
+        requesting_user_id: Option<Uuid>,
     ) -> Result<MemberResponse, ApplicationError>;
 }
 
@@ -147,12 +156,12 @@ impl MemberUseCase for MemberUseCaseImpl {
         &self,
         organization_id: Uuid,
         request: &AddMemberRequest,
-        added_by_user_id: Uuid,
+        user_id: Uuid,
     ) -> Result<MemberResponse, ApplicationError> {
         // Get organization for validation and events
         let organization = self
             .organization_service
-            .get_organization(&organization_id)
+            .get_organization(&organization_id, Some(user_id))
             .await
             .map_err(ApplicationError::Domain)?;
 
@@ -165,7 +174,7 @@ impl MemberUseCase for MemberUseCaseImpl {
                 organization_id.clone(),
                 request.user_id,
                 role_permissions.clone(),
-                Some(added_by_user_id),
+                Some(user_id),
             )
             .await
             .map_err(ApplicationError::Domain)?;
@@ -182,18 +191,18 @@ impl MemberUseCase for MemberUseCaseImpl {
         &self,
         organization_id: Uuid,
         user_id: Uuid,
-        removed_by_user_id: Uuid,
+        requesting_user_id: Uuid,
     ) -> Result<(), ApplicationError> {
         // Get organization for validation and events
         let organization = self
             .organization_service
-            .get_organization(&organization_id)
+            .get_organization(&organization_id, Some(requesting_user_id))
             .await
             .map_err(ApplicationError::Domain)?;
 
         // Use domain service to remove member
         self.member_service
-            .remove_member(organization_id, user_id, removed_by_user_id)
+            .remove_member(organization_id, user_id, requesting_user_id)
             .await
             .map_err(ApplicationError::Domain)?;
 
@@ -204,7 +213,7 @@ impl MemberUseCase for MemberUseCaseImpl {
             &organization.name,
             user_id,
             "user@example.com", // Placeholder
-            removed_by_user_id,
+            user_id,
         )
         .await?;
 
@@ -215,13 +224,13 @@ impl MemberUseCase for MemberUseCaseImpl {
         &self,
         organization_id: Uuid,
         pagination: &PaginationRequest,
-        requesting_user_id: Uuid,
+        user_id: Option<Uuid>,
     ) -> Result<MemberListResponse, ApplicationError> {
         // TODO: Add permission check
 
         let members = self
             .member_service
-            .list_members(organization_id, pagination.page(), pagination.page_size(), requesting_user_id)
+            .list_members(organization_id, pagination.page(), pagination.page_size(), user_id)
             .await
             .map_err(ApplicationError::Domain)?;
 
@@ -261,13 +270,31 @@ impl MemberUseCase for MemberUseCaseImpl {
         &self,
         organization_id: Uuid,
         user_id: Uuid,
-        requesting_user_id: Uuid,
+        requesting_user_id: Option<Uuid>,
     ) -> Result<MemberResponse, ApplicationError> {
         // TODO: Add permission check
 
         let member = self
             .member_service
             .get_member(organization_id, user_id, requesting_user_id)
+            .await
+            .map_err(ApplicationError::Domain)?;
+
+        Ok(self.member_to_response(&member))
+    }
+
+    async fn update_member(
+        &self,
+        organization_id: Uuid,
+        user_id: Uuid,
+        request: &UpdateMemberRolesRequest,
+        requesting_user_id: Uuid,
+    ) -> Result<MemberResponse, ApplicationError> {
+        let role_permissions: Vec<RolePermission> = request.roles.iter().map(|role| role.into()).collect();
+
+        let member = self
+            .member_service
+            .update_member_roles(organization_id, user_id, role_permissions, requesting_user_id)
             .await
             .map_err(ApplicationError::Domain)?;
 

@@ -6,7 +6,7 @@ use uuid::Uuid;
 use crate::{
     dto::{
         AddMemberRequest, MemberListResponse, MemberResponse, PaginationRequest,
-        UpdateMemberRequest,
+        UpdateMemberRolesRequest,
     },
     usecase::MemberUseCase,
     ApplicationError,
@@ -141,14 +141,16 @@ pub struct ListMembersCommand {
     pub command_id: Uuid,
     pub organization_id: Uuid,
     pub pagination: PaginationRequest,
+    pub user_id: Option<Uuid>,
 }
 
 impl ListMembersCommand {
-    pub fn new(organization_id: Uuid, pagination: PaginationRequest) -> Self {
+    pub fn new(organization_id: Uuid, pagination: PaginationRequest, user_id: Option<Uuid>) -> Self {
         Self {
             command_id: Uuid::new_v4(),
             organization_id,
             pagination,
+            user_id,
         }
     }
 }
@@ -187,7 +189,7 @@ impl CommandHandler<ListMembersCommand> for ListMembersCommandHandler {
         command: ListMembersCommand,
     ) -> Result<MemberListResponse, CommandError> {
         self.member_usecase
-            .list_members(command.organization_id, &command.pagination, Uuid::new_v4()) // TODO: Get user_id from context
+            .list_members(command.organization_id, &command.pagination, command.user_id)
             .await
             .map_err(|e| CommandError::business("list_members_failed", &e.to_string()))
     }
@@ -199,14 +201,16 @@ pub struct GetMemberCommand {
     pub command_id: Uuid,
     pub organization_id: Uuid,
     pub user_id: Uuid,
+    pub requesting_user_id: Option<Uuid>,
 }
 
 impl GetMemberCommand {
-    pub fn new(organization_id: Uuid, user_id: Uuid) -> Self {
+    pub fn new(organization_id: Uuid, user_id: Uuid, requesting_user_id: Option<Uuid>) -> Self {
         Self {
             command_id: Uuid::new_v4(),
             organization_id,
             user_id,
+            requesting_user_id,
         }
     }
 }
@@ -242,7 +246,7 @@ impl GetMemberCommandHandler {
 impl CommandHandler<GetMemberCommand> for GetMemberCommandHandler {
     async fn handle(&self, command: GetMemberCommand) -> Result<MemberResponse, CommandError> {
         self.member_usecase
-            .get_member(command.organization_id, command.user_id, Uuid::new_v4()) // TODO: Get requesting_user_id from context
+            .get_member(command.organization_id, command.user_id, command.requesting_user_id)
             .await
             .map_err(|e| CommandError::business("get_member_failed", &e.to_string()))
     }
@@ -254,16 +258,18 @@ pub struct UpdateMemberCommand {
     pub command_id: Uuid,
     pub organization_id: Uuid,
     pub user_id: Uuid,
-    pub request: UpdateMemberRequest,
+    pub request: UpdateMemberRolesRequest,
+    pub requesting_user_id: Uuid,
 }
 
 impl UpdateMemberCommand {
-    pub fn new(organization_id: Uuid, user_id: Uuid, request: &UpdateMemberRequest) -> Self {
+    pub fn new(organization_id: Uuid, user_id: Uuid, request: &UpdateMemberRolesRequest, requesting_user_id: Uuid) -> Self {
         Self {
             command_id: Uuid::new_v4(),
             organization_id,
             user_id,
             request: request.clone(),
+            requesting_user_id,
         }
     }
 }
@@ -298,11 +304,10 @@ impl UpdateMemberCommandHandler {
 #[async_trait]
 impl CommandHandler<UpdateMemberCommand> for UpdateMemberCommandHandler {
     async fn handle(&self, command: UpdateMemberCommand) -> Result<MemberResponse, CommandError> {
-        // TODO: Implement update_member in MemberUseCase
-        Err(CommandError::business(
-            "update_member_not_implemented",
-            "Update member functionality not yet implemented",
-        ))
+        self.member_usecase
+            .update_member(command.organization_id, command.user_id, &command.request, command.requesting_user_id)
+            .await
+            .map_err(|e| CommandError::business("update_member_failed", &e.to_string()))
     }
 }
 

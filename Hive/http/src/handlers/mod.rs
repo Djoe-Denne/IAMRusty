@@ -7,7 +7,6 @@ pub mod sync_jobs;
 
 // Re-export for convenience
 pub use external_links::*;
-pub use health::*;
 pub use invitations::*;
 pub use members::*;
 pub use organizations::*;

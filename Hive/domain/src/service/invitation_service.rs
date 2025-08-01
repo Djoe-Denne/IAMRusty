@@ -155,10 +155,10 @@ where
         message: Option<String>,
         _expires_in_days: Option<i64>,
     ) -> Result<OrganizationInvitation, DomainError> {    
-        let organization = self.organization_service.get_organization(&organization_id).await.map_err(|e| DomainError::Internal { message: e.to_string() })?;
-        let invitation = OrganizationInvitation::new(organization_id, organization.name, email, role_permissions, invited_by_user_id, message)?;
+        let organization = self.organization_service.get_organization(&organization_id, Some(invited_by_user_id)).await.map_err(|e| DomainError::Internal { message: e.to_string() })?;
+        let invitation = OrganizationInvitation::new(organization_id, email, role_permissions, invited_by_user_id, message)?;
         let mut saved_invitation = self.invitation_repo.save(&invitation).await.map_err(|e| DomainError::Internal { message: e.to_string() })?;
-        saved_invitation.update_organization_name(invitation.organization_name.as_str());
+        saved_invitation.update_organization_name(&organization.name);
         Ok(saved_invitation)
     }
 
@@ -170,12 +170,12 @@ where
         role_permissions: Vec<RolePermission>,
         invited_by_user_id: Uuid,
         message: Option<String>,
-        expires_in_days: Option<i64>,
+        _expires_in_days: Option<i64>,
     ) -> Result<OrganizationInvitation, DomainError> {
-        let organization = self.organization_service.get_organization(&organization_id).await.map_err(|e| DomainError::Internal { message: e.to_string() })?;
-        let invitation = OrganizationInvitation::new(organization_id, organization.name, user_id.to_string(), role_permissions, invited_by_user_id, message)?;
+        let organization = self.organization_service.get_organization(&organization_id, Some(invited_by_user_id)).await.map_err(|e| DomainError::Internal { message: e.to_string() })?;
+        let invitation = OrganizationInvitation::new(organization_id, user_id.to_string(), role_permissions, invited_by_user_id, message)?;
         let mut saved_invitation = self.invitation_repo.save(&invitation).await.map_err(|e| DomainError::Internal { message: e.to_string() })?;
-        saved_invitation.update_organization_name(invitation.organization_name.as_str());
+        saved_invitation.update_organization_name(&organization.name);
         Ok(saved_invitation)
     }
 
@@ -255,8 +255,8 @@ where
             return Err(DomainError::entity_not_found("organization_invitation", &invitation_id.to_string()));
         }
 
-        let organization = self.organization_service.get_organization(&invitation.as_ref().unwrap().organization_id).await.map_err(|e| DomainError::Internal { message: e.to_string() })?;
-        invitation.as_mut().unwrap().update_organization_name(organization.name.as_str());
+        let organization = self.organization_service.get_organization(&invitation.as_ref().unwrap().organization_id, None).await.map_err(|e| DomainError::Internal { message: e.to_string() })?;
+        invitation.as_mut().unwrap().update_organization_name(&organization.name);
         Ok(invitation.unwrap())
     }
 

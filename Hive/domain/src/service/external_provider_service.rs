@@ -183,11 +183,11 @@ where
         // Create new external link
         let external_link = ExternalLink::new(
             organization_id,
-            organization.name,
+            Some(organization.name),
             provider_id,
-            provider.name,
+            Some(provider.name),
             provider_config.clone(),
-            Some(serde_json::json!({})), // Default sync settings
+            Some(serde_json::json!({})), // TODO: Default sync settings
         )?;
 
         // Save the link
@@ -270,8 +270,20 @@ where
         &self,
         organization_id: Uuid,
     ) -> Result<Vec<ExternalLink>, DomainError> {
-        self.external_link_repo
+        let organization = self.organization_repo.find_by_id(&organization_id).await?
+            .ok_or_else(|| DomainError::entity_not_found("Organization", &organization_id.to_string()))?;
+
+        let mut links = self.external_link_repo
             .find_by_organization(&organization_id)
-            .await
+            .await?;
+
+        for link in links.iter_mut() {
+            link.set_organization_name(organization.name.clone());
+            let provider = self.external_provider_repo.find_by_id(&link.provider_id).await?
+                .ok_or_else(|| DomainError::entity_not_found("ExternalProvider", &link.provider_id.to_string()))?;
+            link.set_provider_name(provider.name.clone());
+        }
+
+        Ok(links)
     }
 } 

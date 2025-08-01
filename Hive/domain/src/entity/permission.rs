@@ -74,3 +74,8 @@ impl std::fmt::Display for PermissionLevel {
     }
 }
 
+impl From<String> for PermissionLevel {
+    fn from(s: String) -> Self {
+        Self::from_str(&s).unwrap()
+    }
+}

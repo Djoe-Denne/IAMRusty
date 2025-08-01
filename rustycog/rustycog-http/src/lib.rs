@@ -15,7 +15,7 @@ pub use error::{GenericHttpError, ValidationError};
 pub use extractors::ValidatedJson;
 pub use jwt::TokenClaims;
 pub use jwt_handler::{UserIdExtractionHandler, UserIdExtractor};
-pub use middleware_auth::{auth_middleware, AuthUser};
+pub use middleware_auth::{auth_middleware, optional_auth_middleware, AuthUser, OptionalAuthUser};
 
 use axum::{
     http::StatusCode,

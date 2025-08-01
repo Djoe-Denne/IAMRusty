@@ -14,6 +14,7 @@ pub mod resource_repository;
 pub mod member_role_repository;
 pub mod role_permission_repository;
 
+
 // Re-export implementations for convenience
 pub use organization_repository::OrganizationRepositoryImpl;
 pub use organization_member_repository::OrganizationMemberRepositoryImpl;
@@ -21,7 +22,11 @@ pub use organization_invitation_repository::OrganizationInvitationRepositoryImpl
 pub use external_provider_repository::ExternalProviderRepositoryImpl;
 pub use external_link_repository::ExternalLinkRepositoryImpl;
 pub use sync_job_repository::SyncJobRepositoryImpl;
-pub use permission_repository::{PermissionRepository, PermissionRepositoryImpl};
-pub use resource_repository::{ResourceRepository, ResourceRepositoryImpl};
-pub use member_role_repository::{MemberRoleRepository, MemberRoleRepositoryImpl}; 
-pub use role_permission_repository::{RolePermissionRepository, RolePermissionRepositoryImpl};
+pub use permission_repository::PermissionRepositoryImpl;
+pub use hive_domain::port::repository::PermissionRepository;
+pub use resource_repository::ResourceRepositoryImpl;
+pub use hive_domain::port::repository::ResourceRepository;
+pub use member_role_repository::MemberRoleRepositoryImpl;
+pub use hive_domain::port::repository::MemberRoleRepository; 
+pub use role_permission_repository::RolePermissionRepositoryImpl;
+pub use hive_domain::port::repository::RolePermissionRepository;

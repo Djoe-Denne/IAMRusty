@@ -2,7 +2,6 @@
 
 pub mod organizations;
 pub mod organization_members;
-pub mod organization_roles;
 pub mod organization_invitations;
 pub mod external_providers;
 pub mod external_links;

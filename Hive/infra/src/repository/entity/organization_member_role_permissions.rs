@@ -9,8 +9,7 @@ use serde::{Deserialize, Serialize};
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: Uuid,
-    pub organization_id: Uuid,
-    pub user_id: Uuid,
+    pub member_id: Uuid,
     pub role_permission_id: Uuid,
     pub created_at: DateTime<Utc>,
 }
@@ -18,13 +17,13 @@ pub struct Model {
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
     #[sea_orm(
-        belongs_to = "super::organizations::Entity",
-        from = "Column::OrganizationId",
-        to = "super::organizations::Column::Id",
+        belongs_to = "super::organization_members::Entity",
+        from = "Column::MemberId",
+        to = "super::organization_members::Column::Id",
         on_update = "Cascade",
         on_delete = "Cascade"
     )]
-    Organization,
+    OrganizationMember,
     #[sea_orm(
         belongs_to = "super::role_permissions::Entity",
         from = "Column::RolePermissionId",
@@ -35,9 +34,9 @@ pub enum Relation {
     RolePermission,
 }
 
-impl Related<super::organizations::Entity> for Entity {
+impl Related<super::organization_members::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::Organization.def()
+        Relation::OrganizationMember.def()
     }
 }
 

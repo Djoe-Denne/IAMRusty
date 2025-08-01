@@ -6,7 +6,7 @@ use std::sync::Arc;
 use tower_http::catch_panic::CatchPanicLayer;
 
 use crate::{
-    handle_panic, health_check, jwt_handler::UserIdExtractor, middleware_auth::auth_middleware,
+    handle_panic, health_check, jwt_handler::UserIdExtractor, middleware_auth::{auth_middleware, optional_auth_middleware},
 };
 
 /// Application state for HTTP handlers
@@ -157,6 +157,70 @@ impl RouteBuilder {
             axum::routing::delete(handler).route_layer(middleware::from_fn_with_state(
                 self.state.user_id_extractor.clone(),
                 auth_middleware,
+            )),
+        );
+        self
+    }
+
+    /// Add an optional auth GET route (authentication is optional)
+    pub fn optional_auth_get<H, T>(mut self, path: &str, handler: H) -> Self
+    where
+        H: axum::handler::Handler<T, AppState>,
+        T: 'static,
+    {
+        self.router = self.router.route(
+            path,
+            axum::routing::get(handler).route_layer(middleware::from_fn_with_state(
+                self.state.user_id_extractor.clone(),
+                optional_auth_middleware,
+            )),
+        );
+        self
+    }
+
+    /// Add an optional auth POST route (authentication is optional)
+    pub fn optional_auth_post<H, T>(mut self, path: &str, handler: H) -> Self
+    where
+        H: axum::handler::Handler<T, AppState>,
+        T: 'static,
+    {
+        self.router = self.router.route(
+            path,
+            axum::routing::post(handler).route_layer(middleware::from_fn_with_state(
+                self.state.user_id_extractor.clone(),
+                optional_auth_middleware,
+            )),
+        );
+        self
+    }
+
+    /// Add an optional auth PUT route (authentication is optional)
+    pub fn optional_auth_put<H, T>(mut self, path: &str, handler: H) -> Self
+    where
+        H: axum::handler::Handler<T, AppState>,
+        T: 'static,
+    {
+        self.router = self.router.route(
+            path,
+            axum::routing::put(handler).route_layer(middleware::from_fn_with_state(
+                self.state.user_id_extractor.clone(),
+                optional_auth_middleware,
+            )),
+        );
+        self
+    }
+
+    /// Add an optional auth DELETE route (authentication is optional)
+    pub fn optional_auth_delete<H, T>(mut self, path: &str, handler: H) -> Self
+    where
+        H: axum::handler::Handler<T, AppState>,
+        T: 'static,
+    {
+        self.router = self.router.route(
+            path,
+            axum::routing::delete(handler).route_layer(middleware::from_fn_with_state(
+                self.state.user_id_extractor.clone(),
+                optional_auth_middleware,
             )),
         );
         self

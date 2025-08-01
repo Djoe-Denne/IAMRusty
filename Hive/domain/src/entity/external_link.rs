@@ -11,9 +11,9 @@ use crate::error::DomainError;
 pub struct ExternalLink {
     pub id: Uuid,
     pub organization_id: Uuid,
-    pub organization_name: String,
+    pub organization_name: Option<String>,
     pub provider_id: Uuid,
-    pub provider_name: String,
+    pub provider_name: Option<String>,
     pub provider_config: Value,
     pub sync_enabled: bool,
     pub sync_settings: Value,
@@ -36,9 +36,9 @@ impl ExternalLink {
     /// Create a new external link
     pub fn new(
         organization_id: Uuid,
-        organization_name: String,
+        organization_name: Option<String>,
         provider_id: Uuid,
-        provider_name: String,
+        provider_name: Option<String>,
         provider_config: Value,
         sync_settings: Option<Value>,
     ) -> Result<Self, DomainError> {
@@ -48,9 +48,9 @@ impl ExternalLink {
         Ok(Self {
             id: Uuid::new_v4(),
             organization_id,
-            organization_name,
+            organization_name: organization_name.clone(),
             provider_id,
-            provider_name,
+            provider_name: provider_name.clone(),
             provider_config,
             sync_enabled: false,
             sync_settings: sync_settings.unwrap_or_else(|| serde_json::json!({})),
@@ -153,6 +153,14 @@ impl ExternalLink {
         }
 
         Ok(())
+    }
+
+    pub fn set_organization_name(&mut self, organization_name: String) {
+        self.organization_name = Some(organization_name);
+    }
+
+    pub fn set_provider_name(&mut self, provider_name: String) {
+        self.provider_name = Some(provider_name);
     }
 }
 

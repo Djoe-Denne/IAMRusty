@@ -6,8 +6,7 @@ use hive_domain::entity::{OrganizationMember, MemberStatus};
 use hive_domain::error::DomainError;
 use hive_domain::port::repository::OrganizationMemberRepository;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, 
-    QueryFilter, QueryOrder, Set, Order
+    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set
 };
 use std::sync::Arc;
 use tracing::{debug, error};
@@ -83,7 +82,7 @@ impl OrganizationMemberRepository for OrganizationMemberRepositoryImpl {
         let member = OrganizationMembers::find_by_id(*id)
             .one(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         match member {
             Some(model) => Ok(Some(Self::to_domain(model)?)),
@@ -103,7 +102,7 @@ impl OrganizationMemberRepository for OrganizationMemberRepositoryImpl {
             .filter(organization_members::Column::UserId.eq(*user_id))
             .one(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         match member {
             Some(model) => Ok(Some(Self::to_domain(model)?)),
@@ -117,11 +116,10 @@ impl OrganizationMemberRepository for OrganizationMemberRepositoryImpl {
         let members = OrganizationMembers::find()
             .filter(organization_members::Column::OrganizationId.eq(*organization_id))
             .order_by(organization_members::Column::CreatedAt, Order::Desc)
-            .offset((page - 1) * page_size)
-            .limit(page_size)
-            .all(self.db.as_ref())
+            .paginate(self.db.as_ref(), page_size as u64)
+            .fetch_page(page as u64)
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         let mut result = Vec::new();
         for model in members {
@@ -138,7 +136,7 @@ impl OrganizationMemberRepository for OrganizationMemberRepositoryImpl {
             .order_by(organization_members::Column::CreatedAt, Order::Desc)
             .all(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         let mut result = Vec::new();
         for model in members {
@@ -166,29 +164,7 @@ impl OrganizationMemberRepository for OrganizationMemberRepositoryImpl {
             .order_by(organization_members::Column::CreatedAt, Order::Desc)
             .all(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
-
-        let mut result = Vec::new();
-        for model in members {
-            result.push(Self::to_domain(model)?);
-        }
-        Ok(result)
-    }
-
-    async fn find_by_organization_and_role(
-        &self,
-        organization_id: &Uuid,
-        role_id: &Uuid,
-    ) -> Result<Vec<OrganizationMember>, DomainError> {
-        debug!("Finding organization members by org {} and role {}", organization_id, role_id);
-        
-        let members = OrganizationMembers::find()
-            .filter(organization_members::Column::OrganizationId.eq(*organization_id))
-            .filter(organization_members::Column::RoleId.eq(*role_id))
-            .order_by(organization_members::Column::CreatedAt, Order::Desc)
-            .all(self.db.as_ref())
-            .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         let mut result = Vec::new();
         for model in members {
@@ -209,7 +185,7 @@ impl OrganizationMemberRepository for OrganizationMemberRepositoryImpl {
             .filter(organization_members::Column::UserId.eq(*user_id))
             .count(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         Ok(count > 0)
     }
@@ -222,7 +198,7 @@ impl OrganizationMemberRepository for OrganizationMemberRepositoryImpl {
         let result = active_model
             .save(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         // Convert the saved active model back to domain model
         let saved_model = organization_members::Model {
@@ -246,7 +222,7 @@ impl OrganizationMemberRepository for OrganizationMemberRepositoryImpl {
         let result = OrganizationMembers::delete_by_id(*id)
             .exec(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         if result.rows_affected == 0 {
             return Err(DomainError::entity_not_found("OrganizationMember", &id.to_string()));
@@ -258,7 +234,8 @@ impl OrganizationMemberRepository for OrganizationMemberRepositoryImpl {
     async fn delete_by_organization(&self, organization_id: &Uuid) -> Result<(), DomainError> {
         debug!("Deleting organization members by organization: {}", organization_id);
         
-        let result = OrganizationMembers::delete_many().filter(organization_members::Column::OrganizationId.eq(*organization_id)).exec(self.db.as_ref()).await.map_err(DomainError::from)?;
+        let _result = OrganizationMembers::delete_many().filter(organization_members::Column::OrganizationId.eq(*organization_id)).exec(self.db.as_ref()).await.map_err(|e| DomainError::internal_error(&e.to_string()))?;
+        Ok(())
     }
 
     async fn count_by_organization(&self, organization_id: &Uuid) -> Result<i64, DomainError> {
@@ -268,7 +245,7 @@ impl OrganizationMemberRepository for OrganizationMemberRepositoryImpl {
             .filter(organization_members::Column::OrganizationId.eq(*organization_id))
             .count(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         Ok(count as i64)
     }
@@ -281,7 +258,7 @@ impl OrganizationMemberRepository for OrganizationMemberRepositoryImpl {
             .filter(organization_members::Column::Status.eq("Active"))
             .count(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         Ok(count as i64)
     }

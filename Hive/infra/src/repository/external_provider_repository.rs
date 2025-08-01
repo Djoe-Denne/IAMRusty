@@ -64,7 +64,7 @@ impl ExternalProviderRepository for ExternalProviderRepositoryImpl {
         let provider = ExternalProviders::find_by_id(*id)
             .one(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         match provider {
             Some(model) => Ok(Some(Self::to_domain(model)?)),
@@ -79,7 +79,7 @@ impl ExternalProviderRepository for ExternalProviderRepositoryImpl {
             .filter(external_providers::Column::ProviderType.eq(provider_type.as_str()))
             .one(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         match provider {
             Some(model) => Ok(Some(Self::to_domain(model)?)),
@@ -93,7 +93,7 @@ impl ExternalProviderRepository for ExternalProviderRepositoryImpl {
         let providers = ExternalProviders::find()
             .all(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         let mut result = Vec::new();
         for model in providers {
@@ -109,7 +109,7 @@ impl ExternalProviderRepository for ExternalProviderRepositoryImpl {
             .filter(external_providers::Column::IsActive.eq(true))
             .all(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         let mut result = Vec::new();
         for model in providers {
@@ -126,7 +126,7 @@ impl ExternalProviderRepository for ExternalProviderRepositoryImpl {
         let result = active_model
             .save(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         let saved_model = external_providers::Model {
             id: result.id.unwrap(),
@@ -146,7 +146,7 @@ impl ExternalProviderRepository for ExternalProviderRepositoryImpl {
         let result = ExternalProviders::delete_by_id(*id)
             .exec(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         if result.rows_affected == 0 {
             return Err(DomainError::entity_not_found("ExternalProvider", &id.to_string()));

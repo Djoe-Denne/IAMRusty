@@ -2576,11 +2576,15 @@ dependencies = [
 name = "hive-http"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "async-trait",
  "axum 0.8.4",
  "axum-test 15.7.4",
+ "chrono",
  "hive-application",
+ "hive-configuration",
  "hive-domain",
+ "rustycog-command",
  "rustycog-http",
  "serde",
  "serde_json",
@@ -2602,6 +2606,8 @@ dependencies = [
  "iam-events",
  "lettre",
  "reqwest 0.12.22",
+ "rustycog-config",
+ "rustycog-core",
  "rustycog-events",
  "sea-orm",
  "serde",
@@ -2610,6 +2616,8 @@ dependencies = [
  "testcontainers-modules",
  "thiserror 2.0.12",
  "tokio",
+ "tracing",
+ "tracing-subscriber",
  "uuid",
 ]
 

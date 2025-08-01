@@ -18,9 +18,8 @@ pub struct AddMemberRequest {
 
 /// DTO for updating a member's role or status
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
-pub struct UpdateMemberRequest {
+pub struct UpdateMemberRolesRequest {
     pub roles: Vec<MemberRole>,
-    pub status: Option<MemberStatus>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

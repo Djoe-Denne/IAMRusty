@@ -43,8 +43,14 @@ impl From<String> for MemberRolePermission {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct MemberRole {
+    pub organization_id: Uuid,
     pub resource: String,
     pub permissions: MemberRolePermission,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
+pub struct MemberRoleListResponse {
+    pub roles: Vec<MemberRole>,
 }
 
 /// DTO for creating a new role
@@ -65,13 +71,14 @@ pub struct UpdateMemberRoleRequest {
 
 impl From<&MemberRole> for RolePermission {
     fn from(member_role: &MemberRole) -> Self {
-        RolePermission::new(None, None, None, &member_role.permissions.into(), &member_role.resource.clone().into(), None)
+        RolePermission::new(None, None, member_role.organization_id, &member_role.permissions.into(), &member_role.resource.clone().into(), Some(Utc::now()))
     }
 }
 
 impl From<RolePermission> for MemberRole {
     fn from(role_permission: RolePermission) -> Self {
         MemberRole {
+            organization_id: role_permission.organization_id,
             resource: role_permission.resource.name,
             permissions: role_permission.permission.level.to_string().into(),
         }

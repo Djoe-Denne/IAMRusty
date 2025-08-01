@@ -48,7 +48,7 @@ impl InvitationUseCaseImpl {
         InvitationResponse {
             id: invitation.id,
             organization_id: invitation.organization_id,
-            organization_name: invitation.organization_name.clone(),
+            organization_name: invitation.organization_name.clone().unwrap_or_default(),
             email: invitation.aggregate_id.clone(),
             roles: invitation.role_permissions.iter().map(|role| role.clone().into()).collect(),
             expires_at: invitation.expires_at,
@@ -108,7 +108,7 @@ impl InvitationUseCase for InvitationUseCaseImpl {
 
         self.publish_invitation_created_event(
             organization_id,
-            &invitation.organization_name.clone(),
+            &invitation.organization_name.clone().unwrap_or_default(),
             invitation.id,
             &invitation.aggregate_id,
             &invitation.role_permissions,

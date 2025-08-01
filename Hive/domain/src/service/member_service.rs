@@ -64,7 +64,7 @@ pub trait MemberService: Send + Sync {
         &self,
         organization_id: Uuid,
         user_id: Uuid,
-        requesting_user_id: Uuid,
+        requesting_user_id: Option<Uuid>,
     ) -> Result<OrganizationMember, DomainError>;
 
     /**
@@ -77,7 +77,7 @@ pub trait MemberService: Send + Sync {
         organization_id: Uuid,
         page: u32,
         page_size: u32,
-        requesting_user_id: Uuid,
+        requesting_user_id: Option<Uuid>,
     ) -> Result<Vec<OrganizationMember>, DomainError>;
 
     /**
@@ -88,6 +88,7 @@ pub trait MemberService: Send + Sync {
     async fn list_active_members(
         &self,
         organization_id: Uuid,
+        requesting_user_id: Option<Uuid>,
     ) -> Result<Vec<OrganizationMember>, DomainError>;
 
     /**
@@ -261,7 +262,7 @@ where
             return Err(DomainError::permission_denied("User does not have permission to update member roles"));
         }
 
-        let mut member = self.get_member(organization_id, user_id, requesting_user_id).await?;
+        let mut member = self.get_member(organization_id, user_id, Some(requesting_user_id)).await?;
         self.update_member_roles(&mut member, roles).await
     }
 
@@ -270,10 +271,12 @@ where
         &self,
         organization_id: Uuid,
         user_id: Uuid,
-        requesting_user_id: Uuid,
+        requesting_user_id: Option<Uuid>,
     ) -> Result<OrganizationMember, DomainError> {
-        if !self.role_service.check_read_permission(&organization_id, &requesting_user_id, "members").await? {
-            return Err(DomainError::permission_denied("User does not have permission to get members"));
+        if let Some(requesting_user_id) = requesting_user_id {
+            if !self.role_service.check_read_permission(&organization_id, &requesting_user_id, "members").await? {
+                return Err(DomainError::permission_denied("User does not have permission to get members"));
+            }
         }
 
         self.member_repo
@@ -293,11 +296,12 @@ where
         organization_id: Uuid,
         page: u32,
         page_size: u32,
-        requesting_user_id: Uuid,
+        requesting_user_id: Option<Uuid>,
     ) -> Result<Vec<OrganizationMember>, DomainError> {
-
-        if !self.role_service.check_read_permission(&organization_id, &requesting_user_id, "members").await? {
-            return Err(DomainError::permission_denied("User does not have permission to list members"));
+        if let Some(requesting_user_id) = requesting_user_id {
+            if !self.role_service.check_read_permission(&organization_id, &requesting_user_id, "members").await? {
+                return Err(DomainError::permission_denied("User does not have permission to list members"));
+            }
         }
 
         self.member_repo
@@ -309,7 +313,14 @@ where
     async fn list_active_members(
         &self,
         organization_id: Uuid,
+        requesting_user_id: Option<Uuid>,
     ) -> Result<Vec<OrganizationMember>, DomainError> {
+        if let Some(requesting_user_id) = requesting_user_id {
+            if !self.role_service.check_read_permission(&organization_id, &requesting_user_id, "members").await? {
+                return Err(DomainError::permission_denied("User does not have permission to list active members"));
+            }
+        }
+
         // Validate organization exists
         self.organization_repo
             .find_by_id(&organization_id)

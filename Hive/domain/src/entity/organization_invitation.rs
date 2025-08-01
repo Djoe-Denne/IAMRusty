@@ -9,7 +9,7 @@ use crate::{error::DomainError, entity::role_permission::RolePermission};
 pub struct OrganizationInvitation {
     pub id: Uuid,
     pub organization_id: Uuid,
-    pub organization_name: String,
+    pub organization_name: Option<String>,
     pub aggregate_id: String,
     pub role_permissions: Vec<RolePermission>,
     pub invited_by_user_id: Uuid,
@@ -37,7 +37,6 @@ impl OrganizationInvitation {
     /// Create a new organization invitation
     pub fn new(
         organization_id: Uuid,
-        organization_name: String,
         aggregate_id: String,
         role_permissions: Vec<RolePermission>,
         invited_by_user_id: Uuid,
@@ -50,7 +49,7 @@ impl OrganizationInvitation {
         Ok(Self {
             id: Uuid::new_v4(),
             organization_id,
-            organization_name,
+            organization_name: None,
             aggregate_id,
             role_permissions,
             invited_by_user_id,
@@ -146,7 +145,7 @@ impl OrganizationInvitation {
     }
 
     pub fn update_organization_name(&mut self, organization_name: &str) {
-        self.organization_name = organization_name.to_string();
+        self.organization_name = Some(organization_name.to_string());
     }
 }
 

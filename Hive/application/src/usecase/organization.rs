@@ -41,7 +41,7 @@ pub trait OrganizationUseCase: Send + Sync {
     async fn get_organization(
         &self,
         organization_id: Uuid,
-        user_id: Uuid,
+        user_id: Option<Uuid>,
     ) -> Result<OrganizationResponse, ApplicationError>;
 
     /**
@@ -254,11 +254,11 @@ impl OrganizationUseCase for OrganizationUseCaseImpl {
     async fn get_organization(
         &self,
         organization_id: Uuid,
-        user_id: Uuid,
+        user_id: Option<Uuid>,
     ) -> Result<OrganizationResponse, ApplicationError> {
         let organization = self
             .organization_service
-            .get_organization(&organization_id)
+            .get_organization(&organization_id, user_id)
             .await
             .map_err(ApplicationError::Domain)?;
 
@@ -271,13 +271,6 @@ impl OrganizationUseCase for OrganizationUseCaseImpl {
         request: &UpdateOrganizationRequest,
         user_id: Uuid,
     ) -> Result<OrganizationResponse, ApplicationError> {
-        // Get existing organization
-        self
-            .organization_service
-            .get_organization(&organization_id)
-            .await
-            .map_err(ApplicationError::Domain)?;
-
         // Save the updated organization
         let updated_organization = self
             .organization_service
@@ -287,7 +280,7 @@ impl OrganizationUseCase for OrganizationUseCaseImpl {
                 request.description.clone(),
                 request.avatar_url.clone(),
                 request.settings.clone(),
-                user_id.clone(),
+                user_id,
             )
             .await
             .map_err(ApplicationError::Domain)?;
@@ -307,18 +300,18 @@ impl OrganizationUseCase for OrganizationUseCaseImpl {
         // Get organization for event
         let organization = self
             .organization_service
-            .get_organization(&organization_id)
+            .get_organization(&organization_id, Some(user_id))
             .await
             .map_err(ApplicationError::Domain)?;
 
         // Use domain service to delete organization
         self.organization_service
-            .delete_organization(organization_id.clone(), user_id.clone())
+            .delete_organization(organization_id.clone(), user_id)
             .await
             .map_err(ApplicationError::Domain)?;
 
         // Publish domain event
-        self.publish_organization_deleted_event(&organization, user_id.clone())
+        self.publish_organization_deleted_event(&organization, user_id)
             .await?;
 
         Ok(())

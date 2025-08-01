@@ -25,7 +25,7 @@ pub async fn create_external_link(
         organization_id
     );
 
-    let command = CreateExternalLinkCommand::new(organization_id, request, auth_user.user_id);
+    let command = CreateExternalLinkCommand::new(organization_id, &request, auth_user.user_id);
     let context = CommandContext::new().with_user_id(auth_user.user_id);
 
     let result = state

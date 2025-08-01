@@ -7,8 +7,9 @@ use hive_domain::error::DomainError;
 use hive_domain::port::repository::OrganizationInvitationRepository;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, 
-    QueryFilter, QueryOrder, Set, Order
+    QueryFilter, QueryOrder, Set, Order, JsonValue, PaginatorTrait
 };
+use sea_orm::QuerySelect;
 use std::sync::Arc;
 use tracing::{debug, error};
 use uuid::Uuid;
@@ -43,8 +44,9 @@ impl OrganizationInvitationRepositoryImpl {
         Ok(OrganizationInvitation {
             id: model.id,
             organization_id: model.organization_id,
+            organization_name: None,
             aggregate_id: model.aggregate_id,
-            role_permissions: model.role_permissions.try_into(),
+            role_permissions: serde_json::from_value(model.role_permissions).map_err(|e| DomainError::invalid_input(&format!("Invalid role permissions: {}", e)))?,
             invited_by_user_id: model.invited_by_user_id,
             token: model.token,
             status,
@@ -68,7 +70,7 @@ impl OrganizationInvitationRepositoryImpl {
             id: ActiveValue::Set(invitation.id),
             organization_id: ActiveValue::Set(invitation.organization_id),
             aggregate_id: ActiveValue::Set(invitation.aggregate_id.clone()),
-            role_permissions: ActiveValue::Set(Json(invitation.role_permissions)),
+            role_permissions: ActiveValue::Set(JsonValue::from(serde_json::to_value(&invitation.role_permissions).unwrap())),
             invited_by_user_id: ActiveValue::Set(invitation.invited_by_user_id),
             token: ActiveValue::Set(invitation.token.clone()),
             status: ActiveValue::Set(status_str.to_string()),
@@ -88,7 +90,7 @@ impl OrganizationInvitationRepository for OrganizationInvitationRepositoryImpl {
         let invitation = OrganizationInvitations::find_by_id(*id)
             .one(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         match invitation {
             Some(model) => Ok(Some(Self::to_domain(model)?)),
@@ -103,7 +105,7 @@ impl OrganizationInvitationRepository for OrganizationInvitationRepositoryImpl {
             .filter(organization_invitations::Column::Token.eq(token))
             .one(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         match invitation {
             Some(model) => Ok(Some(Self::to_domain(model)?)),
@@ -119,7 +121,7 @@ impl OrganizationInvitationRepository for OrganizationInvitationRepositoryImpl {
             .order_by(organization_invitations::Column::CreatedAt, Order::Desc)
             .all(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         let mut result = Vec::new();
         for model in invitations {
@@ -136,7 +138,7 @@ impl OrganizationInvitationRepository for OrganizationInvitationRepositoryImpl {
             .order_by(organization_invitations::Column::CreatedAt, Order::Desc)
             .all(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         let mut result = Vec::new();
         for model in invitations {
@@ -156,10 +158,10 @@ impl OrganizationInvitationRepository for OrganizationInvitationRepositoryImpl {
         let invitation = OrganizationInvitations::find()
             .filter(organization_invitations::Column::OrganizationId.eq(*organization_id))
             .filter(organization_invitations::Column::AggregateId.eq(aggregate_id))
-            .filter(organization_invitations::Column::Status.eq(status))
+            .filter(organization_invitations::Column::Status.eq(status.as_str()))
             .one(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         match invitation {
             Some(model) => Ok(Some(Self::to_domain(model)?)),
@@ -182,7 +184,7 @@ impl OrganizationInvitationRepository for OrganizationInvitationRepositoryImpl {
             .order_by(organization_invitations::Column::CreatedAt, Order::Desc)
             .all(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         let mut result = Vec::new();
         for model in invitations {
@@ -200,7 +202,7 @@ impl OrganizationInvitationRepository for OrganizationInvitationRepositoryImpl {
             .filter(organization_invitations::Column::ExpiresAt.lt(now))
             .all(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         let mut result = Vec::new();
         for model in invitations {
@@ -217,7 +219,7 @@ impl OrganizationInvitationRepository for OrganizationInvitationRepositoryImpl {
         let result = active_model
             .save(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         // Convert the saved active model back to domain model
         let saved_model = organization_invitations::Model {
@@ -243,7 +245,7 @@ impl OrganizationInvitationRepository for OrganizationInvitationRepositoryImpl {
         let result = OrganizationInvitations::delete_by_id(*id)
             .exec(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         if result.rows_affected == 0 {
             return Err(DomainError::entity_not_found("OrganizationInvitation", &id.to_string()));
@@ -259,7 +261,7 @@ impl OrganizationInvitationRepository for OrganizationInvitationRepositoryImpl {
             .filter(organization_invitations::Column::OrganizationId.eq(*organization_id))
             .count(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         Ok(count as i64)
     }
@@ -272,7 +274,7 @@ impl OrganizationInvitationRepository for OrganizationInvitationRepositoryImpl {
             .filter(organization_invitations::Column::Status.eq("Pending"))
             .count(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         Ok(count as i64)
     }

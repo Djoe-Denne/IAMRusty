@@ -13,9 +13,9 @@ pub use validation::{validate_pagination, validate_query_params, ValidatedJson};
 pub async fn create_app_routes(state: AppState, config: ServerConfig) -> anyhow::Result<()> {
     RouteBuilder::new(state.clone())
         .health_check()
-        // Public organization routes
-        .get("/api/organizations/search", search_organizations)
-        .get("/api/organizations/{organization_id}", get_organization)
+        // Public organization routes (with optional auth)
+        .optional_auth_get("/api/organizations/search", search_organizations)
+        .optional_auth_get("/api/organizations/{organization_id}", get_organization)
         // Authenticated organization routes
         .authenticated_post("/api/organizations", create_organization)
         .authenticated_put("/api/organizations/{organization_id}", update_organization)
@@ -27,8 +27,8 @@ pub async fn create_app_routes(state: AppState, config: ServerConfig) -> anyhow:
             "/api/organizations/{organization_id}/members/{user_id}",
             remove_member,
         )
-        .authenticated_get("/api/organizations/{organization_id}/members", list_members)
-        .authenticated_get(
+        .optional_auth_get("/api/organizations/{organization_id}/members", list_members)
+        .optional_auth_get(
             "/api/organizations/{organization_id}/members/{user_id}",
             get_member,
         )
@@ -48,19 +48,10 @@ pub async fn create_app_routes(state: AppState, config: ServerConfig) -> anyhow:
             start_sync_job,
         )
         // Role routes
-        .authenticated_post("/api/organizations/{organization_id}/roles", create_role)
         .authenticated_get("/api/organizations/{organization_id}/roles", list_roles)
         .authenticated_get(
             "/api/organizations/{organization_id}/roles/{role_id}",
             get_role,
-        )
-        .authenticated_put(
-            "/api/organizations/{organization_id}/roles/{role_id}",
-            update_role,
-        )
-        .authenticated_delete(
-            "/api/organizations/{organization_id}/roles/{role_id}",
-            delete_role,
         )
         .build(config)
         .await

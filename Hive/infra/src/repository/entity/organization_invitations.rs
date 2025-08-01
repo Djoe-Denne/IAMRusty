@@ -31,23 +31,11 @@ pub enum Relation {
         on_delete = "Cascade"
     )]
     Organization,
-    #[sea_orm(
-        belongs_to = "super::organization_roles::Entity",
-        from = "Column::RoleId",
-        to = "super::organization_roles::Column::Id"
-    )]
-    OrganizationRole,
 }
 
 impl Related<super::organizations::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Organization.def()
-    }
-}
-
-impl Related<super::organization_roles::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::OrganizationRole.def()
     }
 }
 

@@ -11,13 +11,22 @@ pub struct Model {
     pub id: Uuid,
     pub name: String,
     pub description: Option<String>,
-    pub permission_id: Uuid,
-    pub resource_id: Uuid,
+    pub organization_id: Uuid,
+    pub permission_id: String,
+    pub resource_id: String,
     pub created_at: DateTime<Utc>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
+    #[sea_orm(
+        belongs_to = "super::organizations::Entity",
+        from = "Column::OrganizationId",
+        to = "super::organizations::Column::Id",
+        on_update = "Cascade",
+        on_delete = "Cascade"
+    )]
+    Organization,
     #[sea_orm(
         belongs_to = "super::permissions::Entity",
         from = "Column::PermissionId",
@@ -36,6 +45,12 @@ pub enum Relation {
     Resource,
     #[sea_orm(has_many = "super::organization_member_role_permissions::Entity")]
     OrganizationMemberRolePermissions,
+}
+
+impl Related<super::organizations::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Organization.def()
+    }
 }
 
 impl Related<super::permissions::Entity> for Entity {

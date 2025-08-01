@@ -61,16 +61,6 @@ impl OrganizationRepositoryImpl {
     }
 }
 
-impl From<DbErr> for DomainError {
-    fn from(err: DbErr) -> Self {
-        match err {
-            DbErr::RecordNotFound(_) => DomainError::entity_not_found("Organization", "unknown"),
-            DbErr::Custom(msg) => DomainError::internal_error(&msg),
-            _ => DomainError::internal_error(&err.to_string()),
-        }
-    }
-}
-
 #[async_trait]
 impl OrganizationRepository for OrganizationRepositoryImpl {
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<Organization>, DomainError> {
@@ -79,7 +69,7 @@ impl OrganizationRepository for OrganizationRepositoryImpl {
         let organization = Organizations::find_by_id(*id)
             .one(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         Ok(organization.map(Self::to_domain))
     }
@@ -91,7 +81,7 @@ impl OrganizationRepository for OrganizationRepositoryImpl {
             .filter(organizations::Column::Slug.eq(slug))
             .one(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         Ok(organization.map(Self::to_domain))
     }
@@ -104,7 +94,7 @@ impl OrganizationRepository for OrganizationRepositoryImpl {
             .order_by(organizations::Column::CreatedAt, Order::Desc)
             .all(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         Ok(organizations.into_iter().map(Self::to_domain).collect())
     }
@@ -126,7 +116,7 @@ impl OrganizationRepository for OrganizationRepositoryImpl {
             .paginate(self.db.as_ref(), page_size as u64)
             .fetch_page(page as u64)
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         Ok(organizations.into_iter().map(Self::to_domain).collect())
     }
@@ -147,7 +137,7 @@ impl OrganizationRepository for OrganizationRepositoryImpl {
             .paginate(self.db.as_ref(), page_size as u64)
             .fetch_page(page as u64)
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         Ok(organizations.into_iter().map(Self::to_domain).collect())
     }
@@ -159,7 +149,7 @@ impl OrganizationRepository for OrganizationRepositoryImpl {
             .filter(organizations::Column::Slug.eq(slug))
             .count(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         Ok(count > 0)
     }
@@ -172,7 +162,7 @@ impl OrganizationRepository for OrganizationRepositoryImpl {
         let result = active_model
             .save(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         // Convert the saved active model back to domain model
         let saved_model = organizations::Model {
@@ -196,7 +186,7 @@ impl OrganizationRepository for OrganizationRepositoryImpl {
         let result = Organizations::delete_by_id(*id)
             .exec(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         if result.rows_affected == 0 {
             return Err(DomainError::entity_not_found("Organization", &id.to_string()));
@@ -211,7 +201,7 @@ impl OrganizationRepository for OrganizationRepositoryImpl {
         let count = Organizations::find()
             .count(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         Ok(count as i64)
     }

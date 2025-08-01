@@ -76,13 +76,6 @@ pub trait OrganizationMemberRepository: Send + Sync {
         status: &MemberStatus,
     ) -> Result<Vec<OrganizationMember>, DomainError>;
 
-    /// Find members by role in an organization
-    async fn find_by_organization_and_role(
-        &self,
-        organization_id: &Uuid,
-        role_id: &Uuid,
-    ) -> Result<Vec<OrganizationMember>, DomainError>;
-
     /// Check if user is a member of organization
     async fn is_member(&self, organization_id: &Uuid, user_id: &Uuid) -> Result<bool, DomainError>;
 
@@ -114,8 +107,6 @@ pub trait PermissionRepository: Send + Sync {
         level: &PermissionLevel,
     ) -> Result<Option<Permission>, DomainError>;
     async fn find_all(&self) -> Result<Vec<Permission>, DomainError>;
-    async fn save(&self, permission: &Permission) -> Result<Permission, DomainError>;
-    async fn delete_by_id(&self, id: &Uuid) -> Result<(), DomainError>;
 }
 
 /// Repository port for Resource entities
@@ -127,8 +118,6 @@ pub trait ResourceRepository: Send + Sync {
         resource_type: &String,
     ) -> Result<Option<Resource>, DomainError>;
     async fn find_all(&self) -> Result<Vec<Resource>, DomainError>;
-    async fn save(&self, resource: &Resource) -> Result<Resource, DomainError>;
-    async fn delete_by_id(&self, id: &Uuid) -> Result<(), DomainError>;
 }
 
 /// Repository port for RolePermission entities
@@ -155,7 +144,6 @@ pub trait RolePermissionRepository: Send + Sync {
 pub trait MemberRoleRepository: Send + Sync {
     async fn find_by_organization_member(
         &self,
-        organization_id: &Uuid,
         member_id: &Uuid,
     ) -> Result<Vec<OrganizationMemberRolePermission>, DomainError>;
     async fn save(
@@ -164,7 +152,6 @@ pub trait MemberRoleRepository: Send + Sync {
     ) -> Result<OrganizationMemberRolePermission, DomainError>;
     async fn delete_by_organization_member(
         &self,
-        organization_id: &Uuid,
         member_id: &Uuid,
     ) -> Result<(), DomainError>;
     async fn delete_by_organization(&self, organization_id: &Uuid) -> Result<(), DomainError>;

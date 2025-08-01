@@ -10,7 +10,7 @@ use crate::{error::DomainError, entity::{permission::Permission, resource::Resou
 pub struct RolePermission { 
     pub id: Option<Uuid>,
     pub name: Option<String>,
-    pub description: Option<String>,
+    pub organization_id: Uuid,
     pub permission: Permission,
     pub resource: Resource,
     pub created_at: Option<DateTime<Utc>>,
@@ -21,7 +21,7 @@ impl RolePermission {
     pub fn new(
         id: Option<Uuid>,
         name: Option<String>,
-        description: Option<String>,
+        organization_id: Uuid,
         permission: &Permission,
         resource: &Resource,
         created_at: Option<DateTime<Utc>>,
@@ -29,7 +29,7 @@ impl RolePermission {
         Self {
             id,
             name,
-            description,
+            organization_id,
             permission: permission.clone(),
             resource: resource.clone(),
             created_at,
@@ -41,10 +41,6 @@ impl RolePermission {
         self.name = Some(new_name);
     }
 
-    /// Update role permission description
-    pub fn update_description(&mut self, new_description: String) {
-        self.description = Some(new_description);
-    }
 }
 
 /// Helper struct to represent permission-resource combinations for easier handling

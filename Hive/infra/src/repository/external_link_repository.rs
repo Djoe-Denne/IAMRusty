@@ -6,8 +6,8 @@ use hive_domain::entity::{ExternalLink, SyncStatus};
 use hive_domain::error::DomainError;
 use hive_domain::port::repository::ExternalLinkRepository;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, 
-    QueryFilter, Set
+    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait,
+    QueryFilter, PaginatorTrait
 };
 use std::sync::Arc;
 use tracing::debug;
@@ -49,6 +49,8 @@ impl ExternalLinkRepositoryImpl {
             sync_error: model.sync_error,
             created_at: model.created_at,
             updated_at: model.updated_at,
+            organization_name: None,
+            provider_name: None,
         })
     }
 
@@ -81,7 +83,7 @@ impl ExternalLinkRepository for ExternalLinkRepositoryImpl {
         let link = ExternalLinks::find_by_id(*id)
             .one(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         match link {
             Some(model) => Ok(Some(Self::to_domain(model)?)),
@@ -96,7 +98,7 @@ impl ExternalLinkRepository for ExternalLinkRepositoryImpl {
             .filter(external_links::Column::OrganizationId.eq(*organization_id))
             .all(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         let mut result = Vec::new();
         for model in links {
@@ -117,7 +119,7 @@ impl ExternalLinkRepository for ExternalLinkRepositoryImpl {
             .filter(external_links::Column::ProviderId.eq(*provider_id))
             .one(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         match link {
             Some(model) => Ok(Some(Self::to_domain(model)?)),
@@ -132,7 +134,7 @@ impl ExternalLinkRepository for ExternalLinkRepositoryImpl {
             .filter(external_links::Column::SyncEnabled.eq(true))
             .all(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         let mut result = Vec::new();
         for model in links {
@@ -153,7 +155,7 @@ impl ExternalLinkRepository for ExternalLinkRepositoryImpl {
             )
             .all(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         let mut result = Vec::new();
         for model in links {
@@ -170,7 +172,7 @@ impl ExternalLinkRepository for ExternalLinkRepositoryImpl {
         let result = active_model
             .save(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         let saved_model = external_links::Model {
             id: result.id.unwrap(),
@@ -195,7 +197,7 @@ impl ExternalLinkRepository for ExternalLinkRepositoryImpl {
         let result = ExternalLinks::delete_by_id(*id)
             .exec(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         if result.rows_affected == 0 {
             return Err(DomainError::entity_not_found("ExternalLink", &id.to_string()));
@@ -211,7 +213,7 @@ impl ExternalLinkRepository for ExternalLinkRepositoryImpl {
             .filter(external_links::Column::OrganizationId.eq(*organization_id))
             .count(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         Ok(count as i64)
     }

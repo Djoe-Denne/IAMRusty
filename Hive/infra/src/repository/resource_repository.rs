@@ -2,12 +2,12 @@
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use hive_domain::entity::{Resource, ResourceType};
+use hive_domain::entity::{Resource};
 use hive_domain::error::DomainError;
 use hive_domain::port::repository::ResourceRepository;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, 
-    QueryFilter, Set
+    ColumnTrait, DatabaseConnection, EntityTrait, 
+    QueryFilter
 };
 use std::sync::Arc;
 use tracing::{debug, error};
@@ -35,19 +35,8 @@ impl ResourceRepositoryImpl {
         Ok(Resource {
             name: model.name,
             description: model.description,
-            created_at: model.created_at,
+            created_at: Some(model.created_at),
         })
-    }
-
-    /// Convert a domain resource to a database active model
-    fn to_active_model(resource: &Resource) -> resources::ActiveModel {
-        resources::ActiveModel {
-            id: ActiveValue::Set(resource.id),
-            resource_type: ActiveValue::Set(resource.resource_type.as_str().to_string()),
-            name: ActiveValue::Set(resource.name.clone()),
-            description: ActiveValue::Set(resource.description.clone()),
-            created_at: ActiveValue::Set(resource.created_at),
-        }
     }
 }
 
@@ -59,7 +48,7 @@ impl ResourceRepository for ResourceRepositoryImpl {
         let resource = Resources::find_by_id(*id)
             .one(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         match resource {
             Some(model) => Ok(Some(Self::to_domain(model)?)),
@@ -74,7 +63,7 @@ impl ResourceRepository for ResourceRepositoryImpl {
             .filter(resources::Column::ResourceType.eq(resource_type.as_str()))
             .one(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         match resource {
             Some(model) => Ok(Some(Self::to_domain(model)?)),
@@ -88,49 +77,12 @@ impl ResourceRepository for ResourceRepositoryImpl {
         let resources = Resources::find()
             .all(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         let mut result = Vec::new();
         for model in resources {
             result.push(Self::to_domain(model)?);
         }
         Ok(result)
-    }
-
-    async fn save(&self, resource: &Resource) -> Result<Resource, DomainError> {
-        debug!("Saving resource with ID: {}", resource.id);
-        
-        let active_model = Self::to_active_model(resource);
-        
-        let result = active_model
-            .save(self.db.as_ref())
-            .await
-            .map_err(DomainError::from)?;
-
-        // Convert the saved active model back to domain model
-        let saved_model = resources::Model {
-            id: result.id.unwrap(),
-            resource_type: result.resource_type.unwrap(),
-            name: result.name.unwrap(),
-            description: result.description.unwrap(),
-            created_at: result.created_at.unwrap(),
-        };
-
-        Self::to_domain(saved_model)
-    }
-
-    async fn delete_by_id(&self, id: &Uuid) -> Result<(), DomainError> {
-        debug!("Deleting resource by ID: {}", id);
-        
-        let result = Resources::delete_by_id(*id)
-            .exec(self.db.as_ref())
-            .await
-            .map_err(DomainError::from)?;
-
-        if result.rows_affected == 0 {
-            return Err(DomainError::entity_not_found("Resource", &id.to_string()));
-        }
-
-        Ok(())
     }
 } 

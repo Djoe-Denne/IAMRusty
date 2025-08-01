@@ -2,7 +2,6 @@
 
 pub use super::organizations::Entity as Organizations;
 pub use super::organization_members::Entity as OrganizationMembers;
-pub use super::organization_roles::Entity as OrganizationRoles;
 pub use super::organization_invitations::Entity as OrganizationInvitations;
 pub use super::external_providers::Entity as ExternalProviders;
 pub use super::external_links::Entity as ExternalLinks;

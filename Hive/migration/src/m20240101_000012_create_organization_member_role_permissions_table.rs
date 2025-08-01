@@ -19,12 +19,7 @@ impl MigrationTrait for Migration {
                             .extra("DEFAULT gen_random_uuid()".to_owned()),
                     )
                     .col(
-                        ColumnDef::new(OrganizationMemberRolePermissions::OrganizationId)
-                            .uuid()
-                            .not_null(),
-                    )
-                    .col(
-                        ColumnDef::new(OrganizationMemberRolePermissions::UserId)
+                        ColumnDef::new(OrganizationMemberRolePermissions::MemberId)
                             .uuid()
                             .not_null(),
                     )
@@ -44,9 +39,9 @@ impl MigrationTrait for Migration {
                             .name("fk_org_member_role_permissions_organization_id")
                             .from(
                                 OrganizationMemberRolePermissions::Table,
-                                OrganizationMemberRolePermissions::OrganizationId,
+                                OrganizationMemberRolePermissions::MemberId,
                             )
-                            .to(Organizations::Table, Organizations::Id)
+                            .to(OrganizationMembers::Table, OrganizationMembers::Id)
                             .on_delete(ForeignKeyAction::Cascade),
                     )
                     .foreign_key(
@@ -70,8 +65,7 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .name("idx_org_member_role_permissions_org_user")
                     .table(OrganizationMemberRolePermissions::Table)
-                    .col(OrganizationMemberRolePermissions::OrganizationId)
-                    .col(OrganizationMemberRolePermissions::UserId)
+                    .col(OrganizationMemberRolePermissions::MemberId)
                     .to_owned(),
             )
             .await?;
@@ -95,8 +89,7 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .name("idx_org_member_role_permissions_unique")
                     .table(OrganizationMemberRolePermissions::Table)
-                    .col(OrganizationMemberRolePermissions::OrganizationId)
-                    .col(OrganizationMemberRolePermissions::UserId)
+                    .col(OrganizationMemberRolePermissions::MemberId)
                     .col(OrganizationMemberRolePermissions::RolePermissionId)
                     .unique()
                     .to_owned(),
@@ -121,14 +114,13 @@ impl MigrationTrait for Migration {
 enum OrganizationMemberRolePermissions {
     Table,
     Id,
-    OrganizationId,
-    UserId,
+    MemberId,
     RolePermissionId,
     CreatedAt,
 }
 
 #[derive(DeriveIden)]
-enum Organizations {
+enum OrganizationMembers {
     Table,
     Id,
 }

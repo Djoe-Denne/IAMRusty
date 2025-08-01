@@ -58,7 +58,7 @@ pub trait OrganizationService: Send + Sync {
      * 
      * @param id - The ID of the organization to get
      */
-    async fn get_organization(&self, id: &Uuid) -> Result<Organization, DomainError>;
+    async fn get_organization(&self, id: &Uuid, user_id: Option<Uuid>) -> Result<Organization, DomainError>;
 
     /**
      * Get an organization by slug
@@ -223,11 +223,19 @@ where
     }
 
     /// Get organization by ID
-    async fn get_organization(&self, id: &Uuid) -> Result<Organization, DomainError> {
-        self.organization_repo
+    async fn get_organization(&self, id: &Uuid, user_id: Option<Uuid>) -> Result<Organization, DomainError> {
+        if let Some(user_id) = user_id {
+            if !self.role_service.check_read_permission(&id, &user_id, "organization").await? {
+                return Err(DomainError::permission_denied("User does not have permission to get organization"));
+            }
+        }
+
+        let organization = self.organization_repo
             .find_by_id(&id)
             .await?
-            .ok_or_else(|| DomainError::entity_not_found("Organization", &id.to_string()))
+            .ok_or_else(|| DomainError::entity_not_found("Organization", &id.to_string()))?;
+
+        Ok(organization)
     }
 
     /// Get organization by slug

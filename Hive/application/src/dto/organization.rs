@@ -1,16 +1,10 @@
 use chrono::{DateTime, Utc};
-use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 use validator::Validate;
 
 use crate::Organization;
-
-// Regex for validating organization slugs
-lazy_static::lazy_static! {
-    static ref RE_SLUG: Regex = Regex::new(r"^[a-z0-9-]+$").unwrap();
-}
 
 /// DTO for creating a new organization
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
@@ -28,10 +22,6 @@ pub struct CreateOrganizationRequest {
             max = 100,
             message = "Slug must be between 1 and 100 characters"
         ),
-        regex(
-            path = "RE_SLUG",
-            message = "Slug must contain only lowercase letters, numbers, and hyphens"
-        )
     )]
     pub slug: String,
 

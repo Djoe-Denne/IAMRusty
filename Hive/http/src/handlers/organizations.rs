@@ -9,7 +9,7 @@ use hive_application::{
     UpdateOrganizationCommand, UpdateOrganizationRequest,
 };
 use rustycog_command::CommandContext;
-use rustycog_http::{AppState, AuthUser, ValidatedJson};
+use rustycog_http::{AppState, AuthUser, OptionalAuthUser, ValidatedJson};
 use uuid::Uuid;
 
 use crate::error::HttpError;
@@ -42,13 +42,17 @@ pub async fn create_organization(
 pub async fn get_organization(
     State(state): State<AppState>,
     Path(organization_id): Path<Uuid>,
-    auth_user: Option<AuthUser>,
+    auth_user: OptionalAuthUser,
 ) -> Result<Json<OrganizationResponse>, HttpError> {
     tracing::info!("Getting organization: {}", organization_id);
 
-    let user_id = auth_user.map(|u| u.user_id);
+    let user_id = auth_user.user_id();
     let command = GetOrganizationCommand::new(organization_id, user_id);
-    let context = CommandContext::new().with_optional_user_id(user_id);
+    let mut context = CommandContext::new();
+
+    if let Some(user_id) = user_id {
+        context = context.with_user_id(user_id);
+    }
 
     let result = state
         .command_service
@@ -139,14 +143,18 @@ pub async fn list_organizations(
 /// GET /api/organizations/search
 pub async fn search_organizations(
     State(state): State<AppState>,
-    auth_user: Option<AuthUser>,
+    auth_user: OptionalAuthUser,
     Query(search): Query<OrganizationSearchRequest>,
 ) -> Result<Json<OrganizationListResponse>, HttpError> {
     tracing::info!("Searching organizations with query: {:?}", search.query);
 
-    let user_id = auth_user.map(|u| u.user_id);
+    let user_id = auth_user.user_id();
     let command = SearchOrganizationsCommand::new(search, user_id);
-    let context = CommandContext::new().with_optional_user_id(user_id);
+    let mut context = CommandContext::new();
+
+    if let Some(user_id) = user_id {
+        context = context.with_user_id(user_id);
+    }
 
     let result = state
         .command_service

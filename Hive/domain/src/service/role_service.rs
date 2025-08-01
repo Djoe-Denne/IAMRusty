@@ -134,7 +134,7 @@ where
     async fn check_permission(
         &self,
         organization_id: &Uuid,
-        member_id: &Uuid,
+        user_id: &Uuid,
         resource_type: &str,
         permission: &str,
     ) -> Result<bool, DomainError> {
@@ -152,19 +152,19 @@ where
 
         let member = self
             .member_repo
-            .find_by_organization_and_user(organization_id, member_id)
+            .find_by_organization_and_user(organization_id, user_id)
             .await
             .map_err(|e| DomainError::Internal {
                 message: e.to_string(),
             })?
             .ok_or(DomainError::entity_not_found(
                 "Member",
-                member_id.to_string().as_str(),
+                user_id.to_string().as_str(),
             ))?;
 
         let member_roles = self
             .member_role_repo
-            .find_by_organization_member(organization_id, member_id)
+            .find_by_organization_member(&member.id)
             .await
             .map_err(|e| DomainError::Internal {
                 message: e.to_string(),
@@ -255,7 +255,7 @@ where
         for permission in &permissions {
             for resource in &resources {
                 let name = format!("{}:{}", resource.name, permission.level.as_str());
-                let role = RolePermission::new(None, Some(name), None, permission, resource, Some(Utc::now()));
+                let role = RolePermission::new(None, Some(name), *organization_id, permission, resource, Some(Utc::now()));
                 let role = self.role_permission_repo.save(organization_id, &role).await.map_err(|e| DomainError::Internal {
                     message: e.to_string(),
                 })?;

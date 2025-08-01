@@ -10,13 +10,14 @@ license.workspace = true
 # Domain and application layers
 hive-domain = { path = "../domain" }
 hive-application = { path = "../application" }
+hive-configuration = { path = "../configuration" }
 
 # HTTP framework
 axum = { workspace = true }
 
 # HTTP specific dependencies
 rustycog-http = { path = "../../rustycog/rustycog-http" }
-
+rustycog-command = { path = "../../rustycog/rustycog-command" }
 
 # Async traits
 async-trait = { workspace = true }
@@ -28,10 +29,14 @@ serde_json = { workspace = true }
 # UUID
 uuid = { workspace = true }
 
+# Date/Time
+chrono = { workspace = true }
+
 # Validation
 validator = { workspace = true }
 
 # Error handling
+anyhow = { workspace = true }
 thiserror = { workspace = true }
 
 # Tracing

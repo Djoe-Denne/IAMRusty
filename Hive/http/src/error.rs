@@ -43,7 +43,7 @@ impl IntoResponse for HttpError {
         let (status, error_response) = match self {
             HttpError::Application(app_error) => {
                 // Convert ApplicationError to appropriate HTTP status and response
-                match app_error {
+                match &app_error {
                     ApplicationError::Domain(domain_error) => match domain_error {
                         DomainError::EntityNotFound { .. } => {
                             (StatusCode::NOT_FOUND, ApiErrorResponse::from(app_error))

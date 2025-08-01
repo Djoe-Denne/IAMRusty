@@ -1,5 +1,5 @@
+use async_trait::async_trait;
 use axum::{
-    async_trait,
     extract::{FromRequest, Request},
     http::StatusCode,
     response::{IntoResponse, Json},
@@ -14,7 +14,6 @@ use crate::error::HttpError;
 /// A wrapper around JSON that validates the payload
 pub struct ValidatedJson<T>(pub T);
 
-#[async_trait]
 impl<T, S> FromRequest<S> for ValidatedJson<T>
 where
     T: DeserializeOwned + Validate,

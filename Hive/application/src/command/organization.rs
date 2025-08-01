@@ -147,7 +147,7 @@ impl CommandHandler<GetOrganizationCommand> for GetOrganizationCommandHandler {
         command: GetOrganizationCommand,
     ) -> Result<OrganizationResponse, CommandError> {
         self.organization_usecase
-            .get_organization(command.organization_id, command.user_id.unwrap())
+            .get_organization(command.organization_id, command.user_id)
             .await
             .map_err(|e| CommandError::business("get_failed", &e.to_string()))
     }

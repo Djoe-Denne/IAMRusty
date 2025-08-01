@@ -5,8 +5,8 @@ use hive_domain::entity::{SyncJob, SyncJobType, SyncJobStatus};
 use hive_domain::error::DomainError;
 use hive_domain::port::repository::SyncJobRepository;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, 
-    QueryFilter, Set
+    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait,
+    QueryFilter, PaginatorTrait
 };
 use std::sync::Arc;
 use tracing::debug;
@@ -79,7 +79,7 @@ impl SyncJobRepository for SyncJobRepositoryImpl {
         let job = SyncJobs::find_by_id(*id)
             .one(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         match job {
             Some(model) => Ok(Some(Self::to_domain(model)?)),
@@ -94,7 +94,7 @@ impl SyncJobRepository for SyncJobRepositoryImpl {
             .filter(sync_jobs::Column::OrganizationExternalLinkId.eq(*link_id))
             .all(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         let mut result = Vec::new();
         for model in jobs {
@@ -111,7 +111,7 @@ impl SyncJobRepository for SyncJobRepositoryImpl {
         let jobs = SyncJobs::find()
             .all(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         let mut result = Vec::new();
         for model in jobs {
@@ -127,7 +127,7 @@ impl SyncJobRepository for SyncJobRepositoryImpl {
             .filter(sync_jobs::Column::Status.eq(status.as_str()))
             .all(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         let mut result = Vec::new();
         for model in jobs {
@@ -143,7 +143,7 @@ impl SyncJobRepository for SyncJobRepositoryImpl {
             .filter(sync_jobs::Column::Status.eq("running"))
             .all(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         let mut result = Vec::new();
         for model in jobs {
@@ -160,7 +160,7 @@ impl SyncJobRepository for SyncJobRepositoryImpl {
             .filter(sync_jobs::Column::Status.eq("running"))
             .all(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         let mut result = Vec::new();
         for model in jobs {
@@ -177,7 +177,7 @@ impl SyncJobRepository for SyncJobRepositoryImpl {
             .filter(sync_jobs::Column::CreatedAt.gte(cutoff))
             .all(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         let mut result = Vec::new();
         for model in jobs {
@@ -194,7 +194,7 @@ impl SyncJobRepository for SyncJobRepositoryImpl {
         let result = active_model
             .save(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         let saved_model = sync_jobs::Model {
             id: result.id.unwrap(),
@@ -221,7 +221,7 @@ impl SyncJobRepository for SyncJobRepositoryImpl {
         let result = SyncJobs::delete_by_id(*id)
             .exec(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         if result.rows_affected == 0 {
             return Err(DomainError::entity_not_found("SyncJob", &id.to_string()));
@@ -237,7 +237,7 @@ impl SyncJobRepository for SyncJobRepositoryImpl {
             .filter(sync_jobs::Column::OrganizationExternalLinkId.eq(*link_id))
             .count(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         Ok(count as i64)
     }
@@ -249,7 +249,7 @@ impl SyncJobRepository for SyncJobRepositoryImpl {
             .filter(sync_jobs::Column::Status.eq("running"))
             .count(self.db.as_ref())
             .await
-            .map_err(DomainError::from)?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         Ok(count as i64)
     }

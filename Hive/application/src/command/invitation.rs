@@ -85,14 +85,16 @@ pub struct ListInvitationsCommand {
     pub command_id: Uuid,
     pub organization_id: Uuid,
     pub pagination: PaginationRequest,
+    pub user_id: Option<Uuid>,
 }
 
 impl ListInvitationsCommand {
-    pub fn new(organization_id: Uuid, pagination: PaginationRequest) -> Self {
+    pub fn new(organization_id: Uuid, pagination: PaginationRequest, user_id: Option<Uuid>) -> Self {
         Self {
             command_id: Uuid::new_v4(),
             organization_id,
             pagination,
+            user_id,
         }
     }
 }
@@ -144,14 +146,16 @@ pub struct CancelInvitationCommand {
     pub command_id: Uuid,
     pub organization_id: Uuid,
     pub invitation_id: Uuid,
+    pub user_id: Option<Uuid>,
 }
 
 impl CancelInvitationCommand {
-    pub fn new(organization_id: Uuid, invitation_id: Uuid) -> Self {
+    pub fn new(organization_id: Uuid, invitation_id: Uuid, user_id: Option<Uuid>) -> Self {
         Self {
             command_id: Uuid::new_v4(),
             organization_id,
             invitation_id,
+            user_id,
         }
     }
 }
@@ -199,13 +203,15 @@ impl CommandHandler<CancelInvitationCommand> for CancelInvitationCommandHandler 
 pub struct AcceptInvitationCommand {
     pub command_id: Uuid,
     pub token: String,
+    pub user_id: Uuid,
 }
 
 impl AcceptInvitationCommand {
-    pub fn new(token: String) -> Self {
+    pub fn new(token: String, user_id: Uuid) -> Self {
         Self {
             command_id: Uuid::new_v4(),
             token,
+            user_id,
         }
     }
 }
@@ -247,7 +253,7 @@ impl AcceptInvitationCommandHandler {
 impl CommandHandler<AcceptInvitationCommand> for AcceptInvitationCommandHandler {
     async fn handle(&self, command: AcceptInvitationCommand) -> Result<(), CommandError> {
         self.invitation_usecase
-            .accept_invitation(command.token, Uuid::new_v4()) // TODO: Get user_id from context
+            .accept_invitation(command.token, command.user_id)
             .await
             .map_err(|e| CommandError::business("accept_invitation_failed", &e.to_string()))
     }
