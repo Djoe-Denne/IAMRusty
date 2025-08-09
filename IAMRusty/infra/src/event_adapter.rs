@@ -8,10 +8,9 @@ use iam_domain::error::DomainError;
 use rustycog_config::QueueConfig;
 use rustycog_core::error::ServiceError;
 use rustycog_events::{
-    adapter::{ErrorMapper, GenericEventPublisherAdapter, MultiQueueEventPublisher},
+    adapter::{ErrorMapper},
     create_event_publisher_from_queue_config, ConcreteEventPublisher,
 };
-use std::collections::HashSet;
 use std::sync::Arc;
 
 /// IAMRusty-specific error mapper implementation
@@ -102,61 +101,4 @@ pub async fn create_event_publisher_with_queue_config(
     create_event_publisher_from_queue_config(config)
         .await
         .map_err(|service_error| IAMErrorMapper.from_service_error(service_error))
-}
-
-/// Factory function to create a multi-queue event publisher with specific queue names
-/// If queue_names is empty, it will handle all queues configured in the QueueConfig
-///
-/// # Examples
-///
-/// ```rust
-/// use std::collections::HashSet;
-/// use rustycog_config::QueueConfig;
-///
-/// // Create a publisher that handles all queues
-/// let publisher = create_multi_queue_event_publisher_async(&config, None).await?;
-///
-/// // Create a publisher that only handles specific queues
-/// let mut specific_queues = HashSet::new();
-/// specific_queues.insert("user-events".to_string());
-/// specific_queues.insert("email-events".to_string());
-/// let publisher = create_multi_queue_event_publisher_async(&config, Some(specific_queues)).await?;
-/// ```
-pub async fn create_multi_queue_event_publisher_async(
-    config: &QueueConfig,
-    queue_names: Option<HashSet<String>>,
-) -> Result<Arc<MultiQueueEventPublisher<DomainError>>, DomainError> {
-    let error_mapper = Arc::new(IAMErrorMapper);
-
-    let queue_names = queue_names.unwrap_or_else(|| {
-        // If no specific queue names provided, use all configured queues
-        match config {
-            QueueConfig::Disabled => HashSet::new(),
-            QueueConfig::Sqs(sqs_config) => {
-                let mut all_queues = HashSet::new();
-                // Add all queue names from the configuration
-                for queue_name in sqs_config.queues.values() {
-                    all_queues.insert(queue_name.clone());
-                }
-                // Also add the default queue
-                all_queues.insert(sqs_config.default_queue.clone());
-                all_queues
-            }
-            QueueConfig::Kafka(kafka_config) => {
-                let mut all_queues = HashSet::new();
-                all_queues.insert(kafka_config.user_events_topic.clone());
-                all_queues
-            }
-        }
-    });
-
-    // For now, create a single publisher (we can extend this later to create multiple publishers for different queues)
-    let adapted_publisher = create_event_publisher_with_queue_config(config).await?;
-    let publisher =
-        GenericEventPublisherAdapter::<DomainError>::new(adapted_publisher, error_mapper);
-
-    Ok(Arc::new(MultiQueueEventPublisher::new(
-        vec![publisher],
-        queue_names,
-    )))
 }

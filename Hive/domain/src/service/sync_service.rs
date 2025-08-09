@@ -8,20 +8,18 @@ use crate::{
     service::{
         role_service::RoleService,
         organization_service::OrganizationService,
-        member_service::MemberService,
         invitation_service::InvitationService,
     },
 };
 
 /// Domain service for sync job management
-pub struct SyncServiceImpl<SR, LR, OR, RS, OS, MS, IS, PC>
+pub struct SyncServiceImpl<SR, LR, OR, RS, OS, IS, PC>
 where
     SR: SyncJobRepository,
     LR: ExternalLinkRepository,
     OR: OrganizationRepository,
     RS: RoleService,
     OS: OrganizationService,
-    MS: MemberService,
     IS: InvitationService,
     PC: ExternalProviderClient,
 {
@@ -30,7 +28,6 @@ where
     organization_repo: OR,
     role_service: RS,
     organization_service: OS,
-    member_service: MS,
     invitation_service: IS,
     provider_client: PC,
 }
@@ -76,14 +73,13 @@ pub trait SyncService: Send + Sync {
     ) -> Result<SyncResult, DomainError>;
 }
 
-impl<SR, LR, OR, RS, OS, MS, IS, PC> SyncServiceImpl<SR, LR, OR, RS, OS, MS, IS, PC>
+impl<SR, LR, OR, RS, OS, IS, PC> SyncServiceImpl<SR, LR, OR, RS, OS, IS, PC>
 where
     SR: SyncJobRepository,
     LR: ExternalLinkRepository,
     OR: OrganizationRepository,
     RS: RoleService,
     OS: OrganizationService,
-    MS: MemberService,
     IS: InvitationService,
     PC: ExternalProviderClient,
 {
@@ -94,11 +90,10 @@ where
         organization_repo: OR,
         role_service: RS,
         organization_service: OS,
-        member_service: MS,
         invitation_service: IS,
         provider_client: PC,
     ) -> Self {
-        Self { sync_job_repo, external_link_repo, organization_repo, role_service, organization_service, member_service, invitation_service, provider_client }
+        Self { sync_job_repo, external_link_repo, organization_repo, role_service, organization_service, invitation_service, provider_client }
     }
 
     /// Update organization info from external provider data
@@ -127,14 +122,13 @@ where
 
 
 #[async_trait::async_trait]
-impl<SR, LR, OR, RS, OS, MS, IS, PC> SyncService for SyncServiceImpl<SR, LR, OR, RS, OS, MS, IS, PC>
+impl<SR, LR, OR, RS, OS, IS, PC> SyncService for SyncServiceImpl<SR, LR, OR, RS, OS, IS, PC>
 where
     SR: SyncJobRepository,
     LR: ExternalLinkRepository,
     OR: OrganizationRepository,
     RS: RoleService,
     OS: OrganizationService,
-    MS: MemberService,
     IS: InvitationService,
     PC: ExternalProviderClient,
 {
@@ -205,7 +199,7 @@ where
 
         // Get organization info from external provider
         let external_org_info = self.provider_client
-            .get_organization_info(&external_link.provider_config)
+            .get_organization_info(&external_link.provider_source.clone().unwrap(), &external_link.provider_config)
             .await?;
 
         // Update organization with external info
@@ -246,10 +240,11 @@ where
             .find_by_id(&sync_job.organization_external_link_id)
             .await?
             .ok_or_else(|| DomainError::entity_not_found("ExternalLink", &sync_job.organization_external_link_id.to_string()))?;
+        
 
         // Get members from external provider
         let external_members = self.provider_client
-            .get_members(&external_link.provider_config)
+            .get_members(&external_link.provider_source.clone().unwrap(), &external_link.provider_config)
             .await?;
 
         let mut result = SyncResult {
@@ -270,7 +265,7 @@ where
         let invitation_message = Some(format!(
             "You have been invited to join {} organization based on your membership in the connected {:?} organization.",
             organization.name,
-            external_link.provider_name
+            external_link.provider_source.clone().unwrap()
         ));
 
         // Process each external member

@@ -268,53 +268,115 @@ impl ServiceError {
 ///
 /// This is a more specific error type that domain services can use
 /// and will be mapped to ServiceError by the application layer.
-#[derive(Debug, Error, Clone, Serialize, Deserialize)]
+/// Domain-specific errors for the Hive service
+#[derive(Debug, Error)]
 pub enum DomainError {
-    /// Business rule violation
-    #[error("Business rule violation: {message}")]
-    BusinessRuleViolation { message: String, rule: String },
+    #[error("Entity not found: {entity_type} with id '{id}'")]
+    EntityNotFound { entity_type: String, id: String },
 
-    /// Invalid state transition
-    #[error("Invalid state transition: {message}")]
-    InvalidStateTransition {
-        message: String,
-        from_state: String,
-        to_state: String,
-    },
+    #[error("Invalid input: {message}")]
+    InvalidInput { message: String },
 
-    /// Resource not found in domain
-    #[error("Resource not found: {message}")]
-    ResourceNotFound {
-        message: String,
+    #[error("Business rule violation: {rule}")]
+    BusinessRuleViolation { rule: String },
+
+    #[error("Unauthorized: {operation}")]
+    Unauthorized { operation: String },
+
+    #[error("Resource already exists: {resource_type} with identifier '{identifier}'")]
+    ResourceAlreadyExists {
         resource_type: String,
+        identifier: String,
     },
 
-    /// Invariant violation
-    #[error("Invariant violation: {message}")]
-    InvariantViolation { message: String, invariant: String },
+    #[error("External service error: {service}: {message}")]
+    ExternalServiceError { service: String, message: String },
 
-    /// Authorization error
-    #[error("Authorization error: {0}")]
-    AuthorizationError(String),
+    #[error("Permission denied: {message}")]
+    PermissionDenied { message: String },
+
+    #[error("Internal error: {message}")]
+    Internal { message: String },
+}
+
+impl DomainError {
+    /// Create an entity not found error
+    pub fn entity_not_found(entity_type: &str, id: &str) -> Self {
+        Self::EntityNotFound {
+            entity_type: entity_type.to_string(),
+            id: id.to_string(),
+        }
+    }
+
+    /// Create an invalid input error
+    pub fn invalid_input(message: &str) -> Self {
+        Self::InvalidInput {
+            message: message.to_string(),
+        }
+    }
+
+    /// Create a business rule violation error
+    pub fn business_rule_violation(rule: &str) -> Self {
+        Self::BusinessRuleViolation {
+            rule: rule.to_string(),
+        }
+    }
+
+    /// Create an unauthorized error
+    pub fn unauthorized(operation: &str) -> Self {
+        Self::Unauthorized {
+            operation: operation.to_string(),
+        }
+    }
+
+    /// Create a resource already exists error
+    pub fn resource_already_exists(resource_type: &str, identifier: &str) -> Self {
+        Self::ResourceAlreadyExists {
+            resource_type: resource_type.to_string(),
+            identifier: identifier.to_string(),
+        }
+    }
+
+    /// Create an external service error
+    pub fn external_service_error(service: &str, message: &str) -> Self {
+        Self::ExternalServiceError {
+            service: service.to_string(),
+            message: message.to_string(),
+        }
+    }
+
+    /// Create a permission denied error
+    pub fn permission_denied(message: &str) -> Self {
+        Self::PermissionDenied {
+            message: message.to_string(),
+        }
+    }
+
+    /// Create an internal error
+    pub fn internal_error(message: &str) -> Self {
+        Self::Internal {
+            message: message.to_string(),
+        }
+    }
 }
 
 impl From<DomainError> for ServiceError {
     fn from(domain_error: DomainError) -> Self {
         match domain_error {
-            DomainError::BusinessRuleViolation { message, rule } => {
-                ServiceError::business_with_code(message, rule)
+            DomainError::EntityNotFound { entity_type, id } => {
+                ServiceError::not_found_resource("",entity_type, id)
             }
-            DomainError::InvalidStateTransition { message, .. } => {
-                ServiceError::business_with_code(message, "invalid_state_transition")
+            DomainError::InvalidInput { message } => ServiceError::validation(message),
+            DomainError::BusinessRuleViolation { rule } => ServiceError::business(rule),
+            DomainError::Unauthorized { operation } => ServiceError::authorization(operation),
+            DomainError::ResourceAlreadyExists { resource_type, identifier } => {
+                ServiceError::conflict(resource_type)
             }
-            DomainError::ResourceNotFound {
-                message,
-                resource_type,
-            } => ServiceError::not_found_resource(message, resource_type, "unknown"),
-            DomainError::InvariantViolation { message, invariant } => {
-                ServiceError::business_with_code(message, invariant)
+            DomainError::Internal { message } => ServiceError::internal(message),
+            DomainError::ExternalServiceError { service, message } => {
+                ServiceError::infrastructure(message)
             }
-            DomainError::AuthorizationError(message) => ServiceError::authorization(message),
+            DomainError::PermissionDenied { message } => ServiceError::authorization(message),
         }
     }
 }

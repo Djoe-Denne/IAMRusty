@@ -27,6 +27,7 @@ pub trait OrganizationRepository: Send + Sync {
     /// Search organizations by name
     async fn search_by_name(
         &self,
+        user_id: Option<Uuid>,
         name_pattern: &str,
         page: u32,
         page_size: u32,
@@ -220,10 +221,10 @@ pub trait ExternalProviderRepository: Send + Sync {
     /// Find provider by ID
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<ExternalProvider>, DomainError>;
 
-    /// Find provider by type
-    async fn find_by_type(
+    /// Find provider by source
+    async fn find_by_source(
         &self,
-        provider_type: &ProviderType,
+        provider_source: &String,
     ) -> Result<Option<ExternalProvider>, DomainError>;
 
     /// Find all providers

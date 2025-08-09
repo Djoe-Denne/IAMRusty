@@ -3,7 +3,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
-use super::ProviderType;
 use crate::error::DomainError;
 
 /// External link entity representing connection between organization and external provider
@@ -13,7 +12,7 @@ pub struct ExternalLink {
     pub organization_id: Uuid,
     pub organization_name: Option<String>,
     pub provider_id: Uuid,
-    pub provider_name: Option<String>,
+    pub provider_source: Option<String>,
     pub provider_config: Value,
     pub sync_enabled: bool,
     pub sync_settings: Value,
@@ -38,7 +37,7 @@ impl ExternalLink {
         organization_id: Uuid,
         organization_name: Option<String>,
         provider_id: Uuid,
-        provider_name: Option<String>,
+        provider_source: Option<String>,
         provider_config: Value,
         sync_settings: Option<Value>,
     ) -> Result<Self, DomainError> {
@@ -50,7 +49,7 @@ impl ExternalLink {
             organization_id,
             organization_name: organization_name.clone(),
             provider_id,
-            provider_name: provider_name.clone(),
+            provider_source,
             provider_config,
             sync_enabled: false,
             sync_settings: sync_settings.unwrap_or_else(|| serde_json::json!({})),
@@ -159,8 +158,8 @@ impl ExternalLink {
         self.organization_name = Some(organization_name);
     }
 
-    pub fn set_provider_name(&mut self, provider_name: String) {
-        self.provider_name = Some(provider_name);
+    pub fn set_provider_source(&mut self, provider_source: String) {
+        self.provider_source = Some(provider_source);
     }
 }
 

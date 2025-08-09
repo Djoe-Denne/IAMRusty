@@ -112,14 +112,14 @@ impl ExternalLinkUseCase for ExternalLinkUseCaseImpl {
         let external_link = self.external_provider_service.link_organization(organization_id, request.provider_id, &request.provider_config, user_id).await
         .map_err(|e| ApplicationError::Domain(e))?;
 
-        let provider_name = external_link.provider_name.unwrap_or_default();
+        let provider_source = external_link.provider_source.clone().unwrap();
 
         // Publish external link created event
         self.publish_external_link_created_event(
             organization_id,
             external_link.organization_name.unwrap_or_default(),
             external_link.id,
-            provider_name.clone(),
+            provider_source.clone(),
             user_id,
             external_link.created_at,
         )
@@ -130,7 +130,7 @@ impl ExternalLinkUseCase for ExternalLinkUseCaseImpl {
             organization_id,
             provider_id: request.provider_id,
             sync_enabled: false,
-            provider_name,
+            provider_name: provider_source,
             provider_config: external_link.provider_config,
             sync_settings: external_link.sync_settings,
             last_sync_at: external_link.last_sync_at,

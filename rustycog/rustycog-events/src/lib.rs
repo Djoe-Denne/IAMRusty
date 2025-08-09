@@ -23,6 +23,7 @@ pub mod sqs;
 use async_trait::async_trait;
 use rustycog_config::{KafkaConfig, QueueConfig, SqsConfig};
 use rustycog_core::error::ServiceError;
+use std::collections::HashSet;
 use std::sync::Arc;
 
 pub use adapter::*;
@@ -255,6 +256,48 @@ pub async fn create_sqs_event_publisher(
         ))))
     }
 }
+
+
+pub async fn create_multi_queue_event_publisher<TError>(
+    config: &QueueConfig,
+    queue_names: Option<HashSet<String>>,
+    error_mapper: Arc<dyn ErrorMapper<TError>>,   
+) -> Result<Arc<MultiQueueEventPublisher<TError>>, TError> {
+
+    let queue_names = queue_names.unwrap_or_else(|| {
+        // If no specific queue names provided, use all configured queues
+        match config {
+            QueueConfig::Disabled => HashSet::new(),
+            QueueConfig::Sqs(sqs_config) => {
+                let mut all_queues = HashSet::new();
+                // Add all queue names from the configuration
+                for queue_name in sqs_config.queues.values() {
+                    all_queues.insert(queue_name.clone());
+                }
+                // Also add the default queue
+                all_queues.insert(sqs_config.default_queue.clone());
+                all_queues
+            }
+            QueueConfig::Kafka(kafka_config) => {
+                let mut all_queues = HashSet::new();
+                all_queues.insert(kafka_config.user_events_topic.clone());
+                all_queues
+            }
+        }
+    });
+
+    // For now, create a single publisher (we can extend this later to create multiple publishers for different queues)
+    let adapted_publisher = create_event_publisher_from_queue_config(config).await
+        .map_err(|service_error| error_mapper.from_service_error(service_error))?;
+    let publisher =
+        GenericEventPublisherAdapter::<TError>::new(adapted_publisher, error_mapper);
+
+    Ok(Arc::new(MultiQueueEventPublisher::new(
+        vec![publisher],
+        queue_names,
+    )))
+}
+
 
 // =============================================================================
 // Event Consumers

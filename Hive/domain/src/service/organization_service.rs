@@ -262,12 +262,12 @@ where
     async fn search_organizations(
         &self,
         name_pattern: &str,
-        _user_id: Option<Uuid>,
+        user_id: Option<Uuid>,
         page: u32,
         page_size: u32,
     ) -> Result<Vec<Organization>, DomainError> {
         self.organization_repo
-            .search_by_name(name_pattern, page, page_size)
+            .search_by_name(user_id, name_pattern, page, page_size)
             .await
     }
 }

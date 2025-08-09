@@ -14,6 +14,10 @@ hive-infra = { path = "../infra" }
 hive-http = { path = "../http" }
 hive-configuration = { path = "../configuration" }
 hive-migration = { path = "../migration" }
+rustycog-http = { path = "../../rustycog/rustycog-http" }
+rustycog-events = { path = "../../rustycog/rustycog-events" }
+rustycog-command = { path = "../../rustycog/rustycog-command" }
+rustycog-core = { path = "../../rustycog/rustycog-core" }
 
 # Dependencies
 rustycog-server = { path = "../../rustycog/rustycog-server" }

@@ -132,22 +132,6 @@ pub struct SmtpConfig {
     pub password: Option<String>,
 }
 
-/// Mailjet configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MailjetConfig {
-    /// Mailjet API public key
-    #[serde(default)]
-    pub public_key: String,
-
-    /// Mailjet API private key (MJ_APIKEY_PRIVATE)
-    #[serde(default)]
-    pub private_key: String,
-
-    /// Mailjet API version (v3 or v3.1)
-    #[serde(default = "default_mailjet_version")]
-    pub version: String,
-}
-
 /// Push notification service configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NotificationConfig {
@@ -159,45 +143,6 @@ pub struct NotificationConfig {
     #[serde(default = "default_notification_provider")]
     pub provider: String,
 
-    /// Firebase Cloud Messaging configuration
-    #[serde(default)]
-    pub fcm: FcmConfig,
-
-    /// Apple Push Notification Service configuration
-    #[serde(default)]
-    pub apns: ApnsConfig,
-}
-
-/// Firebase Cloud Messaging configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FcmConfig {
-    /// FCM project ID
-    #[serde(default)]
-    pub project_id: String,
-
-    /// FCM service account key path
-    #[serde(default)]
-    pub service_account_key_path: Option<String>,
-}
-
-/// Apple Push Notification Service configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ApnsConfig {
-    /// APNS key ID
-    #[serde(default)]
-    pub key_id: String,
-
-    /// APNS team ID
-    #[serde(default)]
-    pub team_id: String,
-
-    /// APNS private key path
-    #[serde(default)]
-    pub private_key_path: Option<String>,
-
-    /// Whether to use sandbox environment
-    #[serde(default)]
-    pub sandbox: bool,
 }
 
 /// Template service configuration
@@ -333,43 +278,11 @@ impl Default for SmtpConfig {
     }
 }
 
-impl Default for MailjetConfig {
-    fn default() -> Self {
-        Self {
-            public_key: String::new(),
-            private_key: String::new(),
-            version: default_mailjet_version(),
-        }
-    }
-}
-
 impl Default for NotificationConfig {
     fn default() -> Self {
         Self {
             enabled: default_true(),
             provider: default_notification_provider(),
-            fcm: FcmConfig::default(),
-            apns: ApnsConfig::default(),
-        }
-    }
-}
-
-impl Default for FcmConfig {
-    fn default() -> Self {
-        Self {
-            project_id: String::new(),
-            service_account_key_path: None,
-        }
-    }
-}
-
-impl Default for ApnsConfig {
-    fn default() -> Self {
-        Self {
-            key_id: String::new(),
-            team_id: String::new(),
-            private_key_path: None,
-            sandbox: true,
         }
     }
 }

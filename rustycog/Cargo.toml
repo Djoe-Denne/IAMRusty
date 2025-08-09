@@ -18,4 +18,5 @@ rustycog-db = { path = "rustycog-db" }
 rustycog-events = { path = "rustycog-events" }
 rustycog-http = { path = "rustycog-http" }
 rustycog-config = { path = "rustycog-config" }
+rustycog-permission = { path = "rustycog-permission" }
 rustycog-testing = { path = "rustycog-testing" } 

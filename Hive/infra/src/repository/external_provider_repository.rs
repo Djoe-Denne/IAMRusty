@@ -1,7 +1,7 @@
 //! ExternalProviderRepository SeaORM implementation
 
 use async_trait::async_trait;
-use hive_domain::entity::{ExternalProvider, ProviderType};
+use hive_domain::entity::ExternalProvider;
 use hive_domain::error::DomainError;
 use hive_domain::port::repository::ExternalProviderRepository;
 use sea_orm::{
@@ -31,11 +31,10 @@ impl ExternalProviderRepositoryImpl {
 
     /// Convert a database model to a domain external provider
     fn to_domain(model: external_providers::Model) -> Result<ExternalProvider, DomainError> {
-        let provider_type = ProviderType::from_str(&model.provider_type)?;
 
         Ok(ExternalProvider {
             id: model.id,
-            provider_type,
+            provider_source: model.provider_type,
             name: model.name,
             config_schema: model.config_schema,
             is_active: model.is_active,
@@ -47,7 +46,7 @@ impl ExternalProviderRepositoryImpl {
     fn to_active_model(provider: &ExternalProvider) -> external_providers::ActiveModel {
         external_providers::ActiveModel {
             id: ActiveValue::Set(provider.id),
-            provider_type: ActiveValue::Set(provider.provider_type.as_str().to_string()),
+            provider_type: ActiveValue::Set(provider.provider_source.clone()),
             name: ActiveValue::Set(provider.name.clone()),
             config_schema: ActiveValue::Set(provider.config_schema.clone()),
             is_active: ActiveValue::Set(provider.is_active),
@@ -72,11 +71,11 @@ impl ExternalProviderRepository for ExternalProviderRepositoryImpl {
         }
     }
 
-    async fn find_by_type(&self, provider_type: &ProviderType) -> Result<Option<ExternalProvider>, DomainError> {
-        debug!("Finding external provider by type: {:?}", provider_type);
+    async fn find_by_source(&self, provider_source: &String) -> Result<Option<ExternalProvider>, DomainError> {
+        debug!("Finding external provider by source: {:?}", provider_source);
         
         let provider = ExternalProviders::find()
-            .filter(external_providers::Column::ProviderType.eq(provider_type.as_str()))
+            .filter(external_providers::Column::ProviderType.eq(provider_source.clone()))
             .one(self.db.as_ref())
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;

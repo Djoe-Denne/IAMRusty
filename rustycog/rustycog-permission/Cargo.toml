@@ -1,0 +1,25 @@
+[package]
+name = "rustycog-permission"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Permission management and authorization engine for RustyCog microservices"
+license.workspace = true
+
+[dependencies]
+rustycog-core = { path = "../rustycog-core" }
+async-trait.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+uuid.workspace = true
+casbin = { version = "2.10.1", default-features = false, features = ["runtime-tokio"] }
+tokio = { workspace = true }
+
+[features]
+default = ["casbin-engine"]
+casbin-engine = []
+
+[dev-dependencies]
+tokio = { workspace = true }
+tokio-test = { workspace = true }
+tempfile = "3"

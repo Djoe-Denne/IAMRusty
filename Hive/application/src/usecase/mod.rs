@@ -8,5 +8,5 @@ pub mod sync_job;
 pub use external_link::{ExternalLinkUseCase, ExternalLinkUseCaseImpl};
 pub use invitation::{InvitationUseCase, InvitationUseCaseImpl};
 pub use member::{MemberUseCase, MemberUseCaseImpl};
-pub use organization::OrganizationUseCase;
+pub use organization::{OrganizationUseCase, OrganizationUseCaseImpl};
 pub use sync_job::{SyncJobUseCase, SyncJobUseCaseImpl};

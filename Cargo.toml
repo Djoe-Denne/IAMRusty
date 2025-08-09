@@ -13,6 +13,7 @@ members = [
     "rustycog/rustycog-events",
     "rustycog/rustycog-http",
     "rustycog/rustycog-config",
+    "rustycog/rustycog-permission",
     "rustycog/rustycog-testing",
     
     # IAMRusty service crates

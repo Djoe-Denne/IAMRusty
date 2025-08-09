@@ -170,22 +170,27 @@ where
                 message: e.to_string(),
             })?;
 
-        let roles = self
+        let permission_level = PermissionLevel::from_str(permission).map_err(|e| DomainError::Internal {
+            message: e.to_string(),
+        })?;
+        let target_role_permission = RolePermission::new(
+            None, 
+            None, 
+            *organization_id, 
+            &Permission::new(permission_level, 
+                None, 
+                Utc::now()), 
+            &Resource::new(
+                resource_type.to_string(), 
+                None, 
+                None), 
+            None);
+        let has_role = self
             .role_engine
-            .derive_role(member_roles, organization.settings)
-            .await
-            .map_err(|e| DomainError::Internal {
-                message: e.to_string(),
-            })?;
+            .has_role(member_roles, target_role_permission, organization.settings)
+            .await?;
 
-        if roles
-            .iter()
-            .any(|role| role.role_permission.resource.name == resource_type && role.role_permission.permission.level.as_str() == permission)
-        {
-            return Ok(true);
-        }
-
-        Ok(false)
+        Ok(has_role)
     }
 }
 

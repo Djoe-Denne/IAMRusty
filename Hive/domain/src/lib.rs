@@ -11,3 +11,6 @@ pub use service::*;
 
 // Re-export events
 pub use hive_events::*;
+
+// Re-export permission types from rustycog-permission
+pub use rustycog_permission::{PermissionLevel, UserPermission, PermissionEngine};

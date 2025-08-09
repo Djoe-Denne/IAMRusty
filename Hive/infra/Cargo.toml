@@ -10,12 +10,14 @@ license.workspace = true
 # Domain and application layers
 hive-domain = { path = "../domain" }
 hive-application = { path = "../application" }
+hive-configuration = { path = "../configuration" }
 
 # Shared crates
 iam-events = { path = "../../iam-events" }
 rustycog-events = { path = "../../rustycog/rustycog-events" }
 rustycog-config = { path = "../../rustycog/rustycog-config" }
 rustycog-core = { path = "../../rustycog/rustycog-core" }
+rustycog-permission = { path = "../../rustycog/rustycog-permission", features = ["casbin-engine"] }
 
 # Async traits
 async-trait = { workspace = true }

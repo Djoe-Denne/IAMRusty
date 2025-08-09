@@ -12,22 +12,18 @@ use crate::{
 };
 
 /// Domain service for external provider integration
-pub struct ExternalProviderServiceImpl<OR, ELR, EPR, OS, RS, SS, PC>
+pub struct ExternalProviderServiceImpl<OR, ELR, EPR, RS, PC>
 where
     OR: OrganizationRepository,
     ELR: ExternalLinkRepository,
     EPR: ExternalProviderRepository,
-    OS: OrganizationService,
     RS: RoleService,
-    SS: SyncService,
     PC: ExternalProviderClient,
 {
     organization_repo: OR,
     external_link_repo: ELR,
     external_provider_repo: EPR,
-    organization_service: OS,
     role_service: RS,
-    sync_service: SS,
     provider_client: PC,
 }
 
@@ -98,14 +94,12 @@ pub trait ExternalProviderService: Send + Sync {
     ) -> Result<Vec<ExternalLink>, DomainError>;
 }
 
-impl<OR, ELR, EPR, OS, RS, SS, PC> ExternalProviderServiceImpl<OR, ELR, EPR, OS, RS, SS, PC>
+impl<OR, ELR, EPR, RS, PC> ExternalProviderServiceImpl<OR, ELR, EPR, RS, PC>
 where
     OR: OrganizationRepository,
     ELR: ExternalLinkRepository,
     EPR: ExternalProviderRepository,
-    OS: OrganizationService,
     RS: RoleService,
-    SS: SyncService,
     PC: ExternalProviderClient,
 {
     /// Create a new external provider service
@@ -113,32 +107,26 @@ where
         organization_repo: OR,
         external_link_repo: ELR,
         external_provider_repo: EPR,
-        organization_service: OS,
         role_service: RS,
-        sync_service: SS,
         provider_client: PC,
     ) -> Self {
         Self {
             organization_repo,
             external_link_repo,
             external_provider_repo,
-            organization_service,
             role_service,
-            sync_service,
             provider_client,
         }
     }
 }
 
 #[async_trait::async_trait]
-impl<OR, ELR, EPR, OS, RS, SS, PC> ExternalProviderService for ExternalProviderServiceImpl<OR, ELR, EPR, OS, RS, SS, PC>
+impl<OR, ELR, EPR, RS, PC> ExternalProviderService for ExternalProviderServiceImpl<OR, ELR, EPR, RS, PC>
 where
     OR: OrganizationRepository,
     ELR: ExternalLinkRepository,
     EPR: ExternalProviderRepository,
-    OS: OrganizationService,
     RS: RoleService,
-    SS: SyncService,
     PC: ExternalProviderClient,
 {
     /// Link an organization to an external provider
@@ -185,7 +173,7 @@ where
             organization_id,
             Some(organization.name),
             provider_id,
-            Some(provider.name),
+            Some(provider.provider_source),
             provider_config.clone(),
             Some(serde_json::json!({})), // TODO: Default sync settings
         )?;
@@ -233,17 +221,17 @@ where
         provider_config: &serde_json::Value,
     ) -> Result<bool, DomainError> {
         // Validate provider exists
-        let _provider = self
+        let provider = self
             .external_provider_repo
             .find_by_id(&provider_id)
             .await?
             .ok_or_else(|| DomainError::entity_not_found("ExternalProvider", &provider_id.to_string()))?;
 
         // Validate configuration
-        self.provider_client.validate_config(provider_config).await?;
+        self.provider_client.validate_config(&provider.provider_source, provider_config).await?;
 
         // Test connection
-        let connection_ok = self.provider_client.test_connection(provider_config).await?;
+        let connection_ok = self.provider_client.test_connection(&provider.provider_source, provider_config).await?;
 
         Ok(connection_ok)
     }
@@ -279,9 +267,9 @@ where
 
         for link in links.iter_mut() {
             link.set_organization_name(organization.name.clone());
-            let provider = self.external_provider_repo.find_by_id(&link.provider_id).await?
-                .ok_or_else(|| DomainError::entity_not_found("ExternalProvider", &link.provider_id.to_string()))?;
-            link.set_provider_name(provider.name.clone());
+            let provider = self.external_provider_repo.find_by_source(&link.provider_source.clone().unwrap()).await?
+                .ok_or_else(|| DomainError::entity_not_found("ExternalProvider", &link.provider_source.clone().unwrap().to_string()))?;
+            link.set_provider_source(provider.provider_source.clone());
         }
 
         Ok(links)

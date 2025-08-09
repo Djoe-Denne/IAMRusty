@@ -7,7 +7,7 @@ use hive_domain::error::DomainError;
 use hive_domain::port::repository::OrganizationRepository;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, 
-    PaginatorTrait, QueryFilter, QueryOrder, Set, Order
+    PaginatorTrait, QueryFilter, QueryOrder, Set, Order, Condition, JoinType, prelude::Expr
 };
 use std::sync::Arc;
 use tracing::{debug, error};
@@ -123,16 +123,37 @@ impl OrganizationRepository for OrganizationRepositoryImpl {
 
     async fn search_by_name(
         &self,
+        user_id: Option<Uuid>,
         name_pattern: &str,
         page: u32,
         page_size: u32,
     ) -> Result<Vec<Organization>, DomainError> {
-        debug!("Searching organizations by name pattern: {} (page: {}, size: {})", 
-               name_pattern, page, page_size);
+        debug!("Searching organizations by name pattern: {} (page: {}, size: {}) for user: {}", 
+               name_pattern, page, page_size, user_id.unwrap_or_default());
+
+        let mut query = Organizations::find();
         
         let like_pattern = format!("%{}%", name_pattern);
-        let organizations = Organizations::find()
-            .filter(organizations::Column::Name.like(&like_pattern))
+        
+        let mut access_condition: Condition = Condition::all().add(Expr::cust("setting->>'visibility' = 'Public'"));
+        
+        if let Some(user_id) = user_id {
+            query = query
+            .left_join(organization_members::Entity);
+            access_condition = Condition::any()
+                .add(access_condition)
+                .add(organization_members::Column::UserId.eq(user_id));
+        } 
+
+        let name_condition = organizations::Column::Name.like(&like_pattern);
+        
+        let full_condition = Condition::all()
+            .add(access_condition)
+            .add(name_condition);
+
+
+        let organizations = query
+            .filter(full_condition)
             .order_by(organizations::Column::CreatedAt, Order::Desc)
             .paginate(self.db.as_ref(), page_size as u64)
             .fetch_page(page as u64)

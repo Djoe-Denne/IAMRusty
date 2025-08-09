@@ -14,8 +14,9 @@ use tracing::debug;
 use uuid::Uuid;
 
 use super::entity::{
-    prelude::ExternalLinks,
+    prelude::{ExternalLinks, ExternalProviders},
     external_links,
+    external_providers,
 };
 
 /// SeaORM implementation of ExternalLinkRepository
@@ -31,7 +32,7 @@ impl ExternalLinkRepositoryImpl {
     }
 
     /// Convert a database model to a domain external link
-    fn to_domain(model: external_links::Model) -> Result<ExternalLink, DomainError> {
+    fn to_domain(model: external_links::Model, provider_source: Option<String>) -> Result<ExternalLink, DomainError> {
         let last_sync_status = match model.last_sync_status {
             Some(status_str) => Some(SyncStatus::from_str(&status_str)?),
             None => None,
@@ -50,7 +51,7 @@ impl ExternalLinkRepositoryImpl {
             created_at: model.created_at,
             updated_at: model.updated_at,
             organization_name: None,
-            provider_name: None,
+            provider_source: provider_source.clone(),
         })
     }
 
@@ -80,13 +81,15 @@ impl ExternalLinkRepository for ExternalLinkRepositoryImpl {
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<ExternalLink>, DomainError> {
         debug!("Finding external link by ID: {}", id);
         
-        let link = ExternalLinks::find_by_id(*id)
+        let link: Option<(external_links::Model, Option<external_providers::Model>)> = ExternalLinks::find_by_id(*id)
+            .find_also_related(ExternalProviders)
             .one(self.db.as_ref())
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
+        
         match link {
-            Some(model) => Ok(Some(Self::to_domain(model)?)),
+            Some((model, provider)) => Ok(Some(Self::to_domain(model, provider.map(|p| p.provider_type.clone()))?)),
             None => Ok(None),
         }
     }
@@ -96,13 +99,15 @@ impl ExternalLinkRepository for ExternalLinkRepositoryImpl {
         
         let links = ExternalLinks::find()
             .filter(external_links::Column::OrganizationId.eq(*organization_id))
+            .find_also_related(ExternalProviders)
             .all(self.db.as_ref())
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         let mut result = Vec::new();
         for model in links {
-            result.push(Self::to_domain(model)?);
+            let (link, provider) = model;
+            result.push(Self::to_domain(link, provider.map(|p| p.provider_type.clone()))?);
         }
         Ok(result)
     }
@@ -117,12 +122,13 @@ impl ExternalLinkRepository for ExternalLinkRepositoryImpl {
         let link = ExternalLinks::find()
             .filter(external_links::Column::OrganizationId.eq(*organization_id))
             .filter(external_links::Column::ProviderId.eq(*provider_id))
+            .find_also_related(ExternalProviders)
             .one(self.db.as_ref())
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         match link {
-            Some(model) => Ok(Some(Self::to_domain(model)?)),
+            Some((model, provider)) => Ok(Some(Self::to_domain(model, provider.map(|p| p.provider_type.clone()))?)),
             None => Ok(None),
         }
     }
@@ -132,13 +138,15 @@ impl ExternalLinkRepository for ExternalLinkRepositoryImpl {
         
         let links = ExternalLinks::find()
             .filter(external_links::Column::SyncEnabled.eq(true))
+            .find_also_related(ExternalProviders)
             .all(self.db.as_ref())
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         let mut result = Vec::new();
         for model in links {
-            result.push(Self::to_domain(model)?);
+            let (link, provider) = model;
+            result.push(Self::to_domain(link, provider.map(|p| p.provider_type.clone()))?);
         }
         Ok(result)
     }
@@ -153,13 +161,15 @@ impl ExternalLinkRepository for ExternalLinkRepositoryImpl {
                 external_links::Column::LastSyncAt.is_null()
                     .or(external_links::Column::LastSyncAt.lt(cutoff))
             )
+            .find_also_related(ExternalProviders)
             .all(self.db.as_ref())
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         let mut result = Vec::new();
         for model in links {
-            result.push(Self::to_domain(model)?);
+            let (link, provider) = model;
+            result.push(Self::to_domain(link, provider.map(|p| p.provider_type.clone()))?);
         }
         Ok(result)
     }
@@ -188,7 +198,7 @@ impl ExternalLinkRepository for ExternalLinkRepositoryImpl {
             updated_at: result.updated_at.unwrap(),
         };
 
-        Self::to_domain(saved_model)
+        Self::to_domain(saved_model, None)
     }
 
     async fn delete_by_id(&self, id: &Uuid) -> Result<(), DomainError> {

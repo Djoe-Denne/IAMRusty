@@ -11,7 +11,7 @@ use iam_infra::{
         PasswordServiceAdapter,
     },
     db::DbConnectionPool,
-    event_adapter::create_multi_queue_event_publisher_async,
+    event_adapter::IAMErrorMapper,
     repository::{
         combined_email_verification_repository::CombinedEmailVerificationRepository,
         combined_password_reset_token_repository::CombinedPasswordResetTokenRepository,
@@ -39,6 +39,7 @@ use rustycog_http::{AppState, UserIdExtractor};
 use iam_configuration::AppConfig;
 use iam_domain::error::DomainError;
 use rustycog_events::{adapter::MultiQueueEventPublisher, event::EventPublisher};
+use rustycog_events::create_multi_queue_event_publisher;
 
 use iam_application::{
     command::{CommandRegistryFactory, GenericCommandService},
@@ -101,7 +102,7 @@ async fn create_event_publisher_from_config(
     //     None // Handle all queues in production
     // };
     // let event_publisher = create_multi_queue_event_publisher_async(&config.queue, queue_names).await?;
-    let event_publisher = create_multi_queue_event_publisher_async(&config.queue, None).await?;
+    let event_publisher = create_multi_queue_event_publisher(&config.queue, None, Arc::new(IAMErrorMapper)).await?;
     Ok(event_publisher)
 }
 
