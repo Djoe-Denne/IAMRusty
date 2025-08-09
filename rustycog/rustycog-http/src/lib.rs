@@ -1,14 +1,10 @@
-//! Generic HTTP framework built on top of Axum
-//!
-//! This crate provides reusable HTTP components and utilities for building
-//! web APIs with consistent error handling, validation, and middleware.
-
 pub mod builder;
+pub mod middleware_auth;
+pub mod middleware_permission;
+pub mod jwt_handler;
 pub mod error;
 pub mod extractors;
 pub mod jwt;
-pub mod jwt_handler;
-pub mod middleware_auth;
 
 pub use builder::{AppState, RouteBuilder};
 pub use error::{GenericHttpError, ValidationError};

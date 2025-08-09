@@ -62,6 +62,37 @@ impl Permission {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct ResourceId(Uuid);
+
+impl From<Uuid> for ResourceId {
+    fn from(id: Uuid) -> Self {
+        Self(id)
+    }
+}
+
+impl From<ResourceId> for Uuid {
+    fn from(id: ResourceId) -> Self {
+        id.0
+    }
+}
+
+impl ResourceId {
+    pub fn new_v4() -> Self {
+        Self(Uuid::new_v4())
+    }
+
+    pub fn new(id: Uuid) -> Self {
+        Self(id)
+    }
+
+    pub fn id(&self) -> Uuid {
+        self.0
+    }
+}
+
+
+
 /// Permission engine trait for checking authorization
 #[async_trait]
 pub trait PermissionEngine: Send + Sync {
@@ -69,7 +100,7 @@ pub trait PermissionEngine: Send + Sync {
     async fn has_permission(
         &self,
         user_id: Uuid,
-        resource_ids: Vec<Uuid>,
+        resource_ids: Vec<ResourceId>,
         target_permission: Permission,
         settings: serde_json::Value,
     ) -> Result<bool, DomainError>;

@@ -10,6 +10,7 @@ license.workspace = true
 rustycog-core = { path = "../rustycog-core" }
 rustycog-command = { path = "../rustycog-command" }
 rustycog-config = { path = "../rustycog-config" }
+rustycog-permission = { path = "../rustycog-permission" }
 axum.workspace = true
 tower.workspace = true
 tower-http.workspace = true
@@ -28,3 +29,4 @@ anyhow.workspace = true
 axum-server = { version = "0.7.1", features = ["tls-rustls"] }
 axum-valid = { version = "0.23", features = ["validator", "422", "into_json"] }
 tokio = { workspace = true, features = ["net"] } 
+reqwest = { version = "0.12", features = ["json", "rustls-tls"] }

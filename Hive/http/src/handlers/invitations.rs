@@ -7,6 +7,7 @@ use hive_application::{
 };
 use rustycog_command::CommandContext;
 use rustycog_http::{AppState, AuthUser, OptionalAuthUser, ValidatedJson};
+use rustycog_permission::ResourceId;
 use uuid::Uuid;
 
 use crate::error::HttpError;
@@ -15,13 +16,13 @@ use crate::error::HttpError;
 /// POST /api/organizations/{organization_id}/invitations
 pub async fn create_invitation(
     State(state): State<AppState>,
-    Path(organization_id): Path<Uuid>,
+    Path(organization_id): Path<ResourceId>,
     auth_user: AuthUser,
     ValidatedJson(request): ValidatedJson<CreateInvitationRequest>,
 ) -> Result<Json<InvitationResponse>, HttpError> {
     tracing::info!("Creating invitation for organization: {}", organization_id);
 
-    let command = CreateInvitationCommand::new(organization_id, request, auth_user.user_id);
+    let command = CreateInvitationCommand::new(organization_id.id(), request, auth_user.user_id);
     let context = CommandContext::new().with_user_id(auth_user.user_id).with_metadata("operation".to_string(), "create_invitation".to_string());
 
     let result = state
@@ -39,13 +40,13 @@ pub async fn create_invitation(
 /// GET /organizations/{organization_id}/invitations
 pub async fn list_invitations(
     State(state): State<AppState>,
-    Path(organization_id): Path<Uuid>,
+    Path(organization_id): Path<ResourceId>,
     auth_user: OptionalAuthUser,
     Query(pagination): Query<PaginationRequest>,
 ) -> Result<Json<InvitationListResponse>, HttpError> {
     tracing::info!("Listing invitations for organization: {}", organization_id);
 
-    let command = ListInvitationsCommand::new(organization_id, pagination, auth_user.user_id());
+    let command = ListInvitationsCommand::new(organization_id.id(), pagination, auth_user.user_id());
     let mut context = CommandContext::new().with_metadata("operation".to_string(), "list_invitations".to_string());
 
     if let Some(user_id) = auth_user.user_id() {
@@ -67,7 +68,7 @@ pub async fn list_invitations(
 /// GET /organizations/{organization_id}/invitations/{invitation_id}
 pub async fn get_invitation(
     State(state): State<AppState>,
-    Path((_organization_id, invitation_id)): Path<(Uuid, String)>,
+    Path((_organization_id, invitation_id)): Path<(ResourceId, String)>,
     auth_user: AuthUser,
 ) -> Result<Json<InvitationDetailsResponse>, HttpError> {
     tracing::info!(

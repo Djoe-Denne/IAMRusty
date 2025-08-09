@@ -8,6 +8,7 @@ use hive_application::{
 };
 use rustycog_command::CommandContext;
 use rustycog_http::{AppState, AuthUser, ValidatedJson};
+use rustycog_permission::ResourceId;
 use uuid::Uuid;
 
 use crate::error::HttpError;
@@ -16,7 +17,7 @@ use crate::error::HttpError;
 /// POST /api/organizations/{organization_id}/external-links
 pub async fn create_external_link(
     State(state): State<AppState>,
-    Path(organization_id): Path<Uuid>,
+    Path(organization_id): Path<ResourceId>,
     auth_user: AuthUser,
     ValidatedJson(request): ValidatedJson<CreateExternalLinkRequest>,
 ) -> Result<Json<ExternalLinkResponse>, HttpError> {
@@ -25,7 +26,7 @@ pub async fn create_external_link(
         organization_id
     );
 
-    let command = CreateExternalLinkCommand::new(organization_id, &request, auth_user.user_id);
+    let command = CreateExternalLinkCommand::new(organization_id.id(), &request, auth_user.user_id);
     let context = CommandContext::new().with_user_id(auth_user.user_id);
 
     let result = state

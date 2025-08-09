@@ -8,6 +8,8 @@ use tower_http::catch_panic::CatchPanicLayer;
 use crate::{
     handle_panic, health_check, jwt_handler::UserIdExtractor, middleware_auth::{auth_middleware, optional_auth_middleware},
 };
+use rustycog_permission::{Permission, PermissionsFetch};
+use crate::middleware_permission::{PermissionGuard, permission_middleware, optional_permission_middleware};
 
 /// Application state for HTTP handlers
 #[derive(Clone)]
@@ -37,6 +39,10 @@ impl AppState {
 pub struct RouteBuilder {
     router: Router<AppState>,
     state: AppState,
+    current_path: Option<String>,
+    current_layer: Option<axum::routing::MethodRouter<AppState>>,
+    // None: no auth, Some(true): require auth, Some(false): optional auth
+    pending_auth: Option<bool>,
 }
 
 impl RouteBuilder {
@@ -45,16 +51,39 @@ impl RouteBuilder {
         RouteBuilder {
             router: Router::new(),
             state,
+            current_path: None,
+            current_layer: None,
+            pending_auth: None,
         }
     }
 
     /// Add a route with a method router
-    pub fn route(
-        mut self,
-        path: &str,
-        method_router: axum::routing::MethodRouter<AppState>,
-    ) -> Self {
-        self.router = self.router.route(path, method_router);
+    fn push_current(&mut self) {
+        if let (Some(path), Some(layer)) = (self.current_path.take(), self.current_layer.take()) {
+            let mut layer = layer;
+            // Apply pending auth as the outermost layer so it runs first
+            if let Some(require_auth) = self.pending_auth.take() {
+                layer = if require_auth {
+                    layer.route_layer(middleware::from_fn_with_state(
+                        self.state.user_id_extractor.clone(),
+                        auth_middleware,
+                    ))
+                } else {
+                    layer.route_layer(middleware::from_fn_with_state(
+                        self.state.user_id_extractor.clone(),
+                        optional_auth_middleware,
+                    ))
+                };
+            }
+            let router = std::mem::take(&mut self.router);
+            self.router = router.route(&path, layer);
+        }
+    }
+
+    pub fn route(mut self, path: &str, method_router: axum::routing::MethodRouter<AppState>) -> Self {
+        self.push_current();
+        self.current_path = Some(path.to_string());
+        self.current_layer = Some(method_router);
         self
     }
 
@@ -64,7 +93,9 @@ impl RouteBuilder {
         H: axum::handler::Handler<T, AppState>,
         T: 'static,
     {
-        self.router = self.router.route(path, axum::routing::get(handler));
+        self.push_current();
+        self.current_path = Some(path.to_string());
+        self.current_layer = Some(axum::routing::get(handler));
         self
     }
 
@@ -74,7 +105,9 @@ impl RouteBuilder {
         H: axum::handler::Handler<T, AppState>,
         T: 'static,
     {
-        self.router = self.router.route(path, axum::routing::post(handler));
+        self.push_current();
+        self.current_path = Some(path.to_string());
+        self.current_layer = Some(axum::routing::post(handler));
         self
     }
 
@@ -84,7 +117,9 @@ impl RouteBuilder {
         H: axum::handler::Handler<T, AppState>,
         T: 'static,
     {
-        self.router = self.router.route(path, axum::routing::put(handler));
+        self.push_current();
+        self.current_path = Some(path.to_string());
+        self.current_layer = Some(axum::routing::put(handler));
         self
     }
 
@@ -94,7 +129,9 @@ impl RouteBuilder {
         H: axum::handler::Handler<T, AppState>,
         T: 'static,
     {
-        self.router = self.router.route(path, axum::routing::delete(handler));
+        self.push_current();
+        self.current_path = Some(path.to_string());
+        self.current_layer = Some(axum::routing::delete(handler));
         self
     }
 
@@ -104,8 +141,9 @@ impl RouteBuilder {
         H: axum::handler::Handler<T, AppState>,
         T: 'static,
     {
-        self.router = self.router.route(
-            path,
+        self.push_current();
+        self.current_path = Some(path.to_string());
+        self.current_layer = Some(
             axum::routing::get(handler).route_layer(middleware::from_fn_with_state(
                 self.state.user_id_extractor.clone(),
                 auth_middleware,
@@ -120,8 +158,9 @@ impl RouteBuilder {
         H: axum::handler::Handler<T, AppState>,
         T: 'static,
     {
-        self.router = self.router.route(
-            path,
+        self.push_current();
+        self.current_path = Some(path.to_string());
+        self.current_layer = Some(
             axum::routing::post(handler).route_layer(middleware::from_fn_with_state(
                 self.state.user_id_extractor.clone(),
                 auth_middleware,
@@ -136,8 +175,9 @@ impl RouteBuilder {
         H: axum::handler::Handler<T, AppState>,
         T: 'static,
     {
-        self.router = self.router.route(
-            path,
+        self.push_current();
+        self.current_path = Some(path.to_string());
+        self.current_layer = Some(
             axum::routing::put(handler).route_layer(middleware::from_fn_with_state(
                 self.state.user_id_extractor.clone(),
                 auth_middleware,
@@ -152,8 +192,9 @@ impl RouteBuilder {
         H: axum::handler::Handler<T, AppState>,
         T: 'static,
     {
-        self.router = self.router.route(
-            path,
+        self.push_current();
+        self.current_path = Some(path.to_string());
+        self.current_layer = Some(
             axum::routing::delete(handler).route_layer(middleware::from_fn_with_state(
                 self.state.user_id_extractor.clone(),
                 auth_middleware,
@@ -168,8 +209,9 @@ impl RouteBuilder {
         H: axum::handler::Handler<T, AppState>,
         T: 'static,
     {
-        self.router = self.router.route(
-            path,
+        self.push_current();
+        self.current_path = Some(path.to_string());
+        self.current_layer = Some(
             axum::routing::get(handler).route_layer(middleware::from_fn_with_state(
                 self.state.user_id_extractor.clone(),
                 optional_auth_middleware,
@@ -184,8 +226,9 @@ impl RouteBuilder {
         H: axum::handler::Handler<T, AppState>,
         T: 'static,
     {
-        self.router = self.router.route(
-            path,
+        self.push_current();
+        self.current_path = Some(path.to_string());
+        self.current_layer = Some(
             axum::routing::post(handler).route_layer(middleware::from_fn_with_state(
                 self.state.user_id_extractor.clone(),
                 optional_auth_middleware,
@@ -200,8 +243,9 @@ impl RouteBuilder {
         H: axum::handler::Handler<T, AppState>,
         T: 'static,
     {
-        self.router = self.router.route(
-            path,
+        self.push_current();
+        self.current_path = Some(path.to_string());
+        self.current_layer = Some(
             axum::routing::put(handler).route_layer(middleware::from_fn_with_state(
                 self.state.user_id_extractor.clone(),
                 optional_auth_middleware,
@@ -216,8 +260,9 @@ impl RouteBuilder {
         H: axum::handler::Handler<T, AppState>,
         T: 'static,
     {
-        self.router = self.router.route(
-            path,
+        self.push_current();
+        self.current_path = Some(path.to_string());
+        self.current_layer = Some(
             axum::routing::delete(handler).route_layer(middleware::from_fn_with_state(
                 self.state.user_id_extractor.clone(),
                 optional_auth_middleware,
@@ -228,9 +273,8 @@ impl RouteBuilder {
 
     /// Add a health check endpoint
     pub fn health_check(mut self) -> Self {
-        self.router = self
-            .router
-            .route("/health", axum::routing::get(health_check));
+        self.push_current();
+        self.router = self.router.route("/health", axum::routing::get(health_check));
         self
     }
 
@@ -241,10 +285,13 @@ impl RouteBuilder {
     }
 
     /// Build the final router with panic handling
-    pub async fn build(self, config: ServerConfig) -> anyhow::Result<()>
+    pub async fn build(mut self, config: ServerConfig) -> anyhow::Result<()>
     where
         AppState: Clone + Send + Sync + 'static,
     {
+        // Push any pending route being built
+        self.push_current();
+
         let app = self
             .router
             .layer(CatchPanicLayer::custom(handle_panic))
@@ -275,5 +322,72 @@ impl RouteBuilder {
         }
 
         Ok(())
+    }
+}
+
+impl RouteBuilder {
+    /// Mark the current route as requiring authentication
+    pub fn authenticated(mut self) -> Self {
+        self.pending_auth = Some(true);
+        self
+    }
+
+    /// Mark the current route as allowing optional authentication
+    pub fn might_be_authenticated(mut self) -> Self {
+        self.pending_auth = Some(false);
+        self
+    }
+
+    /// Attach a permission guard to the current route
+    pub fn with_permission(
+        mut self,
+        required: Permission,
+        fetcher: Arc<dyn PermissionsFetch>,
+        model_path: String,
+    ) -> Self {
+        let guard = Arc::new(PermissionGuard { required, fetcher, model_path });
+        if let Some(layer) = self.current_layer.take() {
+            self.current_layer = Some(
+                layer
+                    .route_layer(middleware::from_fn_with_state(
+                        guard,
+                        permission_middleware,
+                    )),
+            );
+        }
+        self
+    }
+
+    /// Attach an optional permission guard to the current route
+    pub fn with_optional_permission(
+        mut self,
+        required: Permission,
+        fetcher: Arc<dyn PermissionsFetch>,
+        model_path: String,
+    ) -> Self {
+        let guard = Arc::new(PermissionGuard { required, fetcher, model_path });
+        if let Some(layer) = self.current_layer.take() {
+            self.current_layer = Some(
+                layer
+                    .route_layer(middleware::from_fn_with_state(
+                        guard,
+                        optional_permission_middleware,
+                    )),
+            );
+        }
+        self
+    }
+}
+
+impl RouteBuilder {
+    /// Finalize and return the Axum router without starting the server
+    pub fn into_router(mut self) -> Router<AppState>
+    where
+        AppState: Clone + Send + Sync + 'static,
+    {
+        self.push_current();
+        self.router
+            .layer(CatchPanicLayer::custom(handle_panic))
+            .with_state(self.state)
     }
 }

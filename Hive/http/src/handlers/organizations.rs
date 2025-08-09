@@ -41,13 +41,13 @@ pub async fn create_organization(
 /// GET /api/organizations/{organization_id}
 pub async fn get_organization(
     State(state): State<AppState>,
-    Path(organization_id): Path<Uuid>,
+    Path(organization_id): Path<ResourceId>,
     auth_user: OptionalAuthUser,
 ) -> Result<Json<OrganizationResponse>, HttpError> {
     tracing::info!("Getting organization: {}", organization_id);
 
     let user_id = auth_user.user_id();
-    let command = GetOrganizationCommand::new(organization_id, user_id);
+    let command = GetOrganizationCommand::new(organization_id.id(), user_id);
     let mut context = CommandContext::new();
 
     if let Some(user_id) = user_id {
@@ -69,13 +69,13 @@ pub async fn get_organization(
 /// PUT /api/organizations/{organization_id}
 pub async fn update_organization(
     State(state): State<AppState>,
-    Path(organization_id): Path<Uuid>,
+    Path(organization_id): Path<ResourceId>,
     auth_user: AuthUser,
     ValidatedJson(request): ValidatedJson<UpdateOrganizationRequest>,
 ) -> Result<Json<OrganizationResponse>, HttpError> {
     tracing::info!("Updating organization: {}", organization_id);
 
-    let command = UpdateOrganizationCommand::new(organization_id, request, auth_user.user_id);
+    let command = UpdateOrganizationCommand::new(organization_id.id(), request, auth_user.user_id);
     let context = CommandContext::new().with_user_id(auth_user.user_id);
 
     let result = state
@@ -93,12 +93,12 @@ pub async fn update_organization(
 /// DELETE /api/organizations/{organization_id}
 pub async fn delete_organization(
     State(state): State<AppState>,
-    Path(organization_id): Path<Uuid>,
+    Path(organization_id): Path<ResourceId>,
     auth_user: AuthUser,
 ) -> Result<Json<()>, HttpError> {
     tracing::info!("Deleting organization: {}", organization_id);
 
-    let command = DeleteOrganizationCommand::new(organization_id, auth_user.user_id);
+    let command = DeleteOrganizationCommand::new(organization_id.id(), auth_user.user_id);
     let context = CommandContext::new().with_user_id(auth_user.user_id);
 
     let result = state

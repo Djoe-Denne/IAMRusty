@@ -9,6 +9,7 @@ use hive_application::{
 };
 use rustycog_command::CommandContext;
 use rustycog_http::{AppState, AuthUser, OptionalAuthUser, ValidatedJson};
+use rustycog_permission::ResourceId;
 use uuid::Uuid;
 
 use crate::error::HttpError;
@@ -17,13 +18,13 @@ use crate::error::HttpError;
 /// POST /api/organizations/{organization_id}/members
 pub async fn add_member(
     State(state): State<AppState>,
-    Path(organization_id): Path<Uuid>,
+    Path(organization_id): Path<ResourceId>,
     auth_user: AuthUser,
     ValidatedJson(request): ValidatedJson<AddMemberRequest>,
 ) -> Result<Json<MemberResponse>, HttpError> {
     tracing::info!("Adding member to organization: {}", organization_id);
 
-    let command = AddMemberCommand::new(organization_id, &request, auth_user.user_id);
+    let command = AddMemberCommand::new(organization_id.id(), &request, auth_user.user_id);
     let context = CommandContext::new().with_user_id(auth_user.user_id);
 
     let result = state
@@ -41,13 +42,13 @@ pub async fn add_member(
 /// GET /api/organizations/{organization_id}/members
 pub async fn list_members(
     State(state): State<AppState>,
-    Path(organization_id): Path<Uuid>,
+    Path(organization_id): Path<ResourceId>,
     auth_user: OptionalAuthUser,
     Query(pagination): Query<PaginationRequest>,
 ) -> Result<Json<MemberListResponse>, HttpError> {
     tracing::info!("Listing members for organization: {}", organization_id);
 
-    let command = ListMembersCommand::new(organization_id, pagination, auth_user.user_id());
+    let command = ListMembersCommand::new(organization_id.id(), pagination, auth_user.user_id());
     let mut context = CommandContext::new().with_metadata("operation".to_string(), "list_members".to_string());
 
     let result = state
@@ -65,7 +66,7 @@ pub async fn list_members(
 /// GET /api/organizations/{organization_id}/members/{user_id}
 pub async fn get_member(
     State(state): State<AppState>,
-    Path((organization_id, user_id)): Path<(Uuid, Uuid)>,
+    Path((organization_id, user_id)): Path<(ResourceId, ResourceId)>,
     auth_user: OptionalAuthUser,
 ) -> Result<Json<MemberResponse>, HttpError> {
     tracing::info!(
@@ -74,7 +75,7 @@ pub async fn get_member(
         organization_id
     );
 
-    let command = GetMemberCommand::new(organization_id, user_id, auth_user.user_id());
+    let command = GetMemberCommand::new(organization_id.id(), user_id.id(), auth_user.user_id());
     let mut context = CommandContext::new().with_metadata("operation".to_string(), "get_member".to_string());
 
     let result = state
@@ -92,7 +93,7 @@ pub async fn get_member(
 /// DELETE /api/organizations/{organization_id}/members/{user_id}
 pub async fn remove_member(
     State(state): State<AppState>,
-    Path((organization_id, user_id)): Path<(Uuid, Uuid)>,
+    Path((organization_id, user_id)): Path<(ResourceId, ResourceId)>,
     auth_user: AuthUser,
 ) -> Result<Json<()>, HttpError> {
     tracing::info!(
@@ -101,7 +102,7 @@ pub async fn remove_member(
         organization_id
     );
 
-    let command = RemoveMemberCommand::new(organization_id, user_id, auth_user.user_id);
+    let command = RemoveMemberCommand::new(organization_id.id(), user_id.id(), auth_user.user_id);
     let context = CommandContext::new().with_metadata("operation".to_string(), "remove_member".to_string());
 
     let result = state
@@ -119,7 +120,7 @@ pub async fn remove_member(
 /// PATCH /organizations/{organization_id}/members/{user_id}
 pub async fn update_member(
     State(state): State<AppState>,
-    Path((organization_id, user_id)): Path<(Uuid, Uuid)>,
+    Path((organization_id, user_id)): Path<(ResourceId, ResourceId)>,
     auth_user: AuthUser,
     ValidatedJson(request): ValidatedJson<UpdateMemberRolesRequest>,
 ) -> Result<Json<MemberResponse>, HttpError> {
@@ -129,7 +130,7 @@ pub async fn update_member(
         organization_id
     );
 
-    let command = UpdateMemberCommand::new(organization_id, user_id, &request, auth_user.user_id);
+    let command = UpdateMemberCommand::new(organization_id.id(), user_id.id(), &request, auth_user.user_id);
     let context = CommandContext::new().with_metadata("operation".to_string(), "update_member".to_string());
 
     let result = state

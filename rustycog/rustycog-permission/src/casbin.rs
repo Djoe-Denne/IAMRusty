@@ -10,7 +10,7 @@ use rustycog_core::error::DomainError;
 use async_trait::async_trait;
 use uuid::Uuid;
 
-use crate::{PermissionEngine, Permission, PermissionsFetch};
+use crate::{PermissionEngine, Permission, PermissionsFetch, ResourceId};
 
 /// Casbin-based permission engine implementation
 /// 
@@ -63,7 +63,7 @@ impl PermissionEngine for CasbinPermissionEngine {
     async fn has_permission(
         &self,
         user_id: Uuid,
-        resource_ids: Vec<Uuid>,
+        resource_ids: Vec<ResourceId>,
         target_permission: Permission,
         _settings: serde_json::Value,
     ) -> Result<bool, DomainError> {
@@ -76,7 +76,7 @@ impl PermissionEngine for CasbinPermissionEngine {
             .await?;
 
         let mut policy_vec = vec![user_id.to_string()];
-        policy_vec.extend(resource_ids.iter().map(|u| u.to_string()));
+        policy_vec.extend(resource_ids.iter().map(|u| u.id().to_string()));
 
         // Add policies (subject=user_id, object=resource_key, action=permission)
         for permission in permissions {
