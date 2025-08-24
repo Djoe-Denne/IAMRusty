@@ -1,6 +1,9 @@
 use uuid::Uuid;
 
-use crate::{entity::*, error::DomainError, port::*, service::role_service::RoleService};
+use crate::{entity::*, port::*, service::role_service::RoleService};
+use rustycog_core::error::DomainError;
+use std::sync::Arc;
+use tracing::debug;
 
 /// Domain service for organization member management
 pub struct MemberServiceImpl<MR, OR, RS>
@@ -9,9 +12,9 @@ where
     OR: OrganizationRepository,
     RS: RoleService,
 {
-    member_repo: MR,
-    organization_repo: OR,
-    role_service: RS,
+    member_repo: Arc<MR>,
+    organization_repo: Arc<OR>,
+    role_service: Arc<RS>,
 }
 
 #[async_trait::async_trait]
@@ -43,7 +46,6 @@ pub trait MemberService: Send + Sync {
         &self,
         organization_id: Uuid,
         user_id: Uuid,
-        removed_by_user_id: Uuid,
     ) -> Result<(), DomainError>;
 
     /**
@@ -51,20 +53,18 @@ pub trait MemberService: Send + Sync {
      * 
      * @param organization_id - The ID of the organization to remove the members from
      */
-    async fn remove_organization_members(&self, organization_id: Uuid, removed_by_user_id: Uuid) -> Result<(), DomainError>;
+    async fn remove_organization_members(&self, organization_id: Uuid) -> Result<(), DomainError>;
 
     /**
      * Get a member by organization and user ID
      * 
      * @param organization_id - The ID of the organization to get the member from
      * @param user_id - The ID of the user to get as a member
-     * @param requesting_user_id - The ID of the user who is requesting the member
      */
     async fn get_member(
         &self,
         organization_id: Uuid,
         user_id: Uuid,
-        requesting_user_id: Option<Uuid>,
     ) -> Result<OrganizationMember, DomainError>;
 
     /**
@@ -77,7 +77,6 @@ pub trait MemberService: Send + Sync {
         organization_id: Uuid,
         page: u32,
         page_size: u32,
-        requesting_user_id: Option<Uuid>,
     ) -> Result<Vec<OrganizationMember>, DomainError>;
 
     /**
@@ -88,7 +87,6 @@ pub trait MemberService: Send + Sync {
     async fn list_active_members(
         &self,
         organization_id: Uuid,
-        requesting_user_id: Option<Uuid>,
     ) -> Result<Vec<OrganizationMember>, DomainError>;
 
     /**
@@ -97,14 +95,12 @@ pub trait MemberService: Send + Sync {
      * @param organization_id - The ID of the organization to update the member's role in
      * @param member_id - The ID of the member to update the role of
      * @param roles - The roles to assign to the member
-     * @param requesting_user_id - The ID of the user who is requesting the member
      */
     async fn update_member_roles(
         &self,
         organization_id: Uuid,
         member_id: Uuid,
         roles: Vec<RolePermission>,
-        requesting_user_id: Uuid,
     ) -> Result<OrganizationMember, DomainError>;
 }
 
@@ -115,7 +111,7 @@ where
     RS: RoleService,
 {
     /// Create a new member service
-    pub fn new(member_repo: MR, organization_repo: OR, role_service: RS) -> Self {
+    pub fn new(member_repo: Arc<MR>, organization_repo: Arc<OR>, role_service: Arc<RS>) -> Self {
         Self {
             member_repo,
             organization_repo,
@@ -129,7 +125,11 @@ where
         member: &mut OrganizationMember,
         roles: Vec<RolePermission>,
     ) -> Result<OrganizationMember, DomainError> {
-        let new_roles = self.role_service.add_roles(&member.organization_id, &member.id, roles).await?;
+        if member.id.is_none() {
+            return Err(DomainError::invalid_input("Member ID is required"));
+        }
+
+        let new_roles = self.role_service.add_roles(&member.organization_id, &member.id.unwrap(), roles).await?;
         member.update_roles(new_roles);
         self.member_repo.save(member).await
     }
@@ -150,6 +150,7 @@ where
         roles: Vec<RolePermission>,
         added_by_user_id: Option<Uuid>,
     ) -> Result<OrganizationMember, DomainError> {
+        debug!("Adding user {} as member to organization: {:?}", user_id, organization_id);
         // Validate organization exists
         let _ = self
             .organization_repo
@@ -158,10 +159,6 @@ where
             .ok_or_else(|| {
                 DomainError::entity_not_found("Organization", &organization_id.to_string())
             })?;
-
-        if added_by_user_id.is_some() && !self.role_service.check_write_permission(&organization_id, &added_by_user_id.unwrap(), "members").await? {
-            return Err(DomainError::permission_denied("User does not have permission to add members"));
-        }
 
         // Business rule: Check if user is already a member
         if let Some(_) = self
@@ -176,7 +173,7 @@ where
         }
 
         // Create new member
-        let member = OrganizationMember::new(organization_id, user_id, added_by_user_id.clone());
+        let member = OrganizationMember::new(organization_id, user_id, added_by_user_id);
         let mut saved_member = self.member_repo.save(&member).await?;
 
         let roles = self.role_service.find_role_permissions_by_organization(&organization_id, &roles).await?;
@@ -192,7 +189,6 @@ where
         &self,
         organization_id: Uuid,
         user_id: Uuid,
-        removed_by_user_id: Uuid,
     ) -> Result<(), DomainError> {
         // Validate organization exists
         let organization = self
@@ -202,13 +198,6 @@ where
             .ok_or_else(|| {
                 DomainError::entity_not_found("Organization", &organization_id.to_string())
             })?;
-
-        // Business rule: Cannot remove organization owner
-        if organization.is_owned_by(&user_id) {
-            return Err(DomainError::business_rule_violation(
-                "Cannot remove organization owner from membership",
-            ));
-        }
 
         // Find the member
         let member = self
@@ -222,30 +211,15 @@ where
                 )
             })?;
 
-        // Business rule: Check permission to remove members
-        self.role_service.check_write_permission(&organization_id, &removed_by_user_id, "members")
-            .await?;
-
-        // Business rule: Cannot remove yourself unless you're the owner
-        if user_id == removed_by_user_id && !organization.is_owned_by(&removed_by_user_id) {
-            return Err(DomainError::business_rule_violation(
-                "Members cannot remove themselves (contact admin)",
-            ));
-        }
-
         // Remove the member
-        self.member_repo.delete_by_id(&member.id).await?;
+        self.member_repo.delete_by_id(&member.id.unwrap()).await?;
 
         Ok(())
     }
 
     /// Remove all members from an organization
 
-    async fn remove_organization_members(&self, organization_id: Uuid, removed_by_user_id: Uuid) -> Result<(), DomainError> {
-        if !self.role_service.check_write_permission(&organization_id, &removed_by_user_id, "members").await? {
-            return Err(DomainError::permission_denied("User does not have permission to remove members"));
-        }
-
+    async fn remove_organization_members(&self, organization_id: Uuid) -> Result<(), DomainError> {
         self.member_repo.delete_by_organization(&organization_id).await?;
         Ok(())
     }
@@ -255,14 +229,9 @@ where
         &self,
         organization_id: Uuid,
         user_id: Uuid,
-        roles: Vec<RolePermission>,
-        requesting_user_id: Uuid,
+        roles: Vec<RolePermission>
     ) -> Result<OrganizationMember, DomainError> {
-        if !self.role_service.check_write_permission(&organization_id, &requesting_user_id, "members").await? {
-            return Err(DomainError::permission_denied("User does not have permission to update member roles"));
-        }
-
-        let mut member = self.get_member(organization_id, user_id, Some(requesting_user_id)).await?;
+        let mut member = self.get_member(organization_id, user_id).await?;
         self.update_member_roles(&mut member, roles).await
     }
 
@@ -271,14 +240,7 @@ where
         &self,
         organization_id: Uuid,
         user_id: Uuid,
-        requesting_user_id: Option<Uuid>,
     ) -> Result<OrganizationMember, DomainError> {
-        if let Some(requesting_user_id) = requesting_user_id {
-            if !self.role_service.check_read_permission(&organization_id, &requesting_user_id, "members").await? {
-                return Err(DomainError::permission_denied("User does not have permission to get members"));
-            }
-        }
-
         self.member_repo
             .find_by_organization_and_user(&organization_id, &user_id)
             .await?
@@ -296,14 +258,7 @@ where
         organization_id: Uuid,
         page: u32,
         page_size: u32,
-        requesting_user_id: Option<Uuid>,
     ) -> Result<Vec<OrganizationMember>, DomainError> {
-        if let Some(requesting_user_id) = requesting_user_id {
-            if !self.role_service.check_read_permission(&organization_id, &requesting_user_id, "members").await? {
-                return Err(DomainError::permission_denied("User does not have permission to list members"));
-            }
-        }
-
         self.member_repo
             .find_by_organization(&organization_id, page, page_size)
             .await
@@ -313,14 +268,7 @@ where
     async fn list_active_members(
         &self,
         organization_id: Uuid,
-        requesting_user_id: Option<Uuid>,
     ) -> Result<Vec<OrganizationMember>, DomainError> {
-        if let Some(requesting_user_id) = requesting_user_id {
-            if !self.role_service.check_read_permission(&organization_id, &requesting_user_id, "members").await? {
-                return Err(DomainError::permission_denied("User does not have permission to list active members"));
-            }
-        }
-
         // Validate organization exists
         self.organization_repo
             .find_by_id(&organization_id)

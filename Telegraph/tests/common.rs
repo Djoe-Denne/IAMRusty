@@ -13,7 +13,6 @@ use std::sync::OnceLock;
 use telegraph_configuration::{load_config, setup_logging, TelegraphConfig};
 use telegraph_setup::app::{AppBuilder, TelegraphApp};
 use telegraphmigration::{Migrator, MigratorTrait};
-use tokio::sync::Mutex;
 
 #[path = "fixtures/mod.rs"]
 mod fixtures;

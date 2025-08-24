@@ -65,7 +65,7 @@ impl MigrationTrait for Migration {
                         ColumnDef::new(SyncJobs::Details)
                             .json_binary()
                             .not_null()
-                            .default("'{}'".to_owned()),
+                            .default(Expr::cust("'{}'::jsonb")),
                     )
                     .col(
                         ColumnDef::new(SyncJobs::CreatedAt)

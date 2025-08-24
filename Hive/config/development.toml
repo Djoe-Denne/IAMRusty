@@ -1,0 +1,57 @@
+# Hive Service Development Configuration (TOML)
+
+[server]
+host = "0.0.0.0"
+port = 8080
+tls_enabled = true
+tls_cert_path = "./config/certs/tls-cert.pem"
+tls_key_path = "./config/certs/tls-key.pem"
+tls_port = 8443
+
+[database]
+host = "postgres"
+port = 5432
+db = "hive_dev"
+[database.creds]
+username = "postgres"
+password = "postgres"
+read_replicas = []
+
+[iam_service]
+base_url = "http://iamrusty:8080"
+api_key = ""
+timeout_seconds = 10
+
+[external_provider_service]
+base_url = "http://external-provider:8080"
+api_key = ""
+timeout_seconds = 10
+max_retries = 3
+
+[logging]
+level = "debug"
+
+[command]
+[command.retry]
+max_attempts = 0
+base_delay_ms = 50
+max_delay_ms = 5000
+backoff_multiplier = 2.0
+use_jitter = false
+
+[queue]
+type = "sqs"
+enabled = true
+region = "us-east-1"
+account_id = "000000000000"
+default_queue = "user-events"
+host = "localstack"
+port = 4566
+access_key_id = "test"
+secret_access_key = "test"
+max_retries = 3
+timeout_seconds = 30
+
+
+
+

@@ -47,45 +47,34 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
-        // Insert default resource types
+        // Insert default resource types with IDs matching names used by permission fetcher
         manager
             .exec_stmt(
                 Query::insert()
                     .into_table(Resources::Table)
                     .columns([
+                        Resources::Id,
                         Resources::ResourceType,
                         Resources::Name,
                         Resources::Description,
                     ])
                     .values_panic([
-                        "org".into(),
-                        "Organization".into(),
+                        "organization".into(),
+                        "organization".into(),
+                        "organization".into(),
                         "Organization management resources".into(),
                     ])
                     .values_panic([
                         "member".into(),
-                        "Members".into(),
+                        "member".into(),
+                        "member".into(),
                         "Organization member management".into(),
                     ])
                     .values_panic([
-                        "roles".into(),
-                        "Roles".into(),
-                        "Role and permission management".into(),
-                    ])
-                    .values_panic([
-                        "issues".into(),
-                        "Issues".into(),
-                        "Issue tracking and management".into(),
-                    ])
-                    .values_panic([
-                        "external".into(),
-                        "External".into(),
-                        "External integrations and providers".into(),
-                    ])
-                    .values_panic([
-                        "invitations".into(),
-                        "Invitations".into(),
-                        "Organization invitations".into(),
+                        "external_link".into(),
+                        "external_link".into(),
+                        "external_link".into(),
+                        "External link management".into(),
                     ])
                     .to_owned(),
             )

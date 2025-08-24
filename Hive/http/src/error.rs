@@ -4,7 +4,7 @@ use axum::{
 };
 use chrono;
 use hive_application::{ApiErrorResponse, ApplicationError};
-use hive_domain::DomainError;
+use rustycog_core::error::DomainError;
 use thiserror::Error;
 
 /// HTTP-specific errors
@@ -67,9 +67,6 @@ impl IntoResponse for HttpError {
                         DomainError::ExternalServiceError { .. } => {
                             (StatusCode::BAD_GATEWAY, ApiErrorResponse::from(app_error))
                         }
-                        DomainError::ConcurrentAccess { .. } => {
-                            (StatusCode::CONFLICT, ApiErrorResponse::from(app_error))
-                        }
                         DomainError::Internal { .. } => (
                             StatusCode::INTERNAL_SERVER_ERROR,
                             ApiErrorResponse::from(app_error),
@@ -80,9 +77,6 @@ impl IntoResponse for HttpError {
                     }
                     ApplicationError::ExternalService { .. } => {
                         (StatusCode::BAD_GATEWAY, ApiErrorResponse::from(app_error))
-                    }
-                    ApplicationError::ConcurrentOperation { .. } => {
-                        (StatusCode::CONFLICT, ApiErrorResponse::from(app_error))
                     }
                     ApplicationError::RateLimit { .. } => (
                         StatusCode::TOO_MANY_REQUESTS,

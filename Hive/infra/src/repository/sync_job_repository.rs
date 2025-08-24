@@ -2,8 +2,10 @@
 
 use async_trait::async_trait;
 use hive_domain::entity::{SyncJob, SyncJobType, SyncJobStatus};
-use hive_domain::error::DomainError;
-use hive_domain::port::repository::SyncJobRepository;
+use rustycog_core::error::DomainError;
+use hive_domain::port::repository::{
+    SyncJobReadRepository, SyncJobRepository, SyncJobWriteRepository,
+};
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait,
     QueryFilter, PaginatorTrait
@@ -17,20 +19,10 @@ use super::entity::{
     sync_jobs,
 };
 
-/// SeaORM implementation of SyncJobRepository
-#[derive(Clone)]
-pub struct SyncJobRepositoryImpl {
-    db: Arc<DatabaseConnection>,
-}
+struct SyncJobMapper;
 
-impl SyncJobRepositoryImpl {
-    /// Create a new SyncJobRepositoryImpl
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
-        Self { db }
-    }
-
-    /// Convert a database model to a domain sync job
-    fn to_domain(model: sync_jobs::Model) -> Result<SyncJob, DomainError> {
+impl SyncJobMapper {
+    pub fn to_domain(model: sync_jobs::Model) -> Result<SyncJob, DomainError> {
         let job_type = SyncJobType::from_str(&model.job_type)?;
         let status = SyncJobStatus::from_str(&model.status)?;
 
@@ -51,8 +43,7 @@ impl SyncJobRepositoryImpl {
         })
     }
 
-    /// Convert a domain sync job to a database active model
-    fn to_active_model(job: &SyncJob) -> sync_jobs::ActiveModel {
+    pub fn to_active_model(job: &SyncJob) -> sync_jobs::ActiveModel {
         sync_jobs::ActiveModel {
             id: ActiveValue::Set(job.id),
             organization_external_link_id: ActiveValue::Set(job.organization_external_link_id),
@@ -71,8 +62,18 @@ impl SyncJobRepositoryImpl {
     }
 }
 
+/// Read repository
+#[derive(Clone)]
+pub struct SyncJobReadRepositoryImpl {
+    db: Arc<DatabaseConnection>,
+}
+
+impl SyncJobReadRepositoryImpl {
+    pub fn new(db: Arc<DatabaseConnection>) -> Self { Self { db } }
+}
+
 #[async_trait]
-impl SyncJobRepository for SyncJobRepositoryImpl {
+impl SyncJobReadRepository for SyncJobReadRepositoryImpl {
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<SyncJob>, DomainError> {
         debug!("Finding sync job by ID: {}", id);
         
@@ -82,7 +83,7 @@ impl SyncJobRepository for SyncJobRepositoryImpl {
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         match job {
-            Some(model) => Ok(Some(Self::to_domain(model)?)),
+            Some(model) => Ok(Some(SyncJobMapper::to_domain(model)?)),
             None => Ok(None),
         }
     }
@@ -98,7 +99,7 @@ impl SyncJobRepository for SyncJobRepositoryImpl {
 
         let mut result = Vec::new();
         for model in jobs {
-            result.push(Self::to_domain(model)?);
+            result.push(SyncJobMapper::to_domain(model)?);
         }
         Ok(result)
     }
@@ -115,7 +116,7 @@ impl SyncJobRepository for SyncJobRepositoryImpl {
 
         let mut result = Vec::new();
         for model in jobs {
-            result.push(Self::to_domain(model)?);
+            result.push(SyncJobMapper::to_domain(model)?);
         }
         Ok(result)
     }
@@ -131,7 +132,7 @@ impl SyncJobRepository for SyncJobRepositoryImpl {
 
         let mut result = Vec::new();
         for model in jobs {
-            result.push(Self::to_domain(model)?);
+            result.push(SyncJobMapper::to_domain(model)?);
         }
         Ok(result)
     }
@@ -147,7 +148,7 @@ impl SyncJobRepository for SyncJobRepositoryImpl {
 
         let mut result = Vec::new();
         for model in jobs {
-            result.push(Self::to_domain(model)?);
+            result.push(SyncJobMapper::to_domain(model)?);
         }
         Ok(result)
     }
@@ -164,7 +165,7 @@ impl SyncJobRepository for SyncJobRepositoryImpl {
 
         let mut result = Vec::new();
         for model in jobs {
-            result.push(Self::to_domain(model)?);
+            result.push(SyncJobMapper::to_domain(model)?);
         }
         Ok(result)
     }
@@ -181,53 +182,9 @@ impl SyncJobRepository for SyncJobRepositoryImpl {
 
         let mut result = Vec::new();
         for model in jobs {
-            result.push(Self::to_domain(model)?);
+            result.push(SyncJobMapper::to_domain(model)?);
         }
         Ok(result)
-    }
-
-    async fn save(&self, job: &SyncJob) -> Result<SyncJob, DomainError> {
-        debug!("Saving sync job with ID: {}", job.id);
-        
-        let active_model = Self::to_active_model(job);
-        
-        let result = active_model
-            .save(self.db.as_ref())
-            .await
-            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
-
-        let saved_model = sync_jobs::Model {
-            id: result.id.unwrap(),
-            organization_external_link_id: result.organization_external_link_id.unwrap(),
-            job_type: result.job_type.unwrap(),
-            status: result.status.unwrap(),
-            items_processed: result.items_processed.unwrap(),
-            items_created: result.items_created.unwrap(),
-            items_updated: result.items_updated.unwrap(),
-            items_failed: result.items_failed.unwrap(),
-            started_at: result.started_at.unwrap(),
-            completed_at: result.completed_at.unwrap(),
-            error_message: result.error_message.unwrap(),
-            details: result.details.unwrap(),
-            created_at: result.created_at.unwrap(),
-        };
-
-        Self::to_domain(saved_model)
-    }
-
-    async fn delete_by_id(&self, id: &Uuid) -> Result<(), DomainError> {
-        debug!("Deleting sync job by ID: {}", id);
-        
-        let result = SyncJobs::delete_by_id(*id)
-            .exec(self.db.as_ref())
-            .await
-            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
-
-        if result.rows_affected == 0 {
-            return Err(DomainError::entity_not_found("SyncJob", &id.to_string()));
-        }
-
-        Ok(())
     }
 
     async fn count_by_external_link(&self, link_id: &Uuid) -> Result<i64, DomainError> {
@@ -253,4 +210,129 @@ impl SyncJobRepository for SyncJobRepositoryImpl {
 
         Ok(count as i64)
     }
-} 
+}
+
+/// Write repository
+#[derive(Clone)]
+pub struct SyncJobWriteRepositoryImpl {
+    db: Arc<DatabaseConnection>,
+}
+
+impl SyncJobWriteRepositoryImpl {
+    pub fn new(db: Arc<DatabaseConnection>) -> Self { Self { db } }
+}
+
+#[async_trait]
+impl SyncJobWriteRepository for SyncJobWriteRepositoryImpl {
+    async fn save(&self, job: &SyncJob) -> Result<SyncJob, DomainError> {
+        debug!("Saving sync job with ID: {}", job.id);
+        
+        let active_model = SyncJobMapper::to_active_model(job);
+        
+        let result = active_model
+            .save(self.db.as_ref())
+            .await
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
+
+        let saved_model = sync_jobs::Model {
+            id: result.id.unwrap(),
+            organization_external_link_id: result.organization_external_link_id.unwrap(),
+            job_type: result.job_type.unwrap(),
+            status: result.status.unwrap(),
+            items_processed: result.items_processed.unwrap(),
+            items_created: result.items_created.unwrap(),
+            items_updated: result.items_updated.unwrap(),
+            items_failed: result.items_failed.unwrap(),
+            started_at: result.started_at.unwrap(),
+            completed_at: result.completed_at.unwrap(),
+            error_message: result.error_message.unwrap(),
+            details: result.details.unwrap(),
+            created_at: result.created_at.unwrap(),
+        };
+
+        SyncJobMapper::to_domain(saved_model)
+    }
+
+    async fn delete_by_id(&self, id: &Uuid) -> Result<(), DomainError> {
+        debug!("Deleting sync job by ID: {}", id);
+        
+        let result = SyncJobs::delete_by_id(*id)
+            .exec(self.db.as_ref())
+            .await
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
+
+        if result.rows_affected == 0 {
+            return Err(DomainError::entity_not_found("SyncJob", &id.to_string()));
+        }
+
+        Ok(())
+    }
+}
+
+/// Combined delegator
+#[derive(Clone)]
+pub struct SyncJobRepositoryImpl {
+    read_repo: Arc<dyn SyncJobReadRepository>,
+    write_repo: Arc<dyn SyncJobWriteRepository>,
+}
+
+impl SyncJobRepositoryImpl {
+    pub fn new(
+        read_repo: Arc<dyn SyncJobReadRepository>,
+        write_repo: Arc<dyn SyncJobWriteRepository>,
+    ) -> Self {
+        Self { read_repo, write_repo }
+    }
+}
+
+#[async_trait]
+impl SyncJobReadRepository for SyncJobRepositoryImpl {
+    async fn find_by_id(&self, id: &Uuid) -> Result<Option<SyncJob>, DomainError> {
+        self.read_repo.find_by_id(id).await
+    }
+
+    async fn find_by_external_link(&self, link_id: &Uuid) -> Result<Vec<SyncJob>, DomainError> {
+        self.read_repo.find_by_external_link(link_id).await
+    }
+
+    async fn find_by_organization(&self, organization_id: &Uuid) -> Result<Vec<SyncJob>, DomainError> {
+        self.read_repo.find_by_organization(organization_id).await
+    }
+
+    async fn find_by_status(&self, status: &SyncJobStatus) -> Result<Vec<SyncJob>, DomainError> {
+        self.read_repo.find_by_status(status).await
+    }
+
+    async fn find_running(&self) -> Result<Vec<SyncJob>, DomainError> {
+        self.read_repo.find_running().await
+    }
+
+    async fn find_running_by_external_link(&self, link_id: &Uuid) -> Result<Vec<SyncJob>, DomainError> {
+        self.read_repo.find_running_by_external_link(link_id).await
+    }
+
+    async fn find_recent(&self, days: i64) -> Result<Vec<SyncJob>, DomainError> {
+        self.read_repo.find_recent(days).await
+    }
+
+    async fn count_by_external_link(&self, link_id: &Uuid) -> Result<i64, DomainError> {
+        self.read_repo.count_by_external_link(link_id).await
+    }
+
+    async fn count_running(&self) -> Result<i64, DomainError> {
+        self.read_repo.count_running().await
+    }
+}
+
+#[async_trait]
+impl SyncJobWriteRepository for SyncJobRepositoryImpl {
+    async fn save(&self, job: &SyncJob) -> Result<SyncJob, DomainError> {
+        self.write_repo.save(job).await
+    }
+
+    async fn delete_by_id(&self, id: &Uuid) -> Result<(), DomainError> {
+        self.write_repo.delete_by_id(id).await
+    }
+}
+
+impl SyncJobRepository for SyncJobRepositoryImpl {}

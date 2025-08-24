@@ -40,7 +40,7 @@ impl MigrationTrait for Migration {
                         ColumnDef::new(Organizations::Settings)
                             .json_binary()
                             .not_null()
-                            .default("'{}'".to_owned()),
+                            .default(Expr::cust("'{}'::jsonb")),
                     )
                     .col(
                         ColumnDef::new(Organizations::CreatedAt)

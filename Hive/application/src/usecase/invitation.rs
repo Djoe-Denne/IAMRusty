@@ -2,7 +2,8 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use hive_domain::{service::invitation_service::InvitationService, DomainError, entity::{RolePermission, OrganizationInvitation}};
+use hive_domain::{service::invitation_service::InvitationService, entity::{RolePermission, OrganizationInvitation}};
+use rustycog_core::error::DomainError;
 use hive_events::{HiveDomainEvent, InvitationCreatedEvent, Role};
 use rustycog_events::EventPublisher;
 
@@ -77,7 +78,7 @@ impl InvitationUseCaseImpl {
             organization_name.to_string(),
             invitation_id,
             email.to_string(),
-            role_permissions.iter().map(|role| Role::new(role.permission.level.as_str().to_string(), role.resource.name.clone())).collect(),
+            role_permissions.iter().map(|role| Role::new(role.permission.level.to_str().to_string(), role.resource.name.clone())).collect(),
             invited_by_user_id,
             invitation_token.to_string(),
             expires_at,

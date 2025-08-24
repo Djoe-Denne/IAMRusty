@@ -3,8 +3,10 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use hive_domain::entity::{ExternalLink, SyncStatus};
-use hive_domain::error::DomainError;
-use hive_domain::port::repository::ExternalLinkRepository;
+use rustycog_core::error::DomainError;
+use hive_domain::port::repository::{
+    ExternalLinkReadRepository, ExternalLinkRepository, ExternalLinkWriteRepository,
+};
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait,
     QueryFilter, PaginatorTrait
@@ -19,20 +21,10 @@ use super::entity::{
     external_providers,
 };
 
-/// SeaORM implementation of ExternalLinkRepository
-#[derive(Clone)]
-pub struct ExternalLinkRepositoryImpl {
-    db: Arc<DatabaseConnection>,
-}
+pub struct ExternalLinkMapper;
 
-impl ExternalLinkRepositoryImpl {
-    /// Create a new ExternalLinkRepositoryImpl
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
-        Self { db }
-    }
-
-    /// Convert a database model to a domain external link
-    fn to_domain(model: external_links::Model, provider_source: Option<String>) -> Result<ExternalLink, DomainError> {
+impl ExternalLinkMapper {
+    pub fn to_domain(model: external_links::Model, provider_source: Option<String>) -> Result<ExternalLink, DomainError> {
         let last_sync_status = match model.last_sync_status {
             Some(status_str) => Some(SyncStatus::from_str(&status_str)?),
             None => None,
@@ -55,9 +47,10 @@ impl ExternalLinkRepositoryImpl {
         })
     }
 
-    /// Convert a domain external link to a database active model
-    fn to_active_model(link: &ExternalLink) -> external_links::ActiveModel {
-        let last_sync_status_str = link.last_sync_status.as_ref()
+    pub fn to_active_model(link: &ExternalLink) -> external_links::ActiveModel {
+        let last_sync_status_str = link
+            .last_sync_status
+            .as_ref()
             .map(|s| s.as_str().to_string());
 
         external_links::ActiveModel {
@@ -76,8 +69,18 @@ impl ExternalLinkRepositoryImpl {
     }
 }
 
+/// Read repository
+#[derive(Clone)]
+pub struct ExternalLinkReadRepositoryImpl {
+    db: Arc<DatabaseConnection>,
+}
+
+impl ExternalLinkReadRepositoryImpl {
+    pub fn new(db: Arc<DatabaseConnection>) -> Self { Self { db } }
+}
+
 #[async_trait]
-impl ExternalLinkRepository for ExternalLinkRepositoryImpl {
+impl ExternalLinkReadRepository for ExternalLinkReadRepositoryImpl {
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<ExternalLink>, DomainError> {
         debug!("Finding external link by ID: {}", id);
         
@@ -89,7 +92,7 @@ impl ExternalLinkRepository for ExternalLinkRepositoryImpl {
 
         
         match link {
-            Some((model, provider)) => Ok(Some(Self::to_domain(model, provider.map(|p| p.provider_type.clone()))?)),
+            Some((model, provider)) => Ok(Some(ExternalLinkMapper::to_domain(model, provider.map(|p| p.provider_type.clone()))?)),
             None => Ok(None),
         }
     }
@@ -107,7 +110,7 @@ impl ExternalLinkRepository for ExternalLinkRepositoryImpl {
         let mut result = Vec::new();
         for model in links {
             let (link, provider) = model;
-            result.push(Self::to_domain(link, provider.map(|p| p.provider_type.clone()))?);
+            result.push(ExternalLinkMapper::to_domain(link, provider.map(|p| p.provider_type.clone()))?);
         }
         Ok(result)
     }
@@ -128,7 +131,7 @@ impl ExternalLinkRepository for ExternalLinkRepositoryImpl {
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         match link {
-            Some((model, provider)) => Ok(Some(Self::to_domain(model, provider.map(|p| p.provider_type.clone()))?)),
+            Some((model, provider)) => Ok(Some(ExternalLinkMapper::to_domain(model, provider.map(|p| p.provider_type.clone()))?)),
             None => Ok(None),
         }
     }
@@ -146,7 +149,7 @@ impl ExternalLinkRepository for ExternalLinkRepositoryImpl {
         let mut result = Vec::new();
         for model in links {
             let (link, provider) = model;
-            result.push(Self::to_domain(link, provider.map(|p| p.provider_type.clone()))?);
+            result.push(ExternalLinkMapper::to_domain(link, provider.map(|p| p.provider_type.clone()))?);
         }
         Ok(result)
     }
@@ -169,15 +172,40 @@ impl ExternalLinkRepository for ExternalLinkRepositoryImpl {
         let mut result = Vec::new();
         for model in links {
             let (link, provider) = model;
-            result.push(Self::to_domain(link, provider.map(|p| p.provider_type.clone()))?);
+            result.push(ExternalLinkMapper::to_domain(link, provider.map(|p| p.provider_type.clone()))?);
         }
         Ok(result)
     }
 
+    async fn count_by_organization(&self, organization_id: &Uuid) -> Result<i64, DomainError> {
+        debug!("Counting external links in organization: {}", organization_id);
+        
+        let count = ExternalLinks::find()
+            .filter(external_links::Column::OrganizationId.eq(*organization_id))
+            .count(self.db.as_ref())
+            .await
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
+
+        Ok(count as i64)
+    }
+}
+
+/// Write repository
+#[derive(Clone)]
+pub struct ExternalLinkWriteRepositoryImpl {
+    db: Arc<DatabaseConnection>,
+}
+
+impl ExternalLinkWriteRepositoryImpl {
+    pub fn new(db: Arc<DatabaseConnection>) -> Self { Self { db } }
+}
+
+#[async_trait]
+impl ExternalLinkWriteRepository for ExternalLinkWriteRepositoryImpl {
     async fn save(&self, link: &ExternalLink) -> Result<ExternalLink, DomainError> {
         debug!("Saving external link with ID: {}", link.id);
         
-        let active_model = Self::to_active_model(link);
+        let active_model = ExternalLinkMapper::to_active_model(link);
         
         let result = active_model
             .save(self.db.as_ref())
@@ -198,7 +226,7 @@ impl ExternalLinkRepository for ExternalLinkRepositoryImpl {
             updated_at: result.updated_at.unwrap(),
         };
 
-        Self::to_domain(saved_model, None)
+        ExternalLinkMapper::to_domain(saved_model, None)
     }
 
     async fn delete_by_id(&self, id: &Uuid) -> Result<(), DomainError> {
@@ -215,16 +243,66 @@ impl ExternalLinkRepository for ExternalLinkRepositoryImpl {
 
         Ok(())
     }
+}
+
+/// Combined delegator
+#[derive(Clone)]
+pub struct ExternalLinkRepositoryImpl {
+    read_repo: Arc<dyn ExternalLinkReadRepository>,
+    write_repo: Arc<dyn ExternalLinkWriteRepository>,
+}
+
+impl ExternalLinkRepositoryImpl {
+    pub fn new(
+        read_repo: Arc<dyn ExternalLinkReadRepository>,
+        write_repo: Arc<dyn ExternalLinkWriteRepository>,
+    ) -> Self {
+        Self { read_repo, write_repo }
+    }
+}
+
+#[async_trait]
+impl ExternalLinkReadRepository for ExternalLinkRepositoryImpl {
+    async fn find_by_id(&self, id: &Uuid) -> Result<Option<ExternalLink>, DomainError> {
+        self.read_repo.find_by_id(id).await
+    }
+
+    async fn find_by_organization(&self, organization_id: &Uuid) -> Result<Vec<ExternalLink>, DomainError> {
+        self.read_repo.find_by_organization(organization_id).await
+    }
+
+    async fn find_by_organization_and_provider(
+        &self,
+        organization_id: &Uuid,
+        provider_id: &Uuid,
+    ) -> Result<Option<ExternalLink>, DomainError> {
+        self.read_repo
+            .find_by_organization_and_provider(organization_id, provider_id)
+            .await
+    }
+
+    async fn find_sync_enabled(&self) -> Result<Vec<ExternalLink>, DomainError> {
+        self.read_repo.find_sync_enabled().await
+    }
+
+    async fn find_needing_sync(&self, max_age_hours: i64) -> Result<Vec<ExternalLink>, DomainError> {
+        self.read_repo.find_needing_sync(max_age_hours).await
+    }
 
     async fn count_by_organization(&self, organization_id: &Uuid) -> Result<i64, DomainError> {
-        debug!("Counting external links in organization: {}", organization_id);
-        
-        let count = ExternalLinks::find()
-            .filter(external_links::Column::OrganizationId.eq(*organization_id))
-            .count(self.db.as_ref())
-            .await
-            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
-
-        Ok(count as i64)
+        self.read_repo.count_by_organization(organization_id).await
     }
-} 
+}
+
+#[async_trait]
+impl ExternalLinkWriteRepository for ExternalLinkRepositoryImpl {
+    async fn save(&self, link: &ExternalLink) -> Result<ExternalLink, DomainError> {
+        self.write_repo.save(link).await
+    }
+
+    async fn delete_by_id(&self, id: &Uuid) -> Result<(), DomainError> {
+        self.write_repo.delete_by_id(id).await
+    }
+}
+
+impl ExternalLinkRepository for ExternalLinkRepositoryImpl {}

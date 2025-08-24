@@ -2,8 +2,10 @@
 
 use async_trait::async_trait;
 use hive_domain::entity::ExternalProvider;
-use hive_domain::error::DomainError;
-use hive_domain::port::repository::ExternalProviderRepository;
+use rustycog_core::error::DomainError;
+use hive_domain::port::repository::{
+    ExternalProviderReadRepository, ExternalProviderRepository, ExternalProviderWriteRepository,
+};
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, 
     QueryFilter, Set
@@ -17,20 +19,10 @@ use super::entity::{
     external_providers,
 };
 
-/// SeaORM implementation of ExternalProviderRepository
-#[derive(Clone)]
-pub struct ExternalProviderRepositoryImpl {
-    db: Arc<DatabaseConnection>,
-}
+pub struct ExternalProviderMapper;
 
-impl ExternalProviderRepositoryImpl {
-    /// Create a new ExternalProviderRepositoryImpl
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
-        Self { db }
-    }
-
-    /// Convert a database model to a domain external provider
-    fn to_domain(model: external_providers::Model) -> Result<ExternalProvider, DomainError> {
+impl ExternalProviderMapper {
+    pub fn to_domain(model: external_providers::Model) -> Result<ExternalProvider, DomainError> {
 
         Ok(ExternalProvider {
             id: model.id,
@@ -42,8 +34,7 @@ impl ExternalProviderRepositoryImpl {
         })
     }
 
-    /// Convert a domain external provider to a database active model
-    fn to_active_model(provider: &ExternalProvider) -> external_providers::ActiveModel {
+    pub fn to_active_model(provider: &ExternalProvider) -> external_providers::ActiveModel {
         external_providers::ActiveModel {
             id: ActiveValue::Set(provider.id),
             provider_type: ActiveValue::Set(provider.provider_source.clone()),
@@ -55,8 +46,18 @@ impl ExternalProviderRepositoryImpl {
     }
 }
 
+/// Read repository
+#[derive(Clone)]
+pub struct ExternalProviderReadRepositoryImpl {
+    db: Arc<DatabaseConnection>,
+}
+
+impl ExternalProviderReadRepositoryImpl {
+    pub fn new(db: Arc<DatabaseConnection>) -> Self { Self { db } }
+}
+
 #[async_trait]
-impl ExternalProviderRepository for ExternalProviderRepositoryImpl {
+impl ExternalProviderReadRepository for ExternalProviderReadRepositoryImpl {
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<ExternalProvider>, DomainError> {
         debug!("Finding external provider by ID: {}", id);
         
@@ -66,7 +67,7 @@ impl ExternalProviderRepository for ExternalProviderRepositoryImpl {
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         match provider {
-            Some(model) => Ok(Some(Self::to_domain(model)?)),
+            Some(model) => Ok(Some(ExternalProviderMapper::to_domain(model)?)),
             None => Ok(None),
         }
     }
@@ -81,7 +82,7 @@ impl ExternalProviderRepository for ExternalProviderRepositoryImpl {
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         match provider {
-            Some(model) => Ok(Some(Self::to_domain(model)?)),
+            Some(model) => Ok(Some(ExternalProviderMapper::to_domain(model)?)),
             None => Ok(None),
         }
     }
@@ -96,7 +97,7 @@ impl ExternalProviderRepository for ExternalProviderRepositoryImpl {
 
         let mut result = Vec::new();
         for model in providers {
-            result.push(Self::to_domain(model)?);
+            result.push(ExternalProviderMapper::to_domain(model)?);
         }
         Ok(result)
     }
@@ -112,15 +113,29 @@ impl ExternalProviderRepository for ExternalProviderRepositoryImpl {
 
         let mut result = Vec::new();
         for model in providers {
-            result.push(Self::to_domain(model)?);
+            result.push(ExternalProviderMapper::to_domain(model)?);
         }
         Ok(result)
     }
 
+}
+
+/// Write repository
+#[derive(Clone)]
+pub struct ExternalProviderWriteRepositoryImpl {
+    db: Arc<DatabaseConnection>,
+}
+
+impl ExternalProviderWriteRepositoryImpl {
+    pub fn new(db: Arc<DatabaseConnection>) -> Self { Self { db } }
+}
+
+#[async_trait]
+impl ExternalProviderWriteRepository for ExternalProviderWriteRepositoryImpl {
     async fn save(&self, provider: &ExternalProvider) -> Result<ExternalProvider, DomainError> {
         debug!("Saving external provider with ID: {}", provider.id);
         
-        let active_model = Self::to_active_model(provider);
+        let active_model = ExternalProviderMapper::to_active_model(provider);
         
         let result = active_model
             .save(self.db.as_ref())
@@ -136,7 +151,7 @@ impl ExternalProviderRepository for ExternalProviderRepositoryImpl {
             created_at: result.created_at.unwrap(),
         };
 
-        Self::to_domain(saved_model)
+        ExternalProviderMapper::to_domain(saved_model)
     }
 
     async fn delete_by_id(&self, id: &Uuid) -> Result<(), DomainError> {
@@ -153,4 +168,52 @@ impl ExternalProviderRepository for ExternalProviderRepositoryImpl {
 
         Ok(())
     }
-} 
+}
+
+/// Combined delegator
+#[derive(Clone)]
+pub struct ExternalProviderRepositoryImpl {
+    read_repo: Arc<dyn ExternalProviderReadRepository>,
+    write_repo: Arc<dyn ExternalProviderWriteRepository>,
+}
+
+impl ExternalProviderRepositoryImpl {
+    pub fn new(
+        read_repo: Arc<dyn ExternalProviderReadRepository>,
+        write_repo: Arc<dyn ExternalProviderWriteRepository>,
+    ) -> Self {
+        Self { read_repo, write_repo }
+    }
+}
+
+#[async_trait]
+impl ExternalProviderReadRepository for ExternalProviderRepositoryImpl {
+    async fn find_by_id(&self, id: &Uuid) -> Result<Option<ExternalProvider>, DomainError> {
+        self.read_repo.find_by_id(id).await
+    }
+
+    async fn find_by_source(&self, provider_source: &String) -> Result<Option<ExternalProvider>, DomainError> {
+        self.read_repo.find_by_source(provider_source).await
+    }
+
+    async fn find_all(&self) -> Result<Vec<ExternalProvider>, DomainError> {
+        self.read_repo.find_all().await
+    }
+
+    async fn find_active(&self) -> Result<Vec<ExternalProvider>, DomainError> {
+        self.read_repo.find_active().await
+    }
+}
+
+#[async_trait]
+impl ExternalProviderWriteRepository for ExternalProviderRepositoryImpl {
+    async fn save(&self, provider: &ExternalProvider) -> Result<ExternalProvider, DomainError> {
+        self.write_repo.save(provider).await
+    }
+
+    async fn delete_by_id(&self, id: &Uuid) -> Result<(), DomainError> {
+        self.write_repo.delete_by_id(id).await
+    }
+}
+
+impl ExternalProviderRepository for ExternalProviderRepositoryImpl {}

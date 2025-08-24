@@ -1,49 +1,81 @@
-use std::{fs::Permissions, sync::Arc};
+use std::sync::Arc;
 
+// Hive
 use hive_application::{
     ExternalLinkUseCaseImpl, HiveCommandRegistryFactory, InvitationUseCaseImpl, MemberUseCaseImpl,
     OrganizationUseCaseImpl, SyncJobUseCaseImpl,
 };
 use hive_configuration::AppConfig;
-use hive_infra::{HiveErrorMapper,
-    repository::{
-        OrganizationRepositoryImpl,
-        OrganizationMemberRepositoryImpl,
-        OrganizationInvitationRepositoryImpl,
-        ExternalLinkRepositoryImpl,
-        ExternalProviderRepositoryImpl,
-        SyncJobRepositoryImpl,
-        ResourceRepositoryImpl,
-        PermissionRepositoryImpl,
-        RolePermissionRepositoryImpl,
-        MemberRoleRepositoryImpl,
-    },
-    external_provider::external_provider_client::HttpExternalProviderClient,
-};
-use hive_http::create_app_routes;
-use hive_migration::Migrator;
-use rustycog_command::GenericCommandService;
-use rustycog_events::{ErrorMapper, MultiQueueEventPublisher, EventPublisher, create_multi_queue_event_publisher};
-use rustycog_http::{AppState, UserIdExtractor};
-use sea_orm::{Database, DatabaseConnection};
-use sea_orm_migration::MigratorTrait;
-use anyhow::Error;
-use hive_domain::{error::DomainError,
+use hive_domain::{
     service::{
         organization_service::OrganizationServiceImpl,
         member_service::MemberServiceImpl,
         invitation_service::InvitationServiceImpl,
         external_provider_service::ExternalProviderServiceImpl,
-        role_service::RoleServiceImpl,
         sync_service::SyncServiceImpl,
+        permission_service::ResourcePermissionFetcher,
+        role_service::RoleServiceImpl,
     },
 };
+use hive_infra::{HiveErrorMapper,
+    repository::{
+        OrganizationRepositoryImpl,
+        OrganizationReadRepositoryImpl,
+        OrganizationWriteRepositoryImpl,
+        OrganizationMemberRepositoryImpl,
+        OrganizationMemberReadRepositoryImpl,
+        OrganizationMemberWriteRepositoryImpl,
+        OrganizationInvitationRepositoryImpl,
+        OrganizationInvitationReadRepositoryImpl,
+        OrganizationInvitationWriteRepositoryImpl,
+        ExternalLinkRepositoryImpl,
+        ExternalLinkReadRepositoryImpl,
+        ExternalLinkWriteRepositoryImpl,
+        ExternalProviderRepositoryImpl,
+        ExternalProviderReadRepositoryImpl,
+        ExternalProviderWriteRepositoryImpl,
+        SyncJobRepositoryImpl,
+        SyncJobReadRepositoryImpl,
+        SyncJobWriteRepositoryImpl,
+        ResourceRepositoryImpl,
+        PermissionRepositoryImpl,
+        RolePermissionRepositoryImpl,
+        RolePermissionReadRepositoryImpl,
+        RolePermissionWriteRepositoryImpl,
+        MemberRoleRepositoryImpl,
+        MemberRoleReadRepositoryImpl,
+        MemberRoleWriteRepositoryImpl,
+        ResourceReadRepositoryImpl,
+        PermissionReadRepositoryImpl,
+    },
+    external_provider::external_provider_client::HttpExternalProviderClient,
+};
+use hive_http::create_app_routes;
+use hive_migration::Migrator;
+
+// Rustycog
+use rustycog_command::GenericCommandService;
+use rustycog_events::{ErrorMapper, MultiQueueEventPublisher, EventPublisher, create_multi_queue_event_publisher};
+use rustycog_http::{AppState, UserIdExtractor};
+use rustycog_db::DbConnectionPool;
+use rustycog_core::error::DomainError;
+use rustycog_permission::PermissionsFetcher;
+use rustycog_config::ServerConfig;
+
+// External
+use sea_orm::{Database, DatabaseConnection};
+use sea_orm_migration::MigratorTrait;
+use anyhow::Error;
+
 // Use AppState from rustycog-http - no need to define our own
 
 /// Application context for dependency injection
 pub struct Application {
     pub config: AppConfig,
     pub state: AppState,
+    pub organization_permission_fetcher: Arc<dyn PermissionsFetcher>,
+    pub member_permission_fetcher: Arc<dyn PermissionsFetcher>,
+    pub external_link_permission_fetcher: Arc<dyn PermissionsFetcher>,
 }
 
 impl Application {
@@ -53,11 +85,6 @@ impl Application {
 
         // Setup database connection
         let db = setup_database(&config).await?;
-
-        // Run migrations if enabled
-        if config.database.run_migrations {
-            run_migrations(&db).await?;
-        }
 
         // Setup event publisher for Telegraph communication
         let event_publisher = create_multi_queue_event_publisher(&config.queue, None, Arc::new(HiveErrorMapper)).await?;
@@ -69,7 +96,10 @@ impl Application {
             invitation_usecase,
             external_link_usecase,
             sync_job_usecase,
-        ) = setup_use_cases(db.clone(), event_publisher).await?;
+            organization_permission_fetcher,
+            member_permission_fetcher,
+            external_link_permission_fetcher,
+        ) = setup_application(db, &config, event_publisher).await?;
 
         // Setup command registry
         let command_registry = HiveCommandRegistryFactory::create_hive_registry(
@@ -91,72 +121,43 @@ impl Application {
 
         tracing::info!("Hive application initialized successfully");
 
-        Ok(Application { config, state })
+        Ok(Application { config, state, organization_permission_fetcher, member_permission_fetcher, external_link_permission_fetcher })
     }
 
     /// Start the HTTP server
-    pub async fn serve(self) -> Result<(), Error> {
+    pub async fn run(self, server_config: ServerConfig) -> Result<(), Error> {
         tracing::info!("Starting Hive HTTP server...");
 
-        create_app_routes(self.state, self.config.server)
+        create_app_routes(self.state, server_config, self.organization_permission_fetcher, self.member_permission_fetcher, self.external_link_permission_fetcher)
             .await
-            .map_err(|e| Error::ServerError {
-                message: format!("Server startup failed: {}", e),
-            })?;
+            .map_err(|e| anyhow::anyhow!("Server startup failed: {}", e))?;
 
         Ok(())
-    }
-
-    /// Get server address for testing
-    pub fn server_address(&self) -> String {
-        format!("{}:{}", self.config.server.host, self.config.server.port)
     }
 }
 
 /// Setup database connection
-async fn setup_database(config: &AppConfig) -> Result<DatabaseConnection, Error> {
-    tracing::info!("Connecting to database: {}", config.database.url);
+async fn setup_database(config: &AppConfig) -> Result<DbConnectionPool, Error> {
+    tracing::info!("Connecting to database");
 
-    let mut opt = sea_orm::ConnectOptions::new(&config.database.url);
-    opt.max_connections(config.database.max_connections)
-        .min_connections(config.database.min_connections)
-        .connect_timeout(std::time::Duration::from_secs(
-            config.database.connection_timeout_seconds,
-        ))
-        .idle_timeout(std::time::Duration::from_secs(
-            config.database.idle_timeout_seconds,
-        ))
-        .max_lifetime(std::time::Duration::from_secs(
-            config.database.max_lifetime_seconds,
-        ));
-
-    let db = Database::connect(opt)
-        .await
-        .map_err(|e| Error::DatabaseError {
-            message: e.to_string(),
-        })?;
-
+    // Setup database connection pool
+    let db_pool = DbConnectionPool::new(&config.database).await?;
+    tracing::info!(
+        "Database connection pool initialized with {} read replicas",
+        if config.database.read_replicas.is_empty() {
+            0
+        } else {
+            config.database.read_replicas.len()
+        }
+    );
     tracing::info!("Database connection established");
-    Ok(db)
-}
-
-/// Run database migrations
-async fn run_migrations(db: &DatabaseConnection) -> Result<(), Error> {
-    tracing::info!("Running database migrations...");
-
-    Migrator::up(db, None)
-        .await
-        .map_err(|e| Error::MigrationError {
-            message: e.to_string(),
-        })?;
-
-    tracing::info!("Database migrations completed");
-    Ok(())
+    Ok(db_pool)
 }
 
 /// Setup use cases with their dependencies
-async fn setup_use_cases(
-    db: DatabaseConnection,
+async fn setup_application(
+    db: DbConnectionPool,
+    config: &AppConfig,
     event_publisher: Arc<dyn EventPublisher<DomainError>>,
 ) -> Result<
     (
@@ -165,40 +166,53 @@ async fn setup_use_cases(
         Arc<dyn hive_application::InvitationUseCase>,
         Arc<dyn hive_application::ExternalLinkUseCase>,
         Arc<dyn hive_application::SyncJobUseCase>,
+        Arc<dyn PermissionsFetcher>,
+        Arc<dyn PermissionsFetcher>,
+        Arc<dyn PermissionsFetcher>,
     ),
     Error,
 > {
+
+    let (
+        organization_service,
+        member_service,
+        invitation_service,
+        external_provider_service,
+        _role_service,
+        sync_service,
+        organization_permission_fetcher,
+        member_permission_fetcher,
+        external_link_permission_fetcher,
+    ) = setup_domain(db, config).await?;
    
     // Create organization use case
     let organization_usecase = Arc::new(OrganizationUseCaseImpl::new(
-        todo!("organization_service"),
-        todo!("organization_repository"),
+        organization_service.clone(),
         event_publisher.clone(),
     ));
 
     // Create member use case
     let member_usecase = Arc::new(MemberUseCaseImpl::new(
-        todo!("member_service"),
-        todo!("member_repository"),
-        todo!("organization_repository"),
+        member_service.clone(),
+        organization_service.clone(),
         event_publisher.clone(),
     ));
 
     // Create invitation use case
     let invitation_usecase = Arc::new(InvitationUseCaseImpl::new(
-        todo!("invitation_repository"),
+        invitation_service.clone(),
         event_publisher.clone(),
     ));
 
     // Create external link use case
     let external_link_usecase = Arc::new(ExternalLinkUseCaseImpl::new(
-        todo!("external_link_repository"),
+        external_provider_service.clone(),
         event_publisher.clone(),
     ));
 
     // Create sync job use case
     let sync_job_usecase = Arc::new(SyncJobUseCaseImpl::new(
-        todo!("sync_job_repository"),
+        sync_service.clone(),
         event_publisher,
     ));
 
@@ -208,16 +222,22 @@ async fn setup_use_cases(
         invitation_usecase,
         external_link_usecase,
         sync_job_usecase,
+        organization_permission_fetcher,
+        member_permission_fetcher,
+        external_link_permission_fetcher,
     ))
 }
 
-async fn setup_services(db: Arc<DatabaseConnection>, config: &AppConfig) -> Result<(
-    Arc<hive_domain::service::OrganizationServiceImpl>,
-    Arc<hive_domain::service::MemberServiceImpl>,
-    Arc<hive_domain::service::InvitationServiceImpl>,
-    Arc<hive_domain::service::ExternalProviderServiceImpl>,
-    Arc<hive_domain::service::RoleServiceImpl>,
-    Arc<hive_domain::service::SyncServiceImpl>,
+async fn setup_domain(db: DbConnectionPool, config: &AppConfig) -> Result<(
+    Arc<dyn hive_domain::service::OrganizationService>,
+    Arc<dyn hive_domain::service::MemberService>,
+    Arc<dyn hive_domain::service::InvitationService>,
+    Arc<dyn hive_domain::service::ExternalProviderService>,
+    Arc<dyn hive_domain::service::RoleService>,
+    Arc<dyn hive_domain::service::SyncService>,
+    Arc<dyn PermissionsFetcher>,
+    Arc<dyn PermissionsFetcher>,
+    Arc<dyn PermissionsFetcher>,
 ), Error> {
 
     let (
@@ -227,110 +247,184 @@ async fn setup_services(db: Arc<DatabaseConnection>, config: &AppConfig) -> Resu
         external_link_repo,
         external_provider_repo,
         sync_job_repo,
-        permission_repo,
         resource_repo,
+        permission_repo,
         role_permission_repo,
         member_role_repo,
-    ) = setup_repositories(db).await?;
-
-
-    let role_engine = Arc::new(RoleEngineImpl::new(
-        permission_repo,
-        resource_repo,
-    ));
-
-    let provider_client =HttpExternalProviderClient::new(
-        config.external_provider_service.base_url,
-        config.external_provider_service.api_key,
-        config.external_provider_service.timeout_seconds,
-        config.external_provider_service.max_retries,
-    )?;
+        provider_client,
+    ) = setup_infra(db, config).await?;
 
     let role_service = Arc::new(RoleServiceImpl::new(
-        member_repo,
-        organization_repo,
-        member_role_repo,
-        resource_repo,
-        permission_repo,
-        role_engine,
-        role_permission_repo,
+        member_role_repo.clone(),
+        resource_repo.clone(),
+        permission_repo.clone(),
+        role_permission_repo.clone(),
     ));
 
     let member_service = Arc::new(MemberServiceImpl::new(
-        member_repo,
-        organization_repo,
-        role_service,
+        member_repo.clone(),
+        organization_repo.clone(),
+        role_service.clone(),
     ));
 
     let organization_service = Arc::new(OrganizationServiceImpl::new(
-        organization_repo,
-        member_service,
-        role_service,
+        organization_repo.clone(),
+        member_service.clone(),
+        role_service.clone(),
     ));
 
     let invitation_service = Arc::new(InvitationServiceImpl::new(
-        invitation_repo,
-        organization_service,
-        role_service,
-        member_service,
+        invitation_repo.clone(),
+        organization_service.clone(),
+        member_service.clone(),
     ));
 
     let external_provider_service = Arc::new(ExternalProviderServiceImpl::new(
-        organization_repo,
-        external_link_repo,
-        external_provider_repo,
-        role_service,
-        provider_client,
+        organization_repo.clone(),
+        external_link_repo.clone(),
+        external_provider_repo.clone(),
+        provider_client.clone(),
     ));
 
     let sync_service = Arc::new(SyncServiceImpl::new(
-        sync_job_repo,
-        external_link_repo,
-        organization_repo,
-        role_service,
-        organization_service,
-        invitation_service,
+        sync_job_repo.clone(),
+        external_link_repo.clone(),
+        organization_repo.clone(),
+        organization_service.clone(),
+        invitation_service.clone(),
         provider_client,
     ));
+
+    let organization_permission_fetcher = ResourcePermissionFetcher::new(organization_service.clone(), member_service.clone(), member_role_repo.clone(), "organization".to_string());
+    let member_permission_fetcher = ResourcePermissionFetcher::new(organization_service.clone(), member_service.clone(), member_role_repo.clone(), "member".to_string());
+    let external_link_permission_fetcher = ResourcePermissionFetcher::new(organization_service.clone(), member_service.clone(), member_role_repo.clone(), "external_link".to_string());
+
+    Ok((
+        organization_service,
+        member_service,
+        invitation_service,
+        external_provider_service,
+        role_service,
+        sync_service,
+        Arc::new(organization_permission_fetcher),
+        Arc::new(member_permission_fetcher),
+        Arc::new(external_link_permission_fetcher),
+    ))
 }
 
 /// Setup repositories
-async fn setup_repositories(db: Arc<DatabaseConnection>) -> Result<(
-    OrganizationRepositoryImpl,
-    OrganizationMemberRepositoryImpl,
-    OrganizationInvitationRepositoryImpl,
-    ExternalLinkRepositoryImpl,
-    ExternalProviderRepositoryImpl,
-    SyncJobRepositoryImpl, 
-    ResourceRepositoryImpl,
-    PermissionRepositoryImpl,
-    RolePermissionRepositoryImpl,
-    MemberRoleRepositoryImpl,
+async fn setup_infra(db: DbConnectionPool, config: &AppConfig) -> Result<(
+    Arc<OrganizationRepositoryImpl>,
+    Arc<OrganizationMemberRepositoryImpl>,
+    Arc<OrganizationInvitationRepositoryImpl>,
+    Arc<ExternalLinkRepositoryImpl>,
+    Arc<ExternalProviderRepositoryImpl>,
+    Arc<SyncJobRepositoryImpl>, 
+    Arc<ResourceRepositoryImpl>,
+    Arc<PermissionRepositoryImpl>,
+    Arc<RolePermissionRepositoryImpl>,
+    Arc<MemberRoleRepositoryImpl>,
+    Arc<HttpExternalProviderClient>,
 ), Error> {
     tracing::info!("Setting up repositories...");
 
-    let organization_repo = OrganizationRepositoryImpl::new(db.clone());
-    let member_repo = OrganizationMemberRepositoryImpl::new(db.clone());
-    let invitation_repo = OrganizationInvitationRepositoryImpl::new(db.clone());
-    let external_link_repo = ExternalLinkRepositoryImpl::new(db.clone());
-    let external_provider_repo = ExternalProviderRepositoryImpl::new(db.clone());
-    let sync_job_repo = SyncJobRepositoryImpl::new(db.clone());
-    let resource_repo = ResourceRepositoryImpl::new(db.clone());
-    let permissions_repo = PermissionRepositoryImpl::new(db.clone());
-    let role_permission_repo = RolePermissionRepositoryImpl::new(db.clone());
-    let member_role_repo = MemberRoleRepositoryImpl::new(db.clone());
+    let organization_read_repo = OrganizationReadRepositoryImpl::new(db.get_read_connection());
+    let organization_write_repo = OrganizationWriteRepositoryImpl::new(db.get_write_connection());
+    let organization_repo = OrganizationRepositoryImpl::new(
+        Arc::new(organization_read_repo),
+        Arc::new(organization_write_repo),
+    );
+    let organization_member_read_repo = OrganizationMemberReadRepositoryImpl::new(db.get_read_connection());
+    let organization_member_write_repo = OrganizationMemberWriteRepositoryImpl::new(db.get_write_connection());
+    let member_repo = OrganizationMemberRepositoryImpl::new(
+        Arc::new(organization_member_read_repo),
+        Arc::new(organization_member_write_repo),
+    );
+
+    let invitation_read_repo = OrganizationInvitationReadRepositoryImpl::new(db.get_read_connection());
+    let invitation_write_repo = OrganizationInvitationWriteRepositoryImpl::new(db.get_write_connection());
+    let invitation_repo = OrganizationInvitationRepositoryImpl::new(
+        Arc::new(invitation_read_repo),
+        Arc::new(invitation_write_repo),
+    );
+
+    let external_link_read_repo = ExternalLinkReadRepositoryImpl::new(db.get_read_connection());
+    let external_link_write_repo = ExternalLinkWriteRepositoryImpl::new(db.get_write_connection());
+    let external_link_repo = ExternalLinkRepositoryImpl::new(
+        Arc::new(external_link_read_repo),
+        Arc::new(external_link_write_repo),
+    );
+
+    let external_provider_read_repo = ExternalProviderReadRepositoryImpl::new(db.get_read_connection());
+    let external_provider_write_repo = ExternalProviderWriteRepositoryImpl::new(db.get_write_connection());
+    let external_provider_repo = ExternalProviderRepositoryImpl::new(
+        Arc::new(external_provider_read_repo),
+        Arc::new(external_provider_write_repo),
+    );
+
+    let sync_job_read_repo = SyncJobReadRepositoryImpl::new(db.get_read_connection());
+    let sync_job_write_repo = SyncJobWriteRepositoryImpl::new(db.get_write_connection());
+    let sync_job_repo = SyncJobRepositoryImpl::new(
+        Arc::new(sync_job_read_repo),
+        Arc::new(sync_job_write_repo),
+    );
+
+    let resource_read_repo = ResourceReadRepositoryImpl::new(db.get_read_connection());
+    let resource_repo = ResourceRepositoryImpl::new(Arc::new(resource_read_repo));
+
+    let permission_read_repo = PermissionReadRepositoryImpl::new(db.get_read_connection());
+    let permission_repo = PermissionRepositoryImpl::new(Arc::new(permission_read_repo));
+
+    let role_permission_read_repo = RolePermissionReadRepositoryImpl::new(db.get_read_connection());
+    let role_permission_write_repo = RolePermissionWriteRepositoryImpl::new(db.get_write_connection());
+    let role_permission_repo = RolePermissionRepositoryImpl::new(
+        Arc::new(role_permission_read_repo),
+        Arc::new(role_permission_write_repo),
+    );
+
+    let member_role_read_repo = MemberRoleReadRepositoryImpl::new(db.get_read_connection());
+    let member_role_write_repo = MemberRoleWriteRepositoryImpl::new(db.get_write_connection());
+    let member_role_repo = MemberRoleRepositoryImpl::new(
+        Arc::new(member_role_read_repo),
+        Arc::new(member_role_write_repo),
+    );
+
+    let provider_client = HttpExternalProviderClient::new(
+        config.external_provider_service.base_url.clone(),
+        config.external_provider_service.api_key.clone(),
+        config.external_provider_service.timeout_seconds.clone(),
+        config.external_provider_service.max_retries.clone(),
+    )?;
 
     tracing::info!("Repositories initialized");
     Ok((
-        organization_repo,
-        member_repo,
-        invitation_repo,
-        external_link_repo,
-        external_provider_repo,
-        sync_job_repo,
-        resource_repo,
-        permissions_repo,
-        role_permission_repo,
-        member_role_repo,
+        Arc::new(organization_repo),
+        Arc::new(member_repo),
+        Arc::new(invitation_repo),
+        Arc::new(external_link_repo),
+        Arc::new(external_provider_repo),
+        Arc::new(sync_job_repo),
+        Arc::new(resource_repo),
+        Arc::new(permission_repo),
+        Arc::new(role_permission_repo),
+        Arc::new(member_role_repo),
+        Arc::new(provider_client),
     ))
+}
+
+/// Application builder for Hive
+pub struct AppBuilder {
+    config: AppConfig,
+}
+
+impl AppBuilder {
+    /// Create a new app builder
+    pub fn new(config: AppConfig) -> Self {
+        Self { config }
+    }
+
+    /// Build the Hive application
+    pub async fn build(self) -> Result<Application, anyhow::Error> {
+        Ok(Application::new(self.config).await?)
+    }
 }

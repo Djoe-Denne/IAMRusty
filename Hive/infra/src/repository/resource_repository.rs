@@ -1,16 +1,15 @@
 //! ResourceRepository SeaORM implementation
 
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
 use hive_domain::entity::{Resource};
-use hive_domain::error::DomainError;
-use hive_domain::port::repository::ResourceRepository;
+use rustycog_core::error::DomainError;
+use hive_domain::port::repository::{ResourceReadRepository, ResourceRepository};
 use sea_orm::{
     ColumnTrait, DatabaseConnection, EntityTrait, 
     QueryFilter
 };
 use std::sync::Arc;
-use tracing::{debug, error};
+use tracing::debug;
 use uuid::Uuid;
 
 use super::entity::{
@@ -18,20 +17,11 @@ use super::entity::{
     resources,
 };
 
-/// SeaORM implementation of ResourceRepository
-#[derive(Clone)]
-pub struct ResourceRepositoryImpl {
-    db: Arc<DatabaseConnection>,
-}
+pub struct ResourceMapper;
 
-impl ResourceRepositoryImpl {
-    /// Create a new ResourceRepositoryImpl
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
-        Self { db }
-    }
-
-    /// Convert a database model to a domain resource
-    fn to_domain(model: resources::Model) -> Result<Resource, DomainError> {
+impl ResourceMapper {
+    
+    pub fn to_domain(model: resources::Model) -> Result<Resource, DomainError> {
         Ok(Resource {
             name: model.name,
             description: model.description,
@@ -40,8 +30,20 @@ impl ResourceRepositoryImpl {
     }
 }
 
+/// Read repository (resources are read-only)
+#[derive(Clone)]
+pub struct ResourceReadRepositoryImpl {
+    db: Arc<DatabaseConnection>,
+}
+
+impl ResourceReadRepositoryImpl {
+    pub fn new(db: Arc<DatabaseConnection>) -> Self { Self { db } }
+
+
+}
+
 #[async_trait]
-impl ResourceRepository for ResourceRepositoryImpl {
+impl ResourceReadRepository for ResourceReadRepositoryImpl {
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<Resource>, DomainError> {
         debug!("Finding resource by ID: {}", id);
         
@@ -51,7 +53,7 @@ impl ResourceRepository for ResourceRepositoryImpl {
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         match resource {
-            Some(model) => Ok(Some(Self::to_domain(model)?)),
+            Some(model) => Ok(Some(ResourceMapper::to_domain(model)?)),
             None => Ok(None),
         }
     }
@@ -66,7 +68,7 @@ impl ResourceRepository for ResourceRepositoryImpl {
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         match resource {
-            Some(model) => Ok(Some(Self::to_domain(model)?)),
+            Some(model) => Ok(Some(ResourceMapper::to_domain(model)?)),
             None => Ok(None),
         }
     }
@@ -81,8 +83,35 @@ impl ResourceRepository for ResourceRepositoryImpl {
 
         let mut result = Vec::new();
         for model in resources {
-            result.push(Self::to_domain(model)?);
+            result.push(ResourceMapper::to_domain(model)?);
         }
         Ok(result)
     }
 } 
+
+#[derive(Clone)]
+pub struct ResourceRepositoryImpl {
+    read_repo: Arc<dyn ResourceReadRepository>,
+}
+
+impl ResourceRepositoryImpl {
+    pub fn new(read_repo: Arc<dyn ResourceReadRepository>) -> Self { Self { read_repo } }
+}
+
+#[async_trait]
+impl ResourceReadRepository for ResourceRepositoryImpl {
+    async fn find_by_id(&self, id: &Uuid) -> Result<Option<Resource>, DomainError> {
+        self.read_repo.find_by_id(id).await
+    }
+
+    async fn find_by_type(&self, resource_type: &String) -> Result<Option<Resource>, DomainError> {
+        self.read_repo.find_by_type(resource_type).await
+    }
+
+    async fn find_all(&self) -> Result<Vec<Resource>, DomainError> {
+        self.read_repo.find_all().await
+    }
+}
+
+#[async_trait]
+impl ResourceRepository for ResourceRepositoryImpl {}

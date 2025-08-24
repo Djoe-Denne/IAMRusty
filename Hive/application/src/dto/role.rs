@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use validator::Validate;
 
-use hive_domain::entity::{Permission, PermissionLevel, Resource, RolePermission};
+use hive_domain::entity::{Permission, PermissionLevel, RolePermission};
 
 // =============================================================================
 // Role Request DTOs
@@ -28,6 +28,17 @@ impl From<MemberRolePermission> for &str {
         }
     }
 }
+impl From<MemberRolePermission> for String {
+
+    fn from(permission: MemberRolePermission) -> Self {
+        match permission {
+            MemberRolePermission::Read => String::from("read"),
+            MemberRolePermission::Write => String::from("write"),
+            MemberRolePermission::Delete => String::from("delete"),
+            MemberRolePermission::Admin => String::from("admin"),
+        }
+    }
+}
 
 impl From<String> for MemberRolePermission {
     fn from(permission: String) -> Self {
@@ -38,6 +49,12 @@ impl From<String> for MemberRolePermission {
             "admin" => MemberRolePermission::Admin,
             _ => panic!("Invalid member role permission"),
         }
+    }
+}
+
+impl From<MemberRolePermission> for PermissionLevel {
+    fn from(permission: MemberRolePermission) -> Self {
+        PermissionLevel::from_str(permission.into()).unwrap()
     }
 }
 
@@ -71,7 +88,8 @@ pub struct UpdateMemberRoleRequest {
 
 impl From<&MemberRole> for RolePermission {
     fn from(member_role: &MemberRole) -> Self {
-        RolePermission::new(None, None, member_role.organization_id, &member_role.permissions.into(), &member_role.resource.clone().into(), Some(Utc::now()))
+        let permission = Permission::new(member_role.permissions.into(), None, None);
+        RolePermission::new(None, None, member_role.organization_id, &permission, &member_role.resource.clone().into(), Some(Utc::now()))
     }
 }
 
@@ -80,13 +98,7 @@ impl From<RolePermission> for MemberRole {
         MemberRole {
             organization_id: role_permission.organization_id,
             resource: role_permission.resource.name,
-            permissions: role_permission.permission.level.to_string().into(),
+            permissions: role_permission.permission.level.to_str().to_string().into(),
         }
-    }
-}
-
-impl From<MemberRolePermission> for Permission {
-    fn from(permission: MemberRolePermission) -> Self {
-        Permission::new(PermissionLevel::from_str(permission.into()).unwrap(), None, Utc::now())
     }
 }

@@ -2,14 +2,14 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use hive_domain::{port::repository::SyncJobRepository, DomainError};
-use hive_events::{HiveDomainEvent, SyncJobStartedEvent, SyncJobCompletedEvent};
+use hive_domain::service::SyncService;
+use rustycog_core::error::DomainError;
+use hive_events::{HiveDomainEvent, SyncJobStartedEvent};
 use rustycog_events::EventPublisher;
 
 use crate::{
     dto::{
-        StartSyncJobRequest, SyncJobListResponse, SyncJobLogsResponse, SyncJobResponse,
-        SyncJobStatusResponse,
+        StartSyncJobRequest, SyncJobResponse,
     },
     ApplicationError,
 };
@@ -20,21 +20,22 @@ pub trait SyncJobUseCase: Send + Sync {
         &self,
         organization_id: Uuid,
         request: StartSyncJobRequest,
+        requested_by_user_id: Uuid,
     ) -> Result<SyncJobResponse, ApplicationError>;
 }
 
 pub struct SyncJobUseCaseImpl {
-    sync_job_repository: Arc<dyn SyncJobRepository>,
+    sync_service: Arc<dyn SyncService>,
     event_publisher: Arc<dyn EventPublisher<DomainError>>,
 }
 
 impl SyncJobUseCaseImpl {
     pub fn new(
-        sync_job_repository: Arc<dyn SyncJobRepository>,
+        sync_service: Arc<dyn SyncService>,
         event_publisher: Arc<dyn EventPublisher<DomainError>>,
     ) -> Self {
         Self {
-            sync_job_repository,
+            sync_service,
             event_publisher,
         }
     }
@@ -71,24 +72,23 @@ impl SyncJobUseCase for SyncJobUseCaseImpl {
         &self,
         organization_id: Uuid,
         request: StartSyncJobRequest,
+        requested_by_user_id: Uuid,
     ) -> Result<SyncJobResponse, ApplicationError> {
-        // TODO: Implement sync job creation
-
-        let job_id = Uuid::new_v4();
+        let job = self.sync_service.start_sync_job(request.external_link_id, hive_domain::SyncJobType::from_str(&request.job_type).map_err(|e| ApplicationError::Domain(e))?, requested_by_user_id).await?;
         let started_at = chrono::Utc::now();
 
         // Publish started event
         self.publish_sync_job_started_event(
             organization_id,
             request.external_link_id,
-            job_id,
+            job.id,
             request.job_type.clone(),
             started_at,
         )
         .await?;
 
         Ok(SyncJobResponse {
-            id: job_id,
+            id: job.id,
             organization_id: organization_id,
             external_link_id: request.external_link_id,
             job_type: request.job_type,

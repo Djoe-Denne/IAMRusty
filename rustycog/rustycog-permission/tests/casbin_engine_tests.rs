@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use rustycog_permission::{casbin::CasbinPermissionEngine, Permission, PermissionsFetch, PermissionEngine, ResourceId};
+use rustycog_permission::{casbin::CasbinPermissionEngine, Permission, PermissionsFetcher, PermissionEngine, ResourceId};
 use rustycog_core::error::DomainError;
 use uuid::Uuid;
 
@@ -22,7 +22,7 @@ impl MockFetcher {
 }
 
 #[async_trait::async_trait]
-impl PermissionsFetch for MockFetcher {
+impl PermissionsFetcher for MockFetcher {
     async fn fetch_permissions(&self, user_id: Uuid, resource_ids: Vec<ResourceId>) -> Result<Vec<Permission>, DomainError> {
         let key = resource_ids.iter().map(|u| u.id().to_string()).collect::<Vec<_>>().join(",");
         Ok(self.rules.get(&(user_id, key)).cloned().unwrap_or_default())

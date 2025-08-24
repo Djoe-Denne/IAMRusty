@@ -3,8 +3,11 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use hive_domain::entity::{OrganizationInvitation, InvitationStatus};
-use hive_domain::error::DomainError;
-use hive_domain::port::repository::OrganizationInvitationRepository;
+use rustycog_core::error::DomainError;
+use hive_domain::port::repository::{
+    OrganizationInvitationReadRepository, OrganizationInvitationRepository,
+    OrganizationInvitationWriteRepository,
+};
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, 
     QueryFilter, QueryOrder, Set, Order, JsonValue, PaginatorTrait
@@ -19,20 +22,10 @@ use super::entity::{
     organization_invitations,
 };
 
-/// SeaORM implementation of OrganizationInvitationRepository
-#[derive(Clone)]
-pub struct OrganizationInvitationRepositoryImpl {
-    db: Arc<DatabaseConnection>,
-}
+pub struct OrganizationInvitationMapper;
 
-impl OrganizationInvitationRepositoryImpl {
-    /// Create a new OrganizationInvitationRepositoryImpl
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
-        Self { db }
-    }
-
-    /// Convert a database model to a domain organization invitation
-    fn to_domain(model: organization_invitations::Model) -> Result<OrganizationInvitation, DomainError> {
+impl OrganizationInvitationMapper {
+    pub fn to_domain(model: organization_invitations::Model) -> Result<OrganizationInvitation, DomainError> {
         let status = match model.status.as_str() {
             "Pending" => InvitationStatus::Pending,
             "Accepted" => InvitationStatus::Accepted,
@@ -57,8 +50,7 @@ impl OrganizationInvitationRepositoryImpl {
         })
     }
 
-    /// Convert a domain organization invitation to a database active model
-    fn to_active_model(invitation: &OrganizationInvitation) -> organization_invitations::ActiveModel {
+    pub fn to_active_model(invitation: &OrganizationInvitation) -> organization_invitations::ActiveModel {
         let status_str = match invitation.status {
             InvitationStatus::Pending => "Pending",
             InvitationStatus::Accepted => "Accepted",
@@ -82,8 +74,18 @@ impl OrganizationInvitationRepositoryImpl {
     }
 }
 
+/// Read repository
+#[derive(Clone)]
+pub struct OrganizationInvitationReadRepositoryImpl {
+    db: Arc<DatabaseConnection>,
+}
+
+impl OrganizationInvitationReadRepositoryImpl {
+    pub fn new(db: Arc<DatabaseConnection>) -> Self { Self { db } }
+}
+
 #[async_trait]
-impl OrganizationInvitationRepository for OrganizationInvitationRepositoryImpl {
+impl OrganizationInvitationReadRepository for OrganizationInvitationReadRepositoryImpl {
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<OrganizationInvitation>, DomainError> {
         debug!("Finding organization invitation by ID: {}", id);
         
@@ -93,7 +95,7 @@ impl OrganizationInvitationRepository for OrganizationInvitationRepositoryImpl {
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         match invitation {
-            Some(model) => Ok(Some(Self::to_domain(model)?)),
+            Some(model) => Ok(Some(OrganizationInvitationMapper::to_domain(model)?)),
             None => Ok(None),
         }
     }
@@ -108,7 +110,7 @@ impl OrganizationInvitationRepository for OrganizationInvitationRepositoryImpl {
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         match invitation {
-            Some(model) => Ok(Some(Self::to_domain(model)?)),
+            Some(model) => Ok(Some(OrganizationInvitationMapper::to_domain(model)?)),
             None => Ok(None),
         }
     }
@@ -125,7 +127,7 @@ impl OrganizationInvitationRepository for OrganizationInvitationRepositoryImpl {
 
         let mut result = Vec::new();
         for model in invitations {
-            result.push(Self::to_domain(model)?);
+            result.push(OrganizationInvitationMapper::to_domain(model)?);
         }
         Ok(result)
     }
@@ -142,7 +144,7 @@ impl OrganizationInvitationRepository for OrganizationInvitationRepositoryImpl {
 
         let mut result = Vec::new();
         for model in invitations {
-            result.push(Self::to_domain(model)?);
+            result.push(OrganizationInvitationMapper::to_domain(model)?);
         }
         Ok(result)
     }
@@ -164,7 +166,7 @@ impl OrganizationInvitationRepository for OrganizationInvitationRepositoryImpl {
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         match invitation {
-            Some(model) => Ok(Some(Self::to_domain(model)?)),
+            Some(model) => Ok(Some(OrganizationInvitationMapper::to_domain(model)?)),
             None => Ok(None),
         }
     }
@@ -188,7 +190,7 @@ impl OrganizationInvitationRepository for OrganizationInvitationRepositoryImpl {
 
         let mut result = Vec::new();
         for model in invitations {
-            result.push(Self::to_domain(model)?);
+            result.push(OrganizationInvitationMapper::to_domain(model)?);
         }
         Ok(result)
     }
@@ -206,52 +208,9 @@ impl OrganizationInvitationRepository for OrganizationInvitationRepositoryImpl {
 
         let mut result = Vec::new();
         for model in invitations {
-            result.push(Self::to_domain(model)?);
+            result.push(OrganizationInvitationMapper::to_domain(model)?);
         }
         Ok(result)
-    }
-
-    async fn save(&self, invitation: &OrganizationInvitation) -> Result<OrganizationInvitation, DomainError> {
-        debug!("Saving organization invitation with ID: {}", invitation.id);
-        
-        let active_model = Self::to_active_model(invitation);
-        
-        let result = active_model
-            .save(self.db.as_ref())
-            .await
-            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
-
-        // Convert the saved active model back to domain model
-        let saved_model = organization_invitations::Model {
-            id: result.id.unwrap(),
-            organization_id: result.organization_id.unwrap(),
-            aggregate_id: result.aggregate_id.unwrap(),
-            role_permissions: result.role_permissions.unwrap(),
-            invited_by_user_id: result.invited_by_user_id.unwrap(),
-            token: result.token.unwrap(),
-            status: result.status.unwrap(),
-            expires_at: result.expires_at.unwrap(),
-            accepted_at: result.accepted_at.unwrap(),
-            message: result.message.unwrap(),
-            created_at: result.created_at.unwrap(),
-        };
-
-        Self::to_domain(saved_model)
-    }
-
-    async fn delete_by_id(&self, id: &Uuid) -> Result<(), DomainError> {
-        debug!("Deleting organization invitation by ID: {}", id);
-        
-        let result = OrganizationInvitations::delete_by_id(*id)
-            .exec(self.db.as_ref())
-            .await
-            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
-
-        if result.rows_affected == 0 {
-            return Err(DomainError::entity_not_found("OrganizationInvitation", &id.to_string()));
-        }
-
-        Ok(())
     }
 
     async fn count_by_organization(&self, organization_id: &Uuid) -> Result<i64, DomainError> {
@@ -278,4 +237,135 @@ impl OrganizationInvitationRepository for OrganizationInvitationRepositoryImpl {
 
         Ok(count as i64)
     }
-} 
+}
+
+/// Write repository
+#[derive(Clone)]
+pub struct OrganizationInvitationWriteRepositoryImpl {
+    db: Arc<DatabaseConnection>,
+}
+
+impl OrganizationInvitationWriteRepositoryImpl {
+    pub fn new(db: Arc<DatabaseConnection>) -> Self { Self { db } }
+}
+
+#[async_trait]
+impl OrganizationInvitationWriteRepository for OrganizationInvitationWriteRepositoryImpl {
+    async fn save(&self, invitation: &OrganizationInvitation) -> Result<OrganizationInvitation, DomainError> {
+        debug!("Saving organization invitation with ID: {}", invitation.id);
+        
+        let active_model = OrganizationInvitationMapper::to_active_model(invitation);
+        
+        let result = active_model
+            .save(self.db.as_ref())
+            .await
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
+
+        // Convert the saved active model back to domain model
+        let saved_model = organization_invitations::Model {
+            id: result.id.unwrap(),
+            organization_id: result.organization_id.unwrap(),
+            aggregate_id: result.aggregate_id.unwrap(),
+            role_permissions: result.role_permissions.unwrap(),
+            invited_by_user_id: result.invited_by_user_id.unwrap(),
+            token: result.token.unwrap(),
+            status: result.status.unwrap(),
+            expires_at: result.expires_at.unwrap(),
+            accepted_at: result.accepted_at.unwrap(),
+            message: result.message.unwrap(),
+            created_at: result.created_at.unwrap(),
+        };
+
+        OrganizationInvitationMapper::to_domain(saved_model)
+    }
+
+    async fn delete_by_id(&self, id: &Uuid) -> Result<(), DomainError> {
+        debug!("Deleting organization invitation by ID: {}", id);
+        
+        let result = OrganizationInvitations::delete_by_id(*id)
+            .exec(self.db.as_ref())
+            .await
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
+
+        if result.rows_affected == 0 {
+            return Err(DomainError::entity_not_found("OrganizationInvitation", &id.to_string()));
+        }
+
+        Ok(())
+    }
+}
+
+/// Combined delegator
+#[derive(Clone)]
+pub struct OrganizationInvitationRepositoryImpl {
+    read_repo: Arc<dyn OrganizationInvitationReadRepository>,
+    write_repo: Arc<dyn OrganizationInvitationWriteRepository>,
+}
+
+impl OrganizationInvitationRepositoryImpl {
+    pub fn new(
+        read_repo: Arc<dyn OrganizationInvitationReadRepository>,
+        write_repo: Arc<dyn OrganizationInvitationWriteRepository>,
+    ) -> Self {
+        Self { read_repo, write_repo }
+    }
+}
+
+#[async_trait]
+impl OrganizationInvitationReadRepository for OrganizationInvitationRepositoryImpl {
+    async fn find_by_id(&self, id: &Uuid) -> Result<Option<OrganizationInvitation>, DomainError> {
+        self.read_repo.find_by_id(id).await
+    }
+
+    async fn find_by_token(&self, token: &str) -> Result<Option<OrganizationInvitation>, DomainError> {
+        self.read_repo.find_by_token(token).await
+    }
+
+    async fn find_by_organization(&self, organization_id: &Uuid) -> Result<Vec<OrganizationInvitation>, DomainError> {
+        self.read_repo.find_by_organization(organization_id).await
+    }
+
+    async fn find_by_aggregate_id(&self, aggregate_id: &str) -> Result<Vec<OrganizationInvitation>, DomainError> {
+        self.read_repo.find_by_aggregate_id(aggregate_id).await
+    }
+
+    async fn find_by_organization_and_aggregate_id_status(
+        &self,
+        organization_id: &Uuid,
+        aggregate_id: &str,
+        status: &InvitationStatus,
+    ) -> Result<Option<OrganizationInvitation>, DomainError> {
+        self.read_repo
+            .find_by_organization_and_aggregate_id_status(organization_id, aggregate_id, status)
+            .await
+    }
+
+    async fn find_by_status(&self, status: &InvitationStatus) -> Result<Vec<OrganizationInvitation>, DomainError> {
+        self.read_repo.find_by_status(status).await
+    }
+
+    async fn find_expired(&self) -> Result<Vec<OrganizationInvitation>, DomainError> {
+        self.read_repo.find_expired().await
+    }
+
+    async fn count_by_organization(&self, organization_id: &Uuid) -> Result<i64, DomainError> {
+        self.read_repo.count_by_organization(organization_id).await
+    }
+
+    async fn count_pending_by_organization(&self, organization_id: &Uuid) -> Result<i64, DomainError> {
+        self.read_repo.count_pending_by_organization(organization_id).await
+    }
+}
+
+#[async_trait]
+impl OrganizationInvitationWriteRepository for OrganizationInvitationRepositoryImpl {
+    async fn save(&self, invitation: &OrganizationInvitation) -> Result<OrganizationInvitation, DomainError> {
+        self.write_repo.save(invitation).await
+    }
+
+    async fn delete_by_id(&self, id: &Uuid) -> Result<(), DomainError> {
+        self.write_repo.delete_by_id(id).await
+    }
+}
+
+impl OrganizationInvitationRepository for OrganizationInvitationRepositoryImpl {}

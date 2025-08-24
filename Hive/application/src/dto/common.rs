@@ -2,7 +2,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{ApplicationError, ValidationError};
+use crate::{ApplicationError};
+use rustycog_core::error::DomainError;
 
 /// Standard API error response
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -110,38 +111,35 @@ impl From<ApplicationError> for ApiErrorResponse {
         match error {
             ApplicationError::Domain(domain_error) => {
                 let (error_type, message) = match domain_error {
-                    hive_domain::DomainError::EntityNotFound { entity_type, id } => (
+                    DomainError::EntityNotFound { entity_type, id } => (
                         "entity_not_found".to_string(),
                         format!("{} not found: {}", entity_type, id),
                     ),
-                    hive_domain::DomainError::InvalidInput { message } => {
+                    DomainError::InvalidInput { message } => {
                         ("invalid_input".to_string(), message)
                     }
-                    hive_domain::DomainError::BusinessRuleViolation { rule } => {
+                    DomainError::BusinessRuleViolation { rule } => {
                         ("business_rule_violation".to_string(), rule)
                     }
-                    hive_domain::DomainError::Unauthorized { operation } => (
+                    DomainError::Unauthorized { operation } => (
                         "unauthorized".to_string(),
                         format!("Unauthorized: {}", operation),
                     ),
-                    hive_domain::DomainError::ResourceAlreadyExists {
+                    DomainError::ResourceAlreadyExists {
                         resource_type,
                         identifier,
                     } => (
                         "resource_already_exists".to_string(),
                         format!("{} already exists: {}", resource_type, identifier),
                     ),
-                    hive_domain::DomainError::ExternalServiceError { service, message } => (
+                    DomainError::ExternalServiceError { service, message } => (
                         "external_service_error".to_string(),
                         format!("External service error ({}): {}", service, message),
                     ),
-                    hive_domain::DomainError::ConcurrentAccess { message } => {
-                        ("concurrent_access".to_string(), message)
-                    }
-                    hive_domain::DomainError::PermissionDenied { message } => {
+                    DomainError::PermissionDenied { message } => {
                         ("permission_denied".to_string(), message)
-                    }
-                    hive_domain::DomainError::Internal { message } => (
+                    },
+                    DomainError::Internal { message } => (
                         "internal_error".to_string(),
                         "An internal error occurred".to_string(),
                     ),
@@ -179,14 +177,6 @@ impl From<ApplicationError> for ApiErrorResponse {
             ApplicationError::ExternalService { service, message } => Self {
                 error_type: "external_service_error".to_string(),
                 message: format!("External service error ({}): {}", service, message),
-                timestamp,
-                request_id: None,
-                details: None,
-                validation_errors: None,
-            },
-            ApplicationError::ConcurrentOperation { message } => Self {
-                error_type: "concurrent_operation".to_string(),
-                message,
                 timestamp,
                 request_id: None,
                 details: None,

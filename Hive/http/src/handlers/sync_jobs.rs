@@ -22,7 +22,7 @@ pub async fn start_sync_job(
 ) -> Result<Json<SyncJobResponse>, HttpError> {
     tracing::info!("Starting sync job for organization: {}", organization_id);
 
-    let command = StartSyncJobCommand::new(organization_id, request);
+    let command = StartSyncJobCommand::new(organization_id, request, auth_user.user_id);
     let context = CommandContext::new().with_user_id(auth_user.user_id);
 
     let result = state

@@ -4,7 +4,7 @@ use rustycog_core::error::DomainError;
 use crate::{Permission, ResourceId};
 
 #[async_trait]
-pub trait PermissionsFetch: Send + Sync {
+pub trait PermissionsFetcher: Send + Sync {
     async fn fetch_permissions(
         &self, 
         user_id: Uuid, 

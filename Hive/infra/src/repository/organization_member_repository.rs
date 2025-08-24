@@ -1,10 +1,11 @@
 //! OrganizationMemberRepository SeaORM implementation
 
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
 use hive_domain::entity::{OrganizationMember, MemberStatus};
-use hive_domain::error::DomainError;
-use hive_domain::port::repository::OrganizationMemberRepository;
+use rustycog_core::error::DomainError;
+use hive_domain::port::repository::{
+    OrganizationMemberReadRepository, OrganizationMemberRepository, OrganizationMemberWriteRepository,
+};
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set
 };
@@ -17,29 +18,20 @@ use super::entity::{
     organization_members,
 };
 
-/// SeaORM implementation of OrganizationMemberRepository
-#[derive(Clone)]
-pub struct OrganizationMemberRepositoryImpl {
-    db: Arc<DatabaseConnection>,
-}
+pub struct OrganizationMemberMapper;
 
-impl OrganizationMemberRepositoryImpl {
-    /// Create a new OrganizationMemberRepositoryImpl
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
-        Self { db }
-    }
-
-    /// Convert a database model to a domain organization member
-    fn to_domain(model: organization_members::Model) -> Result<OrganizationMember, DomainError> {
-        let status = match model.status.as_str() {
-            "Pending" => MemberStatus::Pending,
-            "Active" => MemberStatus::Active,
-            "Suspended" => MemberStatus::Suspended,
+impl OrganizationMemberMapper {
+    
+    pub fn to_domain(model: organization_members::Model) -> Result<OrganizationMember, DomainError> {
+        let status = match model.status.to_lowercase().as_str() {
+            "pending" => MemberStatus::Pending,
+            "active" => MemberStatus::Active,
+            "suspended" => MemberStatus::Suspended,
             _ => return Err(DomainError::invalid_input(&format!("Invalid member status: {}", model.status))),
         };
 
         Ok(OrganizationMember {
-            id: model.id,
+            id: Some(model.id),
             organization_id: model.organization_id,
             user_id: model.user_id,
             roles: vec![],
@@ -52,16 +44,15 @@ impl OrganizationMemberRepositoryImpl {
         })
     }
 
-    /// Convert a domain organization member to a database active model
-    fn to_active_model(member: &OrganizationMember) -> organization_members::ActiveModel {
+    pub fn to_active_model(member: &OrganizationMember) -> organization_members::ActiveModel {
         let status_str = match member.status {
-            MemberStatus::Pending => "Pending",
-            MemberStatus::Active => "Active",
-            MemberStatus::Suspended => "Suspended",
+            MemberStatus::Pending => "pending",
+            MemberStatus::Active => "active",
+            MemberStatus::Suspended => "suspended",
         };
 
         organization_members::ActiveModel {
-            id: ActiveValue::Set(member.id),
+            id: ActiveValue::Set(member.id.unwrap_or(Uuid::new_v4())),
             organization_id: ActiveValue::Set(member.organization_id),
             user_id: ActiveValue::Set(member.user_id),
             status: ActiveValue::Set(status_str.to_string()),
@@ -74,8 +65,19 @@ impl OrganizationMemberRepositoryImpl {
     }
 }
 
+/// Read repository implementation
+#[derive(Clone)]
+pub struct OrganizationMemberReadRepositoryImpl {
+    db: Arc<DatabaseConnection>,
+}
+
+impl OrganizationMemberReadRepositoryImpl {
+    pub fn new(db: Arc<DatabaseConnection>) -> Self { Self { db } }
+
+}
+
 #[async_trait]
-impl OrganizationMemberRepository for OrganizationMemberRepositoryImpl {
+impl OrganizationMemberReadRepository for OrganizationMemberReadRepositoryImpl {
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<OrganizationMember>, DomainError> {
         debug!("Finding organization member by ID: {}", id);
         
@@ -85,7 +87,7 @@ impl OrganizationMemberRepository for OrganizationMemberRepositoryImpl {
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         match member {
-            Some(model) => Ok(Some(Self::to_domain(model)?)),
+            Some(model) => Ok(Some(OrganizationMemberMapper::to_domain(model)?)),
             None => Ok(None),
         }
     }
@@ -105,7 +107,7 @@ impl OrganizationMemberRepository for OrganizationMemberRepositoryImpl {
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         match member {
-            Some(model) => Ok(Some(Self::to_domain(model)?)),
+            Some(model) => Ok(Some(OrganizationMemberMapper::to_domain(model)?)),
             None => Ok(None),
         }
     }
@@ -123,7 +125,7 @@ impl OrganizationMemberRepository for OrganizationMemberRepositoryImpl {
 
         let mut result = Vec::new();
         for model in members {
-            result.push(Self::to_domain(model)?);
+            result.push(OrganizationMemberMapper::to_domain(model)?);
         }
         Ok(result)
     }
@@ -140,7 +142,7 @@ impl OrganizationMemberRepository for OrganizationMemberRepositoryImpl {
 
         let mut result = Vec::new();
         for model in members {
-            result.push(Self::to_domain(model)?);
+            result.push(OrganizationMemberMapper::to_domain(model)?);
         }
         Ok(result)
     }
@@ -153,9 +155,9 @@ impl OrganizationMemberRepository for OrganizationMemberRepositoryImpl {
         debug!("Finding organization members by org {} and status {:?}", organization_id, status);
         
         let status_str = match status {
-            MemberStatus::Pending => "Pending",
-            MemberStatus::Active => "Active",
-            MemberStatus::Suspended => "Suspended",
+            MemberStatus::Pending => "pending",
+            MemberStatus::Active => "active",
+            MemberStatus::Suspended => "suspended",
         };
 
         let members = OrganizationMembers::find()
@@ -168,11 +170,49 @@ impl OrganizationMemberRepository for OrganizationMemberRepositoryImpl {
 
         let mut result = Vec::new();
         for model in members {
-            result.push(Self::to_domain(model)?);
+            result.push(OrganizationMemberMapper::to_domain(model)?);
         }
         Ok(result)
     }
 
+    async fn count_by_organization(&self, organization_id: &Uuid) -> Result<i64, DomainError> {
+        debug!("Counting members in organization: {}", organization_id);
+        
+        let count = OrganizationMembers::find()
+            .filter(organization_members::Column::OrganizationId.eq(*organization_id))
+            .count(self.db.as_ref())
+            .await
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
+
+        Ok(count as i64)
+    }
+
+    async fn count_active_by_organization(&self, organization_id: &Uuid) -> Result<i64, DomainError> {
+        debug!("Counting active members in organization: {}", organization_id);
+        
+        let count = OrganizationMembers::find()
+            .filter(organization_members::Column::OrganizationId.eq(*organization_id))
+            .filter(organization_members::Column::Status.eq("active"))
+            .count(self.db.as_ref())
+            .await
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
+
+        Ok(count as i64)
+    }
+} 
+
+/// Write repository implementation
+#[derive(Clone)]
+pub struct OrganizationMemberWriteRepositoryImpl {
+    db: Arc<DatabaseConnection>,
+}
+
+impl OrganizationMemberWriteRepositoryImpl {
+    pub fn new(db: Arc<DatabaseConnection>) -> Self { Self { db } }
+}
+
+#[async_trait]
+impl OrganizationMemberWriteRepository for OrganizationMemberWriteRepositoryImpl {
     async fn is_member(
         &self,
         organization_id: &Uuid,
@@ -191,29 +231,39 @@ impl OrganizationMemberRepository for OrganizationMemberRepositoryImpl {
     }
 
     async fn save(&self, member: &OrganizationMember) -> Result<OrganizationMember, DomainError> {
-        debug!("Saving organization member with ID: {}", member.id);
+        debug!("Saving organization member with user id: {:?} for org {}", member.user_id, member.organization_id);
         
-        let active_model = Self::to_active_model(member);
-        
-        let result = active_model
-            .save(self.db.as_ref())
+        let exists = member.id.is_some() && OrganizationMembers::find_by_id(member.id.unwrap())
+            .one(self.db.as_ref())
             .await
-            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?
+            .is_some();
 
-        // Convert the saved active model back to domain model
-        let saved_model = organization_members::Model {
-            id: result.id.unwrap(),
-            organization_id: result.organization_id.unwrap(),
-            user_id: result.user_id.unwrap(),
-            status: result.status.unwrap(),
-            invited_by_user_id: result.invited_by_user_id.unwrap(),
-            invited_at: result.invited_at.unwrap(),
-            joined_at: result.joined_at.unwrap(),
-            created_at: result.created_at.unwrap(),
-            updated_at: result.updated_at.unwrap(),
-        };
+        if exists {
+            // Update
+            let active_model = OrganizationMemberMapper::to_active_model(member);
+            let result = active_model.save(self.db.as_ref()).await.map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
-        Self::to_domain(saved_model)
+            let saved_model = organization_members::Model {
+                id: result.id.unwrap(),
+                organization_id: result.organization_id.unwrap(),
+                user_id: result.user_id.unwrap(),
+                status: result.status.unwrap(),
+                invited_by_user_id: result.invited_by_user_id.unwrap(),
+                invited_at: result.invited_at.unwrap(),
+                joined_at: result.joined_at.unwrap(),
+                created_at: result.created_at.unwrap(),
+                updated_at: result.updated_at.unwrap(),
+            };
+
+            Ok(OrganizationMemberMapper::to_domain(saved_model)?)
+        } else {
+            // Insert
+            let active_model = OrganizationMemberMapper::to_active_model(member);
+            let result = active_model.insert(self.db.as_ref()).await.map_err(|e| DomainError::internal_error(&e.to_string()))?;
+
+            Ok(OrganizationMemberMapper::to_domain(result)?)
+        }
     }
 
     async fn delete_by_id(&self, id: &Uuid) -> Result<(), DomainError> {
@@ -237,29 +287,97 @@ impl OrganizationMemberRepository for OrganizationMemberRepositoryImpl {
         let _result = OrganizationMembers::delete_many().filter(organization_members::Column::OrganizationId.eq(*organization_id)).exec(self.db.as_ref()).await.map_err(|e| DomainError::internal_error(&e.to_string()))?;
         Ok(())
     }
+}
+
+/// Combined delegating repository
+#[derive(Clone)]
+pub struct OrganizationMemberRepositoryImpl {
+    read_repo: Arc<dyn OrganizationMemberReadRepository>,
+    write_repo: Arc<dyn OrganizationMemberWriteRepository>,
+}
+
+impl OrganizationMemberRepositoryImpl {
+    pub fn new(
+        read_repo: Arc<dyn OrganizationMemberReadRepository>,
+        write_repo: Arc<dyn OrganizationMemberWriteRepository>,
+    ) -> Self {
+        Self { read_repo, write_repo }
+    }
+}
+
+#[async_trait]
+impl OrganizationMemberReadRepository for OrganizationMemberRepositoryImpl {
+    async fn find_by_id(&self, id: &Uuid) -> Result<Option<OrganizationMember>, DomainError> {
+        self.read_repo.find_by_id(id).await
+    }
+
+    async fn find_by_organization_and_user(
+        &self,
+        organization_id: &Uuid,
+        user_id: &Uuid,
+    ) -> Result<Option<OrganizationMember>, DomainError> {
+        self.read_repo
+            .find_by_organization_and_user(organization_id, user_id)
+            .await
+    }
+
+    async fn find_by_organization(
+        &self,
+        organization_id: &Uuid,
+        page: u32,
+        page_size: u32,
+    ) -> Result<Vec<OrganizationMember>, DomainError> {
+        self.read_repo
+            .find_by_organization(organization_id, page, page_size)
+            .await
+    }
+
+    async fn find_by_user(&self, user_id: &Uuid) -> Result<Vec<OrganizationMember>, DomainError> {
+        self.read_repo.find_by_user(user_id).await
+    }
+
+    async fn find_by_organization_and_status(
+        &self,
+        organization_id: &Uuid,
+        status: &MemberStatus,
+    ) -> Result<Vec<OrganizationMember>, DomainError> {
+        self.read_repo
+            .find_by_organization_and_status(organization_id, status)
+            .await
+    }
 
     async fn count_by_organization(&self, organization_id: &Uuid) -> Result<i64, DomainError> {
-        debug!("Counting members in organization: {}", organization_id);
-        
-        let count = OrganizationMembers::find()
-            .filter(organization_members::Column::OrganizationId.eq(*organization_id))
-            .count(self.db.as_ref())
-            .await
-            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
-
-        Ok(count as i64)
+        self.read_repo.count_by_organization(organization_id).await
     }
 
     async fn count_active_by_organization(&self, organization_id: &Uuid) -> Result<i64, DomainError> {
-        debug!("Counting active members in organization: {}", organization_id);
-        
-        let count = OrganizationMembers::find()
-            .filter(organization_members::Column::OrganizationId.eq(*organization_id))
-            .filter(organization_members::Column::Status.eq("Active"))
-            .count(self.db.as_ref())
+        self.read_repo
+            .count_active_by_organization(organization_id)
             .await
-            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
-
-        Ok(count as i64)
     }
-} 
+}
+
+#[async_trait]
+impl OrganizationMemberWriteRepository for OrganizationMemberRepositoryImpl {
+    async fn is_member(
+        &self,
+        organization_id: &Uuid,
+        user_id: &Uuid,
+    ) -> Result<bool, DomainError> {
+        self.write_repo.is_member(organization_id, user_id).await
+    }
+
+    async fn save(&self, member: &OrganizationMember) -> Result<OrganizationMember, DomainError> {
+        self.write_repo.save(member).await
+    }
+
+    async fn delete_by_id(&self, id: &Uuid) -> Result<(), DomainError> {
+        self.write_repo.delete_by_id(id).await
+    }
+
+    async fn delete_by_organization(&self, organization_id: &Uuid) -> Result<(), DomainError> {
+        self.write_repo.delete_by_organization(organization_id).await
+    }
+}
+
+impl OrganizationMemberRepository for OrganizationMemberRepositoryImpl {}

@@ -1,0 +1,51 @@
+# Hive Service Test Configuration
+
+[server]
+host = "127.0.0.1"
+port = 8082
+tls_enabled = false
+
+[database]
+host = "localhost"
+port = 0
+db = "hive_test"
+[database.creds]
+username = "postgres"
+password = "postgres"
+read_replicas = []
+
+[iam_service]
+base_url = "http://127.0.0.1:8080"
+api_key = ""
+timeout_seconds = 10
+
+[external_provider_service]
+base_url = "http://127.0.0.1:8080"
+api_key = ""
+timeout_seconds = 10
+max_retries = 3
+
+[command]
+[command.retry]
+max_attempts = 0
+base_delay_ms = 50
+max_delay_ms = 5000
+backoff_multiplier = 2.0
+use_jitter = false
+
+[queue]
+type = "sqs"
+enabled = false
+region = "us-east-1"
+account_id = "000000000000"
+default_queue = "test-user-events"
+host = "localhost"
+port = 0
+access_key_id = "test"
+secret_access_key = "test"
+max_retries = 3
+timeout_seconds = 30
+
+[logging]
+level = "debug"
+

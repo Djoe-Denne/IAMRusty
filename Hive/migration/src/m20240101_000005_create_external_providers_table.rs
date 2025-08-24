@@ -136,6 +136,11 @@ impl MigrationTrait for Migration {
             "required": ["space_key", "api_token", "username", "base_url"]
         }"#;
 
+        // Insert JSONB values using serde_json to avoid casting issues
+        let github_json: serde_json::Value = serde_json::from_str(github_schema).unwrap();
+        let gitlab_json: serde_json::Value = serde_json::from_str(gitlab_schema).unwrap();
+        let confluence_json: serde_json::Value = serde_json::from_str(confluence_schema).unwrap();
+
         manager
             .exec_stmt(
                 Query::insert()
@@ -145,13 +150,9 @@ impl MigrationTrait for Migration {
                         ExternalProviders::Name,
                         ExternalProviders::ConfigSchema,
                     ])
-                    .values_panic(["github".into(), "GitHub".into(), github_schema.into()])
-                    .values_panic(["gitlab".into(), "GitLab".into(), gitlab_schema.into()])
-                    .values_panic([
-                        "confluence".into(),
-                        "Confluence".into(),
-                        confluence_schema.into(),
-                    ])
+                    .values_panic(["github".into(), "GitHub".into(), github_json.into()])
+                    .values_panic(["gitlab".into(), "GitLab".into(), gitlab_json.into()])
+                    .values_panic(["confluence".into(), "Confluence".into(), confluence_json.into()])
                     .to_owned(),
             )
             .await?;

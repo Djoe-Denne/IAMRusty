@@ -2596,6 +2596,8 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.12",
  "tokio",
+ "tracing",
+ "tracing-subscriber",
  "uuid",
  "validator",
 ]
@@ -2626,7 +2628,9 @@ dependencies = [
  "hive-configuration",
  "hive-domain",
  "rustycog-command",
+ "rustycog-core",
  "rustycog-http",
+ "rustycog-permission",
  "serde",
  "serde_json",
  "thiserror 2.0.12",
@@ -2670,6 +2674,7 @@ version = "0.1.0"
 dependencies = [
  "async-std",
  "sea-orm-migration",
+ "serde_json",
  "tokio",
 ]
 
@@ -2740,9 +2745,12 @@ dependencies = [
  "hive-migration",
  "reqwest 0.12.22",
  "rustycog-command",
+ "rustycog-config",
  "rustycog-core",
+ "rustycog-db",
  "rustycog-events",
  "rustycog-http",
+ "rustycog-permission",
  "rustycog-server",
  "sea-orm",
  "sea-orm-migration",
@@ -5600,6 +5608,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tokio-test",
+ "tracing",
  "uuid",
 ]
 

@@ -2,12 +2,13 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{error::DomainError, entity::organization_member_role_permission::OrganizationMemberRolePermission};
+use crate::{entity::organization_member_role_permission::OrganizationMemberRolePermission};
+use rustycog_core::error::DomainError;
 
 /// Organization member entity representing a user's membership in an organization
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct OrganizationMember {
-    pub id: Uuid,
+    pub id: Option<Uuid>,
     pub organization_id: Uuid,
     pub user_id: Uuid,
     pub roles: Vec<OrganizationMemberRolePermission>,
@@ -42,7 +43,7 @@ impl OrganizationMember {
     pub fn new(organization_id: Uuid, user_id: Uuid, invited_by_user_id: Option<Uuid>) -> Self {
         let now = Utc::now();
         Self {
-            id: Uuid::new_v4(),
+            id: None,
             organization_id,
             user_id,
             roles: vec![],

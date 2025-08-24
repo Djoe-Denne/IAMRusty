@@ -370,9 +370,6 @@ impl CommandErrorMapper for RoleErrorMapper {
                 ApplicationError::ExternalService { .. } => {
                     CommandError::infrastructure("external_error", &error.to_string())
                 }
-                ApplicationError::ConcurrentOperation { .. } => {
-                    CommandError::business("concurrent_operation", &error.to_string())
-                }
                 ApplicationError::RateLimit { .. } => {
                     CommandError::business("rate_limit", &error.to_string())
                 }

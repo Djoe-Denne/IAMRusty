@@ -1,4 +1,4 @@
-use hive_domain::DomainError;
+use rustycog_core::error::DomainError;
 use thiserror::Error;
 
 /// Application-specific errors
@@ -12,9 +12,6 @@ pub enum ApplicationError {
 
     #[error("External service error: {service}: {message}")]
     ExternalService { service: String, message: String },
-
-    #[error("Concurrent operation error: {message}")]
-    ConcurrentOperation { message: String },
 
     #[error("Rate limit exceeded: {message}")]
     RateLimit { message: String },
@@ -36,13 +33,6 @@ impl ApplicationError {
     pub fn external_service_error(service: &str, message: &str) -> Self {
         Self::ExternalService {
             service: service.to_string(),
-            message: message.to_string(),
-        }
-    }
-
-    /// Create a concurrent operation error
-    pub fn concurrent_operation(message: &str) -> Self {
-        Self::ConcurrentOperation {
             message: message.to_string(),
         }
     }

@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::error::DomainError;
+use rustycog_core::error::DomainError;
 
 /// External link entity representing connection between organization and external provider
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

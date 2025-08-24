@@ -4,8 +4,8 @@ use serde_json::Value;
 use std::time::Duration;
 use tracing::{debug, error, info, warn};
 
+use rustycog_core::error::DomainError;
 use hive_domain::{
-    error::DomainError,
     port::service::{
         ExternalProviderClient, ExternalMember, ExternalOrganizationInfo, ExternalProviderInfo,
     },

@@ -39,7 +39,7 @@ impl MigrationTrait for Migration {
                         ColumnDef::new(ExternalLinks::SyncSettings)
                             .json_binary()
                             .not_null()
-                            .default("'{}'".to_owned()),
+                            .default(Expr::cust("'{}'::jsonb")),
                     )
                     .col(
                         ColumnDef::new(ExternalLinks::LastSyncAt)

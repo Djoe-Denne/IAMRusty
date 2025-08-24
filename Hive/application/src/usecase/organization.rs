@@ -2,7 +2,8 @@ use chrono::Utc;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use hive_domain::{service::OrganizationService, DomainError, Organization};
+use hive_domain::{service::OrganizationService, Organization};
+use rustycog_core::error::DomainError;
 use hive_events::{
     HiveDomainEvent, OrganizationCreatedEvent, OrganizationDeletedEvent, OrganizationUpdatedEvent,
 };
@@ -258,7 +259,7 @@ impl OrganizationUseCase for OrganizationUseCaseImpl {
     ) -> Result<OrganizationResponse, ApplicationError> {
         let organization = self
             .organization_service
-            .get_organization(&organization_id, user_id)
+            .get_organization(&organization_id)
             .await
             .map_err(ApplicationError::Domain)?;
 
@@ -280,7 +281,6 @@ impl OrganizationUseCase for OrganizationUseCaseImpl {
                 request.description.clone(),
                 request.avatar_url.clone(),
                 request.settings.clone(),
-                user_id,
             )
             .await
             .map_err(ApplicationError::Domain)?;
@@ -300,13 +300,13 @@ impl OrganizationUseCase for OrganizationUseCaseImpl {
         // Get organization for event
         let organization = self
             .organization_service
-            .get_organization(&organization_id, Some(user_id))
+            .get_organization(&organization_id)
             .await
             .map_err(ApplicationError::Domain)?;
 
         // Use domain service to delete organization
         self.organization_service
-            .delete_organization(organization_id.clone(), user_id)
+            .delete_organization(organization_id.clone())
             .await
             .map_err(ApplicationError::Domain)?;
 

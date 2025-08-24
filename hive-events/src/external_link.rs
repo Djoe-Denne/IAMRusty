@@ -17,7 +17,6 @@ pub struct ExternalLinkCreatedEvent {
     pub organization_name: String,
     pub external_link_id: Uuid,
     pub provider_type: String,
-    pub created_by_user_id: Uuid,
     pub created_at: DateTime<Utc>,
 }
 
@@ -31,7 +30,6 @@ impl ExternalLinkCreatedEvent {
         organization_name: String,
         external_link_id: Uuid,
         provider_type: String,
-        created_by_user_id: Uuid,
         created_at: DateTime<Utc>,
     ) -> Self {
         Self {
@@ -40,7 +38,6 @@ impl ExternalLinkCreatedEvent {
             organization_name,
             external_link_id,
             provider_type,
-            created_by_user_id,
             created_at,
         }
     }

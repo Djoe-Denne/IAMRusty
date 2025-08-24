@@ -1,35 +1,33 @@
 use chrono::{DateTime, Utc};
+use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::{
     entity::*, 
-    error::DomainError, 
     port::{repository::*, service::*},
     service::{
-        role_service::RoleService,
         organization_service::OrganizationService,
         invitation_service::InvitationService,
     },
 };
+use rustycog_core::error::DomainError;
 
 /// Domain service for sync job management
-pub struct SyncServiceImpl<SR, LR, OR, RS, OS, IS, PC>
+pub struct SyncServiceImpl<SR, LR, OR, OS, IS, PC>
 where
     SR: SyncJobRepository,
     LR: ExternalLinkRepository,
     OR: OrganizationRepository,
-    RS: RoleService,
     OS: OrganizationService,
     IS: InvitationService,
     PC: ExternalProviderClient,
 {
-    sync_job_repo: SR,
-    external_link_repo: LR,
-    organization_repo: OR,
-    role_service: RS,
-    organization_service: OS,
-    invitation_service: IS,
-    provider_client: PC,
+    sync_job_repo: Arc<SR>,
+    external_link_repo: Arc<LR>,
+    organization_repo: Arc<OR>,
+    organization_service: Arc<OS>,
+    invitation_service: Arc<IS>,
+    provider_client: Arc<PC>,
 }
 
 /// Result of a member sync operation
@@ -73,27 +71,25 @@ pub trait SyncService: Send + Sync {
     ) -> Result<SyncResult, DomainError>;
 }
 
-impl<SR, LR, OR, RS, OS, IS, PC> SyncServiceImpl<SR, LR, OR, RS, OS, IS, PC>
+impl<SR, LR, OR, OS, IS, PC> SyncServiceImpl<SR, LR, OR, OS, IS, PC>
 where
     SR: SyncJobRepository,
     LR: ExternalLinkRepository,
     OR: OrganizationRepository,
-    RS: RoleService,
     OS: OrganizationService,
     IS: InvitationService,
     PC: ExternalProviderClient,
 {
     /// Create a new sync service
     pub fn new(
-        sync_job_repo: SR, 
-        external_link_repo: LR, 
-        organization_repo: OR,
-        role_service: RS,
-        organization_service: OS,
-        invitation_service: IS,
-        provider_client: PC,
+        sync_job_repo: Arc<SR>, 
+        external_link_repo: Arc<LR>, 
+        organization_repo: Arc<OR>,
+        organization_service: Arc<OS>,
+        invitation_service: Arc<IS>,
+        provider_client: Arc<PC>,
     ) -> Self {
-        Self { sync_job_repo, external_link_repo, organization_repo, role_service, organization_service, invitation_service, provider_client }
+        Self { sync_job_repo, external_link_repo, organization_repo, organization_service, invitation_service, provider_client }
     }
 
     /// Update organization info from external provider data
@@ -112,7 +108,6 @@ where
                 external_org_info.description.clone(),
                 external_org_info.avatar_url.clone(),
                 None, // Don't override settings
-                requesting_user_id.clone(),
             )
             .await?;
 
@@ -122,12 +117,11 @@ where
 
 
 #[async_trait::async_trait]
-impl<SR, LR, OR, RS, OS, IS, PC> SyncService for SyncServiceImpl<SR, LR, OR, RS, OS, IS, PC>
+impl<SR, LR, OR, OS, IS, PC> SyncService for SyncServiceImpl<SR, LR, OR, OS, IS, PC>
 where
     SR: SyncJobRepository,
     LR: ExternalLinkRepository,
     OR: OrganizationRepository,
-    RS: RoleService,
     OS: OrganizationService,
     IS: InvitationService,
     PC: ExternalProviderClient,
@@ -147,10 +141,6 @@ where
             .ok_or_else(|| {
                 DomainError::entity_not_found("ExternalLink", &external_link_id.to_string())
             })?;
-
-        // Business rule: Check permission to start sync jobs
-        self.role_service.check_admin_permission(&external_link.organization_id, &requested_by_user_id, "organization")
-            .await?;
 
         // Business rule: Sync must be enabled for the external link
         if !external_link.is_sync_enabled() {

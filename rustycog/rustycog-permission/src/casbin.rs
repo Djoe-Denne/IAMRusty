@@ -7,10 +7,11 @@ use std::sync::Arc;
 
 use casbin::{DefaultModel, Enforcer, MemoryAdapter, CoreApi, MgmtApi};
 use rustycog_core::error::DomainError;
+use tracing::debug;
 use async_trait::async_trait;
 use uuid::Uuid;
 
-use crate::{PermissionEngine, Permission, PermissionsFetch, ResourceId};
+use crate::{PermissionEngine, Permission, PermissionsFetcher, ResourceId};
 
 /// Casbin-based permission engine implementation
 /// 
@@ -18,7 +19,7 @@ use crate::{PermissionEngine, Permission, PermissionsFetch, ResourceId};
 /// hierarchical role relationships defined in policy files.
 pub struct CasbinPermissionEngine {
     model_path: String,   // Path to model.conf
-    permissions_fetch: Arc<dyn PermissionsFetch>,
+    permissions_fetch: Arc<dyn PermissionsFetcher>,
 }
 
 impl CasbinPermissionEngine {
@@ -27,7 +28,7 @@ impl CasbinPermissionEngine {
     /// # Arguments
     /// * `model_path` - Path to the Casbin model configuration file
     /// * `permissions_fetch` - Provider used to fetch user permissions for resources
-    pub async fn new(model_path: String, permissions_fetch: Arc<dyn PermissionsFetch>) -> Result<Self, DomainError> {
+    pub async fn new(model_path: String, permissions_fetch: Arc<dyn PermissionsFetcher>) -> Result<Self, DomainError> {
         // Defer model validation to enforcer creation time
         Ok(Self { model_path, permissions_fetch })
     }
@@ -67,6 +68,7 @@ impl PermissionEngine for CasbinPermissionEngine {
         target_permission: Permission,
         _settings: serde_json::Value,
     ) -> Result<bool, DomainError> {
+        debug!("CasbinPermissionEngine::has_permission: user_id: {:?}, resource_ids: {:?}, target_permission: {:?}", user_id, resource_ids, target_permission);
         let mut enforcer = self.create_enforcer().await?;
 
         // Fetch user permissions for these resources
@@ -75,6 +77,7 @@ impl PermissionEngine for CasbinPermissionEngine {
             .fetch_permissions(user_id, resource_ids.clone())
             .await?;
 
+        debug!("CasbinPermissionEngine::has_permission: permissions: {:?}", permissions);
         let mut policy_vec = vec![user_id.to_string()];
         policy_vec.extend(resource_ids.iter().map(|u| u.id().to_string()));
 
@@ -106,6 +109,8 @@ impl PermissionEngine for CasbinPermissionEngine {
             .map_err(|e| DomainError::Internal {
                 message: format!("Failed to enforce permission check: {}", e),
             })?;
+
+        debug!("CasbinPermissionEngine::has_permission: decision: {:?}", decision);
 
         Ok(decision)
     }

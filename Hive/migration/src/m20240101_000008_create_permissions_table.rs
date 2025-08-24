@@ -47,12 +47,26 @@ impl MigrationTrait for Migration {
             .exec_stmt(
                 Query::insert()
                     .into_table(Permissions::Table)
-                    .columns([Permissions::Level, Permissions::Description])
-                    .values_panic(["read".into(), "Read-only access to resources".into()])
-                    .values_panic(["write".into(), "Read and write access to resources".into()])
+                    .columns([Permissions::Id, Permissions::Level, Permissions::Description])
+                    .values_panic([
+                        "read".into(),
+                        "read".into(),
+                        "Read-only access to resources".into(),
+                    ])
+                    .values_panic([
+                        "write".into(),
+                        "write".into(),
+                        "Read and write access to resources".into(),
+                    ])
                     .values_panic([
                         "admin".into(),
+                        "admin".into(),
                         "Full administrative access to resources".into(),
+                    ])
+                    .values_panic([
+                        "owner".into(),
+                        "owner".into(),
+                        "Full administrative access to resources and ownership".into(),
                     ])
                     .to_owned(),
             )

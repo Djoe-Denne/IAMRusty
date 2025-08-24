@@ -2,7 +2,8 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{entity::organization_member_role_permission::OrganizationMemberRolePermission, role_permission, DomainError, RolePermission};
+use crate::RolePermission;
+use rustycog_core::error::DomainError;
 
 /// Generic external provider service trait
 #[async_trait]

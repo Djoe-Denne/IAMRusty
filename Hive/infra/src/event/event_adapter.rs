@@ -4,7 +4,7 @@
 //! traits from rustycog-events, allowing seamless integration while maintaining architectural
 //! separation.
 
-use hive_domain::error::DomainError;
+use rustycog_core::error::DomainError;
 use rustycog_config::QueueConfig;
 use rustycog_core::error::ServiceError;
 use rustycog_events::{
@@ -38,9 +38,6 @@ impl ErrorMapper<DomainError> for HiveErrorMapper {
             }
             DomainError::ExternalServiceError { service, message } => {
                 ServiceError::infrastructure(format!("External service error from {}: {}", service, message))
-            }
-            DomainError::ConcurrentAccess { message } => {
-                ServiceError::conflict(format!("Concurrent access error: {}", message))
             }
             DomainError::PermissionDenied { message } => {
                 ServiceError::authorization(message)
@@ -93,7 +90,10 @@ impl ErrorMapper<DomainError> for HiveErrorMapper {
                 DomainError::Internal { message }
             }
             ServiceError::Conflict { message, .. } => {
-                DomainError::ConcurrentAccess { message }
+                DomainError::ExternalServiceError { 
+                    service: "Conflict".to_string(), 
+                    message 
+                }
             }
             ServiceError::RateLimit { message, .. } => {
                 DomainError::ExternalServiceError { 

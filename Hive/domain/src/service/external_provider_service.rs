@@ -1,30 +1,24 @@
 use uuid::Uuid;
+use std::sync::Arc;
 
 use crate::{
     entity::*,
-    error::DomainError,
-    port::{repository::*, service::*},
-    service::{
-        organization_service::OrganizationService,
-        role_service::RoleService,
-        sync_service::{SyncService, SyncResult},
-    },
+    port::{repository::*, service::ExternalProviderClient},
 };
+use rustycog_core::error::DomainError;
 
 /// Domain service for external provider integration
-pub struct ExternalProviderServiceImpl<OR, ELR, EPR, RS, PC>
+pub struct ExternalProviderServiceImpl<OR, ELR, EPR, PC>
 where
     OR: OrganizationRepository,
     ELR: ExternalLinkRepository,
     EPR: ExternalProviderRepository,
-    RS: RoleService,
     PC: ExternalProviderClient,
 {
-    organization_repo: OR,
-    external_link_repo: ELR,
-    external_provider_repo: EPR,
-    role_service: RS,
-    provider_client: PC,
+    organization_repo: Arc<OR>,
+    external_link_repo: Arc<ELR>,
+    external_provider_repo: Arc<EPR>,
+    provider_client: Arc<PC>,
 }
 
 #[async_trait::async_trait]
@@ -35,14 +29,12 @@ pub trait ExternalProviderService: Send + Sync {
      * @param organization_id - The ID of the organization to link
      * @param provider_id - The ID of the external provider
      * @param provider_config - Configuration for the external provider connection
-     * @param requesting_user_id - The ID of the user making the request
      */
     async fn link_organization(
         &self,
         organization_id: Uuid,
         provider_id: Uuid,
         provider_config: &serde_json::Value,
-        requesting_user_id: Uuid,
     ) -> Result<ExternalLink, DomainError>;
 
     /**
@@ -50,13 +42,11 @@ pub trait ExternalProviderService: Send + Sync {
      * 
      * @param organization_id - The ID of the organization to unlink
      * @param provider_id - The ID of the external provider to unlink
-     * @param requesting_user_id - The ID of the user making the request
      */
     async fn unlink_organization(
         &self,
         organization_id: Uuid,
         provider_id: Uuid,
-        requesting_user_id: Uuid,
     ) -> Result<(), DomainError>;
 
     /**
@@ -94,39 +84,35 @@ pub trait ExternalProviderService: Send + Sync {
     ) -> Result<Vec<ExternalLink>, DomainError>;
 }
 
-impl<OR, ELR, EPR, RS, PC> ExternalProviderServiceImpl<OR, ELR, EPR, RS, PC>
+impl<OR, ELR, EPR, PC> ExternalProviderServiceImpl<OR, ELR, EPR, PC>
 where
     OR: OrganizationRepository,
     ELR: ExternalLinkRepository,
     EPR: ExternalProviderRepository,
-    RS: RoleService,
     PC: ExternalProviderClient,
 {
     /// Create a new external provider service
     pub fn new(
-        organization_repo: OR,
-        external_link_repo: ELR,
-        external_provider_repo: EPR,
-        role_service: RS,
-        provider_client: PC,
+        organization_repo: Arc<OR>,
+        external_link_repo: Arc<ELR>,
+        external_provider_repo: Arc<EPR>,
+        provider_client: Arc<PC>,
     ) -> Self {
         Self {
             organization_repo,
             external_link_repo,
             external_provider_repo,
-            role_service,
             provider_client,
         }
     }
 }
 
 #[async_trait::async_trait]
-impl<OR, ELR, EPR, RS, PC> ExternalProviderService for ExternalProviderServiceImpl<OR, ELR, EPR, RS, PC>
+impl<OR, ELR, EPR, PC> ExternalProviderService for ExternalProviderServiceImpl<OR, ELR, EPR, PC>
 where
     OR: OrganizationRepository,
     ELR: ExternalLinkRepository,
     EPR: ExternalProviderRepository,
-    RS: RoleService,
     PC: ExternalProviderClient,
 {
     /// Link an organization to an external provider
@@ -135,7 +121,6 @@ where
         organization_id: Uuid,
         provider_id: Uuid,
         provider_config: &serde_json::Value,
-        requesting_user_id: Uuid,
     ) -> Result<ExternalLink, DomainError> {
         // Validate organization exists
         let organization = self
@@ -143,11 +128,6 @@ where
             .find_by_id(&organization_id)
             .await?
             .ok_or_else(|| DomainError::entity_not_found("Organization", &organization_id.to_string()))?;
-
-        // Check if user has permission to manage external links
-        self.role_service
-            .check_admin_permission(&organization_id, &requesting_user_id, "organization")
-            .await?;
 
         // Validate provider exists
         let provider = self
@@ -189,12 +169,7 @@ where
         &self,
         organization_id: Uuid,
         provider_id: Uuid,
-        requesting_user_id: Uuid,
     ) -> Result<(), DomainError> {
-        // Check if user has permission to manage external links
-        self.role_service
-            .check_admin_permission(&organization_id, &requesting_user_id, "organization")
-            .await?;
 
         // Find the external link
         let external_link = self

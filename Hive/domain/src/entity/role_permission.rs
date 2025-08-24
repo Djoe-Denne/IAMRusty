@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{error::DomainError, entity::{permission::Permission, resource::Resource}};
+use crate::{entity::{permission::Permission, resource::Resource}};
 
 /// Role permission entity representing a named permission-resource combination
 /// This acts like a permission group/template that can be assigned to users
@@ -34,7 +34,7 @@ impl RolePermission {
             resource: resource.clone(),
             created_at,
         }
-    }
+    }    
 
     /// Update role permission name
     pub fn update_name(&mut self, new_name: String) {

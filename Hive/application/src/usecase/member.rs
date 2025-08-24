@@ -4,11 +4,12 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use hive_domain::{
-    entity::{Permission, RolePermission, Resource},
+    entity::RolePermission,
     service::{MemberService, OrganizationService},
-    DomainError, OrganizationMember,
+    OrganizationMember,
 };
 use hive_events::{HiveDomainEvent, MemberJoinedEvent, MemberRemovedEvent, Role};
+use rustycog_core::error::DomainError;
 use rustycog_events::EventPublisher;
 
 use crate::{
@@ -34,7 +35,6 @@ pub trait MemberUseCase: Send + Sync {
         &self,
         organization_id: Uuid,
         user_id: Uuid,
-        requesting_user_id: Uuid,
     ) -> Result<(), ApplicationError>;
 
     /// Update a member's role
@@ -43,7 +43,6 @@ pub trait MemberUseCase: Send + Sync {
         organization_id: Uuid,
         user_id: Uuid,
         request: &UpdateMemberRolesRequest,
-        requesting_user_id: Uuid,
     ) -> Result<MemberResponse, ApplicationError>;
 
     /// List organization members
@@ -51,7 +50,6 @@ pub trait MemberUseCase: Send + Sync {
         &self,
         organization_id: Uuid,
         pagination: &PaginationRequest,
-        user_id: Option<Uuid>,
     ) -> Result<MemberListResponse, ApplicationError>;
 
     /// Get a specific member
@@ -59,7 +57,6 @@ pub trait MemberUseCase: Send + Sync {
         &self,
         organization_id: Uuid,
         user_id: Uuid,
-        requesting_user_id: Option<Uuid>,
     ) -> Result<MemberResponse, ApplicationError>;
 }
 
@@ -87,7 +84,7 @@ impl MemberUseCaseImpl {
     /// Convert domain OrganizationMember to response DTO
     fn member_to_response(&self, member: &OrganizationMember) -> MemberResponse {
         MemberResponse {
-            id: member.id,
+            id: member.id.unwrap(),
             organization_id: member.organization_id,
             user_id: member.user_id,
             status: member.status.clone().into(),
@@ -106,7 +103,7 @@ impl MemberUseCaseImpl {
         organization_name: &str,
         roles: &Vec<RolePermission>,
     ) -> Result<(), ApplicationError> {
-        let roles = roles.iter().map(|role| Role::new(role.permission.level.as_str().to_string(), role.resource.name.clone())).collect();
+        let roles = roles.iter().map(|role| Role::new(role.permission.level.to_str().to_string(), role.resource.name.clone())).collect();
         let event = HiveDomainEvent::MemberJoined(MemberJoinedEvent::new(
             member.organization_id,
             organization_name.to_string(),
@@ -161,7 +158,7 @@ impl MemberUseCase for MemberUseCaseImpl {
         // Get organization for validation and events
         let organization = self
             .organization_service
-            .get_organization(&organization_id, Some(user_id))
+            .get_organization(&organization_id)
             .await
             .map_err(ApplicationError::Domain)?;
 
@@ -191,18 +188,17 @@ impl MemberUseCase for MemberUseCaseImpl {
         &self,
         organization_id: Uuid,
         user_id: Uuid,
-        requesting_user_id: Uuid,
     ) -> Result<(), ApplicationError> {
         // Get organization for validation and events
         let organization = self
             .organization_service
-            .get_organization(&organization_id, Some(requesting_user_id))
+            .get_organization(&organization_id)
             .await
             .map_err(ApplicationError::Domain)?;
 
         // Use domain service to remove member
         self.member_service
-            .remove_member(organization_id, user_id, requesting_user_id)
+            .remove_member(organization_id, user_id)
             .await
             .map_err(ApplicationError::Domain)?;
 
@@ -224,13 +220,12 @@ impl MemberUseCase for MemberUseCaseImpl {
         &self,
         organization_id: Uuid,
         pagination: &PaginationRequest,
-        user_id: Option<Uuid>,
     ) -> Result<MemberListResponse, ApplicationError> {
         // TODO: Add permission check
 
         let members = self
             .member_service
-            .list_members(organization_id, pagination.page(), pagination.page_size(), user_id)
+            .list_members(organization_id, pagination.page(), pagination.page_size())
             .await
             .map_err(ApplicationError::Domain)?;
 
@@ -270,13 +265,12 @@ impl MemberUseCase for MemberUseCaseImpl {
         &self,
         organization_id: Uuid,
         user_id: Uuid,
-        requesting_user_id: Option<Uuid>,
     ) -> Result<MemberResponse, ApplicationError> {
         // TODO: Add permission check
 
         let member = self
             .member_service
-            .get_member(organization_id, user_id, requesting_user_id)
+            .get_member(organization_id, user_id)
             .await
             .map_err(ApplicationError::Domain)?;
 
@@ -288,13 +282,12 @@ impl MemberUseCase for MemberUseCaseImpl {
         organization_id: Uuid,
         user_id: Uuid,
         request: &UpdateMemberRolesRequest,
-        requesting_user_id: Uuid,
     ) -> Result<MemberResponse, ApplicationError> {
         let role_permissions: Vec<RolePermission> = request.roles.iter().map(|role| role.into()).collect();
 
         let member = self
             .member_service
-            .update_member_roles(organization_id, user_id, role_permissions, requesting_user_id)
+            .update_member_roles(organization_id, user_id, role_permissions)
             .await
             .map_err(ApplicationError::Domain)?;
 

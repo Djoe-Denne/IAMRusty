@@ -4,7 +4,7 @@ use serde_json::Value;
 use uuid::Uuid;
 use validator::Validate;
 
-use crate::Organization;
+use hive_domain::Organization;
 
 /// DTO for creating a new organization
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]

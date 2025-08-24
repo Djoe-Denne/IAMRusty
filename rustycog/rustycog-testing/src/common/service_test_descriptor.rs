@@ -22,7 +22,9 @@ pub trait ServiceTestDescriptor<T>: Send + Sync + 'static {
         server_config: rustycog_config::ServerConfig,
     ) -> anyhow::Result<()>;
 
-    async fn run_migrations(&self, connection: &sea_orm::DatabaseConnection) -> anyhow::Result<()>;
+    async fn run_migrations_up(&self, connection: &sea_orm::DatabaseConnection) -> anyhow::Result<()>;
+
+    async fn run_migrations_down(&self, connection: &sea_orm::DatabaseConnection) -> anyhow::Result<()>;
 
     fn has_db(&self) -> bool;
 

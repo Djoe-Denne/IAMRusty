@@ -1,20 +1,20 @@
 use chrono::{DateTime, Duration, Utc};
 use uuid::Uuid;
+use std::sync::Arc;
 
-use crate::{entity::*, error::DomainError, port::*, service::{member_service::MemberService, role_service::RoleService}, OrganizationService};
+use crate::{entity::*, port::*, service::{member_service::MemberService}, OrganizationService};
+use rustycog_core::error::DomainError;
 
 /// Domain service for organization invitation management
-pub struct InvitationServiceImpl<IR, OS, RS, MS>
+pub struct InvitationServiceImpl<IR, OS, MS>
 where
     IR: OrganizationInvitationRepository,
     OS: OrganizationService,
-    RS: RoleService,
-    MS: MemberService,
+    MS: MemberService,  
 {
-    invitation_repo: IR,
-    organization_service: OS,
-    role_service: RS,
-    member_service: MS,
+    invitation_repo: Arc<IR>,
+    organization_service: Arc<OS>,
+    member_service: Arc<MS>,
 }
 
 #[async_trait::async_trait]
@@ -119,30 +119,27 @@ pub trait InvitationService: Send + Sync {
     async fn cleanup_expired_invitations(&self) -> Result<u32, DomainError>;
 }
 
-impl<IR, OS, RS, MS> InvitationServiceImpl<IR, OS, RS, MS>
+impl<IR, OS, MS> InvitationServiceImpl<IR, OS, MS>
 where
     IR: OrganizationInvitationRepository,
     OS: OrganizationService,
-    RS: RoleService,
     MS: MemberService,
 {
     /// Create a new invitation service
-    pub fn new(invitation_repo: IR, organization_service: OS, role_service: RS, member_service: MS) -> Self {
+    pub fn new(invitation_repo: Arc<IR>, organization_service: Arc<OS>, member_service: Arc<MS>) -> Self {
         Self {
             invitation_repo,
             organization_service,
-            role_service,
             member_service,
         }
     }
 }
 
 #[async_trait::async_trait]
-impl<IR, OS, RS, MS> InvitationService for InvitationServiceImpl<IR, OS, RS, MS>
+impl<IR, OS, MS> InvitationService for InvitationServiceImpl<IR, OS, MS>
 where
     IR: OrganizationInvitationRepository,
     OS: OrganizationService,
-    RS: RoleService,
     MS: MemberService,
 {
     /// Create an invitation to join an organization
@@ -155,7 +152,7 @@ where
         message: Option<String>,
         _expires_in_days: Option<i64>,
     ) -> Result<OrganizationInvitation, DomainError> {    
-        let organization = self.organization_service.get_organization(&organization_id, Some(invited_by_user_id)).await.map_err(|e| DomainError::Internal { message: e.to_string() })?;
+        let organization = self.organization_service.get_organization(&organization_id).await.map_err(|e| DomainError::Internal { message: e.to_string() })?;
         let invitation = OrganizationInvitation::new(organization_id, email, role_permissions, invited_by_user_id, message)?;
         let mut saved_invitation = self.invitation_repo.save(&invitation).await.map_err(|e| DomainError::Internal { message: e.to_string() })?;
         saved_invitation.update_organization_name(&organization.name);
@@ -172,7 +169,7 @@ where
         message: Option<String>,
         _expires_in_days: Option<i64>,
     ) -> Result<OrganizationInvitation, DomainError> {
-        let organization = self.organization_service.get_organization(&organization_id, Some(invited_by_user_id)).await.map_err(|e| DomainError::Internal { message: e.to_string() })?;
+        let organization = self.organization_service.get_organization(&organization_id).await.map_err(|e| DomainError::Internal { message: e.to_string() })?;
         let invitation = OrganizationInvitation::new(organization_id, user_id.to_string(), role_permissions, invited_by_user_id, message)?;
         let mut saved_invitation = self.invitation_repo.save(&invitation).await.map_err(|e| DomainError::Internal { message: e.to_string() })?;
         saved_invitation.update_organization_name(&organization.name);
@@ -255,7 +252,7 @@ where
             return Err(DomainError::entity_not_found("organization_invitation", &invitation_id.to_string()));
         }
 
-        let organization = self.organization_service.get_organization(&invitation.as_ref().unwrap().organization_id, None).await.map_err(|e| DomainError::Internal { message: e.to_string() })?;
+        let organization = self.organization_service.get_organization(&invitation.as_ref().unwrap().organization_id).await.map_err(|e| DomainError::Internal { message: e.to_string() })?;
         invitation.as_mut().unwrap().update_organization_name(&organization.name);
         Ok(invitation.unwrap())
     }

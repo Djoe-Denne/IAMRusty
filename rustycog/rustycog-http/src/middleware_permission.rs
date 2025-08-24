@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use axum::{body::Body, extract::{Path, State}, http::{Request, StatusCode}, middleware::Next, response::Response, RequestExt};
-use rustycog_permission::{Permission, PermissionEngine, PermissionsFetch, ResourceId};
+use rustycog_permission::{Permission, PermissionEngine, PermissionsFetcher, ResourceId};
 use uuid::Uuid;
 use tracing::{info, debug};
 
@@ -9,7 +9,7 @@ use tracing::{info, debug};
 #[derive(Clone)]
 pub struct PermissionGuard {
     pub required: Permission,
-    pub fetcher: Arc<dyn PermissionsFetch>,
+    pub fetcher: Arc<dyn PermissionsFetcher>,
     pub model_path: String,
 }
 
@@ -33,6 +33,7 @@ pub async fn permission_middleware(
         return Err(StatusCode::FORBIDDEN);
     }
 
+    debug!("permission_middleware: building engine with file: {:?}", guard.model_path);
     // Build engine on-demand per request (enforcer is per-request)
     let engine = rustycog_permission::casbin::CasbinPermissionEngine::new(
         guard.model_path.clone(),

@@ -2,7 +2,8 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use hive_domain::{DomainError, ExternalProviderService};
+use hive_domain::ExternalProviderService;
+use rustycog_core::error::DomainError;
 use hive_events::{HiveDomainEvent, ExternalLinkCreatedEvent};
 use rustycog_events::EventPublisher;
 
@@ -20,13 +21,11 @@ pub trait ExternalLinkUseCase: Send + Sync {
      * 
      * @param organization_id - The ID of the organization
      * @param request - The request to create the external link
-     * @param user_id - The ID of the user creating the external link
      */
     async fn create_link(
         &self,
         organization_id: Uuid,
         request: &CreateExternalLinkRequest,
-        user_id: Uuid,
     ) -> Result<ExternalLinkResponse, ApplicationError>;
 
     /**
@@ -34,13 +33,11 @@ pub trait ExternalLinkUseCase: Send + Sync {
      * 
      * @param organization_id - The ID of the organization
      * @param link_id - The ID of the external link
-     * @param user_id - The ID of the user deleting the external link
      */
     async fn delete_link(
         &self,
         organization_id: Uuid,
         link_id: Uuid,
-        user_id: Uuid,
     ) -> Result<(), ApplicationError>;
 
     /**
@@ -80,7 +77,6 @@ impl ExternalLinkUseCaseImpl {
         organization_name: String,
         external_link_id: Uuid,
         provider_type: String,
-        created_by_user_id: Uuid,
         created_at: chrono::DateTime<chrono::Utc>,
     ) -> Result<(), ApplicationError> {
         let event = HiveDomainEvent::ExternalLinkCreated(ExternalLinkCreatedEvent::new(
@@ -88,7 +84,6 @@ impl ExternalLinkUseCaseImpl {
             organization_name.to_string(),
             external_link_id,
             provider_type.to_string(),
-            created_by_user_id,
             created_at,
         ));
 
@@ -107,9 +102,8 @@ impl ExternalLinkUseCase for ExternalLinkUseCaseImpl {
         &self,
         organization_id: Uuid,
         request: &CreateExternalLinkRequest,
-        user_id: Uuid,
     ) -> Result<ExternalLinkResponse, ApplicationError> {
-        let external_link = self.external_provider_service.link_organization(organization_id, request.provider_id, &request.provider_config, user_id).await
+        let external_link = self.external_provider_service.link_organization(organization_id, request.provider_id, &request.provider_config).await
         .map_err(|e| ApplicationError::Domain(e))?;
 
         let provider_source = external_link.provider_source.clone().unwrap();
@@ -120,7 +114,6 @@ impl ExternalLinkUseCase for ExternalLinkUseCaseImpl {
             external_link.organization_name.unwrap_or_default(),
             external_link.id,
             provider_source.clone(),
-            user_id,
             external_link.created_at,
         )
         .await?;
@@ -145,9 +138,8 @@ impl ExternalLinkUseCase for ExternalLinkUseCaseImpl {
         &self,
         organization_id: Uuid,
         link_id: Uuid,
-        user_id: Uuid,
     ) -> Result<(), ApplicationError> {
-        self.external_provider_service.unlink_organization(organization_id, link_id, user_id).await
+        self.external_provider_service.unlink_organization(organization_id, link_id).await
         .map_err(|e| ApplicationError::Domain(e))?;
 
         Ok(())

@@ -10,7 +10,7 @@ use hive_application::{
 };
 use rustycog_command::CommandContext;
 use rustycog_http::{AppState, AuthUser, OptionalAuthUser, ValidatedJson};
-use uuid::Uuid;
+use rustycog_permission::ResourceId;
 
 use crate::error::HttpError;
 

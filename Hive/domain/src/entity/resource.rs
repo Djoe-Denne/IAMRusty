@@ -2,8 +2,6 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::error::DomainError;
-
 /// Resource entity representing a specific resource in the system
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Resource {

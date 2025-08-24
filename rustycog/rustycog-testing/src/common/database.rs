@@ -86,84 +86,20 @@ impl TestDatabase {
         D: ServiceTestDescriptor<T>,
         T: Send + Sync + 'static,
     {
+        info!("Try migration down first, to ensure we start with a clean slate");
+        if let Err(e) = descriptor.run_migrations_down(connection).await {
+            warn!("Failed to run migrations down: {}", e);
+        }
+
+        info!("Migration down completed successfully");
+
         info!("Running database migrations for test database");
         descriptor
-            .run_migrations(connection)
+            .run_migrations_up(connection)
             .await
             .map_err(|e| DbErr::Custom(e.to_string()))?;
         info!("Database migrations completed successfully");
         Ok(())
-    }
-
-    /// Truncate all tables to clean up between tests
-    pub async fn truncate_all_tables(&self) -> Result<(), DbErr> {
-        debug!("Truncating all tables for test cleanup");
-
-        // Get all table names from the database
-        let tables = self.get_all_table_names().await?;
-
-        if tables.is_empty() {
-            debug!("No tables found to truncate");
-            return Ok(());
-        }
-
-        // Disable foreign key checks temporarily
-        self.connection
-            .execute(Statement::from_string(
-                sea_orm::DatabaseBackend::Postgres,
-                "SET session_replication_role = replica;".to_string(),
-            ))
-            .await?;
-
-        // Truncate all tables
-        for table in &tables {
-            let sql = format!("TRUNCATE TABLE {} RESTART IDENTITY CASCADE;", table);
-            self.connection
-                .execute(Statement::from_string(
-                    sea_orm::DatabaseBackend::Postgres,
-                    sql,
-                ))
-                .await?;
-        }
-
-        // Re-enable foreign key checks
-        self.connection
-            .execute(Statement::from_string(
-                sea_orm::DatabaseBackend::Postgres,
-                "SET session_replication_role = DEFAULT;".to_string(),
-            ))
-            .await?;
-
-        debug!("Successfully truncated {} tables", tables.len());
-        Ok(())
-    }
-
-    /// Get all table names from the current database
-    async fn get_all_table_names(&self) -> Result<Vec<String>, DbErr> {
-        let sql = r#"
-            SELECT table_name 
-            FROM information_schema.tables 
-            WHERE table_schema = 'public' 
-            AND table_type = 'BASE TABLE'
-            AND table_name NOT LIKE 'seaql_%'
-            ORDER BY table_name;
-        "#;
-
-        let result = self
-            .connection
-            .query_all(Statement::from_string(
-                sea_orm::DatabaseBackend::Postgres,
-                sql.to_string(),
-            ))
-            .await?;
-
-        let tables: Vec<String> = result
-            .into_iter()
-            .map(|row| row.try_get::<String>("", "table_name"))
-            .collect::<Result<Vec<_>, _>>()?;
-
-        debug!("Found {} tables: {:?}", tables.len(), tables);
-        Ok(tables)
     }
 
     /// Get the database connection for direct use
@@ -212,7 +148,7 @@ async fn get_or_create_test_container() -> Result<Arc<TestDatabaseContainer>, Db
         .with_env_var("POSTGRES_DB", &db_config.db)
         .with_env_var("POSTGRES_USER", &db_config.creds.username)
         .with_env_var("POSTGRES_PASSWORD", &db_config.creds.password)
-        .with_container_name("iam_test-db") // Static name for easy cleanup
+        .with_container_name("test-db") // Static name for easy cleanup
         .with_mapped_port(host_port, testcontainers::core::ContainerPort::Tcp(5432)); // Map host port to container port 5432
 
     let container = postgres_image
@@ -249,19 +185,19 @@ async fn get_or_create_test_container() -> Result<Arc<TestDatabaseContainer>, Db
 async fn cleanup_existing_container() {
     use std::process::Command;
 
-    debug!("Checking for existing test container 'iam_test-db'");
+    debug!("Checking for existing test container 'test-db'");
 
     // Try to stop the container if it's running
     let stop_result = Command::new("docker")
-        .args(&["stop", "iam_test-db"])
+        .args(&["stop", "test-db"])
         .output();
 
     match stop_result {
         Ok(output) if output.status.success() => {
-            debug!("Stopped existing container 'iam_test-db'");
+            debug!("Stopped existing container 'test-db'");
         }
         Ok(_) => {
-            debug!("Container 'iam_test-db' was not running or doesn't exist");
+            debug!("Container 'test-db' was not running or doesn't exist");
         }
         Err(e) => {
             debug!("Failed to stop container: {}", e);
@@ -270,15 +206,15 @@ async fn cleanup_existing_container() {
 
     // Try to remove the container
     let rm_result = Command::new("docker")
-        .args(&["rm", "-f", "iam_test-db"])
+        .args(&["rm", "-f", "test-db"])
         .output();
 
     match rm_result {
         Ok(output) if output.status.success() => {
-            debug!("Removed existing container 'iam_test-db'");
+            debug!("Removed existing container 'test-db'");
         }
         Ok(_) => {
-            debug!("Container 'iam_test-db' was already removed or doesn't exist");
+            debug!("Container 'test-db' was already removed or doesn't exist");
         }
         Err(e) => {
             debug!("Failed to remove container: {}", e);
@@ -349,9 +285,9 @@ async fn register_cleanup_handler() {
         // Use direct docker command to cleanup the specific container
         use std::process::Command;
         let _ = Command::new("docker")
-            .args(&["stop", "iam_test-db"])
+            .args(&["stop", "test-db"])
             .output();
-        let _ = Command::new("docker").args(&["rm", "iam_test-db"]).output();
+        let _ = Command::new("docker").args(&["rm", "test-db"]).output();
 
         std::process::exit(0);
     });
@@ -408,11 +344,6 @@ impl TestFixture {
             None
         };
 
-        // Clean up any existing data
-        if let Some(database) = &database {
-            database.truncate_all_tables().await?;
-        }
-
         Ok(Self {
             database,
             sqs,
@@ -430,14 +361,6 @@ impl TestFixture {
         self.sqs.as_ref().unwrap()
     }
 
-    /// Manual cleanup (automatically called on drop)
-    pub async fn cleanup(&self) -> Result<(), DbErr> {
-        if let Some(database) = &self.database {
-            database.truncate_all_tables().await
-        } else {
-            Ok(())
-        }
-    }
 
     /// Cleanup the global test container (stops and removes it)
     pub async fn cleanup_container() -> Result<(), DbErr> {
@@ -517,15 +440,9 @@ impl Drop for TestFixture {
     fn drop(&mut self) {
         // Schedule cleanup in a blocking context
         if let Ok(rt) = tokio::runtime::Handle::try_current() {
-            let database = self.database.as_ref().unwrap().get_connection().clone();
             let cleanup_container = self.cleanup_container_on_drop;
 
             rt.spawn(async move {
-                // Always truncate tables
-                if let Err(e) = truncate_tables_best_effort(&database).await {
-                    warn!("Failed to cleanup test database on drop: {}", e);
-                }
-
                 // Optionally cleanup container
                 if cleanup_container {
                     info!("Cleaning up test container on TestFixture drop");
@@ -536,39 +453,4 @@ impl Drop for TestFixture {
             });
         }
     }
-}
-
-/// Best effort table truncation for cleanup
-async fn truncate_tables_best_effort(connection: &DatabaseConnection) -> Result<(), DbErr> {
-    // Simple truncation without detailed error handling
-    let tables = ["refresh_tokens", "provider_tokens", "user_emails", "users"];
-
-    // Disable foreign key checks
-    let _ = connection
-        .execute(Statement::from_string(
-            sea_orm::DatabaseBackend::Postgres,
-            "SET session_replication_role = replica;".to_string(),
-        ))
-        .await;
-
-    // Truncate known tables
-    for table in &tables {
-        let sql = format!("TRUNCATE TABLE {} RESTART IDENTITY CASCADE;", table);
-        let _ = connection
-            .execute(Statement::from_string(
-                sea_orm::DatabaseBackend::Postgres,
-                sql,
-            ))
-            .await;
-    }
-
-    // Re-enable foreign key checks
-    let _ = connection
-        .execute(Statement::from_string(
-            sea_orm::DatabaseBackend::Postgres,
-            "SET session_replication_role = DEFAULT;".to_string(),
-        ))
-        .await;
-
-    Ok(())
 }

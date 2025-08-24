@@ -17,14 +17,16 @@ pub struct StartSyncJobCommand {
     pub command_id: Uuid,
     pub organization_id: Uuid,
     pub request: StartSyncJobRequest,
+    pub user_id: Uuid,
 }
 
 impl StartSyncJobCommand {
-    pub fn new(organization_id: Uuid, request: StartSyncJobRequest) -> Self {
+    pub fn new(organization_id: Uuid, request: StartSyncJobRequest, user_id: Uuid) -> Self {
         Self {
             command_id: Uuid::new_v4(),
             organization_id,
             request,
+            user_id,
         }
     }
 }
@@ -60,7 +62,7 @@ impl StartSyncJobCommandHandler {
 impl CommandHandler<StartSyncJobCommand> for StartSyncJobCommandHandler {
     async fn handle(&self, command: StartSyncJobCommand) -> Result<SyncJobResponse, CommandError> {
         self.sync_job_usecase
-            .start_sync_job(command.organization_id, command.request)
+            .start_sync_job(command.organization_id, command.request, command.user_id)
             .await
             .map_err(|e| CommandError::business("start_sync_job_failed", &e.to_string()))
     }

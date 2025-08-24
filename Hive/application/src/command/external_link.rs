@@ -5,8 +5,7 @@ use uuid::Uuid;
 
 use crate::{
     dto::{
-        ConnectionTestResponse, CreateExternalLinkRequest, ExternalLinkListResponse,
-        ExternalLinkResponse, ToggleSyncRequest, UpdateExternalLinkRequest,
+        CreateExternalLinkRequest, ExternalLinkResponse,
     },
     usecase::ExternalLinkUseCase,
     ApplicationError,
@@ -67,7 +66,7 @@ impl CommandHandler<CreateExternalLinkCommand> for CreateExternalLinkCommandHand
         command: CreateExternalLinkCommand,
     ) -> Result<ExternalLinkResponse, CommandError> {
         self.external_link_usecase
-            .create_link(command.organization_id, &command.request, command.user_id)
+            .create_link(command.organization_id, &command.request)
             .await
             .map_err(|e| CommandError::business("create_external_link_failed", &e.to_string()))
     }
@@ -87,9 +86,6 @@ impl CommandErrorMapper for ExternalLinkErrorMapper {
                 }
                 ApplicationError::ExternalService { .. } => {
                     CommandError::infrastructure("external_error", &error.to_string())
-                }
-                ApplicationError::ConcurrentOperation { .. } => {
-                    CommandError::business("concurrent_operation", &error.to_string())
                 }
                 ApplicationError::RateLimit { .. } => {
                     CommandError::business("rate_limit", &error.to_string())

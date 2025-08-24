@@ -62,6 +62,20 @@ impl Permission {
     }
 }
 
+
+impl std::fmt::Display for Permission {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+impl From<String> for Permission {
+    fn from(s: String) -> Self {
+        Self::from_str(&s).unwrap()
+    }
+}
+
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ResourceId(Uuid);
 
@@ -91,7 +105,11 @@ impl ResourceId {
     }
 }
 
-
+impl std::fmt::Display for ResourceId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 /// Permission engine trait for checking authorization
 #[async_trait]
@@ -107,6 +125,6 @@ pub trait PermissionEngine: Send + Sync {
 }
 
 // Re-export the permissions fetcher trait for consumers to implement
-pub use adapter::permission_fetcher::PermissionsFetch;
+pub use adapter::permission_fetcher::PermissionsFetcher;
 
 // Types are available directly from the crate root

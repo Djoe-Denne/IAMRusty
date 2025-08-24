@@ -127,7 +127,6 @@ impl CommandHandler<RemoveMemberCommand> for RemoveMemberCommandHandler {
             .remove_member(
                 command.organization_id,
                 command.user_id,
-                command.removed_by_user_id,
             )
             .await
             .map_err(|e| CommandError::business("remove_member_failed", &e.to_string()))
@@ -189,7 +188,7 @@ impl CommandHandler<ListMembersCommand> for ListMembersCommandHandler {
         command: ListMembersCommand,
     ) -> Result<MemberListResponse, CommandError> {
         self.member_usecase
-            .list_members(command.organization_id, &command.pagination, command.user_id)
+            .list_members(command.organization_id, &command.pagination)
             .await
             .map_err(|e| CommandError::business("list_members_failed", &e.to_string()))
     }
@@ -246,7 +245,7 @@ impl GetMemberCommandHandler {
 impl CommandHandler<GetMemberCommand> for GetMemberCommandHandler {
     async fn handle(&self, command: GetMemberCommand) -> Result<MemberResponse, CommandError> {
         self.member_usecase
-            .get_member(command.organization_id, command.user_id, command.requesting_user_id)
+            .get_member(command.organization_id, command.user_id)
             .await
             .map_err(|e| CommandError::business("get_member_failed", &e.to_string()))
     }
@@ -305,7 +304,7 @@ impl UpdateMemberCommandHandler {
 impl CommandHandler<UpdateMemberCommand> for UpdateMemberCommandHandler {
     async fn handle(&self, command: UpdateMemberCommand) -> Result<MemberResponse, CommandError> {
         self.member_usecase
-            .update_member(command.organization_id, command.user_id, &command.request, command.requesting_user_id)
+            .update_member(command.organization_id, command.user_id, &command.request)
             .await
             .map_err(|e| CommandError::business("update_member_failed", &e.to_string()))
     }
@@ -326,9 +325,6 @@ impl CommandErrorMapper for MemberErrorMapper {
                 }
                 ApplicationError::ExternalService { .. } => {
                     CommandError::infrastructure("external_error", &error.to_string())
-                }
-                ApplicationError::ConcurrentOperation { .. } => {
-                    CommandError::business("concurrent_operation", &error.to_string())
                 }
                 ApplicationError::RateLimit { .. } => {
                     CommandError::business("rate_limit", &error.to_string())
