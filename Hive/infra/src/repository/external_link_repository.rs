@@ -205,28 +205,55 @@ impl ExternalLinkWriteRepository for ExternalLinkWriteRepositoryImpl {
     async fn save(&self, link: &ExternalLink) -> Result<ExternalLink, DomainError> {
         debug!("Saving external link with ID: {}", link.id);
         
-        let active_model = ExternalLinkMapper::to_active_model(link);
-        
-        let result = active_model
-            .save(self.db.as_ref())
+        let exists = ExternalLinks::find_by_id(link.id)
+            .one(self.db.as_ref())
             .await
-            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?
+            .is_some();
 
-        let saved_model = external_links::Model {
-            id: result.id.unwrap(),
-            organization_id: result.organization_id.unwrap(),
-            provider_id: result.provider_id.unwrap(),
-            provider_config: result.provider_config.unwrap(),
-            sync_enabled: result.sync_enabled.unwrap(),
-            sync_settings: result.sync_settings.unwrap(),
-            last_sync_at: result.last_sync_at.unwrap(),
-            last_sync_status: result.last_sync_status.unwrap(),
-            sync_error: result.sync_error.unwrap(),
-            created_at: result.created_at.unwrap(),
-            updated_at: result.updated_at.unwrap(),
-        };
+        if exists {
+            let active_model = ExternalLinkMapper::to_active_model(link);
+            let result = active_model
+                .save(self.db.as_ref())
+                .await
+                .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
-        ExternalLinkMapper::to_domain(saved_model, None)
+            let saved_model = external_links::Model {
+                id: result.id.unwrap(),
+                organization_id: result.organization_id.unwrap(),
+                provider_id: result.provider_id.unwrap(),
+                provider_config: result.provider_config.unwrap(),
+                sync_enabled: result.sync_enabled.unwrap(),
+                sync_settings: result.sync_settings.unwrap(),
+                last_sync_at: result.last_sync_at.unwrap(),
+                last_sync_status: result.last_sync_status.unwrap(),
+                sync_error: result.sync_error.unwrap(),
+                created_at: result.created_at.unwrap(),
+                updated_at: result.updated_at.unwrap(),
+            };
+            return ExternalLinkMapper::to_domain(saved_model, link.provider_source.clone());
+        } else {
+            let active_model = ExternalLinkMapper::to_active_model(link);
+            let result = active_model
+                .insert(self.db.as_ref())
+                .await
+                .map_err(|e| DomainError::internal_error(&e.to_string()))?;
+
+            let saved_model = external_links::Model {
+                id: result.id,
+                organization_id: result.organization_id,
+                provider_id: result.provider_id,
+                provider_config: result.provider_config,
+                sync_enabled: result.sync_enabled,
+                sync_settings: result.sync_settings,
+                last_sync_at: result.last_sync_at,
+                last_sync_status: result.last_sync_status,
+                sync_error: result.sync_error,
+                created_at: result.created_at,
+                updated_at: result.updated_at,
+            };
+            return ExternalLinkMapper::to_domain(saved_model, link.provider_source.clone());
+        }
     }
 
     async fn delete_by_id(&self, id: &Uuid) -> Result<(), DomainError> {

@@ -40,12 +40,12 @@ pub async fn permission_middleware(
         guard.fetcher.clone(),
     )
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .map_err(|_| StatusCode::FORBIDDEN)?;
 
     let allowed = engine
         .has_permission(user_id, resource_ids, guard.required.clone(), serde_json::json!({}))
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|_| StatusCode::FORBIDDEN)?;
 
     if !allowed {
         info!("permission_middleware: decision=DENY, for user={} asking for {:?}", user_id, guard.required);
@@ -80,12 +80,12 @@ pub async fn optional_permission_middleware(
         guard.fetcher.clone(),
     )
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .map_err(|_| StatusCode::FORBIDDEN)?;
 
     let allowed = engine
         .has_permission(user_id, resource_ids, guard.required.clone(), serde_json::json!({}))
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|_| StatusCode::FORBIDDEN)?;
 
     if !allowed {
         info!("optional_permission_middleware: decision=DENY, for user={} asking for {:?}", user_id, guard.required);

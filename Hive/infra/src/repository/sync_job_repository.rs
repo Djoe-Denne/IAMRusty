@@ -227,27 +227,58 @@ impl SyncJobWriteRepository for SyncJobWriteRepositoryImpl {
     async fn save(&self, job: &SyncJob) -> Result<SyncJob, DomainError> {
         debug!("Saving sync job with ID: {}", job.id);
         
-        let active_model = SyncJobMapper::to_active_model(job);
+        let exists = SyncJobs::find_by_id(job.id)
+            .one(self.db.as_ref())
+            .await
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?
+            .is_some();
+
+        if exists { // Update
+            let active_model = SyncJobMapper::to_active_model(job);
+            let result = active_model
+                .save(self.db.as_ref())
+                .await
+                .map_err(|e| DomainError::internal_error(&e.to_string()))?;
+
+            let saved_model = sync_jobs::Model {
+                id: result.id.unwrap(),
+                organization_external_link_id: result.organization_external_link_id.unwrap(),
+                job_type: result.job_type.unwrap(),
+                status: result.status.unwrap(),
+                items_processed: result.items_processed.unwrap(),
+                items_created: result.items_created.unwrap(),
+                items_updated: result.items_updated.unwrap(),
+                items_failed: result.items_failed.unwrap(),
+                started_at: result.started_at.unwrap(),
+                completed_at: result.completed_at.unwrap(),
+                error_message: result.error_message.unwrap(),
+                details: result.details.unwrap(),
+                created_at: result.created_at.unwrap(),
+            };
+            return Ok(SyncJobMapper::to_domain(saved_model)?);
+        }
         
+        // Insert
+        let active_model = SyncJobMapper::to_active_model(job);
         let result = active_model
-            .save(self.db.as_ref())
+            .insert(self.db.as_ref())
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         let saved_model = sync_jobs::Model {
-            id: result.id.unwrap(),
-            organization_external_link_id: result.organization_external_link_id.unwrap(),
-            job_type: result.job_type.unwrap(),
-            status: result.status.unwrap(),
-            items_processed: result.items_processed.unwrap(),
-            items_created: result.items_created.unwrap(),
-            items_updated: result.items_updated.unwrap(),
-            items_failed: result.items_failed.unwrap(),
-            started_at: result.started_at.unwrap(),
-            completed_at: result.completed_at.unwrap(),
-            error_message: result.error_message.unwrap(),
-            details: result.details.unwrap(),
-            created_at: result.created_at.unwrap(),
+            id: result.id,
+            organization_external_link_id: result.organization_external_link_id,
+            job_type: result.job_type,
+            status: result.status,
+            items_processed: result.items_processed,
+            items_created: result.items_created,
+            items_updated: result.items_updated,
+            items_failed: result.items_failed,
+            started_at: result.started_at,
+            completed_at: result.completed_at,
+            error_message: result.error_message,
+            details: result.details,
+            created_at: result.created_at,
         };
 
         SyncJobMapper::to_domain(saved_model)

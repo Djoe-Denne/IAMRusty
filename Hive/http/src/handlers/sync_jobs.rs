@@ -6,11 +6,37 @@ use hive_application::{
     StartSyncJobCommand, StartSyncJobRequest, SyncJobListResponse, SyncJobLogsResponse,
     SyncJobResponse, SyncJobStatusResponse,
 };
-use rustycog_command::CommandContext;
+use rustycog_command::{CommandContext, CommandError};
 use rustycog_http::{AppState, AuthUser, ValidatedJson};
 use uuid::Uuid;
 
 use crate::error::HttpError;
+
+fn error_mapper(error: CommandError) -> HttpError {
+    match error {
+        CommandError::Validation { .. } => HttpError::Validation {
+            message: error.to_string(),
+        },
+        CommandError::Business { .. } => {
+            if error.message().contains("not found") {
+                HttpError::NotFound
+            } else {
+                HttpError::BadRequest {
+                    message: error.to_string(),
+                }
+            }
+        }
+        CommandError::Infrastructure { .. } => HttpError::Internal {
+            message: error.to_string(),
+        },
+        CommandError::RetryExhausted { .. } => HttpError::Internal {
+            message: error.to_string(),
+        },
+        _ => HttpError::Internal {
+            message: error.to_string(),
+        },
+    }
+}
 
 /// Start a sync job
 /// POST /api/organizations/{organization_id}/sync-jobs
@@ -29,9 +55,7 @@ pub async fn start_sync_job(
         .command_service
         .execute(command, context)
         .await
-        .map_err(|e| HttpError::Internal {
-            message: format!("Command execution failed: {}", e),
-        })?;
+        .map_err(error_mapper)?;
 
     Ok(Json(result))
 }

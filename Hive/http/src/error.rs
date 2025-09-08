@@ -25,6 +25,9 @@ pub enum HttpError {
     #[error("Not found")]
     NotFound,
 
+    #[error("Bad request: {message}")]
+    BadRequest { message: String },
+
     #[error("Conflict: {message}")]
     Conflict { message: String },
 
@@ -88,6 +91,17 @@ impl IntoResponse for HttpError {
                     ),
                 }
             }
+            HttpError::BadRequest { message } => (
+                StatusCode::BAD_REQUEST,
+                ApiErrorResponse {
+                    error_type: "bad_request".to_string(),
+                    message,
+                    timestamp: chrono::Utc::now(),
+                    request_id: None,
+                    details: None,
+                    validation_errors: None,
+                },
+            ),
             HttpError::Validation { message } => (
                 StatusCode::BAD_REQUEST,
                 ApiErrorResponse {

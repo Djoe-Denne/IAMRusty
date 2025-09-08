@@ -5,9 +5,9 @@
 
 use std::sync::Arc;
 
-use casbin::{DefaultModel, Enforcer, MemoryAdapter, CoreApi, MgmtApi};
+use casbin::{DefaultModel, Enforcer, MemoryAdapter, CoreApi, MgmtApi, EnforceContext};
 use rustycog_core::error::DomainError;
-use tracing::debug;
+use tracing::{debug, error};
 use async_trait::async_trait;
 use uuid::Uuid;
 
@@ -79,36 +79,63 @@ impl PermissionEngine for CasbinPermissionEngine {
 
         debug!("CasbinPermissionEngine::has_permission: permissions: {:?}", permissions);
         let mut policy_vec = vec![user_id.to_string()];
-        policy_vec.extend(resource_ids.iter().map(|u| u.id().to_string()));
 
-        // Add policies (subject=user_id, object=resource_key, action=permission)
-        for permission in permissions {
-            // Expand hierarchical permissions: owner > admin > write > read
-            let implied: &[&str] = match permission {
-                Permission::Owner => &["owner", "admin", "write", "read"],
-                Permission::Admin => &["admin", "write", "read"],
-                Permission::Write => &["write", "read"],
-                Permission::Read => &["read"],
-            };
-            for action in implied {
-                let mut policy_vec = policy_vec.clone();
-                policy_vec.push((*action).to_string());
-                let _ = enforcer
-                    .add_named_policy("p", policy_vec)
-                    .await
-                    .map_err(|e| DomainError::Internal {
-                        message: format!("Failed to add policy: {}", e),
+        
+        for index in 0..resource_ids.len() {
+            policy_vec.push(resource_ids[index].id().to_string());
+            let policy_name = if index != 0 { format!("p{}", index+1) } else { "p".to_string() };
+            
+            // Add policies (subject=user_id, object=resource_key, action=permission)
+            for permission in &permissions {
+                // Expand hierarchical permissions: owner > admin > write > read
+                let implied: &[&str] = match permission {
+                    Permission::Owner => &["owner", "admin", "write", "read"],
+                    Permission::Admin => &["admin", "write", "read"],
+                    Permission::Write => &["write", "read"],
+                    Permission::Read => &["read"],
+                };
+                for action in implied {
+                    let mut policy_vec = policy_vec.clone();
+                    policy_vec.push((*action).to_string());
+                    debug!("CasbinPermissionEngine::has_permission: adding policy: {:?} for policy name: {}", policy_vec, policy_name);
+                    let _ = enforcer
+                        .add_named_policy(policy_name.as_str(), policy_vec.clone())
+                        .await
+                        .map_err(|e| {
+                            error!("Failed to add policy: {}", e);
+                            DomainError::Internal {
+                            message: format!("Failed to add policy: {}", e),
+                        }
                     })?;
+                
+                }
             }
         }
 
+
         policy_vec.push(target_permission.as_str().to_string());
-        // Enforce
-        let decision = enforcer
-            .enforce(policy_vec)
-            .map_err(|e| DomainError::Internal {
-                message: format!("Failed to enforce permission check: {}", e),
-            })?;
+        debug!("CasbinPermissionEngine::has_permission: policy_vec: {:?}", policy_vec);
+
+        let decision = if resource_ids.len() > 1 { 
+            let ctx = EnforceContext::new(resource_ids.len().to_string().as_str());
+            enforcer
+                .enforce_with_context(ctx, policy_vec)
+                .map_err(|e| {
+                    error!("Failed to enforce permission check: {}", e);
+                    DomainError::Internal {
+                    message: format!("Failed to enforce permission check: {}", e),
+                }
+            })?
+        } else { 
+            enforcer
+                .enforce(policy_vec)
+                .map_err(|e| {
+                    error!("Failed to enforce permission check: {}", e);
+                    DomainError::Internal {
+                    message: format!("Failed to enforce permission check: {}", e),
+                }
+            })?
+        };
 
         debug!("CasbinPermissionEngine::has_permission: decision: {:?}", decision);
 

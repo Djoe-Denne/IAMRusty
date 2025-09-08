@@ -2,10 +2,12 @@ use reqwest::StatusCode;
 use serial_test::serial;
 use rustycog_testing::http::jwt::create_jwt_token;
 use uuid::Uuid;
-use sea_orm::EntityTrait;
+use sea_orm::{EntityTrait, ActiveModelTrait, Set};
+use std::collections::HashMap;
 
 use hive_application::dto::organization::{CreateOrganizationRequest, OrganizationResponse};
 use hive_infra::repository::entity::organizations;
+use hive_infra::repository::entity::{external_providers, external_links, role_permissions, organization_member_role_permissions, organization_members};
 
 mod common;
 use common::{fixtures::db::{DbFixtures, seed_org_with_owner}, setup_test_server};
@@ -150,4 +152,202 @@ async fn search_organizations_is_public_and_returns_results() {
     assert!(body["organizations"].as_array().unwrap().len() >= 1);
 }
 
+async fn update_and_delete_require_auth() {
+    let (fixture, server_url, client) = setup_test_server().await.unwrap();
+    let owner_id = Uuid::new_v4();
+    let org = DbFixtures::organization().owner_user_id(owner_id).commit(fixture.db()).await.unwrap();
+
+    let res = client
+        .put(format!("{}/api/organizations/{}", server_url, org.id))
+        .json(&serde_json::json!({"name":"X"}))
+        .send().await.unwrap();
+    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+
+    let res = client
+        .delete(format!("{}/api/organizations/{}", server_url, org.id))
+        .send().await.unwrap();
+    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+#[serial]
+async fn sync_jobs_requires_auth() {
+    let (fixture, server_url, client) = setup_test_server().await.unwrap();
+    let owner_id = Uuid::new_v4();
+    let org = DbFixtures::organization().owner_user_id(owner_id).commit(fixture.db()).await.unwrap();
+
+    let body = serde_json::json!({
+        "external_link_id": Uuid::new_v4(),
+        "job_type": "full_sync",
+        "options": null
+    });
+    let res = client
+        .post(format!("{}/api/organizations/{}/sync-jobs", server_url, org.id))
+        .json(&body)
+        .send().await.unwrap();
+    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+#[serial]
+async fn roles_endpoints_require_auth() {
+    let (fixture, server_url, client) = setup_test_server().await.unwrap();
+    let owner_id = Uuid::new_v4();
+    let org = DbFixtures::organization().owner_user_id(owner_id).commit(fixture.db()).await.unwrap();
+
+    let res = client
+        .get(format!("{}/api/organizations/{}/roles?page=1&page_size=10", server_url, org.id))
+        .send().await.unwrap();
+    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+
+    let res = client
+        .get(format!("{}/api/organizations/{}/roles/{}", server_url, org.id, Uuid::new_v4()))
+        .send().await.unwrap();
+    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+#[serial]
+async fn update_delete_forbidden_for_read_only_member() {
+    let (fixture, server_url, client) = setup_test_server().await.unwrap();
+    let owner_id = Uuid::new_v4();
+    let read_user_id = Uuid::new_v4();
+    let token = create_jwt_token(read_user_id);
+
+    let org = DbFixtures::create_org(fixture.db().as_ref(), owner_id, HashMap::from([(owner_id.to_string(), "owner".to_string()), (read_user_id.to_string(), "read".to_string())])).await.unwrap();
+
+    let res = client
+        .put(format!("{}/api/organizations/{}", server_url, org.id))
+        .header("Authorization", format!("Bearer {}", token))
+        .json(&serde_json::json!({"name":"New"}))
+        .send().await.unwrap();
+    assert_eq!(res.status(), StatusCode::FORBIDDEN);
+
+    let res = client
+        .delete(format!("{}/api/organizations/{}", server_url, org.id))
+        .header("Authorization", format!("Bearer {}", token))
+        .send().await.unwrap();
+    assert_eq!(res.status(), StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+#[serial]
+async fn sync_jobs_forbidden_for_read_only_member() {
+    let (fixture, server_url, client) = setup_test_server().await.unwrap();
+    let owner_id = Uuid::new_v4();
+    let read_user_id = Uuid::new_v4();
+    let token = create_jwt_token(read_user_id);
+
+    let org = DbFixtures::create_org(fixture.db().as_ref(), owner_id, HashMap::from([(owner_id.to_string(), "owner".to_string()), (read_user_id.to_string(), "read".to_string())])).await.unwrap();
+    let body = serde_json::json!({
+        "external_link_id": Uuid::new_v4(),
+        "job_type": "full_sync",
+        "options": null
+    });
+    let res = client
+        .post(format!("{}/api/organizations/{}/sync-jobs", server_url, org.id))
+        .header("Authorization", format!("Bearer {}", token))
+        .json(&body)
+        .send().await.unwrap();
+    assert_eq!(res.status(), StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+#[serial]
+async fn get_nonexistent_organization_returns_404() {
+    let (_fixture, server_url, client) = setup_test_server().await.unwrap();
+    let res = client
+        .get(format!("{}/api/organizations/{}", server_url, Uuid::new_v4()))
+        .send().await.unwrap();
+    assert_eq!(res.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+#[serial]
+async fn sync_jobs_nonexistent_external_link_returns_404() {
+    let (fixture, server_url, client) = setup_test_server().await.unwrap();
+    let owner_id = Uuid::new_v4();
+    let token = create_jwt_token(owner_id);
+    let org = DbFixtures::create_org_with_owner(fixture.db().as_ref(), owner_id).await.unwrap();
+
+    let body = serde_json::json!({
+        "external_link_id": Uuid::new_v4(),
+        "job_type": "full_sync",
+        "options": null
+    });
+    let res = client
+        .post(format!("{}/api/organizations/{}/sync-jobs", server_url, org.id))
+        .header("Authorization", format!("Bearer {}", token))
+        .json(&body)
+        .send().await.unwrap();
+    assert_eq!(res.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+#[serial]
+async fn create_validation_errors() {
+    let (fixture, server_url, client) = setup_test_server().await.unwrap();
+    let user_id = Uuid::new_v4();
+    let token = create_jwt_token(user_id);
+
+    // Create with invalid payload (empty name)
+    let bad_create = serde_json::json!({
+        "name": "",
+        "slug": "abc",
+        "description": null,
+        "avatar_url": null
+    });
+    let res = client
+        .post(format!("{}/api/organizations", server_url))
+        .header("Authorization", format!("Bearer {}", token))
+        .json(&bad_create)
+        .send().await.unwrap();
+    assert_eq!(res.status(), 422);
+}
+
+#[tokio::test]
+#[serial]
+async fn start_sync_job_happy_path() {
+    let (fixture, server_url, client) = setup_test_server().await.unwrap();
+    let owner_id = Uuid::new_v4();
+    let token = create_jwt_token(owner_id);
+    let org = DbFixtures::create_org_with_owner(fixture.db().as_ref(), owner_id).await.unwrap();
+
+    // Seed external provider
+    let provider = external_providers::ActiveModel {
+        id: Set(Uuid::new_v4()),
+        provider_type: Set("github".to_string()),
+        name: Set("GitHub".to_string()),
+        config_schema: Set(None),
+        is_active: Set(true),
+        created_at: Set(chrono::Utc::now()),
+    }.insert(fixture.db().as_ref()).await.unwrap();
+
+    // Seed external link with sync enabled
+    let elink = external_links::ActiveModel {
+        id: Set(Uuid::new_v4()),
+        organization_id: Set(org.id),
+        provider_id: Set(provider.id),
+        provider_config: Set(serde_json::json!({"org":"dummy"})),
+        sync_enabled: Set(true),
+        sync_settings: Set(serde_json::json!({})),
+        last_sync_at: Set(None),
+        last_sync_status: Set(None),
+        sync_error: Set(None),
+        created_at: Set(chrono::Utc::now()),
+        updated_at: Set(chrono::Utc::now()),
+    }.insert(fixture.db().as_ref()).await.unwrap();
+
+    let body = serde_json::json!({
+        "external_link_id": elink.id,
+        "job_type": "full_sync",
+        "options": null
+    });
+    let res = client
+        .post(format!("{}/api/organizations/{}/sync-jobs", server_url, org.id))
+        .header("Authorization", format!("Bearer {}", token))
+        .json(&body)
+        .send().await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+}
 

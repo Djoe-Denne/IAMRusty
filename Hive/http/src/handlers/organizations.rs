@@ -8,11 +8,38 @@ use hive_application::{
     OrganizationResponse, OrganizationSearchRequest, PaginationRequest, SearchOrganizationsCommand,
     UpdateOrganizationCommand, UpdateOrganizationRequest,
 };
-use rustycog_command::CommandContext;
+use rustycog_command::{CommandContext, CommandError};
 use rustycog_http::{AppState, AuthUser, OptionalAuthUser, ValidatedJson};
 use rustycog_permission::ResourceId;
 
 use crate::error::HttpError;
+
+
+fn error_mapper(error: CommandError) -> HttpError {
+    match error {
+        CommandError::Validation { .. } => HttpError::Validation {
+            message: error.to_string(),
+        },
+        CommandError::Business { .. } => {
+            if error.message().contains("not found") {
+                HttpError::NotFound
+            } else {
+                HttpError::BadRequest {
+                    message: error.to_string(),
+                }
+            }
+        }
+        CommandError::Infrastructure { .. } => HttpError::Internal {
+            message: error.to_string(),
+        },
+        CommandError::RetryExhausted { .. } => HttpError::Internal {
+            message: error.to_string(),
+        },
+        _ => HttpError::Internal {
+            message: error.to_string(),
+        },
+    }
+}
 
 /// Create a new organization
 /// POST /api/organizations
@@ -30,9 +57,7 @@ pub async fn create_organization(
         .command_service
         .execute(command, context)
         .await
-        .map_err(|e| HttpError::Internal {
-            message: format!("Command execution failed: {}", e),
-        })?;
+        .map_err(error_mapper)?;
 
     Ok(Json(result))
 }
@@ -58,9 +83,7 @@ pub async fn get_organization(
         .command_service
         .execute(command, context)
         .await
-        .map_err(|e| HttpError::Internal {
-            message: format!("Command execution failed: {}", e),
-        })?;
+        .map_err(error_mapper)?;
 
     Ok(Json(result))
 }
@@ -82,9 +105,7 @@ pub async fn update_organization(
         .command_service
         .execute(command, context)
         .await
-        .map_err(|e| HttpError::Internal {
-            message: format!("Command execution failed: {}", e),
-        })?;
+        .map_err(error_mapper)?;
 
     Ok(Json(result))
 }
@@ -105,9 +126,7 @@ pub async fn delete_organization(
         .command_service
         .execute(command, context)
         .await
-        .map_err(|e| HttpError::Internal {
-            message: format!("Command execution failed: {}", e),
-        })?;
+        .map_err(error_mapper)?;
 
     Ok(Json(result))
 }
@@ -132,9 +151,7 @@ pub async fn list_organizations(
         .command_service
         .execute(command, context)
         .await
-        .map_err(|e| HttpError::Internal {
-            message: format!("Command execution failed: {}", e),
-        })?;
+        .map_err(error_mapper)?;
 
     Ok(Json(result))
 }
@@ -160,9 +177,7 @@ pub async fn search_organizations(
         .command_service
         .execute(command, context)
         .await
-        .map_err(|e| HttpError::Internal {
-            message: format!("Command execution failed: {}", e),
-        })?;
+        .map_err(error_mapper)?;
 
     Ok(Json(result))
 }

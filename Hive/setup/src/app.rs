@@ -295,9 +295,9 @@ async fn setup_domain(db: DbConnectionPool, config: &AppConfig) -> Result<(
         provider_client,
     ));
 
-    let organization_permission_fetcher = ResourcePermissionFetcher::new(organization_service.clone(), member_service.clone(), member_role_repo.clone(), "organization".to_string());
-    let member_permission_fetcher = ResourcePermissionFetcher::new(organization_service.clone(), member_service.clone(), member_role_repo.clone(), "member".to_string());
-    let external_link_permission_fetcher = ResourcePermissionFetcher::new(organization_service.clone(), member_service.clone(), member_role_repo.clone(), "external_link".to_string());
+    let organization_permission_fetcher = ResourcePermissionFetcher::new(organization_service.clone(), member_service.clone(), member_role_repo.clone(), vec!["organization".to_string()]);
+    let member_permission_fetcher = ResourcePermissionFetcher::new(organization_service.clone(), member_service.clone(), member_role_repo.clone(), vec!["organization".to_string(), "member".to_string()]);
+    let external_link_permission_fetcher = ResourcePermissionFetcher::new(organization_service.clone(), member_service.clone(), member_role_repo.clone(), vec!["organization".to_string(), "external_link".to_string()]);
 
     Ok((
         organization_service,

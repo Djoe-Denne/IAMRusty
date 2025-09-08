@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, DatabaseConnection, Set};
@@ -11,6 +11,7 @@ use hive_infra::repository::entity::{
     permissions,
     resources,
     role_permissions,
+    external_providers,
 };
 
 /// Builder-style DB fixtures for Hive, mirroring the structure used in `IAMRusty/tests/fixtures/db`.
@@ -41,10 +42,25 @@ impl DbFixtures {
         MemberRolePermissionLinkBuilder::new()
     }
 
+    pub fn external_provider() -> ExternalProviderFixtureBuilder {
+        ExternalProviderFixtureBuilder::new()
+    }
+
     /// Convenience method to create minimal RBAC data for an organization and attach the owner as a member with all permissions.
     pub async fn create_org_with_owner(
         db: &DatabaseConnection,
         owner_user_id: Uuid,
+    ) -> anyhow::Result<organizations::Model> {
+        Self::create_org(db, owner_user_id, HashMap::from([(owner_user_id.to_string(), "owner".to_string())]))
+            .await
+    }
+
+    
+    /// Convenience method to create minimal RBAC data for an organization and attach the owner as a member with all permissions.
+    pub async fn create_org(
+        db: &DatabaseConnection,
+        owner_user_id: Uuid,
+        user_rights: HashMap<String, String>,
     ) -> anyhow::Result<organizations::Model> {
 
         // Create organization
@@ -56,16 +72,20 @@ impl DbFixtures {
             .commit(Arc::new(db.clone()))
             .await?;
 
-        // Create membership for owner
-        let member = Self::organization_member()
-            .organization_id(org.id)
-            .user_id(owner_user_id)
-            .status("active")
-            .joined_now()
-            .commit(Arc::new(db.clone()))
-            .await?;
+        let mut members: Vec<organization_members::Model> = Vec::new();
+        
+        for (user_id, _perm) in &user_rights {
+            let member = Self::organization_member()
+                .organization_id(org.id)
+                .user_id(user_id.parse::<Uuid>().unwrap())
+                .status("active")
+                .joined_now()
+                .commit(Arc::new(db.clone()))
+                .await?;
+            members.push(member);
+        }
 
-        // Create role-permissions chain for owner on organization resource and link to member
+         // Create role-permissions chain for owner on organization resource and link to member
         for perm in ["owner", "admin", "write", "read"] {
             let rp = Self::role_permission()
                 .organization_id(org.id)
@@ -76,11 +96,15 @@ impl DbFixtures {
                 .commit(Arc::new(db.clone()))
                 .await?;
 
-            let _ = Self::member_role_permission_link()
-                .member_id(member.id)
-                .role_permission_id(rp.id)
-                .commit(Arc::new(db.clone()))
-                .await?;
+            for member in &members {
+                if user_rights.get(member.user_id.to_string().as_str()).unwrap() == perm {
+                    let _ = Self::member_role_permission_link()
+                        .member_id(member.id)
+                        .role_permission_id(rp.id)
+                        .commit(Arc::new(db.clone()))
+                        .await?;
+                }
+            }
         }
 
         Ok(org)
@@ -455,6 +479,65 @@ impl MemberRolePermissionLinkBuilder {
             id: Set(self.id),
             member_id: Set(self.member_id.expect("member_id is required")),
             role_permission_id: Set(self.role_permission_id.expect("role_permission_id is required")),
+            created_at: Set(Utc::now()),
+        }
+        .insert(&*db)
+        .await?;
+        Ok(model)
+    }
+}
+
+pub struct ExternalProviderFixtureBuilder {
+    id: Uuid,
+    provider_source: String,
+    name: String,
+    config_schema: Option<serde_json::Value>,
+    is_active: bool,
+}
+
+impl ExternalProviderFixtureBuilder {
+    pub fn new() -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            provider_source: "github".to_string(),
+            name: "GitHub".to_string(),
+            config_schema: None,
+            is_active: true,
+        }
+    }
+
+    pub fn id(mut self, id: Uuid) -> Self {
+        self.id = id;
+        self
+    }
+
+    pub fn provider_source(mut self, source: impl Into<String>) -> Self {
+        self.provider_source = source.into();
+        self
+    }
+
+    pub fn name(mut self, name: impl Into<String>) -> Self {
+        self.name = name.into();
+        self
+    }
+
+    pub fn config_schema(mut self, schema: Option<serde_json::Value>) -> Self {
+        self.config_schema = schema;
+        self
+    }
+
+    pub fn is_active(mut self, is_active: bool) -> Self {
+        self.is_active = is_active;
+        self
+    }
+
+    pub async fn commit(self, db: Arc<DatabaseConnection>) -> anyhow::Result<external_providers::Model> {
+        let model = external_providers::ActiveModel {
+            id: Set(self.id),
+            provider_type: Set(self.provider_source),
+            name: Set(self.name),
+            config_schema: Set(self.config_schema),
+            is_active: Set(self.is_active),
             created_at: Set(Utc::now()),
         }
         .insert(&*db)
