@@ -12,7 +12,7 @@ tls_enabled = false
 # Database connection details
 host = "localhost"
 port = 0  # Use random port for testing
-db = "iam_test"
+db = "test-db"
 # Database credentials
 [database.creds]
 username = "postgres"

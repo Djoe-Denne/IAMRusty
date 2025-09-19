@@ -128,4 +128,21 @@ impl NotificationReadRepository for NotificationReadRepositoryImpl {
 
         Ok(count)
     }
+
+    /// Check if a user has a notification
+    async fn user_has_notification(&self, user_id: Uuid, notification_id: Uuid) -> Result<bool, DomainError> {
+        debug!("Checking if user: {} has notification: {}", user_id, notification_id);
+    
+        let notification = notifications::Entity::find_by_id(notification_id)
+            .one(self.db.as_ref())
+            .await
+            .map_err(|e| {
+                DomainError::infrastructure_error(format!("Failed to get notification: {}", e))
+            })?;
+
+        match notification {
+            Some(model) => Ok(model.user_id == user_id),
+            None => Ok(false),
+        }
+    }
 }

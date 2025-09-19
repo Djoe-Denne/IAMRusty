@@ -9,11 +9,11 @@ Your account details:
 {% if email_verified == "false" %}
 Please verify your email address to activate your account:
 
-{% if verification_token and base_host and verification_url %}
-Verification Link: {{base_host}}{{verification_url}}?email={{email}}&token={{verification_token}}
+{% if verification_token and verification_url %}
+Verification Link: https://www.oodhive.org{{verification_url}}?email={{email}}&token={{verification_token}}
 
 Or copy and paste this link into your browser:
-{{base_host}}{{verification_url}}?email={{email}}&token={{verification_token}}
+https://www.oodhive.org{{verification_url}}?email={{email}}&token={{verification_token}}
 {% else %}
 Please check your email for the verification link.
 {% endif %}

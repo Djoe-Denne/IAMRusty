@@ -8,7 +8,7 @@ tls_enabled = false
 [database]
 host = "localhost"
 port = 0
-db = "hive_test"
+db = "test-db"
 [database.creds]
 username = "postgres"
 password = "postgres"

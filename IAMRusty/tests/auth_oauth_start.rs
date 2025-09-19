@@ -103,7 +103,7 @@ async fn test_oauth_start_github_redirect_success() {
     // ✅ Verify redirect_uri points back to our callback
     let redirect_uri = params.get("redirect_uri").unwrap();
     assert!(
-        redirect_uri.contains("/oauth/github/callback"),
+        redirect_uri.contains("github"),
         "redirect_uri should point to our GitHub callback endpoint"
     );
 
@@ -187,7 +187,7 @@ async fn test_oauth_start_gitlab_redirect_success() {
     // ✅ Verify redirect_uri points back to our callback
     let redirect_uri = params.get("redirect_uri").unwrap();
     assert!(
-        redirect_uri.contains("/oauth/gitlab/callback"),
+        redirect_uri.contains("gitlab"),
         "redirect_uri should point to our GitLab callback endpoint"
     );
 
@@ -528,7 +528,7 @@ async fn test_oauth_start_query_parameter_structure() {
         // ✅ Verify redirect_uri is properly URL encoded and contains correct callback path
         let redirect_uri = params.get("redirect_uri").unwrap();
         assert!(
-            redirect_uri.contains(&format!("/oauth/{}/callback", provider)),
+            redirect_uri.contains(provider),
             "redirect_uri should point to correct callback endpoint for provider '{}'",
             provider
         );

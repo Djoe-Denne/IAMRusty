@@ -52,7 +52,7 @@ mod processor {
             config: EventHandlerConfig,
             email_service: Arc<EmailService>,
             communication_factory: Arc<CommunicationFactory>,
-            notification_service: Arc<NotificationService>,
+            notification_service: Arc<dyn NotificationService>,
         ) -> Self {
             Self::new(config)
                 .add_handler(

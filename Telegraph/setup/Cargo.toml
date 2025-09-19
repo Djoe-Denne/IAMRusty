@@ -33,6 +33,9 @@ rustycog-server = { path = "../../rustycog/rustycog-server" }
 # Events
 rustycog-events = { path = "../../rustycog/rustycog-events" }
 
+# Permission
+rustycog-permission = { path = "../../rustycog/rustycog-permission" }
+
 # Serialization
 serde = { workspace = true }
 

@@ -99,7 +99,7 @@ async fn test_user_signed_up_event_happy_path() {
         .await
         .expect("Failed to get emails");
     let email = &emails[0];
-    let verification_url = "https://oodhive.org/api/auth/verify".to_string();
+    let verification_url = "https://www.oodhive.org/api/auth/verify".to_string();
 
     // Verify email contains expected content
     assert!(

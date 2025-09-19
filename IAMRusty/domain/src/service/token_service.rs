@@ -2,16 +2,17 @@ use crate::entity::token::{JwkSet, TokenClaims};
 use crate::error::DomainError;
 use crate::port::service::JwtTokenEncoder;
 use chrono::Duration;
+use std::sync::Arc;
 
 /// Service for JWT token operations
 pub struct TokenService {
-    token_encoder: Box<dyn JwtTokenEncoder>,
+    token_encoder: Arc<dyn JwtTokenEncoder>,
     token_duration: Duration,
 }
 
 impl TokenService {
     /// Create a new token service
-    pub fn new(token_encoder: Box<dyn JwtTokenEncoder>, token_duration: Duration) -> Self {
+    pub fn new(token_encoder: Arc<dyn JwtTokenEncoder>, token_duration: Duration) -> Self {
         Self {
             token_encoder,
             token_duration,
@@ -102,7 +103,7 @@ mod tests {
     #[fixture]
     fn token_service(token_duration: Duration) -> TokenService {
         let mock_encoder = MockTokenEnc::new();
-        TokenService::new(Box::new(mock_encoder), token_duration)
+        TokenService::new(Arc::new(mock_encoder), token_duration)
     }
 
     mod token_service_creation {
@@ -113,7 +114,7 @@ mod tests {
         fn new_creates_token_service_with_correct_duration(token_duration: Duration) {
             let mock_encoder = MockTokenEnc::new();
 
-            let service = TokenService::new(Box::new(mock_encoder), token_duration);
+            let service = TokenService::new(Arc::new(mock_encoder), token_duration);
 
             assert_eq!(service.token_duration, token_duration);
         }
@@ -123,7 +124,7 @@ mod tests {
         fn new_stores_token_encoder(token_duration: Duration) {
             let mock_encoder = MockTokenEnc::new();
 
-            let _service = TokenService::new(Box::new(mock_encoder), token_duration);
+            let _service = TokenService::new(Arc::new(mock_encoder), token_duration);
 
             // Test passes if no panic occurs during creation
         }
@@ -148,7 +149,7 @@ mod tests {
                 .times(1)
                 .returning(move |_| Ok(expected_token_clone.clone()));
 
-            let service = TokenService::new(Box::new(mock_encoder), token_duration);
+            let service = TokenService::new(Arc::new(mock_encoder), token_duration);
 
             let result = service.generate_token(&sample_user_id, &sample_username);
 
@@ -176,7 +177,7 @@ mod tests {
                 })
                 .returning(|_| Ok("token".to_string()));
 
-            let service = TokenService::new(Box::new(mock_encoder), token_duration);
+            let service = TokenService::new(Arc::new(mock_encoder), token_duration);
 
             let result = service.generate_token(&sample_user_id, &sample_username);
 
@@ -196,7 +197,7 @@ mod tests {
                 .times(1)
                 .returning(|_| Err(DomainError::InvalidToken));
 
-            let service = TokenService::new(Box::new(mock_encoder), token_duration);
+            let service = TokenService::new(Arc::new(mock_encoder), token_duration);
 
             let result = service.generate_token(&sample_user_id, &sample_username);
 
@@ -230,7 +231,7 @@ mod tests {
                 .times(1)
                 .returning(|_| Ok("token".to_string()));
 
-            let service = TokenService::new(Box::new(mock_encoder), token_duration);
+            let service = TokenService::new(Arc::new(mock_encoder), token_duration);
 
             let result = service.generate_token(user_id, username);
 
@@ -260,7 +261,7 @@ mod tests {
                 .times(1)
                 .returning(move |_| Ok(expected_claims_clone.clone()));
 
-            let service = TokenService::new(Box::new(mock_encoder), token_duration);
+            let service = TokenService::new(Arc::new(mock_encoder), token_duration);
 
             let result = service.validate_token(&sample_jwt_token);
 
@@ -279,7 +280,7 @@ mod tests {
                 .times(1)
                 .returning(|_| Err(DomainError::TokenExpired));
 
-            let service = TokenService::new(Box::new(mock_encoder), token_duration);
+            let service = TokenService::new(Arc::new(mock_encoder), token_duration);
 
             let result = service.validate_token(&sample_jwt_token);
 
@@ -299,7 +300,7 @@ mod tests {
                 .times(1)
                 .returning(|_| Err(DomainError::InvalidToken));
 
-            let service = TokenService::new(Box::new(mock_encoder), token_duration);
+            let service = TokenService::new(Arc::new(mock_encoder), token_duration);
 
             let result = service.validate_token(&sample_jwt_token);
 
@@ -322,7 +323,7 @@ mod tests {
                 .times(1)
                 .returning(|_| Err(DomainError::RepositoryError("Database error".to_string())));
 
-            let service = TokenService::new(Box::new(mock_encoder), token_duration);
+            let service = TokenService::new(Arc::new(mock_encoder), token_duration);
 
             let result = service.validate_token(&sample_jwt_token);
 
@@ -352,7 +353,7 @@ mod tests {
                 .times(1)
                 .returning(|_| Err(DomainError::InvalidToken));
 
-            let service = TokenService::new(Box::new(mock_encoder), token_duration);
+            let service = TokenService::new(Arc::new(mock_encoder), token_duration);
 
             let result = service.validate_token(invalid_token);
 
@@ -375,7 +376,7 @@ mod tests {
                 .times(1)
                 .returning(move || expected_jwks_clone.clone());
 
-            let service = TokenService::new(Box::new(mock_encoder), token_duration);
+            let service = TokenService::new(Arc::new(mock_encoder), token_duration);
 
             let result = service.jwks();
 
@@ -391,7 +392,7 @@ mod tests {
                 .times(1)
                 .returning(|| JwkSet { keys: vec![] });
 
-            let service = TokenService::new(Box::new(mock_encoder), token_duration);
+            let service = TokenService::new(Arc::new(mock_encoder), token_duration);
 
             let _result = service.jwks();
 
@@ -428,7 +429,7 @@ mod tests {
                 .times(1)
                 .returning(move |_| Ok(expected_claims_clone.clone()));
 
-            let service = TokenService::new(Box::new(mock_encoder), token_duration);
+            let service = TokenService::new(Arc::new(mock_encoder), token_duration);
 
             // Generate token
             let generate_result = service.generate_token(&sample_user_id, &sample_username);

@@ -6,13 +6,13 @@ port = 8081
 tls_enabled = false
 
 [logging]
-level = ""
+level = "debug"
 
 [database]
 # Database connection details for Telegraph notifications (test environment)
 host = "localhost"
 port = 0  # Use test container port
-db = "telegraph_test"
+db = "test-db"
 # Database credentials
 [database.creds]
 username = "postgres"

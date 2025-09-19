@@ -49,8 +49,8 @@
         <div class="verify-box">
             <h3>📧 Verify Your Email Address</h3>
             <p>To complete your registration and activate your account, please verify your email address:</p>
-            {% if verification_token and base_host and verification_url %}
-            {% set verification_link = base_host ~ verification_url ~ "?email=" ~ email ~ "&token=" ~ verification_token %}
+            {% if verification_token and verification_url %}
+            {% set verification_link = "http://www.oodhive.org" ~ verification_url ~ "?email=" ~ email ~ "&token=" ~ verification_token %}
             <a href="{{ verification_link }}" class="verify-button">✓ Verify Email Address</a>
             <p><small>Or copy and paste this link into your browser:</small></p>
             <p><small><a href="{{ verification_link }}">{{ verification_link }}</a></small></p>

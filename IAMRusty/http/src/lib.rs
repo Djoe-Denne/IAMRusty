@@ -5,6 +5,7 @@
 
 use iam_configuration::ServerConfig;
 use rustycog_http::{AppState, RouteBuilder};
+use std::sync::Arc;
 
 pub mod error;
 pub mod handlers;
@@ -53,18 +54,24 @@ pub async fn create_app_routes(state: AppState, config: ServerConfig) -> anyhow:
             generate_relink_provider_start_url,
         )
         // Authenticated routes
-        .authenticated_get("/api/me", get_user)
-        .authenticated_post(
+        .get("/api/me", get_user)
+        .authenticated()
+        .post(
             "/api/auth/password/reset-authenticated",
             reset_password_authenticated,
         )
-        .authenticated_post("/internal/{provider_name}/token", internal_provider_token)
-        .authenticated_delete("/internal/{provider_name}/revoke", revoke_provider_token)
-        .authenticated_get("/api/auth/{provider_name}/link", oauth_link_start)
-        .authenticated_get(
+        .authenticated()
+        .post("/internal/{provider_name}/token", internal_provider_token)
+        .authenticated()
+        .delete("/internal/{provider_name}/revoke", revoke_provider_token)
+        .authenticated()
+        .get("/api/auth/{provider_name}/link", oauth_link_start)
+        .authenticated()
+        .get(
             "/api/auth/{provider_name}/relink-callback",
             relink_provider_callback,
         )
+        .authenticated()
         .build(config)
         .await
 }

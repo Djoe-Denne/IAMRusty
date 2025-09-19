@@ -670,16 +670,12 @@ async fn test_complete_registration_user_can_login_afterward() {
         .try_get("", "verification_token")
         .expect("Failed to get verification token");
 
-    // Verify email before attempting login
-    let verify_data = json!({
-        "email": "loginafter@example.com",
-        "verification_token": verification_token
-    });
-
     let verify_response = client
-        .post(&format!("{}/api/auth/verify", base_url))
-        .header("Content-Type", "application/json")
-        .json(&verify_data)
+        .get(&format!("{}/api/auth/verify", base_url))
+        .query(&[
+            ("email", "loginafter@example.com"),
+            ("token", &verification_token),
+        ])
         .send()
         .await
         .expect("Failed to send verify request");

@@ -10,6 +10,7 @@ license.workspace = true
 # Events abstraction
 rustycog-events = { path = "../../rustycog/rustycog-events" }
 rustycog-core = { path = "../../rustycog/rustycog-core" }
+rustycog-permission = { path = "../../rustycog/rustycog-permission" }
 iam-events = { path = "../../iam-events" }
 
 # Utility

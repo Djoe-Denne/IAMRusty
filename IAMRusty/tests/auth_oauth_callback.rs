@@ -949,7 +949,5 @@ async fn test_oauth_callback_case_insensitive_providers() {
             "registration_required".to_string()
         );
 
-        // Clean up for next iteration - truncate all tables
-        let _ = _fixture.cleanup().await;
     }
 }

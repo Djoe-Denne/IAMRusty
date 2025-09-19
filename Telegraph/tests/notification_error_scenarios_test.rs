@@ -124,7 +124,7 @@ async fn test_get_notifications_malformed_params() {
 /// Test invalid UUID formats in mark-as-read endpoint
 #[tokio::test]
 #[serial]
-async fn test_mark_notification_read_invalid_uuid_formats() {
+async fn test_mark_notification_read_invalid_rights() {
     let (_, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
@@ -132,35 +132,24 @@ async fn test_mark_notification_read_invalid_uuid_formats() {
     let user_id = Uuid::new_v4();
     let jwt_token = create_jwt_token(user_id);
 
-    let invalid_uuids = vec![
-        "not-a-uuid",
-        "123",
-        "123e4567-e89b-12d3-a456-42661417400", // Missing character
-        "123e4567-e89b-12d3-a456-4266141740000", // Too long
-        "123e4567-e89b-12d3-a456-42661417400g", // Invalid character
-        "",
-        "null",
-        "undefined",
-    ];
+    let invalid_right_uuid = Uuid::new_v4();
 
-    for invalid_uuid in invalid_uuids {
-        let response = client
-            .put(format!(
-                "{}/api/notifications/{}/read",
-                base_url, invalid_uuid
-            ))
-            .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
-            .send()
-            .await
-            .expect("Failed to send request");
+    let response = client
+        .put(format!(
+            "{}/api/notifications/{}/read",
+            base_url, invalid_right_uuid
+        ))
+        .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
+        .send()
+        .await
+        .expect("Failed to send request");
 
-        assert_eq!(
-            response.status(),
-            StatusCode::UNPROCESSABLE_ENTITY,
-            "Invalid UUID {} should return 422",
-            invalid_uuid
-        );
-    }
+    assert_eq!(
+        response.status(),
+        StatusCode::FORBIDDEN,
+        "Invalid right UUID {} should return 403",
+        invalid_right_uuid
+    );
 }
 
 /// Test JWT token validation edge cases

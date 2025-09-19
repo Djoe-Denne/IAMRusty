@@ -12,14 +12,14 @@ use tracing::info;
 
 /// Database notification event processor - creates notification records in database
 pub struct DatabaseNotificationProcessor {
-    notification_service: Arc<NotificationService>,
+    notification_service: Arc<dyn NotificationService>,
     communication_factory: Arc<CommunicationFactory>,
 }
 
 impl DatabaseNotificationProcessor {
     /// Create a new database notification event processor
     pub fn new(
-        notification_service: Arc<NotificationService>,
+        notification_service: Arc<dyn NotificationService>,
         communication_factory: Arc<CommunicationFactory>,
     ) -> Self {
         Self {

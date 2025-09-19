@@ -66,6 +66,10 @@ impl NotificationReadRepository for CombinedNotificationRepositoryImpl {
     async fn count_unread_notifications(&self, user_id: Uuid) -> Result<u64, DomainError> {
         self.read_repo.count_unread_notifications(user_id).await
     }
+
+    async fn user_has_notification(&self, user_id: Uuid, notification_id: Uuid) -> Result<bool, DomainError> {
+        self.read_repo.user_has_notification(user_id, notification_id).await
+    }
 }
 
 #[async_trait::async_trait]

@@ -51,8 +51,13 @@ impl ServiceTestDescriptor<TelegraphTestFixture> for TelegraphTestDescriptor {
         Ok(())
     }
 
-    async fn run_migrations(&self, connection: &sea_orm::DatabaseConnection) -> anyhow::Result<()> {
+    async fn run_migrations_up(&self, connection: &sea_orm::DatabaseConnection) -> anyhow::Result<()> {
         Migrator::up(connection, None).await?;
+        Ok(())
+    }
+
+    async fn run_migrations_down(&self, connection: &sea_orm::DatabaseConnection) -> anyhow::Result<()> {
+        Migrator::down(connection, None).await?;
         Ok(())
     }
 

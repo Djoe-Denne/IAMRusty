@@ -12,9 +12,9 @@ use telegraph_application::{
 };
 use telegraph_configuration::TelegraphConfig;
 use telegraph_domain::{
-    CommunicationFactory, EmailService, EventExtractor, EventProcessor, NotificationService,
-    TemplateService,
+    service::{NotificationServiceImpl, ResourcePermissionFetcher}, CommunicationFactory, EmailService, EventExtractor, EventProcessor, NotificationService, TemplateService
 };
+use rustycog_permission::PermissionsFetcher;
 use telegraph_http_server::create_app_routes;
 use telegraph_infra::{
     communication::EmailAdapter,
@@ -33,6 +33,7 @@ pub struct TelegraphApp {
     config: TelegraphConfig,
     state: AppState,
     event_consumer: Arc<EventConsumer>,
+    notification_permission_fetcher: Arc<dyn PermissionsFetcher>,
 }
 
 impl TelegraphApp {
@@ -88,8 +89,10 @@ impl TelegraphApp {
             Arc::new(notification_read_repo),
             Arc::new(notification_write_repo),
         );
-        let notification_service: Arc<NotificationService> =
-            Arc::new(NotificationService::new(Arc::new(notification_repo)));
+        let notification_service=
+            Arc::new(NotificationServiceImpl::new(Arc::new(notification_repo)));
+        let notification_permission_fetcher = Arc::new(ResourcePermissionFetcher::new(notification_service.clone(), vec!["notification".to_string()]));
+        
 
         // Create template service
         let template_service: Arc<dyn TemplateService> = Arc::new(
@@ -172,6 +175,7 @@ impl TelegraphApp {
             config,
             event_consumer: Arc::new(event_consumer),
             state,
+            notification_permission_fetcher,
         })
     }
 
@@ -195,8 +199,9 @@ impl TelegraphApp {
         let server_handle = {
             let state = self.state.clone();
             let config = config.clone();
+            let notification_permission_fetcher = self.notification_permission_fetcher.clone();
             tokio::spawn(async move {
-                if let Err(e) = create_app_routes(state, config).await {
+                if let Err(e) = create_app_routes(state, config, notification_permission_fetcher).await {
                     error!("HTTP server failed: {}", e);
                     return Err(e);
                 }

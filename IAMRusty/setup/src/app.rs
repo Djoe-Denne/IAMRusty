@@ -52,6 +52,16 @@ use iam_application::{
 
 use crate::config::ServerConfig;
 
+pub struct IAMRustyApp {
+    app_state: AppState,
+}
+
+impl IAMRustyApp {
+    pub fn new(app_state: AppState) -> Self {
+        Self { app_state }
+    }
+}
+
 pub async fn build_and_run(
     config: AppConfig,
     server_config: ServerConfig,
@@ -64,7 +74,7 @@ pub async fn build_and_run(
 pub async fn build_app_state(
     config: AppConfig,
     maybe_event_publisher: Option<Arc<MultiQueueEventPublisher<DomainError>>>,
-) -> Result<AppState> {
+) -> Result<IAMRustyApp> {
     let event_publisher: Arc<MultiQueueEventPublisher<DomainError>>;
     if maybe_event_publisher.is_some() {
         event_publisher = maybe_event_publisher.unwrap();
@@ -110,7 +120,7 @@ async fn create_event_publisher_from_config(
 pub async fn build_app_state_with_event_publisher<EP>(
     config: AppConfig,
     event_publisher: Arc<EP>,
-) -> Result<AppState>
+) -> Result<IAMRustyApp>
 where
     EP: EventPublisher<DomainError> + Send + Sync + 'static,
 {
@@ -235,7 +245,7 @@ where
         token_repo_login,
         user_email_repo.clone(),
         iam_domain::service::TokenService::new(
-            Box::new(token_service.as_ref().clone()),
+            token_service.clone(),
             chrono::Duration::hours(1),
         ),
     );
@@ -275,6 +285,7 @@ where
         Arc::new(user_email_repo.clone()),
         token_service.clone(),
     ));
+
 
     let refresh_token_service = Arc::new(iam_domain::service::RefreshTokenServiceImpl::new(
         Arc::new(refresh_token_repo.clone()),
@@ -325,31 +336,6 @@ where
         password_reset_service_adapter,
     ));
 
-    // Create provider usecase
-    // For provider usecase, we only need the get_provider_token method from AuthService
-    // which doesn't use the TokenService, so we can create a minimal one
-    #[derive(Debug, Clone)]
-    struct MinimalJwtTokenEncoder;
-
-    impl iam_domain::port::service::JwtTokenEncoder for MinimalJwtTokenEncoder {
-        fn encode(
-            &self,
-            _claims: &iam_domain::entity::token::TokenClaims,
-        ) -> Result<String, iam_domain::error::DomainError> {
-            Ok("dummy_token".to_string())
-        }
-        fn decode(
-            &self,
-            _token: &str,
-        ) -> Result<iam_domain::entity::token::TokenClaims, iam_domain::error::DomainError>
-        {
-            Err(iam_domain::error::DomainError::InvalidToken)
-        }
-        fn jwks(&self) -> iam_domain::entity::token::JwkSet {
-            iam_domain::entity::token::JwkSet { keys: vec![] }
-        }
-    }
-
     // Create separate token repository for provider auth service
     let token_read_repo_provider = TokenReadRepositoryImpl::new(db_pool.get_read_connection());
     let token_write_repo_provider = TokenWriteRepositoryImpl::new(db_pool.get_write_connection());
@@ -361,7 +347,7 @@ where
         token_repo_provider,
         user_email_repo.clone(),
         iam_domain::service::token_service::TokenService::new(
-            Box::new(MinimalJwtTokenEncoder),
+            token_service.clone(),
             Duration::hours(1),
         ),
     );
@@ -377,7 +363,7 @@ where
     let refresh_token_service_for_commands =
         Arc::new(iam_domain::service::RefreshTokenServiceImpl::new(
             Arc::new(refresh_token_repo),
-            token_service,
+            token_service.clone(),
         ));
 
     let user_usecase_for_commands = UserUseCaseImpl::new(user_service_for_commands);
@@ -403,10 +389,10 @@ where
     // Create app state
     let app_state = AppState::new(command_service, user_id_extractor);
 
-    Ok(app_state)
+    Ok(IAMRustyApp { app_state })
 }
 
-pub async fn run_server(app_state: AppState, app_config: ServerConfig) -> Result<()> {
+pub async fn run_server(app: IAMRustyApp, app_config: ServerConfig) -> Result<()> {
     info!("Starting IAM service...");
 
     // Convert our ServerConfig to HttpServerConfig
@@ -432,7 +418,8 @@ pub async fn run_server(app_state: AppState, app_config: ServerConfig) -> Result
         );
     }
 
-    create_app_routes(app_state, server_config).await?;
+    create_app_routes(app.app_state, server_config).await?;
 
     Ok(())
 }
+

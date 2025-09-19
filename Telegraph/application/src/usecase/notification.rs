@@ -93,11 +93,11 @@ pub trait NotificationUseCaseTrait: Send + Sync {
 
 /// Implementation of notification usecases
 pub struct NotificationUseCaseImpl {
-    notification_service: Arc<NotificationService>,
+    notification_service: Arc<dyn NotificationService>,
 }
 
 impl NotificationUseCaseImpl {
-    pub fn new(notification_service: Arc<NotificationService>) -> Self {
+    pub fn new(notification_service: Arc<dyn NotificationService>) -> Self {
         Self {
             notification_service,
         }
