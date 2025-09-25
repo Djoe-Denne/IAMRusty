@@ -4,9 +4,11 @@ use rustycog_config::ServerConfig;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_http::catch_panic::CatchPanicLayer;
+use tower_http::propagate_header::PropagateHeaderLayer;
 
 use crate::{
     handle_panic, health_check, jwt_handler::UserIdExtractor, middleware_auth::{auth_middleware, optional_auth_middleware},
+    tracing_middleware::{tracing_middleware, X_CORRELATION_ID},
 };
 use rustycog_permission::{Permission, PermissionsFetcher};
 use crate::middleware_permission::{PermissionGuard, permission_middleware};
@@ -165,6 +167,8 @@ impl RouteBuilder {
         let app = self
             .router
             .layer(CatchPanicLayer::custom(handle_panic))
+            .layer(PropagateHeaderLayer::new(X_CORRELATION_ID.parse().unwrap()))
+            .layer(middleware::from_fn(tracing_middleware))
             .with_state(self.state);
 
         if config.tls_enabled {
