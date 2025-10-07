@@ -6,14 +6,16 @@
 // Re-export core configuration from rustycog-config
 pub use rustycog_config::{
     clear_all_caches, generate_default_config_toml, load_config_fresh, load_config_part,
-    load_config_with_cache, setup_logging, CommandConfig, CommandRetryConfig, ConfigError,
+    load_config_with_cache, CommandConfig, CommandRetryConfig, ConfigError,
     DatabaseConfig, DatabaseCredentials, KafkaConfig, LoggingConfig, QueueConfig, ServerConfig,
-    SqsConfig,
+    SqsConfig, ScalewayConfig,
 };
 
 use rustycog_config::{
-    ConfigCache, ConfigLoader, HasDbConfig, HasLoggingConfig, HasQueueConfig, HasServerConfig,
+    ConfigCache, ConfigLoader, HasDbConfig, HasLoggingConfig, HasQueueConfig, HasServerConfig, HasScalewayConfig,
 };
+
+pub use rustycog_logger::{setup_logging};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -310,6 +312,8 @@ pub struct AppConfig {
     pub jwt: JwtConfig,
     /// Logging configuration
     pub logging: LoggingConfig,
+    /// Scaleway configuration
+    pub scaleway: ScalewayConfig,
     /// Command configuration
     pub command: CommandConfig,
     /// Queue configuration (Kafka, SQS, or Disabled)
@@ -446,6 +450,7 @@ impl ConfigLoader<AppConfig> for AppConfig {
                 refresh_token_expiration_seconds: default_refresh_token_expiration(),
             },
             logging: LoggingConfig::default(),
+            scaleway: ScalewayConfig::default(),
             command: CommandConfig::default(),
             queue: QueueConfig::default(),
             kafka: KafkaConfig::default(),
@@ -494,6 +499,16 @@ impl HasLoggingConfig for AppConfig {
 
     fn set_logging_config(&mut self, config: LoggingConfig) {
         self.logging = config;
+    }
+}
+
+impl HasScalewayConfig for AppConfig {
+    fn scaleway_config(&self) -> &ScalewayConfig {
+        &self.scaleway
+    }
+
+    fn set_scaleway_config(&mut self, config: ScalewayConfig) {
+        self.scaleway = config;
     }
 }
 

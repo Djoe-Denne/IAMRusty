@@ -9,6 +9,7 @@ license.workspace = true
 [dependencies]
 # Configuration management
 rustycog-config = { path = "../../rustycog/rustycog-config" }
+rustycog-logger = { path = "../../rustycog/rustycog-logger" }
 
 # Serialization
 serde = { workspace = true }

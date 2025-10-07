@@ -1,8 +1,10 @@
-use rustycog_config::{HasQueueConfig, HasDbConfig, HasLoggingConfig, HasServerConfig};
+use rustycog_config::{HasQueueConfig, HasDbConfig, HasLoggingConfig, HasServerConfig, HasScalewayConfig};
 use serde::{Deserialize, Serialize};
 
 
-pub use rustycog_config::{CommandConfig, DatabaseConfig, LoggingConfig, QueueConfig, ServerConfig, setup_logging, load_config_fresh, ConfigError, ConfigLoader};
+pub use rustycog_config::{CommandConfig, DatabaseConfig, LoggingConfig, QueueConfig, ServerConfig, load_config_fresh, ConfigError, ConfigLoader, ScalewayConfig};
+
+pub use rustycog_logger::{setup_logging};
 
 /// IAM service configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -35,6 +37,8 @@ pub struct AppConfig {
     pub external_provider_service: ExternalProviderServiceConfig,
     /// Logging configuration
     pub logging: LoggingConfig,
+    /// Scaleway configuration
+    pub scaleway: ScalewayConfig,
     /// Command configuration
     pub command: CommandConfig,
     /// Queue configuration (Kafka, SQS, or Disabled)
@@ -74,6 +78,7 @@ impl Default for AppConfig {
             iam_service: IamServiceConfig::default(),
             external_provider_service: ExternalProviderServiceConfig::default(),
             logging: LoggingConfig::default(),
+            scaleway: ScalewayConfig::default(),
             command: CommandConfig::default(),
             queue: QueueConfig::default(),
         }
@@ -131,6 +136,16 @@ impl HasQueueConfig for AppConfig {
 
     fn set_queue_config(&mut self, config: QueueConfig) {
         self.queue = config;
+    }
+}
+
+impl HasScalewayConfig for AppConfig {
+    fn scaleway_config(&self) -> &ScalewayConfig {
+        &self.scaleway
+    }
+
+    fn set_scaleway_config(&mut self, config: ScalewayConfig) {
+        self.scaleway = config;
     }
 }
 

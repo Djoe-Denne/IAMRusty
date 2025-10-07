@@ -8,7 +8,7 @@ async fn main() -> anyhow::Result<()> {
     let config = load_config()?;
 
     // Initialize logging
-    config::setup_logging(&config.logging.level);
+    config::setup_logging(&config);
     info!(
         "Configuration loaded with log level: {}",
         config.logging.level

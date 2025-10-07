@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 # Core configuration from rustycog
 rustycog-config = { path = "../../rustycog/rustycog-config" }
+rustycog-logger = { path = "../../rustycog/rustycog-logger"}
 
 # Serialization
 serde = { version = "1.0.197", features = ["derive"] }

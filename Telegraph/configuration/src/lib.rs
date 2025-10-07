@@ -8,11 +8,13 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use rustycog_config::{
-    load_config_fresh, ConfigError, ConfigLoader, DatabaseConfig, HasDbConfig, HasLoggingConfig,
+    load_config_fresh, ConfigError, ConfigLoader, DatabaseConfig, ScalewayConfig, HasDbConfig, HasLoggingConfig, HasScalewayConfig,
     HasQueueConfig, HasServerConfig, LoggingConfig, QueueConfig,
 };
 
-pub use rustycog_config::{setup_logging, ServerConfig};
+pub use rustycog_config::{ServerConfig};
+
+pub use rustycog_logger::{setup_logging};
 
 /// Main Telegraph service configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -24,6 +26,10 @@ pub struct TelegraphConfig {
     /// Logging configuration
     #[serde(default)]
     pub logging: LoggingConfig,
+
+    /// Scaleway configuration
+    #[serde(default)]
+    pub scaleway: ScalewayConfig,
 
     /// Queue configuration (SQS, Kafka, etc.)
     #[serde(default)]
@@ -217,6 +223,7 @@ impl Default for TelegraphConfig {
         Self {
             server: ServerConfig::default(),
             logging: LoggingConfig::default(),
+            scaleway: ScalewayConfig::default(),
             queue: QueueConfig::default(),
             queues: IndexMap::new(),
             communication: CommunicationConfig::default(),
@@ -334,6 +341,16 @@ impl HasLoggingConfig for TelegraphConfig {
 
     fn set_logging_config(&mut self, config: LoggingConfig) {
         self.logging = config;
+    }
+}
+
+impl HasScalewayConfig for TelegraphConfig {
+    fn scaleway_config(&self) -> &ScalewayConfig {
+        &self.scaleway
+    }
+
+    fn set_scaleway_config(&mut self, config: ScalewayConfig) {
+        self.scaleway = config;
     }
 }
 

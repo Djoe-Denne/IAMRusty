@@ -12,6 +12,7 @@ rustycog-http = { path = "../rustycog-http" }
 rustycog-db = { path = "../rustycog-db" }
 rustycog-config = { path = "../rustycog-config" }
 rustycog-events = { path = "../rustycog-events" }
+rustycog-logger = { path = "../rustycog-logger" }
 testcontainers.workspace = true
 testcontainers-modules.workspace = true
 axum-test.workspace = true

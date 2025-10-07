@@ -6,6 +6,7 @@ pub trait ServiceTestDescriptor<T>: Send + Sync + 'static {
         + rustycog_config::HasServerConfig
         + rustycog_config::HasLoggingConfig
         + rustycog_config::HasDbConfig
+        + rustycog_logger::ServiceLoggerConfig
         + Send
         + Sync
         + 'static;

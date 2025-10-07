@@ -7,11 +7,11 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use rustycog_config::{
-    ConfigLoader, HasServerConfig, HasLoggingConfig, HasQueueConfig, HasDbConfig, DatabaseConfig,
+    ConfigLoader, HasServerConfig, HasLoggingConfig, HasQueueConfig, HasDbConfig, HasScalewayConfig, DatabaseConfig,
     LoggingConfig, QueueConfig, ConfigError, load_config_fresh, ServerConfig,
 };
 
-pub use rustycog_config::{setup_logging};
+pub use rustycog_logger::{setup_logging};
 
 /// Main {{SERVICE_NAME}} service configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -31,6 +31,10 @@ pub struct {{SERVICE_NAME_PASCAL}}Config {
     /// Database configuration
     #[serde(default)]
     pub database: DatabaseConfig,
+    
+    /// Scaleway configuration
+    #[serde(default)]
+    pub scaleway: ScalewayConfig,
     
     /// Service-specific configuration
     #[serde(default)]
@@ -289,6 +293,16 @@ impl HasLoggingConfig for {{SERVICE_NAME_PASCAL}}Config {
     
     fn set_logging_config(&mut self, config: LoggingConfig) {
         self.logging = config;
+    }
+}
+
+impl HasScalewayConfig for {{SERVICE_NAME_PASCAL}}Config {
+    fn scaleway_config(&self) -> &ScalewayConfig {
+        &self.scaleway
+    }
+
+    fn set_scaleway_config(&mut self, config: ScalewayConfig) {
+        self.scaleway = config;
     }
 }
 

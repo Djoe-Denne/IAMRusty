@@ -1,7 +1,8 @@
 use crate::common::ServiceTestDescriptor;
 use rustycog_config::{
-    load_config_fresh, setup_logging, HasLoggingConfig, HasServerConfig, ServerConfig,
+    load_config_fresh, HasLoggingConfig, HasServerConfig, ServerConfig,
 };
+use rustycog_logger::{setup_logging};
 use std::sync::Arc;
 use tracing::debug;
 
@@ -25,7 +26,7 @@ where
 
     // Initialize logging for the test server
     if config.logging_config().level != "" {
-        setup_logging(&config.logging_config().level);
+        setup_logging(&config);
     }
 
     debug!("🚀 Starting test server with configuration:");
