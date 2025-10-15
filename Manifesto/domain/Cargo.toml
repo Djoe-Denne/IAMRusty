@@ -1,0 +1,21 @@
+[package]
+name = "manifesto-domain"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Manifesto domain models and business logic"
+license.workspace = true
+
+[dependencies]
+# Utilities
+serde = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+
+# Async trait support
+async-trait = { workspace = true }
+
+

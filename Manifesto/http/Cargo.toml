@@ -1,0 +1,34 @@
+[package]
+name = "manifesto-http_server"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Manifesto HTTP server and REST API"
+license.workspace = true
+
+[dependencies]
+# Internal dependencies
+manifesto-domain = { path = "../domain" }
+manifesto-application = { path = "../application" }
+manifesto-infra = { path = "../infra" }
+
+# Web framework
+axum = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+
+# Utilities
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+
+# Async
+tokio = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+

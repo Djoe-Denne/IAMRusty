@@ -1,0 +1,30 @@
+[package]
+name = "manifesto-migration"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Manifesto database migrations"
+license.workspace = true
+
+[[bin]]
+name = "manifestomigration"
+path = "src/main.rs"
+
+[dependencies]
+# Database migration
+sea-orm-migration = { workspace = true }
+sea-orm = { workspace = true }
+
+# Async runtime
+tokio = { workspace = true }
+
+# Error handling
+anyhow = { workspace = true }
+
+# Configuration
+manifesto-configuration = { path = "../configuration" }
+
+[dev-dependencies]
+tokio = { workspace = true }
+
+

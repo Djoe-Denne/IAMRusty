@@ -1,0 +1,36 @@
+[package]
+name = "manifesto-infra"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Manifesto infrastructure layer"
+license.workspace = true
+
+[features]
+test-utils = []
+
+[dependencies]
+# Internal dependencies
+manifesto-domain = { path = "../domain" }
+manifesto-application = { path = "../application" }
+
+# Database
+sea-orm = { workspace = true }
+
+# Utilities
+serde = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+
+# Async
+async-trait = { workspace = true }
+tokio = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+

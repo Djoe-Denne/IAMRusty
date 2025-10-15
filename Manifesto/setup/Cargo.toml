@@ -1,0 +1,42 @@
+[package]
+name = "manifesto-setup"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Manifesto service setup and initialization"
+license.workspace = true
+
+[dependencies]
+# Internal dependencies
+manifesto-domain = { path = "../domain" }
+manifesto-application = { path = "../application" }
+manifesto-infra = { path = "../infra" }
+manifesto-http_server = { path = "../http" }
+manifesto-configuration = { path = "../configuration" }
+
+# Shared crates
+rustycog-server = { path = "../../rustycog/rustycog-server" }
+
+# Database
+sea-orm = { workspace = true }
+
+# Web framework
+axum = { workspace = true }
+tower = { workspace = true }
+hyper = { workspace = true }
+
+# Async runtime
+tokio = { workspace = true }
+
+# Utilities
+serde = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+

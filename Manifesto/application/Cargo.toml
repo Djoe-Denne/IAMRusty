@@ -1,0 +1,29 @@
+[package]
+name = "manifesto-application"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Manifesto application layer - use cases and services"
+license.workspace = true
+
+[dependencies]
+# Internal dependencies
+manifesto-domain = { path = "../domain" }
+
+# Utilities
+serde = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+
+# Async
+async-trait = { workspace = true }
+tokio = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+

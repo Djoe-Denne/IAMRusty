@@ -1,0 +1,28 @@
+# Manifesto Service - Test Configuration
+
+[server]
+host = "127.0.0.1"
+port = 8080
+tls_enabled = false
+
+[database]
+host = "localhost"
+port = 0
+db = "test-db"
+[database.creds]
+username = "postgres"
+password = "postgres"
+read_replicas = []
+
+
+[command]
+[command.retry]
+max_attempts = 0
+base_delay_ms = 50
+max_delay_ms = 5000
+backoff_multiplier = 2.0
+use_jitter = false
+
+[logging]
+level = "debug"
+

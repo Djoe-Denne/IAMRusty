@@ -1,0 +1,867 @@
+openapi: 3.0.3
+info:
+  title: Project Management API
+  description: |
+    API for managing collaborative projects with customizable components.
+    
+    ## Overview
+    The Project Service enables users to create and manage projects with pluggable components.
+    Projects can be personal or organization-owned, with multi-step creation workflows and
+    flexible member management.
+    
+    ## Project Types
+    - **Personal Projects**: Owned by individual users
+    - **Organization Projects**: Owned by organizations
+    
+    ## Component System
+    Projects can include various components (TaskBoard, Custom Forms, Analytics, etc.).
+    Component configuration and data operations are performed directly on component services.
+    
+    ## Authentication
+    All endpoints require Bearer token authentication unless otherwise specified.
+    
+  version: 1.0.0
+
+paths:
+  # =============================================================================
+  # Projects
+  # =============================================================================
+  /api/projects:
+    get:
+      summary: List projects
+      description: Get projects the authenticated user has access to
+      tags: [Projects]
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - name: owner_type
+          in: query
+          description: Filter by project owner type
+          schema:
+            type: string
+            enum: [personal, organization]
+        - name: owner_id
+          in: query
+          description: Filter by owner ID (user or organization)
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          description: Filter by project status
+          schema:
+            type: string
+            enum: [draft, active, archived, suspended]
+        - name: search
+          in: query
+          description: Search projects by name or description
+          schema:
+            type: string
+            maxLength: 100
+      responses:
+        200:
+          description: List of projects
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Project'
+                  pagination:
+                    $ref: '#/components/schemas/PaginationResponse'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        429:
+          $ref: '#/components/responses/RateLimited'
+
+    post:
+      summary: Create project
+      description: Create a new project (returns draft status)
+      tags: [Projects]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProjectRequest'
+      responses:
+        201:
+          description: Project created successfully (draft)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+
+  /api/projects/{projectId}:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    
+    get:
+      summary: Get project
+      description: Get project details including component status
+      tags: [Projects]
+      responses:
+        200:
+          description: Project details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectDetail'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      summary: Update project
+      description: Update project metadata (name, description, settings)
+      tags: [Projects]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProjectRequest'
+      responses:
+        200:
+          description: Project updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      summary: Delete project
+      description: Delete project (requires owner role)
+      tags: [Projects]
+      responses:
+        204:
+          description: Project deleted successfully
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+  /api/projects/{projectId}/publish:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    
+    post:
+      summary: Publish project
+      description: |
+        Publish project from draft to active status. 
+        Validates all required configuration steps are complete.
+      tags: [Projects]
+      responses:
+        200:
+          description: Project published successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        400:
+          description: Project not ready for publication (validation errors)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+  /api/projects/{projectId}/archive:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    
+    post:
+      summary: Archive project
+      description: Archive project (requires admin role)
+      tags: [Projects]
+      responses:
+        200:
+          description: Project archived successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+  # =============================================================================
+  # Project Components
+  # =============================================================================
+  /api/projects/{projectId}/components:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    
+    get:
+      summary: List project components
+      description: Get all components enabled for this project with their endpoints
+      tags: [Components]
+      responses:
+        200:
+          description: List of project components with access information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ProjectComponent'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+    post:
+      summary: Add component to project
+      description: Add a new component to project (status will be 'pending')
+      tags: [Components]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddComponentRequest'
+      responses:
+        201:
+          description: Component added successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectComponent'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+        409:
+          description: Component already added to project
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/projects/{projectId}/components/{componentType}:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+      - $ref: '#/components/parameters/ComponentType'
+    
+    get:
+      summary: Get component details
+      description: Get specific component status and endpoint for this project
+      tags: [Components]
+      responses:
+        200:
+          description: Component details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectComponent'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      summary: Update component status
+      description: |
+        Update component status (pending → configured → active → disabled).
+        Status transitions are validated by the service.
+      tags: [Components]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateComponentRequest'
+      responses:
+        200:
+          description: Component status updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectComponent'
+        400:
+          description: Invalid status transition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      summary: Remove component from project
+      description: |
+        Remove component from project completely. 
+        This will delete all component data for this project.
+      tags: [Components]
+      responses:
+        204:
+          description: Component removed successfully
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+  # =============================================================================
+  # Project Members
+  # =============================================================================
+  /api/projects/{projectId}/members:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    
+    get:
+      summary: List project members
+      description: Get all members of the project
+      tags: [Members]
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - name: role
+          in: query
+          description: Filter by role
+          schema:
+            type: string
+            enum: [owner, admin, write, read]
+        - name: source
+          in: query
+          description: Filter by membership source
+          schema:
+            type: string
+            enum: [direct, org_cascade, invitation, third_party_sync]
+      responses:
+        200:
+          description: List of project members
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ProjectMember'
+                  pagination:
+                    $ref: '#/components/schemas/PaginationResponse'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+    post:
+      summary: Add member to project
+      description: Add a member directly to the project
+      tags: [Members]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddMemberRequest'
+      responses:
+        201:
+          description: Member added successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectMember'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+        409:
+          description: User already member of project
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/projects/{projectId}/members/{userId}:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+      - $ref: '#/components/parameters/UserId'
+    
+    get:
+      summary: Get project member
+      description: Get details of specific project member
+      tags: [Members]
+      responses:
+        200:
+          description: Member details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectMember'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      summary: Update project member
+      description: Update member role (requires admin role)
+      tags: [Members]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMemberRequest'
+      responses:
+        200:
+          description: Member updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectMember'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      summary: Remove project member
+      description: Remove member from project (requires admin role)
+      tags: [Members]
+      responses:
+        204:
+          description: Member removed successfully
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+# =============================================================================
+# Components
+# =============================================================================
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    ProjectId:
+      name: projectId
+      in: path
+      required: true
+      description: Project ID
+      schema:
+        type: string
+        format: uuid
+    
+    UserId:
+      name: userId
+      in: path
+      required: true
+      description: User ID
+      schema:
+        type: string
+        format: uuid
+    
+    ComponentType:
+      name: componentType
+      in: path
+      required: true
+      description: Component type identifier
+      schema:
+        type: string
+        example: taskboard
+    
+    Cursor:
+      name: cursor
+      in: query
+      description: Pagination cursor
+      schema:
+        type: string
+    
+    Limit:
+      name: limit
+      in: query
+      description: Number of items per page (max 100)
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+
+  schemas:
+    # =============================================================================
+    # Core Entities
+    # =============================================================================
+    Project:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [draft, active, archived, suspended]
+        owner_type:
+          type: string
+          enum: [personal, organization]
+        owner_id:
+          type: string
+          format: uuid
+          description: User ID or Organization ID depending on owner_type
+        created_by:
+          type: string
+          format: uuid
+          description: User who created the project
+        visibility:
+          type: string
+          enum: [private, internal, public]
+        external_collaboration_enabled:
+          type: boolean
+        data_classification:
+          type: string
+          enum: [public, internal, confidential, restricted]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        published_at:
+          type: string
+          format: date-time
+          nullable: true
+      required: [id, name, status, owner_type, owner_id, created_by, visibility, created_at, updated_at]
+
+    ProjectDetail:
+      allOf:
+        - $ref: '#/components/schemas/Project'
+        - type: object
+          properties:
+            components:
+              type: array
+              items:
+                $ref: '#/components/schemas/ProjectComponent'
+            member_count:
+              type: integer
+              description: Total number of project members
+
+    ProjectComponent:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        component_type:
+          type: string
+          example: taskboard
+        status:
+          type: string
+          enum: [pending, configured, active, disabled]
+        endpoint:
+          type: string
+          format: uri
+          description: Direct endpoint to component service
+          example: https://taskboard-v1.components.svc/api/v1
+        access_token:
+          type: string
+          description: Component-scoped JWT for direct access
+          nullable: true
+        added_at:
+          type: string
+          format: date-time
+        configured_at:
+          type: string
+          format: date-time
+          nullable: true
+        activated_at:
+          type: string
+          format: date-time
+          nullable: true
+        disabled_at:
+          type: string
+          format: date-time
+          nullable: true
+      required: [id, component_type, status, endpoint, added_at]
+
+    ProjectMember:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        role:
+          type: string
+          enum: [owner, admin, write, read]
+        source:
+          type: string
+          enum: [direct, org_cascade, invitation, third_party_sync]
+          description: How the user became a member
+        added_by:
+          type: string
+          format: uuid
+          nullable: true
+        added_at:
+          type: string
+          format: date-time
+        removed_at:
+          type: string
+          format: date-time
+          nullable: true
+        removal_reason:
+          type: string
+          nullable: true
+        grace_period_ends_at:
+          type: string
+          format: date-time
+          nullable: true
+        last_access_at:
+          type: string
+          format: date-time
+          nullable: true
+      required: [id, user_id, role, source, added_at]
+
+    # =============================================================================
+    # Request/Response Objects
+    # =============================================================================
+    CreateProjectRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 1000
+          nullable: true
+        owner_type:
+          type: string
+          enum: [personal, organization]
+        owner_id:
+          type: string
+          format: uuid
+          description: Required for organization projects, omit for personal
+        visibility:
+          type: string
+          enum: [private, internal, public]
+          default: private
+        external_collaboration_enabled:
+          type: boolean
+          default: false
+        data_classification:
+          type: string
+          enum: [public, internal, confidential, restricted]
+          default: internal
+      required: [name, owner_type]
+
+    UpdateProjectRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 1000
+          nullable: true
+        visibility:
+          type: string
+          enum: [private, internal, public]
+        external_collaboration_enabled:
+          type: boolean
+        data_classification:
+          type: string
+          enum: [public, internal, confidential, restricted]
+
+    AddComponentRequest:
+      type: object
+      properties:
+        component_type:
+          type: string
+          example: taskboard
+      required: [component_type]
+
+    UpdateComponentRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pending, configured, active, disabled]
+      required: [status]
+
+    AddMemberRequest:
+      type: object
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        role:
+          type: string
+          enum: [owner, admin, write, read]
+      required: [user_id, role]
+
+    UpdateMemberRequest:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [owner, admin, write, read]
+      required: [role]
+
+    # =============================================================================
+    # Common Objects
+    # =============================================================================
+    PaginationResponse:
+      type: object
+      properties:
+        next_cursor:
+          type: string
+          nullable: true
+        has_more:
+          type: boolean
+        total_count:
+          type: integer
+          nullable: true
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+      required: [error]
+
+    ValidationErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        validation_errors:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+        timestamp:
+          type: string
+          format: date-time
+      required: [error, validation_errors]
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    Forbidden:
+      description: Access forbidden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    RateLimited:
+      description: Rate limit exceeded
+      headers:
+        Retry-After:
+          description: Seconds to wait before retrying
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+tags:
+  - name: Projects
+    description: Project management operations
+  - name: Components
+    description: Project component management
+  - name: Members
+    description: Project member management
