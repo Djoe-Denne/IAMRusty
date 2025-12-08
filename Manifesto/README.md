@@ -2,12 +2,19 @@
 
 The Manifesto Service manages projects and their components. Projects are assemblies of elementary bricks (components), where each component's behavior is handled by dedicated external services.
 
+## 📊 Implementation Status
+
+**Current Status:** ~95% Complete - Production-Ready MVP
+
+For detailed implementation status, architecture decisions, and progress tracking, see:
+- **[IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md)** - Complete implementation status and roadmap
+
 ## Overview
 
 Manifesto provides CRUD operations for project entities and manages:
 - **Projects**: Core project entities with ownership, status, and visibility controls
 - **Project Components**: Modular components that can be attached to projects
-- **Project Members**: User membership and access control for projects
+- **Project Members**: User membership with resource-based permission control
 
 ## Database Schema
 
@@ -115,20 +122,24 @@ draft → active → archived
 pending → configured → active → disabled
 ```
 
-## Development Status
+## Key Features
 
-✅ **Completed:**
-- Database migrations for all three tables
-- Configuration structure
-- Basic Rust project setup
+✅ **Fully Implemented:**
+- Complete project lifecycle management (create, update, publish, archive, delete)
+- Modular component system with dynamic resource management
+- Resource-based permission system with granular access control
+- Clean architecture with proper layer separation
+- 20 REST API endpoints with JWT authentication
+- Database migrations (8 tables) with permission system
+- Event infrastructure ready for cross-service integration
 
-🚧 **To Be Implemented:**
-- Domain models
-- Application layer (use cases)
-- Infrastructure layer (repositories)
-- HTTP API endpoints
-- Event publishing
-- Tests
+📖 **Documentation:**
+- **[IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md)** - Complete implementation status, TODOs, and roadmap (START HERE)
+- **[SETUP.md](SETUP.md)** - Database setup, configuration, and troubleshooting
+- **[IMPLEMENTATION_TEMPLATES.md](IMPLEMENTATION_TEMPLATES.md)** - Code pattern reference examples
+- **[openspecs.yaml](openspecs.yaml)** - OpenAPI specification
+- **[/docs/project/Archi.md](/docs/project/Archi.md)** - Overall system architecture (components, impersonation, cascading)
+- **[archive/](archive/)** - Historical progress documentation (superseded)
 
 ## License
 

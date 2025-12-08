@@ -109,6 +109,7 @@ impl UserIdExtractor {
             code: "invalid_token".to_string(),
             message: "Invalid user ID format".to_string(),
         })
+        
     }
 }
 

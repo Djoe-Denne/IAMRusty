@@ -362,9 +362,9 @@ paths:
       parameters:
         - $ref: '#/components/parameters/Cursor'
         - $ref: '#/components/parameters/Limit'
-        - name: role
+        - name: permission
           in: query
-          description: Filter by role
+          description: Filter by permission level on project resource
           schema:
             type: string
             enum: [owner, admin, write, read]
@@ -451,18 +451,18 @@ paths:
           $ref: '#/components/responses/NotFound'
 
     put:
-      summary: Update project member
-      description: Update member role (requires admin role)
+      summary: Update project member permissions
+      description: Update member permissions (requires admin permission on member resource)
       tags: [Members]
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateMemberRequest'
+              $ref: '#/components/schemas/UpdateMemberPermissionsRequest'
       responses:
         200:
-          description: Member updated successfully
+          description: Member permissions updated successfully
           content:
             application/json:
               schema:
@@ -478,11 +478,67 @@ paths:
 
     delete:
       summary: Remove project member
-      description: Remove member from project (requires admin role)
+      description: Remove member from project (requires admin permission on member resource)
       tags: [Members]
       responses:
         204:
           description: Member removed successfully
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+  /api/projects/{projectId}/members/{userId}/permissions:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+      - $ref: '#/components/parameters/UserId'
+    
+    post:
+      summary: Grant permission to member
+      description: Grant a specific resource permission to a member
+      tags: [Members]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GrantPermissionRequest'
+      responses:
+        200:
+          description: Permission granted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectMember'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+  /api/projects/{projectId}/members/{userId}/permissions/{resource}:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+      - $ref: '#/components/parameters/UserId'
+      - name: resource
+        in: path
+        required: true
+        description: Resource identifier (e.g., "project", "member", "taskboard")
+        schema:
+          type: string
+    
+    delete:
+      summary: Revoke permission from member
+      description: Revoke a specific resource permission from a member
+      tags: [Members]
+      responses:
+        204:
+          description: Permission revoked successfully
         401:
           $ref: '#/components/responses/Unauthorized'
         403:
@@ -655,9 +711,11 @@ components:
         user_id:
           type: string
           format: uuid
-        role:
-          type: string
-          enum: [owner, admin, write, read]
+        permissions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResourcePermission'
+          description: List of resource permissions granted to this member
         source:
           type: string
           enum: [direct, org_cascade, invitation, third_party_sync]
@@ -684,7 +742,20 @@ components:
           type: string
           format: date-time
           nullable: true
-      required: [id, user_id, role, source, added_at]
+      required: [id, user_id, permissions, source, added_at]
+
+    ResourcePermission:
+      type: object
+      properties:
+        resource:
+          type: string
+          description: Resource identifier (e.g., "project", "member", "taskboard")
+          example: "project"
+        permission:
+          type: string
+          enum: [read, write, admin, owner]
+          description: Permission level on the resource
+      required: [resource, permission]
 
     # =============================================================================
     # Request/Response Objects
@@ -760,18 +831,39 @@ components:
         user_id:
           type: string
           format: uuid
-        role:
+        resource:
           type: string
-          enum: [owner, admin, write, read]
-      required: [user_id, role]
+          description: Resource to grant permission on (defaults to "project")
+          default: "project"
+          example: "project"
+        permission:
+          type: string
+          enum: [read, write, admin, owner]
+          description: Permission level to grant
+      required: [user_id, permission]
 
-    UpdateMemberRequest:
+    UpdateMemberPermissionsRequest:
       type: object
       properties:
-        role:
+        permissions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResourcePermission'
+          description: List of resource permissions to set (replaces all existing permissions)
+      required: [permissions]
+
+    GrantPermissionRequest:
+      type: object
+      properties:
+        resource:
           type: string
-          enum: [owner, admin, write, read]
-      required: [role]
+          description: Resource to grant permission on
+          example: "taskboard"
+        permission:
+          type: string
+          enum: [read, write, admin, owner]
+          description: Permission level to grant
+      required: [resource, permission]
 
     # =============================================================================
     # Common Objects

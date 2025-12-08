@@ -143,6 +143,18 @@ impl RouteBuilder {
         self
     }
 
+    /// Add a PATCH route
+    pub fn patch<H, T>(mut self, path: &str, handler: H) -> Self
+    where
+        H: axum::handler::Handler<T, AppState>,
+        T: 'static,
+    {
+        self.push_current();
+        self.current_path = Some(path.to_string());
+        self.current_layer = Some(axum::routing::patch(handler));
+        self
+    }
+
     /// Add a health check endpoint
     pub fn health_check(mut self) -> Self {
         self.push_current();

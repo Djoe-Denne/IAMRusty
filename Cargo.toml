@@ -4,6 +4,7 @@ members = [
     # Core shared crates
     "iam-events",
     "hive-events",
+    "manifesto-events",
     
     # RustyCog framework crates
     "rustycog/rustycog-core",
@@ -20,7 +21,9 @@ members = [
     "IAMRusty",
     # Telegraph service crates
     "Telegraph",
-    "Hive"
+    "Hive",
+    # Manifesto service
+    "Manifesto",
 ]
 
 [workspace.package]

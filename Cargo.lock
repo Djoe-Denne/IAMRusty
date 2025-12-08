@@ -135,6 +135,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e16d2d3311acee920a9eb8d33b8cbc1787ce4a264e85f964c2404b969bdcd487"
 
 [[package]]
+name = "apparatus-events"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "rustycog-core",
+ "rustycog-events",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
 name = "arc-swap"
 version = "1.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3779,6 +3791,209 @@ name = "lru-slab"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "112b39cec0b298b6c1999fee3e31427f74f676e4cb9879ed1a121b43661a4154"
+
+[[package]]
+name = "manifesto-application"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "manifesto-domain",
+ "manifesto-events",
+ "rustycog-command",
+ "rustycog-core",
+ "rustycog-events",
+ "serde",
+ "thiserror 2.0.12",
+ "tokio",
+ "tracing",
+ "uuid",
+ "validator",
+]
+
+[[package]]
+name = "manifesto-configuration"
+version = "0.1.0"
+dependencies = [
+ "indexmap 2.10.0",
+ "rustycog-config",
+ "rustycog-logger",
+ "serde",
+ "thiserror 2.0.12",
+ "tokio",
+ "toml",
+ "tracing",
+]
+
+[[package]]
+name = "manifesto-domain"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "rustycog-core",
+ "rustycog-permission",
+ "serde",
+ "thiserror 2.0.12",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "manifesto-events"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "rustycog-core",
+ "rustycog-events",
+ "serde",
+ "serde_json",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
+name = "manifesto-http_server"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum 0.8.4",
+ "manifesto-application",
+ "manifesto-configuration",
+ "manifesto-domain",
+ "manifesto-infra",
+ "rustycog-command",
+ "rustycog-config",
+ "rustycog-http",
+ "rustycog-permission",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.12",
+ "tokio",
+ "tower 0.4.13",
+ "tower-http 0.5.2",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "manifesto-infra"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "apparatus-events",
+ "async-trait",
+ "chrono",
+ "manifesto-application",
+ "manifesto-domain",
+ "reqwest 0.12.22",
+ "rustycog-config",
+ "rustycog-core",
+ "rustycog-events",
+ "rustycog-permission",
+ "sea-orm",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.12",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "manifesto-migration"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "manifesto-configuration",
+ "sea-orm",
+ "sea-orm-migration",
+ "tokio",
+]
+
+[[package]]
+name = "manifesto-service"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "aws-config",
+ "aws-credential-types",
+ "aws-sdk-sqs",
+ "axum 0.8.4",
+ "axum-test 17.3.0",
+ "base64 0.22.1",
+ "chrono",
+ "config",
+ "ctor",
+ "ctrlc",
+ "dotenvy",
+ "futures",
+ "hyper 1.6.0",
+ "iam-events",
+ "libc",
+ "manifesto-application",
+ "manifesto-configuration",
+ "manifesto-domain",
+ "manifesto-events",
+ "manifesto-http_server",
+ "manifesto-infra",
+ "manifesto-migration",
+ "manifesto-setup",
+ "rand 0.8.5",
+ "reqwest 0.12.22",
+ "rustycog-config",
+ "rustycog-core",
+ "rustycog-events",
+ "rustycog-testing",
+ "sea-orm",
+ "sea-orm-migration",
+ "serde",
+ "serde_json",
+ "serial_test",
+ "testcontainers",
+ "testcontainers-modules",
+ "thiserror 2.0.12",
+ "tokio",
+ "tokio-test",
+ "tower 0.4.13",
+ "tower-http 0.5.2",
+ "tracing",
+ "tracing-subscriber",
+ "url",
+ "uuid",
+ "wiremock",
+]
+
+[[package]]
+name = "manifesto-setup"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum 0.8.4",
+ "hyper 1.6.0",
+ "manifesto-application",
+ "manifesto-configuration",
+ "manifesto-domain",
+ "manifesto-http_server",
+ "manifesto-infra",
+ "rustycog-command",
+ "rustycog-config",
+ "rustycog-core",
+ "rustycog-db",
+ "rustycog-events",
+ "rustycog-http",
+ "rustycog-permission",
+ "rustycog-server",
+ "sea-orm",
+ "serde",
+ "thiserror 2.0.12",
+ "tokio",
+ "tower 0.4.13",
+ "tracing",
+ "tracing-subscriber",
+]
 
 [[package]]
 name = "matchers"

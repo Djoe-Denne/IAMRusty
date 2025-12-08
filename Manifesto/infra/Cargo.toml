@@ -14,11 +14,24 @@ test-utils = []
 manifesto-domain = { path = "../domain" }
 manifesto-application = { path = "../application" }
 
+# Event crates
+apparatus-events = { path = "../../apparatus-events" }
+
+# Shared crates
+rustycog-core = { path = "../../rustycog/rustycog-core" }
+rustycog-config = { path = "../../rustycog/rustycog-config" }
+rustycog-events = { path = "../../rustycog/rustycog-events" }
+rustycog-permission = { path = "../../rustycog/rustycog-permission" }
+
 # Database
 sea-orm = { workspace = true }
 
+# HTTP client
+reqwest = { workspace = true }
+
 # Utilities
 serde = { workspace = true }
+serde_json = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
 
@@ -32,5 +45,4 @@ anyhow = { workspace = true }
 
 # Logging
 tracing = { workspace = true }
-
 

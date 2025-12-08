@@ -31,15 +31,6 @@ impl MigrationTrait for Migration {
                             .not_null(),
                     )
                     .col(
-                        ColumnDef::new(ProjectMembers::Role)
-                            .string_len(50)
-                            .not_null()
-                            .check(
-                                Expr::col(ProjectMembers::Role)
-                                    .is_in(["owner", "admin", "write", "read"])
-                            ),
-                    )
-                    .col(
                         ColumnDef::new(ProjectMembers::Source)
                             .string_len(50)
                             .not_null()
@@ -152,12 +143,11 @@ impl MigrationTrait for Migration {
 }
 
 #[derive(DeriveIden)]
-enum ProjectMembers {
+pub enum ProjectMembers {
     Table,
     Id,
     ProjectId,
     UserId,
-    Role,
     Source,
     AddedBy,
     AddedAt,

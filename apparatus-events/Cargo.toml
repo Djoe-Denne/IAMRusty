@@ -1,0 +1,23 @@
+[package]
+name = "apparatus-events"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Shared domain events for apparatus component services"
+license.workspace = true
+
+[dependencies]
+# Shared crates
+rustycog-events = { path = "../rustycog/rustycog-events" }
+rustycog-core = { path = "../rustycog/rustycog-core" }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Time handling
+chrono = { workspace = true }
+
+# UUID
+uuid = { workspace = true }
+

@@ -11,6 +11,13 @@ license.workspace = true
 manifesto-domain = { path = "../domain" }
 manifesto-application = { path = "../application" }
 manifesto-infra = { path = "../infra" }
+manifesto-configuration = { path = "../configuration" }
+
+# Shared crates
+rustycog-http = { path = "../../rustycog/rustycog-http" }
+rustycog-command = { path = "../../rustycog/rustycog-command" }
+rustycog-config = { path = "../../rustycog/rustycog-config" }
+rustycog-permission = { path = "../../rustycog/rustycog-permission" }
 
 # Web framework
 axum = { workspace = true }
@@ -21,6 +28,7 @@ tower-http = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 uuid = { workspace = true }
+anyhow = { workspace = true }
 
 # Async
 tokio = { workspace = true }
@@ -30,5 +38,6 @@ thiserror = { workspace = true }
 
 # Logging
 tracing = { workspace = true }
+
 
 

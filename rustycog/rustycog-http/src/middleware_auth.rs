@@ -114,6 +114,7 @@ pub async fn auth_middleware(
     let mut req = req;
     req.extensions_mut().insert(user_id);
 
+    debug!("User ID added to request extensions: {:?}", user_id);
     // Continue with the request
     Ok(next.run(req).await)
 }
@@ -149,6 +150,7 @@ pub async fn optional_auth_middleware(
                 // Add the user ID to the request extensions if successful
                 let mut req = req;
                 req.extensions_mut().insert(user_id);
+                debug!("User ID added to request extensions: {:?}", user_id);
                 return Ok(next.run(req).await);
             } else {
                 debug!("Optional user ID extraction failed, continuing without auth");

@@ -7,6 +7,10 @@ description = "Manifesto domain models and business logic"
 license.workspace = true
 
 [dependencies]
+# Shared crates
+rustycog-core = { path = "../../rustycog/rustycog-core" }
+rustycog-permission = { path = "../../rustycog/rustycog-permission" }
+
 # Utilities
 serde = { workspace = true }
 uuid = { workspace = true }
@@ -18,4 +22,6 @@ thiserror = { workspace = true }
 # Async trait support
 async-trait = { workspace = true }
 
+# Logging
+tracing = { workspace = true }
 

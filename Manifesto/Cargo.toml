@@ -23,6 +23,7 @@ manifesto-migration = { path = "migration" }
 
 # Shared crates
 iam-events = { path = "../iam-events" }
+manifesto-events = { path = "../manifesto-events" }
 rustycog-config = { path = "../rustycog/rustycog-config" }
 
 # Web & HTTP
@@ -75,9 +76,14 @@ base64 = { workspace = true }
 aws-sdk-sqs = { workspace = true }
 aws-config = { workspace = true }
 aws-credential-types = { workspace = true }
+sea-orm = { workspace = true }
 manifesto-infra = { path = "infra", features = ["test-utils"] }
+manifesto-migration = { path = "migration" }
+manifesto-configuration = { path = "configuration" }
+manifesto-setup = { path = "setup" }
 rustycog-events = { path = "../rustycog/rustycog-events", features = ["test-utils"] }
 rustycog-testing = { path = "../rustycog/rustycog-testing" }
+rustycog-config = { path = "../rustycog/rustycog-config" }
 rustycog-core = { path = "../rustycog/rustycog-core" }
 
 

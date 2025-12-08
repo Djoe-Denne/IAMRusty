@@ -9,11 +9,18 @@ license.workspace = true
 [dependencies]
 # Internal dependencies
 manifesto-domain = { path = "../domain" }
+manifesto-events = { path = "../../manifesto-events" }
+
+# Shared crates
+rustycog-command = { path = "../../rustycog/rustycog-command" }
+rustycog-core = { path = "../../rustycog/rustycog-core" }
+rustycog-events = { path = "../../rustycog/rustycog-events" }
 
 # Utilities
 serde = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
+validator = { workspace = true }
 
 # Async
 async-trait = { workspace = true }
@@ -25,5 +32,4 @@ anyhow = { workspace = true }
 
 # Logging
 tracing = { workspace = true }
-
 

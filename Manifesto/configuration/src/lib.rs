@@ -13,6 +13,9 @@ use rustycog_config::{
 
 pub use rustycog_logger::setup_logging;
 
+/// Type alias for backward compatibility
+pub type AppConfig = ManifestoConfig;
+
 /// Main Manifesto service configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ManifestoConfig {
@@ -41,9 +44,36 @@ pub struct ManifestoConfig {
     pub service: ServiceConfig,
 }
 
+/// Component service configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ComponentServiceConfig {
+    pub base_url: String,
+    #[serde(default)]
+    pub api_key: Option<String>,
+    #[serde(default = "default_timeout_seconds")]
+    pub timeout_seconds: u64,
+}
+
+fn default_timeout_seconds() -> u64 {
+    10
+}
+
+impl Default for ComponentServiceConfig {
+    fn default() -> Self {
+        Self {
+            base_url: "http://localhost:9000".to_string(),
+            api_key: None,
+            timeout_seconds: default_timeout_seconds(),
+        }
+    }
+}
+
 /// Service-specific configuration options
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServiceConfig {
+    /// Component service configuration
+    #[serde(default)]
+    pub component_service: ComponentServiceConfig,
    
     /// Business logic configuration
     #[serde(default)]
@@ -125,6 +155,7 @@ impl Default for ManifestoConfig {
 impl Default for ServiceConfig {
     fn default() -> Self {
         Self {
+            component_service: ComponentServiceConfig::default(),
             business: BusinessConfig::default(),
         }
     }

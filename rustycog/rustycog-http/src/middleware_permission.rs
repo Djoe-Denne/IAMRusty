@@ -64,13 +64,14 @@ pub async fn optional_permission_middleware(
     req: Request<Body>,
     next: Next,
 ) -> Result<Response, StatusCode> {
+    debug!("optional_permission_middleware");
     let user_id = match req.extensions().get::<Uuid>().copied() {
         Some(id) => id,
         None => {
             return Err(StatusCode::UNAUTHORIZED);
         }
     };
-    
+    debug!("User ID added to request extensions: {:?}", user_id);
     if resource_ids.is_empty() {
         return Ok(next.run(req).await);
     }

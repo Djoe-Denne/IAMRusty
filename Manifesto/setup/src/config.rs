@@ -3,7 +3,7 @@
 use manifesto_configuration::ManifestoConfig;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
-pub use rustycog_server::ServerConfig;
+pub use rustycog_config::ServerConfig;
 
 /// Setup logging based on configuration
 pub fn setup_logging(config: &ManifestoConfig) {
@@ -15,5 +15,8 @@ pub fn setup_logging(config: &ManifestoConfig) {
         .with(tracing_subscriber::fmt::layer())
         .init();
 }
+
+
+
 
 
