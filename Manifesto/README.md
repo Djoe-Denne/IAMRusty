@@ -135,6 +135,7 @@ pending → configured → active → disabled
 
 📖 **Documentation:**
 - **[IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md)** - Complete implementation status, TODOs, and roadmap (START HERE)
+- **[docs/rustycog-service-build-guide.md](docs/rustycog-service-build-guide.md)** - Beginner step-by-step guide to build a Rustycog-based service (`config`, `logger`, `db`, `http`, `testing`)
 - **[SETUP.md](SETUP.md)** - Database setup, configuration, and troubleshooting
 - **[IMPLEMENTATION_TEMPLATES.md](IMPLEMENTATION_TEMPLATES.md)** - Code pattern reference examples
 - **[openspecs.yaml](openspecs.yaml)** - OpenAPI specification

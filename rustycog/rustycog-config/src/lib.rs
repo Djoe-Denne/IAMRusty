@@ -299,6 +299,10 @@ pub struct LoggingConfig {
     /// Log level (trace, debug, info, warn, error)
     #[serde(default = "default_log_level")]
     pub level: String,
+    /// Optional target directives (tracing EnvFilter syntax).
+    /// Example: "warn,my_service=debug,tokio=warn"
+    #[serde(default)]
+    pub filter: Option<String>,
     /// Logging output
     #[serde(default = "default_console_logging_output")]
     pub console: Option<ConsoleLoggingOutput>,
@@ -330,6 +334,7 @@ impl Default for LoggingConfig {
     fn default() -> Self {
         Self {
             level: default_log_level(),
+            filter: None,
             console: default_console_logging_output(),
             file: default_file_logging_output(),
             scaleway_loki: default_scaleway_loki_logging_output(),

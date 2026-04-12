@@ -99,10 +99,11 @@ where
         // Check uniqueness
         self.validate_unique_component(&component.project_id, &component.component_type).await?;
         
-        // Create resource for this component type
-        self.permission_service
-            .create_component_resource(&component.component_type)
-            .await?;
+        // Create resource for this component type (e.g., "taskboard", "wiki")
+        // Note: This may fail if the resource already exists, which is fine
+        let _ = self.permission_service
+            .create_component_type_resource(&component.component_type)
+            .await;
         
         // Save to repository
         self.component_repo.save(&component).await

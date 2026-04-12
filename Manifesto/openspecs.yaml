@@ -490,21 +490,31 @@ paths:
         404:
           $ref: '#/components/responses/NotFound'
 
-  /api/projects/{projectId}/members/{userId}/permissions:
+  /api/projects/{projectId}/members/{userId}/permissions/{resource}:
     parameters:
       - $ref: '#/components/parameters/ProjectId'
       - $ref: '#/components/parameters/UserId'
+      - name: resource
+        in: path
+        required: true
+        description: Resource type (e.g., "project", "member", "component")
+        schema:
+          type: string
+          enum: [project, member, component]
     
     post:
-      summary: Grant permission to member
-      description: Grant a specific resource permission to a member
+      summary: Grant generic resource permission to member
+      description: |
+        Grant a permission on a resource type to a member.
+        This grants permission on ALL resources of this type.
+        For component-specific permissions, use the /{resource}/{resourceId} endpoint.
       tags: [Members]
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GrantPermissionRequest'
+              $ref: '#/components/schemas/GrantPermissionPathRequest'
       responses:
         200:
           description: Permission granted successfully
@@ -520,21 +530,71 @@ paths:
           $ref: '#/components/responses/Forbidden'
         404:
           $ref: '#/components/responses/NotFound'
+    
+    delete:
+      summary: Revoke generic resource permission from member
+      description: Revoke all permissions on a resource type from a member
+      tags: [Members]
+      responses:
+        204:
+          description: Permission revoked successfully
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
 
-  /api/projects/{projectId}/members/{userId}/permissions/{resource}:
+  /api/projects/{projectId}/members/{userId}/permissions/{resource}/{resourceId}:
     parameters:
       - $ref: '#/components/parameters/ProjectId'
       - $ref: '#/components/parameters/UserId'
       - name: resource
         in: path
         required: true
-        description: Resource identifier (e.g., "project", "member", "taskboard")
+        description: Resource type (e.g., "component")
         schema:
           type: string
+          enum: [component]
+      - name: resourceId
+        in: path
+        required: true
+        description: Specific resource ID (e.g., component UUID)
+        schema:
+          type: string
+          format: uuid
+    
+    post:
+      summary: Grant specific resource permission to member
+      description: |
+        Grant a permission on a specific resource instance to a member.
+        For example, grant write permission on a specific component.
+      tags: [Members]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GrantPermissionPathRequest'
+      responses:
+        200:
+          description: Permission granted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectMember'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
     
     delete:
-      summary: Revoke permission from member
-      description: Revoke a specific resource permission from a member
+      summary: Revoke specific resource permission from member
+      description: Revoke permission on a specific resource instance from a member
       tags: [Members]
       responses:
         204:
@@ -854,6 +914,7 @@ components:
 
     GrantPermissionRequest:
       type: object
+      description: Legacy request format (deprecated - use path-based endpoints)
       properties:
         resource:
           type: string
@@ -864,6 +925,16 @@ components:
           enum: [read, write, admin, owner]
           description: Permission level to grant
       required: [resource, permission]
+
+    GrantPermissionPathRequest:
+      type: object
+      description: Request body for path-based permission endpoints
+      properties:
+        permission:
+          type: string
+          enum: [read, write, admin, owner]
+          description: Permission level to grant
+      required: [permission]
 
     # =============================================================================
     # Common Objects

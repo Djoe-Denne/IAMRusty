@@ -129,24 +129,38 @@ pub async fn remove_member(
     Ok((StatusCode::NO_CONTENT, Json(())))
 }
 
-/// Grant a permission to a member
-/// POST /api/projects/{project_id}/members/{user_id}/permissions
+use validator::Validate;
+
+/// Request body for granting permission (permission only, resource comes from path)
+#[derive(Debug, serde::Deserialize, Validate)]
+pub struct GrantPermissionPathRequest {
+    #[validate(length(min = 1, message = "Permission cannot be empty"))]
+    pub permission: String,
+}
+
+/// Grant a permission to a member on a generic resource
+/// POST /api/projects/{project_id}/members/{user_id}/permissions/{resource}
 pub async fn grant_permission(
     State(state): State<AppState>,
-    Path((project_id, user_id)): Path<(ResourceId, Uuid)>,
+    Path((project_id, user_id, resource)): Path<(ResourceId, Uuid, String)>,
     auth_user: AuthUser,
-    ValidatedJson(request): ValidatedJson<GrantPermissionRequest>,
+    ValidatedJson(request): ValidatedJson<GrantPermissionPathRequest>,
 ) -> Result<Json<MemberResponse>, HttpError> {
     tracing::info!(
         "Granting permission {:?} on resource {:?} to member {} in project {}",
         request.permission,
-        request.resource,
+        resource,
         user_id,
         project_id
     );
 
+    let full_request = GrantPermissionRequest {
+        resource,
+        permission: request.permission,
+    };
+
     let command =
-        GrantPermissionCommand::new(project_id.id(), user_id, request, auth_user.user_id);
+        GrantPermissionCommand::new(project_id.id(), user_id, full_request, auth_user.user_id);
     let context = CommandContext::new().with_user_id(auth_user.user_id);
 
     let result = state
@@ -158,28 +172,88 @@ pub async fn grant_permission(
     Ok(Json(result))
 }
 
-/// Request query for revoking permissions
-#[derive(Debug, serde::Deserialize)]
-pub struct RevokePermissionQuery {
-    pub resource: String,
-}
-
-/// Revoke a permission from a member
-/// DELETE /api/projects/{project_id}/members/{user_id}/permissions?resource={resource}
-pub async fn revoke_permission(
+/// Grant a permission to a member on a specific resource (e.g., a specific component)
+/// POST /api/projects/{project_id}/members/{user_id}/permissions/{resource}/{resource_id}
+pub async fn grant_permission_specific(
     State(state): State<AppState>,
-    Path((project_id, user_id)): Path<(ResourceId, Uuid)>,
-    Query(query): Query<RevokePermissionQuery>,
+    Path((project_id, user_id, _resource, resource_id)): Path<(ResourceId, Uuid, String, Uuid)>,
     auth_user: AuthUser,
-) -> Result<(StatusCode, Json<()>), HttpError> {
+    ValidatedJson(request): ValidatedJson<GrantPermissionPathRequest>,
+) -> Result<Json<MemberResponse>, HttpError> {
+    // Use the resource_id UUID as the resource identifier
+    // The resource_type is stored in the resources table to identify it as a component_instance
+    let specific_resource = resource_id.to_string();
+    
     tracing::info!(
-        "Revoking permission on resource {} from member {} in project {}",
-        query.resource,
+        "Granting permission {:?} on specific resource {:?} to member {} in project {}",
+        request.permission,
+        specific_resource,
         user_id,
         project_id
     );
 
-    let command = RevokePermissionCommand::new(project_id.id(), user_id, query.resource, auth_user.user_id);
+    let full_request = GrantPermissionRequest {
+        resource: specific_resource,
+        permission: request.permission,
+    };
+
+    let command =
+        GrantPermissionCommand::new(project_id.id(), user_id, full_request, auth_user.user_id);
+    let context = CommandContext::new().with_user_id(auth_user.user_id);
+
+    let result = state
+        .command_service
+        .execute(command, context)
+        .await
+        .map_err(error_mapper)?;
+
+    Ok(Json(result))
+}
+
+/// Revoke a permission from a member on a generic resource
+/// DELETE /api/projects/{project_id}/members/{user_id}/permissions/{resource}
+pub async fn revoke_permission(
+    State(state): State<AppState>,
+    Path((project_id, user_id, resource)): Path<(ResourceId, Uuid, String)>,
+    auth_user: AuthUser,
+) -> Result<(StatusCode, Json<()>), HttpError> {
+    tracing::info!(
+        "Revoking permission on resource {} from member {} in project {}",
+        resource,
+        user_id,
+        project_id
+    );
+
+    let command = RevokePermissionCommand::new(project_id.id(), user_id, resource, auth_user.user_id);
+    let context = CommandContext::new().with_user_id(auth_user.user_id);
+
+    state
+        .command_service
+        .execute(command, context)
+        .await
+        .map_err(error_mapper)?;
+
+    Ok((StatusCode::NO_CONTENT, Json(())))
+}
+
+/// Revoke a permission from a member on a specific resource (e.g., a specific component)
+/// DELETE /api/projects/{project_id}/members/{user_id}/permissions/{resource}/{resource_id}
+pub async fn revoke_permission_specific(
+    State(state): State<AppState>,
+    Path((project_id, user_id, _resource, resource_id)): Path<(ResourceId, Uuid, String, Uuid)>,
+    auth_user: AuthUser,
+) -> Result<(StatusCode, Json<()>), HttpError> {
+    // Use the resource_id UUID as the resource identifier
+    let specific_resource = resource_id.to_string();
+    
+    tracing::info!(
+        "Revoking permission on specific resource {} from member {} in project {}",
+        specific_resource,
+        user_id,
+        project_id
+    );
+
+    let command = RevokePermissionCommand::new(project_id.id(), user_id, specific_resource, auth_user.user_id);
     let context = CommandContext::new().with_user_id(auth_user.user_id);
 
     state

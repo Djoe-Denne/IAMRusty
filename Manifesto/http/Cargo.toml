@@ -29,6 +29,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 uuid = { workspace = true }
 anyhow = { workspace = true }
+validator = { workspace = true }
 
 # Async
 tokio = { workspace = true }

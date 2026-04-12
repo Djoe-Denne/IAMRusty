@@ -334,9 +334,10 @@ async fn test_grant_permission_returns_200() {
 
     let jwt_token = create_test_jwt_token(owner_id);
 
+    // Grant permission using path-based resource: /permissions/{resource}
     let response = client
         .post(&format!(
-            "{}/api/projects/{}/members/{}/permissions",
+            "{}/api/projects/{}/members/{}/permissions/component",
             base_url,
             project.id(),
             regular_member_id
@@ -344,7 +345,6 @@ async fn test_grant_permission_returns_200() {
         .header("Authorization", format!("Bearer {}", jwt_token))
         .header("Content-Type", "application/json")
         .json(&json!({
-            "resource": "component",
             "permission": "write"
         }))
         .send()
@@ -381,10 +381,10 @@ async fn test_revoke_permission_returns_204() {
 
     let jwt_token = create_test_jwt_token(owner_id);
 
-    // First grant a permission
+    // First grant a permission using path-based resource
     client
         .post(&format!(
-            "{}/api/projects/{}/members/{}/permissions",
+            "{}/api/projects/{}/members/{}/permissions/component",
             base_url,
             project.id(),
             regular_member_id
@@ -392,17 +392,16 @@ async fn test_revoke_permission_returns_204() {
         .header("Authorization", format!("Bearer {}", jwt_token))
         .header("Content-Type", "application/json")
         .json(&json!({
-            "resource": "component",
             "permission": "write"
         }))
         .send()
         .await
         .expect("Failed to grant permission");
 
-    // Now revoke it
+    // Now revoke it using path-based resource
     let response = client
         .delete(&format!(
-            "{}/api/projects/{}/members/{}/permissions?resource=component",
+            "{}/api/projects/{}/members/{}/permissions/component",
             base_url,
             project.id(),
             regular_member_id
@@ -416,6 +415,227 @@ async fn test_revoke_permission_returns_204() {
         response.status(),
         204,
         "Should return 204 No Content for permission revoke"
+    );
+}
+
+// =============================================================================
+// Component-Specific Permission Tests
+// =============================================================================
+
+#[tokio::test]
+#[serial]
+async fn test_grant_permission_on_specific_component_returns_200() {
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
+    let db = _fixture.db();
+
+    let owner_id = Uuid::new_v4();
+    let (project, _owner_member, component) =
+        DbFixtures::create_project_with_component(&db, owner_id, "taskboard")
+            .await
+            .expect("Failed to create project with component");
+
+    // Add a regular member with read-only permissions
+    let regular_member_id = Uuid::new_v4();
+    DbFixtures::member()
+        .direct(project.id(), regular_member_id, owner_id)
+        .commit(db.clone())
+        .await
+        .expect("Failed to create regular member");
+
+    let jwt_token = create_test_jwt_token(owner_id);
+
+    // Grant write permission on specific component using path: /permissions/component/{component_id}
+    let response = client
+        .post(&format!(
+            "{}/api/projects/{}/members/{}/permissions/component/{}",
+            base_url,
+            project.id(),
+            regular_member_id,
+            component.id()
+        ))
+        .header("Authorization", format!("Bearer {}", jwt_token))
+        .header("Content-Type", "application/json")
+        .json(&json!({
+            "permission": "write"
+        }))
+        .send()
+        .await
+        .expect("Failed to send request");
+
+    assert_eq!(
+        response.status(),
+        200,
+        "Should return 200 OK for granting permission on specific component"
+    );
+}
+
+#[tokio::test]
+#[serial]
+async fn test_non_admin_cannot_grant_permission_on_specific_component() {
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
+    let db = _fixture.db();
+
+    let owner_id = Uuid::new_v4();
+    let (project, _owner_member, component) =
+        DbFixtures::create_project_with_component(&db, owner_id, "taskboard")
+            .await
+            .expect("Failed to create project with component");
+
+    // Acting user is a regular member with only read-level project permissions.
+    let acting_member_id = Uuid::new_v4();
+    DbFixtures::member()
+        .direct(project.id(), acting_member_id, owner_id)
+        .commit(db.clone())
+        .await
+        .expect("Failed to create acting member");
+
+    // Target member receives the grant attempt.
+    let target_member_id = Uuid::new_v4();
+    DbFixtures::member()
+        .direct(project.id(), target_member_id, owner_id)
+        .commit(db.clone())
+        .await
+        .expect("Failed to create target member");
+
+    let acting_token = create_test_jwt_token(acting_member_id);
+
+    let response = client
+        .post(&format!(
+            "{}/api/projects/{}/members/{}/permissions/component/{}",
+            base_url,
+            project.id(),
+            target_member_id,
+            component.id()
+        ))
+        .header("Authorization", format!("Bearer {}", acting_token))
+        .header("Content-Type", "application/json")
+        .json(&json!({
+            "permission": "write"
+        }))
+        .send()
+        .await
+        .expect("Failed to send request");
+
+    assert_eq!(
+        response.status(),
+        403,
+        "Regular members must not grant specific-component permissions"
+    );
+}
+
+#[tokio::test]
+#[serial]
+async fn test_grant_admin_permission_on_specific_component_returns_200() {
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
+    let db = _fixture.db();
+
+    let owner_id = Uuid::new_v4();
+    let (project, _owner_member, component) =
+        DbFixtures::create_project_with_component(&db, owner_id, "wiki")
+            .await
+            .expect("Failed to create project with wiki component");
+
+    // Add a regular member
+    let regular_member_id = Uuid::new_v4();
+    DbFixtures::member()
+        .direct(project.id(), regular_member_id, owner_id)
+        .commit(db.clone())
+        .await
+        .expect("Failed to create regular member");
+
+    let jwt_token = create_test_jwt_token(owner_id);
+
+    // Grant admin permission on specific component using path: /permissions/component/{component_id}
+    let response = client
+        .post(&format!(
+            "{}/api/projects/{}/members/{}/permissions/component/{}",
+            base_url,
+            project.id(),
+            regular_member_id,
+            component.id()
+        ))
+        .header("Authorization", format!("Bearer {}", jwt_token))
+        .header("Content-Type", "application/json")
+        .json(&json!({
+            "permission": "admin"
+        }))
+        .send()
+        .await
+        .expect("Failed to send request");
+
+    assert_eq!(
+        response.status(),
+        200,
+        "Should return 200 OK for granting admin permission on specific component"
+    );
+}
+
+#[tokio::test]
+#[serial]
+async fn test_revoke_permission_on_specific_component_returns_204() {
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
+    let db = _fixture.db();
+
+    let owner_id = Uuid::new_v4();
+    let (project, _owner_member, component) =
+        DbFixtures::create_project_with_component(&db, owner_id, "taskboard")
+            .await
+            .expect("Failed to create project with component");
+
+    // Add a regular member
+    let regular_member_id = Uuid::new_v4();
+    DbFixtures::member()
+        .direct(project.id(), regular_member_id, owner_id)
+        .commit(db.clone())
+        .await
+        .expect("Failed to create regular member");
+
+    let jwt_token = create_test_jwt_token(owner_id);
+
+    // First grant a permission on specific component using path
+    client
+        .post(&format!(
+            "{}/api/projects/{}/members/{}/permissions/component/{}",
+            base_url,
+            project.id(),
+            regular_member_id,
+            component.id()
+        ))
+        .header("Authorization", format!("Bearer {}", jwt_token))
+        .header("Content-Type", "application/json")
+        .json(&json!({
+            "permission": "write"
+        }))
+        .send()
+        .await
+        .expect("Failed to grant permission on specific component");
+
+    // Now revoke it using path: /permissions/component/{component_id}
+    let response = client
+        .delete(&format!(
+            "{}/api/projects/{}/members/{}/permissions/component/{}",
+            base_url,
+            project.id(),
+            regular_member_id,
+            component.id()
+        ))
+        .header("Authorization", format!("Bearer {}", jwt_token))
+        .send()
+        .await
+        .expect("Failed to send request");
+
+    assert_eq!(
+        response.status(),
+        204,
+        "Should return 204 No Content for revoking permission on specific component"
     );
 }
 

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use axum::{body::Body, extract::{Path, State}, http::{Request, StatusCode}, middleware::Next, response::Response, RequestExt};
+use axum::{body::Body, extract::State, http::{Request, StatusCode}, middleware::Next, response::Response};
 use rustycog_permission::{Permission, PermissionEngine, PermissionsFetcher, ResourceId};
 use uuid::Uuid;
 use tracing::{info, debug};
@@ -13,14 +13,28 @@ pub struct PermissionGuard {
     pub model_path: String,
 }
 
+/// Extract resource IDs from route path segments.
+///
+/// This middleware is service-agnostic: it forwards every URL path segment that can be
+/// parsed as a UUID and preserves the original order. Service-specific interpretation
+/// of those IDs belongs in each `PermissionsFetcher` implementation.
+fn extract_resource_ids(path: &str) -> Vec<ResourceId> {
+    path.split('/')
+        .filter(|segment| !segment.is_empty())
+        .filter_map(|s| Uuid::parse_str(s).ok())
+        .map(ResourceId::from)
+        .collect()
+}
+
 /// Permission-checking middleware
 pub async fn permission_middleware(
-    Path(resource_ids): Path<Vec<ResourceId>>,
     State(guard): State<Arc<PermissionGuard>>,
     req: Request<Body>,
     next: Next,
 ) -> Result<Response, StatusCode> {
-    debug!("permission_middleware");
+    let request_path = req.uri().path().to_owned();
+    debug!("permission_middleware: request_path={}", request_path);
+    
     // Anonymous users are rejected here; use optional guard for might_be_authenticated
     let user_id = req
         .extensions()
@@ -28,12 +42,15 @@ pub async fn permission_middleware(
         .copied()
         .ok_or(StatusCode::UNAUTHORIZED)?;
 
+    // Extract ResourceIds from request path by collecting UUID segments.
+    let resource_ids = extract_resource_ids(&request_path);
+    
     if resource_ids.is_empty() {
         debug!("permission_middleware: no resource_ids found -> FORBIDDEN");
         return Err(StatusCode::FORBIDDEN);
     }
 
-    debug!("permission_middleware: building engine with file: {:?}", guard.model_path);
+    debug!("permission_middleware: resource_ids={:?}, building engine with file: {:?}", resource_ids, guard.model_path);
     // Build engine on-demand per request (enforcer is per-request)
     let engine = rustycog_permission::casbin::CasbinPermissionEngine::new(
         guard.model_path.clone(),
@@ -59,12 +76,13 @@ pub async fn permission_middleware(
 
 /// A permission-checking middleware that tolerates anonymous users
 pub async fn optional_permission_middleware(
-    Path(resource_ids): Path<Vec<ResourceId>>,
     State(guard): State<Arc<PermissionGuard>>,
     req: Request<Body>,
     next: Next,
 ) -> Result<Response, StatusCode> {
-    debug!("optional_permission_middleware");
+    let request_path = req.uri().path().to_owned();
+    debug!("optional_permission_middleware: request_path={}", request_path);
+    
     let user_id = match req.extensions().get::<Uuid>().copied() {
         Some(id) => id,
         None => {
@@ -72,9 +90,15 @@ pub async fn optional_permission_middleware(
         }
     };
     debug!("User ID added to request extensions: {:?}", user_id);
+    
+    // Extract ResourceIds from request path by collecting UUID segments.
+    let resource_ids = extract_resource_ids(&request_path);
+    
     if resource_ids.is_empty() {
         return Ok(next.run(req).await);
     }
+
+    debug!("optional_permission_middleware: resource_ids={:?}", resource_ids);
 
     let engine = rustycog_permission::casbin::CasbinPermissionEngine::new(
         guard.model_path.clone(),

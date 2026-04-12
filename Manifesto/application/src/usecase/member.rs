@@ -368,7 +368,17 @@ impl MemberUseCase for MemberUseCaseImpl {
             .map_err(ApplicationError::from)?;
 
         // Requester needs to have the permission they're trying to grant
-        if !requester.has_permission(&request.resource, &permission_level) {
+        // For specific resources (UUIDs like component instances), also check generic "component" permission
+        let has_permission = if uuid::Uuid::parse_str(&request.resource).is_ok() {
+            // Specific resource (UUID) - check both specific and generic "component" permissions
+            requester.has_permission(&request.resource, &permission_level)
+                || requester.has_permission("component", &permission_level)
+        } else {
+            // Generic resource - check direct permission
+            requester.has_permission(&request.resource, &permission_level)
+        };
+        
+        if !has_permission {
             return Err(ApplicationError::Validation(
                 format!("Cannot grant {} permission on {} - you don't have it yourself", 
                     request.permission, request.resource)

@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use manifesto_domain::{
     entity::ProjectComponent,
-    service::{ComponentService, ProjectService},
+    service::{ComponentService, PermissionService, ProjectService},
     value_objects::ComponentStatus,
 };
 use manifesto_events::{
@@ -60,6 +60,7 @@ pub trait ComponentUseCase: Send + Sync {
 pub struct ComponentUseCaseImpl {
     component_service: Arc<dyn ComponentService>,
     project_service: Arc<dyn ProjectService>,
+    permission_service: Arc<dyn PermissionService>,
     event_publisher: Arc<dyn EventPublisher<DomainError>>,
 }
 
@@ -67,11 +68,13 @@ impl ComponentUseCaseImpl {
     pub fn new(
         component_service: Arc<dyn ComponentService>,
         project_service: Arc<dyn ProjectService>,
+        permission_service: Arc<dyn PermissionService>,
         event_publisher: Arc<dyn EventPublisher<DomainError>>,
     ) -> Self {
         Self {
             component_service,
             project_service,
+            permission_service,
             event_publisher,
         }
     }
@@ -117,6 +120,21 @@ impl ComponentUseCase for ComponentUseCaseImpl {
 
         // Save through service (which uses repository)
         let created = self.component_service.add_component(component).await?;
+
+        // Create the specific resource for this component instance (e.g., "component:{uuid}")
+        // This enables fine-grained permission control on this specific component
+        if let Err(e) = self
+            .permission_service
+            .create_component_instance_resource(&created.id)
+            .await
+        {
+            tracing::warn!(
+                "Failed to create resource for component {}: {:?}",
+                created.id,
+                e
+            );
+            // Don't fail the whole operation - the component was created successfully
+        }
 
         // Publish ComponentAdded event
         let event = ManifestoDomainEvent::ComponentAdded(ComponentAddedEvent::new(
@@ -232,6 +250,20 @@ impl ComponentUseCase for ComponentUseCaseImpl {
         let component_type_str = component.component_type.clone();
 
         self.component_service.remove_component(&component.id).await?;
+
+        // Delete the specific resource for this component instance
+        if let Err(e) = self
+            .permission_service
+            .delete_component_instance_resource(&component_id)
+            .await
+        {
+            tracing::warn!(
+                "Failed to delete resource for component {}: {:?}",
+                component_id,
+                e
+            );
+            // Don't fail - the component was already removed
+        }
 
         // Publish ComponentRemoved event
         let event = ManifestoDomainEvent::ComponentRemoved(ComponentRemovedEvent::new(

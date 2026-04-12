@@ -1,35 +1,42 @@
 use std::sync::Arc;
 
-use axum::{routing::get, extract::{Path, State}};
+use axum::extract::{Path, State};
 use std::net::SocketAddr;
 use rustycog_http::{AppState, AuthUser, RouteBuilder, UserIdExtractor};
 use base64::Engine as _;
-use rustycog_permission::{Permission, PermissionsFetcher, PermissionEngine, ResourceId};
+use rustycog_permission::{Permission, PermissionsFetcher, ResourceId};
 use rustycog_core::error::DomainError;
-use tower::ServiceExt;
 use uuid::Uuid;
 
 // Dummy handler that expects resource IDs to be already set in request extensions
 async fn ok_handler_one_level(
-    State(state): State<AppState>,
-    Path(organization_id): Path<ResourceId>,
-    auth_user: AuthUser,
+    State(_state): State<AppState>,
+    Path(_organization_id): Path<ResourceId>,
+    _auth_user: AuthUser,
 ) -> &'static str {
     "OK"
 }
 
 async fn ok_handler_two_level(
-    State(state): State<AppState>,
-    Path((organization_id, member_id)): Path<(ResourceId, ResourceId)>,
-    auth_user: AuthUser,
+    State(_state): State<AppState>,
+    Path((_organization_id, _member_id)): Path<(ResourceId, ResourceId)>,
+    _auth_user: AuthUser,
 ) -> &'static str {
     "OK"
 }
 
 async fn ok_handler_three_level(
-    State(state): State<AppState>,
-    Path((organization_id, member_id, role_id)): Path<(ResourceId, ResourceId, ResourceId)>,
-    auth_user: AuthUser,
+    State(_state): State<AppState>,
+    Path((_organization_id, _member_id, _role_id)): Path<(ResourceId, ResourceId, ResourceId)>,
+    _auth_user: AuthUser,
+) -> &'static str {
+    "OK"
+}
+
+async fn ok_handler_three_level_with_segment(
+    State(_state): State<AppState>,
+    Path((_organization_id, _member_id, _resource, _target_id)): Path<(ResourceId, ResourceId, String, ResourceId)>,
+    _auth_user: AuthUser,
 ) -> &'static str {
     "OK"
 }
@@ -69,6 +76,9 @@ async fn make_server(fetcher: Arc<dyn PermissionsFetcher>, model: &'static str) 
         .authenticated()
         .with_permission(Permission::Write)
         .get("/orgs/{org_id}/members/{member_id}/roles/{role_id}", ok_handler_three_level)
+        .authenticated()
+        .with_permission(Permission::Owner)
+        .get("/orgs/{org_id}/members/{member_id}/permissions/{resource}/{target_id}", ok_handler_three_level_with_segment)
         .authenticated()
         .with_permission(Permission::Owner)
         .build(rustycog_config::ServerConfig{
@@ -168,6 +178,24 @@ mod three_level {
         mf.set(user, vec![a.clone(), b.clone(), c.clone()], vec![Permission::Owner]);
         let (addr, _h) = make_server(Arc::new(mf), "resource3").await;
         let res = http_get(addr, format!("/orgs/{}/members/{}/roles/{}", a.id(), b.id(), c.id()).as_str(), Some(user)).await;
+        assert_eq!(res.status(), reqwest::StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn owner_allows_with_non_uuid_path_segment() {
+        let user = Uuid::new_v4();
+        let a = ResourceId::new_v4();
+        let b = ResourceId::new_v4();
+        let c = ResourceId::new_v4();
+        let mut mf = MockFetcher::new();
+        mf.set(user, vec![a.clone(), b.clone(), c.clone()], vec![Permission::Owner]);
+        let (addr, _h) = make_server(Arc::new(mf), "resource3").await;
+        let res = http_get(
+            addr,
+            format!("/orgs/{}/members/{}/permissions/component/{}", a.id(), b.id(), c.id()).as_str(),
+            Some(user),
+        )
+        .await;
         assert_eq!(res.status(), reqwest::StatusCode::OK);
     }
 }

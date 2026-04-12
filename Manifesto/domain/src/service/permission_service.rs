@@ -23,8 +23,17 @@ pub trait PermissionService: Send + Sync {
     /// Get all resources
     async fn get_all_resources(&self) -> Result<Vec<Resource>, DomainError>;
 
-    /// Create a resource for a component
-    async fn create_component_resource(&self, component_type: &str) -> Result<Resource, DomainError>;
+    /// Create a resource for a generic component type (e.g., "taskboard", "wiki")
+    /// This is called when a new component type is registered in the system
+    async fn create_component_type_resource(&self, component_type: &str) -> Result<Resource, DomainError>;
+
+    /// Create a resource for a specific component instance (e.g., "component:{uuid}")
+    /// This should be called when a component is added to a project
+    async fn create_component_instance_resource(&self, component_id: &Uuid) -> Result<Resource, DomainError>;
+
+    /// Delete the resource for a specific component instance
+    /// This should be called when a component is removed from a project
+    async fn delete_component_instance_resource(&self, component_id: &Uuid) -> Result<(), DomainError>;
 
     /// Delete a resource by id
     async fn delete_resource(&self, resource_id: &str) -> Result<(), DomainError>;
@@ -126,8 +135,18 @@ where
         self.resource_repo.find_all().await
     }
 
-    async fn create_component_resource(&self, component_type: &str) -> Result<Resource, DomainError> {
+    async fn create_component_type_resource(&self, component_type: &str) -> Result<Resource, DomainError> {
         self.resource_repo.create_for_component(component_type).await
+    }
+
+    async fn create_component_instance_resource(&self, component_id: &Uuid) -> Result<Resource, DomainError> {
+        self.resource_repo.create_for_component_instance(component_id).await
+    }
+
+    async fn delete_component_instance_resource(&self, component_id: &Uuid) -> Result<(), DomainError> {
+        // Resource ID is just the component UUID (resource_type identifies it as component_instance)
+        let resource_id = component_id.to_string();
+        self.resource_repo.delete_by_id(&resource_id).await
     }
 
     async fn delete_resource(&self, resource_id: &str) -> Result<(), DomainError> {
@@ -150,6 +169,10 @@ where
         }
 
         // Get permission and resource
+        // Note: Resources must exist beforehand - for specific component resources (e.g., "component:{uuid}"),
+        // they should be created when the component is activated on the project, not here.
+        // If the resource doesn't exist, this will return NotFound error, which is the expected behavior
+        // for invalid resource IDs (potential fishing attempts or bugs).
         let permission = self.get_permission_by_level(permission_level).await?;
         let resource = self.get_resource(resource_name).await?;
 

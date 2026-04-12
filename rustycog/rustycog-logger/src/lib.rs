@@ -1,9 +1,7 @@
-use tracing_subscriber::filter::LevelFilter;
+use tracing_subscriber::EnvFilter;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use rustycog_config::HasLoggingConfig;
 
-#[cfg(feature = "scaleway-loki")]
-use std::env;
 #[cfg(feature = "scaleway-loki")]
 use rustycog_config::{HasScalewayConfig};
 
@@ -21,14 +19,23 @@ impl<T: HasLoggingConfig> ServiceLoggerConfig for T {}
 /// Setup logging based on configuration
 pub fn setup_logging<C: ServiceLoggerConfig>(config: &C)
 {
-    let log_level = match config.logging_config().level.to_lowercase().as_str() {
-        "trace" => LevelFilter::TRACE,
-        "debug" => LevelFilter::DEBUG,
-        "info" => LevelFilter::INFO,
-        "warn" => LevelFilter::WARN,
-        "error" => LevelFilter::ERROR,
-        _ => LevelFilter::INFO,
+    let level_directive = match config.logging_config().level.to_lowercase().as_str() {
+        "trace" => "trace",
+        "debug" => "debug",
+        "info" => "info",
+        "warn" => "warn",
+        "error" => "error",
+        _ => "info",
     };
+    let level_fallback = level_directive.to_string();
+    let env_filter = config
+        .logging_config()
+        .filter
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+        .map(EnvFilter::new)
+        .or_else(|| EnvFilter::try_from_default_env().ok())
+        .unwrap_or_else(|| EnvFilter::new(level_fallback));
 
     let console_layer = tracing_subscriber::fmt::layer().with_line_number(true).with_target(true).with_thread_names(true);
     
@@ -56,7 +63,7 @@ pub fn setup_logging<C: ServiceLoggerConfig>(config: &C)
     // Use try_init() to avoid panicking if subscriber is already initialized
     // This is especially important during testing where setup_logging might be called multiple times
     let _ = tracing_subscriber::registry()
-        .with(log_level)
+        .with(env_filter)
         .with(console_layer)
         .with(loki_layer)
         .try_init();

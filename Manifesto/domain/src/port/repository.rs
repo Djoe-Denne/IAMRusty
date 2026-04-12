@@ -148,12 +148,16 @@ pub trait PermissionReadRepository: Send + Sync {
 pub trait ResourceReadRepository: Send + Sync {
     async fn find_by_id(&self, id: &str) -> Result<Option<Resource>, DomainError>;
     async fn find_all(&self) -> Result<Vec<Resource>, DomainError>;
+    /// Find a resource for a specific component instance by its UUID
+    async fn find_by_component_id(&self, component_id: &Uuid) -> Result<Option<Resource>, DomainError>;
 }
 
 #[async_trait]
 pub trait ResourceWriteRepository: Send + Sync {
     async fn create_for_component(&self, component_type: &str) -> Result<Resource, DomainError>;
     async fn delete_by_id(&self, id: &str) -> Result<(), DomainError>;
+    /// Create a resource for a specific component instance (format: "component:{uuid}")
+    async fn create_for_component_instance(&self, component_id: &Uuid) -> Result<Resource, DomainError>;
 }
 
 pub trait ResourceRepository: ResourceReadRepository + ResourceWriteRepository + Send + Sync {}

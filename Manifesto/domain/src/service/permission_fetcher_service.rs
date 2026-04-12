@@ -44,11 +44,18 @@ where
         resource_ids: Vec<ResourceId>,
     ) -> Result<Vec<Permission>, DomainError> {
         let mut permissions = vec![];
-        if resource_ids.is_empty() {
+        let Some((project_resource, remaining_resources)) = resource_ids.split_first() else {
             return Ok(permissions);
+        };
+
+        if !remaining_resources.is_empty() {
+            debug!(
+                "ProjectPermissionFetcher ignoring {} additional resource IDs",
+                remaining_resources.len()
+            );
         }
 
-        let project_id = resource_ids[0].id();
+        let project_id = project_resource.id();
         debug!("Fetching permissions for user {} on project {}", user_id, project_id);
 
         // Get the project to check visibility
@@ -83,6 +90,15 @@ where
 }
 
 /// Permission fetcher for component resources (delegates to project membership)
+/// 
+/// Supports both generic component permissions (applies to all components) and
+/// specific component permissions (identified by component UUID).
+/// 
+/// When checking permissions:
+/// - resource_ids[0] = project_id
+/// - resource_ids[1] = component_id (optional)
+/// 
+/// Returns the highest permission level between generic and specific permissions.
 pub struct ComponentPermissionFetcher<PS, MS>
 where
     PS: ProjectService,
@@ -119,12 +135,24 @@ where
         let mut permissions = vec![];
         // Component permissions are based on project membership
         // resource_ids[0] should be the project_id
-        if resource_ids.is_empty() {
+        // resource_ids[1] should be the component_id (optional)
+        let Some((project_resource, remaining_resources)) = resource_ids.split_first() else {
             return Ok(permissions);
-        }
+        };
+        let project_id = project_resource.id();
+        let component_id = remaining_resources.first().map(|resource| resource.id());
 
-        let project_id = resource_ids[0].id();
-        debug!("Fetching component permissions for user {} on project {}", user_id, project_id);
+        if remaining_resources.len() > 1 {
+            debug!(
+                "ComponentPermissionFetcher ignoring {} additional resource IDs beyond component scope",
+                remaining_resources.len() - 1
+            );
+        }
+        
+        debug!(
+            "Fetching component permissions for user {} on project {}, component {:?}", 
+            user_id, project_id, component_id
+        );
 
         let project = self.project_service.get_project(&project_id).await?;
 
@@ -141,8 +169,26 @@ where
             return Ok(permissions);
         }
 
-        // Get permissions for the "component" resource from member's role_permissions
-        permissions.extend(get_permissions_for_resource(&member.role_permissions, "component"));
+        // Get generic "component" permissions (applies to all components)
+        let generic_permissions = get_permissions_for_resource(&member.role_permissions, "component");
+        
+        // Get specific component permissions if component_id is provided
+        // Note: Component instance resources use just the UUID as the resource ID
+        let specific_permissions = if let Some(comp_id) = component_id {
+            let component_resource_id = comp_id.to_string();
+            get_permissions_for_resource(&member.role_permissions, &component_resource_id)
+        } else {
+            vec![]
+        };
+
+        // Combine permissions - take the highest level from either source
+        let combined = combine_highest_permissions(generic_permissions, specific_permissions);
+        permissions.extend(combined);
+
+        debug!(
+            "User {} has permissions {:?} on project {} component {:?}", 
+            user_id, permissions, project_id, component_id
+        );
 
         Ok(permissions)
     }
@@ -184,11 +230,18 @@ where
     ) -> Result<Vec<Permission>, DomainError> {
         let mut permissions = vec![];
         // Member management permissions are based on project membership
-        if resource_ids.is_empty() {
+        let Some((project_resource, remaining_resources)) = resource_ids.split_first() else {
             return Ok(permissions);
+        };
+
+        if !remaining_resources.is_empty() {
+            debug!(
+                "MemberPermissionFetcher ignoring {} additional resource IDs",
+                remaining_resources.len()
+            );
         }
 
-        let project_id = resource_ids[0].id();
+        let project_id = project_resource.id();
         debug!("Fetching member permissions for user {} on project {}", user_id, project_id);
 
         let project = self.project_service.get_project(&project_id).await?;
@@ -240,5 +293,38 @@ fn permission_level_to_rustycog_permissions(level: PermissionLevel) -> Vec<Permi
         PermissionLevel::Admin => vec![Permission::Admin, Permission::Write, Permission::Read],
         PermissionLevel::Write => vec![Permission::Write, Permission::Read],
         PermissionLevel::Read => vec![Permission::Read],
+    }
+}
+
+/// Combine permissions from multiple sources, returning the highest permission level
+/// This allows users to get the best of generic and specific permissions
+fn combine_highest_permissions(
+    generic: Vec<Permission>,
+    specific: Vec<Permission>,
+) -> Vec<Permission> {
+    // Determine the highest permission level from both sources
+    let generic_level = highest_permission_level(&generic);
+    let specific_level = highest_permission_level(&specific);
+
+    // Return whichever has the higher level, or generic if equal/both None
+    match (generic_level, specific_level) {
+        (Some(g), Some(s)) if s > g => specific,
+        (None, Some(_)) => specific,
+        _ => generic,
+    }
+}
+
+/// Get the highest permission level from a list of permissions
+fn highest_permission_level(permissions: &[Permission]) -> Option<u8> {
+    permissions.iter().map(|p| permission_to_level(p)).max()
+}
+
+/// Convert a Permission to a numeric level for comparison
+fn permission_to_level(permission: &Permission) -> u8 {
+    match permission {
+        Permission::Read => 1,
+        Permission::Write => 2,
+        Permission::Admin => 3,
+        Permission::Owner => 4,
     }
 }

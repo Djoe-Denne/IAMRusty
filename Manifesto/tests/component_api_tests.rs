@@ -287,4 +287,710 @@ async fn test_remove_component_returns_204() {
     );
 }
 
+// =============================================================================
+// Generic vs Specific Component Permission Tests
+// =============================================================================
+
+#[tokio::test]
+#[serial]
+async fn test_user_with_generic_component_read_can_access_any_component() {
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
+    let db = _fixture.db();
+
+    let owner_id = Uuid::new_v4();
+    let (project, _owner_member) = DbFixtures::create_project_with_owner(&db, owner_id)
+        .await
+        .expect("Failed to create project with owner");
+
+    // Create multiple components
+    let component1 = DbFixtures::component()
+        .for_project(project.id())
+        .taskboard()
+        .commit(db.clone())
+        .await
+        .expect("Failed to create taskboard component");
+
+    let component2 = DbFixtures::component()
+        .for_project(project.id())
+        .wiki()
+        .commit(db.clone())
+        .await
+        .expect("Failed to create wiki component");
+
+    // Add a member with generic "component" read permission (via direct membership)
+    let member_id = Uuid::new_v4();
+    DbFixtures::member()
+        .direct(project.id(), member_id, owner_id)
+        .commit(db.clone())
+        .await
+        .expect("Failed to create member");
+
+    let jwt_token = create_test_jwt_token(member_id);
+
+    // Should be able to read component1
+    let response1 = client
+        .get(&format!(
+            "{}/api/projects/{}/components/{}",
+            base_url,
+            project.id(),
+            component1.id()
+        ))
+        .header("Authorization", format!("Bearer {}", jwt_token))
+        .send()
+        .await
+        .expect("Failed to send request");
+
+    assert_eq!(
+        response1.status(),
+        200,
+        "User with generic component read should access component1"
+    );
+
+    // Should also be able to read component2
+    let response2 = client
+        .get(&format!(
+            "{}/api/projects/{}/components/{}",
+            base_url,
+            project.id(),
+            component2.id()
+        ))
+        .header("Authorization", format!("Bearer {}", jwt_token))
+        .send()
+        .await
+        .expect("Failed to send request");
+
+    assert_eq!(
+        response2.status(),
+        200,
+        "User with generic component read should access component2"
+    );
+}
+
+#[tokio::test]
+#[serial]
+async fn test_user_with_generic_component_permission_can_list_all_components() {
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
+    let db = _fixture.db();
+
+    let owner_id = Uuid::new_v4();
+    let (project, _owner_member) = DbFixtures::create_project_with_owner(&db, owner_id)
+        .await
+        .expect("Failed to create project with owner");
+
+    // Create multiple components
+    DbFixtures::component()
+        .for_project(project.id())
+        .taskboard()
+        .commit(db.clone())
+        .await
+        .expect("Failed to create taskboard component");
+
+    DbFixtures::component()
+        .for_project(project.id())
+        .wiki()
+        .commit(db.clone())
+        .await
+        .expect("Failed to create wiki component");
+
+    // Add a member with generic permissions
+    let member_id = Uuid::new_v4();
+    DbFixtures::member()
+        .direct(project.id(), member_id, owner_id)
+        .commit(db.clone())
+        .await
+        .expect("Failed to create member");
+
+    let jwt_token = create_test_jwt_token(member_id);
+
+    // Should be able to list all components
+    let response = client
+        .get(&format!("{}/api/projects/{}/components", base_url, project.id()))
+        .header("Authorization", format!("Bearer {}", jwt_token))
+        .send()
+        .await
+        .expect("Failed to send request");
+
+    assert_eq!(
+        response.status(),
+        200,
+        "User with generic component permission should list all components"
+    );
+
+    let response_json: Value = response.json().await.expect("Should return JSON response");
+    let components = response_json["data"].as_array().unwrap();
+    assert_eq!(components.len(), 2, "Should see all components in the project");
+}
+
+#[tokio::test]
+#[serial]
+async fn test_owner_can_modify_any_component() {
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
+    let db = _fixture.db();
+
+    let owner_id = Uuid::new_v4();
+    let (project, _owner_member) = DbFixtures::create_project_with_owner(&db, owner_id)
+        .await
+        .expect("Failed to create project with owner");
+
+    // Create a component
+    let component = DbFixtures::component()
+        .for_project(project.id())
+        .taskboard()
+        .commit(db.clone())
+        .await
+        .expect("Failed to create taskboard component");
+
+    let jwt_token = create_test_jwt_token(owner_id);
+
+    // Owner should be able to update component status
+    let response = client
+        .patch(&format!(
+            "{}/api/projects/{}/components/{}",
+            base_url,
+            project.id(),
+            component.id()
+        ))
+        .header("Authorization", format!("Bearer {}", jwt_token))
+        .header("Content-Type", "application/json")
+        .json(&json!({
+            "status": "configured"
+        }))
+        .send()
+        .await
+        .expect("Failed to send request");
+
+    assert_eq!(
+        response.status(),
+        200,
+        "Owner with generic admin permission should modify any component"
+    );
+}
+
+#[tokio::test]
+#[serial]
+async fn test_member_without_component_permission_cannot_modify_component() {
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
+    let db = _fixture.db();
+
+    let owner_id = Uuid::new_v4();
+    let (project, _owner_member, component) =
+        DbFixtures::create_project_with_component(&db, owner_id, "taskboard")
+            .await
+            .expect("Failed to create project with component");
+
+    // Add a member with only read permission (no admin)
+    let member_id = Uuid::new_v4();
+    DbFixtures::member()
+        .direct(project.id(), member_id, owner_id)
+        .commit(db.clone())
+        .await
+        .expect("Failed to create member");
+
+    let jwt_token = create_test_jwt_token(member_id);
+
+    // Member with read permission should not be able to update component status
+    let response = client
+        .patch(&format!(
+            "{}/api/projects/{}/components/{}",
+            base_url,
+            project.id(),
+            component.id()
+        ))
+        .header("Authorization", format!("Bearer {}", jwt_token))
+        .header("Content-Type", "application/json")
+        .json(&json!({
+            "status": "configured"
+        }))
+        .send()
+        .await
+        .expect("Failed to send request");
+
+    assert_eq!(
+        response.status(),
+        403,
+        "Member with only read permission should not modify component"
+    );
+}
+
+#[tokio::test]
+#[serial]
+async fn test_member_without_component_permission_cannot_delete_component() {
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
+    let db = _fixture.db();
+
+    let owner_id = Uuid::new_v4();
+    let (project, _owner_member, component) =
+        DbFixtures::create_project_with_component(&db, owner_id, "taskboard")
+            .await
+            .expect("Failed to create project with component");
+
+    // Add a member with only read permission
+    let member_id = Uuid::new_v4();
+    DbFixtures::member()
+        .direct(project.id(), member_id, owner_id)
+        .commit(db.clone())
+        .await
+        .expect("Failed to create member");
+
+    let jwt_token = create_test_jwt_token(member_id);
+
+    // Member with read permission should not be able to delete component
+    let response = client
+        .delete(&format!(
+            "{}/api/projects/{}/components/{}",
+            base_url,
+            project.id(),
+            component.id()
+        ))
+        .header("Authorization", format!("Bearer {}", jwt_token))
+        .send()
+        .await
+        .expect("Failed to send request");
+
+    assert_eq!(
+        response.status(),
+        403,
+        "Member with only read permission should not delete component"
+    );
+}
+
+// =============================================================================
+// Specific Component Permission Enforcement Tests
+// =============================================================================
+// These tests verify that component-specific permissions (granted via the
+// /permissions/component/{component_id} API) are properly enforced.
+
+#[tokio::test]
+#[serial]
+async fn test_granted_specific_component_permission_allows_access() {
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
+    let db = _fixture.db();
+
+    let owner_id = Uuid::new_v4();
+    let (project, _owner_member) = DbFixtures::create_project_with_owner(&db, owner_id)
+        .await
+        .expect("Failed to create project with owner");
+
+    // Create two components
+    let component1 = DbFixtures::component()
+        .for_project(project.id())
+        .taskboard()
+        .commit(db.clone())
+        .await
+        .expect("Failed to create taskboard component");
+
+    let component2 = DbFixtures::component()
+        .for_project(project.id())
+        .wiki()
+        .commit(db.clone())
+        .await
+        .expect("Failed to create wiki component");
+
+    // Add a member with minimal permissions (just project read so they can authenticate)
+    let member_id = Uuid::new_v4();
+    DbFixtures::member()
+        .direct(project.id(), member_id, owner_id)
+        .commit(db.clone())
+        .await
+        .expect("Failed to create member");
+
+    let owner_token = create_test_jwt_token(owner_id);
+    let member_token = create_test_jwt_token(member_id);
+
+    // Grant the member specific write permission on component1 only (not component2)
+    let grant_response = client
+        .post(&format!(
+            "{}/api/projects/{}/members/{}/permissions/component/{}",
+            base_url,
+            project.id(),
+            member_id,
+            component1.id()
+        ))
+        .header("Authorization", format!("Bearer {}", owner_token))
+        .header("Content-Type", "application/json")
+        .json(&json!({
+            "permission": "write"
+        }))
+        .send()
+        .await
+        .expect("Failed to grant specific component permission");
+
+    assert_eq!(
+        grant_response.status(),
+        200,
+        "Owner should be able to grant specific component permission"
+    );
+
+    // Member should be able to read component1 (has specific permission)
+    let response1 = client
+        .get(&format!(
+            "{}/api/projects/{}/components/{}",
+            base_url,
+            project.id(),
+            component1.id()
+        ))
+        .header("Authorization", format!("Bearer {}", member_token))
+        .send()
+        .await
+        .expect("Failed to send request");
+
+    assert_eq!(
+        response1.status(),
+        200,
+        "Member with specific component permission should access that component"
+    );
+
+    // Member should also be able to read component2 (has generic component read from membership)
+    let response2 = client
+        .get(&format!(
+            "{}/api/projects/{}/components/{}",
+            base_url,
+            project.id(),
+            component2.id()
+        ))
+        .header("Authorization", format!("Bearer {}", member_token))
+        .send()
+        .await
+        .expect("Failed to send request");
+
+    assert_eq!(
+        response2.status(),
+        200,
+        "Member should also access component2 via generic read permission"
+    );
+}
+
+#[tokio::test]
+#[serial]
+async fn test_specific_component_admin_does_not_apply_to_other_components() {
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
+    let db = _fixture.db();
+
+    let owner_id = Uuid::new_v4();
+    let (project, _owner_member) = DbFixtures::create_project_with_owner(&db, owner_id)
+        .await
+        .expect("Failed to create project with owner");
+
+    let component1 = DbFixtures::component()
+        .for_project(project.id())
+        .taskboard()
+        .commit(db.clone())
+        .await
+        .expect("Failed to create taskboard component");
+
+    let component2 = DbFixtures::component()
+        .for_project(project.id())
+        .wiki()
+        .commit(db.clone())
+        .await
+        .expect("Failed to create wiki component");
+
+    let member_id = Uuid::new_v4();
+    DbFixtures::member()
+        .direct(project.id(), member_id, owner_id)
+        .commit(db.clone())
+        .await
+        .expect("Failed to create member");
+
+    let owner_token = create_test_jwt_token(owner_id);
+    let member_token = create_test_jwt_token(member_id);
+
+    // Grant elevated access only on component1.
+    let grant_response = client
+        .post(&format!(
+            "{}/api/projects/{}/members/{}/permissions/component/{}",
+            base_url,
+            project.id(),
+            member_id,
+            component1.id()
+        ))
+        .header("Authorization", format!("Bearer {}", owner_token))
+        .header("Content-Type", "application/json")
+        .json(&json!({
+            "permission": "admin"
+        }))
+        .send()
+        .await
+        .expect("Failed to grant permission");
+
+    assert_eq!(grant_response.status(), 200, "Grant should succeed");
+
+    let update_component1 = client
+        .patch(&format!(
+            "{}/api/projects/{}/components/{}",
+            base_url,
+            project.id(),
+            component1.id()
+        ))
+        .header("Authorization", format!("Bearer {}", member_token))
+        .header("Content-Type", "application/json")
+        .json(&json!({
+            "status": "configured"
+        }))
+        .send()
+        .await
+        .expect("Failed to update first component");
+
+    assert_eq!(
+        update_component1.status(),
+        200,
+        "Specific component admin should allow updates on that component"
+    );
+
+    let update_component2 = client
+        .patch(&format!(
+            "{}/api/projects/{}/components/{}",
+            base_url,
+            project.id(),
+            component2.id()
+        ))
+        .header("Authorization", format!("Bearer {}", member_token))
+        .header("Content-Type", "application/json")
+        .json(&json!({
+            "status": "configured"
+        }))
+        .send()
+        .await
+        .expect("Failed to update second component");
+
+    assert_eq!(
+        update_component2.status(),
+        403,
+        "Specific component admin should not grant admin on other components"
+    );
+}
+
+#[tokio::test]
+#[serial]
+async fn test_revoked_specific_component_permission_denies_elevated_access() {
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
+    let db = _fixture.db();
+
+    let owner_id = Uuid::new_v4();
+    let (project, _owner_member, component) =
+        DbFixtures::create_project_with_component(&db, owner_id, "taskboard")
+            .await
+            .expect("Failed to create project with component");
+
+    // Add a member with only read permission
+    let member_id = Uuid::new_v4();
+    DbFixtures::member()
+        .direct(project.id(), member_id, owner_id)
+        .commit(db.clone())
+        .await
+        .expect("Failed to create member");
+
+    let owner_token = create_test_jwt_token(owner_id);
+    let member_token = create_test_jwt_token(member_id);
+
+    // Grant specific admin permission on component
+    client
+        .post(&format!(
+            "{}/api/projects/{}/members/{}/permissions/component/{}",
+            base_url,
+            project.id(),
+            member_id,
+            component.id()
+        ))
+        .header("Authorization", format!("Bearer {}", owner_token))
+        .header("Content-Type", "application/json")
+        .json(&json!({
+            "permission": "admin"
+        }))
+        .send()
+        .await
+        .expect("Failed to grant permission");
+
+    // Member should be able to update component (has admin permission)
+    let update_response1 = client
+        .patch(&format!(
+            "{}/api/projects/{}/components/{}",
+            base_url,
+            project.id(),
+            component.id()
+        ))
+        .header("Authorization", format!("Bearer {}", member_token))
+        .header("Content-Type", "application/json")
+        .json(&json!({
+            "status": "configured"
+        }))
+        .send()
+        .await
+        .expect("Failed to send request");
+
+    assert_eq!(
+        update_response1.status(),
+        200,
+        "Member with specific admin permission should be able to update component"
+    );
+
+    // Now revoke the specific permission
+    let revoke_response = client
+        .delete(&format!(
+            "{}/api/projects/{}/members/{}/permissions/component/{}",
+            base_url,
+            project.id(),
+            member_id,
+            component.id()
+        ))
+        .header("Authorization", format!("Bearer {}", owner_token))
+        .send()
+        .await
+        .expect("Failed to revoke permission");
+
+    assert_eq!(
+        revoke_response.status(),
+        204,
+        "Owner should be able to revoke specific component permission"
+    );
+
+    // Member should no longer be able to update component (only has generic read)
+    let update_response2 = client
+        .patch(&format!(
+            "{}/api/projects/{}/components/{}",
+            base_url,
+            project.id(),
+            component.id()
+        ))
+        .header("Authorization", format!("Bearer {}", member_token))
+        .header("Content-Type", "application/json")
+        .json(&json!({
+            "status": "active"
+        }))
+        .send()
+        .await
+        .expect("Failed to send request");
+
+    assert_eq!(
+        update_response2.status(),
+        403,
+        "Member should not be able to update component after permission revocation"
+    );
+}
+
+#[tokio::test]
+#[serial]
+async fn test_generic_permission_grants_access_to_all_components() {
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
+    let db = _fixture.db();
+
+    let owner_id = Uuid::new_v4();
+    let (project, _owner_member) = DbFixtures::create_project_with_owner(&db, owner_id)
+        .await
+        .expect("Failed to create project with owner");
+
+    // Create multiple components
+    let component1 = DbFixtures::component()
+        .for_project(project.id())
+        .taskboard()
+        .commit(db.clone())
+        .await
+        .expect("Failed to create taskboard component");
+
+    let component2 = DbFixtures::component()
+        .for_project(project.id())
+        .wiki()
+        .commit(db.clone())
+        .await
+        .expect("Failed to create wiki component");
+
+    // Add a member with minimal permissions
+    let member_id = Uuid::new_v4();
+    DbFixtures::member()
+        .direct(project.id(), member_id, owner_id)
+        .commit(db.clone())
+        .await
+        .expect("Failed to create member");
+
+    let owner_token = create_test_jwt_token(owner_id);
+    let member_token = create_test_jwt_token(member_id);
+
+    // Grant generic admin permission on "component" (not specific to any component)
+    let grant_response = client
+        .post(&format!(
+            "{}/api/projects/{}/members/{}/permissions/component",
+            base_url,
+            project.id(),
+            member_id
+        ))
+        .header("Authorization", format!("Bearer {}", owner_token))
+        .header("Content-Type", "application/json")
+        .json(&json!({
+            "permission": "admin"
+        }))
+        .send()
+        .await
+        .expect("Failed to grant generic component permission");
+
+    assert_eq!(
+        grant_response.status(),
+        200,
+        "Owner should be able to grant generic component permission"
+    );
+
+    // Member should be able to update component1
+    let update_response1 = client
+        .patch(&format!(
+            "{}/api/projects/{}/components/{}",
+            base_url,
+            project.id(),
+            component1.id()
+        ))
+        .header("Authorization", format!("Bearer {}", member_token))
+        .header("Content-Type", "application/json")
+        .json(&json!({
+            "status": "configured"
+        }))
+        .send()
+        .await
+        .expect("Failed to send request");
+
+    assert_eq!(
+        update_response1.status(),
+        200,
+        "Member with generic admin permission should update component1"
+    );
+
+    // Member should also be able to update component2
+    let update_response2 = client
+        .patch(&format!(
+            "{}/api/projects/{}/components/{}",
+            base_url,
+            project.id(),
+            component2.id()
+        ))
+        .header("Authorization", format!("Bearer {}", member_token))
+        .header("Content-Type", "application/json")
+        .json(&json!({
+            "status": "configured"
+        }))
+        .send()
+        .await
+        .expect("Failed to send request");
+
+    assert_eq!(
+        update_response2.status(),
+        200,
+        "Member with generic admin permission should update component2"
+    );
+}
+
 

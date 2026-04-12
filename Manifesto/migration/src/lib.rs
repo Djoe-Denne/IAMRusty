@@ -8,6 +8,7 @@ mod m20241015_000005_create_resources_table;
 mod m20241015_000006_create_role_permissions_table;
 mod m20241015_000007_create_project_member_role_permissions_table;
 mod m20241015_000008_seed_permissions_and_resources;
+mod m20241015_000009_drop_resources_type_unique_index;
 
 pub struct Migrator;
 
@@ -23,6 +24,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20241015_000006_create_role_permissions_table::Migration),
             Box::new(m20241015_000007_create_project_member_role_permissions_table::Migration),
             Box::new(m20241015_000008_seed_permissions_and_resources::Migration),
+            Box::new(m20241015_000009_drop_resources_type_unique_index::Migration),
         ]
     }
 }

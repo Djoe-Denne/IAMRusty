@@ -188,6 +188,7 @@ async fn setup_application(
     let component_usecase = Arc::new(ComponentUseCaseImpl::new(
         component_service.clone(),
         project_service.clone(),
+        permission_service.clone(),
         event_publisher.clone(),
     ));
 

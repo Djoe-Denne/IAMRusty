@@ -11,6 +11,7 @@ use uuid::Uuid;
 use manifesto_infra::repository::entity::project_components::{
     ActiveModel as ComponentActiveModel, Entity as ComponentsEntity, Model as ComponentModel,
 };
+use manifesto_infra::repository::entity::resources::ActiveModel as ResourceActiveModel;
 
 /// Component fixture wrapper
 pub struct ComponentFixture {
@@ -147,13 +148,26 @@ impl ComponentFixtureBuilder {
                     .unwrap_or_else(|| "taskboard".to_string()),
             ),
             status: ActiveValue::Set(self.status.unwrap_or_else(|| "pending".to_string())),
-            added_at: ActiveValue::Set(now),
+            added_at: ActiveValue::Set(now.clone()),
             configured_at: ActiveValue::NotSet,
             activated_at: ActiveValue::NotSet,
             disabled_at: ActiveValue::NotSet,
         };
 
         let model = active_model.insert(db.as_ref()).await?;
+
+        // Create the specific resource for this component instance
+        // Uses just the UUID as the ID (resource_type identifies it as component_instance)
+        // This mirrors what the ComponentUseCaseImpl.add_component does in production
+        let resource_id = id.to_string();
+        let resource_model = ResourceActiveModel {
+            id: ActiveValue::Set(resource_id.clone()),
+            resource_type: ActiveValue::Set("component_instance".to_string()),
+            name: ActiveValue::Set(resource_id),
+            created_at: ActiveValue::Set(now),
+        };
+        resource_model.insert(db.as_ref()).await?;
+
         Ok(ComponentFixture {
             inner: CommittedFixture::new(model),
         })
