@@ -1,4 +1,4 @@
----
+﻿---
 title: >-
   RustyCog
 category: project
@@ -13,17 +13,23 @@ sources:
   - rustycog/rustycog-http/src/builder.rs
   - rustycog/rustycog-permission/src/lib.rs
   - rustycog/rustycog-testing/src/common/test_server.rs
+  - Manifesto/docs/rustycog-service-build-guide.md
+  - Manifesto/docs/rustycog-implementation-and-usage-guide.md
 summary: >-
   RustyCog is the shared Rust SDK/workspace that standardizes commands, config, HTTP, permissions, events, logging, DB access, and test infrastructure across services.
 provenance:
-  extracted: 0.82
-  inferred: 0.12
-  ambiguous: 0.06
+  extracted: 0.77
+  inferred: 0.09
+  ambiguous: 0.14
 created: 2026-04-14T16:54:59.5971424Z
-updated: 2026-04-14T17:13:01.1911009Z
+updated: 2026-04-14T20:08:52.0803248Z
 ---
 
 # RustyCog
+
+## Indexes
+
+- [[projects/rustycog/references/index]] — references
 
 RustyCog is the shared platform SDK for AIForAll. It lives as a set of `rustycog-*` crates inside the main workspace, and `rustycog/Cargo.toml` also exposes a `rustycog-meta` package that bundles the stack for consumers that want one umbrella dependency. It is the concrete implementation of `[[concepts/shared-rust-microservice-sdk]]` for services such as `[[projects/iamrusty/iamrusty]]` and `[[projects/manifesto/manifesto]]`.
 
@@ -34,6 +40,7 @@ RustyCog is the shared platform SDK for AIForAll. It lives as a set of `rustycog
 - `RouteBuilder` centers HTTP startup around `AppState`, `GenericCommandService`, `UserIdExtractor`, health routes, tracing, auth modes, and permission guards, so service setup stays consistent across projects.
 - Queue transport is selected at runtime through `QueueConfig`, and the event layer can instantiate Kafka, SQS, or disabled/no-op publishers and consumers from the same abstraction.
 - The test harness reuses global servers plus Kafka and LocalStack-backed queue fixtures so services can verify real infrastructure paths without hand-rolling their own container orchestration.
+- The Manifesto-authored guides confirm that RustyCog is the platform's reference stack, but they also preserve unresolved drift around logging setup, config layering, and retry wiring between the recommended story and one of its flagship consumers. Conflict to resolve. ^[ambiguous]
 - The README still advertises `rustycog-macros` and example projects that are not present in this tree, so the public narrative is slightly ahead of the checked-in code surface. ^[ambiguous]
 
 ## Open Questions
@@ -44,7 +51,7 @@ RustyCog is the shared platform SDK for AIForAll. It lives as a set of `rustycog
 
 ## Sources
 
-- [[references/rustycog-crate-catalog]] — Code-backed map of the crate surfaces
+- [[projects/rustycog/references/rustycog-crate-catalog]] — Code-backed map of the crate surfaces
 - [[references/platform-building-blocks]] — Shared SDK and event-contract foundation
 - [[concepts/shared-rust-microservice-sdk]] — Cross-project abstraction implemented here
 - [[skills/building-rustycog-services]] — Practical workflow derived from that guidance

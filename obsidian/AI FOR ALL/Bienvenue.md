@@ -1,5 +1,3 @@
-Voici votre nouveau *coffre*.
+Voici votre coffre **AI FOR ALL**.
 
-Notez quelque chose, [[créez un lien]], ou essayez [l'importateur](https://help.obsidian.md/Plugins/Importer)!
-
-Lorsque vous serez prêt, supprimez cette note et faites ce coffre vôtre.
+Pour explorer le wiki, ouvrez [[index]] (table des matières) ou [[projects/index]] (pôles par service). Vous pouvez aussi créer des liens `[[comme ceci]]` ou utiliser [l’importateur Obsidian](https://help.obsidian.md/Plugins/Importer).

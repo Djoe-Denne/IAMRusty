@@ -1,8 +1,8 @@
 {
     "version":  1,
     "stats":  {
-                  "total_sources_ingested":  121,
-                  "total_pages":  49
+                  "total_sources_ingested":  135,
+                  "total_pages":  74
               },
     "sources":  {
                     "IAMRusty/README.md":  {
@@ -599,7 +599,7 @@
                                                                          ]
                                                    },
                     "Telegraph/http/src/lib.rs":  {
-                                                      "ingested_at":  "2026-04-14T18:18:24.0602572Z",
+                                                      "ingested_at":  "2026-04-14T20:28:20.9129598Z",
                                                       "size_bytes":  1436,
                                                       "modified_at":  "2025-09-18T10:19:41.0876986Z",
                                                       "content_hash":  "sha256:e3403bca7ee1da2a4fb97b44402a075edee61f42bfc612178549aebc94414d3b",
@@ -610,8 +610,9 @@
                                                                         ],
                                                       "pages_updated":  [
                                                                             "projects/telegraph/telegraph.md",
-                                                                            "references/telegraph-http-and-notification-api.md",
-                                                                            "references/telegraph-service.md"
+                                                                            "projects/telegraph/references/telegraph-http-and-notification-api.md",
+                                                                            "projects/telegraph/references/telegraph-service.md",
+                                                                            "concepts/resource-scoped-permission-fetchers.md"
                                                                         ]
                                                   },
                     "Telegraph/http/src/handlers/notification.rs":  {
@@ -702,7 +703,7 @@
                                                                                                    ]
                                                                              },
                     "Telegraph/domain/src/service/permission_service.rs":  {
-                                                                               "ingested_at":  "2026-04-14T18:18:24.0602572Z",
+                                                                               "ingested_at":  "2026-04-14T20:28:20.9129598Z",
                                                                                "size_bytes":  1466,
                                                                                "modified_at":  "2025-09-18T09:59:57.3663898Z",
                                                                                "content_hash":  "sha256:46bd7028adf055e5e3ae8460ba02c3827a0daa8e3a98c723c749b6fdd46295e8",
@@ -712,7 +713,8 @@
 
                                                                                                  ],
                                                                                "pages_updated":  [
-                                                                                                     "references/telegraph-http-and-notification-api.md"
+                                                                                                     "projects/telegraph/references/telegraph-http-and-notification-api.md",
+                                                                                                     "concepts/resource-scoped-permission-fetchers.md"
                                                                                                  ]
                                                                            },
                     "Telegraph/domain/src/service/communication_factory.rs":  {
@@ -993,23 +995,23 @@
                                                                            ]
                                                      },
                     "docs/project/Archi.md":  {
-                                                  "ingested_at":  "2026-04-14T16:54:59.5971424Z",
+                                                  "ingested_at":  "2026-04-14T20:08:52.0803248Z",
                                                   "size_bytes":  11064,
                                                   "modified_at":  "2025-09-25T13:36:27.9790049Z",
                                                   "content_hash":  "sha256:3657e1cfebccf1496f8e805e1a7de16a210c6d2b055e64e56c2e4c28e29df57b",
                                                   "source_type":  "document",
-                                                  "project":  null,
+                                                  "project":  "manifesto",
                                                   "pages_created":  [
-                                                                        "projects/manifesto/manifesto.md",
-                                                                        "concepts/component-based-project-orchestration.md",
-                                                                        "references/manifesto-service.md"
+
                                                                     ],
                                                   "pages_updated":  [
-                                                                        "concepts/event-driven-microservice-platform.md"
+                                                                        "projects/manifesto/manifesto.md",
+                                                                        "projects/manifesto/concepts/component-based-project-orchestration.md",
+                                                                        "projects/manifesto/references/manifesto-service.md"
                                                                     ]
                                               },
                     "Manifesto/README.md":  {
-                                                "ingested_at":  "2026-04-14T16:54:59.5971424Z",
+                                                "ingested_at":  "2026-04-14T20:28:20.9129598Z",
                                                 "size_bytes":  5583,
                                                 "modified_at":  "2026-02-21T22:00:37.2142177Z",
                                                 "content_hash":  "sha256:acdda34de0b108a8ecfa0ccd26f3055d376fba969e9a8d8a85326e52e5773f7e",
@@ -1020,13 +1022,14 @@
                                                                   ],
                                                 "pages_updated":  [
                                                                       "projects/manifesto/manifesto.md",
-                                                                      "concepts/component-based-project-orchestration.md",
-                                                                      "concepts/event-driven-microservice-platform.md",
-                                                                      "references/manifesto-service.md"
+                                                                      "projects/manifesto/concepts/component-based-project-orchestration.md",
+                                                                      "projects/manifesto/concepts/project-ownership-and-publication-lifecycle.md",
+                                                                      "projects/manifesto/concepts/component-catalog-and-fallback-adapter.md",
+                                                                      "projects/manifesto/references/manifesto-service.md"
                                                                   ]
                                             },
                     "Manifesto/SETUP.md":  {
-                                               "ingested_at":  "2026-04-14T16:54:59.5971424Z",
+                                               "ingested_at":  "2026-04-14T20:08:52.0803248Z",
                                                "size_bytes":  5697,
                                                "modified_at":  "2025-10-19T14:27:42.3942734Z",
                                                "content_hash":  "sha256:57067abf60d73cbc305cbec40cc80e49dc188197463ce302af3477d87ea0a6ff",
@@ -1037,10 +1040,118 @@
                                                                  ],
                                                "pages_updated":  [
                                                                      "projects/manifesto/manifesto.md",
-                                                                     "concepts/component-based-project-orchestration.md",
-                                                                     "references/manifesto-service.md"
+                                                                     "projects/manifesto/concepts/component-based-project-orchestration.md",
+                                                                     "projects/manifesto/references/manifesto-service.md"
                                                                  ]
                                            },
+                    "Manifesto/application/src/usecase/project.rs":  {
+                                                                       "ingested_at":  "2026-04-14T20:28:20.9129598Z",
+                                                                       "size_bytes":  15122,
+                                                                       "modified_at":  "2026-04-12T14:45:52.8812021Z",
+                                                                       "content_hash":  "sha256:43c9ca7500c51c2b0fe780bf173742145ea6b0a3d81aa58b883ebf87790b1319",
+                                                                       "source_type":  "document",
+                                                                       "project":  "manifesto",
+                                                                       "pages_created":  [
+
+                                                                                         ],
+                                                                       "pages_updated":  [
+                                                                                             "projects/manifesto/concepts/project-ownership-and-publication-lifecycle.md",
+                                                                                             "projects/manifesto/references/manifesto-api-and-permission-flows.md",
+                                                                                             "projects/manifesto/references/manifesto-event-model.md"
+                                                                                         ]
+                                                                   },
+                    "Manifesto/application/src/usecase/component.rs":  {
+                                                                         "ingested_at":  "2026-04-14T20:28:20.9129598Z",
+                                                                         "size_bytes":  9019,
+                                                                         "modified_at":  "2025-12-10T09:51:05.7595714Z",
+                                                                         "content_hash":  "sha256:a887691d03022aabb03a140b2bb87679a2787a450c376a477af19d4c5a5a3b4b",
+                                                                         "source_type":  "document",
+                                                                         "project":  "manifesto",
+                                                                         "pages_created":  [
+
+                                                                                           ],
+                                                                         "pages_updated":  [
+                                                                                               "projects/manifesto/concepts/component-instance-permissions.md",
+                                                                                               "projects/manifesto/concepts/component-catalog-and-fallback-adapter.md",
+                                                                                               "projects/manifesto/references/manifesto-api-and-permission-flows.md",
+                                                                                               "projects/manifesto/references/manifesto-event-model.md"
+                                                                                           ]
+                                                                     },
+                    "Manifesto/application/src/usecase/member.rs":  {
+                                                                      "ingested_at":  "2026-04-14T20:28:20.9129598Z",
+                                                                      "size_bytes":  16209,
+                                                                      "modified_at":  "2025-12-10T09:51:10.2008962Z",
+                                                                      "content_hash":  "sha256:562531e43bb6f12fab5151d6df3c52c27009013d7ba2d9d39ff062f10f534fb3",
+                                                                      "source_type":  "document",
+                                                                      "project":  "manifesto",
+                                                                      "pages_created":  [
+
+                                                                                        ],
+                                                                      "pages_updated":  [
+                                                                                          "projects/manifesto/concepts/component-instance-permissions.md",
+                                                                                          "projects/manifesto/references/manifesto-api-and-permission-flows.md",
+                                                                                          "projects/manifesto/references/manifesto-event-model.md"
+                                                                                      ]
+                                                                  },
+                    "Manifesto/domain/src/service/permission_service.rs":  {
+                                                                            "ingested_at":  "2026-04-14T20:28:20.9129598Z",
+                                                                            "size_bytes":  7941,
+                                                                            "modified_at":  "2025-12-10T09:51:10.2018968Z",
+                                                                            "content_hash":  "sha256:175bc4ec989d4be624e6b915f106847c3410fe7625a8d66e561879eabcdd091e",
+                                                                            "source_type":  "document",
+                                                                            "project":  "manifesto",
+                                                                            "pages_created":  [
+
+                                                                                              ],
+                                                                            "pages_updated":  [
+                                                                                                "projects/manifesto/concepts/component-instance-permissions.md",
+                                                                                                "concepts/resource-scoped-permission-fetchers.md"
+                                                                                            ]
+                                                                        },
+                    "Manifesto/domain/src/service/permission_fetcher_service.rs":  {
+                                                                                    "ingested_at":  "2026-04-14T20:28:20.9129598Z",
+                                                                                    "size_bytes":  10798,
+                                                                                    "modified_at":  "2026-04-12T13:45:04.9000426Z",
+                                                                                    "content_hash":  "sha256:22eb523dfd2fcdc4411b1d32f6e40316d7b930c785ebdf3eb4ddc479765187ca",
+                                                                                    "source_type":  "document",
+                                                                                    "project":  "manifesto",
+                                                                                    "pages_created":  [
+
+                                                                                                      ],
+                                                                                    "pages_updated":  [
+                                                                                                        "projects/manifesto/concepts/component-instance-permissions.md",
+                                                                                                        "projects/manifesto/references/manifesto-api-and-permission-flows.md",
+                                                                                                        "concepts/resource-scoped-permission-fetchers.md"
+                                                                                                    ]
+                                                                                },
+                    "Manifesto/infra/src/event/event_adapter.rs":  {
+                                                                    "ingested_at":  "2026-04-14T20:28:20.9129598Z",
+                                                                    "size_bytes":  2035,
+                                                                    "modified_at":  "2025-12-04T21:47:44.0818874Z",
+                                                                    "content_hash":  "sha256:d1f6f50d064b03a4ca0a13e69c657bcbd2c5e95f5c9d5e3b64561b4bd1fc4432",
+                                                                    "source_type":  "document",
+                                                                    "project":  "manifesto",
+                                                                    "pages_created":  [
+
+                                                                                      ],
+                                                                    "pages_updated":  [
+                                                                                          "projects/manifesto/references/manifesto-event-model.md"
+                                                                                      ]
+                                                                },
+                    "Manifesto/infra/src/adapters/component_service_client.rs":  {
+                                                                                  "ingested_at":  "2026-04-14T20:28:20.9129598Z",
+                                                                                  "size_bytes":  3362,
+                                                                                  "modified_at":  "2025-10-15T14:11:32.6619591Z",
+                                                                                  "content_hash":  "sha256:e873181d2aa182bf4ae80f60f1674e2464c84ac73dbf419fe271b9bcf1a82a97",
+                                                                                  "source_type":  "document",
+                                                                                  "project":  "manifesto",
+                                                                                  "pages_created":  [
+
+                                                                                                    ],
+                                                                                  "pages_updated":  [
+                                                                                                      "projects/manifesto/concepts/component-catalog-and-fallback-adapter.md"
+                                                                                                  ]
+                                                                              },
                     "rustycog/README.md":  {
                                                "ingested_at":  "2026-04-14T16:54:59.5971424Z",
                                                "size_bytes":  11083,
@@ -1077,7 +1188,7 @@
                                                                     ]
                                               },
                     "Manifesto/docs/rustycog-implementation-and-usage-guide.md":  {
-                                                                                      "ingested_at":  "2026-04-14T17:03:47.5107188Z",
+                                                                                      "ingested_at":  "2026-04-14T20:08:52.0803248Z",
                                                                                       "size_bytes":  8388,
                                                                                       "modified_at":  "2026-02-21T22:00:28.7003468Z",
                                                                                       "content_hash":  "sha256:a589e045683e25345f3aaaa249cd9a43087b2a38d98c780164e6739acf56ca6b",
@@ -1087,35 +1198,38 @@
 
                                                                                                         ],
                                                                                       "pages_updated":  [
-                                                                                                            "references/rustycog-service-construction.md",
-                                                                                                            "concepts/command-registry-and-retry-policies.md",
-                                                                                                            "skills/building-rustycog-services.md",
                                                                                                             "projects/manifesto/manifesto.md",
+                                                                                                            "projects/manifesto/references/manifesto-service.md",
+                                                                                                            "references/rustycog-service-construction.md",
+                                                                                                            "skills/building-rustycog-services.md",
+                                                                                                            "concepts/structured-service-configuration.md",
+                                                                                                            "concepts/command-registry-and-retry-policies.md",
                                                                                                             "projects/rustycog/rustycog.md",
                                                                                                             "concepts/shared-rust-microservice-sdk.md"
                                                                                                         ]
                                                                                   },
                     "Manifesto/docs/rustycog-service-build-guide.md":  {
-                                                                           "ingested_at":  "2026-04-14T17:03:47.5107188Z",
+                                                                           "ingested_at":  "2026-04-14T20:08:52.0803248Z",
                                                                            "size_bytes":  19263,
                                                                            "modified_at":  "2026-02-21T22:00:16.0259556Z",
                                                                            "content_hash":  "sha256:4b8983d449f91c2ea4bfe6cf66023818106468f6d258530774336882a76d196b",
                                                                            "source_type":  "document",
                                                                            "project":  "manifesto",
                                                                            "pages_created":  [
-                                                                                                 "references/rustycog-service-construction.md",
-                                                                                                 "skills/building-rustycog-services.md"
+
                                                                                              ],
                                                                            "pages_updated":  [
+                                                                                                 "projects/manifesto/manifesto.md",
+                                                                                                 "references/rustycog-service-construction.md",
+                                                                                                 "skills/building-rustycog-services.md",
+                                                                                                 "concepts/shared-rust-microservice-sdk.md",
                                                                                                  "concepts/structured-service-configuration.md",
                                                                                                  "concepts/integration-testing-with-real-infrastructure.md",
-                                                                                                 "projects/manifesto/manifesto.md",
-                                                                                                 "projects/rustycog/rustycog.md",
-                                                                                                 "concepts/shared-rust-microservice-sdk.md"
+                                                                                                 "projects/rustycog/rustycog.md"
                                                                                              ]
                                                                        },
                     "Manifesto/docs/rustycog-hexagonal-web-service-guide.md":  {
-                                                                                   "ingested_at":  "2026-04-14T17:03:47.5107188Z",
+                                                                                   "ingested_at":  "2026-04-14T20:08:52.0803248Z",
                                                                                    "size_bytes":  12824,
                                                                                    "modified_at":  "2026-02-21T21:43:14.5534614Z",
                                                                                    "content_hash":  "sha256:e59ad8f37835f2488814086867387254228fa65f0f50e5f3eee4978d32b02dff",
@@ -1125,12 +1239,127 @@
 
                                                                                                      ],
                                                                                    "pages_updated":  [
-                                                                                                         "references/rustycog-service-construction.md",
-                                                                                                         "skills/building-rustycog-services.md",
-                                                                                                         "concepts/hexagonal-architecture.md",
                                                                                                          "projects/manifesto/manifesto.md",
-                                                                                                         "concepts/shared-rust-microservice-sdk.md"
+                                                                                                         "references/rustycog-service-construction.md",
+                                                                                                         "skills/building-rustycog-services.md"
                                                                                                      ]
+                                                                               },
+                    "Manifesto/IMPLEMENTATION_STATUS.md":  {
+                                                            "ingested_at":  "2026-04-14T20:08:52.0803248Z",
+                                                            "size_bytes":  22134,
+                                                            "modified_at":  "2025-12-04T20:32:11.4333629Z",
+                                                            "content_hash":  "sha256:8889fd4193c7713357d884fd57de0acc0ebbd12ce11dc765f527f14fee2bcf9b",
+                                                            "source_type":  "document",
+                                                            "project":  "manifesto",
+                                                            "pages_created":  [
+
+                                                                              ],
+                                                            "pages_updated":  [
+                                                                                  "projects/manifesto/manifesto.md",
+                                                                                  "projects/manifesto/concepts/component-based-project-orchestration.md",
+                                                                                  "projects/manifesto/references/manifesto-service.md"
+                                                                              ]
+                                                        },
+                    "Manifesto/src/main.rs":  {
+                                                  "ingested_at":  "2026-04-14T20:08:52.0803248Z",
+                                                  "size_bytes":  962,
+                                                  "modified_at":  "2025-12-05T12:09:16.5148773Z",
+                                                  "content_hash":  "sha256:a27d076ee3affb72c2fd477da31084184dfe657301e601659905583a7436a13f",
+                                                  "source_type":  "document",
+                                                  "project":  "manifesto",
+                                                  "pages_created":  [
+
+                                                                    ],
+                                                  "pages_updated":  [
+                                                                        "projects/manifesto/manifesto.md",
+                                                                        "projects/manifesto/references/manifesto-service.md",
+                                                                        "references/rustycog-service-construction.md",
+                                                                        "skills/building-rustycog-services.md"
+                                                                    ]
+                                              },
+                    "Manifesto/configuration/src/lib.rs":  {
+                                                             "ingested_at":  "2026-04-14T20:08:52.0803248Z",
+                                                             "size_bytes":  7389,
+                                                             "modified_at":  "2025-12-04T21:14:33.5582219Z",
+                                                             "content_hash":  "sha256:c075c4f530acd0d8edb0d956b76229e10c53e6d1e1585c91e616d728e5a3bb4d",
+                                                             "source_type":  "document",
+                                                             "project":  "manifesto",
+                                                             "pages_created":  [
+
+                                                                               ],
+                                                             "pages_updated":  [
+                                                                                   "projects/manifesto/manifesto.md",
+                                                                                   "projects/manifesto/references/manifesto-service.md",
+                                                                                   "concepts/structured-service-configuration.md",
+                                                                                   "references/rustycog-service-construction.md",
+                                                                                   "skills/building-rustycog-services.md"
+                                                                               ]
+                                                         },
+                    "Manifesto/setup/src/app.rs":  {
+                                                    "ingested_at":  "2026-04-14T20:08:52.0803248Z",
+                                                    "size_bytes":  12922,
+                                                    "modified_at":  "2026-04-12T14:45:56.7169519Z",
+                                                    "content_hash":  "sha256:f9018e7d4a33c662766d43b8fe63cfae2c2e1012fa8395091f557e8a53971ddb",
+                                                    "source_type":  "document",
+                                                    "project":  "manifesto",
+                                                    "pages_created":  [
+
+                                                                      ],
+                                                    "pages_updated":  [
+                                                                          "projects/manifesto/manifesto.md",
+                                                                          "projects/manifesto/references/manifesto-service.md",
+                                                                          "references/rustycog-service-construction.md"
+                                                                      ]
+                                                },
+                    "Manifesto/http/src/lib.rs":  {
+                                                   "ingested_at":  "2026-04-14T20:28:20.9129598Z",
+                                                   "size_bytes":  4997,
+                                                   "modified_at":  "2026-04-12T13:45:10.2820342Z",
+                                                   "content_hash":  "sha256:1e15f4fed95191df5302df1f085cd78e45b63651852f2a6216f7db614db5f6fd",
+                                                   "source_type":  "document",
+                                                   "project":  "manifesto",
+                                                   "pages_created":  [
+
+                                                                     ],
+                                                   "pages_updated":  [
+                                                                         "projects/manifesto/manifesto.md",
+                                                                         "projects/manifesto/references/manifesto-service.md",
+                                                                         "projects/manifesto/references/manifesto-api-and-permission-flows.md",
+                                                                         "references/rustycog-service-construction.md",
+                                                                         "concepts/resource-scoped-permission-fetchers.md"
+                                                                     ]
+                                               },
+                    "Manifesto/application/src/command/factory.rs":  {
+                                                                    "ingested_at":  "2026-04-14T20:08:52.0803248Z",
+                                                                    "size_bytes":  8625,
+                                                                    "modified_at":  "2025-12-07T07:51:39.1461668Z",
+                                                                    "content_hash":  "sha256:e7ca93fc5899f70b6132af25bdebf7b2bb6fb29d0326e7030ea1c8ee9ca4f9dd",
+                                                                    "source_type":  "document",
+                                                                    "project":  "manifesto",
+                                                                    "pages_created":  [
+
+                                                                                      ],
+                                                                    "pages_updated":  [
+                                                                                          "projects/manifesto/manifesto.md",
+                                                                                          "projects/manifesto/references/manifesto-service.md",
+                                                                                          "concepts/command-registry-and-retry-policies.md"
+                                                                                      ]
+                                                                },
+                    "Manifesto/tests/common.rs":  {
+                                                   "ingested_at":  "2026-04-14T20:08:52.0803248Z",
+                                                   "size_bytes":  1910,
+                                                   "modified_at":  "2025-12-04T21:14:33.5592222Z",
+                                                   "content_hash":  "sha256:1a7f7a44827e0ad63433aca2fbe76c24eaa653e167226dc60ede1d4b3667986e",
+                                                   "source_type":  "document",
+                                                   "project":  "manifesto",
+                                                   "pages_created":  [
+
+                                                                     ],
+                                                   "pages_updated":  [
+                                                                         "projects/manifesto/manifesto.md",
+                                                                         "projects/manifesto/references/manifesto-service.md",
+                                                                         "concepts/integration-testing-with-real-infrastructure.md"
+                                                                     ]
                                                                                },
                     "Cargo.toml":  {
                                        "ingested_at":  "2026-04-14T17:13:01.1911009Z",
@@ -1310,37 +1539,39 @@
                                                                                 ]
                                                           },
                     "rustycog/rustycog-http/src/builder.rs":  {
-                                                                  "ingested_at":  "2026-04-14T17:13:01.1911009Z",
+                                                                  "ingested_at":  "2026-04-14T20:28:20.9129598Z",
                                                                   "size_bytes":  9249,
                                                                   "modified_at":  "2026-02-22T19:50:19.7986829Z",
                                                                   "content_hash":  "sha256:a09379f69dae62702803b70dbe53946c6b25b4b81d7228697d3437c5279314f3",
                                                                   "source_type":  "document",
                                                                   "project":  "rustycog",
                                                                   "pages_created":  [
-                                                                                        "references/rustycog-crate-catalog.md"
+                                                                                        "projects/rustycog/references/rustycog-crate-catalog.md"
                                                                                     ],
                                                                   "pages_updated":  [
                                                                                         "projects/rustycog/rustycog.md",
                                                                                         "concepts/shared-rust-microservice-sdk.md",
                                                                                         "skills/building-rustycog-services.md",
-                                                                                        "references/rustycog-service-construction.md"
+                                                                                        "references/rustycog-service-construction.md",
+                                                                                        "concepts/resource-scoped-permission-fetchers.md"
                                                                                     ]
                                                               },
                     "rustycog/rustycog-http/src/middleware_permission.rs":  {
-                                                                                "ingested_at":  "2026-04-14T17:13:01.1911009Z",
+                                                                                "ingested_at":  "2026-04-14T20:28:20.9129598Z",
                                                                                 "size_bytes":  4351,
                                                                                 "modified_at":  "2026-04-12T13:48:07.5417752Z",
                                                                                 "content_hash":  "sha256:9acb6137feb0194eb7cd3aca420ecf9acefb3bde1fbfab184a75246dff406f97",
                                                                                 "source_type":  "document",
                                                                                 "project":  "rustycog",
                                                                                 "pages_created":  [
-                                                                                                      "references/rustycog-crate-catalog.md"
+                                                                                                      "projects/rustycog/references/rustycog-crate-catalog.md"
                                                                                                   ],
                                                                                 "pages_updated":  [
                                                                                                       "projects/rustycog/rustycog.md",
                                                                                                       "concepts/shared-rust-microservice-sdk.md",
                                                                                                       "skills/building-rustycog-services.md",
-                                                                                                      "references/rustycog-service-construction.md"
+                                                                                                      "references/rustycog-service-construction.md",
+                                                                                                      "concepts/resource-scoped-permission-fetchers.md"
                                                                                                   ]
                                                                             },
                     "rustycog/rustycog-http/src/jwt_handler.rs":  {
@@ -1598,7 +1829,7 @@
                                                                     ]
                                               },
                     "Hive/http/src/lib.rs":  {
-                                                 "ingested_at":  "2026-04-14T18:56:22.3888182Z",
+                                                 "ingested_at":  "2026-04-14T20:28:20.9129598Z",
                                                  "size_bytes":  3569,
                                                  "modified_at":  "2025-08-18T08:03:01.7279134Z",
                                                  "content_hash":  "sha256:0b79b33dd730565a7daf3429581bebde6ee6c1342617667d607722baf607eee3",
@@ -1608,10 +1839,11 @@
 
                                                                    ],
                                                  "pages_updated":  [
-                                                                       "concepts/organization-resource-authorization.md",
+                                                                       "projects/hive/concepts/organization-resource-authorization.md",
                                                                        "projects/hive/hive.md",
-                                                                       "references/hive-http-api-and-openapi-drift.md",
-                                                                       "references/hive-service.md"
+                                                                       "projects/hive/references/hive-http-api-and-openapi-drift.md",
+                                                                       "projects/hive/references/hive-service.md",
+                                                                       "concepts/resource-scoped-permission-fetchers.md"
                                                                    ]
                                              },
                     "Hive/http/src/error.rs":  {
@@ -1739,18 +1971,19 @@
                                                                                        ]
                                                                  },
                     "Hive/domain/src/service/permission_service.rs":  {
-                                                                          "ingested_at":  "2026-04-14T18:56:22.3888182Z",
+                                                                          "ingested_at":  "2026-04-14T20:28:20.9129598Z",
                                                                           "size_bytes":  2340,
                                                                           "modified_at":  "2025-09-08T07:11:18.1809702Z",
                                                                           "content_hash":  "sha256:65555ae93da4fb088a90d55838311c8501445bc603d2d755c357b5f5e0464009",
                                                                           "source_type":  "document",
                                                                           "project":  "hive",
                                                                           "pages_created":  [
-                                                                                                "concepts/organization-resource-authorization.md"
+                                                                                                "projects/hive/concepts/organization-resource-authorization.md"
                                                                                             ],
                                                                           "pages_updated":  [
-                                                                                                "references/hive-data-model-and-schema.md",
-                                                                                                "skills/building-organization-management-services.md"
+                                                                                                "projects/hive/references/hive-data-model-and-schema.md",
+                                                                                                "projects/hive/skills/building-organization-management-services.md",
+                                                                                                "concepts/resource-scoped-permission-fetchers.md"
                                                                                             ]
                                                                       },
                     "Hive/domain/src/service/sync_service.rs":  {

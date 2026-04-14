@@ -36,7 +36,7 @@ AIForAll favors asynchronous coordination between bounded services instead of pu
 - IAMRusty publishes user-signup style events and Telegraph consumes them to send notifications.
 - Hive publishes organization, member, invitation, external-link, and sync-job events through `[[projects/hive-events/hive-events]]`, which broadens the platform story beyond identity flows alone.
 - Hive Events routes messages into purpose-specific queues such as `notification-events` and `sync-events`.
-- RustyCog formalizes the event envelope through `DomainEvent`, which requires an event type, IDs, timestamp, version, JSON payload, and metadata independent of the transport.
+- `[[projects/rustycog/rustycog]]` formalizes the event envelope through `DomainEvent`, which requires an event type, IDs, timestamp, version, JSON payload, and metadata independent of the transport.
 - `QueueConfig` and the concrete publisher/consumer factories let services switch between Kafka, SQS, or disabled/no-op mode without rewriting the higher-level event API.
 - The test harness shows both transports are active parts of the codebase: Kafka tests provision a KRaft container and consume messages back from the topic, while SQS tests provision LocalStack and exercise real queue URLs and message bodies.
 - Hive is a good example of an HTTP-first service that still emits a substantial event stream, while Telegraph is a queue-aware consumer and IAMRusty combines HTTP-first flows with queue-backed side effects. ^[inferred]
@@ -53,6 +53,7 @@ AIForAll favors asynchronous coordination between bounded services instead of pu
 
 - [[references/aiforall-platform]] — Repo-level workflow and service communication
 - [[projects/hive/hive]] — Organization-management service that emits Hive domain events
-- [[references/manifesto-service]] — Project-service orchestration and cascading ADR
-- [[references/rustycog-crate-catalog]] — Code-backed inventory of the event crates
+- [[projects/manifesto/references/manifesto-service]] — Project-service orchestration and cascading ADR
+- [[projects/rustycog/references/rustycog-crate-catalog]] — Code-backed inventory of the event crates
+- [[projects/rustycog/rustycog]] — Shared SDK project implementing transport abstractions.
 - [[references/platform-building-blocks]] — Event contracts and shared infrastructure primitives

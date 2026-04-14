@@ -19,12 +19,18 @@ updated: 2026-04-14T17:46:37.6929647Z
 
 # IAMRusty
 
-`IAMRusty` is the identity service in the AIForAll workspace. It combines OAuth login, email/password authentication, registration completion, JWT and refresh-token issuance, provider linking, and queue-backed auth events behind `[[concepts/hexagonal-architecture]]` and a shared `rustycog` runtime stack.
+## Indexes
+
+- [[projects/iamrusty/concepts/index]] — concepts
+- [[projects/iamrusty/skills/index]] — skills
+- [[projects/iamrusty/references/index]] — references
+
+`IAMRusty` is the identity service in the AIForAll workspace. It combines OAuth login, email/password authentication, registration completion, JWT and refresh-token issuance, provider linking, and queue-backed auth events behind `[[projects/iamrusty/concepts/hexagonal-architecture]]` and a shared `rustycog` runtime stack.
 
 ## Key Ideas
 
 - The service is split across domain, application, infrastructure, HTTP, configuration, and setup crates, with `setup/src/app.rs` acting as the composition root for repositories, token services, provider clients, and the command registry.
-- Authentication is intentionally dual-mode: unauthenticated users enter OAuth login, while authenticated users can attach extra providers through `[[concepts/oauth-provider-linking]]`.
+- Authentication is intentionally dual-mode: unauthenticated users enter OAuth login, while authenticated users can attach extra providers through `[[projects/iamrusty/concepts/oauth-provider-linking]]`.
 - Runtime behavior depends on `[[concepts/structured-service-configuration]]`, including environment-specific TOML files, cached random ports in tests, queue settings, and JWT secret resolution.
 - Command orchestration is centralized through `[[concepts/command-registry-and-retry-policies]]`, so handlers delegate business work instead of embedding retries, logging, and error mapping directly.
 - The service relies on `[[concepts/integration-testing-with-real-infrastructure]]` for end-to-end confidence, using real databases, HTTP servers, fixtures, and optional queue-backed checks.
@@ -32,13 +38,13 @@ updated: 2026-04-14T17:46:37.6929647Z
 
 ## Related
 
-- [[references/iamrusty-service]] - Code-backed overview of the crate layout, route surface, and runtime wiring.
-- [[references/iamrusty-runtime-and-security]] - Configuration, JWT, queue, TLS, and OAuth hardening details.
-- [[references/iamrusty-api-and-auth-flows]] - Public and authenticated HTTP flows, including registration completion and password reset.
-- [[references/iamrusty-command-execution]] - How the command registry wraps the service's use cases.
-- [[references/iamrusty-testing-and-fixtures]] - Test server, database fixture, and Kafka-backed validation patterns.
-- [[skills/testing-rust-services-with-fixtures]] - Preferred workflow for building IAM-style integration tests.
-- [[skills/extending-iamrusty-with-oauth-providers]] - End-to-end checklist for adding another provider safely.
+- [[projects/iamrusty/references/iamrusty-service]] - Code-backed overview of the crate layout, route surface, and runtime wiring.
+- [[projects/iamrusty/references/iamrusty-runtime-and-security]] - Configuration, JWT, queue, TLS, and OAuth hardening details.
+- [[projects/iamrusty/references/iamrusty-api-and-auth-flows]] - Public and authenticated HTTP flows, including registration completion and password reset.
+- [[projects/iamrusty/references/iamrusty-command-execution]] - How the command registry wraps the service's use cases.
+- [[projects/iamrusty/references/iamrusty-testing-and-fixtures]] - Test server, database fixture, and Kafka-backed validation patterns.
+- [[projects/iamrusty/skills/testing-rust-services-with-fixtures]] - Preferred workflow for building IAM-style integration tests.
+- [[projects/iamrusty/skills/extending-iamrusty-with-oauth-providers]] - End-to-end checklist for adding another provider safely.
 
 ## Open Questions
 
@@ -47,8 +53,8 @@ updated: 2026-04-14T17:46:37.6929647Z
 
 ## Sources
 
-- [[references/iamrusty-service]]
-- [[references/iamrusty-runtime-and-security]]
-- [[references/iamrusty-api-and-auth-flows]]
-- [[references/iamrusty-command-execution]]
-- [[references/iamrusty-testing-and-fixtures]]
+- [[projects/iamrusty/references/iamrusty-service]]
+- [[projects/iamrusty/references/iamrusty-runtime-and-security]]
+- [[projects/iamrusty/references/iamrusty-api-and-auth-flows]]
+- [[projects/iamrusty/references/iamrusty-command-execution]]
+- [[projects/iamrusty/references/iamrusty-testing-and-fixtures]]

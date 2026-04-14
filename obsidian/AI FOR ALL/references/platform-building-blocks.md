@@ -46,5 +46,5 @@ These sources cover the reusable foundation beneath the application services: `[
 
 - [[projects/rustycog/rustycog]] — Shared SDK project
 - [[projects/hive-events/hive-events]] — Event-contract project
-- [[references/rustycog-crate-catalog]] — Code-backed inventory of the RustyCog crates
+- [[projects/rustycog/references/rustycog-crate-catalog]] — Code-backed inventory of the RustyCog crates
 - [[concepts/shared-rust-microservice-sdk]] — Cross-project abstraction distilled from these sources

@@ -15,28 +15,39 @@ sources:
   - Hive/config/default.toml
   - Hive/config/development.toml
   - Hive/config/test.toml
-summary: AIForAll services use typed config loaders, but IAMRusty, Telegraph, and Hive diverge in env prefixes, queue models, and service-specific config sections.
+  - Manifesto/configuration/src/lib.rs
+  - Manifesto/config/default.toml
+  - Manifesto/config/development.toml
+  - Manifesto/config/test.toml
+  - Manifesto/docs/rustycog-service-build-guide.md
+  - Manifesto/docs/rustycog-implementation-and-usage-guide.md
+  - Manifesto/src/main.rs
+  - rustycog/rustycog-config/src/lib.rs
+summary: AIForAll services use typed config loaders, but IAMRusty, Telegraph, Hive, and Manifesto diverge in env prefixes, loader behavior, queue models, and service-specific sections.
 provenance:
-  extracted: 0.71
-  inferred: 0.13
-  ambiguous: 0.16
+  extracted: 0.65
+  inferred: 0.10
+  ambiguous: 0.25
 created: 2026-04-14T17:46:37.6929647Z
-updated: 2026-04-14T18:56:22.3888182Z
+updated: 2026-04-14T20:08:52.0803248Z
 ---
 
 # Structured Service Configuration
 
-Across `[[projects/iamrusty/iamrusty]]`, `[[projects/telegraph/telegraph]]`, and `[[projects/hive/hive]]`, configuration is treated as typed runtime state rather than a loose collection of env vars. All three services build on shared `rustycog-config` loaders, but they organize service-specific concerns differently.
+Across `[[projects/iamrusty/iamrusty]]`, `[[projects/telegraph/telegraph]]`, `[[projects/hive/hive]]`, and `[[projects/manifesto/manifesto]]`, configuration is treated as typed runtime state rather than a loose collection of env vars. All four services build on shared loaders from `[[projects/rustycog/rustycog]]`, but they organize service-specific concerns differently.
 
 ## Key Ideas
 
 - IAMRusty's `AppConfig` combines server, database, OAuth, JWT, logging, command, queue, and legacy Kafka sections into one loadable structure under the `IAM` env prefix.
 - Telegraph's `TelegraphConfig` uses the `TELEGRAPH` env prefix and layers service-specific `queues` and `communication` blocks on top of shared `ServerConfig`, `QueueConfig`, `DatabaseConfig`, and logging traits.
 - Hive's `AppConfig` uses the `HIVE` env prefix and keeps the shared `QueueConfig` shape, but adds outbound `iam_service`, `external_provider_service`, and `command` sections for an HTTP-first service that publishes organization events.
-- In both services, environment-specific TOML files plus `RUN_ENV`-selected loading let tests use `port = 0` patterns for DB or queue dependencies without hardcoding ports.
+- Manifesto's `ManifestoConfig` uses the `MANIFESTO` env prefix and combines server, logging, queue, database, scaleway, and `service.component_service` sections, but the current runtime only consumes some of those fields end to end.
+- Across these services, environment-specific TOML files plus `RUN_ENV`-selected loading let tests use `port = 0` patterns for DB or queue dependencies without hardcoding ports.
+- The RustyCog loader selects one primary file by `RUN_ENV`, and `load_config_part("server")` uses `SERVER_*`-style overrides instead of the service prefix. Conflict to resolve. ^[ambiguous]
 - Telegraph separates queue transport (`queue`) from event routing (`queues.*.events`, per-event `modes`, optional `template` names), which gives it a more communication-pipeline-specific config shape than IAMRusty's single `AppConfig` pattern.
 - Hive's config also includes `command.retry`, but unlike IAMRusty's current documented runtime the live composition path does not obviously bind that retry config into the registry. Conflict to resolve. ^[ambiguous]
 - Conflict to resolve: IAMRusty consolidates queue/runtime policy into one service config model, Telegraph adds a second queue-routing schema and channel-specific `communication.*` sections, and Hive keeps one queue block but adds explicit outbound service sections. All three `rustycog-config` service shapes coexist today. ^[ambiguous]
+- Conflict to resolve: Manifesto's docs present `config/default.toml` as a base layer, but its current loader path does not automatically merge that file and still leaves `logging.level`, `[command.retry]`, and `service.component_service.timeout_seconds` only partly wired. ^[ambiguous]
 - Telegraph's `config/default.toml` documents `[communication.sms]`, but `CommunicationConfig` currently includes `email`, `notification`, and `template` only. Conflict to resolve. ^[ambiguous]
 
 ## Open Questions
@@ -50,7 +61,9 @@ Across `[[projects/iamrusty/iamrusty]]`, `[[projects/telegraph/telegraph]]`, and
 - [[projects/iamrusty/iamrusty]] - Service using the `IAM`-prefixed `AppConfig` variant.
 - [[projects/telegraph/telegraph]] - Service using `TELEGRAPH` plus queue-routing and communication sections.
 - [[projects/hive/hive]] - Service using `HIVE` plus outbound IAM and external-provider sections.
-- [[references/iamrusty-runtime-and-security]] - IAMRusty-specific runtime, JWT, and queue details.
-- [[references/telegraph-runtime-and-configuration]] - Telegraph-specific queue, template, SMTP, and port behavior.
-- [[references/hive-runtime-and-configuration]] - Hive-specific command, queue, and outbound service behavior.
+- [[projects/iamrusty/references/iamrusty-runtime-and-security]] - IAMRusty-specific runtime, JWT, and queue details.
+- [[projects/telegraph/references/telegraph-runtime-and-configuration]] - Telegraph-specific queue, template, SMTP, and port behavior.
+- [[projects/hive/references/hive-runtime-and-configuration]] - Hive-specific command, queue, and outbound service behavior.
+- [[projects/manifesto/manifesto]] - Manifesto's concrete `MANIFESTO_*` loader path and partially wired config sections.
+- [[projects/rustycog/rustycog]] - Shared SDK project that provides config primitives across services.
 - [[concepts/integration-testing-with-real-infrastructure]] - Real-infrastructure tests rely on these config shapes.

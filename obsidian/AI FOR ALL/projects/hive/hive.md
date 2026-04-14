@@ -19,6 +19,12 @@ updated: 2026-04-14T18:56:22.3888182Z
 
 # Hive
 
+## Indexes
+
+- [[projects/hive/concepts/index]] — concepts
+- [[projects/hive/skills/index]] — skills
+- [[projects/hive/references/index]] — references
+
 `Hive` is the organization-management service in the AIForAll workspace. It owns organizations, members, invitations, role-based permissions, external provider links, and sync jobs, and it publishes `[[projects/hive-events/hive-events]]` events for downstream consumers such as `[[projects/telegraph/telegraph]]`.
 
 ## Key Ideas
@@ -32,13 +38,13 @@ updated: 2026-04-14T18:56:22.3888182Z
 
 ## Related
 
-- [[references/hive-service]] - Code-backed overview of Hive's crate layout, runtime wiring, and shared dependencies.
-- [[references/hive-runtime-and-configuration]] - `HIVE_*` config loading, queue publishing, retry settings, and service-to-service config.
-- [[references/hive-http-api-and-openapi-drift]] - The live route table, custom error surface, and the gaps between shipped HTTP and `openspecs.yaml`.
-- [[references/hive-command-execution]] - Registry coverage, command names, and event-publishing use cases.
-- [[references/hive-data-model-and-schema]] - Organizations, members, invitations, external links, sync jobs, and permission tables.
-- [[references/hive-testing-and-api-fixtures]] - Real DB, JWT, and external-provider fixture patterns in the Hive tests.
-- [[skills/building-organization-management-services]] - Reusable workflow for building Hive-style org-management services.
+- [[projects/hive/references/hive-service]] - Code-backed overview of Hive's crate layout, runtime wiring, and shared dependencies.
+- [[projects/hive/references/hive-runtime-and-configuration]] - `HIVE_*` config loading, queue publishing, retry settings, and service-to-service config.
+- [[projects/hive/references/hive-http-api-and-openapi-drift]] - The live route table, custom error surface, and the gaps between shipped HTTP and `openspecs.yaml`.
+- [[projects/hive/references/hive-command-execution]] - Registry coverage, command names, and event-publishing use cases.
+- [[projects/hive/references/hive-data-model-and-schema]] - Organizations, members, invitations, external links, sync jobs, and permission tables.
+- [[projects/hive/references/hive-testing-and-api-fixtures]] - Real DB, JWT, and external-provider fixture patterns in the Hive tests.
+- [[projects/hive/skills/building-organization-management-services]] - Reusable workflow for building Hive-style org-management services.
 
 ## Open Questions
 
@@ -47,9 +53,9 @@ updated: 2026-04-14T18:56:22.3888182Z
 
 ## Sources
 
-- [[references/hive-service]]
-- [[references/hive-runtime-and-configuration]]
-- [[references/hive-http-api-and-openapi-drift]]
-- [[references/hive-command-execution]]
-- [[references/hive-data-model-and-schema]]
-- [[references/hive-testing-and-api-fixtures]]
+- [[projects/hive/references/hive-service]]
+- [[projects/hive/references/hive-runtime-and-configuration]]
+- [[projects/hive/references/hive-http-api-and-openapi-drift]]
+- [[projects/hive/references/hive-command-execution]]
+- [[projects/hive/references/hive-data-model-and-schema]]
+- [[projects/hive/references/hive-testing-and-api-fixtures]]

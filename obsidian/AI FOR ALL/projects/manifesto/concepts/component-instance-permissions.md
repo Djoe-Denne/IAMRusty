@@ -1,0 +1,43 @@
+---
+title: Component-Instance Permissions
+category: concepts
+tags: [permissions, components, projects, visibility/internal]
+sources:
+  - Manifesto/application/src/usecase/component.rs
+  - Manifesto/application/src/usecase/member.rs
+  - Manifesto/domain/src/service/permission_service.rs
+  - Manifesto/domain/src/service/permission_fetcher_service.rs
+  - Manifesto/http/src/lib.rs
+summary: Manifesto grants permissions at both generic component and component-instance levels, creating and removing UUID-scoped resources as components change.
+provenance:
+  extracted: 0.81
+  inferred: 0.09
+  ambiguous: 0.10
+created: 2026-04-14T20:25:00Z
+updated: 2026-04-14T20:25:00Z
+---
+
+# Component-Instance Permissions
+
+`[[projects/manifesto/manifesto]]` does not stop at a generic `component` permission. It also creates per-instance resources so a specific component inside one project can carry tighter access than the category as a whole.
+
+## Key Ideas
+
+- `add_component()` validates the component type and uniqueness, then creates a `ProjectComponent` plus a matching component-instance resource through `create_component_instance_resource(&created.id)`.
+- `remove_component()` deletes the component and then removes the matching component-instance resource, keeping permission state aligned with component lifecycle.
+- `ComponentPermissionFetcher` interprets the first resource ID as the project and the second as the optional component instance, then combines generic `component` permissions with instance-specific UUID permissions and returns whichever is stronger.
+- Member permission routes support both generic and specific grants through `/permissions/{resource}` and `/permissions/{resource}/{resource_id}`, so the API surface exposes the two-level model directly.
+- `grant_permission()` treats UUID resources specially: the requester can grant the permission if they already hold it either on that exact component instance or on the generic `component` resource.
+- `ComponentResponse` still leaves `endpoint` and `access_token` as `None`, so fine-grained permission modeling is ahead of the current component-runtime handoff. Conflict to resolve. ^[ambiguous]
+
+## Open Questions
+
+- Should component-instance resources stay as bare UUID strings, or move to a more explicit identifier shape? ^[ambiguous]
+- When component-scoped JWTs exist, should their issuance live in Manifesto or in the component service boundary itself? ^[inferred]
+
+## Sources
+
+- [[projects/manifesto/references/manifesto-api-and-permission-flows]] - Route and use-case paths that apply these permissions.
+- [[concepts/resource-scoped-permission-fetchers]] - Shared authorization pattern that this page specializes.
+- [[projects/manifesto/concepts/component-catalog-and-fallback-adapter]] - Component validation and catalog lookup before permissioned component creation.
+- [[projects/manifesto/manifesto]] - Service overview and surrounding project model.
