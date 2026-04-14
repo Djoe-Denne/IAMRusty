@@ -1,0 +1,250 @@
+{
+  "main": {
+    "id": "d3d277d3363aad73",
+    "type": "split",
+    "children": [
+      {
+        "id": "5107f3dd12b3677c",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "66ebf6f7f35f706c",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "index.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "index"
+            }
+          },
+          {
+            "id": "40beb0d97d3a8f45",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "_archives/2026-04-14T17-40-04Z/index.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "index"
+            }
+          },
+          {
+            "id": "c565939beee88cf5",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "index.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "index"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "b69595d670a43f1b",
+    "type": "split",
+    "children": [
+      {
+        "id": "6a47e564302b5f9e",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "5b9964e9f976c644",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Explorateur de fichiers"
+            }
+          },
+          {
+            "id": "6e764ca22491d52d",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Rechercher"
+            }
+          },
+          {
+            "id": "d867fe2ec4fd2b3b",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Signets"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "a4744035c5afaf00",
+    "type": "split",
+    "children": [
+      {
+        "id": "17455770a374476e",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "bf19bdbf6dd42edf",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Rétroliens"
+            }
+          },
+          {
+            "id": "5ed2c62dd373d1a8",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Liens sortants"
+            }
+          },
+          {
+            "id": "0b026012bce8d02d",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Mots-clés"
+            }
+          },
+          {
+            "id": "049d72165b8031a0",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "Toutes les propriétés"
+            }
+          },
+          {
+            "id": "70a864a0b107f975",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Plan"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Ouvrir le sélecteur rapide": false,
+      "graph:Ouvrir la vue graphique": false,
+      "canvas:Créer une nouvelle toile": false,
+      "daily-notes:Ouvrir la note quotidienne": false,
+      "templates:Insérer le modèle": false,
+      "command-palette:Ouvrir la palette de commandes": false,
+      "bases:Créer une nouvelle base": false
+    }
+  },
+  "active": "66ebf6f7f35f706c",
+  "lastOpenFiles": [
+    "skills/building-organization-management-services.md",
+    "references/hive-testing-and-api-fixtures.md",
+    "references/hive-data-model-and-schema.md",
+    "references/hive-command-execution.md",
+    "references/hive-http-api-and-openapi-drift.md",
+    "references/hive-runtime-and-configuration.md",
+    "references/hive-service.md",
+    "concepts/external-provider-sync-jobs.md",
+    "concepts/invitation-driven-membership.md",
+    "concepts/organization-resource-authorization.md",
+    "projects/hive/hive.md",
+    "projects/hive",
+    "index.md",
+    "_archives/2026-04-14T17-40-04Z/index.md",
+    "concepts/event-driven-microservice-platform.md",
+    "_archives/2026-04-14T17-40-04Z/synthesis",
+    "_archives/2026-04-14T17-40-04Z/skills/testing-rust-services-with-fixtures.md",
+    "_archives/2026-04-14T17-40-04Z/skills/building-rustycog-services.md",
+    "_archives/2026-04-14T17-40-04Z/skills",
+    "_archives/2026-04-14T17-40-04Z/references/rustycog-service-construction.md",
+    "_archives/2026-04-14T17-40-04Z/references/rustycog-crate-catalog.md",
+    "_archives/2026-04-14T17-40-04Z/references/platform-building-blocks.md",
+    "_archives/2026-04-14T17-40-04Z/references/manifesto-service.md",
+    "_archives/2026-04-14T17-40-04Z/references/iamrusty-testing-and-fixtures.md",
+    "_archives/2026-04-14T17-40-04Z/references/iamrusty-service.md",
+    "_archives/2026-04-14T17-40-04Z/references/iamrusty-runtime-and-security.md",
+    "_archives/2026-04-14T17-40-04Z/references/iamrusty-command-execution.md",
+    "_archives/2026-04-14T17-40-04Z/references/aiforall-platform.md",
+    "_archives/2026-04-14T17-40-04Z/references",
+    "_archives/2026-04-14T17-40-04Z/entities/telegraph.md",
+    "_archives/2026-04-14T17-40-04Z/entities",
+    "projects/rustycog",
+    "projects/manifesto",
+    "projects/hive-events",
+    "projects/aiforall",
+    "projects/telegraph"
+  ]
+}

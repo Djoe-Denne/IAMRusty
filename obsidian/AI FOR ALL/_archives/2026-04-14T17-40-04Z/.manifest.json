@@ -1,0 +1,661 @@
+﻿{
+    "version":  1,
+    "stats":  {
+                  "total_sources_ingested":  38,
+                  "total_pages":  27
+              },
+    "sources":  {
+                    "README.md":  {
+                                      "ingested_at":  "2026-04-14T16:54:59.5971424Z",
+                                      "size_bytes":  2521,
+                                      "modified_at":  "2025-07-10T09:20:21.1338091Z",
+                                      "content_hash":  "sha256:fd12812a941dc44bcd5cb6ea88f6a4de079f3108d0a3e609500b0370db9ca8a8",
+                                      "source_type":  "document",
+                                      "project":  "aiforall",
+                                      "pages_created":  [
+                                                            "projects/aiforall/aiforall.md",
+                                                            "concepts/event-driven-microservice-platform.md",
+                                                            "entities/telegraph.md",
+                                                            "references/aiforall-platform.md"
+                                                        ],
+                                      "pages_updated":  [
+
+                                                        ]
+                                  },
+                    "docs/project/Archi.md":  {
+                                                  "ingested_at":  "2026-04-14T16:54:59.5971424Z",
+                                                  "size_bytes":  11064,
+                                                  "modified_at":  "2025-09-25T13:36:27.9790049Z",
+                                                  "content_hash":  "sha256:3657e1cfebccf1496f8e805e1a7de16a210c6d2b055e64e56c2e4c28e29df57b",
+                                                  "source_type":  "document",
+                                                  "project":  null,
+                                                  "pages_created":  [
+                                                                        "projects/manifesto/manifesto.md",
+                                                                        "concepts/component-based-project-orchestration.md",
+                                                                        "references/manifesto-service.md"
+                                                                    ],
+                                                  "pages_updated":  [
+                                                                        "concepts/event-driven-microservice-platform.md"
+                                                                    ]
+                                              },
+                    "IAMRusty/README.md":  {
+                                               "ingested_at":  "2026-04-14T16:54:59.5971424Z",
+                                               "size_bytes":  15874,
+                                               "modified_at":  "2025-07-28T12:35:03.9179655Z",
+                                               "content_hash":  "sha256:97e422a1e887648e56dfb53a23d3f19cc99912872de34bfba23f537630cb7278",
+                                               "source_type":  "document",
+                                               "project":  "iamrusty",
+                                               "pages_created":  [
+                                                                     "projects/iamrusty/iamrusty.md",
+                                                                     "concepts/hexagonal-architecture.md",
+                                                                     "concepts/oauth-provider-linking.md",
+                                                                     "references/iamrusty-service.md"
+                                                                 ],
+                                               "pages_updated":  [
+                                                                     "concepts/event-driven-microservice-platform.md"
+                                                                 ]
+                                           },
+                    "IAMRusty/docs/ARCHITECTURE.md":  {
+                                                          "ingested_at":  "2026-04-14T16:54:59.5971424Z",
+                                                          "size_bytes":  21318,
+                                                          "modified_at":  "2025-07-28T12:35:03.9427504Z",
+                                                          "content_hash":  "sha256:a659f3455b51298748896036cf35d3ce889814f76bd53d24f41f58071626326d",
+                                                          "source_type":  "document",
+                                                          "project":  "iamrusty",
+                                                          "pages_created":  [
+
+                                                                            ],
+                                                          "pages_updated":  [
+                                                                                "projects/iamrusty/iamrusty.md",
+                                                                                "concepts/hexagonal-architecture.md",
+                                                                                "concepts/oauth-provider-linking.md",
+                                                                                "references/iamrusty-service.md"
+                                                                            ]
+                                                      },
+                    "Manifesto/README.md":  {
+                                                "ingested_at":  "2026-04-14T16:54:59.5971424Z",
+                                                "size_bytes":  5583,
+                                                "modified_at":  "2026-02-21T22:00:37.2142177Z",
+                                                "content_hash":  "sha256:acdda34de0b108a8ecfa0ccd26f3055d376fba969e9a8d8a85326e52e5773f7e",
+                                                "source_type":  "document",
+                                                "project":  "manifesto",
+                                                "pages_created":  [
+
+                                                                  ],
+                                                "pages_updated":  [
+                                                                      "projects/manifesto/manifesto.md",
+                                                                      "concepts/component-based-project-orchestration.md",
+                                                                      "concepts/event-driven-microservice-platform.md",
+                                                                      "references/manifesto-service.md"
+                                                                  ]
+                                            },
+                    "Manifesto/SETUP.md":  {
+                                               "ingested_at":  "2026-04-14T16:54:59.5971424Z",
+                                               "size_bytes":  5697,
+                                               "modified_at":  "2025-10-19T14:27:42.3942734Z",
+                                               "content_hash":  "sha256:57067abf60d73cbc305cbec40cc80e49dc188197463ce302af3477d87ea0a6ff",
+                                               "source_type":  "document",
+                                               "project":  "manifesto",
+                                               "pages_created":  [
+
+                                                                 ],
+                                               "pages_updated":  [
+                                                                     "projects/manifesto/manifesto.md",
+                                                                     "concepts/component-based-project-orchestration.md",
+                                                                     "references/manifesto-service.md"
+                                                                 ]
+                                           },
+                    "rustycog/README.md":  {
+                                               "ingested_at":  "2026-04-14T16:54:59.5971424Z",
+                                               "size_bytes":  11083,
+                                               "modified_at":  "2025-05-30T18:50:56.7474773Z",
+                                               "content_hash":  "sha256:b9994c6d4b11eb154a98c6636bea4447bc262707a6fade8894698f9ea15ce917",
+                                               "source_type":  "document",
+                                               "project":  "rustycog",
+                                               "pages_created":  [
+                                                                     "projects/rustycog/rustycog.md",
+                                                                     "concepts/shared-rust-microservice-sdk.md",
+                                                                     "references/platform-building-blocks.md"
+                                                                 ],
+                                               "pages_updated":  [
+                                                                     "concepts/hexagonal-architecture.md",
+                                                                     "concepts/event-driven-microservice-platform.md"
+                                                                 ]
+                                           },
+                    "hive-events/README.md":  {
+                                                  "ingested_at":  "2026-04-14T16:54:59.5971424Z",
+                                                  "size_bytes":  3065,
+                                                  "modified_at":  "2025-07-28T14:52:30.0995181Z",
+                                                  "content_hash":  "sha256:4d5144f19a5be5d9fc5fd16b4db8538c26f3bf23c06400355f7cdc50fc1d37f7",
+                                                  "source_type":  "document",
+                                                  "project":  "hive-events",
+                                                  "pages_created":  [
+                                                                        "projects/hive-events/hive-events.md"
+                                                                    ],
+                                                  "pages_updated":  [
+                                                                        "entities/telegraph.md",
+                                                                        "concepts/event-driven-microservice-platform.md",
+                                                                        "references/platform-building-blocks.md"
+                                                                    ]
+                                              },
+                    "IAMRusty/docs/FIXTURES_GUIDE.md":  {
+                                                            "ingested_at":  "2026-04-14T17:03:47.5107188Z",
+                                                            "size_bytes":  9924,
+                                                            "modified_at":  "2025-07-28T12:35:03.9463206Z",
+                                                            "content_hash":  "sha256:59d2e18664bf5bfdfccb146f2fed9032e4322db8c5f76c60d5bb45ecbb194fd7",
+                                                            "source_type":  "document",
+                                                            "project":  "iamrusty",
+                                                            "pages_created":  [
+
+                                                                              ],
+                                                            "pages_updated":  [
+                                                                                  "references/iamrusty-testing-and-fixtures.md",
+                                                                                  "concepts/integration-testing-with-real-infrastructure.md",
+                                                                                  "skills/testing-rust-services-with-fixtures.md",
+                                                                                  "projects/iamrusty/iamrusty.md"
+                                                                              ]
+                                                        },
+                    "Manifesto/docs/rustycog-implementation-and-usage-guide.md":  {
+                                                                                      "ingested_at":  "2026-04-14T17:03:47.5107188Z",
+                                                                                      "size_bytes":  8388,
+                                                                                      "modified_at":  "2026-02-21T22:00:28.7003468Z",
+                                                                                      "content_hash":  "sha256:a589e045683e25345f3aaaa249cd9a43087b2a38d98c780164e6739acf56ca6b",
+                                                                                      "source_type":  "document",
+                                                                                      "project":  "manifesto",
+                                                                                      "pages_created":  [
+
+                                                                                                        ],
+                                                                                      "pages_updated":  [
+                                                                                                            "references/rustycog-service-construction.md",
+                                                                                                            "concepts/command-registry-and-retry-policies.md",
+                                                                                                            "skills/building-rustycog-services.md",
+                                                                                                            "projects/manifesto/manifesto.md",
+                                                                                                            "projects/rustycog/rustycog.md",
+                                                                                                            "concepts/shared-rust-microservice-sdk.md"
+                                                                                                        ]
+                                                                                  },
+                    "IAMRusty/docs/JWT_CONFIGURATION_GUIDE.md":  {
+                                                                     "ingested_at":  "2026-04-14T17:03:47.5107188Z",
+                                                                     "size_bytes":  10775,
+                                                                     "modified_at":  "2025-07-28T12:35:03.9478847Z",
+                                                                     "content_hash":  "sha256:e659c4a1d54ce8fee9b6770d41f497dc120b9b6c9d6032f32f784e5fd463ae86",
+                                                                     "source_type":  "document",
+                                                                     "project":  "iamrusty",
+                                                                     "pages_created":  [
+                                                                                           "concepts/jwt-secret-storage-abstraction.md"
+                                                                                       ],
+                                                                     "pages_updated":  [
+                                                                                           "references/iamrusty-runtime-and-security.md",
+                                                                                           "projects/iamrusty/iamrusty.md"
+                                                                                       ]
+                                                                 },
+                    "IAMRusty/docs/COMMAND_PATTERN.md":  {
+                                                             "ingested_at":  "2026-04-14T17:03:47.5107188Z",
+                                                             "size_bytes":  27896,
+                                                             "modified_at":  "2025-07-28T12:35:03.9438067Z",
+                                                             "content_hash":  "sha256:baee4e9355280b23cebe3ab553fcddf7850d673b648e22b9a518d1c175638fa0",
+                                                             "source_type":  "document",
+                                                             "project":  "iamrusty",
+                                                             "pages_created":  [
+                                                                                   "references/iamrusty-command-execution.md",
+                                                                                   "concepts/command-registry-and-retry-policies.md"
+                                                                               ],
+                                                             "pages_updated":  [
+                                                                                   "projects/iamrusty/iamrusty.md"
+                                                                               ]
+                                                         },
+                    "IAMRusty/docs/TESTING_GUIDE.md":  {
+                                                           "ingested_at":  "2026-04-14T17:03:47.5107188Z",
+                                                           "size_bytes":  12423,
+                                                           "modified_at":  "2025-07-28T12:35:03.9519192Z",
+                                                           "content_hash":  "sha256:12de1c984875d8c9a164dead9f655792af07b5e60a5355676ca1f38ad39f2db7",
+                                                           "source_type":  "document",
+                                                           "project":  "iamrusty",
+                                                           "pages_created":  [
+                                                                                 "references/iamrusty-testing-and-fixtures.md",
+                                                                                 "concepts/integration-testing-with-real-infrastructure.md"
+                                                                             ],
+                                                           "pages_updated":  [
+                                                                                 "projects/iamrusty/iamrusty.md",
+                                                                                 "skills/testing-rust-services-with-fixtures.md"
+                                                                             ]
+                                                       },
+                    "Manifesto/docs/rustycog-service-build-guide.md":  {
+                                                                           "ingested_at":  "2026-04-14T17:03:47.5107188Z",
+                                                                           "size_bytes":  19263,
+                                                                           "modified_at":  "2026-02-21T22:00:16.0259556Z",
+                                                                           "content_hash":  "sha256:4b8983d449f91c2ea4bfe6cf66023818106468f6d258530774336882a76d196b",
+                                                                           "source_type":  "document",
+                                                                           "project":  "manifesto",
+                                                                           "pages_created":  [
+                                                                                                 "references/rustycog-service-construction.md",
+                                                                                                 "skills/building-rustycog-services.md"
+                                                                                             ],
+                                                                           "pages_updated":  [
+                                                                                                 "concepts/structured-service-configuration.md",
+                                                                                                 "concepts/integration-testing-with-real-infrastructure.md",
+                                                                                                 "projects/manifesto/manifesto.md",
+                                                                                                 "projects/rustycog/rustycog.md",
+                                                                                                 "concepts/shared-rust-microservice-sdk.md"
+                                                                                             ]
+                                                                       },
+                    "Manifesto/docs/rustycog-hexagonal-web-service-guide.md":  {
+                                                                                   "ingested_at":  "2026-04-14T17:03:47.5107188Z",
+                                                                                   "size_bytes":  12824,
+                                                                                   "modified_at":  "2026-02-21T21:43:14.5534614Z",
+                                                                                   "content_hash":  "sha256:e59ad8f37835f2488814086867387254228fa65f0f50e5f3eee4978d32b02dff",
+                                                                                   "source_type":  "document",
+                                                                                   "project":  "manifesto",
+                                                                                   "pages_created":  [
+
+                                                                                                     ],
+                                                                                   "pages_updated":  [
+                                                                                                         "references/rustycog-service-construction.md",
+                                                                                                         "skills/building-rustycog-services.md",
+                                                                                                         "concepts/hexagonal-architecture.md",
+                                                                                                         "projects/manifesto/manifesto.md",
+                                                                                                         "concepts/shared-rust-microservice-sdk.md"
+                                                                                                     ]
+                                                                               },
+                    "IAMRusty/docs/DATABASE_CONFIGURATION.md":  {
+                                                                    "ingested_at":  "2026-04-14T17:03:47.5107188Z",
+                                                                    "size_bytes":  14660,
+                                                                    "modified_at":  "2025-07-28T12:35:03.9438067Z",
+                                                                    "content_hash":  "sha256:f74f1911d0cbadc73dd8ea0508b9782b8dacac536647aeb56cdc90ad67de20a6",
+                                                                    "source_type":  "document",
+                                                                    "project":  "iamrusty",
+                                                                    "pages_created":  [
+                                                                                          "references/iamrusty-runtime-and-security.md",
+                                                                                          "concepts/structured-service-configuration.md"
+                                                                                      ],
+                                                                    "pages_updated":  [
+                                                                                          "projects/iamrusty/iamrusty.md"
+                                                                                      ]
+                                                                },
+                    "IAMRusty/docs/OAUTH_SECURITY_GUIDE.md":  {
+                                                                  "ingested_at":  "2026-04-14T17:03:47.5107188Z",
+                                                                  "size_bytes":  21436,
+                                                                  "modified_at":  "2025-07-28T12:35:03.9498899Z",
+                                                                  "content_hash":  "sha256:a23e3ebe9e9cf35d842a4000c4fef81a1c551acd121983b0e29ac35be985cc1e",
+                                                                  "source_type":  "document",
+                                                                  "project":  "iamrusty",
+                                                                  "pages_created":  [
+                                                                                        "concepts/oauth-state-and-csrf-protection.md"
+                                                                                    ],
+                                                                  "pages_updated":  [
+                                                                                        "references/iamrusty-runtime-and-security.md",
+                                                                                        "concepts/oauth-provider-linking.md",
+                                                                                        "projects/iamrusty/iamrusty.md"
+                                                                                    ]
+                                                              },
+                    "IAMRusty/docs/COMMAND_RETRY_CONFIGURATION.md":  {
+                                                                         "ingested_at":  "2026-04-14T17:03:47.5107188Z",
+                                                                         "size_bytes":  13681,
+                                                                         "modified_at":  "2025-07-28T12:35:03.9438067Z",
+                                                                         "content_hash":  "sha256:bb4dd3a52831b1b0218d7bde9c57b79ccaa529dd0f6d49bca5d7ad9bd959b333",
+                                                                         "source_type":  "document",
+                                                                         "project":  "iamrusty",
+                                                                         "pages_created":  [
+
+                                                                                           ],
+                                                                         "pages_updated":  [
+                                                                                               "references/iamrusty-command-execution.md",
+                                                                                               "concepts/command-registry-and-retry-policies.md",
+                                                                                               "projects/iamrusty/iamrusty.md"
+                                                                                           ]
+                                                                     },
+                    "Cargo.toml":  {
+                                         "ingested_at":  "2026-04-14T17:13:01.1911009Z",
+                                         "size_bytes":  4120,
+                                         "modified_at":  "2025-12-04T21:14:33.5562163Z",
+                                         "content_hash":  "sha256:3c1a35d6dde68aee66161c2c37affd37c5480c292a940c261d6a835210768047",
+                                         "source_type":  "document",
+                                         "project":  null,
+                                         "pages_created":  [
+                                                               "references/rustycog-crate-catalog.md"
+                                                           ],
+                                         "pages_updated":  [
+                                                               "projects/rustycog/rustycog.md",
+                                                               "concepts/shared-rust-microservice-sdk.md",
+                                                               "references/platform-building-blocks.md"
+                                                           ]
+                                     },
+                    "rustycog/Cargo.toml":  {
+                                                  "ingested_at":  "2026-04-14T17:13:01.1911009Z",
+                                                  "size_bytes":  866,
+                                                  "modified_at":  "2025-10-05T12:30:32.3432625Z",
+                                                  "content_hash":  "sha256:42967384607ccb15c3972c257ef783f49f143e7211362371d5c46221a1c94446",
+                                                  "source_type":  "document",
+                                                  "project":  "rustycog",
+                                                  "pages_created":  [
+                                                                        "references/rustycog-crate-catalog.md"
+                                                                    ],
+                                                  "pages_updated":  [
+                                                                        "projects/rustycog/rustycog.md",
+                                                                        "concepts/shared-rust-microservice-sdk.md",
+                                                                        "references/platform-building-blocks.md"
+                                                                    ]
+                                              },
+                    "rustycog/rustycog-core/src/error.rs":  {
+                                                                  "ingested_at":  "2026-04-14T17:13:01.1911009Z",
+                                                                  "size_bytes":  11601,
+                                                                  "modified_at":  "2025-08-07T11:31:21.3553624Z",
+                                                                  "content_hash":  "sha256:93f49ac1f217c380ff57f2d00e54cf5c253b08163be1c6d2e9f499d0f4c9eb96",
+                                                                  "source_type":  "document",
+                                                                  "project":  "rustycog",
+                                                                  "pages_created":  [
+                                                                                        "references/rustycog-crate-catalog.md"
+                                                                                    ],
+                                                                  "pages_updated":  [
+                                                                                        "projects/rustycog/rustycog.md",
+                                                                                        "concepts/shared-rust-microservice-sdk.md",
+                                                                                        "concepts/command-registry-and-retry-policies.md",
+                                                                                        "skills/building-rustycog-services.md",
+                                                                                        "references/rustycog-service-construction.md"
+                                                                                    ]
+                                                              },
+                    "rustycog/rustycog-command/src/lib.rs":  {
+                                                                    "ingested_at":  "2026-04-14T17:13:01.1911009Z",
+                                                                    "size_bytes":  5823,
+                                                                    "modified_at":  "2025-07-29T09:44:47.9997849Z",
+                                                                    "content_hash":  "sha256:d47e156a129048ad66597d4acb581dbc65e5635958f35e9ff26e0973546dd384",
+                                                                    "source_type":  "document",
+                                                                    "project":  "rustycog",
+                                                                    "pages_created":  [
+                                                                                          "references/rustycog-crate-catalog.md"
+                                                                                      ],
+                                                                    "pages_updated":  [
+                                                                                          "projects/rustycog/rustycog.md",
+                                                                                          "concepts/shared-rust-microservice-sdk.md",
+                                                                                          "concepts/command-registry-and-retry-policies.md",
+                                                                                          "skills/building-rustycog-services.md",
+                                                                                          "references/rustycog-service-construction.md"
+                                                                                      ]
+                                                                },
+                    "rustycog/rustycog-command/src/registry.rs":  {
+                                                                         "ingested_at":  "2026-04-14T17:13:01.1911009Z",
+                                                                         "size_bytes":  19162,
+                                                                         "modified_at":  "2025-07-29T09:44:48.0032753Z",
+                                                                         "content_hash":  "sha256:8affaca0e8e72b425aff235df2f0275403b5b9099995b89274c844c24e65cf05",
+                                                                         "source_type":  "document",
+                                                                         "project":  "rustycog",
+                                                                         "pages_created":  [
+                                                                                               "references/rustycog-crate-catalog.md"
+                                                                                           ],
+                                                                         "pages_updated":  [
+                                                                                               "projects/rustycog/rustycog.md",
+                                                                                               "concepts/shared-rust-microservice-sdk.md",
+                                                                                               "concepts/command-registry-and-retry-policies.md",
+                                                                                               "skills/building-rustycog-services.md",
+                                                                                               "references/rustycog-service-construction.md"
+                                                                                           ]
+                                                                     },
+                    "rustycog/rustycog-config/src/lib.rs":  {
+                                                                   "ingested_at":  "2026-04-14T17:13:01.1911009Z",
+                                                                   "size_bytes":  37764,
+                                                                   "modified_at":  "2026-03-14T10:44:33.1056335Z",
+                                                                   "content_hash":  "sha256:242b84d55892b1a85da6860f02a5ac5f2b54bb9c1ca45dc82718c0c54dfcd5ae",
+                                                                   "source_type":  "document",
+                                                                   "project":  "rustycog",
+                                                                   "pages_created":  [
+                                                                                         "references/rustycog-crate-catalog.md"
+                                                                                     ],
+                                                                   "pages_updated":  [
+                                                                                         "projects/rustycog/rustycog.md",
+                                                                                         "concepts/shared-rust-microservice-sdk.md",
+                                                                                         "references/platform-building-blocks.md",
+                                                                                         "concepts/structured-service-configuration.md",
+                                                                                         "skills/building-rustycog-services.md",
+                                                                                         "references/rustycog-service-construction.md"
+                                                                                     ]
+                                                               },
+                    "rustycog/rustycog-db/src/lib.rs":  {
+                                                               "ingested_at":  "2026-04-14T17:13:01.1911009Z",
+                                                               "size_bytes":  4979,
+                                                               "modified_at":  "2025-07-29T09:44:48.0219684Z",
+                                                               "content_hash":  "sha256:8cdafcb5bb2f99055c75f4e938331cf21fbd4737c43cacc6800fa86df7e8c4a4",
+                                                               "source_type":  "document",
+                                                               "project":  "rustycog",
+                                                               "pages_created":  [
+                                                                                     "references/rustycog-crate-catalog.md"
+                                                                                 ],
+                                                               "pages_updated":  [
+                                                                                     "projects/rustycog/rustycog.md",
+                                                                                     "concepts/shared-rust-microservice-sdk.md",
+                                                                                     "references/platform-building-blocks.md",
+                                                                                     "concepts/structured-service-configuration.md",
+                                                                                     "skills/building-rustycog-services.md",
+                                                                                     "references/rustycog-service-construction.md"
+                                                                                 ]
+                                                           },
+                    "rustycog/rustycog-events/src/lib.rs":  {
+                                                                   "ingested_at":  "2026-04-14T17:13:01.1911009Z",
+                                                                   "size_bytes":  19669,
+                                                                   "modified_at":  "2025-08-03T12:00:48.6260893Z",
+                                                                   "content_hash":  "sha256:7135eb73dd81c930c0f10cea59de5d75cf25ccce8ef6c83c051b7915bd6216d5",
+                                                                   "source_type":  "document",
+                                                                   "project":  "rustycog",
+                                                                   "pages_created":  [
+                                                                                         "references/rustycog-crate-catalog.md"
+                                                                                     ],
+                                                                   "pages_updated":  [
+                                                                                         "projects/rustycog/rustycog.md",
+                                                                                         "concepts/shared-rust-microservice-sdk.md",
+                                                                                         "references/platform-building-blocks.md",
+                                                                                         "concepts/event-driven-microservice-platform.md",
+                                                                                         "concepts/integration-testing-with-real-infrastructure.md"
+                                                                                     ]
+                                                               },
+                    "rustycog/rustycog-events/src/event.rs":  {
+                                                                     "ingested_at":  "2026-04-14T17:13:01.1911009Z",
+                                                                     "size_bytes":  3236,
+                                                                     "modified_at":  "2025-07-29T09:44:48.0272829Z",
+                                                                     "content_hash":  "sha256:1258c76aff3f0e175a73f12e39256f0baba8968b6fe588454ec60cf406d8f3af",
+                                                                     "source_type":  "document",
+                                                                     "project":  "rustycog",
+                                                                     "pages_created":  [
+                                                                                           "references/rustycog-crate-catalog.md"
+                                                                                       ],
+                                                                     "pages_updated":  [
+                                                                                           "projects/rustycog/rustycog.md",
+                                                                                           "concepts/shared-rust-microservice-sdk.md",
+                                                                                           "references/platform-building-blocks.md",
+                                                                                           "concepts/event-driven-microservice-platform.md",
+                                                                                           "concepts/integration-testing-with-real-infrastructure.md"
+                                                                                       ]
+                                                                 },
+                    "rustycog/rustycog-http/src/lib.rs":  {
+                                                                 "ingested_at":  "2026-04-14T17:13:01.1911009Z",
+                                                                 "size_bytes":  1396,
+                                                                 "modified_at":  "2025-09-25T14:21:49.5334896Z",
+                                                                 "content_hash":  "sha256:22c56087aff9cbbcecb08eaf386fe75675d06c9ee44453acf7da2fee9123e26a",
+                                                                 "source_type":  "document",
+                                                                 "project":  "rustycog",
+                                                                 "pages_created":  [
+                                                                                       "references/rustycog-crate-catalog.md"
+                                                                                   ],
+                                                                 "pages_updated":  [
+                                                                                       "projects/rustycog/rustycog.md",
+                                                                                       "concepts/shared-rust-microservice-sdk.md",
+                                                                                       "skills/building-rustycog-services.md",
+                                                                                       "references/rustycog-service-construction.md"
+                                                                                   ]
+                                                             },
+                    "rustycog/rustycog-http/src/builder.rs":  {
+                                                                     "ingested_at":  "2026-04-14T17:13:01.1911009Z",
+                                                                     "size_bytes":  9249,
+                                                                     "modified_at":  "2026-02-22T19:50:19.7986829Z",
+                                                                     "content_hash":  "sha256:a09379f69dae62702803b70dbe53946c6b25b4b81d7228697d3437c5279314f3",
+                                                                     "source_type":  "document",
+                                                                     "project":  "rustycog",
+                                                                     "pages_created":  [
+                                                                                           "references/rustycog-crate-catalog.md"
+                                                                                       ],
+                                                                     "pages_updated":  [
+                                                                                           "projects/rustycog/rustycog.md",
+                                                                                           "concepts/shared-rust-microservice-sdk.md",
+                                                                                           "skills/building-rustycog-services.md",
+                                                                                           "references/rustycog-service-construction.md"
+                                                                                       ]
+                                                                 },
+                    "rustycog/rustycog-http/src/middleware_permission.rs":  {
+                                                                                   "ingested_at":  "2026-04-14T17:13:01.1911009Z",
+                                                                                   "size_bytes":  4351,
+                                                                                   "modified_at":  "2026-04-12T13:48:07.5417752Z",
+                                                                                   "content_hash":  "sha256:9acb6137feb0194eb7cd3aca420ecf9acefb3bde1fbfab184a75246dff406f97",
+                                                                                   "source_type":  "document",
+                                                                                   "project":  "rustycog",
+                                                                                   "pages_created":  [
+                                                                                                         "references/rustycog-crate-catalog.md"
+                                                                                                     ],
+                                                                                   "pages_updated":  [
+                                                                                                         "projects/rustycog/rustycog.md",
+                                                                                                         "concepts/shared-rust-microservice-sdk.md",
+                                                                                                         "skills/building-rustycog-services.md",
+                                                                                                         "references/rustycog-service-construction.md"
+                                                                                                     ]
+                                                                               },
+                    "rustycog/rustycog-http/src/jwt_handler.rs":  {
+                                                                         "ingested_at":  "2026-04-14T17:13:01.1911009Z",
+                                                                         "size_bytes":  4885,
+                                                                         "modified_at":  "2025-12-07T08:21:02.5963885Z",
+                                                                         "content_hash":  "sha256:f219fdd2726f68286d602248d9234397227868b86619b526394e86b9f6d2375b",
+                                                                         "source_type":  "document",
+                                                                         "project":  "rustycog",
+                                                                         "pages_created":  [
+                                                                                               "references/rustycog-crate-catalog.md"
+                                                                                           ],
+                                                                         "pages_updated":  [
+                                                                                               "projects/rustycog/rustycog.md",
+                                                                                               "concepts/shared-rust-microservice-sdk.md",
+                                                                                               "skills/building-rustycog-services.md",
+                                                                                               "references/rustycog-service-construction.md"
+                                                                                           ]
+                                                                     },
+                    "rustycog/rustycog-permission/src/lib.rs":  {
+                                                                       "ingested_at":  "2026-04-14T17:13:01.1911009Z",
+                                                                       "size_bytes":  3268,
+                                                                       "modified_at":  "2025-08-11T07:15:07.2504484Z",
+                                                                       "content_hash":  "sha256:86bdd82b85bf8e39f0173412635a2450d2feedc0baa5e6fa60cab3921c29e262",
+                                                                       "source_type":  "document",
+                                                                       "project":  "rustycog",
+                                                                       "pages_created":  [
+                                                                                             "references/rustycog-crate-catalog.md"
+                                                                                         ],
+                                                                       "pages_updated":  [
+                                                                                             "projects/rustycog/rustycog.md",
+                                                                                             "concepts/shared-rust-microservice-sdk.md",
+                                                                                             "skills/building-rustycog-services.md",
+                                                                                             "references/rustycog-service-construction.md"
+                                                                                         ]
+                                                                   },
+                    "rustycog/rustycog-logger/src/lib.rs":  {
+                                                                   "ingested_at":  "2026-04-14T17:13:01.1911009Z",
+                                                                   "size_bytes":  3230,
+                                                                   "modified_at":  "2026-03-14T10:45:34.7868562Z",
+                                                                   "content_hash":  "sha256:e5e99e97b1e400ce19f673ae6c387cc211836aafc86532fddae7bfe4fe7ea0ae",
+                                                                   "source_type":  "document",
+                                                                   "project":  "rustycog",
+                                                                   "pages_created":  [
+                                                                                         "references/rustycog-crate-catalog.md"
+                                                                                     ],
+                                                                   "pages_updated":  [
+                                                                                         "projects/rustycog/rustycog.md",
+                                                                                         "concepts/shared-rust-microservice-sdk.md",
+                                                                                         "references/platform-building-blocks.md",
+                                                                                         "concepts/structured-service-configuration.md",
+                                                                                         "skills/building-rustycog-services.md",
+                                                                                         "references/rustycog-service-construction.md"
+                                                                                     ]
+                                                               },
+                    "rustycog/rustycog-testing/src/lib.rs":  {
+                                                                    "ingested_at":  "2026-04-14T17:13:01.1911009Z",
+                                                                    "size_bytes":  201,
+                                                                    "modified_at":  "2025-07-29T09:44:48.0903964Z",
+                                                                    "content_hash":  "sha256:e5f860c015ab5e6184cd7e5262caf2df7748a3e32761936b5d487e335fa3f751",
+                                                                    "source_type":  "document",
+                                                                    "project":  "rustycog",
+                                                                    "pages_created":  [
+                                                                                          "references/rustycog-crate-catalog.md"
+                                                                                      ],
+                                                                    "pages_updated":  [
+                                                                                          "projects/rustycog/rustycog.md",
+                                                                                          "concepts/shared-rust-microservice-sdk.md",
+                                                                                          "concepts/event-driven-microservice-platform.md",
+                                                                                          "concepts/integration-testing-with-real-infrastructure.md",
+                                                                                          "skills/building-rustycog-services.md"
+                                                                                      ]
+                                                                },
+                    "rustycog/rustycog-testing/src/common/test_server.rs":  {
+                                                                                  "ingested_at":  "2026-04-14T17:13:01.1911009Z",
+                                                                                  "size_bytes":  2675,
+                                                                                  "modified_at":  "2025-07-29T09:44:48.0876196Z",
+                                                                                  "content_hash":  "sha256:2ade99830ca20a754f4ffd4a66f30d53d27f1ded7adc371127e4aae0fa9da09d",
+                                                                                  "source_type":  "document",
+                                                                                  "project":  "rustycog",
+                                                                                  "pages_created":  [
+                                                                                                        "references/rustycog-crate-catalog.md"
+                                                                                                    ],
+                                                                                  "pages_updated":  [
+                                                                                                        "projects/rustycog/rustycog.md",
+                                                                                                        "concepts/shared-rust-microservice-sdk.md",
+                                                                                                        "concepts/event-driven-microservice-platform.md",
+                                                                                                        "concepts/integration-testing-with-real-infrastructure.md",
+                                                                                                        "skills/building-rustycog-services.md"
+                                                                                                    ]
+                                                                              },
+                    "rustycog/rustycog-testing/src/common/kafka_testcontainer.rs":  {
+                                                                                        "ingested_at":  "2026-04-14T17:13:01.1911009Z",
+                                                                                        "size_bytes":  18395,
+                                                                                        "modified_at":  "2025-07-29T09:44:48.0799996Z",
+                                                                                        "content_hash":  "sha256:af34fc25d446c7d90ab088725780b1d223d66e77b3c70242d109a7ffe6a00aa0",
+                                                                                        "source_type":  "document",
+                                                                                        "project":  "rustycog",
+                                                                                        "pages_created":  [
+                                                                                                              "references/rustycog-crate-catalog.md"
+                                                                                                          ],
+                                                                                        "pages_updated":  [
+                                                                                                              "projects/rustycog/rustycog.md",
+                                                                                                              "concepts/shared-rust-microservice-sdk.md",
+                                                                                                              "concepts/event-driven-microservice-platform.md",
+                                                                                                              "concepts/integration-testing-with-real-infrastructure.md",
+                                                                                                              "skills/building-rustycog-services.md"
+                                                                                                          ]
+                                                                                    },
+                    "rustycog/rustycog-testing/src/common/sqs_testcontainer.rs":  {
+                                                                                      "ingested_at":  "2026-04-14T17:13:01.1911009Z",
+                                                                                      "size_bytes":  21384,
+                                                                                      "modified_at":  "2025-07-29T09:44:48.0866195Z",
+                                                                                      "content_hash":  "sha256:75afda56a7ff0efa32847e68c9d8b51a82279d12f148a473a9b9fbfd791d22f7",
+                                                                                      "source_type":  "document",
+                                                                                      "project":  "rustycog",
+                                                                                      "pages_created":  [
+                                                                                                            "references/rustycog-crate-catalog.md"
+                                                                                                        ],
+                                                                                      "pages_updated":  [
+                                                                                                            "projects/rustycog/rustycog.md",
+                                                                                                            "concepts/shared-rust-microservice-sdk.md",
+                                                                                                            "concepts/event-driven-microservice-platform.md",
+                                                                                                            "concepts/integration-testing-with-real-infrastructure.md",
+                                                                                                            "skills/building-rustycog-services.md"
+                                                                                                        ]
+                                                                                  },
+                    "rustycog/rustycog-server/src/health.rs":  {
+                                                                     "ingested_at":  "2026-04-14T17:13:01.1911009Z",
+                                                                     "size_bytes":  528,
+                                                                     "modified_at":  "2025-07-29T09:44:48.0637285Z",
+                                                                     "content_hash":  "sha256:4fc5d78a45b4350d3b8186fa0e97c06a89241d76ee42322a1c12bbfb65d65ded",
+                                                                     "source_type":  "document",
+                                                                     "project":  "rustycog",
+                                                                     "pages_created":  [
+                                                                                           "references/rustycog-crate-catalog.md"
+                                                                                       ],
+                                                                     "pages_updated":  [
+                                                                                           "projects/rustycog/rustycog.md",
+                                                                                           "concepts/shared-rust-microservice-sdk.md",
+                                                                                           "skills/building-rustycog-services.md",
+                                                                                           "references/rustycog-service-construction.md"
+                                                                                       ]
+                                                                 }
+                }
+}
