@@ -119,6 +119,98 @@ async fn test_create_project_returns_401_without_auth_token() {
     );
 }
 
+#[tokio::test]
+#[serial]
+async fn test_create_project_grants_creator_immediate_owner_permissions() {
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
+
+    let creator_id = Uuid::new_v4();
+    let jwt_token = create_test_jwt_token(creator_id);
+
+    let create_response = client
+        .post(&format!("{}/api/projects", base_url))
+        .header("Authorization", format!("Bearer {}", jwt_token))
+        .header("Content-Type", "application/json")
+        .json(&json!({
+            "name": "Project With Creator ACL Bootstrap",
+            "owner_type": "personal",
+            "visibility": "private"
+        }))
+        .send()
+        .await
+        .expect("Failed to create project");
+
+    assert_eq!(
+        create_response.status(),
+        201,
+        "Project creation should succeed"
+    );
+
+    let created_project: Value = create_response
+        .json()
+        .await
+        .expect("Should return JSON project payload");
+    let project_id = created_project["id"]
+        .as_str()
+        .expect("Created project should include an id")
+        .to_string();
+
+    let update_response = client
+        .put(&format!("{}/api/projects/{}", base_url, project_id))
+        .header("Authorization", format!("Bearer {}", jwt_token))
+        .header("Content-Type", "application/json")
+        .json(&json!({
+            "name": "Updated By Creator Immediately"
+        }))
+        .send()
+        .await
+        .expect("Failed to update project");
+
+    assert_eq!(
+        update_response.status(),
+        200,
+        "Creator should have immediate project write permission"
+    );
+
+    let add_member_response = client
+        .post(&format!("{}/api/projects/{}/members", base_url, project_id))
+        .header("Authorization", format!("Bearer {}", jwt_token))
+        .header("Content-Type", "application/json")
+        .json(&json!({
+            "user_id": Uuid::new_v4(),
+            "permission": "read",
+            "resource": "project"
+        }))
+        .send()
+        .await
+        .expect("Failed to add member");
+
+    assert_eq!(
+        add_member_response.status(),
+        201,
+        "Creator should have immediate member admin permission"
+    );
+
+    let add_component_response = client
+        .post(&format!("{}/api/projects/{}/components", base_url, project_id))
+        .header("Authorization", format!("Bearer {}", jwt_token))
+        .header("Content-Type", "application/json")
+        .json(&json!({
+            "component_type": "taskboard"
+        }))
+        .send()
+        .await
+        .expect("Failed to add component");
+
+    assert_eq!(
+        add_component_response.status(),
+        201,
+        "Creator should have immediate component admin permission"
+    );
+}
+
 // =============================================================================
 // Project Read Tests
 // =============================================================================

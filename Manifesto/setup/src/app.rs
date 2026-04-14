@@ -181,6 +181,7 @@ async fn setup_application(
         project_service.clone(),
         component_service.clone(),
         member_service.clone(),
+        permission_service.clone(),
         event_publisher.clone(),
     ));
 

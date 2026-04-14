@@ -5,8 +5,8 @@ use uuid::Uuid;
 
 use manifesto_domain::{
     entity::Project,
-    service::{ComponentService, MemberService, ProjectService},
-    value_objects::{DataClassification, MemberRole, MemberSource, OwnerType, ProjectStatus, Visibility},
+    service::{ComponentService, MemberService, PermissionService, ProjectService},
+    value_objects::{DataClassification, MemberSource, OwnerType, ProjectStatus, Visibility},
     ProjectMember,
 };
 use manifesto_events::{
@@ -83,6 +83,7 @@ pub struct ProjectUseCaseImpl {
     project_service: Arc<dyn ProjectService>,
     component_service: Arc<dyn ComponentService>,
     member_service: Arc<dyn MemberService>,
+    permission_service: Arc<dyn PermissionService>,
     event_publisher: Arc<dyn EventPublisher<DomainError>>,
 }
 
@@ -91,12 +92,14 @@ impl ProjectUseCaseImpl {
         project_service: Arc<dyn ProjectService>,
         component_service: Arc<dyn ComponentService>,
         member_service: Arc<dyn MemberService>,
+        permission_service: Arc<dyn PermissionService>,
         event_publisher: Arc<dyn EventPublisher<DomainError>>,
     ) -> Self {
         Self {
             project_service,
             component_service,
             member_service,
+            permission_service,
             event_publisher,
         }
     }
@@ -178,7 +181,24 @@ impl ProjectUseCase for ProjectUseCaseImpl {
             Some(user_id),
         );
 
-        self.member_service.add_member(owner_member).await?;
+        let owner_member = self.member_service.add_member(owner_member).await?;
+
+        for resource in ["project", "component", "member"] {
+            let role_permission = self
+                .permission_service
+                .get_or_create_role_permission(created_project.id, resource, "owner")
+                .await?;
+            let role_permission_id = role_permission.id.ok_or_else(|| {
+                ApplicationError::Internal(format!(
+                    "Missing role permission ID for owner resource '{}'",
+                    resource
+                ))
+            })?;
+
+            self.permission_service
+                .grant_permission_to_member(&owner_member.id, &role_permission_id)
+                .await?;
+        }
 
         // Publish ProjectCreated event
         let event = ManifestoDomainEvent::ProjectCreated(ProjectCreatedEvent::new(
