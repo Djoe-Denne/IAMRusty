@@ -10,6 +10,7 @@ Central entry point for this vault. Use the area indexes for full catalogs; use 
 
 - [[projects/index]] — service hubs and project knowledge areas
 - [[concepts/index]] — shared concepts plus pointers into project concept indexes
+- [[entities/index]] — core business nouns plus per-service entity inventories
 - [[skills/index]] — portable skills plus pointers into project skill indexes
 - [[references/index]] — platform references plus pointers into project reference indexes
 

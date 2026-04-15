@@ -22,7 +22,7 @@ provenance:
   inferred: 0.09
   ambiguous: 0.14
 created: 2026-04-14T16:54:59.5971424Z
-updated: 2026-04-14T20:08:52.0803248Z
+updated: 2026-04-15T17:15:56.0808743Z
 ---
 
 # RustyCog
@@ -33,21 +33,34 @@ updated: 2026-04-14T20:08:52.0803248Z
 
 RustyCog is the shared platform SDK for AIForAll. It lives as a set of `rustycog-*` crates inside the main workspace, and `rustycog/Cargo.toml` also exposes a `rustycog-meta` package that bundles the stack for consumers that want one umbrella dependency. It is the concrete implementation of `[[concepts/shared-rust-microservice-sdk]]` for services such as `[[projects/iamrusty/iamrusty]]` and `[[projects/manifesto/manifesto]]`.
 
+## Crate References
+
+- [[projects/rustycog/references/rustycog-core]]
+- [[projects/rustycog/references/rustycog-config]]
+- [[projects/rustycog/references/rustycog-db]]
+- [[projects/rustycog/references/rustycog-command]]
+- [[projects/rustycog/references/rustycog-events]]
+- [[projects/rustycog/references/rustycog-http]]
+- [[projects/rustycog/references/rustycog-permission]]
+- [[projects/rustycog/references/rustycog-testing]]
+- [[projects/rustycog/references/rustycog-server]]
+- [[projects/rustycog/references/rustycog-logger]]
+- [[projects/rustycog/references/rustycog-meta]]
+
 ## Key Ideas
 
-- The root workspace manifest treats most RustyCog crates as first-class members alongside application services, which makes the SDK part of the repo's normal build and dependency graph.
-- The stack is intentionally split into focused crates: `rustycog-core` for shared errors, `rustycog-command` for registry-driven command execution, `rustycog-config` for typed config loading, `rustycog-db` for read/write pooling, `rustycog-http` for the Axum service shell, `rustycog-events` for Kafka/SQS/no-op publishing, `rustycog-permission` for authorization primitives, `rustycog-logger` for tracing setup, and `rustycog-testing` for reusable integration fixtures.
-- `RouteBuilder` centers HTTP startup around `AppState`, `GenericCommandService`, `UserIdExtractor`, health routes, tracing, auth modes, and permission guards, so service setup stays consistent across projects.
-- Queue transport is selected at runtime through `QueueConfig`, and the event layer can instantiate Kafka, SQS, or disabled/no-op publishers and consumers from the same abstraction.
-- The test harness reuses global servers plus Kafka and LocalStack-backed queue fixtures so services can verify real infrastructure paths without hand-rolling their own container orchestration.
-- The Manifesto-authored guides confirm that RustyCog is the platform's reference stack, but they also preserve unresolved drift around logging setup, config layering, and retry wiring between the recommended story and one of its flagship consumers. Conflict to resolve. ^[ambiguous]
-- The README still advertises `rustycog-macros` and example projects that are not present in this tree, so the public narrative is slightly ahead of the checked-in code surface. ^[ambiguous]
+- RustyCog is organized as focused crates so services can compose only what they need while keeping one shared mental model for errors, commands, config, HTTP, permissions, events, logging, DB, and tests.
+- The per-crate pages in `[[projects/rustycog/references/index]]` now document each crate separately, rather than keeping the details only in one catalog page.
+- Shared technical vocabulary from these crates is promoted into global entity pages under `[[entities/index]]` to reduce duplicate explanations across service docs.
+- `rustycog-meta` provides umbrella packaging while direct crate dependencies remain a viable path for explicit dependency control.
 
 ## Open Questions
 
-- The wiki still does not catalog which services depend on which crate subset in production.
-- `rustycog-logger` is included in `rustycog-meta`, but it is not listed in the root workspace members, so its packaging story is not fully explicit. ^[ambiguous]
-- The current tree shows crate APIs clearly, but it does not define which surfaces should be treated as stable public SDK contracts. ^[ambiguous]
+- The wiki still does not catalog a service-by-service crate-adoption matrix for production deployments.
+- `rustycog-logger` is included in `rustycog-meta`, but it is not listed in root workspace members. Conflict to resolve. ^[ambiguous]
+- `rustycog-server` currently exposes health primitives only, despite a broader crate name. Conflict to resolve. ^[ambiguous]
+- `create_multi_queue_event_publisher()` currently tracks multiple queue names but builds one publisher instance. Conflict to resolve. ^[ambiguous]
+- The README still advertises macros/examples not present in this tree. Conflict to resolve. ^[ambiguous]
 
 ## Sources
 

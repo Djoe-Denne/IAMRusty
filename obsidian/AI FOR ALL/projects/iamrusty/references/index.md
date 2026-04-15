@@ -6,6 +6,7 @@ tags: [index, references, iam]
 
 # IAMRusty References
 
+- [[projects/iamrusty/references/iamrusty-entity-model]]
 - [[projects/iamrusty/references/iamrusty-api-and-auth-flows]]
 - [[projects/iamrusty/references/iamrusty-command-execution]]
 - [[projects/iamrusty/references/iamrusty-runtime-and-security]]

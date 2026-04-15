@@ -40,6 +40,7 @@ updated: 2026-04-14T20:28:20.9129598Z
 ## Related
 
 - [[projects/telegraph/references/telegraph-service]] - Code-backed overview of Telegraph's crate layout, shared dependencies, and parallel runtime shape.
+- [[projects/telegraph/references/telegraph-entity-model]] - Communication, template, and delivery entities owned by Telegraph.
 - [[projects/telegraph/references/telegraph-runtime-and-configuration]] - `TELEGRAPH_*` config loading, queue routing, template paths, and local runtime drift.
 - [[projects/telegraph/references/telegraph-http-and-notification-api]] - The live notification route table, ownership checks, and OpenAPI drift.
 - [[projects/telegraph/references/telegraph-event-processing]] - SQS consumption, command dispatch, descriptor loading, and delivery-mode routing.

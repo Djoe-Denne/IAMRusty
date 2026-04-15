@@ -24,7 +24,7 @@ provenance:
   inferred: 0.07
   ambiguous: 0.20
 created: 2026-04-14T17:03:47.5107188Z
-updated: 2026-04-14T20:08:52.0803248Z
+updated: 2026-04-15T17:15:56.0808743Z
 ---
 
 # RustyCog Service Construction Guides
@@ -38,9 +38,11 @@ These guides use `[[projects/manifesto/manifesto]]` as the reference implementat
 - `RouteBuilder` keeps the HTTP shell consistent by attaching tracing, panic handling, correlation ID propagation, health checks, auth modes, and permission middleware around handlers.
 - Permission-protected routes still require explicit model files plus a `PermissionsFetcher`, which matches the guide's emphasis on keeping authorization configuration visible in the setup layer.
 - The guides show how config, command, DB, HTTP, permission, and testing crates fit together as one stack, and the current code still reflects that shape.
+- The crate-level guides now map directly to per-crate references under `[[projects/rustycog/references/index]]`, which clarifies where each setup step actually lives in code.
 - Manifesto's implementation guide is explicit that some documented knobs are currently inert: `service.component_service.timeout_seconds` is defined but setup hardcodes `30`, and `[command.retry]` is documented in TOML without a `command` field in `ManifestoConfig`. Conflict to resolve. ^[ambiguous]
 - The guides present `setup_logging(&config)` and layered config usage as the canonical path, while `Manifesto/src/main.rs` initializes tracing directly and the live loader does not auto-merge `config/default.toml`. Conflict to resolve. ^[ambiguous]
 - Some guide-era ergonomics, especially around automatic error mapping/macros and a fully unified “reference service” story, are not visible in the checked-in tree even though the higher-level docs still reference them. ^[ambiguous]
+- `rustycog-server` remains health-only and `rustycog-logger` still sits outside root workspace members despite appearing in `rustycog-meta`, so setup guidance must account for packaging drift. Conflict to resolve. ^[ambiguous]
 
 ## Open Questions
 
@@ -53,5 +55,6 @@ These guides use `[[projects/manifesto/manifesto]]` as the reference implementat
 
 - [[concepts/shared-rust-microservice-sdk]] — Shared crate ecosystem captured by these guides
 - [[projects/rustycog/references/rustycog-crate-catalog]] — Code-backed inventory of the crates the guides compose
+- [[projects/rustycog/references/index]] — Per-crate deep references used by this ingest pass
 - [[projects/iamrusty/concepts/hexagonal-architecture]] — Service-boundary pattern the guides enforce
 - [[skills/building-rustycog-services]] — Practical workflow derived from this material

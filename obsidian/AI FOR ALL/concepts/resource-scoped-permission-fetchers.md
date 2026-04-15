@@ -17,7 +17,7 @@ provenance:
   inferred: 0.07
   ambiguous: 0.10
 created: 2026-04-14T20:25:00Z
-updated: 2026-04-14T20:25:00Z
+updated: 2026-04-15T17:15:56.0808743Z
 ---
 
 # Resource-Scoped Permission Fetchers
@@ -34,6 +34,7 @@ Across `[[projects/manifesto/manifesto]]`, `[[projects/hive/hive]]`, and `[[proj
 - The shared pattern is therefore "static model file plus dynamic domain lookup," not "Casbin policy file contains the whole authorization story."
 - The services do not share one exact interpretation contract for `resource_ids`: some fetchers anchor on the first ID and ignore extras, while Manifesto's component fetcher reads the first two IDs as project and component scope. ^[ambiguous]
 - `RouteBuilder` exposes both `authenticated()` and `might_be_authenticated()`, but permission-protected routes still depend on auth context being present when the middleware runs. Conflict to resolve. ^[ambiguous]
+- The current permission engine builds a Casbin enforcer per request to inject fetched policy rows at runtime; this keeps state fresh but leaves caching/performance guidance implicit. ^[ambiguous]
 
 ## Open Questions
 
@@ -46,3 +47,6 @@ Across `[[projects/manifesto/manifesto]]`, `[[projects/hive/hive]]`, and `[[proj
 - [[projects/hive/concepts/organization-resource-authorization]] - Hive's organization-scoped specialization of the same pattern.
 - [[projects/telegraph/telegraph]] - Telegraph's narrower notification-ownership usage of the shared contract.
 - [[projects/rustycog/rustycog]] - SDK project where RouteBuilder and permission middleware live.
+- [[projects/rustycog/references/rustycog-permission]] - Crate-level authorization engine details.
+- [[entities/permissions-fetcher]] - Shared fetcher entity definition.
+- [[entities/resource-id]] - Shared route resource identifier entity.

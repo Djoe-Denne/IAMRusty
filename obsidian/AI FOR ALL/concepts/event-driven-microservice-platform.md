@@ -24,7 +24,7 @@ provenance:
   inferred: 0.12
   ambiguous: 0.10
 created: 2026-04-14T16:54:59.5971424Z
-updated: 2026-04-14T18:56:22.3888182Z
+updated: 2026-04-15T17:15:56.0808743Z
 ---
 
 # Event-Driven Microservice Platform
@@ -42,6 +42,7 @@ AIForAll favors asynchronous coordination between bounded services instead of pu
 - Hive is a good example of an HTTP-first service that still emits a substantial event stream, while Telegraph is a queue-aware consumer and IAMRusty combines HTTP-first flows with queue-backed side effects. ^[inferred]
 - Asynchronous messaging lets services keep ownership over their own data and still participate in longer workflows. ^[inferred]
 - The SDK now makes Kafka and SQS both first-class options in code, but the wiki still does not show which services standardize on which transport in production. ^[ambiguous]
+- `create_multi_queue_event_publisher()` currently accepts multi-queue intent but builds one underlying publisher instance, so full queue-level behavior guarantees remain partial. Conflict to resolve. ^[ambiguous]
 
 ## Open Questions
 
@@ -55,5 +56,7 @@ AIForAll favors asynchronous coordination between bounded services instead of pu
 - [[projects/hive/hive]] — Organization-management service that emits Hive domain events
 - [[projects/manifesto/references/manifesto-service]] — Project-service orchestration and cascading ADR
 - [[projects/rustycog/references/rustycog-crate-catalog]] — Code-backed inventory of the event crates
+- [[projects/rustycog/references/rustycog-events]] — Crate-level event transport and publisher details
 - [[projects/rustycog/rustycog]] — Shared SDK project implementing transport abstractions.
+- [[entities/domain-event]] — Shared event envelope entity
 - [[references/platform-building-blocks]] — Event contracts and shared infrastructure primitives

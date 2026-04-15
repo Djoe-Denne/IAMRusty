@@ -51,6 +51,7 @@ Manifesto is the project-management service for AIForAll. It owns project record
 - [[projects/manifesto/concepts/project-ownership-and-publication-lifecycle]] - Ownership bootstrap, defaults, and publish/archive transitions.
 - [[projects/manifesto/concepts/component-instance-permissions]] - Generic versus per-instance component permission model.
 - [[projects/manifesto/concepts/component-catalog-and-fallback-adapter]] - External component catalog integration and mock fallback.
+- [[projects/manifesto/references/manifesto-entity-model]] - Project, component, membership, and project-scoped RBAC entities.
 - [[projects/manifesto/references/manifesto-api-and-permission-flows]] - Live route and permission behavior.
 - [[projects/manifesto/references/manifesto-event-model]] - Events emitted by project, component, and member flows.
 

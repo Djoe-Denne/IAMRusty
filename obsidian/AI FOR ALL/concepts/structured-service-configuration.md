@@ -29,7 +29,7 @@ provenance:
   inferred: 0.10
   ambiguous: 0.25
 created: 2026-04-14T17:46:37.6929647Z
-updated: 2026-04-14T20:08:52.0803248Z
+updated: 2026-04-15T17:15:56.0808743Z
 ---
 
 # Structured Service Configuration
@@ -49,6 +49,7 @@ Across `[[projects/iamrusty/iamrusty]]`, `[[projects/telegraph/telegraph]]`, `[[
 - Conflict to resolve: IAMRusty consolidates queue/runtime policy into one service config model, Telegraph adds a second queue-routing schema and channel-specific `communication.*` sections, and Hive keeps one queue block but adds explicit outbound service sections. All three `rustycog-config` service shapes coexist today. ^[ambiguous]
 - Conflict to resolve: Manifesto's docs present `config/default.toml` as a base layer, but its current loader path does not automatically merge that file and still leaves `logging.level`, `[command.retry]`, and `service.component_service.timeout_seconds` only partly wired. ^[ambiguous]
 - Telegraph's `config/default.toml` documents `[communication.sms]`, but `CommunicationConfig` currently includes `email`, `notification`, and `template` only. Conflict to resolve. ^[ambiguous]
+- Conflict to resolve: `SqsConfig` naming and URL construction mix AWS credential vocabulary with a Scaleway-style endpoint pattern (`https://sqs.<region>.scaleway.com/...`), so operator intent is not fully explicit. ^[ambiguous]
 
 ## Open Questions
 
@@ -66,4 +67,6 @@ Across `[[projects/iamrusty/iamrusty]]`, `[[projects/telegraph/telegraph]]`, `[[
 - [[projects/hive/references/hive-runtime-and-configuration]] - Hive-specific command, queue, and outbound service behavior.
 - [[projects/manifesto/manifesto]] - Manifesto's concrete `MANIFESTO_*` loader path and partially wired config sections.
 - [[projects/rustycog/rustycog]] - Shared SDK project that provides config primitives across services.
+- [[projects/rustycog/references/rustycog-config]] - Crate-level details for typed config and queue structs.
+- [[entities/queue-config]] - Shared queue transport selector entity.
 - [[concepts/integration-testing-with-real-infrastructure]] - Real-infrastructure tests rely on these config shapes.

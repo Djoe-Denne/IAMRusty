@@ -31,7 +31,7 @@ provenance:
   inferred: 0.06
   ambiguous: 0.06
 created: 2026-04-14T17:13:01.1911009Z
-updated: 2026-04-14T17:13:01.1911009Z
+updated: 2026-04-15T17:15:56.0808743Z
 ---
 
 # RustyCog Crate Catalog
@@ -45,18 +45,22 @@ This reference maps the current code surfaces behind `[[projects/rustycog/rustyc
 
 ## Crate Map
 
-- `rustycog-core` provides `ServiceError` and `DomainError`, including category/status helpers and conversion from domain to service errors.
-- `rustycog-command` provides `Command`, `CommandHandler`, `CommandContext`, `RetryPolicy`, `CommandRegistry`, and `GenericCommandService`.
-- `rustycog-config` provides typed config structs plus generic loaders, caching hooks, env-prefix handling, and queue/logging abstractions.
-- `rustycog-db` provides `DbConnectionPool` with one write connection, optional read replicas, round-robin reads, and fallback to primary.
-- `rustycog-events` provides `DomainEvent`, publisher/consumer traits, Kafka/SQS/no-op factories, and test-aware transport selection.
-- `rustycog-http` provides `AppState`, `RouteBuilder`, auth/optional-auth middleware, permission middleware, request tracing, panic handling, validated JSON, and a health endpoint.
-- `rustycog-permission` provides `Permission`, `ResourceId`, `PermissionEngine`, and `PermissionsFetcher` for Casbin-backed authorization.
-- `rustycog-logger` provides `setup_logging` with env filters and optional Scaleway Loki support.
-- `rustycog-testing` re-exports DB/events/HTTP/wiremock helpers and includes a shared test server plus Kafka and LocalStack SQS fixtures.
-- `rustycog-server` currently only exposes generic health-checker primitives, which makes it lighter than the README's broader "server setup" description.
+- [[projects/rustycog/references/rustycog-core]] provides `ServiceError` and `DomainError`, including category/status helpers and conversion from domain to service errors.
+- [[projects/rustycog/references/rustycog-command]] provides `Command`, `CommandHandler`, `CommandContext`, `RetryPolicy`, `CommandRegistry`, and `GenericCommandService`.
+- [[projects/rustycog/references/rustycog-config]] provides typed config structs plus generic loaders, caching hooks, env-prefix handling, and queue/logging abstractions.
+- [[projects/rustycog/references/rustycog-db]] provides `DbConnectionPool` with one write connection, optional read replicas, round-robin reads, and fallback to primary.
+- [[projects/rustycog/references/rustycog-events]] provides `DomainEvent`, publisher/consumer traits, Kafka/SQS/no-op factories, and transport selection/fallback logic.
+- [[projects/rustycog/references/rustycog-http]] provides `AppState`, `RouteBuilder`, auth/optional-auth middleware, permission middleware, request tracing, panic handling, validated JSON, and a health endpoint.
+- [[projects/rustycog/references/rustycog-permission]] provides `Permission`, `ResourceId`, `PermissionEngine`, and `PermissionsFetcher` for Casbin-backed authorization.
+- [[projects/rustycog/references/rustycog-logger]] provides `setup_logging` with env filters and optional Scaleway Loki support.
+- [[projects/rustycog/references/rustycog-testing]] re-exports DB/events/HTTP/wiremock helpers and includes a shared test server plus Kafka and LocalStack SQS fixtures.
+- [[projects/rustycog/references/rustycog-server]] currently exposes health-checker primitives.
+- [[projects/rustycog/references/rustycog-meta]] provides one umbrella dependency over the crate set.
 - The root README still mentions `rustycog-macros` and examples that do not appear in the current tree. ^[ambiguous]
 - `rustycog-logger` is part of `rustycog-meta` but not listed as a root workspace member. ^[ambiguous]
+- `rustycog-server` naming still implies broader server bootstrap scope than the current health-only API. ^[ambiguous]
+- `rustycog-events` multi-queue helper currently builds one underlying publisher instance. ^[ambiguous]
+- `rustycog-config` SQS endpoint semantics still mix AWS vocabulary and Scaleway URL construction. ^[ambiguous]
 
 ## Open Questions
 
@@ -70,3 +74,4 @@ This reference maps the current code surfaces behind `[[projects/rustycog/rustyc
 - [[concepts/command-registry-and-retry-policies]] — Command runtime details
 - [[concepts/structured-service-configuration]] — Config and queue model details
 - [[concepts/event-driven-microservice-platform]] — Transport and event model context
+- [[entities/index]] — Shared technical entity glossary extracted from these crates

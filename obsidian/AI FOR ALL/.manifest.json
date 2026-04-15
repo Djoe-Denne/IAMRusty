@@ -1,8 +1,8 @@
 {
     "version":  1,
     "stats":  {
-                  "total_sources_ingested":  135,
-                  "total_pages":  74
+                  "total_sources_ingested":  163,
+                  "total_pages":  118
               },
     "sources":  {
                     "IAMRusty/README.md":  {
@@ -733,7 +733,7 @@
                                                                                                     ]
                                                                               },
                     "Telegraph/domain/src/entity/communication.rs":  {
-                                                                         "ingested_at":  "2026-04-14T18:18:24.0602572Z",
+                                                                         "ingested_at":  "2026-04-14T20:28:20.9129598Z",
                                                                          "size_bytes":  2890,
                                                                          "modified_at":  "2025-07-29T09:44:47.7368513Z",
                                                                          "content_hash":  "sha256:f4a7193e0261ba948b3ad8e7658270d28996cd61b2acd931f1537e74d184da0b",
@@ -743,7 +743,8 @@
 
                                                                                            ],
                                                                          "pages_updated":  [
-                                                                                               "concepts/multi-channel-delivery-modes.md"
+                                                                                               "entities/communication.md",
+                                                                                               "projects/telegraph/references/telegraph-entity-model.md"
                                                                                            ]
                                                                      },
                     "Telegraph/infra/src/event/consumer.rs":  {
@@ -1153,7 +1154,7 @@
                                                                                                   ]
                                                                               },
                     "rustycog/README.md":  {
-                                               "ingested_at":  "2026-04-14T16:54:59.5971424Z",
+                                               "ingested_at":  "2026-04-15T17:15:56.0808743Z",
                                                "size_bytes":  11083,
                                                "modified_at":  "2025-05-30T18:50:56.7474773Z",
                                                "content_hash":  "sha256:b9994c6d4b11eb154a98c6636bea4447bc262707a6fade8894698f9ea15ce917",
@@ -1165,8 +1166,10 @@
                                                                      "references/platform-building-blocks.md"
                                                                  ],
                                                "pages_updated":  [
-                                                                     "concepts/hexagonal-architecture.md",
-                                                                     "concepts/event-driven-microservice-platform.md"
+                                                                     "projects/rustycog/rustycog.md",
+                                                                     "projects/rustycog/references/index.md",
+                                                                     "projects/rustycog/references/rustycog-crate-catalog.md",
+                                                                     "concepts/shared-rust-microservice-sdk.md"
                                                                  ]
                                            },
                     "hive-events/README.md":  {
@@ -1362,216 +1365,240 @@
                                                                      ]
                                                                                },
                     "Cargo.toml":  {
-                                       "ingested_at":  "2026-04-14T17:13:01.1911009Z",
+                                       "ingested_at":  "2026-04-15T17:15:56.0808743Z",
                                        "size_bytes":  4120,
                                        "modified_at":  "2025-12-04T21:14:33.5562163Z",
                                        "content_hash":  "sha256:3c1a35d6dde68aee66161c2c37affd37c5480c292a940c261d6a835210768047",
                                        "source_type":  "document",
                                        "project":  null,
                                        "pages_created":  [
-                                                             "references/rustycog-crate-catalog.md"
+                                                             "projects/rustycog/references/rustycog-crate-catalog.md",
+                                                             "projects/rustycog/references/rustycog-meta.md"
                                                          ],
                                        "pages_updated":  [
                                                              "projects/rustycog/rustycog.md",
+                                                             "projects/rustycog/references/rustycog-crate-catalog.md",
+                                                             "projects/rustycog/references/rustycog-meta.md",
                                                              "concepts/shared-rust-microservice-sdk.md",
-                                                             "references/platform-building-blocks.md"
+                                                             "skills/using-rustycog-meta.md"
                                                          ]
                                    },
                     "rustycog/Cargo.toml":  {
-                                                "ingested_at":  "2026-04-14T17:13:01.1911009Z",
+                                                "ingested_at":  "2026-04-15T17:15:56.0808743Z",
                                                 "size_bytes":  866,
                                                 "modified_at":  "2025-10-05T12:30:32.3432625Z",
                                                 "content_hash":  "sha256:42967384607ccb15c3972c257ef783f49f143e7211362371d5c46221a1c94446",
                                                 "source_type":  "document",
                                                 "project":  "rustycog",
                                                 "pages_created":  [
-                                                                      "references/rustycog-crate-catalog.md"
+                                                                      "projects/rustycog/references/rustycog-crate-catalog.md",
+                                                                      "projects/rustycog/references/rustycog-meta.md",
+                                                                      "skills/using-rustycog-meta.md"
                                                                   ],
                                                 "pages_updated":  [
                                                                       "projects/rustycog/rustycog.md",
-                                                                      "concepts/shared-rust-microservice-sdk.md",
-                                                                      "references/platform-building-blocks.md"
+                                                                      "projects/rustycog/references/rustycog-crate-catalog.md",
+                                                                      "projects/rustycog/references/rustycog-meta.md",
+                                                                      "concepts/shared-rust-microservice-sdk.md"
                                                                   ]
                                             },
                     "rustycog/rustycog-core/src/error.rs":  {
-                                                                "ingested_at":  "2026-04-14T17:13:01.1911009Z",
+                                                                "ingested_at":  "2026-04-15T17:15:56.0808743Z",
                                                                 "size_bytes":  11601,
                                                                 "modified_at":  "2025-08-07T11:31:21.3553624Z",
                                                                 "content_hash":  "sha256:93f49ac1f217c380ff57f2d00e54cf5c253b08163be1c6d2e9f499d0f4c9eb96",
                                                                 "source_type":  "document",
                                                                 "project":  "rustycog",
                                                                 "pages_created":  [
-                                                                                      "references/rustycog-crate-catalog.md"
+                                                                                      "projects/rustycog/references/rustycog-core.md",
+                                                                                      "entities/service-error.md",
+                                                                                      "entities/domain-error.md",
+                                                                                      "skills/using-rustycog-core.md"
                                                                                   ],
                                                                 "pages_updated":  [
                                                                                       "projects/rustycog/rustycog.md",
+                                                                                      "projects/rustycog/references/rustycog-crate-catalog.md",
                                                                                       "concepts/shared-rust-microservice-sdk.md",
-                                                                                      "concepts/command-registry-and-retry-policies.md",
-                                                                                      "skills/building-rustycog-services.md",
-                                                                                      "references/rustycog-service-construction.md"
+                                                                                      "concepts/command-registry-and-retry-policies.md"
                                                                                   ]
                                                             },
                     "rustycog/rustycog-command/src/lib.rs":  {
-                                                                 "ingested_at":  "2026-04-14T17:13:01.1911009Z",
+                                                                 "ingested_at":  "2026-04-15T17:15:56.0808743Z",
                                                                  "size_bytes":  5823,
                                                                  "modified_at":  "2025-07-29T09:44:47.9997849Z",
                                                                  "content_hash":  "sha256:d47e156a129048ad66597d4acb581dbc65e5635958f35e9ff26e0973546dd384",
                                                                  "source_type":  "document",
                                                                  "project":  "rustycog",
                                                                  "pages_created":  [
-                                                                                       "references/rustycog-crate-catalog.md"
+                                                                                       "projects/rustycog/references/rustycog-command.md",
+                                                                                       "entities/command-context.md",
+                                                                                       "skills/using-rustycog-command.md"
                                                                                    ],
                                                                  "pages_updated":  [
                                                                                        "projects/rustycog/rustycog.md",
+                                                                                       "projects/rustycog/references/rustycog-crate-catalog.md",
                                                                                        "concepts/shared-rust-microservice-sdk.md",
-                                                                                       "concepts/command-registry-and-retry-policies.md",
-                                                                                       "skills/building-rustycog-services.md",
-                                                                                       "references/rustycog-service-construction.md"
+                                                                                       "concepts/command-registry-and-retry-policies.md"
                                                                                    ]
                                                              },
                     "rustycog/rustycog-command/src/registry.rs":  {
-                                                                      "ingested_at":  "2026-04-14T17:13:01.1911009Z",
+                                                                      "ingested_at":  "2026-04-15T17:15:56.0808743Z",
                                                                       "size_bytes":  19162,
                                                                       "modified_at":  "2025-07-29T09:44:48.0032753Z",
                                                                       "content_hash":  "sha256:8affaca0e8e72b425aff235df2f0275403b5b9099995b89274c844c24e65cf05",
                                                                       "source_type":  "document",
                                                                       "project":  "rustycog",
                                                                       "pages_created":  [
-                                                                                            "references/rustycog-crate-catalog.md"
+                                                                                            "entities/command-registry.md"
                                                                                         ],
                                                                       "pages_updated":  [
                                                                                             "projects/rustycog/rustycog.md",
+                                                                                            "projects/rustycog/references/rustycog-command.md",
+                                                                                            "projects/rustycog/references/rustycog-crate-catalog.md",
                                                                                             "concepts/shared-rust-microservice-sdk.md",
                                                                                             "concepts/command-registry-and-retry-policies.md",
-                                                                                            "skills/building-rustycog-services.md",
-                                                                                            "references/rustycog-service-construction.md"
+                                                                                            "entities/command-registry.md"
                                                                                         ]
                                                                   },
                     "rustycog/rustycog-config/src/lib.rs":  {
-                                                                "ingested_at":  "2026-04-14T17:13:01.1911009Z",
+                                                                "ingested_at":  "2026-04-15T17:15:56.0808743Z",
                                                                 "size_bytes":  37764,
                                                                 "modified_at":  "2026-03-14T10:44:33.1056335Z",
                                                                 "content_hash":  "sha256:242b84d55892b1a85da6860f02a5ac5f2b54bb9c1ca45dc82718c0c54dfcd5ae",
                                                                 "source_type":  "document",
                                                                 "project":  "rustycog",
                                                                 "pages_created":  [
-                                                                                      "references/rustycog-crate-catalog.md"
+                                                                                      "projects/rustycog/references/rustycog-config.md",
+                                                                                      "entities/queue-config.md",
+                                                                                      "skills/using-rustycog-config.md"
                                                                                   ],
                                                                 "pages_updated":  [
                                                                                       "projects/rustycog/rustycog.md",
+                                                                                      "projects/rustycog/references/rustycog-crate-catalog.md",
                                                                                       "concepts/shared-rust-microservice-sdk.md",
-                                                                                      "references/platform-building-blocks.md",
                                                                                       "concepts/structured-service-configuration.md",
-                                                                                      "skills/building-rustycog-services.md",
-                                                                                      "references/rustycog-service-construction.md"
+                                                                                      "projects/rustycog/references/rustycog-config.md",
+                                                                                      "entities/queue-config.md"
                                                                                   ]
                                                             },
                     "rustycog/rustycog-db/src/lib.rs":  {
-                                                            "ingested_at":  "2026-04-14T17:13:01.1911009Z",
+                                                            "ingested_at":  "2026-04-15T17:15:56.0808743Z",
                                                             "size_bytes":  4979,
                                                             "modified_at":  "2025-07-29T09:44:48.0219684Z",
                                                             "content_hash":  "sha256:8cdafcb5bb2f99055c75f4e938331cf21fbd4737c43cacc6800fa86df7e8c4a4",
                                                             "source_type":  "document",
                                                             "project":  "rustycog",
                                                             "pages_created":  [
-                                                                                  "references/rustycog-crate-catalog.md"
+                                                                                  "projects/rustycog/references/rustycog-db.md",
+                                                                                  "entities/db-connection-pool.md",
+                                                                                  "skills/using-rustycog-db.md"
                                                                               ],
                                                             "pages_updated":  [
                                                                                   "projects/rustycog/rustycog.md",
+                                                                                  "projects/rustycog/references/rustycog-crate-catalog.md",
                                                                                   "concepts/shared-rust-microservice-sdk.md",
-                                                                                  "references/platform-building-blocks.md",
                                                                                   "concepts/structured-service-configuration.md",
-                                                                                  "skills/building-rustycog-services.md",
-                                                                                  "references/rustycog-service-construction.md"
+                                                                                  "projects/rustycog/references/rustycog-db.md"
                                                                               ]
                                                         },
                     "rustycog/rustycog-events/src/lib.rs":  {
-                                                                "ingested_at":  "2026-04-14T17:13:01.1911009Z",
+                                                                "ingested_at":  "2026-04-15T17:15:56.0808743Z",
                                                                 "size_bytes":  19669,
                                                                 "modified_at":  "2025-08-03T12:00:48.6260893Z",
                                                                 "content_hash":  "sha256:7135eb73dd81c930c0f10cea59de5d75cf25ccce8ef6c83c051b7915bd6216d5",
                                                                 "source_type":  "document",
                                                                 "project":  "rustycog",
                                                                 "pages_created":  [
-                                                                                      "references/rustycog-crate-catalog.md"
+                                                                                      "projects/rustycog/references/rustycog-events.md",
+                                                                                      "entities/event-publisher.md",
+                                                                                      "skills/using-rustycog-events.md"
                                                                                   ],
                                                                 "pages_updated":  [
                                                                                       "projects/rustycog/rustycog.md",
+                                                                                      "projects/rustycog/references/rustycog-crate-catalog.md",
                                                                                       "concepts/shared-rust-microservice-sdk.md",
-                                                                                      "references/platform-building-blocks.md",
                                                                                       "concepts/event-driven-microservice-platform.md",
-                                                                                      "concepts/integration-testing-with-real-infrastructure.md"
+                                                                                      "projects/rustycog/references/rustycog-events.md",
+                                                                                      "entities/event-publisher.md"
                                                                                   ]
                                                             },
                     "rustycog/rustycog-events/src/event.rs":  {
-                                                                  "ingested_at":  "2026-04-14T17:13:01.1911009Z",
+                                                                  "ingested_at":  "2026-04-15T17:15:56.0808743Z",
                                                                   "size_bytes":  3236,
                                                                   "modified_at":  "2025-07-29T09:44:48.0272829Z",
                                                                   "content_hash":  "sha256:1258c76aff3f0e175a73f12e39256f0baba8968b6fe588454ec60cf406d8f3af",
                                                                   "source_type":  "document",
                                                                   "project":  "rustycog",
                                                                   "pages_created":  [
-                                                                                        "references/rustycog-crate-catalog.md"
+                                                                                        "entities/domain-event.md"
                                                                                     ],
                                                                   "pages_updated":  [
                                                                                         "projects/rustycog/rustycog.md",
+                                                                                        "projects/rustycog/references/rustycog-events.md",
+                                                                                        "projects/rustycog/references/rustycog-crate-catalog.md",
                                                                                         "concepts/shared-rust-microservice-sdk.md",
-                                                                                        "references/platform-building-blocks.md",
                                                                                         "concepts/event-driven-microservice-platform.md",
-                                                                                        "concepts/integration-testing-with-real-infrastructure.md"
+                                                                                        "entities/domain-event.md"
                                                                                     ]
                                                               },
                     "rustycog/rustycog-http/src/lib.rs":  {
-                                                              "ingested_at":  "2026-04-14T17:13:01.1911009Z",
+                                                              "ingested_at":  "2026-04-15T17:15:56.0808743Z",
                                                               "size_bytes":  1396,
                                                               "modified_at":  "2025-09-25T14:21:49.5334896Z",
                                                               "content_hash":  "sha256:22c56087aff9cbbcecb08eaf386fe75675d06c9ee44453acf7da2fee9123e26a",
                                                               "source_type":  "document",
                                                               "project":  "rustycog",
                                                               "pages_created":  [
-                                                                                    "references/rustycog-crate-catalog.md"
+
                                                                                 ],
                                                               "pages_updated":  [
                                                                                     "projects/rustycog/rustycog.md",
+                                                                                    "projects/rustycog/references/rustycog-crate-catalog.md",
+                                                                                    "projects/rustycog/references/rustycog-http.md",
                                                                                     "concepts/shared-rust-microservice-sdk.md",
-                                                                                    "skills/building-rustycog-services.md",
                                                                                     "references/rustycog-service-construction.md"
                                                                                 ]
                                                           },
                     "rustycog/rustycog-http/src/builder.rs":  {
-                                                                  "ingested_at":  "2026-04-14T20:28:20.9129598Z",
+                                                                  "ingested_at":  "2026-04-15T17:15:56.0808743Z",
                                                                   "size_bytes":  9249,
                                                                   "modified_at":  "2026-02-22T19:50:19.7986829Z",
                                                                   "content_hash":  "sha256:a09379f69dae62702803b70dbe53946c6b25b4b81d7228697d3437c5279314f3",
                                                                   "source_type":  "document",
                                                                   "project":  "rustycog",
                                                                   "pages_created":  [
-                                                                                        "projects/rustycog/references/rustycog-crate-catalog.md"
+                                                                                        "projects/rustycog/references/rustycog-http.md",
+                                                                                        "entities/route-builder.md",
+                                                                                        "skills/using-rustycog-http.md"
                                                                                     ],
                                                                   "pages_updated":  [
                                                                                         "projects/rustycog/rustycog.md",
+                                                                                        "projects/rustycog/references/rustycog-crate-catalog.md",
+                                                                                        "projects/rustycog/references/rustycog-http.md",
                                                                                         "concepts/shared-rust-microservice-sdk.md",
-                                                                                        "skills/building-rustycog-services.md",
                                                                                         "references/rustycog-service-construction.md",
-                                                                                        "concepts/resource-scoped-permission-fetchers.md"
+                                                                                        "concepts/resource-scoped-permission-fetchers.md",
+                                                                                        "entities/route-builder.md"
                                                                                     ]
                                                               },
                     "rustycog/rustycog-http/src/middleware_permission.rs":  {
-                                                                                "ingested_at":  "2026-04-14T20:28:20.9129598Z",
+                                                                                "ingested_at":  "2026-04-15T17:15:56.0808743Z",
                                                                                 "size_bytes":  4351,
                                                                                 "modified_at":  "2026-04-12T13:48:07.5417752Z",
                                                                                 "content_hash":  "sha256:9acb6137feb0194eb7cd3aca420ecf9acefb3bde1fbfab184a75246dff406f97",
                                                                                 "source_type":  "document",
                                                                                 "project":  "rustycog",
                                                                                 "pages_created":  [
-                                                                                                      "projects/rustycog/references/rustycog-crate-catalog.md"
+                                                                                                      "entities/resource-id.md"
                                                                                                   ],
                                                                                 "pages_updated":  [
                                                                                                       "projects/rustycog/rustycog.md",
+                                                                                                      "projects/rustycog/references/rustycog-http.md",
+                                                                                                      "projects/rustycog/references/rustycog-crate-catalog.md",
                                                                                                       "concepts/shared-rust-microservice-sdk.md",
-                                                                                                      "skills/building-rustycog-services.md",
                                                                                                       "references/rustycog-service-construction.md",
-                                                                                                      "concepts/resource-scoped-permission-fetchers.md"
+                                                                                                      "concepts/resource-scoped-permission-fetchers.md",
+                                                                                                      "entities/resource-id.md"
                                                                                                   ]
                                                                             },
                     "rustycog/rustycog-http/src/jwt_handler.rs":  {
@@ -1592,57 +1619,81 @@
                                                                                         ]
                                                                   },
                     "rustycog/rustycog-permission/src/lib.rs":  {
-                                                                    "ingested_at":  "2026-04-14T17:13:01.1911009Z",
+                                                                    "ingested_at":  "2026-04-15T17:15:56.0808743Z",
                                                                     "size_bytes":  3268,
                                                                     "modified_at":  "2025-08-11T07:15:07.2504484Z",
                                                                     "content_hash":  "sha256:86bdd82b85bf8e39f0173412635a2450d2feedc0baa5e6fa60cab3921c29e262",
                                                                     "source_type":  "document",
                                                                     "project":  "rustycog",
                                                                     "pages_created":  [
-                                                                                          "references/rustycog-crate-catalog.md"
+                                                                                          "projects/rustycog/references/rustycog-permission.md",
+                                                                                          "entities/permissions-fetcher.md",
+                                                                                          "skills/using-rustycog-permission.md"
                                                                                       ],
                                                                     "pages_updated":  [
                                                                                           "projects/rustycog/rustycog.md",
+                                                                                          "projects/rustycog/references/rustycog-crate-catalog.md",
+                                                                                          "projects/rustycog/references/rustycog-permission.md",
                                                                                           "concepts/shared-rust-microservice-sdk.md",
-                                                                                          "skills/building-rustycog-services.md",
-                                                                                          "references/rustycog-service-construction.md"
+                                                                                          "references/rustycog-service-construction.md",
+                                                                                          "entities/permissions-fetcher.md"
                                                                                       ]
                                                                 },
+                    "rustycog/rustycog-permission/src/casbin.rs":  {
+                                                                       "ingested_at":  "2026-04-15T17:15:56.0808743Z",
+                                                                       "size_bytes":  5888,
+                                                                       "modified_at":  "2025-12-07T08:13:11.1968606Z",
+                                                                       "content_hash":  "sha256:c58c47f4ee2213e4535fc79e3af193669ff6fabe6408f1580e8130ca545f9c71",
+                                                                       "source_type":  "document",
+                                                                       "project":  "rustycog",
+                                                                       "pages_created":  [
+
+                                                                                         ],
+                                                                       "pages_updated":  [
+                                                                                             "projects/rustycog/references/rustycog-permission.md",
+                                                                                             "entities/permissions-fetcher.md",
+                                                                                             "skills/using-rustycog-permission.md",
+                                                                                             "concepts/resource-scoped-permission-fetchers.md"
+                                                                                         ]
+                                                                   },
                     "rustycog/rustycog-logger/src/lib.rs":  {
-                                                                "ingested_at":  "2026-04-14T17:13:01.1911009Z",
+                                                                "ingested_at":  "2026-04-15T17:15:56.0808743Z",
                                                                 "size_bytes":  3230,
                                                                 "modified_at":  "2026-03-14T10:45:34.7868562Z",
                                                                 "content_hash":  "sha256:e5e99e97b1e400ce19f673ae6c387cc211836aafc86532fddae7bfe4fe7ea0ae",
                                                                 "source_type":  "document",
                                                                 "project":  "rustycog",
                                                                 "pages_created":  [
-                                                                                      "references/rustycog-crate-catalog.md"
+                                                                                      "projects/rustycog/references/rustycog-logger.md",
+                                                                                      "skills/using-rustycog-logger.md"
                                                                                   ],
                                                                 "pages_updated":  [
                                                                                       "projects/rustycog/rustycog.md",
+                                                                                      "projects/rustycog/references/rustycog-crate-catalog.md",
+                                                                                      "projects/rustycog/references/rustycog-logger.md",
                                                                                       "concepts/shared-rust-microservice-sdk.md",
-                                                                                      "references/platform-building-blocks.md",
                                                                                       "concepts/structured-service-configuration.md",
-                                                                                      "skills/building-rustycog-services.md",
                                                                                       "references/rustycog-service-construction.md"
                                                                                   ]
                                                             },
                     "rustycog/rustycog-testing/src/lib.rs":  {
-                                                                 "ingested_at":  "2026-04-14T17:13:01.1911009Z",
+                                                                 "ingested_at":  "2026-04-15T17:15:56.0808743Z",
                                                                  "size_bytes":  201,
                                                                  "modified_at":  "2025-07-29T09:44:48.0903964Z",
                                                                  "content_hash":  "sha256:e5f860c015ab5e6184cd7e5262caf2df7748a3e32761936b5d487e335fa3f751",
                                                                  "source_type":  "document",
                                                                  "project":  "rustycog",
                                                                  "pages_created":  [
-                                                                                       "references/rustycog-crate-catalog.md"
+                                                                                       "projects/rustycog/references/rustycog-testing.md",
+                                                                                       "skills/using-rustycog-testing.md"
                                                                                    ],
                                                                  "pages_updated":  [
                                                                                        "projects/rustycog/rustycog.md",
+                                                                                       "projects/rustycog/references/rustycog-crate-catalog.md",
+                                                                                       "projects/rustycog/references/rustycog-testing.md",
                                                                                        "concepts/shared-rust-microservice-sdk.md",
                                                                                        "concepts/event-driven-microservice-platform.md",
-                                                                                       "concepts/integration-testing-with-real-infrastructure.md",
-                                                                                       "skills/building-rustycog-services.md"
+                                                                                       "concepts/integration-testing-with-real-infrastructure.md"
                                                                                    ]
                                                              },
                     "rustycog/rustycog-testing/src/common/test_server.rs":  {
@@ -1700,19 +1751,22 @@
                                                                                                         ]
                                                                                   },
                     "rustycog/rustycog-server/src/health.rs":  {
-                                                                   "ingested_at":  "2026-04-14T17:13:01.1911009Z",
+                                                                   "ingested_at":  "2026-04-15T17:15:56.0808743Z",
                                                                    "size_bytes":  528,
                                                                    "modified_at":  "2025-07-29T09:44:48.0637285Z",
                                                                    "content_hash":  "sha256:4fc5d78a45b4350d3b8186fa0e97c06a89241d76ee42322a1c12bbfb65d65ded",
                                                                    "source_type":  "document",
                                                                    "project":  "rustycog",
                                                                    "pages_created":  [
-                                                                                         "references/rustycog-crate-catalog.md"
+                                                                                         "projects/rustycog/references/rustycog-server.md",
+                                                                                         "entities/health-checker.md",
+                                                                                         "skills/using-rustycog-server.md"
                                                                                      ],
                                                                    "pages_updated":  [
                                                                                          "projects/rustycog/rustycog.md",
+                                                                                         "projects/rustycog/references/rustycog-crate-catalog.md",
+                                                                                         "projects/rustycog/references/rustycog-server.md",
                                                                                          "concepts/shared-rust-microservice-sdk.md",
-                                                                                         "skills/building-rustycog-services.md",
                                                                                          "references/rustycog-service-construction.md"
                                                                                      ]
                                                                },
@@ -2150,6 +2204,371 @@
                                                                                                    "concepts/integration-testing-with-real-infrastructure.md",
                                                                                                    "references/hive-testing-and-api-fixtures.md"
                                                                                                ]
-                                                                         }
+                                                                         },
+                    "IAMRusty/domain/src/entity/user.rs":  {
+                                                                 "ingested_at":  "2026-04-14T20:28:20.9129598Z",
+                                                                 "size_bytes":  3807,
+                                                                 "modified_at":  "2025-07-28T12:35:03.9584302Z",
+                                                                 "content_hash":  "sha256:2a78d53504d77c692739d74df1ce86d7f1cb999d0b0ac91cad8d3365b3d9f804",
+                                                                 "source_type":  "document",
+                                                                 "project":  "iamrusty",
+                                                                 "pages_created":  [
+                                                                                       "entities/user.md",
+                                                                                       "projects/iamrusty/references/iamrusty-entity-model.md"
+                                                                                   ],
+                                                                 "pages_updated":  [
+                                                                                   ]
+                                                             },
+                    "IAMRusty/domain/src/entity/user_email.rs":  {
+                                                                       "ingested_at":  "2026-04-14T20:28:20.9129598Z",
+                                                                       "size_bytes":  1986,
+                                                                       "modified_at":  "2025-07-28T12:35:03.9584302Z",
+                                                                       "content_hash":  "sha256:141d451a902071cc16e95b1495861690018d8fc6c431cb28c6aacab13a4b8476",
+                                                                       "source_type":  "document",
+                                                                       "project":  "iamrusty",
+                                                                       "pages_created":  [
+                                                                                             "entities/user.md",
+                                                                                             "projects/iamrusty/references/iamrusty-entity-model.md"
+                                                                                         ],
+                                                                       "pages_updated":  [
+                                                                                       ]
+                                                                   },
+                    "IAMRusty/domain/src/entity/provider.rs":  {
+                                                                     "ingested_at":  "2026-04-14T20:28:20.9129598Z",
+                                                                     "size_bytes":  1490,
+                                                                     "modified_at":  "2025-07-28T12:35:03.9564293Z",
+                                                                     "content_hash":  "sha256:567e023e7d6ec2b3c4f0ff4da1f6fc47e7b21631bb60c3c7a231ee70753c9263",
+                                                                     "source_type":  "document",
+                                                                     "project":  "iamrusty",
+                                                                     "pages_created":  [
+                                                                                           "projects/iamrusty/references/iamrusty-entity-model.md"
+                                                                                       ],
+                                                                     "pages_updated":  [
+                                                                                     ]
+                                                                 },
+                    "IAMRusty/domain/src/entity/provider_link.rs":  {
+                                                                          "ingested_at":  "2026-04-14T20:28:20.9129598Z",
+                                                                          "size_bytes":  1003,
+                                                                          "modified_at":  "2025-07-28T12:35:03.9574294Z",
+                                                                          "content_hash":  "sha256:03fbf0f1dd59e244e0d258307a6b1b00a76ef5149415f8b2c5073c25b5044c63",
+                                                                          "source_type":  "document",
+                                                                          "project":  "iamrusty",
+                                                                          "pages_created":  [
+                                                                                                "entities/user.md",
+                                                                                                "projects/iamrusty/references/iamrusty-entity-model.md"
+                                                                                            ],
+                                                                          "pages_updated":  [
+                                                                                          ]
+                                                                      },
+                    "IAMRusty/domain/src/entity/password_reset_token.rs":  {
+                                                                                  "ingested_at":  "2026-04-14T20:28:20.9129598Z",
+                                                                                  "size_bytes":  4480,
+                                                                                  "modified_at":  "2025-07-29T09:44:47.0581126Z",
+                                                                                  "content_hash":  "sha256:dbffd2e23d7c87c571167905059f67f23e8bbecbabea4750f56d6cde49bfc192",
+                                                                                  "source_type":  "document",
+                                                                                  "project":  "iamrusty",
+                                                                                  "pages_created":  [
+                                                                                                        "projects/iamrusty/references/iamrusty-entity-model.md"
+                                                                                                    ],
+                                                                                  "pages_updated":  [
+                                                                                                  ]
+                                                                              },
+                    "IAMRusty/domain/src/entity/email_verification.rs":  {
+                                                                                "ingested_at":  "2026-04-14T20:28:20.9129598Z",
+                                                                                "size_bytes":  1321,
+                                                                                "modified_at":  "2025-07-28T12:35:03.9539192Z",
+                                                                                "content_hash":  "sha256:545148b2edb6669f8ce44fc4d40e8e0820fb7834dc931915a6155236573fe580",
+                                                                                "source_type":  "document",
+                                                                                "project":  "iamrusty",
+                                                                                "pages_created":  [
+                                                                                                      "projects/iamrusty/references/iamrusty-entity-model.md"
+                                                                                                  ],
+                                                                                "pages_updated":  [
+                                                                                                ]
+                                                                            },
+                    "IAMRusty/domain/src/entity/registration_token.rs":  {
+                                                                                 "ingested_at":  "2026-04-14T20:28:20.9129598Z",
+                                                                                 "size_bytes":  3223,
+                                                                                 "modified_at":  "2025-07-28T12:35:03.9574294Z",
+                                                                                 "content_hash":  "sha256:557ef6d52329281b4cd7e8115e53268ee4d97204294f500c1a7b8af9f01352e4",
+                                                                                 "source_type":  "document",
+                                                                                 "project":  "iamrusty",
+                                                                                 "pages_created":  [
+                                                                                                       "projects/iamrusty/references/iamrusty-entity-model.md"
+                                                                                                   ],
+                                                                                 "pages_updated":  [
+                                                                                               ]
+                                                                             },
+                    "IAMRusty/domain/src/entity/token.rs":  {
+                                                                  "ingested_at":  "2026-04-14T20:28:20.9129598Z",
+                                                                  "size_bytes":  2300,
+                                                                  "modified_at":  "2025-07-28T12:35:03.9584302Z",
+                                                                  "content_hash":  "sha256:bb39d58c42df0818c84f9b6d18420dd41008e1ea9091fe9339375617401df1f5",
+                                                                  "source_type":  "document",
+                                                                  "project":  "iamrusty",
+                                                                  "pages_created":  [
+                                                                                        "projects/iamrusty/references/iamrusty-entity-model.md"
+                                                                                    ],
+                                                                  "pages_updated":  [
+                                                                                ]
+                                                              },
+                    "Hive/domain/src/entity/organization.rs":  {
+                                                                  "ingested_at":  "2026-04-14T20:28:20.9129598Z",
+                                                                  "size_bytes":  6020,
+                                                                  "modified_at":  "2025-08-09T13:50:28.8309005Z",
+                                                                  "content_hash":  "sha256:ffd227e89f920d9e443d3a425c556aabadd00dfb742e9b5a9d1043088393200b",
+                                                                  "source_type":  "document",
+                                                                  "project":  "hive",
+                                                                  "pages_created":  [
+                                                                                        "entities/organization.md",
+                                                                                        "projects/hive/references/hive-entity-model.md"
+                                                                                    ],
+                                                                  "pages_updated":  [
+                                                                                ]
+                                                              },
+                    "Hive/domain/src/entity/organization_member.rs":  {
+                                                                         "ingested_at":  "2026-04-14T20:28:20.9129598Z",
+                                                                         "size_bytes":  4381,
+                                                                         "modified_at":  "2025-08-18T08:54:02.8858659Z",
+                                                                         "content_hash":  "sha256:f3c46070fc5f30ae22470b71f24d9f8e9ec70c4a4c4ee0e73fec48dea11be512",
+                                                                         "source_type":  "document",
+                                                                         "project":  "hive",
+                                                                         "pages_created":  [
+                                                                                               "entities/organization.md",
+                                                                                               "entities/membership.md",
+                                                                                               "projects/hive/references/hive-entity-model.md"
+                                                                                           ],
+                                                                         "pages_updated":  [
+                                                                                     ]
+                                                                     },
+                    "Hive/domain/src/entity/organization_invitation.rs":  {
+                                                                             "ingested_at":  "2026-04-14T20:28:20.9129598Z",
+                                                                             "size_bytes":  5294,
+                                                                             "modified_at":  "2025-08-09T13:51:32.6214402Z",
+                                                                             "content_hash":  "sha256:e51f35e511fb21f28a1d5af9262029ba7d20d9d4e8a0707936dfb40ffc981937",
+                                                                             "source_type":  "document",
+                                                                             "project":  "hive",
+                                                                             "pages_created":  [
+                                                                                                   "entities/organization.md",
+                                                                                                   "entities/membership.md",
+                                                                                                   "projects/hive/references/hive-entity-model.md"
+                                                                                               ],
+                                                                             "pages_updated":  [
+                                                                                           ]
+                                                                         },
+                    "Hive/domain/src/entity/permission.rs":  {
+                                                                "ingested_at":  "2026-04-14T20:28:20.9129598Z",
+                                                                "size_bytes":  2472,
+                                                                "modified_at":  "2025-08-10T07:00:23.4850817Z",
+                                                                "content_hash":  "sha256:35aa3fb54dc23c73df0e6d1ffe21dfcf166842ced965971ba1eb926bed13f630",
+                                                                "source_type":  "document",
+                                                                "project":  "hive",
+                                                                "pages_created":  [
+                                                                                      "projects/hive/references/hive-entity-model.md"
+                                                                                  ],
+                                                                "pages_updated":  [
+                                                                              ]
+                                                            },
+                    "Hive/domain/src/entity/resource.rs":  {
+                                                              "ingested_at":  "2026-04-14T20:28:20.9129598Z",
+                                                              "size_bytes":  730,
+                                                              "modified_at":  "2025-08-09T13:49:44.2288373Z",
+                                                              "content_hash":  "sha256:a538dfe4f0cb139b98edee16fe6705337a3262c0f421826d57795014904fb2da",
+                                                              "source_type":  "document",
+                                                              "project":  "hive",
+                                                              "pages_created":  [
+                                                                                    "projects/hive/references/hive-entity-model.md"
+                                                                                ],
+                                                              "pages_updated":  [
+                                                                            ]
+                                                          },
+                    "Hive/domain/src/entity/role_permission.rs":  {
+                                                                     "ingested_at":  "2026-04-14T20:28:20.9129598Z",
+                                                                     "size_bytes":  1658,
+                                                                     "modified_at":  "2025-08-10T07:00:47.2046005Z",
+                                                                     "content_hash":  "sha256:d2097eb01f9cbaf7d93a331e38dd7c7b7fc6fd3d2fdd77e746533d649ddf5dc2",
+                                                                     "source_type":  "document",
+                                                                     "project":  "hive",
+                                                                     "pages_created":  [
+                                                                                           "projects/hive/references/hive-entity-model.md"
+                                                                                       ],
+                                                                     "pages_updated":  [
+                                                                                   ]
+                                                                 },
+                    "Hive/domain/src/entity/organization_member_role_permission.rs":  {
+                                                                                      "ingested_at":  "2026-04-14T20:28:20.9129598Z",
+                                                                                      "size_bytes":  1061,
+                                                                                      "modified_at":  "2025-08-18T08:59:53.8329243Z",
+                                                                                      "content_hash":  "sha256:01ded45228cd5eae08debeda8996dbba383ecee2e8db7b84eebba8598be4e52e",
+                                                                                      "source_type":  "document",
+                                                                                      "project":  "hive",
+                                                                                      "pages_created":  [
+                                                                                                            "projects/hive/references/hive-entity-model.md"
+                                                                                                        ],
+                                                                                      "pages_updated":  [
+                                                                                                    ]
+                                                                                  },
+                    "Hive/domain/src/entity/external_provider.rs":  {
+                                                                       "ingested_at":  "2026-04-14T20:28:20.9129598Z",
+                                                                       "size_bytes":  1930,
+                                                                       "modified_at":  "2025-08-09T13:51:50.4758165Z",
+                                                                       "content_hash":  "sha256:e16c407ce00cde11a15440fdd221bfffa520da9f59f946687f2bdc1c2e315557",
+                                                                       "source_type":  "document",
+                                                                       "project":  "hive",
+                                                                       "pages_created":  [
+                                                                                             "projects/hive/references/hive-entity-model.md"
+                                                                                         ],
+                                                                       "pages_updated":  [
+                                                                                       ]
+                                                                   },
+                    "Hive/domain/src/entity/external_link.rs":  {
+                                                                   "ingested_at":  "2026-04-14T20:28:20.9129598Z",
+                                                                   "size_bytes":  5903,
+                                                                   "modified_at":  "2025-08-09T13:51:57.3765586Z",
+                                                                   "content_hash":  "sha256:2097244ce0ce1289447109f2713df49b8ce0c671eabb82e326a708f5da7b3669",
+                                                                   "source_type":  "document",
+                                                                   "project":  "hive",
+                                                                   "pages_created":  [
+                                                                                         "projects/hive/references/hive-entity-model.md"
+                                                                                     ],
+                                                                   "pages_updated":  [
+                                                                                 ]
+                                                               },
+                    "Hive/domain/src/entity/sync_job.rs":  {
+                                                               "ingested_at":  "2026-04-14T20:28:20.9129598Z",
+                                                               "size_bytes":  12000,
+                                                               "modified_at":  "2025-08-09T13:50:18.6396153Z",
+                                                               "content_hash":  "sha256:5eeb41660e85be37a88a69cee38da3bed981d611bfcccb903ab0771143c84eaf",
+                                                               "source_type":  "document",
+                                                               "project":  "hive",
+                                                               "pages_created":  [
+                                                                                     "projects/hive/references/hive-entity-model.md"
+                                                                                 ],
+                                                               "pages_updated":  [
+                                                                             ]
+                                                           },
+                    "Manifesto/domain/src/entity/project.rs":  {
+                                                                   "ingested_at":  "2026-04-14T20:28:20.9129598Z",
+                                                                   "size_bytes":  6776,
+                                                                   "modified_at":  "2025-12-04T21:24:49.9262769Z",
+                                                                   "content_hash":  "sha256:5d40aa1501a8b2d30c3b1acabd87c59b1015d1cff553406c8cf08b4200559520",
+                                                                   "source_type":  "document",
+                                                                   "project":  "manifesto",
+                                                                   "pages_created":  [
+                                                                                         "entities/project.md",
+                                                                                         "projects/manifesto/references/manifesto-entity-model.md"
+                                                                                     ],
+                                                                   "pages_updated":  [
+                                                                                 ]
+                                                               },
+                    "Manifesto/domain/src/entity/project_component.rs":  {
+                                                                             "ingested_at":  "2026-04-14T20:28:20.9129598Z",
+                                                                             "size_bytes":  2865,
+                                                                             "modified_at":  "2025-12-04T21:24:49.9262769Z",
+                                                                             "content_hash":  "sha256:2a274295ab021e38c7e764d83407a7713b37b6a3a244436af59f2dc43403fbf2",
+                                                                             "source_type":  "document",
+                                                                             "project":  "manifesto",
+                                                                             "pages_created":  [
+                                                                                                   "entities/project.md",
+                                                                                                   "projects/manifesto/references/manifesto-entity-model.md"
+                                                                                               ],
+                                                                             "pages_updated":  [
+                                                                                           ]
+                                                                         },
+                    "Manifesto/domain/src/entity/project_member.rs":  {
+                                                                          "ingested_at":  "2026-04-14T20:28:20.9129598Z",
+                                                                          "size_bytes":  4218,
+                                                                          "modified_at":  "2025-12-08T13:16:36.6625794Z",
+                                                                          "content_hash":  "sha256:6deeed0eada340b7e3d3126562e1a89cd1b5de9ca3b1d1064372afe898bc06a1",
+                                                                          "source_type":  "document",
+                                                                          "project":  "manifesto",
+                                                                          "pages_created":  [
+                                                                                                "entities/project.md",
+                                                                                                "entities/membership.md",
+                                                                                                "projects/manifesto/references/manifesto-entity-model.md"
+                                                                                            ],
+                                                                          "pages_updated":  [
+                                                                                          ]
+                                                                      },
+                    "Manifesto/domain/src/entity/permission.rs":  {
+                                                                      "ingested_at":  "2026-04-14T20:28:20.9129598Z",
+                                                                      "size_bytes":  818,
+                                                                      "modified_at":  "2025-10-19T14:42:15.3730926Z",
+                                                                      "content_hash":  "sha256:3d037d4ce2f380c49a1be4d797c6ebf960a214bef7b3bc7448eb5eafcfad2044",
+                                                                      "source_type":  "document",
+                                                                      "project":  "manifesto",
+                                                                      "pages_created":  [
+                                                                                            "projects/manifesto/references/manifesto-entity-model.md"
+                                                                                        ],
+                                                                      "pages_updated":  [
+                                                                                    ]
+                                                                  },
+                    "Manifesto/domain/src/entity/resource.rs":  {
+                                                                    "ingested_at":  "2026-04-14T20:28:20.9129598Z",
+                                                                    "size_bytes":  670,
+                                                                    "modified_at":  "2025-10-19T14:42:15.3730926Z",
+                                                                    "content_hash":  "sha256:24b0b5e9a1ee87d2e6c337c5e862c9007116eb2235d3cbdac0e892c1dc65b436",
+                                                                    "source_type":  "document",
+                                                                    "project":  "manifesto",
+                                                                    "pages_created":  [
+                                                                                          "projects/manifesto/references/manifesto-entity-model.md"
+                                                                                      ],
+                                                                    "pages_updated":  [
+                                                                                  ]
+                                                                },
+                    "Manifesto/domain/src/entity/role_permission.rs":  {
+                                                                           "ingested_at":  "2026-04-14T20:28:20.9129598Z",
+                                                                           "size_bytes":  1586,
+                                                                           "modified_at":  "2025-10-19T14:42:15.3740908Z",
+                                                                           "content_hash":  "sha256:070022c75eaf640364cf320765fe324b752c23c4f502685c27d0a28db6442d3e",
+                                                                           "source_type":  "document",
+                                                                           "project":  "manifesto",
+                                                                           "pages_created":  [
+                                                                                                 "projects/manifesto/references/manifesto-entity-model.md"
+                                                                                             ],
+                                                                           "pages_updated":  [
+                                                                                         ]
+                                                                       },
+                    "Manifesto/domain/src/entity/project_member_role_permission.rs":  {
+                                                                                      "ingested_at":  "2026-04-14T20:28:20.9129598Z",
+                                                                                      "size_bytes":  867,
+                                                                                      "modified_at":  "2025-10-19T14:42:15.3750918Z",
+                                                                                      "content_hash":  "sha256:96128f51c5b613ef008e6994f2b968f34d32aa51514a8198be405c673fd5991d",
+                                                                                      "source_type":  "document",
+                                                                                      "project":  "manifesto",
+                                                                                      "pages_created":  [
+                                                                                                            "projects/manifesto/references/manifesto-entity-model.md"
+                                                                                                        ],
+                                                                                      "pages_updated":  [
+                                                                                                    ]
+                                                                                  },
+                    "Telegraph/domain/src/entity/delivery.rs":  {
+                                                                  "ingested_at":  "2026-04-14T20:28:20.9129598Z",
+                                                                  "size_bytes":  7617,
+                                                                  "modified_at":  "2025-07-29T09:44:47.7378867Z",
+                                                                  "content_hash":  "sha256:54f77cf4f7ccc8bedab8778532e43fae04cb3aa58addfd46a0709fbe205441ec",
+                                                                  "source_type":  "document",
+                                                                  "project":  "telegraph",
+                                                                  "pages_created":  [
+                                                                                        "entities/communication.md",
+                                                                                        "projects/telegraph/references/telegraph-entity-model.md"
+                                                                                    ],
+                                                                  "pages_updated":  [
+                                                                                ]
+                                                              },
+                    "Telegraph/domain/src/entity/template.rs":  {
+                                                                  "ingested_at":  "2026-04-14T20:28:20.9129598Z",
+                                                                  "size_bytes":  7121,
+                                                                  "modified_at":  "2025-07-29T09:44:47.7388863Z",
+                                                                  "content_hash":  "sha256:32c82d125086a98d5ce8af08430985af13e520fb2f8e89c7c56234d5b871858e",
+                                                                  "source_type":  "document",
+                                                                  "project":  "telegraph",
+                                                                  "pages_created":  [
+                                                                                        "entities/communication.md",
+                                                                                        "projects/telegraph/references/telegraph-entity-model.md"
+                                                                                    ],
+                                                                  "pages_updated":  [
+                                                                                ]
+                                                              }
                 }
 }

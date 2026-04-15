@@ -6,6 +6,7 @@ tags: [index, references, organizations]
 
 # Hive References
 
+- [[projects/hive/references/hive-entity-model]]
 - [[projects/hive/references/hive-command-execution]]
 - [[projects/hive/references/hive-data-model-and-schema]]
 - [[projects/hive/references/hive-http-api-and-openapi-drift]]

@@ -14,7 +14,7 @@ provenance:
   inferred: 0.18
   ambiguous: 0.08
 created: 2026-04-14T17:46:37.6929647Z
-updated: 2026-04-14T17:46:37.6929647Z
+updated: 2026-04-14T20:28:20.9129598Z
 ---
 
 # IAMRusty
@@ -39,6 +39,7 @@ updated: 2026-04-14T17:46:37.6929647Z
 ## Related
 
 - [[projects/iamrusty/references/iamrusty-service]] - Code-backed overview of the crate layout, route surface, and runtime wiring.
+- [[projects/iamrusty/references/iamrusty-entity-model]] - Identity-side entities such as users, emails, provider links, and token artifacts.
 - [[projects/iamrusty/references/iamrusty-runtime-and-security]] - Configuration, JWT, queue, TLS, and OAuth hardening details.
 - [[projects/iamrusty/references/iamrusty-api-and-auth-flows]] - Public and authenticated HTTP flows, including registration completion and password reset.
 - [[projects/iamrusty/references/iamrusty-command-execution]] - How the command registry wraps the service's use cases.

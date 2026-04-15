@@ -6,6 +6,7 @@ tags: [index, references, communication]
 
 # Telegraph References
 
+- [[projects/telegraph/references/telegraph-entity-model]]
 - [[projects/telegraph/references/telegraph-event-processing]]
 - [[projects/telegraph/references/telegraph-http-and-notification-api]]
 - [[projects/telegraph/references/telegraph-runtime-and-configuration]]

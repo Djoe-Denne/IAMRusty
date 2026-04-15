@@ -14,7 +14,7 @@ provenance:
   inferred: 0.16
   ambiguous: 0.10
 created: 2026-04-14T18:56:22.3888182Z
-updated: 2026-04-14T18:56:22.3888182Z
+updated: 2026-04-14T20:28:20.9129598Z
 ---
 
 # Hive
@@ -39,6 +39,7 @@ updated: 2026-04-14T18:56:22.3888182Z
 ## Related
 
 - [[projects/hive/references/hive-service]] - Code-backed overview of Hive's crate layout, runtime wiring, and shared dependencies.
+- [[projects/hive/references/hive-entity-model]] - Organization, membership, RBAC, and integration entities owned by Hive.
 - [[projects/hive/references/hive-runtime-and-configuration]] - `HIVE_*` config loading, queue publishing, retry settings, and service-to-service config.
 - [[projects/hive/references/hive-http-api-and-openapi-drift]] - The live route table, custom error surface, and the gaps between shipped HTTP and `openspecs.yaml`.
 - [[projects/hive/references/hive-command-execution]] - Registry coverage, command names, and event-publishing use cases.
