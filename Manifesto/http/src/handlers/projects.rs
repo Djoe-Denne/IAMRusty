@@ -147,6 +147,7 @@ pub async fn delete_project(
 /// GET /api/projects
 pub async fn list_projects(
     State(state): State<AppState>,
+    auth_user: OptionalAuthUser,
     Query(params): Query<ProjectQueryParams>,
 ) -> Result<Json<ProjectListResponse>, HttpError> {
     tracing::info!(
@@ -157,14 +158,20 @@ pub async fn list_projects(
         params.search
     );
 
+    let user_id = auth_user.user_id();
     let command = ListProjectsCommand::new(
         params.owner_type,
         params.owner_id,
         params.status,
         params.search,
+        user_id,
         params.pagination,
     );
-    let context = CommandContext::new();
+    let mut context = CommandContext::new();
+
+    if let Some(user_id) = user_id {
+        context = context.with_user_id(user_id);
+    }
 
     let result = state
         .command_service

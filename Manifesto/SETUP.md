@@ -1,236 +1,126 @@
-# Manifesto Service - Setup Guide
+# Manifesto Setup
 
 ## Prerequisites
 
-- Rust (latest stable version)
+- Rust stable
 - PostgreSQL 12+
-- Access to the workspace root (for shared rustycog crates)
+- Access to the workspace root so shared `rustycog` crates resolve normally
+- Optional: Kafka/SQS only if you plan to enable queue-backed runtime behavior explicitly
 
-## Initial Setup
+## Database
 
-### 1. Database Setup
-
-Create the database:
+Create databases:
 
 ```bash
 createdb manifesto_dev
 createdb manifesto_test
 ```
 
-Or using PostgreSQL CLI:
-
-```sql
-CREATE DATABASE manifesto_dev;
-CREATE DATABASE manifesto_test;
-```
-
-### 2. Configuration
-
-The service uses a layered configuration system:
-- `config/default.toml` - Base configuration
-- `config/development.toml` - Development overrides
-- `config/test.toml` - Test environment
-- Environment variables with `MANIFESTO_` prefix
-
-Update `config/development.toml` with your database credentials if different from defaults.
-
-### 3. Run Migrations
+Run migrations:
 
 ```bash
-cd migration
-cargo run -- up
+cargo run -p manifesto-migration -- up
 ```
 
-To rollback migrations:
+Roll back the latest migration batch:
 
 ```bash
-cargo run -- down
+cargo run -p manifesto-migration -- down
 ```
 
-To check migration status:
+## Configuration
+
+Manifesto uses layered TOML plus `MANIFESTO_` environment overrides:
+
+- `config/default.toml`
+- `config/development.toml`
+- `config/test.toml`
+- environment variables with `__` for nesting
+
+Key sections:
+
+- `auth.jwt.hs256_secret`: service-side JWT verifier secret
+- `database`: primary DB connection and credentials
+- `logging.level`: runtime log level
+- `command.retry`: shared command retry policy
+- `queue`: queue transport choice; checked-in local/test configs set `type = "disabled"`
+- `service.component_service.base_url`
+- `service.component_service.api_key`
+- `service.component_service.timeout_seconds`
+- `service.business.*`: quotas, pagination defaults, and validation limits
+
+Example overrides:
 
 ```bash
-cargo run -- status
+export RUN_ENV=development
+export MANIFESTO_DATABASE__HOST=localhost
+export MANIFESTO_DATABASE__CREDS__USERNAME=postgres
+export MANIFESTO_DATABASE__CREDS__PASSWORD=postgres
+export MANIFESTO_AUTH__JWT__HS256_SECRET=rustycog-dev-hs256-secret
+export MANIFESTO_SERVICE__COMPONENT_SERVICE__BASE_URL=http://localhost:9000
 ```
 
-## Database Schema
+## Queue Behavior
 
-### Tables Created
+The checked-in `default`, `development`, and `test` configs all disable queues on purpose:
 
-The migrations create three tables:
+```toml
+[queue]
+type = "disabled"
+```
 
-#### 1. `projects`
-- Core project information
-- Ownership tracking (personal or organization)
-- Status management (draft, active, archived, suspended)
-- Visibility controls (private, internal, public)
-- Timestamps and audit trail
+This keeps local boots and default tests stable without accidental broker assumptions.
 
-#### 2. `project_components`
-- Component attachments to projects
-- Component type tracking
-- Lifecycle status (pending, configured, active, disabled)
-- Unique constraint: one component type per project
+If you want queue-backed publication or apparatus consumption, override the full queue section explicitly for that environment.
 
-#### 3. `project_members`
-- Project membership and access control
-- Role-based permissions (owner, admin, write, read)
-- Source tracking (direct, org_cascade, invitation, third_party_sync)
-- Soft delete support with grace periods
-
-### Indexes
-
-The following indexes are created for optimal query performance:
-
-**Projects:**
-- `idx_projects_owner` - Composite index on (owner_type, owner_id)
-- `idx_projects_status` - Index on status
-- `idx_projects_created_by` - Index on created_by
-
-**Project Components:**
-- `idx_project_components_project` - Index on project_id
-- `idx_project_components_status` - Composite index on (project_id, status)
-- `project_components_unique` - Unique constraint on (project_id, component_type)
-
-**Project Members:**
-- `idx_project_members_project` - Index on project_id
-- `idx_project_members_user` - Index on user_id
-- `idx_project_members_active` - Composite index on (project_id, removed_at) for active members
-- `project_members_unique` - Unique constraint on (project_id, user_id)
-
-## Development Workflow
-
-### Building the Project
+## Running the Service
 
 ```bash
-cargo build
+export RUN_ENV=development
+cargo run -p manifesto-service
 ```
 
-### Running the Service
+By default the service listens on `http://127.0.0.1:8082` in development.
+
+## Running Tests
+
+Shared Manifesto tests:
 
 ```bash
-cargo run
+export RUN_ENV=test
+cargo test -p manifesto-service
 ```
 
-The service will start on `http://localhost:8080` by default.
-
-### Running Tests
+Shared HTTP auth middleware tests:
 
 ```bash
-cargo test
+cargo test -p rustycog-http --test permission_middleware_tests
 ```
 
-## Configuration Options
+## Operational Notes
 
-### Business Logic Configuration
-
-Key business configuration options in `config/default.toml`:
-
-- `max_projects_per_user`: Maximum projects a user can own (default: 100)
-- `max_projects_per_org`: Maximum projects per organization (default: 500)
-- `max_members_per_project`: Maximum members per project (default: 100)
-- `max_components_per_project`: Maximum components per project (default: 50)
-- `member_removal_grace_period_days`: Grace period before final member deletion (default: 30 days)
-
-### Feature Flags
-
-Enable/disable features via configuration:
-
-- `caching_enabled`: Enable response caching
-- `audit_logging_enabled`: Enable detailed audit logs
-- `event_publishing_enabled`: Enable event publishing to message queue
-- `metrics_enabled`: Enable metrics collection
-
-## Environment Variables
-
-Override any configuration using environment variables:
-
-```bash
-export MANIFESTO_DATABASE_HOST=localhost
-export MANIFESTO_DATABASE_PORT=5432
-export MANIFESTO_DATABASE_NAME=manifesto_dev
-export MANIFESTO_DATABASE_USERNAME=postgres
-export MANIFESTO_DATABASE_PASSWORD=postgres
-export MANIFESTO_SERVER_PORT=8080
-export MANIFESTO_LOGGING_LEVEL=debug
-```
-
-## Next Steps
-
-After initial setup, the following components need to be implemented:
-
-1. **Domain Layer**: 
-   - Project, ProjectComponent, ProjectMember entities
-   - Value objects for status, visibility, role, etc.
-   - Business rules and validations
-
-2. **Application Layer**:
-   - CRUD use cases for projects
-   - Component management use cases
-   - Member management use cases
-   - DTOs and mappers
-
-3. **Infrastructure Layer**:
-   - Repository implementations
-   - Database entity models (SeaORM)
-   - Event publishers
-   - External service integrations
-
-4. **HTTP Layer**:
-   - REST API endpoints
-   - Request/response models
-   - Error handling
-   - Middleware
-
-5. **Tests**:
-   - Unit tests for domain logic
-   - Integration tests for repositories
-   - API tests for HTTP endpoints
+- Component add/validation flows fail closed if the configured component service is unavailable or returns non-success responses.
+- Apparatus event consumption is wired in `setup/src/app.rs`, but it only runs when queue config resolves to a real consumer.
+- Public reads are optional-auth routes; private reads still require permission even when the caller is anonymous.
+- `ComponentResponse.endpoint` and `access_token` are intentionally still unset pending a later provisioning handoff design.
 
 ## Troubleshooting
 
-### Migration Errors
+### Configuration does not load
 
-If migrations fail:
+- Verify `RUN_ENV`
+- Check TOML syntax in `config/*.toml`
+- Verify nested env vars use `__`
+- Confirm `MANIFESTO_AUTH__JWT__HS256_SECRET` is set when using auth-protected routes outside checked-in dev/test defaults
 
-1. Check database connection:
-   ```bash
-   psql -h localhost -U postgres -d manifesto_dev
-   ```
+### Component add flows fail
 
-2. Verify configuration is loaded correctly
-3. Check migration status:
-   ```bash
-   cd migration && cargo run -- status
-   ```
+- Confirm `service.component_service.base_url` points at a reachable service
+- Confirm `service.component_service.api_key` matches what the catalog expects
+- Check upstream response codes; Manifesto does not fall back to mock component data anymore
 
-### Configuration Issues
+### Queue behavior is missing
 
-If the service can't load configuration:
-
-1. Verify config files exist in `config/` directory
-2. Check file permissions
-3. Verify TOML syntax is valid
-4. Check environment variables are properly prefixed with `MANIFESTO_`
-
-## Architecture Notes
-
-This service follows a hexagonal/clean architecture pattern:
-
-- **Domain**: Pure business logic, framework-agnostic
-- **Application**: Use cases orchestrating domain logic
-- **Infrastructure**: Technical implementations (database, messaging, etc.)
-- **HTTP**: Web API layer
-- **Setup**: Application initialization and wiring
-
-This separation allows for:
-- Testability at each layer
-- Independence from frameworks
-- Flexibility to swap implementations
-- Clear separation of concerns
-
-
-
-
-
-
+- Confirm the active config does not still have `[queue] type = "disabled"`
+- Confirm the chosen transport is reachable
+- Remember that the checked-in local/test configs disable queues by default

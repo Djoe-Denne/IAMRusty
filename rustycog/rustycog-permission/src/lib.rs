@@ -117,7 +117,7 @@ pub trait PermissionEngine: Send + Sync {
     /// Check if user has the target permission based on their current roles
     async fn has_permission(
         &self,
-        user_id: Uuid,
+        user_id: Option<Uuid>,
         resource_ids: Vec<ResourceId>,
         target_permission: Permission,
         settings: serde_json::Value,

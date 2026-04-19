@@ -14,44 +14,62 @@ sources:
   - Manifesto/application/src/command/factory.rs
   - Manifesto/docs/rustycog-implementation-and-usage-guide.md
 summary: >-
-  Manifesto-specific configuration notes layered on top of RustyCog's shared config model, especially around MANIFESTO-prefixed settings and the knobs that still drift from runtime behavior.
+  Code-backed view of Manifesto's live config wiring after remediation: verified auth,
+  wired logging/retry/business knobs, explicit queue defaults, and component-service runtime settings.
 provenance:
-  extracted: 0.82
+  extracted: 0.88
   inferred: 0.08
-  ambiguous: 0.10
+  ambiguous: 0.04
 created: 2026-04-19T11:49:06.1450368Z
-updated: 2026-04-19T12:08:26.9393504Z
+updated: 2026-04-19T18:00:00Z
 ---
 
 # Manifesto Runtime and Configuration
 
-This page narrows the shared configuration story from `[[projects/rustycog/references/rustycog-config]]` to the places where `[[projects/manifesto/manifesto]]` adds service-specific settings or drifts from the generic RustyCog expectations.
+This page narrows `[[projects/rustycog/references/rustycog-config]]` to the parts that are live and service-specific in `[[projects/manifesto/manifesto]]`.
 
 ## RustyCog Baseline
 
-- `[[projects/rustycog/references/rustycog-config]]` explains the shared typed-config and env-prefix model that Manifesto reuses.
-- `[[concepts/structured-service-configuration]]` captures the cross-service pattern: config files define runtime policy and the service composition root consumes those typed sections.
-- `[[references/rustycog-service-construction]]` describes the generic startup sequence that this page specializes.
+- `[[projects/rustycog/references/rustycog-config]]` explains the shared typed-config and env-prefix model.
+- `[[concepts/structured-service-configuration]]` covers the general pattern of config files defining runtime policy and the composition root consuming those typed sections.
+- `[[references/rustycog-service-construction]]` gives the generic startup sequence that Manifesto specializes.
 
 ## Service-Specific Differences
 
-- `ManifestoConfig` uses the `MANIFESTO` prefix and composes `server`, `logging`, `queue`, `database`, `scaleway`, and `service` sections in one typed service-local model.
-- The checked-in TOML files emphasize `server`, `database`, `command.retry`, and `logging`, while `service.component_service` and `service.business` still depend more heavily on defaults or local overrides than the guides imply.
-- `src/main.rs` follows the standard RustyCog startup flow, but the runtime it launches is specifically the Manifesto HTTP surface plus optional event publication and component-service integration.
-- `setup/src/app.rs` creates a multi-queue event publisher from `config.queue` unless a custom publisher is injected, which makes publication behavior overrideable in tests or alternate boot paths.
-- `ComponentServiceClient` reads `base_url` from `config.service.component_service.base_url`, but setup still hardcodes a `30` second timeout instead of using `timeout_seconds` from config. ^[ambiguous]
-- `setup/src/config.rs` exposes `setup_logging()` that respects `config.logging.level`, but the live `main.rs` path still initializes tracing directly and falls back to `manifesto=info,rustycog=info` when env is absent. ^[ambiguous]
-- The TOML files define `[command.retry]`, but `ManifestoConfig` has no `command` field and `ManifestoCommandRegistryFactory` still builds its registry with plain `CommandRegistryBuilder::new()`, so retry policy is not wired into the live registry path. ^[ambiguous]
+- `ManifestoConfig` composes `server`, `auth`, `logging`, `command`, `queue`, `database`, `scaleway`, and `service` sections under the `MANIFESTO` prefix.
+- `src/main.rs` now uses `manifesto_setup::load_config()` and `manifesto_setup::setup_logging()`, so the service follows the same config-backed startup path described in setup.
+- `setup/src/app.rs` creates a multi-queue event publisher from `config.queue` unless tests or alternate boot paths inject a publisher explicitly.
+- The same setup path also creates `ApparatusEventConsumer`; it runs alongside the HTTP server only when queue config resolves to a real consumer instead of a no-op.
+- `auth.jwt.hs256_secret` is used for verified bearer-token authentication.
+- `logging.level` is consumed in live startup.
+- `[command.retry]` is threaded into `ManifestoCommandRegistryFactory`.
+- `service.component_service.base_url`, `api_key`, and `timeout_seconds` are used by `ComponentServiceClient`.
+- `service.business.*` is used for quotas, pagination defaults, validation limits, and member-removal grace periods.
+
+## Checked-In Queue Posture
+
+The checked-in `default`, `development`, and `test` configs all set:
+
+```toml
+[queue]
+type = "disabled"
+```
+
+That is intentional. Local/test boots stay stable unless queue-backed behavior is explicitly enabled for a given environment.
+
+## Notes
+
+- The checked-in TOML files still lean on defaults for some `service.component_service` and `service.business` values, but those defaults are now consumed by runtime rather than ignored.
+- Queue-backed publication and consumption are real features of the live runtime, just not enabled by default in local/test configs.
 
 ## Open Questions
 
-- Should Manifesto start consuming `service.component_service.timeout_seconds`, `logging.level`, and `[command.retry]`, or should those knobs be documented as guide-era leftovers until they are wired end to end? ^[ambiguous]
-- Should the checked-in TOML files begin surfacing `service.component_service` and `service.business` explicitly, or is the default-only code path intentional for the MVP? ^[inferred]
+- Should future environment examples surface more non-default `service.component_service` and `service.business` values directly in checked-in TOML, or keep the runtime lean on defaults?
 
 ## Sources
 
 - [[projects/manifesto/manifesto]] - Service hub and current MVP framing.
 - [[concepts/structured-service-configuration]] - Shared typed-config pattern that Manifesto specializes.
-- [[references/rustycog-service-construction]] - Guide-versus-runtime drift that this page narrows to Manifesto.
+- [[references/rustycog-service-construction]] - Generic RustyCog construction flow that Manifesto follows with service-specific additions.
 - [[projects/rustycog/references/rustycog-config]] - Crate-level loader and config primitive details.
 - [[projects/manifesto/references/manifesto-service]] - Composition-root and route-surface context for the same runtime.

@@ -28,6 +28,7 @@ pub trait ProjectReadRepository: Send + Sync {
         owner_id: Option<Uuid>,
         status: Option<ProjectStatus>,
         search: Option<String>,
+        viewer_user_id: Option<Uuid>,
         page: u32,
         page_size: u32,
     ) -> Result<Vec<Project>, DomainError>;
@@ -39,6 +40,8 @@ pub trait ProjectReadRepository: Send + Sync {
         owner_type: Option<OwnerType>,
         owner_id: Option<Uuid>,
         status: Option<ProjectStatus>,
+        search: Option<String>,
+        viewer_user_id: Option<Uuid>,
     ) -> Result<i64, DomainError>;
 }
 

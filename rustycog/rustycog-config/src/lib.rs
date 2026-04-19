@@ -204,6 +204,36 @@ impl Default for DatabaseConfig {
     }
 }
 
+/// Shared authentication configuration for service-side bearer token verification
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuthConfig {
+    /// JWT verification settings
+    #[serde(default)]
+    pub jwt: JwtAuthConfig,
+}
+
+impl Default for AuthConfig {
+    fn default() -> Self {
+        Self {
+            jwt: JwtAuthConfig::default(),
+        }
+    }
+}
+
+/// JWT verification configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JwtAuthConfig {
+    /// HS256 secret used to verify bearer tokens
+    #[serde(default)]
+    pub hs256_secret: Option<String>,
+}
+
+impl Default for JwtAuthConfig {
+    fn default() -> Self {
+        Self { hs256_secret: None }
+    }
+}
+
 
 /// Scaleway configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]

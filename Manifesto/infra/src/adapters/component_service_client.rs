@@ -1,23 +1,49 @@
 use async_trait::async_trait;
 use manifesto_domain::port::{ComponentInfo, ComponentServicePort};
 use rustycog_core::error::DomainError;
+use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
 use std::time::Duration;
-use tracing::{debug, warn};
+use tracing::{debug, error};
 
 /// HTTP client for the component register service
 pub struct ComponentServiceClient {
     base_url: String,
+    api_key: Option<String>,
     client: reqwest::Client,
 }
 
 impl ComponentServiceClient {
-    pub fn new(base_url: String, timeout_seconds: u64) -> Self {
+    pub fn new(
+        base_url: String,
+        api_key: Option<String>,
+        timeout_seconds: u64,
+    ) -> Result<Self, DomainError> {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(timeout_seconds))
+            .user_agent("Manifesto/1.0")
             .build()
-            .expect("Failed to create HTTP client");
+            .map_err(|e| {
+                DomainError::external_service_error("component_service", &e.to_string())
+            })?;
 
-        Self { base_url, client }
+        Ok(Self {
+            base_url: base_url.trim_end_matches('/').to_string(),
+            api_key,
+            client,
+        })
+    }
+
+    fn build_headers(&self) -> HeaderMap {
+        let mut headers = HeaderMap::new();
+        headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+
+        if let Some(api_key) = self.api_key.as_ref() {
+            if let Ok(auth_value) = HeaderValue::from_str(&format!("Bearer {}", api_key)) {
+                headers.insert(AUTHORIZATION, auth_value);
+            }
+        }
+
+        headers
     }
 }
 
@@ -25,67 +51,41 @@ impl ComponentServiceClient {
 impl ComponentServicePort for ComponentServiceClient {
     async fn list_available_components(&self) -> Result<Vec<ComponentInfo>, DomainError> {
         debug!("Fetching available components from {}/api/components", self.base_url);
-
-        // For MVP, return a mock list if the service is not available
-        match self
+        let response = self
             .client
             .get(format!("{}/api/components", self.base_url))
+            .headers(self.build_headers())
             .send()
             .await
-        {
-            Ok(response) => {
-                if response.status().is_success() {
-                    let components: Vec<ComponentInfo> = response
-                        .json()
-                        .await
-                        .map_err(|e| DomainError::internal_error(&format!(
-                            "Failed to parse component list: {}",
-                            e
-                        )))?;
-                    
-                    debug!("Successfully fetched {} components", components.len());
-                    Ok(components)
-                } else {
-                    warn!("Component service returned error status: {}", response.status());
-                    // Return mock data for MVP
-                    Ok(Self::get_mock_components())
-                }
-            }
-            Err(e) => {
-                warn!("Failed to connect to component service: {}", e);
-                // Return mock data for MVP when service is unavailable
-                Ok(Self::get_mock_components())
-            }
+            .map_err(|e| {
+                error!("Failed to connect to component service: {}", e);
+                DomainError::external_service_error("component_service", &e.to_string())
+            })?;
+
+        let status = response.status();
+        if !status.is_success() {
+            let response_body = response.text().await.unwrap_or_default();
+            error!(
+                "Component service returned error status {} with body {}",
+                status, response_body
+            );
+            return Err(DomainError::external_service_error(
+                "component_service",
+                &format!("HTTP {}: {}", status, response_body),
+            ));
         }
+
+        let components: Vec<ComponentInfo> = response
+            .json()
+            .await
+            .map_err(|e| {
+                DomainError::external_service_error(
+                    "component_service",
+                    &format!("Failed to parse component list: {}", e),
+                )
+            })?;
+
+        debug!("Successfully fetched {} components", components.len());
+        Ok(components)
     }
 }
-
-impl ComponentServiceClient {
-    /// Mock component list for development/testing
-    fn get_mock_components() -> Vec<ComponentInfo> {
-        vec![
-            ComponentInfo {
-                component_type: "taskboard".to_string(),
-                name: "Task Board".to_string(),
-                description: Some("Kanban-style task management".to_string()),
-                version: "1.0.0".to_string(),
-                endpoint: "http://localhost:9001".to_string(),
-            },
-            ComponentInfo {
-                component_type: "custom_forms".to_string(),
-                name: "Custom Forms".to_string(),
-                description: Some("Customizable form builder".to_string()),
-                version: "1.0.0".to_string(),
-                endpoint: "http://localhost:9002".to_string(),
-            },
-            ComponentInfo {
-                component_type: "analytics".to_string(),
-                name: "Analytics Dashboard".to_string(),
-                description: Some("Project analytics and reporting".to_string()),
-                version: "1.0.0".to_string(),
-                endpoint: "http://localhost:9003".to_string(),
-            },
-        ]
-    }
-}
-

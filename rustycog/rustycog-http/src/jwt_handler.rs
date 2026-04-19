@@ -1,115 +1,133 @@
 use async_trait::async_trait;
-use base64::{engine::general_purpose, Engine as _};
-use chrono::Utc;
+use jsonwebtoken::{decode, errors::ErrorKind, Algorithm, DecodingKey, Validation};
 use rustycog_command::{Command, CommandError, CommandHandler, ValidateTokenCommand};
-use std::sync::Arc;
+use rustycog_config::AuthConfig;
+use std::{collections::HashSet, sync::Arc};
 use tracing::{debug, error};
 use uuid::Uuid;
 
-/// Simple user ID extractor with basic JWT validation
+/// User ID extractor backed by verified HS256 bearer tokens
 #[derive(Clone)]
 pub struct UserIdExtractor {
+    hs256_secret: Arc<String>,
     /// Default user ID to use (for testing/development)
     default_user_id: Option<Uuid>,
 }
 
 impl UserIdExtractor {
     /// Create a new user ID extractor
-    pub fn new() -> Self {
-        Self {
-            default_user_id: None,
-        }
+    pub fn new(auth_config: AuthConfig) -> Result<Self, CommandError> {
+        Self::from_secret(auth_config.jwt.hs256_secret, None)
+    }
+
+    /// Create a new user ID extractor with a pre-resolved secret
+    pub fn from_resolved_secret(secret: impl Into<String>) -> Result<Self, CommandError> {
+        Self::from_secret(Some(secret.into()), None)
     }
 
     /// Create a new user ID extractor with a default user ID
-    pub fn with_default_user_id(user_id: Uuid) -> Self {
-        Self {
-            default_user_id: Some(user_id),
+    pub fn with_default_user_id(
+        auth_config: AuthConfig,
+        user_id: Uuid,
+    ) -> Result<Self, CommandError> {
+        Self::from_secret(auth_config.jwt.hs256_secret, Some(user_id))
+    }
+
+    fn from_secret(
+        hs256_secret: Option<String>,
+        default_user_id: Option<Uuid>,
+    ) -> Result<Self, CommandError> {
+        let secret = hs256_secret
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| {
+                CommandError::authentication(
+                    "missing_jwt_secret",
+                    "HS256 JWT secret not configured for bearer token verification",
+                )
+            })?;
+
+        Ok(Self {
+            hs256_secret: Arc::new(secret),
+            default_user_id,
+        })
+    }
+
+    fn validation() -> Validation {
+        let mut validation = Validation::new(Algorithm::HS256);
+        validation.required_spec_claims = HashSet::from([String::from("exp")]);
+        validation.validate_nbf = false;
+        validation
+    }
+
+    fn map_jwt_error(error: jsonwebtoken::errors::Error) -> CommandError {
+        match error.kind() {
+            ErrorKind::ExpiredSignature => {
+                CommandError::authentication("token_expired", "Token has expired")
+            }
+            _ => CommandError::authentication("invalid_token", "Invalid token"),
         }
     }
 
-    /// Extract user ID from token with basic validation (format and expiration)
+    /// Extract user ID from token with signature verification and claim validation
     pub fn extract_user_id(&self, token: &str) -> Result<Uuid, CommandError> {
-        debug!("Extracting user ID from token with basic validation");
+        if token.trim().is_empty() {
+            if let Some(default_user_id) = self.default_user_id {
+                return Ok(default_user_id);
+            }
 
-        // Check JWT format (3 parts separated by dots)
-        let parts: Vec<&str> = token.split('.').collect();
-        if parts.len() != 3 {
-            return Err(CommandError::Authentication {
-                code: "invalid_token".to_string(),
-                message: "Invalid token format".to_string(),
-            });
+            return Err(CommandError::authentication(
+                "invalid_token",
+                "Token is empty",
+            ));
         }
 
-        // Decode the payload (second part)
-        let payload = String::from_utf8(
-            general_purpose::URL_SAFE_NO_PAD
-                .decode(parts[1])
-                .map_err(|_| CommandError::Authentication {
-                    code: "invalid_token".to_string(),
-                    message: "Invalid token encoding".to_string(),
-                })?,
+        debug!("Extracting user ID from verified JWT");
+
+        let token_data = decode::<serde_json::Value>(
+            token,
+            &DecodingKey::from_secret(self.hs256_secret.as_bytes()),
+            &Self::validation(),
         )
-        .map_err(|_| CommandError::Authentication {
-            code: "invalid_token".to_string(),
-            message: "Invalid token encoding".to_string(),
+        .map_err(Self::map_jwt_error)?;
+
+        let claims = token_data.claims;
+
+        let sub = claims["sub"]
+            .as_str()
+            .ok_or_else(|| CommandError::authentication("invalid_token", "Missing user ID in token"))?;
+
+        let exp = claims["exp"]
+            .as_i64()
+            .ok_or_else(|| CommandError::authentication("invalid_token", "Missing expiration in token"))?;
+
+        let _iat = claims["iat"].as_i64().ok_or_else(|| {
+            CommandError::authentication("invalid_token", "Missing issued at time in token")
         })?;
 
-        // Parse JSON payload
-        let payload_json: serde_json::Value =
-            serde_json::from_str(&payload).map_err(|_| CommandError::Authentication {
-                code: "invalid_token".to_string(),
-                message: "Invalid token JSON".to_string(),
-            })?;
-
-        // Check for required claims - 'sub' (subject/user ID)
-        let sub = payload_json["sub"]
+        let jti = claims["jti"]
             .as_str()
-            .ok_or_else(|| CommandError::Authentication {
-                code: "invalid_token".to_string(),
-                message: "Missing user ID in token".to_string(),
-            })?;
+            .ok_or_else(|| CommandError::authentication("invalid_token", "Missing JWT ID in token"))?;
 
-        // Check for required claims - 'exp' (expiration time)
-        let exp = payload_json["exp"]
-            .as_i64()
-            .ok_or_else(|| CommandError::Authentication {
-                code: "invalid_token".to_string(),
-                message: "Missing expiration in token".to_string(),
-            })?;
-
-        // Check for required claims - 'iat' (issued at time)
-        let _iat = payload_json["iat"]
-            .as_i64()
-            .ok_or_else(|| CommandError::Authentication {
-                code: "invalid_token".to_string(),
-                message: "Missing issued at time in token".to_string(),
-            })?;
-
-        // Check for required claims - 'jti' (JWT ID)
-        let _jti = payload_json["jti"]
-            .as_str()
-            .ok_or_else(|| CommandError::Authentication {
-                code: "invalid_token".to_string(),
-                message: "Missing JWT ID in token".to_string(),
-            })?;
-
-        // Check if token is expired
-        let now = Utc::now().timestamp();
-        if exp <= now {
-            debug!("Token expired: exp={}, now={}", exp, now);
-            return Err(CommandError::Authentication {
-                code: "token_expired".to_string(),
-                message: "Token has expired".to_string(),
-            });
+        if jti.trim().is_empty() {
+            return Err(CommandError::authentication(
+                "invalid_token",
+                "Missing JWT ID in token",
+            ));
         }
 
-        // Parse and return user ID
-        Uuid::parse_str(sub).map_err(|_| CommandError::Authentication {
-            code: "invalid_token".to_string(),
-            message: "Invalid user ID format".to_string(),
+        let now = chrono::Utc::now().timestamp();
+        if exp <= now {
+            debug!("Token expired: exp={}, now={}", exp, now);
+            return Err(CommandError::authentication(
+                "token_expired",
+                "Token has expired",
+            ));
+        }
+
+        Uuid::parse_str(sub).map_err(|_| {
+            CommandError::authentication("invalid_token", "Invalid user ID format")
         })
-        
     }
 }
 
@@ -138,7 +156,7 @@ impl CommandHandler<ValidateTokenCommand> for UserIdExtractionHandler {
         // Validate the command first
         command.validate()?;
 
-        // Extract user ID from token (no verification)
+        // Extract user ID from a verified bearer token
         self.extractor.extract_user_id(&command.token)
     }
 }

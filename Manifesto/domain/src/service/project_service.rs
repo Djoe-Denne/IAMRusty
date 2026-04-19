@@ -23,6 +23,7 @@ pub trait ProjectService: Send + Sync {
         owner_id: Option<Uuid>,
         status: Option<ProjectStatus>,
         search: Option<String>,
+        viewer_user_id: Option<Uuid>,
         page: u32,
         page_size: u32,
     ) -> Result<Vec<Project>, DomainError>;
@@ -32,6 +33,14 @@ pub trait ProjectService: Send + Sync {
         owner_type: Option<OwnerType>,
         owner_id: Option<Uuid>,
         status: Option<ProjectStatus>,
+        search: Option<String>,
+        viewer_user_id: Option<Uuid>,
+    ) -> Result<i64, DomainError>;
+
+    async fn count_projects_by_owner(
+        &self,
+        owner_type: OwnerType,
+        owner_id: Uuid,
     ) -> Result<i64, DomainError>;
     
     async fn validate_publish(&self, project_id: &Uuid) -> Result<(), DomainError>;
@@ -108,11 +117,12 @@ where
         owner_id: Option<Uuid>,
         status: Option<ProjectStatus>,
         search: Option<String>,
+        viewer_user_id: Option<Uuid>,
         page: u32,
         page_size: u32,
     ) -> Result<Vec<Project>, DomainError> {
         self.project_repo
-            .list_with_filters(owner_type, owner_id, status, search, page, page_size)
+            .list_with_filters(owner_type, owner_id, status, search, viewer_user_id, page, page_size)
             .await
     }
 
@@ -121,10 +131,24 @@ where
         owner_type: Option<OwnerType>,
         owner_id: Option<Uuid>,
         status: Option<ProjectStatus>,
+        search: Option<String>,
+        viewer_user_id: Option<Uuid>,
     ) -> Result<i64, DomainError> {
         self.project_repo
-            .count_with_filters(owner_type, owner_id, status)
+            .count_with_filters(owner_type, owner_id, status, search, viewer_user_id)
             .await
+    }
+
+    async fn count_projects_by_owner(
+        &self,
+        owner_type: OwnerType,
+        owner_id: Uuid,
+    ) -> Result<i64, DomainError> {
+        Ok(self
+            .project_repo
+            .find_by_owner(owner_type, &owner_id)
+            .await?
+            .len() as i64)
     }
 
     async fn validate_publish(&self, project_id: &Uuid) -> Result<(), DomainError> {

@@ -8,10 +8,9 @@ use crate::dto::ComponentResponse;
 /// Request to create a new project
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct CreateProjectRequest {
-    #[validate(length(min = 1, max = 255))]
+    #[validate(length(min = 1))]
     pub name: String,
     
-    #[validate(length(max = 1000))]
     pub description: Option<String>,
     
     pub owner_type: String,  // personal or organization
@@ -28,10 +27,9 @@ pub struct CreateProjectRequest {
 /// Request to update a project
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct UpdateProjectRequest {
-    #[validate(length(min = 1, max = 255))]
+    #[validate(length(min = 1))]
     pub name: Option<String>,
     
-    #[validate(length(max = 1000))]
     pub description: Option<String>,
     
     pub visibility: Option<String>,

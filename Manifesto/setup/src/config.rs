@@ -5,6 +5,10 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilte
 
 pub use rustycog_config::ServerConfig;
 
+pub fn load_config() -> anyhow::Result<ManifestoConfig> {
+    manifesto_configuration::load_config().map_err(Into::into)
+}
+
 /// Setup logging based on configuration
 pub fn setup_logging(config: &ManifestoConfig) {
     let env_filter = EnvFilter::try_from_default_env()

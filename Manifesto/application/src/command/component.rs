@@ -103,7 +103,7 @@ impl CommandHandler<AddComponentCommand> for AddComponentCommandHandler {
         self.component_usecase
             .add_component(command.project_id, &command.request, command.user_id)
             .await
-            .map_err(|e| CommandError::business("add_failed", &e.to_string()))
+            .map_err(CommandError::from)
     }
 }
 
@@ -163,7 +163,7 @@ impl CommandHandler<GetComponentCommand> for GetComponentCommandHandler {
         self.component_usecase
             .get_component(command.project_id, command.component_id, command.user_id)
             .await
-            .map_err(|e| CommandError::business("get_failed", &e.to_string()))
+            .map_err(CommandError::from)
     }
 }
 
@@ -224,7 +224,7 @@ impl CommandHandler<ListComponentsCommand> for ListComponentsCommandHandler {
         self.component_usecase
             .list_components(command.project_id, command.user_id)
             .await
-            .map_err(|e| CommandError::business("list_failed", &e.to_string()))
+            .map_err(CommandError::from)
     }
 }
 
@@ -305,7 +305,7 @@ impl CommandHandler<UpdateComponentStatusCommand> for UpdateComponentStatusComma
                 command.user_id,
             )
             .await
-            .map_err(|e| CommandError::business("update_failed", &e.to_string()))
+            .map_err(CommandError::from)
     }
 }
 
@@ -365,7 +365,7 @@ impl CommandHandler<RemoveComponentCommand> for RemoveComponentCommandHandler {
         self.component_usecase
             .remove_component(command.project_id, command.component_id, command.user_id)
             .await
-            .map_err(|e| CommandError::business("remove_failed", &e.to_string()))
+            .map_err(CommandError::from)
     }
 }
 

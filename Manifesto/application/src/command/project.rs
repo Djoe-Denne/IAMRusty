@@ -106,7 +106,7 @@ impl CommandHandler<CreateProjectCommand> for CreateProjectCommandHandler {
         self.project_usecase
             .create_project(&command.request, command.user_id)
             .await
-            .map_err(|e| CommandError::business("create_failed", &e.to_string()))
+            .map_err(CommandError::from)
     }
 }
 
@@ -164,7 +164,7 @@ impl CommandHandler<GetProjectCommand> for GetProjectCommandHandler {
         self.project_usecase
             .get_project(command.project_id, command.user_id)
             .await
-            .map_err(|e| CommandError::business("get_failed", &e.to_string()))
+            .map_err(CommandError::from)
     }
 }
 
@@ -225,7 +225,7 @@ impl CommandHandler<GetProjectDetailCommand> for GetProjectDetailCommandHandler 
         self.project_usecase
             .get_project_detail(command.project_id, command.user_id)
             .await
-            .map_err(|e| CommandError::business("get_detail_failed", &e.to_string()))
+            .map_err(CommandError::from)
     }
 }
 
@@ -293,7 +293,7 @@ impl CommandHandler<UpdateProjectCommand> for UpdateProjectCommandHandler {
         self.project_usecase
             .update_project(command.project_id, &command.request, command.user_id)
             .await
-            .map_err(|e| CommandError::business("update_failed", &e.to_string()))
+            .map_err(CommandError::from)
     }
 }
 
@@ -351,7 +351,7 @@ impl CommandHandler<DeleteProjectCommand> for DeleteProjectCommandHandler {
         self.project_usecase
             .delete_project(command.project_id, command.user_id)
             .await
-            .map_err(|e| CommandError::business("delete_failed", &e.to_string()))
+            .map_err(CommandError::from)
     }
 }
 
@@ -366,6 +366,7 @@ pub struct ListProjectsCommand {
     pub owner_id: Option<Uuid>,
     pub status: Option<String>,
     pub search: Option<String>,
+    pub user_id: Option<Uuid>,
     pub pagination: PaginationRequest,
 }
 
@@ -375,6 +376,7 @@ impl ListProjectsCommand {
         owner_id: Option<Uuid>,
         status: Option<String>,
         search: Option<String>,
+        user_id: Option<Uuid>,
         pagination: PaginationRequest,
     ) -> Self {
         Self {
@@ -383,6 +385,7 @@ impl ListProjectsCommand {
             owner_id,
             status,
             search,
+            user_id,
             pagination,
         }
     }
@@ -441,10 +444,11 @@ impl CommandHandler<ListProjectsCommand> for ListProjectsCommandHandler {
                 command.owner_id,
                 status,
                 command.search,
+                command.user_id,
                 &command.pagination,
             )
             .await
-            .map_err(|e| CommandError::business("list_failed", &e.to_string()))
+            .map_err(CommandError::from)
     }
 }
 
@@ -502,7 +506,7 @@ impl CommandHandler<PublishProjectCommand> for PublishProjectCommandHandler {
         self.project_usecase
             .publish_project(command.project_id, command.user_id)
             .await
-            .map_err(|e| CommandError::business("publish_failed", &e.to_string()))
+            .map_err(CommandError::from)
     }
 }
 
@@ -560,6 +564,6 @@ impl CommandHandler<ArchiveProjectCommand> for ArchiveProjectCommandHandler {
         self.project_usecase
             .archive_project(command.project_id, command.user_id)
             .await
-            .map_err(|e| CommandError::business("archive_failed", &e.to_string()))
+            .map_err(CommandError::from)
     }
 }

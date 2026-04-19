@@ -9,9 +9,9 @@ use serde_json::json;
 #[derive(Debug)]
 pub enum HttpError {
     BadRequest { message: String },
-    Unauthorized,
-    Forbidden,
-    NotFound,
+    Unauthorized { message: String },
+    Forbidden { message: String },
+    NotFound { message: String },
     Conflict { message: String },
     Validation { message: String },
     Internal { message: String },
@@ -21,9 +21,9 @@ impl IntoResponse for HttpError {
     fn into_response(self) -> Response {
         let (status, error_message) = match self {
             HttpError::BadRequest { message } => (StatusCode::BAD_REQUEST, message),
-            HttpError::Unauthorized => (StatusCode::UNAUTHORIZED, "Unauthorized".to_string()),
-            HttpError::Forbidden => (StatusCode::FORBIDDEN, "Forbidden".to_string()),
-            HttpError::NotFound => (StatusCode::NOT_FOUND, "Resource not found".to_string()),
+            HttpError::Unauthorized { message } => (StatusCode::UNAUTHORIZED, message),
+            HttpError::Forbidden { message } => (StatusCode::FORBIDDEN, message),
+            HttpError::NotFound { message } => (StatusCode::NOT_FOUND, message),
             HttpError::Conflict { message } => (StatusCode::CONFLICT, message),
             HttpError::Validation { message } => (StatusCode::UNPROCESSABLE_ENTITY, message),
             HttpError::Internal { message } => (StatusCode::INTERNAL_SERVER_ERROR, message),
@@ -40,34 +40,20 @@ impl IntoResponse for HttpError {
 /// Map CommandError to HttpError
 pub fn error_mapper(error: CommandError) -> HttpError {
     match error {
-        CommandError::Validation { .. } => HttpError::Validation {
-            message: error.to_string(),
+        CommandError::Validation { message, .. } => HttpError::Validation { message },
+        CommandError::Authentication { code, message } => match code.as_str() {
+            "permission_denied" => HttpError::Forbidden { message },
+            _ => HttpError::Unauthorized { message },
         },
-        CommandError::Business { .. } => {
-            let msg = error.message();
-            if msg.contains("not found") || msg.contains("Not found") {
-                HttpError::NotFound
-            } else if msg.contains("already exists") || msg.contains("Already exists") {
-                HttpError::Conflict {
-                    message: error.to_string(),
-                }
-            } else if msg.contains("permission") || msg.contains("Permission") {
-                HttpError::Forbidden
-            } else {
-                HttpError::BadRequest {
-                    message: error.to_string(),
-                }
-            }
-        }
-        CommandError::Infrastructure { .. } => HttpError::Internal {
-            message: error.to_string(),
+        CommandError::Business { code, message } => match code.as_str() {
+            "not_found" => HttpError::NotFound { message },
+            "already_exists" => HttpError::Conflict { message },
+            "permission_denied" | "forbidden" => HttpError::Forbidden { message },
+            _ => HttpError::BadRequest { message },
         },
-        CommandError::RetryExhausted { .. } => HttpError::Internal {
-            message: error.to_string(),
-        },
-        _ => HttpError::Internal {
-            message: error.to_string(),
-        },
+        CommandError::Infrastructure { message, .. }
+        | CommandError::RetryExhausted { message, .. }
+        | CommandError::Timeout { message, .. } => HttpError::Internal { message },
     }
 }
 

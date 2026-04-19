@@ -38,6 +38,11 @@ impl ApparatusEventConsumer {
         })
     }
 
+    /// Whether the underlying queue consumer is a no-op placeholder.
+    pub fn is_noop(&self) -> bool {
+        matches!(self.inner_consumer.as_ref(), ConcreteEventConsumer::NoOp(_))
+    }
+
     /// Start consuming events from queues
     pub async fn start(&self) -> Result<(), DomainError> {
         info!("Starting Apparatus event consumer");

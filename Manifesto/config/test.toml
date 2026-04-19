@@ -5,6 +5,9 @@ host = "127.0.0.1"
 port = 8082
 tls_enabled = false
 
+[auth.jwt]
+hs256_secret = "rustycog-test-hs256-secret"
+
 [database]
 host = "localhost"
 port = 0
@@ -22,6 +25,9 @@ base_delay_ms = 50
 max_delay_ms = 5000
 backoff_multiplier = 2.0
 use_jitter = false
+
+[queue]
+type = "disabled"
 
 [logging]
 level = "debug"

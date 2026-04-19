@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
-use rustycog_command::{CommandRegistry, CommandRegistryBuilder};
+use rustycog_command::{CommandRegistry, CommandRegistryBuilder, RegistryConfig};
+use rustycog_config::CommandConfig;
 
 use super::{
     // Project commands
@@ -60,8 +61,10 @@ impl ManifestoCommandRegistryFactory {
         project_usecase: Arc<dyn ProjectUseCase>,
         component_usecase: Arc<dyn ComponentUseCase>,
         member_usecase: Arc<dyn MemberUseCase>,
+        command_config: CommandConfig,
     ) -> CommandRegistry {
-        let mut builder = CommandRegistryBuilder::new();
+        let mut builder =
+            CommandRegistryBuilder::with_config(RegistryConfig::from_retry_config(&command_config.retry));
 
         // Register project command handlers
         builder = Self::register_project_handlers(builder, project_usecase);

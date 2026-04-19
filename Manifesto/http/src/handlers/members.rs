@@ -16,6 +16,14 @@ use uuid::Uuid;
 
 use crate::error::{error_mapper, HttpError};
 
+fn specific_resource_name(resource: &str, resource_id: Uuid) -> String {
+    if resource.eq_ignore_ascii_case("component") {
+        resource_id.to_string()
+    } else {
+        format!("{}:{}", resource, resource_id)
+    }
+}
+
 /// Add a member to a project
 /// POST /api/projects/{project_id}/members
 pub async fn add_member(
@@ -176,17 +184,16 @@ pub async fn grant_permission(
 /// POST /api/projects/{project_id}/members/{user_id}/permissions/{resource}/{resource_id}
 pub async fn grant_permission_specific(
     State(state): State<AppState>,
-    Path((project_id, user_id, _resource, resource_id)): Path<(ResourceId, Uuid, String, Uuid)>,
+    Path((project_id, user_id, resource, resource_id)): Path<(ResourceId, Uuid, String, Uuid)>,
     auth_user: AuthUser,
     ValidatedJson(request): ValidatedJson<GrantPermissionPathRequest>,
 ) -> Result<Json<MemberResponse>, HttpError> {
-    // Use the resource_id UUID as the resource identifier
-    // The resource_type is stored in the resources table to identify it as a component_instance
-    let specific_resource = resource_id.to_string();
+    let specific_resource = specific_resource_name(&resource, resource_id);
     
     tracing::info!(
-        "Granting permission {:?} on specific resource {:?} to member {} in project {}",
+        "Granting permission {:?} on specific resource {} ({:?}) to member {} in project {}",
         request.permission,
+        resource,
         specific_resource,
         user_id,
         project_id
@@ -240,14 +247,14 @@ pub async fn revoke_permission(
 /// DELETE /api/projects/{project_id}/members/{user_id}/permissions/{resource}/{resource_id}
 pub async fn revoke_permission_specific(
     State(state): State<AppState>,
-    Path((project_id, user_id, _resource, resource_id)): Path<(ResourceId, Uuid, String, Uuid)>,
+    Path((project_id, user_id, resource, resource_id)): Path<(ResourceId, Uuid, String, Uuid)>,
     auth_user: AuthUser,
 ) -> Result<(StatusCode, Json<()>), HttpError> {
-    // Use the resource_id UUID as the resource identifier
-    let specific_resource = resource_id.to_string();
+    let specific_resource = specific_resource_name(&resource, resource_id);
     
     tracing::info!(
-        "Revoking permission on specific resource {} from member {} in project {}",
+        "Revoking permission on specific resource {} ({}) from member {} in project {}",
+        resource,
         specific_resource,
         user_id,
         project_id

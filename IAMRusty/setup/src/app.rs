@@ -384,7 +384,8 @@ where
     let command_service = Arc::new(GenericCommandService::new(Arc::new(registry)));
 
     // Create user ID extractor for authentication
-    let user_id_extractor = UserIdExtractor::new();
+    let user_id_extractor = UserIdExtractor::new(config.auth.clone())
+        .map_err(|e| anyhow::anyhow!("Invalid auth configuration: {}", e))?;
 
     // Create app state
     let app_state = AppState::new(command_service, user_id_extractor);

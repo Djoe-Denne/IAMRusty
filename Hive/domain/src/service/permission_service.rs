@@ -39,9 +39,13 @@ where
 {
     async fn fetch_permissions(
         &self,
-        user_id: Uuid,
+        user_id: Option<Uuid>,
         resource_ids: Vec<ResourceId>,
     ) -> Result<Vec<Permission>, DomainError> {
+        let Some(user_id) = user_id else {
+            return Ok(vec![]);
+        };
+
         debug!("getting organization with id: {:?}", resource_ids[0].id());
         let organization = self
             .organization_service

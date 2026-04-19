@@ -5,6 +5,9 @@ host = "127.0.0.1"
 port = 8082
 tls_enabled = false
 
+[auth.jwt]
+hs256_secret = "rustycog-test-hs256-secret"
+
 [database]
 host = "localhost"
 port = 0

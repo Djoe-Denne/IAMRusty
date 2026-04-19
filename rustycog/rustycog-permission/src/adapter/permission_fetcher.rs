@@ -7,7 +7,7 @@ use crate::{Permission, ResourceId};
 pub trait PermissionsFetcher: Send + Sync {
     async fn fetch_permissions(
         &self, 
-        user_id: Uuid, 
+        user_id: Option<Uuid>, 
         resource_ids: Vec<ResourceId>
     ) -> Result<Vec<Permission>, DomainError>;
 }

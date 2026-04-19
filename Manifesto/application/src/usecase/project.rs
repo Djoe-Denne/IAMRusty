@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use chrono::Utc;
+use manifesto_configuration::BusinessConfig;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -63,6 +64,7 @@ pub trait ProjectUseCase: Send + Sync {
         owner_id: Option<Uuid>,
         status: Option<ProjectStatus>,
         search: Option<String>,
+        user_id: Option<Uuid>,
         pagination: &PaginationRequest,
     ) -> Result<ProjectListResponse, ApplicationError>;
 
@@ -85,6 +87,7 @@ pub struct ProjectUseCaseImpl {
     member_service: Arc<dyn MemberService>,
     permission_service: Arc<dyn PermissionService>,
     event_publisher: Arc<dyn EventPublisher<DomainError>>,
+    business_config: BusinessConfig,
 }
 
 impl ProjectUseCaseImpl {
@@ -94,6 +97,7 @@ impl ProjectUseCaseImpl {
         member_service: Arc<dyn MemberService>,
         permission_service: Arc<dyn PermissionService>,
         event_publisher: Arc<dyn EventPublisher<DomainError>>,
+        business_config: BusinessConfig,
     ) -> Self {
         Self {
             project_service,
@@ -101,6 +105,7 @@ impl ProjectUseCaseImpl {
             member_service,
             permission_service,
             event_publisher,
+            business_config,
         }
     }
 
@@ -120,6 +125,65 @@ impl ProjectUseCaseImpl {
             updated_at: project.updated_at,
             published_at: project.published_at,
         }
+    }
+
+    fn configured_page_size(&self, pagination: &PaginationRequest) -> u32 {
+        pagination.page_size_with_defaults(
+            self.business_config.default_page_size,
+            self.business_config.max_page_size,
+        )
+    }
+
+    fn validate_project_lengths(
+        &self,
+        name: Option<&str>,
+        description: Option<&String>,
+    ) -> Result<(), ApplicationError> {
+        if let Some(name) = name {
+            if name.len() > self.business_config.project_name_max_length {
+                return Err(ApplicationError::Validation(format!(
+                    "Project name cannot exceed {} characters",
+                    self.business_config.project_name_max_length
+                )));
+            }
+        }
+
+        if let Some(description) = description {
+            if description.len() > self.business_config.project_description_max_length {
+                return Err(ApplicationError::Validation(format!(
+                    "Project description cannot exceed {} characters",
+                    self.business_config.project_description_max_length
+                )));
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn enforce_project_quota(
+        &self,
+        owner_type: OwnerType,
+        owner_id: Uuid,
+    ) -> Result<(), ApplicationError> {
+        let current_count = self
+            .project_service
+            .count_projects_by_owner(owner_type, owner_id)
+            .await?;
+
+        let limit = match owner_type {
+            OwnerType::Personal => self.business_config.max_projects_per_user,
+            OwnerType::Organization => self.business_config.max_projects_per_org,
+        };
+
+        if current_count >= limit as i64 {
+            return Err(ApplicationError::Validation(format!(
+                "Project quota exceeded for {} owner {}",
+                owner_type.as_str(),
+                owner_id
+            )));
+        }
+
+        Ok(())
     }
 }
 
@@ -156,6 +220,9 @@ impl ProjectUseCase for ProjectUseCaseImpl {
             .transpose()
             .map_err(ApplicationError::from)?
             .unwrap_or(DataClassification::Internal);
+
+        self.validate_project_lengths(Some(request.name.as_str()), request.description.as_ref())?;
+        self.enforce_project_quota(owner_type, owner_id).await?;
 
         // Build project using domain entity builder
         let project = Project::builder()
@@ -282,6 +349,8 @@ impl ProjectUseCase for ProjectUseCaseImpl {
             .transpose()
             .map_err(ApplicationError::from)?;
 
+        self.validate_project_lengths(request.name.as_deref(), request.description.as_ref())?;
+
         // Track which fields are being updated
         let mut updated_fields = Vec::new();
         if request.name.is_some() {
@@ -356,19 +425,20 @@ impl ProjectUseCase for ProjectUseCaseImpl {
         owner_id: Option<Uuid>,
         status: Option<ProjectStatus>,
         search: Option<String>,
+        user_id: Option<Uuid>,
         pagination: &PaginationRequest,
     ) -> Result<ProjectListResponse, ApplicationError> {
         let page = pagination.page();
-        let page_size = pagination.page_size();
+        let page_size = self.configured_page_size(pagination);
 
         let projects = self
             .project_service
-            .list_projects(owner_type, owner_id, status, search, page, page_size)
+            .list_projects(owner_type, owner_id, status, search.clone(), user_id, page, page_size)
             .await?;
 
         let total_count = self
             .project_service
-            .count_projects(owner_type, owner_id, status)
+            .count_projects(owner_type, owner_id, status, search, user_id)
             .await?;
 
         let data: Vec<ProjectResponse> = projects

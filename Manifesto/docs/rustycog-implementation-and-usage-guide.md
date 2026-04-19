@@ -172,33 +172,22 @@ Actively consumed in runtime wiring:
 
 - `server` -> used to start HTTP server (`config.server`),
 - `database` -> used by `DbConnectionPool::new(&config.database)`,
-- `queue` -> used by `create_multi_queue_event_publisher(&config.queue, ...)`,
-- `service.component_service.base_url` -> used when creating `ComponentServiceClient`.
+- `queue` -> used by `create_multi_queue_event_publisher(&config.queue, ...)` and by the apparatus consumer bootstrap in setup,
+- `logging.level` -> consumed through `manifesto_setup::setup_logging`,
+- `[command.retry]` -> threaded into `ManifestoCommandRegistryFactory`,
+- `service.component_service.base_url` -> used when creating `ComponentServiceClient`,
+- `service.component_service.api_key` -> sent as a bearer token when present,
+- `service.component_service.timeout_seconds` -> used by the HTTP client timeout,
+- `service.business.*` -> used for pagination defaults, quotas, validation limits, and member-removal grace period,
+- `auth.jwt.hs256_secret` -> used for verified bearer-token authentication.
 
-Defined but not currently consumed end-to-end:
+Checked-in config note:
 
-- `service.component_service.timeout_seconds` is defined in config, but setup currently passes hardcoded `30` seconds.
-- `logging.level` exists, but `main` initializes tracing directly and does not call `setup::config::setup_logging`.
-- `[command.retry]` exists in `Manifesto/config/*.toml`, but `ManifestoConfig` currently has no `command` field and factory uses `CommandRegistryBuilder::new()` (default retry policy only).
+- `Manifesto/config/default.toml`, `development.toml`, and `test.toml` explicitly set `[queue] type = "disabled"` so local/test boots do not inherit default-enabled broker behavior accidentally.
 
-## 6) Enabling command retry config in Manifesto factory (recommended)
+## 6) Current retry/config posture
 
-To make `[command.retry]` effective in Manifesto:
-
-1. Add `command: rustycog_config::CommandConfig` to `ManifestoConfig`.
-2. Give it a default in `Default for ManifestoConfig`.
-3. Pass `config.command.clone()` from setup to factory.
-4. In factory, build registry with:
-   - `let registry_config = RegistryConfig::from_retry_config(&command_config.retry);`
-   - `let mut builder = CommandRegistryBuilder::with_config(registry_config);`
-
-Reference implementation pattern exists in:
-
-- `IAMRusty/application/src/command/factory.rs`
-
-Precision note:
-
-- `CommandConfig` supports `[command.overrides.<command_type>]`, but current registry wiring pattern in this workspace typically applies one global retry policy (`command.retry`) unless you explicitly implement per-command resolution.
+`[command.retry]` is already active in the live Manifesto runtime. If you later need per-command overrides, build that policy on top of the existing global retry wiring instead of assuming the service is still using the old default-only registry path.
 
 ## 7) Practical run/test commands (Manifesto)
 

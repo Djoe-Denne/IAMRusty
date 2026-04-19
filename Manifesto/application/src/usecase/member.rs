@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use chrono::Utc;
+use manifesto_configuration::BusinessConfig;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -82,6 +83,7 @@ pub struct MemberUseCaseImpl {
     project_service: Arc<dyn ProjectService>,
     permission_service: Arc<dyn PermissionService>,
     event_publisher: Arc<dyn EventPublisher<DomainError>>,
+    business_config: BusinessConfig,
 }
 
 impl MemberUseCaseImpl {
@@ -90,12 +92,14 @@ impl MemberUseCaseImpl {
         project_service: Arc<dyn ProjectService>,
         permission_service: Arc<dyn PermissionService>,
         event_publisher: Arc<dyn EventPublisher<DomainError>>,
+        business_config: BusinessConfig,
     ) -> Self {
         Self {
             member_service,
             project_service,
             permission_service,
             event_publisher,
+            business_config,
         }
     }
 
@@ -123,6 +127,34 @@ impl MemberUseCaseImpl {
         }
     }
 
+    fn configured_page_size(&self, pagination: &PaginationRequest) -> u32 {
+        pagination.page_size_with_defaults(
+            self.business_config.default_page_size,
+            self.business_config.max_page_size,
+        )
+    }
+
+    async fn enforce_member_quota(&self, project_id: &Uuid) -> Result<(), ApplicationError> {
+        let active_members = self.member_service.count_active_members(project_id).await?;
+        if active_members >= self.business_config.max_members_per_project as i64 {
+            return Err(ApplicationError::Validation(format!(
+                "Project {} has reached the maximum number of members ({})",
+                project_id,
+                self.business_config.max_members_per_project
+            )));
+        }
+
+        Ok(())
+    }
+
+    fn specific_resource_scope(resource: &str) -> Option<&str> {
+        if uuid::Uuid::parse_str(resource).is_ok() {
+            Some("component")
+        } else {
+            resource.split_once(':').map(|(resource_type, _)| resource_type)
+        }
+    }
+
 }
 
 #[async_trait]
@@ -142,6 +174,8 @@ impl MemberUseCase for MemberUseCaseImpl {
 
         // Determine resource (defaults to "project")
         let resource_name = request.resource.as_deref().unwrap_or("project");
+
+        self.enforce_member_quota(&project_id).await?;
 
         // Validate permission level
         let permission_level = PermissionLevel::from_str(&request.permission)
@@ -211,7 +245,7 @@ impl MemberUseCase for MemberUseCaseImpl {
         pagination: &PaginationRequest,
     ) -> Result<MemberListResponse, ApplicationError> {
         let page = pagination.page();
-        let page_size = pagination.page_size();
+        let page_size = self.configured_page_size(pagination);
 
         let members = self
             .member_service
@@ -333,7 +367,13 @@ impl MemberUseCase for MemberUseCaseImpl {
         let member_id = target.id;
 
         // Remove through service
-        self.member_service.remove_member(&project_id, &user_id).await?;
+        self.member_service
+            .remove_member(
+                &project_id,
+                &user_id,
+                Some(self.business_config.member_removal_grace_period_days as i64),
+            )
+            .await?;
 
         // Publish MemberRemoved event
         let event = ManifestoDomainEvent::MemberRemoved(MemberRemovedEvent::new(
@@ -369,10 +409,12 @@ impl MemberUseCase for MemberUseCaseImpl {
 
         // Requester needs to have the permission they're trying to grant
         // For specific resources (UUIDs like component instances), also check generic "component" permission
-        let has_permission = if uuid::Uuid::parse_str(&request.resource).is_ok() {
-            // Specific resource (UUID) - check both specific and generic "component" permissions
+        let has_permission = if let Some(resource_scope) =
+            Self::specific_resource_scope(&request.resource)
+        {
+            // Specific resource - check both the exact resource and its generic scope.
             requester.has_permission(&request.resource, &permission_level)
-                || requester.has_permission("component", &permission_level)
+                || requester.has_permission(resource_scope, &permission_level)
         } else {
             // Generic resource - check direct permission
             requester.has_permission(&request.resource, &permission_level)

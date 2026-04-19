@@ -40,7 +40,7 @@ where
 {
     async fn fetch_permissions(
         &self,
-        user_id: Uuid,
+        user_id: Option<Uuid>,
         resource_ids: Vec<ResourceId>,
     ) -> Result<Vec<Permission>, DomainError> {
         let mut permissions = vec![];
@@ -56,7 +56,7 @@ where
         }
 
         let project_id = project_resource.id();
-        debug!("Fetching permissions for user {} on project {}", user_id, project_id);
+        debug!("Fetching permissions for user {:?} on project {}", user_id, project_id);
 
         // Get the project to check visibility
         let project = self.project_service.get_project(&project_id).await?;
@@ -66,6 +66,10 @@ where
         }
 
         // Get the member's role on the project
+        let Some(user_id) = user_id else {
+            return Ok(permissions);
+        };
+
         let member = match self.member_service.get_member(project_id, user_id).await {
             Ok(member) => member,
             Err(_) => {
@@ -129,7 +133,7 @@ where
 {
     async fn fetch_permissions(
         &self,
-        user_id: Uuid,
+        user_id: Option<Uuid>,
         resource_ids: Vec<ResourceId>,
     ) -> Result<Vec<Permission>, DomainError> {
         let mut permissions = vec![];
@@ -150,7 +154,7 @@ where
         }
         
         debug!(
-            "Fetching component permissions for user {} on project {}, component {:?}", 
+            "Fetching component permissions for user {:?} on project {}, component {:?}",
             user_id, project_id, component_id
         );
 
@@ -159,6 +163,10 @@ where
         if project.is_public() {
             permissions.push(Permission::Read);
         }
+
+        let Some(user_id) = user_id else {
+            return Ok(permissions);
+        };
 
         let member = match self.member_service.get_member(project_id, user_id).await {
             Ok(member) => member,
@@ -225,7 +233,7 @@ where
 {
     async fn fetch_permissions(
         &self,
-        user_id: Uuid,
+        user_id: Option<Uuid>,
         resource_ids: Vec<ResourceId>,
     ) -> Result<Vec<Permission>, DomainError> {
         let mut permissions = vec![];
@@ -242,13 +250,11 @@ where
         }
 
         let project_id = project_resource.id();
-        debug!("Fetching member permissions for user {} on project {}", user_id, project_id);
+        debug!("Fetching member permissions for user {:?} on project {}", user_id, project_id);
 
-        let project = self.project_service.get_project(&project_id).await?;
-
-        if project.is_public() {
-            permissions.push(Permission::Read);
-        }
+        let Some(user_id) = user_id else {
+            return Ok(permissions);
+        };
 
         let member = match self.member_service.get_member(project_id, user_id).await {
             Ok(member) => member,

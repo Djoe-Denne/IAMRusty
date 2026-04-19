@@ -60,7 +60,7 @@ pub async fn permission_middleware(
     .map_err(|_| StatusCode::FORBIDDEN)?;
 
     let allowed = engine
-        .has_permission(user_id, resource_ids, guard.required.clone(), serde_json::json!({}))
+        .has_permission(Some(user_id), resource_ids, guard.required.clone(), serde_json::json!({}))
         .await
         .map_err(|_| StatusCode::FORBIDDEN)?;
 
@@ -83,13 +83,8 @@ pub async fn optional_permission_middleware(
     let request_path = req.uri().path().to_owned();
     debug!("optional_permission_middleware: request_path={}", request_path);
     
-    let user_id = match req.extensions().get::<Uuid>().copied() {
-        Some(id) => id,
-        None => {
-            return Err(StatusCode::UNAUTHORIZED);
-        }
-    };
-    debug!("User ID added to request extensions: {:?}", user_id);
+    let user_id = req.extensions().get::<Uuid>().copied();
+    debug!("Optional permission middleware user_id: {:?}", user_id);
     
     // Extract ResourceIds from request path by collecting UUID segments.
     let resource_ids = extract_resource_ids(&request_path);
@@ -113,11 +108,17 @@ pub async fn optional_permission_middleware(
         .map_err(|_| StatusCode::FORBIDDEN)?;
 
     if !allowed {
-        info!("optional_permission_middleware: decision=DENY, for user={} asking for {:?}", user_id, guard.required);
+        let subject = user_id
+            .map(|id| id.to_string())
+            .unwrap_or_else(|| "anonymous".to_string());
+        info!("optional_permission_middleware: decision=DENY, for user={} asking for {:?}", subject, guard.required);
         return Err(StatusCode::FORBIDDEN);
     }
 
-    info!("optional_permission_middleware: decision=ALLOW, for user={} asking for {:?}", user_id, guard.required);
+    let subject = user_id
+        .map(|id| id.to_string())
+        .unwrap_or_else(|| "anonymous".to_string());
+    info!("optional_permission_middleware: decision=ALLOW, for user={} asking for {:?}", subject, guard.required);
     Ok(next.run(req).await)
 }
 

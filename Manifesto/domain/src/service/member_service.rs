@@ -15,7 +15,12 @@ pub trait MemberService: Send + Sync {
     
     async fn update_member(&self, member: ProjectMember) -> Result<ProjectMember, DomainError>;
     
-    async fn remove_member(&self, project_id: &Uuid, user_id: &Uuid) -> Result<(), DomainError>;
+    async fn remove_member(
+        &self,
+        project_id: &Uuid,
+        user_id: &Uuid,
+        grace_period_days: Option<i64>,
+    ) -> Result<(), DomainError>;
     
     async fn list_members(
         &self,
@@ -89,12 +94,16 @@ where
         self.member_repo.save(&member).await
     }
 
-    async fn remove_member(&self, project_id: &Uuid, user_id: &Uuid) -> Result<(), DomainError> {
-        // Get the member
-        let member = self.get_member(*project_id, *user_id).await?;
-        
-        // Delete from repository
-        self.member_repo.delete(&member.id).await
+    async fn remove_member(
+        &self,
+        project_id: &Uuid,
+        user_id: &Uuid,
+        grace_period_days: Option<i64>,
+    ) -> Result<(), DomainError> {
+        let mut member = self.get_member(*project_id, *user_id).await?;
+        member.remove(None, grace_period_days);
+        self.member_repo.save(&member).await?;
+        Ok(())
     }
 
     async fn list_members(

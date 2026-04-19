@@ -9,13 +9,15 @@ sources:
   - Manifesto/application/src/usecase/component.rs
   - Manifesto/application/src/usecase/member.rs
   - Manifesto/domain/src/service/permission_fetcher_service.rs
-summary: Manifesto-specific API and authorization behavior on top of RustyCog's shared HTTP and permission layers, including route-level differences and current component-detail limits.
+summary: >-
+  Manifesto-specific API and authorization behavior on top of RustyCog's shared HTTP and
+  permission layers, including optional-auth public reads and project-list visibility filtering.
 provenance:
-  extracted: 0.84
-  inferred: 0.08
-  ambiguous: 0.08
+  extracted: 0.89
+  inferred: 0.07
+  ambiguous: 0.04
 created: 2026-04-14T20:25:00Z
-updated: 2026-04-19T12:08:26.9393504Z
+updated: 2026-04-19T18:00:00Z
 ---
 
 # Manifesto API and Permission Flows
@@ -31,19 +33,19 @@ This page assumes the shared `[[projects/rustycog/references/rustycog-http]]` an
 ## Service-Specific Differences
 
 - `http/src/lib.rs` splits the HTTP surface into three Manifesto-owned resource scopes in `RouteBuilder`: `project`, `component`, and `member`, each with its own `PermissionsFetcher`.
-- Project list/get/detail routes are optionally authenticated reads, while create, update, delete, publish, and archive routes are authenticated and permission-guarded.
-- Component routes are nested under project routes and layer `Permission::Read` or `Permission::Admin` on top of component-specific fetcher logic.
-- Member routes include both membership CRUD and permission grant/revoke endpoints, including a generic resource form and a resource-specific form with `resource_id`.
-- `ManifestoCommandRegistryFactory` is the command entrypoint behind the handlers, grouping project, component, and member operations into one registry consumed through `GenericCommandService`.
-- `ProjectUseCaseImpl` bootstraps the owner member and grants owner permissions for `project`, `component`, and `member` during creation, so access control begins at the first successful project write.
+- Project list/get/detail routes are optionally authenticated reads. They still run through permission evaluation; anonymous callers are represented explicitly instead of being rejected before ACL checks.
+- Public projects grant anonymous `Read` through `ProjectPermissionFetcher`. Non-public project reads require an active member with matching permissions.
+- Component reads follow the same pattern through `ComponentPermissionFetcher`: anonymous callers can read public-project components, but private component reads require access.
+- `GET /api/projects` threads optional caller identity through command, use-case, service, and repository layers so anonymous callers see only public projects and authenticated callers see public projects plus projects they can actually access.
 - `ComponentUseCaseImpl` keeps permissions and component lifecycle synchronized by creating or deleting instance resources alongside add/remove operations.
-- `MemberUseCaseImpl` enforces a strong rule during grants: a requester cannot grant a permission they do not already hold, and component-instance UUID resources can be granted through either exact or generic component authority.
-- Project detail reads return component rows, but `ProjectDetailResponse` still leaves `endpoint` and `access_token` as `None`, so the API currently exposes attachment metadata rather than a ready-to-use component runtime handoff. ^[ambiguous]
+- `MemberUseCaseImpl` enforces a strong grant rule: a requester cannot grant a permission they do not already hold, and component-instance UUID resources can be granted through either exact or generic component authority.
+- Specific permission endpoints preserve the path resource type instead of collapsing UUID-shaped resources into an implicit component-only case.
+- `ProjectDetailResponse` and `ComponentResponse` still leave `endpoint` and `access_token` as `None`, so the API currently exposes component attachment metadata rather than a provisioning handoff.
 
 ## Open Questions
 
-- The route layer models optional authentication on some reads, but service-level permission semantics still depend on fetcher and middleware behavior outside the Manifesto crate itself. ^[ambiguous]
-- Member permission endpoints are rich enough to express generic and instance-specific resources, but the operator-facing API story for component-specific grants is still implicit in code rather than spelled out in dedicated docs. ^[ambiguous]
+- Should Manifesto eventually surface a richer operator-facing story for component provisioning and component-scoped tokens?
+- If more public-read surfaces are added later, should they continue to use the same optional-auth plus explicit-anonymous pattern used here?
 
 ## Sources
 

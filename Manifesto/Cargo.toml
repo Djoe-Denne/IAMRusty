@@ -85,5 +85,7 @@ rustycog-events = { path = "../rustycog/rustycog-events", features = ["test-util
 rustycog-testing = { path = "../rustycog/rustycog-testing" }
 rustycog-config = { path = "../rustycog/rustycog-config" }
 rustycog-core = { path = "../rustycog/rustycog-core" }
+rustycog-permission = { path = "../rustycog/rustycog-permission" }
+apparatus-events = { path = "../apparatus-events" }
 
 

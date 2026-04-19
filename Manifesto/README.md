@@ -1,149 +1,92 @@
 # Manifesto Service
 
-The Manifesto Service manages projects and their components. Projects are assemblies of elementary bricks (components), where each component's behavior is handled by dedicated external services.
+Manifesto manages projects, attached components, and project membership for AIForAll.
 
-## 📊 Implementation Status
+## Current Status
 
-**Current Status:** ~95% Complete - Production-Ready MVP
+Manifesto is a production-ready baseline after the April 2026 remediation pass.
 
-For detailed implementation status, architecture decisions, and progress tracking, see:
-- **[IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md)** - Complete implementation status and roadmap
+- Bearer auth now uses verified HS256 signatures.
+- Optional-auth read routes evaluate anonymous callers correctly.
+- Non-public project and component reads require real access.
+- Component catalog calls fail closed and honor configured `api_key` and `timeout_seconds`.
+- `logging.level`, `[command.retry]`, and business limits are wired into live runtime behavior.
+- Apparatus component-status consumption is wired into startup when queue config resolves to a real consumer.
+- Checked-in `default`, `development`, and `test` configs keep queues disabled by default so local/test boots do not inherit broker defaults accidentally.
 
 ## Overview
 
-Manifesto provides CRUD operations for project entities and manages:
-- **Projects**: Core project entities with ownership, status, and visibility controls
-- **Project Components**: Modular components that can be attached to projects
-- **Project Members**: User membership with resource-based permission control
+Manifesto owns three core areas:
 
-## Database Schema
+- **Projects**: ownership, status, visibility, collaboration flags, and data classification
+- **Components**: external capabilities attached to projects, each with its own lifecycle
+- **Members**: project-scoped permissions across `project`, `component`, and `member` resources
 
-### Projects Table
+Current lifecycle models:
 
-The `projects` table stores core project information:
-- **Identification**: UUID-based primary key with auto-generation
-- **Basic Info**: Name, description
-- **Status Management**: Draft, active, archived, or suspended states
-- **Ownership**: Support for both personal and organization-owned projects
-- **Settings**: Visibility controls, external collaboration flags, data classification
-- **Timestamps**: Creation, updates, and publishing tracking
+- Project status: `draft -> active -> archived`
+- Component status: `pending -> configured -> active -> disabled`
 
-### Project Components Table
+## Runtime Notes
 
-The `project_components` table manages component attachments:
-- **Component Types**: Flexible typing system for various component types (taskboard, custom-form, analytics, etc.)
-- **Status Tracking**: Tracks component lifecycle (pending → configured → active → disabled)
-- **Timestamps**: Full audit trail of component state changes
-- **Unique Constraint**: Ensures one component of each type per project
-
-### Project Members Table
-
-The `project_members` table handles access control:
-- **Roles**: Owner, admin, write, read permissions
-- **Source Tracking**: Direct assignment, organization cascade, invitations, third-party sync
-- **Removal Management**: Soft deletes with grace periods and removal reasons
-- **Activity Tracking**: Last access timestamps for analytics
-
-## Architecture
-
-This service follows the blueprint architecture pattern:
-- **Domain**: Core business logic and entities
-- **Application**: Use cases and application services
-- **Infrastructure**: Database, messaging, and external service integrations
-- **HTTP**: REST API endpoints
-- **Migration**: Database schema management
-
-## Component Philosophy
-
-Projects in Manifesto are compositions of components. Each component type (like taskboard, custom-form, analytics) is managed by its own dedicated service. Manifesto orchestrates these components but doesn't implement their behavior.
-
-This allows for:
-- **Modularity**: Components can be developed and deployed independently
-- **Scalability**: Component services can scale based on their specific needs
-- **Flexibility**: New component types can be added without changing Manifesto
+- `GET /api/projects` is optionally authenticated and filters by caller visibility/access.
+- Public project and component reads can succeed anonymously; non-public reads require permission.
+- Project creation bootstraps owner access immediately.
+- Manifesto publishes its own domain events on a best-effort basis.
+- When queue support is enabled, Manifesto also consumes apparatus `component_status_changed` events and reconciles stored component state.
+- `ComponentResponse.endpoint` and `ComponentResponse.access_token` are still `None`; provisioning handoff is not implemented yet.
 
 ## Getting Started
 
-### Running Migrations
+Run migrations:
 
 ```bash
-cd Manifesto/migration
-cargo run -- up
+cargo run -p manifesto-migration -- up
 ```
 
-### Configuration
+Run the service:
 
-Configuration follows the rustycog-config pattern. Set up your database connection in:
-- `config/default.toml` for base settings
-- `config/development.toml` for local development
-- Environment variables with `MANIFESTO_` prefix
-
-Example database configuration:
-```toml
-[database]
-host = "localhost"
-port = 5432
-username = "postgres"
-password = "postgres"
-name = "manifesto_dev"
+```bash
+cargo run -p manifesto-service
 ```
 
-## Project Ownership Models
+Run tests:
 
-### Personal Projects
-- `owner_type` = "personal"
-- `owner_id` = user UUID
-- User has full control over the project
-
-### Organization Projects
-- `owner_type` = "organization"
-- `owner_id` = organization UUID
-- Access controlled through organization membership and project-specific roles
-
-## Member Sources
-
-Members can be added to projects through multiple sources:
-- **Direct**: Manually added by project admins
-- **Organization Cascade**: Automatically inherit from organization membership
-- **Invitation**: Added via invitation system
-- **Third-Party Sync**: Synchronized from external systems
-
-## Status Workflows
-
-### Project Status Flow
-```
-draft → active → archived
-       ↓         ↑
-     suspended --┘
+```bash
+cargo test -p manifesto-service
 ```
 
-### Component Status Flow
-```
-pending → configured → active → disabled
-```
+## Configuration
 
-## Key Features
+Manifesto uses the shared RustyCog config model with the `MANIFESTO_` prefix.
 
-✅ **Fully Implemented:**
-- Complete project lifecycle management (create, update, publish, archive, delete)
-- Modular component system with dynamic resource management
-- Resource-based permission system with granular access control
-- Clean architecture with proper layer separation
-- 20 REST API endpoints with JWT authentication
-- Database migrations (8 tables) with permission system
-- Event infrastructure ready for cross-service integration
+Important sections:
 
-📖 **Documentation:**
-- **[IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md)** - Complete implementation status, TODOs, and roadmap (START HERE)
-- **[docs/rustycog-service-build-guide.md](docs/rustycog-service-build-guide.md)** - Beginner step-by-step guide to build a Rustycog-based service (`config`, `logger`, `db`, `http`, `testing`)
-- **[SETUP.md](SETUP.md)** - Database setup, configuration, and troubleshooting
-- **[IMPLEMENTATION_TEMPLATES.md](IMPLEMENTATION_TEMPLATES.md)** - Code pattern reference examples
-- **[openspecs.yaml](openspecs.yaml)** - OpenAPI specification
-- **[/docs/project/Archi.md](/docs/project/Archi.md)** - Overall system architecture (components, impersonation, cascading)
-- **[archive/](archive/)** - Historical progress documentation (superseded)
+- `auth.jwt.hs256_secret`
+- `database`
+- `logging.level`
+- `command.retry`
+- `queue`
+- `service.component_service`
+- `service.business`
+
+The checked-in configs set:
+
+- development/test JWT secrets for local use
+- queue type to `disabled`
+- retry config defaults
+- local component-service defaults
+
+If you want queue-backed behavior locally, explicitly override the queue section instead of relying on library defaults.
+
+## Documentation
+
+- [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) - current runtime truth and remaining limits
+- [`SETUP.md`](SETUP.md) - local setup, config, and run/test commands
+- [`docs/rustycog-service-build-guide.md`](docs/rustycog-service-build-guide.md) - RustyCog service construction guide
+- [`docs/rustycog-implementation-and-usage-guide.md`](docs/rustycog-implementation-and-usage-guide.md) - Manifesto-specific implementation notes
+- [`openspecs.yaml`](openspecs.yaml) - OpenAPI surface
 
 ## License
 
 Workspace license applies.
-
-

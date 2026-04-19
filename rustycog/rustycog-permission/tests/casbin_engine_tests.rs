@@ -7,7 +7,7 @@ use uuid::Uuid;
 struct MockFetcher {
     // Map of (user_id, resource_key) -> permissions
     // resource_key is a comma-separated list of UUIDs, built the same way as the engine
-    rules: std::collections::HashMap<(Uuid, String), Vec<Permission>>,
+    rules: std::collections::HashMap<(Option<Uuid>, String), Vec<Permission>>,
 }
 
 impl MockFetcher {
@@ -17,13 +17,13 @@ impl MockFetcher {
 
     fn set(&mut self, user: Uuid, resource_ids: &[ResourceId], perms: Vec<Permission>) {
         let key = resource_ids.iter().map(|u| u.id().to_string()).collect::<Vec<_>>().join(",");
-        self.rules.insert((user, key), perms);
+        self.rules.insert((Some(user), key), perms);
     }
 }
 
 #[async_trait::async_trait]
 impl PermissionsFetcher for MockFetcher {
-    async fn fetch_permissions(&self, user_id: Uuid, resource_ids: Vec<ResourceId>) -> Result<Vec<Permission>, DomainError> {
+    async fn fetch_permissions(&self, user_id: Option<Uuid>, resource_ids: Vec<ResourceId>) -> Result<Vec<Permission>, DomainError> {
         let key = resource_ids.iter().map(|u| u.id().to_string()).collect::<Vec<_>>().join(",");
         Ok(self.rules.get(&(user_id, key)).cloned().unwrap_or_default())
     }
@@ -45,13 +45,13 @@ async fn allows_direct_read() {
         .unwrap();
 
     let ok = engine
-        .has_permission(user, resources.clone(), Permission::Read, serde_json::json!({}))
+        .has_permission(Some(user), resources.clone(), Permission::Read, serde_json::json!({}))
         .await
         .unwrap();
     assert!(ok);
 
     let nok = engine
-        .has_permission(user, resources.clone(), Permission::Write, serde_json::json!({}))
+        .has_permission(Some(user), resources.clone(), Permission::Write, serde_json::json!({}))
         .await
         .unwrap();
     assert!(!nok);
@@ -70,7 +70,7 @@ async fn hierarchy_allows_owner_all() {
 
     for p in [Permission::Read, Permission::Write, Permission::Admin, Permission::Owner] {
         let ok = engine
-            .has_permission(user, resources.clone(), p.clone(), serde_json::json!({}))
+            .has_permission(Some(user), resources.clone(), p.clone(), serde_json::json!({}))
             .await
             .unwrap();
         assert!(ok, "owner should allow {:?}", p);
@@ -89,7 +89,7 @@ async fn denies_when_no_policy() {
 
     for p in [Permission::Read, Permission::Write, Permission::Admin, Permission::Owner] {
         let ok = engine
-            .has_permission(user, resources.clone(), p.clone(), serde_json::json!({}))
+            .has_permission(Some(user), resources.clone(), p.clone(), serde_json::json!({}))
             .await
             .unwrap();
         assert!(!ok, "no policy should deny {:?}", p);
@@ -111,17 +111,17 @@ async fn two_level_specificity() {
 
     // Write allowed on (org, member)
     assert!(engine
-        .has_permission(user, resources.clone(), Permission::Write, serde_json::json!({}))
+        .has_permission(Some(user), resources.clone(), Permission::Write, serde_json::json!({}))
         .await
         .unwrap());
     // Read implied
     assert!(engine
-        .has_permission(user, resources.clone(), Permission::Read, serde_json::json!({}))
+        .has_permission(Some(user), resources.clone(), Permission::Read, serde_json::json!({}))
         .await
         .unwrap());
     // Admin not implied by write
     assert!(!engine
-        .has_permission(user, resources.clone(), Permission::Admin, serde_json::json!({}))
+        .has_permission(Some(user), resources.clone(), Permission::Admin, serde_json::json!({}))
         .await
         .unwrap());
 }
@@ -142,7 +142,7 @@ async fn three_level_owner_allows_all() {
 
     for p in [Permission::Read, Permission::Write, Permission::Admin, Permission::Owner] {
         assert!(engine
-            .has_permission(user, resources.clone(), p.clone(), serde_json::json!({}))
+            .has_permission(Some(user), resources.clone(), p.clone(), serde_json::json!({}))
             .await
             .unwrap());
     }
@@ -163,22 +163,22 @@ async fn three_level_read_allows_read_only() {
         .unwrap();
 
     assert!(engine
-        .has_permission(user, resources.clone(), Permission::Read, serde_json::json!({}))
+        .has_permission(Some(user), resources.clone(), Permission::Read, serde_json::json!({}))
         .await
         .unwrap());
 
     assert!(!engine
-        .has_permission(user, resources.clone(), Permission::Write, serde_json::json!({}))
+        .has_permission(Some(user), resources.clone(), Permission::Write, serde_json::json!({}))
         .await
         .unwrap());
 
     assert!(!engine
-        .has_permission(user, resources.clone(), Permission::Admin, serde_json::json!({}))
+        .has_permission(Some(user), resources.clone(), Permission::Admin, serde_json::json!({}))
         .await
         .unwrap());
 
     assert!(!engine
-        .has_permission(user, resources.clone(), Permission::Owner, serde_json::json!({}))
+        .has_permission(Some(user), resources.clone(), Permission::Owner, serde_json::json!({}))
         .await
         .unwrap());
 }
@@ -198,22 +198,22 @@ async fn three_level_write_allows_rw_only() {
         .unwrap();
 
     assert!(engine
-        .has_permission(user, resources.clone(), Permission::Write, serde_json::json!({}))
+        .has_permission(Some(user), resources.clone(), Permission::Write, serde_json::json!({}))
         .await
         .unwrap());
 
     assert!(engine
-        .has_permission(user, resources.clone(), Permission::Read, serde_json::json!({}))
+        .has_permission(Some(user), resources.clone(), Permission::Read, serde_json::json!({}))
         .await
         .unwrap());
 
     assert!(!engine
-        .has_permission(user, resources.clone(), Permission::Admin, serde_json::json!({}))
+        .has_permission(Some(user), resources.clone(), Permission::Admin, serde_json::json!({}))
         .await
         .unwrap());
 
     assert!(!engine
-        .has_permission(user, resources.clone(), Permission::Owner, serde_json::json!({}))
+        .has_permission(Some(user), resources.clone(), Permission::Owner, serde_json::json!({}))
         .await
         .unwrap());
 }
@@ -232,22 +232,22 @@ async fn three_level_admin_allows_raw() {
         .unwrap();
 
     assert!(engine
-        .has_permission(user, resources.clone(), Permission::Write, serde_json::json!({}))
+        .has_permission(Some(user), resources.clone(), Permission::Write, serde_json::json!({}))
         .await
         .unwrap());
 
     assert!(engine
-        .has_permission(user, resources.clone(), Permission::Admin, serde_json::json!({}))
+        .has_permission(Some(user), resources.clone(), Permission::Admin, serde_json::json!({}))
         .await
         .unwrap());
 
     assert!(engine
-        .has_permission(user, resources.clone(), Permission::Read, serde_json::json!({}))
+        .has_permission(Some(user), resources.clone(), Permission::Read, serde_json::json!({}))
         .await
         .unwrap());
 
     assert!(!engine
-        .has_permission(user, resources.clone(), Permission::Owner, serde_json::json!({}))
+        .has_permission(Some(user), resources.clone(), Permission::Owner, serde_json::json!({}))
         .await
         .unwrap());
 }

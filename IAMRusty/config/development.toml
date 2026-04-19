@@ -8,16 +8,17 @@ tls_cert_path = "./config/certs/tls-cert.pem"
 tls_key_path = "./config/certs/tls-key.pem"
 tls_port = 8443
 
+[auth.jwt]
+hs256_secret = "rustycog-dev-hs256-secret"
+
 [jwt]
 expiration_seconds = 900  # 15 minutes
 refresh_token_expiration_seconds = 2592000  # 30 days
 
-# JWT secret configuration using PEM files for testing
+# JWT secret configuration using HS256 shared secret
 [jwt.secret]
-type = "pem_file"
-private_key_path = "./config/certs/key.pem"
-public_key_path = "./config/certs/public_key.pem"
-key_id = "jwt-key-test"
+type = "plain"
+value = "rustycog-dev-hs256-secret"
 
 [database]
 # Database connection details

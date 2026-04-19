@@ -6,7 +6,7 @@
 // Re-export core configuration from rustycog-config
 pub use rustycog_config::{
     clear_all_caches, generate_default_config_toml, load_config_fresh, load_config_part,
-    load_config_with_cache, CommandConfig, CommandRetryConfig, ConfigError,
+    load_config_with_cache, AuthConfig, CommandConfig, CommandRetryConfig, ConfigError,
     DatabaseConfig, DatabaseCredentials, KafkaConfig, LoggingConfig, QueueConfig, ServerConfig,
     SqsConfig, ScalewayConfig,
 };
@@ -304,6 +304,9 @@ pub struct JwtKeyPair {
 pub struct AppConfig {
     /// Server configuration
     pub server: ServerConfig,
+    /// Shared authentication verifier configuration
+    #[serde(default)]
+    pub auth: AuthConfig,
     /// Database configuration
     pub database: DatabaseConfig,
     /// OAuth provider configurations
@@ -423,6 +426,7 @@ impl ConfigLoader<AppConfig> for AppConfig {
     fn create_default() -> AppConfig {
         AppConfig {
             server: ServerConfig::default(),
+            auth: AuthConfig::default(),
             database: DatabaseConfig::default(),
             oauth: OAuthConfig {
                 github: GitHubConfig {

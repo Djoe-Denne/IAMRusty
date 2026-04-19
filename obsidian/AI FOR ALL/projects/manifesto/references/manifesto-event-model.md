@@ -7,39 +7,51 @@ sources:
   - Manifesto/application/src/usecase/project.rs
   - Manifesto/application/src/usecase/component.rs
   - Manifesto/application/src/usecase/member.rs
-  - Manifesto/infra/src/event/event_adapter.rs
-summary: Code-backed view of the events Manifesto emits today, including best-effort publishing from use cases and the separate apparatus event adapter.
+  - Manifesto/infra/src/event/consumer.rs
+  - Manifesto/infra/src/event/processors/component_processor.rs
+summary: >-
+  Code-backed view of Manifesto's live event behavior: best-effort publication of Manifesto
+  domain events plus inbound apparatus component-status consumption when queues are enabled.
 provenance:
-  extracted: 0.82
-  inferred: 0.08
-  ambiguous: 0.10
+  extracted: 0.89
+  inferred: 0.07
+  ambiguous: 0.04
 created: 2026-04-14T20:25:00Z
-updated: 2026-04-19T11:49:06.1450368Z
+updated: 2026-04-19T18:00:00Z
 ---
 
 # Manifesto Event Model
 
-`[[projects/manifesto/manifesto]]` is not merely event-ready in theory. The current use cases already publish Manifesto domain events at the application boundary, and the infra layer also carries a separate adapter for apparatus-style component events.
+`[[projects/manifesto/manifesto]]` has two live event behaviors today: it publishes Manifesto domain events from application flows, and it can consume apparatus component-status events to reconcile stored component state.
 
 ## Key Ideas
 
-- Project flows publish `ProjectCreated`, `ProjectUpdated`, `ProjectDeleted`, `ProjectPublished`, and `ProjectArchived` after the corresponding state changes succeed.
-- Component flows publish `ComponentAdded`, `ComponentStatusChanged`, and `ComponentRemoved` when components are attached, transitioned, or removed.
+- Project flows publish `ProjectCreated`, `ProjectUpdated`, `ProjectDeleted`, `ProjectPublished`, and `ProjectArchived`.
+- Component flows publish `ComponentAdded`, `ComponentStatusChanged`, and `ComponentRemoved`.
 - Member flows publish `MemberAdded`, `MemberPermissionsUpdated`, `MemberRemoved`, `PermissionGranted`, and `PermissionRevoked`.
-- `setup/src/app.rs` injects the same `EventPublisher` into the project, component, and member use cases, defaulting to a multi-queue publisher unless tests or alternate bootstraps override it.
-- Event publishing is best-effort in the current use cases: failures are logged with `tracing::warn!` but do not abort the main business transaction.
-- `infra/src/event/event_adapter.rs` introduces a second vocabulary through `ApparatusDomainEvent::ComponentStatusChanged`, which suggests Manifesto participates in both a Manifesto-local event model and a broader component/apparatus integration model. ^[ambiguous]
-- The coexistence of `manifesto_events` in the application layer and `apparatus_events` in the adapter layer is a meaningful service-specific detail, not just generic RustyCog plumbing.
+- `setup/src/app.rs` injects the same `EventPublisher` into project, component, and member use cases, defaulting to a multi-queue publisher unless tests or alternate bootstraps override it.
+- Event publication remains best-effort: failures are logged with `tracing::warn!` but do not roll back the main business transaction.
+- `ApparatusEventConsumer` is constructed in setup and started alongside the HTTP server only when queue config resolves to a real consumer.
+- `ComponentStatusProcessor` handles inbound `apparatus_events::ComponentStatusChangedEvent` messages by updating the matching stored component:
+  - duplicates are treated as no-ops,
+  - stale events are ignored,
+  - applied timestamps use the event's `changed_at`.
+- The old unused outbound apparatus adapter is no longer part of the live runtime. Outbound publication currently uses only Manifesto's own domain-event vocabulary.
+
+## Checked-In Queue Posture
+
+- Checked-in `default`, `development`, and `test` configs all disable queues.
+- That means local/test boots use no-op publisher/consumer behavior unless queue settings are explicitly overridden.
 
 ## Open Questions
 
-- Where exactly should the apparatus adapter be wired into the live runtime, and which workflows are expected to use it instead of direct Manifesto domain events? ^[ambiguous]
-- Should best-effort event publishing remain the default, or should some lifecycle transitions become hard-fail when publication breaks? ^[inferred]
+- Should any Manifesto domain events eventually become hard-fail instead of best-effort?
+- If queue-backed operation becomes a default CI path later, which event contracts deserve end-to-end broker coverage instead of unit-level runtime tests?
 
 ## Sources
 
 - [[projects/manifesto/manifesto]] - Service overview and runtime context.
 - [[projects/manifesto/references/manifesto-api-and-permission-flows]] - Route and use-case entrypoints that trigger these events.
 - [[projects/manifesto/concepts/project-ownership-and-publication-lifecycle]] - Project lifecycle transitions and their emitted events.
-- [[projects/manifesto/concepts/component-catalog-and-fallback-adapter]] - Component-side behavior around add/remove/status changes.
+- [[projects/manifesto/concepts/component-catalog-and-fallback-adapter]] - Component-side validation and runtime status updates.
 - [[concepts/event-driven-microservice-platform]] - Platform-wide async coordination context.

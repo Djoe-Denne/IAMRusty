@@ -1,41 +1,34 @@
-use base64::{engine::general_purpose, Engine as _};
 use chrono::{Duration, Utc};
+use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
+use serde::Serialize;
 use uuid::Uuid;
 
-/// Create a JWT token for the given user ID with valid payload and random key
-pub fn create_jwt_token(user_id: Uuid) -> String {
-    let payload = serde_json::json!({
-        "sub": user_id.to_string(),
-        "exp": (Utc::now() + Duration::hours(1)).timestamp(),
-        "iat": Utc::now().timestamp(),
-        "jti": Uuid::new_v4().to_string(),
-    });
+pub const TEST_HS256_SECRET: &str = "rustycog-test-hs256-secret";
 
-    let key = "secret".as_bytes();
-    let header = serde_json::json!({
-        "alg": "HS256",
-        "typ": "JWT",
-    });
-
-    let token = encode(&header, &payload, key).unwrap();
-    token
+#[derive(Debug, Serialize)]
+struct TestClaims {
+    sub: String,
+    exp: usize,
+    iat: usize,
+    jti: String,
 }
 
-fn encode(
-    header: &serde_json::Value,
-    payload: &serde_json::Value,
-    key: &[u8],
-) -> Result<String, anyhow::Error> {
-    let header_str = serde_json::to_string(header)?;
-    let payload_str = serde_json::to_string(payload)?;
+/// Create a JWT token for the given user ID with a shared HS256 test secret
+pub fn create_jwt_token(user_id: Uuid) -> String {
+    create_jwt_token_with_secret(user_id, TEST_HS256_SECRET)
+}
 
-    let header_base64 = general_purpose::URL_SAFE_NO_PAD.encode(header_str.as_bytes());
-    let payload_base64 = general_purpose::URL_SAFE_NO_PAD.encode(payload_str.as_bytes());
+/// Create a JWT token with a caller-provided HS256 secret
+pub fn create_jwt_token_with_secret(user_id: Uuid, secret: &str) -> String {
+    let now = Utc::now();
+    let claims = TestClaims {
+        sub: user_id.to_string(),
+        exp: (now + Duration::hours(1)).timestamp() as usize,
+        iat: now.timestamp() as usize,
+        jti: Uuid::new_v4().to_string(),
+    };
 
-    let signature = "fake_signature";
-
-    Ok(format!(
-        "{}.{}.{}",
-        header_base64, payload_base64, signature
-    ))
+    let header = Header::new(Algorithm::HS256);
+    encode(&header, &claims, &EncodingKey::from_secret(secret.as_bytes()))
+        .expect("failed to encode test JWT")
 }

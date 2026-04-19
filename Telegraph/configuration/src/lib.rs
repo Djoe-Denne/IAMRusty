@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use rustycog_config::{
-    load_config_fresh, ConfigError, ConfigLoader, DatabaseConfig, ScalewayConfig, HasDbConfig, HasLoggingConfig, HasScalewayConfig,
+    load_config_fresh, AuthConfig, ConfigError, ConfigLoader, DatabaseConfig, ScalewayConfig, HasDbConfig, HasLoggingConfig, HasScalewayConfig,
     HasQueueConfig, HasServerConfig, LoggingConfig, QueueConfig,
 };
 
@@ -22,6 +22,10 @@ pub struct TelegraphConfig {
     /// Server configuration
     #[serde(default)]
     pub server: ServerConfig,
+
+    /// Shared authentication verifier configuration
+    #[serde(default)]
+    pub auth: AuthConfig,
 
     /// Logging configuration
     #[serde(default)]
@@ -222,6 +226,7 @@ impl Default for TelegraphConfig {
     fn default() -> Self {
         Self {
             server: ServerConfig::default(),
+            auth: AuthConfig::default(),
             logging: LoggingConfig::default(),
             scaleway: ScalewayConfig::default(),
             queue: QueueConfig::default(),

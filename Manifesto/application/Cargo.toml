@@ -9,10 +9,12 @@ license.workspace = true
 [dependencies]
 # Internal dependencies
 manifesto-domain = { path = "../domain" }
+manifesto-configuration = { path = "../configuration" }
 manifesto-events = { path = "../../manifesto-events" }
 
 # Shared crates
 rustycog-command = { path = "../../rustycog/rustycog-command" }
+rustycog-config = { path = "../../rustycog/rustycog-config" }
 rustycog-core = { path = "../../rustycog/rustycog-core" }
 rustycog-events = { path = "../../rustycog/rustycog-events" }
 

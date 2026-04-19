@@ -3,10 +3,21 @@ use std::sync::Arc;
 use axum::extract::{Path, State};
 use std::net::SocketAddr;
 use rustycog_http::{AppState, AuthUser, RouteBuilder, UserIdExtractor};
-use base64::Engine as _;
+use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
 use rustycog_permission::{Permission, PermissionsFetcher, ResourceId};
 use rustycog_core::error::DomainError;
+use serde::Serialize;
 use uuid::Uuid;
+
+const TEST_JWT_SECRET: &str = "rustycog-test-hs256-secret";
+
+#[derive(Debug, Serialize)]
+struct TestClaims {
+    sub: String,
+    exp: usize,
+    iat: usize,
+    jti: String,
+}
 
 // Dummy handler that expects resource IDs to be already set in request extensions
 async fn ok_handler_one_level(
@@ -42,26 +53,27 @@ async fn ok_handler_three_level_with_segment(
 }
 
 struct MockFetcher {
-    rules: std::collections::HashMap<(Uuid, Vec<ResourceId>), Vec<Permission>>,
+    rules: std::collections::HashMap<(Option<Uuid>, Vec<ResourceId>), Vec<Permission>>,
 }
 
 impl MockFetcher {
     fn new() -> Self { Self { rules: std::collections::HashMap::new() } }
     fn set(&mut self, user: Uuid, resources: Vec<ResourceId>, perms: Vec<Permission>) {
-        self.rules.insert((user, resources), perms);
+        self.rules.insert((Some(user), resources), perms);
     }
 }
 
 #[async_trait::async_trait]
 impl PermissionsFetcher for MockFetcher {
-    async fn fetch_permissions(&self, user_id: Uuid, resource_ids: Vec<ResourceId>) -> Result<Vec<Permission>, DomainError> {
+    async fn fetch_permissions(&self, user_id: Option<Uuid>, resource_ids: Vec<ResourceId>) -> Result<Vec<Permission>, DomainError> {
         Ok(self.rules.get(&(user_id, resource_ids)).cloned().unwrap_or_default())
     }
 }
 
 async fn make_server(fetcher: Arc<dyn PermissionsFetcher>, model: &'static str) -> (SocketAddr, tokio::task::JoinHandle<Result<(), DomainError>>) {
     let registry = Arc::new(rustycog_command::CommandRegistry::default());
-    let state = AppState::new(Arc::new(rustycog_command::GenericCommandService::new(registry)), UserIdExtractor::new());
+    let extractor = UserIdExtractor::from_resolved_secret(TEST_JWT_SECRET).unwrap();
+    let state = AppState::new(Arc::new(rustycog_command::GenericCommandService::new(registry)), extractor);
     let addr = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap().local_addr().unwrap();
 
     let handle = tokio::task::spawn(async move {
@@ -94,16 +106,27 @@ async fn make_server(fetcher: Arc<dyn PermissionsFetcher>, model: &'static str) 
 
 
 fn make_token_for_user(user: Uuid) -> String {
-    // Create a minimal JWT-like string with base64 payload matching extractor expectations
-    let header = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode("{}".as_bytes());
-    let payload = serde_json::json!({
-        "sub": user.to_string(),
-        "exp": (chrono::Utc::now() + chrono::Duration::hours(1)).timestamp(),
-        "iat": chrono::Utc::now().timestamp(),
-        "jti": Uuid::new_v4().to_string(),
-    });
-    let payload_b64 = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(payload.to_string());
-    format!("{}.{}.sig", header, payload_b64)
+    let now = chrono::Utc::now();
+    let claims = TestClaims {
+        sub: user.to_string(),
+        exp: (now + chrono::Duration::hours(1)).timestamp() as usize,
+        iat: now.timestamp() as usize,
+        jti: Uuid::new_v4().to_string(),
+    };
+
+    encode(
+        &Header::new(Algorithm::HS256),
+        &claims,
+        &EncodingKey::from_secret(TEST_JWT_SECRET.as_bytes()),
+    )
+    .unwrap()
+}
+
+fn make_tampered_token_for_user(user: Uuid) -> String {
+    let mut token = make_token_for_user(user);
+    let last_char = token.pop().expect("token should not be empty");
+    token.push(if last_char == 'a' { 'b' } else { 'a' });
+    token
 }
 
 async fn http_get(addr: SocketAddr, path: &str, user: Option<Uuid>) -> reqwest::Response {
@@ -115,6 +138,16 @@ async fn http_get(addr: SocketAddr, path: &str, user: Option<Uuid>) -> reqwest::
         req = req.header("Authorization", format!("Bearer {}", token));
     }
     req.send().await.unwrap()
+}
+
+async fn http_get_with_token(addr: SocketAddr, path: &str, token: &str) -> reqwest::Response {
+    let url = format!("http://{}{}", addr, path);
+    reqwest::Client::new()
+        .get(&url)
+        .header("Authorization", format!("Bearer {}", token))
+        .send()
+        .await
+        .unwrap()
 }
 
 mod one_level {
@@ -146,6 +179,23 @@ mod one_level {
         let (addr, _h) = make_server(Arc::new(mf), "resource1").await;
         let res = http_get(addr, format!("/orgs/{}", org.id()).as_str(), Some(user)).await;
         assert_eq!(res.status(), reqwest::StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn reject_tampered_token() {
+        let fetcher = Arc::new(MockFetcher::new());
+        let (addr, _h) = make_server(fetcher, "resource1").await;
+        let user = Uuid::new_v4();
+        let tampered_token = make_tampered_token_for_user(user);
+
+        let res = http_get_with_token(
+            addr,
+            "/orgs/11111111-1111-1111-1111-111111111111",
+            &tampered_token,
+        )
+        .await;
+
+        assert_eq!(res.status(), reqwest::StatusCode::UNAUTHORIZED);
     }
 }
 

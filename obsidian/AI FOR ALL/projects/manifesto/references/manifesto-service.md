@@ -15,13 +15,14 @@ sources:
   - Manifesto/tests/common.rs
   - Manifesto/docs/rustycog-implementation-and-usage-guide.md
 summary: >-
-  Manifesto-specific runtime notes that sit on top of the shared RustyCog service shell, highlighting project-domain wiring and the main guide-versus-runtime differences.
+  Manifesto-specific runtime notes that sit on top of the shared RustyCog service shell,
+  highlighting project-domain wiring and the current live-runtime boundary.
 provenance:
-  extracted: 0.84
-  inferred: 0.06
-  ambiguous: 0.10
+  extracted: 0.88
+  inferred: 0.08
+  ambiguous: 0.04
 created: 2026-04-14T16:54:59.5971424Z
-updated: 2026-04-19T12:08:26.9393504Z
+updated: 2026-04-19T18:00:00Z
 ---
 
 # Manifesto Service and Project ADR
@@ -37,17 +38,17 @@ This page is the Manifesto-specific companion to `[[projects/rustycog/references
 ## Service-Specific Differences
 
 - Manifesto owns project records, component attachments, and member access with explicit lifecycle and state models that do not exist in the framework itself.
-- `src/main.rs` still follows the standard RustyCog boot path, but the live service uses `ManifestoConfig`, `ManifestoCommandRegistryFactory`, and a composition root specialized around project orchestration.
-- `setup/src/app.rs` adds an optional multi-queue event publisher, a component-service client, and resource-scoped permission fetchers for `project`, `component`, and `member` resources before handing everything to `GenericCommandService`.
+- `src/main.rs` follows the standard RustyCog boot path, but the live service uses `ManifestoConfig`, `ManifestoCommandRegistryFactory`, and a composition root specialized around project orchestration.
+- `setup/src/app.rs` adds a multi-queue event publisher, a component-service client, an optional apparatus consumer, and resource-scoped permission fetchers for `project`, `component`, and `member` resources before handing everything to `GenericCommandService`.
 - `http/src/lib.rs` exposes project, component, member, and permission-management routes, so the service's HTTP surface is shaped by Manifesto's domain more than by generic RustyCog routing concerns.
-- `tests/common.rs` keeps the shared real-server harness but fixes the default Manifesto posture at `has_sqs() == false`, making DB-backed integration tests the primary confidence path.
-- Older setup notes and ADR-style material still matter as historical context, but the stronger runtime truth now lives in `setup/src/app.rs`, `configuration/src/lib.rs`, `http/src/lib.rs`, and the service-specific reference pages linked from `[[projects/manifesto/references/index]]`. ^[inferred]
-- Some guide-advertised knobs remain only partly wired in the live runtime, especially `[command.retry]`, `logging.level`, and `service.component_service.timeout_seconds`. ^[ambiguous]
+- `tests/common.rs` keeps the shared real-server harness but fixes the default Manifesto posture at `has_sqs() == false`, making DB-backed integration tests and focused unit tests the primary confidence path.
+- The main runtime knobs advertised by the repo docs are now genuinely wired: verified auth secret, logging level, command retry, component-service timeout/api key, and business limits.
+- Checked-in local/test configs disable queues deliberately, even though the runtime can publish and consume queue-backed events when explicitly configured.
 
 ## Open Questions
 
-- The docs still do not give a crisp implementation-status boundary for every ADR decision, so readers need the per-topic delta pages to separate current behavior from historical intent. ^[ambiguous]
-- Event infrastructure, component integration, and component-detail expansion are still described as partly ready and partly placeholder depending on which source you read. ^[ambiguous]
+- Should the checked-in examples eventually include a non-disabled queue profile for staging-style documentation, or stay conservative for local/test defaults?
+- When component provisioning grows beyond type validation, which parts belong in Manifesto versus the external component runtime?
 
 ## Sources
 
@@ -55,4 +56,4 @@ This page is the Manifesto-specific companion to `[[projects/rustycog/references
 - [[projects/rustycog/references/index]] — Shared framework baseline for the runtime being specialized here
 - [[projects/manifesto/concepts/component-based-project-orchestration]] — Main architectural concept extracted here
 - [[references/rustycog-service-construction]] — Manifesto-authored RustyCog guidance checked against the live service
-- [[concepts/event-driven-microservice-platform]] — Async coordination pattern tied to cascading changes
+- [[concepts/event-driven-microservice-platform]] — Async coordination pattern tied to project/component change

@@ -119,7 +119,7 @@ impl CommandHandler<AddMemberCommand> for AddMemberCommandHandler {
         self.member_usecase
             .add_member(command.project_id, &command.request, command.added_by)
             .await
-            .map_err(|e| CommandError::business("add_failed", &e.to_string()))
+            .map_err(CommandError::from)
     }
 }
 
@@ -177,7 +177,7 @@ impl CommandHandler<GetMemberCommand> for GetMemberCommandHandler {
         self.member_usecase
             .get_member(command.project_id, command.user_id)
             .await
-            .map_err(|e| CommandError::business("get_failed", &e.to_string()))
+            .map_err(CommandError::from)
     }
 }
 
@@ -235,7 +235,7 @@ impl CommandHandler<ListMembersCommand> for ListMembersCommandHandler {
         self.member_usecase
             .list_members(command.project_id, &command.pagination)
             .await
-            .map_err(|e| CommandError::business("list_failed", &e.to_string()))
+            .map_err(CommandError::from)
     }
 }
 
@@ -337,7 +337,7 @@ impl CommandHandler<UpdateMemberCommand> for UpdateMemberCommandHandler {
                 command.requester_id,
             )
             .await
-            .map_err(|e| CommandError::business("update_failed", &e.to_string()))
+            .map_err(CommandError::from)
     }
 }
 
@@ -397,7 +397,7 @@ impl CommandHandler<RemoveMemberCommand> for RemoveMemberCommandHandler {
         self.member_usecase
             .remove_member(command.project_id, command.user_id, command.requester_id)
             .await
-            .map_err(|e| CommandError::business("remove_failed", &e.to_string()))
+            .map_err(CommandError::from)
     }
 }
 
@@ -491,7 +491,7 @@ impl CommandHandler<GrantPermissionCommand> for GrantPermissionCommandHandler {
                 command.requester_id,
             )
             .await
-            .map_err(|e| CommandError::business("grant_failed", &e.to_string()))
+            .map_err(CommandError::from)
     }
 }
 
@@ -569,7 +569,7 @@ impl CommandHandler<RevokePermissionCommand> for RevokePermissionCommandHandler 
                 command.requester_id,
             )
             .await
-            .map_err(|e| CommandError::business("revoke_failed", &e.to_string()))
+            .map_err(CommandError::from)
     }
 }
 

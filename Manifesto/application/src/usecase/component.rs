@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use chrono::Utc;
+use manifesto_configuration::BusinessConfig;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -62,6 +63,7 @@ pub struct ComponentUseCaseImpl {
     project_service: Arc<dyn ProjectService>,
     permission_service: Arc<dyn PermissionService>,
     event_publisher: Arc<dyn EventPublisher<DomainError>>,
+    business_config: BusinessConfig,
 }
 
 impl ComponentUseCaseImpl {
@@ -70,12 +72,14 @@ impl ComponentUseCaseImpl {
         project_service: Arc<dyn ProjectService>,
         permission_service: Arc<dyn PermissionService>,
         event_publisher: Arc<dyn EventPublisher<DomainError>>,
+        business_config: BusinessConfig,
     ) -> Self {
         Self {
             component_service,
             project_service,
             permission_service,
             event_publisher,
+            business_config,
         }
     }
 
@@ -91,6 +95,19 @@ impl ComponentUseCaseImpl {
             activated_at: component.activated_at,
             disabled_at: component.disabled_at,
         }
+    }
+
+    async fn enforce_component_quota(&self, project_id: &Uuid) -> Result<(), ApplicationError> {
+        let existing_components = self.component_service.list_components(project_id).await?;
+        if existing_components.len() >= self.business_config.max_components_per_project as usize {
+            return Err(ApplicationError::Validation(format!(
+                "Project {} has reached the maximum number of components ({})",
+                project_id,
+                self.business_config.max_components_per_project
+            )));
+        }
+
+        Ok(())
     }
 }
 
@@ -109,6 +126,8 @@ impl ComponentUseCase for ComponentUseCaseImpl {
         self.component_service
             .validate_component_type(&request.component_type)
             .await?;
+
+        self.enforce_component_quota(&project_id).await?;
 
         // Check uniqueness
         self.component_service

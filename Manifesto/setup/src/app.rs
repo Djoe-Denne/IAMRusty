@@ -6,10 +6,12 @@ use manifesto_application::{
 };
 use manifesto_configuration::AppConfig;
 use manifesto_domain::service::{
-    ComponentServiceImpl, MemberServiceImpl, ProjectServiceImpl, ProjectPermissionFetcher, MemberPermissionFetcher, ComponentPermissionFetcher, 
+    ComponentPermissionFetcher, ComponentServiceImpl, MemberPermissionFetcher, MemberServiceImpl,
+    ProjectPermissionFetcher, ProjectServiceImpl,
 };
 use manifesto_infra::{
-    adapters::{ComponentServiceClient},
+    adapters::ComponentServiceClient,
+    processors::ComponentStatusProcessor,
     repository::{
         ComponentReadRepositoryImpl, ComponentRepositoryImpl, ComponentWriteRepositoryImpl,
         MemberReadRepositoryImpl, MemberRepositoryImpl, MemberWriteRepositoryImpl,
@@ -18,9 +20,10 @@ use manifesto_infra::{
         ProjectMemberRolePermissionWriteRepositoryImpl,
         ProjectReadRepositoryImpl, ProjectRepositoryImpl, ProjectWriteRepositoryImpl,
         ResourceReadRepositoryImpl, ResourceRepositoryImpl, ResourceWriteRepositoryImpl,
-        RolePermissionReadRepositoryImpl, RolePermissionRepositoryImpl, RolePermissionWriteRepositoryImpl,
+        RolePermissionReadRepositoryImpl, RolePermissionRepositoryImpl,
+        RolePermissionWriteRepositoryImpl,
     },
-    ManifestoErrorMapper,
+    ApparatusEventConsumer, ManifestoErrorMapper,
 };
 use manifesto_http_server::create_app_routes;
 
@@ -53,6 +56,7 @@ pub struct Application {
     pub project_permission_fetcher: Arc<dyn PermissionsFetcher>,
     pub member_permission_fetcher: Arc<dyn PermissionsFetcher>,
     pub component_permission_fetcher: Arc<dyn PermissionsFetcher>,
+    pub apparatus_event_consumer: Option<Arc<ApparatusEventConsumer>>,
 }
 
 impl Application {
@@ -91,6 +95,7 @@ impl Application {
             project_permission_fetcher,
             member_permission_fetcher,
             component_permission_fetcher,
+            apparatus_event_consumer,
         ) = setup_application(db, &config, event_publisher).await?;
 
         // Setup command registry
@@ -98,13 +103,15 @@ impl Application {
             project_usecase,
             component_usecase,
             member_usecase,
+            config.command.clone(),
         );
 
         // Create command service
         let command_service = Arc::new(GenericCommandService::new(Arc::new(command_registry)));
 
         // Setup user ID extractor (for authentication)
-        let user_id_extractor = UserIdExtractor::new();
+        let user_id_extractor = UserIdExtractor::new(config.auth.clone())
+            .map_err(|e| anyhow::anyhow!("Invalid auth configuration: {}", e))?;
 
         // Create application state
         let state = AppState::new(command_service, user_id_extractor);
@@ -117,18 +124,114 @@ impl Application {
             project_permission_fetcher,
             member_permission_fetcher,
             component_permission_fetcher,
+            apparatus_event_consumer,
         })
     }
 
     /// Start the HTTP server
     pub async fn run(self, server_config: ServerConfig) -> Result<(), Error> {
-        tracing::info!("Starting Manifesto HTTP server...");
+        let mut server_handle = {
+            let state = self.state.clone();
+            let project_permission_fetcher = self.project_permission_fetcher.clone();
+            let member_permission_fetcher = self.member_permission_fetcher.clone();
+            let component_permission_fetcher = self.component_permission_fetcher.clone();
+            let server_config = server_config.clone();
 
-        create_app_routes(self.state, server_config, self.project_permission_fetcher, self.member_permission_fetcher, self.component_permission_fetcher)
-            .await
-            .map_err(|e| anyhow::anyhow!("Server startup failed: {}", e))?;
+            tokio::spawn(async move {
+                create_app_routes(
+                    state,
+                    server_config,
+                    project_permission_fetcher,
+                    member_permission_fetcher,
+                    component_permission_fetcher,
+                )
+                .await
+                .map_err(|e| anyhow::anyhow!("HTTP server failed: {}", e))
+            })
+        };
 
-        Ok(())
+        if let Some(apparatus_event_consumer) = self.apparatus_event_consumer.clone() {
+            tracing::info!("Starting Manifesto HTTP server and apparatus consumer");
+
+            let mut consumer_handle = {
+                let apparatus_event_consumer = apparatus_event_consumer.clone();
+                tokio::spawn(async move {
+                    apparatus_event_consumer
+                        .start()
+                        .await
+                        .map_err(|e| anyhow::anyhow!("Apparatus event consumer failed: {}", e))
+                })
+            };
+
+            let shutdown_result: Result<(), Error> = tokio::select! {
+                _ = tokio::signal::ctrl_c() => {
+                    tracing::info!("Shutdown signal received; stopping Manifesto runtime");
+                    Ok(())
+                }
+                result = &mut consumer_handle => {
+                    match result {
+                        Ok(Ok(())) => {
+                            tracing::info!("Apparatus event consumer completed");
+                            Ok(())
+                        }
+                        Ok(Err(error)) => Err(error),
+                        Err(error) => Err(anyhow::anyhow!("Apparatus event consumer task panicked: {}", error)),
+                    }
+                }
+                result = &mut server_handle => {
+                    match result {
+                        Ok(Ok(())) => {
+                            tracing::info!("HTTP server completed");
+                            Ok(())
+                        }
+                        Ok(Err(error)) => Err(error),
+                        Err(error) => Err(anyhow::anyhow!("HTTP server task panicked: {}", error)),
+                    }
+                }
+            };
+
+            if let Err(error) = apparatus_event_consumer.stop().await {
+                tracing::error!("Failed to stop apparatus event consumer cleanly: {}", error);
+            }
+
+            if !consumer_handle.is_finished() {
+                consumer_handle.abort();
+            }
+            if !server_handle.is_finished() {
+                server_handle.abort();
+            }
+
+            let _ = consumer_handle.await;
+            let _ = server_handle.await;
+
+            return shutdown_result;
+        }
+
+        tracing::info!("Starting Manifesto HTTP server without apparatus queue consumer");
+
+        let shutdown_result: Result<(), Error> = tokio::select! {
+            _ = tokio::signal::ctrl_c() => {
+                tracing::info!("Shutdown signal received; stopping Manifesto HTTP server");
+                Ok(())
+            }
+            result = &mut server_handle => {
+                match result {
+                    Ok(Ok(())) => {
+                        tracing::info!("HTTP server completed");
+                        Ok(())
+                    }
+                    Ok(Err(error)) => Err(error),
+                    Err(error) => Err(anyhow::anyhow!("HTTP server task panicked: {}", error)),
+                }
+            }
+        };
+
+        if !server_handle.is_finished() {
+            server_handle.abort();
+        }
+        let _ = server_handle.await;
+
+        shutdown_result
     }
 }
 
@@ -163,6 +266,7 @@ async fn setup_application(
         Arc<dyn PermissionsFetcher>,
         Arc<dyn PermissionsFetcher>,
         Arc<dyn PermissionsFetcher>,
+        Option<Arc<ApparatusEventConsumer>>,
     ),
     Error,
 > {
@@ -183,6 +287,7 @@ async fn setup_application(
         member_service.clone(),
         permission_service.clone(),
         event_publisher.clone(),
+        config.service.business.clone(),
     ));
 
     // Create component use case
@@ -191,6 +296,7 @@ async fn setup_application(
         project_service.clone(),
         permission_service.clone(),
         event_publisher.clone(),
+        config.service.business.clone(),
     ));
 
     // Create member use case
@@ -199,7 +305,28 @@ async fn setup_application(
         project_service.clone(),
         permission_service.clone(),
         event_publisher.clone(),
+        config.service.business.clone(),
     ));
+
+    let apparatus_event_consumer = {
+        let component_status_processor =
+            Arc::new(ComponentStatusProcessor::new(component_service.clone()));
+        let consumer = ApparatusEventConsumer::new(
+            &config.queue,
+            component_status_processor,
+        )
+        .await
+        .map_err(|error| anyhow::anyhow!("Failed to create apparatus event consumer: {}", error))?;
+
+        if consumer.is_noop() {
+            tracing::info!(
+                "Apparatus event consumer is disabled or unavailable; Manifesto will run without a background queue consumer"
+            );
+            None
+        } else {
+            Some(Arc::new(consumer))
+        }
+    };
 
     Ok((
         project_usecase,
@@ -208,6 +335,7 @@ async fn setup_application(
         project_permission_fetcher,
         member_permission_fetcher,
         component_permission_fetcher,
+        apparatus_event_consumer,
     ))
 }
 
@@ -231,8 +359,9 @@ async fn setup_domain(
     // Setup component service adapter (external HTTP client)
     let component_service_adapter = Arc::new(ComponentServiceClient::new(
         config.service.component_service.base_url.clone(),
-        30, // timeout_seconds
-    ));
+        config.service.component_service.api_key.clone(),
+        config.service.component_service.timeout_seconds,
+    )?);
 
     // Create permission service first (needed by component service and member use case)
     let permission_service: Arc<dyn manifesto_domain::service::PermissionService> = Arc::new(

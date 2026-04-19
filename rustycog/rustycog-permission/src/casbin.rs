@@ -13,6 +13,8 @@ use uuid::Uuid;
 
 use crate::{PermissionEngine, Permission, PermissionsFetcher, ResourceId};
 
+const ANONYMOUS_SUBJECT: &str = "anonymous";
+
 /// Casbin-based permission engine implementation
 /// 
 /// This engine uses Casbin for policy-based access control with support for
@@ -63,7 +65,7 @@ impl PermissionEngine for CasbinPermissionEngine {
     /// Check if user has the target permission based on their current roles
     async fn has_permission(
         &self,
-        user_id: Uuid,
+        user_id: Option<Uuid>,
         resource_ids: Vec<ResourceId>,
         target_permission: Permission,
         _settings: serde_json::Value,
@@ -78,7 +80,10 @@ impl PermissionEngine for CasbinPermissionEngine {
             .await?;
 
         debug!("CasbinPermissionEngine::has_permission: permissions: {:?}", permissions);
-        let mut policy_vec = vec![user_id.to_string()];
+        let subject = user_id
+            .map(|id| id.to_string())
+            .unwrap_or_else(|| ANONYMOUS_SUBJECT.to_string());
+        let mut policy_vec = vec![subject];
 
         
         for index in 0..resource_ids.len() {

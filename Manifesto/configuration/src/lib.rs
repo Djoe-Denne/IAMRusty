@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use rustycog_config::{
-    ConfigLoader, HasServerConfig, HasLoggingConfig, HasQueueConfig, HasDbConfig, HasScalewayConfig, DatabaseConfig,
+    AuthConfig, CommandConfig, ConfigLoader, HasServerConfig, HasLoggingConfig, HasQueueConfig, HasDbConfig, HasScalewayConfig, DatabaseConfig,
     LoggingConfig, QueueConfig, ConfigError, load_config_fresh, ServerConfig, ScalewayConfig,
 };
 
@@ -22,10 +22,18 @@ pub struct ManifestoConfig {
     /// Server configuration
     #[serde(default)]
     pub server: ServerConfig,
+
+    /// Shared authentication verifier configuration
+    #[serde(default)]
+    pub auth: AuthConfig,
     
     /// Logging configuration
     #[serde(default)]
     pub logging: LoggingConfig,
+
+    /// Command execution configuration
+    #[serde(default)]
+    pub command: CommandConfig,
     
     /// Queue configuration (SQS, Kafka, etc.)
     #[serde(default)]
@@ -143,7 +151,9 @@ impl Default for ManifestoConfig {
     fn default() -> Self {
         Self {
             server: ServerConfig::default(),
+            auth: AuthConfig::default(),
             logging: LoggingConfig::default(),
+            command: CommandConfig::default(),
             queue: QueueConfig::default(),
             database: DatabaseConfig::default(),
             scaleway: ScalewayConfig::default(),

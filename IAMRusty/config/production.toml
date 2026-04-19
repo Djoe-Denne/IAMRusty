@@ -8,6 +8,9 @@ tls_cert_path = "/etc/ssl/certs/iam.crt"
 tls_key_path = "/etc/ssl/private/iam.key"
 tls_port = 8443
 
+[auth.jwt]
+hs256_secret = "CHANGE-ME-IN-PRODUCTION-HS256-SECRET"
+
 [database]
 # Database connection details
 host = "db"
@@ -33,9 +36,12 @@ redirect_uri = "https://your-domain.com/api/auth/gitlab/callback"
 
 # Set longer JWT expiration for production
 [jwt]
-secret = "CHANGE-THIS-IN-PRODUCTION-256-BIT-SECRET-KEY"
 expiration_seconds = 900  # 15 minutes
 refresh_token_expiration_seconds = 2592000  # 30 days
+
+[jwt.secret]
+type = "plain"
+value = "CHANGE-ME-IN-PRODUCTION-HS256-SECRET"
 
 # Command configuration for production
 [command.retry]

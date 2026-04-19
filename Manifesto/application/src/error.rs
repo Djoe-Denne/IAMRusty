@@ -1,4 +1,5 @@
 use rustycog_core::error::DomainError;
+use rustycog_command::CommandError;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -19,23 +20,44 @@ pub enum ApplicationError {
     Internal(String),
 }
 
-impl From<ApplicationError> for rustycog_command::CommandError {
+impl From<ApplicationError> for CommandError {
     fn from(err: ApplicationError) -> Self {
         match err {
-            ApplicationError::Domain(e) => {
-                rustycog_command::CommandError::business("domain_error", &e.to_string())
-            }
-            ApplicationError::Validation(msg) => {
-                rustycog_command::CommandError::validation("validation_error", &msg)
-            }
-            ApplicationError::NotFound(msg) => {
-                rustycog_command::CommandError::business("not_found", &msg)
-            }
+            ApplicationError::Domain(domain_error) => match domain_error {
+                DomainError::EntityNotFound { .. } => {
+                    CommandError::business("not_found", domain_error.to_string())
+                }
+                DomainError::InvalidInput { .. } => {
+                    CommandError::validation("invalid_input", domain_error.to_string())
+                }
+                DomainError::BusinessRuleViolation { .. } => CommandError::business(
+                    "business_rule_violation",
+                    domain_error.to_string(),
+                ),
+                DomainError::Unauthorized { .. } => {
+                    CommandError::authentication("unauthorized", domain_error.to_string())
+                }
+                DomainError::ResourceAlreadyExists { .. } => {
+                    CommandError::business("already_exists", domain_error.to_string())
+                }
+                DomainError::ExternalServiceError { .. } => CommandError::infrastructure(
+                    "external_service_error",
+                    domain_error.to_string(),
+                ),
+                DomainError::PermissionDenied { .. } => {
+                    CommandError::authentication("permission_denied", domain_error.to_string())
+                }
+                DomainError::Internal { .. } => {
+                    CommandError::infrastructure("internal_error", domain_error.to_string())
+                }
+            },
+            ApplicationError::Validation(msg) => CommandError::validation("validation_error", msg),
+            ApplicationError::NotFound(msg) => CommandError::business("not_found", msg),
             ApplicationError::AlreadyExists(msg) => {
-                rustycog_command::CommandError::business("already_exists", &msg)
+                CommandError::business("already_exists", msg)
             }
             ApplicationError::Internal(msg) => {
-                rustycog_command::CommandError::infrastructure("internal_error", &msg)
+                CommandError::infrastructure("internal_error", msg)
             }
         }
     }

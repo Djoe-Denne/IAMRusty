@@ -1,8 +1,8 @@
-use rustycog_config::{HasQueueConfig, HasDbConfig, HasLoggingConfig, HasServerConfig, HasScalewayConfig};
+use rustycog_config::{AuthConfig, HasQueueConfig, HasDbConfig, HasLoggingConfig, HasServerConfig, HasScalewayConfig};
 use serde::{Deserialize, Serialize};
 
 
-pub use rustycog_config::{CommandConfig, DatabaseConfig, LoggingConfig, QueueConfig, ServerConfig, load_config_fresh, ConfigError, ConfigLoader, ScalewayConfig};
+pub use rustycog_config::{AuthConfig as SharedAuthConfig, CommandConfig, DatabaseConfig, LoggingConfig, QueueConfig, ServerConfig, load_config_fresh, ConfigError, ConfigLoader, ScalewayConfig};
 
 pub use rustycog_logger::{setup_logging};
 
@@ -29,6 +29,9 @@ pub struct ExternalProviderServiceConfig {
 pub struct AppConfig {
     /// Server configuration
     pub server: ServerConfig,
+    /// Shared authentication verifier configuration
+    #[serde(default)]
+    pub auth: AuthConfig,
     /// Database configuration
     pub database: DatabaseConfig,
     /// IAM service configuration
@@ -74,6 +77,7 @@ impl Default for AppConfig {
     fn default() -> Self {
         Self {
             server: ServerConfig::default(),
+            auth: AuthConfig::default(),
             database: DatabaseConfig::default(),
             iam_service: IamServiceConfig::default(),
             external_provider_service: ExternalProviderServiceConfig::default(),

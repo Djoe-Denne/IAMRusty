@@ -11,7 +11,7 @@ use crate::{
     tracing_middleware::{tracing_middleware, X_CORRELATION_ID},
 };
 use rustycog_permission::{Permission, PermissionsFetcher};
-use crate::middleware_permission::{PermissionGuard, permission_middleware};
+use crate::middleware_permission::{optional_permission_middleware, PermissionGuard, permission_middleware};
 
 /// Application state for HTTP handlers
 #[derive(Clone)]
@@ -268,13 +268,17 @@ impl RouteBuilder {
             model_path,
         });
         if let Some(layer) = self.current_layer.take() {
-            self.current_layer = Some(
-                layer
-                    .route_layer(middleware::from_fn_with_state(
-                        guard,
-                        permission_middleware,
-                    )),
-            );
+            self.current_layer = Some(if self.pending_auth == Some(false) {
+                layer.route_layer(middleware::from_fn_with_state(
+                    guard,
+                    optional_permission_middleware,
+                ))
+            } else {
+                layer.route_layer(middleware::from_fn_with_state(
+                    guard,
+                    permission_middleware,
+                ))
+            });
         }
         self
     }

@@ -31,9 +31,13 @@ where
 {
     async fn fetch_permissions(
         &self,
-        user_id: Uuid,
+        user_id: Option<Uuid>,
         resource_ids: Vec<ResourceId>,
     ) -> Result<Vec<Permission>, DomainError> {
+        let Some(user_id) = user_id else {
+            return Ok(vec![]);
+        };
+
         debug!("Checking permissions for user {:?} on {:?} resources", user_id, resource_ids.len());
 
         // If the user owns any of the provided notification IDs, grant Write permission.

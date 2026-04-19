@@ -5,6 +5,9 @@ host = "localhost"
 port = 8080
 tls_enabled = false
 
+[auth.jwt]
+hs256_secret = "rustycog-dev-hs256-secret"
+
 [logging]
 level = "info"
 

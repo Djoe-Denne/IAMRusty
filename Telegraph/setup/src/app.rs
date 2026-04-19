@@ -165,9 +165,12 @@ impl TelegraphApp {
 
         info!("✅ Telegraph application initialized successfully");
 
+        let user_id_extractor = UserIdExtractor::new(config.auth.clone())
+            .map_err(|e| anyhow::anyhow!("Invalid auth configuration: {}", e))?;
+
         let state = AppState {
             command_service: command_service.clone(),
-            user_id_extractor: Arc::new(UserIdExtractor::new()),
+            user_id_extractor: Arc::new(user_id_extractor),
             running: true,
         };
 

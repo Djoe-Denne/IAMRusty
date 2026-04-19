@@ -9,13 +9,13 @@ use manifesto_domain::value_objects::{
 use rustycog_core::error::DomainError;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, Order,
-    PaginatorTrait, QueryFilter, QueryOrder, Condition,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Condition,
 };
 use std::sync::Arc;
 use tracing::debug;
 use uuid::Uuid;
 
-use super::entity::{prelude::Projects, projects};
+use super::entity::{prelude::Projects, project_members, projects};
 
 pub struct ProjectMapper;
 
@@ -111,6 +111,7 @@ impl ProjectReadRepository for ProjectReadRepositoryImpl {
         owner_id: Option<Uuid>,
         status: Option<ProjectStatus>,
         search: Option<String>,
+        viewer_user_id: Option<Uuid>,
         page: u32,
         page_size: u32,
     ) -> Result<Vec<Project>, DomainError> {
@@ -118,6 +119,21 @@ impl ProjectReadRepository for ProjectReadRepositoryImpl {
 
         let mut query = Projects::find();
         let mut conditions = Condition::all();
+
+        let access_condition = if let Some(user_id) = viewer_user_id {
+            query = query.left_join(project_members::Entity).distinct();
+            Condition::any()
+                .add(projects::Column::Visibility.eq(Visibility::Public.as_str()))
+                .add(
+                    Condition::all()
+                        .add(project_members::Column::UserId.eq(user_id))
+                        .add(project_members::Column::RemovedAt.is_null()),
+                )
+        } else {
+            Condition::all().add(projects::Column::Visibility.eq(Visibility::Public.as_str()))
+        };
+
+        conditions = conditions.add(access_condition);
 
         if let Some(ot) = owner_type {
             conditions = conditions.add(projects::Column::OwnerType.eq(ot.as_str()));
@@ -131,7 +147,7 @@ impl ProjectReadRepository for ProjectReadRepositoryImpl {
             conditions = conditions.add(projects::Column::Status.eq(s.as_str()));
         }
 
-        if let Some(search_term) = search {
+        if let Some(search_term) = search.as_ref() {
             let like_pattern = format!("%{}%", search_term);
             conditions = conditions.add(projects::Column::Name.like(&like_pattern));
         }
@@ -166,11 +182,28 @@ impl ProjectReadRepository for ProjectReadRepositoryImpl {
         owner_type: Option<OwnerType>,
         owner_id: Option<Uuid>,
         status: Option<ProjectStatus>,
+        search: Option<String>,
+        viewer_user_id: Option<Uuid>,
     ) -> Result<i64, DomainError> {
         debug!("Counting projects with filters");
 
         let mut query = Projects::find();
         let mut conditions = Condition::all();
+
+        let access_condition = if let Some(user_id) = viewer_user_id {
+            query = query.left_join(project_members::Entity).distinct();
+            Condition::any()
+                .add(projects::Column::Visibility.eq(Visibility::Public.as_str()))
+                .add(
+                    Condition::all()
+                        .add(project_members::Column::UserId.eq(user_id))
+                        .add(project_members::Column::RemovedAt.is_null()),
+                )
+        } else {
+            Condition::all().add(projects::Column::Visibility.eq(Visibility::Public.as_str()))
+        };
+
+        conditions = conditions.add(access_condition);
 
         if let Some(ot) = owner_type {
             conditions = conditions.add(projects::Column::OwnerType.eq(ot.as_str()));
@@ -182,6 +215,11 @@ impl ProjectReadRepository for ProjectReadRepositoryImpl {
 
         if let Some(s) = status {
             conditions = conditions.add(projects::Column::Status.eq(s.as_str()));
+        }
+
+        if let Some(search_term) = search.as_ref() {
+            let like_pattern = format!("%{}%", search_term);
+            conditions = conditions.add(projects::Column::Name.like(&like_pattern));
         }
 
         let count = query
@@ -302,11 +340,12 @@ impl ProjectReadRepository for ProjectRepositoryImpl {
         owner_id: Option<Uuid>,
         status: Option<ProjectStatus>,
         search: Option<String>,
+        viewer_user_id: Option<Uuid>,
         page: u32,
         page_size: u32,
     ) -> Result<Vec<Project>, DomainError> {
         self.read_repo
-            .list_with_filters(owner_type, owner_id, status, search, page, page_size)
+            .list_with_filters(owner_type, owner_id, status, search, viewer_user_id, page, page_size)
             .await
     }
 
@@ -319,9 +358,11 @@ impl ProjectReadRepository for ProjectRepositoryImpl {
         owner_type: Option<OwnerType>,
         owner_id: Option<Uuid>,
         status: Option<ProjectStatus>,
+        search: Option<String>,
+        viewer_user_id: Option<Uuid>,
     ) -> Result<i64, DomainError> {
         self.read_repo
-            .count_with_filters(owner_type, owner_id, status)
+            .count_with_filters(owner_type, owner_id, status, search, viewer_user_id)
             .await
     }
 }
