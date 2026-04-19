@@ -10,7 +10,7 @@ provenance:
   inferred: 0.05
   ambiguous: 0.05
 created: 2026-04-15T17:15:56.0808743Z
-updated: 2026-04-15T17:15:56.0808743Z
+updated: 2026-04-15T22:10:00Z
 ---
 
 # CommandContext
@@ -19,14 +19,10 @@ updated: 2026-04-15T17:15:56.0808743Z
 
 ## Key Ideas
 
-- It includes `execution_id` by default to support traceability for each command execution.
-- It optionally carries `user_id` and `request_id` so transport-level identity/trace information can flow into command handlers.
-- A metadata map allows service-specific context without changing the core command trait.
-- Builder-style helpers (`with_user_id`, `with_request_id`, `with_metadata`) make context enrichment explicit at call sites.
-
-## Open Questions
-
-- There is still no strict cross-service convention for which metadata keys should be mandatory across HTTP and queue pathways. ^[inferred]
+- `CommandContext` carries execution-scoped metadata (`execution_id`, optional `user_id`, optional `request_id`) across transport boundaries.
+- It is the canonical context envelope for command execution, regardless of whether commands come from HTTP or queue consumers.
+- The metadata map allows service-specific extension without changing `Command` trait signatures.
+- Construction/enrichment patterns are documented in `[[projects/rustycog/references/rustycog-command]]`; this page is the noun definition.
 
 ## Sources
 

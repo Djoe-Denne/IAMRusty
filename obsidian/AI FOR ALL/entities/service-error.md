@@ -10,7 +10,7 @@ provenance:
   inferred: 0.04
   ambiguous: 0.06
 created: 2026-04-15T17:15:56.0808743Z
-updated: 2026-04-15T17:15:56.0808743Z
+updated: 2026-04-15T22:10:00Z
 ---
 
 # ServiceError
@@ -19,14 +19,10 @@ updated: 2026-04-15T17:15:56.0808743Z
 
 ## Key Ideas
 
-- It models validation, authentication, authorization, business, infrastructure, not-found, conflict, rate-limit, unavailable, timeout, and internal failures.
-- `http_status_code()` gives one canonical status mapping used by HTTP-facing code paths.
-- `is_retryable()` marks infrastructure/transient categories used by retry logic in `[[entities/command-registry]]`.
-- Builder helpers (`validation_field`, `not_found_resource`, and similar) reduce ad hoc error construction in services.
-
-## Open Questions
-
-- Domain-to-service conversion behavior is centralized, but service teams still need explicit conventions for preserving domain context in messages and codes. ^[inferred]
+- `ServiceError` is the shared runtime error envelope consumed by command, HTTP, and adapter layers.
+- Category helpers (`http_status_code()`, `is_retryable()`) keep transport mapping and retry behavior consistent.
+- Constructor helpers reduce ad hoc error-shape drift in services.
+- Domain-layer specifics should originate in `DomainError` and convert into `ServiceError` at boundaries.
 
 ## Sources
 

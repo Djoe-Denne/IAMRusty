@@ -31,15 +31,15 @@ updated: 2026-04-14T20:08:52.0803248Z
 
 # Building RustyCog Services
 
-Use this page when starting a new service that should look like `[[projects/manifesto/manifesto]]` and build on `[[projects/rustycog/rustycog]]`.
+Use this page when starting a new service that should look like `<!-- [[projects/manifesto/manifesto]] -->` and build on `<!-- [[projects/rustycog/rustycog]] -->`.
 
 ## Workflow
 
 - Start with one vertical slice across `domain`, `application`, `infra`, `http`, `setup`, `configuration`, and `tests` rather than scaffolding everything at once.
 - Decide whether the service should depend on specific `rustycog-*` crates or the `rustycog-meta` umbrella package, then keep that choice aligned with the workspace manifest.
-- Define typed config first using the `[[concepts/structured-service-configuration]]` pattern, then decide explicitly whether your service will use `setup_logging` or a hand-rolled tracing initialization; `[[projects/manifesto/manifesto]]` still uses the latter. Conflict to resolve. ^[ambiguous]
+- Define typed config first using the `<!-- [[concepts/structured-service-configuration]] -->` pattern, then decide explicitly whether your service will use `setup_logging` or a hand-rolled tracing initialization; `<!-- [[projects/manifesto/manifesto]] -->` still uses the latter. Conflict to resolve. ^[ambiguous]
 - Create one `DbConnectionPool`, split read and write repositories correctly, and wire concrete dependencies inside the setup composition root.
-- Register commands through the `[[concepts/command-registry-and-retry-policies]]` approach, then wrap the registry in `GenericCommandService` so handlers stay behind one execution surface.
+- Register commands through the `<!-- [[concepts/command-registry-and-retry-policies]] -->` approach, then wrap the registry in `GenericCommandService` so handlers stay behind one execution surface.
 - Create `AppState` with the command service and a `UserIdExtractor`, then use `RouteBuilder` so tracing, panic handling, correlation IDs, and the `/health` endpoint stay standardized.
 - For protected routes, set `permissions_dir`, `resource`, and `with_permission_fetcher` before calling `with_permission`, and choose between `authenticated()` and `might_be_authenticated()` intentionally.
 - If you load one config subsection directly, remember that `load_config_part("server")` reads `SERVER_*`-prefixed overrides rather than your service prefix. Conflict to resolve. ^[ambiguous]
@@ -57,7 +57,7 @@ Use this page when starting a new service that should look like `[[projects/mani
 
 ## Sources
 
-- [[references/rustycog-service-construction]] — Combined source summary for this workflow
-- [[projects/rustycog/references/rustycog-crate-catalog]] — Code-backed inventory of the crates this workflow wires together
-- [[concepts/shared-rust-microservice-sdk]] — Broader platform motivation for the approach
-- [[projects/iamrusty/concepts/hexagonal-architecture]] — Architectural contract the workflow preserves
+- <!-- [[references/rustycog-service-construction]] --> — Combined source summary for this workflow
+- <!-- [[projects/rustycog/references/index]] --> — Code-backed inventory of the crates this workflow wires together
+- <!-- [[concepts/shared-rust-microservice-sdk]] --> — Broader platform motivation for the approach
+- <!-- [[projects/iamrusty/concepts/hexagonal-architecture]] --> — Architectural contract the workflow preserves

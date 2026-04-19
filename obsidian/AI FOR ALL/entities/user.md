@@ -17,7 +17,7 @@ updated: 2026-04-14T20:28:20.9129598Z
 
 # User
 
-The canonical platform user lives in `[[projects/iamrusty/iamrusty]]`. Other services, especially `[[projects/hive/hive]]` and `[[projects/manifesto/manifesto]]`, usually refer to that user through `user_id` rather than owning their own separate user entity.
+The canonical platform user lives in `<!-- [[projects/iamrusty/iamrusty]] -->`. Other services, especially `<!-- [[projects/hive/hive]] -->` and `<!-- [[projects/manifesto/manifesto]] -->`, usually refer to that user through `user_id` rather than owning their own separate user entity.
 
 ## Key Ideas
 
@@ -34,7 +34,7 @@ The canonical platform user lives in `[[projects/iamrusty/iamrusty]]`. Other ser
 
 ## Sources
 
-- [[projects/iamrusty/references/iamrusty-entity-model]] - IAMRusty's full identity-side entity inventory.
+- <!-- [[projects/iamrusty/references/iamrusty-entity-model]] --> - IAMRusty's full identity-side entity inventory.
 - [[entities/membership]] - Organization and project membership entities that point back to the user.
 - [[entities/organization]] - Organizations are owned by or joined by users.
 - [[entities/project]] - Projects record creators and owners through user-linked fields.

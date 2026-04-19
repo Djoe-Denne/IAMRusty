@@ -9,13 +9,13 @@ sources:
   - Manifesto/application/src/usecase/component.rs
   - Manifesto/application/src/usecase/member.rs
   - Manifesto/domain/src/service/permission_fetcher_service.rs
-summary: Code-backed map of Manifesto's route surface, command entrypoints, and permission behaviors for project, component, and member flows.
+summary: Code-backed map of Manifesto's route surface, command entrypoints, permission behaviors, and the current limits of component detail handoff data.
 provenance:
   extracted: 0.84
   inferred: 0.08
   ambiguous: 0.08
 created: 2026-04-14T20:25:00Z
-updated: 2026-04-14T20:25:00Z
+updated: 2026-04-19T11:49:06.1450368Z
 ---
 
 # Manifesto API and Permission Flows
@@ -30,6 +30,7 @@ This page focuses on the live application behavior behind `[[projects/manifesto/
 - Member routes include both membership CRUD and permission-grant/revoke endpoints, including a generic resource form and a resource-specific form with `resource_id`.
 - `ManifestoCommandRegistryFactory` is the command entrypoint behind the handlers, grouping project, component, and member operations into one registry consumed through `GenericCommandService`.
 - `ProjectUseCaseImpl` bootstraps the owner member and grants owner permissions for `project`, `component`, and `member` during creation, so access control begins at the first successful project write.
+- Project detail reads do return component rows, but `ProjectDetailResponse` still leaves `endpoint` and `access_token` as `None`, so the API currently exposes attachment metadata rather than a ready-to-use component runtime handoff. ^[ambiguous]
 - `ComponentUseCaseImpl` keeps permissions and component lifecycle synchronized by creating or deleting instance resources alongside add/remove operations.
 - `MemberUseCaseImpl` enforces a strong rule during grants: a requester cannot grant a permission they do not already hold, and component-instance UUID resources can be granted through either exact or generic component authority.
 

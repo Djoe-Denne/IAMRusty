@@ -22,7 +22,7 @@ This skill captures the house style behind `[[projects/iamrusty/iamrusty]]`: pre
 
 ## Key Ideas
 
-- Start from `[[concepts/integration-testing-with-real-infrastructure]]`, not from isolated mocks, when you need confidence in routes, tokens, or persistence behavior.
+- Start from `<!-- [[concepts/integration-testing-with-real-infrastructure]] -->`, not from isolated mocks, when you need confidence in routes, tokens, or persistence behavior.
 - Use `setup_test_server()` and `TestFixture` as the default harness so HTTP, DB, and config are aligned for the whole test.
 - Use `DbFixtures` helpers to build state quickly and consistently instead of inserting rows by hand.
 - Use GitHub and GitLab service fixtures to isolate provider behavior while preserving full-stack IAM flow logic.
@@ -44,4 +44,4 @@ This skill captures the house style behind `[[projects/iamrusty/iamrusty]]`: pre
 
 - [[projects/iamrusty/iamrusty]] - Primary service using these patterns.
 - [[projects/iamrusty/references/iamrusty-testing-and-fixtures]] - Concrete examples behind the workflow.
-- [[concepts/integration-testing-with-real-infrastructure]] - Broader testing philosophy this skill operationalizes.
+- <!-- [[concepts/integration-testing-with-real-infrastructure]] --> - Broader testing philosophy this skill operationalizes.

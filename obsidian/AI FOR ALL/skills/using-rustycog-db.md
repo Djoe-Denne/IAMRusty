@@ -16,7 +16,7 @@ updated: 2026-04-15T17:15:56.0808743Z
 
 # Using RustyCog DB
 
-Use this guide when integrating `[[projects/rustycog/references/rustycog-db]]` into service setup.
+Use this guide when integrating `<!-- [[projects/rustycog/references/rustycog-db]] -->` into service setup.
 
 ## Workflow
 
@@ -34,6 +34,6 @@ Use this guide when integrating `[[projects/rustycog/references/rustycog-db]]` i
 
 ## Sources
 
-- [[projects/rustycog/references/rustycog-db]]
-- [[entities/db-connection-pool]]
-- [[concepts/structured-service-configuration]]
+- <!-- [[projects/rustycog/references/rustycog-db]] -->
+- <!-- [[entities/db-connection-pool]] -->
+- <!-- [[concepts/structured-service-configuration]] -->

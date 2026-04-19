@@ -5,15 +5,18 @@ tags: [reference, rustycog, http, visibility/internal]
 sources:
   - rustycog/rustycog-http/src/lib.rs
   - rustycog/rustycog-http/src/builder.rs
+  - rustycog/rustycog-http/src/error.rs
+  - rustycog/rustycog-http/src/extractors.rs
   - rustycog/rustycog-http/src/middleware_permission.rs
+  - rustycog/rustycog-http/src/tracing_middleware.rs
   - rustycog/rustycog-http/src/jwt_handler.rs
-summary: rustycog-http provides the Axum app shell, RouteBuilder composition API, auth middleware, permission middleware, and request tracing helpers.
+summary: rustycog-http provides the Axum service shell, including TLS/HTTP startup branching, RouteBuilder auth/permission wiring, validated JSON extraction, and tracing/error helpers.
 provenance:
-  extracted: 0.89
+  extracted: 0.9
   inferred: 0.05
-  ambiguous: 0.06
+  ambiguous: 0.05
 created: 2026-04-15T17:15:56.0808743Z
-updated: 2026-04-15T17:15:56.0808743Z
+updated: 2026-04-19T10:59:36Z
 ---
 
 # RustyCog HTTP
@@ -24,9 +27,11 @@ updated: 2026-04-15T17:15:56.0808743Z
 
 - `AppState` packages the shared `GenericCommandService` and user-id extraction infrastructure for handlers.
 - `RouteBuilder` gives a fluent setup API for routes, auth mode (`authenticated` or `might_be_authenticated`), permission guards, middleware, and `/health`.
+- `RouteBuilder::build()` chooses HTTPS (`axum_server` + rustls cert/key paths + `tls_port`) when `ServerConfig.tls_enabled` is true, otherwise starts plain HTTP on `port`.
+- `ValidatedJson<T>` enforces body validation through the `validator` crate and emits uniform `ValidationError` responses for malformed or invalid payloads.
+- `GenericHttpError` and `ValidationError` normalize API error envelopes (`error_code`, `message`, `status`) so handlers can return consistent JSON errors.
+- Tracing middleware standardizes `x-correlation-id` and `x-request-id` behavior and exposes helper accessors (`get_correlation_id`, `get_request_id`) for downstream logging.
 - Permission middleware extracts UUID path segments into ordered `ResourceId` values and delegates authorization checks to the configured `PermissionsFetcher`.
-- The builder layers tracing, panic catching, and correlation-id propagation to keep HTTP concerns standardized across services.
-- Route-level permissions are model-file driven (`permissions_dir` + `resource`) and wired with service-provided fetchers.
 
 ## Linked Entities
 
@@ -41,6 +46,6 @@ updated: 2026-04-15T17:15:56.0808743Z
 
 ## Sources
 
-- [[projects/rustycog/references/rustycog-crate-catalog]]
+- [[projects/rustycog/references/index]]
 - [[concepts/resource-scoped-permission-fetchers]]
 - [[projects/rustycog/rustycog]]

@@ -16,7 +16,7 @@ provenance:
   inferred: 0.13
   ambiguous: 0.12
 created: 2026-04-14T18:18:24.0602572Z
-updated: 2026-04-14T18:18:24.0602572Z
+updated: 2026-04-19T11:38:52.5746779Z
 ---
 
 # Telegraph Runtime and Configuration
@@ -25,7 +25,7 @@ These sources describe how `[[projects/telegraph/telegraph]]` is configured and 
 
 ## Key Ideas
 
-- `TelegraphConfig` implements the shared `rustycog_config::ConfigLoader` traits with the env prefix `TELEGRAPH`, not the `IAM` prefix used by `[[projects/iamrusty/iamrusty]]`.
+- `TelegraphConfig` implements the shared `rustycog_config::ConfigLoader` traits with the env prefix `TELEGRAPH`, not the `IAM` prefix used by `IAMRusty`.
 - The config model separates transport-level queue access (`queue`) from Telegraph-specific event routing (`queues`), so one block defines how to reach SQS while another block maps concrete event names to `modes` and optional template names.
 - Development config points at `localstack:4566` and real SMTP infrastructure, while test config uses random DB and SQS ports plus local SMTP on port `1025`.
 - `TemplateConfig` is fully configurable and points at `resources/templates` in live TOML files, but `setup/src/app.rs` still hardcodes `resources/communication_descriptor` for descriptor loading instead of treating it as configuration.
@@ -41,5 +41,6 @@ These sources describe how `[[projects/telegraph/telegraph]]` is configured and 
 
 - [[projects/telegraph/telegraph]] - Project page for the service that consumes this configuration.
 - [[concepts/structured-service-configuration]] - Cross-service comparison of config loader patterns.
+- [[projects/rustycog/references/rustycog-config]] - Crate-level loader and queue-config details Telegraph builds on.
 - [[projects/telegraph/concepts/multi-channel-delivery-modes]] - Delivery-model implications of the communication config.
 - [[projects/telegraph/references/telegraph-event-processing]] - Queue-routing behavior driven by the `queue` and `queues` blocks.

@@ -10,7 +10,7 @@ provenance:
   inferred: 0.04
   ambiguous: 0.05
 created: 2026-04-15T17:15:56.0808743Z
-updated: 2026-04-15T17:15:56.0808743Z
+updated: 2026-04-15T22:10:00Z
 ---
 
 # DomainEvent
@@ -19,14 +19,10 @@ updated: 2026-04-15T17:15:56.0808743Z
 
 ## Key Ideas
 
-- It requires event type, event ID, aggregate ID, occurrence timestamp, schema version, metadata, and JSON serialization capability.
-- The trait is transport-neutral, which lets Kafka, SQS, and no-op implementations share one event envelope.
-- `BaseEvent` provides a reusable struct for common event fields and metadata/version helpers.
-- Services can define custom event payload types while preserving one shared event contract.
-
-## Open Questions
-
-- The wiki still needs a cross-service schema-evolution playbook for `version()` strategy over time. ^[inferred]
+- `DomainEvent` is the transport-neutral contract for event identity, aggregate linkage, versioning, metadata, and payload serialization.
+- It lets services define their own payload types while preserving one shared event envelope shape.
+- Kafka/SQS/no-op implementations consume the same contract through RustyCog event adapters.
+- Versioning and compatibility policies are discussed at concept level in `[[concepts/event-driven-microservice-platform]]`.
 
 ## Sources
 

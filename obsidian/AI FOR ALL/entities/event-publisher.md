@@ -11,7 +11,7 @@ provenance:
   inferred: 0.05
   ambiguous: 0.06
 created: 2026-04-15T17:15:56.0808743Z
-updated: 2026-04-15T17:15:56.0808743Z
+updated: 2026-04-15T22:10:00Z
 ---
 
 # EventPublisher
@@ -20,14 +20,10 @@ updated: 2026-04-15T17:15:56.0808743Z
 
 ## Key Ideas
 
-- It defines `publish`, `publish_batch`, and `health_check` so call sites can treat transports uniformly.
-- `ConcreteEventPublisher` switches between Kafka, SQS, and no-op implementations based on `QueueConfig`.
-- Publisher factory functions include defensive fallback behavior when queue setup fails.
-- `create_multi_queue_event_publisher()` introduces queue-name-targeted publishing semantics on top of the base publisher abstraction.
-
-## Open Questions
-
-- Multi-queue publishing behavior currently reuses one underlying publisher instance, so queue-specific guarantees are still evolving. ^[ambiguous]
+- `EventPublisher` is the async publication interface (`publish`, `publish_batch`, `health_check`) used by services and adapters.
+- Factory wiring selects Kafka, SQS, or no-op implementations from `QueueConfig`.
+- The abstraction keeps call sites transport-agnostic while leaving transport-specific setup in one place.
+- Queue-targeted variants build on top of this base publisher contract.
 
 ## Sources
 

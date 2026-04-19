@@ -16,7 +16,7 @@ updated: 2026-04-15T17:15:56.0808743Z
 
 # Using RustyCog Logger
 
-Use this guide when initializing tracing through `[[projects/rustycog/references/rustycog-logger]]`.
+Use this guide when initializing tracing through `<!-- [[projects/rustycog/references/rustycog-logger]] -->`.
 
 ## Workflow
 
@@ -34,6 +34,6 @@ Use this guide when initializing tracing through `[[projects/rustycog/references
 
 ## Sources
 
-- [[projects/rustycog/references/rustycog-logger]]
-- [[projects/rustycog/references/rustycog-config]]
-- [[concepts/structured-service-configuration]]
+- <!-- [[projects/rustycog/references/rustycog-logger]] -->
+- <!-- [[projects/rustycog/references/rustycog-config]] -->
+- <!-- [[concepts/structured-service-configuration]] -->

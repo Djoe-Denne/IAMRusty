@@ -17,7 +17,7 @@ updated: 2026-04-15T17:15:56.0808743Z
 
 # Using RustyCog HTTP
 
-Use this guide when wiring `[[projects/rustycog/references/rustycog-http]]`.
+Use this guide when wiring `<!-- [[projects/rustycog/references/rustycog-http]] -->`.
 
 ## Workflow
 
@@ -35,6 +35,6 @@ Use this guide when wiring `[[projects/rustycog/references/rustycog-http]]`.
 
 ## Sources
 
-- [[projects/rustycog/references/rustycog-http]]
-- [[entities/route-builder]]
-- [[concepts/resource-scoped-permission-fetchers]]
+- <!-- [[projects/rustycog/references/rustycog-http]] -->
+- <!-- [[entities/route-builder]] -->
+- <!-- [[concepts/resource-scoped-permission-fetchers]] -->

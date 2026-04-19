@@ -15,7 +15,7 @@ provenance:
   inferred: 0.14
   ambiguous: 0.10
 created: 2026-04-14T18:56:22.3888182Z
-updated: 2026-04-14T20:28:20.9129598Z
+updated: 2026-04-19T11:13:11Z
 ---
 
 # Organization-Resource Authorization
@@ -25,6 +25,7 @@ updated: 2026-04-14T20:28:20.9129598Z
 ## Key Ideas
 
 - `RouteBuilder` wires separate permission fetchers for `organization`, `member`, and `external_link` resources, then combines them with `Permission::Read`, `Permission::Write`, or `Permission::Admin` checks on individual routes.
+- This split between route-level guards and repository-backed permission resolution follows the same primitives documented in `[[projects/rustycog/references/rustycog-permission]]`.
 - `ResourcePermissionFetcher` loads the organization from the first extracted `ResourceId`, resolves the current member and that member's roles, filters role permissions to the configured resource names, and maps the resulting domain permission levels back into `rustycog_permission::Permission` values.
 - Hive's schema models organizations, members, roles, permissions, resources, and role-permission junctions as first-class tables, so route guards are backed by persisted organization membership state rather than ad hoc role strings.
 - Some organization routes are intentionally public or partially public through `might_be_authenticated()`, while most mutation and listing routes require authenticated users plus resource-scoped permission checks.
@@ -43,3 +44,4 @@ updated: 2026-04-14T20:28:20.9129598Z
 - [[projects/hive/references/hive-data-model-and-schema]] - Tables that back the role and resource model.
 - [[concepts/resource-scoped-permission-fetchers]] - Shared RouteBuilder plus PermissionsFetcher pattern across services.
 - [[projects/hive/skills/building-organization-management-services]] - Practical workflow that applies this pattern.
+- [[projects/rustycog/references/rustycog-permission]] - RustyCog permission primitives and Casbin engine integration.

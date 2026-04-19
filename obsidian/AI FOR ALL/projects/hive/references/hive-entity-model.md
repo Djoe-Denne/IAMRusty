@@ -19,7 +19,7 @@ provenance:
   inferred: 0.08
   ambiguous: 0.07
 created: 2026-04-14T20:28:20.9129598Z
-updated: 2026-04-14T20:28:20.9129598Z
+updated: 2026-04-19T11:13:11Z
 ---
 
 # Hive Entity Model
@@ -33,6 +33,7 @@ This page lists the main entities `[[projects/hive/hive]]` owns in its organizat
 - `Permission`, `Resource`, `RolePermission`, and `OrganizationMemberRolePermission` form Hive's organization-scoped RBAC model.
 - `ExternalProvider` and `ExternalLink` model third-party integrations attached to an organization.
 - `SyncJob` tracks long-running synchronization work and outcomes for those integrations.
+- `Organization` and membership lifecycle entities align with shared platform vocabulary, while Hive-specific RBAC and integration entities extend that core model for service-local behavior.
 
 ## Open Questions
 

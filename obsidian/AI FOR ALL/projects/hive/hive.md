@@ -5,6 +5,7 @@ tags: [organizations, permissions, integrations, visibility/internal]
 sources:
   - Hive/Cargo.toml
   - Hive/openspecs.yaml
+  - hive-events/README.md
   - Hive/setup/src/app.rs
   - Hive/http/src/lib.rs
   - Hive/application/src/command/factory.rs
@@ -14,7 +15,7 @@ provenance:
   inferred: 0.16
   ambiguous: 0.10
 created: 2026-04-14T18:56:22.3888182Z
-updated: 2026-04-14T20:28:20.9129598Z
+updated: 2026-04-19T11:13:11Z
 ---
 
 # Hive
@@ -25,7 +26,7 @@ updated: 2026-04-14T20:28:20.9129598Z
 - [[projects/hive/skills/index]] — skills
 - [[projects/hive/references/index]] — references
 
-`Hive` is the organization-management service in the AIForAll workspace. It owns organizations, members, invitations, role-based permissions, external provider links, and sync jobs, and it publishes `[[projects/hive-events/hive-events]]` events for downstream consumers such as `[[projects/telegraph/telegraph]]`.
+`Hive` is the organization-management service in the AIForAll workspace. It owns organizations, members, invitations, role-based permissions, external provider links, and sync jobs, and it publishes `[[projects/hive-events/hive-events]]` events for downstream consumers such as `<!-- [[projects/telegraph/telegraph]] -->`.
 
 ## Key Ideas
 
@@ -34,7 +35,8 @@ updated: 2026-04-14T20:28:20.9129598Z
 - Command orchestration is centralized through a RustyCog registry, but Hive's registry breadth is larger than its live route table, so some operations exist as commands and handlers without being wired into the server.
 - Runtime behavior depends on `[[concepts/structured-service-configuration]]`, especially the `HIVE` env prefix, command retry settings, queue transport, and the outbound `iam_service` and `external_provider_service` sections.
 - Hive publishes `[[projects/hive-events/hive-events]]` domain events for organization, member, invitation, external-link, and sync-job changes rather than treating HTTP as the only integration surface.
-- Hive uses the shared `rustycog` stack, but it diverges from IAMRusty and Telegraph in its custom HTTP error model and in how much of its command or spec surface is actually exposed over HTTP. Conflict to resolve. ^[ambiguous]
+- Hive uses the shared `[[projects/rustycog/rustycog]]` stack, but it diverges from IAMRusty and Telegraph in its custom HTTP error model and in how much of its command or spec surface is actually exposed over HTTP. Conflict to resolve. ^[ambiguous]
+- Hive treats `hive-events` as event-contract vocabulary and relies on `[[projects/rustycog/references/rustycog-events]]` for queue transport and publisher runtime behavior.
 
 ## Related
 

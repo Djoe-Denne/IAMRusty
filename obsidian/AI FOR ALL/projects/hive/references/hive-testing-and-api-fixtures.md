@@ -15,7 +15,7 @@ provenance:
   inferred: 0.13
   ambiguous: 0.08
 created: 2026-04-14T18:56:22.3888182Z
-updated: 2026-04-14T18:56:22.3888182Z
+updated: 2026-04-19T11:13:11Z
 ---
 
 # Hive Testing and API Fixtures
@@ -24,7 +24,7 @@ These sources show how `[[projects/hive/hive]]` validates its organization-manag
 
 ## Key Ideas
 
-- `HiveTestDescriptor` follows the shared `rustycog_testing` pattern for service bootstrapping, migrations, DB setup, and test-server lifecycle.
+- `HiveTestDescriptor` follows the shared `rustycog_testing` pattern for service bootstrapping, migrations, DB setup, and test-server lifecycle, as documented in `[[projects/rustycog/references/rustycog-testing]]`.
 - Hive's default test runtime keeps `has_db()` true but `has_sqs()` false, which means queue publishing is disabled by default even though the production configuration supports SQS.
 - Organization, member, and external-link tests create real DB state, mint JWTs, call the live HTTP server, and assert on both response codes and persisted data.
 - The tests are serial and mirror the same broad style used by Telegraph and IAMRusty, but Hive's focus is HTTP plus DB rather than queue-consumer behavior.
@@ -42,3 +42,4 @@ These sources show how `[[projects/hive/hive]]` validates its organization-manag
 - [[concepts/integration-testing-with-real-infrastructure]] - Cross-service concept view of these patterns.
 - [[projects/hive/references/hive-http-api-and-openapi-drift]] - Live HTTP behaviors covered by the tests.
 - [[projects/hive/concepts/external-provider-sync-jobs]] - External-provider fixture behavior and sync context.
+- [[projects/rustycog/references/rustycog-testing]] - Shared RustyCog testing runtime reused by Hive.

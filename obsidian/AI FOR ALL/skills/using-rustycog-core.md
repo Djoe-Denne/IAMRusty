@@ -15,7 +15,7 @@ updated: 2026-04-15T17:15:56.0808743Z
 
 # Using RustyCog Core
 
-Use this guide when adopting `[[projects/rustycog/references/rustycog-core]]` in a service.
+Use this guide when adopting `<!-- [[projects/rustycog/references/rustycog-core]] -->` in a service.
 
 ## Workflow
 
@@ -32,6 +32,6 @@ Use this guide when adopting `[[projects/rustycog/references/rustycog-core]]` in
 
 ## Sources
 
-- [[projects/rustycog/references/rustycog-core]]
-- [[entities/service-error]]
-- [[entities/domain-error]]
+- <!-- [[projects/rustycog/references/rustycog-core]] -->
+- <!-- [[entities/service-error]] -->
+- <!-- [[entities/domain-error]] -->

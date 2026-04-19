@@ -38,6 +38,6 @@ updated: 2026-04-15T17:15:56.0808743Z
 
 ## Sources
 
-- [[projects/rustycog/references/rustycog-crate-catalog]]
+- [[projects/rustycog/references/index]]
 - [[concepts/structured-service-configuration]]
 - [[projects/rustycog/rustycog]]

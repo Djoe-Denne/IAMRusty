@@ -17,11 +17,11 @@ updated: 2026-04-14T16:54:59.5971424Z
 
 # AIForAll Platform README
 
-This source is the repo's operational overview for `[[projects/aiforall/aiforall]]`.
+This source is the repo's operational overview for `<!-- [[projects/aiforall/aiforall]] -->`.
 
 ## Key Ideas
 
-- The repository contains multiple microservices, notably `[[projects/iamrusty/iamrusty]]`, `[[projects/telegraph/telegraph]]`, shared Rust crates, and event definitions.
+- The repository contains multiple microservices, notably `<!-- [[projects/iamrusty/iamrusty]] -->`, `<!-- [[projects/telegraph/telegraph]] -->`, shared Rust crates, and event definitions.
 - A shared Docker Compose stack runs IAMRusty and Telegraph with PostgreSQL and LocalStack.
 - IAMRusty publishes user-signup events that Telegraph consumes through SQS-backed local infrastructure.
 - Service-specific configuration is delegated to each subproject rather than centralized at the root.
@@ -33,5 +33,5 @@ This source is the repo's operational overview for `[[projects/aiforall/aiforall
 
 ## Sources
 
-- [[projects/aiforall/aiforall]] — Platform overview page
+- <!-- [[projects/aiforall/aiforall]] --> — Platform overview page
 - [[concepts/event-driven-microservice-platform]] — Cross-service communication pattern

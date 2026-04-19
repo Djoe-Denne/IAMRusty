@@ -11,7 +11,7 @@ provenance:
   inferred: 0.06
   ambiguous: 0.09
 created: 2026-04-15T17:15:56.0808743Z
-updated: 2026-04-15T17:15:56.0808743Z
+updated: 2026-04-15T22:10:00Z
 ---
 
 # RustyCog Meta
@@ -25,6 +25,12 @@ updated: 2026-04-15T17:15:56.0808743Z
 - The root workspace (`Cargo.toml`) still tracks crate membership independently from this umbrella package, so packaging and workspace membership are related but not identical.
 - `rustycog-meta` keeps dependency selection simple for consumers, while direct per-crate dependencies provide tighter dependency control.
 
+## Usage Guidance
+
+- Choose `rustycog-meta` for rapid service bootstrap when you expect to consume most of the stack.
+- Prefer explicit per-crate dependencies when compile times, dependency surface, or upgrade control matter more than convenience.
+- Record the chosen policy in service docs so dependency intent stays stable over time.
+
 ## Linked Entities
 
 - [[entities/command-registry]]
@@ -37,6 +43,6 @@ updated: 2026-04-15T17:15:56.0808743Z
 
 ## Sources
 
-- [[projects/rustycog/references/rustycog-crate-catalog]]
+- [[projects/rustycog/references/index]]
 - [[projects/rustycog/rustycog]]
 - [[concepts/shared-rust-microservice-sdk]]

@@ -15,7 +15,7 @@ updated: 2026-04-15T17:15:56.0808743Z
 
 # Using RustyCog Config
 
-Use this guide when wiring typed config with `[[projects/rustycog/references/rustycog-config]]`.
+Use this guide when wiring typed config with `<!-- [[projects/rustycog/references/rustycog-config]] -->`.
 
 ## Workflow
 
@@ -33,6 +33,6 @@ Use this guide when wiring typed config with `[[projects/rustycog/references/rus
 
 ## Sources
 
-- [[projects/rustycog/references/rustycog-config]]
-- [[entities/queue-config]]
-- [[concepts/structured-service-configuration]]
+- <!-- [[projects/rustycog/references/rustycog-config]] -->
+- <!-- [[entities/queue-config]] -->
+- <!-- [[concepts/structured-service-configuration]] -->

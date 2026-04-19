@@ -12,7 +12,7 @@ provenance:
   inferred: 0.16
   ambiguous: 0.05
 created: 2026-04-14T17:46:37.6929647Z
-updated: 2026-04-14T17:46:37.6929647Z
+updated: 2026-04-19T11:13:11Z
 ---
 
 # Hexagonal Architecture
@@ -26,7 +26,7 @@ updated: 2026-04-14T17:46:37.6929647Z
 - The infrastructure crate implements repositories, OAuth clients, JWT encoders, password adapters, and event adapters, keeping external concerns out of the domain layer.
 - `setup/src/app.rs` is the composition root: it creates database pools, combined repositories, token services, provider clients, the queue-backed event publisher, and the `GenericCommandService`.
 - The runtime uses separate OAuth and token-repository instances for login, provider linking, and internal provider-token retrieval, which keeps flows isolated even when they share the same domain abstractions.
-- Shared `rustycog` crates provide the HTTP, command, config, logging, database, and event primitives the service is built on.
+- Shared framework mapping stays stable across layers: command orchestration via `[[projects/rustycog/references/rustycog-command]]`, HTTP shell via `[[projects/rustycog/references/rustycog-http]]`, runtime config via `[[projects/rustycog/references/rustycog-config]]`, DB pooling via `[[projects/rustycog/references/rustycog-db]]`, and queue transport via `[[projects/rustycog/references/rustycog-events]]`.
 
 ## Open Questions
 

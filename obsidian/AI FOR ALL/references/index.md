@@ -16,8 +16,8 @@ Top-level references are cross-project/platform pages. Service-specific referenc
 
 ## Project References
 
-- IAMRusty: [[projects/iamrusty/references/index]]
-- Hive: [[projects/hive/references/index]]
-- Telegraph: [[projects/telegraph/references/index]]
-- Manifesto: [[projects/manifesto/references/index]]
+- IAMRusty: <!-- [[projects/iamrusty/references/index]] -->
+- Hive: <!-- [[projects/hive/references/index]] -->
+- Telegraph: <!-- [[projects/telegraph/references/index]] -->
+- Manifesto: <!-- [[projects/manifesto/references/index]] -->
 - RustyCog: [[projects/rustycog/references/index]]

@@ -13,12 +13,12 @@ provenance:
   inferred: 0.15
   ambiguous: 0.09
 created: 2026-04-14T18:18:24.0602572Z
-updated: 2026-04-14T18:18:24.0602572Z
+updated: 2026-04-19T11:38:52.5746779Z
 ---
 
 # Queue-Driven Command Processing
 
-`[[projects/telegraph/telegraph]]` uses the same high-level command pattern as HTTP-first services, but its most interesting entrypoint is a queue consumer rather than a route handler. That makes Telegraph a useful counterexample to the current IAMRusty-heavy command pages: the `rustycog` command runtime is flexible enough to serve both request/response and async event workflows.
+`[[projects/telegraph/telegraph]]` uses the same high-level command pattern as HTTP-first services, but its most interesting entrypoint is a queue consumer rather than a route handler. That makes Telegraph a useful counterexample to the current IAMRusty-heavy command pages: the `[[projects/rustycog/references/rustycog-command]]` runtime is flexible enough to serve both request/response and async event workflows.
 
 ## Key Ideas
 
@@ -27,7 +27,7 @@ updated: 2026-04-14T18:18:24.0602572Z
 - `setup/src/app.rs` injects the same `GenericCommandService` into both `AppState` for HTTP handlers and `EventConsumer` for queue handling, so the service has one command runtime rather than two orchestration layers.
 - `EventProcessingUseCase` converts `ProcessEventCommand` into `EventContext`, preserving event ID, event type, recipient identity, attempt count, and free-form metadata for downstream processors.
 - `supports_event_type()` filters events against the configured `queues.*.events` list before a message is accepted for processing, so command dispatch is gated by runtime queue configuration rather than only by compile-time handler registration.
-- Conflict to resolve: `[[projects/iamrusty/iamrusty]]` wires an explicitly configured retry-aware registry, while Telegraph currently builds its registry with plain `CommandRegistryBuilder::new()` and no visible service-specific retry binding. Both `rustycog` usage patterns exist in the live repo. ^[ambiguous]
+- Conflict to resolve: `IAMRusty` wires an explicitly configured retry-aware registry, while Telegraph currently builds its registry with plain `CommandRegistryBuilder::new()` and no visible service-specific retry binding. Both `rustycog` usage patterns exist in the live repo. ^[ambiguous]
 
 ## Open Questions
 
@@ -38,5 +38,6 @@ updated: 2026-04-14T18:18:24.0602572Z
 
 - [[projects/telegraph/telegraph]] - Service where the queue-first variant is used concretely.
 - [[concepts/command-registry-and-retry-policies]] - Broader cross-service view of registry wiring and retry differences.
+- [[projects/rustycog/references/rustycog-command]] - Crate-level command runtime behind the shared registry and service facade.
 - [[projects/telegraph/references/telegraph-event-processing]] - End-to-end queue consumer to processor pipeline.
 - [[projects/telegraph/references/telegraph-service]] - Composition-root context for the shared command service.

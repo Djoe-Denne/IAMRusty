@@ -11,7 +11,7 @@ provenance:
   inferred: 0.04
   ambiguous: 0.06
 created: 2026-04-15T17:15:56.0808743Z
-updated: 2026-04-15T17:15:56.0808743Z
+updated: 2026-04-15T22:10:00Z
 ---
 
 # CommandRegistry
@@ -20,14 +20,10 @@ updated: 2026-04-15T17:15:56.0808743Z
 
 ## Key Ideas
 
-- Handlers are registered by command type and executed through one centralized runtime path.
-- Registry execution always applies validation, timeout control, retry checks, tracing logs, and optional metrics collection.
-- `RegistryConfig` defines timeout and retry policy and can be derived from `rustycog-config` retry settings.
-- `CommandRegistryBuilder` is the ergonomic path most services use to compose registries in setup code.
-
-## Open Questions
-
-- Retry strategy consistency still varies by service composition, even though the shared registry supports one standard policy model. ^[ambiguous]
+- `CommandRegistry` is the orchestration boundary between transports (HTTP/queue) and command handlers.
+- The registry owns runtime policy application (validation, timeout, retry, metrics/tracing) for each execution.
+- Setup code typically wires it with `CommandRegistryBuilder`, while retry parameters can be fed from `RegistryConfig`.
+- Detailed runtime semantics belong to `[[projects/rustycog/references/rustycog-command]]`; this page stays glossary-level.
 
 ## Sources
 

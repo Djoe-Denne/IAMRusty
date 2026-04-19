@@ -17,7 +17,7 @@ updated: 2026-04-14T20:28:20.9129598Z
 
 # Communication
 
-The canonical communication entity family lives in `[[projects/telegraph/telegraph]]`. Telegraph does not model only one “notification” row; it models communication payloads, reusable templates, and delivery records as separate but connected entities.
+The canonical communication entity family lives in `<!-- [[projects/telegraph/telegraph]] -->`. Telegraph does not model only one “notification” row; it models communication payloads, reusable templates, and delivery records as separate but connected entities.
 
 ## Key Ideas
 
@@ -34,7 +34,7 @@ The canonical communication entity family lives in `[[projects/telegraph/telegra
 
 ## Sources
 
-- [[projects/telegraph/references/telegraph-entity-model]] - Telegraph's full entity inventory.
-- [[projects/telegraph/concepts/descriptor-driven-communications]] - Descriptor system that produces these entities.
-- [[projects/telegraph/references/telegraph-event-processing]] - Runtime path that fills communications and deliveries from events.
-- [[projects/telegraph/references/telegraph-http-and-notification-api]] - API surface that exposes the notification side of the model.
+- <!-- [[projects/telegraph/references/telegraph-entity-model]] --> - Telegraph's full entity inventory.
+- <!-- [[projects/telegraph/concepts/descriptor-driven-communications]] --> - Descriptor system that produces these entities.
+- <!-- [[projects/telegraph/references/telegraph-event-processing]] --> - Runtime path that fills communications and deliveries from events.
+- <!-- [[projects/telegraph/references/telegraph-http-and-notification-api]] --> - API surface that exposes the notification side of the model.

@@ -22,12 +22,14 @@ Top-level skills are intended to be portable across services. Service-owned work
 - [[skills/using-rustycog-http]]
 - [[skills/using-rustycog-permission]]
 - [[skills/using-rustycog-testing]]
-- [[skills/using-rustycog-server]]
 - [[skills/using-rustycog-logger]]
-- [[skills/using-rustycog-meta]]
+
+Server and meta packaging guidance now live directly in:
+- [[projects/rustycog/references/rustycog-server]]
+- [[projects/rustycog/references/rustycog-meta]]
 
 ## Project Skills
 
-- IAMRusty: [[projects/iamrusty/skills/index]]
-- Hive: [[projects/hive/skills/index]]
-- Telegraph: [[projects/telegraph/skills/index]]
+- IAMRusty: <!-- [[projects/iamrusty/skills/index]] -->
+- Hive: <!-- [[projects/hive/skills/index]] -->
+- Telegraph: <!-- [[projects/telegraph/skills/index]] -->

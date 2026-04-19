@@ -11,7 +11,7 @@ provenance:
   inferred: 0.04
   ambiguous: 0.06
 created: 2026-04-15T17:15:56.0808743Z
-updated: 2026-04-15T17:15:56.0808743Z
+updated: 2026-04-15T22:10:00Z
 ---
 
 # ResourceId
@@ -20,14 +20,10 @@ updated: 2026-04-15T17:15:56.0808743Z
 
 ## Key Ideas
 
-- Permission middleware extracts UUID path segments and converts them into ordered `ResourceId` values.
-- The type prevents ad hoc stringly-typed IDs in permission APIs.
-- `PermissionsFetcher` implementations decide how to interpret one or multiple `ResourceId` values for their domain.
-- The same wrapper is used across HTTP middleware and Casbin permission engine flows.
-
-## Open Questions
-
-- Cross-service conventions for multi-resource route layouts are still not fully standardized. ^[ambiguous]
+- `ResourceId` is the typed route-resource identifier passed into permission resolution.
+- Middleware extracts UUID-shaped path segments and emits ordered `ResourceId` values for authorization checks.
+- Fetchers interpret these IDs using service-specific domain semantics.
+- The wrapper avoids stringly-typed resource handling across permission middleware and engine layers.
 
 ## Sources
 

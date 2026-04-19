@@ -17,7 +17,7 @@ updated: 2026-04-14T20:28:20.9129598Z
 
 # Organization
 
-The canonical organization entity lives in `[[projects/hive/hive]]`. It acts as the tenant root for members, invitations, permissions, external links, and sync jobs, and it can also become an owner of `[[entities/project]]` records in `[[projects/manifesto/manifesto]]`.
+The canonical organization entity lives in `<!-- [[projects/hive/hive]] -->`. It acts as the tenant root for members, invitations, permissions, external links, and sync jobs, and it can also become an owner of `[[entities/project]]` records in `<!-- [[projects/manifesto/manifesto]] -->`.
 
 ## Key Ideas
 
@@ -34,7 +34,7 @@ The canonical organization entity lives in `[[projects/hive/hive]]`. It acts as 
 
 ## Sources
 
-- [[projects/hive/references/hive-entity-model]] - Hive's broader entity inventory.
+- <!-- [[projects/hive/references/hive-entity-model]] --> - Hive's broader entity inventory.
 - [[entities/membership]] - Membership is the main child entity of organizations.
 - [[entities/project]] - Projects can be organization-owned even though they live in Manifesto.
-- [[projects/hive/concepts/organization-resource-authorization]] - Authorization model built on top of organizations.
+- <!-- [[projects/hive/concepts/organization-resource-authorization]] --> - Authorization model built on top of organizations.

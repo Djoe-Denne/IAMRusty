@@ -10,7 +10,7 @@ provenance:
   inferred: 0.05
   ambiguous: 0.06
 created: 2026-04-15T17:15:56.0808743Z
-updated: 2026-04-15T17:15:56.0808743Z
+updated: 2026-04-15T22:10:00Z
 ---
 
 # DomainError
@@ -19,14 +19,10 @@ updated: 2026-04-15T17:15:56.0808743Z
 
 ## Key Ideas
 
-- It captures domain-level failures such as entity-not-found, invalid input, business-rule violation, unauthorized operations, and external-service/internal failures.
-- It includes convenience constructors (`entity_not_found`, `invalid_input`, `permission_denied`, and others) for consistent domain code.
-- RustyCog provides `From<DomainError> for ServiceError`, which bridges domain failures into shared runtime error handling.
-- This separation keeps domain services expressive while still supporting centralized retry/HTTP behavior in upper layers.
-
-## Open Questions
-
-- The enum documentation references one service context while the type is reused across the SDK. Conflict to resolve. ^[ambiguous]
+- `DomainError` is the domain-layer failure vocabulary, separate from transport/runtime concerns.
+- It keeps use-case and domain services explicit while allowing conversion into `ServiceError` at boundaries.
+- The `From<DomainError> for ServiceError` bridge is the standard handoff into command and HTTP layers.
+- Detailed variant behavior belongs to `[[projects/rustycog/references/rustycog-core]]`.
 
 ## Sources
 

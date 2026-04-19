@@ -20,7 +20,7 @@ Top-level concepts are shared across multiple projects. Service-specific concept
 
 ## Project Concepts
 
-- IAMRusty: [[projects/iamrusty/concepts/index]]
-- Hive: [[projects/hive/concepts/index]]
-- Telegraph: [[projects/telegraph/concepts/index]]
-- Manifesto: [[projects/manifesto/concepts/index]]
+- IAMRusty: <!-- [[projects/iamrusty/concepts/index]] -->
+- Hive: <!-- [[projects/hive/concepts/index]] -->
+- Telegraph: <!-- [[projects/telegraph/concepts/index]] -->
+- Manifesto: <!-- [[projects/manifesto/concepts/index]] -->

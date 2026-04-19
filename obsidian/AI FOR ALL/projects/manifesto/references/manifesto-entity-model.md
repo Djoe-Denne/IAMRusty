@@ -16,7 +16,7 @@ provenance:
   inferred: 0.08
   ambiguous: 0.07
 created: 2026-04-14T20:28:20.9129598Z
-updated: 2026-04-14T20:28:20.9129598Z
+updated: 2026-04-19T11:49:06.1450368Z
 ---
 
 # Manifesto Entity Model

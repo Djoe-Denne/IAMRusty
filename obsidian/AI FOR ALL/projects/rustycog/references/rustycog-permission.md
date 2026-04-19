@@ -39,6 +39,6 @@ updated: 2026-04-15T17:15:56.0808743Z
 
 ## Sources
 
-- [[projects/rustycog/references/rustycog-crate-catalog]]
+- [[projects/rustycog/references/index]]
 - [[concepts/resource-scoped-permission-fetchers]]
 - [[projects/rustycog/rustycog]]

@@ -8,6 +8,8 @@ tags: [index, entities, navigation]
 
 Use this page for the main business nouns that show up across the platform, plus service-by-service entity inventories.
 
+For crate-by-crate RustyCog behavior, use [[projects/rustycog/references/index]]. The pages below stay glossary-focused.
+
 ## Global Entities
 
 - [[entities/user]]
@@ -33,7 +35,7 @@ Use this page for the main business nouns that show up across the platform, plus
 
 ## Service Entity Models
 
-- IAMRusty: [[projects/iamrusty/references/iamrusty-entity-model]]
-- Hive: [[projects/hive/references/hive-entity-model]]
-- Manifesto: [[projects/manifesto/references/manifesto-entity-model]]
-- Telegraph: [[projects/telegraph/references/telegraph-entity-model]]
+- IAMRusty: <!-- [[projects/iamrusty/references/iamrusty-entity-model]] -->
+- Hive: <!-- [[projects/hive/references/hive-entity-model]] -->
+- Manifesto: <!-- [[projects/manifesto/references/manifesto-entity-model]] -->
+- Telegraph: <!-- [[projects/telegraph/references/telegraph-entity-model]] -->

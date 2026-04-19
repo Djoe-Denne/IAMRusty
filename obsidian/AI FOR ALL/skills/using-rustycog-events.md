@@ -17,7 +17,7 @@ updated: 2026-04-15T17:15:56.0808743Z
 
 # Using RustyCog Events
 
-Use this guide when integrating `[[projects/rustycog/references/rustycog-events]]` in service setup.
+Use this guide when integrating `<!-- [[projects/rustycog/references/rustycog-events]] -->` in service setup.
 
 ## Workflow
 
@@ -35,6 +35,6 @@ Use this guide when integrating `[[projects/rustycog/references/rustycog-events]
 
 ## Sources
 
-- [[projects/rustycog/references/rustycog-events]]
-- [[entities/domain-event]]
-- [[concepts/event-driven-microservice-platform]]
+- <!-- [[projects/rustycog/references/rustycog-events]] -->
+- <!-- [[entities/domain-event]] -->
+- <!-- [[concepts/event-driven-microservice-platform]] -->

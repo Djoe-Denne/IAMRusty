@@ -8,13 +8,13 @@ sources:
   - Telegraph/setup/src/app.rs
   - Telegraph/infra/src/event/consumer.rs
   - Telegraph/http/src/lib.rs
-summary: Telegraph is a Rust communication service that consumes IAM events from queues and exposes a JWT-protected notification API using rustycog primitives.
+summary: Telegraph is a Rust communication service that consumes IAM events from queues and exposes a JWT-protected notification API using RustyCog primitives.
 provenance:
   extracted: 0.73
   inferred: 0.17
   ambiguous: 0.10
 created: 2026-04-14T18:18:24.0602572Z
-updated: 2026-04-14T20:28:20.9129598Z
+updated: 2026-04-19T11:38:52.5746779Z
 ---
 
 # Telegraph
@@ -25,7 +25,7 @@ updated: 2026-04-14T20:28:20.9129598Z
 - [[projects/telegraph/skills/index]] — skills
 - [[projects/telegraph/references/index]] — references
 
-`Telegraph` is the communication service in the AIForAll workspace. It combines a queue-driven event consumer with a JWT-protected notification API, using shared `rustycog` components for configuration, commands, HTTP routing, permissions, database access, and queue transport.
+`Telegraph` is the communication service in the AIForAll workspace. It combines a queue-driven event consumer with a JWT-protected notification API, using shared `[[projects/rustycog/rustycog]]` components for configuration, commands, HTTP routing, permissions, database access, and queue transport.
 
 ## Key Ideas
 
@@ -46,6 +46,7 @@ updated: 2026-04-14T20:28:20.9129598Z
 - [[projects/telegraph/references/telegraph-event-processing]] - SQS consumption, command dispatch, descriptor loading, and delivery-mode routing.
 - [[projects/telegraph/references/telegraph-testing-and-smtp-fixtures]] - Real SQS, SMTP, DB, and JWT-backed integration tests.
 - [[projects/telegraph/skills/building-event-driven-notification-services]] - Reusable workflow for building Telegraph-style communication services.
+- [[projects/rustycog/references/index]] - Crate-level map of the shared SDK surfaces Telegraph composes.
 
 ## Open Questions
 

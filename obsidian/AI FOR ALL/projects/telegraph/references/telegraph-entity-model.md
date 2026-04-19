@@ -6,13 +6,13 @@ sources:
   - Telegraph/domain/src/entity/communication.rs
   - Telegraph/domain/src/entity/delivery.rs
   - Telegraph/domain/src/entity/template.rs
-summary: Inventory of Telegraph's communication, template, and delivery entities.
+summary: Inventory of Telegraph's communication, template, and delivery entities, including the split between user-visible notifications and provider-facing delivery records.
 provenance:
   extracted: 0.87
   inferred: 0.07
   ambiguous: 0.06
 created: 2026-04-14T20:28:20.9129598Z
-updated: 2026-04-14T20:28:20.9129598Z
+updated: 2026-04-19T11:38:52.5746779Z
 ---
 
 # Telegraph Entity Model
@@ -25,6 +25,7 @@ This page lists the main entities `[[projects/telegraph/telegraph]]` owns in its
 - `CommunicationRecipient` is embedded in those payloads so a message can target a user ID, an email address, or both.
 - `CommunicationDescriptor` and its per-mode subtypes load descriptor metadata that steers how user-facing messages are built.
 - `MessageTemplate` stores reusable content plus placeholder rendering logic.
+- `NotificationCommunication` is the user-visible read model exposed by Telegraph's HTTP API, while `MessageDelivery` and `DeliveryAttempt` track provider-facing execution details and retries behind the scenes.
 - `MessageDelivery` and `DeliveryAttempt` track provider-facing execution, retries, outcomes, and delivery telemetry.
 
 ## Open Questions

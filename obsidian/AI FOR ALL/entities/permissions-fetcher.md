@@ -12,7 +12,7 @@ provenance:
   inferred: 0.05
   ambiguous: 0.06
 created: 2026-04-15T17:15:56.0808743Z
-updated: 2026-04-15T17:15:56.0808743Z
+updated: 2026-04-15T22:10:00Z
 ---
 
 # PermissionsFetcher
@@ -21,14 +21,10 @@ updated: 2026-04-15T17:15:56.0808743Z
 
 ## Key Ideas
 
-- Route middleware extracts user and `ResourceId` scope, then delegates effective-permission lookup to the fetcher.
-- Fetchers allow each service to encode domain-specific interpretation of resource IDs and role data.
-- `CasbinPermissionEngine` consumes fetched permissions, expands hierarchical actions, and evaluates final allow/deny decisions.
-- This split keeps RustyCog generic while allowing business authorization logic to stay in each service domain.
-
-## Open Questions
-
-- Resource-ID semantics remain intentionally flexible, which improves reuse but can cause cross-service inconsistency without explicit conventions. ^[ambiguous]
+- `PermissionsFetcher` is the service-owned adapter that resolves effective permissions for `(user, resource scope)`.
+- RustyCog middleware extracts `ResourceId` values from routes, then delegates business-specific authorization lookup to this interface.
+- `CasbinPermissionEngine` consumes fetched permissions to enforce final allow/deny decisions.
+- This split keeps RustyCog reusable while each service preserves domain-specific authorization semantics.
 
 ## Sources
 

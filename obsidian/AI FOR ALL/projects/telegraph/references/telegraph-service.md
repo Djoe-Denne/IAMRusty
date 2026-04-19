@@ -14,7 +14,7 @@ provenance:
   inferred: 0.12
   ambiguous: 0.07
 created: 2026-04-14T18:18:24.0602572Z
-updated: 2026-04-14T18:18:24.0602572Z
+updated: 2026-04-19T11:38:52.5746779Z
 ---
 
 # Telegraph Service
@@ -26,7 +26,7 @@ These sources define the overall shape of `[[projects/telegraph/telegraph]]`: ho
 - Telegraph is split across domain, application, infrastructure, HTTP, configuration, setup, migration, and a root binary crate, matching the same broad service layout used elsewhere in the repo.
 - `setup/src/app.rs` is the composition root: it creates the email adapter and service, template service, database pool, repositories, notification service, permission fetcher, communication factory, event processor, command registry, command service, and final event consumer.
 - `TelegraphApp::run()` starts the event consumer and the HTTP server in parallel and waits on both with `tokio::select!`, so queue processing is not an auxiliary background thread but a first-class runtime path.
-- The service leans heavily on shared `rustycog` crates for commands, config loading, DB access, HTTP route building, permission checks, queue consumers, and test fixtures.
+- The service leans heavily on shared `[[projects/rustycog/rustycog]]` crates for commands, config loading, DB access, HTTP route building, permission checks, queue consumers, and test fixtures.
 - HTTP exposure is intentionally narrow: the live server only wires notification read-model routes, while richer communication DTOs remain present in code but not in the active route table. ^[ambiguous]
 - The root repo README describes Telegraph as the platform communication service for emails, notifications, and SMS, but the service-level code reveals more implementation detail than the top-level overview does. ^[ambiguous]
 
@@ -41,3 +41,4 @@ These sources define the overall shape of `[[projects/telegraph/telegraph]]`: ho
 - [[projects/telegraph/concepts/queue-driven-command-processing]] - How async events are pushed through the command runtime.
 - [[projects/telegraph/references/telegraph-runtime-and-configuration]] - Runtime config, queue routing, templates, and local deployment details.
 - [[projects/telegraph/references/telegraph-http-and-notification-api]] - Authenticated route surface and ownership model.
+- [[projects/rustycog/references/index]] - Crate-level map for the shared SDK surfaces Telegraph composes.

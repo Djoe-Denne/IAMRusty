@@ -20,31 +20,30 @@ provenance:
   inferred: 0.09
   ambiguous: 0.05
 created: 2026-04-14T16:54:59.5971424Z
-updated: 2026-04-14T17:13:01.1911009Z
+updated: 2026-04-15T22:10:00Z
 ---
 
 # Platform Building Blocks
 
-These sources cover the reusable foundation beneath the application services: `[[projects/rustycog/rustycog]]` for implementation patterns and `[[projects/hive-events/hive-events]]` for event contracts.
+These sources cover the shared platform substrate beneath application services: `[[projects/rustycog/rustycog]]` for runtime mechanics and `<!-- [[projects/hive-events/hive-events]] -->` for domain event contracts.
 
 ## Key Ideas
 
-- The root workspace includes most RustyCog crates directly, while `rustycog/Cargo.toml` also publishes a `rustycog-meta` umbrella package that groups them for consumers.
-- RustyCog covers more than raw transport. The current code spreads shared concerns across config loading, command execution, HTTP startup, permissions, event publishing, logging, DB access, and integration testing.
-- `QueueConfig` and the event factories support Kafka, SQS, or disabled/no-op transports from the same runtime abstraction, while the test harness provisions Kafka and LocalStack fixtures to verify those paths.
-- Hive Events provides queue names and JSON-serializable payload contracts for organization-domain integration flows.
-- Together they show that AIForAll is investing both in shared runtime primitives and in shared message schemas.
-- The README-level packaging story is slightly uneven with the checked-in code, because the docs still mention macros/examples that are not visible in this tree. ^[ambiguous]
+- RustyCog provides the shared execution shell: command runtime, typed config, DB pooling, HTTP composition, permission hooks, event adapters, logging setup, and integration-test scaffolding.
+- Hive Events provides service-agnostic event names and payload contracts for organization-domain flows.
+- Together they separate *how services run* (SDK/runtime) from *what services say* (event schemas), which keeps platform concerns reusable.
+- Queue transport remains polymorphic (`Kafka`, `SQS`, disabled/no-op), enabling one event API across local and production-like environments.
+- This page is intentionally platform-level; crate-by-crate internals are delegated to `[[projects/rustycog/references/index]]` and per-crate references.
 
 ## Open Questions
 
-- The current sources do not yet connect every consuming service back to the exact SDK crates and event contracts it uses.
-- The code supports both Kafka and SQS, but the wiki still does not map which services standardize on which transport in production. ^[ambiguous]
-- More service-specific sources will be needed to map actual adoption depth across the workspace.
+- The wiki still does not map a precise service-by-service adoption matrix for these building blocks.
+- Transport defaults (Kafka vs SQS per service/environment) are still only partially documented. ^[ambiguous]
 
 ## Sources
 
 - [[projects/rustycog/rustycog]] — Shared SDK project
-- [[projects/hive-events/hive-events]] — Event-contract project
-- [[projects/rustycog/references/rustycog-crate-catalog]] — Code-backed inventory of the RustyCog crates
-- [[concepts/shared-rust-microservice-sdk]] — Cross-project abstraction distilled from these sources
+- <!-- [[projects/hive-events/hive-events]] --> — Event-contract project
+- [[projects/rustycog/references/index]] — Canonical RustyCog crate inventory
+- [[concepts/shared-rust-microservice-sdk]] — Architectural framing of the SDK model
+- [[references/rustycog-service-construction]] — Construction-level guidance using this substrate

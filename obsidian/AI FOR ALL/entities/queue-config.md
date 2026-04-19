@@ -10,7 +10,7 @@ provenance:
   inferred: 0.04
   ambiguous: 0.06
 created: 2026-04-15T17:15:56.0808743Z
-updated: 2026-04-15T17:15:56.0808743Z
+updated: 2026-04-15T22:10:00Z
 ---
 
 # QueueConfig
@@ -19,14 +19,10 @@ updated: 2026-04-15T17:15:56.0808743Z
 
 ## Key Ideas
 
-- It is an enum with `Kafka`, `Sqs`, and `Disabled` variants that provides one runtime branch point for event infrastructure.
-- `KafkaConfig` and `SqsConfig` include broker/queue details, credentials, enable flags, timeout/retry controls, and helpers for endpoint/broker construction.
-- Queue config objects include random-port resolution/cache helpers used heavily in test scenarios.
-- Event publisher and consumer factories in `[[projects/rustycog/references/rustycog-events]]` consume this type directly.
-
-## Open Questions
-
-- Naming and endpoint semantics currently mix AWS and Scaleway conventions in SQS-oriented code paths. Conflict to resolve. ^[ambiguous]
+- `QueueConfig` is the runtime transport selector for event infrastructure (`Kafka`, `Sqs`, or `Disabled`).
+- It connects typed configuration loading to event adapter wiring, so services can swap transport mode without changing event-calling code.
+- `KafkaConfig`/`SqsConfig` hold transport-specific endpoint and credential details behind one enum boundary.
+- Publisher/consumer factories in `[[projects/rustycog/references/rustycog-events]]` consume this type directly.
 
 ## Sources
 

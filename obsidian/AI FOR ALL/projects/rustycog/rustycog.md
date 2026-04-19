@@ -22,49 +22,50 @@ provenance:
   inferred: 0.09
   ambiguous: 0.14
 created: 2026-04-14T16:54:59.5971424Z
-updated: 2026-04-15T17:15:56.0808743Z
+updated: 2026-04-19T10:59:36Z
 ---
 
 # RustyCog
 
-## Indexes
+RustyCog is the shared Rust framework used to compose service runtime concerns across AIForAll. This page is the orientation hub; crate-level details live in `[[projects/rustycog/references/index]]`.
 
-- [[projects/rustycog/references/index]] — references
+## Documentation Note
 
-RustyCog is the shared platform SDK for AIForAll. It lives as a set of `rustycog-*` crates inside the main workspace, and `rustycog/Cargo.toml` also exposes a `rustycog-meta` package that bundles the stack for consumers that want one umbrella dependency. It is the concrete implementation of `[[concepts/shared-rust-microservice-sdk]]` for services such as `[[projects/iamrusty/iamrusty]]` and `[[projects/manifesto/manifesto]]`.
+- Treat `rustycog/README.md` as historical context, not the canonical API map; crate-level source-of-truth behavior is maintained in `[[projects/rustycog/references/index]]` and linked per-crate pages.
 
-## Crate References
+## Canonical Scope
 
-- [[projects/rustycog/references/rustycog-core]]
-- [[projects/rustycog/references/rustycog-config]]
-- [[projects/rustycog/references/rustycog-db]]
-- [[projects/rustycog/references/rustycog-command]]
-- [[projects/rustycog/references/rustycog-events]]
-- [[projects/rustycog/references/rustycog-http]]
-- [[projects/rustycog/references/rustycog-permission]]
-- [[projects/rustycog/references/rustycog-testing]]
-- [[projects/rustycog/references/rustycog-server]]
-- [[projects/rustycog/references/rustycog-logger]]
-- [[projects/rustycog/references/rustycog-meta]]
+RustyCog currently has 11 documented crate surfaces:
 
-## Key Ideas
+- [[projects/rustycog/references/rustycog-core]] — shared error contracts (`ServiceError`, `DomainError`)
+- [[projects/rustycog/references/rustycog-command]] — command execution runtime and registry
+- [[projects/rustycog/references/rustycog-config]] — typed config models and loaders
+- [[projects/rustycog/references/rustycog-db]] — DB pool and replica-aware read/write routing
+- [[projects/rustycog/references/rustycog-events]] — event envelope plus Kafka/SQS/no-op adapters
+- [[projects/rustycog/references/rustycog-http]] — Axum shell, route builder, auth/permission middleware
+- [[projects/rustycog/references/rustycog-permission]] — permission primitives and Casbin engine
+- [[projects/rustycog/references/rustycog-testing]] — integration-test fixtures and bootstrap helpers
+- [[projects/rustycog/references/rustycog-server]] — health-check abstractions
+- [[projects/rustycog/references/rustycog-logger]] — tracing/logging initialization helpers
+- [[projects/rustycog/references/rustycog-meta]] — umbrella dependency package
 
-- RustyCog is organized as focused crates so services can compose only what they need while keeping one shared mental model for errors, commands, config, HTTP, permissions, events, logging, DB, and tests.
-- The per-crate pages in `[[projects/rustycog/references/index]]` now document each crate separately, rather than keeping the details only in one catalog page.
-- Shared technical vocabulary from these crates is promoted into global entity pages under `[[entities/index]]` to reduce duplicate explanations across service docs.
-- `rustycog-meta` provides umbrella packaging while direct crate dependencies remain a viable path for explicit dependency control.
+## Documentation Ownership
 
-## Open Questions
+- Per-crate API and behavior details: `[[projects/rustycog/references/index]]`
+- Shared SDK vocabulary: `[[entities/index]]`
+- Cross-crate architecture patterns: `[[concepts/shared-rust-microservice-sdk]]`
+- Service-construction usage flow: `[[skills/building-rustycog-services]]`
 
-- The wiki still does not catalog a service-by-service crate-adoption matrix for production deployments.
-- `rustycog-logger` is included in `rustycog-meta`, but it is not listed in root workspace members. Conflict to resolve. ^[ambiguous]
-- `rustycog-server` currently exposes health primitives only, despite a broader crate name. Conflict to resolve. ^[ambiguous]
-- `create_multi_queue_event_publisher()` currently tracks multiple queue names but builds one publisher instance. Conflict to resolve. ^[ambiguous]
-- The README still advertises macros/examples not present in this tree. Conflict to resolve. ^[ambiguous]
+## Scope Mismatches To Track
+
+- README mentions `rustycog-macros` and examples that are not visible in the checked-in tree. ^[ambiguous]
+- `rustycog-logger` is included in `rustycog-meta` but not listed as a root workspace member. ^[ambiguous]
+- `rustycog-server` name suggests broader server bootstrap ownership, but current surface is health-only. ^[ambiguous]
+- Multi-queue publishing intent exists in events APIs, but helper behavior is still partly single-publisher underneath. ^[ambiguous]
 
 ## Sources
 
-- [[projects/rustycog/references/rustycog-crate-catalog]] — Code-backed map of the crate surfaces
-- [[references/platform-building-blocks]] — Shared SDK and event-contract foundation
-- [[concepts/shared-rust-microservice-sdk]] — Cross-project abstraction implemented here
-- [[skills/building-rustycog-services]] — Practical workflow derived from that guidance
+- [[projects/rustycog/references/index]] — Inventory and scope boundaries for all crates
+- [[references/platform-building-blocks]] — Shared SDK plus event-contract context
+- [[concepts/shared-rust-microservice-sdk]] — Cross-project framing for the same stack
+- [[skills/building-rustycog-services]] — Service composition workflow using these crates

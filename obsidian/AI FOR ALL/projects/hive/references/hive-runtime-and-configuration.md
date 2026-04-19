@@ -15,7 +15,7 @@ provenance:
   inferred: 0.13
   ambiguous: 0.11
 created: 2026-04-14T18:56:22.3888182Z
-updated: 2026-04-14T18:56:22.3888182Z
+updated: 2026-04-19T11:13:11Z
 ---
 
 # Hive Runtime and Configuration
@@ -24,11 +24,11 @@ These sources describe how `[[projects/hive/hive]]` is configured and started: t
 
 ## Key Ideas
 
-- `AppConfig` implements `rustycog_config::ConfigLoader` with the env prefix `HIVE` and includes `server`, `database`, `iam_service`, `external_provider_service`, `logging`, `scaleway`, `command`, and `queue` sections.
+- `AppConfig` implements `rustycog_config::ConfigLoader` with the env prefix `HIVE` and includes `server`, `database`, `iam_service`, `external_provider_service`, `logging`, `scaleway`, `command`, and `queue` sections, matching the shared `[[projects/rustycog/references/rustycog-config]]` runtime model.
 - Default config enables SQS-style queue publishing with `default_queue = "user-events"`, while development points at `localstack:4566` and test disables the queue entirely.
 - Hive declares command retry settings in config, but dev and test set `max_attempts = 0` while default config uses `3`, so the live retry posture depends heavily on environment.
-- `setup/src/app.rs` creates a `MultiQueueEventPublisher` from `config.queue` and `HiveErrorMapper`, so queue publishing is part of the normal runtime assembly rather than an optional bolt-on.
-- Conflict to resolve: unlike `[[projects/telegraph/telegraph]]`, Hive does not add a second service-specific queue-routing schema on top of `QueueConfig`; unlike `[[projects/iamrusty/iamrusty]]`, it adds explicit outbound `iam_service` and `external_provider_service` blocks instead. Both are valid `rustycog-config` service shapes. ^[ambiguous]
+- `setup/src/app.rs` creates a `MultiQueueEventPublisher` from `config.queue` and `HiveErrorMapper`, so queue publishing is part of the normal runtime assembly rather than an optional bolt-on through `[[projects/rustycog/references/rustycog-events]]`.
+- Conflict to resolve: unlike `<!-- [[projects/telegraph/telegraph]] -->`, Hive does not add a second service-specific queue-routing schema on top of `QueueConfig`; unlike `<!-- [[projects/iamrusty/iamrusty]] -->`, it adds explicit outbound `iam_service` and `external_provider_service` blocks instead. Both are valid `rustycog-config` service shapes. ^[ambiguous]
 - Conflict to resolve: both `iam_service` and `external_provider_service` default to `localhost:8080` in `config/default.toml`, which is an operator-facing ambiguity until a stronger environment story pins them to distinct services. ^[ambiguous]
 
 ## Open Questions
@@ -42,3 +42,5 @@ These sources describe how `[[projects/hive/hive]]` is configured and started: t
 - [[concepts/structured-service-configuration]] - Cross-service comparison of config loader patterns.
 - [[projects/hive/references/hive-command-execution]] - Registry and event publisher wiring that depends on this config.
 - [[projects/hive/concepts/external-provider-sync-jobs]] - Domain flows that consume the outbound service config.
+- [[projects/rustycog/references/rustycog-config]] - Shared config primitives reused by Hive.
+- [[projects/rustycog/references/rustycog-events]] - Queue publisher runtime used for outbound Hive events.

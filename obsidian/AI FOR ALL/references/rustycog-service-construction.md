@@ -24,37 +24,35 @@ provenance:
   inferred: 0.07
   ambiguous: 0.20
 created: 2026-04-14T17:03:47.5107188Z
-updated: 2026-04-15T17:15:56.0808743Z
+updated: 2026-04-19T11:49:06.1450368Z
 ---
 
 # RustyCog Service Construction Guides
 
-These guides use `[[projects/manifesto/manifesto]]` as the reference implementation for building on top of `[[projects/rustycog/rustycog]]`. Together they are still the best current map for `[[skills/building-rustycog-services]]`, but they now need to be read alongside the live Manifesto runtime rather than as a perfect description of it.
+These guides use `[[projects/manifesto/manifesto]]` as a reference implementation for building services on top of `[[projects/rustycog/rustycog]]`. This page focuses on construction workflow and guide-vs-runtime drift, not crate API inventory.
 
 ## Key Ideas
 
-- Service construction still follows the fixed order described by the guides: typed config, logging, DB pool, repositories, domain services, command registry, app state, routes, then tests.
-- The composition root still lives outside domain and HTTP layers, and the current code confirms that setup is where DB, command, permission, and transport choices are wired together.
-- `RouteBuilder` keeps the HTTP shell consistent by attaching tracing, panic handling, correlation ID propagation, health checks, auth modes, and permission middleware around handlers.
-- Permission-protected routes still require explicit model files plus a `PermissionsFetcher`, which matches the guide's emphasis on keeping authorization configuration visible in the setup layer.
-- The guides show how config, command, DB, HTTP, permission, and testing crates fit together as one stack, and the current code still reflects that shape.
-- The crate-level guides now map directly to per-crate references under `[[projects/rustycog/references/index]]`, which clarifies where each setup step actually lives in code.
-- Manifesto's implementation guide is explicit that some documented knobs are currently inert: `service.component_service.timeout_seconds` is defined but setup hardcodes `30`, and `[command.retry]` is documented in TOML without a `command` field in `ManifestoConfig`. Conflict to resolve. ^[ambiguous]
-- The guides present `setup_logging(&config)` and layered config usage as the canonical path, while `Manifesto/src/main.rs` initializes tracing directly and the live loader does not auto-merge `config/default.toml`. Conflict to resolve. ^[ambiguous]
-- Some guide-era ergonomics, especially around automatic error mapping/macros and a fully unified “reference service” story, are not visible in the checked-in tree even though the higher-level docs still reference them. ^[ambiguous]
-- `rustycog-server` remains health-only and `rustycog-logger` still sits outside root workspace members despite appearing in `rustycog-meta`, so setup guidance must account for packaging drift. Conflict to resolve. ^[ambiguous]
+- The practical assembly order remains: typed config, logging init, DB pool, repositories/services, command registry, app state, route builder, then integration tests.
+- Composition root ownership stays explicit in setup crates so domain modules remain transport-agnostic.
+- Permission-wired routes still follow the same sequence: model files + fetcher wiring + required permission checks.
+- The guides remain useful as a procedural blueprint, but crate-level behavior now belongs to `[[projects/rustycog/references/index]]` and skills belong to `[[skills/building-rustycog-services]]`.
+- Guide/runtime drift is material and must be tracked explicitly:
+  - Some documented knobs are inert in current runtime paths (`service.component_service.timeout_seconds`, `[command.retry]` in Manifesto). ^[ambiguous]
+  - Logging/bootstrap defaults in docs and live startup code still diverge (`setup_logging` guidance vs direct tracing init). ^[ambiguous]
+  - README-era ergonomics around macros/examples are not visible in-tree. ^[ambiguous]
+  - Packaging scope drift persists (`rustycog-server` health-only, `rustycog-logger` out of root workspace members). ^[ambiguous]
 
 ## Open Questions
 
-- The guides are Manifesto-centric, so the degree to which every other service follows them exactly is not fully cataloged.
-- The current docs clarify loader behavior well, but there is still no single cross-service compatibility matrix for crate adoption.
-- Which logging, loader, and retry story should be treated as canonical for RustyCog services: the guide recommendation or the current Manifesto implementation? Conflict to resolve. ^[ambiguous]
-- The checked-in code does not show where the README-promised macros live today, so the full intended ergonomics are still somewhat unclear. ^[ambiguous]
+- The guides are Manifesto-centric; cross-service conformance is still not mapped precisely.
+- Which behavior is normative for new services when docs and runtime disagree: guide recommendation or live implementation? ^[ambiguous]
+- Macro/example ergonomics promised by README-era docs are still unresolved in the checked-in tree. ^[ambiguous]
 
 ## Sources
 
-- [[concepts/shared-rust-microservice-sdk]] — Shared crate ecosystem captured by these guides
-- [[projects/rustycog/references/rustycog-crate-catalog]] — Code-backed inventory of the crates the guides compose
-- [[projects/rustycog/references/index]] — Per-crate deep references used by this ingest pass
+- [[skills/building-rustycog-services]] — Procedural workflow distilled from these sources
+- [[projects/rustycog/references/index]] — Crate-level behavior referenced by each construction step
+- [[projects/rustycog/references/index]] — Compact crate inventory for this workflow
+- [[concepts/shared-rust-microservice-sdk]] — Cross-project SDK framing
 - [[projects/iamrusty/concepts/hexagonal-architecture]] — Service-boundary pattern the guides enforce
-- [[skills/building-rustycog-services]] — Practical workflow derived from this material

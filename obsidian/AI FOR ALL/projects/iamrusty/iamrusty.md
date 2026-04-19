@@ -6,6 +6,7 @@ sources:
   - IAMRusty/README.md
   - IAMRusty/docs/ARCHITECTURE.md
   - IAMRusty/docs/API_REFERENCE.md
+  - IAMRusty/domain/src/entity/events.rs
   - IAMRusty/setup/src/app.rs
   - IAMRusty/http/src/lib.rs
 summary: IAMRusty is a Rust IAM service that combines OAuth, email/password auth, JWTs, provider linking, and queue-backed identity events behind a hexagonal architecture.
@@ -14,7 +15,7 @@ provenance:
   inferred: 0.18
   ambiguous: 0.08
 created: 2026-04-14T17:46:37.6929647Z
-updated: 2026-04-14T20:28:20.9129598Z
+updated: 2026-04-19T11:13:11Z
 ---
 
 # IAMRusty
@@ -25,7 +26,7 @@ updated: 2026-04-14T20:28:20.9129598Z
 - [[projects/iamrusty/skills/index]] — skills
 - [[projects/iamrusty/references/index]] — references
 
-`IAMRusty` is the identity service in the AIForAll workspace. It combines OAuth login, email/password authentication, registration completion, JWT and refresh-token issuance, provider linking, and queue-backed auth events behind `[[projects/iamrusty/concepts/hexagonal-architecture]]` and a shared `rustycog` runtime stack.
+`IAMRusty` is the identity service in the AIForAll workspace. It combines OAuth login, email/password authentication, registration completion, JWT and refresh-token issuance, provider linking, and queue-backed auth events behind `[[projects/iamrusty/concepts/hexagonal-architecture]]` and a shared `[[projects/rustycog/rustycog]]` runtime stack.
 
 ## Key Ideas
 
@@ -34,6 +35,7 @@ updated: 2026-04-14T20:28:20.9129598Z
 - Runtime behavior depends on `[[concepts/structured-service-configuration]]`, including environment-specific TOML files, cached random ports in tests, queue settings, and JWT secret resolution.
 - Command orchestration is centralized through `[[concepts/command-registry-and-retry-policies]]`, so handlers delegate business work instead of embedding retries, logging, and error mapping directly.
 - The service relies on `[[concepts/integration-testing-with-real-infrastructure]]` for end-to-end confidence, using real databases, HTTP servers, fixtures, and optional queue-backed checks.
+- IAMRusty uses `iam-events` as its domain-event contract surface, while `[[projects/rustycog/references/rustycog-events]]` provides the queue transport and publisher runtime.
 - The published API and the current implementation are close but not identical: the docs still describe some older route names and payload shapes, while the live route table in `http/src/lib.rs` exposes separate login, link, and relink endpoints. ^[ambiguous]
 
 ## Related
@@ -46,6 +48,7 @@ updated: 2026-04-14T20:28:20.9129598Z
 - [[projects/iamrusty/references/iamrusty-testing-and-fixtures]] - Test server, database fixture, and Kafka-backed validation patterns.
 - [[projects/iamrusty/skills/testing-rust-services-with-fixtures]] - Preferred workflow for building IAM-style integration tests.
 - [[projects/iamrusty/skills/extending-iamrusty-with-oauth-providers]] - End-to-end checklist for adding another provider safely.
+- [[projects/rustycog/references/index]] - Shared RustyCog crate map backing the runtime assumptions used across IAMRusty pages.
 
 ## Open Questions
 

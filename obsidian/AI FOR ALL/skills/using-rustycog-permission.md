@@ -17,7 +17,7 @@ updated: 2026-04-15T17:15:56.0808743Z
 
 # Using RustyCog Permission
 
-Use this guide when integrating `[[projects/rustycog/references/rustycog-permission]]`.
+Use this guide when integrating `<!-- [[projects/rustycog/references/rustycog-permission]] -->`.
 
 ## Workflow
 
@@ -35,6 +35,6 @@ Use this guide when integrating `[[projects/rustycog/references/rustycog-permiss
 
 ## Sources
 
-- [[projects/rustycog/references/rustycog-permission]]
-- [[entities/permissions-fetcher]]
-- [[concepts/resource-scoped-permission-fetchers]]
+- <!-- [[projects/rustycog/references/rustycog-permission]] -->
+- <!-- [[entities/permissions-fetcher]] -->
+- <!-- [[concepts/resource-scoped-permission-fetchers]] -->

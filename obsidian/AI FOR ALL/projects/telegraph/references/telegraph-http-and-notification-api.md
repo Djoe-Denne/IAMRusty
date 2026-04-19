@@ -17,7 +17,7 @@ provenance:
   inferred: 0.14
   ambiguous: 0.14
 created: 2026-04-14T18:18:24.0602572Z
-updated: 2026-04-14T18:18:24.0602572Z
+updated: 2026-04-19T11:38:52.5746779Z
 ---
 
 # Telegraph HTTP and Notification API
@@ -32,6 +32,7 @@ These sources describe the live synchronous API surface of `[[projects/telegraph
 - `NotificationUseCaseImpl` handles pagination defaults, `per_page <= 100`, unread filtering, and response shaping for the notification read model.
 - Ownership is enforced twice: the `ResourcePermissionFetcher` only grants `Permission::Write` when the user owns the notification ID, and `NotificationServiceImpl::mark_notification_as_read()` returns an unauthorized domain error if the record belongs to someone else.
 - `http/src/handlers/communication.rs` defines richer direct-send DTOs for email, notification, and SMS payloads, but the live route table does not register those handlers. Conflict to resolve. ^[ambiguous]
+- The unregistered direct-send DTOs are best treated as future product surface, not as the default extension path for new event-driven delivery work; Telegraph's live feature additions belong on the queue path unless the HTTP contract intentionally changes. ^[inferred]
 
 ## Open Questions
 
@@ -43,4 +44,5 @@ These sources describe the live synchronous API surface of `[[projects/telegraph
 - [[projects/telegraph/telegraph]] - Project page for the service exposing these routes.
 - [[projects/telegraph/concepts/multi-channel-delivery-modes]] - Broader communication DTOs versus the live notification-only routes.
 - [[projects/telegraph/references/telegraph-service]] - Service shape and `rustycog_http` routing context.
+- [[projects/rustycog/references/rustycog-http]] - `RouteBuilder`, `AppState`, and permission middleware used by the live server.
 - [[projects/telegraph/references/telegraph-testing-and-smtp-fixtures]] - Integration tests that exercise the live API.

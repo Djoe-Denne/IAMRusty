@@ -19,7 +19,7 @@ provenance:
   inferred: 0.13
   ambiguous: 0.09
 created: 2026-04-14T18:18:24.0602572Z
-updated: 2026-04-14T18:18:24.0602572Z
+updated: 2026-04-19T11:38:52.5746779Z
 ---
 
 # Telegraph Event Processing
@@ -36,6 +36,14 @@ These sources show the async half of `[[projects/telegraph/telegraph]]`: how the
 - Development config maps `user_signed_up` and `password_reset_requested` to `email`, while `user_email_verified` is mapped to `notification`, and the integration tests confirm those two behaviors end to end.
 - Conflict to resolve: the wider Telegraph model advertises SMS and broader direct-send shapes, but the live event processor composite currently wires only `email` and `notification`. ^[ambiguous]
 
+## Adding a New Event Path
+
+- Keep the transport contract stable first: the published event name, the `EventExtractor` fields, the `queues.*` routing entry, and the descriptor filename should all tell the same story.
+- If the new event only changes content, prefer reusing the existing `email` and `notification` handlers and extend descriptors/templates instead of adding another orchestration layer.
+- Add or update the descriptor and templates before touching processor code so the intended delivery modes and required variables are explicit.
+- Extend `CompositeEventProcessor` wiring only when the event needs a genuinely new mode or side effect that the existing handlers cannot express cleanly.
+- Prove the path end to end by publishing the real queue payload in tests and asserting the resulting SMTP output, notification row, or other persisted delivery effect.
+
 ## Open Questions
 
 - Unsupported event types are logged and discarded when no configured queue claims them, but the current service surface does not expose a more explicit dead-letter or audit story in this code path. ^[inferred]
@@ -46,4 +54,5 @@ These sources show the async half of `[[projects/telegraph/telegraph]]`: how the
 - [[projects/telegraph/telegraph]] - Project page for the service consuming these events.
 - [[projects/telegraph/concepts/queue-driven-command-processing]] - Async command dispatch pattern behind the consumer.
 - [[projects/telegraph/concepts/descriptor-driven-communications]] - Descriptor and template system used by the processors.
+- [[projects/rustycog/references/rustycog-events]] - Crate-level event envelope and consumer abstractions used by Telegraph.
 - [[projects/telegraph/references/telegraph-testing-and-smtp-fixtures]] - Tests that prove the main event paths.

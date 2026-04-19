@@ -10,7 +10,7 @@ provenance:
   inferred: 0.04
   ambiguous: 0.05
 created: 2026-04-15T17:15:56.0808743Z
-updated: 2026-04-15T17:15:56.0808743Z
+updated: 2026-04-15T22:10:00Z
 ---
 
 # HealthChecker
@@ -19,14 +19,10 @@ updated: 2026-04-15T17:15:56.0808743Z
 
 ## Key Ideas
 
-- The trait defines one async `check()` method returning `HealthStatus`.
-- `HealthStatus` provides `Healthy` or `Unhealthy(message)` as shared status outcomes.
-- `BasicHealthChecker` is the minimal always-healthy implementation used as a default.
-- The type gives service code one common health-probe contract even though crate scope is currently small.
-
-## Open Questions
-
-- The current crate scope is limited to health primitives, so broader server concerns remain in other crates. ^[ambiguous]
+- `HealthChecker` is the async probe contract used by RustyCog health endpoints.
+- `HealthStatus` provides the common result shape (`Healthy` or `Unhealthy(message)`).
+- `BasicHealthChecker` is the default always-healthy implementation.
+- This entity remains intentionally narrow because `rustycog-server` currently focuses on health primitives only.
 
 ## Sources
 

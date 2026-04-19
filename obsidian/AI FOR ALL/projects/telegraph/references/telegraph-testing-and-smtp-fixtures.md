@@ -14,7 +14,7 @@ provenance:
   inferred: 0.12
   ambiguous: 0.08
 created: 2026-04-14T18:18:24.0602572Z
-updated: 2026-04-14T18:18:24.0602572Z
+updated: 2026-04-19T11:38:52.5746779Z
 ---
 
 # Telegraph Testing and SMTP Fixtures
@@ -27,6 +27,7 @@ These sources show how `[[projects/telegraph/telegraph]]` validates both halves 
 - `setup_test_server()` creates a `TelegraphTestFixture`, clears prior SMTP state, then boots the app through the shared RustyCog test-server path so the service is exercised with real infrastructure rather than a mocked shell.
 - HTTP integration tests use real JWTs, database fixture builders, and serialized execution to validate pagination, unread filtering, and ownership enforcement for notification endpoints.
 - Queue-driven tests publish `iam_events` payloads through the SQS fixture and then poll either the SMTP container or the database until the expected email or notification record appears.
+- When adding a new event type or delivery mode, the most reliable test shape is still end to end: publish the real queue payload, then assert the channel-specific side effect (SMTP state, persisted notification rows, or both) instead of unit-testing the processor in isolation.
 - `config/test.toml` keeps the environment dynamic but realistic: DB and SQS use `port = 0`, SMTP runs locally on `1025`, and event routing stays enabled.
 - Compared with the current IAMRusty pages, Telegraph's test suite leans more heavily on SQS plus SMTP verification than on provider-mock plus Kafka-style flows. Conflict to resolve only if the repo wants one unified event-testing story. ^[ambiguous]
 
@@ -39,5 +40,6 @@ These sources show how `[[projects/telegraph/telegraph]]` validates both halves 
 
 - [[projects/telegraph/telegraph]] - Service whose HTTP and event flows are under test.
 - [[concepts/integration-testing-with-real-infrastructure]] - Cross-service concept view of these patterns.
+- [[projects/rustycog/references/rustycog-testing]] - Shared test harness Telegraph extends with SQS and SMTP fixtures.
 - [[projects/telegraph/references/telegraph-http-and-notification-api]] - HTTP behaviors covered by the API tests.
 - [[projects/telegraph/references/telegraph-event-processing]] - Queue behaviors covered by the event tests.

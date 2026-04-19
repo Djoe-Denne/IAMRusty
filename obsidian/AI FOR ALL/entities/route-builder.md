@@ -11,7 +11,7 @@ provenance:
   inferred: 0.04
   ambiguous: 0.06
 created: 2026-04-15T17:15:56.0808743Z
-updated: 2026-04-15T17:15:56.0808743Z
+updated: 2026-04-15T22:10:00Z
 ---
 
 # RouteBuilder
@@ -20,15 +20,10 @@ updated: 2026-04-15T17:15:56.0808743Z
 
 ## Key Ideas
 
-- It provides fluent route registration methods (`get`, `post`, `put`, `delete`, `patch`) plus nested routing support.
-- It supports explicit auth modes (`authenticated` and `might_be_authenticated`) per route chain.
-- Permission guarding is integrated via `permissions_dir`, `resource`, `with_permission_fetcher`, and `with_permission`.
-- Build-time composition applies tracing middleware, panic catching, and correlation header propagation.
-- It includes a standard `/health` endpoint hook for service liveness checks.
-
-## Open Questions
-
-- Missing permission model resources currently panic during setup, so failure handling is stricter than many service bootstrap paths expect. ^[ambiguous]
+- `RouteBuilder` is the fluent HTTP composition boundary used by RustyCog services.
+- It combines route registration, auth mode selection, permission guards, and shared middleware layering.
+- It standardizes operational HTTP concerns (tracing, panic handling, correlation IDs, health endpoint wiring).
+- Permission flow relies on `PermissionsFetcher` + `ResourceId` contracts rather than hardcoded route ACLs.
 
 ## Sources
 

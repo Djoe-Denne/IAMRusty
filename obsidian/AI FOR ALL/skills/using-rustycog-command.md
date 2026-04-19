@@ -17,7 +17,7 @@ updated: 2026-04-15T17:15:56.0808743Z
 
 # Using RustyCog Command
 
-Use this guide when composing `[[projects/rustycog/references/rustycog-command]]`.
+Use this guide when composing `<!-- [[projects/rustycog/references/rustycog-command]] -->`.
 
 ## Workflow
 
@@ -35,6 +35,6 @@ Use this guide when composing `[[projects/rustycog/references/rustycog-command]]
 
 ## Sources
 
-- [[projects/rustycog/references/rustycog-command]]
-- [[entities/command-registry]]
-- [[concepts/command-registry-and-retry-policies]]
+- <!-- [[projects/rustycog/references/rustycog-command]] -->
+- <!-- [[entities/command-registry]] -->
+- <!-- [[concepts/command-registry-and-retry-policies]] -->

@@ -38,4 +38,4 @@ updated: 2026-04-14T17:46:37.6929647Z
 - [[projects/iamrusty/iamrusty]] - Service that consumes the abstraction.
 - [[projects/iamrusty/references/iamrusty-runtime-and-security]] - Runtime config, JWKS, TLS, and deployment context.
 - [[projects/iamrusty/references/iamrusty-api-and-auth-flows]] - API surface that exposes token and JWKS behavior.
-- [[concepts/structured-service-configuration]] - Config layer that resolves secret backends.
+- <!-- [[concepts/structured-service-configuration]] --> - Config layer that resolves secret backends.

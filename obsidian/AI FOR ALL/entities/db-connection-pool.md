@@ -11,7 +11,7 @@ provenance:
   inferred: 0.04
   ambiguous: 0.05
 created: 2026-04-15T17:15:56.0808743Z
-updated: 2026-04-15T17:15:56.0808743Z
+updated: 2026-04-15T22:10:00Z
 ---
 
 # DbConnectionPool
@@ -20,14 +20,10 @@ updated: 2026-04-15T17:15:56.0808743Z
 
 ## Key Ideas
 
-- It holds one primary write connection and one or more read connections.
-- It supports explicit read replicas and falls back to primary if replicas are absent or unavailable.
-- `get_read_connection()` applies round-robin strategy for multiple replicas.
-- The pool is configured from `DatabaseConfig`, linking service config directly to DB runtime wiring.
-
-## Open Questions
-
-- The crate centralizes pooling defaults, but there is no documented per-service override strategy for environments with different load profiles. ^[inferred]
+- `DbConnectionPool` encapsulates primary-write plus optional replica-read connections.
+- Read operations can route via round-robin over replicas, with fallback to primary when needed.
+- It is configured from `DatabaseConfig` and usually wired once in setup/composition root.
+- This entity defines the noun; connection policy details are documented in `[[projects/rustycog/references/rustycog-db]]`.
 
 ## Sources
 

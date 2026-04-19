@@ -3,17 +3,18 @@ title: Manifesto Event Model
 category: references
 tags: [reference, events, projects, visibility/internal]
 sources:
+  - Manifesto/setup/src/app.rs
   - Manifesto/application/src/usecase/project.rs
   - Manifesto/application/src/usecase/component.rs
   - Manifesto/application/src/usecase/member.rs
   - Manifesto/infra/src/event/event_adapter.rs
-summary: Code-backed view of the events Manifesto emits today, including its own domain events and the separate apparatus event adapter.
+summary: Code-backed view of the events Manifesto emits today, including best-effort publishing from use cases and the separate apparatus event adapter.
 provenance:
   extracted: 0.82
   inferred: 0.08
   ambiguous: 0.10
 created: 2026-04-14T20:25:00Z
-updated: 2026-04-14T20:25:00Z
+updated: 2026-04-19T11:49:06.1450368Z
 ---
 
 # Manifesto Event Model
@@ -25,8 +26,9 @@ updated: 2026-04-14T20:25:00Z
 - Project flows publish `ProjectCreated`, `ProjectUpdated`, `ProjectDeleted`, `ProjectPublished`, and `ProjectArchived` after the corresponding state changes succeed.
 - Component flows publish `ComponentAdded`, `ComponentStatusChanged`, and `ComponentRemoved` when components are attached, transitioned, or removed.
 - Member flows publish `MemberAdded`, `MemberPermissionsUpdated`, `MemberRemoved`, `PermissionGranted`, and `PermissionRevoked`.
+- `setup/src/app.rs` injects the same `EventPublisher` into the project, component, and member use cases, defaulting to a multi-queue publisher unless tests or alternate bootstraps override it.
 - Event publishing is best-effort in the current use cases: failures are logged with `tracing::warn!` but do not abort the main business transaction.
-- `infra/src/event/event_adapter.rs` introduces a second vocabulary through `ApparatusDomainEvent::ComponentStatusChanged`, which suggests Manifesto participates in both a Manifesto-local event model and a broader component/appartus integration model. ^[ambiguous]
+- `infra/src/event/event_adapter.rs` introduces a second vocabulary through `ApparatusDomainEvent::ComponentStatusChanged`, which suggests Manifesto participates in both a Manifesto-local event model and a broader component/apparatus integration model. ^[ambiguous]
 - The coexistence of `manifesto_events` in the application layer and `apparatus_events` in the adapter layer is a meaningful service-specific detail, not just generic RustyCog plumbing.
 
 ## Open Questions

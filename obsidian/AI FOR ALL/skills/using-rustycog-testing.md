@@ -18,7 +18,7 @@ updated: 2026-04-15T17:15:56.0808743Z
 
 # Using RustyCog Testing
 
-Use this guide when setting up integration tests with `[[projects/rustycog/references/rustycog-testing]]`.
+Use this guide when setting up integration tests with `<!-- [[projects/rustycog/references/rustycog-testing]] -->`.
 
 ## Workflow
 
@@ -36,6 +36,6 @@ Use this guide when setting up integration tests with `[[projects/rustycog/refer
 
 ## Sources
 
-- [[projects/rustycog/references/rustycog-testing]]
-- [[concepts/integration-testing-with-real-infrastructure]]
-- [[projects/rustycog/rustycog]]
+- <!-- [[projects/rustycog/references/rustycog-testing]] -->
+- <!-- [[concepts/integration-testing-with-real-infrastructure]] -->
+- <!-- [[projects/rustycog/rustycog]] -->

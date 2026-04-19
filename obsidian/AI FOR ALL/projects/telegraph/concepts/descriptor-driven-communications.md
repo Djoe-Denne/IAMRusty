@@ -11,13 +11,13 @@ sources:
   - Telegraph/resources/templates/user_signed_up_email.txt
   - Telegraph/resources/templates/user_email_verified_notification.txt
   - Telegraph/resources/templates/password_reset_requested_email.html
-summary: Telegraph builds emails and notifications from event-specific TOML descriptors and Tera templates instead of hardcoding channel content in handlers.
+summary: Telegraph builds emails and notifications from event-specific TOML descriptors and Tera templates, with descriptor authoring rules shaping how new event flows are added.
 provenance:
   extracted: 0.79
   inferred: 0.13
   ambiguous: 0.08
 created: 2026-04-14T18:18:24.0602572Z
-updated: 2026-04-14T18:18:24.0602572Z
+updated: 2026-04-19T11:38:52.5746779Z
 ---
 
 # Descriptor-Driven Communications
@@ -32,6 +32,14 @@ updated: 2026-04-14T18:18:24.0602572Z
 - `TeraTemplateService` merges environment-derived template variables with event variables before rendering, which is how generated links such as the hosted verification URL appear inside rendered emails. ^[inferred]
 - Descriptor metadata can override rendered defaults: for example, descriptor-provided `subject` or `title` values take precedence over the generic fallback names in template rendering.
 - Setup currently hardcodes `resources/communication_descriptor` as the descriptor directory instead of loading it from configuration, even though template rendering already uses configurable template paths. Conflict to resolve. ^[ambiguous]
+
+## Authoring Notes
+
+- Descriptor filenames should stay aligned with the event type Telegraph looks up at runtime so the queue config, descriptor file, and tests point at one canonical name.
+- Email descriptors should always have a text-template story, with HTML treated as an optional companion rather than the only rendering path.
+- Notification descriptors need both body text and a stable title story, either directly in descriptor metadata or via template variables that are guaranteed to exist.
+- If a new template variable is required, make sure it is supplied by the event payload extraction path or environment-backed template context before relying on it in content.
+- Telegraph already makes template directories configurable, but descriptor directories remain hardcoded, so new descriptor files still need to live in the convention the setup crate expects today.
 
 ## Open Questions
 

@@ -12,12 +12,12 @@ provenance:
   inferred: 0.11
   ambiguous: 0.09
 created: 2026-04-14T20:28:20.9129598Z
-updated: 2026-04-14T20:28:20.9129598Z
+updated: 2026-04-19T11:49:06.1450368Z
 ---
 
 # Membership
 
-Membership is a recurring platform entity pattern rather than a one-off service detail. `[[projects/hive/hive]]` models organization membership, while `[[projects/manifesto/manifesto]]` models project membership, and both attach users to a larger aggregate with explicit permission state.
+Membership is a recurring platform entity pattern rather than a one-off service detail. `Hive` models organization membership, while `[[projects/manifesto/manifesto]]` models project membership, and both attach users to a larger aggregate with explicit permission state.
 
 ## Key Ideas
 
@@ -34,7 +34,7 @@ Membership is a recurring platform entity pattern rather than a one-off service 
 
 ## Sources
 
-- [[projects/hive/references/hive-entity-model]] - Organization-side member and invitation entities.
+- <!-- [[projects/hive/references/hive-entity-model]] --> - Organization-side member and invitation entities.
 - [[projects/manifesto/references/manifesto-entity-model]] - Project-side member and permission entities.
 - [[entities/user]] - Identity entity that memberships refer back to.
 - [[concepts/resource-scoped-permission-fetchers]] - Authorization model that consumes membership state.

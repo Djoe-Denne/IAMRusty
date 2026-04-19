@@ -44,5 +44,5 @@ Adding a provider to `[[projects/iamrusty/iamrusty]]` is a cross-cutting change.
 
 - [[projects/iamrusty/iamrusty]] - Service being extended.
 - [[projects/iamrusty/concepts/oauth-provider-linking]] - Existing provider-link semantics the new provider must preserve.
-- [[concepts/structured-service-configuration]] - Config model the provider must plug into.
+- <!-- [[concepts/structured-service-configuration]] --> - Config model the provider must plug into.
 - [[projects/iamrusty/references/iamrusty-api-and-auth-flows]] - Route and handler behavior affected by provider expansion.

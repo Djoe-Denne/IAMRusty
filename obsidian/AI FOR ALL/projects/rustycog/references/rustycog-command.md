@@ -4,15 +4,17 @@ category: references
 tags: [reference, rustycog, commands, visibility/internal]
 sources:
   - rustycog/rustycog-command/src/lib.rs
+  - rustycog/rustycog-command/src/generic_service.rs
   - rustycog/rustycog-command/src/registry.rs
+  - rustycog/rustycog-command/src/token.rs
   - rustycog/rustycog-config/src/lib.rs
-summary: rustycog-command provides the command traits, command context, registry, retry policy, timeout handling, and execution metrics pipeline.
+summary: rustycog-command provides the typed command runtime with CommandError boundaries, type-erased handler registration, retry/timeout orchestration, and registry-backed execution surfaces.
 provenance:
-  extracted: 0.88
+  extracted: 0.9
   inferred: 0.06
-  ambiguous: 0.06
+  ambiguous: 0.04
 created: 2026-04-15T17:15:56.0808743Z
-updated: 2026-04-15T17:15:56.0808743Z
+updated: 2026-04-19T11:38:52.5746779Z
 ---
 
 # RustyCog Command
@@ -22,11 +24,14 @@ updated: 2026-04-15T17:15:56.0808743Z
 ## Key Ideas
 
 - `Command`, `CommandHandler`, and `CommandContext` define a common contract for validated command execution.
-- `CommandRegistry` stores type-erased handlers and orchestrates validation, timeout handling, retry logic, tracing, and metrics.
+- The command layer uses its own `CommandError` categories (validation, authentication, business, infrastructure, timeout, retry exhausted) rather than directly exposing `ServiceError`.
+- `CommandRegistry` stores type-erased handlers (`DynCommandHandler`) and orchestrates validation, timeout handling, retry logic, tracing, and metrics.
 - `RetryPolicy` supports exponential backoff with optional jitter and classifies retryable errors (`Infrastructure` and `Timeout`).
+- `CommandErrorMapper` lets services map domain/service-layer errors into command-layer errors at handler registration boundaries.
+- `MetricsCollector` is pluggable; the default `LoggingMetricsCollector` records command duration, success/failure, retries, and error class.
 - `RegistryConfig::from_retry_config()` bridges runtime retry settings from `rustycog-config`.
-- `CommandRegistryBuilder` gives services a fluent way to register handlers and produce one shared registry.
-- The command layer is transport-agnostic and can be reused by HTTP handlers, queue consumers, or test harnesses.
+- `GenericCommandService` is the shared execution facade used by HTTP and other transport layers, and `ValidateTokenCommand` provides a built-in token-validation command shape.
+- The command runtime remains transport-agnostic and can be reused by HTTP handlers, queue consumers, or test harnesses.
 
 ## Linked Entities
 
@@ -40,6 +45,7 @@ updated: 2026-04-15T17:15:56.0808743Z
 
 ## Sources
 
-- [[projects/rustycog/references/rustycog-crate-catalog]]
+- [[projects/rustycog/references/index]]
 - [[concepts/command-registry-and-retry-policies]]
+- [[projects/telegraph/concepts/queue-driven-command-processing]] - Concrete queue-first example of the same registry and service model.
 - [[projects/rustycog/rustycog]]

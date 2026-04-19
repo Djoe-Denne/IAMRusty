@@ -10,7 +10,7 @@ provenance:
   inferred: 0.04
   ambiguous: 0.06
 created: 2026-04-15T17:15:56.0808743Z
-updated: 2026-04-15T17:15:56.0808743Z
+updated: 2026-04-15T22:10:00Z
 ---
 
 # RustyCog Server
@@ -24,6 +24,11 @@ updated: 2026-04-15T17:15:56.0808743Z
 - `BasicHealthChecker` is the default implementation and always returns healthy.
 - The crate is re-exported through `rustycog-meta`, so consumers can still import it from umbrella dependencies.
 
+## Usage Guidance
+
+- This crate is intentionally narrow; most server bootstrapping belongs to `[[projects/rustycog/references/rustycog-http]]`.
+- In practice, teams use `HealthChecker` as a shared probe contract and keep route/server assembly in HTTP/setup crates.
+
 ## Linked Entities
 
 - [[entities/health-checker]]
@@ -34,6 +39,6 @@ updated: 2026-04-15T17:15:56.0808743Z
 
 ## Sources
 
-- [[projects/rustycog/references/rustycog-crate-catalog]]
+- [[projects/rustycog/references/index]]
 - [[projects/rustycog/rustycog]]
 - [[concepts/shared-rust-microservice-sdk]]
