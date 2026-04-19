@@ -42,6 +42,7 @@ updated: 2026-04-19T18:00:00Z
 
 - Checked-in `default`, `development`, and `test` configs all disable queues.
 - That means local/test boots use no-op publisher/consumer behavior unless queue settings are explicitly overridden.
+- Focused runtime tests also cover the enabled-config path falling back to a safe no-op consumer when no broker fixture is present.
 
 ## Open Questions
 

@@ -5,8 +5,8 @@ use axum::{
 };
 use manifesto_application::{
     AddComponentCommand, AddComponentRequest, ComponentListResponse, ComponentResponse,
-    GetComponentCommand, ListComponentsCommand, RemoveComponentCommand,
-    UpdateComponentStatusCommand, UpdateComponentRequest,
+    GetComponentCommand, ListComponentsCommand, RemoveComponentCommand, UpdateComponentRequest,
+    UpdateComponentStatusCommand,
 };
 use rustycog_command::CommandContext;
 use rustycog_http::{AppState, AuthUser, OptionalAuthUser, ValidatedJson};
@@ -110,8 +110,12 @@ pub async fn update_component_status(
         project_id
     );
 
-    let command =
-        UpdateComponentStatusCommand::new(project_id.id(), component_id.id(), request, auth_user.user_id);
+    let command = UpdateComponentStatusCommand::new(
+        project_id.id(),
+        component_id.id(),
+        request,
+        auth_user.user_id,
+    );
     let context = CommandContext::new().with_user_id(auth_user.user_id);
 
     let result = state
@@ -136,7 +140,8 @@ pub async fn remove_component(
         project_id
     );
 
-    let command = RemoveComponentCommand::new(project_id.id(), component_id.id(), auth_user.user_id);
+    let command =
+        RemoveComponentCommand::new(project_id.id(), component_id.id(), auth_user.user_id);
     let context = CommandContext::new().with_user_id(auth_user.user_id);
 
     state
@@ -147,4 +152,3 @@ pub async fn remove_component(
 
     Ok((StatusCode::NO_CONTENT, Json(())))
 }
-

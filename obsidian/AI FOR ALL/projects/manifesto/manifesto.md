@@ -47,9 +47,11 @@ Manifesto is the project-management service for AIForAll. Use `[[projects/rustyc
 
 - Manifesto treats projects as assemblies of independently implemented components with their own lifecycle, visibility, and configuration flow.
 - The composition root is recognizably RustyCog-shaped, but Manifesto adds project-, component-, and member-scoped permission fetchers plus its own `ManifestoCommandRegistryFactory`.
-- Live runtime now wires verified HS256 auth, logging level, command retry, component-service timeout/api key, and business limits from config instead of leaving those knobs as guide-era leftovers.
-- Public reads use optional-auth routes plus explicit-anonymous permission evaluation; private reads still require real access.
+- Live runtime now wires verified HS256-only auth, logging level, command retry, component-service timeout/api key, and business limits from config instead of leaving those knobs as guide-era leftovers.
+- Public project/component resource reads use optional-auth routes plus explicit-anonymous permission evaluation; private reads still require real access.
+- `GET /api/projects` uses optional auth plus visibility filtering in the service/repository layers rather than the UUID-scoped permission middleware used by item/detail routes.
 - Component catalog integration is fail-closed.
+- Component add/remove now treats component-instance ACL sync as part of the same consistency boundary and fails instead of silently drifting state.
 - Apparatus status consumption is wired into startup when queue config resolves to a real consumer, while checked-in local/test configs keep queues disabled by default.
 - `ComponentResponse.endpoint` and `access_token` still remain unset, so component provisioning handoff is the main product boundary that is still deliberately narrow.
 

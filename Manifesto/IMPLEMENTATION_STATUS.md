@@ -16,11 +16,12 @@ Most important outcomes from the remediation pass:
 - verified HS256 bearer-token handling
 - correct optional-auth behavior for anonymous public reads
 - strict ACLs for non-public project/component reads
+- component lifecycle and component-instance ACL sync now fail together
 - real config wiring for logging, retry, quotas, pagination, and component-service timeout/api key
 - fail-closed component catalog integration
 - structured HTTP error mapping
 - apparatus consumer and processor wired into startup when queues are enabled
-- focused tests covering signed auth rejection, public-read permission logic, fail-closed component client behavior, and apparatus runtime semantics
+- focused tests covering signed auth rejection, public-read permission logic, component/ACL consistency, fail-closed component client behavior, and apparatus runtime semantics
 
 ---
 
@@ -29,8 +30,9 @@ Most important outcomes from the remediation pass:
 ### Auth and Permissions
 
 - Bearer auth uses shared `AuthConfig` with `auth.jwt.hs256_secret`.
-- `rustycog-http` verifies JWT signatures instead of trusting payload-only parsing.
-- Optional-auth routes now evaluate anonymous callers through the shared permission path.
+- `rustycog-http` verifies JWT signatures instead of trusting payload-only parsing, and the shared verifier path is HS256-only today.
+- Optional-auth project/component resource routes evaluate anonymous callers through the shared permission path.
+- `GET /api/projects` uses optional auth plus service-layer visibility filtering rather than UUID-scoped permission middleware.
 - Public project/component reads can succeed anonymously.
 - Non-public reads require real membership/permission checks.
 - Specific component-instance grants preserve resource type semantics.
@@ -39,6 +41,7 @@ Most important outcomes from the remediation pass:
 
 - Project CRUD, publish, archive, list, and detail flows are implemented.
 - Component add/get/list/update/remove flows are implemented.
+- Component add/remove aborts if the matching component-instance ACL resource cannot be synchronized, with compensation to avoid silent drift.
 - Member add/get/list/update/remove plus permission grant/revoke flows are implemented.
 - Project creation bootstraps owner membership and owner permissions immediately.
 - Member removal uses the configured grace period instead of hard delete.
@@ -76,9 +79,10 @@ Focused coverage now exists for:
 - signed-token acceptance plus tampered-token rejection
 - anonymous public-read versus denied private-read permission behavior
 - forwarding of project-list visibility/search filters through service wiring
+- fail-hard component-instance ACL synchronization on add/remove flows
 - fail-closed component-service HTTP behavior
-- apparatus consumer bootstrap in disabled/enabled queue modes
-- apparatus component-status processor idempotency and state updates
+- apparatus consumer bootstrap in disabled mode plus safe no-op fallback for enabled queue config without a broker
+- apparatus component-status processor duplicate-delivery no-op behavior, stale-event handling, and state updates
 
 ---
 
@@ -104,9 +108,11 @@ Runtime composition:
 Security and permission flow:
 
 - `http/src/lib.rs`
+- `http/src/handlers/projects.rs`
 - `http/src/error.rs`
 - `domain/src/service/permission_fetcher_service.rs`
 - `application/src/error.rs`
+- `../rustycog/rustycog-http/src/jwt_handler.rs`
 
 Runtime integrations:
 
@@ -124,6 +130,7 @@ Configuration:
 Focused tests:
 
 - `tests/public_acl_api_tests.rs`
+- `tests/component_acl_consistency_tests.rs`
 - `tests/component_service_client_tests.rs`
 - `tests/event_runtime_tests.rs`
 - `../rustycog/rustycog-http/tests/permission_middleware_tests.rs`

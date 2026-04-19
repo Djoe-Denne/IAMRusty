@@ -6,9 +6,7 @@ use apparatus_events::ComponentStatusChangedEvent;
 use async_trait::async_trait;
 use chrono::{Duration, Utc};
 use manifesto_domain::{
-    entity::ProjectComponent,
-    service::ComponentService,
-    value_objects::ComponentStatus,
+    entity::ProjectComponent, service::ComponentService, value_objects::ComponentStatus,
 };
 use manifesto_infra::{ApparatusEventConsumer, ComponentStatusProcessor};
 use rustycog_config::{KafkaConfig, QueueConfig};
@@ -90,10 +88,15 @@ impl ComponentService for InMemoryComponentService {
     }
 
     async fn remove_component(&self, _id: &Uuid) -> Result<(), DomainError> {
-        Err(DomainError::internal_error("remove_component not used in this test"))
+        Err(DomainError::internal_error(
+            "remove_component not used in this test",
+        ))
     }
 
-    async fn list_components(&self, project_id: &Uuid) -> Result<Vec<ProjectComponent>, DomainError> {
+    async fn list_components(
+        &self,
+        project_id: &Uuid,
+    ) -> Result<Vec<ProjectComponent>, DomainError> {
         let component = self.snapshot();
         if &component.project_id == project_id {
             Ok(vec![component])
@@ -182,6 +185,44 @@ async fn test_component_status_processor_applies_incoming_status_changes() {
     let updated_component = component_service.snapshot();
     assert_eq!(updated_component.status, ComponentStatus::Configured);
     assert_eq!(updated_component.configured_at, Some(changed_at));
+}
+
+#[tokio::test]
+async fn test_component_status_processor_treats_duplicate_delivery_as_noop() {
+    let project_id = Uuid::new_v4();
+    let component_service = Arc::new(InMemoryComponentService::new(build_pending_component(
+        project_id,
+        "taskboard",
+    )));
+    let processor = ComponentStatusProcessor::new(component_service.clone());
+    let first_changed_at = Utc::now() - Duration::minutes(10);
+    let duplicate_changed_at = Utc::now();
+
+    processor
+        .process(ComponentStatusChangedEvent::new(
+            project_id,
+            "taskboard".to_string(),
+            "pending".to_string(),
+            "configured".to_string(),
+            first_changed_at,
+        ))
+        .await
+        .expect("First delivery should apply the transition");
+
+    processor
+        .process(ComponentStatusChangedEvent::new(
+            project_id,
+            "taskboard".to_string(),
+            "pending".to_string(),
+            "configured".to_string(),
+            duplicate_changed_at,
+        ))
+        .await
+        .expect("Duplicate delivery should be treated as a no-op");
+
+    let updated_component = component_service.snapshot();
+    assert_eq!(updated_component.status, ComponentStatus::Configured);
+    assert_eq!(updated_component.configured_at, Some(first_changed_at));
 }
 
 #[tokio::test]

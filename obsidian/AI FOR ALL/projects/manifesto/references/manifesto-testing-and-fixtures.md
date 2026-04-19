@@ -6,6 +6,7 @@ tags: [reference, testing, fixtures, visibility/internal]
 sources:
   - Manifesto/tests/common.rs
   - Manifesto/tests/public_acl_api_tests.rs
+  - Manifesto/tests/component_acl_consistency_tests.rs
   - Manifesto/tests/component_service_client_tests.rs
   - Manifesto/tests/event_runtime_tests.rs
   - Manifesto/tests/project_api_tests.rs
@@ -16,7 +17,7 @@ sources:
   - rustycog/rustycog-http/tests/permission_middleware_tests.rs
 summary: >-
   Manifesto-specific testing notes on top of RustyCog's shared harness, covering DB-backed API
-  suites plus focused unit tests for auth, fail-closed integrations, and apparatus runtime behavior.
+  suites plus focused tests for auth, ACL consistency, fail-closed integrations, and apparatus runtime behavior.
 provenance:
   extracted: 0.89
   inferred: 0.07
@@ -41,8 +42,9 @@ This page narrows `[[projects/rustycog/references/rustycog-testing]]` to the way
 - `project_api_tests.rs`, `component_api_tests.rs`, and `member_api_tests.rs` still cover the main HTTP CRUD and permission surfaces.
 - `rustycog-http/tests/permission_middleware_tests.rs` now includes signed-token rejection coverage, so the shared auth middleware is tested against tampered bearer tokens instead of only happy paths.
 - `tests/public_acl_api_tests.rs` covers anonymous public-read permission behavior plus project-list filter forwarding at the service boundary.
+- `tests/component_acl_consistency_tests.rs` covers fail-hard component-instance ACL synchronization on add/remove flows.
 - `tests/component_service_client_tests.rs` covers fail-closed component-service behavior and bearer API-key usage.
-- `tests/event_runtime_tests.rs` covers apparatus consumer bootstrap in disabled/enabled queue modes plus `ComponentStatusProcessor` idempotency and state updates.
+- `tests/event_runtime_tests.rs` covers disabled queue bootstrap, enabled-config no-op fallback when no broker fixture exists, and `ComponentStatusProcessor` duplicate-delivery/stale-event idempotency plus state updates.
 - Tests use real signed JWTs from `rustycog_testing::http::jwt::create_jwt_token()`.
 - `DbFixtures` still provides reusable builders for projects, components, and members when DB-backed scenarios are useful.
 

@@ -40,7 +40,7 @@ This page narrows `[[projects/rustycog/references/rustycog-config]]` to the part
 - `src/main.rs` now uses `manifesto_setup::load_config()` and `manifesto_setup::setup_logging()`, so the service follows the same config-backed startup path described in setup.
 - `setup/src/app.rs` creates a multi-queue event publisher from `config.queue` unless tests or alternate boot paths inject a publisher explicitly.
 - The same setup path also creates `ApparatusEventConsumer`; it runs alongside the HTTP server only when queue config resolves to a real consumer instead of a no-op.
-- `auth.jwt.hs256_secret` is used for verified bearer-token authentication.
+- `auth.jwt.hs256_secret` is used by the current shared HS256-only bearer-token verifier.
 - `logging.level` is consumed in live startup.
 - `[command.retry]` is threaded into `ManifestoCommandRegistryFactory`.
 - `service.component_service.base_url`, `api_key`, and `timeout_seconds` are used by `ComponentServiceClient`.
@@ -61,6 +61,7 @@ That is intentional. Local/test boots stay stable unless queue-backed behavior i
 
 - The checked-in TOML files still lean on defaults for some `service.component_service` and `service.business` values, but those defaults are now consumed by runtime rather than ignored.
 - Queue-backed publication and consumption are real features of the live runtime, just not enabled by default in local/test configs.
+- IAM still contains separate RS256-capable issuance code, but that is not part of the shared service-side verifier contract Manifesto currently relies on.
 
 ## Open Questions
 

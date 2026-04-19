@@ -39,7 +39,7 @@ Manifesto uses layered TOML plus `MANIFESTO_` environment overrides:
 
 Key sections:
 
-- `auth.jwt.hs256_secret`: service-side JWT verifier secret
+- `auth.jwt.hs256_secret`: service-side JWT verifier secret for the current HS256-only shared verifier path
 - `database`: primary DB connection and credentials
 - `logging.level`: runtime log level
 - `command.retry`: shared command retry policy
@@ -101,7 +101,8 @@ cargo test -p rustycog-http --test permission_middleware_tests
 
 - Component add/validation flows fail closed if the configured component service is unavailable or returns non-success responses.
 - Apparatus event consumption is wired in `setup/src/app.rs`, but it only runs when queue config resolves to a real consumer.
-- Public reads are optional-auth routes; private reads still require permission even when the caller is anonymous.
+- Project/component resource reads use optional auth plus permission middleware; `GET /api/projects` uses optional auth plus visibility filtering in the application/repository layers.
+- Component add/remove fails if the matching component-instance ACL resource cannot be synchronized.
 - `ComponentResponse.endpoint` and `access_token` are intentionally still unset pending a later provisioning handoff design.
 
 ## Troubleshooting

@@ -56,4 +56,3 @@ pub fn error_mapper(error: CommandError) -> HttpError {
         | CommandError::Timeout { message, .. } => HttpError::Internal { message },
     }
 }
-

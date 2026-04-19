@@ -25,8 +25,8 @@ updated: 2026-04-19T18:00:00Z
 
 ## Key Ideas
 
-- `add_component()` validates the component type and uniqueness, then creates a `ProjectComponent` plus a matching component-instance resource through `create_component_instance_resource(&created.id)`.
-- `remove_component()` deletes the component and then removes the matching component-instance resource, keeping permission state aligned with component lifecycle.
+- `add_component()` validates the component type and uniqueness, creates the matching component-instance resource first, and only persists the `ProjectComponent` once that ACL resource exists.
+- `remove_component()` treats component deletion and component-instance ACL cleanup as one consistency boundary; if ACL cleanup fails after removal, the flow restores the component and returns an error instead of leaving silent drift behind.
 - `ComponentPermissionFetcher` interprets the first resource ID as the project and the second as the optional component instance, then combines generic `component` permissions with instance-specific UUID permissions and returns whichever is stronger.
 - Anonymous callers are represented explicitly through `Option<Uuid>` in the shared permission flow, so public project visibility can grant `Read` on component routes without inventing fake users.
 - Member permission routes support both generic and specific grants through `/permissions/{resource}` and `/permissions/{resource}/{resource_id}`, so the API surface exposes the two-level model directly.

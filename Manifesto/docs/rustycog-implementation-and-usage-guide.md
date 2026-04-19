@@ -179,11 +179,13 @@ Actively consumed in runtime wiring:
 - `service.component_service.api_key` -> sent as a bearer token when present,
 - `service.component_service.timeout_seconds` -> used by the HTTP client timeout,
 - `service.business.*` -> used for pagination defaults, quotas, validation limits, and member-removal grace period,
-- `auth.jwt.hs256_secret` -> used for verified bearer-token authentication.
+- `auth.jwt.hs256_secret` -> used by the current shared HS256-only bearer-token verifier.
 
 Checked-in config note:
 
 - `Manifesto/config/default.toml`, `development.toml`, and `test.toml` explicitly set `[queue] type = "disabled"` so local/test boots do not inherit default-enabled broker behavior accidentally.
+- `GET /api/projects` uses optional auth plus service-layer visibility filtering, while UUID-scoped public reads such as project detail and component reads also run through permission middleware.
+- IAM still has separate RS256-capable issuance code, but that is not part of the current shared service-side verifier contract used here.
 
 ## 6) Current retry/config posture
 

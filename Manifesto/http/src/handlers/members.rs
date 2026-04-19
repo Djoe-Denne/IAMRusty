@@ -6,8 +6,8 @@ use axum::{
 use manifesto_application::{
     AddMemberCommand, AddMemberRequest, GetMemberCommand, GrantPermissionCommand,
     GrantPermissionRequest, ListMembersCommand, MemberListResponse, MemberResponse,
-    PaginationRequest, RemoveMemberCommand, RevokePermissionCommand,
-    UpdateMemberCommand, UpdateMemberPermissionsRequest,
+    PaginationRequest, RemoveMemberCommand, RevokePermissionCommand, UpdateMemberCommand,
+    UpdateMemberPermissionsRequest,
 };
 use rustycog_command::CommandContext;
 use rustycog_http::{AppState, AuthUser, ValidatedJson};
@@ -32,7 +32,11 @@ pub async fn add_member(
     auth_user: AuthUser,
     ValidatedJson(request): ValidatedJson<AddMemberRequest>,
 ) -> Result<(StatusCode, Json<MemberResponse>), HttpError> {
-    tracing::info!("Adding member {} to project {}", request.user_id, project_id);
+    tracing::info!(
+        "Adding member {} to project {}",
+        request.user_id,
+        project_id
+    );
 
     let command = AddMemberCommand::new(project_id.id(), request, auth_user.user_id);
     let context = CommandContext::new().with_user_id(auth_user.user_id);
@@ -103,8 +107,7 @@ pub async fn update_member(
         project_id
     );
 
-    let command =
-        UpdateMemberCommand::new(project_id.id(), user_id, request, auth_user.user_id);
+    let command = UpdateMemberCommand::new(project_id.id(), user_id, request, auth_user.user_id);
     let context = CommandContext::new().with_user_id(auth_user.user_id);
 
     let result = state
@@ -189,7 +192,7 @@ pub async fn grant_permission_specific(
     ValidatedJson(request): ValidatedJson<GrantPermissionPathRequest>,
 ) -> Result<Json<MemberResponse>, HttpError> {
     let specific_resource = specific_resource_name(&resource, resource_id);
-    
+
     tracing::info!(
         "Granting permission {:?} on specific resource {} ({:?}) to member {} in project {}",
         request.permission,
@@ -231,7 +234,8 @@ pub async fn revoke_permission(
         project_id
     );
 
-    let command = RevokePermissionCommand::new(project_id.id(), user_id, resource, auth_user.user_id);
+    let command =
+        RevokePermissionCommand::new(project_id.id(), user_id, resource, auth_user.user_id);
     let context = CommandContext::new().with_user_id(auth_user.user_id);
 
     state
@@ -251,7 +255,7 @@ pub async fn revoke_permission_specific(
     auth_user: AuthUser,
 ) -> Result<(StatusCode, Json<()>), HttpError> {
     let specific_resource = specific_resource_name(&resource, resource_id);
-    
+
     tracing::info!(
         "Revoking permission on specific resource {} ({}) from member {} in project {}",
         resource,
@@ -260,7 +264,12 @@ pub async fn revoke_permission_specific(
         project_id
     );
 
-    let command = RevokePermissionCommand::new(project_id.id(), user_id, specific_resource, auth_user.user_id);
+    let command = RevokePermissionCommand::new(
+        project_id.id(),
+        user_id,
+        specific_resource,
+        auth_user.user_id,
+    );
     let context = CommandContext::new().with_user_id(auth_user.user_id);
 
     state
@@ -271,4 +280,3 @@ pub async fn revoke_permission_specific(
 
     Ok((StatusCode::NO_CONTENT, Json(())))
 }
-

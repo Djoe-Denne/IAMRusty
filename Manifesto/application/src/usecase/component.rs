@@ -88,7 +88,7 @@ impl ComponentUseCaseImpl {
             id: component.id,
             component_type: component.component_type.clone(),
             status: component.status.as_str().to_string(),
-            endpoint: None, // TODO: Get from component service
+            endpoint: None,     // TODO: Get from component service
             access_token: None, // TODO: Generate component-scoped JWT
             added_at: component.added_at,
             configured_at: component.configured_at,
@@ -102,8 +102,7 @@ impl ComponentUseCaseImpl {
         if existing_components.len() >= self.business_config.max_components_per_project as usize {
             return Err(ApplicationError::Validation(format!(
                 "Project {} has reached the maximum number of components ({})",
-                project_id,
-                self.business_config.max_components_per_project
+                project_id, self.business_config.max_components_per_project
             )));
         }
 
@@ -134,26 +133,36 @@ impl ComponentUseCase for ComponentUseCaseImpl {
             .validate_unique_component(&project_id, &request.component_type)
             .await?;
 
-        // Create component
+        // Create component so we have a stable UUID for the matching component-instance ACL
+        // resource before anything is persisted.
         let component = ProjectComponent::new(project_id, request.component_type.clone())?;
+        self.permission_service
+            .create_component_instance_resource(&component.id)
+            .await?;
 
-        // Save through service (which uses repository)
-        let created = self.component_service.add_component(component).await?;
-
-        // Create the specific resource for this component instance (e.g., "component:{uuid}")
-        // This enables fine-grained permission control on this specific component
-        if let Err(e) = self
-            .permission_service
-            .create_component_instance_resource(&created.id)
+        // Save through service (which uses repository). If persistence fails after the ACL
+        // resource was created, try to clean it back up before returning the original error.
+        let created = match self
+            .component_service
+            .add_component(component.clone())
             .await
         {
-            tracing::warn!(
-                "Failed to create resource for component {}: {:?}",
-                created.id,
-                e
-            );
-            // Don't fail the whole operation - the component was created successfully
-        }
+            Ok(created) => created,
+            Err(error) => {
+                if let Err(cleanup_error) = self
+                    .permission_service
+                    .delete_component_instance_resource(&component.id)
+                    .await
+                {
+                    tracing::error!(
+                        "Failed to clean up component ACL resource {} after add failure: {:?}",
+                        component.id,
+                        cleanup_error
+                    );
+                }
+                return Err(error.into());
+            }
+        };
 
         // Publish ComponentAdded event
         let event = ManifestoDomainEvent::ComponentAdded(ComponentAddedEvent::new(
@@ -176,13 +185,13 @@ impl ComponentUseCase for ComponentUseCaseImpl {
         component_id: Uuid,
         _user_id: Option<Uuid>,
     ) -> Result<ComponentResponse, ApplicationError> {
-        let component = self
-            .component_service
-            .get_component(&component_id)
-            .await?;
+        let component = self.component_service.get_component(&component_id).await?;
 
         if component.project_id != project_id {
-            return Err(ApplicationError::NotFound(format!("ProjectComponent not found for project {}", project_id)));
+            return Err(ApplicationError::NotFound(format!(
+                "ProjectComponent not found for project {}",
+                project_id
+            )));
         }
 
         Ok(self.component_to_response(&component))
@@ -193,10 +202,7 @@ impl ComponentUseCase for ComponentUseCaseImpl {
         project_id: Uuid,
         _user_id: Option<Uuid>,
     ) -> Result<ComponentListResponse, ApplicationError> {
-        let components = self
-            .component_service
-            .list_components(&project_id)
-            .await?;
+        let components = self.component_service.list_components(&project_id).await?;
 
         let data: Vec<ComponentResponse> = components
             .iter()
@@ -213,22 +219,23 @@ impl ComponentUseCase for ComponentUseCaseImpl {
         request: &UpdateComponentRequest,
         user_id: Uuid,
     ) -> Result<ComponentResponse, ApplicationError> {
-        let mut component = self
-            .component_service
-            .get_component(&component_id)
-            .await?;
+        let mut component = self.component_service.get_component(&component_id).await?;
 
         if component.project_id != project_id {
-            return Err(ApplicationError::NotFound(format!("ProjectComponent not found for project {}", project_id)));
+            return Err(ApplicationError::NotFound(format!(
+                "ProjectComponent not found for project {}",
+                project_id
+            )));
         }
 
-        let new_status = ComponentStatus::from_str(&request.status)
-            .map_err(ApplicationError::from)?;
+        let new_status =
+            ComponentStatus::from_str(&request.status).map_err(ApplicationError::from)?;
 
         let old_status = component.status;
 
         // Transition status (validates transition)
-        component.transition_status(new_status)
+        component
+            .transition_status(new_status)
             .map_err(ApplicationError::from)?;
 
         // Update through service
@@ -257,31 +264,44 @@ impl ComponentUseCase for ComponentUseCaseImpl {
         component_id: Uuid,
         user_id: Uuid,
     ) -> Result<(), ApplicationError> {
-        let component = self
-            .component_service
-            .get_component(&component_id)
-            .await?;
+        let component = self.component_service.get_component(&component_id).await?;
 
         if component.project_id != project_id {
-            return Err(ApplicationError::NotFound(format!("ProjectComponent not found for project {}", project_id)));
+            return Err(ApplicationError::NotFound(format!(
+                "ProjectComponent not found for project {}",
+                project_id
+            )));
         }
 
         let component_type_str = component.component_type.clone();
 
-        self.component_service.remove_component(&component.id).await?;
+        self.component_service
+            .remove_component(&component.id)
+            .await?;
 
-        // Delete the specific resource for this component instance
-        if let Err(e) = self
+        // Delete the matching component-instance ACL resource. If this fails after the component
+        // has been removed, try to restore the component so the system does not silently drift.
+        if let Err(error) = self
             .permission_service
             .delete_component_instance_resource(&component_id)
             .await
         {
-            tracing::warn!(
-                "Failed to delete resource for component {}: {:?}",
-                component_id,
-                e
-            );
-            // Don't fail - the component was already removed
+            if let Err(restore_error) = self
+                .component_service
+                .add_component(component.clone())
+                .await
+            {
+                tracing::error!(
+                    "Failed to restore component {} after ACL cleanup failure: {:?}",
+                    component_id,
+                    restore_error
+                );
+                return Err(ApplicationError::Internal(format!(
+                    "Removed component {component_id} but failed to delete its ACL resource ({error}); restoring the component also failed ({restore_error})"
+                )));
+            }
+
+            return Err(error.into());
         }
 
         // Publish ComponentRemoved event
@@ -299,4 +319,3 @@ impl ComponentUseCase for ComponentUseCaseImpl {
         Ok(())
     }
 }
-

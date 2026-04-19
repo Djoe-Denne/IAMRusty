@@ -1,4 +1,4 @@
-# Manifesto Service - Test Configuration
+# Manifesto Service - Development Configuration
 
 [server]
 host = "127.0.0.1"

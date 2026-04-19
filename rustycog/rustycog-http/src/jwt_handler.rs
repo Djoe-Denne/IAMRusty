@@ -3,10 +3,13 @@ use jsonwebtoken::{decode, errors::ErrorKind, Algorithm, DecodingKey, Validation
 use rustycog_command::{Command, CommandError, CommandHandler, ValidateTokenCommand};
 use rustycog_config::AuthConfig;
 use std::{collections::HashSet, sync::Arc};
-use tracing::{debug, error};
+use tracing::debug;
 use uuid::Uuid;
 
-/// User ID extractor backed by verified HS256 bearer tokens
+/// User ID extractor backed by the current shared HS256 bearer-token verifier.
+///
+/// This path intentionally verifies only HS256 tokens via `auth.jwt.hs256_secret`.
+/// It is not a generic JWKS / RS256 verifier.
 #[derive(Clone)]
 pub struct UserIdExtractor {
     hs256_secret: Arc<String>,
@@ -93,21 +96,21 @@ impl UserIdExtractor {
 
         let claims = token_data.claims;
 
-        let sub = claims["sub"]
-            .as_str()
-            .ok_or_else(|| CommandError::authentication("invalid_token", "Missing user ID in token"))?;
+        let sub = claims["sub"].as_str().ok_or_else(|| {
+            CommandError::authentication("invalid_token", "Missing user ID in token")
+        })?;
 
-        let exp = claims["exp"]
-            .as_i64()
-            .ok_or_else(|| CommandError::authentication("invalid_token", "Missing expiration in token"))?;
+        let exp = claims["exp"].as_i64().ok_or_else(|| {
+            CommandError::authentication("invalid_token", "Missing expiration in token")
+        })?;
 
         let _iat = claims["iat"].as_i64().ok_or_else(|| {
             CommandError::authentication("invalid_token", "Missing issued at time in token")
         })?;
 
-        let jti = claims["jti"]
-            .as_str()
-            .ok_or_else(|| CommandError::authentication("invalid_token", "Missing JWT ID in token"))?;
+        let jti = claims["jti"].as_str().ok_or_else(|| {
+            CommandError::authentication("invalid_token", "Missing JWT ID in token")
+        })?;
 
         if jti.trim().is_empty() {
             return Err(CommandError::authentication(
@@ -125,9 +128,8 @@ impl UserIdExtractor {
             ));
         }
 
-        Uuid::parse_str(sub).map_err(|_| {
-            CommandError::authentication("invalid_token", "Invalid user ID format")
-        })
+        Uuid::parse_str(sub)
+            .map_err(|_| CommandError::authentication("invalid_token", "Invalid user ID format"))
     }
 }
 

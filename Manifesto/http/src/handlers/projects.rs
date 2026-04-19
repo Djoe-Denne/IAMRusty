@@ -223,4 +223,3 @@ pub async fn archive_project(
 
     Ok(Json(result))
 }
-

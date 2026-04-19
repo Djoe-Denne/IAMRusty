@@ -33,11 +33,11 @@ This page assumes the shared `[[projects/rustycog/references/rustycog-http]]` an
 ## Service-Specific Differences
 
 - `http/src/lib.rs` splits the HTTP surface into three Manifesto-owned resource scopes in `RouteBuilder`: `project`, `component`, and `member`, each with its own `PermissionsFetcher`.
-- Project list/get/detail routes are optionally authenticated reads. They still run through permission evaluation; anonymous callers are represented explicitly instead of being rejected before ACL checks.
+- Project get/detail routes are optionally authenticated reads that still run through permission evaluation; anonymous callers are represented explicitly instead of being rejected before ACL checks.
 - Public projects grant anonymous `Read` through `ProjectPermissionFetcher`. Non-public project reads require an active member with matching permissions.
 - Component reads follow the same pattern through `ComponentPermissionFetcher`: anonymous callers can read public-project components, but private component reads require access.
-- `GET /api/projects` threads optional caller identity through command, use-case, service, and repository layers so anonymous callers see only public projects and authenticated callers see public projects plus projects they can actually access.
-- `ComponentUseCaseImpl` keeps permissions and component lifecycle synchronized by creating or deleting instance resources alongside add/remove operations.
+- `GET /api/projects` is also optionally authenticated, but its visibility enforcement happens through command, use-case, service, and repository filtering rather than the UUID-scoped permission middleware used by get/detail routes.
+- `ComponentUseCaseImpl` keeps permissions and component lifecycle synchronized by failing the add/remove flow if the matching component-instance resource cannot be created or deleted cleanly, using compensation to avoid silent drift when a later step fails.
 - `MemberUseCaseImpl` enforces a strong grant rule: a requester cannot grant a permission they do not already hold, and component-instance UUID resources can be granted through either exact or generic component authority.
 - Specific permission endpoints preserve the path resource type instead of collapsing UUID-shaped resources into an implicit component-only case.
 - `ProjectDetailResponse` and `ComponentResponse` still leave `endpoint` and `access_token` as `None`, so the API currently exposes component attachment metadata rather than a provisioning handoff.
