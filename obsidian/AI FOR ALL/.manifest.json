@@ -2708,6 +2708,84 @@
                                                                                                  "references/rustycog-service-construction.md",
                                                                                                  "log.md"
                                                                                              ]
-                                                                       }
+                                                                       },
+                    "__manual__/manifesto-rustycog-delta-docs-2026-04-19":  {
+                                                                                  "ingested_at":  "2026-04-19T12:08:26.9393504Z",
+                                                                                  "size_bytes":  0,
+                                                                                  "modified_at":  "2026-04-19T12:08:26.9393504Z",
+                                                                                  "content_hash":  "manual:manifesto-rustycog-delta-docs-2026-04-19",
+                                                                                  "source_type":  "manual",
+                                                                                  "project":  "manifesto",
+                                                                                  "pages_created":  [
+
+                                                                                                    ],
+                                                                                  "pages_updated":  [
+                                                                                                        "projects/manifesto/manifesto.md",
+                                                                                                        "projects/manifesto/references/index.md",
+                                                                                                        "projects/manifesto/references/manifesto-service.md",
+                                                                                                        "projects/manifesto/references/manifesto-runtime-and-configuration.md",
+                                                                                                        "projects/manifesto/references/manifesto-api-and-permission-flows.md",
+                                                                                                        "projects/manifesto/references/manifesto-testing-and-fixtures.md",
+                                                                                                        "log.md"
+                                                                                                    ]
+                                                                              },
+                    "__manual__/telegraph-rustycog-delta-docs-2026-04-19":  {
+                                                                                  "ingested_at":  "2026-04-19T12:08:26.9393504Z",
+                                                                                  "size_bytes":  0,
+                                                                                  "modified_at":  "2026-04-19T12:08:26.9393504Z",
+                                                                                  "content_hash":  "manual:telegraph-rustycog-delta-docs-2026-04-19",
+                                                                                  "source_type":  "manual",
+                                                                                  "project":  "telegraph",
+                                                                                  "pages_created":  [
+
+                                                                                                    ],
+                                                                                  "pages_updated":  [
+                                                                                                        "projects/telegraph/telegraph.md",
+                                                                                                        "projects/telegraph/references/index.md",
+                                                                                                        "projects/telegraph/references/telegraph-service.md",
+                                                                                                        "projects/telegraph/references/telegraph-runtime-and-configuration.md",
+                                                                                                        "projects/telegraph/references/telegraph-event-processing.md",
+                                                                                                        "projects/telegraph/references/telegraph-http-and-notification-api.md",
+                                                                                                        "projects/telegraph/references/telegraph-testing-and-smtp-fixtures.md",
+                                                                                                        "log.md"
+                                                                                                    ]
+                                                                              },
+                    "__manual__/iamrusty-rustycog-delta-docs-2026-04-19":  {
+                                                                                 "ingested_at":  "2026-04-19T12:08:26.9393504Z",
+                                                                                 "size_bytes":  0,
+                                                                                 "modified_at":  "2026-04-19T12:08:26.9393504Z",
+                                                                                 "content_hash":  "manual:iamrusty-rustycog-delta-docs-2026-04-19",
+                                                                                 "source_type":  "manual",
+                                                                                 "project":  "iamrusty",
+                                                                                 "pages_created":  [
+
+                                                                                                   ],
+                                                                                 "pages_updated":  [
+                                                                                                       "projects/iamrusty/iamrusty.md",
+                                                                                                       "projects/iamrusty/concepts/hexagonal-architecture.md",
+                                                                                                       "projects/iamrusty/references/index.md",
+                                                                                                       "projects/iamrusty/references/iamrusty-service.md",
+                                                                                                       "projects/iamrusty/references/iamrusty-command-execution.md",
+                                                                                                       "projects/iamrusty/references/iamrusty-runtime-and-security.md",
+                                                                                                       "projects/iamrusty/references/iamrusty-testing-and-fixtures.md",
+                                                                                                       "log.md"
+                                                                                                   ]
+                                                                             },
+                    "__manual__/aiforall-navigation-rustycog-delta-docs-2026-04-19":  {
+                                                                                           "ingested_at":  "2026-04-19T12:08:26.9393504Z",
+                                                                                           "size_bytes":  0,
+                                                                                           "modified_at":  "2026-04-19T12:08:26.9393504Z",
+                                                                                           "content_hash":  "manual:aiforall-navigation-rustycog-delta-docs-2026-04-19",
+                                                                                           "source_type":  "manual",
+                                                                                           "project":  "aiforall",
+                                                                                           "pages_created":  [
+
+                                                                                                             ],
+                                                                                           "pages_updated":  [
+                                                                                                                 "index.md",
+                                                                                                                 "projects/index.md",
+                                                                                                                 "log.md"
+                                                                                                             ]
+                                                                                       }
                 }
 }

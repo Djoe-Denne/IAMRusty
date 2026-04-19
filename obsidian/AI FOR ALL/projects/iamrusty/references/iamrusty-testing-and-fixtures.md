@@ -8,20 +8,25 @@ sources:
   - IAMRusty/docs/KAFKA_EVENT_TESTING_GUIDE.md
   - IAMRusty/tests/fixtures/db/mod.rs
   - IAMRusty/tests/signup_kafka.rs
-summary: Source-backed summary of IAMRusty's test server, DB fixtures, provider mocks, and optional Kafka-backed integration checks.
+summary: IAMRusty-specific testing notes layered on top of RustyCog's shared harness, focusing on auth fixtures, provider mocks, and optional queue or Kafka-backed validation.
 provenance:
   extracted: 0.84
   inferred: 0.1
   ambiguous: 0.06
 created: 2026-04-14T17:46:37.6929647Z
-updated: 2026-04-19T11:13:11Z
+updated: 2026-04-19T12:08:26.9393504Z
 ---
 
 # IAMRusty Testing and Fixtures
 
-These sources document the way `[[projects/iamrusty/iamrusty]]` validates auth behavior with real infrastructure, reusable fixtures, and a small amount of queue-specific optional coverage.
+This page narrows `[[projects/rustycog/references/rustycog-testing]]` to the way `[[projects/iamrusty/iamrusty]]` actually validates auth behavior, provider flows, and optional event publication.
 
-## Key Ideas
+## RustyCog Baseline
+
+- `[[projects/rustycog/references/rustycog-testing]]` explains the shared test server, migration hooks, JWT helpers, and base fixture model that IAMRusty reuses.
+- `[[concepts/integration-testing-with-real-infrastructure]]` captures the broader real-infrastructure testing pattern that IAMRusty applies to auth flows.
+
+## Service-Specific Differences
 
 - Integration tests are built around a shared server/database fixture plus `#[serial]` execution so cleanup, state, and runtime setup stay deterministic.
 - `DbFixtures` exposes fluent builders for users, emails, provider tokens, refresh tokens, verification records, and password-reset tokens, along with higher-level helpers for common auth scenarios.

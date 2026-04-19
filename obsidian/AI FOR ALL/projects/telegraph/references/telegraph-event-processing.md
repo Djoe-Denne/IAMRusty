@@ -13,20 +13,26 @@ sources:
   - Telegraph/domain/src/service/communication_factory.rs
   - Telegraph/tests/user_signup_event_test.rs
   - Telegraph/tests/user_email_verified_event_test.rs
-summary: Telegraph consumes IAM events from SQS, filters them by queue config, then routes them through command, descriptor, template, email, and notification processors.
+summary: Telegraph-specific event processing on top of RustyCog's shared queue and command layers, including config-gated routing, descriptor use, and email versus notification delivery.
 provenance:
   extracted: 0.78
   inferred: 0.13
   ambiguous: 0.09
 created: 2026-04-14T18:18:24.0602572Z
-updated: 2026-04-19T11:38:52.5746779Z
+updated: 2026-04-19T12:08:26.9393504Z
 ---
 
 # Telegraph Event Processing
 
-These sources show the async half of `[[projects/telegraph/telegraph]]`: how the service consumes IAM domain events, decides which ones it supports, and turns supported events into rendered emails or persisted in-app notifications.
+This page assumes the shared queue and command runtime from `[[projects/rustycog/references/rustycog-events]]` and `[[projects/rustycog/references/rustycog-command]]`. It focuses on how `[[projects/telegraph/telegraph]]` turns those primitives into Telegraph-specific event handling.
 
-## Key Ideas
+## RustyCog Baseline
+
+- `[[projects/rustycog/references/rustycog-events]]` explains the event envelope, queue consumer, and publisher abstractions that Telegraph consumes.
+- `[[projects/rustycog/references/rustycog-command]]` explains the shared `GenericCommandService` runtime that the queue handler delegates into.
+- `[[projects/telegraph/concepts/queue-driven-command-processing]]` and `[[projects/telegraph/concepts/descriptor-driven-communications]]` capture the two Telegraph-specific concepts layered on top of those shared crates.
+
+## Service-Specific Differences
 
 - `EventConsumer::new()` creates a `rustycog_events` consumer from `config.queue`, then wraps it in a Telegraph-specific handler that delegates every accepted message into `GenericCommandService`.
 - `supports_event_type()` consults the configured `queues.*.events` lists before accepting a message type, which means runtime config decides whether an event is processed or discarded.
@@ -34,7 +40,7 @@ These sources show the async half of `[[projects/telegraph/telegraph]]`: how the
 - `CompositeEventProcessor` uses an `event_mapping` derived from queue config to choose which processor names to run per event type, then executes each applicable handler and logs partial failures before returning the first error.
 - The email path builds `EmailCommunication` from descriptors and templates, while the notification path builds `NotificationCommunication`, persists it, and creates a delivery record with `delivery_method = "notification"`.
 - Development config maps `user_signed_up` and `password_reset_requested` to `email`, while `user_email_verified` is mapped to `notification`, and the integration tests confirm those two behaviors end to end.
-- Conflict to resolve: the wider Telegraph model advertises SMS and broader direct-send shapes, but the live event processor composite currently wires only `email` and `notification`. ^[ambiguous]
+- The wider Telegraph model advertises SMS and broader direct-send shapes, but the live event processor composite currently wires only `email` and `notification`. ^[ambiguous]
 
 ## Adding a New Event Path
 

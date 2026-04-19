@@ -11,22 +11,27 @@ sources:
   - Manifesto/tests/fixtures/db/mod.rs
   - Manifesto/setup/src/app.rs
 summary: >-
-  Manifesto tests boot a real server with migrations and DB fixtures, covering project, component, and member APIs while keeping SQS disabled in the default harness.
+  Manifesto-specific testing notes on top of RustyCog's shared harness, covering its DB-first fixture model, API suites, and the default no-SQS posture.
 provenance:
   extracted: 0.84
   inferred: 0.09
   ambiguous: 0.07
 created: 2026-04-19T11:49:06.1450368Z
-updated: 2026-04-19T11:49:06.1450368Z
+updated: 2026-04-19T12:08:26.9393504Z
 ---
 
 # Manifesto Testing and Fixtures
 
-These sources show how `[[projects/manifesto/manifesto]]` validates its live API behavior: boot a real server, run migrations, seed DB state through fixtures, and exercise project, component, and member flows over HTTP.
+This page narrows `[[projects/rustycog/references/rustycog-testing]]` to the way `[[projects/manifesto/manifesto]]` actually uses the shared harness, fixtures, and HTTP-level coverage.
 
-## Key Ideas
+## RustyCog Baseline
 
-- `ManifestoTestDescriptor` plugs into `rustycog-testing`, runs migrations up/down, reports `has_db() == true`, and keeps `has_sqs() == false` in the default harness.
+- `[[projects/rustycog/references/rustycog-testing]]` explains the shared test server, migration hooks, JWT helpers, and fixture model that Manifesto builds on.
+- `[[concepts/integration-testing-with-real-infrastructure]]` captures the broader pattern of using a real server plus real backing infrastructure instead of a mocked HTTP shell.
+
+## Service-Specific Differences
+
+- `ManifestoTestDescriptor` plugs into `rustycog-testing`, runs migrations up and down, reports `has_db() == true`, and keeps `has_sqs() == false` in the default harness.
 - `setup_test_server()` boots the service through `build_and_run()`, then returns a real `TestFixture`, base URL, and `reqwest` client for end-to-end API tests.
 - `project_api_tests.rs` covers project creation, read/detail/list, update/delete, lifecycle transitions, and the immediate owner-permission bootstrap that project creation is expected to grant.
 - `component_api_tests.rs` covers add/get/list/update/remove flows plus the distinction between generic component permissions and component-instance UUID permissions.

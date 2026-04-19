@@ -8,20 +8,25 @@ sources:
   - Telegraph/tests/notification_http_endpoints_test.rs
   - Telegraph/tests/user_signup_event_test.rs
   - Telegraph/tests/user_email_verified_event_test.rs
-summary: Telegraph exercises both its read-model API and queue-driven delivery flows with rustycog-testing, real SQS, SMTP containers, and direct DB checks.
+summary: Telegraph-specific testing notes layered on top of RustyCog's shared harness, focusing on its SQS, SMTP, notification, and end-to-end delivery checks.
 provenance:
   extracted: 0.8
   inferred: 0.12
   ambiguous: 0.08
 created: 2026-04-14T18:18:24.0602572Z
-updated: 2026-04-19T11:38:52.5746779Z
+updated: 2026-04-19T12:08:26.9393504Z
 ---
 
 # Telegraph Testing and SMTP Fixtures
 
-These sources show how `[[projects/telegraph/telegraph]]` validates both halves of the service: the authenticated notification API and the queue-driven communication pipeline that sends emails or creates persisted notifications.
+This page narrows `[[projects/rustycog/references/rustycog-testing]]` to the way `[[projects/telegraph/telegraph]]` proves both its notification API and queue-driven delivery paths.
 
-## Key Ideas
+## RustyCog Baseline
+
+- `[[projects/rustycog/references/rustycog-testing]]` explains the shared test fixture model, migration hooks, JWT helpers, and boot path that Telegraph extends.
+- `[[concepts/integration-testing-with-real-infrastructure]]` captures the broader real-infrastructure testing pattern that this service applies to queues and SMTP as well as HTTP.
+
+## Service-Specific Differences
 
 - `TelegraphTestDescriptor` extends the shared `rustycog_testing` model with real database and SQS support, while Telegraph-specific setup adds a dedicated SMTP container for email assertions.
 - `setup_test_server()` creates a `TelegraphTestFixture`, clears prior SMTP state, then boots the app through the shared RustyCog test-server path so the service is exercised with real infrastructure rather than a mocked shell.
@@ -29,7 +34,7 @@ These sources show how `[[projects/telegraph/telegraph]]` validates both halves 
 - Queue-driven tests publish `iam_events` payloads through the SQS fixture and then poll either the SMTP container or the database until the expected email or notification record appears.
 - When adding a new event type or delivery mode, the most reliable test shape is still end to end: publish the real queue payload, then assert the channel-specific side effect (SMTP state, persisted notification rows, or both) instead of unit-testing the processor in isolation.
 - `config/test.toml` keeps the environment dynamic but realistic: DB and SQS use `port = 0`, SMTP runs locally on `1025`, and event routing stays enabled.
-- Compared with the current IAMRusty pages, Telegraph's test suite leans more heavily on SQS plus SMTP verification than on provider-mock plus Kafka-style flows. Conflict to resolve only if the repo wants one unified event-testing story. ^[ambiguous]
+- Compared with the current IAMRusty pages, Telegraph's test suite leans more heavily on SQS plus SMTP verification than on provider-mock plus Kafka-style flows. ^[ambiguous]
 
 ## Open Questions
 

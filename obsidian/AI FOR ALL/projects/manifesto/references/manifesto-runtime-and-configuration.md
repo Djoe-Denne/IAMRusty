@@ -14,28 +14,34 @@ sources:
   - Manifesto/application/src/command/factory.rs
   - Manifesto/docs/rustycog-implementation-and-usage-guide.md
 summary: >-
-  Code-backed map of Manifesto's MANIFESTO-prefixed config loading, queue publisher setup, and the runtime drift between configured knobs and live startup behavior.
+  Manifesto-specific configuration notes layered on top of RustyCog's shared config model, especially around MANIFESTO-prefixed settings and the knobs that still drift from runtime behavior.
 provenance:
   extracted: 0.82
   inferred: 0.08
   ambiguous: 0.10
 created: 2026-04-19T11:49:06.1450368Z
-updated: 2026-04-19T11:49:06.1450368Z
+updated: 2026-04-19T12:08:26.9393504Z
 ---
 
 # Manifesto Runtime and Configuration
 
-These sources describe how `[[projects/manifesto/manifesto]]` loads configuration, starts its HTTP runtime, and wires optional event publishing and component-service integration.
+This page narrows the shared configuration story from `[[projects/rustycog/references/rustycog-config]]` to the places where `[[projects/manifesto/manifesto]]` adds service-specific settings or drifts from the generic RustyCog expectations.
 
-## Key Ideas
+## RustyCog Baseline
 
-- `ManifestoConfig` uses the `MANIFESTO` prefix and composes `server`, `logging`, `queue`, `database`, `scaleway`, and `service` sections in one typed config model.
-- The checked-in TOML files currently focus on `server`, `database`, `command.retry`, and `logging`, while `service.component_service` and `service.business` mostly rely on code defaults unless env or local overrides provide them.
-- `src/main.rs` calls `load_config()`, clones `config.server`, builds `Application`, and starts the `RouteBuilder`-backed HTTP server.
-- `setup/src/app.rs` creates a multi-queue event publisher from `config.queue` unless a custom publisher is injected, which is how tests or alternate bootstraps can override publication behavior.
-- `ComponentServiceClient` reads `base_url` from `config.service.component_service.base_url`, but setup currently constructs the client with a hardcoded `30` second timeout instead of using `timeout_seconds` from config. Conflict to resolve. ^[ambiguous]
-- `setup/src/config.rs` exposes `setup_logging()` that respects `config.logging.level`, but the live `main.rs` path initializes tracing directly and falls back to `manifesto=info,rustycog=info` when env is absent. Conflict to resolve. ^[ambiguous]
-- The checked-in TOML files define `[command.retry]`, but `ManifestoConfig` has no `command` field and `ManifestoCommandRegistryFactory` still builds its registry with plain `CommandRegistryBuilder::new()`, so retry settings are not wired into the live registry path. Conflict to resolve. ^[ambiguous]
+- `[[projects/rustycog/references/rustycog-config]]` explains the shared typed-config and env-prefix model that Manifesto reuses.
+- `[[concepts/structured-service-configuration]]` captures the cross-service pattern: config files define runtime policy and the service composition root consumes those typed sections.
+- `[[references/rustycog-service-construction]]` describes the generic startup sequence that this page specializes.
+
+## Service-Specific Differences
+
+- `ManifestoConfig` uses the `MANIFESTO` prefix and composes `server`, `logging`, `queue`, `database`, `scaleway`, and `service` sections in one typed service-local model.
+- The checked-in TOML files emphasize `server`, `database`, `command.retry`, and `logging`, while `service.component_service` and `service.business` still depend more heavily on defaults or local overrides than the guides imply.
+- `src/main.rs` follows the standard RustyCog startup flow, but the runtime it launches is specifically the Manifesto HTTP surface plus optional event publication and component-service integration.
+- `setup/src/app.rs` creates a multi-queue event publisher from `config.queue` unless a custom publisher is injected, which makes publication behavior overrideable in tests or alternate boot paths.
+- `ComponentServiceClient` reads `base_url` from `config.service.component_service.base_url`, but setup still hardcodes a `30` second timeout instead of using `timeout_seconds` from config. ^[ambiguous]
+- `setup/src/config.rs` exposes `setup_logging()` that respects `config.logging.level`, but the live `main.rs` path still initializes tracing directly and falls back to `manifesto=info,rustycog=info` when env is absent. ^[ambiguous]
+- The TOML files define `[command.retry]`, but `ManifestoConfig` has no `command` field and `ManifestoCommandRegistryFactory` still builds its registry with plain `CommandRegistryBuilder::new()`, so retry policy is not wired into the live registry path. ^[ambiguous]
 
 ## Open Questions
 

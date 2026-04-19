@@ -10,27 +10,33 @@ sources:
   - Telegraph/configuration/src/lib.rs
   - Telegraph/setup/src/app.rs
   - Telegraph/docker-compose.yml
-summary: Telegraph uses TELEGRAPH-prefixed typed config plus queue-routing and communication sections to shape its SQS consumer, SMTP delivery, templates, and local runtime.
+summary: Telegraph-specific configuration notes layered on top of RustyCog's shared config model, especially its queue-routing, communication, and local delivery settings.
 provenance:
   extracted: 0.75
   inferred: 0.13
   ambiguous: 0.12
 created: 2026-04-14T18:18:24.0602572Z
-updated: 2026-04-19T11:38:52.5746779Z
+updated: 2026-04-19T12:08:26.9393504Z
 ---
 
 # Telegraph Runtime and Configuration
 
-These sources describe how `[[projects/telegraph/telegraph]]` is configured and started: service ports, queue transport, per-event routing, SMTP and template settings, and the local Docker shape that wraps the service in development.
+This page narrows `[[projects/rustycog/references/rustycog-config]]` to the settings and drifts that are specific to `[[projects/telegraph/telegraph]]`.
 
-## Key Ideas
+## RustyCog Baseline
+
+- `[[projects/rustycog/references/rustycog-config]]` explains the shared typed loader, env-prefix behavior, and queue-config primitives this service reuses.
+- `[[concepts/structured-service-configuration]]` captures the cross-service config pattern that Telegraph specializes.
+- `[[projects/rustycog/references/rustycog-events]]` provides the transport-level queue model that the local `queue` section builds on.
+
+## Service-Specific Differences
 
 - `TelegraphConfig` implements the shared `rustycog_config::ConfigLoader` traits with the env prefix `TELEGRAPH`, not the `IAM` prefix used by `IAMRusty`.
 - The config model separates transport-level queue access (`queue`) from Telegraph-specific event routing (`queues`), so one block defines how to reach SQS while another block maps concrete event names to `modes` and optional template names.
 - Development config points at `localstack:4566` and real SMTP infrastructure, while test config uses random DB and SQS ports plus local SMTP on port `1025`.
 - `TemplateConfig` is fully configurable and points at `resources/templates` in live TOML files, but `setup/src/app.rs` still hardcodes `resources/communication_descriptor` for descriptor loading instead of treating it as configuration.
-- The default config advertises `[communication.sms]`, but the current `CommunicationConfig` struct only includes `email`, `notification`, and `template`. Conflict to resolve. ^[ambiguous]
-- The root README says Telegraph runs on port `8081` in the shared stack, while `Telegraph/docker-compose.yml` exposes `8080:8080` for the service's local compose workflow. Conflict to resolve. ^[ambiguous]
+- The default config advertises `[communication.sms]`, but the current `CommunicationConfig` struct only includes `email`, `notification`, and `template`. ^[ambiguous]
+- The root README says Telegraph runs on port `8081` in the shared stack, while `Telegraph/docker-compose.yml` exposes `8080:8080` for the service's local compose workflow. ^[ambiguous]
 
 ## Open Questions
 

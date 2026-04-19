@@ -8,22 +8,28 @@ sources:
   - IAMRusty/domain/src/entity/events.rs
   - IAMRusty/setup/src/app.rs
   - IAMRusty/http/src/lib.rs
-summary: Code-backed overview of IAMRusty's crate layout, route surface, runtime composition, and how RustyCog runtime primitives relate to iam-events contracts.
+summary: IAMRusty-specific runtime notes layered on top of the shared RustyCog service shell, emphasizing route inventory, security wiring, and the iam-events versus transport split.
 provenance:
   extracted: 0.81
   inferred: 0.13
   ambiguous: 0.06
 created: 2026-04-14T17:46:37.6929647Z
-updated: 2026-04-19T11:13:11Z
+updated: 2026-04-19T12:08:26.9393504Z
 ---
 
 # IAMRusty Service
 
-These sources define the overall shape of `[[projects/iamrusty/iamrusty]]`: the crate layout, the runtime composition path, and the routes the service exposes once its dependencies are wired.
+This page is the IAMRusty-specific companion to `[[projects/rustycog/references/index]]` and `[[references/rustycog-service-construction]]`. It keeps the parts of `[[projects/iamrusty/iamrusty]]` that differ meaningfully from the generic RustyCog service story.
 
-## Key Ideas
+## RustyCog Baseline
 
-- The service is split across domain, application, infrastructure, HTTP, configuration, setup, and migration crates, with the workspace leaning on the shared `[[projects/rustycog/rustycog]]` runtime for commands, HTTP, config, DB, logging, and queue transport.
+- `[[projects/rustycog/references/index]]` is the shared reference map for the service layout, command runtime, config loading, HTTP shell, queue transport, and testing harness this page assumes.
+- `[[references/rustycog-service-construction]]` and `[[skills/building-rustycog-services]]` cover the generic composition-root story that IAMRusty reuses.
+- `[[projects/rustycog/references/rustycog-command]]`, `[[projects/rustycog/references/rustycog-config]]`, `[[projects/rustycog/references/rustycog-http]]`, and `[[projects/rustycog/references/rustycog-events]]` explain the shared primitives that are not repeated here.
+
+## Service-Specific Differences
+
+- The service is split across domain, application, infrastructure, HTTP, configuration, setup, and migration crates, but its composition root is specialized around auth, token, provider, and queue-backed event services rather than generic CRUD flows.
 - `setup/src/app.rs` is the key runtime assembly point, creating database pools, combined repositories, JWT and registration-token services, password adapters, queue-backed event publishing, use cases, and the final `GenericCommandService`.
 - The HTTP route table includes public signup, login, verification, resend-verification, registration completion, password reset, OAuth login, callback, token refresh, and JWKS endpoints, plus authenticated profile, provider-token, link, relink, and authenticated reset behavior.
 - The runtime builds separate OAuth and token-repository instances for login, provider linking, and internal provider-token operations, which keeps those flows isolated while still sharing domain abstractions.

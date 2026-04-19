@@ -17,13 +17,13 @@ sources:
   - Manifesto/docs/rustycog-hexagonal-web-service-guide.md
   - Manifesto/docs/rustycog-implementation-and-usage-guide.md
 summary: >-
-  Manifesto is AIForAll's project-service MVP and clearest in-repo RustyCog blueprint, with current behavior grounded in live code and older architecture notes treated cautiously.
+  Manifesto is AIForAll's project-service and a practical RustyCog variant, with this page focused on orchestration-specific behavior and the ways the live service diverges from the shared baseline.
 provenance:
   extracted: 0.74
   inferred: 0.11
   ambiguous: 0.15
 created: 2026-04-14T16:54:59.5971424Z
-updated: 2026-04-19T11:49:06.1450368Z
+updated: 2026-04-19T12:08:26.9393504Z
 ---
 
 # Manifesto
@@ -34,19 +34,26 @@ updated: 2026-04-19T11:49:06.1450368Z
 - [[projects/manifesto/skills/index]] — skills
 - [[projects/manifesto/references/index]] — references
 
-Manifesto is the project-management service for AIForAll. It owns project records, component attachments, member access, and the orchestration model described in `[[projects/manifesto/concepts/component-based-project-orchestration]]`. It also doubles as the strongest practical reference for `[[skills/building-rustycog-services]]`, even when its current runtime diverges from some guide-era RustyCog recommendations. ^[ambiguous]
+Manifesto is the project-management service for AIForAll. Use `[[projects/rustycog/references/index]]` for the shared service shell and crate behavior; use this page and the linked Manifesto references for the project-domain rules, service-specific wiring, and guide-versus-runtime drift.
 
-## Key Ideas
+## RustyCog Baseline
 
-- Projects are treated as assemblies of independently implemented components with their own lifecycle and configuration flow.
-- The current runtime path is concrete and code-backed: `src/main.rs` loads `ManifestoConfig`, builds `Application` in `setup/src/app.rs`, wires `ManifestoCommandRegistryFactory`, creates `AppState`, and starts the HTTP surface through `RouteBuilder`.
-- Manifesto is where `[[concepts/shared-rust-microservice-sdk]]` becomes operational guidance for new services, not just a library catalog.
-- Ownership supports both personal and organization-backed projects, which ties Manifesto into the wider `[[concepts/event-driven-microservice-platform]]` and cross-service permission model.
-- `README.md` and `IMPLEMENTATION_STATUS.md` still point readers at `docs/project/Archi.md`, but that file is not present in the checked-in repo, so the broader registry, impersonation, and cascading story can only be treated as historical architecture intent for now. Conflict to resolve. ^[ambiguous]
-- Manifesto's own RustyCog guide set is intentionally preserved as a two-story record: it recommends explicit logging/config/retry patterns, while the current service still initializes tracing directly, hardcodes the component-service timeout in setup, and leaves `[command.retry]` unwired in `ManifestoConfig`. Conflict to resolve. ^[ambiguous]
+- `[[projects/rustycog/references/index]]` is the canonical map for the shared command, config, HTTP, permissions, DB, event, and testing crates that Manifesto composes.
+- `[[references/rustycog-service-construction]]` and `[[skills/building-rustycog-services]]` describe the default RustyCog service assembly flow that Manifesto largely follows.
+- Read `[[projects/rustycog/references/rustycog-command]]`, `[[projects/rustycog/references/rustycog-config]]`, `[[projects/rustycog/references/rustycog-http]]`, `[[projects/rustycog/references/rustycog-permission]]`, and `[[projects/rustycog/references/rustycog-testing]]` for the baseline behavior that this project specializes.
+
+## Service-Specific Differences
+
+- Manifesto treats projects as assemblies of independently implemented components with their own lifecycle, visibility, and configuration flow.
+- Ownership supports both personal and organization-backed projects, which ties the service into the wider `[[concepts/event-driven-microservice-platform]]` and cross-service permission model.
+- The composition root is still recognizably RustyCog-shaped, but Manifesto adds project-, component-, and member-scoped permission fetchers plus its own `ManifestoCommandRegistryFactory`.
+- Manifesto remains the clearest in-repo example of how RustyCog gets used in practice, but it is no longer a perfect baseline because the live runtime still diverges from some guide-era recommendations around logging, retry wiring, and component-service timeouts. ^[ambiguous]
+- The pages under `[[projects/manifesto/references/index]]` should be read as delta documentation: they describe what Manifesto changes, adds, or leaves unresolved on top of the shared RustyCog shell.
 
 ## Related
 
+- [[projects/rustycog/references/index]] - Canonical shared framework map that the service pages below build on.
+- [[references/rustycog-service-construction]] - Generic RustyCog construction flow that Manifesto specializes.
 - [[projects/manifesto/concepts/project-ownership-and-publication-lifecycle]] - Ownership bootstrap, defaults, and publish/archive transitions.
 - [[projects/manifesto/concepts/component-instance-permissions]] - Generic versus per-instance component permission model.
 - [[projects/manifesto/concepts/component-catalog-and-fallback-adapter]] - External component catalog integration and mock fallback.
@@ -59,12 +66,12 @@ Manifesto is the project-management service for AIForAll. It owns project record
 
 ## Open Questions
 
-- Some ADR elements read like target architecture while the README emphasizes an MVP that is already mostly complete. ^[ambiguous]
-- How much of the missing `docs/project/Archi.md` story is still roadmap material versus live system contract? ^[ambiguous]
-- Should Manifesto align its runtime with the guide-prescribed RustyCog logging and retry patterns, or explicitly document itself as a deliberate variant? ^[ambiguous]
+- Which parts of the older Manifesto-authored RustyCog guides should still be treated as normative for new services when the live runtime now differs in a few important places? ^[ambiguous]
+- Should Manifesto eventually consume the guide-advertised logging, retry, and timeout knobs end to end, or stay documented as a deliberate RustyCog variant? ^[ambiguous]
 
 ## Sources
 
 - [[projects/manifesto/references/manifesto-service]] — Product model, runtime wiring, and project-service ADR summary
+- [[projects/rustycog/references/index]] — Shared crate-level baseline for the runtime this service specializes
 - [[references/rustycog-service-construction]] — Manifesto-authored RustyCog build and wiring guides, including current drift
 - [[skills/building-rustycog-services]] — Practical workflow distilled from those guides
