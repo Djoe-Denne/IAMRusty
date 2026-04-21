@@ -1,0 +1,45 @@
+model
+  schema 1.1
+
+type user
+
+type organization
+  relations
+    define owner: [user]
+    define admin: [user] or owner
+    define member: [user] or admin
+    define viewer: [user] or member
+    define read: viewer
+    define write: member
+    define administer: admin
+    define own: owner
+
+type project
+  relations
+    define organization: [organization]
+    define owner: [user]
+    define admin: [user] or owner or admin from organization
+    define member: [user] or admin
+    define viewer: [user] or member or viewer from organization
+    define read: viewer
+    define write: member
+    define administer: admin
+    define own: owner
+
+type component
+  relations
+    define project: [project]
+    define editor: [user] or admin from project
+    define viewer: [user] or member from project
+    define read: viewer
+    define write: editor
+    define administer: admin from project
+    define own: owner from project
+
+type notification
+  relations
+    define recipient: [user]
+    define read: recipient
+    define write: recipient
+    define administer: recipient
+    define own: recipient

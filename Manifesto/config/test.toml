@@ -32,6 +32,15 @@ type = "disabled"
 [logging]
 level = "debug"
 
+# Centralized authorization (OpenFGA). Tests hit the host-mapped OpenFGA
+# port. Tests that exercise authorization must inject MANIFESTO__OPENFGA__STORE_ID
+# / MANIFESTO__OPENFGA__AUTHORIZATION_MODEL_ID after bootstrapping a store.
+[openfga]
+api_url = "http://localhost:8090"
+store_id = ""
+# authorization_model_id = ""
+# api_token = ""
+
 
 
 

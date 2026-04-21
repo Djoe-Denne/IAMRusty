@@ -316,6 +316,7 @@ pub struct AppConfig {
     /// Logging configuration
     pub logging: LoggingConfig,
     /// Scaleway configuration
+    #[serde(default)]
     pub scaleway: ScalewayConfig,
     /// Command configuration
     pub command: CommandConfig,

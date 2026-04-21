@@ -10,6 +10,7 @@ license.workspace = true
 # Configuration framework
 rustycog-config = { path = "../../rustycog/rustycog-config" }
 rustycog-logger = { path = "../../rustycog/rustycog-logger"}
+rustycog-permission = { path = "../../rustycog/rustycog-permission" }
 
 # Serialization
 serde = { workspace = true }

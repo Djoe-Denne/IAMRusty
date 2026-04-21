@@ -4,6 +4,10 @@ use rustycog_command::GenericCommandService;
 use rustycog_config::ServerConfig;
 use rustycog_db::DbConnectionPool;
 use rustycog_http::{AppState, UserIdExtractor};
+use rustycog_permission::{
+    CachedPermissionChecker, MetricsPermissionChecker, OpenFgaPermissionChecker, PermissionChecker,
+};
+use std::time::Duration;
 use std::collections::HashMap;
 use std::sync::Arc;
 use telegraph_application::{
@@ -12,9 +16,9 @@ use telegraph_application::{
 };
 use telegraph_configuration::TelegraphConfig;
 use telegraph_domain::{
-    service::{NotificationServiceImpl, ResourcePermissionFetcher}, CommunicationFactory, EmailService, EventExtractor, EventProcessor, NotificationService, TemplateService
+    service::NotificationServiceImpl, CommunicationFactory, EmailService, EventExtractor,
+    EventProcessor, TemplateService,
 };
-use rustycog_permission::PermissionsFetcher;
 use telegraph_http_server::create_app_routes;
 use telegraph_infra::{
     communication::EmailAdapter,
@@ -33,7 +37,6 @@ pub struct TelegraphApp {
     config: TelegraphConfig,
     state: AppState,
     event_consumer: Arc<EventConsumer>,
-    notification_permission_fetcher: Arc<dyn PermissionsFetcher>,
 }
 
 impl TelegraphApp {
@@ -67,7 +70,8 @@ impl TelegraphApp {
             .map_err(|e| anyhow::anyhow!("Failed to create email adapter: {}", e))?;
 
         info!("Email adapter created");
-        let email_service: Arc<EmailService> = Arc::new(EmailService::new(Arc::new(email_adapter)));
+        let email_service: Arc<EmailService> =
+            Arc::new(EmailService::new(Arc::new(email_adapter)));
         info!("Email service created");
 
         // Setup database connection pool
@@ -89,10 +93,8 @@ impl TelegraphApp {
             Arc::new(notification_read_repo),
             Arc::new(notification_write_repo),
         );
-        let notification_service=
+        let notification_service =
             Arc::new(NotificationServiceImpl::new(Arc::new(notification_repo)));
-        let notification_permission_fetcher = Arc::new(ResourcePermissionFetcher::new(notification_service.clone(), vec!["notification".to_string()]));
-        
 
         // Create template service
         let template_service: Arc<dyn TemplateService> = Arc::new(
@@ -163,29 +165,38 @@ impl TelegraphApp {
             .await
             .map_err(|e| anyhow::anyhow!("Failed to create event consumer: {}", e))?;
 
-        info!("✅ Telegraph application initialized successfully");
+        info!("Telegraph application initialized successfully");
 
         let user_id_extractor = UserIdExtractor::new(config.auth.clone())
             .map_err(|e| anyhow::anyhow!("Invalid auth configuration: {}", e))?;
 
-        let state = AppState {
-            command_service: command_service.clone(),
-            user_id_extractor: Arc::new(user_id_extractor),
-            running: true,
-        };
+        // Centralized permission checker (OpenFGA) with short-TTL cache and
+        // structured metrics in front.
+        let raw_checker: Arc<dyn PermissionChecker> = Arc::new(
+            OpenFgaPermissionChecker::new(config.openfga.clone())
+                .map_err(|e| anyhow::anyhow!("Invalid OpenFGA configuration: {}", e))?,
+        );
+        let cached: Arc<dyn PermissionChecker> = Arc::new(CachedPermissionChecker::new(
+            raw_checker,
+            Duration::from_secs(15),
+            10_000,
+        ));
+        let permission_checker: Arc<dyn PermissionChecker> =
+            Arc::new(MetricsPermissionChecker::new(cached));
+
+        let state = AppState::new(command_service, user_id_extractor, permission_checker);
 
         Ok(Self {
             config,
             event_consumer: Arc::new(event_consumer),
             state,
-            notification_permission_fetcher,
         })
     }
 
     /// Start the Telegraph service
     pub async fn run(&self, config: ServerConfig) -> Result<(), anyhow::Error> {
         // Start event consumer in a separate task
-        info!("🚀 Starting event consumer in parallel task");
+        info!("Starting event consumer in parallel task");
         let consumer_handle = {
             let event_consumer = self.event_consumer.clone();
             tokio::spawn(async move {
@@ -198,13 +209,12 @@ impl TelegraphApp {
         };
 
         // Start axum server in a separate task
-        info!("🚀 Starting HTTP server in parallel task");
+        info!("Starting HTTP server in parallel task");
         let server_handle = {
             let state = self.state.clone();
             let config = config.clone();
-            let notification_permission_fetcher = self.notification_permission_fetcher.clone();
             tokio::spawn(async move {
-                if let Err(e) = create_app_routes(state, config, notification_permission_fetcher).await {
+                if let Err(e) = create_app_routes(state, config).await {
                     error!("HTTP server failed: {}", e);
                     return Err(e);
                 }
@@ -212,7 +222,9 @@ impl TelegraphApp {
             })
         };
 
-        info!("✅ Telegraph service started successfully - both event consumer and HTTP server are running");
+        info!(
+            "Telegraph service started successfully - both event consumer and HTTP server are running"
+        );
 
         // Wait for shutdown signal or any service to complete/fail
         tokio::select! {
@@ -256,7 +268,7 @@ impl TelegraphApp {
             error!("Failed to stop event consumer: {}", e);
         }
 
-        info!("✅ Telegraph service shut down complete");
+        info!("Telegraph service shut down complete");
         Ok(())
     }
 }

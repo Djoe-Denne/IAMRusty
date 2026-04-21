@@ -1,4 +1,8 @@
-# Telegraph Communication Service Development Configuration
+# Telegraph Communication Service - Development Configuration
+#
+# Mirrors test.toml but targets the docker-compose stack on the shared
+# `aiforall-network`. Hostnames `postgres`, `localstack`, and `openfga`
+# resolve to the matching compose services.
 
 [server]
 host = "0.0.0.0"
@@ -9,29 +13,22 @@ tls_enabled = false
 hs256_secret = "rustycog-dev-hs256-secret"
 
 [logging]
-level = "info"
+level = "debug"
 
 [database]
-# Database connection details for Telegraph notifications (development)
-host = "postgres"  # Use Docker Compose service name
+host = "postgres"
 port = 5432
 db = "telegraph_dev"
-# Database credentials
 [database.creds]
 username = "postgres"
 password = "postgres"
 
-# Specify read replicas if using a read/write split
-read_replicas = []
-
-# Queue configuration for development - using shared SQS with IAMRusty
 [queue]
 type = "sqs"
 enabled = true
 region = "us-east-1"
 account_id = "000000000000"
 default_queue = "user-events"
-# Use localstack service name for Docker Compose
 host = "localstack"
 port = 4566
 access_key_id = "test"
@@ -39,13 +36,10 @@ secret_access_key = "test"
 max_retries = 3
 timeout_seconds = 30
 
-
-# Telegraph-specific queue configurations
-# Example: ma_premiere_queue handles user_signed_up and user_email_verified events
+# Telegraph-specific queue → event routing
 [queues.test-user-events]
 events = ["user_signed_up", "password_reset_requested", "user_email_verified"]
 
-# Event-specific configuration for user_signed_up event
 [queues.test-user-events.user_signed_up]
 modes = ["email"]
 template = "user_signed_up"
@@ -54,15 +48,13 @@ template = "user_signed_up"
 modes = ["email"]
 template = "password_reset_requested"
 
-# Event-specific configuration for user_email_verified event - creates database notification
 [queues.test-user-events.user_email_verified]
 modes = ["notification"]
 template = "user_email_verified"
 
-# Communication service configuration
 [communication.email]
 enabled = true
-provider = "smtp"  # "dummy", "smtp", "ses"
+provider = "smtp"
 from_address = "noreply@oodhive.org"
 from_name = "AI For All"
 
@@ -73,4 +65,13 @@ use_tls = true
 
 [communication.template]
 enabled = true
-template_dir = "resources/templates" 
+template_dir = "resources/templates"
+
+# Centralized authorization (OpenFGA). Override store_id /
+# authorization_model_id via TELEGRAPH__OPENFGA__* env vars after
+# bootstrapping a store with the fga CLI.
+[openfga]
+api_url = "http://openfga:8080"
+store_id = ""
+# authorization_model_id = ""
+# api_token = ""

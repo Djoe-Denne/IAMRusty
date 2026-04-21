@@ -1,0 +1,17 @@
+# sentinel-sync default configuration. Suitable for running against a local
+# OpenFGA on the host (`docker compose up -d openfga`).
+
+[logging]
+level = "info"
+
+[openfga]
+api_url = "http://localhost:8090"
+store_id = ""
+# authorization_model_id = ""
+# api_token = ""
+
+[idempotency]
+backend = "in-memory"
+
+[queue]
+type = "disabled"

@@ -17,7 +17,7 @@ iam-events = { path = "../../iam-events" }
 rustycog-events = { path = "../../rustycog/rustycog-events" }
 rustycog-config = { path = "../../rustycog/rustycog-config" }
 rustycog-core = { path = "../../rustycog/rustycog-core" }
-rustycog-permission = { path = "../../rustycog/rustycog-permission", features = ["casbin-engine"] }
+rustycog-permission = { path = "../../rustycog/rustycog-permission" }
 
 # Async traits
 async-trait = { workspace = true }

@@ -1,0 +1,33 @@
+[package]
+name = "sentinel-sync"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Consumes AIForAll domain events and writes relation tuples into OpenFGA"
+license.workspace = true
+
+[[bin]]
+name = "sentinel-sync"
+path = "src/main.rs"
+
+[dependencies]
+rustycog-core = { path = "../rustycog/rustycog-core" }
+rustycog-config = { path = "../rustycog/rustycog-config" }
+rustycog-events = { path = "../rustycog/rustycog-events" }
+
+# Event contracts from each producer service
+hive-events = { path = "../hive-events" }
+manifesto-events = { path = "../manifesto-events" }
+iam-events = { path = "../iam-events" }
+
+async-trait.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+reqwest = { workspace = true }
+anyhow.workspace = true
+thiserror.workspace = true

@@ -1,0 +1,19 @@
+# sentinel-sync configuration sample.
+#
+# Copy to config/sentinel-sync.toml or override via SENTINEL_SYNC__* env vars
+# (e.g. SENTINEL_SYNC__OPENFGA__API_URL, SENTINEL_SYNC__IDEMPOTENCY__BACKEND).
+
+[logging]
+level = "info"
+
+[openfga]
+api_url = "http://localhost:8080"
+store_id = "REPLACE_WITH_STORE_ID"
+# authorization_model_id = "REPLACE_WITH_MODEL_ID"
+# api_token = "only-if-openfga-is-behind-auth"
+
+[idempotency]
+backend = "in-memory"
+
+[queue]
+kind = "disabled"

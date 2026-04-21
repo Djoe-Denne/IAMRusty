@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Build stage: create an image with compiled artifacts
   build-artifacts:
@@ -35,6 +33,48 @@ services:
     networks:
       - aiforall-network
 
+  # OpenFGA migration — runs once against the shared postgres to create the
+  # OpenFGA schema, then exits. Runs before the openfga service starts.
+  openfga-migrate:
+    image: openfga/openfga:latest
+    environment:
+      OPENFGA_DATASTORE_ENGINE: postgres
+      OPENFGA_DATASTORE_URI: postgres://postgres:postgres@postgres:5432/openfga_dev?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+      create-databases:
+        condition: service_completed_successfully
+    command: migrate
+    networks:
+      - aiforall-network
+
+  # OpenFGA — the centralized authorization engine. Client services call its
+  # HTTP API to perform Check; sentinel-sync calls its Write endpoint.
+  # See openfga/model.fga for the authorization model.
+  openfga:
+    image: openfga/openfga:latest
+    ports:
+      - "8090:8080"   # HTTP API (avoids 8080 used by iam-service)
+      - "8091:8081"   # gRPC API (avoids 8081 used by telegraph-service)
+      - "3000:3000"   # Playground UI
+    environment:
+      OPENFGA_DATASTORE_ENGINE: postgres
+      OPENFGA_DATASTORE_URI: postgres://postgres:postgres@postgres:5432/openfga_dev?sslmode=disable
+      OPENFGA_LOG_FORMAT: json
+      OPENFGA_PLAYGROUND_ENABLED: "true"
+    command: run
+    depends_on:
+      openfga-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/grpc_health_probe", "-addr=:8081"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - aiforall-network
+
   localstack:
     image: localstack/localstack:3.0.2
     ports:
@@ -65,15 +105,17 @@ services:
       dockerfile: IAMRusty/Dockerfile
     ports:
       - "8080:8080"   # HTTP port
-      - "8443:8443"   # HTTPS port
     env_file:
-      - IAMRusty/.env
+      - path: IAMRusty/.env
+        required: false
     environment:
       - RUST_ENVIRONMENT=development
+      # DATABASE_URL is consumed by the sea-orm-migration CLI inside the
+      # docker-entrypoint.sh script. The service binary itself reads its
+      # database settings from config/development.toml.
+      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/iam_dev
     volumes:
-      - ./IAMRusty/config/keys:/app/keys
       - ./IAMRusty/config:/app/config
-      - ./IAMRusty/config/certs:/app/certs
     depends_on:
       postgres:
         condition: service_healthy
@@ -83,6 +125,8 @@ services:
         condition: service_completed_successfully
       create-databases:
         condition: service_completed_successfully
+      openfga:
+        condition: service_healthy
     networks:
       - aiforall-network
 
@@ -94,7 +138,11 @@ services:
     ports:
       - "8081:8080"   # HTTP port (different from IAM to avoid conflicts)
     env_file:
-      - Telegraph/.env
+      - path: Telegraph/.env
+        required: false
+    environment:
+      - RUST_ENVIRONMENT=development
+      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/telegraph_dev
     volumes:
       - ./Telegraph/config:/app/config
     depends_on:
@@ -104,12 +152,71 @@ services:
         condition: service_completed_successfully
       create-databases:
         condition: service_completed_successfully
+      openfga:
+        condition: service_healthy
+    networks:
+      - aiforall-network
+
+  # Hive Organization Management Service
+  hive-service:
+    build:
+      context: .
+      dockerfile: Hive/Dockerfile
+    ports:
+      - "8082:8080"   # HTTP port
+    environment:
+      - RUST_ENVIRONMENT=development
+      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/hive_dev
+    volumes:
+      - ./Hive/config:/app/config
+    depends_on:
+      postgres:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+      build-artifacts:
+        condition: service_completed_successfully
+      create-databases:
+        condition: service_completed_successfully
+      openfga:
+        condition: service_healthy
+    networks:
+      - aiforall-network
+
+  # Manifesto Project Management Service
+  manifesto-service:
+    build:
+      context: .
+      dockerfile: Manifesto/Dockerfile
+    ports:
+      - "8083:8080"   # HTTP port
+    environment:
+      - RUST_ENVIRONMENT=development
+      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/manifesto_dev
+    volumes:
+      - ./Manifesto/config:/app/config
+    depends_on:
+      postgres:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+      build-artifacts:
+        condition: service_completed_successfully
+      create-databases:
+        condition: service_completed_successfully
+      openfga:
+        condition: service_healthy
     networks:
       - aiforall-network
 
   # Database Management Tools
+  # These utility services are only launched when the `tools` profile is
+  # selected, e.g. `docker compose --profile tools run truncate-db`. They are
+  # excluded from the default `docker compose up` stack so a plain
+  # `docker compose up` only boots infra + the four application services.
   truncate-db:
     image: postgres:15-alpine
+    profiles: ["tools"]
     environment:
       PGPASSWORD: postgres
       TARGET_DB: ${TARGET_DB:-iam_dev}  # Allow specifying which database to truncate
@@ -136,6 +243,7 @@ services:
 
   verify-emails:
     image: postgres:15-alpine
+    profiles: ["tools"]
     environment:
       PGPASSWORD: postgres
       TARGET_DB: ${TARGET_DB:-iam_dev}  # Allow specifying which database to verify emails in
@@ -155,6 +263,7 @@ services:
 
   list-databases:
     image: postgres:15-alpine
+    profiles: ["tools"]
     environment:
       PGPASSWORD: postgres
     depends_on:
@@ -182,10 +291,19 @@ services:
         echo 'Creating databases...' &&
         psql -h postgres -U postgres -c 'DROP DATABASE IF EXISTS  iam_dev;' &&
         psql -h postgres -U postgres -c 'DROP DATABASE IF EXISTS telegraph_dev;' &&
+        psql -h postgres -U postgres -c 'DROP DATABASE IF EXISTS hive_dev;' &&
+        psql -h postgres -U postgres -c 'DROP DATABASE IF EXISTS manifesto_dev;' &&
+        psql -h postgres -U postgres -c 'DROP DATABASE IF EXISTS openfga_dev;' &&
         psql -h postgres -U postgres -c 'CREATE DATABASE iam_dev;' &&
         psql -h postgres -U postgres -c 'CREATE DATABASE telegraph_dev;' &&
+        psql -h postgres -U postgres -c 'CREATE DATABASE hive_dev;' &&
+        psql -h postgres -U postgres -c 'CREATE DATABASE manifesto_dev;' &&
+        psql -h postgres -U postgres -c 'CREATE DATABASE openfga_dev;' &&
         psql -h postgres -U postgres -c 'GRANT ALL PRIVILEGES ON DATABASE iam_dev TO postgres;' &&
         psql -h postgres -U postgres -c 'GRANT ALL PRIVILEGES ON DATABASE telegraph_dev TO postgres;' &&
+        psql -h postgres -U postgres -c 'GRANT ALL PRIVILEGES ON DATABASE hive_dev TO postgres;' &&
+        psql -h postgres -U postgres -c 'GRANT ALL PRIVILEGES ON DATABASE manifesto_dev TO postgres;' &&
+        psql -h postgres -U postgres -c 'GRANT ALL PRIVILEGES ON DATABASE openfga_dev TO postgres;' &&
         echo 'Databases created successfully!'
       "
     networks:

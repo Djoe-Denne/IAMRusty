@@ -68,4 +68,13 @@ provider = "dummy"  # "dummy", "fcm", "apns"
 
 [communication.sms]
 enabled = false
-provider = "dummy"  # "dummy", "twilio", "aws_sns" 
+provider = "dummy"  # "dummy", "twilio", "aws_sns"
+
+# Centralized authorization (OpenFGA). Override store_id /
+# authorization_model_id via TELEGRAPH__OPENFGA__STORE_ID /
+# TELEGRAPH__OPENFGA__AUTHORIZATION_MODEL_ID env vars per environment.
+[openfga]
+api_url = "http://localhost:8090"
+store_id = ""
+# authorization_model_id = ""
+# api_token = ""

@@ -10,6 +10,7 @@ use rustycog_config::{
     AuthConfig, CommandConfig, ConfigLoader, HasServerConfig, HasLoggingConfig, HasQueueConfig, HasDbConfig, HasScalewayConfig, DatabaseConfig,
     LoggingConfig, QueueConfig, ConfigError, load_config_fresh, ServerConfig, ScalewayConfig,
 };
+use rustycog_permission::OpenFgaClientConfig;
 
 pub use rustycog_logger::setup_logging;
 
@@ -50,6 +51,10 @@ pub struct ManifestoConfig {
     /// Service-specific configuration
     #[serde(default)]
     pub service: ServiceConfig,
+
+    /// OpenFGA authorization checker configuration.
+    #[serde(default)]
+    pub openfga: OpenFgaClientConfig,
 }
 
 /// Component service configuration
@@ -158,6 +163,7 @@ impl Default for ManifestoConfig {
             database: DatabaseConfig::default(),
             scaleway: ScalewayConfig::default(),
             service: ServiceConfig::default(),
+            openfga: OpenFgaClientConfig::default(),
         }
     }
 }

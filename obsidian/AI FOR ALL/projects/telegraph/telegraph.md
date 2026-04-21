@@ -38,7 +38,7 @@ updated: 2026-04-19T12:08:26.9393504Z
 - Telegraph runs two entry paths in parallel: an SQS-backed consumer that reacts to IAM events and an authenticated HTTP API that serves stored notification state.
 - Event payloads are transformed into user-facing output through `[[projects/telegraph/concepts/descriptor-driven-communications]]`, where per-event TOML descriptors and Tera templates determine whether an event yields email, in-app notification content, or both.
 - Queue events flow through `[[projects/telegraph/concepts/queue-driven-command-processing]]`, so async consumers and HTTP handlers both delegate into the same RustyCog command runtime instead of bypassing it.
-- The notification API follows the shared `[[concepts/resource-scoped-permission-fetchers]]` pattern, but Telegraph keeps the fetcher deliberately narrow by granting write access based on notification ownership.
+- The notification API follows the shared `[[concepts/centralized-authorization-service]]` pattern: the route layer asks the OpenFGA-backed `PermissionChecker` whether the caller is a `notification#recipient`. Tuples are written by [[projects/sentinel-sync/sentinel-sync]] when Telegraph starts publishing `NotificationCreated` events.
 - Runtime behavior depends on `[[concepts/structured-service-configuration]]`, especially the split between transport-level `queue` settings and Telegraph-specific `queues.*` event routing and `communication.*` delivery settings.
 - The root repo overview and some Telegraph config/model surfaces still describe SMS alongside email and notifications, but the currently wired processor composite only registers email and notification handlers. ^[ambiguous]
 

@@ -1,124 +1,142 @@
 use std::sync::Arc;
 
-use axum::{body::Body, extract::State, http::{Request, StatusCode}, middleware::Next, response::Response};
-use rustycog_permission::{Permission, PermissionEngine, PermissionsFetcher, ResourceId};
+use axum::{
+    body::Body,
+    extract::State,
+    http::{Request, StatusCode},
+    middleware::Next,
+    response::Response,
+};
+use rustycog_permission::{Permission, PermissionChecker, ResourceRef, Subject};
+use tracing::{debug, info};
 use uuid::Uuid;
-use tracing::{info, debug};
 
-/// Permission middleware settings for a route
+/// Permission middleware settings for a route.
+///
+/// Constructed by `RouteBuilder::with_permission_on`. The middleware takes the
+/// deepest UUID path segment of the request, builds a `ResourceRef` of
+/// `object_type`, and asks the shared `PermissionChecker` whether the caller
+/// is allowed to perform `required`.
 #[derive(Clone)]
 pub struct PermissionGuard {
     pub required: Permission,
-    pub fetcher: Arc<dyn PermissionsFetcher>,
-    pub model_path: String,
+    pub object_type: &'static str,
+    pub checker: Arc<dyn PermissionChecker>,
 }
 
-/// Extract resource IDs from route path segments.
+/// Pick the deepest UUID-shaped segment from the request path.
 ///
-/// This middleware is service-agnostic: it forwards every URL path segment that can be
-/// parsed as a UUID and preserves the original order. Service-specific interpretation
-/// of those IDs belongs in each `PermissionsFetcher` implementation.
-fn extract_resource_ids(path: &str) -> Vec<ResourceId> {
+/// Routes typically embed resource IDs as path parameters (e.g.
+/// `/orgs/{org_id}/projects/{project_id}`); the permission question we want to
+/// answer is always scoped to the most-specific resource, which is the last
+/// UUID in the path.
+fn extract_deepest_resource_id(path: &str) -> Option<Uuid> {
     path.split('/')
+        .rev()
         .filter(|segment| !segment.is_empty())
-        .filter_map(|s| Uuid::parse_str(s).ok())
-        .map(ResourceId::from)
-        .collect()
+        .find_map(|s| Uuid::parse_str(s).ok())
 }
 
-/// Permission-checking middleware
+/// Permission-checking middleware. Rejects anonymous callers before touching
+/// the checker.
 pub async fn permission_middleware(
     State(guard): State<Arc<PermissionGuard>>,
     req: Request<Body>,
     next: Next,
 ) -> Result<Response, StatusCode> {
     let request_path = req.uri().path().to_owned();
-    debug!("permission_middleware: request_path={}", request_path);
-    
-    // Anonymous users are rejected here; use optional guard for might_be_authenticated
+    debug!(path = %request_path, "permission_middleware: entering");
+
     let user_id = req
         .extensions()
         .get::<Uuid>()
         .copied()
         .ok_or(StatusCode::UNAUTHORIZED)?;
 
-    // Extract ResourceIds from request path by collecting UUID segments.
-    let resource_ids = extract_resource_ids(&request_path);
-    
-    if resource_ids.is_empty() {
-        debug!("permission_middleware: no resource_ids found -> FORBIDDEN");
+    let Some(resource_id) = extract_deepest_resource_id(&request_path) else {
+        debug!(path = %request_path, "permission_middleware: no resource UUID in path -> FORBIDDEN");
         return Err(StatusCode::FORBIDDEN);
-    }
+    };
 
-    debug!("permission_middleware: resource_ids={:?}, building engine with file: {:?}", resource_ids, guard.model_path);
-    // Build engine on-demand per request (enforcer is per-request)
-    let engine = rustycog_permission::casbin::CasbinPermissionEngine::new(
-        guard.model_path.clone(),
-        guard.fetcher.clone(),
-    )
-    .await
-    .map_err(|_| StatusCode::FORBIDDEN)?;
+    let subject = Subject::new(user_id);
+    let resource = ResourceRef::new(guard.object_type, resource_id);
 
-    let allowed = engine
-        .has_permission(Some(user_id), resource_ids, guard.required.clone(), serde_json::json!({}))
+    let allowed = guard
+        .checker
+        .check(subject, guard.required, resource)
         .await
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|e| {
+            tracing::warn!(error = %e, "permission_middleware: checker error");
+            StatusCode::FORBIDDEN
+        })?;
 
     if !allowed {
-        info!("permission_middleware: decision=DENY, for user={} asking for {:?}", user_id, guard.required);
+        info!(
+            user = %user_id,
+            permission = %guard.required,
+            object_type = guard.object_type,
+            object_id = %resource_id,
+            "permission_middleware: DENY"
+        );
         return Err(StatusCode::FORBIDDEN);
     }
 
-    // Continue
-    info!("permission_middleware: decision=ALLOW, for user={} asking for {:?}", user_id, guard.required);
+    info!(
+        user = %user_id,
+        permission = %guard.required,
+        object_type = guard.object_type,
+        object_id = %resource_id,
+        "permission_middleware: ALLOW"
+    );
     Ok(next.run(req).await)
 }
 
-/// A permission-checking middleware that tolerates anonymous users
+/// Permission-checking middleware that tolerates anonymous callers.
+///
+/// If no `Subject` is attached (unauthenticated request), the middleware
+/// passes through only when the path has no resource UUID. A path that does
+/// carry a resource UUID still requires an explicit allow decision, so
+/// anonymous access cannot reach protected resources by accident.
 pub async fn optional_permission_middleware(
     State(guard): State<Arc<PermissionGuard>>,
     req: Request<Body>,
     next: Next,
 ) -> Result<Response, StatusCode> {
     let request_path = req.uri().path().to_owned();
-    debug!("optional_permission_middleware: request_path={}", request_path);
-    
+    debug!(path = %request_path, "optional_permission_middleware: entering");
+
     let user_id = req.extensions().get::<Uuid>().copied();
-    debug!("Optional permission middleware user_id: {:?}", user_id);
-    
-    // Extract ResourceIds from request path by collecting UUID segments.
-    let resource_ids = extract_resource_ids(&request_path);
-    
-    if resource_ids.is_empty() {
+    let Some(resource_id) = extract_deepest_resource_id(&request_path) else {
         return Ok(next.run(req).await);
-    }
+    };
 
-    debug!("optional_permission_middleware: resource_ids={:?}", resource_ids);
+    let Some(user_id) = user_id else {
+        debug!("optional_permission_middleware: no subject, resource present -> FORBIDDEN");
+        return Err(StatusCode::FORBIDDEN);
+    };
 
-    let engine = rustycog_permission::casbin::CasbinPermissionEngine::new(
-        guard.model_path.clone(),
-        guard.fetcher.clone(),
-    )
-    .await
-    .map_err(|_| StatusCode::FORBIDDEN)?;
+    let subject = Subject::new(user_id);
+    let resource = ResourceRef::new(guard.object_type, resource_id);
 
-    let allowed = engine
-        .has_permission(user_id, resource_ids, guard.required.clone(), serde_json::json!({}))
+    let allowed = guard
+        .checker
+        .check(subject, guard.required, resource)
         .await
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+        .map_err(|e| {
+            tracing::warn!(error = %e, "optional_permission_middleware: checker error");
+            StatusCode::FORBIDDEN
+        })?;
 
     if !allowed {
-        let subject = user_id
-            .map(|id| id.to_string())
-            .unwrap_or_else(|| "anonymous".to_string());
-        info!("optional_permission_middleware: decision=DENY, for user={} asking for {:?}", subject, guard.required);
+        info!(
+            user = %user_id,
+            permission = %guard.required,
+            object_type = guard.object_type,
+            object_id = %resource_id,
+            "optional_permission_middleware: DENY"
+        );
         return Err(StatusCode::FORBIDDEN);
     }
 
-    let subject = user_id
-        .map(|id| id.to_string())
-        .unwrap_or_else(|| "anonymous".to_string());
-    info!("optional_permission_middleware: decision=ALLOW, for user={} asking for {:?}", subject, guard.required);
     Ok(next.run(req).await)
 }
-

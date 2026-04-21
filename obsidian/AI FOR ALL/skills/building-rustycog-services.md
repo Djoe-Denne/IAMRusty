@@ -1,4 +1,4 @@
-﻿---
+---
 title: >-
   Building RustyCog Services
 category: skills
@@ -40,8 +40,8 @@ Use this page when starting a new service that should look like `<!-- [[projects
 - Define typed config first using the `<!-- [[concepts/structured-service-configuration]] -->` pattern, then decide explicitly whether your service will use `setup_logging` or a hand-rolled tracing initialization; `<!-- [[projects/manifesto/manifesto]] -->` still uses the latter. Conflict to resolve. ^[ambiguous]
 - Create one `DbConnectionPool`, split read and write repositories correctly, and wire concrete dependencies inside the setup composition root.
 - Register commands through the `<!-- [[concepts/command-registry-and-retry-policies]] -->` approach, then wrap the registry in `GenericCommandService` so handlers stay behind one execution surface.
-- Create `AppState` with the command service and a `UserIdExtractor`, then use `RouteBuilder` so tracing, panic handling, correlation IDs, and the `/health` endpoint stay standardized.
-- For protected routes, set `permissions_dir`, `resource`, and `with_permission_fetcher` before calling `with_permission`, and choose between `authenticated()` and `might_be_authenticated()` intentionally.
+- Build the centralized `Arc<dyn PermissionChecker>` (`OpenFgaPermissionChecker` wrapped in `CachedPermissionChecker` and `MetricsPermissionChecker`) and pass it into `AppState::new(command_service, user_id_extractor, checker)`. Use `RouteBuilder` so tracing, panic handling, correlation IDs, and the `/health` endpoint stay standardized.
+- For protected routes call `.with_permission_on(Permission::X, "<openfga_type>")` immediately after `.authenticated()` or `.might_be_authenticated()`. There is no per-route fetcher and no `permissions_dir` chain — `object_type` must match a type defined in [`openfga/model.fga`](../../openfga/model.fga).
 - If you load one config subsection directly, remember that `load_config_part("server")` reads `SERVER_*`-prefixed overrides rather than your service prefix. Conflict to resolve. ^[ambiguous]
 - Finish the slice with integration tests that exercise auth, permissions, validation, and the happy path, then add Kafka or LocalStack-backed checks only when transport behavior is part of the contract.
 
@@ -52,7 +52,8 @@ Use this page when starting a new service that should look like `<!-- [[projects
 - Assuming `config/default.toml` is always merged automatically.
 - Defining `[command.retry]`, `logging.level`, or service timeout knobs in TOML without verifying the current runtime path actually consumes them.
 - Treating `rustycog-meta` and individual `rustycog-*` crate dependencies as interchangeable without checking the workspace packaging story.
-- Forgetting that the permission middleware only extracts UUID-shaped path segments as resource IDs.
+- Forgetting that the permission middleware only binds the deepest UUID-shaped path segment into `ResourceRef`. Non-UUID segments (`{component_type}`, `{resource}`) are skipped.
+- Emitting a domain event that has no matching translator arm in [[projects/sentinel-sync/sentinel-sync]] — the OpenFGA store falls out of sync with your aggregate state silently.
 - Expecting README-level macros or example projects that are not present in the current tree. ^[ambiguous]
 
 ## Sources

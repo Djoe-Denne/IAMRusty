@@ -55,6 +55,15 @@ secret_access_key = "test"
 max_retries = 3
 timeout_seconds = 30
 
+# Centralized authorization (OpenFGA). store_id and authorization_model_id are
+# environment-specific and must be supplied via env vars (HIVE__OPENFGA__STORE_ID,
+# HIVE__OPENFGA__AUTHORIZATION_MODEL_ID) or a more specific config file.
+[openfga]
+api_url = "http://localhost:8090"
+store_id = ""
+# authorization_model_id = ""
+# api_token = ""
+
 
 
 

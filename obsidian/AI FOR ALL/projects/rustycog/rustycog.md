@@ -1,4 +1,4 @@
-﻿---
+---
 title: >-
   RustyCog
 category: project
@@ -43,7 +43,7 @@ RustyCog currently has 11 documented crate surfaces:
 - [[projects/rustycog/references/rustycog-db]] — DB pool and replica-aware read/write routing
 - [[projects/rustycog/references/rustycog-events]] — event envelope plus Kafka/SQS/no-op adapters
 - [[projects/rustycog/references/rustycog-http]] — Axum shell, route builder, auth/permission middleware
-- [[projects/rustycog/references/rustycog-permission]] — permission primitives and Casbin engine
+- [[projects/rustycog/references/rustycog-permission]] — `PermissionChecker` trait plus the OpenFGA-backed client, in-memory test checker, cache decorator, and metrics decorator
 - [[projects/rustycog/references/rustycog-testing]] — integration-test fixtures and bootstrap helpers
 - [[projects/rustycog/references/rustycog-server]] — health-check abstractions
 - [[projects/rustycog/references/rustycog-logger]] — tracing/logging initialization helpers

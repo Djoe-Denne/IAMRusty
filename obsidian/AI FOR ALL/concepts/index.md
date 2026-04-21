@@ -10,12 +10,15 @@ Top-level concepts are shared across multiple projects. Service-specific concept
 
 ## Common Concepts
 
+- [[concepts/centralized-authorization-service]]
 - [[concepts/command-registry-and-retry-policies]]
 - [[concepts/event-driven-microservice-platform]]
 - [[concepts/integration-testing-with-real-infrastructure]]
-- [[concepts/resource-scoped-permission-fetchers]]
+- [[concepts/openfga-as-authorization-engine]]
 - [[concepts/shared-rust-microservice-sdk]]
 - [[concepts/structured-service-configuration]]
+- [[concepts/zanzibar-relation-tuples]]
+- [[concepts/resource-scoped-permission-fetchers]] (deprecated — kept for historical context)
 - [[projects/rustycog/rustycog]] - Shared SDK anchor for common platform patterns.
 
 ## Project Concepts

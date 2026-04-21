@@ -52,3 +52,14 @@ timeout_seconds = 30
 [logging]
 level = "debug"
 
+# Centralized authorization (OpenFGA). Tests reach the openfga container on
+# the host via the docker-compose-mapped port. store_id / model id stay
+# empty by default; tests that exercise authorization should override via
+# HIVE__OPENFGA__STORE_ID / HIVE__OPENFGA__AUTHORIZATION_MODEL_ID after
+# bootstrapping a store in the test container.
+[openfga]
+api_url = "http://localhost:8090"
+store_id = ""
+# authorization_model_id = ""
+# api_token = ""
+

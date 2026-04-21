@@ -1,0 +1,15 @@
+# This file is intentionally empty.
+#
+# OpenFGA now runs as part of the root docker-compose.yml so it shares the
+# same `postgres` instance and `aiforall-network` as every other service.
+#
+# Start the full stack:
+#   docker compose up -d
+#
+# Start only the dependencies needed for OpenFGA-driven authorization tests:
+#   docker compose up -d postgres create-databases openfga-migrate openfga
+#
+# Endpoints (mapped on the host):
+#   HTTP API:    http://localhost:8090
+#   gRPC API:    localhost:8091
+#   Playground:  http://localhost:3000

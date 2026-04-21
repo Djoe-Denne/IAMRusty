@@ -1,22 +1,24 @@
 # Manifesto Service - Development Configuration
+#
+# Mirrors test.toml but targets the docker-compose stack on the shared
+# `aiforall-network`. Hostnames `postgres`, `localstack`, and `openfga`
+# resolve to the matching compose services.
 
 [server]
-host = "127.0.0.1"
-port = 8082
+host = "0.0.0.0"
+port = 8080
 tls_enabled = false
 
 [auth.jwt]
 hs256_secret = "rustycog-dev-hs256-secret"
 
 [database]
-host = "localhost"
-port = 0
-db = "test-db"
+host = "postgres"
+port = 5432
+db = "manifesto_dev"
 [database.creds]
 username = "postgres"
 password = "postgres"
-read_replicas = []
-
 
 [command]
 [command.retry]
@@ -27,12 +29,26 @@ backoff_multiplier = 2.0
 use_jitter = false
 
 [queue]
-type = "disabled"
+type = "sqs"
+enabled = true
+region = "us-east-1"
+account_id = "000000000000"
+default_queue = "user-events"
+host = "localstack"
+port = 4566
+access_key_id = "test"
+secret_access_key = "test"
+max_retries = 3
+timeout_seconds = 30
 
 [logging]
 level = "debug"
 
-
-
-
-
+# Centralized authorization (OpenFGA). Override store_id /
+# authorization_model_id via MANIFESTO__OPENFGA__* env vars after
+# bootstrapping a store with the fga CLI.
+[openfga]
+api_url = "http://openfga:8080"
+store_id = ""
+# authorization_model_id = ""
+# api_token = ""

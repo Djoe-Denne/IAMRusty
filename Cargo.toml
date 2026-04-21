@@ -24,6 +24,9 @@ members = [
     "Hive",
     # Manifesto service
     "Manifesto",
+
+    # Sentinel authorization sync worker
+    "sentinel-sync",
 ]
 
 [workspace.package]
@@ -74,6 +77,9 @@ hyper = "1.3"
 
 # HTTP client
 reqwest = { version = "0.12.0", features = ["json", "rustls-tls"] }
+
+# In-process cache (used by rustycog-permission's CachedPermissionChecker)
+moka = { version = "0.12", features = ["future"] }
 
 # Database
 sea-orm = { version = "1.1.11", features = ["sqlx-postgres", "runtime-tokio-rustls", "macros"] }

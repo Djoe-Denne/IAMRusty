@@ -1,33 +1,29 @@
 ---
 title: PermissionsFetcher
 category: entities
-tags: [rustycog, permissions, authorization, visibility/internal]
-sources:
-  - rustycog/rustycog-permission/src/lib.rs
-  - rustycog/rustycog-permission/src/casbin.rs
-  - rustycog/rustycog-http/src/middleware_permission.rs
-summary: PermissionsFetcher is the service extension point that resolves effective permissions for a user/resource scope before policy enforcement.
-provenance:
-  extracted: 0.89
-  inferred: 0.05
-  ambiguous: 0.06
-created: 2026-04-15T17:15:56.0808743Z
-updated: 2026-04-15T22:10:00Z
+tags: [rustycog, permissions, authorization, removed, visibility/internal]
+status: removed
+summary: PermissionsFetcher was the service-owned permission resolver under the Casbin-based authorization model. It has been removed in favor of the centralized OpenFGA PermissionChecker.
+updated: 2026-04-20
 ---
 
-# PermissionsFetcher
+# PermissionsFetcher (removed)
 
-`PermissionsFetcher` is the service-owned permission resolver contract used by RustyCog authorization middleware.
+> [!warning] Removed
+> `PermissionsFetcher` no longer exists. It was the service extension point under the Casbin-based authorization model. The replacement is [[entities/permission-checker]] backed by the centralized [[concepts/openfga-as-authorization-engine]].
 
-## Key Ideas
+## Migration
 
-- `PermissionsFetcher` is the service-owned adapter that resolves effective permissions for `(user, resource scope)`.
-- RustyCog middleware extracts `ResourceId` values from routes, then delegates business-specific authorization lookup to this interface.
-- `CasbinPermissionEngine` consumes fetched permissions to enforce final allow/deny decisions.
-- This split keeps RustyCog reusable while each service preserves domain-specific authorization semantics.
+- Delete every `PermissionsFetcher` implementation in your service (`*PermissionFetcher`, `*PermissionService`).
+- Delete the per-service `.conf` files under `resources/permissions/`.
+- Replace the `permissions_dir` / `resource` / `with_permission_fetcher` / `with_permission` chain in route setup with a single `with_permission_on(Permission, object_type)` call.
+- Inject `Arc<dyn PermissionChecker>` into `AppState` (see [[entities/route-builder]]).
+- Translate the domain events your service already emits into OpenFGA tuples via the [[projects/sentinel-sync/sentinel-sync]] worker; the checker then sees the same authorization facts the old fetcher used to compute.
 
-## Sources
+## Rationale
 
-- [[projects/rustycog/references/rustycog-permission]]
-- [[projects/rustycog/references/rustycog-http]]
-- [[concepts/resource-scoped-permission-fetchers]]
+Fetchers forced each service to own the cross-cutting "who can do what" question, which made cross-service decisions (org admins over project components, for example) require synchronous cross-service queries. The centralized model keeps those facts in one Zanzibar graph.
+
+## Historical reference
+
+For context on the previous design see the archived [[concepts/resource-scoped-permission-fetchers]] concept page (also marked deprecated).

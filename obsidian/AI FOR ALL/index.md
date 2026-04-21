@@ -32,3 +32,4 @@ Central entry point for this vault. Use the area indexes for full catalogs; use 
 - [[projects/telegraph/telegraph]] — notifications and communication
 - [[projects/manifesto/manifesto]] — project-service MVP and RustyCog blueprint
 - [[projects/rustycog/rustycog]] — shared Rust SDK (crate map: [[projects/rustycog/references/index]])
+- [[projects/sentinel-sync/sentinel-sync]] — centralized OpenFGA authorization and the sync worker

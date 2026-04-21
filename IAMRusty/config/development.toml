@@ -1,40 +1,28 @@
-# IAM Service Default Configuration
+# IAM Service - Development Configuration
+#
+# This profile mirrors the test configuration but targets the docker-compose
+# stack on the shared `aiforall-network`. Hostnames such as `postgres`,
+# `localstack`, and `openfga` resolve to the matching compose services.
 
 [server]
-host = "0.0.0.0"  # Required for Docker networking
+host = "0.0.0.0"
 port = 8080
-tls_enabled = true
-tls_cert_path = "./config/certs/tls-cert.pem"
-tls_key_path = "./config/certs/tls-key.pem"
-tls_port = 8443
+tls_enabled = false
 
 [auth.jwt]
 hs256_secret = "rustycog-dev-hs256-secret"
 
-[jwt]
-expiration_seconds = 900  # 15 minutes
-refresh_token_expiration_seconds = 2592000  # 30 days
-
-# JWT secret configuration using HS256 shared secret
-[jwt.secret]
-type = "plain"
-value = "rustycog-dev-hs256-secret"
-
 [database]
-# Database connection details
 host = "postgres"
 port = 5432
 db = "iam_dev"
-# Database credentials
 [database.creds]
 username = "postgres"
 password = "postgres"
 
-# Specify read replicas if using a read/write split
-read_replicas = []
-
 [oauth.github]
 client_id = "Iv23liMmfDciF6YoCdIb"
+client_secret = "dev_github_client_secret"
 redirect_uri = "http://localhost:5173/oauth/github/callback"
 auth_url = "https://github.com/login/oauth/authorize"
 token_url = "https://github.com/login/oauth/access_token"
@@ -48,15 +36,30 @@ auth_url = "https://gitlab.com/oauth/authorize"
 token_url = "https://gitlab.com/oauth/token"
 user_url = "https://gitlab.com/api/v4/user"
 
+[jwt]
+expiration_seconds = 900
+refresh_token_expiration_seconds = 2592000
 
-# Queue configuration for development - using SQS with LocalStack
+[jwt.secret]
+type = "plain"
+value = "rustycog-dev-hs256-secret"
+
+[logging]
+level = "debug"
+
+[command.retry]
+max_attempts = 0
+base_delay_ms = 50
+max_delay_ms = 5000
+backoff_multiplier = 2.0
+use_jitter = false
+
 [queue]
 type = "sqs"
-enabled = true  # Enabled for real SQS integration tests
+enabled = true
 region = "us-east-1"
 account_id = "000000000000"
 default_queue = "user-events"
-# Use localstack service name for Docker Compose
 host = "localstack"
 port = 4566
 access_key_id = "test"
@@ -64,19 +67,5 @@ secret_access_key = "test"
 max_retries = 3
 timeout_seconds = 30
 
-# Queue mappings for different event types
 [queue.queues]
 user_signed_up = "user-events"
-
-# Command configuration for development
-[command.retry]
-# Faster retries for development
-max_attempts = 0
-base_delay_ms = 50
-max_delay_ms = 5000
-backoff_multiplier = 2.0
-use_jitter = false
-
-# Enable debug level logging
-[logging]
-level = "debug"

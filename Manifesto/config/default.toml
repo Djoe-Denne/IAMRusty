@@ -32,5 +32,14 @@ type = "disabled"
 [logging]
 level = "debug"
 
+# Centralized authorization (OpenFGA). Override store_id /
+# authorization_model_id via MANIFESTO__OPENFGA__STORE_ID /
+# MANIFESTO__OPENFGA__AUTHORIZATION_MODEL_ID env vars per environment.
+[openfga]
+api_url = "http://localhost:8090"
+store_id = ""
+# authorization_model_id = ""
+# api_token = ""
+
 
 

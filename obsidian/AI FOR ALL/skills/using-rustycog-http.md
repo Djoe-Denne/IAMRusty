@@ -6,35 +6,38 @@ sources:
   - rustycog/rustycog-http/src/builder.rs
   - rustycog/rustycog-http/src/lib.rs
   - rustycog/rustycog-http/src/middleware_permission.rs
-summary: Step-by-step guide for assembling Axum services with RouteBuilder, auth modes, permission guards, and shared middleware.
-provenance:
-  extracted: 0.9
-  inferred: 0.04
-  ambiguous: 0.06
-created: 2026-04-15T17:15:56.0808743Z
-updated: 2026-04-15T17:15:56.0808743Z
+summary: Step-by-step guide for assembling Axum services with RouteBuilder, auth modes, the centralized OpenFGA permission guard, and shared middleware.
+updated: 2026-04-20
 ---
 
 # Using RustyCog HTTP
 
-Use this guide when wiring `<!-- [[projects/rustycog/references/rustycog-http]] -->`.
+Use this guide when wiring [[projects/rustycog/references/rustycog-http]].
 
 ## Workflow
 
-- Build `AppState` with your command service and user-id extractor.
-- Compose routes through `RouteBuilder` and choose auth mode per route chain.
-- Configure permission-protected routes in this order: `permissions_dir` -> `resource` -> `with_permission_fetcher` -> `with_permission`.
-- Keep health endpoint and tracing/correlation middleware in the standard builder path.
-- Call `build(server_config)` once after all routes are registered.
+- Build `AppState::new(command_service, user_id_extractor, permission_checker)`. The checker is the OpenFGA-backed `Arc<dyn PermissionChecker>` from [[skills/using-rustycog-permission]].
+- Compose routes through `RouteBuilder` and pick the auth mode per route chain (`.authenticated()` or `.might_be_authenticated()`).
+- For every protected route call `.with_permission_on(Permission::X, "<openfga_type>")` immediately after the auth-mode call. There is no `permissions_dir`, no `resource(...)`, no `with_permission_fetcher(...)`.
+- Keep `health_check` and the standard tracing/correlation middleware in the builder path.
+- Call `build(server_config)` once after every route is registered.
 
-## Common Pitfalls
+## Common pitfalls
 
-- Applying `with_permission` before setting resource and fetcher context.
-- Using optional-auth mode while expecting fully public behavior from permission middleware.
-- Letting permission model path mistakes panic at startup instead of validating early.
+- Putting `with_permission_on` before the route's auth mode — the optional/required mode must be set first so the middleware knows whether to reject anonymous callers.
+- Using a non-UUID path parameter for the resource id — the middleware only binds the deepest UUID-shaped segment into `ResourceRef`.
+- Naming an `object_type` that is not defined in [openfga/model.fga](../../../openfga/model.fga) — every check returns 403 with an upstream error logged.
+- Trying to wire a per-route checker. The single composition-root checker on `AppState` is shared across every request.
+
+## Source files
+
+- `rustycog/rustycog-http/src/builder.rs`
+- `rustycog/rustycog-http/src/middleware_permission.rs`
+- `rustycog/rustycog-http/src/lib.rs`
 
 ## Sources
 
-- <!-- [[projects/rustycog/references/rustycog-http]] -->
-- <!-- [[entities/route-builder]] -->
-- <!-- [[concepts/resource-scoped-permission-fetchers]] -->
+- [[projects/rustycog/references/rustycog-http]]
+- [[entities/route-builder]]
+- [[entities/permission-checker]]
+- [[concepts/centralized-authorization-service]]

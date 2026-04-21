@@ -1,46 +1,61 @@
 ---
 title: Component-Instance Permissions
 category: concepts
-tags: [permissions, components, projects, visibility/internal]
+tags: [permissions, components, projects, openfga, visibility/internal]
 sources:
+  - Manifesto/http/src/lib.rs
   - Manifesto/application/src/usecase/component.rs
   - Manifesto/application/src/usecase/member.rs
-  - Manifesto/domain/src/service/permission_service.rs
-  - Manifesto/domain/src/service/permission_fetcher_service.rs
-  - Manifesto/http/src/lib.rs
+  - openfga/model.fga
+  - sentinel-sync/src/translator/manifesto.rs
 summary: >-
-  Manifesto grants permissions at both generic component and component-instance levels, creating
-  and removing UUID-scoped resources as components change while still allowing anonymous reads on public projects.
-provenance:
-  extracted: 0.86
-  inferred: 0.10
-  ambiguous: 0.04
-created: 2026-04-14T20:25:00Z
-updated: 2026-04-19T18:00:00Z
+  Manifesto expresses component permissions as relations on the OpenFGA `component` type, which inherits from its parent `project`. Generic grants flow through `project`; per-instance grants attach tuples directly to `component:{id}`.
+updated: 2026-04-20
 ---
 
 # Component-Instance Permissions
 
-`[[projects/manifesto/manifesto]]` does not stop at a generic `component` permission. It also creates per-instance resources so a specific component inside one project can carry tighter access than the category as a whole.
+Manifesto models components as children of projects in the OpenFGA authorization graph. The inheritance is expressed in [openfga/model.fga](../../../../openfga/model.fga):
 
-## Key Ideas
+```
+type component
+  relations
+    define project: [project]
+    define editor: [user] or admin from project
+    define viewer: [user] or member from project
+```
 
-- `add_component()` validates the component type and uniqueness, creates the matching component-instance resource first, and only persists the `ProjectComponent` once that ACL resource exists.
-- `remove_component()` treats component deletion and component-instance ACL cleanup as one consistency boundary; if ACL cleanup fails after removal, the flow restores the component and returns an error instead of leaving silent drift behind.
-- `ComponentPermissionFetcher` interprets the first resource ID as the project and the second as the optional component instance, then combines generic `component` permissions with instance-specific UUID permissions and returns whichever is stronger.
-- Anonymous callers are represented explicitly through `Option<Uuid>` in the shared permission flow, so public project visibility can grant `Read` on component routes without inventing fake users.
-- Member permission routes support both generic and specific grants through `/permissions/{resource}` and `/permissions/{resource}/{resource_id}`, so the API surface exposes the two-level model directly.
-- `grant_permission()` treats UUID resources specially: the requester can grant the permission if they already hold it either on that exact component instance or on the generic `component` resource.
-- `ComponentResponse.endpoint` and `access_token` still remain `None`, so the permission model is ahead of the current provisioning handoff.
+So a project `admin` automatically edits every component under the project, and a project `member` automatically views every component, without needing explicit per-component tuples.
 
-## Open Questions
+## Event -> tuple mapping
 
-- Should component-instance resources stay as bare UUID strings, or eventually move to a more explicit identifier shape?
-- When component-scoped JWTs exist, should their issuance live in Manifesto or in the component-service boundary itself?
+See [[projects/sentinel-sync/references/event-to-tuple-mapping]] for the full table. The component-specific rows:
+
+| Event                    | Tuples                                                        |
+|--------------------------|---------------------------------------------------------------|
+| `ProjectCreated`         | `project:{id}#organization@organization:{owner_id}` (when org-owned), `project:{id}#owner@user:{created_by}` |
+| `ComponentAdded`         | `component:{component_id}#project@project:{project_id}`       |
+| `ComponentRemoved`       | delete `component:{component_id}#project@project:{project_id}` |
+| `PermissionGranted`      | one tuple of the matching relation on the chosen object type (`component:{id}` for `resource == "component"`) |
+| `PermissionRevoked`      | delete every `{owner, admin, member, viewer}` tuple on the object |
+
+## Route layer
+
+Every component route in [Manifesto/http/src/lib.rs](../../../../../Manifesto/http/src/lib.rs) currently uses `with_permission_on(Permission::X, "project")` because the deepest UUID in the route path is always the project id — Manifesto models `component_type` as a string segment rather than a UUID. Per-instance component authorization uses `with_permission_on(_, "component")` whenever routes switch to `{component_id}` UUID params.
+
+## Grant/revoke semantics
+
+`grant_permission_specific` and `grant_permission` both emit `PermissionGrantedEvent` with a `resource` string. The Manifesto translator maps:
+
+- `resource == "component"` -> tuple on `component:{project_id}` (generic)
+- anything else -> tuple on `project:{project_id}`
+
+Revokes emit `PermissionRevokedEvent` and the translator deletes every known relation on the target object for the user so the reverse is idempotent even without remembering the original grant.
 
 ## Sources
 
-- [[projects/manifesto/references/manifesto-api-and-permission-flows]] - Route and use-case paths that apply these permissions.
-- [[concepts/resource-scoped-permission-fetchers]] - Shared authorization pattern that this page specializes.
-- [[projects/manifesto/concepts/component-catalog-and-fallback-adapter]] - Component validation before permissioned component creation.
-- [[projects/manifesto/manifesto]] - Service overview and surrounding project model.
+- [[projects/manifesto/references/manifesto-api-and-permission-flows]]
+- [[projects/sentinel-sync/references/event-to-tuple-mapping]]
+- [[projects/sentinel-sync/references/openfga-model]]
+- [[projects/rustycog/references/rustycog-permission]]
+- [[concepts/openfga-as-authorization-engine]]

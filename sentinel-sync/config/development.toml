@@ -1,0 +1,27 @@
+# sentinel-sync development configuration. Runs inside the docker-compose
+# network and consumes events from localstack SQS.
+
+[logging]
+level = "debug"
+
+[openfga]
+api_url = "http://openfga:8080"
+store_id = ""
+# authorization_model_id = ""
+# api_token = ""
+
+[idempotency]
+backend = "in-memory"
+
+[queue]
+type = "sqs"
+enabled = true
+region = "us-east-1"
+account_id = "000000000000"
+default_queue = "user-events"
+host = "localstack"
+port = 4566
+access_key_id = "test"
+secret_access_key = "test"
+max_retries = 3
+timeout_seconds = 30

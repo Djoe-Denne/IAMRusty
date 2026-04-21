@@ -67,4 +67,13 @@ use_tls = false
 
 [communication.template]
 enabled = true
-template_dir = "resources/templates" 
+template_dir = "resources/templates"
+
+# Centralized authorization (OpenFGA). Tests hit the host-mapped OpenFGA
+# port. Tests that exercise authorization must inject TELEGRAPH__OPENFGA__STORE_ID
+# / TELEGRAPH__OPENFGA__AUTHORIZATION_MODEL_ID after bootstrapping a store.
+[openfga]
+api_url = "http://localhost:8090"
+store_id = ""
+# authorization_model_id = ""
+# api_token = ""

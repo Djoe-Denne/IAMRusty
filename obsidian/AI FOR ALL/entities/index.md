@@ -29,8 +29,12 @@ For crate-by-crate RustyCog behavior, use [[projects/rustycog/references/index]]
 - [[entities/queue-config]]
 - [[entities/db-connection-pool]]
 - [[entities/route-builder]]
-- [[entities/permissions-fetcher]]
+- [[entities/permission-checker]]
+- [[entities/subject]]
+- [[entities/resource-ref]]
+- [[entities/relation-tuple]]
 - [[entities/resource-id]]
+- [[entities/permissions-fetcher]] (removed — kept for migration history)
 - [[entities/health-checker]]
 
 ## Service Entity Models

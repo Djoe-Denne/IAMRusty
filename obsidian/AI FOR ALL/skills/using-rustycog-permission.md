@@ -1,40 +1,58 @@
 ---
 title: Using RustyCog Permission
 category: skills
-tags: [rustycog, permissions, skills, visibility/internal]
+tags: [rustycog, permissions, openfga, skills, visibility/internal]
 sources:
   - rustycog/rustycog-permission/src/lib.rs
-  - rustycog/rustycog-permission/src/casbin.rs
+  - rustycog/rustycog-permission/src/checker.rs
   - rustycog/rustycog-http/src/middleware_permission.rs
-summary: Procedure for implementing PermissionsFetcher and applying RustyCog permission checks in route middleware.
-provenance:
-  extracted: 0.89
-  inferred: 0.05
-  ambiguous: 0.06
-created: 2026-04-15T17:15:56.0808743Z
-updated: 2026-04-15T17:15:56.0808743Z
+  - openfga/model.fga
+summary: Procedure for wiring an OpenFGA-backed PermissionChecker into a service and adding centralized authorization checks to routes.
+updated: 2026-04-20
 ---
 
 # Using RustyCog Permission
 
-Use this guide when integrating `<!-- [[projects/rustycog/references/rustycog-permission]] -->`.
+Use this guide when integrating [[projects/rustycog/references/rustycog-permission]] into a service.
 
 ## Workflow
 
-- Implement `PermissionsFetcher` in your domain/service layer so it resolves permissions for `(user_id, resource_ids)`.
-- Model resource IDs in route paths as UUIDs so middleware can extract them into `ResourceId`.
-- Define Casbin model files per protected resource and keep them in a dedicated permissions directory.
-- In route setup, attach permission fetchers and required permissions through `RouteBuilder`.
-- Validate key authorization flows with integration tests that exercise real fetcher logic, not mock booleans.
+- Build an `OpenFgaPermissionChecker` from `OpenFgaClientConfig` in your composition root.
+- Wrap it in `CachedPermissionChecker` (short TTL, e.g. 15s) and then `MetricsPermissionChecker` before storing the result in `AppState`.
+- Pass that single `Arc<dyn PermissionChecker>` into `AppState::new(command_service, user_id_extractor, checker)`.
+- On every guarded route call `.with_permission_on(Permission::X, "<openfga_type>")` — the only authz knob.
+- Make sure each guarded route uses a UUID path parameter; middleware only binds the deepest UUID into `ResourceRef`.
+- Test with `InMemoryPermissionChecker` and explicit `allow(...)` calls — never reach for real OpenFGA in unit tests.
 
-## Common Pitfalls
+## Common pitfalls
 
-- Treating fetchers as global role lookup only and ignoring resource-specific context.
-- Using inconsistent path/resource-ID conventions across routes.
-- Assuming permission inheritance behavior without checking the Casbin policy expansion path.
+- Naming `object_type` for something that does not exist in [openfga/model.fga](../../../openfga/model.fga). The check fails closed with a logged 4xx from OpenFGA.
+- Building a fresh checker per request. The composition root must build it once.
+- Assuming an empty `InMemoryPermissionChecker` allows by default — it denies everything until you call `allow`.
+- Forgetting to publish the matching domain event so [[projects/sentinel-sync/sentinel-sync]] can write the corresponding tuple. Routes will silently 403 until the tuple arrives.
+
+## Source files
+
+- `rustycog/rustycog-permission/src/lib.rs`
+- `rustycog/rustycog-permission/src/checker.rs`
+- `rustycog/rustycog-http/src/builder.rs`
+- `rustycog/rustycog-http/src/middleware_permission.rs`
+- `openfga/model.fga`
+
+## Key types
+
+- `PermissionChecker` — async trait `check(subject, action, resource) -> Result<bool, DomainError>`.
+- `OpenFgaPermissionChecker` — production implementation.
+- `CachedPermissionChecker` — short-TTL LRU decorator (`moka`).
+- `MetricsPermissionChecker` — `tracing`-instrumented decorator emitting per-decision events.
+- `InMemoryPermissionChecker` — test-only checker.
+- `Subject`, `ResourceRef`, `ResourceId` — authorization primitives.
 
 ## Sources
 
-- <!-- [[projects/rustycog/references/rustycog-permission]] -->
-- <!-- [[entities/permissions-fetcher]] -->
-- <!-- [[concepts/resource-scoped-permission-fetchers]] -->
+- [[projects/rustycog/references/rustycog-permission]]
+- [[projects/rustycog/references/rustycog-http]]
+- [[entities/permission-checker]]
+- [[concepts/openfga-as-authorization-engine]]
+- [[concepts/centralized-authorization-service]]
+- [[projects/sentinel-sync/sentinel-sync]]

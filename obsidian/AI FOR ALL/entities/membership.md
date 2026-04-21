@@ -37,4 +37,5 @@ Membership is a recurring platform entity pattern rather than a one-off service 
 - <!-- [[projects/hive/references/hive-entity-model]] --> - Organization-side member and invitation entities.
 - [[projects/manifesto/references/manifesto-entity-model]] - Project-side member and permission entities.
 - [[entities/user]] - Identity entity that memberships refer back to.
-- [[concepts/resource-scoped-permission-fetchers]] - Authorization model that consumes membership state.
+- [[concepts/centralized-authorization-service]] - OpenFGA-backed authorization model that consumes membership state via tuples written by sentinel-sync.
+- [[projects/sentinel-sync/references/event-to-tuple-mapping]] - Membership events translated into OpenFGA tuples.

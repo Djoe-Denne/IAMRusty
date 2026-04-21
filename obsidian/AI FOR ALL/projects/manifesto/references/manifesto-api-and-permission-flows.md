@@ -1,56 +1,54 @@
 ---
 title: Manifesto API and Permission Flows
 category: references
-tags: [reference, api, permissions, visibility/internal]
+tags: [reference, api, permissions, openfga, visibility/internal]
 sources:
   - Manifesto/http/src/lib.rs
+  - Manifesto/setup/src/app.rs
   - Manifesto/application/src/command/factory.rs
   - Manifesto/application/src/usecase/project.rs
   - Manifesto/application/src/usecase/component.rs
   - Manifesto/application/src/usecase/member.rs
-  - Manifesto/domain/src/service/permission_fetcher_service.rs
+  - manifesto-events/src/lib.rs
+  - sentinel-sync/src/translator/manifesto.rs
+  - openfga/model.fga
 summary: >-
-  Manifesto-specific API and authorization behavior on top of RustyCog's shared HTTP and
-  permission layers, including optional-auth public reads and project-list visibility filtering.
-provenance:
-  extracted: 0.89
-  inferred: 0.07
-  ambiguous: 0.04
-created: 2026-04-14T20:25:00Z
-updated: 2026-04-19T18:00:00Z
+  Manifesto-specific API behavior on top of RustyCog's shared HTTP shell, plus the OpenFGA-backed authorization model that replaced the per-resource fetcher pattern.
+updated: 2026-04-20
 ---
 
 # Manifesto API and Permission Flows
 
-This page assumes the shared `[[projects/rustycog/references/rustycog-http]]` and `[[concepts/resource-scoped-permission-fetchers]]` patterns are already familiar. It keeps the route, command, and permission details that are specific to `[[projects/manifesto/manifesto]]`.
+This page assumes the shared [[projects/rustycog/references/rustycog-http]] and [[concepts/centralized-authorization-service]] patterns are already familiar. It keeps the route, command, and authorization details that are specific to [[projects/manifesto/manifesto]].
 
 ## RustyCog Baseline
 
-- `[[projects/rustycog/references/rustycog-http]]` explains `RouteBuilder`, authentication modes, command-context extraction, and permission middleware.
-- `[[concepts/resource-scoped-permission-fetchers]]` explains the shared pattern of pairing route resources with dedicated fetchers.
-- `[[projects/rustycog/references/rustycog-command]]` covers the shared command execution runtime that the handlers delegate into.
+- [[projects/rustycog/references/rustycog-http]] explains `RouteBuilder`, authentication modes, command-context extraction, and the centralized permission middleware.
+- [[concepts/centralized-authorization-service]] explains why every check goes through one shared `Arc<dyn PermissionChecker>` and how tuples reach OpenFGA via [[projects/sentinel-sync/sentinel-sync]].
+- [[projects/rustycog/references/rustycog-command]] covers the shared command execution runtime that the handlers delegate into.
 
 ## Service-Specific Differences
 
-- `http/src/lib.rs` splits the HTTP surface into three Manifesto-owned resource scopes in `RouteBuilder`: `project`, `component`, and `member`, each with its own `PermissionsFetcher`.
-- Project get/detail routes are optionally authenticated reads that still run through permission evaluation; anonymous callers are represented explicitly instead of being rejected before ACL checks.
-- Public projects grant anonymous `Read` through `ProjectPermissionFetcher`. Non-public project reads require an active member with matching permissions.
-- Component reads follow the same pattern through `ComponentPermissionFetcher`: anonymous callers can read public-project components, but private component reads require access.
+- [Manifesto/http/src/lib.rs](../../../../../Manifesto/http/src/lib.rs) registers project, component, and member routes against the same shared `permission_checker` on `AppState`. There is no per-resource fetcher anymore.
+- Project get/detail routes are optionally authenticated reads guarded by `.with_permission_on(Permission::Read, "project")`. Public-project access is granted in OpenFGA by [[projects/sentinel-sync/sentinel-sync]] writing the appropriate viewer tuples on `ProjectCreated` (when visibility is public).
 - `GET /api/projects` is also optionally authenticated, but its visibility enforcement happens through command, use-case, service, and repository filtering rather than the UUID-scoped permission middleware used by get/detail routes.
-- `ComponentUseCaseImpl` keeps permissions and component lifecycle synchronized by failing the add/remove flow if the matching component-instance resource cannot be created or deleted cleanly, using compensation to avoid silent drift when a later step fails.
-- `MemberUseCaseImpl` enforces a strong grant rule: a requester cannot grant a permission they do not already hold, and component-instance UUID resources can be granted through either exact or generic component authority.
-- Specific permission endpoints preserve the path resource type instead of collapsing UUID-shaped resources into an implicit component-only case.
+- Component routes use `"project"` as the OpenFGA object type today because the deepest UUID in component routes is the project id (`{component_type}` is a string segment). When component routes adopt `{component_id}` UUID parameters, switch the relevant routes to `with_permission_on(_, "component")`.
+- Member routes are project-scoped (`with_permission_on(Permission::Admin, "project")`).
+- Permission grant/revoke endpoints emit `PermissionGrantedEvent` / `PermissionRevokedEvent`. The Manifesto translator maps the string `resource` to either `project` or `component` and writes/deletes the matching relation tuple — see [[projects/sentinel-sync/references/event-to-tuple-mapping]].
+- `ComponentUseCaseImpl` keeps domain state and emitted events synchronized so the OpenFGA tuple graph stays consistent.
 - `ProjectDetailResponse` and `ComponentResponse` still leave `endpoint` and `access_token` as `None`, so the API currently exposes component attachment metadata rather than a provisioning handoff.
 
 ## Open Questions
 
 - Should Manifesto eventually surface a richer operator-facing story for component provisioning and component-scoped tokens?
-- If more public-read surfaces are added later, should they continue to use the same optional-auth plus explicit-anonymous pattern used here?
+- Should component routes adopt UUID `{component_id}` parameters so the middleware can guard against `"component"` directly?
 
 ## Sources
 
-- [[projects/manifesto/manifesto]] - Project-service overview.
-- [[projects/manifesto/concepts/project-ownership-and-publication-lifecycle]] - Creation, ownership bootstrap, and publish/archive lifecycle.
-- [[projects/manifesto/concepts/component-instance-permissions]] - Generic versus per-instance component permission behavior.
-- [[concepts/resource-scoped-permission-fetchers]] - Shared RouteBuilder plus PermissionsFetcher pattern used here.
-- [[projects/manifesto/references/manifesto-event-model]] - Events emitted after these flows complete.
+- [[projects/manifesto/manifesto]]
+- [[projects/manifesto/concepts/project-ownership-and-publication-lifecycle]]
+- [[projects/manifesto/concepts/component-instance-permissions]]
+- [[concepts/centralized-authorization-service]]
+- [[concepts/openfga-as-authorization-engine]]
+- [[projects/sentinel-sync/references/event-to-tuple-mapping]]
+- [[projects/manifesto/references/manifesto-event-model]]

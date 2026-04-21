@@ -1,19 +1,22 @@
-//! Unit tests for public-read ACL behavior and project-list filter wiring
+//! Tests for project-list filter wiring.
+//!
+//! The old anonymous/public-visibility permission tests that lived here used
+//! the removed `ProjectPermissionFetcher` / `ComponentPermissionFetcher`.
+//! Public-read semantics are now enforced in the centralized OpenFGA store
+//! (public projects get an explicit `project:{id}#viewer@user:*` tuple from
+//! the sentinel-sync worker — covered by the worker's translator tests),
+//! so this file only keeps the repository-filter-forwarding assertion.
 
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 use manifesto_domain::{
-    entity::{Project, ProjectComponent, ProjectMember},
+    entity::{Project, ProjectComponent},
     port::{ComponentReadRepository, ProjectReadRepository, ProjectWriteRepository},
-    service::{
-        ComponentPermissionFetcher, MemberService, ProjectPermissionFetcher, ProjectService,
-        ProjectServiceImpl,
-    },
-    value_objects::{MemberSource, OwnerType, ProjectStatus, Visibility},
+    service::{ProjectService, ProjectServiceImpl},
+    value_objects::{OwnerType, ProjectStatus, Visibility},
 };
 use rustycog_core::error::DomainError;
-use rustycog_permission::{Permission, PermissionsFetcher, ResourceId};
 use uuid::Uuid;
 
 fn build_project(visibility: Visibility) -> Project {
@@ -26,128 +29,6 @@ fn build_project(visibility: Visibility) -> Project {
         .visibility(visibility)
         .build()
         .expect("test project should be valid")
-}
-
-#[derive(Clone)]
-struct StaticProjectService {
-    project: Project,
-}
-
-impl StaticProjectService {
-    fn new(project: Project) -> Self {
-        Self { project }
-    }
-}
-
-#[async_trait]
-impl ProjectService for StaticProjectService {
-    async fn get_project(&self, id: &Uuid) -> Result<Project, DomainError> {
-        if &self.project.id == id {
-            Ok(self.project.clone())
-        } else {
-            Err(DomainError::entity_not_found("Project", &id.to_string()))
-        }
-    }
-
-    async fn create_project(&self, _project: Project) -> Result<Project, DomainError> {
-        Err(DomainError::internal_error("create_project not used in this test"))
-    }
-
-    async fn update_project(&self, _project: Project) -> Result<Project, DomainError> {
-        Err(DomainError::internal_error("update_project not used in this test"))
-    }
-
-    async fn delete_project(&self, _id: &Uuid) -> Result<(), DomainError> {
-        Err(DomainError::internal_error("delete_project not used in this test"))
-    }
-
-    async fn list_projects(
-        &self,
-        _owner_type: Option<OwnerType>,
-        _owner_id: Option<Uuid>,
-        _status: Option<ProjectStatus>,
-        _search: Option<String>,
-        _viewer_user_id: Option<Uuid>,
-        _page: u32,
-        _page_size: u32,
-    ) -> Result<Vec<Project>, DomainError> {
-        Ok(vec![self.project.clone()])
-    }
-
-    async fn count_projects(
-        &self,
-        _owner_type: Option<OwnerType>,
-        _owner_id: Option<Uuid>,
-        _status: Option<ProjectStatus>,
-        _search: Option<String>,
-        _viewer_user_id: Option<Uuid>,
-    ) -> Result<i64, DomainError> {
-        Ok(1)
-    }
-
-    async fn count_projects_by_owner(
-        &self,
-        _owner_type: OwnerType,
-        _owner_id: Uuid,
-    ) -> Result<i64, DomainError> {
-        Ok(1)
-    }
-
-    async fn validate_publish(&self, _project_id: &Uuid) -> Result<(), DomainError> {
-        Ok(())
-    }
-}
-
-struct DummyMemberService;
-
-#[async_trait]
-impl MemberService for DummyMemberService {
-    async fn get_member(&self, project_id: Uuid, user_id: Uuid) -> Result<ProjectMember, DomainError> {
-        Err(DomainError::entity_not_found(
-            "ProjectMember",
-            &format!("{project_id}/{user_id}"),
-        ))
-    }
-
-    async fn add_member(&self, _member: ProjectMember) -> Result<ProjectMember, DomainError> {
-        Err(DomainError::internal_error("add_member not used in this test"))
-    }
-
-    async fn update_member(&self, _member: ProjectMember) -> Result<ProjectMember, DomainError> {
-        Err(DomainError::internal_error("update_member not used in this test"))
-    }
-
-    async fn remove_member(
-        &self,
-        _project_id: &Uuid,
-        _user_id: &Uuid,
-        _grace_period_days: Option<i64>,
-    ) -> Result<(), DomainError> {
-        Ok(())
-    }
-
-    async fn list_members(
-        &self,
-        _project_id: &Uuid,
-        _source: Option<MemberSource>,
-        _active_only: bool,
-        _page: u32,
-        _page_size: u32,
-    ) -> Result<Vec<ProjectMember>, DomainError> {
-        Ok(vec![])
-    }
-
-    async fn count_active_members(&self, _project_id: &Uuid) -> Result<i64, DomainError> {
-        Ok(0)
-    }
-
-    async fn check_member_exists(
-        &self,
-        _project_id: &Uuid,
-        _user_id: &Uuid,
-    ) -> Result<bool, DomainError> {
-        Ok(false)
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -304,75 +185,11 @@ impl ComponentReadRepository for NoopComponentReadRepository {
 }
 
 #[tokio::test]
-async fn anonymous_users_get_read_permission_for_public_projects() {
-    let project = build_project(Visibility::Public);
-    let fetcher = ProjectPermissionFetcher::new(
-        Arc::new(StaticProjectService::new(project.clone())),
-        Arc::new(DummyMemberService),
-    );
-
-    let permissions = fetcher
-        .fetch_permissions(None, vec![ResourceId::from(project.id)])
-        .await
-        .expect("permission fetch should succeed");
-
-    assert_eq!(permissions, vec![Permission::Read]);
-}
-
-#[tokio::test]
-async fn anonymous_users_get_no_project_permission_for_private_projects() {
-    let project = build_project(Visibility::Private);
-    let fetcher = ProjectPermissionFetcher::new(
-        Arc::new(StaticProjectService::new(project.clone())),
-        Arc::new(DummyMemberService),
-    );
-
-    let permissions = fetcher
-        .fetch_permissions(None, vec![ResourceId::from(project.id)])
-        .await
-        .expect("permission fetch should succeed");
-
-    assert!(permissions.is_empty());
-}
-
-#[tokio::test]
-async fn component_permissions_respect_public_visibility_for_anonymous_users() {
-    let public_project = build_project(Visibility::Public);
-    let private_project = build_project(Visibility::Private);
-
-    let public_fetcher = ComponentPermissionFetcher::new(
-        Arc::new(StaticProjectService::new(public_project.clone())),
-        Arc::new(DummyMemberService),
-    );
-    let private_fetcher = ComponentPermissionFetcher::new(
-        Arc::new(StaticProjectService::new(private_project.clone())),
-        Arc::new(DummyMemberService),
-    );
-
-    let public_permissions = public_fetcher
-        .fetch_permissions(
-            None,
-            vec![ResourceId::from(public_project.id), ResourceId::new_v4()],
-        )
-        .await
-        .expect("public component fetch should succeed");
-    let private_permissions = private_fetcher
-        .fetch_permissions(
-            None,
-            vec![ResourceId::from(private_project.id), ResourceId::new_v4()],
-        )
-        .await
-        .expect("private component fetch should succeed");
-
-    assert_eq!(public_permissions, vec![Permission::Read]);
-    assert!(private_permissions.is_empty());
-}
-
-#[tokio::test]
 async fn project_service_forwards_search_and_viewer_filters_to_the_repository() {
     let project = build_project(Visibility::Public);
     let project_repo = Arc::new(RecordingProjectRepository::new(project));
-    let service = ProjectServiceImpl::new(project_repo.clone(), Arc::new(NoopComponentReadRepository));
+    let service =
+        ProjectServiceImpl::new(project_repo.clone(), Arc::new(NoopComponentReadRepository));
     let viewer_user_id = Uuid::new_v4();
 
     let listed_projects = service

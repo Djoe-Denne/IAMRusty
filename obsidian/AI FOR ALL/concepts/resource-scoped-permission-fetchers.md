@@ -1,7 +1,9 @@
 ---
 title: Resource-Scoped Permission Fetchers
 category: concepts
-tags: [authorization, permissions, rust, visibility/internal]
+tags: [authorization, permissions, rust, deprecated, visibility/internal]
+status: deprecated
+replaced_by: concepts/centralized-authorization-service.md
 sources:
   - Manifesto/domain/src/service/permission_fetcher_service.rs
   - Manifesto/http/src/lib.rs
@@ -21,6 +23,11 @@ updated: 2026-04-19T11:49:06.1450368Z
 ---
 
 # Resource-Scoped Permission Fetchers
+
+> [!warning] Deprecated
+> This pattern has been replaced by [[concepts/centralized-authorization-service]] backed by [[concepts/openfga-as-authorization-engine]]. Every RustyCog service now injects a single `Arc<dyn PermissionChecker>` through `AppState` and calls `with_permission_on(permission, object_type)` on the route builder. The per-service `PermissionsFetcher` trait has been removed from `rustycog-permission`.
+>
+> The content below is kept for historical context.
 
 Across `[[projects/manifesto/manifesto]]`, `<!-- [[projects/hive/hive]] -->`, and `<!-- [[projects/telegraph/telegraph]] -->`, route authorization is not just a static route-level ACL. `rustycog_http::RouteBuilder` provides the shell, but each service supplies domain-backed `PermissionsFetcher` implementations that turn the current route's resource IDs into effective permissions.
 

@@ -1,0 +1,18 @@
+# sentinel-sync test configuration. Tests pin the worker against the
+# host-mapped OpenFGA port so they can stand the worker up alongside an
+# OpenFGA testcontainer when needed.
+
+[logging]
+level = "debug"
+
+[openfga]
+api_url = "http://localhost:8090"
+store_id = ""
+# authorization_model_id = ""
+# api_token = ""
+
+[idempotency]
+backend = "in-memory"
+
+[queue]
+type = "disabled"

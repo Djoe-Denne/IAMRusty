@@ -7,11 +7,15 @@ use tower_http::catch_panic::CatchPanicLayer;
 use tower_http::propagate_header::PropagateHeaderLayer;
 
 use crate::{
-    handle_panic, health_check, jwt_handler::UserIdExtractor, middleware_auth::{auth_middleware, optional_auth_middleware},
+    handle_panic, health_check,
+    jwt_handler::UserIdExtractor,
+    middleware_auth::{auth_middleware, optional_auth_middleware},
     tracing_middleware::{tracing_middleware, X_CORRELATION_ID},
 };
-use rustycog_permission::{Permission, PermissionsFetcher};
-use crate::middleware_permission::{optional_permission_middleware, PermissionGuard, permission_middleware};
+use crate::middleware_permission::{
+    optional_permission_middleware, permission_middleware, PermissionGuard,
+};
+use rustycog_permission::{Permission, PermissionChecker};
 
 /// Application state for HTTP handlers
 #[derive(Clone)]
@@ -21,6 +25,8 @@ pub struct AppState {
     pub command_service: Arc<GenericCommandService>,
     /// User ID extractor for authentication
     pub user_id_extractor: Arc<UserIdExtractor>,
+    /// Centralized permission checker (OpenFGA-backed in production)
+    pub permission_checker: Arc<dyn PermissionChecker>,
 }
 
 impl AppState {
@@ -28,11 +34,13 @@ impl AppState {
     pub fn new(
         command_service: Arc<GenericCommandService>,
         user_id_extractor: UserIdExtractor,
+        permission_checker: Arc<dyn PermissionChecker>,
     ) -> Self {
         Self {
             running: false,
             command_service,
             user_id_extractor: Arc::new(user_id_extractor),
+            permission_checker,
         }
     }
 }
@@ -41,9 +49,6 @@ impl AppState {
 pub struct RouteBuilder {
     router: Router<AppState>,
     state: AppState,
-    permissions_dir: Option<std::path::PathBuf>,
-    current_resource: Option<String>,
-    current_permission_fetcher: Option<Arc<dyn PermissionsFetcher>>,
     current_path: Option<String>,
     current_layer: Option<axum::routing::MethodRouter<AppState>>,
     // None: no auth, Some(true): require auth, Some(false): optional auth
@@ -56,9 +61,6 @@ impl RouteBuilder {
         RouteBuilder {
             router: Router::new(),
             state,
-            permissions_dir: None,
-            current_resource: None,
-            current_permission_fetcher: None,
             current_path: None,
             current_layer: None,
             pending_auth: None,
@@ -212,39 +214,6 @@ impl RouteBuilder {
 }
 
 impl RouteBuilder {
-
-    fn get_model_path(&self) -> String {
-        if self.permissions_dir.is_none() {
-            panic!("Permissions directory not set");
-        }
-        let model_path = self.permissions_dir.clone().unwrap().join(format!("{}.conf", self.current_resource.clone().unwrap()));
-        if !model_path.exists() {
-            panic!("Model file {} does not exist", model_path.to_string_lossy());
-        }
-        model_path.to_string_lossy().to_string()
-    }
-
-    pub fn permissions_dir(mut self, dir: std::path::PathBuf) -> Self {
-        //check if dir exists, throw DomainError if not
-        if !dir.exists() {
-            panic!("Permissions directory does not exist for path: {} from current working directory: {}", dir.to_string_lossy(), std::env::current_dir().unwrap().to_string_lossy());
-        }
-        self.permissions_dir = Some(dir);
-        self
-    }
-
-    pub fn resource(mut self, resource: &str) -> Self {
-        self.current_resource = Some(resource.to_string());
-        self
-    }
-
-    pub fn with_permission_fetcher(mut self, fetcher: Arc<dyn PermissionsFetcher>) -> Self {
-        self.current_permission_fetcher = Some(fetcher);
-        self
-    }
-}
-
-impl RouteBuilder {
     /// Mark the current route as requiring authentication
     pub fn authenticated(mut self) -> Self {
         self.pending_auth = Some(true);
@@ -257,15 +226,22 @@ impl RouteBuilder {
         self
     }
 
-    /// Attach a permission guard to the current route
-    pub fn with_permission(
+    /// Attach a centralized permission guard to the current route.
+    ///
+    /// `object_type` must match an OpenFGA type defined in `openfga/model.fga`
+    /// (e.g. `"organization"`, `"project"`, `"component"`, `"notification"`).
+    /// The middleware extracts the deepest UUID path segment and builds a
+    /// `ResourceRef` of that type, then calls
+    /// `AppState.permission_checker.check(...)`.
+    pub fn with_permission_on(
         mut self,
         required: Permission,
+        object_type: &'static str,
     ) -> Self {
-        let model_path = self.get_model_path();
-        let guard = Arc::new(PermissionGuard { required, 
-            fetcher: self.current_permission_fetcher.clone().unwrap(), 
-            model_path,
+        let guard = Arc::new(PermissionGuard {
+            required,
+            object_type,
+            checker: self.state.permission_checker.clone(),
         });
         if let Some(layer) = self.current_layer.take() {
             self.current_layer = Some(if self.pending_auth == Some(false) {

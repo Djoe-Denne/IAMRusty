@@ -35,6 +35,7 @@ use iam_infra::{
     token::JwtTokenService,
 };
 use rustycog_http::{AppState, UserIdExtractor};
+use rustycog_permission::{InMemoryPermissionChecker, PermissionChecker};
 
 use iam_configuration::AppConfig;
 use iam_domain::error::DomainError;
@@ -387,8 +388,14 @@ where
     let user_id_extractor = UserIdExtractor::new(config.auth.clone())
         .map_err(|e| anyhow::anyhow!("Invalid auth configuration: {}", e))?;
 
+    // IAM routes are never guarded by `with_permission_on` — IAM is the
+    // identity provider, not a resource service — so we plug in an empty
+    // in-memory checker purely to satisfy `AppState::new`.
+    let permission_checker: Arc<dyn PermissionChecker> =
+        Arc::new(InMemoryPermissionChecker::new());
+
     // Create app state
-    let app_state = AppState::new(command_service, user_id_extractor);
+    let app_state = AppState::new(command_service, user_id_extractor, permission_checker);
 
     Ok(IAMRustyApp { app_state })
 }

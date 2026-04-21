@@ -24,6 +24,7 @@ Use this page to navigate service hubs. Each project page links to its local con
 - [[projects/manifesto/manifesto]] - Project orchestration service and RustyCog blueprint docs.
 - [[projects/telegraph/telegraph]] - Event-driven communication and notification service.
 - [[projects/rustycog/rustycog]] - Shared Rust SDK and workspace building blocks.
+- [[projects/sentinel-sync/sentinel-sync]] - Centralized OpenFGA authorization plus the event-to-tuple sync worker.
 
 ## Project Knowledge Areas
 

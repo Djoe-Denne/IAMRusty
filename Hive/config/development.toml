@@ -1,12 +1,13 @@
-# Hive Service Development Configuration (TOML)
+# Hive Service - Development Configuration
+#
+# Mirrors test.toml but targets the docker-compose stack on the shared
+# `aiforall-network`. Hostnames `postgres`, `localstack`, `openfga`, and
+# `iam-service` resolve to the matching compose services.
 
 [server]
 host = "0.0.0.0"
 port = 8080
-tls_enabled = true
-tls_cert_path = "./config/certs/tls-cert.pem"
-tls_key_path = "./config/certs/tls-key.pem"
-tls_port = 8443
+tls_enabled = false
 
 [auth.jwt]
 hs256_secret = "rustycog-dev-hs256-secret"
@@ -18,21 +19,17 @@ db = "hive_dev"
 [database.creds]
 username = "postgres"
 password = "postgres"
-read_replicas = []
 
 [iam_service]
-base_url = "http://iamrusty:8080"
+base_url = "http://iam-service:8080"
 api_key = ""
 timeout_seconds = 10
 
 [external_provider_service]
-base_url = "http://external-provider:8080"
+base_url = "http://iam-service:8080"
 api_key = ""
 timeout_seconds = 10
 max_retries = 3
-
-[logging]
-level = "debug"
 
 [command]
 [command.retry]
@@ -55,6 +52,14 @@ secret_access_key = "test"
 max_retries = 3
 timeout_seconds = 30
 
+[logging]
+level = "debug"
 
-
-
+# Centralized authorization (OpenFGA). Override store_id /
+# authorization_model_id via HIVE__OPENFGA__* env vars after
+# bootstrapping a store with the fga CLI.
+[openfga]
+api_url = "http://openfga:8080"
+store_id = ""
+# authorization_model_id = ""
+# api_token = ""

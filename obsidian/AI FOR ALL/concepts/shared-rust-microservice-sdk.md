@@ -1,4 +1,4 @@
-﻿---
+---
 title: >-
   Shared Rust Microservice SDK
 category: concepts
@@ -36,8 +36,8 @@ updated: 2026-04-15T22:10:00Z
 ## Key Ideas
 
 - The SDK is split by concern (errors, command runtime, config, DB, events, HTTP shell, permissions, logging, tests) so services compose only needed parts without redefining runtime primitives.
-- RustyCog standardizes composition seams, not business logic: services still own domain models, fetchers, handlers, route sets, and policy choices.
-- Shared entities (`ServiceError`, `CommandRegistry`, `QueueConfig`, `RouteBuilder`, `PermissionsFetcher`, `DomainEvent`, and others) are documented in `[[entities/index]]` as a common vocabulary for service docs.
+- RustyCog standardizes composition seams, not business logic: services still own domain models, handlers, route sets, and policy choices. Authorization itself is centralized in OpenFGA via [[concepts/centralized-authorization-service]] — services only call `Check`.
+- Shared entities (`ServiceError`, `CommandRegistry`, `QueueConfig`, `RouteBuilder`, `PermissionChecker`, `DomainEvent`, and others) are documented in `[[entities/index]]` as a common vocabulary for service docs.
 - Cross-service consistency comes from repeating the same integration boundaries (config -> command -> HTTP -> permissions/events/testing), not from one monolithic starter template.
 - `rustycog-meta` and per-crate dependencies are two consumption modes over the same stack; teams trade onboarding speed vs explicit dependency control. ^[inferred]
 

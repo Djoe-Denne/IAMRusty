@@ -7,10 +7,10 @@ sources:
   - Telegraph/http/src/lib.rs
   - Telegraph/http/src/handlers/notification.rs
   - Telegraph/http/src/handlers/communication.rs
-  - Telegraph/resources/permissions/notification.conf
+  - Telegraph/setup/src/app.rs
   - Telegraph/application/src/usecase/notification.rs
   - Telegraph/domain/src/service/notification_service.rs
-  - Telegraph/domain/src/service/permission_service.rs
+  - openfga/model.fga
 summary: Telegraph-specific HTTP behavior layered on top of RustyCog's shared route and permission model, including its notification-only live surface and ownership checks.
 provenance:
   extracted: 0.72
@@ -27,15 +27,16 @@ This page assumes the shared `[[projects/rustycog/references/rustycog-http]]` ro
 ## RustyCog Baseline
 
 - `[[projects/rustycog/references/rustycog-http]]` explains `RouteBuilder`, authenticated routes, command-context propagation, and shared error mapping.
-- `[[concepts/resource-scoped-permission-fetchers]]` explains the fetcher-driven permission pattern that Telegraph reuses.
+- `[[concepts/centralized-authorization-service]]` explains the OpenFGA-backed `PermissionChecker` that Telegraph now delegates to.
 
 ## Service-Specific Differences
 
 - The OpenAPI file documents `GET /api/notifications`, `GET /api/notifications/unread-count`, `PUT /api/notifications/{id}/read`, and `GET /health` as the live Telegraph surface.
-- `http/src/lib.rs` wires those three notification endpoints through `rustycog_http::RouteBuilder`, marks them authenticated, and adds write permission checks to the mark-read route.
+- `http/src/lib.rs` wires those three notification endpoints through `rustycog_http::RouteBuilder`, marks them authenticated, and uses `.with_permission_on(Permission::Write, "notification")` on the mark-read route.
 - Notification handlers build typed commands, attach `CommandContext::with_user_id()`, and map validation, business, not-found, unauthorized, and internal failures into HTTP status codes.
 - `NotificationUseCaseImpl` handles pagination defaults, `per_page <= 100`, unread filtering, and response shaping for the notification read model.
-- Ownership is enforced twice: the `ResourcePermissionFetcher` only grants `Permission::Write` when the user owns the notification ID, and `NotificationServiceImpl::mark_notification_as_read()` returns an unauthorized domain error if the record belongs to someone else.
+- Ownership is enforced twice: the centralized `PermissionChecker` resolves `notification:{id}#recipient@user:{user_id}` against OpenFGA (tuples are written by [[projects/sentinel-sync/sentinel-sync]] when Telegraph starts publishing `NotificationCreated`), and `NotificationServiceImpl::mark_notification_as_read()` still returns an unauthorized domain error if the record belongs to someone else.
+- Until Telegraph wires its notification outbox into the queue, the OpenFGA store has no recipient tuples and the route layer falls back to the in-domain ownership check inside `NotificationServiceImpl`. ^[ambiguous]
 - `http/src/handlers/communication.rs` defines richer direct-send DTOs for email, notification, and SMS payloads, but the live route table does not register those handlers. ^[ambiguous]
 - The unregistered direct-send DTOs are best treated as future product surface, not as the default extension path for new event-driven delivery work; Telegraph's live feature additions belong on the queue path unless the HTTP contract intentionally changes. ^[inferred]
 

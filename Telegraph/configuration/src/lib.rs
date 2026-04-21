@@ -11,6 +11,7 @@ use rustycog_config::{
     load_config_fresh, AuthConfig, ConfigError, ConfigLoader, DatabaseConfig, ScalewayConfig, HasDbConfig, HasLoggingConfig, HasScalewayConfig,
     HasQueueConfig, HasServerConfig, LoggingConfig, QueueConfig,
 };
+use rustycog_permission::OpenFgaClientConfig;
 
 pub use rustycog_config::{ServerConfig};
 
@@ -50,6 +51,10 @@ pub struct TelegraphConfig {
     /// Database configuration
     #[serde(default)]
     pub database: DatabaseConfig,
+
+    /// OpenFGA authorization checker configuration.
+    #[serde(default)]
+    pub openfga: OpenFgaClientConfig,
 }
 
 /// Configuration for a specific queue and its events
@@ -233,6 +238,7 @@ impl Default for TelegraphConfig {
             queues: IndexMap::new(),
             communication: CommunicationConfig::default(),
             database: DatabaseConfig::default(),
+            openfga: OpenFgaClientConfig::default(),
         }
     }
 }

@@ -6,8 +6,7 @@ use manifesto_application::{
 };
 use manifesto_configuration::AppConfig;
 use manifesto_domain::service::{
-    ComponentPermissionFetcher, ComponentServiceImpl, MemberPermissionFetcher, MemberServiceImpl,
-    ProjectPermissionFetcher, ProjectServiceImpl,
+    ComponentServiceImpl, MemberServiceImpl, ProjectServiceImpl,
 };
 use manifesto_infra::{
     adapters::ComponentServiceClient,
@@ -34,7 +33,10 @@ use rustycog_core::error::DomainError;
 use rustycog_db::DbConnectionPool;
 use rustycog_events::{create_multi_queue_event_publisher, EventPublisher};
 use rustycog_http::{AppState, UserIdExtractor};
-use rustycog_permission::PermissionsFetcher;
+use rustycog_permission::{
+    CachedPermissionChecker, MetricsPermissionChecker, OpenFgaPermissionChecker, PermissionChecker,
+};
+use std::time::Duration;
 
 // External
 use anyhow::Error;
@@ -53,9 +55,6 @@ pub async fn build_and_run(
 pub struct Application {
     pub config: AppConfig,
     pub state: AppState,
-    pub project_permission_fetcher: Arc<dyn PermissionsFetcher>,
-    pub member_permission_fetcher: Arc<dyn PermissionsFetcher>,
-    pub component_permission_fetcher: Arc<dyn PermissionsFetcher>,
     pub apparatus_event_consumer: Option<Arc<ApparatusEventConsumer>>,
 }
 
@@ -75,7 +74,7 @@ impl Application {
         // Setup database connection
         let db = setup_database(&config).await?;
 
-        // Setup event publisher for Telegraph communication
+        // Setup event publisher for Telegraph + sentinel-sync communication
         let event_publisher = if let Some(ep) = maybe_event_publisher {
             ep
         } else {
@@ -88,15 +87,8 @@ impl Application {
         };
 
         // Setup use cases
-        let (
-            project_usecase,
-            component_usecase,
-            member_usecase,
-            project_permission_fetcher,
-            member_permission_fetcher,
-            component_permission_fetcher,
-            apparatus_event_consumer,
-        ) = setup_application(db, &config, event_publisher).await?;
+        let (project_usecase, component_usecase, member_usecase, apparatus_event_consumer) =
+            setup_application(db, &config, event_publisher).await?;
 
         // Setup command registry
         let command_registry = ManifestoCommandRegistryFactory::create_manifesto_registry(
@@ -113,17 +105,28 @@ impl Application {
         let user_id_extractor = UserIdExtractor::new(config.auth.clone())
             .map_err(|e| anyhow::anyhow!("Invalid auth configuration: {}", e))?;
 
+        // Centralized permission checker (OpenFGA) with short-TTL cache and
+        // structured metrics in front.
+        let raw_checker: Arc<dyn PermissionChecker> = Arc::new(
+            OpenFgaPermissionChecker::new(config.openfga.clone())
+                .map_err(|e| anyhow::anyhow!("Invalid OpenFGA configuration: {}", e))?,
+        );
+        let cached: Arc<dyn PermissionChecker> = Arc::new(CachedPermissionChecker::new(
+            raw_checker,
+            Duration::from_secs(15),
+            10_000,
+        ));
+        let permission_checker: Arc<dyn PermissionChecker> =
+            Arc::new(MetricsPermissionChecker::new(cached));
+
         // Create application state
-        let state = AppState::new(command_service, user_id_extractor);
+        let state = AppState::new(command_service, user_id_extractor, permission_checker);
 
         tracing::info!("Manifesto application initialized successfully");
 
         Ok(Application {
             config,
             state,
-            project_permission_fetcher,
-            member_permission_fetcher,
-            component_permission_fetcher,
             apparatus_event_consumer,
         })
     }
@@ -132,21 +135,12 @@ impl Application {
     pub async fn run(self, server_config: ServerConfig) -> Result<(), Error> {
         let mut server_handle = {
             let state = self.state.clone();
-            let project_permission_fetcher = self.project_permission_fetcher.clone();
-            let member_permission_fetcher = self.member_permission_fetcher.clone();
-            let component_permission_fetcher = self.component_permission_fetcher.clone();
             let server_config = server_config.clone();
 
             tokio::spawn(async move {
-                create_app_routes(
-                    state,
-                    server_config,
-                    project_permission_fetcher,
-                    member_permission_fetcher,
-                    component_permission_fetcher,
-                )
-                .await
-                .map_err(|e| anyhow::anyhow!("HTTP server failed: {}", e))
+                create_app_routes(state, server_config)
+                    .await
+                    .map_err(|e| anyhow::anyhow!("HTTP server failed: {}", e))
             })
         };
 
@@ -239,7 +233,6 @@ impl Application {
 async fn setup_database(config: &AppConfig) -> Result<DbConnectionPool, Error> {
     tracing::info!("Connecting to database");
 
-    // Setup database connection pool
     let db_pool = DbConnectionPool::new(&config.database).await?;
     tracing::info!(
         "Database connection pool initialized with {} read replicas",
@@ -263,24 +256,13 @@ async fn setup_application(
         Arc<dyn manifesto_application::ProjectUseCase>,
         Arc<dyn manifesto_application::ComponentUseCase>,
         Arc<dyn manifesto_application::MemberUseCase>,
-        Arc<dyn PermissionsFetcher>,
-        Arc<dyn PermissionsFetcher>,
-        Arc<dyn PermissionsFetcher>,
         Option<Arc<ApparatusEventConsumer>>,
     ),
     Error,
 > {
-    let (
-        project_service,
-        component_service,
-        member_service,
-        permission_service,
-        project_permission_fetcher,
-        member_permission_fetcher,
-        component_permission_fetcher,
-    ) = setup_domain(db, config).await?;
+    let (project_service, component_service, member_service, permission_service) =
+        setup_domain(db, config).await?;
 
-    // Create project use case
     let project_usecase = Arc::new(ProjectUseCaseImpl::new(
         project_service.clone(),
         component_service.clone(),
@@ -290,7 +272,6 @@ async fn setup_application(
         config.service.business.clone(),
     ));
 
-    // Create component use case
     let component_usecase = Arc::new(ComponentUseCaseImpl::new(
         component_service.clone(),
         project_service.clone(),
@@ -299,7 +280,6 @@ async fn setup_application(
         config.service.business.clone(),
     ));
 
-    // Create member use case
     let member_usecase = Arc::new(MemberUseCaseImpl::new(
         member_service.clone(),
         project_service.clone(),
@@ -311,12 +291,11 @@ async fn setup_application(
     let apparatus_event_consumer = {
         let component_status_processor =
             Arc::new(ComponentStatusProcessor::new(component_service.clone()));
-        let consumer = ApparatusEventConsumer::new(
-            &config.queue,
-            component_status_processor,
-        )
-        .await
-        .map_err(|error| anyhow::anyhow!("Failed to create apparatus event consumer: {}", error))?;
+        let consumer = ApparatusEventConsumer::new(&config.queue, component_status_processor)
+            .await
+            .map_err(|error| {
+                anyhow::anyhow!("Failed to create apparatus event consumer: {}", error)
+            })?;
 
         if consumer.is_noop() {
             tracing::info!(
@@ -332,9 +311,6 @@ async fn setup_application(
         project_usecase,
         component_usecase,
         member_usecase,
-        project_permission_fetcher,
-        member_permission_fetcher,
-        component_permission_fetcher,
         apparatus_event_consumer,
     ))
 }
@@ -348,22 +324,25 @@ async fn setup_domain(
         Arc<dyn manifesto_domain::service::ComponentService>,
         Arc<dyn manifesto_domain::service::MemberService>,
         Arc<dyn manifesto_domain::service::PermissionService>,
-        Arc<dyn PermissionsFetcher>,
-        Arc<dyn PermissionsFetcher>,
-        Arc<dyn PermissionsFetcher>,
     ),
     Error,
 > {
-    let (project_repo, component_repo, member_repo, permission_repo, resource_repo, role_permission_repo, member_role_permission_repo) = setup_repositories(db.clone()).await?;
+    let (
+        project_repo,
+        component_repo,
+        member_repo,
+        permission_repo,
+        resource_repo,
+        role_permission_repo,
+        member_role_permission_repo,
+    ) = setup_repositories(db.clone()).await?;
 
-    // Setup component service adapter (external HTTP client)
     let component_service_adapter = Arc::new(ComponentServiceClient::new(
         config.service.component_service.base_url.clone(),
         config.service.component_service.api_key.clone(),
         config.service.component_service.timeout_seconds,
     )?);
 
-    // Create permission service first (needed by component service and member use case)
     let permission_service: Arc<dyn manifesto_domain::service::PermissionService> = Arc::new(
         manifesto_domain::service::PermissionServiceImpl::new(
             permission_repo,
@@ -373,7 +352,6 @@ async fn setup_domain(
         ),
     );
 
-    // Create domain services
     let project_service = Arc::new(ProjectServiceImpl::new(
         project_repo.clone(),
         component_repo.clone(),
@@ -387,30 +365,11 @@ async fn setup_domain(
 
     let member_service = Arc::new(MemberServiceImpl::new(member_repo.clone()));
 
-    // Create permission fetcher for HTTP middleware
-    let project_permission_fetcher = Arc::new(ProjectPermissionFetcher::new(
-        project_service.clone(),
-        member_service.clone(),
-    ));
-
-    let member_permission_fetcher = Arc::new(MemberPermissionFetcher::new(
-        project_service.clone(),
-        member_service.clone(),
-    ));
-
-    let component_permission_fetcher = Arc::new(ComponentPermissionFetcher::new(
-        project_service.clone(),
-        member_service.clone(),
-    ));
-
     Ok((
         project_service,
         component_service,
         member_service,
         permission_service,
-        project_permission_fetcher,
-        member_permission_fetcher,
-        component_permission_fetcher,
     ))
 }
 
@@ -428,7 +387,6 @@ async fn setup_repositories(
     ),
     Error,
 > {
-    // Project repository
     let project_read_repo = Arc::new(ProjectReadRepositoryImpl::new(db.get_read_connection()));
     let project_write_repo = Arc::new(ProjectWriteRepositoryImpl::new(db.get_write_connection()));
     let project_repo = Arc::new(ProjectRepositoryImpl::new(
@@ -436,18 +394,16 @@ async fn setup_repositories(
         project_write_repo.clone(),
     ));
 
-    // Component repository
     let component_read_repo = Arc::new(ComponentReadRepositoryImpl::new(db.get_read_connection()));
-    let component_write_repo = Arc::new(ComponentWriteRepositoryImpl::new(db.get_write_connection()));
+    let component_write_repo =
+        Arc::new(ComponentWriteRepositoryImpl::new(db.get_write_connection()));
     let component_repo = Arc::new(ComponentRepositoryImpl::new(
         component_read_repo.clone(),
         component_write_repo.clone(),
     ));
 
-    // Permission repository (read-only)
     let permission_repo = Arc::new(PermissionReadRepositoryImpl::new(db.get_read_connection()));
 
-    // Resource repository
     let resource_read_repo = Arc::new(ResourceReadRepositoryImpl::new(db.get_read_connection()));
     let resource_write_repo = Arc::new(ResourceWriteRepositoryImpl::new(db.get_write_connection()));
     let resource_repo = Arc::new(ResourceRepositoryImpl::new(
@@ -455,15 +411,15 @@ async fn setup_repositories(
         resource_write_repo.clone(),
     ));
 
-    // Role permission repository (needed by PMRP repos)
-    let role_permission_read_repo = Arc::new(RolePermissionReadRepositoryImpl::new(db.get_read_connection()));
-    let role_permission_write_repo = Arc::new(RolePermissionWriteRepositoryImpl::new(db.get_write_connection()));
+    let role_permission_read_repo =
+        Arc::new(RolePermissionReadRepositoryImpl::new(db.get_read_connection()));
+    let role_permission_write_repo =
+        Arc::new(RolePermissionWriteRepositoryImpl::new(db.get_write_connection()));
     let role_permission_repo = Arc::new(RolePermissionRepositoryImpl::new(
         role_permission_read_repo.clone(),
         role_permission_write_repo.clone(),
     ));
 
-    // Project member role permission repository (needed by member repos)
     let pmrp_read_repo = Arc::new(ProjectMemberRolePermissionReadRepositoryImpl::new(
         db.get_read_connection(),
         role_permission_read_repo.clone(),
@@ -477,7 +433,6 @@ async fn setup_repositories(
         pmrp_write_repo.clone(),
     ));
 
-    // Member repository (needs pmrp_read_repo)
     let member_read_repo = Arc::new(MemberReadRepositoryImpl::new(
         db.get_read_connection(),
         pmrp_read_repo.clone(),

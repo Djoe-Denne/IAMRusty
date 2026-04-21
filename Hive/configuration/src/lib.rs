@@ -1,4 +1,5 @@
 use rustycog_config::{AuthConfig, HasQueueConfig, HasDbConfig, HasLoggingConfig, HasServerConfig, HasScalewayConfig};
+use rustycog_permission::OpenFgaClientConfig;
 use serde::{Deserialize, Serialize};
 
 
@@ -41,11 +42,15 @@ pub struct AppConfig {
     /// Logging configuration
     pub logging: LoggingConfig,
     /// Scaleway configuration
+    #[serde(default)]
     pub scaleway: ScalewayConfig,
     /// Command configuration
     pub command: CommandConfig,
     /// Queue configuration (Kafka, SQS, or Disabled)
     pub queue: QueueConfig,
+    /// OpenFGA authorization checker configuration.
+    #[serde(default)]
+    pub openfga: OpenFgaClientConfig,
 }
 
 /***********************************
@@ -85,6 +90,7 @@ impl Default for AppConfig {
             scaleway: ScalewayConfig::default(),
             command: CommandConfig::default(),
             queue: QueueConfig::default(),
+            openfga: OpenFgaClientConfig::default(),
         }
     }
 }

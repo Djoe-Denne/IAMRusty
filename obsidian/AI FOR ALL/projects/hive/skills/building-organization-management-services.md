@@ -5,7 +5,10 @@ tags: [organizations, permissions, services, visibility/internal]
 sources:
   - Hive/setup/src/app.rs
   - Hive/application/src/command/factory.rs
-  - Hive/domain/src/service/permission_service.rs
+  - Hive/http/src/lib.rs
+  - hive-events/src/lib.rs
+  - sentinel-sync/src/translator/hive.rs
+  - openfga/model.fga
   - Hive/application/src/usecase/organization.rs
   - Hive/application/src/usecase/invitation.rs
   - Hive/application/src/usecase/external_link.rs
@@ -26,12 +29,13 @@ Use this page when building a service that manages organizations, members, invit
 ## Workflow
 
 - Start with the domain model: define organizations, members, roles, resources, permissions, invitations, and external links before wiring HTTP.
-- Keep route authorization resource-scoped by pairing `RouteBuilder` resources with repository-backed `PermissionsFetcher` implementations instead of hardcoding role checks in handlers.
+- Keep route authorization centralized by calling `.with_permission_on(Permission::X, "organization")` in the route builder; the shared OpenFGA-backed `PermissionChecker` on `AppState` resolves every check. Sub-resource routes (members, external links) collapse to organization-level relations because the deepest UUID in their path is still the organization id.
+- Whenever a domain mutation changes who can do what (member joined, role changed, member removed, external link created), emit the matching `HiveDomainEvent` so [[projects/sentinel-sync/sentinel-sync]] writes the corresponding tuple. Update the translator arm in `sentinel-sync/src/translator/hive.rs` and [[projects/sentinel-sync/references/event-to-tuple-mapping]] in the same change.
 - Register commands for the full product workflow, then decide deliberately which ones should be exposed over HTTP and which should stay internal or queue-triggered.
-- Reuse `[[skills/building-rustycog-services]]` when you need the shared RustyCog composition order (config -> logging -> DB -> registry -> routes) behind this Hive-specific domain workflow.
+- Reuse `[[skills/building-rustycog-services]]` when you need the shared RustyCog composition order (config -> logging -> DB -> registry -> checker -> routes) behind this Hive-specific domain workflow.
 - Publish domain events from use cases after successful state changes so downstream systems can react without coupling themselves to Hive's HTTP API.
 - Treat external-provider integration as a first-class port with explicit config, validation, connection tests, and fixtures rather than as a loose helper client.
-- Test the live API with real DB state, JWTs, and mock external-provider services before adding queue-backed verification.
+- Test the live API with real DB state, JWTs, mock external-provider services, and an `InMemoryPermissionChecker` seeded with the relevant tuples; add queue-backed verification only when the consumer side matters for the test.
 
 ## Open Questions
 
