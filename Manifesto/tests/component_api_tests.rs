@@ -24,7 +24,7 @@ fn create_test_jwt_token(user_id: Uuid) -> String {
 #[tokio::test]
 #[serial]
 async fn test_add_component_returns_201_with_valid_data() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -69,7 +69,7 @@ async fn test_add_component_returns_201_with_valid_data() {
 #[tokio::test]
 #[serial]
 async fn test_add_component_returns_409_for_duplicate() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -108,7 +108,7 @@ async fn test_add_component_returns_409_for_duplicate() {
 #[tokio::test]
 #[serial]
 async fn test_get_component_returns_200_for_existing() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -151,7 +151,7 @@ async fn test_get_component_returns_200_for_existing() {
 #[tokio::test]
 #[serial]
 async fn test_list_components_returns_all_project_components() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -205,7 +205,7 @@ async fn test_list_components_returns_all_project_components() {
 #[tokio::test]
 #[serial]
 async fn test_update_component_status_returns_200() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -255,7 +255,7 @@ async fn test_update_component_status_returns_200() {
 #[tokio::test]
 #[serial]
 async fn test_remove_component_returns_204() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -294,7 +294,7 @@ async fn test_remove_component_returns_204() {
 #[tokio::test]
 #[serial]
 async fn test_user_with_generic_component_read_can_access_any_component() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -371,7 +371,7 @@ async fn test_user_with_generic_component_read_can_access_any_component() {
 #[tokio::test]
 #[serial]
 async fn test_user_with_generic_component_permission_can_list_all_components() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -428,7 +428,7 @@ async fn test_user_with_generic_component_permission_can_list_all_components() {
 #[tokio::test]
 #[serial]
 async fn test_owner_can_modify_any_component() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -475,7 +475,7 @@ async fn test_owner_can_modify_any_component() {
 #[tokio::test]
 #[serial]
 async fn test_member_without_component_permission_cannot_modify_component() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client, openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -493,6 +493,20 @@ async fn test_member_without_component_permission_cannot_modify_component() {
         .commit(db.clone())
         .await
         .expect("Failed to create member");
+
+    // The route guard `with_permission_on(Permission::Admin, "project")` will
+    // ask OpenFGA whether `member_id` may admin this component. We're testing
+    // the denial path, so the fake must answer no for that exact tuple. Wipe
+    // the permissive `mock_check_any(true)` mounted by `setup_test_server`
+    // first — wiremock matches in registration order.
+    openfga.reset().await;
+    openfga
+        .mock_check_deny(
+            Subject::new(member_id),
+            Permission::Admin,
+            ResourceRef::new("project", component.id()),
+        )
+        .await;
 
     let jwt_token = create_test_jwt_token(member_id);
 
@@ -523,7 +537,7 @@ async fn test_member_without_component_permission_cannot_modify_component() {
 #[tokio::test]
 #[serial]
 async fn test_member_without_component_permission_cannot_delete_component() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client, openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -541,6 +555,19 @@ async fn test_member_without_component_permission_cannot_delete_component() {
         .commit(db.clone())
         .await
         .expect("Failed to create member");
+
+    // We're testing the denial path on DELETE. The route guard
+    // `with_permission_on(Permission::Admin, "project")` will issue a Check
+    // for `(member_id, Admin, project:<component_id>)`. Reset the permissive
+    // default and mount a deny for that exact tuple.
+    openfga.reset().await;
+    openfga
+        .mock_check_deny(
+            Subject::new(member_id),
+            Permission::Admin,
+            ResourceRef::new("project", component.id()),
+        )
+        .await;
 
     let jwt_token = create_test_jwt_token(member_id);
 
@@ -573,7 +600,7 @@ async fn test_member_without_component_permission_cannot_delete_component() {
 #[tokio::test]
 #[serial]
 async fn test_granted_specific_component_permission_allows_access() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -675,7 +702,7 @@ async fn test_granted_specific_component_permission_allows_access() {
 #[tokio::test]
 #[serial]
 async fn test_specific_component_admin_does_not_apply_to_other_components() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client, openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -708,6 +735,35 @@ async fn test_specific_component_admin_does_not_apply_to_other_components() {
 
     let owner_token = create_test_jwt_token(owner_id);
     let member_token = create_test_jwt_token(member_id);
+
+    // Permission topology this test asserts on (owner administers everything;
+    // member has admin on component1 only):
+    //   Check(owner,  Admin, project:component1)  -> allow  (POST grant)
+    //   Check(member, Admin, project:component1)  -> allow  (PATCH component1)
+    //   Check(member, Admin, project:component2)  -> DENY   (PATCH component2)
+    // The middleware uses the trailing UUID in the path as the resource id,
+    // so the two PATCHes hit distinct cache keys and can carry distinct
+    // decisions even with caching on.
+    openfga.reset().await;
+    openfga
+        .mock_check_allow(
+            Subject::new(owner_id),
+            Permission::Admin,
+            ResourceRef::new("project", component1.id()),
+        )
+        .await
+        .mock_check_allow(
+            Subject::new(member_id),
+            Permission::Admin,
+            ResourceRef::new("project", component1.id()),
+        )
+        .await
+        .mock_check_deny(
+            Subject::new(member_id),
+            Permission::Admin,
+            ResourceRef::new("project", component2.id()),
+        )
+        .await;
 
     // Grant elevated access only on component1.
     let grant_response = client
@@ -777,7 +833,7 @@ async fn test_specific_component_admin_does_not_apply_to_other_components() {
 #[tokio::test]
 #[serial]
 async fn test_revoked_specific_component_permission_denies_elevated_access() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client, openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -798,6 +854,25 @@ async fn test_revoked_specific_component_permission_denies_elevated_access() {
 
     let owner_token = create_test_jwt_token(owner_id);
     let member_token = create_test_jwt_token(member_id);
+
+    // Phase 1: while the grant is active, Check returns allow for the owner
+    // (grantor / revoker) and the member (acting on the component). We
+    // narrow the permissive default down to the exact tuples this test
+    // asserts on so each assertion is backed by an explicit decision.
+    openfga.reset().await;
+    openfga
+        .mock_check_allow(
+            Subject::new(owner_id),
+            Permission::Admin,
+            ResourceRef::new("project", component.id()),
+        )
+        .await
+        .mock_check_allow(
+            Subject::new(member_id),
+            Permission::Admin,
+            ResourceRef::new("project", component.id()),
+        )
+        .await;
 
     // Grant specific admin permission on component
     client
@@ -860,6 +935,31 @@ async fn test_revoked_specific_component_permission_denies_elevated_access() {
         "Owner should be able to revoke specific component permission"
     );
 
+    // Phase 2: in production, the revoke would propagate through
+    // `sentinel-sync` so the next OpenFGA Check returns false. The wiremock
+    // fake doesn't observe Manifesto domain events, so we simulate that
+    // propagation here — owner keeps admin (so the revoke endpoint stays
+    // callable in the abstract), member is flipped to deny. The
+    // `cache_ttl_seconds = 0` setting in `test.toml` is what makes this
+    // re-arrangement actually visible to the next request: with the
+    // production 15s TTL, `CachedPermissionChecker` would serve a stale
+    // allow from Phase 1 and the assertion below would never reach the
+    // refreshed mock.
+    openfga.reset().await;
+    openfga
+        .mock_check_allow(
+            Subject::new(owner_id),
+            Permission::Admin,
+            ResourceRef::new("project", component.id()),
+        )
+        .await
+        .mock_check_deny(
+            Subject::new(member_id),
+            Permission::Admin,
+            ResourceRef::new("project", component.id()),
+        )
+        .await;
+
     // Member should no longer be able to update component (only has generic read)
     let update_response2 = client
         .patch(&format!(
@@ -887,7 +987,7 @@ async fn test_revoked_specific_component_permission_denies_elevated_access() {
 #[tokio::test]
 #[serial]
 async fn test_generic_permission_grants_access_to_all_components() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();

@@ -5860,6 +5860,7 @@ dependencies = [
  "rustycog-events",
  "rustycog-http",
  "rustycog-logger",
+ "rustycog-permission",
  "sea-orm",
  "serde",
  "serde_json",

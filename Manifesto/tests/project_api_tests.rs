@@ -25,7 +25,7 @@ fn create_test_jwt_token(user_id: Uuid) -> String {
 #[tokio::test]
 #[serial]
 async fn test_create_project_returns_201_with_valid_data() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
 
@@ -68,7 +68,7 @@ async fn test_create_project_returns_201_with_valid_data() {
 #[tokio::test]
 #[serial]
 async fn test_create_project_returns_400_for_invalid_owner_type() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
 
@@ -97,7 +97,7 @@ async fn test_create_project_returns_400_for_invalid_owner_type() {
 #[tokio::test]
 #[serial]
 async fn test_create_project_returns_401_without_auth_token() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
 
@@ -122,7 +122,7 @@ async fn test_create_project_returns_401_without_auth_token() {
 #[tokio::test]
 #[serial]
 async fn test_create_project_grants_creator_immediate_owner_permissions() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
 
@@ -218,7 +218,7 @@ async fn test_create_project_grants_creator_immediate_owner_permissions() {
 #[tokio::test]
 #[serial]
 async fn test_get_project_returns_200_for_existing_project() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -228,8 +228,17 @@ async fn test_get_project_returns_200_for_existing_project() {
         .await
         .expect("Failed to create project with owner");
 
+    // The route is `.might_be_authenticated().with_permission_on(Read, "project")`.
+    // `optional_permission_middleware` rejects anonymous callers when the
+    // path carries a resource UUID (`rustycog-http/src/middleware_permission.rs`),
+    // so this test must authenticate. Anonymous public-read coverage lives
+    // separately in `tests/public_acl_api_tests.rs`. The harness's permissive
+    // `mock_check_any(true)` default already answers the route guard's Check.
+    let jwt_token = create_test_jwt_token(owner_id);
+
     let response = client
         .get(&format!("{}/api/projects/{}", base_url, project.id()))
+        .header("Authorization", format!("Bearer {}", jwt_token))
         .send()
         .await
         .expect("Failed to send request");
@@ -252,7 +261,7 @@ async fn test_get_project_returns_200_for_existing_project() {
 #[tokio::test]
 #[serial]
 async fn test_get_project_returns_404_for_nonexistent_project() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
 
@@ -274,7 +283,7 @@ async fn test_get_project_returns_404_for_nonexistent_project() {
 #[tokio::test]
 #[serial]
 async fn test_get_project_detail_returns_200_with_components() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -320,7 +329,7 @@ async fn test_get_project_detail_returns_200_with_components() {
 #[tokio::test]
 #[serial]
 async fn test_list_projects_returns_paginated_results() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -365,7 +374,7 @@ async fn test_list_projects_returns_paginated_results() {
 #[tokio::test]
 #[serial]
 async fn test_update_project_returns_200_with_valid_data() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -410,7 +419,7 @@ async fn test_update_project_returns_200_with_valid_data() {
 #[tokio::test]
 #[serial]
 async fn test_delete_project_returns_204_on_success() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -443,7 +452,7 @@ async fn test_delete_project_returns_204_on_success() {
 #[tokio::test]
 #[serial]
 async fn test_publish_project_returns_200_when_valid() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -483,7 +492,7 @@ async fn test_publish_project_returns_200_when_valid() {
 #[tokio::test]
 #[serial]
 async fn test_archive_project_returns_200_on_success() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();

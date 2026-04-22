@@ -24,7 +24,7 @@ fn create_test_jwt_token(user_id: Uuid) -> String {
 #[tokio::test]
 #[serial]
 async fn test_add_member_returns_201_with_valid_permissions() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -69,7 +69,7 @@ async fn test_add_member_returns_201_with_valid_permissions() {
 #[tokio::test]
 #[serial]
 async fn test_add_member_returns_403_without_admin_permission() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client, openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -86,6 +86,21 @@ async fn test_add_member_returns_403_without_admin_permission() {
         .commit(db.clone())
         .await
         .expect("Failed to create regular member");
+
+    // We're testing the denial path. The route guard
+    // `with_permission_on(Permission::Admin, "project")` will issue a Check
+    // for `(regular_member_id, Admin, project:<project_id>)` (the trailing
+    // UUID in `POST /api/projects/{project_id}/members` is the project id
+    // itself — there is no deeper UUID segment). Reset the permissive
+    // default and mount a deny for that exact tuple.
+    openfga.reset().await;
+    openfga
+        .mock_check_deny(
+            Subject::new(regular_member_id),
+            Permission::Admin,
+            ResourceRef::new("project", project.id()),
+        )
+        .await;
 
     let jwt_token = create_test_jwt_token(regular_member_id);
     let new_member_id = Uuid::new_v4();
@@ -116,7 +131,7 @@ async fn test_add_member_returns_403_without_admin_permission() {
 #[tokio::test]
 #[serial]
 async fn test_get_member_returns_200_with_permissions() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -162,7 +177,7 @@ async fn test_get_member_returns_200_with_permissions() {
 #[tokio::test]
 #[serial]
 async fn test_list_members_returns_paginated_results() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -215,7 +230,7 @@ async fn test_list_members_returns_paginated_results() {
 #[tokio::test]
 #[serial]
 async fn test_update_member_permissions_returns_200() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -268,7 +283,7 @@ async fn test_update_member_permissions_returns_200() {
 #[tokio::test]
 #[serial]
 async fn test_remove_member_returns_204() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -314,7 +329,7 @@ async fn test_remove_member_returns_204() {
 #[tokio::test]
 #[serial]
 async fn test_grant_permission_returns_200() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -361,7 +376,7 @@ async fn test_grant_permission_returns_200() {
 #[tokio::test]
 #[serial]
 async fn test_revoke_permission_returns_204() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -425,7 +440,7 @@ async fn test_revoke_permission_returns_204() {
 #[tokio::test]
 #[serial]
 async fn test_grant_permission_on_specific_component_returns_200() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -474,7 +489,7 @@ async fn test_grant_permission_on_specific_component_returns_200() {
 #[tokio::test]
 #[serial]
 async fn test_non_admin_cannot_grant_permission_on_specific_component() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client, openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -500,6 +515,20 @@ async fn test_non_admin_cannot_grant_permission_on_specific_component() {
         .commit(db.clone())
         .await
         .expect("Failed to create target member");
+
+    // We're testing the denial path. The grant route is
+    // `POST /api/projects/{project_id}/members/{user_id}/permissions/component/{component_id}`,
+    // and the middleware uses the **trailing** UUID — `component_id` — as
+    // the resource id. Reset the permissive default and mount a deny for
+    // `(acting_member_id, Admin, project:<component_id>)`.
+    openfga.reset().await;
+    openfga
+        .mock_check_deny(
+            Subject::new(acting_member_id),
+            Permission::Admin,
+            ResourceRef::new("project", component.id()),
+        )
+        .await;
 
     let acting_token = create_test_jwt_token(acting_member_id);
 
@@ -530,7 +559,7 @@ async fn test_non_admin_cannot_grant_permission_on_specific_component() {
 #[tokio::test]
 #[serial]
 async fn test_grant_admin_permission_on_specific_component_returns_200() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -579,7 +608,7 @@ async fn test_grant_admin_permission_on_specific_component_returns_200() {
 #[tokio::test]
 #[serial]
 async fn test_revoke_permission_on_specific_component_returns_204() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();

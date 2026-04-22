@@ -11,6 +11,7 @@ Top-level skills are intended to be portable across services. Service-owned work
 ## Common Skills
 
 - [[skills/building-rustycog-services]]
+- [[skills/stubbing-http-with-wiremock]]
 
 ## RustyCog Crate Skills
 

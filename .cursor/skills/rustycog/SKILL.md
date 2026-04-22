@@ -30,7 +30,8 @@ Pick the smallest set of references that match the task. Load each only when nee
 | Domain events, publishers/consumers, multi-queue setup | [references/using-rustycog-events.md](references/using-rustycog-events.md) |
 | `RouteBuilder`, auth modes, middleware composition | [references/using-rustycog-http.md](references/using-rustycog-http.md) |
 | `PermissionChecker`, OpenFGA-backed guards, with_permission_on | [references/using-rustycog-permission.md](references/using-rustycog-permission.md) |
-| Integration tests, `setup_test_server`, Kafka/SQS testcontainers | [references/using-rustycog-testing.md](references/using-rustycog-testing.md) |
+| Integration tests, `setup_test_server`, Kafka/SQS testcontainers, `OpenFgaMockService` | [references/using-rustycog-testing.md](references/using-rustycog-testing.md) |
+| Authoring a wiremock-backed fixture for an HTTP collaborator (incl. `reset()` and cache caveats) | `.cursor/skills/creating-wiremock-fixtures/SKILL.md` |
 | `setup_logging`, `HasLoggingConfig`, Loki feature wiring | [references/using-rustycog-logger.md](references/using-rustycog-logger.md) |
 
 ## Cross-cutting rules
@@ -44,6 +45,7 @@ These hold across every RustyCog crate and override anything that contradicts th
 - **Permission middleware takes one builder call:** `.with_permission_on(Permission, object_type)`. The shared `Arc<dyn PermissionChecker>` on `AppState` answers every decision — there is no per-route fetcher.
 - **Permission middleware extracts the deepest UUID-shaped path segment only.** Non-UUID path segments (e.g. `{component_type}`) are skipped.
 - **Object type must exist in `openfga/model.fga`.** Typos fail closed with 403 plus a logged OpenFGA error.
+- **`OpenFgaClientConfig.cache_ttl_seconds = Some(0)` is the test-config opt-out for `CachedPermissionChecker`.** The composition root must honor it (skip the cache decoration entirely when 0); otherwise grant-then-revoke flows in tests serve a stale allow.
 - **`max_attempts = 0` disables retries.** It does not mean "default" or "infinite" — set it intentionally.
 - **`setup_logging` is a global singleton.** Call it exactly once, early, and never alongside hand-rolled `tracing_subscriber` setup.
 - **Queue factories can degrade to no-op.** A "successful" startup does not prove the transport is live — add an explicit health check.

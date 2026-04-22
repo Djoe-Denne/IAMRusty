@@ -9,13 +9,16 @@ sources:
   - rustycog/rustycog-testing/src/common/kafka_testcontainer.rs
   - rustycog/rustycog-testing/src/common/sqs_testcontainer.rs
   - rustycog/rustycog-testing/src/wiremock/mod.rs
-summary: rustycog-testing bundles reusable service test descriptors, app/bootstrap helpers, shared wiremock fixtures, and real infrastructure harnesses for Kafka and SQS.
+  - rustycog/rustycog-testing/src/permission/mod.rs
+  - rustycog/rustycog-testing/src/permission/service.rs
+  - rustycog/rustycog-testing/src/permission/resources.rs
+summary: rustycog-testing bundles reusable service test descriptors, app/bootstrap helpers, a shared singleton wiremock fixture on port 3000, an in-crate OpenFGA Check fake (OpenFgaMockService), and real infrastructure harnesses for Kafka and SQS.
 provenance:
-  extracted: 0.9
-  inferred: 0.06
+  extracted: 0.86
+  inferred: 0.10
   ambiguous: 0.04
 created: 2026-04-15T17:15:56.0808743Z
-updated: 2026-04-19T10:59:36Z
+updated: 2026-04-22T17:30:00Z
 ---
 
 # RustyCog Testing
@@ -28,7 +31,9 @@ updated: 2026-04-19T10:59:36Z
 - `ServiceTestDescriptor<T>` is the central service contract: it defines app build/run hooks, migration hooks, and capability flags (`has_db()`, `has_sqs()`).
 - Fixture builders branch off descriptor flags to provision only the infrastructure a service needs, keeping shared helpers portable across services.
 - `get_test_server()` and `setup_test_server()` manage a reusable global test server lifecycle using `OnceLock` and async mutex guards.
-- The `wiremock` module provides a shared mock server fixture with explicit reset behavior for test isolation.
+- The `wiremock` module provides a shared mock server fixture with explicit reset behavior for test isolation; see [[projects/rustycog/references/wiremock-mock-server-fixture]] for the full API surface, port-3000 singleton model, and stub patterns.
+- `MockServerFixture::new()` eagerly resets all previously mounted mocks, `MockServerFixture::reset()` is exposed for mid-test re-arrangement, and its `Drop` impl schedules another reset on the current Tokio runtime, so tests stay isolated even when sharing a single `wiremock::MockServer` across the whole process.
+- The `permission` module ships `OpenFgaMockService` — a wiremock-backed fake of OpenFGA's `Check` endpoint with per-tuple `mock_check_allow` / `mock_check_deny` helpers and a `client_config()` that returns an `OpenFgaClientConfig` pre-pointed at the fake. Because it lives inside the testing crate, every consumer of `[[projects/rustycog/references/rustycog-permission]]` reuses it without authoring its own fixture. See [[projects/rustycog/references/openfga-mock-service]].
 - Kafka and SQS testcontainer modules provide real transport fixtures for event-path integration tests.
 - The package keeps service tests close to production wiring while still minimizing repeated bootstrapping code.
 
@@ -45,5 +50,8 @@ updated: 2026-04-19T10:59:36Z
 ## Sources
 
 - [[projects/rustycog/references/index]]
+- [[projects/rustycog/references/wiremock-mock-server-fixture]]
+- [[projects/rustycog/references/openfga-mock-service]]
+- [[skills/stubbing-http-with-wiremock]]
 - [[concepts/integration-testing-with-real-infrastructure]]
 - [[projects/rustycog/rustycog]]

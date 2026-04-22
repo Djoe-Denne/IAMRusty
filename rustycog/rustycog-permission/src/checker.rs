@@ -44,6 +44,16 @@ pub struct OpenFgaClientConfig {
     pub authorization_model_id: Option<String>,
     #[serde(default)]
     pub api_token: Option<String>,
+    /// Cache TTL (seconds) applied by `CachedPermissionChecker` decorations
+    /// in the composition root.
+    ///
+    /// `None` (the default) keeps the historical 15s production TTL. Set to
+    /// `Some(0)` in test configs to disable in-process caching so a `Check`
+    /// is re-issued for every middleware invocation — the only way for a
+    /// test that exercises grant ➜ revoke ➜ deny semantics inside a single
+    /// process to observe the second decision.
+    #[serde(default)]
+    pub cache_ttl_seconds: Option<u64>,
 }
 
 impl Default for OpenFgaClientConfig {
@@ -53,6 +63,7 @@ impl Default for OpenFgaClientConfig {
             store_id: String::new(),
             authorization_model_id: None,
             api_token: None,
+            cache_ttl_seconds: None,
         }
     }
 }
