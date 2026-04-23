@@ -2,8 +2,8 @@
 title: Event To Tuple Mapping
 category: reference
 tags: [reference, sentinel-sync, authorization, events]
-summary: Table of every domain event consumed by sentinel-sync and the OpenFGA tuple writes/deletes it produces. One row per event variant, grouped by producing service.
-updated: 2026-04-20
+summary: Table of every domain event consumed by sentinel-sync and the OpenFGA tuple writes/deletes it produces, including the Phase 2 row stub for `ProjectVisibilityChanged` that will unlock anonymous public-read.
+updated: 2026-04-22T18:30:00Z
 ---
 
 # Event To Tuple Mapping
@@ -32,8 +32,9 @@ Source enum: `manifesto_events::ManifestoDomainEvent`.
 
 | Event                     | Writes                                                                                                                           | Deletes                                                       |
 |---------------------------|----------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------|
-| `ProjectCreated`          | `project:{id}#organization@organization:{owner_id}` (when `owner_type == "organization"`) + `project:{id}#owner@user:{created_by}` | —                                                           |
+| `ProjectCreated`          | `project:{id}#organization@organization:{owner_id}` (when `owner_type == "organization"`) + `project:{id}#owner@user:{created_by}`. Phase 2 will additionally write `project:{id}#viewer@user:*` when `evt.visibility == "public"`. ^[inferred] | —                                                           |
 | `ProjectUpdated` / `ProjectPublished` / `ProjectArchived` | (no tuple change)                                                                                                | —                                                             |
+| `ProjectVisibilityChanged` (Phase 2 — not yet implemented) ^[inferred] | `project:{id}#viewer@user:*` when `new_visibility == "public"` and `old_visibility != "public"` | `project:{id}#viewer@user:*` when `old_visibility == "public"` and `new_visibility != "public"` |
 | `ProjectDeleted`          | —                                                                                                                                | all tuples on `project:{id}`                                  |
 | `ComponentAdded`          | `component:{component_id}#project@project:{project_id}`                                                                          | —                                                             |
 | `ComponentRemoved`        | —                                                                                                                                | all tuples on `component:{component_id}`                      |
@@ -73,7 +74,12 @@ The Telegraph translator is added by the `telegraph-translator-cutover` todo.
 - Deletions are expressed as full-object deletes when the aggregate is gone; OpenFGA supports this through repeated Write operations plus periodic clean-up jobs if needed.
 - Verb mapping (`Read`/`Write`/`Admin`/`Owner` to `read`/`write`/`administer`/`own`) is the same as in [[projects/rustycog/references/rustycog-permission]].
 
+## Phase 2: anonymous public-read
+
+The `ProjectVisibilityChanged` row above (and the additional `ProjectCreated` write when `visibility == "public"`) are **not yet implemented in `sentinel-sync/src/translator/manifesto.rs`**. They're documented here so the translator's next change knows where to land. The full design — including the new `ProjectVisibilityChangedEvent` payload (`old_visibility`, `new_visibility`) and the cleanup invariants on a public ➜ private flip — lives in [[concepts/anonymous-public-read-via-wildcard-subject]]. The OpenFGA model already permits `[user, user:*]` on `project.viewer` (Phase 1, 2026-04-22), so the writes can land without a separate model migration.
+
 ## Related
 
 - [[projects/sentinel-sync/references/sentinel-sync-worker]]
 - [[projects/sentinel-sync/references/openfga-model]]
+- [[concepts/anonymous-public-read-via-wildcard-subject]]

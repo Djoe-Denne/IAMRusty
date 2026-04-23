@@ -127,6 +127,53 @@ impl OpenFgaMockService {
         self
     }
 
+    /// Stub `Check` to return `{"allowed": true}` for the wildcard
+    /// `(user:*, action, resource)` tuple.
+    ///
+    /// Use to model a public-read tuple
+    /// (`project:{id}#viewer@user:*`) the way `sentinel-sync` would write
+    /// it for a public project. Pairs with
+    /// `optional_permission_middleware`'s wildcard fallback for anonymous
+    /// callers — without arranging this stub, the middleware sees
+    /// `allowed: false` from the bare wiremock server and 403s.
+    pub async fn mock_check_allow_wildcard(
+        &self,
+        action: Permission,
+        resource: ResourceRef,
+    ) -> &Self {
+        self.mount_tuple_match(
+            Subject::wildcard(),
+            action,
+            resource,
+            CheckResponseBody::allow(),
+            200,
+        )
+        .await;
+        self
+    }
+
+    /// Stub `Check` to return `{"allowed": false}` for the wildcard
+    /// `(user:*, action, resource)` tuple.
+    ///
+    /// Useful for tests that explicitly verify a public-read tuple has
+    /// been removed (e.g. simulating `sentinel-sync` deleting the
+    /// `viewer@user:*` tuple after a project flips public -> private).
+    pub async fn mock_check_deny_wildcard(
+        &self,
+        action: Permission,
+        resource: ResourceRef,
+    ) -> &Self {
+        self.mount_tuple_match(
+            Subject::wildcard(),
+            action,
+            resource,
+            CheckResponseBody::deny(),
+            200,
+        )
+        .await;
+        self
+    }
+
     /// Stub every `Check` call against the configured store with
     /// `{"allowed": <allow>}`. Useful as a permissive or restrictive default
     /// before adding more specific tuple stubs on top.
@@ -257,4 +304,39 @@ fn json_response(status: u16, body: CheckResponseBody) -> ResponseTemplate {
     ResponseTemplate::new(status)
         .set_body_json(body)
         .insert_header("content-type", "application/json")
+}
+
+#[cfg(test)]
+mod wildcard_tests {
+    use super::*;
+    use rustycog_permission::{OpenFgaPermissionChecker, PermissionChecker};
+
+    /// End-to-end check of the wildcard wire format: arrange the wiremock
+    /// fake to allow `(user:*, Read, project:<id>)`, drive the production
+    /// `OpenFgaPermissionChecker` against the fake's `client_config()`,
+    /// and assert that the call returns `true` for `Subject::wildcard()`
+    /// and that the body shape on the wire was `"user": "user:*"`.
+    #[tokio::test]
+    async fn wildcard_allow_round_trip() {
+        let openfga = OpenFgaMockService::new().await;
+        let resource = ResourceRef::new("project", uuid::Uuid::new_v4());
+        openfga
+            .mock_check_allow_wildcard(Permission::Read, resource)
+            .await;
+
+        let checker = OpenFgaPermissionChecker::new(openfga.client_config())
+            .expect("checker construction should succeed");
+        let allowed = checker
+            .check(Subject::wildcard(), Permission::Read, resource)
+            .await
+            .expect("Check call should succeed");
+        assert!(allowed, "wildcard subject should be allowed for the mounted tuple");
+
+        assert!(
+            openfga
+                .verify_check_called(Subject::wildcard(), Permission::Read, resource)
+                .await,
+            "fixture should record the wildcard Check call with user=\"user:*\""
+        );
+    }
 }

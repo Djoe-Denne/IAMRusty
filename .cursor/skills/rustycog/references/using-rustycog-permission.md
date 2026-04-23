@@ -9,6 +9,7 @@ Use this guide when integrating `rustycog-permission` (OpenFGA-backed authorizat
 - On every guarded route call `.with_permission_on(Permission::X, "<openfga_type>")` where the object type matches one in `openfga/model.fga`.
 - Ensure every protected route uses a UUID path parameter — middleware only binds the **deepest** UUID path segment into the `ResourceRef`. For routes like `/api/projects/{project_id}/components/{component_id}`, the resource id is the component id, not the project id.
 - Never build a checker per request. `AppState` already holds the shared `Arc<dyn PermissionChecker>`.
+- Anonymous-callable routes (`.might_be_authenticated()` + `.with_permission_on(...)`) now consult the checker with `Subject::wildcard()` (renders as `user:*` on the wire) when no JWT is present. Public-read works end-to-end only if the OpenFGA store actually carries a `viewer@user:*` tuple for the resource — the model side requires `[user, user:*]` on the `viewer` relation (already done for `project` in `openfga/model.fga`); writing the tuple is `sentinel-sync`'s job and is currently scheduled for Phase 2.
 
 ## Test wiring
 
@@ -50,8 +51,9 @@ For unit tests that don't boot the service, use `InMemoryPermissionChecker` and 
 - `PermissionChecker` — async trait `check(subject, action, resource) -> Result<bool, DomainError>`.
 - `OpenFgaPermissionChecker` — production implementation.
 - `OpenFgaClientConfig` — config record. Includes `cache_ttl_seconds: Option<u64>` (default `None` = 15s in production; set `Some(0)` in tests to disable caching).
-- `CachedPermissionChecker` — `moka` LRU decorator with time-based invalidation. Skip its decoration entirely in the composition root when `cache_ttl_seconds == Some(0)`.
+- `CachedPermissionChecker` — `moka` LRU decorator with time-based invalidation. Skip its decoration entirely in the composition root when `cache_ttl_seconds == Some(0)`. **Always bypasses the cache for `Subject::wildcard()`**, regardless of TTL — the cache key would collide across all anonymous requests and stale wildcard decisions are unsafe.
 - `MetricsPermissionChecker` — instrumented decorator emitting `tracing` events for every decision.
 - `InMemoryPermissionChecker` — test-only checker.
-- `OpenFgaMockService` (in `rustycog-testing`) — wiremock-backed `Check` fake with `mock_check_allow` / `mock_check_deny` / `mock_check_any` / `reset()` / `client_config()`.
-- `Subject`, `ResourceRef`, `ResourceId` — authorization primitives.
+- `OpenFgaMockService` (in `rustycog-testing`) — wiremock-backed `Check` fake with `mock_check_allow` / `mock_check_deny` / `mock_check_allow_wildcard` / `mock_check_deny_wildcard` / `mock_check_any` / `reset()` / `client_config()`.
+- `Subject` — caller identity. `Subject::new(uid)` for the authenticated user form (`user:{uuid}`); `Subject::wildcard()` for the anonymous "any user" form (`user:*`). The `kind: SubjectKind` discriminant is `#[serde(default)]` so legacy payloads stay readable.
+- `ResourceRef`, `ResourceId` — authorization primitives.

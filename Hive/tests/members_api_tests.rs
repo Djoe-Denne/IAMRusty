@@ -9,12 +9,12 @@ use hive_application::dto::role::{MemberRole, MemberRolePermission};
 use hive_infra::repository::entity::{organization_members, role_permissions, organization_member_role_permissions};
 
 mod common;
-use common::{fixtures::db::DbFixtures, setup_test_server};
+use common::{fixtures::db::DbFixtures, setup_test_server, Permission, ResourceRef, Subject};
 
 #[tokio::test]
 #[serial]
 async fn add_member_requires_auth() {
-    let (fixture, server_url, client) = setup_test_server().await.unwrap();
+    let (fixture, server_url, client, _openfga) = setup_test_server().await.unwrap();
     let owner_id = Uuid::new_v4();
     let org = DbFixtures::create_org_with_owner(fixture.db().as_ref(), owner_id)
         .await
@@ -38,7 +38,7 @@ async fn add_member_requires_auth() {
 #[tokio::test]
 #[serial]
 async fn add_member_forbidden_for_read_only_member() {
-    let (fixture, server_url, client) = setup_test_server().await.unwrap();
+    let (fixture, server_url, client, openfga) = setup_test_server().await.unwrap();
     let owner_id = Uuid::new_v4();
     let read_user_id = Uuid::new_v4();
     let token = create_jwt_token(read_user_id);
@@ -53,6 +53,19 @@ async fn add_member_forbidden_for_read_only_member() {
     )
     .await
     .unwrap();
+
+    // Route guard: `with_permission_on(Permission::Write, "organization")`
+    // on `POST /organizations/{org_id}/members`. Trailing UUID = org_id.
+    // Reset the harness's permissive default and mount a deny matching
+    // the exact tuple the middleware will Check.
+    openfga.reset().await;
+    openfga
+        .mock_check_deny(
+            Subject::new(read_user_id),
+            Permission::Write,
+            ResourceRef::new("organization", org.id),
+        )
+        .await;
 
     let new_user = Uuid::new_v4();
     let body = AddMemberRequest {
@@ -73,7 +86,7 @@ async fn add_member_forbidden_for_read_only_member() {
 #[tokio::test]
 #[serial]
 async fn add_member_happy_path_by_owner() {
-    let (fixture, server_url, client) = setup_test_server().await.unwrap();
+    let (fixture, server_url, client, _openfga) = setup_test_server().await.unwrap();
     let owner_id = Uuid::new_v4();
     let token = create_jwt_token(owner_id);
     let org = DbFixtures::create_org_with_owner(fixture.db().as_ref(), owner_id)
@@ -110,20 +123,32 @@ async fn add_member_happy_path_by_owner() {
 #[tokio::test]
 #[serial]
 async fn list_members_requires_auth_and_forbids_non_member() {
-    let (fixture, server_url, client) = setup_test_server().await.unwrap();
+    let (fixture, server_url, client, openfga) = setup_test_server().await.unwrap();
     let owner_id = Uuid::new_v4();
     let org = DbFixtures::create_org_with_owner(fixture.db().as_ref(), owner_id)
         .await
         .unwrap();
 
-    // No auth
+    // Arrange: random non-member user the second sub-assertion will deny.
+    // Route guard: `with_permission_on(Permission::Read, "organization")`
+    // on `GET /organizations/{org_id}/members`. Trailing UUID = org_id.
+    let random_user = Uuid::new_v4();
+    openfga.reset().await;
+    openfga
+        .mock_check_deny(
+            Subject::new(random_user),
+            Permission::Read,
+            ResourceRef::new("organization", org.id),
+        )
+        .await;
+
+    // No auth — the strict 401 path doesn't touch the checker.
     let res = client
         .get(format!("{}/api/organizations/{}/members?page=0&page_size=10", server_url, org.id))
         .send().await.unwrap();
     assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
 
-    // Random user (non member)
-    let random_user = Uuid::new_v4();
+    // Random user (non member) — Check returns deny per the stub above.
     let token = create_jwt_token(random_user);
     let res = client
         .get(format!("{}/api/organizations/{}/members?page=0&page_size=10", server_url, org.id))
@@ -135,7 +160,7 @@ async fn list_members_requires_auth_and_forbids_non_member() {
 #[tokio::test]
 #[serial]
 async fn list_members_happy_path_for_owner() {
-    let (fixture, server_url, client) = setup_test_server().await.unwrap();
+    let (fixture, server_url, client, _openfga) = setup_test_server().await.unwrap();
     let owner_id = Uuid::new_v4();
     let token = create_jwt_token(owner_id);
     let org = DbFixtures::create_org_with_owner(fixture.db().as_ref(), owner_id)
@@ -154,18 +179,33 @@ async fn list_members_happy_path_for_owner() {
 #[tokio::test]
 #[serial]
 async fn get_member_requires_auth_and_forbids_non_member() {
-    let (fixture, server_url, client) = setup_test_server().await.unwrap();
+    let (fixture, server_url, client, openfga) = setup_test_server().await.unwrap();
     let owner_id = Uuid::new_v4();
     let org = DbFixtures::create_org_with_owner(fixture.db().as_ref(), owner_id)
         .await
         .unwrap();
+
+    // Route: `GET /organizations/{org_id}/members/{user_id}` with
+    // `with_permission_on(Permission::Read, "organization")`. The
+    // middleware extracts the **trailing** UUID — `owner_id` from the URL
+    // — as the resource id, so the deny tuple is
+    // `(random_user, Read, organization:owner_id)`, not
+    // `(random_user, Read, organization:org_id)`.
+    let random_user = Uuid::new_v4();
+    openfga.reset().await;
+    openfga
+        .mock_check_deny(
+            Subject::new(random_user),
+            Permission::Read,
+            ResourceRef::new("organization", owner_id),
+        )
+        .await;
 
     let res = client
         .get(format!("{}/api/organizations/{}/members/{}", server_url, org.id, owner_id))
         .send().await.unwrap();
     assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
 
-    let random_user = Uuid::new_v4();
     let token = create_jwt_token(random_user);
     let res = client
         .get(format!("{}/api/organizations/{}/members/{}", server_url, org.id, owner_id))
@@ -177,7 +217,7 @@ async fn get_member_requires_auth_and_forbids_non_member() {
 #[tokio::test]
 #[serial]
 async fn get_member_happy_path_for_owner() {
-    let (fixture, server_url, client) = setup_test_server().await.unwrap();
+    let (fixture, server_url, client, _openfga) = setup_test_server().await.unwrap();
     let owner_id = Uuid::new_v4();
     let token = create_jwt_token(owner_id);
     let org = DbFixtures::create_org_with_owner(fixture.db().as_ref(), owner_id)
@@ -197,7 +237,7 @@ async fn get_member_happy_path_for_owner() {
 #[tokio::test]
 #[serial]
 async fn remove_member_requires_auth_and_forbids_read_only() {
-    let (fixture, server_url, client) = setup_test_server().await.unwrap();
+    let (fixture, server_url, client, openfga) = setup_test_server().await.unwrap();
     let owner_id = Uuid::new_v4();
     let read_user_id = Uuid::new_v4();
     let org = DbFixtures::create_org(
@@ -211,13 +251,27 @@ async fn remove_member_requires_auth_and_forbids_read_only() {
     .await
     .unwrap();
 
-    // No auth
+    // Route: `DELETE /organizations/{org_id}/members/{user_id}` with
+    // `with_permission_on(Permission::Write, "organization")`. The
+    // trailing UUID in the URL `/members/{read_user_id}` is
+    // `read_user_id`, so the resource id the middleware Checks against
+    // is `read_user_id` (not `org.id`).
+    openfga.reset().await;
+    openfga
+        .mock_check_deny(
+            Subject::new(read_user_id),
+            Permission::Write,
+            ResourceRef::new("organization", read_user_id),
+        )
+        .await;
+
+    // No auth — strict 401 path.
     let res = client
         .delete(format!("{}/api/organizations/{}/members/{}", server_url, org.id, read_user_id))
         .send().await.unwrap();
     assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
 
-    // Read-only cannot remove
+    // Read-only cannot remove — Check returns deny per the stub above.
     let token = create_jwt_token(read_user_id);
     let res = client
         .delete(format!("{}/api/organizations/{}/members/{}", server_url, org.id, read_user_id))
@@ -229,7 +283,7 @@ async fn remove_member_requires_auth_and_forbids_read_only() {
 #[tokio::test]
 #[serial]
 async fn remove_member_happy_path_by_owner() {
-    let (fixture, server_url, client) = setup_test_server().await.unwrap();
+    let (fixture, server_url, client, _openfga) = setup_test_server().await.unwrap();
     let owner_id = Uuid::new_v4();
     let read_user_id = Uuid::new_v4();
     let token = create_jwt_token(owner_id);

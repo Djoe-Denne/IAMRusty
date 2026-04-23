@@ -1,6 +1,8 @@
 //! Common test utilities for Hive
 //!
-//! Mirrors rustycog-testing patterns and Telegraph tests structure.
+//! Mirrors rustycog-testing patterns and Telegraph tests structure, plus
+//! the wiremock-backed OpenFGA fake every permission-touching Hive test
+//! routes through (mirrors `Manifesto/tests/common.rs`).
 
 use async_trait::async_trait;
 use reqwest::Client;
@@ -12,6 +14,17 @@ use hive_configuration::AppConfig;
 use hive_setup::app::AppBuilder;
 use hive_migration::{Migrator, MigratorTrait};
 use anyhow::anyhow;
+
+// Re-export the OpenFGA wiremock fake so tests can arrange `Check`
+// decisions without pulling `rustycog_testing::permission` paths into
+// every file. The harness mounts a permissive default so happy-path tests
+// pass without per-test arrangement; denial tests `reset()` and mount the
+// per-tuple deny they care about.
+pub use rustycog_testing::permission::{OpenFgaFixtures, OpenFgaMockService};
+
+// Re-export the permission domain types tests need to express stub
+// tuples for denial scenarios.
+pub use rustycog_permission::{Permission, ResourceRef, Subject};
 
 // Re-export fixtures
 #[path = "fixtures/mod.rs"]
@@ -90,15 +103,41 @@ impl HiveTestFixture {
     }
 }
 
-/// Setup Hive test server and return (fixture, base_url, client)
+/// Bootstrap the Hive test server **and** the OpenFGA wiremock fake.
+///
+/// Returns a 4-tuple:
+/// 1. [`HiveTestFixture`] — owns the test DB and migration lifecycle.
+/// 2. `String` — base URL of the live HTTP server.
+/// 3. `Client` — `reqwest` client preconfigured for the test server.
+/// 4. [`OpenFgaMockService`] — wiremock fake of OpenFGA's `Check`
+///    endpoint, pre-arranged with `mock_check_any(true)` so every
+///    permission-gated route passes the route guard by default. Tests
+///    that assert a `403` reset the fake and mount per-tuple deny stubs.
+///
+/// Both this fake and `Manifesto`'s share the singleton wiremock listener
+/// at `127.0.0.1:3000`, so tests must remain `#[serial]`.
 pub async fn setup_test_server(
-) -> Result<(HiveTestFixture, String, Client), Box<dyn std::error::Error>> {
+) -> Result<(HiveTestFixture, String, Client, OpenFgaMockService), Box<dyn std::error::Error>> {
+    // Bring up the OpenFGA wiremock fake **before** booting the app so the
+    // production `OpenFgaPermissionChecker` constructed in `AppBuilder`
+    // resolves `http://127.0.0.1:3000/stores/.../check` against a live
+    // mock server. `MockServerFixture::new()` (called inside `service()`)
+    // eagerly resets every previously mounted stub for test isolation.
+    let openfga = OpenFgaFixtures::service().await;
+
+    // Permissive default for the route-guard `Check` calls. Mounted here
+    // so every permission-gated route in the suite passes the OpenFGA
+    // guard. Denial tests call `openfga.reset().await` then mount their
+    // per-tuple deny — wiremock matches in registration order so the
+    // catch-all must be wiped first.
+    openfga.mock_check_any(true).await;
+
     let descriptor = Arc::new(HiveTestDescriptor);
     let fixture = HiveTestFixture::new(descriptor.clone()).await?;
 
     let (server_url, client) = rustycog_testing::setup_test_server::<HiveTestDescriptor, HiveTestFixture>(descriptor).await?;
 
-    Ok((fixture, server_url, client))
+    Ok((fixture, server_url, client, openfga))
 }
 
 

@@ -10,12 +10,15 @@ use hive_infra::repository::entity::organizations;
 use hive_infra::repository::entity::{external_providers, external_links, role_permissions, organization_member_role_permissions, organization_members};
 
 mod common;
-use common::{fixtures::db::{DbFixtures, seed_org_with_owner}, setup_test_server};
+use common::{
+    fixtures::db::{DbFixtures, seed_org_with_owner},
+    setup_test_server, Permission, ResourceRef, Subject,
+};
 
 #[tokio::test]
 #[serial]
 async fn create_organization_happy_path() {
-    let (fixture, server_url, client) = setup_test_server().await.unwrap();
+    let (fixture, server_url, client, _openfga) = setup_test_server().await.unwrap();
     let owner_id = Uuid::new_v4();
     let token = create_jwt_token(owner_id);
 
@@ -49,7 +52,7 @@ async fn create_organization_happy_path() {
 #[serial]
 async fn get_organization_happy_path() {
     // Arrange
-    let (fixture, server_url, client) = setup_test_server().await.unwrap();
+    let (fixture, server_url, client, _openfga) = setup_test_server().await.unwrap();
     let owner_id = Uuid::new_v4();
     let org = DbFixtures::organization().owner_user_id(owner_id).commit(fixture.db()).await.unwrap();
 
@@ -68,7 +71,7 @@ async fn get_organization_happy_path() {
 #[tokio::test]
 #[serial]
 async fn list_requires_auth_and_returns_empty_initially() {
-    let (_fixture, server_url, client) = setup_test_server().await.unwrap();
+    let (_fixture, server_url, client, _openfga) = setup_test_server().await.unwrap();
 
     let res = client
         .get(format!("{}/api/organizations", server_url))
@@ -85,14 +88,26 @@ async fn list_requires_auth_and_returns_empty_initially() {
         .send()
         .await
         .unwrap();
-    // Route is permission guarded without path resource -> expect forbidden
-    assert_eq!(res.status(), StatusCode::FORBIDDEN);
+    // `GET /api/organizations` is `.authenticated()` only — there is no
+    // `.with_permission_on(...)` on this route in `Hive/http/src/lib.rs`,
+    // so any authenticated user reaches the handler. The test's stale
+    // 403 expectation predated that route shape; the test name's
+    // "returns_empty_initially" already encoded the right intent. Assert
+    // 200 + empty data array.
+    assert_eq!(res.status(), StatusCode::OK);
+    let body: serde_json::Value = res.json().await.unwrap();
+    let items = body["data"]
+        .as_array()
+        .or_else(|| body["organizations"].as_array())
+        .or_else(|| body.as_array())
+        .expect("list response should expose an array of organizations");
+    assert!(items.is_empty(), "fresh org list should be empty initially");
 }
 
 #[tokio::test]
 #[serial]
 async fn update_and_delete_organization_with_permissions() {
-    let (fixture, server_url, client) = setup_test_server().await.unwrap();
+    let (fixture, server_url, client, _openfga) = setup_test_server().await.unwrap();
     let owner_id = Uuid::new_v4();
     let token = create_jwt_token(owner_id);
 
@@ -130,7 +145,7 @@ async fn update_and_delete_organization_with_permissions() {
 #[tokio::test]
 #[serial]
 async fn search_organizations_is_public_and_returns_results() {
-    let (fixture, server_url, client) = setup_test_server().await.unwrap();
+    let (fixture, server_url, client, _openfga) = setup_test_server().await.unwrap();
     let owner_id = Uuid::new_v4();
 
     // Seed a couple orgs
@@ -153,7 +168,7 @@ async fn search_organizations_is_public_and_returns_results() {
 }
 
 async fn update_and_delete_require_auth() {
-    let (fixture, server_url, client) = setup_test_server().await.unwrap();
+    let (fixture, server_url, client, _openfga) = setup_test_server().await.unwrap();
     let owner_id = Uuid::new_v4();
     let org = DbFixtures::organization().owner_user_id(owner_id).commit(fixture.db()).await.unwrap();
 
@@ -172,7 +187,7 @@ async fn update_and_delete_require_auth() {
 #[tokio::test]
 #[serial]
 async fn sync_jobs_requires_auth() {
-    let (fixture, server_url, client) = setup_test_server().await.unwrap();
+    let (fixture, server_url, client, _openfga) = setup_test_server().await.unwrap();
     let owner_id = Uuid::new_v4();
     let org = DbFixtures::organization().owner_user_id(owner_id).commit(fixture.db()).await.unwrap();
 
@@ -191,7 +206,7 @@ async fn sync_jobs_requires_auth() {
 #[tokio::test]
 #[serial]
 async fn roles_endpoints_require_auth() {
-    let (fixture, server_url, client) = setup_test_server().await.unwrap();
+    let (fixture, server_url, client, _openfga) = setup_test_server().await.unwrap();
     let owner_id = Uuid::new_v4();
     let org = DbFixtures::organization().owner_user_id(owner_id).commit(fixture.db()).await.unwrap();
 
@@ -209,12 +224,25 @@ async fn roles_endpoints_require_auth() {
 #[tokio::test]
 #[serial]
 async fn update_delete_forbidden_for_read_only_member() {
-    let (fixture, server_url, client) = setup_test_server().await.unwrap();
+    let (fixture, server_url, client, openfga) = setup_test_server().await.unwrap();
     let owner_id = Uuid::new_v4();
     let read_user_id = Uuid::new_v4();
     let token = create_jwt_token(read_user_id);
 
     let org = DbFixtures::create_org(fixture.db().as_ref(), owner_id, HashMap::from([(owner_id.to_string(), "owner".to_string()), (read_user_id.to_string(), "read".to_string())])).await.unwrap();
+
+    // PUT and DELETE on `/api/organizations/{org_id}` both require
+    // `Permission::Admin, "organization"`. Trailing UUID = org.id. Reset
+    // the harness's permissive default and mount a single deny stub —
+    // both API calls in this test will Check the same tuple.
+    openfga.reset().await;
+    openfga
+        .mock_check_deny(
+            Subject::new(read_user_id),
+            Permission::Admin,
+            ResourceRef::new("organization", org.id),
+        )
+        .await;
 
     let res = client
         .put(format!("{}/api/organizations/{}", server_url, org.id))
@@ -233,12 +261,26 @@ async fn update_delete_forbidden_for_read_only_member() {
 #[tokio::test]
 #[serial]
 async fn sync_jobs_forbidden_for_read_only_member() {
-    let (fixture, server_url, client) = setup_test_server().await.unwrap();
+    let (fixture, server_url, client, openfga) = setup_test_server().await.unwrap();
     let owner_id = Uuid::new_v4();
     let read_user_id = Uuid::new_v4();
     let token = create_jwt_token(read_user_id);
 
     let org = DbFixtures::create_org(fixture.db().as_ref(), owner_id, HashMap::from([(owner_id.to_string(), "owner".to_string()), (read_user_id.to_string(), "read".to_string())])).await.unwrap();
+
+    // `POST /api/organizations/{org_id}/sync-jobs` requires
+    // `Permission::Write, "organization"`. The path's trailing UUID is
+    // `org.id` (`sync-jobs` is a string segment). Reset and mount the
+    // deny.
+    openfga.reset().await;
+    openfga
+        .mock_check_deny(
+            Subject::new(read_user_id),
+            Permission::Write,
+            ResourceRef::new("organization", org.id),
+        )
+        .await;
+
     let body = serde_json::json!({
         "external_link_id": Uuid::new_v4(),
         "job_type": "full_sync",
@@ -255,7 +297,7 @@ async fn sync_jobs_forbidden_for_read_only_member() {
 #[tokio::test]
 #[serial]
 async fn get_nonexistent_organization_returns_404() {
-    let (_fixture, server_url, client) = setup_test_server().await.unwrap();
+    let (_fixture, server_url, client, _openfga) = setup_test_server().await.unwrap();
     let res = client
         .get(format!("{}/api/organizations/{}", server_url, Uuid::new_v4()))
         .send().await.unwrap();
@@ -265,7 +307,7 @@ async fn get_nonexistent_organization_returns_404() {
 #[tokio::test]
 #[serial]
 async fn sync_jobs_nonexistent_external_link_returns_404() {
-    let (fixture, server_url, client) = setup_test_server().await.unwrap();
+    let (fixture, server_url, client, _openfga) = setup_test_server().await.unwrap();
     let owner_id = Uuid::new_v4();
     let token = create_jwt_token(owner_id);
     let org = DbFixtures::create_org_with_owner(fixture.db().as_ref(), owner_id).await.unwrap();
@@ -286,7 +328,7 @@ async fn sync_jobs_nonexistent_external_link_returns_404() {
 #[tokio::test]
 #[serial]
 async fn create_validation_errors() {
-    let (fixture, server_url, client) = setup_test_server().await.unwrap();
+    let (fixture, server_url, client, _openfga) = setup_test_server().await.unwrap();
     let user_id = Uuid::new_v4();
     let token = create_jwt_token(user_id);
 
@@ -308,7 +350,7 @@ async fn create_validation_errors() {
 #[tokio::test]
 #[serial]
 async fn start_sync_job_happy_path() {
-    let (fixture, server_url, client) = setup_test_server().await.unwrap();
+    let (fixture, server_url, client, _openfga) = setup_test_server().await.unwrap();
     let owner_id = Uuid::new_v4();
     let token = create_jwt_token(owner_id);
     let org = DbFixtures::create_org_with_owner(fixture.db().as_ref(), owner_id).await.unwrap();

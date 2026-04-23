@@ -136,25 +136,72 @@ impl std::fmt::Display for ResourceId {
     }
 }
 
-/// Authenticated caller identified on the request.
+/// Discriminant for [`Subject`] — `User` for an authenticated UUID-bearing
+/// caller, `Wildcard` for the anonymous "any user" subject (`user:*` on the
+/// OpenFGA wire). Anonymous routes can hand a `Subject::wildcard()` to the
+/// checker instead of failing closed before the call, so a public-read
+/// tuple like `project:{id}#viewer@user:*` (written by `sentinel-sync` for
+/// public projects) is honored.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum SubjectKind {
+    User,
+    Wildcard,
+}
+
+fn default_subject_kind() -> SubjectKind {
+    SubjectKind::User
+}
+
+/// Caller identified on the request — either an authenticated user
+/// ([`Subject::new`]) or the wildcard "any user" subject
+/// ([`Subject::wildcard`]) used by anonymous-callable routes.
 ///
-/// Non-UUID or anonymous subjects are represented as `None` at the middleware
-/// layer and never reach the checker (anonymous routes use the optional
-/// middleware variant).
+/// On the OpenFGA wire `Subject::Display` renders as `user:{uuid}` for the
+/// `User` kind and `user:*` for the `Wildcard` kind. The wildcard form is
+/// only meaningful when the OpenFGA model declares the relevant relation
+/// with a `[user, user:*]` type restriction (e.g. `project.viewer` in
+/// `openfga/model.fga`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Subject {
     pub user_id: Uuid,
+    /// Defaults to `SubjectKind::User` so payloads serialized before this
+    /// field existed deserialize unchanged.
+    #[serde(default = "default_subject_kind")]
+    pub kind: SubjectKind,
 }
 
 impl Subject {
+    /// Build a subject for a concrete authenticated user.
     pub fn new(user_id: Uuid) -> Self {
-        Self { user_id }
+        Self {
+            user_id,
+            kind: SubjectKind::User,
+        }
+    }
+
+    /// Build the wildcard "any user" subject. Renders as `user:*` on the
+    /// OpenFGA wire. Use from `optional_permission_middleware` when the
+    /// request carries no JWT, so public-read tuples
+    /// (`...#viewer@user:*`) can be honored by the centralized checker.
+    pub fn wildcard() -> Self {
+        Self {
+            user_id: Uuid::nil(),
+            kind: SubjectKind::Wildcard,
+        }
+    }
+
+    /// Returns `true` when the subject is the wildcard variant.
+    pub fn is_wildcard(&self) -> bool {
+        matches!(self.kind, SubjectKind::Wildcard)
     }
 }
 
 impl std::fmt::Display for Subject {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "user:{}", self.user_id)
+        match self.kind {
+            SubjectKind::Wildcard => write!(f, "user:*"),
+            SubjectKind::User => write!(f, "user:{}", self.user_id),
+        }
     }
 }
 
@@ -203,4 +250,34 @@ pub trait PermissionChecker: Send + Sync {
         action: Permission,
         resource: ResourceRef,
     ) -> Result<bool, DomainError>;
+}
+
+#[cfg(test)]
+mod subject_tests {
+    use super::*;
+
+    #[test]
+    fn user_subject_renders_as_user_uuid() {
+        let id = Uuid::parse_str("01010101-0101-0101-0101-010101010101").unwrap();
+        let subject = Subject::new(id);
+        assert_eq!(subject.to_string(), "user:01010101-0101-0101-0101-010101010101");
+        assert!(!subject.is_wildcard());
+    }
+
+    #[test]
+    fn wildcard_subject_renders_as_user_star() {
+        let subject = Subject::wildcard();
+        assert_eq!(subject.to_string(), "user:*");
+        assert!(subject.is_wildcard());
+    }
+
+    #[test]
+    fn legacy_subject_payload_without_kind_field_deserializes_as_user() {
+        // Payloads serialized before `SubjectKind` existed only carry
+        // `user_id`; `#[serde(default)]` on `kind` keeps them readable.
+        let json = r#"{"user_id":"01010101-0101-0101-0101-010101010101"}"#;
+        let subject: Subject = serde_json::from_str(json).expect("legacy payload should parse");
+        assert!(matches!(subject.kind, SubjectKind::User));
+        assert_eq!(subject.to_string(), "user:01010101-0101-0101-0101-010101010101");
+    }
 }

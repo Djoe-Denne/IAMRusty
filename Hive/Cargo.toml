@@ -78,4 +78,5 @@ aws-credential-types = { workspace = true }
 hive-infra = { path = "infra", features = ["test-utils"] }
 rustycog-events = { path = "../rustycog/rustycog-events", features = ["test-utils"] }
 rustycog-testing = { path = "../rustycog/rustycog-testing" }
-rustycog-core = { path = "../rustycog/rustycog-core" } 
+rustycog-core = { path = "../rustycog/rustycog-core" }
+rustycog-permission = { path = "../rustycog/rustycog-permission" }

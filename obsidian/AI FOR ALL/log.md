@@ -200,3 +200,10 @@ title: Wiki Log
 - [2026-04-22T17:30:00Z] INGEST source="Manifesto/config/test.toml" pages_updated=9 pages_created=0 mode=append topic=test-cache-disable
 - [2026-04-22T17:30:00Z] INGEST source="Manifesto/tests/common.rs" pages_updated=9 pages_created=0 mode=append topic=openfga-fake-in-setup_test_server
 - [2026-04-22T17:30:00Z] INGEST source="Manifesto/tests/component_api_tests.rs" pages_updated=9 pages_created=0 mode=append topic=denial-and-phase-flip-test-patterns
+- [2026-04-22T18:30:00Z] INGEST source="rustycog/rustycog-permission/src/lib.rs" pages_updated=6 pages_created=1 mode=append topic=phase-1-wildcard-public-read
+- [2026-04-22T18:30:00Z] INGEST source="rustycog/rustycog-permission/src/checker.rs" pages_updated=6 pages_created=0 mode=append topic=cache-bypass-for-wildcard-subject
+- [2026-04-22T18:30:00Z] INGEST source="rustycog/rustycog-http/src/middleware_permission.rs" pages_updated=6 pages_created=0 mode=append topic=optional-middleware-wildcard-fallback
+- [2026-04-22T18:30:00Z] INGEST source="rustycog/rustycog-http/tests/permission_middleware_tests.rs" pages_updated=6 pages_created=0 mode=append topic=optional-auth-wildcard-tests
+- [2026-04-22T18:30:00Z] INGEST source="rustycog/rustycog-testing/src/permission/service.rs" pages_updated=6 pages_created=0 mode=append topic=mock_check_allow_deny_wildcard-helpers
+- [2026-04-22T18:30:00Z] INGEST source="openfga/model.fga" pages_updated=6 pages_created=0 mode=append topic=project-viewer-user-star-type-restriction
+- [2026-04-22T18:30:00Z] INGEST source="Manifesto/tests/project_api_tests.rs" pages_updated=6 pages_created=0 mode=append topic=phase-1-test-fixes-auth-and-422

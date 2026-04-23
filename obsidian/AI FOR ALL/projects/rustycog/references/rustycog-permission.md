@@ -22,16 +22,17 @@ updated: 2026-04-22T17:30:00Z
 ## Surface
 
 - `Permission` — `Read`, `Write`, `Admin`, `Owner`. Maps to OpenFGA relations (`read`, `write`, `administer`, `own`) via `Permission::relation()`.
-- `Subject` — authenticated caller, wrapping the user UUID. Rendered as `user:{uuid}` on the wire.
+- `Subject` — caller identity. Carries `user_id: Uuid` plus a `kind: SubjectKind` discriminant (`User` or `Wildcard`). `Subject::new(uid)` builds the user form (renders as `user:{uuid}`); `Subject::wildcard()` builds the anonymous "any user" form (renders as `user:*`). The wildcard variant is the one [[concepts/anonymous-public-read-via-wildcard-subject]] relies on.
+- `SubjectKind` — `enum { User, Wildcard }`. `#[serde(default)]` on `Subject.kind` keeps wire compatibility with payloads serialized before the field existed.
 - `ResourceRef` — `{ object_type, object_id }`. `object_type` must match a type in [openfga/model.fga](../../../../openfga/model.fga).
 - `ResourceId` — the legacy UUID-only resource wrapper, kept for middleware path extraction.
 - `PermissionChecker` — async trait `check(subject, action, resource) -> Result<bool, DomainError>`.
 
 ## Implementations
 
-- `OpenFgaPermissionChecker` — production. Built from `OpenFgaClientConfig` (`api_url`, `store_id`, optional `authorization_model_id`, optional `api_token`, optional `cache_ttl_seconds`). POSTs to `/stores/{id}/check`.
-- `InMemoryPermissionChecker` — deterministic, test-only. `allow` / `deny` mutate an internal set of tuples.
-- `CachedPermissionChecker` — decorates any inner `Arc<dyn PermissionChecker>` with a `moka` LRU cache keyed by `(user_id, permission, object_type, object_id)`. Time-based invalidation only.
+- `OpenFgaPermissionChecker` — production. Built from `OpenFgaClientConfig` (`api_url`, `store_id`, optional `authorization_model_id`, optional `api_token`, optional `cache_ttl_seconds`). POSTs to `/stores/{id}/check`. Forwards `subject.to_string()` verbatim, so the wildcard form (`user:*`) Just Works on the wire.
+- `InMemoryPermissionChecker` — deterministic, test-only. `allow` / `deny` mutate an internal set of tuples. Accepts `Subject::wildcard()` like any other subject.
+- `CachedPermissionChecker` — decorates any inner `Arc<dyn PermissionChecker>` with a `moka` LRU cache keyed by `(user_id, permission, object_type, object_id)`. Time-based invalidation only. **Bypasses the cache entirely when `subject.is_wildcard()`** — the cache key would collide across all anonymous requests (every wildcard reuses `Uuid::nil()`) and a public→private flip needs to be visible on the next request, not after the TTL window.
 - `MetricsPermissionChecker` — `tracing`-instrumented decorator emitting structured `permission decision` events for every check, including `decision="allow"|"deny"` and `elapsed_us`.
 
 ## Wiring
@@ -66,6 +67,7 @@ let checker: Arc<dyn PermissionChecker> = Arc::new(MetricsPermissionChecker::new
 
 - [[concepts/openfga-as-authorization-engine]]
 - [[concepts/zanzibar-relation-tuples]]
+- [[concepts/anonymous-public-read-via-wildcard-subject]] — `Subject::wildcard()` end-to-end, including Phase 2 hand-off for `sentinel-sync` tuple writes.
 - [[projects/sentinel-sync/sentinel-sync]]
 - [[projects/rustycog/references/rustycog-http]]
 - [[projects/rustycog/references/openfga-mock-service]] — wiremock-backed `Check` fake for service tests.

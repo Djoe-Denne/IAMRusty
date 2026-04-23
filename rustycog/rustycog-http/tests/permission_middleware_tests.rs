@@ -58,6 +58,16 @@ async fn ok_handler_three_level_with_segment(
     "OK"
 }
 
+/// Handler for `.might_be_authenticated()` routes where `AuthUser` is
+/// optional (the middleware tolerates anonymous callers and resolves them
+/// as `Subject::wildcard()`).
+async fn ok_handler_one_level_optional_auth(
+    State(_state): State<AppState>,
+    Path(_org_id): Path<ResourceId>,
+) -> &'static str {
+    "OK"
+}
+
 async fn make_server(
     checker: Arc<InMemoryPermissionChecker>,
 ) -> (
@@ -100,6 +110,12 @@ async fn make_server(
             )
             .authenticated()
             .with_permission_on(Permission::Owner, "organization")
+            .get(
+                "/optional/orgs/{org_id}",
+                ok_handler_one_level_optional_auth,
+            )
+            .might_be_authenticated()
+            .with_permission_on(Permission::Read, "organization")
             .build(rustycog_config::ServerConfig {
                 host: "127.0.0.1".into(),
                 port: addr.port(),
@@ -294,6 +310,71 @@ mod three_level {
             Some(user),
         )
         .await;
+        assert_eq!(res.status(), reqwest::StatusCode::OK);
+    }
+}
+
+/// Cover `optional_permission_middleware`'s wildcard fallback for
+/// anonymous callers. The middleware now consults the
+/// `PermissionChecker` with `Subject::wildcard()` instead of
+/// short-circuiting with 403, so a `viewer@user:*` tuple in the OpenFGA
+/// store (modeled here via `InMemoryPermissionChecker.allow(wildcard, ..)`)
+/// makes anonymous reads succeed.
+mod optional_auth_wildcard {
+    use super::*;
+
+    #[tokio::test]
+    async fn anonymous_allowed_when_wildcard_grant_exists() {
+        let org = Uuid::new_v4();
+        let checker = Arc::new(InMemoryPermissionChecker::new());
+        // Public-read tuple: `organization:{id}#viewer@user:*` (modeled
+        // through Permission::Read which the production OpenFGA model
+        // derives from `viewer`).
+        checker.allow(
+            Subject::wildcard(),
+            Permission::Read,
+            ResourceRef::new("organization", org),
+        );
+        let (addr, _h) = make_server(checker).await;
+
+        let res = http_get(addr, format!("/optional/orgs/{}", org).as_str(), None).await;
+        assert_eq!(
+            res.status(),
+            reqwest::StatusCode::OK,
+            "anonymous caller should be allowed when wildcard tuple is present"
+        );
+    }
+
+    #[tokio::test]
+    async fn anonymous_denied_when_no_wildcard_grant() {
+        let org = Uuid::new_v4();
+        let checker = Arc::new(InMemoryPermissionChecker::new());
+        // No wildcard tuple mounted -> default deny.
+        let (addr, _h) = make_server(checker).await;
+
+        let res = http_get(addr, format!("/optional/orgs/{}", org).as_str(), None).await;
+        assert_eq!(
+            res.status(),
+            reqwest::StatusCode::FORBIDDEN,
+            "anonymous caller should be denied when no wildcard tuple exists"
+        );
+    }
+
+    #[tokio::test]
+    async fn authenticated_caller_takes_user_path_not_wildcard() {
+        let user = Uuid::new_v4();
+        let org = Uuid::new_v4();
+        let checker = Arc::new(InMemoryPermissionChecker::new());
+        // Grant only on the user-id path, not the wildcard. Authenticated
+        // request must use the user subject and succeed.
+        checker.allow(
+            Subject::new(user),
+            Permission::Read,
+            ResourceRef::new("organization", org),
+        );
+        let (addr, _h) = make_server(checker).await;
+
+        let res = http_get(addr, format!("/optional/orgs/{}", org).as_str(), Some(user)).await;
         assert_eq!(res.status(), reqwest::StatusCode::OK);
     }
 }

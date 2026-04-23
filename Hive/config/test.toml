@@ -52,14 +52,21 @@ timeout_seconds = 30
 [logging]
 level = "debug"
 
-# Centralized authorization (OpenFGA). Tests reach the openfga container on
-# the host via the docker-compose-mapped port. store_id / model id stay
-# empty by default; tests that exercise authorization should override via
-# HIVE__OPENFGA__STORE_ID / HIVE__OPENFGA__AUTHORIZATION_MODEL_ID after
-# bootstrapping a store in the test container.
+# Centralized authorization (OpenFGA). Tests run against the wiremock-backed
+# OpenFGA fake provided by `rustycog_testing::permission::OpenFgaMockService`,
+# which always binds the shared singleton wiremock server to 127.0.0.1:3000
+# and pins its store id to `01h0test0store0fixture000openfga`. The
+# integration test harness mounts a permissive `mock_check_any(true)` default
+# in `setup_test_server()` so route-guard `Check` calls always succeed; tests
+# that want to verify denial behavior can override per-tuple via the
+# returned `OpenFgaMockService` handle.
 [openfga]
-api_url = "http://localhost:8090"
-store_id = ""
+api_url = "http://127.0.0.1:3000"
+store_id = "01h0test0store0fixture000openfga"
 # authorization_model_id = ""
 # api_token = ""
+# Disable the in-process Check cache so tests can flip mock decisions
+# mid-flow and observe them on the very next request, instead of waiting
+# for the production 15s TTL to expire.
+cache_ttl_seconds = 0
 

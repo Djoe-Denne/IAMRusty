@@ -1,8 +1,8 @@
 {
   "version": 1,
   "stats": {
-    "total_sources_ingested": 179,
-    "total_pages": 121
+    "total_sources_ingested": 182,
+    "total_pages": 122
   },
   "sources": {
     "IAMRusty/README.md": {
@@ -1454,23 +1454,20 @@
       ]
     },
     "rustycog/rustycog-http/src/middleware_permission.rs": {
-      "ingested_at": "2026-04-15T17:15:56.0808743Z",
-      "size_bytes": 4351,
-      "modified_at": "2026-04-12T13:48:07.5417752Z",
-      "content_hash": "sha256:9acb6137feb0194eb7cd3aca420ecf9acefb3bde1fbfab184a75246dff406f97",
+      "ingested_at": "2026-04-22T18:30:00Z",
+      "size_bytes": 5252,
+      "modified_at": "2026-04-22T18:18:48.4925279Z",
+      "content_hash": "sha256:575dc433861ce68c1a4684641c041cb85a3783e257a64cc526a0ab018badade1",
       "source_type": "document",
       "project": "rustycog",
-      "pages_created": [
-        "entities/resource-id.md"
-      ],
+      "pages_created": [],
       "pages_updated": [
-        "projects/rustycog/rustycog.md",
-        "projects/rustycog/references/rustycog-http.md",
-        "projects/rustycog/references/rustycog-crate-catalog.md",
-        "concepts/shared-rust-microservice-sdk.md",
-        "references/rustycog-service-construction.md",
-        "concepts/resource-scoped-permission-fetchers.md",
-        "entities/resource-id.md"
+        "projects/rustycog/references/rustycog-permission.md",
+        "projects/rustycog/references/openfga-mock-service.md",
+        "projects/manifesto/references/manifesto-api-and-permission-flows.md",
+        "projects/sentinel-sync/references/event-to-tuple-mapping.md",
+        "projects/manifesto/references/manifesto-testing-and-fixtures.md",
+        "concepts/integration-testing-with-real-infrastructure.md"
       ]
     },
     "rustycog/rustycog-http/src/jwt_handler.rs": {
@@ -1491,24 +1488,20 @@
       ]
     },
     "rustycog/rustycog-permission/src/lib.rs": {
-      "ingested_at": "2026-04-15T17:15:56.0808743Z",
-      "size_bytes": 3268,
-      "modified_at": "2025-08-11T07:15:07.2504484Z",
-      "content_hash": "sha256:86bdd82b85bf8e39f0173412635a2450d2feedc0baa5e6fa60cab3921c29e262",
+      "ingested_at": "2026-04-22T18:30:00Z",
+      "size_bytes": 9276,
+      "modified_at": "2026-04-22T18:17:46.1245670Z",
+      "content_hash": "sha256:e37ff356353266fbf495eaa177419a295a149f9534a8fa3239e9f203e2e67667",
       "source_type": "document",
       "project": "rustycog",
-      "pages_created": [
-        "projects/rustycog/references/rustycog-permission.md",
-        "entities/permissions-fetcher.md",
-        "skills/using-rustycog-permission.md"
-      ],
+      "pages_created": [],
       "pages_updated": [
-        "projects/rustycog/rustycog.md",
-        "projects/rustycog/references/rustycog-crate-catalog.md",
         "projects/rustycog/references/rustycog-permission.md",
-        "concepts/shared-rust-microservice-sdk.md",
-        "references/rustycog-service-construction.md",
-        "entities/permissions-fetcher.md"
+        "projects/rustycog/references/openfga-mock-service.md",
+        "projects/manifesto/references/manifesto-api-and-permission-flows.md",
+        "projects/sentinel-sync/references/event-to-tuple-mapping.md",
+        "projects/manifesto/references/manifesto-testing-and-fixtures.md",
+        "concepts/integration-testing-with-real-infrastructure.md"
       ]
     },
     "rustycog/rustycog-permission/src/casbin.rs": {
@@ -2763,25 +2756,20 @@
       ]
     },
     "rustycog/rustycog-testing/src/permission/service.rs": {
-      "ingested_at": "2026-04-22T17:30:00Z",
-      "size_bytes": 9565,
-      "modified_at": "2026-04-22T17:19:05.7392996Z",
-      "content_hash": "sha256:38b68db2eaacee30fcbe77c1301f6e872b1973b79d7cebec000c344faadf3cca",
+      "ingested_at": "2026-04-22T18:30:00Z",
+      "size_bytes": 12502,
+      "modified_at": "2026-04-22T18:19:58.0495441Z",
+      "content_hash": "sha256:223622ce2ec6128b67b31484a3f56747d81fb880e87239c59c32e90b958665ec",
       "source_type": "document",
       "project": "rustycog",
-      "pages_created": [
-        "projects/rustycog/references/openfga-mock-service.md"
-      ],
+      "pages_created": [],
       "pages_updated": [
-        "projects/rustycog/references/wiremock-mock-server-fixture.md",
-        "projects/rustycog/references/rustycog-testing.md",
         "projects/rustycog/references/rustycog-permission.md",
-        "projects/rustycog/references/index.md",
+        "projects/rustycog/references/openfga-mock-service.md",
+        "projects/manifesto/references/manifesto-api-and-permission-flows.md",
+        "projects/sentinel-sync/references/event-to-tuple-mapping.md",
         "projects/manifesto/references/manifesto-testing-and-fixtures.md",
-        "concepts/integration-testing-with-real-infrastructure.md",
-        "skills/stubbing-http-with-wiremock.md",
-        "skills/using-rustycog-permission.md",
-        "skills/using-rustycog-testing.md"
+        "concepts/integration-testing-with-real-infrastructure.md"
       ]
     },
     "rustycog/rustycog-testing/src/permission/resources.rs": {
@@ -2807,25 +2795,20 @@
       ]
     },
     "rustycog/rustycog-permission/src/checker.rs": {
-      "ingested_at": "2026-04-22T17:30:00Z",
-      "size_bytes": 12107,
-      "modified_at": "2026-04-22T17:18:59.7335901Z",
-      "content_hash": "sha256:28874b69a16688813cafe819f0b1b4ce2485e2485c9102ef28121c88fa93fb6c",
+      "ingested_at": "2026-04-22T18:30:00Z",
+      "size_bytes": 14469,
+      "modified_at": "2026-04-22T18:18:24.3479398Z",
+      "content_hash": "sha256:e850d8cbb396a926a0dedb2255e65d26bf9a0809e1b39b8173a1507e7edae7be",
       "source_type": "document",
       "project": "rustycog",
-      "pages_created": [
-        "projects/rustycog/references/openfga-mock-service.md"
-      ],
+      "pages_created": [],
       "pages_updated": [
-        "projects/rustycog/references/wiremock-mock-server-fixture.md",
-        "projects/rustycog/references/rustycog-testing.md",
         "projects/rustycog/references/rustycog-permission.md",
-        "projects/rustycog/references/index.md",
+        "projects/rustycog/references/openfga-mock-service.md",
+        "projects/manifesto/references/manifesto-api-and-permission-flows.md",
+        "projects/sentinel-sync/references/event-to-tuple-mapping.md",
         "projects/manifesto/references/manifesto-testing-and-fixtures.md",
-        "concepts/integration-testing-with-real-infrastructure.md",
-        "skills/stubbing-http-with-wiremock.md",
-        "skills/using-rustycog-permission.md",
-        "skills/using-rustycog-testing.md"
+        "concepts/integration-testing-with-real-infrastructure.md"
       ]
     },
     "Manifesto/config/test.toml": {
@@ -2870,6 +2853,63 @@
         "skills/stubbing-http-with-wiremock.md",
         "skills/using-rustycog-permission.md",
         "skills/using-rustycog-testing.md"
+      ]
+    },
+    "rustycog/rustycog-http/tests/permission_middleware_tests.rs": {
+      "ingested_at": "2026-04-22T18:30:00Z",
+      "size_bytes": 12237,
+      "modified_at": "2026-04-22T18:20:57.8443550Z",
+      "content_hash": "sha256:2accfb3f995dea5b69973cb12a1a5e22a03292bb0dbde2c34c722be308bddaaa",
+      "source_type": "document",
+      "project": "rustycog",
+      "pages_created": [
+        "concepts/anonymous-public-read-via-wildcard-subject.md"
+      ],
+      "pages_updated": [
+        "projects/rustycog/references/rustycog-permission.md",
+        "projects/rustycog/references/openfga-mock-service.md",
+        "projects/manifesto/references/manifesto-api-and-permission-flows.md",
+        "projects/sentinel-sync/references/event-to-tuple-mapping.md",
+        "projects/manifesto/references/manifesto-testing-and-fixtures.md",
+        "concepts/integration-testing-with-real-infrastructure.md"
+      ]
+    },
+    "openfga/model.fga": {
+      "ingested_at": "2026-04-22T18:30:00Z",
+      "size_bytes": 1408,
+      "modified_at": "2026-04-22T18:19:01.7995781Z",
+      "content_hash": "sha256:b392f1951e1e0183b8a317fa03f7ca5e8ca20ce37f927e1cb67c3e76a6e05f0a",
+      "source_type": "document",
+      "project": "openfga",
+      "pages_created": [
+        "concepts/anonymous-public-read-via-wildcard-subject.md"
+      ],
+      "pages_updated": [
+        "projects/rustycog/references/rustycog-permission.md",
+        "projects/rustycog/references/openfga-mock-service.md",
+        "projects/manifesto/references/manifesto-api-and-permission-flows.md",
+        "projects/sentinel-sync/references/event-to-tuple-mapping.md",
+        "projects/manifesto/references/manifesto-testing-and-fixtures.md",
+        "concepts/integration-testing-with-real-infrastructure.md"
+      ]
+    },
+    "Manifesto/tests/project_api_tests.rs": {
+      "ingested_at": "2026-04-22T18:30:00Z",
+      "size_bytes": 18700,
+      "modified_at": "2026-04-22T18:30:30.1451184Z",
+      "content_hash": "sha256:ac0c77f2b0e88b3ae04f1ba99acd86f2b4b99119641fe712a7e3279db0ebe50b",
+      "source_type": "document",
+      "project": "manifesto",
+      "pages_created": [
+        "concepts/anonymous-public-read-via-wildcard-subject.md"
+      ],
+      "pages_updated": [
+        "projects/rustycog/references/rustycog-permission.md",
+        "projects/rustycog/references/openfga-mock-service.md",
+        "projects/manifesto/references/manifesto-api-and-permission-flows.md",
+        "projects/sentinel-sync/references/event-to-tuple-mapping.md",
+        "projects/manifesto/references/manifesto-testing-and-fixtures.md",
+        "concepts/integration-testing-with-real-infrastructure.md"
       ]
     }
   }

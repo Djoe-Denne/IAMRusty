@@ -30,7 +30,7 @@ This page assumes the shared [[projects/rustycog/references/rustycog-http]] and 
 ## Service-Specific Differences
 
 - [Manifesto/http/src/lib.rs](../../../../../Manifesto/http/src/lib.rs) registers project, component, and member routes against the same shared `permission_checker` on `AppState`. There is no per-resource fetcher anymore.
-- Project get/detail routes are optionally authenticated reads guarded by `.with_permission_on(Permission::Read, "project")`. Public-project access is granted in OpenFGA by [[projects/sentinel-sync/sentinel-sync]] writing the appropriate viewer tuples on `ProjectCreated` (when visibility is public).
+- Project get/detail routes are `.might_be_authenticated().with_permission_on(Permission::Read, "project")`. As of Phase 1 of [[concepts/anonymous-public-read-via-wildcard-subject]] (2026-04-22), `optional_permission_middleware` resolves anonymous callers as `Subject::wildcard()` and consults the centralized OpenFGA checker — but only `viewer@user:*` tuples grant access, and **`sentinel-sync` does not write those yet** (Phase 2 follow-up). So in production today, anonymous reads of a specific project still 403; authenticated reads work as long as the calling user has any of `owner` / `admin` / `member` / `viewer` on the project (or inherits one from its organization). Public-project access end-to-end is unblocked once Phase 2 ships the `ProjectVisibilityChanged` event and the matching `sentinel-sync` translator arms.
 - `GET /api/projects` is also optionally authenticated, but its visibility enforcement happens through command, use-case, service, and repository filtering rather than the UUID-scoped permission middleware used by get/detail routes.
 - Component routes use `"project"` as the OpenFGA object type today because the deepest UUID in component routes is the project id (`{component_type}` is a string segment). When component routes adopt `{component_id}` UUID parameters, switch the relevant routes to `with_permission_on(_, "component")`.
 - Member routes are project-scoped (`with_permission_on(Permission::Admin, "project")`).
@@ -52,3 +52,4 @@ This page assumes the shared [[projects/rustycog/references/rustycog-http]] and 
 - [[concepts/openfga-as-authorization-engine]]
 - [[projects/sentinel-sync/references/event-to-tuple-mapping]]
 - [[projects/manifesto/references/manifesto-event-model]]
+- [[concepts/anonymous-public-read-via-wildcard-subject]] — wildcard-subject design and the Phase 2 hand-off blocking anonymous public-read.

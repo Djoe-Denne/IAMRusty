@@ -37,11 +37,13 @@ It is the third concrete consumer of the shared singleton wiremock server (along
 
 - `mock_check_allow(subject, action, resource) -> &Self` — answer `{"allowed": true}` for that exact tuple.
 - `mock_check_deny(subject, action, resource) -> &Self` — answer `{"allowed": false}` for that exact tuple.
+- `mock_check_allow_wildcard(action, resource) -> &Self` — model a public-read tuple (`...#viewer@user:*`) by allowing the wildcard subject for the given action+resource. Pairs with `optional_permission_middleware`'s wildcard fallback for anonymous callers — see [[concepts/anonymous-public-read-via-wildcard-subject]].
+- `mock_check_deny_wildcard(action, resource) -> &Self` — explicit anonymous-deny stub. Useful for tests that simulate `sentinel-sync` removing the wildcard tuple after a project flips public → private.
 - `mock_check_any(allow: bool) -> &Self` — catch-all answering every `Check` against the configured store with the same decision. Useful as a permissive default in `setup_test_server`.
 - `mock_check_error(status, body) -> &Self` — return a non-success status to drive the `OpenFGA Check returned <status>` error path through the production checker.
 - `mock_check_requires_bearer(token, allow) -> &Self` — only answer when the request carries the matching `Authorization: Bearer <token>` header. Used to verify that the production checker forwards `OpenFgaClientConfig::api_token`.
 - `reset()` — wipe every previously mounted `Check` stub. Required when a test needs to **override** a stub mounted earlier in the same test or by `setup_test_server` — wiremock matches in registration order so a later `mock_check_deny` would never fire ahead of an existing `mock_check_any(true)`.
-- `received_requests()` / `received_check_requests()` / `check_count()` / `verify_check_called(subject, action, resource)` — inspection helpers built on `MockServer::received_requests()`. The `verify_check_called` helper decodes the request body and compares the OpenFGA tuple, not the raw bytes.
+- `received_requests()` / `received_check_requests()` / `check_count()` / `verify_check_called(subject, action, resource)` — inspection helpers built on `MockServer::received_requests()`. The `verify_check_called` helper decodes the request body and compares the OpenFGA tuple, not the raw bytes — pass `Subject::wildcard()` to assert that anonymous callers actually reached the checker.
 
 ## Stub Patterns
 
@@ -145,6 +147,7 @@ When mounting `mock_check_*` stubs, use the trailing UUID from the URL the test 
 
 - [[projects/rustycog/references/wiremock-mock-server-fixture]] — underlying singleton.
 - [[projects/rustycog/references/rustycog-permission]] — the production checker stack and the new `cache_ttl_seconds` field.
+- [[concepts/anonymous-public-read-via-wildcard-subject]] — how `mock_check_allow_wildcard` ties into the production wildcard-subject flow.
 - [[skills/stubbing-http-with-wiremock]] — recipe for authoring sibling fixtures (Hive/Telegraph style).
 - [[skills/using-rustycog-permission]] — wiring the production checker into a service.
 - [[projects/manifesto/references/manifesto-testing-and-fixtures]] — canonical consumer of this fixture today.

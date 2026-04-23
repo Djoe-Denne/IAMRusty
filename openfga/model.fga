@@ -20,7 +20,12 @@ type project
     define owner: [user]
     define admin: [user] or owner or admin from organization
     define member: [user] or admin
-    define viewer: [user] or member or viewer from organization
+    # `[user, user:*]` permits public-read tuples
+    # (`project:{id}#viewer@user:*`) written by sentinel-sync for projects
+    # whose visibility is `public`. Anonymous callers are resolved as
+    # `Subject::wildcard()` by `optional_permission_middleware` and
+    # rendered as `user:*` on the wire.
+    define viewer: [user, user:*] or member or viewer from organization
     define read: viewer
     define write: member
     define administer: admin

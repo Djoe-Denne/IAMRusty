@@ -304,7 +304,7 @@ Read these only when the situation calls for it — not up-front.
 
 - Hive's external-provider fake: `Hive/tests/fixtures/external_provider/{mod.rs, service.rs, resources.rs}` — small, REST-shaped, one mock method per endpoint.
 - Telegraph's SMTP-as-HTTP fake: `Telegraph/tests/fixtures/smtp/{mod.rs, service.rs, resources.rs}` — protocol-shaped, scenario composition, scenario builder, request inspection.
-- OpenFGA `Check` fake: `rustycog/rustycog-testing/src/permission/{mod.rs, service.rs, resources.rs}` — in-crate fixture (lives inside `rustycog-testing` so every consumer of `rustycog-permission` reuses it). Demonstrates `reset()`, the `client_config()` convenience that returns a fully-arranged `OpenFgaClientConfig`, and the cache-companion-setting pattern (`cache_ttl_seconds`).
+- OpenFGA `Check` fake: `rustycog/rustycog-testing/src/permission/{mod.rs, service.rs, resources.rs}` — in-crate fixture (lives inside `rustycog-testing` so every consumer of `rustycog-permission` reuses it). Demonstrates `reset()`, the `client_config()` convenience that returns a fully-arranged `OpenFgaClientConfig`, the cache-companion-setting pattern (`cache_ttl_seconds`), and the wildcard helpers `mock_check_allow_wildcard` / `mock_check_deny_wildcard` for anonymous-public-read tests (see [[concepts/anonymous-public-read-via-wildcard-subject]] in the wiki).
 - Shared fixture implementation: `rustycog/rustycog-testing/src/wiremock/mod.rs` — `MockServerFixture` + singleton lifecycle.
 - Canonical consumer wiring: `Manifesto/tests/common.rs`, `Manifesto/setup/src/app.rs`, `Manifesto/config/test.toml`, and `Manifesto/tests/component_api_tests.rs` (read tests 4 / 5 / 6 for the deny / multi-tuple / phase-flip arrangement patterns respectively).
 

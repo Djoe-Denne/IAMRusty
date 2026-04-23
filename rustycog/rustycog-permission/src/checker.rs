@@ -254,6 +254,19 @@ impl PermissionChecker for CachedPermissionChecker {
         action: Permission,
         resource: ResourceRef,
     ) -> Result<bool, DomainError> {
+        // Wildcard subjects (anonymous-public-read via `viewer@user:*`) are
+        // intentionally **not** cached. The cache key is keyed on
+        // `user_id: Uuid` and the wildcard reuses `Uuid::nil()`, which would
+        // collide across every anonymous request and let one project's
+        // public-read decision answer for another. Skipping the cache also
+        // means a freshly-flipped public->private (when sentinel-sync
+        // removes the wildcard tuple) is observed on the very next request
+        // instead of after the TTL window, which is the right safety
+        // posture for a relation that grants everyone read access.
+        if subject.is_wildcard() {
+            return self.inner.check(subject, action, resource).await;
+        }
+
         let key = CacheKey {
             user_id: subject.user_id,
             permission: action,
@@ -362,5 +375,37 @@ mod tests {
         assert!(cached.check(subject, Permission::Write, resource).await.unwrap());
         inner.deny(subject, Permission::Write, resource);
         assert!(cached.check(subject, Permission::Write, resource).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn cached_checker_bypasses_cache_for_wildcard_subject() {
+        let inner = Arc::new(InMemoryPermissionChecker::new());
+        let wildcard = Subject::wildcard();
+        let resource = ResourceRef::new("project", uuid::Uuid::new_v4());
+        inner.allow(wildcard, Permission::Read, resource);
+
+        let cached = CachedPermissionChecker::new(
+            inner.clone() as Arc<dyn PermissionChecker>,
+            Duration::from_secs(30),
+            128,
+        );
+
+        // First wildcard check -> allow (inner has the tuple).
+        assert!(cached.check(wildcard, Permission::Read, resource).await.unwrap());
+
+        // Flip the inner decision. With the cache bypassed, the next
+        // wildcard call must observe the new state immediately. If the
+        // wildcard were cached, this assertion would fail because the
+        // cached `true` would be returned instead.
+        inner.deny(wildcard, Permission::Read, resource);
+        assert!(!cached.check(wildcard, Permission::Read, resource).await.unwrap());
+
+        // Sanity: a concrete user-id subject with the same key shape is
+        // still cached (regression guard for the rest of the cache logic).
+        let user_subject = Subject::new(uuid::Uuid::new_v4());
+        inner.allow(user_subject, Permission::Read, resource);
+        assert!(cached.check(user_subject, Permission::Read, resource).await.unwrap());
+        inner.deny(user_subject, Permission::Read, resource);
+        assert!(cached.check(user_subject, Permission::Read, resource).await.unwrap()); // cached
     }
 }

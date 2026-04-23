@@ -67,6 +67,7 @@ Manifesto is the canonical consumer of [[projects/rustycog/references/openfga-mo
 | Denial test (member should be 403) | `openfga.reset().await; openfga.mock_check_deny(member_subject, Permission::Admin, ResourceRef::new("project", component.id())).await;` |
 | Multi-tuple (allow on c1, deny on c2) | `reset()` then chain `mock_check_allow` for the allowed tuples and `mock_check_deny` for the denied ones — different resource UUIDs ⇒ different cache keys, so distinct decisions don't collide. |
 | Grant ➜ revoke ➜ deny | Two arrangements separated by the revoke API call: Phase 1 mounts allow for owner + member; mid-flow `reset()`; Phase 2 mounts allow for owner + **deny** for member. Requires `cache_ttl_seconds = 0`. |
+| Anonymous public-read (Phase 2 work — not yet wired) | `openfga.mock_check_allow_wildcard(Permission::Read, project_resource).await;` — models a `viewer@user:*` tuple. Today the 3 anonymous GET tests (`test_get_project_returns_200_for_existing_project`, `test_get_project_returns_404_for_nonexistent_project`, `test_get_project_detail_returns_200_with_components`) are temporarily authenticated instead, pending [[concepts/anonymous-public-read-via-wildcard-subject]] Phase 2. |
 
 ### Resource ID extraction quirk
 
@@ -85,6 +86,7 @@ Tests must arrange stubs against the **trailing UUID**, not the project id. ^[in
 ## Open Questions
 
 - If queue-backed CI becomes standard later, which Manifesto event paths deserve full broker-backed integration coverage instead of today's unit-level runtime checks?
+- The 3 GET tests (`test_get_project_returns_200_for_existing_project`, `test_get_project_returns_404_for_nonexistent_project`, `test_get_project_detail_returns_200_with_components`) authenticate today even though their assertion intent is endpoint-behavior, not authentication. Phase 2 of [[concepts/anonymous-public-read-via-wildcard-subject]] will revert them to anonymous and arrange `openfga.mock_check_allow_wildcard(Permission::Read, project_resource)` instead.
 
 ## Sources
 

@@ -87,10 +87,15 @@ async fn test_create_project_returns_400_for_invalid_owner_type() {
         .await
         .expect("Failed to send request");
 
+    // Manifesto's HTTP layer maps `HttpError::Validation` to
+    // `UNPROCESSABLE_ENTITY` (422) per RFC 4918 — see
+    // `Manifesto/http/src/error.rs:28`. Older test suites assumed 400; this
+    // assertion was updated in the wildcard-public-read Phase 1 work to
+    // match the deliberate production behavior.
     assert_eq!(
         response.status(),
-        400,
-        "Should return 400 Bad Request for invalid owner_type"
+        422,
+        "Should return 422 Unprocessable Entity for invalid owner_type"
     );
 }
 
@@ -229,11 +234,15 @@ async fn test_get_project_returns_200_for_existing_project() {
         .expect("Failed to create project with owner");
 
     // The route is `.might_be_authenticated().with_permission_on(Read, "project")`.
-    // `optional_permission_middleware` rejects anonymous callers when the
-    // path carries a resource UUID (`rustycog-http/src/middleware_permission.rs`),
-    // so this test must authenticate. Anonymous public-read coverage lives
-    // separately in `tests/public_acl_api_tests.rs`. The harness's permissive
-    // `mock_check_any(true)` default already answers the route guard's Check.
+    // After the Phase 1 wildcard-public-read work, `optional_permission_middleware`
+    // resolves anonymous callers as `Subject::wildcard()` and consults the
+    // OpenFGA checker — but only `viewer@user:*` tuples grant access, and
+    // `sentinel-sync` doesn't write those yet (Phase 2 follow-up tracked in
+    // `obsidian/AI FOR ALL/concepts/anonymous-public-read-via-wildcard-subject.md`).
+    // Until Phase 2 ships, this test authenticates so it exercises the
+    // `Subject::new(uid)` path against the harness's permissive
+    // `mock_check_any(true)` default. Phase 2 will revert this to anonymous
+    // and arrange `openfga.mock_check_allow_wildcard(...)` instead.
     let jwt_token = create_test_jwt_token(owner_id);
 
     let response = client
@@ -267,8 +276,16 @@ async fn test_get_project_returns_404_for_nonexistent_project() {
 
     let non_existent_id = Uuid::new_v4();
 
+    // Authenticate so `optional_permission_middleware` takes the
+    // `Subject::new(uid)` path and the request reaches the handler. Phase 2
+    // (sentinel-sync writing `viewer@user:*` for public projects) will
+    // allow reverting this to a true anonymous request — see
+    // `[[concepts/anonymous-public-read-via-wildcard-subject]]`.
+    let jwt_token = create_test_jwt_token(Uuid::new_v4());
+
     let response = client
         .get(&format!("{}/api/projects/{}", base_url, non_existent_id))
+        .header("Authorization", format!("Bearer {}", jwt_token))
         .send()
         .await
         .expect("Failed to send request");
@@ -294,8 +311,16 @@ async fn test_get_project_detail_returns_200_with_components() {
             .await
             .expect("Failed to create project with component");
 
+    // Authenticate so `optional_permission_middleware` takes the
+    // `Subject::new(uid)` path and the request reaches the handler. Phase 2
+    // (sentinel-sync writing `viewer@user:*` for public projects) will
+    // allow reverting this to a true anonymous request — see
+    // `[[concepts/anonymous-public-read-via-wildcard-subject]]`.
+    let jwt_token = create_test_jwt_token(owner_id);
+
     let response = client
         .get(&format!("{}/api/projects/{}/details", base_url, project.id()))
+        .header("Authorization", format!("Bearer {}", jwt_token))
         .send()
         .await
         .expect("Failed to send request");
@@ -308,9 +333,16 @@ async fn test_get_project_detail_returns_200_with_components() {
 
     let response_json: Value = response.json().await.expect("Should return JSON response");
 
-    assert!(
-        response_json["project"].is_object(),
-        "Should return project object"
+    // `ProjectDetailResponse` uses `#[serde(flatten)]` for its inner
+    // `ProjectResponse` (see `Manifesto/application/src/dto/project.rs`),
+    // so project fields land at the top level alongside `components` and
+    // `member_count` rather than nested under a `"project"` key. Verify
+    // the project metadata via the flattened `id` field plus the project
+    // id we expect — same intent as the original assertion.
+    assert_eq!(
+        response_json["id"],
+        project.id().to_string(),
+        "Should return project metadata at the top level (flattened)"
     );
     assert!(
         response_json["components"].is_array(),
@@ -481,11 +513,15 @@ async fn test_publish_project_returns_200_when_valid() {
         .await
         .expect("Failed to send request");
 
-    // Note: This may return 400 if validation fails (no active components)
-    // The test demonstrates the API call pattern
+    // Note: This may return 422 if validation fails (e.g. no active
+    // components). Manifesto's HTTP layer maps `HttpError::Validation` to
+    // `UNPROCESSABLE_ENTITY` per RFC 4918 — see
+    // `Manifesto/http/src/error.rs:28`. Older test suites assumed 400; this
+    // assertion was updated in the wildcard-public-read Phase 1 work to
+    // match the deliberate production behavior.
     assert!(
-        response.status() == 200 || response.status() == 400,
-        "Should return 200 OK for successful publish or 400 if validation fails"
+        response.status() == 200 || response.status() == 422,
+        "Should return 200 OK for successful publish or 422 if validation fails"
     );
 }
 

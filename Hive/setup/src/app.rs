@@ -97,19 +97,30 @@ impl Application {
         // Centralized permission checker (OpenFGA). Built once and shared
         // across every request through `AppState`. The checker chain is:
         //   MetricsPermissionChecker
-        //     -> CachedPermissionChecker (short TTL LRU)
+        //     -> CachedPermissionChecker (short TTL LRU, optional)
         //       -> OpenFgaPermissionChecker (network)
+        //
+        // The cache is the production default (15s) but can be disabled at
+        // test time by setting `openfga.cache_ttl_seconds = 0` so flows
+        // that need to observe a freshly re-arranged decision (or a
+        // wildcard subject from `optional_permission_middleware`) are not
+        // masked by a stale cached entry.
         let raw_checker: Arc<dyn PermissionChecker> = Arc::new(
             OpenFgaPermissionChecker::new(config.openfga.clone())
                 .map_err(|e| anyhow::anyhow!("Invalid OpenFGA configuration: {}", e))?,
         );
-        let cached: Arc<dyn PermissionChecker> = Arc::new(CachedPermissionChecker::new(
-            raw_checker,
-            Duration::from_secs(15),
-            10_000,
-        ));
+        let cache_ttl_seconds = config.openfga.cache_ttl_seconds.unwrap_or(15);
+        let metered_inner: Arc<dyn PermissionChecker> = if cache_ttl_seconds == 0 {
+            raw_checker
+        } else {
+            Arc::new(CachedPermissionChecker::new(
+                raw_checker,
+                Duration::from_secs(cache_ttl_seconds),
+                10_000,
+            ))
+        };
         let permission_checker: Arc<dyn PermissionChecker> =
-            Arc::new(MetricsPermissionChecker::new(cached));
+            Arc::new(MetricsPermissionChecker::new(metered_inner));
 
         // Create application state
         let state = AppState::new(command_service, user_id_extractor, permission_checker);

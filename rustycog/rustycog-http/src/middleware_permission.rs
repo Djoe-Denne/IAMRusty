@@ -93,10 +93,20 @@ pub async fn permission_middleware(
 
 /// Permission-checking middleware that tolerates anonymous callers.
 ///
-/// If no `Subject` is attached (unauthenticated request), the middleware
-/// passes through only when the path has no resource UUID. A path that does
-/// carry a resource UUID still requires an explicit allow decision, so
-/// anonymous access cannot reach protected resources by accident.
+/// If the path has no resource UUID, the middleware passes through without
+/// touching the checker — collection-level routes (e.g. `GET /api/projects`)
+/// remain anonymously reachable.
+///
+/// If the path *does* carry a resource UUID, the middleware always consults
+/// the centralized `PermissionChecker`:
+/// - When a `Subject` (UUID) is attached to the request extensions, the
+///   check uses [`Subject::new`] (renders as `user:{uuid}` on the OpenFGA
+///   wire).
+/// - When no subject is attached, the check uses [`Subject::wildcard`]
+///   (renders as `user:*`). This honors public-read tuples like
+///   `project:{id}#viewer@user:*` written by `sentinel-sync` for public
+///   resources, while preserving fail-closed semantics: relations without
+///   a wildcard tuple still return `false` and the request 403s.
 pub async fn optional_permission_middleware(
     State(guard): State<Arc<PermissionGuard>>,
     req: Request<Body>,
@@ -110,12 +120,16 @@ pub async fn optional_permission_middleware(
         return Ok(next.run(req).await);
     };
 
-    let Some(user_id) = user_id else {
-        debug!("optional_permission_middleware: no subject, resource present -> FORBIDDEN");
-        return Err(StatusCode::FORBIDDEN);
+    let subject = match user_id {
+        Some(uid) => Subject::new(uid),
+        None => {
+            debug!(
+                path = %request_path,
+                "optional_permission_middleware: anonymous caller, consulting checker with Subject::wildcard()"
+            );
+            Subject::wildcard()
+        }
     };
-
-    let subject = Subject::new(user_id);
     let resource = ResourceRef::new(guard.object_type, resource_id);
 
     let allowed = guard
@@ -129,7 +143,7 @@ pub async fn optional_permission_middleware(
 
     if !allowed {
         info!(
-            user = %user_id,
+            user = %subject,
             permission = %guard.required,
             object_type = guard.object_type,
             object_id = %resource_id,
