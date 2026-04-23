@@ -215,3 +215,8 @@ title: Wiki Log
 - [2026-04-23T19:10:00Z] INGEST source="IAMRusty/tests/utils/jwt.rs" pages_updated=2 pages_created=0 mode=append topic=remove-duplicate-rs256-guard-in-test-util
 - [2026-04-23T19:10:00Z] INGEST source="IAMRusty/tests/auth_username_flow_part2.rs" pages_updated=2 pages_created=0 mode=append topic=relax-rsa-header-assertion
 - [2026-04-23T19:10:00Z] INGEST source="IAMRusty/config/test.toml" pages_updated=3 pages_created=0 mode=append topic=test-config-uses-hs256-not-pem
+- [2026-04-23T19:30:00Z] WIKI_UPDATE source="cursor-transcript:0b156989-a24f-442c-a7bc-49d7bffe4677" pages_created=1 pages_updated=4 mode=append topic=creating-testcontainer-fixtures-skill
+- [2026-04-23T19:30:00Z] INGEST source="rustycog/rustycog-testing/src/common/sqs_testcontainer.rs" pages_updated=1 pages_created=1 mode=append topic=singleton-and-defensive-cleanup-pattern
+- [2026-04-23T19:30:00Z] INGEST source="rustycog/rustycog-testing/src/common/service_test_descriptor.rs" pages_updated=1 pages_created=1 mode=append topic=non-defaulted-capability-flags
+- [2026-04-23T19:30:00Z] INGEST source="Telegraph/tests/fixtures/smtp/testcontainer.rs" pages_updated=1 pages_created=1 mode=append topic=service-local-mailhog-testcontainer-fixture
+- [2026-04-23T19:30:00Z] INGEST source="Telegraph/config/test.toml" pages_updated=1 pages_created=1 mode=append topic=fixed-mapped-port-vs-port-zero-tradeoff

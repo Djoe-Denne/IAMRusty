@@ -101,12 +101,13 @@ When a test needs to assert on what the service actually sent, use the upstream 
 
 ## When Not To Use This
 
-If the test is verifying protocol-level behavior of the real collaborator (SMTP framing, Kafka ack semantics, Postgres SQL behavior), reach for a real testcontainer instead. Telegraph keeps both `SmtpService` (wiremock) and `TestSmtp` (MailHog testcontainer) in the same fixture tree precisely because they answer different questions.
+If the test is verifying protocol-level behavior of the real collaborator (SMTP framing, Kafka ack semantics, Postgres SQL behavior), reach for a real testcontainer instead — the recipe is in [[skills/creating-testcontainer-fixtures]]. Telegraph keeps both `SmtpService` (wiremock) and `TestSmtp` (MailHog testcontainer) in the same fixture tree precisely because they answer different questions.
 
 ## Sources
 
 - [[projects/rustycog/references/wiremock-mock-server-fixture]] — fixture API surface and isolation semantics.
 - [[projects/rustycog/references/openfga-mock-service]] — in-crate consumer with the canonical reset-and-deny pattern, plus the `cache_ttl_seconds = 0` companion setting.
+- [[skills/creating-testcontainer-fixtures]] — sister skill for the real-protocol testcontainer alternative.
 - [[projects/rustycog/references/rustycog-testing]] — parent crate where the fixture lives.
 - [[projects/hive/references/hive-testing-and-api-fixtures]] — Hive's `ExternalProviderMockService` recipe.
 - [[projects/telegraph/references/telegraph-testing-and-smtp-fixtures]] — Telegraph's `SmtpService` recipe and scenario builder.

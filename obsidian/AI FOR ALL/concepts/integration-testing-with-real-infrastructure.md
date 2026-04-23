@@ -74,4 +74,5 @@ updated: 2026-04-22T16:20:59Z
 - [[projects/rustycog/references/wiremock-mock-server-fixture]] - Singleton wiremock server reused by Hive, Telegraph, and the in-crate OpenFGA fake.
 - [[projects/rustycog/references/openfga-mock-service]] - In-crate wiremock-backed OpenFGA `Check` fake.
 - [[skills/stubbing-http-with-wiremock]] - How to add a new wiremock-backed collaborator fixture.
+- [[skills/creating-testcontainer-fixtures]] - How to add a new real-protocol Docker-backed fixture (Postgres, LocalStack, Kafka, MailHog, Redis, ...).
 - [[concepts/structured-service-configuration]] - Random ports and typed config matter in both suites.
