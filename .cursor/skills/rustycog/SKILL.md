@@ -32,6 +32,7 @@ Pick the smallest set of references that match the task. Load each only when nee
 | `PermissionChecker`, OpenFGA-backed guards, with_permission_on | [references/using-rustycog-permission.md](references/using-rustycog-permission.md) |
 | Integration tests, `setup_test_server`, Kafka/SQS testcontainers, `OpenFgaMockService` | [references/using-rustycog-testing.md](references/using-rustycog-testing.md) |
 | Authoring a wiremock-backed fixture for an HTTP collaborator (incl. `reset()` and cache caveats) | `.cursor/skills/creating-wiremock-fixtures/SKILL.md` |
+| Authoring a real Docker-backed testcontainer fixture (Postgres / LocalStack / Kafka / MailHog / Redis / ...) | `.cursor/skills/creating-testcontainer-fixtures/SKILL.md` |
 | `setup_logging`, `HasLoggingConfig`, Loki feature wiring | [references/using-rustycog-logger.md](references/using-rustycog-logger.md) |
 
 ## Cross-cutting rules
