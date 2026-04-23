@@ -27,7 +27,7 @@ use telegraph_infra::repository::entity::notifications;
 #[tokio::test]
 #[serial]
 async fn test_get_notifications_success_default_pagination() {
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client, _openfga) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
     let db = fixture.db();
@@ -117,7 +117,7 @@ async fn test_get_notifications_success_default_pagination() {
 #[tokio::test]
 #[serial]
 async fn test_get_notifications_unread_only_filter() {
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client, _openfga) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
     let db = fixture.db();
@@ -181,7 +181,7 @@ async fn test_get_notifications_unread_only_filter() {
 #[tokio::test]
 #[serial]
 async fn test_get_notifications_pagination() {
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client, _openfga) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
     let db = fixture.db();
@@ -248,7 +248,7 @@ async fn test_get_notifications_pagination() {
 #[tokio::test]
 #[serial]
 async fn test_get_notifications_missing_auth() {
-    let (_, base_url, client) = setup_test_server()
+    let (_, base_url, client, _openfga) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
 
@@ -265,7 +265,7 @@ async fn test_get_notifications_missing_auth() {
 #[tokio::test]
 #[serial]
 async fn test_get_notifications_invalid_auth() {
-    let (_, base_url, client) = setup_test_server()
+    let (_, base_url, client, _openfga) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
 
@@ -283,7 +283,7 @@ async fn test_get_notifications_invalid_auth() {
 #[tokio::test]
 #[serial]
 async fn test_get_notifications_validation_error() {
-    let (_, base_url, client) = setup_test_server()
+    let (_, base_url, client, _openfga) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
 
@@ -304,7 +304,7 @@ async fn test_get_notifications_validation_error() {
 #[tokio::test]
 #[serial]
 async fn test_get_unread_count_success() {
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client, _openfga) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
     let db = fixture.db();
@@ -366,7 +366,7 @@ async fn test_get_unread_count_success() {
 #[tokio::test]
 #[serial]
 async fn test_get_unread_count_empty() {
-    let (_, base_url, client) = setup_test_server()
+    let (_, base_url, client, _openfga) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
 
@@ -395,7 +395,7 @@ async fn test_get_unread_count_empty() {
 #[tokio::test]
 #[serial]
 async fn test_get_unread_count_auth_required() {
-    let (_, base_url, client) = setup_test_server()
+    let (_, base_url, client, _openfga) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
 
@@ -412,7 +412,7 @@ async fn test_get_unread_count_auth_required() {
 #[tokio::test]
 #[serial]
 async fn test_mark_notification_read_success() {
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client, _openfga) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
     let db = fixture.db();
@@ -500,13 +500,28 @@ async fn test_mark_notification_read_success() {
 #[tokio::test]
 #[serial]
 async fn test_mark_notification_read_not_found() {
-    let (_, base_url, client) = setup_test_server()
+    let (_, base_url, client, openfga) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
 
     let user_id = Uuid::new_v4();
     let jwt_token = create_jwt_token(user_id);
     let nonexistent_id = Uuid::new_v4();
+
+    // The test asserts `403 FORBIDDEN`: a user trying to mark a
+    // notification they have no rights on should be denied at the route
+    // guard, before the handler can leak the existence (or absence) of
+    // the notification. Reset the harness's permissive default and mount
+    // a deny matching the tuple `(user_id, Write, notification:<id>)`
+    // that `with_permission_on(Write, "notification")` will Check.
+    openfga.reset().await;
+    openfga
+        .mock_check_deny(
+            Subject::new(user_id),
+            Permission::Write,
+            ResourceRef::new("notification", nonexistent_id),
+        )
+        .await;
 
     let response = client
         .put(format!(
@@ -525,7 +540,7 @@ async fn test_mark_notification_read_not_found() {
 #[tokio::test]
 #[serial]
 async fn test_mark_notification_read_unauthorized() {
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client, _openfga) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
     let db = fixture.db();
@@ -578,7 +593,7 @@ async fn test_mark_notification_read_unauthorized() {
 #[tokio::test]
 #[serial]
 async fn test_mark_notification_read_missing_auth() {
-    let (_, base_url, client) = setup_test_server()
+    let (_, base_url, client, _openfga) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
 
@@ -600,7 +615,7 @@ async fn test_mark_notification_read_missing_auth() {
 #[tokio::test]
 #[serial]
 async fn test_mark_notification_read_idempotent() {
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client, _openfga) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
     let db = fixture.db();
@@ -682,7 +697,7 @@ fn create_test_jwt_token(user_id: Uuid) -> String {
 #[tokio::test]
 #[serial]
 async fn test_notification_lifecycle_complete() {
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client, _openfga) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
     let db = fixture.db();

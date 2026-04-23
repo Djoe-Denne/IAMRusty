@@ -7073,6 +7073,7 @@ dependencies = [
  "rustycog-config",
  "rustycog-core",
  "rustycog-events",
+ "rustycog-permission",
  "rustycog-testing",
  "sea-orm",
  "sea-orm-migration",

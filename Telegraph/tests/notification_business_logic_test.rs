@@ -27,7 +27,7 @@ use telegraph_infra::repository::entity::notifications;
 #[tokio::test]
 #[serial]
 async fn test_mark_as_read_operation() {
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client, _openfga) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
     let db = fixture.db();
@@ -78,7 +78,7 @@ async fn test_mark_as_read_operation() {
 #[tokio::test]
 #[serial]
 async fn test_large_dataset_pagination() {
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client, _openfga) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
     let db = fixture.db();
@@ -172,7 +172,7 @@ async fn test_large_dataset_pagination() {
 #[tokio::test]
 #[serial]
 async fn test_expired_notifications_handling() {
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client, _openfga) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
     let db = fixture.db();
@@ -239,7 +239,7 @@ async fn test_expired_notifications_handling() {
 #[tokio::test]
 #[serial]
 async fn test_multi_user_isolation_comprehensive() {
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client, _openfga) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
     let db = fixture.db();
@@ -364,7 +364,7 @@ async fn test_multi_user_isolation_comprehensive() {
 #[tokio::test]
 #[serial]
 async fn test_complex_notification_filtering() {
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client, _openfga) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
     let db = fixture.db();

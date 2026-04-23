@@ -25,7 +25,7 @@ use rustycog_testing::http::jwt::create_jwt_token;
 #[tokio::test]
 #[serial]
 async fn test_get_notifications_negative_page() {
-    let (_, base_url, client) = setup_test_server()
+    let (_, base_url, client, _openfga) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
 
@@ -46,7 +46,7 @@ async fn test_get_notifications_negative_page() {
 #[tokio::test]
 #[serial]
 async fn test_get_notifications_per_page_exceeds_limit() {
-    let (_, base_url, client) = setup_test_server()
+    let (_, base_url, client, _openfga) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
 
@@ -67,7 +67,7 @@ async fn test_get_notifications_per_page_exceeds_limit() {
 #[tokio::test]
 #[serial]
 async fn test_get_notifications_per_page_zero() {
-    let (_, base_url, client) = setup_test_server()
+    let (_, base_url, client, _openfga) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
 
@@ -88,7 +88,7 @@ async fn test_get_notifications_per_page_zero() {
 #[tokio::test]
 #[serial]
 async fn test_get_notifications_malformed_params() {
-    let (_, base_url, client) = setup_test_server()
+    let (_, base_url, client, _openfga) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
 
@@ -125,7 +125,7 @@ async fn test_get_notifications_malformed_params() {
 #[tokio::test]
 #[serial]
 async fn test_mark_notification_read_invalid_rights() {
-    let (_, base_url, client) = setup_test_server()
+    let (_, base_url, client, openfga) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
 
@@ -133,6 +133,22 @@ async fn test_mark_notification_read_invalid_rights() {
     let jwt_token = create_jwt_token(user_id);
 
     let invalid_right_uuid = Uuid::new_v4();
+
+    // We're testing the denial path. The route guard
+    // `with_permission_on(Permission::Write, "notification")` on
+    // `PUT /api/notifications/{id}/read` will Check
+    // `(user_id, Write, notification:<invalid_right_uuid>)`. Reset the
+    // harness's permissive default and mount a deny matching the exact
+    // tuple the middleware will issue (wiremock matches in registration
+    // order, so a deny mounted on top of the catch-all would never fire).
+    openfga.reset().await;
+    openfga
+        .mock_check_deny(
+            Subject::new(user_id),
+            Permission::Write,
+            ResourceRef::new("notification", invalid_right_uuid),
+        )
+        .await;
 
     let response = client
         .put(format!(
@@ -156,7 +172,7 @@ async fn test_mark_notification_read_invalid_rights() {
 #[tokio::test]
 #[serial]
 async fn test_jwt_validation_edge_cases() {
-    let (_, base_url, client) = setup_test_server()
+    let (_, base_url, client, _openfga) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
 
@@ -194,7 +210,7 @@ async fn test_jwt_validation_edge_cases() {
 #[tokio::test]
 #[serial]
 async fn test_page_number_error_handling() {
-    let (_, base_url, client) = setup_test_server()
+    let (_, base_url, client, _openfga) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
 
@@ -217,7 +233,7 @@ async fn test_page_number_error_handling() {
 #[tokio::test]
 #[serial]
 async fn test_empty_database_scenarios() {
-    let (_, base_url, client) = setup_test_server()
+    let (_, base_url, client, _openfga) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
 
@@ -262,7 +278,7 @@ async fn test_empty_database_scenarios() {
 #[tokio::test]
 #[serial]
 async fn test_pagination_boundary_conditions() {
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client, _openfga) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
     let db = fixture.db();

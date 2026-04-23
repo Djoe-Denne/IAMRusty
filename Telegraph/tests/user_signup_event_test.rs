@@ -27,7 +27,7 @@ use wiremock::matchers::body_string_contains;
 #[serial]
 async fn test_user_signed_up_event_happy_path() {
     // Setup test infrastructure with real producer/consumer and SMTP testcontainer
-    let (fixture, _, _) = setup_test_server()
+    let (fixture, _, _, _openfga) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
 
@@ -122,7 +122,7 @@ async fn test_user_signed_up_event_happy_path() {
 #[serial]
 async fn test_user_signed_up_email_content_verification() {
     // Setup test infrastructure with real producer/consumer and SMTP testcontainer
-    let (fixture, _, _) = setup_test_server()
+    let (fixture, _, _, _openfga) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
 
@@ -200,7 +200,7 @@ async fn test_user_signed_up_email_content_verification() {
 #[serial]
 async fn test_event_processing_error_handling() {
     // Setup test infrastructure with real producer/consumer and SMTP testcontainer
-    let (fixture, _, _) = setup_test_server()
+    let (fixture, _, _, _openfga) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
 
@@ -243,7 +243,7 @@ async fn test_event_processing_error_handling() {
 #[serial]
 async fn test_event_type_support_verification() {
     // Setup test infrastructure with real producer/consumer and SMTP testcontainer
-    let (fixture, _, _) = setup_test_server()
+    let (fixture, _, _, _openfga) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
 

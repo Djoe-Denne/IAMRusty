@@ -20,7 +20,7 @@ use uuid::Uuid;
 #[serial]
 async fn test_user_email_verified_event_creates_database_notification() {
     // Setup test infrastructure with real producer/consumer
-    let (fixture, _, _) = setup_test_server()
+    let (fixture, _, _, _openfga) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
     let db = fixture.db();
@@ -161,7 +161,7 @@ async fn test_user_email_verified_event_creates_database_notification() {
 #[serial]
 async fn test_multiple_email_verified_events_create_separate_notifications() {
     // Setup test infrastructure
-    let (fixture, _, _) = setup_test_server()
+    let (fixture, _, _, _openfga) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
     let db = fixture.db();
@@ -262,7 +262,7 @@ async fn test_multiple_email_verified_events_create_separate_notifications() {
 #[serial]
 async fn test_different_users_email_verified_events() {
     // Setup test infrastructure
-    let (fixture, _, _) = setup_test_server()
+    let (fixture, _, _, _openfga) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
 
