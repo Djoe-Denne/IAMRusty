@@ -19,7 +19,7 @@ provenance:
   inferred: 0.15
   ambiguous: 0.13
 created: 2026-04-14T17:46:37.6929647Z
-updated: 2026-04-19T12:08:26.9393504Z
+updated: 2026-04-23T19:10:00Z
 ---
 
 # IAMRusty Runtime and Security
@@ -37,7 +37,9 @@ This page narrows `[[projects/rustycog/references/rustycog-config]]` and `[[proj
 - The real config loader uses the `IAM` prefix and one typed `AppConfig` that includes server, database, OAuth, JWT, logging, command, queue, and legacy Kafka sections.
 - Structured database config supports nested credentials, read replicas, and cached random ports, which are especially important in the test environment.
 - JWT behavior is driven by resolved secret storage, not by hardcoded algorithms: the runtime can build HS256 or RS256 token services and surface public verification data through JWKS.
-- Current config files show PEM-backed JWT keys in both default and test TOMLs, while the code also keeps a plain-text HMAC branch for compatibility and future non-PEM secret backends.
+- `default.toml` is RS256 via `[jwt.secret] type = "pem_file"`, while `config/test.toml` ships a plain HS256 secret (`[jwt.secret] type = "plain"`). The RS256-only constructor checks in `RegistrationTokenServiceImpl::new` and `JwtTokenService::with_refresh_expiration` are compiled out for the test build via the [[concepts/test-only-cargo-feature-relaxation|`test-relaxed-jwt`]] Cargo feature; see [[projects/iamrusty/concepts/jwt-algorithm-enforcement-and-test-relaxation]] for the full story.
+- The HS256 test config means the service today cannot boot from `production.toml` either — the strict assertion in `with_refresh_expiration` would panic during `setup_app` because no production RSA keys are configured. This is by design; production deployment is not yet started. ^[ambiguous]
+- A separate architectural mismatch is open: `rustycog-http`'s `UserIdExtractor` only accepts HS256, so a future RS256 production deployment would break access-token verification at the HTTP middleware layer. Tracked as Phase B in the JWT relaxation plan. ^[ambiguous]
 - The runtime now builds queue-backed publishers from `config.queue`, but docs still discuss local Kafka configuration and legacy Kafka-specific entry points alongside that newer queue abstraction. ^[ambiguous]
 - The OAuth security guide describes timestamped, expiring state and exact redirect validation, while the current `http/src/oauth_state.rs` only stores operation plus nonce and the callback handler hardcodes local redirect URIs. ^[ambiguous]
 
@@ -51,6 +53,8 @@ This page narrows `[[projects/rustycog/references/rustycog-config]]` and `[[proj
 - [[projects/iamrusty/iamrusty]] - Service whose runtime is being configured.
 - [[concepts/structured-service-configuration]] - Main concept distilled from these sources.
 - [[projects/iamrusty/concepts/jwt-secret-storage-abstraction]] - JWT-specific secret-resolution pattern.
+- [[projects/iamrusty/concepts/jwt-algorithm-enforcement-and-test-relaxation]] - RS256 production guards and the `test-relaxed-jwt` feature flag.
 - [[projects/iamrusty/concepts/oauth-state-and-csrf-protection]] - OAuth hardening behavior and implementation drift.
+- [[concepts/test-only-cargo-feature-relaxation]] - Generic Cargo-feature pattern reused for the JWT guards above.
 - [[projects/rustycog/references/rustycog-config]] - Shared configuration/runtime primitives reused by IAMRusty.
 - [[projects/rustycog/references/rustycog-events]] - Queue transport runtime paired with IAM-specific event contracts.

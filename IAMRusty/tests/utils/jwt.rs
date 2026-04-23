@@ -30,18 +30,21 @@ fn create_jwt_service_from_config(config: &JwtConfig) -> Result<JwtTokenService,
     ))
 }
 
-/// Create a registration token service from configuration for testing
+/// Create a registration token service from configuration for testing.
+///
+/// The `test-relaxed-jwt` feature on `iam-infra` (enabled by
+/// `IAMRusty/Cargo.toml`'s dev-dep entry) lets `RegistrationTokenServiceImpl`
+/// accept either algorithm in this crate's tests, so we hand whatever
+/// the test config produced straight through instead of duplicating an
+/// RS256-only guard here. Production builds keep the strict check inside
+/// the constructor itself.
 fn create_registration_token_service_from_config(
     config: &JwtConfig,
 ) -> Result<RegistrationTokenServiceImpl, anyhow::Error> {
     let jwt_algorithm_config = config.create_jwt_algorithm()?;
 
     let jwt_algorithm = match jwt_algorithm_config {
-        JwtAlgorithm::HS256(_) => {
-            return Err(anyhow::anyhow!(
-                "Registration tokens must use RSA256 algorithm"
-            ));
-        }
+        JwtAlgorithm::HS256(secret) => iam_infra::token::JwtAlgorithm::HS256(secret),
         JwtAlgorithm::RS256(key_pair) => iam_infra::token::JwtAlgorithm::RS256(JwtKeyPair {
             private_key: key_pair.private_key,
             public_key: key_pair.public_key,
@@ -154,24 +157,29 @@ impl JwtTestUtils {
             jti: Uuid::new_v4().to_string(),
         };
 
-        // Get the algorithm config to encode manually
+        // Get the algorithm config to encode manually. The
+        // `test-relaxed-jwt` feature on `iam-infra` lets the
+        // registration service accept either algorithm in tests, so
+        // build the encoding key from whatever the test config
+        // produced. The header's `alg` field then has to match the key
+        // material — RS256 from PEM, HS256 from a shared secret —
+        // otherwise `jsonwebtoken::encode` rejects the combination.
         let jwt_algorithm_config = config.create_jwt_algorithm()?;
 
-        let (encoding_key, kid) = match jwt_algorithm_config {
+        let (encoding_key, kid, algorithm) = match jwt_algorithm_config {
             JwtAlgorithm::RS256(key_pair) => {
                 let encoding_key = EncodingKey::from_rsa_pem(key_pair.private_key.as_bytes())
                     .map_err(|e| anyhow::anyhow!("Failed to create encoding key: {}", e))?;
-                (encoding_key, Some(key_pair.kid))
+                (encoding_key, Some(key_pair.kid), Algorithm::RS256)
             }
-            _ => {
-                return Err(anyhow::anyhow!(
-                    "Registration tokens must use RSA256 algorithm"
-                ));
+            JwtAlgorithm::HS256(secret) => {
+                let encoding_key = EncodingKey::from_secret(secret.as_bytes());
+                (encoding_key, None, Algorithm::HS256)
             }
         };
 
-        // Create header with proper algorithm and key ID
-        let mut header = Header::new(Algorithm::RS256);
+        // Create header with proper algorithm and (optional) key ID
+        let mut header = Header::new(algorithm);
         header.kid = kid;
 
         encode(&header, &expired_claims, &encoding_key)

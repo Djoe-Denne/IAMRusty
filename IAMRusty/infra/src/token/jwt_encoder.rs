@@ -59,7 +59,14 @@ impl JwtTokenService {
         }
     }
 
-    /// Create a new JwtTokenService with HMAC256 secret
+    /// Create a new JwtTokenService with HMAC256 secret.
+    ///
+    /// Only available when the `test-relaxed-jwt` Cargo feature is on
+    /// (enabled by `iam-service`'s dev-dependency on `iam-infra`). The
+    /// production build does not expose this constructor at all, so any
+    /// release-mode caller would fail to compile rather than slip an
+    /// HS256 service into the runtime.
+    #[cfg(feature = "test-relaxed-jwt")]
     pub fn with_hmac(secret: String, access_token_expiration: u64) -> Self {
         Self {
             algorithm_config: JwtAlgorithm::HS256(secret),
@@ -68,12 +75,25 @@ impl JwtTokenService {
         }
     }
 
-    /// Create a new JwtTokenService with custom refresh token expiration
+    /// Create a new JwtTokenService with custom refresh token expiration.
+    ///
+    /// In production builds (no `test-relaxed-jwt` feature) the
+    /// `algorithm_config` must be RS256 — passing HS256 trips the
+    /// `assert!` and panics at app boot, the same fail-fast posture
+    /// `RegistrationTokenServiceImpl::new` enforces. The `test-relaxed-jwt`
+    /// build (test harness only) compiles the assertion out, so the
+    /// in-tree HS256 `test.toml` boots without committing RSA PEM keys.
     pub fn with_refresh_expiration(
         algorithm_config: JwtAlgorithm,
         access_token_expiration: u64,
         refresh_token_expiration: u64,
     ) -> Self {
+        #[cfg(not(feature = "test-relaxed-jwt"))]
+        assert!(
+            matches!(algorithm_config, JwtAlgorithm::RS256(_)),
+            "JwtTokenService must use RSA256 algorithm for security"
+        );
+
         Self {
             algorithm_config,
             access_token_expiration,

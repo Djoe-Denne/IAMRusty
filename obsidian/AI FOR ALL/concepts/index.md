@@ -10,6 +10,7 @@ Top-level concepts are shared across multiple projects. Service-specific concept
 
 ## Common Concepts
 
+- [[concepts/anonymous-public-read-via-wildcard-subject]]
 - [[concepts/centralized-authorization-service]]
 - [[concepts/command-registry-and-retry-policies]]
 - [[concepts/event-driven-microservice-platform]]
@@ -17,6 +18,7 @@ Top-level concepts are shared across multiple projects. Service-specific concept
 - [[concepts/openfga-as-authorization-engine]]
 - [[concepts/shared-rust-microservice-sdk]]
 - [[concepts/structured-service-configuration]]
+- [[concepts/test-only-cargo-feature-relaxation]]
 - [[concepts/zanzibar-relation-tuples]]
 - [[concepts/resource-scoped-permission-fetchers]] (deprecated — kept for historical context)
 - [[projects/rustycog/rustycog]] - Shared SDK anchor for common platform patterns.

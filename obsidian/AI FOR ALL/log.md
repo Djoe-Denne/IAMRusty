@@ -207,3 +207,11 @@ title: Wiki Log
 - [2026-04-22T18:30:00Z] INGEST source="rustycog/rustycog-testing/src/permission/service.rs" pages_updated=6 pages_created=0 mode=append topic=mock_check_allow_deny_wildcard-helpers
 - [2026-04-22T18:30:00Z] INGEST source="openfga/model.fga" pages_updated=6 pages_created=0 mode=append topic=project-viewer-user-star-type-restriction
 - [2026-04-22T18:30:00Z] INGEST source="Manifesto/tests/project_api_tests.rs" pages_updated=6 pages_created=0 mode=append topic=phase-1-test-fixes-auth-and-422
+- [2026-04-23T19:10:00Z] WIKI_UPDATE source="cursor-transcript:0b156989-a24f-442c-a7bc-49d7bffe4677" pages_created=2 pages_updated=5 mode=append topic=test-relaxed-jwt-cargo-feature
+- [2026-04-23T19:10:00Z] INGEST source="IAMRusty/infra/Cargo.toml" pages_updated=4 pages_created=2 mode=append topic=test-relaxed-jwt-feature-declaration
+- [2026-04-23T19:10:00Z] INGEST source="IAMRusty/infra/src/token/registration_token_service.rs" pages_updated=4 pages_created=2 mode=append topic=registration-token-rs256-guard-gating
+- [2026-04-23T19:10:00Z] INGEST source="IAMRusty/infra/src/token/jwt_encoder.rs" pages_updated=4 pages_created=2 mode=append topic=jwt-token-service-rs256-assert-and-with-hmac-gating
+- [2026-04-23T19:10:00Z] INGEST source="IAMRusty/Cargo.toml" pages_updated=4 pages_created=2 mode=append topic=dev-dep-feature-activation
+- [2026-04-23T19:10:00Z] INGEST source="IAMRusty/tests/utils/jwt.rs" pages_updated=2 pages_created=0 mode=append topic=remove-duplicate-rs256-guard-in-test-util
+- [2026-04-23T19:10:00Z] INGEST source="IAMRusty/tests/auth_username_flow_part2.rs" pages_updated=2 pages_created=0 mode=append topic=relax-rsa-header-assertion
+- [2026-04-23T19:10:00Z] INGEST source="IAMRusty/config/test.toml" pages_updated=3 pages_created=0 mode=append topic=test-config-uses-hs256-not-pem

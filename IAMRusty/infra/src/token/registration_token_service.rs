@@ -17,10 +17,16 @@ pub struct RegistrationTokenServiceImpl {
 }
 
 impl RegistrationTokenServiceImpl {
-    /// Create a new registration token service
-    /// Only supports RSA algorithms for security reasons
+    /// Create a new registration token service.
+    ///
+    /// In production builds (no `test-relaxed-jwt` feature), only RSA256
+    /// is accepted — HS256 is rejected as an `AuthorizationError`. The
+    /// `iam-service` test harness enables the `test-relaxed-jwt` feature
+    /// via its dev-dependency on `iam-infra`, which compiles the check
+    /// out so the in-tree HS256 `test.toml` boots end-to-end without
+    /// requiring committed RSA PEM material.
     pub fn new(algorithm_config: JwtAlgorithm) -> Result<Self, DomainError> {
-        // Ensure we're using RSA for registration tokens
+        #[cfg(not(feature = "test-relaxed-jwt"))]
         if !matches!(algorithm_config, JwtAlgorithm::RS256(_)) {
             return Err(DomainError::AuthorizationError(
                 "Registration tokens must use RSA256 algorithm for security".to_string(),
@@ -30,7 +36,27 @@ impl RegistrationTokenServiceImpl {
         Ok(Self { algorithm_config })
     }
 
-    /// Get the encoding key
+    /// Get the JWT signing algorithm currently configured.
+    ///
+    /// Mirrors `JwtTokenService::get_algorithm` so the encode / validate
+    /// paths can build headers and validators that match the actual key
+    /// material instead of hard-coding `Algorithm::RS256` (which would
+    /// mismatch when the service is constructed with an HS256 secret in
+    /// the `test-relaxed-jwt` build).
+    fn get_algorithm(&self) -> Algorithm {
+        match &self.algorithm_config {
+            JwtAlgorithm::RS256(_) => Algorithm::RS256,
+            JwtAlgorithm::HS256(_) => Algorithm::HS256,
+        }
+    }
+
+    /// Get the encoding key.
+    ///
+    /// The HS256 arm is reachable only when the `test-relaxed-jwt`
+    /// feature is on (in production the constructor rejects HS256
+    /// before any encode call can happen). Keeping the branch
+    /// unconditional avoids `cfg`-noise on every method that consumes
+    /// the result.
     fn get_encoding_key(&self) -> Result<EncodingKey, DomainError> {
         match &self.algorithm_config {
             JwtAlgorithm::RS256(key_pair) => {
@@ -39,13 +65,14 @@ impl RegistrationTokenServiceImpl {
                     DomainError::AuthorizationError(format!("Invalid private key: {}", e))
                 })
             }
-            JwtAlgorithm::HS256(_) => Err(DomainError::AuthorizationError(
-                "Registration tokens must use RSA256 algorithm".to_string(),
-            )),
+            JwtAlgorithm::HS256(secret) => Ok(EncodingKey::from_secret(secret.as_bytes())),
         }
     }
 
-    /// Get the decoding key
+    /// Get the decoding key.
+    ///
+    /// Same shape as `get_encoding_key`: HS256 only flows through when
+    /// `test-relaxed-jwt` is on, the constructor blocks it otherwise.
     fn get_decoding_key(&self) -> Result<DecodingKey, DomainError> {
         match &self.algorithm_config {
             JwtAlgorithm::RS256(key_pair) => {
@@ -54,9 +81,7 @@ impl RegistrationTokenServiceImpl {
                     DomainError::InvalidToken
                 })
             }
-            JwtAlgorithm::HS256(_) => Err(DomainError::AuthorizationError(
-                "Registration tokens must use RSA256 algorithm".to_string(),
-            )),
+            JwtAlgorithm::HS256(secret) => Ok(DecodingKey::from_secret(secret.as_bytes())),
         }
     }
 
@@ -98,7 +123,9 @@ impl RegistrationTokenService for RegistrationTokenServiceImpl {
         let claims = RegistrationTokenClaims::new(user_id, email);
 
         let mut header = Header {
-            alg: Algorithm::RS256,
+            // Match the configured key material: RS256 in production,
+            // HS256 only when `test-relaxed-jwt` is on.
+            alg: self.get_algorithm(),
             ..Default::default()
         };
 
@@ -131,7 +158,9 @@ impl RegistrationTokenService for RegistrationTokenServiceImpl {
         claims.provider_info = Some(provider_info);
 
         let mut header = Header {
-            alg: Algorithm::RS256,
+            // Match the configured key material: RS256 in production,
+            // HS256 only when `test-relaxed-jwt` is on.
+            alg: self.get_algorithm(),
             ..Default::default()
         };
 
@@ -170,7 +199,9 @@ impl RegistrationTokenService for RegistrationTokenServiceImpl {
 
         let decoding_key = self.get_decoding_key()?;
 
-        let mut validation = Validation::new(Algorithm::RS256);
+        // Validator algorithm must match how the token was signed: RS256
+        // in production, HS256 only when `test-relaxed-jwt` is on.
+        let mut validation = Validation::new(self.get_algorithm());
         validation.set_required_spec_claims(&["sub", "user_id", "email", "exp", "iat", "jti"]);
         validation.set_audience(&["registration"]); // Optional: restrict audience
 

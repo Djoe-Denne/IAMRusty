@@ -37,6 +37,7 @@ updated: 2026-04-19T12:08:26.9393504Z
 ## Service-Specific Differences
 
 - Authentication is intentionally dual-mode: unauthenticated users enter OAuth login, while authenticated users can attach extra providers through `[[projects/iamrusty/concepts/oauth-provider-linking]]`.
+- JWT cryptography is RS256-only in production for both access tokens and registration tokens, but the strict constructor checks are gated by a Cargo feature so the in-tree HS256 `test.toml` boots the suite — see `[[projects/iamrusty/concepts/jwt-algorithm-enforcement-and-test-relaxation]]`.
 - Runtime behavior depends on `[[concepts/structured-service-configuration]]`, including environment-specific TOML files, cached random ports in tests, queue settings, and JWT secret resolution.
 - Command orchestration is centralized through `[[concepts/command-registry-and-retry-policies]]`, but IAMRusty is the clearest example where `CommandConfig`-driven retry policy is wired all the way into the live registry.
 - The service relies on `[[concepts/integration-testing-with-real-infrastructure]]` for end-to-end confidence, using real databases, HTTP servers, fixtures, provider mocks, and optional queue-backed checks.
