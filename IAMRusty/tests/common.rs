@@ -56,6 +56,10 @@ impl ServiceTestDescriptor<TestFixture> for IAMRustyTestDescriptor {
     fn has_sqs(&self) -> bool {
         false
     }
+
+    fn has_openfga(&self) -> bool {
+        false
+    }
 }
 
 pub async fn setup_test_server() -> Result<(TestFixture, String, Client), Box<dyn std::error::Error>>
@@ -125,6 +129,10 @@ impl ServiceTestDescriptor<TestFixture> for IAMRustyTestDescriptorWithMockEvents
 
     fn has_sqs(&self) -> bool {
         false // but maybe yes ?
+    }
+
+    fn has_openfga(&self) -> bool {
+        false
     }
 }
 

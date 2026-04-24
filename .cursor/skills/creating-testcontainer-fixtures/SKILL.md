@@ -262,6 +262,63 @@ unsafe {
 
 The `unsafe` block is unavoidable — `std::env::set_var` is `unsafe` since the env API was tightened. Confine env mutation to this one function so the surface stays small.
 
+##### 7a. Shape the typed config the same way
+
+Pattern A only works if the typed config struct already exposes `host: String` + `port: u16` separately (with `port = 0` reserved for "pick random"). If the struct currently carries a single `api_url: String` (or `endpoint_url`, `connection_string`, etc.), **refactor it first** — otherwise the fixture has no way to publish a typed port the application config can pick up.
+
+The canonical shape, mirrored by `DatabaseConfig`, `SqsConfig`, and `OpenFgaClientConfig`:
+
+```rust
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct <Thing>Config {
+    #[serde(default = "default_<thing>_scheme")]
+    pub scheme: String,             // optional: only when the URL prefix isn't fixed
+    #[serde(default = "default_<thing>_host")]
+    pub host: String,
+    #[serde(default = "default_<thing>_port")]
+    pub port: u16,                  // 0 ⇒ resolve at first call to actual_port()
+    // ... protocol-specific fields ...
+}
+
+static <THING>_PORT_CACHE: OnceLock<Arc<Mutex<HashMap<String, u16>>>> = OnceLock::new();
+
+impl <Thing>Config {
+    /// Reconstruct the URL from scheme/host/(actual)port.
+    pub fn url(&self) -> String {
+        format!("{}://{}:{}", self.scheme, self.host, self.actual_port())
+    }
+
+    /// Resolve `port == 0` to a free random port; cache process-wide so
+    /// the fixture and the app boot path agree on the same number.
+    pub fn actual_port(&self) -> u16 {
+        if self.port == 0 {
+            let key = format!("<thing>:{}", self.host);
+            let cache = <THING>_PORT_CACHE.get_or_init(|| Arc::new(Mutex::new(HashMap::new())));
+            let mut guard = cache.lock().unwrap();
+            if let Some(&p) = guard.get(&key) { return p; }
+            let p = pick_free_port();
+            guard.insert(key, p);
+            p
+        } else {
+            self.port
+        }
+    }
+
+    pub fn clear_port_cache() {
+        if let Some(cache) = <THING>_PORT_CACHE.get() { cache.lock().unwrap().clear(); }
+    }
+}
+```
+
+Two non-obvious requirements:
+
+- **The cache must be keyed on something stable**, not on the `<Thing>Config` instance. Every reload of the typed config produces a *new* struct, but the fixture and the application boot path must resolve to the *same* port. Key by `host` (or `host + region`, etc.) so a reload still hits the cached value.
+- **Call `<Thing>::clear_port_cache()` inside `get_or_create_*_container()` before `actual_port()`**, so a fresh container start picks a fresh port instead of reusing one whose container has been torn down (e.g. across `cargo test` runs that share `OnceLock`-backed singletons).
+
+If the config struct genuinely lives outside `rustycog-config`, the `PORT_CACHE` and helpers belong in the same crate as the struct. Prefer putting reusable infra config in `rustycog-config` first (as `OpenFgaClientConfig` now does), and only keep the cache elsewhere for service-local config types.
+
+After refactoring the struct, propagate the change: every `test.toml` / `default.toml` / `development.toml` that previously set the single-field URL must be rewritten to `host = "..."` + `port = <fixed-or-0>`, and any production callers that read `config.url` directly must switch to `config.url()` (or whatever you named the builder method).
+
 #### Pattern B: Fixed `with_mapped_port`
 
 Only when a stable URL matters (admin API endpoints, well-known port the production code hard-codes). MailHog's choice:
@@ -341,6 +398,8 @@ async fn it_publishes_an_event() { ... }
 - **Letting a production cache mask the round-trip.** Same caveat as for wiremock — a `Cached*Client` decorator added by production wiring will swallow the second request. Make the cache TTL configurable and disable it in tests (`cache_ttl_seconds = 0` is the established pattern).
 - **TCP-port-open as a readiness probe for Kafka or any stateful service.** Kafka accepts TCP long before it has a controller. Use a protocol-level probe (list topics, `SELECT 1`, etc.).
 - **Picking fixed `with_mapped_port` for a generic fixture.** It's fine for Telegraph's MailHog (single-tenant, dev-host) but wrong for any fixture that might run in parallel CI. Default to `port = 0` + env publication.
+- **Calling `TcpListener::bind("127.0.0.1:0")` directly inside the fixture instead of going through the typed config.** Tempting because it works without touching the config struct, but it bypasses `actual_port()`'s shared cache — the application boot path then has no way to learn the same port without the fixture round-tripping it through env vars. Always wire the typed `<Thing>Config` first (step 7a), call `<Config>::actual_port()` from the fixture, and let the cache do the de-duplication. The OpenFGA fixture initially shipped with a raw `TcpListener::bind` and had to be back-fitted later — don't repeat that.
+- **Carrying a single `api_url` / `endpoint_url` / `connection_string` on the typed config.** Pattern A only works with `host: String` + `port: u16` *separately* exposed at the same level as the env-var prefix. If the existing config is a flat URL string, refactor it (step 7a) before authoring the fixture — there is no clean way to publish a typed port into a URL-shaped slot.
 - **Adding the new descriptor flag with a default.** The trait is intentionally not defaulted so adding `has_redis` is a compile error in every service that hasn't opted in. Don't paper over this with `fn has_redis(&self) -> bool { false }` on the trait — make every descriptor declare it explicitly.
 
 ## Checklist before merging the fixture
@@ -352,6 +411,7 @@ async fn it_publishes_an_event() { ... }
 - [ ] `get_or_create_*` calls `cleanup_existing_*` first, then resolves port, then builds image with a unique container name, then starts.
 - [ ] `cleanup_existing_*` shellouts to `docker stop` and `docker rm -f` with a unique name.
 - [ ] `wait_for_ready()` uses a protocol-aware probe with a bounded retry loop.
+- [ ] Typed `<Thing>Config` exposes `host: String` + `port: u16` (not a single `api_url`), with `port = 0` ⇒ `actual_port()` random + cached + `clear_port_cache()` (step 7a). Pre-existing single-URL configs are refactored in the same change-set.
 - [ ] Port wiring: prefer `port = 0` + env-var mutation in the constructor; use fixed `with_mapped_port` only when a stable URL is required.
 - [ ] All env mutation lives inside the fixture constructor, in one `unsafe` block.
 - [ ] `setup_test_server()` constructs the fixture *before* booting the app and clears prior in-container state at the top.
@@ -365,6 +425,7 @@ Read these only when the situation calls for it — not up-front.
 
 - **Shared SQS fixture (LocalStack)**: `rustycog/rustycog-testing/src/common/sqs_testcontainer.rs` — canonical singleton pattern, env-var publication, defensive Docker cleanup, typed assertion helpers (`wait_for_messages`, `purge_queue`, `verify_event_published`).
 - **Shared Kafka fixture**: `rustycog/rustycog-testing/src/common/kafka_testcontainer.rs` — same scaffold, different image and env-var prefix.
+- **Shared OpenFGA fixture**: `rustycog/rustycog-testing/src/common/openfga_testcontainer.rs` — protocol-aware fixture that loads the consumer's `[openfga]` config via `load_config_part::<OpenFgaClientConfig>("openfga")`, calls `actual_port()` to materialize a `port = 0` config into a free random host port, and publishes per-service `_OPENFGA__SCHEME/HOST/PORT/STORE_ID/AUTHORIZATION_MODEL_ID` env vars. Demonstrates the host/port split documented in step 7a (the `OpenFgaClientConfig` was originally a single `api_url: String` and was refactored alongside the fixture so `port = 0` would Just Work).
 - **Service-local MailHog fixture**: `Telegraph/tests/fixtures/smtp/testcontainer.rs` — fixed-mapped-port pattern, REST-API client wrapping (`get_emails`, `email_count`, `has_email`), `cleanup_container()` and `cleanup_existing_smtp_container()` for orderly + defensive teardown.
 - **Descriptor trait**: `rustycog/rustycog-testing/src/common/service_test_descriptor.rs` — the non-defaulted capability flags (`has_db`, `has_sqs`).
 - **Test-config wiring patterns**: `IAMRusty/config/test.toml` (port = 0), `Telegraph/config/test.toml` (fixed mapped port).

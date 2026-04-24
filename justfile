@@ -95,3 +95,25 @@ db-truncate TARGET_DB="iam_dev":
 # Mark every email as verified in TARGET_DB (default: iam_dev).
 db-verify-emails TARGET_DB="iam_dev":
     $env:TARGET_DB="{{TARGET_DB}}"; docker compose --profile tools run --rm verify-emails
+
+# === OpenFGA model ========================================================
+
+# Regenerate openfga/model.json from openfga/model.fga.
+#
+# The integration-test fixture (rustycog-testing TestOpenFga) uploads
+# openfga/model.json into the test container at startup. Whenever
+# openfga/model.fga changes, run this recipe and commit the regenerated
+# JSON alongside the DSL update.
+#
+# Uses the `fga` CLI when present on PATH; otherwise falls back to a
+# one-shot `docker run openfga/cli` so contributors do not need a local
+# install.
+regenerate-openfga-model-json:
+    @if (Get-Command fga -ErrorAction SilentlyContinue) { \
+        Write-Host "Using local fga CLI" -ForegroundColor Cyan; \
+        fga model transform --file openfga/model.fga | Set-Content -Path openfga/model.json; \
+    } else { \
+        Write-Host "Local fga CLI not found; running openfga/cli via docker" -ForegroundColor Cyan; \
+        docker run --rm -v "${PWD}/openfga:/work" -w /work openfga/cli model transform --file model.fga | Set-Content -Path openfga/model.json; \
+    }
+    @Write-Host "Wrote openfga/model.json" -ForegroundColor Green

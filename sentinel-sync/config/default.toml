@@ -5,7 +5,9 @@
 level = "info"
 
 [openfga]
-api_url = "http://localhost:8090"
+scheme = "http"
+host = "localhost"
+port = 8090
 store_id = ""
 # authorization_model_id = ""
 # api_token = ""

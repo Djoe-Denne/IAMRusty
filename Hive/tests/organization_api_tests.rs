@@ -107,7 +107,7 @@ async fn list_requires_auth_and_returns_empty_initially() {
 #[tokio::test]
 #[serial]
 async fn update_and_delete_organization_with_permissions() {
-    let (fixture, server_url, client, _openfga) = setup_test_server().await.unwrap();
+    let (fixture, server_url, client, openfga) = setup_test_server().await.unwrap();
     let owner_id = Uuid::new_v4();
     let token = create_jwt_token(owner_id);
 
@@ -115,6 +115,17 @@ async fn update_and_delete_organization_with_permissions() {
     let org = DbFixtures::create_org_with_owner(fixture.db().as_ref(), owner_id)
         .await
         .unwrap();
+
+    // PUT and DELETE on `/api/organizations/{org_id}` both require
+    // `Permission::Admin, "organization"`. Trailing UUID = org.id.
+    openfga
+        .allow(
+            Subject::new(owner_id),
+            Permission::Admin,
+            ResourceRef::new("organization", org.id),
+        )
+        .await
+        .expect("Failed to grant organization admin");
 
     // Update
     let update_body = serde_json::json!({
@@ -224,25 +235,18 @@ async fn roles_endpoints_require_auth() {
 #[tokio::test]
 #[serial]
 async fn update_delete_forbidden_for_read_only_member() {
-    let (fixture, server_url, client, openfga) = setup_test_server().await.unwrap();
+    let (fixture, server_url, client, _openfga) = setup_test_server().await.unwrap();
     let owner_id = Uuid::new_v4();
     let read_user_id = Uuid::new_v4();
     let token = create_jwt_token(read_user_id);
 
     let org = DbFixtures::create_org(fixture.db().as_ref(), owner_id, HashMap::from([(owner_id.to_string(), "owner".to_string()), (read_user_id.to_string(), "read".to_string())])).await.unwrap();
 
-    // PUT and DELETE on `/api/organizations/{org_id}` both require
-    // `Permission::Admin, "organization"`. Trailing UUID = org.id. Reset
-    // the harness's permissive default and mount a single deny stub —
-    // both API calls in this test will Check the same tuple.
-    openfga.reset().await;
-    openfga
-        .mock_check_deny(
-            Subject::new(read_user_id),
-            Permission::Admin,
-            ResourceRef::new("organization", org.id),
-        )
-        .await;
+    // Default-deny: PUT and DELETE on `/api/organizations/{org_id}` both
+    // require `Permission::Admin, "organization"`. Trailing UUID = org.id.
+    // Real OpenFGA returns false for
+    // `Check(read_user, admin, organization:<org_id>)` because no tuple
+    // has been written, so both calls 403.
 
     let res = client
         .put(format!("{}/api/organizations/{}", server_url, org.id))
@@ -261,25 +265,17 @@ async fn update_delete_forbidden_for_read_only_member() {
 #[tokio::test]
 #[serial]
 async fn sync_jobs_forbidden_for_read_only_member() {
-    let (fixture, server_url, client, openfga) = setup_test_server().await.unwrap();
+    let (fixture, server_url, client, _openfga) = setup_test_server().await.unwrap();
     let owner_id = Uuid::new_v4();
     let read_user_id = Uuid::new_v4();
     let token = create_jwt_token(read_user_id);
 
     let org = DbFixtures::create_org(fixture.db().as_ref(), owner_id, HashMap::from([(owner_id.to_string(), "owner".to_string()), (read_user_id.to_string(), "read".to_string())])).await.unwrap();
 
-    // `POST /api/organizations/{org_id}/sync-jobs` requires
+    // Default-deny: `POST /api/organizations/{org_id}/sync-jobs` requires
     // `Permission::Write, "organization"`. The path's trailing UUID is
-    // `org.id` (`sync-jobs` is a string segment). Reset and mount the
-    // deny.
-    openfga.reset().await;
-    openfga
-        .mock_check_deny(
-            Subject::new(read_user_id),
-            Permission::Write,
-            ResourceRef::new("organization", org.id),
-        )
-        .await;
+    // `org.id` (`sync-jobs` is a string segment). Real OpenFGA returns
+    // false because no tuple has been written, so the call 403s.
 
     let body = serde_json::json!({
         "external_link_id": Uuid::new_v4(),
@@ -307,10 +303,21 @@ async fn get_nonexistent_organization_returns_404() {
 #[tokio::test]
 #[serial]
 async fn sync_jobs_nonexistent_external_link_returns_404() {
-    let (fixture, server_url, client, _openfga) = setup_test_server().await.unwrap();
+    let (fixture, server_url, client, openfga) = setup_test_server().await.unwrap();
     let owner_id = Uuid::new_v4();
     let token = create_jwt_token(owner_id);
     let org = DbFixtures::create_org_with_owner(fixture.db().as_ref(), owner_id).await.unwrap();
+
+    // Route guard must pass so this test reaches the handler's
+    // nonexistent-external-link branch.
+    openfga
+        .allow(
+            Subject::new(owner_id),
+            Permission::Write,
+            ResourceRef::new("organization", org.id),
+        )
+        .await
+        .expect("Failed to grant organization write");
 
     let body = serde_json::json!({
         "external_link_id": Uuid::new_v4(),
@@ -350,10 +357,21 @@ async fn create_validation_errors() {
 #[tokio::test]
 #[serial]
 async fn start_sync_job_happy_path() {
-    let (fixture, server_url, client, _openfga) = setup_test_server().await.unwrap();
+    let (fixture, server_url, client, openfga) = setup_test_server().await.unwrap();
     let owner_id = Uuid::new_v4();
     let token = create_jwt_token(owner_id);
     let org = DbFixtures::create_org_with_owner(fixture.db().as_ref(), owner_id).await.unwrap();
+
+    // Route guard: `with_permission_on(Permission::Write, "organization")`
+    // on `POST /api/organizations/{org_id}/sync-jobs`.
+    openfga
+        .allow(
+            Subject::new(owner_id),
+            Permission::Write,
+            ResourceRef::new("organization", org.id),
+        )
+        .await
+        .expect("Failed to grant organization write");
 
     // Seed external provider
     let provider = external_providers::ActiveModel {

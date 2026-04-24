@@ -33,7 +33,7 @@ async fn main() -> Result<()> {
 
     let config = SentinelSyncConfig::load().context("failed to load sentinel-sync config")?;
     info!(
-        api_url = %config.openfga.api_url,
+        api_url = %config.openfga.api_url(),
         store_id = %config.openfga.store_id,
         "sentinel-sync starting"
     );

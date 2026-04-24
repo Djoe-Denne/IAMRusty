@@ -68,10 +68,12 @@ enabled = true
 template_dir = "resources/templates"
 
 # Centralized authorization (OpenFGA). Override store_id /
-# authorization_model_id via TELEGRAPH__OPENFGA__* env vars after
+# authorization_model_id via TELEGRAPH_OPENFGA__* env vars after
 # bootstrapping a store with the fga CLI.
 [openfga]
-api_url = "http://openfga:8080"
+scheme = "http"
+host = "openfga"
+port = 8080
 store_id = ""
 # authorization_model_id = ""
 # api_token = ""

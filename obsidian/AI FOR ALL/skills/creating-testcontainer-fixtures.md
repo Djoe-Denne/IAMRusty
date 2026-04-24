@@ -7,17 +7,19 @@ sources:
   - rustycog/rustycog-testing/src/common/sqs_testcontainer.rs
   - rustycog/rustycog-testing/src/common/kafka_testcontainer.rs
   - rustycog/rustycog-testing/src/common/service_test_descriptor.rs
+  - rustycog/rustycog-testing/src/common/openfga_testcontainer.rs
+  - rustycog/rustycog-config/src/lib.rs
   - Telegraph/tests/fixtures/smtp/testcontainer.rs
   - Telegraph/config/test.toml
   - IAMRusty/config/test.toml
 summary: >-
-  Recipe for adding a real Docker-backed testcontainer fixture (Postgres, LocalStack, Kafka, MailHog, Redis) — picking shared vs service-local placement, surviving leaks across runs, and wiring the container's port back into test config.
+  Recipe for adding a real Docker-backed testcontainer fixture, including shared vs service-local placement, stale-container cleanup, and port = 0 config wiring.
 provenance:
-  extracted: 0.7
-  inferred: 0.25
-  ambiguous: 0.05
+  extracted: 0.74
+  inferred: 0.22
+  ambiguous: 0.04
 created: 2026-04-23T19:30:00Z
-updated: 2026-04-23T19:30:00Z
+updated: 2026-04-24T19:05:00Z
 ---
 
 # Creating Testcontainer Fixtures
@@ -28,7 +30,7 @@ Use this recipe when an integration test needs to assert against a **real** prot
 
 | Where | When | Wiki examples |
 |---|---|---|
-| `rustycog/rustycog-testing/src/common/<thing>_testcontainer.rs` | The infra is a generic platform capability multiple services will reuse | `sqs_testcontainer.rs`, `kafka_testcontainer.rs` ([[projects/rustycog/references/rustycog-testing]]) |
+| `rustycog/rustycog-testing/src/common/<thing>_testcontainer.rs` | The infra is a generic platform capability multiple services will reuse | `sqs_testcontainer.rs`, `kafka_testcontainer.rs`, `openfga_testcontainer.rs` ([[projects/rustycog/references/rustycog-testing]]) |
 | `<Service>/tests/fixtures/<thing>/testcontainer.rs` | Only that service interacts with this protocol, or wire-level parsing is service-specific | Telegraph's `TestSmtp` MailHog container ([[projects/telegraph/references/telegraph-testing-and-smtp-fixtures]]) |
 
 The heuristic: if production has a `[[projects/rustycog/rustycog]]` shared client for it (event publisher, DB pool), the fixture goes shared. If only one service speaks to it, keep it service-local — the rest of the workspace doesn't need a Cargo dependency on a container they will never start.
@@ -52,6 +54,8 @@ pub trait ServiceTestDescriptor<T>: Send + Sync + 'static {
 ```
 
 Each per-service descriptor (`HiveTestDescriptor`, `TelegraphTestDescriptor`, `ManifestoTestDescriptor`, `IamServiceTestDescriptor`) opts in by overriding the new method. The shared fixture builder branches on the flag so services that don't need the container pay zero startup cost.
+
+OpenFGA is the current non-queue example: `ServiceTestDescriptor` has `has_openfga()`, and only Hive, Manifesto, and Telegraph opt in to the real [[projects/rustycog/references/openfga-real-testcontainer-fixture]].
 
 Skip this step entirely if you're going service-local — there's nothing to extend, you just construct the fixture directly inside that service's `tests/common.rs`.
 
@@ -133,7 +137,7 @@ Two patterns the wiki documents, with different trade-offs:
 
 ### `port = 0` + env-var publication
 
-This is what SQS and the DB fixture do. `test.toml` declares `port = 0`, the fixture asks the config layer for an `actual_port()` (which caches a random free port), then **mutates env vars** so the rest of the app picks up the resolved values:
+This is what SQS, DB, and OpenFGA do. `test.toml` declares `port = 0`, the fixture asks the config layer for an `actual_port()` (which caches a random free port), then **mutates env vars** so the rest of the app picks up the resolved values:
 
 ```rust
 // from sqs_testcontainer.rs
@@ -146,6 +150,8 @@ unsafe {
 ```
 
 The `unsafe` block is unavoidable on modern Rust because `set_var` is `unsafe` since `std::env` was tightened. Confining the env-mutation to the testcontainer constructor keeps the surface small.
+
+If the service config currently exposes only a single URL string such as `api_url`, split it before adding the fixture. The OpenFGA migration moved `OpenFgaClientConfig` into [[projects/rustycog/references/rustycog-config]] and changed it to `scheme` / `host` / `port` so `[openfga] port = 0` can resolve exactly like `[database]` and `[queue]`. A fixture that grabs a random port with `TcpListener::bind("127.0.0.1:0")` but leaves typed config as a flat URL has no clean way for the app boot path to resolve the same port. ^[inferred]
 
 ### Fixed mapped port
 
@@ -193,6 +199,7 @@ LocalStack ships an `/_localstack/health` endpoint, MailHog uses `/api/v1/messag
 - **Forgetting to call `cleanup_existing_<thing>_container().await` before starting.** A `Ctrl-C` between test runs leaves the old container holding the port — the next run fails with a confusing "address already in use" instead of cleanly evicting the stale one.
 - **Holding only a clone of the inner client without the singleton.** If the only `Arc<Test<Thing>Container>` reference goes out of scope during teardown, the container drops and the next test has to start a fresh one. Keep the `OnceLock` slot populated for the whole test process.
 - **Leaving `port = 0` *and* hard-coding the port elsewhere.** The whole point of `port = 0` is the fixture publishes the resolved port via env. If a different config file or a `const` still has `1025` baked in, the service-under-test connects to the wrong place and the test sees no traffic.
+- **Keeping a single `api_url` field for a random-port fixture.** Random host ports need a typed `port` slot plus `actual_port()` cache. Use `api_url()` as a computed method, not as the stored config field.
 - **Polling without a deadline.** Both `wait_for_messages` and `wait_for_ready` cap their loops with `max_wait_secs` / a fixed iteration count. A bare `while !ready { sleep(100ms).await }` will hang the suite when the container fails to start, with no useful error.
 - **Skipping `#[serial]`.** All the shared-singleton fixtures rely on the singleton not being raced by parallel tests. The same `serial_test::serial` rule that applies to the wiremock fixture applies here. ^[inferred]
 - **Calling `set_var` outside the fixture constructor.** Env-var mutation is process-global; if multiple tests set conflicting values the last writer wins. Confine env mutation to `get_or_create_<thing>_container()` and never touch the same vars from a test body.
@@ -210,3 +217,4 @@ If the test only needs to assert on what the service *would have sent* under a c
 - [[projects/rustycog/references/wiremock-mock-server-fixture]] — sister pattern for the HTTP-stub case; cross-reference when both fixtures coexist.
 - [[skills/stubbing-http-with-wiremock]] — the stub-based alternative this skill complements.
 - [[projects/rustycog/references/openfga-mock-service]] — factory-returning-handle example to mirror when extending `setup_test_server()`.
+- [[projects/rustycog/references/openfga-real-testcontainer-fixture]] — shared real OpenFGA fixture and the host/port config migration example.

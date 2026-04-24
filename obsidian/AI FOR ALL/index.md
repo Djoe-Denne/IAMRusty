@@ -8,7 +8,7 @@ provenance:
   extracted: 0.9
   inferred: 0.08
   ambiguous: 0.02
-updated: 2026-04-22T18:30:00Z
+updated: 2026-04-24T19:05:00Z
 ---
 
 # Wiki Index
@@ -33,3 +33,7 @@ Central entry point for this vault. Use the area indexes for full catalogs; use 
 - [[projects/manifesto/manifesto]] — project-service MVP and RustyCog blueprint
 - [[projects/rustycog/rustycog]] — shared Rust SDK (crate map: [[projects/rustycog/references/index]])
 - [[projects/sentinel-sync/sentinel-sync]] — centralized OpenFGA authorization and the sync worker
+
+## Recent Additions
+
+- [[projects/rustycog/references/openfga-real-testcontainer-fixture]] — real OpenFGA testcontainer fixture, random-port config contract, and migration notes from the old wiremock fake.

@@ -1,18 +1,19 @@
 //! Common test utilities for Manifesto
 //!
 //! Provides test infrastructure following rustycog-testing patterns
-//! and Manifesto-specific test setup, including the wiremock-backed
-//! OpenFGA fake every permission-touching test routes through.
+//! and Manifesto-specific test setup, including the real OpenFGA
+//! testcontainer every permission-touching test routes through.
 
 // Test utilities from rustycog-testing
 pub use rustycog_testing::TestFixture;
 pub use rustycog_testing::*;
 
-// Re-export the OpenFGA fixture so tests can arrange `Check` decisions
-// without pulling rustycog_testing::permission paths into every file.
-pub use rustycog_testing::permission::{OpenFgaFixtures, OpenFgaMockService};
+// Re-export the real OpenFGA testcontainer fixture so tests can arrange
+// `Check` decisions by writing real relationship tuples without pulling
+// `rustycog_testing::common::openfga_testcontainer` paths into every file.
+pub use rustycog_testing::common::openfga_testcontainer::TestOpenFga;
 
-// Re-export the permission domain types tests need to express stub tuples.
+// Re-export the permission domain types tests need to express tuples.
 pub use rustycog_permission::{Permission, ResourceRef, Subject};
 
 // Re-export the component-catalog fixture so tests that arrange a custom
@@ -70,70 +71,66 @@ impl ServiceTestDescriptor<TestFixture> for ManifestoTestDescriptor {
     fn has_sqs(&self) -> bool {
         false
     }
+
+    fn has_openfga(&self) -> bool {
+        true
+    }
 }
 
-/// Bootstrap the Manifesto test server plus the wiremock-backed fakes
-/// every permission- or component-gated route depends on.
+/// Bootstrap the Manifesto test server plus the real OpenFGA
+/// testcontainer and the wiremock-backed component-catalog fake every
+/// component-gated route depends on.
 ///
 /// Returns a 5-tuple:
-/// 1. `TestFixture` — owns the test DB and migration lifecycle.
+/// 1. `TestFixture` — owns the test DB, the singleton `openfga/openfga`
+///    testcontainer, and the migration lifecycle.
 /// 2. `String` — base URL of the live HTTP server.
 /// 3. `Client` — `reqwest` client preconfigured for the test server.
-/// 4. [`OpenFgaMockService`] — wiremock fake of OpenFGA's `Check`
-///    endpoint, pre-arranged with `mock_check_any(true)` so every
-///    permission-gated route passes the route guard by default. Tests
-///    that assert a `403` reset the fake and mount per-tuple deny stubs
-///    (see `component_api_tests.rs` for the pattern).
+/// 4. `TestOpenFga` (clone) — typed handle exposing `allow` / `deny` /
+///    `read_tuples` against the real OpenFGA Check pipeline. The harness
+///    writes **no** permissive default — each test must explicitly grant
+///    every tuple the route guard will check by calling
+///    `openfga.allow(subject, action, resource)`. Denial tests simply
+///    omit the grant (default = deny).
 /// 5. [`ComponentServiceMockService`] — wiremock fake of the upstream
 ///    component-catalog HTTP service, pre-arranged with the default
-///    catalog (`taskboard` + `wiki`). `add_component` calls
-///    `ComponentServicePort::list_available_components()` against this
-///    every time it runs.
+///    catalog (`taskboard` + `wiki`).
 ///
-/// Both fakes share the singleton wiremock listener at `127.0.0.1:3000`,
-/// so tests must remain `#[serial]`. Calling `reset()` on either handle
-/// wipes the **entire** singleton — including stubs mounted by the other
-/// fake — so tests that need to remount one will usually want to remount
-/// the other too.
+/// The OpenFGA fixture is process-global, so tests must remain
+/// `#[serial]` to avoid tuple-state collisions. The component-catalog
+/// fake shares the singleton wiremock listener at `127.0.0.1:3000` —
+/// `reset()` on it wipes every wiremock stub, including any other
+/// fixture mounted on the same singleton.
 ///
-/// To author a test that asserts the OpenFGA route guard itself denies a
-/// specific tuple, reset the OpenFGA handle and mount only the per-tuple
-/// deny: wiremock matches stubs in registration order (first-match wins),
-/// so a deny mounted on top of the catch-all would never fire.
+/// Bring-up order: the OpenFGA testcontainer publishes
+/// `MANIFESTO_OPENFGA__*` env vars during `TestFixture::new`; the app
+/// boots **after** that so its `OpenFgaPermissionChecker` resolves the
+/// fixture's URL / store id / model id instead of the `test.toml`
+/// placeholders.
 pub async fn setup_test_server() -> Result<
     (
         TestFixture,
         String,
         Client,
-        OpenFgaMockService,
+        TestOpenFga,
         ComponentServiceMockService,
     ),
     Box<dyn std::error::Error>,
 > {
-    // Construct **both** wiremock-backed fakes before mounting any stubs.
-    // `MockServerFixture::new()` calls `reset_all_mocks()` eagerly, so a
-    // sibling fake constructed *after* a stub was mounted would wipe it.
-    // Build them back-to-back, then arrange. The second `new()` triggers
-    // one redundant reset of the (still empty) singleton, which is a no-op.
-    let openfga = OpenFgaFixtures::service().await;
-    let components = ComponentServiceFixtures::service().await;
-
-    // Permissive default for the route-guard `Check` calls. Every
-    // permission-gated route in the suite passes the OpenFGA guard and
-    // execution falls through to domain-level authorization inside the
-    // use cases.
-    openfga.mock_check_any(true).await;
-
-    // Default catalog for `add_component`'s `GET /api/components` call.
-    // `taskboard` and `wiki` cover every component type the checked-in
-    // tests request; extend `mock_default_catalog` when adding more.
-    components.mock_default_catalog().await;
-
+    // Bring up the OpenFGA testcontainer + database first so the env
+    // vars are populated before the app boots.
     let descriptor = Arc::new(ManifestoTestDescriptor);
     let fixture = TestFixture::new(descriptor.clone()).await?;
+    let openfga = fixture.openfga().clone();
+
+    // Build the wiremock catalog fake **after** OpenFGA so the singleton
+    // wiremock reset performed by `MockServerFixture::new()` does not
+    // wipe an unrelated fixture.
+    let components = ComponentServiceFixtures::service().await;
+    components.mock_default_catalog().await;
+
     let (server_url, client) =
         rustycog_testing::setup_test_server::<ManifestoTestDescriptor, TestFixture>(descriptor)
             .await?;
     Ok((fixture, server_url, client, openfga, components))
 }
-

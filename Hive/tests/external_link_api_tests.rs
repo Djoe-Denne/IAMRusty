@@ -12,7 +12,7 @@ use common::{
 #[tokio::test]
 #[serial]
 async fn create_external_link_happy_path() {
-    let (fixture, server_url, client, _openfga) = setup_test_server().await.unwrap();
+    let (fixture, server_url, client, openfga) = setup_test_server().await.unwrap();
     let owner_id = Uuid::new_v4();
     let token = create_jwt_token(owner_id);
 
@@ -20,6 +20,17 @@ async fn create_external_link_happy_path() {
     let org = DbFixtures::create_org_with_owner(fixture.db().as_ref(), owner_id)
         .await
         .unwrap();
+
+    // Route guard: `with_permission_on(Permission::Admin, "organization")`
+    // on `POST /api/organizations/{org_id}/external-links`.
+    openfga
+        .allow(
+            Subject::new(owner_id),
+            Permission::Admin,
+            ResourceRef::new("organization", org.id),
+        )
+        .await
+        .expect("Failed to grant organization admin");
 
     // Seed external provider via fixtures
     let provider = DbFixtures::external_provider()
@@ -85,7 +96,7 @@ async fn create_external_link_requires_auth() {
 #[tokio::test]
 #[serial]
 async fn create_external_link_forbidden_for_read_only_member() {
-    let (fixture, server_url, client, openfga) = setup_test_server().await.unwrap();
+    let (fixture, server_url, client, _openfga) = setup_test_server().await.unwrap();
     let owner_id = Uuid::new_v4();
     let read_user_id = Uuid::new_v4();
     let token = create_jwt_token(read_user_id);
@@ -102,23 +113,11 @@ async fn create_external_link_forbidden_for_read_only_member() {
     .await
     .unwrap();
 
-    // We're testing the denial path. The route guard
+    // Default-deny: the route guard
     // `with_permission_on(Permission::Admin, "organization")` will Check
-    // `(read_user_id, Admin, organization:<org_id>)`. The harness's
-    // permissive `mock_check_any(true)` default would let this through
-    // and the handler would then 500 looking up an absent provider, so
-    // wipe the default first and mount a per-tuple deny matching the
-    // tuple the middleware will actually issue (wiremock matches in
-    // registration order, so a deny mounted on top of the catch-all
-    // would never fire).
-    openfga.reset().await;
-    openfga
-        .mock_check_deny(
-            Subject::new(read_user_id),
-            Permission::Admin,
-            ResourceRef::new("organization", org.id),
-        )
-        .await;
+    // `(read_user_id, admin, organization:<org_id>)`. Real OpenFGA
+    // returns false because no tuple has been written for the read user,
+    // so the request 403s before the handler runs.
 
     let body = serde_json::json!({
         "provider_id": Uuid::new_v4(),

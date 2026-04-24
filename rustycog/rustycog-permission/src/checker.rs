@@ -12,6 +12,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use moka::future::Cache;
+use rustycog_config::OpenFgaClientConfig;
 use rustycog_core::error::DomainError;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, warn};
@@ -21,56 +22,6 @@ use crate::{Permission, PermissionChecker, ResourceRef, Subject};
 // =============================================================================
 // OpenFGA
 // =============================================================================
-
-/// Configuration for [`OpenFgaPermissionChecker`].
-///
-/// Populate from each service's typed config under the `[openfga]` section
-/// (`openfga.api_url`, `openfga.store_id`, `openfga.authorization_model_id`,
-/// `openfga.api_token`). The model id is optional; when absent OpenFGA uses
-/// the latest model attached to the store.
-///
-/// Defaults are tuned for the root [`docker-compose.yml`](../../../docker-compose.yml):
-/// the OpenFGA container is reachable at `http://localhost:8090` from the
-/// host. `store_id` defaults to empty — services that issue real `Check`
-/// calls must override it via env or config; tests that never authorize can
-/// leave it empty.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OpenFgaClientConfig {
-    #[serde(default = "default_openfga_api_url")]
-    pub api_url: String,
-    #[serde(default)]
-    pub store_id: String,
-    #[serde(default)]
-    pub authorization_model_id: Option<String>,
-    #[serde(default)]
-    pub api_token: Option<String>,
-    /// Cache TTL (seconds) applied by `CachedPermissionChecker` decorations
-    /// in the composition root.
-    ///
-    /// `None` (the default) keeps the historical 15s production TTL. Set to
-    /// `Some(0)` in test configs to disable in-process caching so a `Check`
-    /// is re-issued for every middleware invocation — the only way for a
-    /// test that exercises grant ➜ revoke ➜ deny semantics inside a single
-    /// process to observe the second decision.
-    #[serde(default)]
-    pub cache_ttl_seconds: Option<u64>,
-}
-
-impl Default for OpenFgaClientConfig {
-    fn default() -> Self {
-        Self {
-            api_url: default_openfga_api_url(),
-            store_id: String::new(),
-            authorization_model_id: None,
-            api_token: None,
-            cache_ttl_seconds: None,
-        }
-    }
-}
-
-fn default_openfga_api_url() -> String {
-    "http://localhost:8090".to_string()
-}
 
 /// Production permission checker that calls OpenFGA's `Check` endpoint.
 pub struct OpenFgaPermissionChecker {
@@ -92,7 +43,7 @@ impl OpenFgaPermissionChecker {
     fn check_url(&self) -> String {
         format!(
             "{}/stores/{}/check",
-            self.config.api_url.trim_end_matches('/'),
+            self.config.api_url().trim_end_matches('/'),
             self.config.store_id
         )
     }

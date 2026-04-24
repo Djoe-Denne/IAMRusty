@@ -38,7 +38,7 @@ async fn add_member_requires_auth() {
 #[tokio::test]
 #[serial]
 async fn add_member_forbidden_for_read_only_member() {
-    let (fixture, server_url, client, openfga) = setup_test_server().await.unwrap();
+    let (fixture, server_url, client, _openfga) = setup_test_server().await.unwrap();
     let owner_id = Uuid::new_v4();
     let read_user_id = Uuid::new_v4();
     let token = create_jwt_token(read_user_id);
@@ -54,18 +54,12 @@ async fn add_member_forbidden_for_read_only_member() {
     .await
     .unwrap();
 
-    // Route guard: `with_permission_on(Permission::Write, "organization")`
-    // on `POST /organizations/{org_id}/members`. Trailing UUID = org_id.
-    // Reset the harness's permissive default and mount a deny matching
-    // the exact tuple the middleware will Check.
-    openfga.reset().await;
-    openfga
-        .mock_check_deny(
-            Subject::new(read_user_id),
-            Permission::Write,
-            ResourceRef::new("organization", org.id),
-        )
-        .await;
+    // Default-deny: route guard
+    // `with_permission_on(Permission::Write, "organization")` on
+    // `POST /organizations/{org_id}/members` will issue
+    // `Check(read_user, write, organization:<org_id>)`. Real OpenFGA
+    // returns false because no tuple has been written, so the request
+    // 403s without any explicit arrange.
 
     let new_user = Uuid::new_v4();
     let body = AddMemberRequest {
@@ -86,12 +80,23 @@ async fn add_member_forbidden_for_read_only_member() {
 #[tokio::test]
 #[serial]
 async fn add_member_happy_path_by_owner() {
-    let (fixture, server_url, client, _openfga) = setup_test_server().await.unwrap();
+    let (fixture, server_url, client, openfga) = setup_test_server().await.unwrap();
     let owner_id = Uuid::new_v4();
     let token = create_jwt_token(owner_id);
     let org = DbFixtures::create_org_with_owner(fixture.db().as_ref(), owner_id)
         .await
         .unwrap();
+
+    // Route guard: `with_permission_on(Permission::Write, "organization")`.
+    // POST /organizations/{org_id}/members trailing UUID = org.id.
+    openfga
+        .allow(
+            Subject::new(owner_id),
+            Permission::Write,
+            ResourceRef::new("organization", org.id),
+        )
+        .await
+        .expect("Failed to grant organization write");
 
     let new_user = Uuid::new_v4();
     let body = AddMemberRequest {
@@ -123,24 +128,19 @@ async fn add_member_happy_path_by_owner() {
 #[tokio::test]
 #[serial]
 async fn list_members_requires_auth_and_forbids_non_member() {
-    let (fixture, server_url, client, openfga) = setup_test_server().await.unwrap();
+    let (fixture, server_url, client, _openfga) = setup_test_server().await.unwrap();
     let owner_id = Uuid::new_v4();
     let org = DbFixtures::create_org_with_owner(fixture.db().as_ref(), owner_id)
         .await
         .unwrap();
 
-    // Arrange: random non-member user the second sub-assertion will deny.
-    // Route guard: `with_permission_on(Permission::Read, "organization")`
-    // on `GET /organizations/{org_id}/members`. Trailing UUID = org_id.
+    // Default-deny: route guard
+    // `with_permission_on(Permission::Read, "organization")` on
+    // `GET /organizations/{org_id}/members` will issue
+    // `Check(random_user, read, organization:<org_id>)`. Real OpenFGA
+    // returns false because no tuple has been written for that subject,
+    // so the second sub-assertion 403s without any explicit arrange.
     let random_user = Uuid::new_v4();
-    openfga.reset().await;
-    openfga
-        .mock_check_deny(
-            Subject::new(random_user),
-            Permission::Read,
-            ResourceRef::new("organization", org.id),
-        )
-        .await;
 
     // No auth — the strict 401 path doesn't touch the checker.
     let res = client
@@ -160,12 +160,23 @@ async fn list_members_requires_auth_and_forbids_non_member() {
 #[tokio::test]
 #[serial]
 async fn list_members_happy_path_for_owner() {
-    let (fixture, server_url, client, _openfga) = setup_test_server().await.unwrap();
+    let (fixture, server_url, client, openfga) = setup_test_server().await.unwrap();
     let owner_id = Uuid::new_v4();
     let token = create_jwt_token(owner_id);
     let org = DbFixtures::create_org_with_owner(fixture.db().as_ref(), owner_id)
         .await
         .unwrap();
+
+    // Route guard: `with_permission_on(Permission::Read, "organization")`.
+    // GET /organizations/{org_id}/members trailing UUID = org.id.
+    openfga
+        .allow(
+            Subject::new(owner_id),
+            Permission::Read,
+            ResourceRef::new("organization", org.id),
+        )
+        .await
+        .expect("Failed to grant organization read");
 
     let res = client
         .get(format!("{}/api/organizations/{}/members?page=0&page_size=10", server_url, org.id))
@@ -179,27 +190,20 @@ async fn list_members_happy_path_for_owner() {
 #[tokio::test]
 #[serial]
 async fn get_member_requires_auth_and_forbids_non_member() {
-    let (fixture, server_url, client, openfga) = setup_test_server().await.unwrap();
+    let (fixture, server_url, client, _openfga) = setup_test_server().await.unwrap();
     let owner_id = Uuid::new_v4();
     let org = DbFixtures::create_org_with_owner(fixture.db().as_ref(), owner_id)
         .await
         .unwrap();
 
-    // Route: `GET /organizations/{org_id}/members/{user_id}` with
-    // `with_permission_on(Permission::Read, "organization")`. The
-    // middleware extracts the **trailing** UUID — `owner_id` from the URL
-    // — as the resource id, so the deny tuple is
-    // `(random_user, Read, organization:owner_id)`, not
-    // `(random_user, Read, organization:org_id)`.
+    // Default-deny: route
+    // `GET /organizations/{org_id}/members/{user_id}` with guard
+    // `with_permission_on(Permission::Read, "organization")` extracts the
+    // **trailing** UUID — `owner_id` from the URL — as the resource id.
+    // Real OpenFGA returns false for
+    // `Check(random_user, read, organization:<owner_id>)` because no
+    // tuple has been written for that subject, so the request 403s.
     let random_user = Uuid::new_v4();
-    openfga.reset().await;
-    openfga
-        .mock_check_deny(
-            Subject::new(random_user),
-            Permission::Read,
-            ResourceRef::new("organization", owner_id),
-        )
-        .await;
 
     let res = client
         .get(format!("{}/api/organizations/{}/members/{}", server_url, org.id, owner_id))
@@ -217,12 +221,23 @@ async fn get_member_requires_auth_and_forbids_non_member() {
 #[tokio::test]
 #[serial]
 async fn get_member_happy_path_for_owner() {
-    let (fixture, server_url, client, _openfga) = setup_test_server().await.unwrap();
+    let (fixture, server_url, client, openfga) = setup_test_server().await.unwrap();
     let owner_id = Uuid::new_v4();
     let token = create_jwt_token(owner_id);
     let org = DbFixtures::create_org_with_owner(fixture.db().as_ref(), owner_id)
         .await
         .unwrap();
+
+    // Route guard: `with_permission_on(Permission::Read, "organization")`.
+    // GET /members/{user_id} trailing UUID = owner_id (the user id).
+    openfga
+        .allow(
+            Subject::new(owner_id),
+            Permission::Read,
+            ResourceRef::new("organization", owner_id),
+        )
+        .await
+        .expect("Failed to grant organization read");
 
     let res = client
         .get(format!("{}/api/organizations/{}/members/{}", server_url, org.id, owner_id))
@@ -237,7 +252,7 @@ async fn get_member_happy_path_for_owner() {
 #[tokio::test]
 #[serial]
 async fn remove_member_requires_auth_and_forbids_read_only() {
-    let (fixture, server_url, client, openfga) = setup_test_server().await.unwrap();
+    let (fixture, server_url, client, _openfga) = setup_test_server().await.unwrap();
     let owner_id = Uuid::new_v4();
     let read_user_id = Uuid::new_v4();
     let org = DbFixtures::create_org(
@@ -251,19 +266,13 @@ async fn remove_member_requires_auth_and_forbids_read_only() {
     .await
     .unwrap();
 
-    // Route: `DELETE /organizations/{org_id}/members/{user_id}` with
+    // Default-deny: route
+    // `DELETE /organizations/{org_id}/members/{user_id}` with guard
     // `with_permission_on(Permission::Write, "organization")`. The
     // trailing UUID in the URL `/members/{read_user_id}` is
-    // `read_user_id`, so the resource id the middleware Checks against
-    // is `read_user_id` (not `org.id`).
-    openfga.reset().await;
-    openfga
-        .mock_check_deny(
-            Subject::new(read_user_id),
-            Permission::Write,
-            ResourceRef::new("organization", read_user_id),
-        )
-        .await;
+    // `read_user_id`, so the middleware Checks
+    // `(read_user, write, organization:<read_user_id>)`. Real OpenFGA
+    // returns false because no tuple was written.
 
     // No auth — strict 401 path.
     let res = client
@@ -283,7 +292,7 @@ async fn remove_member_requires_auth_and_forbids_read_only() {
 #[tokio::test]
 #[serial]
 async fn remove_member_happy_path_by_owner() {
-    let (fixture, server_url, client, _openfga) = setup_test_server().await.unwrap();
+    let (fixture, server_url, client, openfga) = setup_test_server().await.unwrap();
     let owner_id = Uuid::new_v4();
     let read_user_id = Uuid::new_v4();
     let token = create_jwt_token(owner_id);
@@ -293,6 +302,17 @@ async fn remove_member_happy_path_by_owner() {
     ]))
         .await
         .unwrap();
+
+    // Route guard: `with_permission_on(Permission::Write, "organization")`.
+    // DELETE /members/{user_id} trailing UUID = read_user_id.
+    openfga
+        .allow(
+            Subject::new(owner_id),
+            Permission::Write,
+            ResourceRef::new("organization", read_user_id),
+        )
+        .await
+        .expect("Failed to grant organization write");
 
     let res = client
         .delete(format!("{}/api/organizations/{}/members/{}", server_url, org.id, read_user_id))

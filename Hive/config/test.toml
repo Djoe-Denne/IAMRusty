@@ -52,21 +52,29 @@ timeout_seconds = 30
 [logging]
 level = "debug"
 
-# Centralized authorization (OpenFGA). Tests run against the wiremock-backed
-# OpenFGA fake provided by `rustycog_testing::permission::OpenFgaMockService`,
-# which always binds the shared singleton wiremock server to 127.0.0.1:3000
-# and pins its store id to `01h0test0store0fixture000openfga`. The
-# integration test harness mounts a permissive `mock_check_any(true)` default
-# in `setup_test_server()` so route-guard `Check` calls always succeed; tests
-# that want to verify denial behavior can override per-tuple via the
-# returned `OpenFgaMockService` handle.
+# Centralized authorization (OpenFGA). Tests run against a real
+# `openfga/openfga` testcontainer provisioned by
+# `rustycog_testing::common::openfga_testcontainer::TestOpenFga`. `port = 0`
+# asks `OpenFgaClientConfig::actual_port()` to bind a free random host
+# port at startup; the testcontainer fixture maps the container's `:8080`
+# to that resolved port and then publishes `HIVE_OPENFGA__SCHEME`,
+# `HIVE_OPENFGA__HOST`, `HIVE_OPENFGA__PORT`, `HIVE_OPENFGA__STORE_ID`,
+# and `HIVE_OPENFGA__AUTHORIZATION_MODEL_ID` env vars before the app
+# boots. Splitting the URL into scheme/host/port (instead of a single
+# `api_url`) mirrors the `[database]` / `[queue]` convention so two test
+# binaries can stand up parallel OpenFGA containers on different host
+# ports without clashing. The harness writes **no** permissive default;
+# each test arranges its own tuples via `openfga.allow(subject, action,
+# resource)`.
 [openfga]
-api_url = "http://127.0.0.1:3000"
-store_id = "01h0test0store0fixture000openfga"
+scheme = "http"
+host = "localhost"
+port = 0
+store_id = ""
 # authorization_model_id = ""
 # api_token = ""
-# Disable the in-process Check cache so tests can flip mock decisions
-# mid-flow and observe them on the very next request, instead of waiting
-# for the production 15s TTL to expire.
+# Disable the in-process Check cache so tests that grant ➜ revoke ➜ deny
+# inside a single process actually observe the second decision instead of
+# the cached one from the first call.
 cache_ttl_seconds = 0
 

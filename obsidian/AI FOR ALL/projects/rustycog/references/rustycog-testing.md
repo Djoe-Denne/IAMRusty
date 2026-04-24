@@ -8,17 +8,17 @@ sources:
   - rustycog/rustycog-testing/src/common/test_server.rs
   - rustycog/rustycog-testing/src/common/kafka_testcontainer.rs
   - rustycog/rustycog-testing/src/common/sqs_testcontainer.rs
+  - rustycog/rustycog-testing/src/common/openfga_testcontainer.rs
   - rustycog/rustycog-testing/src/wiremock/mod.rs
   - rustycog/rustycog-testing/src/permission/mod.rs
-  - rustycog/rustycog-testing/src/permission/service.rs
-  - rustycog/rustycog-testing/src/permission/resources.rs
-summary: rustycog-testing bundles reusable service test descriptors, app/bootstrap helpers, a shared singleton wiremock fixture on port 3000, an in-crate OpenFGA Check fake (OpenFgaMockService), and real infrastructure harnesses for Kafka and SQS.
+summary: >-
+  rustycog-testing bundles service test descriptors, app/bootstrap helpers, shared wiremock, and real infrastructure harnesses for DB, Kafka, SQS, and OpenFGA.
 provenance:
-  extracted: 0.86
-  inferred: 0.10
-  ambiguous: 0.04
+  extracted: 0.88
+  inferred: 0.09
+  ambiguous: 0.03
 created: 2026-04-15T17:15:56.0808743Z
-updated: 2026-04-22T17:30:00Z
+updated: 2026-04-24T19:05:00Z
 ---
 
 # RustyCog Testing
@@ -28,13 +28,14 @@ updated: 2026-04-22T17:30:00Z
 ## Key Ideas
 
 - The crate re-exports common test modules (DB, events, HTTP, wiremock) through one dependency.
-- `ServiceTestDescriptor<T>` is the central service contract: it defines app build/run hooks, migration hooks, and capability flags (`has_db()`, `has_sqs()`).
+- `ServiceTestDescriptor<T>` is the central service contract: it defines app build/run hooks, migration hooks, and capability flags (`has_db()`, `has_sqs()`, `has_openfga()`).
 - Fixture builders branch off descriptor flags to provision only the infrastructure a service needs, keeping shared helpers portable across services.
 - `get_test_server()` and `setup_test_server()` manage a reusable global test server lifecycle using `OnceLock` and async mutex guards.
 - The `wiremock` module provides a shared mock server fixture with explicit reset behavior for test isolation; see [[projects/rustycog/references/wiremock-mock-server-fixture]] for the full API surface, port-3000 singleton model, and stub patterns.
 - `MockServerFixture::new()` eagerly resets all previously mounted mocks, `MockServerFixture::reset()` is exposed for mid-test re-arrangement, and its `Drop` impl schedules another reset on the current Tokio runtime, so tests stay isolated even when sharing a single `wiremock::MockServer` across the whole process.
-- The `permission` module ships `OpenFgaMockService` — a wiremock-backed fake of OpenFGA's `Check` endpoint with per-tuple `mock_check_allow` / `mock_check_deny` helpers and a `client_config()` that returns an `OpenFgaClientConfig` pre-pointed at the fake. Because it lives inside the testing crate, every consumer of `[[projects/rustycog/references/rustycog-permission]]` reuses it without authoring its own fixture. See [[projects/rustycog/references/openfga-mock-service]].
-- Kafka and SQS testcontainer modules provide real transport fixtures for event-path integration tests. Both follow the singleton + defensive-Docker-cleanup recipe captured in [[skills/creating-testcontainer-fixtures]], which is the entry point for adding any new shared or per-service container fixture.
+- The `permission` module is now a compatibility re-export for `TestOpenFga`; the old wiremock-backed `OpenFgaMockService` files were removed.
+- Kafka, SQS, and OpenFGA testcontainer modules provide real transport/protocol fixtures for integration tests. They follow the singleton + defensive-Docker-cleanup recipe captured in [[skills/creating-testcontainer-fixtures]], which is the entry point for adding any new shared or per-service container fixture.
+- [[projects/rustycog/references/openfga-real-testcontainer-fixture]] runs `openfga/openfga`, creates a fresh store/model per test setup, and exposes `allow`/`deny` tuple helpers so permission-gated route tests exercise production OpenFGA semantics instead of stubbed HTTP responses.
 - The package keeps service tests close to production wiring while still minimizing repeated bootstrapping code.
 
 ## Linked Entities
@@ -51,6 +52,7 @@ updated: 2026-04-22T17:30:00Z
 
 - [[projects/rustycog/references/index]]
 - [[projects/rustycog/references/wiremock-mock-server-fixture]]
+- [[projects/rustycog/references/openfga-real-testcontainer-fixture]]
 - [[projects/rustycog/references/openfga-mock-service]]
 - [[skills/creating-testcontainer-fixtures]]
 - [[skills/stubbing-http-with-wiremock]]

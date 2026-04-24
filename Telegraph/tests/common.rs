@@ -1,9 +1,9 @@
 //! Common test utilities for Telegraph
 //!
 //! Provides test infrastructure following rustycog-testing patterns
-//! and Telegraph-specific test setup, including the wiremock-backed
-//! OpenFGA fake every permission-gated route is routed through (mirrors
-//! `Manifesto/tests/common.rs`).
+//! and Telegraph-specific test setup, including the real OpenFGA
+//! testcontainer every permission-gated route is routed through
+//! (mirrors `Manifesto/tests/common.rs`).
 
 use async_trait::async_trait;
 use reqwest::Client;
@@ -16,14 +16,15 @@ use telegraph_configuration::{load_config, setup_logging, TelegraphConfig};
 use telegraph_setup::app::{AppBuilder, TelegraphApp};
 use telegraphmigration::{Migrator, MigratorTrait};
 
-// Re-export the OpenFGA wiremock fake so tests can arrange `Check`
-// decisions without pulling `rustycog_testing::permission` paths into
-// every file. The harness mounts a permissive default in
-// `setup_test_server`; denial tests `reset()` and mount per-tuple deny.
-pub use rustycog_testing::permission::{OpenFgaFixtures, OpenFgaMockService};
+// Re-export the real OpenFGA testcontainer fixture so tests can arrange
+// `Check` decisions by writing real relationship tuples without pulling
+// `rustycog_testing::common::openfga_testcontainer` paths into every file.
+// The harness writes **no** permissive default; each test must
+// explicitly call `openfga.allow(subject, action, resource)` for every
+// tuple the route guard will check (default = deny).
+pub use rustycog_testing::common::openfga_testcontainer::TestOpenFga;
 
-// Re-export the permission domain types tests need to express stub
-// tuples for denial scenarios.
+// Re-export the permission domain types tests need to express tuples.
 pub use rustycog_permission::{Permission, ResourceRef, Subject};
 
 #[path = "fixtures/mod.rs"]
@@ -80,6 +81,10 @@ impl ServiceTestDescriptor<TelegraphTestFixture> for TelegraphTestDescriptor {
     fn has_sqs(&self) -> bool {
         true
     }
+
+    fn has_openfga(&self) -> bool {
+        true
+    }
 }
 
 impl TelegraphTestDescriptor {
@@ -125,43 +130,37 @@ impl TelegraphTestFixture {
     pub fn smtp(&self) -> &std::sync::Arc<TestSmtp> {
         self.smtp.as_ref().expect("SMTP container not initialized")
     }
+
+    /// Get the OpenFGA fixture
+    pub fn openfga(&self) -> &TestOpenFga {
+        self.fixture.openfga()
+    }
 }
 
-/// Setup Telegraph test server with database, SMTP, and the wiremock
-/// OpenFGA fake.
+/// Setup Telegraph test server with database, SMTP, and the real
+/// OpenFGA testcontainer.
 ///
 /// Returns a 4-tuple:
-/// 1. [`TelegraphTestFixture`] — owns the test DB, SQS testcontainer, and
-///    SMTP container.
+/// 1. [`TelegraphTestFixture`] — owns the test DB, SQS testcontainer,
+///    SMTP container, and the singleton OpenFGA testcontainer.
 /// 2. `String` — base URL of the live HTTP server.
 /// 3. `Client` — `reqwest` client preconfigured for the test server.
-/// 4. [`OpenFgaMockService`] — wiremock fake of OpenFGA's `Check`
-///    endpoint, pre-arranged with `mock_check_any(true)` so every
-///    permission-gated route passes the route guard by default. Tests
-///    that assert a `403` reset the fake and mount per-tuple deny stubs.
+/// 4. `TestOpenFga` (clone) — typed handle exposing `allow` / `deny`
+///    against the real OpenFGA Check pipeline. The harness writes
+///    **no** permissive default; each test must explicitly call
+///    `openfga.allow(...)` for every tuple the route guard will check
+///    (default = deny).
 ///
-/// The OpenFGA fake shares the singleton wiremock listener at
-/// `127.0.0.1:3000` with Hive's and Manifesto's fakes — tests must
-/// remain `#[serial]`.
+/// The OpenFGA fixture is process-global, so tests must remain
+/// `#[serial]` to avoid tuple-state collisions.
 pub async fn setup_test_server(
-) -> Result<(TelegraphTestFixture, String, Client, OpenFgaMockService), Box<dyn std::error::Error>>
+) -> Result<(TelegraphTestFixture, String, Client, TestOpenFga), Box<dyn std::error::Error>>
 {
-    // Bring up the OpenFGA wiremock fake **before** booting the app so the
-    // production `OpenFgaPermissionChecker` constructed in `AppBuilder`
-    // resolves `http://127.0.0.1:3000/stores/.../check` against a live
-    // mock server. `MockServerFixture::new()` (called inside `service()`)
-    // eagerly resets every previously mounted stub for test isolation.
-    let openfga = OpenFgaFixtures::service().await;
-
-    // Permissive default for the route-guard `Check` calls. Mounted here
-    // so every permission-gated route in the suite passes the OpenFGA
-    // guard. Denial tests call `openfga.reset().await` then mount their
-    // per-tuple deny — wiremock matches in registration order so the
-    // catch-all must be wiped first.
-    openfga.mock_check_any(true).await;
-
+    // Bring up the OpenFGA testcontainer + database first so the env
+    // vars are populated before the app boots.
     let descriptor = Arc::new(TelegraphTestDescriptor);
     let fixture = TelegraphTestFixture::new(descriptor.clone()).await?;
+    let openfga = fixture.openfga().clone();
     fixture
         .smtp()
         .clear_emails()

@@ -125,7 +125,7 @@ async fn test_get_notifications_malformed_params() {
 #[tokio::test]
 #[serial]
 async fn test_mark_notification_read_invalid_rights() {
-    let (_, base_url, client, openfga) = setup_test_server()
+    let (_, base_url, client, _openfga) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
 
@@ -134,21 +134,12 @@ async fn test_mark_notification_read_invalid_rights() {
 
     let invalid_right_uuid = Uuid::new_v4();
 
-    // We're testing the denial path. The route guard
+    // Default-deny: the route guard
     // `with_permission_on(Permission::Write, "notification")` on
     // `PUT /api/notifications/{id}/read` will Check
-    // `(user_id, Write, notification:<invalid_right_uuid>)`. Reset the
-    // harness's permissive default and mount a deny matching the exact
-    // tuple the middleware will issue (wiremock matches in registration
-    // order, so a deny mounted on top of the catch-all would never fire).
-    openfga.reset().await;
-    openfga
-        .mock_check_deny(
-            Subject::new(user_id),
-            Permission::Write,
-            ResourceRef::new("notification", invalid_right_uuid),
-        )
-        .await;
+    // `(user_id, write, notification:<invalid_right_uuid>)`. Real
+    // OpenFGA returns false because no tuple has been written, so the
+    // request 403s without any explicit arrange.
 
     let response = client
         .put(format!(

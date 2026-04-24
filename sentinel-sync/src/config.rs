@@ -1,8 +1,9 @@
 //! Typed configuration for the sentinel-sync worker.
 //!
 //! The worker reuses `rustycog-config`'s shared building blocks (logging,
-//! queue) and adds its own `OpenFgaConfig` section.
+//! queue, OpenFGA).
 
+pub use rustycog_config::OpenFgaClientConfig as OpenFgaConfig;
 use rustycog_config::{LoggingConfig, QueueConfig};
 use serde::{Deserialize, Serialize};
 
@@ -18,17 +19,6 @@ pub struct SentinelSyncConfig {
     /// Idempotency ledger configuration.
     #[serde(default)]
     pub idempotency: IdempotencyConfig,
-}
-
-/// OpenFGA connection settings shared with `rustycog-permission`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OpenFgaConfig {
-    pub api_url: String,
-    pub store_id: String,
-    #[serde(default)]
-    pub authorization_model_id: Option<String>,
-    #[serde(default)]
-    pub api_token: Option<String>,
 }
 
 /// Idempotency-ledger settings. The ledger records processed `event_id`s so

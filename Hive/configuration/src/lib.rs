@@ -1,9 +1,11 @@
-use rustycog_config::{AuthConfig, HasQueueConfig, HasDbConfig, HasLoggingConfig, HasServerConfig, HasScalewayConfig};
-use rustycog_permission::OpenFgaClientConfig;
+use rustycog_config::{
+    AuthConfig, HasDbConfig, HasLoggingConfig, HasOpenFgaConfig, HasQueueConfig, HasScalewayConfig,
+    HasServerConfig, OpenFgaClientConfig,
+};
 use serde::{Deserialize, Serialize};
 
 
-pub use rustycog_config::{AuthConfig as SharedAuthConfig, CommandConfig, DatabaseConfig, LoggingConfig, QueueConfig, ServerConfig, load_config_fresh, ConfigError, ConfigLoader, ScalewayConfig};
+pub use rustycog_config::{AuthConfig as SharedAuthConfig, CommandConfig, ConfigError, ConfigLoader, DatabaseConfig, LoggingConfig, QueueConfig, ScalewayConfig, ServerConfig, load_config_fresh};
 
 pub use rustycog_logger::{setup_logging};
 
@@ -156,6 +158,16 @@ impl HasScalewayConfig for AppConfig {
 
     fn set_scaleway_config(&mut self, config: ScalewayConfig) {
         self.scaleway = config;
+    }
+}
+
+impl HasOpenFgaConfig for AppConfig {
+    fn openfga_config(&self) -> &OpenFgaClientConfig {
+        &self.openfga
+    }
+
+    fn set_openfga_config(&mut self, config: OpenFgaClientConfig) {
+        self.openfga = config;
     }
 }
 

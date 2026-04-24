@@ -6,7 +6,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
-use tracing::{debug, Level};
+use tracing::debug;
 
 // Re-export config and dotenvy for service use
 pub use config::{Config, ConfigError, Environment, File, FileFormat};
@@ -694,6 +694,121 @@ fn default_sqs_timeout_seconds() -> u64 {
     30
 }
 
+/// OpenFGA HTTP client configuration shared by services that use
+/// `rustycog-permission` and by writers such as `sentinel-sync`.
+///
+/// `host` / `port` are split deliberately, matching [`DatabaseConfig`] and
+/// [`SqsConfig`]. In tests, `port = 0` asks [`Self::actual_port`] to resolve a
+/// free random host port and cache it so the OpenFGA testcontainer fixture and
+/// the app boot path agree on the same port.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OpenFgaClientConfig {
+    /// URL scheme for the OpenFGA HTTP API.
+    #[serde(default = "default_openfga_scheme")]
+    pub scheme: String,
+    /// Hostname or IP for the OpenFGA HTTP API.
+    #[serde(default = "default_openfga_host")]
+    pub host: String,
+    /// Port for the OpenFGA HTTP API. Use `0` in test configs for a random
+    /// free host port resolved through [`Self::actual_port`].
+    #[serde(default = "default_openfga_port")]
+    pub port: u16,
+    #[serde(default)]
+    pub store_id: String,
+    #[serde(default)]
+    pub authorization_model_id: Option<String>,
+    #[serde(default)]
+    pub api_token: Option<String>,
+    /// Cache TTL (seconds) applied by permission-checker cache decorators.
+    /// `None` keeps the production default; `Some(0)` disables the cache in
+    /// integration tests that exercise grant / revoke / deny flows.
+    #[serde(default)]
+    pub cache_ttl_seconds: Option<u64>,
+}
+
+impl OpenFgaClientConfig {
+    /// Build the API base URL from `scheme`, `host`, and the resolved port.
+    pub fn api_url(&self) -> String {
+        format!(
+            "{}://{}:{}",
+            self.scheme.trim_end_matches("://"),
+            self.host,
+            self.actual_port()
+        )
+    }
+
+    /// Resolve the configured port. When `port == 0`, picks a random free port
+    /// once for this host and caches it for the rest of the process.
+    pub fn actual_port(&self) -> u16 {
+        if self.port == 0 {
+            let cache_key = format!("openfga:{}", self.host);
+            let cache = PORT_CACHE.get_or_init(|| Arc::new(Mutex::new(HashMap::new())));
+            let mut port_cache = cache.lock().unwrap();
+
+            if let Some(&cached_port) = port_cache.get(&cache_key) {
+                debug!("Using cached OpenFGA port: {}", cached_port);
+                return cached_port;
+            }
+
+            let random_port = Self::get_random_port();
+            port_cache.insert(cache_key, random_port);
+            debug!("Generated random OpenFGA port: {}", random_port);
+            random_port
+        } else {
+            self.port
+        }
+    }
+
+    fn get_random_port() -> u16 {
+        use std::net::{SocketAddr, TcpListener};
+
+        match TcpListener::bind("127.0.0.1:0") {
+            Ok(listener) => match listener.local_addr() {
+                Ok(SocketAddr::V4(addr)) => addr.port(),
+                Ok(SocketAddr::V6(addr)) => addr.port(),
+                Err(_) => default_openfga_port(),
+            },
+            Err(_) => default_openfga_port(),
+        }
+    }
+
+    /// Clear cached random OpenFGA ports so the next container start gets a
+    /// fresh host port.
+    pub fn clear_port_cache() {
+        if let Some(cache) = PORT_CACHE.get() {
+            let mut port_cache = cache.lock().unwrap();
+            port_cache.retain(|key, _| !key.starts_with("openfga:"));
+            debug!("OpenFGA port cleared from cache");
+        }
+    }
+}
+
+impl Default for OpenFgaClientConfig {
+    fn default() -> Self {
+        Self {
+            scheme: default_openfga_scheme(),
+            host: default_openfga_host(),
+            port: default_openfga_port(),
+            store_id: String::new(),
+            authorization_model_id: None,
+            api_token: None,
+            cache_ttl_seconds: None,
+        }
+    }
+}
+
+fn default_openfga_scheme() -> String {
+    "http".to_string()
+}
+
+fn default_openfga_host() -> String {
+    "localhost".to_string()
+}
+
+fn default_openfga_port() -> u16 {
+    8090
+}
+
 /// Event queue configuration - can be either Kafka or SQS
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
@@ -1031,6 +1146,11 @@ pub trait HasScalewayConfig {
     fn set_scaleway_config(&mut self, config: ScalewayConfig);
 }
 
+pub trait HasOpenFgaConfig {
+    fn openfga_config(&self) -> &OpenFgaClientConfig;
+    fn set_openfga_config(&mut self, config: OpenFgaClientConfig);
+}
+
 /// Load configuration with caching
 pub fn load_config_with_cache<T, C>() -> Result<T, ConfigError>
 where
@@ -1178,6 +1298,7 @@ pub fn clear_all_caches() {
     DatabaseConfig::clear_port_cache();
     KafkaConfig::clear_port_cache();
     SqsConfig::clear_port_cache();
+    OpenFgaClientConfig::clear_port_cache();
     println!("All configuration caches cleared");
 }
 
@@ -1216,6 +1337,11 @@ pub fn load_kafka_config() -> Result<KafkaConfig, ConfigError> {
 /// Load SQS configuration
 pub fn load_sqs_config() -> Result<SqsConfig, ConfigError> {
     load_config_part::<SqsConfig>("sqs")
+}
+
+/// Load OpenFGA configuration
+pub fn load_openfga_config() -> Result<OpenFgaClientConfig, ConfigError> {
+    load_config_part::<OpenFgaClientConfig>("openfga")
 }
 
 /// Generate a default configuration file in TOML format

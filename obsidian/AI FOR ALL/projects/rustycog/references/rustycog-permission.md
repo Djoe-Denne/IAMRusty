@@ -5,14 +5,16 @@ tags: [reference, rustycog, permissions, openfga, visibility/internal]
 sources:
   - rustycog/rustycog-permission/src/lib.rs
   - rustycog/rustycog-permission/src/checker.rs
+  - rustycog/rustycog-config/src/lib.rs
   - openfga/model.fga
-summary: rustycog-permission defines the PermissionChecker trait plus an OpenFGA-backed client, an in-memory test checker, a short-TTL LRU cache decorator (now opt-out via cache_ttl_seconds), and a metrics decorator. All Casbin code has been removed.
+summary: >-
+  rustycog-permission defines PermissionChecker plus OpenFGA, in-memory, cache, and metrics implementations; shared OpenFGA config now lives in rustycog-config.
 provenance:
-  extracted: 0.92
-  inferred: 0.05
+  extracted: 0.9
+  inferred: 0.07
   ambiguous: 0.03
 created: 2026-04-15
-updated: 2026-04-22T17:30:00Z
+updated: 2026-04-24T19:05:00Z
 ---
 
 # RustyCog Permission
@@ -30,7 +32,7 @@ updated: 2026-04-22T17:30:00Z
 
 ## Implementations
 
-- `OpenFgaPermissionChecker` — production. Built from `OpenFgaClientConfig` (`api_url`, `store_id`, optional `authorization_model_id`, optional `api_token`, optional `cache_ttl_seconds`). POSTs to `/stores/{id}/check`. Forwards `subject.to_string()` verbatim, so the wildcard form (`user:*`) Just Works on the wire.
+- `OpenFgaPermissionChecker` — production. Built from `OpenFgaClientConfig` from [[projects/rustycog/references/rustycog-config]] (`scheme`, `host`, `port`, `store_id`, optional `authorization_model_id`, optional `api_token`, optional `cache_ttl_seconds`). POSTs to `{api_url()}/stores/{id}/check`. Forwards `subject.to_string()` verbatim, so the wildcard form (`user:*`) Just Works on the wire.
 - `InMemoryPermissionChecker` — deterministic, test-only. `allow` / `deny` mutate an internal set of tuples. Accepts `Subject::wildcard()` like any other subject.
 - `CachedPermissionChecker` — decorates any inner `Arc<dyn PermissionChecker>` with a `moka` LRU cache keyed by `(user_id, permission, object_type, object_id)`. Time-based invalidation only. **Bypasses the cache entirely when `subject.is_wildcard()`** — the cache key would collide across all anonymous requests (every wildcard reuses `Uuid::nil()`) and a public→private flip needs to be visible on the next request, not after the TTL window.
 - `MetricsPermissionChecker` — `tracing`-instrumented decorator emitting structured `permission decision` events for every check, including `decision="allow"|"deny"` and `elapsed_us`.
@@ -50,11 +52,13 @@ let inner: Arc<dyn PermissionChecker> = if cache_ttl == 0 {
 let checker: Arc<dyn PermissionChecker> = Arc::new(MetricsPermissionChecker::new(inner));
 ```
 
+`OpenFgaClientConfig` is owned by `rustycog-config` and re-exported from `rustycog-permission` for compatibility. The split `scheme` / `host` / `port` fields mirror DB/SQS config so tests can set `port = 0`; `actual_port()` resolves that into a cached random host port for [[projects/rustycog/references/openfga-real-testcontainer-fixture]].
+
 `cache_ttl_seconds` (added 2026-04-22) makes the cache decoration opt-out:
 
 - `None` (default) — production behavior, 15s TTL.
 - `Some(n)` for `n > 0` — explicit TTL override.
-- `Some(0)` — skip the cache entirely. **Required** in test configs that use [[projects/rustycog/references/openfga-mock-service]] and need to flip a `Check` decision mid-test (e.g. grant ➜ revoke ➜ deny scenarios). Without it, `CachedPermissionChecker` would serve a stale allow from the first request and the second decision would never reach the wiremock fake.
+- `Some(0)` — skip the cache entirely. **Required** in test configs that use a mutable OpenFGA fixture and need to flip a `Check` decision mid-test (e.g. grant ➜ revoke ➜ deny scenarios). Without it, `CachedPermissionChecker` would serve a stale allow from the first request and the second decision would never reach OpenFGA.
 
 ## Linked Entities
 
@@ -70,7 +74,8 @@ let checker: Arc<dyn PermissionChecker> = Arc::new(MetricsPermissionChecker::new
 - [[concepts/anonymous-public-read-via-wildcard-subject]] — `Subject::wildcard()` end-to-end, including Phase 2 hand-off for `sentinel-sync` tuple writes.
 - [[projects/sentinel-sync/sentinel-sync]]
 - [[projects/rustycog/references/rustycog-http]]
-- [[projects/rustycog/references/openfga-mock-service]] — wiremock-backed `Check` fake for service tests.
+- [[projects/rustycog/references/openfga-real-testcontainer-fixture]] — real OpenFGA fixture for service integration tests.
+- [[projects/rustycog/references/openfga-mock-service]] — historical wiremock-backed `Check` fake; superseded for Hive/Manifesto/Telegraph integration tests by the real fixture.
 
 ## Removed
 

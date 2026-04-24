@@ -8,10 +8,10 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use rustycog_config::{
-    load_config_fresh, AuthConfig, ConfigError, ConfigLoader, DatabaseConfig, ScalewayConfig, HasDbConfig, HasLoggingConfig, HasScalewayConfig,
-    HasQueueConfig, HasServerConfig, LoggingConfig, QueueConfig,
+    load_config_fresh, AuthConfig, ConfigError, ConfigLoader, DatabaseConfig, HasDbConfig,
+    HasLoggingConfig, HasOpenFgaConfig, HasQueueConfig, HasScalewayConfig, HasServerConfig,
+    LoggingConfig, OpenFgaClientConfig, QueueConfig, ScalewayConfig,
 };
-use rustycog_permission::OpenFgaClientConfig;
 
 pub use rustycog_config::{ServerConfig};
 
@@ -382,6 +382,16 @@ impl HasDbConfig for TelegraphConfig {
 
     fn set_db_config(&mut self, config: DatabaseConfig) {
         self.database = config;
+    }
+}
+
+impl HasOpenFgaConfig for TelegraphConfig {
+    fn openfga_config(&self) -> &OpenFgaClientConfig {
+        &self.openfga
+    }
+
+    fn set_openfga_config(&mut self, config: OpenFgaClientConfig) {
+        self.openfga = config;
     }
 }
 

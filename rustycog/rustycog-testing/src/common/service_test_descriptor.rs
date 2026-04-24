@@ -30,4 +30,19 @@ pub trait ServiceTestDescriptor<T>: Send + Sync + 'static {
     fn has_db(&self) -> bool;
 
     fn has_sqs(&self) -> bool;
+
+    /// Whether this service exercises the centralized
+    /// [`rustycog_permission::OpenFgaPermissionChecker`] in tests.
+    ///
+    /// When `true`, [`crate::common::TestFixture::new`] starts the singleton
+    /// `openfga/openfga` testcontainer, creates a fresh store, uploads the
+    /// checked-in [`openfga/model.json`](../../../../../openfga/model.json),
+    /// and publishes the resolved API URL plus store / model ids into
+    /// every consumer's env-var prefix so the typed
+    /// `OpenFgaClientConfig` of the service-under-test picks them up at
+    /// boot.
+    ///
+    /// No default — every implementor must declare it explicitly so a new
+    /// service is forced to think about authorization wiring.
+    fn has_openfga(&self) -> bool;
 }

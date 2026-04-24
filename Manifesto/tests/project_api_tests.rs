@@ -127,7 +127,7 @@ async fn test_create_project_returns_401_without_auth_token() {
 #[tokio::test]
 #[serial]
 async fn test_create_project_grants_creator_immediate_owner_permissions() {
-    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
+    let (_fixture, base_url, client, openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
 
@@ -161,6 +161,23 @@ async fn test_create_project_grants_creator_immediate_owner_permissions() {
         .as_str()
         .expect("Created project should include an id")
         .to_string();
+    let project_uuid = Uuid::parse_str(&project_id).expect("project id should be a UUID");
+
+    // In production, the `ProjectCreated` domain event flows through
+    // `sentinel-sync` which writes the creator-as-owner tuples to
+    // OpenFGA. The integration test does not run `sentinel-sync`, so
+    // simulate that side effect here by writing the same tuples directly
+    // — `allow_all` covers `viewer / member / admin / owner`, which
+    // satisfies every guard a project owner can possibly trip in the
+    // assertions below (`Write` for PUT, `Admin` for POST /members and
+    // POST /components).
+    openfga
+        .allow_all(
+            Subject::new(creator_id),
+            ResourceRef::new("project", project_uuid),
+        )
+        .await
+        .expect("Failed to bootstrap creator permissions");
 
     let update_response = client
         .put(&format!("{}/api/projects/{}", base_url, project_id))
@@ -223,7 +240,7 @@ async fn test_create_project_grants_creator_immediate_owner_permissions() {
 #[tokio::test]
 #[serial]
 async fn test_get_project_returns_200_for_existing_project() {
-    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
+    let (_fixture, base_url, client, openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -239,10 +256,19 @@ async fn test_get_project_returns_200_for_existing_project() {
     // OpenFGA checker — but only `viewer@user:*` tuples grant access, and
     // `sentinel-sync` doesn't write those yet (Phase 2 follow-up tracked in
     // `obsidian/AI FOR ALL/concepts/anonymous-public-read-via-wildcard-subject.md`).
-    // Until Phase 2 ships, this test authenticates so it exercises the
-    // `Subject::new(uid)` path against the harness's permissive
-    // `mock_check_any(true)` default. Phase 2 will revert this to anonymous
-    // and arrange `openfga.mock_check_allow_wildcard(...)` instead.
+    // Until Phase 2 ships, this test authenticates and arranges a real
+    // `viewer@user:<owner_id>` tuple so the production `Check` returns
+    // allow against the testcontainer. Phase 2 will revert this to
+    // anonymous and arrange `openfga.allow_wildcard(...)` instead.
+    openfga
+        .allow(
+            Subject::new(owner_id),
+            Permission::Read,
+            ResourceRef::new("project", project.id()),
+        )
+        .await
+        .expect("Failed to grant project read");
+
     let jwt_token = create_test_jwt_token(owner_id);
 
     let response = client
@@ -270,18 +296,32 @@ async fn test_get_project_returns_200_for_existing_project() {
 #[tokio::test]
 #[serial]
 async fn test_get_project_returns_404_for_nonexistent_project() {
-    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
+    let (_fixture, base_url, client, openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
 
     let non_existent_id = Uuid::new_v4();
+    let caller_id = Uuid::new_v4();
 
     // Authenticate so `optional_permission_middleware` takes the
     // `Subject::new(uid)` path and the request reaches the handler. Phase 2
     // (sentinel-sync writing `viewer@user:*` for public projects) will
     // allow reverting this to a true anonymous request — see
     // `[[concepts/anonymous-public-read-via-wildcard-subject]]`.
-    let jwt_token = create_test_jwt_token(Uuid::new_v4());
+    //
+    // Real OpenFGA still has to grant Read; we want the request to flow
+    // past the middleware so the handler can return 404. Mount a
+    // `viewer@user:<caller>` tuple on the bogus project id.
+    openfga
+        .allow(
+            Subject::new(caller_id),
+            Permission::Read,
+            ResourceRef::new("project", non_existent_id),
+        )
+        .await
+        .expect("Failed to grant project read");
+
+    let jwt_token = create_test_jwt_token(caller_id);
 
     let response = client
         .get(&format!("{}/api/projects/{}", base_url, non_existent_id))
@@ -300,7 +340,7 @@ async fn test_get_project_returns_404_for_nonexistent_project() {
 #[tokio::test]
 #[serial]
 async fn test_get_project_detail_returns_200_with_components() {
-    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
+    let (_fixture, base_url, client, openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -316,6 +356,15 @@ async fn test_get_project_detail_returns_200_with_components() {
     // (sentinel-sync writing `viewer@user:*` for public projects) will
     // allow reverting this to a true anonymous request — see
     // `[[concepts/anonymous-public-read-via-wildcard-subject]]`.
+    openfga
+        .allow(
+            Subject::new(owner_id),
+            Permission::Read,
+            ResourceRef::new("project", project.id()),
+        )
+        .await
+        .expect("Failed to grant project read");
+
     let jwt_token = create_test_jwt_token(owner_id);
 
     let response = client
@@ -406,7 +455,7 @@ async fn test_list_projects_returns_paginated_results() {
 #[tokio::test]
 #[serial]
 async fn test_update_project_returns_200_with_valid_data() {
-    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
+    let (_fixture, base_url, client, openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -415,6 +464,16 @@ async fn test_update_project_returns_200_with_valid_data() {
     let (project, _member) = DbFixtures::create_project_with_owner(&db, owner_id)
         .await
         .expect("Failed to create project with owner");
+
+    // Route guard: `with_permission_on(Permission::Write, "project")`.
+    openfga
+        .allow(
+            Subject::new(owner_id),
+            Permission::Write,
+            ResourceRef::new("project", project.id()),
+        )
+        .await
+        .expect("Failed to grant project write");
 
     let jwt_token = create_test_jwt_token(owner_id);
 
@@ -451,7 +510,7 @@ async fn test_update_project_returns_200_with_valid_data() {
 #[tokio::test]
 #[serial]
 async fn test_delete_project_returns_204_on_success() {
-    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
+    let (_fixture, base_url, client, openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -460,6 +519,16 @@ async fn test_delete_project_returns_204_on_success() {
     let (project, _member) = DbFixtures::create_project_with_owner(&db, owner_id)
         .await
         .expect("Failed to create project with owner");
+
+    // Route guard: `with_permission_on(Permission::Owner, "project")`.
+    openfga
+        .allow(
+            Subject::new(owner_id),
+            Permission::Owner,
+            ResourceRef::new("project", project.id()),
+        )
+        .await
+        .expect("Failed to grant project ownership");
 
     let jwt_token = create_test_jwt_token(owner_id);
 
@@ -484,7 +553,7 @@ async fn test_delete_project_returns_204_on_success() {
 #[tokio::test]
 #[serial]
 async fn test_publish_project_returns_200_when_valid() {
-    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
+    let (_fixture, base_url, client, openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -503,6 +572,16 @@ async fn test_publish_project_returns_200_when_valid() {
         .commit(db.clone())
         .await
         .ok();
+
+    // Route guard: `with_permission_on(Permission::Admin, "project")`.
+    openfga
+        .allow(
+            Subject::new(owner_id),
+            Permission::Admin,
+            ResourceRef::new("project", project.id()),
+        )
+        .await
+        .expect("Failed to grant project admin");
 
     let jwt_token = create_test_jwt_token(owner_id);
 
@@ -528,7 +607,7 @@ async fn test_publish_project_returns_200_when_valid() {
 #[tokio::test]
 #[serial]
 async fn test_archive_project_returns_200_on_success() {
-    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
+    let (_fixture, base_url, client, openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -546,6 +625,16 @@ async fn test_archive_project_returns_200_on_success() {
         .commit(db.clone())
         .await
         .expect("Failed to create member");
+
+    // Route guard: `with_permission_on(Permission::Admin, "project")`.
+    openfga
+        .allow(
+            Subject::new(owner_id),
+            Permission::Admin,
+            ResourceRef::new("project", project.id()),
+        )
+        .await
+        .expect("Failed to grant project admin");
 
     let jwt_token = create_test_jwt_token(owner_id);
 

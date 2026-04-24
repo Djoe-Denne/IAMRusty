@@ -27,7 +27,7 @@ use telegraph_infra::repository::entity::notifications;
 #[tokio::test]
 #[serial]
 async fn test_mark_as_read_operation() {
-    let (fixture, base_url, client, _openfga) = setup_test_server()
+    let (fixture, base_url, client, openfga) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
     let db = fixture.db();
@@ -45,6 +45,18 @@ async fn test_mark_as_read_operation() {
         .expect("Failed to create notification");
 
     let notification_id = notification.id();
+
+    // Route guard: `with_permission_on(Permission::Write, "notification")`
+    // on `PUT /api/notifications/{id}/read`. Seed the recipient tuple
+    // `sentinel-sync` would write in production.
+    openfga
+        .allow(
+            Subject::new(user_id),
+            Permission::Write,
+            ResourceRef::new("notification", notification_id),
+        )
+        .await
+        .expect("Failed to grant notification write");
 
     let response = client
         .put(format!(

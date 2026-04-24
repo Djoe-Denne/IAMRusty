@@ -412,7 +412,7 @@ async fn test_get_unread_count_auth_required() {
 #[tokio::test]
 #[serial]
 async fn test_mark_notification_read_success() {
-    let (fixture, base_url, client, _openfga) = setup_test_server()
+    let (fixture, base_url, client, openfga) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
     let db = fixture.db();
@@ -430,6 +430,20 @@ async fn test_mark_notification_read_success() {
         .expect("Failed to create notification");
 
     let notification_id = notification.id();
+
+    // Route guard: `with_permission_on(Permission::Write, "notification")`.
+    // PUT /api/notifications/{id}/read trailing UUID = notification_id.
+    // In production `sentinel-sync` writes
+    // `notification:<id>#recipient@user:<user_id>`; the integration test
+    // does not run `sentinel-sync`, so seed the tuple directly.
+    openfga
+        .allow(
+            Subject::new(user_id),
+            Permission::Write,
+            ResourceRef::new("notification", notification_id),
+        )
+        .await
+        .expect("Failed to grant notification write");
 
     // Verify it's initially unread
     let initial_notification = notifications::Entity::find_by_id(notification_id)
@@ -500,7 +514,7 @@ async fn test_mark_notification_read_success() {
 #[tokio::test]
 #[serial]
 async fn test_mark_notification_read_not_found() {
-    let (_, base_url, client, openfga) = setup_test_server()
+    let (_, base_url, client, _openfga) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
 
@@ -511,17 +525,10 @@ async fn test_mark_notification_read_not_found() {
     // The test asserts `403 FORBIDDEN`: a user trying to mark a
     // notification they have no rights on should be denied at the route
     // guard, before the handler can leak the existence (or absence) of
-    // the notification. Reset the harness's permissive default and mount
-    // a deny matching the tuple `(user_id, Write, notification:<id>)`
-    // that `with_permission_on(Write, "notification")` will Check.
-    openfga.reset().await;
-    openfga
-        .mock_check_deny(
-            Subject::new(user_id),
-            Permission::Write,
-            ResourceRef::new("notification", nonexistent_id),
-        )
-        .await;
+    // the notification. Default-deny: real OpenFGA returns false for
+    // `Check(user_id, write, notification:<nonexistent_id>)` because no
+    // tuple has been written, so the request 403s without any explicit
+    // arrange.
 
     let response = client
         .put(format!(
@@ -540,7 +547,7 @@ async fn test_mark_notification_read_not_found() {
 #[tokio::test]
 #[serial]
 async fn test_mark_notification_read_unauthorized() {
-    let (fixture, base_url, client, _openfga) = setup_test_server()
+    let (fixture, base_url, client, openfga) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
     let db = fixture.db();
@@ -557,6 +564,21 @@ async fn test_mark_notification_read_unauthorized() {
         .commit(&db)
         .await
         .expect("Failed to create notification");
+
+    // Production: `sentinel-sync` would write a recipient tuple for
+    // `owner_user_id`. We seed it explicitly to mirror that side
+    // effect. The other_user_id has no tuple, so the route guard's
+    // `Check(other_user, write, notification:<id>)` returns false and
+    // the request 403s — proving the guard, not the handler, is what
+    // protects cross-user access.
+    openfga
+        .allow(
+            Subject::new(owner_user_id),
+            Permission::Write,
+            ResourceRef::new("notification", notification.id()),
+        )
+        .await
+        .expect("Failed to grant owner notification write");
 
     // Try to mark as read using other_user's JWT
     let response = client
@@ -615,7 +637,7 @@ async fn test_mark_notification_read_missing_auth() {
 #[tokio::test]
 #[serial]
 async fn test_mark_notification_read_idempotent() {
-    let (fixture, base_url, client, _openfga) = setup_test_server()
+    let (fixture, base_url, client, openfga) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
     let db = fixture.db();
@@ -633,6 +655,17 @@ async fn test_mark_notification_read_idempotent() {
         .expect("Failed to create read notification");
 
     let notification_id = notification.id();
+
+    // Route guard: `with_permission_on(Permission::Write, "notification")`.
+    // Seed the recipient tuple `sentinel-sync` would write in production.
+    openfga
+        .allow(
+            Subject::new(user_id),
+            Permission::Write,
+            ResourceRef::new("notification", notification_id),
+        )
+        .await
+        .expect("Failed to grant notification write");
 
     // Get initial read_at timestamp
     let initial_notification = notifications::Entity::find_by_id(notification_id)
@@ -697,7 +730,7 @@ fn create_test_jwt_token(user_id: Uuid) -> String {
 #[tokio::test]
 #[serial]
 async fn test_notification_lifecycle_complete() {
-    let (fixture, base_url, client, _openfga) = setup_test_server()
+    let (fixture, base_url, client, openfga) = setup_test_server()
         .await
         .expect("Failed to setup Telegraph test server");
     let db = fixture.db();
@@ -721,6 +754,27 @@ async fn test_notification_lifecycle_complete() {
         .commit(&db)
         .await
         .expect("Failed to create notification 2");
+
+    // Route guard: `with_permission_on(Permission::Write, "notification")`
+    // protects PUT /api/notifications/{id}/read. Seed the recipient
+    // tuples `sentinel-sync` would write so step 4 (mark notification1
+    // read) clears the route guard.
+    openfga
+        .allow(
+            Subject::new(user_id),
+            Permission::Write,
+            ResourceRef::new("notification", notification1.id()),
+        )
+        .await
+        .expect("Failed to grant notification1 write");
+    openfga
+        .allow(
+            Subject::new(user_id),
+            Permission::Write,
+            ResourceRef::new("notification", notification2.id()),
+        )
+        .await
+        .expect("Failed to grant notification2 write");
 
     // Step 2: Check unread count (should be 2)
     let response = client

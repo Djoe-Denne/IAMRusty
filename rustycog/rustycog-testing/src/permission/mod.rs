@@ -1,35 +1,19 @@
-//! Wiremock-backed OpenFGA permission fixtures.
+//! Real-OpenFGA permission fixtures.
 //!
-//! The shared [`crate::wiremock::MockServerFixture`] hosts a single in-process
-//! `wiremock::MockServer`; this module wraps it with a typed
-//! [`OpenFgaMockService`] that mounts stubs at the same
-//! `POST /stores/{store_id}/check` endpoint that
-//! `rustycog_permission::OpenFgaPermissionChecker` calls.
+//! The wiremock-backed `OpenFgaMockService` was retired in favor of the
+//! testcontainer-backed [`crate::common::openfga_testcontainer::TestOpenFga`],
+//! which boots a real `openfga/openfga` container and drives the
+//! production `OpenFgaPermissionChecker` against the actual Check API.
 //!
-//! Use [`OpenFgaFixtures`] as the entry point so test code reads as
-//! `let openfga = OpenFgaFixtures::service().await;`.
-//!
-//! Tests that mount these stubs must be marked `#[serial]` because the
-//! underlying wiremock server is a process-wide singleton bound to a fixed
-//! port.
+//! This module re-exports the new fixture at the historical path so a
+//! `use rustycog_testing::permission::TestOpenFga;` import continues to
+//! resolve. Tests that previously called `OpenFgaFixtures::service()`,
+//! `mock_check_allow`, `mock_check_deny`, `mock_check_any`,
+//! `mock_check_error`, `mock_check_requires_bearer`, or
+//! `verify_check_called` must migrate to the real-tuple API
+//! (`TestOpenFga::allow` / `deny` / `read_tuples`); see
+//! `Manifesto/tests/component_api_tests.rs` for the canonical pattern.
 
-pub mod resources;
-pub mod service;
-
-pub use resources::{CheckRequestBody, CheckResponseBody, CheckTupleKey};
-pub use service::OpenFgaMockService;
-
-/// Namespace for OpenFGA permission fixtures.
-pub struct OpenFgaFixtures;
-
-impl OpenFgaFixtures {
-    /// Build a fake OpenFGA `Check` endpoint with the default store id.
-    pub async fn service() -> OpenFgaMockService {
-        OpenFgaMockService::new().await
-    }
-
-    /// Build a fake OpenFGA `Check` endpoint pinned to `store_id`.
-    pub async fn service_with_store_id(store_id: impl Into<String>) -> OpenFgaMockService {
-        OpenFgaMockService::with_store_id(store_id).await
-    }
-}
+pub use crate::common::openfga_testcontainer::{
+    writable_relation_for, TestOpenFga, TestOpenFgaContainer, TupleKey,
+};

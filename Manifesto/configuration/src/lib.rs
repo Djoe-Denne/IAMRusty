@@ -4,13 +4,13 @@
 //! including service-specific configurations and integration with rustycog-config.
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 use rustycog_config::{
-    AuthConfig, CommandConfig, ConfigLoader, HasServerConfig, HasLoggingConfig, HasQueueConfig, HasDbConfig, HasScalewayConfig, DatabaseConfig,
-    LoggingConfig, QueueConfig, ConfigError, load_config_fresh, ServerConfig, ScalewayConfig,
+    AuthConfig, CommandConfig, ConfigError, ConfigLoader, DatabaseConfig, HasDbConfig,
+    HasLoggingConfig, HasOpenFgaConfig, HasQueueConfig, HasScalewayConfig, HasServerConfig,
+    load_config_fresh, LoggingConfig, OpenFgaClientConfig, QueueConfig, ScalewayConfig,
+    ServerConfig,
 };
-use rustycog_permission::OpenFgaClientConfig;
 
 pub use rustycog_logger::setup_logging;
 
@@ -252,6 +252,16 @@ impl HasDbConfig for ManifestoConfig {
     
     fn set_db_config(&mut self, config: DatabaseConfig) {
         self.database = config;
+    }
+}
+
+impl HasOpenFgaConfig for ManifestoConfig {
+    fn openfga_config(&self) -> &OpenFgaClientConfig {
+        &self.openfga
+    }
+
+    fn set_openfga_config(&mut self, config: OpenFgaClientConfig) {
+        self.openfga = config;
     }
 }
 

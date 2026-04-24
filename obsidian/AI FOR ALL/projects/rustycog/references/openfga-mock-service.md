@@ -11,16 +11,20 @@ sources:
   - Manifesto/config/test.toml
   - Manifesto/tests/common.rs
   - Manifesto/tests/component_api_tests.rs
-summary: How rustycog-testing's permission module exposes OpenFgaMockService — a wiremock-backed fake of OpenFGA's Check endpoint with per-tuple allow/deny stubs, an explicit reset(), and a cache-TTL config that lets grant-revoke-deny tests actually flip mid-flow.
+summary: >-
+  Historical notes for the old wiremock-backed OpenFGA Check fake; Hive, Manifesto, and Telegraph integration tests now use a real OpenFGA testcontainer.
 provenance:
-  extracted: 0.86
-  inferred: 0.10
-  ambiguous: 0.04
+  extracted: 0.8
+  inferred: 0.08
+  ambiguous: 0.12
 created: 2026-04-22T17:30:00Z
-updated: 2026-04-22T17:30:00Z
+updated: 2026-04-24T19:05:00Z
 ---
 
 # OpenFGA Mock Service
+
+> [!warning] Historical
+> This page documents the removed wiremock-backed `OpenFgaMockService`. Hive, Manifesto, and Telegraph integration tests now use [[projects/rustycog/references/openfga-real-testcontainer-fixture]], which exercises real OpenFGA store/model/tuple semantics and denies by default.
 
 `rustycog_testing::permission::OpenFgaMockService` is the wiremock-backed fake of OpenFGA's `POST /stores/{store_id}/check` endpoint. It wraps the shared `[[projects/rustycog/references/wiremock-mock-server-fixture]]` and lets integration tests answer permission-checker `Check` calls per-tuple instead of standing up a real OpenFGA store and a `sentinel-sync` worker.
 

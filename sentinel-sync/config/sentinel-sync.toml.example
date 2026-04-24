@@ -1,13 +1,20 @@
 # sentinel-sync configuration sample.
 #
 # Copy to config/sentinel-sync.toml or override via SENTINEL_SYNC__* env vars
-# (e.g. SENTINEL_SYNC__OPENFGA__API_URL, SENTINEL_SYNC__IDEMPOTENCY__BACKEND).
+# (e.g. SENTINEL_SYNC_OPENFGA__HOST, SENTINEL_SYNC_OPENFGA__PORT,
+# SENTINEL_SYNC__IDEMPOTENCY__BACKEND).
 
 [logging]
 level = "info"
 
 [openfga]
-api_url = "http://localhost:8080"
+# scheme/host/port are split (instead of a single api_url string) to mirror
+# the [database] / [queue] convention. Set port = 0 to ask
+# `OpenFgaConfig::actual_port()` to pick a free random port — useful when
+# the worker stands up against a TestOpenFga testcontainer fixture.
+scheme = "http"
+host = "localhost"
+port = 8080
 store_id = "REPLACE_WITH_STORE_ID"
 # authorization_model_id = "REPLACE_WITH_MODEL_ID"
 # api_token = "only-if-openfga-is-behind-auth"

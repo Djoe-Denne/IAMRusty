@@ -33,10 +33,15 @@ type = "disabled"
 level = "debug"
 
 # Centralized authorization (OpenFGA). Override store_id /
-# authorization_model_id via MANIFESTO__OPENFGA__STORE_ID /
-# MANIFESTO__OPENFGA__AUTHORIZATION_MODEL_ID env vars per environment.
+# authorization_model_id via MANIFESTO_OPENFGA__STORE_ID /
+# MANIFESTO_OPENFGA__AUTHORIZATION_MODEL_ID env vars per environment.
+# `host` / `port` follow the same shape as `[database]` / `[queue]`; set
+# `port = 0` to ask `OpenFgaClientConfig::actual_port()` to pick a free
+# random port (used by the integration test fixture).
 [openfga]
-api_url = "http://localhost:8090"
+scheme = "http"
+host = "localhost"
+port = 8090
 store_id = ""
 # authorization_model_id = ""
 # api_token = ""

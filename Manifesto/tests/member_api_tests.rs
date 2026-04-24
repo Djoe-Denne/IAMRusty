@@ -24,7 +24,7 @@ fn create_test_jwt_token(user_id: Uuid) -> String {
 #[tokio::test]
 #[serial]
 async fn test_add_member_returns_201_with_valid_permissions() {
-    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
+    let (_fixture, base_url, client, openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -33,6 +33,17 @@ async fn test_add_member_returns_201_with_valid_permissions() {
     let (project, _owner_member) = DbFixtures::create_project_with_owner(&db, owner_id)
         .await
         .expect("Failed to create project with owner");
+
+    // Route guard: `with_permission_on(Permission::Admin, "project")`.
+    // POST /members trailing UUID = project.id().
+    openfga
+        .allow(
+            Subject::new(owner_id),
+            Permission::Admin,
+            ResourceRef::new("project", project.id()),
+        )
+        .await
+        .expect("Failed to grant project admin");
 
     let jwt_token = create_test_jwt_token(owner_id);
     let new_member_id = Uuid::new_v4();
@@ -69,7 +80,7 @@ async fn test_add_member_returns_201_with_valid_permissions() {
 #[tokio::test]
 #[serial]
 async fn test_add_member_returns_403_without_admin_permission() {
-    let (_fixture, base_url, client, openfga, _components) = setup_test_server()
+    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -87,20 +98,13 @@ async fn test_add_member_returns_403_without_admin_permission() {
         .await
         .expect("Failed to create regular member");
 
-    // We're testing the denial path. The route guard
-    // `with_permission_on(Permission::Admin, "project")` will issue a Check
-    // for `(regular_member_id, Admin, project:<project_id>)` (the trailing
-    // UUID in `POST /api/projects/{project_id}/members` is the project id
-    // itself — there is no deeper UUID segment). Reset the permissive
-    // default and mount a deny for that exact tuple.
-    openfga.reset().await;
-    openfga
-        .mock_check_deny(
-            Subject::new(regular_member_id),
-            Permission::Admin,
-            ResourceRef::new("project", project.id()),
-        )
-        .await;
+    // Default-deny: the route guard
+    // `with_permission_on(Permission::Admin, "project")` issues
+    // `Check(regular_member, administer, project:<project_id>)` (the
+    // trailing UUID in `POST /api/projects/{project_id}/members` is the
+    // project id itself — there is no deeper UUID segment). Real OpenFGA
+    // returns false because no tuple has been written for that subject,
+    // so the request 403s without any explicit arrange.
 
     let jwt_token = create_test_jwt_token(regular_member_id);
     let new_member_id = Uuid::new_v4();
@@ -131,7 +135,7 @@ async fn test_add_member_returns_403_without_admin_permission() {
 #[tokio::test]
 #[serial]
 async fn test_get_member_returns_200_with_permissions() {
-    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
+    let (_fixture, base_url, client, openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -140,6 +144,17 @@ async fn test_get_member_returns_200_with_permissions() {
     let (project, owner_member) = DbFixtures::create_project_with_owner(&db, owner_id)
         .await
         .expect("Failed to create project with owner");
+
+    // Route guard: `with_permission_on(Permission::Read, "project")`.
+    // GET /members/{user_id} trailing UUID = owner_id (the user id).
+    openfga
+        .allow(
+            Subject::new(owner_id),
+            Permission::Read,
+            ResourceRef::new("project", owner_id),
+        )
+        .await
+        .expect("Failed to grant project read");
 
     let jwt_token = create_test_jwt_token(owner_id);
 
@@ -177,7 +192,7 @@ async fn test_get_member_returns_200_with_permissions() {
 #[tokio::test]
 #[serial]
 async fn test_list_members_returns_paginated_results() {
-    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
+    let (_fixture, base_url, client, openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -196,6 +211,17 @@ async fn test_list_members_returns_paginated_results() {
             .await
             .expect("Failed to create member");
     }
+
+    // Route guard: `with_permission_on(Permission::Read, "project")`.
+    // GET /members trailing UUID = project.id().
+    openfga
+        .allow(
+            Subject::new(owner_id),
+            Permission::Read,
+            ResourceRef::new("project", project.id()),
+        )
+        .await
+        .expect("Failed to grant project read");
 
     let jwt_token = create_test_jwt_token(owner_id);
 
@@ -230,7 +256,7 @@ async fn test_list_members_returns_paginated_results() {
 #[tokio::test]
 #[serial]
 async fn test_update_member_permissions_returns_200() {
-    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
+    let (_fixture, base_url, client, openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -247,6 +273,17 @@ async fn test_update_member_permissions_returns_200() {
         .commit(db.clone())
         .await
         .expect("Failed to create regular member");
+
+    // Route guard: `with_permission_on(Permission::Admin, "project")`.
+    // PUT /members/{user_id} trailing UUID = regular_member_id.
+    openfga
+        .allow(
+            Subject::new(owner_id),
+            Permission::Admin,
+            ResourceRef::new("project", regular_member_id),
+        )
+        .await
+        .expect("Failed to grant project admin");
 
     let jwt_token = create_test_jwt_token(owner_id);
 
@@ -283,7 +320,7 @@ async fn test_update_member_permissions_returns_200() {
 #[tokio::test]
 #[serial]
 async fn test_remove_member_returns_204() {
-    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
+    let (_fixture, base_url, client, openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -300,6 +337,17 @@ async fn test_remove_member_returns_204() {
         .commit(db.clone())
         .await
         .expect("Failed to create member to remove");
+
+    // Route guard: `with_permission_on(Permission::Admin, "project")`.
+    // DELETE /members/{user_id} trailing UUID = member_to_remove_id.
+    openfga
+        .allow(
+            Subject::new(owner_id),
+            Permission::Admin,
+            ResourceRef::new("project", member_to_remove_id),
+        )
+        .await
+        .expect("Failed to grant project admin");
 
     let jwt_token = create_test_jwt_token(owner_id);
 
@@ -329,7 +377,7 @@ async fn test_remove_member_returns_204() {
 #[tokio::test]
 #[serial]
 async fn test_grant_permission_returns_200() {
-    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
+    let (_fixture, base_url, client, openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -346,6 +394,17 @@ async fn test_grant_permission_returns_200() {
         .commit(db.clone())
         .await
         .expect("Failed to create regular member");
+
+    // Route guard: `with_permission_on(Permission::Admin, "project")`.
+    // POST /permissions/{resource} trailing UUID = regular_member_id.
+    openfga
+        .allow(
+            Subject::new(owner_id),
+            Permission::Admin,
+            ResourceRef::new("project", regular_member_id),
+        )
+        .await
+        .expect("Failed to grant project admin");
 
     let jwt_token = create_test_jwt_token(owner_id);
 
@@ -376,7 +435,7 @@ async fn test_grant_permission_returns_200() {
 #[tokio::test]
 #[serial]
 async fn test_revoke_permission_returns_204() {
-    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
+    let (_fixture, base_url, client, openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -393,6 +452,18 @@ async fn test_revoke_permission_returns_204() {
         .commit(db.clone())
         .await
         .expect("Failed to create regular member");
+
+    // Route guard: `with_permission_on(Permission::Admin, "project")`.
+    // POST + DELETE /permissions/{resource} both share the trailing UUID
+    // = regular_member_id, so a single tuple covers both calls.
+    openfga
+        .allow(
+            Subject::new(owner_id),
+            Permission::Admin,
+            ResourceRef::new("project", regular_member_id),
+        )
+        .await
+        .expect("Failed to grant project admin");
 
     let jwt_token = create_test_jwt_token(owner_id);
 
@@ -440,7 +511,7 @@ async fn test_revoke_permission_returns_204() {
 #[tokio::test]
 #[serial]
 async fn test_grant_permission_on_specific_component_returns_200() {
-    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
+    let (_fixture, base_url, client, openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -458,6 +529,17 @@ async fn test_grant_permission_on_specific_component_returns_200() {
         .commit(db.clone())
         .await
         .expect("Failed to create regular member");
+
+    // Route guard: `with_permission_on(Permission::Admin, "project")`.
+    // POST /permissions/component/{component_id} trailing UUID = component.id().
+    openfga
+        .allow(
+            Subject::new(owner_id),
+            Permission::Admin,
+            ResourceRef::new("project", component.id()),
+        )
+        .await
+        .expect("Failed to grant project admin");
 
     let jwt_token = create_test_jwt_token(owner_id);
 
@@ -489,7 +571,7 @@ async fn test_grant_permission_on_specific_component_returns_200() {
 #[tokio::test]
 #[serial]
 async fn test_non_admin_cannot_grant_permission_on_specific_component() {
-    let (_fixture, base_url, client, openfga, _components) = setup_test_server()
+    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -516,19 +598,12 @@ async fn test_non_admin_cannot_grant_permission_on_specific_component() {
         .await
         .expect("Failed to create target member");
 
-    // We're testing the denial path. The grant route is
+    // Default-deny: the grant route is
     // `POST /api/projects/{project_id}/members/{user_id}/permissions/component/{component_id}`,
     // and the middleware uses the **trailing** UUID — `component_id` — as
-    // the resource id. Reset the permissive default and mount a deny for
-    // `(acting_member_id, Admin, project:<component_id>)`.
-    openfga.reset().await;
-    openfga
-        .mock_check_deny(
-            Subject::new(acting_member_id),
-            Permission::Admin,
-            ResourceRef::new("project", component.id()),
-        )
-        .await;
+    // the resource id. Real OpenFGA returns false for
+    // `Check(acting_member, administer, project:<component_id>)` because
+    // no tuple has been written, so the request 403s.
 
     let acting_token = create_test_jwt_token(acting_member_id);
 
@@ -559,7 +634,7 @@ async fn test_non_admin_cannot_grant_permission_on_specific_component() {
 #[tokio::test]
 #[serial]
 async fn test_grant_admin_permission_on_specific_component_returns_200() {
-    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
+    let (_fixture, base_url, client, openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -577,6 +652,17 @@ async fn test_grant_admin_permission_on_specific_component_returns_200() {
         .commit(db.clone())
         .await
         .expect("Failed to create regular member");
+
+    // Route guard: `with_permission_on(Permission::Admin, "project")`.
+    // POST /permissions/component/{component_id} trailing UUID = component.id().
+    openfga
+        .allow(
+            Subject::new(owner_id),
+            Permission::Admin,
+            ResourceRef::new("project", component.id()),
+        )
+        .await
+        .expect("Failed to grant project admin");
 
     let jwt_token = create_test_jwt_token(owner_id);
 
@@ -608,7 +694,7 @@ async fn test_grant_admin_permission_on_specific_component_returns_200() {
 #[tokio::test]
 #[serial]
 async fn test_revoke_permission_on_specific_component_returns_204() {
-    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
+    let (_fixture, base_url, client, openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -626,6 +712,17 @@ async fn test_revoke_permission_on_specific_component_returns_204() {
         .commit(db.clone())
         .await
         .expect("Failed to create regular member");
+
+    // Route guard: `with_permission_on(Permission::Admin, "project")`.
+    // Both POST + DELETE share the trailing UUID = component.id().
+    openfga
+        .allow(
+            Subject::new(owner_id),
+            Permission::Admin,
+            ResourceRef::new("project", component.id()),
+        )
+        .await
+        .expect("Failed to grant project admin");
 
     let jwt_token = create_test_jwt_token(owner_id);
 

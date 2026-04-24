@@ -4,13 +4,14 @@ category: references
 tags: [reference, rustycog, configuration, visibility/internal]
 sources:
   - rustycog/rustycog-config/src/lib.rs
-summary: rustycog-config provides typed config primitives, loader traits, queue/database/server models, and RUN_ENV-aware loading behavior for services.
+summary: >-
+  rustycog-config provides shared typed config primitives, including DB, queue, OpenFGA, loader traits, capability traits, and RUN_ENV-aware loading behavior.
 provenance:
-  extracted: 0.86
-  inferred: 0.06
-  ambiguous: 0.08
+  extracted: 0.88
+  inferred: 0.07
+  ambiguous: 0.05
 created: 2026-04-15T17:15:56.0808743Z
-updated: 2026-04-15T17:15:56.0808743Z
+updated: 2026-04-24T19:05:00Z
 ---
 
 # RustyCog Config
@@ -19,17 +20,20 @@ updated: 2026-04-15T17:15:56.0808743Z
 
 ## Key Ideas
 
-- The crate defines shared runtime structs (`ServerConfig`, `DatabaseConfig`, `LoggingConfig`, `CommandConfig`, `KafkaConfig`, `SqsConfig`, and `QueueConfig`).
+- The crate defines shared runtime structs (`ServerConfig`, `DatabaseConfig`, `LoggingConfig`, `CommandConfig`, `KafkaConfig`, `SqsConfig`, `QueueConfig`, and `OpenFgaClientConfig`).
 - `ConfigLoader` and `ConfigCache` traits let each service keep its own `AppConfig` while reusing one loading/caching mechanism.
+- Capability traits (`HasDbConfig`, `HasQueueConfig`, `HasServerConfig`, `HasLoggingConfig`, `HasScalewayConfig`, `HasOpenFgaConfig`) make shared harness code depend on the sections it needs rather than on a concrete service config.
 - `load_config_fresh()` and `load_config_with_cache()` choose config files from `RUN_ENV` and apply env overrides via service-specific prefixes.
 - `load_config_part("server")` and similar helpers load one section at a time, but they use section-based env prefixes (`SERVER_*`, `QUEUE_*`, and so on).
 - Queue support is transport-polymorphic through `QueueConfig::{Kafka,Sqs,Disabled}` so event code can switch transports without changing high-level calling code.
-- Random-port caching in DB/Kafka/SQS config makes test runs stable once a random port is resolved for the process.
+- Random-port caching in DB/Kafka/SQS/OpenFGA config makes test runs stable once a random port is resolved for the process.
+- `OpenFgaClientConfig` follows the DB/SQS host-plus-port shape: `scheme`, `host`, `port`, `store_id`, optional `authorization_model_id`, optional `api_token`, and optional `cache_ttl_seconds`. `api_url()` reconstructs the HTTP base URL and `actual_port()` resolves `port = 0` into a cached random port for testcontainers.
 
 ## Linked Entities
 
 - [[entities/queue-config]]
 - [[entities/db-connection-pool]]
+- [[projects/rustycog/references/openfga-real-testcontainer-fixture]]
 
 ## Open Questions
 

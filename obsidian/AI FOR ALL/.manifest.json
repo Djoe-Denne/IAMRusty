@@ -2911,6 +2911,28 @@
         "projects/manifesto/references/manifesto-testing-and-fixtures.md",
         "concepts/integration-testing-with-real-infrastructure.md"
       ]
+    },
+    "cursor-conversation/openfga-real-testcontainer-migration-2026-04-24": {
+      "ingested_at": "2026-04-24T19:05:00Z",
+      "size_bytes": 0,
+      "modified_at": "2026-04-24T19:05:00Z",
+      "content_hash": "conversation:openfga-real-testcontainer-migration-2026-04-24",
+      "source_type": "conversation",
+      "project": "aiforall",
+      "pages_created": [
+        "projects/rustycog/references/openfga-real-testcontainer-fixture.md"
+      ],
+      "pages_updated": [
+        "projects/rustycog/references/rustycog-config.md",
+        "projects/rustycog/references/rustycog-permission.md",
+        "projects/rustycog/references/rustycog-testing.md",
+        "concepts/integration-testing-with-real-infrastructure.md",
+        "projects/sentinel-sync/references/sentinel-sync-worker.md",
+        "skills/creating-testcontainer-fixtures.md",
+        "projects/rustycog/references/index.md",
+        "projects/rustycog/references/openfga-mock-service.md",
+        "index.md"
+      ]
     }
   }
 }

@@ -108,7 +108,7 @@ impl OpenFgaWriteClient {
     fn write_url(&self) -> String {
         format!(
             "{}/stores/{}/write",
-            self.config.api_url.trim_end_matches('/'),
+            self.config.api_url().trim_end_matches('/'),
             self.config.store_id
         )
     }

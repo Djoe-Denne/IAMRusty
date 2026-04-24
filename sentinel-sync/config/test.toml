@@ -6,7 +6,19 @@
 level = "debug"
 
 [openfga]
-api_url = "http://localhost:8090"
+# `port = 0` asks `OpenFgaConfig::actual_port()` to bind a free random
+# host port at startup. The `TestOpenFga` testcontainer fixture
+# (`rustycog_testing::common::openfga_testcontainer`) maps the
+# container's `:8080` to that port and publishes
+# `SENTINEL_SYNC_OPENFGA__SCHEME`/`HOST`/`PORT`/`STORE_ID`/
+# `AUTHORIZATION_MODEL_ID` env vars before the worker boots, so these
+# values get overridden at runtime. Splitting the URL into
+# scheme/host/port (instead of a single `api_url`) mirrors the
+# `[database]` / `[queue]` convention so two test binaries can stand up
+# parallel OpenFGA containers without clashing on a fixed port.
+scheme = "http"
+host = "localhost"
+port = 0
 store_id = ""
 # authorization_model_id = ""
 # api_token = ""

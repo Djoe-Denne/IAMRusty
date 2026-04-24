@@ -24,14 +24,16 @@ sources:
   - Telegraph/tests/fixtures/smtp/service.rs
   - Telegraph/tests/fixtures/smtp/testcontainer.rs
   - rustycog/rustycog-testing/src/wiremock/mod.rs
+  - rustycog/rustycog-testing/src/common/openfga_testcontainer.rs
   - Manifesto/tests/common.rs
-summary: Repo services favor real DB, queue, and HTTP fixtures; collaborator HTTP is faked through a shared wiremock singleton (Hive ExternalProvider, Telegraph SmtpService) while protocol-level checks use real testcontainers, with Manifesto adding a RustyCog-style DB-backed server harness alongside IAMRusty, Telegraph, and Hive patterns.
+summary: >-
+  Repo services favor real DB, queue, and protocol fixtures; OpenFGA authorization tests now use a real testcontainer while HTTP collaborators still use typed wiremock wrappers.
 provenance:
-  extracted: 0.72
-  inferred: 0.12
-  ambiguous: 0.16
+  extracted: 0.74
+  inferred: 0.15
+  ambiguous: 0.11
 created: 2026-04-14T17:46:37.6929647Z
-updated: 2026-04-22T16:20:59Z
+updated: 2026-04-24T19:05:00Z
 ---
 
 # Integration Testing with Real Infrastructure
@@ -49,10 +51,11 @@ updated: 2026-04-22T16:20:59Z
 - Telegraph's HTTP tests use real JWTs, DB fixtures, and the live route table to verify pagination, unread filtering, and ownership semantics for the notification read model.
 - Hive's org/member/external-link tests use real JWTs, DB fixtures, and a Wiremock-backed external-provider service to verify authorization, persistence, and integration behavior through the live HTTP server.
 - Telegraph's queue-driven tests publish `iam_events` payloads through the SQS fixture, then poll SMTP or the database until the expected email or notification record appears.
-- Outbound HTTP collaborators are faked through a single shared wiremock singleton bound to `127.0.0.1:3000`, exposed by [[projects/rustycog/references/wiremock-mock-server-fixture]]; per-collaborator wrappers (`ExternalProviderMockService` in Hive, `SmtpService` in Telegraph, the in-crate `OpenFgaMockService` in `rustycog-testing` itself) hold the fixture handle and expose typed `mock_*` methods so tests stay declarative. The recipe behind these wrappers is captured in [[skills/stubbing-http-with-wiremock]].
+- Outbound HTTP collaborators are faked through a single shared wiremock singleton bound to `127.0.0.1:3000`, exposed by [[projects/rustycog/references/wiremock-mock-server-fixture]]; per-collaborator wrappers (`ExternalProviderMockService` in Hive, `SmtpService` in Telegraph) hold the fixture handle and expose typed `mock_*` methods so tests stay declarative. The recipe behind these wrappers is captured in [[skills/stubbing-http-with-wiremock]].
 - Telegraph keeps both a wiremock-backed `SmtpService` and a real MailHog `TestSmtp` testcontainer side by side: the former is used when the test asserts on what Telegraph would send, the latter when the test needs a real listener and round-trip parsing. ^[inferred]
-- Permission-gated routes (services that wire [[projects/rustycog/references/rustycog-permission]] through `with_permission_on`) test against [[projects/rustycog/references/openfga-mock-service]] — a wiremock-backed `Check` fake that lives **inside** `rustycog-testing` so every consumer gets it for free. Manifesto is the canonical wiring today; its harness pre-mounts a permissive default and exposes the handle so individual tests can `reset()` and arrange per-tuple `mock_check_allow` / `mock_check_deny`. Tests that exercise grant ➜ revoke ➜ deny semantics also need `openfga.cache_ttl_seconds = 0` so the production `CachedPermissionChecker` does not mask the second decision.
-- Anonymous-public-read tests (`.might_be_authenticated()` routes that should let unauthenticated callers reach a public resource) arrange the wildcard form via `openfga.mock_check_allow_wildcard(action, resource)` / `mock_check_deny_wildcard(action, resource)`. The middleware now consults the checker with `Subject::wildcard()` instead of failing closed on missing JWT — see [[concepts/anonymous-public-read-via-wildcard-subject]]. The end-to-end production path requires `sentinel-sync` to write the matching tuples on visibility changes, which is the Phase 2 follow-up.
+- Permission-gated routes (services that wire [[projects/rustycog/references/rustycog-permission]] through `with_permission_on`) now test against [[projects/rustycog/references/openfga-real-testcontainer-fixture]]. The real fixture denies by default, so happy-path tests seed tuples with `openfga.allow(...)`; denial tests usually arrange no tuple. Tests that exercise grant ➜ revoke ➜ deny semantics still need `openfga.cache_ttl_seconds = 0` so the production `CachedPermissionChecker` does not mask the second decision.
+- OpenFGA test configs follow the same random-port convention as DB and SQS: `[openfga] scheme = "http"`, `host = "localhost"`, `port = 0`. `OpenFgaClientConfig::actual_port()` in [[projects/rustycog/references/rustycog-config]] resolves and caches the host port, then the fixture publishes the resolved `SCHEME`/`HOST`/`PORT` env vars before the app boots.
+- Anonymous-public-read tests (`.might_be_authenticated()` routes that should let unauthenticated callers reach a public resource) arrange the wildcard form via `openfga.allow_wildcard(action, resource)` / `deny_wildcard(action, resource)`. The middleware consults the checker with `Subject::wildcard()` instead of failing closed on missing JWT — see [[concepts/anonymous-public-read-via-wildcard-subject]]. The end-to-end production path requires `sentinel-sync` to write the matching tuples on visibility changes.
 - Conflict to resolve: IAMRusty's live wiki emphasizes optional Kafka-backed verification, Telegraph's live event coverage is SQS plus SMTP centric, and both Hive and Manifesto default to HTTP-plus-DB service harnesses with queue features disabled in their standard test descriptors. All four real-infrastructure variants are first-class in this repo. ^[ambiguous]
 
 ## Open Questions
@@ -72,7 +75,8 @@ updated: 2026-04-22T16:20:59Z
 - <!-- [[projects/manifesto/manifesto]] --> - Manifesto's real-server test harness built on the shared RustyCog test stack.
 - [[projects/rustycog/rustycog]] - Shared SDK project that owns the reusable integration-test harness.
 - [[projects/rustycog/references/wiremock-mock-server-fixture]] - Singleton wiremock server reused by Hive, Telegraph, and the in-crate OpenFGA fake.
-- [[projects/rustycog/references/openfga-mock-service]] - In-crate wiremock-backed OpenFGA `Check` fake.
+- [[projects/rustycog/references/openfga-real-testcontainer-fixture]] - Real OpenFGA fixture for permission-gated service tests.
+- [[projects/rustycog/references/openfga-mock-service]] - Historical wiremock-backed OpenFGA `Check` fake.
 - [[skills/stubbing-http-with-wiremock]] - How to add a new wiremock-backed collaborator fixture.
 - [[skills/creating-testcontainer-fixtures]] - How to add a new real-protocol Docker-backed fixture (Postgres, LocalStack, Kafka, MailHog, Redis, ...).
 - [[concepts/structured-service-configuration]] - Random ports and typed config matter in both suites.

@@ -3,6 +3,7 @@
 //! This module provides a single PostgreSQL container for all tests with table truncation
 //! between tests to ensure test isolation while maintaining performance.
 
+use crate::common::openfga_testcontainer::TestOpenFga;
 use crate::common::sqs_testcontainer::TestSqs;
 use crate::common::ServiceTestDescriptor;
 use rustycog_config::{ConfigLoader, DatabaseConfig, HasDbConfig};
@@ -317,6 +318,7 @@ fn create_base_test_config() -> DatabaseConfig {
 pub struct TestFixture {
     pub database: Option<TestDatabase>,
     pub sqs: Option<TestSqs>,
+    pub openfga: Option<TestOpenFga>,
     /// Flag to track if this fixture should cleanup the container on drop
     cleanup_container_on_drop: bool,
 }
@@ -328,6 +330,22 @@ impl TestFixture {
         D: ServiceTestDescriptor<T>,
         T: Send + Sync + 'static,
     {
+        // OpenFGA is provisioned **before** the database on purpose: the
+        // testcontainer's constructor publishes `*_OPENFGA__*` env vars
+        // that the service-under-test will read when its typed config is
+        // loaded. Booting the app before publishing those vars would
+        // produce an `OpenFgaPermissionChecker` pointing at the
+        // `test.toml` placeholders.
+        let openfga = if descriptor.has_openfga() {
+            Some(
+                TestOpenFga::new()
+                    .await
+                    .expect("Failed to create test OpenFGA"),
+            )
+        } else {
+            None
+        };
+
         let database = if descriptor.has_db() {
             Some(
                 TestDatabase::new(descriptor.clone())
@@ -347,6 +365,7 @@ impl TestFixture {
         Ok(Self {
             database,
             sqs,
+            openfga,
             cleanup_container_on_drop: false,
         })
     }
@@ -359,6 +378,21 @@ impl TestFixture {
     /// Get the SQS client
     pub fn sqs(&self) -> &TestSqs {
         self.sqs.as_ref().unwrap()
+    }
+
+    /// Get the OpenFGA fixture. Panics when `descriptor.has_openfga()`
+    /// returned `false` at construction time.
+    pub fn openfga(&self) -> &TestOpenFga {
+        self.openfga
+            .as_ref()
+            .expect("OpenFGA fixture was not requested by the test descriptor")
+    }
+
+    /// Mutable handle to the OpenFGA fixture (for `reset()` etc.).
+    pub fn openfga_mut(&mut self) -> &mut TestOpenFga {
+        self.openfga
+            .as_mut()
+            .expect("OpenFGA fixture was not requested by the test descriptor")
     }
 
 

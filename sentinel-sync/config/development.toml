@@ -5,7 +5,9 @@
 level = "debug"
 
 [openfga]
-api_url = "http://openfga:8080"
+scheme = "http"
+host = "openfga"
+port = 8080
 store_id = ""
 # authorization_model_id = ""
 # api_token = ""
