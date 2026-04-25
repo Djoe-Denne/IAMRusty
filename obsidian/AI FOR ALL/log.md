@@ -227,3 +227,6 @@ title: Wiki Log
 - [2026-04-25T10:10:00Z] WIKI_UPDATE project=AIForAll pages_updated=4 pages_created=2 source_cwd="c:/Users/djden/source/repos/AIForAll" topic=runtime-mode-skill-section
 - [2026-04-25T10:11:00Z] WIKI_UPDATE project=AIForAll pages_updated=1 pages_created=0 source_cwd="c:/Users/djden/source/repos/AIForAll" topic=building-rustycog-services-runtime-mode-guidance
 - [2026-04-25T10:13:00Z] WIKI_UPDATE project=AIForAll pages_updated=1 pages_created=0 source_cwd="c:/Users/djden/source/repos/AIForAll" topic=integration-test-prefix-guidance
+- [2026-04-25T10:27:00Z] QUERY query="how does sqs event producing/consuming work ? even if SQS is a one2one queue, do we  have a mechanism to prod7uce sasme  event destinate to  several  service ?" result_pages=7 mode=normal escalated=false
+- [2026-04-25T10:53:00Z] WIKI_UPDATE project=AIForAll pages_updated=11 pages_created=0 source_cwd="c:/Users/djden/source/repos/AIForAll" topic=sqs-fanout-queues-and-multi-queue-consumers
+- [2026-04-25T11:42:00Z] WIKI_UPDATE project=AIForAll pages_updated=3 pages_created=1 source_cwd="c:/Users/djden/source/repos/AIForAll" topic=platform-roadmap-sentinel-sync-db-outbox

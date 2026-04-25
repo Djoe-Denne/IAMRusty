@@ -16,13 +16,13 @@ sources:
   - Manifesto/docs/rustycog-service-build-guide.md
   - Manifesto/docs/rustycog-implementation-and-usage-guide.md
 summary: >-
-  RustyCog is the shared Rust SDK/workspace that standardizes commands, config, HTTP, permissions, events, logging, DB access, and test infrastructure across services.
+  RustyCog standardizes commands, config, HTTP, permissions, SQS fanout events, logging, DB access, and test infrastructure across services.
 provenance:
-  extracted: 0.77
+  extracted: 0.79
   inferred: 0.09
-  ambiguous: 0.14
+  ambiguous: 0.12
 created: 2026-04-14T16:54:59.5971424Z
-updated: 2026-04-19T10:59:36Z
+updated: 2026-04-25T10:53:00Z
 ---
 
 # RustyCog
@@ -49,6 +49,11 @@ RustyCog currently has 11 documented crate surfaces:
 - [[projects/rustycog/references/rustycog-logger]] — tracing/logging initialization helpers
 - [[projects/rustycog/references/rustycog-meta]] — umbrella dependency package
 
+## Recent Runtime Decisions
+
+- SQS fanout now belongs to the shared `[[projects/rustycog/references/rustycog-events]]` and `[[projects/rustycog/references/rustycog-config]]` crates: services declare per-event destination queue lists, and RustyCog handles publishing the same event to each queue.
+- SQS consumers now derive their polling pool from configured physical queues, which lets a service independently consume each queue while sharing one handler.
+
 ## Documentation Ownership
 
 - Per-crate API and behavior details: `[[projects/rustycog/references/index]]`
@@ -61,7 +66,6 @@ RustyCog currently has 11 documented crate surfaces:
 - README mentions `rustycog-macros` and examples that are not visible in the checked-in tree. ^[ambiguous]
 - `rustycog-logger` is included in `rustycog-meta` but not listed as a root workspace member. ^[ambiguous]
 - `rustycog-server` name suggests broader server bootstrap ownership, but current surface is health-only. ^[ambiguous]
-- Multi-queue publishing intent exists in events APIs, but helper behavior is still partly single-publisher underneath. ^[ambiguous]
 
 ## Sources
 

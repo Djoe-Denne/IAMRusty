@@ -25,52 +25,70 @@ pub fn create_router(state: AppState) -> Router {
         .health_check()
         // Public organization routes (with optional auth)
         .get("/api/organizations/search", search_organizations)
-            .might_be_authenticated()
+        .might_be_authenticated()
         .get("/api/organizations/{organization_id}", get_organization)
-            .might_be_authenticated()
+        .might_be_authenticated()
         // Authenticated organization routes
         .post("/api/organizations", create_organization)
-            .authenticated()
+        .authenticated()
         .put("/api/organizations/{organization_id}", update_organization)
-            .authenticated()
-            .with_permission_on(Permission::Admin, "organization")
+        .authenticated()
+        .with_permission_on(Permission::Admin, "organization")
         .delete("/api/organizations/{organization_id}", delete_organization)
-            .authenticated()
-            .with_permission_on(Permission::Admin, "organization")
+        .authenticated()
+        .with_permission_on(Permission::Admin, "organization")
         .get("/api/organizations", list_organizations)
-            .authenticated()
+        .authenticated()
         // Sync job routes
-        .post("/api/organizations/{organization_id}/sync-jobs", start_sync_job)
-            .authenticated()
-            .with_permission_on(Permission::Write, "organization")
+        .post(
+            "/api/organizations/{organization_id}/sync-jobs",
+            start_sync_job,
+        )
+        .authenticated()
+        .with_permission_on(Permission::Write, "organization")
         // Role routes
         .get("/api/organizations/{organization_id}/roles", list_roles)
-            .authenticated()
-            .with_permission_on(Permission::Read, "organization")
-        .get("/api/organizations/{organization_id}/roles/{role_id}", get_role)
-            .authenticated()
-            .with_permission_on(Permission::Read, "organization")
+        .authenticated()
+        .with_permission_on(Permission::Read, "organization")
+        .get(
+            "/api/organizations/{organization_id}/roles/{role_id}",
+            get_role,
+        )
+        .authenticated()
+        .with_permission_on(Permission::Read, "organization")
         // Member routes (scoped to the organization in OpenFGA)
         .post("/api/organizations/{organization_id}/members", add_member)
-            .authenticated()
-            .with_permission_on(Permission::Write, "organization")
-        .delete("/api/organizations/{organization_id}/members/{user_id}", remove_member)
-            .authenticated()
-            .with_permission_on(Permission::Write, "organization")
+        .authenticated()
+        .with_permission_on(Permission::Write, "organization")
+        .delete(
+            "/api/organizations/{organization_id}/members/{user_id}",
+            remove_member,
+        )
+        .authenticated()
+        .with_permission_on(Permission::Write, "organization")
         .get("/api/organizations/{organization_id}/members", list_members)
-            .authenticated()
-            .with_permission_on(Permission::Read, "organization")
-        .get("/api/organizations/{organization_id}/members/{user_id}", get_member)
-            .authenticated()
-            .with_permission_on(Permission::Read, "organization")
+        .authenticated()
+        .with_permission_on(Permission::Read, "organization")
+        .get(
+            "/api/organizations/{organization_id}/members/{user_id}",
+            get_member,
+        )
+        .authenticated()
+        .with_permission_on(Permission::Read, "organization")
         // Invitation routes
-        .post("/api/organizations/{organization_id}/invitations", create_invitation)
-            .authenticated()
-            .with_permission_on(Permission::Write, "organization")
+        .post(
+            "/api/organizations/{organization_id}/invitations",
+            create_invitation,
+        )
+        .authenticated()
+        .with_permission_on(Permission::Write, "organization")
         // External link routes (admin-only action on the parent organization)
-        .post("/api/organizations/{organization_id}/external-links", create_external_link)
-            .authenticated()
-            .with_permission_on(Permission::Admin, "organization")
+        .post(
+            "/api/organizations/{organization_id}/external-links",
+            create_external_link,
+        )
+        .authenticated()
+        .with_permission_on(Permission::Admin, "organization")
         .into_router()
 }
 

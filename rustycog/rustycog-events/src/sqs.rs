@@ -6,9 +6,11 @@ use aws_credential_types::Credentials;
 use aws_sdk_sqs::{Client, Config};
 use rustycog_config::SqsConfig;
 use rustycog_core::error::ServiceError;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
+use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::time::{sleep, Duration};
+use std::sync::atomic::Ordering;
+use tokio::time::{Duration, sleep};
 use tracing::{debug, error, info, warn};
 
 /// SQS event publisher implementation
@@ -81,10 +83,20 @@ impl SqsEventPublisher {
         })
     }
 
-    /// Get queue URL for event
-    fn get_queue_url_for_event(&self, event: &dyn DomainEvent) -> String {
-        // Use the new generic queue configuration
-        self.config.get_queue_url(event.event_type())
+    /// Get destination queue names for an event.
+    fn get_queue_names_for_event(
+        &self,
+        event: &dyn DomainEvent,
+    ) -> Result<Vec<String>, ServiceError> {
+        let queue_names = self.config.get_queue_names(event.event_type());
+        if queue_names.is_empty() {
+            return Err(ServiceError::infrastructure(format!(
+                "No SQS destination queues configured for event type '{}'",
+                event.event_type()
+            )));
+        }
+
+        Ok(queue_names.into_iter().map(str::to_string).collect())
     }
 
     /// Create message attributes for the event
@@ -146,59 +158,72 @@ impl EventPublisher<ServiceError> for SqsEventPublisher {
             return Ok(());
         }
 
-        let queue_url = self.get_queue_url_for_event(event.as_ref());
+        let queue_names = self.get_queue_names_for_event(event.as_ref())?;
         let message_body = self.serialize_event(event.as_ref())?;
         let message_attributes = self.create_message_attributes(event.as_ref());
 
-        debug!(
-            event_id = %event.event_id(),
-            event_type = %event.event_type(),
-            aggregate_id = %event.aggregate_id(),
-            queue_url = queue_url,
-            "Publishing event to SQS"
-        );
+        let mut first_error = None;
+        for queue_name in queue_names {
+            let queue_url = self.config.queue_url(&queue_name);
 
-        let mut send_request = self
-            .client
-            .send_message()
-            .queue_url(&queue_url)
-            .message_body(message_body)
-            .set_message_attributes(Some(message_attributes));
+            debug!(
+                event_id = %event.event_id(),
+                event_type = %event.event_type(),
+                aggregate_id = %event.aggregate_id(),
+                queue_name = %queue_name,
+                queue_url = %queue_url,
+                "Publishing event to SQS"
+            );
 
-        // Use aggregate_id as message group ID for FIFO queues
-        let queue_name = self.config.get_queue_name(event.event_type());
-        if self.config.is_fifo_queue(queue_name) {
-            send_request = send_request
-                .message_group_id(event.aggregate_id().to_string())
-                .message_deduplication_id(event.event_id().to_string());
+            let mut send_request = self
+                .client
+                .send_message()
+                .queue_url(&queue_url)
+                .message_body(message_body.clone())
+                .set_message_attributes(Some(message_attributes.clone()));
+
+            // Use aggregate_id as message group ID for FIFO queues
+            if self.config.is_fifo_queue(&queue_name) {
+                send_request = send_request
+                    .message_group_id(event.aggregate_id().to_string())
+                    .message_deduplication_id(event.event_id().to_string());
+            }
+
+            match send_request.send().await {
+                Ok(response) => {
+                    info!(
+                        event_id = %event.event_id(),
+                        event_type = %event.event_type(),
+                        aggregate_id = %event.aggregate_id(),
+                        message_id = response.message_id().unwrap_or("unknown"),
+                        queue_name = %queue_name,
+                        queue_url = %queue_url,
+                        "Event successfully published to SQS"
+                    );
+                }
+                Err(aws_error) => {
+                    error!(
+                        event_id = %event.event_id(),
+                        event_type = %event.event_type(),
+                        aggregate_id = %event.aggregate_id(),
+                        queue_name = %queue_name,
+                        queue_url = %queue_url,
+                        error = %aws_error,
+                        "Failed to publish event to SQS"
+                    );
+                    if first_error.is_none() {
+                        first_error = Some(ServiceError::infrastructure(format!(
+                            "Failed to publish event to SQS queue '{}': {}",
+                            queue_name, aws_error
+                        )));
+                    }
+                }
+            }
         }
 
-        match send_request.send().await {
-            Ok(response) => {
-                info!(
-                    event_id = %event.event_id(),
-                    event_type = %event.event_type(),
-                    aggregate_id = %event.aggregate_id(),
-                    message_id = response.message_id().unwrap_or("unknown"),
-                    queue_url = queue_url,
-                    "✅ Event successfully published to SQS"
-                );
-                Ok(())
-            }
-            Err(aws_error) => {
-                error!(
-                    event_id = %event.event_id(),
-                    event_type = %event.event_type(),
-                    aggregate_id = %event.aggregate_id(),
-                    queue_url = queue_url,
-                    error = %aws_error,
-                    "❌ Failed to publish event to SQS"
-                );
-                Err(ServiceError::infrastructure(format!(
-                    "Failed to publish event to SQS: {}",
-                    aws_error
-                )))
-            }
+        match first_error {
+            Some(error) => Err(error),
+            None => Ok(()),
         }
     }
 
@@ -220,54 +245,84 @@ impl EventPublisher<ServiceError> for SqsEventPublisher {
             "Publishing batch of events to SQS"
         );
 
-        // SQS supports batch sending up to 10 messages at a time
-        let batch_size = 10;
+        let mut entries_by_queue: HashMap<
+            String,
+            Vec<aws_sdk_sqs::types::SendMessageBatchRequestEntry>,
+        > = HashMap::new();
         let mut all_successful = true;
         let mut first_error = None;
 
-        for chunk in events.chunks(batch_size) {
-            let queue_url = self.get_queue_url_for_event(chunk[0].as_ref());
-            let mut entries = Vec::new();
-
-            for (idx, event) in chunk.iter().enumerate() {
-                let message_body = match self.serialize_event(event.as_ref()) {
-                    Ok(body) => body,
-                    Err(e) => {
-                        all_successful = false;
-                        if first_error.is_none() {
-                            first_error = Some(e);
-                        }
-                        continue;
+        for (idx, event) in events.iter().enumerate() {
+            let queue_names = match self.get_queue_names_for_event(event.as_ref()) {
+                Ok(queue_names) => queue_names,
+                Err(e) => {
+                    all_successful = false;
+                    if first_error.is_none() {
+                        first_error = Some(e);
                     }
-                };
+                    continue;
+                }
+            };
 
-                let message_attributes = self.create_message_attributes(event.as_ref());
-                let entry_id = format!("entry_{}", idx);
+            let message_body = match self.serialize_event(event.as_ref()) {
+                Ok(body) => body,
+                Err(e) => {
+                    all_successful = false;
+                    if first_error.is_none() {
+                        first_error = Some(e);
+                    }
+                    continue;
+                }
+            };
 
+            let message_attributes = self.create_message_attributes(event.as_ref());
+            for (queue_idx, queue_name) in queue_names.into_iter().enumerate() {
+                let entry_id = format!("entry_{}_{}", idx, queue_idx);
                 let mut entry = aws_sdk_sqs::types::SendMessageBatchRequestEntry::builder()
                     .id(entry_id)
-                    .message_body(message_body)
-                    .set_message_attributes(Some(message_attributes));
+                    .message_body(message_body.clone())
+                    .set_message_attributes(Some(message_attributes.clone()));
 
                 // For FIFO queues
-                let queue_name = self.config.get_queue_name(event.event_type());
-                if self.config.is_fifo_queue(queue_name) {
+                if self.config.is_fifo_queue(&queue_name) {
                     entry = entry
                         .message_group_id(event.aggregate_id().to_string())
                         .message_deduplication_id(event.event_id().to_string());
                 }
 
-                if let Ok(built_entry) = entry.build() {
-                    entries.push(built_entry);
+                match entry.build() {
+                    Ok(built_entry) => {
+                        entries_by_queue
+                            .entry(queue_name)
+                            .or_default()
+                            .push(built_entry);
+                    }
+                    Err(e) => {
+                        all_successful = false;
+                        if first_error.is_none() {
+                            first_error = Some(ServiceError::infrastructure(format!(
+                                "Failed to build SQS batch entry: {}",
+                                e
+                            )));
+                        }
+                    }
                 }
             }
+        }
 
-            if !entries.is_empty() {
+        // SQS supports batch sending up to 10 messages at a time.
+        let batch_size = 10;
+        for (queue_name, mut entries) in entries_by_queue {
+            let queue_url = self.config.queue_url(&queue_name);
+
+            while !entries.is_empty() {
+                let batch_len = entries.len().min(batch_size);
+                let batch_entries: Vec<_> = entries.drain(..batch_len).collect();
                 match self
                     .client
                     .send_message_batch()
                     .queue_url(&queue_url)
-                    .set_entries(Some(entries))
+                    .set_entries(Some(batch_entries))
                     .send()
                     .await
                 {
@@ -277,7 +332,8 @@ impl EventPublisher<ServiceError> for SqsEventPublisher {
                             all_successful = false;
                             error!(
                                 failed_count = failed.len(),
-                                queue_url = queue_url,
+                                queue_name = %queue_name,
+                                queue_url = %queue_url,
                                 "Some messages failed to send in batch"
                             );
                             if first_error.is_none() {
@@ -293,16 +349,18 @@ impl EventPublisher<ServiceError> for SqsEventPublisher {
                         let successful = response.successful();
                         info!(
                             successful_count = successful.len(),
-                            queue_url = queue_url,
-                            "✅ Messages successfully sent in batch"
+                            queue_name = %queue_name,
+                            queue_url = %queue_url,
+                            "Messages successfully sent in batch"
                         );
                     }
                     Err(aws_error) => {
                         all_successful = false;
                         error!(
-                            queue_url = queue_url,
+                            queue_name = %queue_name,
+                            queue_url = %queue_url,
                             error = %aws_error,
-                            "❌ Failed to send message batch to SQS"
+                            "Failed to send message batch to SQS"
                         );
                         if first_error.is_none() {
                             first_error = Some(ServiceError::infrastructure(format!(
@@ -316,7 +374,7 @@ impl EventPublisher<ServiceError> for SqsEventPublisher {
         }
 
         if all_successful {
-            info!("✅ Successfully published all events in batch");
+            info!("Successfully published all events in batch");
             Ok(())
         } else {
             Err(first_error.unwrap_or_else(|| {
@@ -332,31 +390,37 @@ impl EventPublisher<ServiceError> for SqsEventPublisher {
 
         debug!("Performing SQS health check");
 
-        // Try to get queue attributes as a health check
-        match self
-            .client
-            .get_queue_attributes()
-            .queue_url(&self.config.default_queue_url())
-            .attribute_names(aws_sdk_sqs::types::QueueAttributeName::ApproximateNumberOfMessages)
-            .send()
-            .await
-        {
-            Ok(_) => {
-                debug!("✅ SQS health check passed");
-                Ok(())
-            }
-            Err(aws_error) => {
-                error!(
-                    queue_url = %self.config.default_queue_url(),
-                    error = %aws_error,
-                    "❌ SQS health check failed"
-                );
-                Err(ServiceError::infrastructure(format!(
-                    "SQS health check failed: {}",
-                    aws_error
-                )))
+        for queue_name in self.config.all_queue_names() {
+            let queue_url = self.config.queue_url(&queue_name);
+            match self
+                .client
+                .get_queue_attributes()
+                .queue_url(&queue_url)
+                .attribute_names(
+                    aws_sdk_sqs::types::QueueAttributeName::ApproximateNumberOfMessages,
+                )
+                .send()
+                .await
+            {
+                Ok(_) => {
+                    debug!(queue_name = %queue_name, queue_url = %queue_url, "SQS health check passed");
+                }
+                Err(aws_error) => {
+                    error!(
+                        queue_name = %queue_name,
+                        queue_url = %queue_url,
+                        error = %aws_error,
+                        "SQS health check failed"
+                    );
+                    return Err(ServiceError::infrastructure(format!(
+                        "SQS health check failed for queue '{}': {}",
+                        queue_name, aws_error
+                    )));
+                }
             }
         }
+
+        Ok(())
     }
 }
 
@@ -379,8 +443,12 @@ impl SqsEventConsumer {
         })
     }
 
+    fn configured_queue_urls(&self) -> Vec<String> {
+        self.config.all_queue_urls()
+    }
+
     /// Parse message body into a domain event
-    fn parse_message_body(&self, body: &str) -> Result<Box<dyn DomainEvent>, ServiceError> {
+    fn parse_message_body(body: &str) -> Result<Box<dyn DomainEvent>, ServiceError> {
         let message: Value = serde_json::from_str(body).map_err(|e| {
             ServiceError::infrastructure(format!("Failed to parse SQS message: {}", e))
         })?;
@@ -440,16 +508,18 @@ impl SqsEventConsumer {
         Ok(Box::new(event))
     }
 
-    /// Poll for messages and handle them
-    async fn poll_and_handle_messages<H>(&self, handler: &H) -> Result<(), ServiceError>
+    /// Poll one queue for messages and handle them.
+    async fn poll_queue_and_handle_messages<H>(
+        client: &Client,
+        queue_url: &str,
+        handler: &H,
+    ) -> Result<(), ServiceError>
     where
         H: EventHandler + Send + Sync,
     {
-        let queue_url = self.config.default_queue_url();
-        match self
-            .client
+        match client
             .receive_message()
-            .queue_url(&queue_url)
+            .queue_url(queue_url)
             .max_number_of_messages(10) // SQS max
             .wait_time_seconds(2) // Long polling
             .send()
@@ -459,9 +529,10 @@ impl SqsEventConsumer {
                 if let Some(messages) = response.messages {
                     for message in messages {
                         if let Some(body) = message.body() {
-                            match self.parse_message_body(body) {
+                            match Self::parse_message_body(body) {
                                 Ok(event) => {
-                                    if handler.supports_event_type(&event.event_type()) {
+                                    let event_type = event.event_type().to_string();
+                                    if handler.supports_event_type(&event_type) {
                                         if let Err(e) = handler.handle_event(event).await {
                                             warn!(
                                                 error = %e,
@@ -472,17 +543,16 @@ impl SqsEventConsumer {
                                         }
                                     } else {
                                         debug!(
-                                            event_type = event.event_type(),
+                                            event_type = %event_type,
                                             "Handler doesn't support event type, skipping"
                                         );
                                     }
 
                                     // Delete the message after successful processing
                                     if let Some(receipt_handle) = message.receipt_handle() {
-                                        if let Err(e) = self
-                                            .client
+                                        if let Err(e) = client
                                             .delete_message()
-                                            .queue_url(&queue_url)
+                                            .queue_url(queue_url)
                                             .receipt_handle(receipt_handle)
                                             .send()
                                             .await
@@ -512,7 +582,7 @@ impl SqsEventConsumer {
             Err(e) => {
                 error!(
                     error = %e,
-                    queue_url = queue_url,
+                    queue_url = %queue_url,
                     "Failed to receive messages from SQS"
                 );
                 return Err(ServiceError::infrastructure(format!(
@@ -537,18 +607,54 @@ impl EventConsumer for SqsEventConsumer {
             return Ok(());
         }
 
-        info!("Starting SQS event consumer");
-        self.should_stop
-            .store(false, std::sync::atomic::Ordering::SeqCst);
+        let queue_urls = self.configured_queue_urls();
+        if queue_urls.is_empty() {
+            return Err(ServiceError::infrastructure(
+                "No SQS queues configured for consumer".to_string(),
+            ));
+        }
+
+        info!(
+            queue_count = queue_urls.len(),
+            "Starting SQS event consumer"
+        );
+        self.should_stop.store(false, Ordering::SeqCst);
 
         let handler = Arc::new(handler);
+        let mut tasks = Vec::new();
 
-        while !self.should_stop.load(std::sync::atomic::Ordering::SeqCst) {
-            if let Err(e) = self.poll_and_handle_messages(handler.as_ref()).await {
-                error!(error = %e, "Error polling SQS messages");
-                // Sleep for a bit before retrying to avoid tight loop on errors
-                sleep(Duration::from_millis(500)).await;
-            }
+        for queue_url in queue_urls {
+            let client = self.client.clone();
+            let handler = handler.clone();
+            let should_stop = self.should_stop.clone();
+
+            tasks.push(tokio::spawn(async move {
+                while !should_stop.load(Ordering::SeqCst) {
+                    if let Err(e) = SqsEventConsumer::poll_queue_and_handle_messages(
+                        &client,
+                        &queue_url,
+                        handler.as_ref(),
+                    )
+                    .await
+                    {
+                        error!(
+                            error = %e,
+                            queue_url = %queue_url,
+                            "Error polling SQS messages"
+                        );
+                        // Sleep for a bit before retrying to avoid a tight loop on errors.
+                        sleep(Duration::from_millis(500)).await;
+                    }
+                }
+
+                Ok::<(), ServiceError>(())
+            }));
+        }
+
+        for task in tasks {
+            task.await.map_err(|e| {
+                ServiceError::infrastructure(format!("SQS consumer task panicked: {}", e))
+            })??;
         }
 
         info!("SQS event consumer stopped");
@@ -557,8 +663,7 @@ impl EventConsumer for SqsEventConsumer {
 
     async fn stop(&self) -> Result<(), ServiceError> {
         info!("Stopping SQS event consumer");
-        self.should_stop
-            .store(true, std::sync::atomic::Ordering::SeqCst);
+        self.should_stop.store(true, Ordering::SeqCst);
         Ok(())
     }
 
@@ -569,31 +674,41 @@ impl EventConsumer for SqsEventConsumer {
 
         debug!("Performing SQS consumer health check");
 
-        // Try to get queue attributes as a health check
-        match self
-            .client
-            .get_queue_attributes()
-            .queue_url(&self.config.default_queue_url())
-            .attribute_names(aws_sdk_sqs::types::QueueAttributeName::ApproximateNumberOfMessages)
-            .send()
-            .await
-        {
-            Ok(_) => {
-                debug!("✅ SQS consumer health check passed");
-                Ok(())
-            }
-            Err(aws_error) => {
-                error!(
-                    queue_url = %self.config.default_queue_url(),
-                    error = %aws_error,
-                    "❌ SQS consumer health check failed"
-                );
-                Err(ServiceError::infrastructure(format!(
-                    "SQS consumer health check failed: {}",
-                    aws_error
-                )))
+        for queue_name in self.config.all_queue_names() {
+            let queue_url = self.config.queue_url(&queue_name);
+            match self
+                .client
+                .get_queue_attributes()
+                .queue_url(&queue_url)
+                .attribute_names(
+                    aws_sdk_sqs::types::QueueAttributeName::ApproximateNumberOfMessages,
+                )
+                .send()
+                .await
+            {
+                Ok(_) => {
+                    debug!(
+                        queue_name = %queue_name,
+                        queue_url = %queue_url,
+                        "SQS consumer health check passed"
+                    );
+                }
+                Err(aws_error) => {
+                    error!(
+                        queue_name = %queue_name,
+                        queue_url = %queue_url,
+                        error = %aws_error,
+                        "SQS consumer health check failed"
+                    );
+                    return Err(ServiceError::infrastructure(format!(
+                        "SQS consumer health check failed for queue '{}': {}",
+                        queue_name, aws_error
+                    )));
+                }
             }
         }
+
+        Ok(())
     }
 }
 
@@ -643,5 +758,153 @@ impl DomainEvent for GenericDomainEvent {
             .iter()
             .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::{DateTime, Utc};
+    use std::collections::HashMap;
+    use std::sync::atomic::AtomicBool;
+    use uuid::Uuid;
+
+    #[derive(Debug)]
+    struct TestEvent {
+        event_type: String,
+        event_id: Uuid,
+        aggregate_id: Uuid,
+        occurred_at: DateTime<Utc>,
+    }
+
+    impl TestEvent {
+        fn new(event_type: &str) -> Self {
+            Self {
+                event_type: event_type.to_string(),
+                event_id: Uuid::new_v4(),
+                aggregate_id: Uuid::new_v4(),
+                occurred_at: Utc::now(),
+            }
+        }
+    }
+
+    impl DomainEvent for TestEvent {
+        fn event_type(&self) -> &str {
+            &self.event_type
+        }
+
+        fn event_id(&self) -> Uuid {
+            self.event_id
+        }
+
+        fn aggregate_id(&self) -> Uuid {
+            self.aggregate_id
+        }
+
+        fn occurred_at(&self) -> DateTime<Utc> {
+            self.occurred_at
+        }
+
+        fn version(&self) -> u32 {
+            1
+        }
+
+        fn to_json(&self) -> Result<String, ServiceError> {
+            Ok("{}".to_string())
+        }
+
+        fn metadata(&self) -> HashMap<String, String> {
+            HashMap::new()
+        }
+    }
+
+    fn test_client() -> Client {
+        let credentials = Credentials::new("test", "test", None, None, "rustycog-events-test");
+        let config = aws_sdk_sqs::Config::builder()
+            .region(Region::new("us-east-1"))
+            .endpoint_url("http://localhost:4566")
+            .credentials_provider(credentials)
+            .build();
+        Client::from_conf(config)
+    }
+
+    #[test]
+    fn publisher_resolves_all_event_destinations() {
+        let mut queues = HashMap::new();
+        queues.insert(
+            "user_signed_up".to_string(),
+            vec!["telegraph-events".to_string(), "audit-events".to_string()],
+        );
+        let config = SqsConfig {
+            queues,
+            default_queues: vec!["fallback-events".to_string()],
+            ..SqsConfig::default()
+        };
+        let publisher = SqsEventPublisher {
+            client: test_client(),
+            config,
+        };
+        let event = TestEvent::new("user_signed_up");
+
+        let queue_names = publisher
+            .get_queue_names_for_event(&event)
+            .expect("event destinations should resolve");
+
+        assert_eq!(queue_names, vec!["telegraph-events", "audit-events"]);
+    }
+
+    #[test]
+    fn publisher_falls_back_to_default_destinations() {
+        let config = SqsConfig {
+            default_queues: vec!["fallback-a".to_string(), "fallback-b".to_string()],
+            ..SqsConfig::default()
+        };
+        let publisher = SqsEventPublisher {
+            client: test_client(),
+            config,
+        };
+        let event = TestEvent::new("unknown_event");
+
+        let queue_names = publisher
+            .get_queue_names_for_event(&event)
+            .expect("fallback destinations should resolve");
+
+        assert_eq!(queue_names, vec!["fallback-a", "fallback-b"]);
+    }
+
+    #[test]
+    fn consumer_polls_all_configured_queue_urls() {
+        let mut queues = HashMap::new();
+        queues.insert(
+            "user_signed_up".to_string(),
+            vec!["telegraph-events".to_string(), "audit-events".to_string()],
+        );
+        let config = SqsConfig {
+            queues,
+            default_queues: vec!["fallback-events".to_string()],
+            host: "localhost".to_string(),
+            port: 4566,
+            ..SqsConfig::default()
+        };
+        let consumer = SqsEventConsumer {
+            client: test_client(),
+            config,
+            should_stop: Arc::new(AtomicBool::new(false)),
+        };
+
+        let queue_urls = consumer.configured_queue_urls();
+
+        assert_eq!(queue_urls.len(), 3);
+        assert!(
+            queue_urls
+                .iter()
+                .any(|url| url.ends_with("/telegraph-events"))
+        );
+        assert!(queue_urls.iter().any(|url| url.ends_with("/audit-events")));
+        assert!(
+            queue_urls
+                .iter()
+                .any(|url| url.ends_with("/fallback-events"))
+        );
     }
 }

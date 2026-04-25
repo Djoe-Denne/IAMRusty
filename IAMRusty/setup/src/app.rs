@@ -40,8 +40,8 @@ use rustycog_permission::{InMemoryPermissionChecker, PermissionChecker};
 
 use iam_configuration::AppConfig;
 use iam_domain::error::DomainError;
-use rustycog_events::{adapter::MultiQueueEventPublisher, event::EventPublisher};
 use rustycog_events::create_multi_queue_event_publisher;
+use rustycog_events::{adapter::MultiQueueEventPublisher, event::EventPublisher};
 
 use iam_application::{
     command::{CommandRegistryFactory, GenericCommandService},
@@ -122,7 +122,8 @@ async fn create_event_publisher_from_config(
     //     None // Handle all queues in production
     // };
     // let event_publisher = create_multi_queue_event_publisher_async(&config.queue, queue_names).await?;
-    let event_publisher = create_multi_queue_event_publisher(&config.queue, None, Arc::new(IAMErrorMapper)).await?;
+    let event_publisher =
+        create_multi_queue_event_publisher(&config.queue, None, Arc::new(IAMErrorMapper)).await?;
     Ok(event_publisher)
 }
 
@@ -254,10 +255,7 @@ where
         user_repo.clone(),
         token_repo_login,
         user_email_repo.clone(),
-        iam_domain::service::TokenService::new(
-            token_service.clone(),
-            chrono::Duration::hours(1),
-        ),
+        iam_domain::service::TokenService::new(token_service.clone(), chrono::Duration::hours(1)),
     );
 
     // Register OAuth provider clients
@@ -295,7 +293,6 @@ where
         Arc::new(user_email_repo.clone()),
         token_service.clone(),
     ));
-
 
     let refresh_token_service = Arc::new(iam_domain::service::RefreshTokenServiceImpl::new(
         Arc::new(refresh_token_repo.clone()),
@@ -400,8 +397,7 @@ where
     // IAM routes are never guarded by `with_permission_on` — IAM is the
     // identity provider, not a resource service — so we plug in an empty
     // in-memory checker purely to satisfy `AppState::new`.
-    let permission_checker: Arc<dyn PermissionChecker> =
-        Arc::new(InMemoryPermissionChecker::new());
+    let permission_checker: Arc<dyn PermissionChecker> = Arc::new(InMemoryPermissionChecker::new());
 
     // Create app state
     let app_state = AppState::new(command_service, user_id_extractor, permission_checker);
@@ -439,4 +435,3 @@ pub async fn run_server(app: IAMRustyApp, app_config: ServerConfig) -> Result<()
 
     Ok(())
 }
-

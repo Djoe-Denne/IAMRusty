@@ -6,14 +6,14 @@ use std::sync::Arc;
 use tower_http::catch_panic::CatchPanicLayer;
 use tower_http::propagate_header::PropagateHeaderLayer;
 
+use crate::middleware_permission::{
+    optional_permission_middleware, permission_middleware, PermissionGuard,
+};
 use crate::{
     handle_panic, health_check,
     jwt_handler::UserIdExtractor,
     middleware_auth::{auth_middleware, optional_auth_middleware},
     tracing_middleware::{tracing_middleware, X_CORRELATION_ID},
-};
-use crate::middleware_permission::{
-    optional_permission_middleware, permission_middleware, PermissionGuard,
 };
 use rustycog_permission::{Permission, PermissionChecker};
 
@@ -90,7 +90,11 @@ impl RouteBuilder {
         }
     }
 
-    pub fn route(mut self, path: &str, method_router: axum::routing::MethodRouter<AppState>) -> Self {
+    pub fn route(
+        mut self,
+        path: &str,
+        method_router: axum::routing::MethodRouter<AppState>,
+    ) -> Self {
         self.push_current();
         self.current_path = Some(path.to_string());
         self.current_layer = Some(method_router);
@@ -160,7 +164,9 @@ impl RouteBuilder {
     /// Add a health check endpoint
     pub fn health_check(mut self) -> Self {
         self.push_current();
-        self.router = self.router.route("/health", axum::routing::get(health_check));
+        self.router = self
+            .router
+            .route("/health", axum::routing::get(health_check));
         self
     }
 
@@ -178,8 +184,7 @@ impl RouteBuilder {
         // Push any pending route being built
         self.push_current();
 
-        self
-            .router
+        self.router
             .layer(CatchPanicLayer::custom(handle_panic))
             .layer(PropagateHeaderLayer::new(X_CORRELATION_ID.parse().unwrap()))
             .layer(middleware::from_fn(tracing_middleware))
@@ -244,11 +249,7 @@ impl RouteBuilder {
     /// The middleware extracts the deepest UUID path segment and builds a
     /// `ResourceRef` of that type, then calls
     /// `AppState.permission_checker.check(...)`.
-    pub fn with_permission_on(
-        mut self,
-        required: Permission,
-        object_type: &'static str,
-    ) -> Self {
+    pub fn with_permission_on(mut self, required: Permission, object_type: &'static str) -> Self {
         let guard = Arc::new(PermissionGuard {
             required,
             object_type,
@@ -261,10 +262,7 @@ impl RouteBuilder {
                     optional_permission_middleware,
                 ))
             } else {
-                layer.route_layer(middleware::from_fn_with_state(
-                    guard,
-                    permission_middleware,
-                ))
+                layer.route_layer(middleware::from_fn_with_state(guard, permission_middleware))
             });
         }
         self

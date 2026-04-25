@@ -33,13 +33,23 @@ type = "sqs"
 enabled = true
 region = "us-east-1"
 account_id = "000000000000"
-default_queue = "user-events"
+default_queues = ["sentinel-sync-events"]
 host = "localstack"
 port = 4566
 access_key_id = "test"
 secret_access_key = "test"
 max_retries = 3
 timeout_seconds = 30
+
+[queue.queues]
+project_created = ["sentinel-sync-events"]
+component_added = ["sentinel-sync-events"]
+component_removed = ["sentinel-sync-events"]
+member_added = ["sentinel-sync-events"]
+member_permissions_updated = ["sentinel-sync-events"]
+member_removed = ["sentinel-sync-events"]
+permission_granted = ["sentinel-sync-events"]
+permission_revoked = ["sentinel-sync-events"]
 
 [logging]
 level = "debug"

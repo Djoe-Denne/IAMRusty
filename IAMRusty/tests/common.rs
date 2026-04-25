@@ -40,12 +40,18 @@ impl ServiceTestDescriptor<TestFixture> for IAMRustyTestDescriptor {
         build_and_run(config, server_config, None).await
     }
 
-    async fn run_migrations_up(&self, connection: &sea_orm::DatabaseConnection) -> anyhow::Result<()> {
+    async fn run_migrations_up(
+        &self,
+        connection: &sea_orm::DatabaseConnection,
+    ) -> anyhow::Result<()> {
         Migrator::up(connection, None).await?;
         Ok(())
     }
 
-    async fn run_migrations_down(&self, connection: &sea_orm::DatabaseConnection) -> anyhow::Result<()> {
+    async fn run_migrations_down(
+        &self,
+        connection: &sea_orm::DatabaseConnection,
+    ) -> anyhow::Result<()> {
         Migrator::down(connection, None).await?;
         Ok(())
     }
@@ -114,12 +120,18 @@ impl ServiceTestDescriptor<TestFixture> for IAMRustyTestDescriptorWithMockEvents
         Ok(())
     }
 
-    async fn run_migrations_up(&self, connection: &sea_orm::DatabaseConnection) -> anyhow::Result<()> {
+    async fn run_migrations_up(
+        &self,
+        connection: &sea_orm::DatabaseConnection,
+    ) -> anyhow::Result<()> {
         Migrator::up(connection, None).await?;
         Ok(())
     }
 
-    async fn run_migrations_down(&self, connection: &sea_orm::DatabaseConnection) -> anyhow::Result<()> {
+    async fn run_migrations_down(
+        &self,
+        connection: &sea_orm::DatabaseConnection,
+    ) -> anyhow::Result<()> {
         Migrator::down(connection, None).await?;
         Ok(())
     }
@@ -137,8 +149,8 @@ impl ServiceTestDescriptor<TestFixture> for IAMRustyTestDescriptorWithMockEvents
     }
 }
 
-pub async fn setup_test_server_with_mock_events(
-) -> Result<(TestFixture, String, Client, Arc<MockEventPublisher>), Box<dyn std::error::Error>> {
+pub async fn setup_test_server_with_mock_events()
+-> Result<(TestFixture, String, Client, Arc<MockEventPublisher>), Box<dyn std::error::Error>> {
     let descriptor = Arc::new(IAMRustyTestDescriptorWithMockEvents::new());
     let fixture = TestFixture::new(descriptor.clone()).await?;
     let mock_event_publisher = descriptor.mock_event_publisher.clone();
@@ -147,7 +159,12 @@ pub async fn setup_test_server_with_mock_events(
         TestFixture,
     >(descriptor)
     .await?;
-    Ok((fixture, prefixed_url(base_url), client, mock_event_publisher))
+    Ok((
+        fixture,
+        prefixed_url(base_url),
+        client,
+        mock_event_publisher,
+    ))
 }
 
 fn prefixed_url(server_url: String) -> String {

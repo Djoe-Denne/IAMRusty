@@ -8,7 +8,7 @@ provenance:
   extracted: 0.9
   inferred: 0.08
   ambiguous: 0.02
-updated: 2026-04-25T10:04:00Z
+updated: 2026-04-25T11:42:00Z
 ---
 
 # Projects Index
@@ -17,7 +17,7 @@ Use this page to navigate service hubs. Each project page links to its local con
 
 ## Service Hubs
 
-- <!-- [[projects/aiforall/aiforall]] --> - Platform-level map across services, shared SDKs, and local development flow.
+- [[projects/aiforall/aiforall]] - Platform-level map across services, shared SDKs, local development flow, and roadmap.
 - <!-- [[projects/hive/hive]] --> - Organization domain service and integration workflows.
 - <!-- [[projects/hive-events/hive-events]] --> - Shared event contracts for the Hive domain.
 - [[projects/iamrusty/iamrusty]] - IAM and OAuth service architecture and runtime notes.
@@ -28,7 +28,7 @@ Use this page to navigate service hubs. Each project page links to its local con
 
 ## Project Knowledge Areas
 
-- AIForAll: [[projects/aiforall/skills/index]] / [[projects/aiforall/references/modular-monolith-runtime]]
+- AIForAll: [[projects/aiforall/roadmap]] / [[projects/aiforall/skills/index]] / [[projects/aiforall/references/modular-monolith-runtime]]
 - [[projects/iamrusty/concepts/index]] / [[projects/iamrusty/skills/index]] / [[projects/iamrusty/references/index]]
 - <!-- [[projects/hive/concepts/index]] --> / <!-- [[projects/hive/skills/index]] --> / <!-- [[projects/hive/references/index]] -->
 - [[projects/telegraph/concepts/index]] / [[projects/telegraph/skills/index]] / [[projects/telegraph/references/index]]

@@ -141,16 +141,7 @@ pub async fn create_multi_queue_event_publisher_async(
         // If no specific queue names provided, use all configured queues
         match config {
             QueueConfig::Disabled => HashSet::new(),
-            QueueConfig::Sqs(sqs_config) => {
-                let mut all_queues = HashSet::new();
-                // Add all queue names from the configuration
-                for queue_name in sqs_config.queues.values() {
-                    all_queues.insert(queue_name.clone());
-                }
-                // Also add the default queue
-                all_queues.insert(sqs_config.default_queue.clone());
-                all_queues
-            }
+            QueueConfig::Sqs(sqs_config) => sqs_config.all_queue_names(),
             QueueConfig::Kafka(kafka_config) => {
                 let mut all_queues = HashSet::new();
                 all_queues.insert(kafka_config.user_events_topic.clone());

@@ -65,12 +65,18 @@ impl ServiceTestDescriptor<TelegraphTestFixture> for TelegraphTestDescriptor {
         Ok(())
     }
 
-    async fn run_migrations_up(&self, connection: &sea_orm::DatabaseConnection) -> anyhow::Result<()> {
+    async fn run_migrations_up(
+        &self,
+        connection: &sea_orm::DatabaseConnection,
+    ) -> anyhow::Result<()> {
         Migrator::up(connection, None).await?;
         Ok(())
     }
 
-    async fn run_migrations_down(&self, connection: &sea_orm::DatabaseConnection) -> anyhow::Result<()> {
+    async fn run_migrations_down(
+        &self,
+        connection: &sea_orm::DatabaseConnection,
+    ) -> anyhow::Result<()> {
         Migrator::down(connection, None).await?;
         Ok(())
     }
@@ -155,8 +161,7 @@ impl TelegraphTestFixture {
 /// The OpenFGA fixture is process-global, so tests must remain
 /// `#[serial]` to avoid tuple-state collisions.
 pub async fn setup_test_server(
-) -> Result<(TelegraphTestFixture, String, Client, TestOpenFga), Box<dyn std::error::Error>>
-{
+) -> Result<(TelegraphTestFixture, String, Client, TestOpenFga), Box<dyn std::error::Error>> {
     // Bring up the OpenFGA testcontainer + database first so the env
     // vars are populated before the app boots.
     let descriptor = Arc::new(TelegraphTestDescriptor);

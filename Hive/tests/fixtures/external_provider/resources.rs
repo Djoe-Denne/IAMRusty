@@ -29,5 +29,3 @@ pub struct OrganizationInfo {
 pub struct ConnectionTestResponseBody {
     pub connected: bool,
 }
-
-

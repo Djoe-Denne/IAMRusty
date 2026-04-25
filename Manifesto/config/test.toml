@@ -27,7 +27,27 @@ backoff_multiplier = 2.0
 use_jitter = false
 
 [queue]
-type = "disabled"
+type = "sqs"
+enabled = false
+region = "us-east-1"
+account_id = "000000000000"
+default_queues = ["test-manifesto-default-events"]
+host = "localhost"
+port = 0
+access_key_id = "test"
+secret_access_key = "test"
+max_retries = 3
+timeout_seconds = 30
+
+[queue.queues]
+project_created = ["test-sentinel-sync-events"]
+component_added = ["test-sentinel-sync-events"]
+component_removed = ["test-sentinel-sync-events"]
+member_added = ["test-sentinel-sync-events"]
+member_permissions_updated = ["test-sentinel-sync-events"]
+member_removed = ["test-sentinel-sync-events"]
+permission_granted = ["test-sentinel-sync-events"]
+permission_revoked = ["test-sentinel-sync-events"]
 
 # Component-catalog HTTP service. Tests route this through the same shared
 # wiremock singleton that hosts the OpenFGA fake; the test harness

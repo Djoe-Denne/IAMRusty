@@ -67,7 +67,7 @@ enabled = false
 type = "sqs"
 region = "us-east-1"
 account_id = "000000000000"
-default_queue = "test-user-events"
+default_queues = ["test-iam-default-events"]
 # Use new host/port configuration instead of endpoint_url
 host = "localhost"
 port = 0  # Use random port for testing (will set EXTERNAL_SERVICE_PORTS_START)
@@ -78,4 +78,6 @@ timeout_seconds = 30
 
 # Queue mappings for different event types (can be extended)
 [queue.queues]
-user_signed_up = "test-user-events"
+user_signed_up = ["test-telegraph-events"]
+user_email_verified = ["test-telegraph-events"]
+password_reset_requested = ["test-telegraph-events"]

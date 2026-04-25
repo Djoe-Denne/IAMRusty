@@ -18,9 +18,7 @@ pub async fn run() -> anyhow::Result<()> {
     setup_logging_once();
 
     let iam_app = iam_setup::app::build_app_state(iam, None).await?;
-    let telegraph_app = telegraph_setup::AppBuilder::new(telegraph)
-        .build()
-        .await?;
+    let telegraph_app = telegraph_setup::AppBuilder::new(telegraph).build().await?;
     let hive_app = hive_setup::AppBuilder::new(hive).build().await?;
     let manifesto_app = manifesto_setup::Application::new(manifesto).await?;
 

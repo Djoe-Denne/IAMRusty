@@ -130,9 +130,6 @@ pub fn create_prefixed_router(state: AppState) -> Router {
 }
 
 /// Create and start the application routes using the fluent builder API.
-pub async fn create_app_routes(
-    state: AppState,
-    config: ServerConfig,
-) -> anyhow::Result<()> {
+pub async fn create_app_routes(state: AppState, config: ServerConfig) -> anyhow::Result<()> {
     rustycog_http::serve_router(create_prefixed_router(state), config).await
 }

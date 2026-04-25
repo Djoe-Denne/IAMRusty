@@ -51,16 +51,26 @@ impl ServiceTestDescriptor<TestFixture> for ManifestoTestDescriptor {
         Ok(())
     }
 
-    async fn run_app(&self, config: ManifestoConfig, server_config: ServerConfig) -> anyhow::Result<()> {
+    async fn run_app(
+        &self,
+        config: ManifestoConfig,
+        server_config: ServerConfig,
+    ) -> anyhow::Result<()> {
         build_and_run(config, server_config, None).await
     }
 
-    async fn run_migrations_up(&self, connection: &sea_orm::DatabaseConnection) -> anyhow::Result<()> {
+    async fn run_migrations_up(
+        &self,
+        connection: &sea_orm::DatabaseConnection,
+    ) -> anyhow::Result<()> {
         Migrator::up(connection, None).await?;
         Ok(())
     }
 
-    async fn run_migrations_down(&self, connection: &sea_orm::DatabaseConnection) -> anyhow::Result<()> {
+    async fn run_migrations_down(
+        &self,
+        connection: &sea_orm::DatabaseConnection,
+    ) -> anyhow::Result<()> {
         Migrator::down(connection, None).await?;
         Ok(())
     }
@@ -133,7 +143,13 @@ pub async fn setup_test_server() -> Result<
     let (server_url, client) =
         rustycog_testing::setup_test_server::<ManifestoTestDescriptor, TestFixture>(descriptor)
             .await?;
-    Ok((fixture, prefixed_url(server_url), client, openfga, components))
+    Ok((
+        fixture,
+        prefixed_url(server_url),
+        client,
+        openfga,
+        components,
+    ))
 }
 
 fn prefixed_url(server_url: String) -> String {

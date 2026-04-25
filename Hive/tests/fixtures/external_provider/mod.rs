@@ -8,5 +8,3 @@ impl ExternalProviderFixtures {
         service::ExternalProviderMockService::new().await
     }
 }
-
-

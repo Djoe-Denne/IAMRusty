@@ -8,7 +8,7 @@ provenance:
   extracted: 0.9
   inferred: 0.08
   ambiguous: 0.02
-updated: 2026-04-25T10:04:00Z
+updated: 2026-04-25T11:42:00Z
 ---
 
 # Wiki Index
@@ -25,7 +25,7 @@ Central entry point for this vault. Use the area indexes for full catalogs; use 
 
 ## Project homes
 
-- <!-- [[projects/aiforall/aiforall]] --> — platform overview
+- [[projects/aiforall/aiforall]] — platform overview and roadmap
 - [[projects/iamrusty/iamrusty]] — IAM and OAuth
 - <!-- [[projects/hive/hive]] --> — organizations and permissions
 - <!-- [[projects/hive-events/hive-events]] --> — Hive domain events
@@ -36,6 +36,8 @@ Central entry point for this vault. Use the area indexes for full catalogs; use 
 
 ## Recent Additions
 
+- [[projects/aiforall/roadmap]] — near-term focus on Sentinel Sync tests, DB transaction-load verification, and the RustyCog Events outbox pattern.
+- [[projects/rustycog/references/rustycog-events]] — SQS fanout now uses per-event destination queues and multi-queue consumer polling in RustyCog.
 - [[projects/aiforall/skills/running-aiforall-runtime-modes]] — operational workflow for microservice and `oodhive-monolith` runtime modes.
 - [[projects/aiforall/references/modular-monolith-runtime]] — dual runtime mode for AIForAll: standalone microservices plus the `oodhive-monolith` modular monolith.
 - [[projects/rustycog/references/openfga-real-testcontainer-fixture]] — real OpenFGA testcontainer fixture, random-port config contract, and migration notes from the old wiremock fake.

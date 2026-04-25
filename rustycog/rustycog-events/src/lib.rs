@@ -139,14 +139,19 @@ pub async fn create_kafka_event_publisher(
                         return Ok(Arc::new(ConcreteEventPublisher::Kafka(publisher)));
                     }
                     Err(e) => {
-                        tracing::warn!("Failed to create Kafka event publisher in test mode, falling back to no-op: {}", e);
+                        tracing::warn!(
+                            "Failed to create Kafka event publisher in test mode, falling back to no-op: {}",
+                            e
+                        );
                         return Ok(Arc::new(ConcreteEventPublisher::NoOp(Arc::new(
                             NoOpEventPublisher::new(),
                         ))));
                     }
                 }
             } else {
-                tracing::info!("Test mode: No Kafka test container detected or Kafka disabled, using no-op event publisher");
+                tracing::info!(
+                    "Test mode: No Kafka test container detected or Kafka disabled, using no-op event publisher"
+                );
                 return Ok(Arc::new(ConcreteEventPublisher::NoOp(Arc::new(
                     NoOpEventPublisher::new(),
                 ))));
@@ -157,7 +162,9 @@ pub async fn create_kafka_event_publisher(
         {
             // This branch should never be reached due to is_test_mode() check above,
             // but included for completeness
-            tracing::info!("Test mode detected but test-utils feature not available, using no-op event publisher");
+            tracing::info!(
+                "Test mode detected but test-utils feature not available, using no-op event publisher"
+            );
             return Ok(Arc::new(ConcreteEventPublisher::NoOp(Arc::new(
                 NoOpEventPublisher::new(),
             ))));
@@ -208,7 +215,10 @@ pub async fn create_sqs_event_publisher(
                         return Ok(Arc::new(ConcreteEventPublisher::Sqs(publisher)));
                     }
                     Err(e) => {
-                        tracing::warn!("Failed to create SQS event publisher in test mode, falling back to no-op: {}", e);
+                        tracing::warn!(
+                            "Failed to create SQS event publisher in test mode, falling back to no-op: {}",
+                            e
+                        );
                         return Ok(Arc::new(ConcreteEventPublisher::NoOp(Arc::new(
                             NoOpEventPublisher::new(),
                         ))));
@@ -224,7 +234,9 @@ pub async fn create_sqs_event_publisher(
 
         #[cfg(not(any(test, feature = "test-utils")))]
         {
-            tracing::info!("Test mode detected but test-utils feature not available, using no-op event publisher");
+            tracing::info!(
+                "Test mode detected but test-utils feature not available, using no-op event publisher"
+            );
             return Ok(Arc::new(ConcreteEventPublisher::NoOp(Arc::new(
                 NoOpEventPublisher::new(),
             ))));
@@ -257,27 +269,16 @@ pub async fn create_sqs_event_publisher(
     }
 }
 
-
 pub async fn create_multi_queue_event_publisher<TError>(
     config: &QueueConfig,
     queue_names: Option<HashSet<String>>,
-    error_mapper: Arc<dyn ErrorMapper<TError>>,   
+    error_mapper: Arc<dyn ErrorMapper<TError>>,
 ) -> Result<Arc<MultiQueueEventPublisher<TError>>, TError> {
-
     let queue_names = queue_names.unwrap_or_else(|| {
         // If no specific queue names provided, use all configured queues
         match config {
             QueueConfig::Disabled => HashSet::new(),
-            QueueConfig::Sqs(sqs_config) => {
-                let mut all_queues = HashSet::new();
-                // Add all queue names from the configuration
-                for queue_name in sqs_config.queues.values() {
-                    all_queues.insert(queue_name.clone());
-                }
-                // Also add the default queue
-                all_queues.insert(sqs_config.default_queue.clone());
-                all_queues
-            }
+            QueueConfig::Sqs(sqs_config) => sqs_config.all_queue_names(),
             QueueConfig::Kafka(kafka_config) => {
                 let mut all_queues = HashSet::new();
                 all_queues.insert(kafka_config.user_events_topic.clone());
@@ -286,18 +287,16 @@ pub async fn create_multi_queue_event_publisher<TError>(
         }
     });
 
-    // For now, create a single publisher (we can extend this later to create multiple publishers for different queues)
-    let adapted_publisher = create_event_publisher_from_queue_config(config).await
+    let adapted_publisher = create_event_publisher_from_queue_config(config)
+        .await
         .map_err(|service_error| error_mapper.from_service_error(service_error))?;
-    let publisher =
-        GenericEventPublisherAdapter::<TError>::new(adapted_publisher, error_mapper);
+    let publisher = GenericEventPublisherAdapter::<TError>::new(adapted_publisher, error_mapper);
 
     Ok(Arc::new(MultiQueueEventPublisher::new(
         vec![publisher],
         queue_names,
     )))
 }
-
 
 // =============================================================================
 // Event Consumers
@@ -398,14 +397,19 @@ pub async fn create_kafka_event_consumer(
                         return Ok(Arc::new(ConcreteEventConsumer::Kafka(consumer)));
                     }
                     Err(e) => {
-                        tracing::warn!("Failed to create Kafka event consumer in test mode, falling back to no-op: {}", e);
+                        tracing::warn!(
+                            "Failed to create Kafka event consumer in test mode, falling back to no-op: {}",
+                            e
+                        );
                         return Ok(Arc::new(ConcreteEventConsumer::NoOp(
                             NoOpEventConsumer::new(),
                         )));
                     }
                 }
             } else {
-                tracing::info!("Test mode: No Kafka test container detected or Kafka disabled, using no-op event consumer");
+                tracing::info!(
+                    "Test mode: No Kafka test container detected or Kafka disabled, using no-op event consumer"
+                );
                 return Ok(Arc::new(ConcreteEventConsumer::NoOp(
                     NoOpEventConsumer::new(),
                 )));
@@ -414,7 +418,9 @@ pub async fn create_kafka_event_consumer(
 
         #[cfg(not(any(test, feature = "test-utils")))]
         {
-            tracing::info!("Test mode detected but test-utils feature not available, using no-op event consumer");
+            tracing::info!(
+                "Test mode detected but test-utils feature not available, using no-op event consumer"
+            );
             return Ok(Arc::new(ConcreteEventConsumer::NoOp(
                 NoOpEventConsumer::new(),
             )));
@@ -465,7 +471,10 @@ pub async fn create_sqs_event_consumer(
                         return Ok(Arc::new(ConcreteEventConsumer::Sqs(consumer)));
                     }
                     Err(e) => {
-                        tracing::warn!("Failed to create SQS event consumer in test mode, falling back to no-op: {}", e);
+                        tracing::warn!(
+                            "Failed to create SQS event consumer in test mode, falling back to no-op: {}",
+                            e
+                        );
                         return Ok(Arc::new(ConcreteEventConsumer::NoOp(
                             NoOpEventConsumer::new(),
                         )));
@@ -481,7 +490,9 @@ pub async fn create_sqs_event_consumer(
 
         #[cfg(not(any(test, feature = "test-utils")))]
         {
-            tracing::info!("Test mode detected but test-utils feature not available, using no-op event consumer");
+            tracing::info!(
+                "Test mode detected but test-utils feature not available, using no-op event consumer"
+            );
             return Ok(Arc::new(ConcreteEventConsumer::NoOp(
                 NoOpEventConsumer::new(),
             )));

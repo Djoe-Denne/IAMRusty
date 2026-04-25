@@ -47,13 +47,19 @@ type = "sqs"
 enabled = true
 region = "us-east-1"
 account_id = "000000000000"
-default_queue = "user-events"
+default_queues = ["sentinel-sync-events"]
 host = "localhost"
 port = 0
 access_key_id = "test"
 secret_access_key = "test"
 max_retries = 3
 timeout_seconds = 30
+
+[queue.queues]
+organization_created = ["sentinel-sync-events"]
+organization_updated = ["sentinel-sync-events"]
+member_joined = ["sentinel-sync-events"]
+member_removed = ["sentinel-sync-events"]
 
 # Centralized authorization (OpenFGA). store_id and authorization_model_id are
 # environment-specific and must be supplied via env vars (HIVE_OPENFGA__STORE_ID,

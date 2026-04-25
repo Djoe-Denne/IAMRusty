@@ -7,7 +7,6 @@
 use crate::ConcreteEventPublisher;
 use async_trait::async_trait;
 use rustycog_core::error::ServiceError;
-use std::collections::HashMap;
 use std::collections::HashSet;
 use std::sync::Arc;
 

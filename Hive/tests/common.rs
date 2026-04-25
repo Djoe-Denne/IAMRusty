@@ -10,11 +10,11 @@ use rustycog_config::ServerConfig;
 use rustycog_testing::*;
 use std::sync::Arc;
 
+use anyhow::anyhow;
 use hive_configuration::AppConfig;
 use hive_http::SERVICE_PREFIX;
-use hive_setup::app::AppBuilder;
 use hive_migration::{Migrator, MigratorTrait};
-use anyhow::anyhow;
+use hive_setup::app::AppBuilder;
 
 // Re-export the real OpenFGA testcontainer fixture so tests can arrange
 // `Check` decisions by writing real relationship tuples without pulling
@@ -52,24 +52,26 @@ impl ServiceTestDescriptor<HiveTestFixture> for HiveTestDescriptor {
         Ok(())
     }
 
-    async fn run_app(
-        &self,
-        _config: AppConfig,
-        server_config: ServerConfig,
-    ) -> anyhow::Result<()> {
+    async fn run_app(&self, _config: AppConfig, server_config: ServerConfig) -> anyhow::Result<()> {
         // Move application out of the static store to run it (run consumes self)
         let app = unsafe { APP.take() }.ok_or_else(|| anyhow!("App not built"))?;
         app.run(server_config).await?;
         Ok(())
     }
 
-    async fn run_migrations_up(&self, connection: &sea_orm::DatabaseConnection) -> anyhow::Result<()> {
+    async fn run_migrations_up(
+        &self,
+        connection: &sea_orm::DatabaseConnection,
+    ) -> anyhow::Result<()> {
         println!("Running migrations up");
         Migrator::up(connection, None).await?;
         Ok(())
     }
 
-    async fn run_migrations_down(&self, connection: &sea_orm::DatabaseConnection) -> anyhow::Result<()> {
+    async fn run_migrations_down(
+        &self,
+        connection: &sea_orm::DatabaseConnection,
+    ) -> anyhow::Result<()> {
         println!("Running migrations down");
         Migrator::down(connection, None).await?;
         Ok(())
@@ -80,7 +82,6 @@ impl ServiceTestDescriptor<HiveTestFixture> for HiveTestDescriptor {
     }
 
     fn has_sqs(&self) -> bool {
-        // Hive tests default to queue disabled (NoOp)
         false
     }
 
@@ -128,15 +129,17 @@ impl HiveTestFixture {
 ///
 /// The OpenFGA fixture is process-global, so tests must remain
 /// `#[serial]` to avoid tuple-state collisions.
-pub async fn setup_test_server(
-) -> Result<(HiveTestFixture, String, Client, TestOpenFga), Box<dyn std::error::Error>> {
+pub async fn setup_test_server()
+-> Result<(HiveTestFixture, String, Client, TestOpenFga), Box<dyn std::error::Error>> {
     // Bring up the OpenFGA testcontainer + database first so the env
     // vars are populated before the app boots.
     let descriptor = Arc::new(HiveTestDescriptor);
     let fixture = HiveTestFixture::new(descriptor.clone()).await?;
     let openfga = fixture.openfga().clone();
 
-    let (server_url, client) = rustycog_testing::setup_test_server::<HiveTestDescriptor, HiveTestFixture>(descriptor).await?;
+    let (server_url, client) =
+        rustycog_testing::setup_test_server::<HiveTestDescriptor, HiveTestFixture>(descriptor)
+            .await?;
 
     Ok((fixture, prefixed_url(server_url), client, openfga))
 }

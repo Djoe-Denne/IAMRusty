@@ -5,18 +5,18 @@
 
 use aws_config::{BehaviorVersion, Region};
 use aws_credential_types::Credentials;
-use aws_sdk_sqs::{types::Message, Client, Config};
-use rustycog_config::{load_config_part, QueueConfig, SqsConfig};
-use rustycog_core::error::ServiceError;
+use aws_sdk_sqs::{Client, Config, types::Message};
+use rustycog_config::{QueueConfig, SqsConfig, load_config_part};
 use rustycog_events::event::DomainEvent;
-use serde_json::{json, Value};
-use std::sync::atomic::{AtomicBool, Ordering};
+use serde_json::{Value, json};
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::OnceLock;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
-use testcontainers::{runners::AsyncRunner, ContainerAsync, GenericImage, ImageExt};
+use testcontainers::{ContainerAsync, GenericImage, ImageExt, runners::AsyncRunner};
 use tokio::sync::Mutex;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 use uuid;
 
 /// Global test SQS container instance
@@ -55,6 +55,7 @@ pub struct TestSqs {
     pub client: Client,
     pub endpoint_url: String,
     pub queue_url: String,
+    pub queue_urls: HashMap<String, String>,
     pub region: String,
 }
 
@@ -80,7 +81,6 @@ impl TestSqs {
             .clone()
             .unwrap_or("test".to_string());
         let account_id = sqs_config.account_id.clone();
-        let default_queue = sqs_config.default_queue.clone();
 
         // Set environment variables for SQS configuration so our app config picks it up
         unsafe {
@@ -94,7 +94,6 @@ impl TestSqs {
             std::env::set_var("IAM_QUEUE__SQS__ACCESS_KEY_ID", access_key_id);
             std::env::set_var("IAM_QUEUE__SQS__SECRET_ACCESS_KEY", secret_access_key);
             std::env::set_var("IAM_QUEUE__SQS__ACCOUNT_ID", &account_id); // LocalStack default
-            std::env::set_var("IAM_QUEUE__SQS__DEFAULT_QUEUE", &default_queue);
         }
 
         // Create SQS client
@@ -103,13 +102,15 @@ impl TestSqs {
         // Wait for LocalStack to be ready
         Self::wait_for_localstack(&endpoint_url).await?;
 
-        // Create test queue using configured queue name
-        let queue_url = Self::create_test_queue(&client, &sqs_config).await?;
+        // Create test queues using configured queue names
+        let queue_urls = Self::create_test_queues(&client, &sqs_config).await?;
+        let queue_url = Self::primary_queue_url(&sqs_config, &queue_urls)?;
 
         Ok(Self {
             client,
             endpoint_url,
             queue_url,
+            queue_urls,
             region,
         })
     }
@@ -179,22 +180,49 @@ impl TestSqs {
         .into())
     }
 
-    /// Create test queue using the queue name from configuration
-    async fn create_test_queue(
+    /// Create test queues using queue names from configuration
+    async fn create_test_queues(
         client: &Client,
         sqs_config: &SqsConfig,
+    ) -> Result<HashMap<String, String>, Box<dyn std::error::Error>> {
+        let queue_names = sqs_config.all_queue_names();
+        if queue_names.is_empty() {
+            return Err("SQS test container requires at least one configured queue".into());
+        }
+
+        let mut queue_urls = HashMap::new();
+        for queue_name in queue_names {
+            debug!("Creating test queue with configured name: {}", queue_name);
+
+            let result = client.create_queue().queue_name(&queue_name).send().await?;
+            let queue_url = result.queue_url().unwrap_or_default().to_string();
+            info!("Created test queue: {}", queue_url);
+
+            queue_urls.insert(queue_name, queue_url);
+        }
+
+        Ok(queue_urls)
+    }
+
+    fn primary_queue_url(
+        sqs_config: &SqsConfig,
+        queue_urls: &HashMap<String, String>,
     ) -> Result<String, Box<dyn std::error::Error>> {
-        // Get the queue name from the actual configuration
-        let queue_name = &sqs_config.default_queue;
+        if let Some(default_queue) = sqs_config.default_queues.first() {
+            if let Some(queue_url) = queue_urls.get(default_queue) {
+                return Ok(queue_url.clone());
+            }
+        }
 
-        debug!("Creating test queue with configured name: {}", queue_name);
+        queue_urls
+            .values()
+            .next()
+            .cloned()
+            .ok_or_else(|| "SQS test container did not create any queues".into())
+    }
 
-        let result = client.create_queue().queue_name(queue_name).send().await?;
-
-        let queue_url = result.queue_url().unwrap_or_default().to_string();
-        info!("Created test queue: {}", queue_url);
-
-        Ok(queue_url)
+    pub fn queue_url_for(&self, queue_name: &str) -> Option<&str> {
+        self.queue_urls.get(queue_name).map(String::as_str)
     }
 
     /// Send a test message to the queue (raw string)
@@ -202,12 +230,35 @@ impl TestSqs {
         &self,
         message_body: &str,
     ) -> Result<String, Box<dyn std::error::Error>> {
-        debug!("Sending message to queue: {}", self.queue_url);
+        self.send_message_to_queue_url(&self.queue_url, message_body)
+            .await
+    }
+
+    /// Send a test message to a named queue (raw string)
+    pub async fn send_message_to_queue(
+        &self,
+        queue_name: &str,
+        message_body: &str,
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        let queue_url = self
+            .queue_url_for(queue_name)
+            .ok_or_else(|| format!("Queue '{}' not found in SQS fixture", queue_name))?;
+
+        self.send_message_to_queue_url(queue_url, message_body)
+            .await
+    }
+
+    async fn send_message_to_queue_url(
+        &self,
+        queue_url: &str,
+        message_body: &str,
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        debug!("Sending message to queue: {}", queue_url);
 
         let result = self
             .client
             .send_message()
-            .queue_url(&self.queue_url)
+            .queue_url(queue_url)
             .message_body(message_body)
             .send()
             .await?;
@@ -223,23 +274,18 @@ impl TestSqs {
         &self,
         event: &dyn DomainEvent,
     ) -> Result<String, Box<dyn std::error::Error>> {
-        info!("Sending domain event to queue: {}", self.queue_url);
-
-        // Format the event the same way the SQS publisher does
         let message_body = self.serialize_event(event)?;
+        self.send_message(&message_body).await
+    }
 
-        let result = self
-            .client
-            .send_message()
-            .queue_url(&self.queue_url)
-            .message_body(message_body)
-            .send()
-            .await?;
-
-        let message_id = result.message_id().unwrap_or("unknown").to_string();
-        info!("Event sent with ID: {}", message_id);
-
-        Ok(message_id)
+    /// Send a domain event to a named queue (formatted like the SQS publisher)
+    pub async fn send_event_to_queue(
+        &self,
+        queue_name: &str,
+        event: &dyn DomainEvent,
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        let message_body = self.serialize_event(event)?;
+        self.send_message_to_queue(queue_name, &message_body).await
     }
 
     /// Serialize domain event to SQS message body (same as SQS publisher)
@@ -274,12 +320,37 @@ impl TestSqs {
         max_messages: i32,
         wait_time_seconds: i32,
     ) -> Result<Vec<Message>, Box<dyn std::error::Error>> {
-        debug!("Receiving messages from queue: {}", self.queue_url);
+        self.receive_messages_from_queue_url(&self.queue_url, max_messages, wait_time_seconds)
+            .await
+    }
+
+    /// Receive messages from a named queue
+    pub async fn receive_messages_from_queue(
+        &self,
+        queue_name: &str,
+        max_messages: i32,
+        wait_time_seconds: i32,
+    ) -> Result<Vec<Message>, Box<dyn std::error::Error>> {
+        let queue_url = self
+            .queue_url_for(queue_name)
+            .ok_or_else(|| format!("Queue '{}' not found in SQS fixture", queue_name))?;
+
+        self.receive_messages_from_queue_url(queue_url, max_messages, wait_time_seconds)
+            .await
+    }
+
+    async fn receive_messages_from_queue_url(
+        &self,
+        queue_url: &str,
+        max_messages: i32,
+        wait_time_seconds: i32,
+    ) -> Result<Vec<Message>, Box<dyn std::error::Error>> {
+        debug!("Receiving messages from queue: {}", queue_url);
 
         let result = self
             .client
             .receive_message()
-            .queue_url(&self.queue_url)
+            .queue_url(queue_url)
             .max_number_of_messages(max_messages)
             .wait_time_seconds(wait_time_seconds)
             .send()
@@ -296,11 +367,20 @@ impl TestSqs {
         &self,
         receipt_handle: &str,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        debug!("Deleting message from queue: {}", self.queue_url);
+        self.delete_message_from_queue_url(&self.queue_url, receipt_handle)
+            .await
+    }
+
+    async fn delete_message_from_queue_url(
+        &self,
+        queue_url: &str,
+        receipt_handle: &str,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        debug!("Deleting message from queue: {}", queue_url);
 
         self.client
             .delete_message()
-            .queue_url(&self.queue_url)
+            .queue_url(queue_url)
             .receipt_handle(receipt_handle)
             .send()
             .await?;
@@ -314,6 +394,29 @@ impl TestSqs {
         &self,
         max_wait_secs: u64,
     ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+        self.get_all_messages_from_queue_url(&self.queue_url, max_wait_secs)
+            .await
+    }
+
+    /// Get all messages from a named queue (non-destructive polling)
+    pub async fn get_all_messages_from_queue(
+        &self,
+        queue_name: &str,
+        max_wait_secs: u64,
+    ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+        let queue_url = self
+            .queue_url_for(queue_name)
+            .ok_or_else(|| format!("Queue '{}' not found in SQS fixture", queue_name))?;
+
+        self.get_all_messages_from_queue_url(queue_url, max_wait_secs)
+            .await
+    }
+
+    async fn get_all_messages_from_queue_url(
+        &self,
+        queue_url: &str,
+        max_wait_secs: u64,
+    ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
         debug!(
             "Getting all messages from queue with max wait: {} seconds",
             max_wait_secs
@@ -323,7 +426,9 @@ impl TestSqs {
         let start_time = std::time::Instant::now();
 
         while start_time.elapsed().as_secs() < max_wait_secs {
-            let messages = self.receive_messages(10, 1).await?;
+            let messages = self
+                .receive_messages_from_queue_url(queue_url, 10, 1)
+                .await?;
 
             if messages.is_empty() {
                 // No messages, wait a bit before trying again
@@ -338,7 +443,10 @@ impl TestSqs {
 
                 // Delete the message to avoid reprocessing
                 if let Some(receipt_handle) = message.receipt_handle() {
-                    if let Err(e) = self.delete_message(receipt_handle).await {
+                    if let Err(e) = self
+                        .delete_message_from_queue_url(queue_url, receipt_handle)
+                        .await
+                    {
                         warn!("Failed to delete message: {}", e);
                     }
                 }
@@ -355,6 +463,31 @@ impl TestSqs {
         expected_count: usize,
         max_wait_secs: u64,
     ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+        self.wait_for_messages_from_queue_url(&self.queue_url, expected_count, max_wait_secs)
+            .await
+    }
+
+    /// Wait for a specific number of messages to be available on a named queue
+    pub async fn wait_for_messages_from_queue(
+        &self,
+        queue_name: &str,
+        expected_count: usize,
+        max_wait_secs: u64,
+    ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+        let queue_url = self
+            .queue_url_for(queue_name)
+            .ok_or_else(|| format!("Queue '{}' not found in SQS fixture", queue_name))?;
+
+        self.wait_for_messages_from_queue_url(queue_url, expected_count, max_wait_secs)
+            .await
+    }
+
+    async fn wait_for_messages_from_queue_url(
+        &self,
+        queue_url: &str,
+        expected_count: usize,
+        max_wait_secs: u64,
+    ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
         debug!(
             "Waiting for {} messages with max wait: {} seconds",
             expected_count, max_wait_secs
@@ -365,7 +498,9 @@ impl TestSqs {
 
         while all_messages.len() < expected_count && start_time.elapsed().as_secs() < max_wait_secs
         {
-            let messages = self.receive_messages(10, 2).await?;
+            let messages = self
+                .receive_messages_from_queue_url(queue_url, 10, 2)
+                .await?;
 
             for message in messages {
                 if let Some(body) = message.body() {
@@ -374,7 +509,10 @@ impl TestSqs {
 
                 // Delete the message to avoid reprocessing
                 if let Some(receipt_handle) = message.receipt_handle() {
-                    if let Err(e) = self.delete_message(receipt_handle).await {
+                    if let Err(e) = self
+                        .delete_message_from_queue_url(queue_url, receipt_handle)
+                        .await
+                    {
                         warn!("Failed to delete message: {}", e);
                     }
                 }
@@ -405,11 +543,27 @@ impl TestSqs {
 
     /// Purge all messages from the queue
     pub async fn purge_queue(&self) -> Result<(), Box<dyn std::error::Error>> {
-        debug!("Purging queue: {}", self.queue_url);
+        self.purge_queue_url(&self.queue_url).await
+    }
+
+    /// Purge all messages from a named queue
+    pub async fn purge_queue_named(
+        &self,
+        queue_name: &str,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let queue_url = self
+            .queue_url_for(queue_name)
+            .ok_or_else(|| format!("Queue '{}' not found in SQS fixture", queue_name))?;
+
+        self.purge_queue_url(queue_url).await
+    }
+
+    async fn purge_queue_url(&self, queue_url: &str) -> Result<(), Box<dyn std::error::Error>> {
+        debug!("Purging queue: {}", queue_url);
 
         self.client
             .purge_queue()
-            .queue_url(&self.queue_url)
+            .queue_url(queue_url)
             .send()
             .await?;
 
@@ -419,8 +573,8 @@ impl TestSqs {
 }
 
 /// Get or create the global test SQS container
-async fn get_or_create_test_sqs_container(
-) -> Result<(Arc<TestSqsContainer>, SqsConfig), Box<dyn std::error::Error>> {
+async fn get_or_create_test_sqs_container()
+-> Result<(Arc<TestSqsContainer>, SqsConfig), Box<dyn std::error::Error>> {
     let container_mutex = TEST_SQS_CONTAINER.get_or_init(|| Arc::new(Mutex::new(None)));
 
     let mut container_guard = container_mutex.lock().await;

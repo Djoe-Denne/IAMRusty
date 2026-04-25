@@ -4,11 +4,11 @@ mod common;
 mod fixtures;
 
 use common::*;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use serial_test::serial;
 
 use iam_configuration;
-use iam_configuration::{clear_config_cache, load_config, QueueConfig};
+use iam_configuration::{QueueConfig, clear_config_cache, load_config};
 use rustycog_testing::TestSqsFixture;
 use std::sync::Arc;
 
@@ -145,8 +145,8 @@ async fn test_signup_sqs_integration() {
             if let Ok(val) = std::env::var("IAM_QUEUE__SQS__ACCOUNT_ID") {
                 println!("   IAM_QUEUE__SQS__ACCOUNT_ID: {}", val);
             }
-            if let Ok(val) = std::env::var("IAM_QUEUE__SQS__DEFAULT_QUEUE") {
-                println!("   IAM_QUEUE__SQS__DEFAULT_QUEUE: {}", val);
+            if let Ok(val) = std::env::var("IAM_QUEUE__SQS__DEFAULT_QUEUES") {
+                println!("   IAM_QUEUE__SQS__DEFAULT_QUEUES: {}", val);
             }
 
             panic!(

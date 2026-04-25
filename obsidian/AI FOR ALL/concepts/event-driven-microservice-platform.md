@@ -18,13 +18,13 @@ sources:
   - rustycog/rustycog-testing/src/common/sqs_testcontainer.rs
   - hive-events/README.md
 summary: >-
-  The platform uses decoupled services plus transport-neutral domain events and queue-backed coordination, with Hive, IAMRusty, and Telegraph all participating differently.
+  The platform uses decoupled services plus transport-neutral events, including SQS fanout when one event must reach multiple services.
 provenance:
-  extracted: 0.78
+  extracted: 0.8
   inferred: 0.12
-  ambiguous: 0.10
+  ambiguous: 0.08
 created: 2026-04-14T16:54:59.5971424Z
-updated: 2026-04-15T22:10:00Z
+updated: 2026-04-25T10:53:00Z
 ---
 
 # Event-Driven Microservice Platform
@@ -38,11 +38,12 @@ AIForAll favors asynchronous coordination between bounded services instead of pu
 - Hive Events routes messages into purpose-specific queues such as `notification-events` and `sync-events`.
 - `[[projects/rustycog/rustycog]]` provides shared transport and envelope abstractions; crate-level event mechanics belong to `[[projects/rustycog/references/rustycog-events]]`.
 - `QueueConfig` and factory wiring let services switch Kafka/SQS/no-op modes without rewriting higher-level event call sites.
+- SQS fanout is now represented in config rather than service-specific code: an event type maps to a list of destination queues, and the RustyCog SQS publisher sends the same event to each queue.
+- SQS consumers poll every configured physical queue independently and delegate all accepted messages to the same service handler.
 - The test harness shows both transports are active parts of the codebase: Kafka tests provision a KRaft container and consume messages back from the topic, while SQS tests provision LocalStack and exercise real queue URLs and message bodies.
 - Hive is a good example of an HTTP-first service that still emits a substantial event stream, while Telegraph is a queue-aware consumer and IAMRusty combines HTTP-first flows with queue-backed side effects. ^[inferred]
 - Asynchronous messaging lets services keep ownership over their own data and still participate in longer workflows. ^[inferred]
 - The SDK now makes Kafka and SQS both first-class options in code, but the wiki still does not show which services standardize on which transport in production. ^[ambiguous]
-- `create_multi_queue_event_publisher()` currently accepts multi-queue intent but builds one underlying publisher instance, so full queue-level behavior guarantees remain partial. Conflict to resolve. ^[ambiguous]
 
 ## Open Questions
 

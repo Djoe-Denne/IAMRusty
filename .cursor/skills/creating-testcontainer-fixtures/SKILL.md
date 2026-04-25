@@ -36,6 +36,8 @@ Telegraph adds a service-local one at `Telegraph/tests/fixtures/smtp/testcontain
 
 All three follow the same singleton + defensive-Docker-cleanup pattern. **Read at least one of them** before authoring a new fixture — they encode several non-obvious lifecycle decisions that the type signatures alone don't make clear.
 
+For SQS producer-routing tests, do not stop at "a message exists somewhere". Configure every physical queue through `SqsConfig`, keep shared `test.toml` queue settings `enabled = false`, then opt in from the routing test binary with a descriptor that returns `has_sqs() == true` plus a service env override like `HIVE_QUEUE__ENABLED=true`. Let the LocalStack fixture create queues from `all_queue_names()`, drain each relevant queue before the action, then assert the mapped destination with `wait_for_messages_from_queue(...)` and the non-target fallback with `get_all_messages_from_queue(...)`. Current references: `Hive/tests/sqs_event_routing_tests.rs`, `IAMRusty/tests/sqs_event_routing_tests.rs`, and `Manifesto/tests/sqs_event_routing_tests.rs`.
+
 Full wiki reference: `obsidian/AI FOR ALL/skills/creating-testcontainer-fixtures.md`. Read it only if you need the prose rationale; this skill is the actionable version.
 
 ## Workflow

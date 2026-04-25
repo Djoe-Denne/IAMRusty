@@ -7,18 +7,16 @@ use manifesto_application::{
     ComponentUseCaseImpl, ManifestoCommandRegistryFactory, MemberUseCaseImpl, ProjectUseCaseImpl,
 };
 use manifesto_configuration::AppConfig;
-use manifesto_domain::service::{
-    ComponentServiceImpl, MemberServiceImpl, ProjectServiceImpl,
-};
+use manifesto_domain::service::{ComponentServiceImpl, MemberServiceImpl, ProjectServiceImpl};
+use manifesto_http_server::{create_app_routes, create_router};
 use manifesto_infra::{
     adapters::ComponentServiceClient,
     processors::ComponentStatusProcessor,
     repository::{
         ComponentReadRepositoryImpl, ComponentRepositoryImpl, ComponentWriteRepositoryImpl,
         MemberReadRepositoryImpl, MemberRepositoryImpl, MemberWriteRepositoryImpl,
-        PermissionReadRepositoryImpl,
-        ProjectMemberRolePermissionReadRepositoryImpl, ProjectMemberRolePermissionRepositoryImpl,
-        ProjectMemberRolePermissionWriteRepositoryImpl,
+        PermissionReadRepositoryImpl, ProjectMemberRolePermissionReadRepositoryImpl,
+        ProjectMemberRolePermissionRepositoryImpl, ProjectMemberRolePermissionWriteRepositoryImpl,
         ProjectReadRepositoryImpl, ProjectRepositoryImpl, ProjectWriteRepositoryImpl,
         ResourceReadRepositoryImpl, ResourceRepositoryImpl, ResourceWriteRepositoryImpl,
         RolePermissionReadRepositoryImpl, RolePermissionRepositoryImpl,
@@ -26,7 +24,6 @@ use manifesto_infra::{
     },
     ApparatusEventConsumer, ManifestoErrorMapper,
 };
-use manifesto_http_server::{create_app_routes, create_router};
 
 // Rustycog
 use rustycog_command::GenericCommandService;
@@ -80,12 +77,8 @@ impl Application {
         let event_publisher = if let Some(ep) = maybe_event_publisher {
             ep
         } else {
-            create_multi_queue_event_publisher(
-                &config.queue,
-                None,
-                Arc::new(ManifestoErrorMapper),
-            )
-            .await?
+            create_multi_queue_event_publisher(&config.queue, None, Arc::new(ManifestoErrorMapper))
+                .await?
         };
 
         // Setup use cases
@@ -366,14 +359,13 @@ async fn setup_domain(
         config.service.component_service.timeout_seconds,
     )?);
 
-    let permission_service: Arc<dyn manifesto_domain::service::PermissionService> = Arc::new(
-        manifesto_domain::service::PermissionServiceImpl::new(
+    let permission_service: Arc<dyn manifesto_domain::service::PermissionService> =
+        Arc::new(manifesto_domain::service::PermissionServiceImpl::new(
             permission_repo,
             resource_repo,
             role_permission_repo,
             member_role_permission_repo,
-        ),
-    );
+        ));
 
     let project_service = Arc::new(ProjectServiceImpl::new(
         project_repo.clone(),
@@ -434,10 +426,12 @@ async fn setup_repositories(
         resource_write_repo.clone(),
     ));
 
-    let role_permission_read_repo =
-        Arc::new(RolePermissionReadRepositoryImpl::new(db.get_read_connection()));
-    let role_permission_write_repo =
-        Arc::new(RolePermissionWriteRepositoryImpl::new(db.get_write_connection()));
+    let role_permission_read_repo = Arc::new(RolePermissionReadRepositoryImpl::new(
+        db.get_read_connection(),
+    ));
+    let role_permission_write_repo = Arc::new(RolePermissionWriteRepositoryImpl::new(
+        db.get_write_connection(),
+    ));
     let role_permission_repo = Arc::new(RolePermissionRepositoryImpl::new(
         role_permission_read_repo.clone(),
         role_permission_write_repo.clone(),

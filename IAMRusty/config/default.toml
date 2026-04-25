@@ -55,7 +55,7 @@ type = "sqs"
 enabled = true  # Enabled for real SQS integration tests
 region = "us-east-1"
 account_id = "000000000000"
-default_queue = "test-user-events"
+default_queues = ["telegraph-events"]
 # Use new host/port configuration instead of endpoint_url
 host = "localhost"
 port = 0  # Use random port for testing (will set EXTERNAL_SERVICE_PORTS_START)
@@ -63,3 +63,8 @@ access_key_id = "test"
 secret_access_key = "test"
 max_retries = 3
 timeout_seconds = 30
+
+[queue.queues]
+user_signed_up = ["telegraph-events"]
+user_email_verified = ["telegraph-events"]
+password_reset_requested = ["telegraph-events"]

@@ -59,7 +59,7 @@ type = "sqs"
 enabled = true
 region = "us-east-1"
 account_id = "000000000000"
-default_queue = "user-events"
+default_queues = ["telegraph-events"]
 host = "localstack"
 port = 4566
 access_key_id = "test"
@@ -68,4 +68,6 @@ max_retries = 3
 timeout_seconds = 30
 
 [queue.queues]
-user_signed_up = "user-events"
+user_signed_up = ["telegraph-events"]
+user_email_verified = ["telegraph-events"]
+password_reset_requested = ["telegraph-events"]

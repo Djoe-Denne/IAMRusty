@@ -34,7 +34,7 @@ enabled = true
 type = "sqs"
 region = "us-east-1"
 account_id = "000000000000"  # LocalStack default
-default_queue = "user-events"
+default_queues = ["telegraph-events"]
 host = "localhost"
 port = 4566
 access_key_id = "test"
@@ -44,7 +44,9 @@ timeout_seconds = 30
 
 # Queue mappings for different event types
 [queue.queues]
-user_signed_up = "user-events"
+user_signed_up = ["telegraph-events"]
+user_email_verified = ["telegraph-events"]
+password_reset_requested = ["telegraph-events"]
 
 # Kafka configuration for event publishing (alternative to SQS)
 [kafka]

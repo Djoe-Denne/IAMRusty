@@ -14,6 +14,7 @@ use hive_domain::service::{
     organization_service::OrganizationServiceImpl, role_service::RoleServiceImpl,
     sync_service::SyncServiceImpl,
 };
+use hive_http::{create_app_routes, create_router};
 use hive_infra::{
     external_provider::external_provider_client::HttpExternalProviderClient,
     repository::{
@@ -27,12 +28,11 @@ use hive_infra::{
         OrganizationReadRepositoryImpl, OrganizationRepositoryImpl,
         OrganizationWriteRepositoryImpl, PermissionReadRepositoryImpl, PermissionRepositoryImpl,
         ResourceReadRepositoryImpl, ResourceRepositoryImpl, RolePermissionReadRepositoryImpl,
-        RolePermissionRepositoryImpl, RolePermissionWriteRepositoryImpl,
-        SyncJobReadRepositoryImpl, SyncJobRepositoryImpl, SyncJobWriteRepositoryImpl,
+        RolePermissionRepositoryImpl, RolePermissionWriteRepositoryImpl, SyncJobReadRepositoryImpl,
+        SyncJobRepositoryImpl, SyncJobWriteRepositoryImpl,
     },
     HiveErrorMapper,
 };
-use hive_http::{create_app_routes, create_router};
 
 // Rustycog
 use rustycog_command::GenericCommandService;
@@ -64,12 +64,9 @@ impl Application {
         let db = setup_database(&config).await?;
 
         // Setup event publisher for Telegraph + sentinel-sync communication
-        let event_publisher = create_multi_queue_event_publisher(
-            &config.queue,
-            None,
-            Arc::new(HiveErrorMapper),
-        )
-        .await?;
+        let event_publisher =
+            create_multi_queue_event_publisher(&config.queue, None, Arc::new(HiveErrorMapper))
+                .await?;
 
         // Setup use cases
         let (
@@ -216,7 +213,10 @@ async fn setup_application(
     ));
 
     // Create sync job use case
-    let sync_job_usecase = Arc::new(SyncJobUseCaseImpl::new(sync_service.clone(), event_publisher));
+    let sync_job_usecase = Arc::new(SyncJobUseCaseImpl::new(
+        sync_service.clone(),
+        event_publisher,
+    ));
 
     Ok((
         organization_usecase,
@@ -370,10 +370,8 @@ async fn setup_infra(
 
     let sync_job_read_repo = SyncJobReadRepositoryImpl::new(db.get_read_connection());
     let sync_job_write_repo = SyncJobWriteRepositoryImpl::new(db.get_write_connection());
-    let sync_job_repo = SyncJobRepositoryImpl::new(
-        Arc::new(sync_job_read_repo),
-        Arc::new(sync_job_write_repo),
-    );
+    let sync_job_repo =
+        SyncJobRepositoryImpl::new(Arc::new(sync_job_read_repo), Arc::new(sync_job_write_repo));
 
     let resource_read_repo = ResourceReadRepositoryImpl::new(db.get_read_connection());
     let resource_repo = ResourceRepositoryImpl::new(Arc::new(resource_read_repo));
@@ -381,8 +379,7 @@ async fn setup_infra(
     let permission_read_repo = PermissionReadRepositoryImpl::new(db.get_read_connection());
     let permission_repo = PermissionRepositoryImpl::new(Arc::new(permission_read_repo));
 
-    let role_permission_read_repo =
-        RolePermissionReadRepositoryImpl::new(db.get_read_connection());
+    let role_permission_read_repo = RolePermissionReadRepositoryImpl::new(db.get_read_connection());
     let role_permission_write_repo =
         RolePermissionWriteRepositoryImpl::new(db.get_write_connection());
     let role_permission_repo = RolePermissionRepositoryImpl::new(

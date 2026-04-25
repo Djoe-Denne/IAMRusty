@@ -202,7 +202,8 @@ impl ProjectFixtureBuilder {
                 self.external_collaboration_enabled.unwrap_or(false),
             ),
             data_classification: ActiveValue::Set(
-                self.data_classification.unwrap_or_else(|| "internal".to_string()),
+                self.data_classification
+                    .unwrap_or_else(|| "internal".to_string()),
             ),
             created_at: ActiveValue::Set(now),
             updated_at: ActiveValue::Set(now),
@@ -221,5 +222,3 @@ impl Default for ProjectFixtureBuilder {
         Self::new()
     }
 }
-
-

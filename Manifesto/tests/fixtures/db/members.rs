@@ -3,21 +3,20 @@
 use chrono::Utc;
 use rustycog_testing::db::CommittedFixture;
 use sea_orm::prelude::DateTimeWithTimeZone;
-use sea_orm::{ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter};
+use sea_orm::{
+    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter,
+};
 use std::sync::Arc;
 use uuid::Uuid;
 
 // Import the entity types from infra crate
+use manifesto_infra::repository::entity::project_member_role_permissions::ActiveModel as ProjectMemberRolePermissionActiveModel;
 use manifesto_infra::repository::entity::project_members::{
     ActiveModel as MemberActiveModel, Model as MemberModel,
 };
 use manifesto_infra::repository::entity::role_permissions::{
-    ActiveModel as RolePermissionActiveModel,
-    Column as RolePermissionsColumn,
+    ActiveModel as RolePermissionActiveModel, Column as RolePermissionsColumn,
     Entity as RolePermissionsEntity,
-};
-use manifesto_infra::repository::entity::project_member_role_permissions::{
-    ActiveModel as ProjectMemberRolePermissionActiveModel,
 };
 
 /// Member fixture wrapper
@@ -223,7 +222,6 @@ impl MemberFixtureBuilder {
             inner: CommittedFixture::new(model),
         })
     }
-
 }
 
 impl Default for MemberFixtureBuilder {
@@ -231,5 +229,3 @@ impl Default for MemberFixtureBuilder {
         Self::new()
     }
 }
-
-

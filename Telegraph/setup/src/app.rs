@@ -8,9 +8,9 @@ use rustycog_http::{AppState, UserIdExtractor};
 use rustycog_permission::{
     CachedPermissionChecker, MetricsPermissionChecker, OpenFgaPermissionChecker, PermissionChecker,
 };
-use std::time::Duration;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 use telegraph_application::{
     command::TelegraphCommandRegistryFactory,
     usecase::{EventProcessingUseCase, NotificationUseCaseImpl},
@@ -71,8 +71,7 @@ impl TelegraphApp {
             .map_err(|e| anyhow::anyhow!("Failed to create email adapter: {}", e))?;
 
         info!("Email adapter created");
-        let email_service: Arc<EmailService> =
-            Arc::new(EmailService::new(Arc::new(email_adapter)));
+        let email_service: Arc<EmailService> = Arc::new(EmailService::new(Arc::new(email_adapter)));
         info!("Email service created");
 
         // Setup database connection pool
@@ -207,7 +206,9 @@ impl TelegraphApp {
     pub async fn run(&self, config: ServerConfig) -> Result<(), anyhow::Error> {
         let mut background_tasks = self.start_background_tasks();
         let Some(mut consumer_handle) = background_tasks.pop() else {
-            return Err(anyhow::anyhow!("Telegraph event consumer task was not started"));
+            return Err(anyhow::anyhow!(
+                "Telegraph event consumer task was not started"
+            ));
         };
 
         // Start axum server in a separate task

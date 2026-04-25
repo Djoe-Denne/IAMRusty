@@ -1,11 +1,11 @@
 pub mod builder;
-pub mod middleware_auth;
-pub mod middleware_permission;
-pub mod tracing_middleware;
-pub mod jwt_handler;
 pub mod error;
 pub mod extractors;
 pub mod jwt;
+pub mod jwt_handler;
+pub mod middleware_auth;
+pub mod middleware_permission;
+pub mod tracing_middleware;
 
 pub use builder::{serve_router, AppState, RouteBuilder};
 pub use error::{GenericHttpError, ValidationError};
@@ -13,7 +13,9 @@ pub use extractors::ValidatedJson;
 pub use jwt::TokenClaims;
 pub use jwt_handler::{UserIdExtractionHandler, UserIdExtractor};
 pub use middleware_auth::{auth_middleware, optional_auth_middleware, AuthUser, OptionalAuthUser};
-pub use tracing_middleware::{tracing_middleware, get_correlation_id, get_request_id, X_CORRELATION_ID, X_REQUEST_ID};
+pub use tracing_middleware::{
+    get_correlation_id, get_request_id, tracing_middleware, X_CORRELATION_ID, X_REQUEST_ID,
+};
 
 use axum::{
     http::StatusCode,

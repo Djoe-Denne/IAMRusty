@@ -5,13 +5,8 @@ use sea_orm::{ActiveModelTrait, DatabaseConnection, Set};
 use uuid::Uuid;
 
 use hive_infra::repository::entity::{
-    organization_member_role_permissions,
-    organization_members,
-    organizations,
-    permissions,
-    resources,
-    role_permissions,
-    external_providers,
+    external_providers, organization_member_role_permissions, organization_members, organizations,
+    permissions, resources, role_permissions,
 };
 
 /// Builder-style DB fixtures for Hive, mirroring the structure used in `IAMRusty/tests/fixtures/db`.
@@ -51,18 +46,20 @@ impl DbFixtures {
         db: &DatabaseConnection,
         owner_user_id: Uuid,
     ) -> anyhow::Result<organizations::Model> {
-        Self::create_org(db, owner_user_id, HashMap::from([(owner_user_id.to_string(), "owner".to_string())]))
-            .await
+        Self::create_org(
+            db,
+            owner_user_id,
+            HashMap::from([(owner_user_id.to_string(), "owner".to_string())]),
+        )
+        .await
     }
 
-    
     /// Convenience method to create minimal RBAC data for an organization and attach the owner as a member with all permissions.
     pub async fn create_org(
         db: &DatabaseConnection,
         owner_user_id: Uuid,
         user_rights: HashMap<String, String>,
     ) -> anyhow::Result<organizations::Model> {
-
         // Create organization
         let org = Self::organization()
             .owner_user_id(owner_user_id)
@@ -73,7 +70,7 @@ impl DbFixtures {
             .await?;
 
         let mut members: Vec<organization_members::Model> = Vec::new();
-        
+
         for (user_id, _perm) in &user_rights {
             let member = Self::organization_member()
                 .organization_id(org.id)
@@ -85,7 +82,7 @@ impl DbFixtures {
             members.push(member);
         }
 
-         // Create role-permissions chain for owner on organization resource and link to member
+        // Create role-permissions chain for owner on organization resource and link to member
         for perm in ["owner", "admin", "write", "read"] {
             let rp = Self::role_permission()
                 .organization_id(org.id)
@@ -97,7 +94,11 @@ impl DbFixtures {
                 .await?;
 
             for member in &members {
-                if user_rights.get(member.user_id.to_string().as_str()).unwrap() == perm {
+                if user_rights
+                    .get(member.user_id.to_string().as_str())
+                    .unwrap()
+                    == perm
+                {
                     let _ = Self::member_role_permission_link()
                         .member_id(member.id)
                         .role_permission_id(rp.id)
@@ -425,7 +426,10 @@ impl RolePermissionFixtureBuilder {
         self
     }
 
-    pub async fn commit(self, db: Arc<DatabaseConnection>) -> anyhow::Result<role_permissions::Model> {
+    pub async fn commit(
+        self,
+        db: Arc<DatabaseConnection>,
+    ) -> anyhow::Result<role_permissions::Model> {
         let model = role_permissions::ActiveModel {
             id: Set(self.id),
             name: Set(self.name),
@@ -478,7 +482,9 @@ impl MemberRolePermissionLinkBuilder {
         let model = organization_member_role_permissions::ActiveModel {
             id: Set(self.id),
             member_id: Set(self.member_id.expect("member_id is required")),
-            role_permission_id: Set(self.role_permission_id.expect("role_permission_id is required")),
+            role_permission_id: Set(self
+                .role_permission_id
+                .expect("role_permission_id is required")),
             created_at: Set(Utc::now()),
         }
         .insert(&*db)
@@ -531,7 +537,10 @@ impl ExternalProviderFixtureBuilder {
         self
     }
 
-    pub async fn commit(self, db: Arc<DatabaseConnection>) -> anyhow::Result<external_providers::Model> {
+    pub async fn commit(
+        self,
+        db: Arc<DatabaseConnection>,
+    ) -> anyhow::Result<external_providers::Model> {
         let model = external_providers::ActiveModel {
             id: Set(self.id),
             provider_type: Set(self.provider_source),

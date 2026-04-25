@@ -41,13 +41,19 @@ type = "sqs"
 enabled = false
 region = "us-east-1"
 account_id = "000000000000"
-default_queue = "test-user-events"
+default_queues = ["test-hive-default-events"]
 host = "localhost"
 port = 0
 access_key_id = "test"
 secret_access_key = "test"
 max_retries = 3
 timeout_seconds = 30
+
+[queue.queues]
+organization_created = ["test-sentinel-sync-events"]
+organization_updated = ["test-sentinel-sync-events"]
+member_joined = ["test-sentinel-sync-events"]
+member_removed = ["test-sentinel-sync-events"]
 
 [logging]
 level = "debug"

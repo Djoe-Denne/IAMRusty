@@ -1,16 +1,16 @@
 //! Database fixtures for Manifesto tests
 
-pub mod projects;
 pub mod components;
 pub mod members;
+pub mod projects;
 
 use sea_orm::{DatabaseConnection, DbErr};
 use std::sync::Arc;
 use uuid::Uuid;
 
-pub use projects::*;
 pub use components::*;
 pub use members::*;
+pub use projects::*;
 
 /// Main entry point for DB fixtures
 pub struct DbFixtures;
@@ -68,5 +68,3 @@ impl DbFixtures {
         Ok((project, member, component))
     }
 }
-
-

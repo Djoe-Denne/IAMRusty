@@ -28,7 +28,7 @@ type = "sqs"
 enabled = true
 region = "us-east-1"
 account_id = "000000000000"
-default_queue = "user-events"
+default_queues = ["telegraph-events"]
 host = "localstack"
 port = 4566
 access_key_id = "test"
@@ -37,18 +37,18 @@ max_retries = 3
 timeout_seconds = 30
 
 # Telegraph-specific queue → event routing
-[queues.test-user-events]
+[queues.telegraph-events]
 events = ["user_signed_up", "password_reset_requested", "user_email_verified"]
 
-[queues.test-user-events.user_signed_up]
+[queues.telegraph-events.user_signed_up]
 modes = ["email"]
 template = "user_signed_up"
 
-[queues.test-user-events.password_reset_requested]
+[queues.telegraph-events.password_reset_requested]
 modes = ["email"]
 template = "password_reset_requested"
 
-[queues.test-user-events.user_email_verified]
+[queues.telegraph-events.user_email_verified]
 modes = ["notification"]
 template = "user_email_verified"
 

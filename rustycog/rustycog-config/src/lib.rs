@@ -4,7 +4,7 @@
 //! across multiple services, including server, database, command retry, Kafka, and logging configuration.
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, OnceLock};
 use tracing::debug;
 
@@ -234,7 +234,6 @@ impl Default for JwtAuthConfig {
     }
 }
 
-
 /// Scaleway configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScalewayConfig {
@@ -322,7 +321,6 @@ impl Default for ScalewayLokiLoggingOutput {
         }
     }
 }
-
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LoggingConfig {
@@ -461,12 +459,12 @@ pub struct SqsConfig {
     /// AWS account ID (required for building queue URLs)
     #[serde(default = "default_sqs_account_id")]
     pub account_id: String,
-    /// Queue names for different event types (generic, not IAM-specific)
+    /// Destination queue names for different event types.
     #[serde(default = "default_sqs_queues")]
-    pub queues: HashMap<String, String>,
-    /// Default queue name to use when no specific queue is configured for an event type
-    #[serde(default = "default_sqs_default_queue")]
-    pub default_queue: String,
+    pub queues: HashMap<String, Vec<String>>,
+    /// Fallback destination queues when no specific queue is configured for an event type.
+    #[serde(default = "default_sqs_default_queues")]
+    pub default_queues: Vec<String>,
     /// AWS access key ID (optional, can use IAM roles or environment variables)
     #[serde(default)]
     pub access_key_id: Option<String>,
@@ -502,16 +500,26 @@ impl SqsConfig {
         queue_name.ends_with(".fifo")
     }
 
-    /// Get the queue name for a specific event type, falling back to default queue
-    pub fn get_queue_name(&self, event_type: &str) -> &str {
-        self.queues
+    /// Get destination queue names for a specific event type, falling back to default queues.
+    pub fn get_queue_names(&self, event_type: &str) -> Vec<&str> {
+        let queue_names = self
+            .queues
             .get(event_type)
-            .map(|s| s.as_str())
-            .unwrap_or(&self.default_queue)
+            .filter(|queues| !queues.is_empty())
+            .unwrap_or(&self.default_queues);
+
+        let mut seen = HashSet::new();
+        let mut result = Vec::new();
+        for queue_name in queue_names {
+            if seen.insert(queue_name.as_str()) {
+                result.push(queue_name.as_str());
+            }
+        }
+        result
     }
 
-    /// Build the full queue URL for a given queue name
-    pub fn build_queue_url(&self, queue_name: &str) -> String {
+    /// Build the full queue URL for a given queue name.
+    pub fn queue_url(&self, queue_name: &str) -> String {
         if self.host == "localhost" || self.host == "localstack" {
             // For LocalStack or custom endpoint
             format!(
@@ -529,15 +537,37 @@ impl SqsConfig {
         }
     }
 
-    /// Get the full queue URL for a specific event type
-    pub fn get_queue_url(&self, event_type: &str) -> String {
-        let queue_name = self.get_queue_name(event_type);
-        self.build_queue_url(queue_name)
+    /// Get all destination queue URLs for a specific event type.
+    pub fn get_queue_urls(&self, event_type: &str) -> Vec<String> {
+        self.get_queue_names(event_type)
+            .into_iter()
+            .map(|queue_name| self.queue_url(queue_name))
+            .collect()
     }
 
-    /// Get the default queue URL (for backward compatibility)
-    pub fn default_queue_url(&self) -> String {
-        self.build_queue_url(&self.default_queue)
+    /// Get every configured physical queue name.
+    pub fn all_queue_names(&self) -> HashSet<String> {
+        let mut all_queues = HashSet::new();
+
+        for queue_name in &self.default_queues {
+            all_queues.insert(queue_name.clone());
+        }
+
+        for queue_names in self.queues.values() {
+            for queue_name in queue_names {
+                all_queues.insert(queue_name.clone());
+            }
+        }
+
+        all_queues
+    }
+
+    /// Get every configured physical queue URL.
+    pub fn all_queue_urls(&self) -> Vec<String> {
+        self.all_queue_names()
+            .into_iter()
+            .map(|queue_name| self.queue_url(&queue_name))
+            .collect()
     }
 
     /// Get a random available port
@@ -606,14 +636,14 @@ impl SqsConfig {
     pub fn new(
         region: String,
         account_id: String,
-        queues: HashMap<String, String>,
-        default_queue: String,
+        queues: HashMap<String, Vec<String>>,
+        default_queues: Vec<String>,
     ) -> Self {
         Self {
             region,
             account_id,
             queues,
-            default_queue,
+            default_queues,
             access_key_id: None,
             secret_access_key: None,
             session_token: None,
@@ -643,7 +673,7 @@ impl Default for SqsConfig {
             region: default_sqs_region(),
             account_id: default_sqs_account_id(),
             queues: default_sqs_queues(),
-            default_queue: default_sqs_default_queue(),
+            default_queues: default_sqs_default_queues(),
             access_key_id: None,
             secret_access_key: None,
             session_token: None,
@@ -666,12 +696,12 @@ fn default_sqs_account_id() -> String {
     "123456789012".to_string()
 }
 
-fn default_sqs_queues() -> HashMap<String, String> {
+fn default_sqs_queues() -> HashMap<String, Vec<String>> {
     HashMap::new()
 }
 
-fn default_sqs_default_queue() -> String {
-    "user-events".to_string()
+fn default_sqs_default_queues() -> Vec<String> {
+    vec!["user-events".to_string()]
 }
 
 fn default_sqs_host() -> String {
@@ -1352,4 +1382,105 @@ where
     let default_config = T::create_default();
     toml::to_string_pretty(&default_config)
         .map_err(|e| ConfigError::Message(format!("Failed to serialize default config: {}", e)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SqsConfig;
+    use std::collections::HashMap;
+
+    #[test]
+    fn sqs_config_returns_event_specific_destination_queues() {
+        let mut config = SqsConfig::default();
+        config.queues.insert(
+            "user_signed_up".to_string(),
+            vec!["telegraph-events".to_string()],
+        );
+
+        assert_eq!(
+            config.get_queue_names("user_signed_up"),
+            vec!["telegraph-events"]
+        );
+    }
+
+    #[test]
+    fn sqs_config_falls_back_to_default_destination_queues() {
+        let config = SqsConfig {
+            default_queues: vec![
+                "telegraph-events".to_string(),
+                "sentinel-sync-events".to_string(),
+            ],
+            ..SqsConfig::default()
+        };
+
+        assert_eq!(
+            config.get_queue_names("unknown_event"),
+            vec!["telegraph-events", "sentinel-sync-events"]
+        );
+    }
+
+    #[test]
+    fn sqs_config_deduplicates_event_destinations_preserving_order() {
+        let mut queues = HashMap::new();
+        queues.insert(
+            "user_signed_up".to_string(),
+            vec![
+                "telegraph-events".to_string(),
+                "telegraph-events".to_string(),
+                "sentinel-sync-events".to_string(),
+            ],
+        );
+
+        let config = SqsConfig {
+            queues,
+            ..SqsConfig::default()
+        };
+
+        assert_eq!(
+            config.get_queue_names("user_signed_up"),
+            vec!["telegraph-events", "sentinel-sync-events"]
+        );
+    }
+
+    #[test]
+    fn sqs_config_all_queue_names_includes_defaults_and_event_destinations() {
+        let mut queues = HashMap::new();
+        queues.insert(
+            "user_signed_up".to_string(),
+            vec![
+                "telegraph-events".to_string(),
+                "sentinel-sync-events".to_string(),
+            ],
+        );
+        queues.insert(
+            "password_reset_requested".to_string(),
+            vec!["telegraph-events".to_string()],
+        );
+
+        let config = SqsConfig {
+            queues,
+            default_queues: vec!["fallback-events".to_string()],
+            ..SqsConfig::default()
+        };
+
+        let all_queue_names = config.all_queue_names();
+        assert!(all_queue_names.contains("fallback-events"));
+        assert!(all_queue_names.contains("telegraph-events"));
+        assert!(all_queue_names.contains("sentinel-sync-events"));
+        assert_eq!(all_queue_names.len(), 3);
+    }
+
+    #[test]
+    fn sqs_config_builds_queue_urls_from_queue_names() {
+        let config = SqsConfig {
+            host: "localhost".to_string(),
+            port: 4566,
+            ..SqsConfig::default()
+        };
+
+        assert_eq!(
+            config.queue_url("telegraph-events"),
+            "http://localhost:4566/000000000000/telegraph-events"
+        );
+    }
 }

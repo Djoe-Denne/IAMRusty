@@ -15,7 +15,7 @@ provenance:
   inferred: 0.16
   ambiguous: 0.00
 created: 2026-04-14T16:54:59.5971424Z
-updated: 2026-04-25T10:04:00Z
+updated: 2026-04-25T11:42:00Z
 ---
 
 # AIForAll
@@ -34,6 +34,10 @@ AIForAll is a Rust-based microservices workspace centered on `<!-- [[projects/ia
 
 - **Microservices:** `iam-service`, `telegraph-service`, `hive-service`, and `manifesto-service` remain independently runnable packages.
 - **Modular monolith:** `[[projects/aiforall/references/modular-monolith-runtime]]` documents the `oodhive-monolith` package, which composes IAMRusty, Telegraph, Hive, and Manifesto routers at `/iam`, `/telegraph`, `/hive`, and `/manifesto` while keeping SQS/event semantics unchanged.
+
+## Roadmap
+
+- [[projects/aiforall/roadmap]] captures the near-term platform focus: Sentinel Sync service tests, transactional DB load verification, and the RustyCog Events outbox pattern.
 
 ## Open Questions
 
