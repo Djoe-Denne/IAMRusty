@@ -3,9 +3,9 @@
 //! This crate provides the HTTP interface for the application,
 //! implementing the OpenAPI specification.
 
+use axum::Router;
 use iam_configuration::ServerConfig;
 use rustycog_http::{AppState, RouteBuilder};
-use std::sync::Arc;
 
 pub mod error;
 pub mod handlers;
@@ -28,8 +28,10 @@ pub use handlers::{
     user::get_user,
 };
 
+pub const SERVICE_PREFIX: &str = "/iam";
+
 /// Create the application routes using the fluent builder API
-pub async fn create_app_routes(state: AppState, config: ServerConfig) -> anyhow::Result<()> {
+pub fn create_router(state: AppState) -> Router {
     RouteBuilder::new(state.clone())
         .health_check()
         // Public authentication routes
@@ -72,6 +74,15 @@ pub async fn create_app_routes(state: AppState, config: ServerConfig) -> anyhow:
             relink_provider_callback,
         )
         .authenticated()
-        .build(config)
-        .await
+        .into_router()
+}
+
+/// Create the IAM router under its bounded-context prefix.
+pub fn create_prefixed_router(state: AppState) -> Router {
+    Router::new().nest(SERVICE_PREFIX, create_router(state))
+}
+
+/// Create and start the application routes using the fluent builder API.
+pub async fn create_app_routes(state: AppState, config: ServerConfig) -> anyhow::Result<()> {
+    rustycog_http::serve_router(create_prefixed_router(state), config).await
 }

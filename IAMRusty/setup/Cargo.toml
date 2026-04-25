@@ -16,6 +16,7 @@ rustycog-permission = { path = "../../rustycog/rustycog-permission" }
 
 # External dependencies
 anyhow = "1.0.82"
+axum = { workspace = true }
 chrono = "0.4"
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter", "fmt", "json"] }

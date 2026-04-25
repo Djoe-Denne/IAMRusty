@@ -2,6 +2,13 @@
 title: Skills Index
 category: navigation
 tags: [index, skills, navigation]
+summary: >-
+  Top-level entry point for portable RustyCog skills plus project-owned workflow indexes, including AIForAll runtime-mode operations.
+provenance:
+  extracted: 0.9
+  inferred: 0.08
+  ambiguous: 0.02
+updated: 2026-04-25T10:10:00Z
 ---
 
 # Skills Index
@@ -32,6 +39,7 @@ Server and meta packaging guidance now live directly in:
 
 ## Project Skills
 
+- AIForAll: [[projects/aiforall/skills/index]]
 - IAMRusty: <!-- [[projects/iamrusty/skills/index]] -->
 - Hive: <!-- [[projects/hive/skills/index]] -->
 - Telegraph: <!-- [[projects/telegraph/skills/index]] -->

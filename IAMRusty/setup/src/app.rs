@@ -1,10 +1,11 @@
 use anyhow::Result;
+use axum::Router;
 use chrono::Duration;
 use std::sync::Arc;
 use tracing::info;
 
 use iam_configuration::ServerConfig as HttpServerConfig;
-use iam_http_server::create_app_routes;
+use iam_http_server::{create_app_routes, create_router};
 use iam_infra::{
     auth::{
         GitHubOAuth2Client, GitLabOAuth2Client, PasswordResetServiceAdapter, PasswordService,
@@ -60,6 +61,14 @@ pub struct IAMRustyApp {
 impl IAMRustyApp {
     pub fn new(app_state: AppState) -> Self {
         Self { app_state }
+    }
+
+    pub fn router(&self) -> Router {
+        create_router(self.app_state.clone())
+    }
+
+    pub fn state(&self) -> AppState {
+        self.app_state.clone()
     }
 }
 

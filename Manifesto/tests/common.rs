@@ -31,6 +31,7 @@ use manifesto_migration::{Migrator, MigratorTrait};
 // Manifesto imports
 use async_trait::async_trait;
 use manifesto_configuration::ManifestoConfig;
+use manifesto_http_server::SERVICE_PREFIX;
 use manifesto_setup::build_and_run;
 use reqwest::Client;
 use rustycog_config::ServerConfig;
@@ -132,5 +133,9 @@ pub async fn setup_test_server() -> Result<
     let (server_url, client) =
         rustycog_testing::setup_test_server::<ManifestoTestDescriptor, TestFixture>(descriptor)
             .await?;
-    Ok((fixture, server_url, client, openfga, components))
+    Ok((fixture, prefixed_url(server_url), client, openfga, components))
+}
+
+fn prefixed_url(server_url: String) -> String {
+    format!("{server_url}{SERVICE_PREFIX}")
 }

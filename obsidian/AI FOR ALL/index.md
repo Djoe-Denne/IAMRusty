@@ -8,7 +8,7 @@ provenance:
   extracted: 0.9
   inferred: 0.08
   ambiguous: 0.02
-updated: 2026-04-24T19:05:00Z
+updated: 2026-04-25T10:04:00Z
 ---
 
 # Wiki Index
@@ -20,7 +20,7 @@ Central entry point for this vault. Use the area indexes for full catalogs; use 
 - [[projects/index]] — service hubs and project knowledge areas
 - [[concepts/index]] — shared concepts plus pointers into project concept indexes
 - [[entities/index]] — core business nouns plus per-service entity inventories
-- <!-- [[skills/index]] --> — portable skills plus pointers into project skill indexes
+- [[skills/index]] — portable skills plus pointers into project skill indexes
 - [[references/index]] — platform references plus pointers into project reference indexes
 
 ## Project homes
@@ -36,4 +36,6 @@ Central entry point for this vault. Use the area indexes for full catalogs; use 
 
 ## Recent Additions
 
+- [[projects/aiforall/skills/running-aiforall-runtime-modes]] — operational workflow for microservice and `oodhive-monolith` runtime modes.
+- [[projects/aiforall/references/modular-monolith-runtime]] — dual runtime mode for AIForAll: standalone microservices plus the `oodhive-monolith` modular monolith.
 - [[projects/rustycog/references/openfga-real-testcontainer-fixture]] — real OpenFGA testcontainer fixture, random-port config contract, and migration notes from the old wiremock fake.

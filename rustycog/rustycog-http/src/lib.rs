@@ -7,7 +7,7 @@ pub mod error;
 pub mod extractors;
 pub mod jwt;
 
-pub use builder::{AppState, RouteBuilder};
+pub use builder::{serve_router, AppState, RouteBuilder};
 pub use error::{GenericHttpError, ValidationError};
 pub use extractors::ValidatedJson;
 pub use jwt::TokenClaims;

@@ -11,6 +11,7 @@ use rustycog_testing::*;
 use std::sync::Arc;
 
 use hive_configuration::AppConfig;
+use hive_http::SERVICE_PREFIX;
 use hive_setup::app::AppBuilder;
 use hive_migration::{Migrator, MigratorTrait};
 use anyhow::anyhow;
@@ -137,5 +138,9 @@ pub async fn setup_test_server(
 
     let (server_url, client) = rustycog_testing::setup_test_server::<HiveTestDescriptor, HiveTestFixture>(descriptor).await?;
 
-    Ok((fixture, server_url, client, openfga))
+    Ok((fixture, prefixed_url(server_url), client, openfga))
+}
+
+fn prefixed_url(server_url: String) -> String {
+    format!("{server_url}{SERVICE_PREFIX}")
 }

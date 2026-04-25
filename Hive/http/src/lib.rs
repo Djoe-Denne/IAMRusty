@@ -1,3 +1,4 @@
+use axum::Router;
 use hive_configuration::ServerConfig;
 use rustycog_http::{AppState, RouteBuilder};
 use rustycog_permission::Permission;
@@ -10,6 +11,8 @@ pub use error::HttpError;
 pub use handlers::*;
 pub use validation::{validate_pagination, validate_query_params, ValidatedJson};
 
+pub const SERVICE_PREFIX: &str = "/hive";
+
 /// Create the application routes using the fluent builder API
 ///
 /// All authorization goes through `AppState.permission_checker` (set up in
@@ -17,7 +20,7 @@ pub use validation::{validate_pagination, validate_query_params, ValidatedJson};
 /// route declares the OpenFGA object type the deepest UUID path segment maps
 /// onto (`"organization"` for every current Hive route — members and external
 /// links are modeled as derived relations on the parent organization).
-pub async fn create_app_routes(state: AppState, config: ServerConfig) -> anyhow::Result<()> {
+pub fn create_router(state: AppState) -> Router {
     RouteBuilder::new(state)
         .health_check()
         // Public organization routes (with optional auth)
@@ -68,6 +71,15 @@ pub async fn create_app_routes(state: AppState, config: ServerConfig) -> anyhow:
         .post("/api/organizations/{organization_id}/external-links", create_external_link)
             .authenticated()
             .with_permission_on(Permission::Admin, "organization")
-        .build(config)
-        .await
+        .into_router()
+}
+
+/// Create the Hive router under its bounded-context prefix.
+pub fn create_prefixed_router(state: AppState) -> Router {
+    Router::new().nest(SERVICE_PREFIX, create_router(state))
+}
+
+/// Create and start the application routes using the fluent builder API.
+pub async fn create_app_routes(state: AppState, config: ServerConfig) -> anyhow::Result<()> {
+    rustycog_http::serve_router(create_prefixed_router(state), config).await
 }

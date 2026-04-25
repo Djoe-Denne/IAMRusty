@@ -9,6 +9,7 @@ use iammigration::{Migrator, MigratorTrait};
 use async_trait::async_trait;
 use iam_configuration::{AppConfig, ServerConfig};
 use iam_domain::error::DomainError;
+use iam_http_server::SERVICE_PREFIX;
 use iam_infra::event_adapter::IAMErrorMapper;
 use iam_setup::app::build_and_run;
 use reqwest::Client;
@@ -69,7 +70,7 @@ pub async fn setup_test_server() -> Result<(TestFixture, String, Client), Box<dy
     let (server_url, client) =
         rustycog_testing::setup_test_server::<IAMRustyTestDescriptor, TestFixture>(descriptor)
             .await?;
-    Ok((fixture, server_url, client))
+    Ok((fixture, prefixed_url(server_url), client))
 }
 
 impl IAMRustyTestDescriptorWithMockEvents {
@@ -146,5 +147,9 @@ pub async fn setup_test_server_with_mock_events(
         TestFixture,
     >(descriptor)
     .await?;
-    Ok((fixture, base_url, client, mock_event_publisher))
+    Ok((fixture, prefixed_url(base_url), client, mock_event_publisher))
+}
+
+fn prefixed_url(server_url: String) -> String {
+    format!("{server_url}{SERVICE_PREFIX}")
 }

@@ -1,5 +1,6 @@
 //! Application setup for Telegraph
 
+use axum::Router;
 use rustycog_command::GenericCommandService;
 use rustycog_config::ServerConfig;
 use rustycog_db::DbConnectionPool;
@@ -19,7 +20,7 @@ use telegraph_domain::{
     service::NotificationServiceImpl, CommunicationFactory, EmailService, EventExtractor,
     EventProcessor, TemplateService,
 };
-use telegraph_http_server::create_app_routes;
+use telegraph_http_server::{create_app_routes, create_router};
 use telegraph_infra::{
     communication::EmailAdapter,
     event::processors::{CompositeEventProcessor, EventHandlerConfig},
@@ -204,22 +205,14 @@ impl TelegraphApp {
 
     /// Start the Telegraph service
     pub async fn run(&self, config: ServerConfig) -> Result<(), anyhow::Error> {
-        // Start event consumer in a separate task
-        info!("Starting event consumer in parallel task");
-        let consumer_handle = {
-            let event_consumer = self.event_consumer.clone();
-            tokio::spawn(async move {
-                if let Err(e) = event_consumer.start().await {
-                    error!("Event consumer failed: {}", e);
-                    return Err(e);
-                }
-                Ok(())
-            })
+        let mut background_tasks = self.start_background_tasks();
+        let Some(mut consumer_handle) = background_tasks.pop() else {
+            return Err(anyhow::anyhow!("Telegraph event consumer task was not started"));
         };
 
         // Start axum server in a separate task
         info!("Starting HTTP server in parallel task");
-        let server_handle = {
+        let mut server_handle = {
             let state = self.state.clone();
             let config = config.clone();
             tokio::spawn(async move {
@@ -236,49 +229,78 @@ impl TelegraphApp {
         );
 
         // Wait for shutdown signal or any service to complete/fail
-        tokio::select! {
+        let shutdown_result: Result<(), anyhow::Error> = tokio::select! {
             _ = tokio::signal::ctrl_c() => {
                 info!("Shutdown signal received, stopping Telegraph service");
+                Ok(())
             }
-            result = consumer_handle => {
+            result = &mut consumer_handle => {
                 match result {
                     Ok(Ok(())) => {
                         info!("Event consumer completed successfully");
+                        Ok(())
                     }
                     Ok(Err(e)) => {
                         error!("Event consumer failed: {}", e);
-                        return Err(anyhow::anyhow!("Event consumer failed: {}", e));
+                        Err(anyhow::anyhow!("Event consumer failed: {}", e))
                     }
                     Err(e) => {
                         error!("Event consumer task panicked: {}", e);
-                        return Err(anyhow::anyhow!("Event consumer task panicked: {}", e));
+                        Err(anyhow::anyhow!("Event consumer task panicked: {}", e))
                     }
                 }
             }
-            result = server_handle => {
+            result = &mut server_handle => {
                 match result {
                     Ok(Ok(())) => {
                         info!("HTTP server completed successfully");
+                        Ok(())
                     }
                     Ok(Err(e)) => {
                         error!("HTTP server failed: {}", e);
-                        return Err(anyhow::anyhow!("HTTP server failed: {}", e));
+                        Err(anyhow::anyhow!("HTTP server failed: {}", e))
                     }
                     Err(e) => {
                         error!("HTTP server task panicked: {}", e);
-                        return Err(anyhow::anyhow!("HTTP server task panicked: {}", e));
+                        Err(anyhow::anyhow!("HTTP server task panicked: {}", e))
                     }
                 }
             }
-        }
+        };
 
         // Stop event consumer gracefully
-        if let Err(e) = self.event_consumer.stop().await {
-            error!("Failed to stop event consumer: {}", e);
+        self.stop_background_tasks().await;
+        if !consumer_handle.is_finished() {
+            consumer_handle.abort();
+        }
+        if !server_handle.is_finished() {
+            server_handle.abort();
         }
 
         info!("Telegraph service shut down complete");
-        Ok(())
+        shutdown_result
+    }
+
+    pub fn router(&self) -> Router {
+        create_router(self.state.clone())
+    }
+
+    pub fn start_background_tasks(&self) -> Vec<tokio::task::JoinHandle<anyhow::Result<()>>> {
+        info!("Starting event consumer in parallel task");
+        let event_consumer = self.event_consumer.clone();
+
+        vec![tokio::spawn(async move {
+            event_consumer
+                .start()
+                .await
+                .map_err(|e| anyhow::anyhow!("Telegraph event consumer failed: {}", e))
+        })]
+    }
+
+    pub async fn stop_background_tasks(&self) {
+        if let Err(e) = self.event_consumer.stop().await {
+            error!("Failed to stop event consumer: {}", e);
+        }
     }
 }
 

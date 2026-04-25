@@ -1,0 +1,34 @@
+[package]
+name = "oodhive-monolith"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Single-binary modular monolith for AIForAll services"
+license.workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+axum = { workspace = true }
+futures = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+rustycog-config = { path = "../rustycog/rustycog-config" }
+rustycog-http = { path = "../rustycog/rustycog-http" }
+
+iam-configuration = { path = "../IAMRusty/configuration" }
+iam-http_server = { path = "../IAMRusty/http" }
+iam-setup = { path = "../IAMRusty/setup" }
+
+telegraph-configuration = { path = "../Telegraph/configuration" }
+telegraph-http_server = { path = "../Telegraph/http" }
+telegraph-setup = { path = "../Telegraph/setup" }
+
+hive-configuration = { path = "../Hive/configuration" }
+hive-http = { path = "../Hive/http" }
+hive-setup = { path = "../Hive/setup" }
+
+manifesto-configuration = { path = "../Manifesto/configuration" }
+manifesto-http_server = { path = "../Manifesto/http" }
+manifesto-setup = { path = "../Manifesto/setup" }

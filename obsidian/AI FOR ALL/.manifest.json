@@ -1,8 +1,8 @@
 {
   "version": 1,
   "stats": {
-    "total_sources_ingested": 182,
-    "total_pages": 122
+    "total_sources_ingested": 186,
+    "total_pages": 125
   },
   "sources": {
     "IAMRusty/README.md": {
@@ -2932,6 +2932,66 @@
         "projects/rustycog/references/index.md",
         "projects/rustycog/references/openfga-mock-service.md",
         "index.md"
+      ]
+    },
+    "cursor-conversation/modular-monolith-runtime-2026-04-25": {
+      "ingested_at": "2026-04-25T10:04:00Z",
+      "size_bytes": 0,
+      "modified_at": "2026-04-25T10:04:00Z",
+      "content_hash": "conversation:modular-monolith-runtime-2026-04-25",
+      "source_type": "conversation",
+      "project": "aiforall",
+      "pages_created": [
+        "projects/aiforall/references/modular-monolith-runtime.md"
+      ],
+      "pages_updated": [
+        "projects/aiforall/aiforall.md",
+        "references/aiforall-platform.md",
+        "projects/rustycog/references/rustycog-http.md",
+        "projects/index.md",
+        "index.md"
+      ]
+    },
+    "cursor-conversation/runtime-mode-skill-section-2026-04-25": {
+      "ingested_at": "2026-04-25T10:10:00Z",
+      "size_bytes": 0,
+      "modified_at": "2026-04-25T10:10:00Z",
+      "content_hash": "conversation:runtime-mode-skill-section-2026-04-25",
+      "source_type": "conversation",
+      "project": "aiforall",
+      "pages_created": [
+        "projects/aiforall/skills/index.md",
+        "projects/aiforall/skills/running-aiforall-runtime-modes.md"
+      ],
+      "pages_updated": [
+        "skills/index.md",
+        "projects/index.md",
+        "projects/aiforall/references/modular-monolith-runtime.md",
+        "index.md"
+      ]
+    },
+    "cursor-conversation/building-rustycog-services-runtime-modes-2026-04-25": {
+      "ingested_at": "2026-04-25T10:11:00Z",
+      "size_bytes": 0,
+      "modified_at": "2026-04-25T10:11:00Z",
+      "content_hash": "conversation:building-rustycog-services-runtime-modes-2026-04-25",
+      "source_type": "conversation",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": [
+        "skills/building-rustycog-services.md"
+      ]
+    },
+    "cursor-conversation/integration-test-prefix-guidance-2026-04-25": {
+      "ingested_at": "2026-04-25T10:13:00Z",
+      "size_bytes": 0,
+      "modified_at": "2026-04-25T10:13:00Z",
+      "content_hash": "conversation:integration-test-prefix-guidance-2026-04-25",
+      "source_type": "conversation",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": [
+        "skills/using-rustycog-testing.md"
       ]
     }
   }

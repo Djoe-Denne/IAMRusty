@@ -1,3 +1,4 @@
+use axum::Router;
 use rustycog_config::ServerConfig;
 use rustycog_http::{AppState, RouteBuilder};
 use rustycog_permission::Permission;
@@ -8,6 +9,8 @@ pub mod handlers;
 pub use error::HttpError;
 pub use handlers::*;
 
+pub const SERVICE_PREFIX: &str = "/manifesto";
+
 /// Create the application routes using the fluent builder API.
 ///
 /// Every guarded route delegates to the centralized `PermissionChecker`
@@ -15,10 +18,7 @@ pub use handlers::*;
 /// the `"project"` object type; component-scoped routes use `"component"`.
 /// Members, permission grants, and archives all collapse to project-level
 /// relations.
-pub async fn create_app_routes(
-    state: AppState,
-    config: ServerConfig,
-) -> anyhow::Result<()> {
+pub fn create_router(state: AppState) -> Router {
     RouteBuilder::new(state)
         .health_check()
         // Project routes
@@ -121,6 +121,18 @@ pub async fn create_app_routes(
         )
         .authenticated()
         .with_permission_on(Permission::Admin, "project")
-        .build(config)
-        .await
+        .into_router()
+}
+
+/// Create the Manifesto router under its bounded-context prefix.
+pub fn create_prefixed_router(state: AppState) -> Router {
+    Router::new().nest(SERVICE_PREFIX, create_router(state))
+}
+
+/// Create and start the application routes using the fluent builder API.
+pub async fn create_app_routes(
+    state: AppState,
+    config: ServerConfig,
+) -> anyhow::Result<()> {
+    rustycog_http::serve_router(create_prefixed_router(state), config).await
 }

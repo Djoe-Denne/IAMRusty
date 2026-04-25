@@ -5,18 +5,19 @@ tags: [reference, rustycog, http, visibility/internal]
 sources:
   - rustycog/rustycog-http/src/lib.rs
   - rustycog/rustycog-http/src/builder.rs
+  - monolith/src/runtime.rs
   - rustycog/rustycog-http/src/error.rs
   - rustycog/rustycog-http/src/extractors.rs
   - rustycog/rustycog-http/src/middleware_permission.rs
   - rustycog/rustycog-http/src/tracing_middleware.rs
   - rustycog/rustycog-http/src/jwt_handler.rs
-summary: rustycog-http provides the Axum service shell, including TLS/HTTP startup branching, RouteBuilder auth wiring, a centralized permission guard backed by an Arc<dyn PermissionChecker>, validated JSON extraction, and tracing/error helpers.
+summary: rustycog-http provides the Axum service shell, including router creation, reusable serving, auth wiring, centralized permission guards, validation, and tracing/error helpers.
 provenance:
-  extracted: 0.93
-  inferred: 0.04
+  extracted: 0.91
+  inferred: 0.06
   ambiguous: 0.03
 created: 2026-04-15
-updated: 2026-04-20
+updated: 2026-04-25T10:04:00Z
 ---
 
 # RustyCog HTTP
@@ -27,7 +28,9 @@ updated: 2026-04-20
 
 - `AppState` carries three shared handles: the `GenericCommandService`, a `UserIdExtractor`, and an `Arc<dyn PermissionChecker>` built once in the composition root and reused for every request.
 - `RouteBuilder` gives a fluent setup API for routes, auth mode (`authenticated` / `might_be_authenticated`), a single permission guard method, middleware, and `/health`.
-- `RouteBuilder::build()` chooses HTTPS (`axum_server` + rustls) when `ServerConfig.tls_enabled`, otherwise plain HTTP.
+- `RouteBuilder::into_router()` finalizes routes into an Axum router without binding a port, which allows service routers to be nested inside `[[projects/aiforall/references/modular-monolith-runtime]]`.
+- `serve_router(router, ServerConfig)` chooses HTTPS (`axum_server` + rustls) when `ServerConfig.tls_enabled`, otherwise plain HTTP.
+- `RouteBuilder::build()` remains the standalone-service compatibility API and delegates to `into_router()` plus `serve_router()`.
 - `ValidatedJson<T>` enforces body validation through the `validator` crate.
 - Tracing middleware standardizes `x-correlation-id` and `x-request-id` propagation.
 
@@ -74,6 +77,7 @@ RouteBuilder::new(state)
 
 - [[projects/rustycog/references/rustycog-permission]]
 - [[projects/sentinel-sync/sentinel-sync]]
+- [[projects/aiforall/references/modular-monolith-runtime]]
 - [[concepts/openfga-as-authorization-engine]]
 
 ## Sources

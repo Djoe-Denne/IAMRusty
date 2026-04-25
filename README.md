@@ -78,6 +78,40 @@ cd Telegraph
 cargo run
 ```
 
+Standalone service binaries use the same bounded-context URL prefixes as the
+monolith: IAMRusty routes are under `/iam`, Telegraph under `/telegraph`, Hive
+under `/hive`, and Manifesto under `/manifesto`.
+
+### Modular Monolith Development
+
+The Rust services can also be built into one modular monolith binary with a
+single HTTP listener and nested service routes:
+
+```bash
+cargo build -p oodhive-monolith
+cargo run -p oodhive-monolith
+```
+
+The monolith exposes top-level health at `/health` and service routers under
+their bounded-context prefixes:
+
+```bash
+curl http://localhost:8080/health
+curl http://localhost:8080/iam/health
+curl http://localhost:8080/telegraph/health
+curl http://localhost:8080/hive/health
+curl http://localhost:8080/manifesto/health
+```
+
+Representative nested routes:
+
+```bash
+curl http://localhost:8080/iam/.well-known/jwks.json
+curl http://localhost:8080/hive/api/organizations/search
+curl http://localhost:8080/manifesto/api/projects
+curl http://localhost:8080/telegraph/api/notifications
+```
+
 ### Testing
 
 Integration tests can be run against the running services:
@@ -102,5 +136,5 @@ cargo test
 
 - Health checks are configured for all services
 - LocalStack dashboard: http://localhost:4566/_localstack/health
-- IAMRusty API: http://localhost:8080/health (when implemented)
-- Telegraph API: http://localhost:8081/health (when implemented) 
+- IAMRusty API: http://localhost:8080/iam/health
+- Telegraph API: http://localhost:8081/telegraph/health

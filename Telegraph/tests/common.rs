@@ -13,6 +13,7 @@ use rustycog_testing::*;
 use std::sync::Arc;
 use std::sync::OnceLock;
 use telegraph_configuration::{load_config, setup_logging, TelegraphConfig};
+use telegraph_http_server::SERVICE_PREFIX;
 use telegraph_setup::app::{AppBuilder, TelegraphApp};
 use telegraphmigration::{Migrator, MigratorTrait};
 
@@ -173,5 +174,9 @@ pub async fn setup_test_server(
     >(descriptor)
     .await?;
 
-    Ok((fixture, server_url, client, openfga))
+    Ok((fixture, prefixed_url(server_url), client, openfga))
+}
+
+fn prefixed_url(server_url: String) -> String {
+    format!("{server_url}{SERVICE_PREFIX}")
 }

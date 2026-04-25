@@ -3254,6 +3254,7 @@ name = "iam-setup"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "axum 0.8.4",
  "base64 0.22.1",
  "chrono",
  "iam-application",
@@ -4301,6 +4302,32 @@ name = "once_cell_polyfill"
 version = "1.70.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a4895175b425cb1f87721b59f0f286c2092bd4af812243672510e1ac53e2e0ad"
+
+[[package]]
+name = "oodhive-monolith"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum 0.8.4",
+ "futures",
+ "hive-configuration",
+ "hive-http",
+ "hive-setup",
+ "iam-configuration",
+ "iam-http_server",
+ "iam-setup",
+ "manifesto-configuration",
+ "manifesto-http_server",
+ "manifesto-setup",
+ "rustycog-config",
+ "rustycog-http",
+ "telegraph-configuration",
+ "telegraph-http_server",
+ "telegraph-setup",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
 
 [[package]]
 name = "openidconnect"
@@ -7105,6 +7132,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "axum 0.8.4",
  "rustycog-command",
  "rustycog-config",
  "rustycog-core",

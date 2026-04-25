@@ -27,6 +27,7 @@ rustycog-core = { path = "../../rustycog/rustycog-core" }
 rustycog-db = { path = "../../rustycog/rustycog-db" }
 
 # HTTP and server
+axum = { workspace = true }
 rustycog-http = { path = "../../rustycog/rustycog-http" }
 rustycog-server = { path = "../../rustycog/rustycog-server" }
 

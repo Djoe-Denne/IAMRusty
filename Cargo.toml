@@ -24,6 +24,8 @@ members = [
     "Hive",
     # Manifesto service
     "Manifesto",
+    # Modular monolith binary
+    "monolith",
 
     # Sentinel authorization sync worker
     "sentinel-sync",

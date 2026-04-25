@@ -171,46 +171,57 @@ impl RouteBuilder {
     }
 
     /// Build the final router with panic handling
-    pub async fn build(mut self, config: ServerConfig) -> anyhow::Result<()>
+    pub fn into_router(mut self) -> Router
     where
         AppState: Clone + Send + Sync + 'static,
     {
         // Push any pending route being built
         self.push_current();
 
-        let app = self
+        self
             .router
             .layer(CatchPanicLayer::custom(handle_panic))
             .layer(PropagateHeaderLayer::new(X_CORRELATION_ID.parse().unwrap()))
             .layer(middleware::from_fn(tracing_middleware))
-            .with_state(self.state);
-
-        if config.tls_enabled {
-            tracing::info!(
-                "Starting HTTPS server on {}:{}",
-                config.host,
-                config.tls_port
-            );
-
-            let tls_config = axum_server::tls_rustls::RustlsConfig::from_pem_file(
-                config.tls_cert_path,
-                config.tls_key_path,
-            )
-            .await?;
-            let addr: SocketAddr = format!("{}:{}", config.host, config.tls_port).parse()?;
-
-            axum_server::bind_rustls(addr, tls_config)
-                .serve(app.into_make_service())
-                .await?;
-        } else {
-            tracing::info!("Starting HTTP server on {}:{}", config.host, config.port);
-            let addr: SocketAddr = format!("{}:{}", config.host, config.port).parse()?;
-            let listener = tokio::net::TcpListener::bind(addr).await?;
-            axum::serve(listener, app).await?;
-        }
-
-        Ok(())
+            .with_state(self.state)
     }
+
+    /// Build and serve the final router.
+    pub async fn build(self, config: ServerConfig) -> anyhow::Result<()>
+    where
+        AppState: Clone + Send + Sync + 'static,
+    {
+        serve_router(self.into_router(), config).await
+    }
+}
+
+/// Serve an already-built Axum router using the configured HTTP/TLS listener.
+pub async fn serve_router(app: Router, config: ServerConfig) -> anyhow::Result<()> {
+    if config.tls_enabled {
+        tracing::info!(
+            "Starting HTTPS server on {}:{}",
+            config.host,
+            config.tls_port
+        );
+
+        let tls_config = axum_server::tls_rustls::RustlsConfig::from_pem_file(
+            config.tls_cert_path,
+            config.tls_key_path,
+        )
+        .await?;
+        let addr: SocketAddr = format!("{}:{}", config.host, config.tls_port).parse()?;
+
+        axum_server::bind_rustls(addr, tls_config)
+            .serve(app.into_make_service())
+            .await?;
+    } else {
+        tracing::info!("Starting HTTP server on {}:{}", config.host, config.port);
+        let addr: SocketAddr = format!("{}:{}", config.host, config.port).parse()?;
+        let listener = tokio::net::TcpListener::bind(addr).await?;
+        axum::serve(listener, app).await?;
+    }
+
+    Ok(())
 }
 
 impl RouteBuilder {

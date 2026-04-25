@@ -222,3 +222,8 @@ title: Wiki Log
 - [2026-04-23T19:30:00Z] INGEST source="Telegraph/config/test.toml" pages_updated=1 pages_created=1 mode=append topic=fixed-mapped-port-vs-port-zero-tradeoff
 - [2026-04-24T17:02:25Z] QUERY query="How does the OpenFGA service's stubs are working in integration tests" result_pages=4 mode=normal escalated=false
 - [2026-04-24T19:05:00Z] WIKI_UPDATE project=AIForAll pages_updated=8 pages_created=1 source_cwd="c:/Users/djden/source/repos/AIForAll" topic=openfga-real-testcontainer-and-shared-config
+- [2026-04-25T10:04:00Z] WIKI_UPDATE project=AIForAll pages_updated=5 pages_created=1 source_cwd="c:/Users/djden/source/repos/AIForAll" topic=modular-monolith-runtime-and-oodhive-monolith
+- [2026-04-25T10:07:00Z] WIKI_UPDATE project=AIForAll pages_updated=1 pages_created=0 source_cwd="c:/Users/djden/source/repos/AIForAll" topic=matching-route-prefixes-in-microservice-and-monolith-modes
+- [2026-04-25T10:10:00Z] WIKI_UPDATE project=AIForAll pages_updated=4 pages_created=2 source_cwd="c:/Users/djden/source/repos/AIForAll" topic=runtime-mode-skill-section
+- [2026-04-25T10:11:00Z] WIKI_UPDATE project=AIForAll pages_updated=1 pages_created=0 source_cwd="c:/Users/djden/source/repos/AIForAll" topic=building-rustycog-services-runtime-mode-guidance
+- [2026-04-25T10:13:00Z] WIKI_UPDATE project=AIForAll pages_updated=1 pages_created=0 source_cwd="c:/Users/djden/source/repos/AIForAll" topic=integration-test-prefix-guidance

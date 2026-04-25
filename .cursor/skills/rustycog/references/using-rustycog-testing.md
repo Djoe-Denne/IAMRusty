@@ -6,6 +6,7 @@ Use this guide when setting up integration tests with `rustycog-testing`.
 
 - Create one service test descriptor that builds app fixtures, test DB setup, and HTTP app wiring.
 - Use `setup_test_server()` to obtain reusable base URL and HTTP client for endpoint tests. For services that wire `rustycog-permission`, also return an `OpenFgaMockService` handle from the harness so individual tests can arrange `Check` decisions per tuple.
+- Return a **service-prefixed** base URL from each service's local `tests/common.rs`: `/iam` for IAMRusty, `/telegraph` for Telegraph, `/hive` for Hive, and `/manifesto` for Manifesto. Test bodies should append route paths such as `/api/...` to that prefixed base URL instead of repeating the prefix at every call site.
 - Add DB fixtures and migration setup in shared test initialization so each test starts from explicit state.
 - Enable Kafka/SQS testcontainer helpers only for tests that need real queue behavior.
 - For outbound HTTP collaborators, wrap `rustycog_testing::wiremock::MockServerFixture` in a typed per-collaborator service. See the `creating-wiremock-fixtures` skill at `.cursor/skills/creating-wiremock-fixtures/SKILL.md`.
@@ -32,6 +33,8 @@ For grant ➜ revoke ➜ deny shapes, repeat the reset between phases and re-mou
 ## Common Pitfalls
 
 - Recreating server/process setup in each test instead of reusing descriptor-based helpers.
+- Using the raw origin returned by `rustycog_testing::setup_test_server()` directly in service tests. Wrap it once in the service-local helper with the same `SERVICE_PREFIX` used by runtime routing, otherwise tests pass against paths that do not match microservice or monolith mode.
+- Hard-coding `/api/...` against a bare origin in new test helpers. Keep the prefix centralized in `tests/common.rs` so moving between standalone and monolith runtime modes does not change individual tests.
 - Leaving queue tests enabled by default when suites do not need transport behavior.
 - Forgetting to reset state between tests when reusing shared server instances.
 - Skipping `#[serial]` on tests that touch the wiremock fixture — the singleton listens on a fixed port and mocks are process-wide.
@@ -46,7 +49,10 @@ For grant ➜ revoke ➜ deny shapes, repeat the reset between phases and re-mou
 - `rustycog/rustycog-testing/src/common/sqs_testcontainer.rs`
 - `rustycog/rustycog-testing/src/wiremock/mod.rs` — `MockServerFixture` singleton.
 - `rustycog/rustycog-testing/src/permission/service.rs` — `OpenFgaMockService` for permission-gated routes.
-- `Manifesto/tests/common.rs` — canonical 4-tuple `setup_test_server` returning `(TestFixture, String, Client, OpenFgaMockService)`.
+- `IAMRusty/tests/common.rs` — wraps the raw server origin with `/iam`.
+- `Telegraph/tests/common.rs` — wraps the raw server origin with `/telegraph`.
+- `Hive/tests/common.rs` — wraps the raw server origin with `/hive`.
+- `Manifesto/tests/common.rs` — wraps the raw server origin with `/manifesto` and returns the service test fixture, prefixed base URL, HTTP client, OpenFGA handle, and component-service mock.
 - `Manifesto/tests/component_api_tests.rs` — see tests 4 / 5 / 6 for the deny / multi-tuple / phase-flip patterns.
 
 ## Key helpers

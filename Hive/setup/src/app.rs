@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use axum::Router;
+
 // Hive
 use hive_application::{
     ExternalLinkUseCaseImpl, HiveCommandRegistryFactory, InvitationUseCaseImpl, MemberUseCaseImpl,
@@ -30,7 +32,7 @@ use hive_infra::{
     },
     HiveErrorMapper,
 };
-use hive_http::create_app_routes;
+use hive_http::{create_app_routes, create_router};
 
 // Rustycog
 use rustycog_command::GenericCommandService;
@@ -139,6 +141,10 @@ impl Application {
             .map_err(|e| anyhow::anyhow!("Server startup failed: {}", e))?;
 
         Ok(())
+    }
+
+    pub fn router(&self) -> Router {
+        create_router(self.state.clone())
     }
 }
 

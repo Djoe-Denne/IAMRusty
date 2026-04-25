@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use axum::Router;
+
 // Manifesto
 use manifesto_application::{
     ComponentUseCaseImpl, ManifestoCommandRegistryFactory, MemberUseCaseImpl, ProjectUseCaseImpl,
@@ -24,7 +26,7 @@ use manifesto_infra::{
     },
     ApparatusEventConsumer, ManifestoErrorMapper,
 };
-use manifesto_http_server::create_app_routes;
+use manifesto_http_server::{create_app_routes, create_router};
 
 // Rustycog
 use rustycog_command::GenericCommandService;
@@ -152,18 +154,9 @@ impl Application {
             })
         };
 
-        if let Some(apparatus_event_consumer) = self.apparatus_event_consumer.clone() {
+        let mut background_tasks = self.start_background_tasks();
+        if let Some(mut consumer_handle) = background_tasks.pop() {
             tracing::info!("Starting Manifesto HTTP server and apparatus consumer");
-
-            let mut consumer_handle = {
-                let apparatus_event_consumer = apparatus_event_consumer.clone();
-                tokio::spawn(async move {
-                    apparatus_event_consumer
-                        .start()
-                        .await
-                        .map_err(|e| anyhow::anyhow!("Apparatus event consumer failed: {}", e))
-                })
-            };
 
             let shutdown_result: Result<(), Error> = tokio::select! {
                 _ = tokio::signal::ctrl_c() => {
@@ -192,10 +185,7 @@ impl Application {
                 }
             };
 
-            if let Err(error) = apparatus_event_consumer.stop().await {
-                tracing::error!("Failed to stop apparatus event consumer cleanly: {}", error);
-            }
-
+            self.stop_background_tasks().await;
             if !consumer_handle.is_finished() {
                 consumer_handle.abort();
             }
@@ -234,6 +224,31 @@ impl Application {
         let _ = server_handle.await;
 
         shutdown_result
+    }
+
+    pub fn router(&self) -> Router {
+        create_router(self.state.clone())
+    }
+
+    pub fn start_background_tasks(&self) -> Vec<tokio::task::JoinHandle<anyhow::Result<()>>> {
+        let Some(consumer) = self.apparatus_event_consumer.clone() else {
+            return vec![];
+        };
+
+        vec![tokio::spawn(async move {
+            consumer
+                .start()
+                .await
+                .map_err(|e| anyhow::anyhow!("Manifesto apparatus consumer failed: {}", e))
+        })]
+    }
+
+    pub async fn stop_background_tasks(&self) {
+        if let Some(consumer) = self.apparatus_event_consumer.clone() {
+            if let Err(e) = consumer.stop().await {
+                tracing::error!("Failed to stop Manifesto apparatus consumer: {}", e);
+            }
+        }
     }
 }
 
