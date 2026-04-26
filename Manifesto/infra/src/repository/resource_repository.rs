@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use manifesto_domain::entity::Resource;
 use manifesto_domain::port::{ResourceReadRepository, ResourceRepository, ResourceWriteRepository};
 use rustycog_core::error::DomainError;
-use sea_orm::{ActiveModelTrait, ActiveValue, DatabaseConnection, EntityTrait};
+use sea_orm::{ActiveModelTrait, ActiveValue, ConnectionTrait, DatabaseConnection, EntityTrait};
 use std::sync::Arc;
 use tracing::debug;
 use uuid::Uuid;
@@ -35,15 +35,16 @@ impl ResourceReadRepositoryImpl {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
-}
 
-#[async_trait]
-impl ResourceReadRepository for ResourceReadRepositoryImpl {
-    async fn find_by_id(&self, id: &str) -> Result<Option<Resource>, DomainError> {
-        debug!("Finding resource by id: {}", id);
-
+    pub async fn find_by_id_with_connection<C>(
+        db: &C,
+        id: &str,
+    ) -> Result<Option<Resource>, DomainError>
+    where
+        C: ConnectionTrait,
+    {
         let resource = Resources::find_by_id(id.to_string())
-            .one(self.db.as_ref())
+            .one(db)
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
@@ -51,6 +52,15 @@ impl ResourceReadRepository for ResourceReadRepositoryImpl {
             Some(r) => Ok(Some(ResourceMapper::to_domain(r)?)),
             None => Ok(None),
         }
+    }
+}
+
+#[async_trait]
+impl ResourceReadRepository for ResourceReadRepositoryImpl {
+    async fn find_by_id(&self, id: &str) -> Result<Option<Resource>, DomainError> {
+        debug!("Finding resource by id: {}", id);
+
+        Self::find_by_id_with_connection(self.db.as_ref(), id).await
     }
 
     async fn find_all(&self) -> Result<Vec<Resource>, DomainError> {

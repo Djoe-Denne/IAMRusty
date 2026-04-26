@@ -26,6 +26,16 @@ use crate::{
 };
 
 #[async_trait]
+pub trait ProjectCreationUnitOfWork: Send + Sync {
+    async fn create_project_with_owner_permissions(
+        &self,
+        project: Project,
+        owner_member: ProjectMember,
+        owner_resource_names: &[&str],
+    ) -> Result<(Project, ProjectMember), ApplicationError>;
+}
+
+#[async_trait]
 pub trait ProjectUseCase: Send + Sync {
     async fn create_project(
         &self,
@@ -88,6 +98,7 @@ pub struct ProjectUseCaseImpl {
     permission_service: Arc<dyn PermissionService>,
     event_publisher: Arc<dyn EventPublisher<DomainError>>,
     business_config: BusinessConfig,
+    project_creation_uow: Option<Arc<dyn ProjectCreationUnitOfWork>>,
 }
 
 impl ProjectUseCaseImpl {
@@ -106,6 +117,27 @@ impl ProjectUseCaseImpl {
             permission_service,
             event_publisher,
             business_config,
+            project_creation_uow: None,
+        }
+    }
+
+    pub fn new_with_project_creation_uow(
+        project_service: Arc<dyn ProjectService>,
+        component_service: Arc<dyn ComponentService>,
+        member_service: Arc<dyn MemberService>,
+        permission_service: Arc<dyn PermissionService>,
+        event_publisher: Arc<dyn EventPublisher<DomainError>>,
+        business_config: BusinessConfig,
+        project_creation_uow: Arc<dyn ProjectCreationUnitOfWork>,
+    ) -> Self {
+        Self {
+            project_service,
+            component_service,
+            member_service,
+            permission_service,
+            event_publisher,
+            business_config,
+            project_creation_uow: Some(project_creation_uow),
         }
     }
 
@@ -237,35 +269,47 @@ impl ProjectUseCase for ProjectUseCaseImpl {
             .build()
             .map_err(ApplicationError::from)?;
 
-        // Create project through service
-        let created_project = self.project_service.create_project(project).await?;
-
-        // Create owner member
         let owner_member = ProjectMember::new(
-            created_project.id,
+            project.id,
             user_id,
             MemberSource::Direct,
             Some(user_id),
         );
 
-        let owner_member = self.member_service.add_member(owner_member).await?;
-
-        for resource in ["project", "component", "member"] {
-            let role_permission = self
-                .permission_service
-                .get_or_create_role_permission(created_project.id, resource, "owner")
+        let created_project = if let Some(project_creation_uow) = &self.project_creation_uow {
+            let (created_project, _owner_member) = project_creation_uow
+                .create_project_with_owner_permissions(
+                    project,
+                    owner_member,
+                    &["project", "component", "member"],
+                )
                 .await?;
-            let role_permission_id = role_permission.id.ok_or_else(|| {
-                ApplicationError::Internal(format!(
-                    "Missing role permission ID for owner resource '{}'",
-                    resource
-                ))
-            })?;
+            created_project
+        } else {
+            // Create project through service
+            let created_project = self.project_service.create_project(project).await?;
 
-            self.permission_service
-                .grant_permission_to_member(&owner_member.id, &role_permission_id)
-                .await?;
-        }
+            let owner_member = self.member_service.add_member(owner_member).await?;
+
+            for resource in ["project", "component", "member"] {
+                let role_permission = self
+                    .permission_service
+                    .get_or_create_role_permission(created_project.id, resource, "owner")
+                    .await?;
+                let role_permission_id = role_permission.id.ok_or_else(|| {
+                    ApplicationError::Internal(format!(
+                        "Missing role permission ID for owner resource '{}'",
+                        resource
+                    ))
+                })?;
+
+                self.permission_service
+                    .grant_permission_to_member(&owner_member.id, &role_permission_id)
+                    .await?;
+            }
+
+            created_project
+        };
 
         // Publish ProjectCreated event
         let event = ManifestoDomainEvent::ProjectCreated(ProjectCreatedEvent::new(

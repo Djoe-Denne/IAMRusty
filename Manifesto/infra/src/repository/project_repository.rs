@@ -8,7 +8,7 @@ use manifesto_domain::value_objects::{
 };
 use rustycog_core::error::DomainError;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, Order,
+    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, Order,
     PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Condition,
 };
 use std::sync::Arc;
@@ -241,6 +241,38 @@ impl ProjectWriteRepositoryImpl {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
+
+    pub async fn save_with_connection<C>(
+        db: &C,
+        project: &Project,
+    ) -> Result<Project, DomainError>
+    where
+        C: ConnectionTrait,
+    {
+        let exists = Projects::find_by_id(project.id)
+            .one(db)
+            .await
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?
+            .is_some();
+
+        if exists {
+            let active_model = ProjectMapper::to_active_model(project);
+            let result = active_model
+                .update(db)
+                .await
+                .map_err(|e| DomainError::internal_error(&e.to_string()))?;
+
+            ProjectMapper::to_domain(result)
+        } else {
+            let active_model = ProjectMapper::to_active_model(project);
+            let inserted = active_model
+                .insert(db)
+                .await
+                .map_err(|e| DomainError::internal_error(&e.to_string()))?;
+
+            ProjectMapper::to_domain(inserted)
+        }
+    }
 }
 
 #[async_trait]
@@ -248,31 +280,7 @@ impl ProjectWriteRepository for ProjectWriteRepositoryImpl {
     async fn save(&self, project: &Project) -> Result<Project, DomainError> {
         debug!("Saving project with ID: {}", project.id);
 
-        let exists = Projects::find_by_id(project.id)
-            .one(self.db.as_ref())
-            .await
-            .map_err(|e| DomainError::internal_error(&e.to_string()))?
-            .is_some();
-
-        if exists {
-            // Update
-            let active_model = ProjectMapper::to_active_model(project);
-            let result = active_model
-                .update(self.db.as_ref())
-                .await
-                .map_err(|e| DomainError::internal_error(&e.to_string()))?;
-
-            ProjectMapper::to_domain(result)
-        } else {
-            // Insert
-            let active_model = ProjectMapper::to_active_model(project);
-            let inserted = active_model
-                .insert(self.db.as_ref())
-                .await
-                .map_err(|e| DomainError::internal_error(&e.to_string()))?;
-
-            ProjectMapper::to_domain(inserted)
-        }
+        Self::save_with_connection(self.db.as_ref(), project).await
     }
 
     async fn delete_by_id(&self, id: &Uuid) -> Result<(), DomainError> {

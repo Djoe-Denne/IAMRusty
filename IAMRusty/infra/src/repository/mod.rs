@@ -14,6 +14,7 @@ pub mod password_reset_token_read;
 pub mod password_reset_token_write;
 pub mod refresh_token_read;
 pub mod refresh_token_write;
+pub mod signup_transaction;
 pub mod token_read;
 pub mod token_write;
 pub mod user_email_read;

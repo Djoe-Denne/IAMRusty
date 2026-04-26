@@ -1,4 +1,4 @@
-use crate::entity::communication::NotificationCommunication;
+use crate::entity::communication::{CommunicationMode, NotificationCommunication};
 use crate::entity::delivery::MessageDelivery;
 use crate::error::DomainError;
 use crate::port::repository::NotificationRepository;
@@ -11,6 +11,12 @@ pub trait NotificationService: Send + Sync {
         &self,
         notification: NotificationCommunication,
     ) -> Result<NotificationCommunication, DomainError>;
+
+    async fn create_notification_with_delivery(
+        &self,
+        notification: NotificationCommunication,
+        delivery_mode: CommunicationMode,
+    ) -> Result<(NotificationCommunication, MessageDelivery), DomainError>;
     
     async fn create_delivery(
         &self,
@@ -61,6 +67,16 @@ where
     ) -> Result<NotificationCommunication, DomainError> {
         self.notification_repo
             .create_notification(notification.clone())
+            .await
+    }
+
+    async fn create_notification_with_delivery(
+        &self,
+        notification: NotificationCommunication,
+        delivery_mode: CommunicationMode,
+    ) -> Result<(NotificationCommunication, MessageDelivery), DomainError> {
+        self.notification_repo
+            .create_notification_with_delivery(notification, delivery_mode)
             .await
     }
 

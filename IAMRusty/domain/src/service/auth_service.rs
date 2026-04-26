@@ -170,6 +170,16 @@ pub trait PasswordService: Send + Sync {
     async fn verify_password(&self, password: &str, hash: &str) -> Result<bool, AuthError>;
 }
 
+#[async_trait]
+pub trait SignupTransaction: Send + Sync {
+    async fn create_incomplete_user_with_verification(
+        &self,
+        user: User,
+        user_email: UserEmail,
+        email_verification: EmailVerification,
+    ) -> Result<User, DomainError>;
+}
+
 /// Authentication service for email/password operations
 pub struct AuthService<UR, UER, EVR, PS, TS, RTS, EP>
 where
@@ -188,6 +198,7 @@ where
     token_service: Arc<TS>,
     registration_token_service: Arc<RTS>,
     event_publisher: Arc<EP>,
+    signup_transaction: Option<Arc<dyn SignupTransaction>>,
 }
 
 impl<UR, UER, EVR, PS, TS, RTS, EP> AuthService<UR, UER, EVR, PS, TS, RTS, EP>
@@ -217,6 +228,29 @@ where
             token_service,
             registration_token_service,
             event_publisher,
+            signup_transaction: None,
+        }
+    }
+
+    pub fn new_with_signup_transaction(
+        user_repository: Arc<UR>,
+        user_email_repository: Arc<UER>,
+        email_verification_repository: Arc<EVR>,
+        password_service: Arc<PS>,
+        token_service: Arc<TS>,
+        registration_token_service: Arc<RTS>,
+        event_publisher: Arc<EP>,
+        signup_transaction: Arc<dyn SignupTransaction>,
+    ) -> Self {
+        Self {
+            user_repository,
+            user_email_repository,
+            email_verification_repository,
+            password_service,
+            token_service,
+            registration_token_service,
+            event_publisher,
+            signup_transaction: Some(signup_transaction),
         }
     }
 
@@ -324,26 +358,13 @@ where
             .await?;
         let user = User::new_incomplete_with_password(password_hash, None);
 
-        // Save the user
-        let created_user =
-            self.user_repository.create(user).await.map_err(|e| {
-                AuthError::RepositoryError(DomainError::RepositoryError(e.to_string()))
-            })?;
-
         // Create the user email (unverified initially)
         let user_email = UserEmail::new(
-            created_user.id,
+            user.id,
             request.email.clone(),
             true,  // Primary email
             false, // Not verified yet
         );
-
-        // Save the user email
-        let _created_email = self
-            .user_email_repository
-            .create(user_email)
-            .await
-            .map_err(|e| AuthError::RepositoryError(DomainError::RepositoryError(e.to_string())))?;
 
         // Generate verification token
         let verification_token = self.generate_verification_token();
@@ -353,11 +374,32 @@ where
             24, // Expires in 24 hours
         );
 
-        // Save the verification token
-        self.email_verification_repository
-            .create(&email_verification)
-            .await
-            .map_err(|e| AuthError::RepositoryError(DomainError::RepositoryError(e.to_string())))?;
+        let created_user = if let Some(signup_transaction) = &self.signup_transaction {
+            signup_transaction
+                .create_incomplete_user_with_verification(user, user_email, email_verification)
+                .await
+                .map_err(AuthError::RepositoryError)?
+        } else {
+            let created_user = self.user_repository.create(user).await.map_err(|e| {
+                AuthError::RepositoryError(DomainError::RepositoryError(e.to_string()))
+            })?;
+
+            self.user_email_repository
+                .create(user_email)
+                .await
+                .map_err(|e| {
+                    AuthError::RepositoryError(DomainError::RepositoryError(e.to_string()))
+                })?;
+
+            self.email_verification_repository
+                .create(&email_verification)
+                .await
+                .map_err(|e| {
+                    AuthError::RepositoryError(DomainError::RepositoryError(e.to_string()))
+                })?;
+
+            created_user
+        };
 
         // Generate registration token (RSA-signed JWT)
         let registration_token = self

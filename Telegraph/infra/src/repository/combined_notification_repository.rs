@@ -1,7 +1,7 @@
 use anyhow::Result;
 use std::sync::Arc;
 use telegraph_domain::entity::{
-    communication::NotificationCommunication, delivery::MessageDelivery,
+    communication::{CommunicationMode, NotificationCommunication}, delivery::MessageDelivery,
 };
 use telegraph_domain::error::DomainError;
 use telegraph_domain::port::repository::{
@@ -82,6 +82,16 @@ impl NotificationWriteRepository for CombinedNotificationRepositoryImpl {
         notification: NotificationCommunication,
     ) -> Result<NotificationCommunication, DomainError> {
         self.write_repo.create_notification(notification).await
+    }
+
+    async fn create_notification_with_delivery(
+        &self,
+        notification: NotificationCommunication,
+        delivery_mode: CommunicationMode,
+    ) -> Result<(NotificationCommunication, MessageDelivery), DomainError> {
+        self.write_repo
+            .create_notification_with_delivery(notification, delivery_mode)
+            .await
     }
 
     /// Mark notification as read

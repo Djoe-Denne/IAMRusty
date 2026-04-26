@@ -6,7 +6,7 @@ use manifesto_domain::port::{
 };
 use rustycog_core::error::DomainError;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
+    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter,
 };
 use std::sync::Arc;
 use tracing::debug;
@@ -138,6 +138,36 @@ impl ProjectMemberRolePermissionWriteRepositoryImpl {
         Ok(ProjectMemberRolePermissionMapper::to_domain(
             model,
             role_permission,
+        ))
+    }
+
+    pub async fn grant_known_with_connection<C>(
+        db: &C,
+        member_id: &Uuid,
+        role_permission: &RolePermission,
+    ) -> Result<ProjectMemberRolePermission, DomainError>
+    where
+        C: ConnectionTrait,
+    {
+        let role_permission_id = role_permission.id.ok_or_else(|| {
+            DomainError::internal_error("role permission must have an id before grant")
+        })?;
+
+        let active_model = project_member_role_permissions::ActiveModel {
+            id: ActiveValue::NotSet,
+            member_id: ActiveValue::Set(*member_id),
+            role_permission_id: ActiveValue::Set(role_permission_id),
+            created_at: ActiveValue::NotSet,
+        };
+
+        let model = active_model
+            .insert(db)
+            .await
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
+
+        Ok(ProjectMemberRolePermissionMapper::to_domain(
+            model,
+            role_permission.clone(),
         ))
     }
 }

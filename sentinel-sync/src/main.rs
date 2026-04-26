@@ -40,7 +40,7 @@ async fn main() -> Result<()> {
 
     let fga = OpenFgaWriteClient::new(config.openfga.clone())?;
     let ledger: Arc<dyn idempotency::EventLedger> =
-        Arc::from(build_ledger(&config.idempotency)?);
+        Arc::from(build_ledger(&config.idempotency).await?);
 
     let translators: Vec<Arc<dyn translator::Translator>> = vec![
         Arc::new(HiveTranslator::new()),

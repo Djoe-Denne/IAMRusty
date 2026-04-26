@@ -3,6 +3,7 @@ use iam_domain::entity::token::RefreshToken as DomainRefreshToken;
 use iam_domain::port::repository::RefreshTokenWriteRepository;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, Set,
+    TransactionTrait,
 };
 use std::sync::Arc;
 use tracing::debug;
@@ -97,6 +98,36 @@ impl RefreshTokenWriteRepository for RefreshTokenWriteRepositoryImpl {
         }
 
         Ok(())
+    }
+
+    async fn rotate(
+        &self,
+        old_token_id: Uuid,
+        new_token: DomainRefreshToken,
+    ) -> Result<DomainRefreshToken, Self::Error> {
+        debug!(
+            "Rotating refresh token: old_id={}, new_id={}",
+            old_token_id, new_token.id
+        );
+
+        let txn = self.db.begin().await?;
+        let model = Self::to_model(&new_token);
+        let inserted = model.insert(&txn).await?;
+
+        let delete_result = RefreshTokens::delete_by_id(old_token_id)
+            .exec(&txn)
+            .await?;
+
+        if delete_result.rows_affected == 0 {
+            txn.rollback().await?;
+            return Err(DbErr::RecordNotFound(format!(
+                "Refresh token not found: {}",
+                old_token_id
+            )));
+        }
+
+        txn.commit().await?;
+        Ok(Self::to_domain(inserted))
     }
 
     async fn delete_by_user_id(&self, user_id: Uuid) -> Result<u64, Self::Error> {

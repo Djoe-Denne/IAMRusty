@@ -1,12 +1,9 @@
 //! Notification event processors for Telegraph communication service
 
-use async_trait::async_trait;
-use serde_json::json;
-use std::collections::HashMap;
 use std::sync::Arc;
 use telegraph_domain::{
     CommunicationFactory, CommunicationMode, DomainError, EventContext, EventHandler,
-    MessageDelivery, NotificationService,
+    NotificationService,
 };
 use tracing::info;
 
@@ -52,18 +49,12 @@ impl DatabaseNotificationProcessor {
             "Creating database notification"
         );
 
-        let notification = self
+        let (notification, _delivery) = self
             .notification_service
-            .create_notification(notification_communication)
-            .await?;
-
-        // Create delivery record for in-app notification
-        let _delivery = self
-            .notification_service
-            .create_delivery(MessageDelivery::new(
-                notification.id.unwrap(),
+            .create_notification_with_delivery(
+                notification_communication,
                 CommunicationMode::Notification,
-            ))
+            )
             .await?;
 
         info!(

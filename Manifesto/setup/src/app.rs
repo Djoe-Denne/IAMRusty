@@ -22,7 +22,7 @@ use manifesto_infra::{
         RolePermissionReadRepositoryImpl, RolePermissionRepositoryImpl,
         RolePermissionWriteRepositoryImpl,
     },
-    ApparatusEventConsumer, ManifestoErrorMapper,
+    ApparatusEventConsumer, ManifestoErrorMapper, ProjectCreationUnitOfWorkImpl,
 };
 
 // Rustycog
@@ -277,15 +277,17 @@ async fn setup_application(
     Error,
 > {
     let (project_service, component_service, member_service, permission_service) =
-        setup_domain(db, config).await?;
+        setup_domain(db.clone(), config).await?;
+    let project_creation_uow = Arc::new(ProjectCreationUnitOfWorkImpl::new(db));
 
-    let project_usecase = Arc::new(ProjectUseCaseImpl::new(
+    let project_usecase = Arc::new(ProjectUseCaseImpl::new_with_project_creation_uow(
         project_service.clone(),
         component_service.clone(),
         member_service.clone(),
         permission_service.clone(),
         event_publisher.clone(),
         config.service.business.clone(),
+        project_creation_uow,
     ));
 
     let component_usecase = Arc::new(ComponentUseCaseImpl::new(

@@ -26,6 +26,7 @@ use iam_infra::{
         password_reset_token_write::PasswordResetTokenWriteRepositoryImpl,
         refresh_token_read::RefreshTokenReadRepositoryImpl,
         refresh_token_write::RefreshTokenWriteRepositoryImpl,
+        signup_transaction::SignupTransactionImpl,
         token_read::TokenReadRepositoryImpl,
         token_write::TokenWriteRepositoryImpl,
         user_email_read::UserEmailReadRepositoryImpl,
@@ -300,7 +301,8 @@ where
     ));
 
     tracing::info!("Creating auth service for login use case");
-    let auth_service = Arc::new(iam_domain::service::auth_service::AuthService::new(
+    let signup_transaction = Arc::new(SignupTransactionImpl::new(db_pool.get_write_connection()));
+    let auth_service = Arc::new(iam_domain::service::auth_service::AuthService::new_with_signup_transaction(
         Arc::new(user_repo.clone()),
         Arc::new(user_email_repo.clone()),
         Arc::new(email_verification_repo.clone()),
@@ -308,6 +310,7 @@ where
         token_service.clone(),
         registration_token_service.clone(),
         event_publisher.clone(),
+        signup_transaction,
     ));
 
     tracing::info!("Creating login use case with verification token support");

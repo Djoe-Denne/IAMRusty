@@ -7,7 +7,7 @@ use manifesto_domain::port::{
 use manifesto_domain::value_objects::MemberSource;
 use rustycog_core::error::DomainError;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, Condition, DatabaseConnection, EntityTrait,
+    ActiveModelTrait, ActiveValue, ColumnTrait, Condition, ConnectionTrait, DatabaseConnection, EntityTrait,
     PaginatorTrait, QueryFilter,
 };
 use std::sync::Arc;
@@ -70,6 +70,7 @@ impl MemberReadRepositoryImpl {
         member.role_permissions = role_permissions;
         Ok(member)
     }
+
 }
 
 #[async_trait]
@@ -133,7 +134,7 @@ impl MemberReadRepository for MemberReadRepositoryImpl {
         page: u32,
         page_size: u32,
     ) -> Result<Vec<ProjectMember>, DomainError> {
-        let mut query = ProjectMembers::find();
+        let query = ProjectMembers::find();
         let mut conditions = Condition::all()
             .add(project_members::Column::ProjectId.eq(*project_id));
 
@@ -191,13 +192,16 @@ impl MemberWriteRepositoryImpl {
         member.role_permissions = role_permissions;
         Ok(member)
     }
-}
 
-#[async_trait]
-impl MemberWriteRepository for MemberWriteRepositoryImpl {
-    async fn save(&self, member: &ProjectMember) -> Result<ProjectMember, DomainError> {
+    pub async fn save_with_connection<C>(
+        db: &C,
+        member: &ProjectMember,
+    ) -> Result<ProjectMember, DomainError>
+    where
+        C: ConnectionTrait,
+    {
         let exists = ProjectMembers::find_by_id(member.id)
-            .one(self.db.as_ref())
+            .one(db)
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?
             .is_some();
@@ -205,20 +209,26 @@ impl MemberWriteRepository for MemberWriteRepositoryImpl {
         if exists {
             let active_model = MemberMapper::to_active_model(member);
             let result = active_model
-                .update(self.db.as_ref())
+                .update(db)
                 .await
                 .map_err(|e| DomainError::internal_error(&e.to_string()))?;
-            let member = MemberMapper::to_domain(result)?;
-            self.load_with_permissions(member).await
+            MemberMapper::to_domain(result)
         } else {
             let active_model = MemberMapper::to_active_model(member);
             let inserted = active_model
-                .insert(self.db.as_ref())
+                .insert(db)
                 .await
                 .map_err(|e| DomainError::internal_error(&e.to_string()))?;
-            let member = MemberMapper::to_domain(inserted)?;
-            self.load_with_permissions(member).await
+            MemberMapper::to_domain(inserted)
         }
+    }
+}
+
+#[async_trait]
+impl MemberWriteRepository for MemberWriteRepositoryImpl {
+    async fn save(&self, member: &ProjectMember) -> Result<ProjectMember, DomainError> {
+        let member = Self::save_with_connection(self.db.as_ref(), member).await?;
+        self.load_with_permissions(member).await
     }
 
     async fn delete(&self, id: &Uuid) -> Result<(), DomainError> {

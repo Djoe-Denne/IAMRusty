@@ -131,21 +131,12 @@ where
                 DomainError::TokenServiceError(e.to_string())
             })?;
 
-        // Store the new refresh token in database
+        // Store the new refresh token and delete the old token atomically.
         self.refresh_token_repo
-            .create(new_refresh_token.clone())
+            .rotate(old_token.id, new_refresh_token.clone())
             .await
             .map_err(|e| {
-                debug!("Error creating refresh token: {}", e);
-                DomainError::RepositoryError(e.to_string())
-            })?;
-
-        // Delete the old refresh token from database (refresh token rotation)
-        self.refresh_token_repo
-            .delete_by_id(old_token.id)
-            .await
-            .map_err(|e| {
-                debug!("Error deleting old refresh token: {}", e);
+                debug!("Error rotating refresh token: {}", e);
                 DomainError::RepositoryError(e.to_string())
             })?;
 

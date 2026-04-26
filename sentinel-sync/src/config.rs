@@ -25,8 +25,8 @@ pub struct SentinelSyncConfig {
 /// retries and replays never re-apply the same write.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IdempotencyConfig {
-    /// Backing store kind. Only `in-memory` is implemented today; `postgres`
-    /// is the production target and will be added in a follow-up.
+    /// Backing store kind. Use `in-memory` for tests/local dev or `postgres`
+    /// for durable processed-event state.
     #[serde(default = "default_backend")]
     pub backend: String,
     /// Postgres connection string when `backend = "postgres"`.

@@ -2,7 +2,9 @@
 //!
 //! Database management utilities including connection pooling and migrations.
 use rustycog_config::DatabaseConfig;
-use sea_orm::{ConnectOptions, Database, DatabaseConnection, DbErr};
+use sea_orm::{
+    ConnectOptions, Database, DatabaseConnection, DatabaseTransaction, DbErr, TransactionTrait,
+};
 use std::sync::Arc;
 use std::time::Duration;
 use tracing::{info, warn};
@@ -106,6 +108,15 @@ impl DbConnectionPool {
     /// Get a connection for write operations
     pub fn get_write_connection(&self) -> Arc<DatabaseConnection> {
         self.write_connection.clone()
+    }
+
+    /// Begin a transaction on the primary/write connection.
+    ///
+    /// Transactional workflows must use the primary connection so reads and
+    /// writes participate in the same committed unit instead of crossing read
+    /// replicas that may lag behind the write.
+    pub async fn begin_write_transaction(&self) -> Result<DatabaseTransaction, DbErr> {
+        self.write_connection.begin().await
     }
 
     /// Get a connection for read operations (round-robin if multiple replicas)

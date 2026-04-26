@@ -10,7 +10,7 @@ use tracing::debug;
 use crate::repository::entity::{notification_deliveries, notifications};
 use crate::repository::mappers;
 use telegraph_domain::entity::{
-    communication::NotificationCommunication, delivery::MessageDelivery,
+    communication::{CommunicationMode, NotificationCommunication}, delivery::MessageDelivery,
 };
 use telegraph_domain::error::DomainError;
 use telegraph_domain::port::repository::NotificationWriteRepository;
@@ -49,6 +49,75 @@ impl NotificationWriteRepository for NotificationWriteRepositoryImpl {
             })?;
 
         mappers::to_domain_notification(result)
+    }
+
+    async fn create_notification_with_delivery(
+        &self,
+        notification: NotificationCommunication,
+        delivery_mode: CommunicationMode,
+    ) -> Result<(NotificationCommunication, MessageDelivery), DomainError> {
+        debug!(
+            "Creating notification and delivery for user: {:?}",
+            notification.recipient.user_id
+        );
+
+        let txn = self.db.begin().await.map_err(|e| {
+            DomainError::infrastructure_error(format!(
+                "Failed to begin notification transaction: {}",
+                e
+            ))
+        })?;
+
+        let result = async {
+            let notification_model = mappers::to_infra_notification(notification)?;
+            let notification_row = notifications::Entity::insert(notification_model)
+                .exec_with_returning(&txn)
+                .await
+                .map_err(|e| {
+                    DomainError::infrastructure_error(format!(
+                        "Failed to create notification: {}",
+                        e
+                    ))
+                })?;
+
+            let notification = mappers::to_domain_notification(notification_row)?;
+            let delivery = MessageDelivery::new(notification.id.unwrap(), delivery_mode);
+            let delivery_model = mappers::to_infra_delivery(delivery);
+            let delivery_row = notification_deliveries::Entity::insert(delivery_model)
+                .exec_with_returning(&txn)
+                .await
+                .map_err(|e| {
+                    DomainError::infrastructure_error(format!(
+                        "Failed to create delivery record: {}",
+                        e
+                    ))
+                })?;
+            let delivery = mappers::to_domain_delivery(delivery_row)?;
+
+            Ok::<_, DomainError>((notification, delivery))
+        }
+        .await;
+
+        match result {
+            Ok(created) => {
+                txn.commit().await.map_err(|e| {
+                    DomainError::infrastructure_error(format!(
+                        "Failed to commit notification transaction: {}",
+                        e
+                    ))
+                })?;
+                Ok(created)
+            }
+            Err(error) => {
+                if let Err(rollback_error) = txn.rollback().await {
+                    tracing::error!(
+                        "failed to rollback notification transaction: {}",
+                        rollback_error
+                    );
+                }
+                Err(error)
+            }
+        }
     }
 
     /// Mark notification as read

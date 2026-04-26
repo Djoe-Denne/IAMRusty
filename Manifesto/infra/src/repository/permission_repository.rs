@@ -3,7 +3,7 @@ use manifesto_domain::entity::Permission;
 use manifesto_domain::port::PermissionReadRepository;
 use manifesto_domain::value_objects::PermissionLevel;
 use rustycog_core::error::DomainError;
-use sea_orm::{DatabaseConnection, EntityTrait};
+use sea_orm::{ConnectionTrait, DatabaseConnection, EntityTrait};
 use std::sync::Arc;
 use tracing::debug;
 
@@ -30,15 +30,16 @@ impl PermissionReadRepositoryImpl {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
-}
 
-#[async_trait]
-impl PermissionReadRepository for PermissionReadRepositoryImpl {
-    async fn find_by_level(&self, level: &str) -> Result<Option<Permission>, DomainError> {
-        debug!("Finding permission by level: {}", level);
-
+    pub async fn find_by_level_with_connection<C>(
+        db: &C,
+        level: &str,
+    ) -> Result<Option<Permission>, DomainError>
+    where
+        C: ConnectionTrait,
+    {
         let permission = Permissions::find_by_id(level.to_string())
-            .one(self.db.as_ref())
+            .one(db)
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
@@ -46,6 +47,15 @@ impl PermissionReadRepository for PermissionReadRepositoryImpl {
             Some(p) => Ok(Some(PermissionMapper::to_domain(p)?)),
             None => Ok(None),
         }
+    }
+}
+
+#[async_trait]
+impl PermissionReadRepository for PermissionReadRepositoryImpl {
+    async fn find_by_level(&self, level: &str) -> Result<Option<Permission>, DomainError> {
+        debug!("Finding permission by level: {}", level);
+
+        Self::find_by_level_with_connection(self.db.as_ref(), level).await
     }
 
     async fn find_all(&self) -> Result<Vec<Permission>, DomainError> {

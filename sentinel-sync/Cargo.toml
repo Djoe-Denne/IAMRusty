@@ -31,3 +31,4 @@ tracing-subscriber.workspace = true
 reqwest = { workspace = true }
 anyhow.workspace = true
 thiserror.workspace = true
+sea-orm = { workspace = true }

@@ -234,6 +234,14 @@ where
         self.write_repo.delete_by_id(token_id).await
     }
 
+    async fn rotate(
+        &self,
+        old_token_id: Uuid,
+        new_token: RefreshToken,
+    ) -> Result<RefreshToken, Self::Error> {
+        self.write_repo.rotate(old_token_id, new_token).await
+    }
+
     async fn delete_by_user_id(&self, user_id: Uuid) -> Result<u64, Self::Error> {
         self.write_repo.delete_by_user_id(user_id).await
     }

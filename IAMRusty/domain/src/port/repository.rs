@@ -228,6 +228,13 @@ pub trait RefreshTokenWriteRepository {
     /// Delete a refresh token by its ID
     async fn delete_by_id(&self, token_id: Uuid) -> Result<(), Self::Error>;
 
+    /// Atomically store a new refresh token and remove the old one.
+    async fn rotate(
+        &self,
+        old_token_id: Uuid,
+        new_token: RefreshToken,
+    ) -> Result<RefreshToken, Self::Error>;
+
     /// Delete all refresh tokens for a user
     async fn delete_by_user_id(&self, user_id: Uuid) -> Result<u64, Self::Error>;
 }

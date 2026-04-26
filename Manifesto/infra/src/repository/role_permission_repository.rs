@@ -6,7 +6,7 @@ use manifesto_domain::port::{
 use manifesto_domain::value_objects::PermissionLevel;
 use rustycog_core::error::DomainError;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, DatabaseConnection, EntityTrait, QueryFilter, ColumnTrait,
+    ActiveModelTrait, ActiveValue, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter, ColumnTrait,
 };
 use std::sync::Arc;
 use tracing::debug;
@@ -76,25 +76,58 @@ impl RolePermissionReadRepositoryImpl {
         Self { db }
     }
 
-    async fn load_with_relations(
-        &self,
+    pub async fn load_with_relations_with_connection<C>(
+        db: &C,
         role_model: role_permissions::Model,
-    ) -> Result<RolePermission, DomainError> {
+    ) -> Result<RolePermission, DomainError>
+    where
+        C: ConnectionTrait,
+    {
         // Load permission
         let permission = Permissions::find_by_id(role_model.permission_id.clone())
-            .one(self.db.as_ref())
+            .one(db)
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?
             .ok_or_else(|| DomainError::entity_not_found("Permission", "unknown"))?;
 
         // Load resource
         let resource = Resources::find_by_id(role_model.resource_id.clone())
-            .one(self.db.as_ref())
+            .one(db)
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?
             .ok_or_else(|| DomainError::entity_not_found("Resource", "unknown"))?;
 
         RolePermissionMapper::to_domain(role_model, permission, resource)
+    }
+
+    async fn load_with_relations(
+        &self,
+        role_model: role_permissions::Model,
+    ) -> Result<RolePermission, DomainError> {
+        Self::load_with_relations_with_connection(self.db.as_ref(), role_model).await
+    }
+
+    pub async fn find_by_project_resource_permission_with_connection<C>(
+        db: &C,
+        project_id: &Uuid,
+        resource_name: &str,
+        permission_level: &str,
+    ) -> Result<Option<RolePermission>, DomainError>
+    where
+        C: ConnectionTrait,
+    {
+        let role = RolePermissions::find()
+            .filter(role_permissions::Column::ProjectId.eq(*project_id))
+            .filter(role_permissions::Column::ResourceId.eq(resource_name))
+            .filter(role_permissions::Column::PermissionId.eq(permission_level))
+            .one(db)
+            .await
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
+
+        match role {
+            Some(r) => Ok(Some(Self::load_with_relations_with_connection(db, r).await?)),
+            None => Ok(None),
+        }
     }
 }
 
@@ -142,18 +175,13 @@ impl RolePermissionReadRepository for RolePermissionReadRepositoryImpl {
             project_id, resource_name, permission_level
         );
 
-        let role = RolePermissions::find()
-            .filter(role_permissions::Column::ProjectId.eq(*project_id))
-            .filter(role_permissions::Column::ResourceId.eq(resource_name))
-            .filter(role_permissions::Column::PermissionId.eq(permission_level))
-            .one(self.db.as_ref())
-            .await
-            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
-
-        match role {
-            Some(r) => Ok(Some(self.load_with_relations(r).await?)),
-            None => Ok(None),
-        }
+        Self::find_by_project_resource_permission_with_connection(
+            self.db.as_ref(),
+            project_id,
+            resource_name,
+            permission_level,
+        )
+        .await
     }
 
 }
@@ -168,25 +196,21 @@ impl RolePermissionWriteRepositoryImpl {
         Self { db }
     }
 
-    async fn load_with_relations(
-        &self,
-        role_model: role_permissions::Model,
-    ) -> Result<RolePermission, DomainError> {
-        // Load permission
-        let permission = Permissions::find_by_id(role_model.permission_id.clone())
-            .one(self.db.as_ref())
-            .await
-            .map_err(|e| DomainError::internal_error(&e.to_string()))?
-            .ok_or_else(|| DomainError::entity_not_found("Permission", "unknown"))?;
+    pub async fn create_with_connection<C>(
+        db: &C,
+        role_permission: &RolePermission,
+    ) -> Result<RolePermission, DomainError>
+    where
+        C: ConnectionTrait,
+    {
+        let active_model = RolePermissionMapper::to_active_model(role_permission, true);
 
-        // Load resource
-        let resource = Resources::find_by_id(role_model.resource_id.clone())
-            .one(self.db.as_ref())
+        let model = active_model
+            .insert(db)
             .await
-            .map_err(|e| DomainError::internal_error(&e.to_string()))?
-            .ok_or_else(|| DomainError::entity_not_found("Resource", "unknown"))?;
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
-        RolePermissionMapper::to_domain(role_model, permission, resource)
+        RolePermissionReadRepositoryImpl::load_with_relations_with_connection(db, model).await
     }
 }
 
@@ -195,14 +219,7 @@ impl RolePermissionWriteRepository for RolePermissionWriteRepositoryImpl {
     async fn create(&self, role_permission: &RolePermission) -> Result<RolePermission, DomainError> {
         debug!("Creating role permission");
 
-        let active_model = RolePermissionMapper::to_active_model(role_permission, true);
-
-        let model = active_model
-            .insert(self.db.as_ref())
-            .await
-            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
-
-        self.load_with_relations(model).await
+        Self::create_with_connection(self.db.as_ref(), role_permission).await
     }
 
     async fn delete(&self, id: &Uuid) -> Result<(), DomainError> {

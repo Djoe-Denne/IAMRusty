@@ -3,7 +3,7 @@
 //! These traits define the repository interface using domain entities only.
 //! Infrastructure implementations should handle mapping between domain and infrastructure entities.
 
-use crate::entity::communication::NotificationCommunication;
+use crate::entity::communication::{CommunicationMode, NotificationCommunication};
 use crate::entity::delivery::MessageDelivery;
 use crate::error::DomainError;
 use uuid::Uuid;
@@ -46,6 +46,13 @@ pub trait NotificationWriteRepository: Send + Sync {
         &self,
         notification: NotificationCommunication,
     ) -> Result<NotificationCommunication, DomainError>;
+
+    /// Create a notification and its delivery record atomically.
+    async fn create_notification_with_delivery(
+        &self,
+        notification: NotificationCommunication,
+        delivery_mode: CommunicationMode,
+    ) -> Result<(NotificationCommunication, MessageDelivery), DomainError>;
 
     /// Mark notification as read
     async fn mark_as_read(
