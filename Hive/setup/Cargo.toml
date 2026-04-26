@@ -16,6 +16,7 @@ hive-configuration = { path = "../configuration" }
 hive-migration = { path = "../migration" }
 rustycog-http = { path = "../../rustycog/rustycog-http" }
 rustycog-events = { path = "../../rustycog/rustycog-events" }
+rustycog-outbox = { path = "../../rustycog/rustycog-outbox" }
 rustycog-command = { path = "../../rustycog/rustycog-command" }
 rustycog-core = { path = "../../rustycog/rustycog-core" }
 rustycog-config = { path = "../../rustycog/rustycog-config" }

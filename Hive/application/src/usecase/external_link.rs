@@ -3,22 +3,20 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use hive_domain::ExternalProviderService;
+use hive_events::{ExternalLinkCreatedEvent, HiveDomainEvent};
 use rustycog_core::error::DomainError;
-use hive_events::{HiveDomainEvent, ExternalLinkCreatedEvent};
-use rustycog_events::EventPublisher;
+use rustycog_events::{DomainEvent, EventPublisher};
 
 use crate::{
-    dto::{
-        ConnectionTestResponse, CreateExternalLinkRequest, ExternalLinkResponse,
-    },
-    ApplicationError,
+    dto::{ConnectionTestResponse, CreateExternalLinkRequest, ExternalLinkResponse},
+    ApplicationError, HiveOutboxUnitOfWork,
 };
 
 #[async_trait]
 pub trait ExternalLinkUseCase: Send + Sync {
     /**
      * Create a new external link
-     * 
+     *
      * @param organization_id - The ID of the organization
      * @param request - The request to create the external link
      */
@@ -30,7 +28,7 @@ pub trait ExternalLinkUseCase: Send + Sync {
 
     /**
      * Delete an external link
-     * 
+     *
      * @param organization_id - The ID of the organization
      * @param link_id - The ID of the external link
      */
@@ -42,7 +40,7 @@ pub trait ExternalLinkUseCase: Send + Sync {
 
     /**
      * Test connection to external provider
-     * 
+     *
      * @param provider_id - The ID of the external provider
      * @param provider_config - Configuration for the connection
      */
@@ -57,6 +55,7 @@ pub trait ExternalLinkUseCase: Send + Sync {
 pub struct ExternalLinkUseCaseImpl {
     external_provider_service: Arc<dyn ExternalProviderService>,
     event_publisher: Arc<dyn EventPublisher<DomainError>>,
+    outbox_unit_of_work: Option<Arc<dyn HiveOutboxUnitOfWork>>,
 }
 
 impl ExternalLinkUseCaseImpl {
@@ -67,6 +66,33 @@ impl ExternalLinkUseCaseImpl {
         Self {
             external_provider_service,
             event_publisher,
+            outbox_unit_of_work: None,
+        }
+    }
+
+    pub fn new_with_outbox_unit_of_work(
+        external_provider_service: Arc<dyn ExternalProviderService>,
+        event_publisher: Arc<dyn EventPublisher<DomainError>>,
+        outbox_unit_of_work: Arc<dyn HiveOutboxUnitOfWork>,
+    ) -> Self {
+        Self {
+            external_provider_service,
+            event_publisher,
+            outbox_unit_of_work: Some(outbox_unit_of_work),
+        }
+    }
+
+    async fn record_or_publish_event(
+        &self,
+        event: Box<dyn DomainEvent + 'static>,
+    ) -> Result<(), ApplicationError> {
+        if let Some(outbox_unit_of_work) = &self.outbox_unit_of_work {
+            outbox_unit_of_work.record_event(event).await
+        } else {
+            self.event_publisher
+                .publish(&event)
+                .await
+                .map_err(ApplicationError::Domain)
         }
     }
 
@@ -87,12 +113,7 @@ impl ExternalLinkUseCaseImpl {
             created_at,
         ));
 
-        self.event_publisher
-            .publish(&event.into())
-            .await
-            .map_err(|e| ApplicationError::Domain(e))?;
-
-        Ok(())
+        self.record_or_publish_event(event.into()).await
     }
 }
 
@@ -103,8 +124,15 @@ impl ExternalLinkUseCase for ExternalLinkUseCaseImpl {
         organization_id: Uuid,
         request: &CreateExternalLinkRequest,
     ) -> Result<ExternalLinkResponse, ApplicationError> {
-        let external_link = self.external_provider_service.link_organization(organization_id, request.provider_id, &request.provider_config).await
-        .map_err(|e| ApplicationError::Domain(e))?;
+        let external_link = self
+            .external_provider_service
+            .link_organization(
+                organization_id,
+                request.provider_id,
+                &request.provider_config,
+            )
+            .await
+            .map_err(|e| ApplicationError::Domain(e))?;
 
         let provider_source = external_link.provider_source.clone().unwrap();
 
@@ -127,7 +155,9 @@ impl ExternalLinkUseCase for ExternalLinkUseCaseImpl {
             provider_config: external_link.provider_config,
             sync_settings: external_link.sync_settings,
             last_sync_at: external_link.last_sync_at,
-            last_sync_status: external_link.last_sync_status.map(|s| s.as_str().to_string()),
+            last_sync_status: external_link
+                .last_sync_status
+                .map(|s| s.as_str().to_string()),
             sync_error: external_link.sync_error,
             created_at: external_link.created_at,
             updated_at: external_link.updated_at,
@@ -139,8 +169,10 @@ impl ExternalLinkUseCase for ExternalLinkUseCaseImpl {
         organization_id: Uuid,
         link_id: Uuid,
     ) -> Result<(), ApplicationError> {
-        self.external_provider_service.unlink_organization(organization_id, link_id).await
-        .map_err(|e| ApplicationError::Domain(e))?;
+        self.external_provider_service
+            .unlink_organization(organization_id, link_id)
+            .await
+            .map_err(|e| ApplicationError::Domain(e))?;
 
         Ok(())
     }
@@ -151,9 +183,12 @@ impl ExternalLinkUseCase for ExternalLinkUseCaseImpl {
         provider_id: Uuid,
         provider_config: &serde_json::Value,
     ) -> Result<ConnectionTestResponse, ApplicationError> {
-        let result = self.external_provider_service.test_connection(provider_id, provider_config).await
-        .map_err(|e| ApplicationError::Domain(e))?;
-        
+        let result = self
+            .external_provider_service
+            .test_connection(provider_id, provider_config)
+            .await
+            .map_err(|e| ApplicationError::Domain(e))?;
+
         Ok(ConnectionTestResponse {
             success: result,
             message: "Connection test successful".to_string(),

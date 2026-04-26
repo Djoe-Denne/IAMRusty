@@ -10,6 +10,7 @@ use iam_domain::port::{
     repository::{PasswordResetTokenRepository, UserEmailRepository, UserRepository},
     service::AuthTokenService,
 };
+use iam_domain::service::IamOutboxUnitOfWork;
 use rustycog_events::event::EventPublisher;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -137,6 +138,7 @@ where
     token_service: Arc<TS>,
     event_publisher: Arc<EP>,
     password_service: Arc<PS>,
+    outbox_unit_of_work: Option<Arc<dyn IamOutboxUnitOfWork>>,
 }
 
 /// Password service trait for dependency injection
@@ -172,6 +174,44 @@ where
             token_service,
             event_publisher,
             password_service,
+            outbox_unit_of_work: None,
+        }
+    }
+
+    pub fn new_with_outbox_unit_of_work(
+        user_repository: Arc<UR>,
+        user_email_repository: Arc<UER>,
+        password_reset_token_repository: Arc<PRTR>,
+        token_service: Arc<TS>,
+        event_publisher: Arc<EP>,
+        password_service: Arc<PS>,
+        outbox_unit_of_work: Arc<dyn IamOutboxUnitOfWork>,
+    ) -> Self {
+        Self {
+            user_repository,
+            user_email_repository,
+            password_reset_token_repository,
+            token_service,
+            event_publisher,
+            password_service,
+            outbox_unit_of_work: Some(outbox_unit_of_work),
+        }
+    }
+
+    async fn record_or_publish_event(
+        &self,
+        event: Box<dyn rustycog_events::event::DomainEvent + 'static>,
+    ) -> Result<(), String> {
+        if let Some(outbox_unit_of_work) = &self.outbox_unit_of_work {
+            outbox_unit_of_work
+                .record_event(event)
+                .await
+                .map_err(|e| e.to_string())
+        } else {
+            self.event_publisher
+                .publish(&event)
+                .await
+                .map_err(|e| e.to_string())
         }
     }
 }
@@ -224,9 +264,9 @@ where
                                 reset_token.expires_at,
                             ));
 
-                        if let Err(e) = self.event_publisher.publish(&event.into()).await {
+                        if let Err(e) = self.record_or_publish_event(event.into()).await {
                             tracing::warn!(
-                                "Failed to publish password reset requested event: {}",
+                                "Failed to record/publish password reset requested event: {}",
                                 e
                             );
                         }

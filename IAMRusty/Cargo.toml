@@ -84,4 +84,6 @@ aws-config = { workspace = true }
 aws-credential-types = { workspace = true }
 iam-infra = { path = "infra", features = ["test-utils", "test-relaxed-jwt"] }
 rustycog-events = { path = "../rustycog/rustycog-events", features = ["test-utils"] }
+rustycog-core = { path = "../rustycog/rustycog-core" }
+rustycog-outbox = { path = "../rustycog/rustycog-outbox" }
 rustycog-testing = { path = "../rustycog/rustycog-testing" }

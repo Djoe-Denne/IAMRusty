@@ -27,6 +27,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20240101_000009_create_resources_table::Migration),
             Box::new(m20240101_000010_create_role_permissions_table::Migration),
             Box::new(m20240101_000012_create_organization_member_role_permissions_table::Migration),
+            rustycog_outbox::outbox_migration(),
         ]
     }
 }

@@ -31,7 +31,7 @@ use hive_infra::{
         RolePermissionRepositoryImpl, RolePermissionWriteRepositoryImpl, SyncJobReadRepositoryImpl,
         SyncJobRepositoryImpl, SyncJobWriteRepositoryImpl,
     },
-    HiveErrorMapper,
+    HiveErrorMapper, HiveOutboxUnitOfWorkImpl,
 };
 
 // Rustycog
@@ -41,6 +41,7 @@ use rustycog_core::error::DomainError;
 use rustycog_db::DbConnectionPool;
 use rustycog_events::{create_multi_queue_event_publisher, EventPublisher};
 use rustycog_http::{AppState, UserIdExtractor};
+use rustycog_outbox::{OutboxConfig, OutboxDispatcher, OutboxRecorder};
 use rustycog_permission::{
     CachedPermissionChecker, MetricsPermissionChecker, OpenFgaPermissionChecker, PermissionChecker,
 };
@@ -53,6 +54,7 @@ use anyhow::Error;
 pub struct Application {
     pub config: AppConfig,
     pub state: AppState,
+    pub outbox_dispatcher: Arc<OutboxDispatcher<DomainError>>,
 }
 
 impl Application {
@@ -67,6 +69,11 @@ impl Application {
         let event_publisher =
             create_multi_queue_event_publisher(&config.queue, None, Arc::new(HiveErrorMapper))
                 .await?;
+        let outbox_dispatcher = Arc::new(OutboxDispatcher::new(
+            db.clone(),
+            event_publisher.clone(),
+            OutboxConfig::default(),
+        ));
 
         // Setup use cases
         let (
@@ -126,22 +133,83 @@ impl Application {
 
         tracing::info!("Hive application initialized successfully");
 
-        Ok(Application { config, state })
+        Ok(Application {
+            config,
+            state,
+            outbox_dispatcher,
+        })
     }
 
     /// Start the HTTP server
     pub async fn run(self, server_config: ServerConfig) -> Result<(), Error> {
         tracing::info!("Starting Hive HTTP server...");
 
-        create_app_routes(self.state, server_config)
-            .await
-            .map_err(|e| anyhow::anyhow!("Server startup failed: {}", e))?;
+        let mut server_handle = {
+            let state = self.state.clone();
+            tokio::spawn(async move {
+                create_app_routes(state, server_config)
+                    .await
+                    .map_err(|e| anyhow::anyhow!("Server startup failed: {}", e))
+            })
+        };
 
-        Ok(())
+        let mut background_tasks = self.start_background_tasks();
+        let mut outbox_handle = background_tasks
+            .pop()
+            .expect("Hive outbox dispatcher should always be configured");
+
+        let result: Result<(), Error> = tokio::select! {
+            _ = tokio::signal::ctrl_c() => {
+                tracing::info!("Shutdown signal received; stopping Hive runtime");
+                Ok(())
+            }
+            result = &mut outbox_handle => {
+                match result {
+                    Ok(Ok(())) => Ok(()),
+                    Ok(Err(error)) => Err(error),
+                    Err(error) => Err(anyhow::anyhow!("Hive outbox dispatcher task panicked: {}", error)),
+                }
+            }
+            result = &mut server_handle => {
+                match result {
+                    Ok(Ok(())) => Ok(()),
+                    Ok(Err(error)) => Err(error),
+                    Err(error) => Err(anyhow::anyhow!("Hive HTTP server task panicked: {}", error)),
+                }
+            }
+        };
+
+        self.stop_background_tasks().await;
+        if !outbox_handle.is_finished() {
+            outbox_handle.abort();
+        }
+        if !server_handle.is_finished() {
+            server_handle.abort();
+        }
+        let _ = outbox_handle.await;
+        let _ = server_handle.await;
+
+        result
     }
 
     pub fn router(&self) -> Router {
         create_router(self.state.clone())
+    }
+
+    pub fn start_background_tasks(&self) -> Vec<tokio::task::JoinHandle<anyhow::Result<()>>> {
+        let dispatcher = self.outbox_dispatcher.clone();
+        vec![tokio::spawn(async move {
+            dispatcher
+                .start()
+                .await
+                .map_err(|e| anyhow::anyhow!("Hive outbox dispatcher failed: {}", e))
+        })]
+    }
+
+    pub async fn stop_background_tasks(&self) {
+        if let Err(e) = self.outbox_dispatcher.stop().await {
+            tracing::error!("Failed to stop Hive outbox dispatcher: {}", e);
+        }
     }
 }
 
@@ -185,37 +253,45 @@ async fn setup_application(
         external_provider_service,
         _role_service,
         sync_service,
-    ) = setup_domain(db, config).await?;
+    ) = setup_domain(db.clone(), config).await?;
+
+    let outbox_unit_of_work =
+        Arc::new(HiveOutboxUnitOfWorkImpl::new(db, OutboxRecorder::default()));
 
     // Create organization use case
-    let organization_usecase = Arc::new(OrganizationUseCaseImpl::new(
+    let organization_usecase = Arc::new(OrganizationUseCaseImpl::new_with_outbox_unit_of_work(
         organization_service.clone(),
         event_publisher.clone(),
+        outbox_unit_of_work.clone(),
     ));
 
     // Create member use case
-    let member_usecase = Arc::new(MemberUseCaseImpl::new(
+    let member_usecase = Arc::new(MemberUseCaseImpl::new_with_outbox_unit_of_work(
         member_service.clone(),
         organization_service.clone(),
         event_publisher.clone(),
+        outbox_unit_of_work.clone(),
     ));
 
     // Create invitation use case
-    let invitation_usecase = Arc::new(InvitationUseCaseImpl::new(
+    let invitation_usecase = Arc::new(InvitationUseCaseImpl::new_with_outbox_unit_of_work(
         invitation_service.clone(),
         event_publisher.clone(),
+        outbox_unit_of_work.clone(),
     ));
 
     // Create external link use case
-    let external_link_usecase = Arc::new(ExternalLinkUseCaseImpl::new(
+    let external_link_usecase = Arc::new(ExternalLinkUseCaseImpl::new_with_outbox_unit_of_work(
         external_provider_service.clone(),
         event_publisher.clone(),
+        outbox_unit_of_work.clone(),
     ));
 
     // Create sync job use case
-    let sync_job_usecase = Arc::new(SyncJobUseCaseImpl::new(
+    let sync_job_usecase = Arc::new(SyncJobUseCaseImpl::new_with_outbox_unit_of_work(
         sync_service.clone(),
         event_publisher,
+        outbox_unit_of_work,
     ));
 
     Ok((

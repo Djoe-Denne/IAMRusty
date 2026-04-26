@@ -7,6 +7,7 @@ pub mod auth;
 pub mod event_adapter;
 pub mod repository;
 pub mod token;
+pub mod transaction;
 
 // Re-export database functionality from rustycog-db
 pub use rustycog_db as db;

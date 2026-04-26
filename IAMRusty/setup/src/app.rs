@@ -35,6 +35,7 @@ use iam_infra::{
         user_write::UserWriteRepositoryImpl,
     },
     token::JwtTokenService,
+    transaction::IamOutboxUnitOfWorkImpl,
 };
 use rustycog_http::{AppState, UserIdExtractor};
 use rustycog_permission::{InMemoryPermissionChecker, PermissionChecker};
@@ -43,6 +44,7 @@ use iam_configuration::AppConfig;
 use iam_domain::error::DomainError;
 use rustycog_events::create_multi_queue_event_publisher;
 use rustycog_events::{adapter::MultiQueueEventPublisher, event::EventPublisher};
+use rustycog_outbox::{OutboxConfig, OutboxDispatcher, OutboxRecorder};
 
 use iam_application::{
     command::{CommandRegistryFactory, GenericCommandService},
@@ -57,11 +59,15 @@ use crate::config::ServerConfig;
 
 pub struct IAMRustyApp {
     app_state: AppState,
+    outbox_dispatcher: Arc<OutboxDispatcher<DomainError>>,
 }
 
 impl IAMRustyApp {
-    pub fn new(app_state: AppState) -> Self {
-        Self { app_state }
+    pub fn new(app_state: AppState, outbox_dispatcher: Arc<OutboxDispatcher<DomainError>>) -> Self {
+        Self {
+            app_state,
+            outbox_dispatcher,
+        }
     }
 
     pub fn router(&self) -> Router {
@@ -70,6 +76,22 @@ impl IAMRustyApp {
 
     pub fn state(&self) -> AppState {
         self.app_state.clone()
+    }
+
+    pub fn start_background_tasks(&self) -> Vec<tokio::task::JoinHandle<anyhow::Result<()>>> {
+        let dispatcher = self.outbox_dispatcher.clone();
+        vec![tokio::spawn(async move {
+            dispatcher
+                .start()
+                .await
+                .map_err(|e| anyhow::anyhow!("IAMRusty outbox dispatcher failed: {}", e))
+        })]
+    }
+
+    pub async fn stop_background_tasks(&self) {
+        if let Err(e) = self.outbox_dispatcher.stop().await {
+            tracing::error!("Failed to stop IAMRusty outbox dispatcher: {}", e);
+        }
     }
 }
 
@@ -140,6 +162,12 @@ where
 
     // Setup database connection pool
     let db_pool = DbConnectionPool::new(&config.database).await?;
+    let dispatcher_publisher: Arc<dyn EventPublisher<DomainError>> = event_publisher.clone();
+    let outbox_dispatcher = Arc::new(OutboxDispatcher::new(
+        db_pool.clone(),
+        dispatcher_publisher,
+        OutboxConfig::default(),
+    ));
     info!(
         "Database connection pool initialized with {} read replicas",
         if config.database.read_replicas.is_empty() {
@@ -302,8 +330,12 @@ where
 
     tracing::info!("Creating auth service for login use case");
     let signup_transaction = Arc::new(SignupTransactionImpl::new(db_pool.get_write_connection()));
+    let outbox_unit_of_work = Arc::new(IamOutboxUnitOfWorkImpl::new(
+        db_pool.clone(),
+        OutboxRecorder::default(),
+    ));
     let auth_service = Arc::new(
-        iam_domain::service::auth_service::AuthService::new_with_signup_transaction(
+        iam_domain::service::auth_service::AuthService::new_with_signup_transaction_and_outbox(
             Arc::new(user_repo.clone()),
             Arc::new(user_email_repo.clone()),
             Arc::new(email_verification_repo.clone()),
@@ -312,6 +344,7 @@ where
             registration_token_service.clone(),
             event_publisher.clone(),
             signup_transaction,
+            outbox_unit_of_work.clone(),
         ),
     );
 
@@ -320,15 +353,18 @@ where
 
     // Create registration use case
     tracing::info!("Creating registration service");
-    let registration_service = Arc::new(iam_domain::service::RegistrationServiceImpl::new(
-        Arc::new(user_repo.clone()),
-        Arc::new(user_repo.clone()),
-        Arc::new(user_email_repo.clone()),
-        Arc::new(email_verification_repo.clone()),
-        registration_token_service.clone(),
-        token_service.clone(),
-        event_publisher.clone(),
-    ));
+    let registration_service = Arc::new(
+        iam_domain::service::RegistrationServiceImpl::new_with_outbox_unit_of_work(
+            Arc::new(user_repo.clone()),
+            Arc::new(user_repo.clone()),
+            Arc::new(user_email_repo.clone()),
+            Arc::new(email_verification_repo.clone()),
+            registration_token_service.clone(),
+            token_service.clone(),
+            event_publisher.clone(),
+            outbox_unit_of_work.clone(),
+        ),
+    );
 
     tracing::info!("Creating registration use case");
     let registration_usecase = Arc::new(RegistrationUseCaseImpl::new(registration_service));
@@ -339,13 +375,14 @@ where
         Arc::new(PasswordResetServiceAdapter::new(password_service.clone()));
 
     tracing::info!("Creating password reset use case");
-    let password_reset_usecase = Arc::new(PasswordResetUseCaseImpl::new(
+    let password_reset_usecase = Arc::new(PasswordResetUseCaseImpl::new_with_outbox_unit_of_work(
         Arc::new(user_repo.clone()),
         Arc::new(user_email_repo.clone()),
         Arc::new(password_reset_repo),
         token_service.clone(),
         event_publisher.clone(),
         password_reset_service_adapter,
+        outbox_unit_of_work,
     ));
 
     // Create separate token repository for provider auth service
@@ -407,7 +444,7 @@ where
     // Create app state
     let app_state = AppState::new(command_service, user_id_extractor, permission_checker);
 
-    Ok(IAMRustyApp { app_state })
+    Ok(IAMRustyApp::new(app_state, outbox_dispatcher))
 }
 
 pub async fn run_server(app: IAMRustyApp, app_config: ServerConfig) -> Result<()> {
@@ -436,7 +473,46 @@ pub async fn run_server(app: IAMRustyApp, app_config: ServerConfig) -> Result<()
         );
     }
 
-    create_app_routes(app.app_state, server_config).await?;
+    let mut server_handle = {
+        let app_state = app.app_state.clone();
+        tokio::spawn(async move { create_app_routes(app_state, server_config).await })
+    };
 
-    Ok(())
+    let mut background_tasks = app.start_background_tasks();
+    let mut outbox_handle = background_tasks
+        .pop()
+        .expect("IAMRusty outbox dispatcher should always be configured");
+
+    let result: Result<()> = tokio::select! {
+        _ = tokio::signal::ctrl_c() => {
+            tracing::info!("Shutdown signal received; stopping IAMRusty runtime");
+            Ok(())
+        }
+        result = &mut outbox_handle => {
+            match result {
+                Ok(Ok(())) => Ok(()),
+                Ok(Err(error)) => Err(error),
+                Err(error) => Err(anyhow::anyhow!("IAMRusty outbox dispatcher task panicked: {}", error)),
+            }
+        }
+        result = &mut server_handle => {
+            match result {
+                Ok(Ok(())) => Ok(()),
+                Ok(Err(error)) => Err(error.into()),
+                Err(error) => Err(anyhow::anyhow!("IAMRusty HTTP server task panicked: {}", error)),
+            }
+        }
+    };
+
+    app.stop_background_tasks().await;
+    if !outbox_handle.is_finished() {
+        outbox_handle.abort();
+    }
+    if !server_handle.is_finished() {
+        server_handle.abort();
+    }
+    let _ = outbox_handle.await;
+    let _ = server_handle.await;
+
+    result
 }

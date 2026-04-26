@@ -20,6 +20,7 @@ use thiserror::Error;
 use tracing::debug;
 use uuid::Uuid;
 
+use super::IamOutboxUnitOfWork;
 use crate::utils;
 
 /// Authentication service errors
@@ -199,6 +200,7 @@ where
     registration_token_service: Arc<RTS>,
     event_publisher: Arc<EP>,
     signup_transaction: Option<Arc<dyn SignupTransaction>>,
+    outbox_unit_of_work: Option<Arc<dyn IamOutboxUnitOfWork>>,
 }
 
 impl<UR, UER, EVR, PS, TS, RTS, EP> AuthService<UR, UER, EVR, PS, TS, RTS, EP>
@@ -229,6 +231,7 @@ where
             registration_token_service,
             event_publisher,
             signup_transaction: None,
+            outbox_unit_of_work: None,
         }
     }
 
@@ -251,6 +254,48 @@ where
             registration_token_service,
             event_publisher,
             signup_transaction: Some(signup_transaction),
+            outbox_unit_of_work: None,
+        }
+    }
+
+    pub fn new_with_signup_transaction_and_outbox(
+        user_repository: Arc<UR>,
+        user_email_repository: Arc<UER>,
+        email_verification_repository: Arc<EVR>,
+        password_service: Arc<PS>,
+        token_service: Arc<TS>,
+        registration_token_service: Arc<RTS>,
+        event_publisher: Arc<EP>,
+        signup_transaction: Arc<dyn SignupTransaction>,
+        outbox_unit_of_work: Arc<dyn IamOutboxUnitOfWork>,
+    ) -> Self {
+        Self {
+            user_repository,
+            user_email_repository,
+            email_verification_repository,
+            password_service,
+            token_service,
+            registration_token_service,
+            event_publisher,
+            signup_transaction: Some(signup_transaction),
+            outbox_unit_of_work: Some(outbox_unit_of_work),
+        }
+    }
+
+    async fn record_or_publish_event(
+        &self,
+        event: Box<dyn rustycog_events::event::DomainEvent + 'static>,
+    ) -> Result<(), String> {
+        if let Some(outbox_unit_of_work) = &self.outbox_unit_of_work {
+            outbox_unit_of_work
+                .record_event(event)
+                .await
+                .map_err(|e| e.to_string())
+        } else {
+            self.event_publisher
+                .publish(&event)
+                .await
+                .map_err(|e| e.to_string())
         }
     }
 
@@ -599,8 +644,8 @@ where
             request.email,
         ));
 
-        if let Err(e) = self.event_publisher.publish(&event.into()).await {
-            tracing::warn!("Failed to publish UserEmailVerified event: {}", e);
+        if let Err(e) = self.record_or_publish_event(event.into()).await {
+            tracing::warn!("Failed to record/publish UserEmailVerified event: {}", e);
             // Don't fail the verification for event publishing errors
         }
 
@@ -676,8 +721,11 @@ where
                                     ))
                                     .into();
 
-                                if let Err(e) = self.event_publisher.publish(&event).await {
-                                    tracing::warn!("Failed to publish UserSignedUp event: {}", e);
+                                if let Err(e) = self.record_or_publish_event(event).await {
+                                    tracing::warn!(
+                                        "Failed to record/publish UserSignedUp event: {}",
+                                        e
+                                    );
                                     // Don't fail the resend for event publishing errors
                                 }
                             }

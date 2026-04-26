@@ -12,6 +12,7 @@ iam-http_server = { path = "../http" }
 iam-configuration = { path = "../configuration" }
 rustycog-http = { path = "../../rustycog/rustycog-http" }
 rustycog-events = { path = "../../rustycog/rustycog-events" }
+rustycog-outbox = { path = "../../rustycog/rustycog-outbox" }
 rustycog-permission = { path = "../../rustycog/rustycog-permission" }
 
 # External dependencies

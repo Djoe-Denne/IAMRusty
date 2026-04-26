@@ -10,13 +10,14 @@ use hive_domain::{
 };
 use hive_events::{HiveDomainEvent, MemberJoinedEvent, MemberRemovedEvent, Role};
 use rustycog_core::error::DomainError;
-use rustycog_events::EventPublisher;
+use rustycog_events::{DomainEvent, EventPublisher};
 
 use crate::{
     dto::{
-        AddMemberRequest, MemberListResponse, MemberResponse, PaginationRequest, UpdateMemberRolesRequest,
+        AddMemberRequest, MemberListResponse, MemberResponse, PaginationRequest,
+        UpdateMemberRolesRequest,
     },
-    ApplicationError,
+    ApplicationError, HiveOutboxUnitOfWork,
 };
 
 /// Use case trait for member operations
@@ -65,6 +66,7 @@ pub struct MemberUseCaseImpl {
     member_service: Arc<dyn MemberService>,
     organization_service: Arc<dyn OrganizationService>,
     event_publisher: Arc<dyn EventPublisher<DomainError>>,
+    outbox_unit_of_work: Option<Arc<dyn HiveOutboxUnitOfWork>>,
 }
 
 impl MemberUseCaseImpl {
@@ -78,6 +80,35 @@ impl MemberUseCaseImpl {
             member_service,
             organization_service,
             event_publisher,
+            outbox_unit_of_work: None,
+        }
+    }
+
+    pub fn new_with_outbox_unit_of_work(
+        member_service: Arc<dyn MemberService>,
+        organization_service: Arc<dyn OrganizationService>,
+        event_publisher: Arc<dyn EventPublisher<DomainError>>,
+        outbox_unit_of_work: Arc<dyn HiveOutboxUnitOfWork>,
+    ) -> Self {
+        Self {
+            member_service,
+            organization_service,
+            event_publisher,
+            outbox_unit_of_work: Some(outbox_unit_of_work),
+        }
+    }
+
+    async fn record_or_publish_event(
+        &self,
+        event: Box<dyn DomainEvent + 'static>,
+    ) -> Result<(), ApplicationError> {
+        if let Some(outbox_unit_of_work) = &self.outbox_unit_of_work {
+            outbox_unit_of_work.record_event(event).await
+        } else {
+            self.event_publisher
+                .publish(&event)
+                .await
+                .map_err(ApplicationError::Domain)
         }
     }
 
@@ -103,7 +134,15 @@ impl MemberUseCaseImpl {
         organization_name: &str,
         roles: &Vec<RolePermission>,
     ) -> Result<(), ApplicationError> {
-        let roles = roles.iter().map(|role| Role::new(role.permission.level.to_str().to_string(), role.resource.name.clone())).collect();
+        let roles = roles
+            .iter()
+            .map(|role| {
+                Role::new(
+                    role.permission.level.to_str().to_string(),
+                    role.resource.name.clone(),
+                )
+            })
+            .collect();
         let event = HiveDomainEvent::MemberJoined(MemberJoinedEvent::new(
             member.organization_id,
             organization_name.to_string(),
@@ -112,12 +151,7 @@ impl MemberUseCaseImpl {
             member.joined_at.unwrap_or_else(|| Utc::now()),
         ));
 
-        self.event_publisher
-            .publish(&event.into())
-            .await
-            .map_err(|e| ApplicationError::Domain(e))?;
-
-        Ok(())
+        self.record_or_publish_event(event.into()).await
     }
 
     /// Publish member removed event
@@ -138,12 +172,7 @@ impl MemberUseCaseImpl {
             Utc::now(),
         ));
 
-        self.event_publisher
-            .publish(&event.into())
-            .await
-            .map_err(|e| ApplicationError::Domain(e))?;
-
-        Ok(())
+        self.record_or_publish_event(event.into()).await
     }
 }
 
@@ -162,7 +191,8 @@ impl MemberUseCase for MemberUseCaseImpl {
             .await
             .map_err(ApplicationError::Domain)?;
 
-        let role_permissions: Vec<RolePermission> = request.roles.iter().map(|role| role.into()).collect();
+        let role_permissions: Vec<RolePermission> =
+            request.roles.iter().map(|role| role.into()).collect();
 
         // Use domain service to add member
         let member = self
@@ -283,7 +313,8 @@ impl MemberUseCase for MemberUseCaseImpl {
         user_id: Uuid,
         request: &UpdateMemberRolesRequest,
     ) -> Result<MemberResponse, ApplicationError> {
-        let role_permissions: Vec<RolePermission> = request.roles.iter().map(|role| role.into()).collect();
+        let role_permissions: Vec<RolePermission> =
+            request.roles.iter().map(|role| role.into()).collect();
 
         let member = self
             .member_service

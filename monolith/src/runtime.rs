@@ -23,7 +23,9 @@ pub async fn run() -> anyhow::Result<()> {
     let manifesto_app = manifesto_setup::Application::new(manifesto).await?;
 
     let mut background_tasks = Vec::new();
+    background_tasks.extend(iam_app.start_background_tasks());
     background_tasks.extend(telegraph_app.start_background_tasks());
+    background_tasks.extend(hive_app.start_background_tasks());
     background_tasks.extend(manifesto_app.start_background_tasks());
 
     let router = compose_routes(MonolithRouters {
@@ -41,7 +43,9 @@ pub async fn run() -> anyhow::Result<()> {
 
     let result = wait_for_shutdown_or_failure(server, background_tasks).await;
 
+    iam_app.stop_background_tasks().await;
     telegraph_app.stop_background_tasks().await;
+    hive_app.stop_background_tasks().await;
     manifesto_app.stop_background_tasks().await;
 
     result

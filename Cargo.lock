@@ -2637,7 +2637,9 @@ dependencies = [
  "reqwest 0.12.22",
  "rustycog-config",
  "rustycog-core",
+ "rustycog-db",
  "rustycog-events",
+ "rustycog-outbox",
  "rustycog-permission",
  "sea-orm",
  "serde",
@@ -2656,6 +2658,7 @@ name = "hive-migration"
 version = "0.1.0"
 dependencies = [
  "async-std",
+ "rustycog-outbox",
  "sea-orm-migration",
  "serde_json",
  "tokio",
@@ -2694,6 +2697,7 @@ dependencies = [
  "rustycog-config",
  "rustycog-core",
  "rustycog-events",
+ "rustycog-outbox",
  "rustycog-permission",
  "rustycog-testing",
  "sea-orm",
@@ -2734,6 +2738,7 @@ dependencies = [
  "rustycog-db",
  "rustycog-events",
  "rustycog-http",
+ "rustycog-outbox",
  "rustycog-permission",
  "rustycog-server",
  "sea-orm",
@@ -3173,6 +3178,7 @@ dependencies = [
  "rustycog-core",
  "rustycog-db",
  "rustycog-events",
+ "rustycog-outbox",
  "sea-orm",
  "sea-orm-migration",
  "serde",
@@ -3189,6 +3195,7 @@ name = "iam-migration"
 version = "0.1.0"
 dependencies = [
  "async-std",
+ "rustycog-outbox",
  "sea-orm-migration",
 ]
 
@@ -3226,7 +3233,9 @@ dependencies = [
  "rand 0.8.5",
  "rdkafka",
  "reqwest 0.12.22",
+ "rustycog-core",
  "rustycog-events",
+ "rustycog-outbox",
  "rustycog-testing",
  "sea-orm",
  "sea-orm-cli",
@@ -3264,6 +3273,7 @@ dependencies = [
  "iam-infra",
  "rustycog-events",
  "rustycog-http",
+ "rustycog-outbox",
  "rustycog-permission",
  "sha2",
  "tokio",

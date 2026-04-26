@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use std::sync::Arc;
 
+use super::IamOutboxUnitOfWork;
 use crate::entity::{
     events::{DomainEvent, UserSignedUpEvent},
     user::User,
@@ -109,6 +110,7 @@ where
     registration_token_service: Arc<RTS>,
     token_service: Arc<TS>,
     event_publisher: Arc<EP>,
+    outbox_unit_of_work: Option<Arc<dyn IamOutboxUnitOfWork>>,
 }
 
 impl<UR, UW, UER, EVR, RTS, TS, EP> RegistrationServiceImpl<UR, UW, UER, EVR, RTS, TS, EP>
@@ -138,6 +140,46 @@ where
             registration_token_service,
             token_service,
             event_publisher,
+            outbox_unit_of_work: None,
+        }
+    }
+
+    pub fn new_with_outbox_unit_of_work(
+        user_read_repo: Arc<UR>,
+        user_write_repo: Arc<UW>,
+        user_email_repo: Arc<UER>,
+        email_verification_repo: Arc<EVR>,
+        registration_token_service: Arc<RTS>,
+        token_service: Arc<TS>,
+        event_publisher: Arc<EP>,
+        outbox_unit_of_work: Arc<dyn IamOutboxUnitOfWork>,
+    ) -> Self {
+        Self {
+            user_read_repo,
+            user_write_repo,
+            user_email_repo,
+            email_verification_repo,
+            registration_token_service,
+            token_service,
+            event_publisher,
+            outbox_unit_of_work: Some(outbox_unit_of_work),
+        }
+    }
+
+    async fn record_or_publish_event(
+        &self,
+        event: Box<dyn rustycog_events::event::DomainEvent + 'static>,
+    ) -> Result<(), String> {
+        if let Some(outbox_unit_of_work) = &self.outbox_unit_of_work {
+            outbox_unit_of_work
+                .record_event(event)
+                .await
+                .map_err(|e| e.to_string())
+        } else {
+            self.event_publisher
+                .publish(&event)
+                .await
+                .map_err(|e| e.to_string())
         }
     }
 }
@@ -258,8 +300,8 @@ where
                 Some(utils::UrlUtils::build_verification_url()),
             ));
 
-            if let Err(e) = self.event_publisher.publish(&event.into()).await {
-                tracing::warn!("Failed to publish UserSignedUp event: {}", e);
+            if let Err(e) = self.record_or_publish_event(event.into()).await {
+                tracing::warn!("Failed to record/publish UserSignedUp event: {}", e);
                 // Don't fail the registration for event publishing errors
             }
         }

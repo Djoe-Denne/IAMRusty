@@ -1,6 +1,7 @@
-use crate::common::{build_test_app, spawn_test_server, ServiceTestDescriptor, TestFixture};
+use crate::common::{build_test_app, spawn_test_server, ServiceTestDescriptor};
 use reqwest::Client;
 use rustycog_config::{load_config_part, ServerConfig};
+use std::any::TypeId;
 use std::sync::Arc;
 use std::sync::OnceLock;
 use tokio::sync::Mutex;
@@ -9,6 +10,7 @@ use tracing::debug;
 
 /// Global test server instance that starts only once
 static TEST_SERVER: OnceLock<Arc<Mutex<Option<JoinHandle<()>>>>> = OnceLock::new();
+static TEST_SERVER_DESCRIPTOR_TYPE: OnceLock<Arc<Mutex<Option<TypeId>>>> = OnceLock::new();
 
 /// Get or create the global test server instance
 pub async fn get_test_server<D, T>(descriptor: Arc<D>) -> Result<String, Box<dyn std::error::Error>>
@@ -17,8 +19,24 @@ where
     T: Send + Sync + 'static,
 {
     let server_mutex = TEST_SERVER.get_or_init(|| Arc::new(Mutex::new(None)));
+    let descriptor_type_mutex =
+        TEST_SERVER_DESCRIPTOR_TYPE.get_or_init(|| Arc::new(Mutex::new(None)));
 
     let mut server_guard = server_mutex.lock().await;
+    let mut descriptor_type_guard = descriptor_type_mutex.lock().await;
+    let descriptor_type = TypeId::of::<D>();
+    let descriptor_changed = descriptor_type_guard
+        .map(|existing| existing != descriptor_type)
+        .unwrap_or(false);
+
+    if descriptor_changed {
+        if let Some(handle) = server_guard.take() {
+            debug!("🔄 Descriptor changed, restarting test server...");
+            handle.abort();
+            let _ = handle.await;
+        }
+        *descriptor_type_guard = None;
+    }
 
     // Check if we need to start a new server
     let needs_new_server = match server_guard.as_ref() {
@@ -35,6 +53,7 @@ where
         if server_guard.is_some() {
             debug!("🔄 Previous server has stopped, starting a new one...");
             *server_guard = None;
+            *descriptor_type_guard = None;
         }
 
         build_test_app::<D, T>(descriptor.clone()).await?;
@@ -47,6 +66,7 @@ where
         });
 
         *server_guard = Some(server_handle);
+        *descriptor_type_guard = Some(descriptor_type);
     } else {
         debug!("♻️  Reusing existing server instance");
     }

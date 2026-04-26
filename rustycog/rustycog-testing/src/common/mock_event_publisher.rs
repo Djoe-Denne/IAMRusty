@@ -9,6 +9,7 @@ use rustycog_events::event::EventPublisher;
 use rustycog_events::DomainEvent;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use tokio::time::{sleep, Duration, Instant};
 use uuid::Uuid;
 
 /// Captured event information for testing
@@ -122,6 +123,42 @@ impl MockEventPublisher {
     pub fn clear_events(&self) {
         let mut events = self.published_events.lock().unwrap();
         events.clear();
+    }
+
+    /// Wait until at least `expected_count` events have been captured.
+    pub async fn wait_for_event_count(
+        &self,
+        expected_count: usize,
+        timeout: Duration,
+    ) -> Vec<CapturedEvent> {
+        let deadline = Instant::now() + timeout;
+
+        loop {
+            let events = self.get_published_events();
+            if events.len() >= expected_count || Instant::now() >= deadline {
+                return events;
+            }
+
+            sleep(Duration::from_millis(50)).await;
+        }
+    }
+
+    /// Wait until at least one event of `event_type` has been captured.
+    pub async fn wait_for_event_type(
+        &self,
+        event_type: &str,
+        timeout: Duration,
+    ) -> Vec<CapturedEvent> {
+        let deadline = Instant::now() + timeout;
+
+        loop {
+            let events = self.get_events_by_type(event_type);
+            if !events.is_empty() || Instant::now() >= deadline {
+                return events;
+            }
+
+            sleep(Duration::from_millis(50)).await;
+        }
     }
 
     /// Get a shared reference to this publisher (for dependency injection)

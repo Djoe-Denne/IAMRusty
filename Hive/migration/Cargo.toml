@@ -18,6 +18,7 @@ path = "src/main.rs"
 async-std = { version = "1", features = ["attributes", "tokio1"] }
 sea-orm-migration = { workspace = true }
 serde_json = { workspace = true }
+rustycog-outbox = { path = "../../rustycog/rustycog-outbox" }
 
 [dev-dependencies]
 tokio = { workspace = true }

@@ -3,15 +3,13 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use hive_domain::service::SyncService;
-use rustycog_core::error::DomainError;
 use hive_events::{HiveDomainEvent, SyncJobStartedEvent};
-use rustycog_events::EventPublisher;
+use rustycog_core::error::DomainError;
+use rustycog_events::{DomainEvent, EventPublisher};
 
 use crate::{
-    dto::{
-        StartSyncJobRequest, SyncJobResponse,
-    },
-    ApplicationError,
+    dto::{StartSyncJobRequest, SyncJobResponse},
+    ApplicationError, HiveOutboxUnitOfWork,
 };
 
 #[async_trait]
@@ -27,6 +25,7 @@ pub trait SyncJobUseCase: Send + Sync {
 pub struct SyncJobUseCaseImpl {
     sync_service: Arc<dyn SyncService>,
     event_publisher: Arc<dyn EventPublisher<DomainError>>,
+    outbox_unit_of_work: Option<Arc<dyn HiveOutboxUnitOfWork>>,
 }
 
 impl SyncJobUseCaseImpl {
@@ -37,6 +36,33 @@ impl SyncJobUseCaseImpl {
         Self {
             sync_service,
             event_publisher,
+            outbox_unit_of_work: None,
+        }
+    }
+
+    pub fn new_with_outbox_unit_of_work(
+        sync_service: Arc<dyn SyncService>,
+        event_publisher: Arc<dyn EventPublisher<DomainError>>,
+        outbox_unit_of_work: Arc<dyn HiveOutboxUnitOfWork>,
+    ) -> Self {
+        Self {
+            sync_service,
+            event_publisher,
+            outbox_unit_of_work: Some(outbox_unit_of_work),
+        }
+    }
+
+    async fn record_or_publish_event(
+        &self,
+        event: Box<dyn DomainEvent + 'static>,
+    ) -> Result<(), ApplicationError> {
+        if let Some(outbox_unit_of_work) = &self.outbox_unit_of_work {
+            outbox_unit_of_work.record_event(event).await
+        } else {
+            self.event_publisher
+                .publish(&event)
+                .await
+                .map_err(ApplicationError::Domain)
         }
     }
 
@@ -57,12 +83,7 @@ impl SyncJobUseCaseImpl {
             started_at,
         ));
 
-        self.event_publisher
-            .publish(&event.into())
-            .await
-            .map_err(|e| ApplicationError::Domain(e))?;
-
-        Ok(())
+        self.record_or_publish_event(event.into()).await
     }
 }
 
@@ -74,7 +95,15 @@ impl SyncJobUseCase for SyncJobUseCaseImpl {
         request: StartSyncJobRequest,
         requested_by_user_id: Uuid,
     ) -> Result<SyncJobResponse, ApplicationError> {
-        let job = self.sync_service.start_sync_job(request.external_link_id, hive_domain::SyncJobType::from_str(&request.job_type).map_err(|e| ApplicationError::Domain(e))?, requested_by_user_id).await?;
+        let job = self
+            .sync_service
+            .start_sync_job(
+                request.external_link_id,
+                hive_domain::SyncJobType::from_str(&request.job_type)
+                    .map_err(|e| ApplicationError::Domain(e))?,
+                requested_by_user_id,
+            )
+            .await?;
         let started_at = chrono::Utc::now();
 
         // Publish started event

@@ -118,7 +118,7 @@ fn event_payload(event: &Value) -> &Value {
 
 #[tokio::test]
 #[serial]
-async fn routes_user_signed_up_to_telegraph_queue() {
+async fn routes_iam_events_to_telegraph_queue() {
     let (fixture, base_url, client) = setup_sqs_test_server()
         .await
         .expect("failed to setup IAM SQS test server");
@@ -167,14 +167,6 @@ async fn routes_user_signed_up_to_telegraph_queue() {
         event_payload(&event)["username"].as_str(),
         Some(username.as_str())
     );
-}
-
-#[tokio::test]
-#[serial]
-async fn routes_password_reset_requested_to_telegraph_queue() {
-    let (fixture, base_url, client) = setup_sqs_test_server()
-        .await
-        .expect("failed to setup IAM SQS test server");
     clear_routing_queues(&fixture).await;
 
     let email = format!("sqs-reset-{}@example.com", &Uuid::new_v4().to_string()[..8]);

@@ -15,7 +15,7 @@ use iam_setup::app::build_and_run;
 use reqwest::Client;
 use rustycog_events::adapter::{GenericEventPublisherAdapter, MultiQueueEventPublisher};
 use std::collections::HashSet;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 pub struct IAMRustyTestDescriptor;
 
@@ -151,7 +151,13 @@ impl ServiceTestDescriptor<TestFixture> for IAMRustyTestDescriptorWithMockEvents
 
 pub async fn setup_test_server_with_mock_events(
 ) -> Result<(TestFixture, String, Client, Arc<MockEventPublisher>), Box<dyn std::error::Error>> {
-    let descriptor = Arc::new(IAMRustyTestDescriptorWithMockEvents::new());
+    static MOCK_EVENTS_DESCRIPTOR: OnceLock<Arc<IAMRustyTestDescriptorWithMockEvents>> =
+        OnceLock::new();
+
+    let descriptor = MOCK_EVENTS_DESCRIPTOR
+        .get_or_init(|| Arc::new(IAMRustyTestDescriptorWithMockEvents::new()))
+        .clone();
+    descriptor.mock_event_publisher.clear_events();
     let fixture = TestFixture::new(descriptor.clone()).await?;
     let mock_event_publisher = descriptor.mock_event_publisher.clone();
     let (base_url, client) = rustycog_testing::setup_test_server::<

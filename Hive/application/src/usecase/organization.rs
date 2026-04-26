@@ -3,11 +3,11 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use hive_domain::{service::OrganizationService, Organization};
-use rustycog_core::error::DomainError;
 use hive_events::{
     HiveDomainEvent, OrganizationCreatedEvent, OrganizationDeletedEvent, OrganizationUpdatedEvent,
 };
-use rustycog_events::EventPublisher;
+use rustycog_core::error::DomainError;
+use rustycog_events::{DomainEvent, EventPublisher};
 
 use crate::{
     dto::{
@@ -15,15 +15,14 @@ use crate::{
         OrganizationSearchRequest, PaginationRequest, PaginationResponse,
         UpdateOrganizationRequest,
     },
-    ApplicationError,
+    ApplicationError, HiveOutboxUnitOfWork,
 };
 
 #[async_trait::async_trait]
 pub trait OrganizationUseCase: Send + Sync {
-
     /**
      * Create a new organization
-     * 
+     *
      * @param request - The request to create the organization
      * @param user_id - The ID of the user creating the organization
      */
@@ -35,7 +34,7 @@ pub trait OrganizationUseCase: Send + Sync {
 
     /**
      * Get an organization
-     * 
+     *
      * @param organization_id - The ID of the organization
      * @param user_id - The ID of the user requesting the organization
      */
@@ -47,7 +46,7 @@ pub trait OrganizationUseCase: Send + Sync {
 
     /**
      * Update an organization
-     * 
+     *
      * @param organization_id - The ID of the organization
      * @param request - The request to update the organization
      * @param user_id - The ID of the user updating the organization
@@ -61,7 +60,7 @@ pub trait OrganizationUseCase: Send + Sync {
 
     /**
      * Delete an organization
-     * 
+     *
      * @param organization_id - The ID of the organization
      * @param user_id - The ID of the user deleting the organization
      */
@@ -73,7 +72,7 @@ pub trait OrganizationUseCase: Send + Sync {
 
     /**
      * List organizations
-     * 
+     *
      * @param user_id - The ID of the user listing the organizations
      * @param pagination - The pagination request
      */
@@ -85,7 +84,7 @@ pub trait OrganizationUseCase: Send + Sync {
 
     /**
      * Search organizations
-     * 
+     *
      * @param request - The request to search the organizations
      * @param user_id - The ID of the user searching the organizations
      */
@@ -99,6 +98,7 @@ pub trait OrganizationUseCase: Send + Sync {
 pub struct OrganizationUseCaseImpl {
     organization_service: Arc<dyn OrganizationService>,
     event_publisher: Arc<dyn EventPublisher<DomainError>>,
+    outbox_unit_of_work: Option<Arc<dyn HiveOutboxUnitOfWork>>,
 }
 
 impl OrganizationUseCaseImpl {
@@ -110,6 +110,33 @@ impl OrganizationUseCaseImpl {
         Self {
             organization_service,
             event_publisher,
+            outbox_unit_of_work: None,
+        }
+    }
+
+    pub fn new_with_outbox_unit_of_work(
+        organization_service: Arc<dyn OrganizationService>,
+        event_publisher: Arc<dyn EventPublisher<DomainError>>,
+        outbox_unit_of_work: Arc<dyn HiveOutboxUnitOfWork>,
+    ) -> Self {
+        Self {
+            organization_service,
+            event_publisher,
+            outbox_unit_of_work: Some(outbox_unit_of_work),
+        }
+    }
+
+    async fn record_or_publish_event(
+        &self,
+        event: Box<dyn DomainEvent + 'static>,
+    ) -> Result<(), ApplicationError> {
+        if let Some(outbox_unit_of_work) = &self.outbox_unit_of_work {
+            outbox_unit_of_work.record_event(event).await
+        } else {
+            self.event_publisher
+                .publish(&event)
+                .await
+                .map_err(ApplicationError::Domain)
         }
     }
 
@@ -145,12 +172,7 @@ impl OrganizationUseCaseImpl {
             organization.created_at,
         ));
 
-        self.event_publisher
-            .publish(&event.into())
-            .await
-            .map_err(|e| ApplicationError::Domain(e))?;
-
-        Ok(())
+        self.record_or_publish_event(event.into()).await
     }
 
     /// Publish organization updated event
@@ -194,12 +216,7 @@ impl OrganizationUseCaseImpl {
             Utc::now(),
         ));
 
-        self.event_publisher
-            .publish(&event.into())
-            .await
-            .map_err(|e| ApplicationError::Domain(e))?;
-
-        Ok(())
+        self.record_or_publish_event(event.into()).await
     }
 
     /// Publish organization deleted event
@@ -215,12 +232,7 @@ impl OrganizationUseCaseImpl {
             Utc::now(),
         ));
 
-        self.event_publisher
-            .publish(&event.into())
-            .await
-            .map_err(|e| ApplicationError::Domain(e))?;
-
-        Ok(())
+        self.record_or_publish_event(event.into()).await
     }
 }
 

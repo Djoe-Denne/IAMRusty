@@ -6,6 +6,14 @@ pub mod registration_service;
 pub mod token_service;
 pub mod user_service;
 
+use crate::error::DomainError;
+use rustycog_events::event::DomainEvent;
+
+#[async_trait::async_trait]
+pub trait IamOutboxUnitOfWork: Send + Sync {
+    async fn record_event(&self, event: Box<dyn DomainEvent + 'static>) -> Result<(), DomainError>;
+}
+
 pub use auth_service::{AuthError, AuthService, PasswordService};
 pub use oauth_service::OAuthService;
 pub use provider_link_service::{ProviderLinkResult, ProviderLinkService};

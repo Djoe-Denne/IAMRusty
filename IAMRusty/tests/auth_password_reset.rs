@@ -7,10 +7,11 @@ mod utils;
 
 use common::{setup_test_server, setup_test_server_with_mock_events};
 use fixtures::DbFixtures;
-use iam_domain::entity::events::{IamDomainEvent, PasswordResetRequestedEvent};
+use iam_domain::entity::events::IamDomainEvent;
 use reqwest::StatusCode;
 use serde_json::{json, Value};
 use serial_test::serial;
+use tokio::time::Duration;
 
 // 🔐 Password Reset Tests
 // Tests for the complete password reset flow: request → validate → confirm
@@ -64,7 +65,9 @@ async fn test_password_reset_request_existing_user_success() {
         .contains("reset link has been sent"));
 
     // ✅ VERIFY: Event should be published for valid password reset request
-    let events = mock_event_publisher.get_published_events();
+    let events = mock_event_publisher
+        .wait_for_event_count(1, Duration::from_secs(5))
+        .await;
     assert_eq!(
         events.len(),
         1,
@@ -1259,10 +1262,13 @@ async fn test_password_reset_request_event_published_for_valid_user() {
         .contains("reset link has been sent"));
 
     // 🎯 VERIFY: Event WAS published
-    assert!(mock_publisher.has_password_reset_requested_event(), 
+    let events = mock_publisher
+        .wait_for_event_type("password_reset_requested", Duration::from_secs(5))
+        .await;
+    assert!(
+        !events.is_empty(),
         "PasswordResetRequested event should be published for valid user with password authentication");
 
-    let events = mock_publisher.get_password_reset_requested_events();
     assert_eq!(
         events.len(),
         1,
