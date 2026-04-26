@@ -16,13 +16,13 @@ sources:
   - Manifesto/docs/rustycog-service-build-guide.md
   - Manifesto/docs/rustycog-implementation-and-usage-guide.md
 summary: >-
-  RustyCog standardizes commands, config, HTTP, permissions, SQS fanout events, logging, DB access, and test infrastructure across services.
+  RustyCog standardizes commands, config, HTTP, permissions, SQS fanout events, transactional outbox delivery, DB access, and test infrastructure.
 provenance:
   extracted: 0.79
   inferred: 0.09
   ambiguous: 0.12
 created: 2026-04-14T16:54:59.5971424Z
-updated: 2026-04-25T10:53:00Z
+updated: 2026-04-26T13:36:00Z
 ---
 
 # RustyCog
@@ -35,13 +35,14 @@ RustyCog is the shared Rust framework used to compose service runtime concerns a
 
 ## Canonical Scope
 
-RustyCog currently has 11 documented crate surfaces:
+RustyCog currently has 12 documented crate surfaces:
 
 - [[projects/rustycog/references/rustycog-core]] — shared error contracts (`ServiceError`, `DomainError`)
 - [[projects/rustycog/references/rustycog-command]] — command execution runtime and registry
 - [[projects/rustycog/references/rustycog-config]] — typed config models and loaders
 - [[projects/rustycog/references/rustycog-db]] — DB pool and replica-aware read/write routing
 - [[projects/rustycog/references/rustycog-events]] — event envelope plus Kafka/SQS/no-op adapters
+- [[projects/rustycog/references/rustycog-outbox]] — transactional outbox recorder, migration, and dispatcher that bridge DB commits to event publication
 - [[projects/rustycog/references/rustycog-http]] — Axum shell, route builder, auth/permission middleware
 - [[projects/rustycog/references/rustycog-permission]] — `PermissionChecker` trait plus the OpenFGA-backed client, in-memory test checker, cache decorator, and metrics decorator
 - [[projects/rustycog/references/rustycog-testing]] — integration-test fixtures and bootstrap helpers
@@ -53,6 +54,7 @@ RustyCog currently has 11 documented crate surfaces:
 
 - SQS fanout now belongs to the shared `[[projects/rustycog/references/rustycog-events]]` and `[[projects/rustycog/references/rustycog-config]]` crates: services declare per-event destination queue lists, and RustyCog handles publishing the same event to each queue.
 - SQS consumers now derive their polling pool from configured physical queues, which lets a service independently consume each queue while sharing one handler.
+- `[[projects/rustycog/references/rustycog-outbox]]` now owns the DB-backed event intent table and embedded dispatcher, so services can commit domain rows and event intent atomically without coupling `rustycog-events` to the database.
 
 ## Documentation Ownership
 

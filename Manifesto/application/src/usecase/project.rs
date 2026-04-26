@@ -5,24 +5,24 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use manifesto_domain::{
+    ProjectMember,
     entity::Project,
     service::{ComponentService, MemberService, PermissionService, ProjectService},
     value_objects::{DataClassification, MemberSource, OwnerType, ProjectStatus, Visibility},
-    ProjectMember,
 };
 use manifesto_events::{
     ManifestoDomainEvent, ProjectArchivedEvent, ProjectCreatedEvent, ProjectDeletedEvent,
     ProjectPublishedEvent, ProjectUpdatedEvent,
 };
 use rustycog_core::error::DomainError;
-use rustycog_events::EventPublisher;
+use rustycog_events::{DomainEvent, EventPublisher};
 
 use crate::{
-    dto::{
-        CreateProjectRequest, PaginationRequest, ProjectDetailResponse, ProjectListResponse,
-        ProjectResponse, UpdateProjectRequest, ComponentResponse, PaginationResponse,
-    },
     ApplicationError,
+    dto::{
+        ComponentResponse, CreateProjectRequest, PaginationRequest, PaginationResponse,
+        ProjectDetailResponse, ProjectListResponse, ProjectResponse, UpdateProjectRequest,
+    },
 };
 
 #[async_trait]
@@ -32,6 +32,7 @@ pub trait ProjectCreationUnitOfWork: Send + Sync {
         project: Project,
         owner_member: ProjectMember,
         owner_resource_names: &[&str],
+        event: Box<dyn DomainEvent>,
     ) -> Result<(Project, ProjectMember), ApplicationError>;
 }
 
@@ -62,11 +63,8 @@ pub trait ProjectUseCase: Send + Sync {
         user_id: Uuid,
     ) -> Result<ProjectResponse, ApplicationError>;
 
-    async fn delete_project(
-        &self,
-        project_id: Uuid,
-        user_id: Uuid,
-    ) -> Result<(), ApplicationError>;
+    async fn delete_project(&self, project_id: Uuid, user_id: Uuid)
+    -> Result<(), ApplicationError>;
 
     async fn list_projects(
         &self,
@@ -227,8 +225,8 @@ impl ProjectUseCase for ProjectUseCaseImpl {
         user_id: Uuid,
     ) -> Result<ProjectResponse, ApplicationError> {
         // Parse and validate inputs
-        let owner_type = OwnerType::from_str(&request.owner_type)
-            .map_err(ApplicationError::from)?;
+        let owner_type =
+            OwnerType::from_str(&request.owner_type).map_err(ApplicationError::from)?;
 
         let owner_id = match owner_type {
             OwnerType::Personal => user_id,
@@ -269,12 +267,18 @@ impl ProjectUseCase for ProjectUseCaseImpl {
             .build()
             .map_err(ApplicationError::from)?;
 
-        let owner_member = ProjectMember::new(
+        let owner_member =
+            ProjectMember::new(project.id, user_id, MemberSource::Direct, Some(user_id));
+
+        let project_created_event = ManifestoDomainEvent::ProjectCreated(ProjectCreatedEvent::new(
             project.id,
+            project.name.clone(),
+            project.owner_type.as_str().to_string(),
+            project.owner_id,
             user_id,
-            MemberSource::Direct,
-            Some(user_id),
-        );
+            project.visibility.as_str().to_string(),
+            project.created_at,
+        ));
 
         let created_project = if let Some(project_creation_uow) = &self.project_creation_uow {
             let (created_project, _owner_member) = project_creation_uow
@@ -282,6 +286,7 @@ impl ProjectUseCase for ProjectUseCaseImpl {
                     project,
                     owner_member,
                     &["project", "component", "member"],
+                    project_created_event.into(),
                 )
                 .await?;
             created_project
@@ -308,22 +313,16 @@ impl ProjectUseCase for ProjectUseCaseImpl {
                     .await?;
             }
 
+            if let Err(e) = self
+                .event_publisher
+                .publish(&project_created_event.into())
+                .await
+            {
+                tracing::warn!("Failed to publish ProjectCreated event: {:?}", e);
+            }
+
             created_project
         };
-
-        // Publish ProjectCreated event
-        let event = ManifestoDomainEvent::ProjectCreated(ProjectCreatedEvent::new(
-            created_project.id,
-            created_project.name.clone(),
-            created_project.owner_type.as_str().to_string(),
-            created_project.owner_id,
-            user_id,
-            created_project.visibility.as_str().to_string(),
-            created_project.created_at,
-        ));
-        if let Err(e) = self.event_publisher.publish(&event.into()).await {
-            tracing::warn!("Failed to publish ProjectCreated event: {:?}", e);
-        }
 
         Ok(self.project_to_response(&created_project))
     }
@@ -343,7 +342,7 @@ impl ProjectUseCase for ProjectUseCaseImpl {
         _user_id: Option<Uuid>,
     ) -> Result<ProjectDetailResponse, ApplicationError> {
         let project = self.project_service.get_project(&project_id).await?;
-        
+
         // Get components from component service
         let domain_components = self.component_service.list_components(&project_id).await?;
         let components: Vec<ComponentResponse> = domain_components
@@ -360,9 +359,12 @@ impl ProjectUseCase for ProjectUseCaseImpl {
                 disabled_at: c.disabled_at,
             })
             .collect();
-        
+
         // Get member count
-        let member_count = self.member_service.count_active_members(&project_id).await?;
+        let member_count = self
+            .member_service
+            .count_active_members(&project_id)
+            .await?;
 
         Ok(ProjectDetailResponse {
             project: self.project_to_response(&project),
@@ -413,13 +415,15 @@ impl ProjectUseCase for ProjectUseCaseImpl {
             updated_fields.push("data_classification".to_string());
         }
 
-        project.update_metadata(
-            request.name.clone(),
-            Some(request.description.clone()),
-            visibility,
-            request.external_collaboration_enabled,
-            data_classification,
-        ).map_err(ApplicationError::from)?;
+        project
+            .update_metadata(
+                request.name.clone(),
+                Some(request.description.clone()),
+                visibility,
+                request.external_collaboration_enabled,
+                data_classification,
+            )
+            .map_err(ApplicationError::from)?;
 
         let updated_project = self.project_service.update_project(project).await?;
 
@@ -448,7 +452,7 @@ impl ProjectUseCase for ProjectUseCaseImpl {
         let project_name = project.name.clone();
 
         self.project_service.delete_project(&project_id).await?;
-        
+
         // Publish ProjectDeleted event
         let event = ManifestoDomainEvent::ProjectDeleted(ProjectDeletedEvent::new(
             project_id,
@@ -477,7 +481,15 @@ impl ProjectUseCase for ProjectUseCaseImpl {
 
         let projects = self
             .project_service
-            .list_projects(owner_type, owner_id, status, search.clone(), user_id, page, page_size)
+            .list_projects(
+                owner_type,
+                owner_id,
+                status,
+                search.clone(),
+                user_id,
+                page,
+                page_size,
+            )
             .await?;
 
         let total_count = self
@@ -516,7 +528,8 @@ impl ProjectUseCase for ProjectUseCaseImpl {
         let mut project = self.project_service.get_project(&project_id).await?;
 
         // Transition status
-        project.transition_status(ProjectStatus::Active)
+        project
+            .transition_status(ProjectStatus::Active)
             .map_err(ApplicationError::from)?;
 
         let published_project = self.project_service.update_project(project).await?;
@@ -542,7 +555,8 @@ impl ProjectUseCase for ProjectUseCaseImpl {
     ) -> Result<ProjectResponse, ApplicationError> {
         let mut project = self.project_service.get_project(&project_id).await?;
 
-        project.transition_status(ProjectStatus::Archived)
+        project
+            .transition_status(ProjectStatus::Archived)
             .map_err(ApplicationError::from)?;
 
         let archived_project = self.project_service.update_project(project).await?;

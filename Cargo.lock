@@ -3859,6 +3859,7 @@ dependencies = [
  "rustycog-core",
  "rustycog-db",
  "rustycog-events",
+ "rustycog-outbox",
  "rustycog-permission",
  "sea-orm",
  "serde",
@@ -3875,6 +3876,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "manifesto-configuration",
+ "rustycog-outbox",
  "sea-orm",
  "sea-orm-migration",
  "tokio",
@@ -3915,6 +3917,7 @@ dependencies = [
  "rustycog-config",
  "rustycog-core",
  "rustycog-events",
+ "rustycog-outbox",
  "rustycog-permission",
  "rustycog-testing",
  "sea-orm",
@@ -3954,6 +3957,7 @@ dependencies = [
  "rustycog-db",
  "rustycog-events",
  "rustycog-http",
+ "rustycog-outbox",
  "rustycog-permission",
  "rustycog-server",
  "sea-orm",
@@ -5834,6 +5838,25 @@ dependencies = [
  "tracing-appender",
  "tracing-loki",
  "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
+name = "rustycog-outbox"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "rustycog-core",
+ "rustycog-db",
+ "rustycog-events",
+ "sea-orm",
+ "sea-orm-migration",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-test",
+ "tracing",
  "uuid",
 ]
 

@@ -149,8 +149,8 @@ impl ServiceTestDescriptor<TestFixture> for IAMRustyTestDescriptorWithMockEvents
     }
 }
 
-pub async fn setup_test_server_with_mock_events()
--> Result<(TestFixture, String, Client, Arc<MockEventPublisher>), Box<dyn std::error::Error>> {
+pub async fn setup_test_server_with_mock_events(
+) -> Result<(TestFixture, String, Client, Arc<MockEventPublisher>), Box<dyn std::error::Error>> {
     let descriptor = Arc::new(IAMRustyTestDescriptorWithMockEvents::new());
     let fixture = TestFixture::new(descriptor.clone()).await?;
     let mock_event_publisher = descriptor.mock_event_publisher.clone();

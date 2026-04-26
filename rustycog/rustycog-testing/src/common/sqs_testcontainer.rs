@@ -5,16 +5,16 @@
 
 use aws_config::{BehaviorVersion, Region};
 use aws_credential_types::Credentials;
-use aws_sdk_sqs::{Client, Config, types::Message};
-use rustycog_config::{QueueConfig, SqsConfig, load_config_part};
+use aws_sdk_sqs::{types::Message, Client, Config};
+use rustycog_config::{load_config_part, QueueConfig, SqsConfig};
 use rustycog_events::event::DomainEvent;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::sync::OnceLock;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
-use testcontainers::{ContainerAsync, GenericImage, ImageExt, runners::AsyncRunner};
+use testcontainers::{runners::AsyncRunner, ContainerAsync, GenericImage, ImageExt};
 use tokio::sync::Mutex;
 use tracing::{debug, info, warn};
 use uuid;
@@ -573,8 +573,8 @@ impl TestSqs {
 }
 
 /// Get or create the global test SQS container
-async fn get_or_create_test_sqs_container()
--> Result<(Arc<TestSqsContainer>, SqsConfig), Box<dyn std::error::Error>> {
+async fn get_or_create_test_sqs_container(
+) -> Result<(Arc<TestSqsContainer>, SqsConfig), Box<dyn std::error::Error>> {
     let container_mutex = TEST_SQS_CONTAINER.get_or_init(|| Arc::new(Mutex::new(None)));
 
     let mut container_guard = container_mutex.lock().await;

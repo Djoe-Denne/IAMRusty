@@ -20,6 +20,7 @@ rustycog-command = { path = "../../rustycog/rustycog-command" }
 rustycog-http = { path = "../../rustycog/rustycog-http" }
 rustycog-db = { path = "../../rustycog/rustycog-db" }
 rustycog-events = { path = "../../rustycog/rustycog-events" }
+rustycog-outbox = { path = "../../rustycog/rustycog-outbox" }
 rustycog-permission = { path = "../../rustycog/rustycog-permission" }
 rustycog-config = { path = "../../rustycog/rustycog-config" }
 rustycog-core = { path = "../../rustycog/rustycog-core" }

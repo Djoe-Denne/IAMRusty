@@ -302,16 +302,18 @@ where
 
     tracing::info!("Creating auth service for login use case");
     let signup_transaction = Arc::new(SignupTransactionImpl::new(db_pool.get_write_connection()));
-    let auth_service = Arc::new(iam_domain::service::auth_service::AuthService::new_with_signup_transaction(
-        Arc::new(user_repo.clone()),
-        Arc::new(user_email_repo.clone()),
-        Arc::new(email_verification_repo.clone()),
-        password_service_adapter.clone(),
-        token_service.clone(),
-        registration_token_service.clone(),
-        event_publisher.clone(),
-        signup_transaction,
-    ));
+    let auth_service = Arc::new(
+        iam_domain::service::auth_service::AuthService::new_with_signup_transaction(
+            Arc::new(user_repo.clone()),
+            Arc::new(user_email_repo.clone()),
+            Arc::new(email_verification_repo.clone()),
+            password_service_adapter.clone(),
+            token_service.clone(),
+            registration_token_service.clone(),
+            event_publisher.clone(),
+            signup_transaction,
+        ),
+    );
 
     tracing::info!("Creating login use case with verification token support");
     let login_usecase = LoginUseCaseImpl::new(auth_service);

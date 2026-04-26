@@ -129,8 +129,8 @@ impl HiveTestFixture {
 ///
 /// The OpenFGA fixture is process-global, so tests must remain
 /// `#[serial]` to avoid tuple-state collisions.
-pub async fn setup_test_server()
--> Result<(HiveTestFixture, String, Client, TestOpenFga), Box<dyn std::error::Error>> {
+pub async fn setup_test_server(
+) -> Result<(HiveTestFixture, String, Client, TestOpenFga), Box<dyn std::error::Error>> {
     // Bring up the OpenFGA testcontainer + database first so the env
     // vars are populated before the app boots.
     let descriptor = Arc::new(HiveTestDescriptor);

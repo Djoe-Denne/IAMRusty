@@ -10,6 +10,7 @@ use manifesto_configuration::AppConfig;
 use manifesto_domain::service::{ComponentServiceImpl, MemberServiceImpl, ProjectServiceImpl};
 use manifesto_http_server::{create_app_routes, create_router};
 use manifesto_infra::{
+    ApparatusEventConsumer, ManifestoErrorMapper, ProjectCreationUnitOfWorkImpl,
     adapters::ComponentServiceClient,
     processors::ComponentStatusProcessor,
     repository::{
@@ -22,7 +23,6 @@ use manifesto_infra::{
         RolePermissionReadRepositoryImpl, RolePermissionRepositoryImpl,
         RolePermissionWriteRepositoryImpl,
     },
-    ApparatusEventConsumer, ManifestoErrorMapper, ProjectCreationUnitOfWorkImpl,
 };
 
 // Rustycog
@@ -30,8 +30,9 @@ use rustycog_command::GenericCommandService;
 use rustycog_config::ServerConfig;
 use rustycog_core::error::DomainError;
 use rustycog_db::DbConnectionPool;
-use rustycog_events::{create_multi_queue_event_publisher, EventPublisher};
+use rustycog_events::{EventPublisher, create_multi_queue_event_publisher};
 use rustycog_http::{AppState, UserIdExtractor};
+use rustycog_outbox::{OutboxConfig, OutboxDispatcher, OutboxRecorder};
 use rustycog_permission::{
     CachedPermissionChecker, MetricsPermissionChecker, OpenFgaPermissionChecker, PermissionChecker,
 };
@@ -55,6 +56,7 @@ pub struct Application {
     pub config: AppConfig,
     pub state: AppState,
     pub apparatus_event_consumer: Option<Arc<ApparatusEventConsumer>>,
+    pub outbox_dispatcher: Arc<OutboxDispatcher<DomainError>>,
 }
 
 impl Application {
@@ -82,6 +84,11 @@ impl Application {
         };
 
         // Setup use cases
+        let outbox_dispatcher = Arc::new(OutboxDispatcher::new(
+            db.clone(),
+            event_publisher.clone(),
+            OutboxConfig::default(),
+        ));
         let (project_usecase, component_usecase, member_usecase, apparatus_event_consumer) =
             setup_application(db, &config, event_publisher).await?;
 
@@ -131,6 +138,7 @@ impl Application {
             config,
             state,
             apparatus_event_consumer,
+            outbox_dispatcher,
         })
     }
 
@@ -147,23 +155,42 @@ impl Application {
             })
         };
 
-        let mut background_tasks = self.start_background_tasks();
-        if let Some(mut consumer_handle) = background_tasks.pop() {
-            tracing::info!("Starting Manifesto HTTP server and apparatus consumer");
+        let background_tasks = self.start_background_tasks();
+        if !background_tasks.is_empty() {
+            let mut background_handle = tokio::spawn(async move {
+                let mut join_set = tokio::task::JoinSet::new();
+
+                for task in background_tasks {
+                    join_set.spawn(async move {
+                        task.await.map_err(|error| {
+                            anyhow::anyhow!("Manifesto background task panicked: {}", error)
+                        })?
+                    });
+                }
+
+                while let Some(result) = join_set.join_next().await {
+                    result.map_err(|error| {
+                        anyhow::anyhow!("Manifesto background task monitor panicked: {}", error)
+                    })??;
+                }
+
+                Ok::<(), Error>(())
+            });
+            tracing::info!("Starting Manifesto HTTP server and background tasks");
 
             let shutdown_result: Result<(), Error> = tokio::select! {
                 _ = tokio::signal::ctrl_c() => {
                     tracing::info!("Shutdown signal received; stopping Manifesto runtime");
                     Ok(())
                 }
-                result = &mut consumer_handle => {
+                result = &mut background_handle => {
                     match result {
                         Ok(Ok(())) => {
-                            tracing::info!("Apparatus event consumer completed");
+                            tracing::info!("Manifesto background tasks completed");
                             Ok(())
                         }
                         Ok(Err(error)) => Err(error),
-                        Err(error) => Err(anyhow::anyhow!("Apparatus event consumer task panicked: {}", error)),
+                        Err(error) => Err(anyhow::anyhow!("Manifesto background supervisor task panicked: {}", error)),
                     }
                 }
                 result = &mut server_handle => {
@@ -179,14 +206,14 @@ impl Application {
             };
 
             self.stop_background_tasks().await;
-            if !consumer_handle.is_finished() {
-                consumer_handle.abort();
+            if !background_handle.is_finished() {
+                background_handle.abort();
             }
             if !server_handle.is_finished() {
                 server_handle.abort();
             }
 
-            let _ = consumer_handle.await;
+            let _ = background_handle.await;
             let _ = server_handle.await;
 
             return shutdown_result;
@@ -224,19 +251,33 @@ impl Application {
     }
 
     pub fn start_background_tasks(&self) -> Vec<tokio::task::JoinHandle<anyhow::Result<()>>> {
-        let Some(consumer) = self.apparatus_event_consumer.clone() else {
-            return vec![];
-        };
+        let mut tasks = Vec::new();
 
-        vec![tokio::spawn(async move {
-            consumer
+        if let Some(consumer) = self.apparatus_event_consumer.clone() {
+            tasks.push(tokio::spawn(async move {
+                consumer
+                    .start()
+                    .await
+                    .map_err(|e| anyhow::anyhow!("Manifesto apparatus consumer failed: {}", e))
+            }));
+        }
+
+        let dispatcher = self.outbox_dispatcher.clone();
+        tasks.push(tokio::spawn(async move {
+            dispatcher
                 .start()
                 .await
-                .map_err(|e| anyhow::anyhow!("Manifesto apparatus consumer failed: {}", e))
-        })]
+                .map_err(|e| anyhow::anyhow!("Manifesto outbox dispatcher failed: {}", e))
+        }));
+
+        tasks
     }
 
     pub async fn stop_background_tasks(&self) {
+        if let Err(e) = self.outbox_dispatcher.stop().await {
+            tracing::error!("Failed to stop Manifesto outbox dispatcher: {}", e);
+        }
+
         if let Some(consumer) = self.apparatus_event_consumer.clone() {
             if let Err(e) = consumer.stop().await {
                 tracing::error!("Failed to stop Manifesto apparatus consumer: {}", e);
@@ -278,7 +319,10 @@ async fn setup_application(
 > {
     let (project_service, component_service, member_service, permission_service) =
         setup_domain(db.clone(), config).await?;
-    let project_creation_uow = Arc::new(ProjectCreationUnitOfWorkImpl::new(db));
+    let project_creation_uow = Arc::new(ProjectCreationUnitOfWorkImpl::new(
+        db,
+        OutboxRecorder::new(),
+    ));
 
     let project_usecase = Arc::new(ProjectUseCaseImpl::new_with_project_creation_uow(
         project_service.clone(),

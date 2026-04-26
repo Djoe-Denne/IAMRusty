@@ -6,11 +6,11 @@ use aws_credential_types::Credentials;
 use aws_sdk_sqs::{Client, Config};
 use rustycog_config::SqsConfig;
 use rustycog_core::error::ServiceError;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::sync::atomic::Ordering;
-use tokio::time::{Duration, sleep};
+use std::sync::Arc;
+use tokio::time::{sleep, Duration};
 use tracing::{debug, error, info, warn};
 
 /// SQS event publisher implementation
@@ -895,16 +895,12 @@ mod tests {
         let queue_urls = consumer.configured_queue_urls();
 
         assert_eq!(queue_urls.len(), 3);
-        assert!(
-            queue_urls
-                .iter()
-                .any(|url| url.ends_with("/telegraph-events"))
-        );
+        assert!(queue_urls
+            .iter()
+            .any(|url| url.ends_with("/telegraph-events")));
         assert!(queue_urls.iter().any(|url| url.ends_with("/audit-events")));
-        assert!(
-            queue_urls
-                .iter()
-                .any(|url| url.ends_with("/fallback-events"))
-        );
+        assert!(queue_urls
+            .iter()
+            .any(|url| url.ends_with("/fallback-events")));
     }
 }

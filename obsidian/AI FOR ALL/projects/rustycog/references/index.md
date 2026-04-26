@@ -3,12 +3,12 @@ title: RustyCog References Index
 category: navigation
 tags: [index, references, sdk]
 summary: >-
-  Canonical map from RustyCog crates to detailed crate references and shared concept/entity/skill pages, including current workspace packaging caveats.
+  Canonical map from RustyCog crates to detailed crate references and shared concept/entity/skill pages, including outbox durability and packaging caveats.
 provenance:
   extracted: 0.9
   inferred: 0.06
   ambiguous: 0.04
-updated: 2026-04-19T10:59:36Z
+updated: 2026-04-26T13:36:00Z
 ---
 
 # RustyCog References
@@ -22,6 +22,7 @@ This index is the canonical semantic map for RustyCog crates.
 - [[projects/rustycog/references/rustycog-config]]
 - [[projects/rustycog/references/rustycog-db]]
 - [[projects/rustycog/references/rustycog-events]]
+- [[projects/rustycog/references/rustycog-outbox]]
 - [[projects/rustycog/references/rustycog-http]]
 - [[projects/rustycog/references/rustycog-permission]]
 - [[projects/rustycog/references/rustycog-testing]]
@@ -34,7 +35,7 @@ This index is the canonical semantic map for RustyCog crates.
 
 ## Workspace and Packaging Reality
 
-- Root workspace members include: `rustycog-core`, `rustycog-server`, `rustycog-command`, `rustycog-db`, `rustycog-events`, `rustycog-http`, `rustycog-config`, `rustycog-permission`, `rustycog-testing`.
+- Root workspace members include: `rustycog-core`, `rustycog-server`, `rustycog-command`, `rustycog-db`, `rustycog-events`, `rustycog-outbox`, `rustycog-http`, `rustycog-config`, `rustycog-permission`, `rustycog-testing`.
 - `rustycog/Cargo.toml` defines `rustycog-meta`, which depends on the crate set above plus `rustycog-logger`.
 - `rustycog/README.md` still references macros/examples that are not visible in the checked-in tree. ^[ambiguous]
 
@@ -44,7 +45,8 @@ This index is the canonical semantic map for RustyCog crates.
 - Command -> entities: [[entities/command-registry]], [[entities/command-context]] | concept: [[concepts/command-registry-and-retry-policies]] | skill: [[skills/using-rustycog-command]]
 - Config -> entities: [[entities/queue-config]] | concept: [[concepts/structured-service-configuration]] | skill: [[skills/using-rustycog-config]] | OpenFGA config: [[projects/rustycog/references/openfga-real-testcontainer-fixture]]
 - DB -> entities: [[entities/db-connection-pool]] | concept: [[concepts/structured-service-configuration]] | skill: [[skills/using-rustycog-db]]
-- Events -> entities: [[entities/domain-event]], [[entities/event-publisher]], [[entities/queue-config]] | concept: [[concepts/event-driven-microservice-platform]] | skill: [[skills/using-rustycog-events]]
+- Events -> entities: [[entities/domain-event]], [[entities/event-publisher]], [[entities/queue-config]] | concept: [[concepts/event-driven-microservice-platform]] | skill: [[skills/using-rustycog-events]] | durability bridge: [[projects/rustycog/references/rustycog-outbox]]
+- Outbox -> entities: [[entities/domain-event]], [[entities/event-publisher]], [[entities/db-connection-pool]] | concepts: [[concepts/event-driven-microservice-platform]], [[projects/aiforall/roadmap]]
 - HTTP -> entities: [[entities/route-builder]], [[entities/resource-id]], [[entities/permission-checker]], [[entities/resource-ref]] | concept: [[concepts/centralized-authorization-service]] | skill: [[skills/using-rustycog-http]]
 - Permission -> entities: [[entities/permission-checker]], [[entities/subject]], [[entities/resource-ref]], [[entities/resource-id]] | concept: [[concepts/openfga-as-authorization-engine]] | skill: [[skills/using-rustycog-permission]]
 - Testing -> entities: [[entities/event-publisher]], [[entities/queue-config]], [[entities/route-builder]] | concept: [[concepts/integration-testing-with-real-infrastructure]] | skills: [[skills/using-rustycog-testing]], [[skills/stubbing-http-with-wiremock]], [[skills/creating-testcontainer-fixtures]] | fixtures: [[projects/rustycog/references/wiremock-mock-server-fixture]], [[projects/rustycog/references/openfga-real-testcontainer-fixture]], [[projects/rustycog/references/openfga-mock-service]]

@@ -6,7 +6,7 @@ summary: >-
   Near-term roadmap for AIForAll: Sentinel Sync service tests, transaction-ready DB workflows, RustyCog Events outbox, and IAM external-provider extraction.
 status: planned
 created: 2026-04-25T11:42:00Z
-updated: 2026-04-26T12:56:00Z
+updated: 2026-04-26T13:36:00Z
 ---
 
 # AIForAll Roadmap
@@ -68,11 +68,25 @@ Done means IAMRusty can call a stable adapter contract while new providers are i
 
 The third focus area is adding an outbox pattern to [[projects/rustycog/references/rustycog-events|RustyCog Events]]. The current event publisher abstraction supports transport selection and SQS fanout, but domain writes still need a durable bridge between database commits and event dispatch.
 
+```mermaid
+flowchart TD
+    serviceUow["Service Unit Of Work"] --> dbTxn["Db Write Transaction"]
+    dbTxn --> domainRows["Domain Rows"]
+    dbTxn --> outboxRows["Outbox Rows"]
+    outboxWorker["Embedded Outbox Worker"] --> outboxRows
+    outboxWorker --> eventPublisher["EventPublisher"]
+    eventPublisher --> queue["SQS Or Kafka"]
+```
+
+Progress:
+
+- `[[projects/rustycog/references/rustycog-outbox]]` now owns the shared outbox migration, recorder, stored-event representation, and dispatcher loop.
+- Manifesto project creation records `ProjectCreated` inside the project-creation transaction, then dispatches it asynchronously after commit.
+- Regression tests cover pending outbox persistence, rollback of domain rows plus outbox intent, publish failure retry state, and publish success marking.
+
 Focus:
 
-- Introduce an outbox record that is written in the same database transaction as the domain change.
-- Add a dispatcher that reads pending outbox records and publishes through [[entities/event-publisher]].
-- Make delivery idempotent at the event-envelope level so retries are safe.
+- Roll the pattern beyond Manifesto `ProjectCreated` once the first slice is stable.
 - Define retry, dead-letter, and observability expectations before treating no-op fallback as acceptable behavior.
 - Keep service code transport-agnostic, with RustyCog owning the shared outbox mechanics.
 
@@ -100,3 +114,4 @@ Together, these features move AIForAll toward a more reliable event-driven platf
 - [[projects/iamrusty/skills/extending-iamrusty-with-oauth-providers]]
 - [[projects/rustycog/references/rustycog-db]]
 - [[projects/rustycog/references/rustycog-events]]
+- [[projects/rustycog/references/rustycog-outbox]]

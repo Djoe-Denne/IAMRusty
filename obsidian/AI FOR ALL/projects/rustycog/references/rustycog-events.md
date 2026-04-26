@@ -6,14 +6,15 @@ sources:
   - rustycog/rustycog-events/src/lib.rs
   - rustycog/rustycog-events/src/event.rs
   - rustycog/rustycog-events/src/sqs.rs
+  - rustycog/rustycog-outbox/src/lib.rs
   - rustycog/rustycog-config/src/lib.rs
-summary: rustycog-events defines domain event contracts plus Kafka/SQS/no-op transport factories, including SQS fanout and multi-queue consumers.
+summary: rustycog-events defines domain event contracts plus Kafka/SQS/no-op transport factories; rustycog-outbox supplies the durable DB bridge separately.
 provenance:
   extracted: 0.92
   inferred: 0.05
   ambiguous: 0.03
 created: 2026-04-15T17:15:56.0808743Z
-updated: 2026-04-25T10:53:00Z
+updated: 2026-04-26T13:36:00Z
 ---
 
 # RustyCog Events
@@ -33,12 +34,25 @@ updated: 2026-04-25T10:53:00Z
 - `SqsEventPublisher::publish_batch()` groups batch entries by destination queue before calling SQS batch APIs, so mixed event types do not accidentally share the first event's queue.
 - `SqsEventConsumer` starts one polling loop per configured SQS queue URL and shares the same `EventHandler` plus stop flag across those tasks.
 - Publisher and consumer health checks now inspect all configured SQS queues instead of probing only a single default queue.
+- `rustycog-events` remains transport-only; `[[projects/rustycog/references/rustycog-outbox]]` is the separate bridge crate for DB-backed event durability.
+
+## Outbox Boundary
+
+```mermaid
+flowchart LR
+    events["rustycog-events<br/>DomainEvent + EventPublisher"] --> transport["Kafka / SQS / No-op"]
+    db["rustycog-db<br/>write transaction"] --> outbox["rustycog-outbox<br/>recorder + dispatcher"]
+    outbox --> events
+```
+
+`rustycog-outbox` depends on both DB and events so services can record event intent transactionally without adding database concerns to this crate.
 
 ## Linked Entities
 
 - [[entities/domain-event]]
 - [[entities/event-publisher]]
 - [[entities/queue-config]]
+- [[projects/rustycog/references/rustycog-outbox]]
 
 ## Open Questions
 

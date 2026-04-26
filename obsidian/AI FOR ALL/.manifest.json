@@ -1,8 +1,8 @@
 {
   "version": 1,
   "stats": {
-    "total_sources_ingested": 186,
-    "total_pages": 125
+    "total_sources_ingested": 187,
+    "total_pages": 126
   },
   "sources": {
     "IAMRusty/README.md": {
@@ -3013,6 +3013,25 @@
         "concepts/event-driven-microservice-platform.md",
         "projects/rustycog/rustycog.md",
         "projects/hive/references/hive-runtime-and-configuration.md",
+        "index.md"
+      ]
+    },
+    "cursor-conversation/rustycog-outbox-mermaid-diagrams-2026-04-26": {
+      "ingested_at": "2026-04-26T13:36:00Z",
+      "size_bytes": 0,
+      "modified_at": "2026-04-26T13:36:00Z",
+      "content_hash": "conversation:rustycog-outbox-mermaid-diagrams-2026-04-26",
+      "source_type": "conversation",
+      "project": "aiforall",
+      "pages_created": [
+        "projects/rustycog/references/rustycog-outbox.md"
+      ],
+      "pages_updated": [
+        "projects/aiforall/roadmap.md",
+        "projects/rustycog/references/rustycog-events.md",
+        "projects/rustycog/references/index.md",
+        "projects/rustycog/rustycog.md",
+        "concepts/event-driven-microservice-platform.md",
         "index.md"
       ]
     }

@@ -4,13 +4,12 @@
 //! traits from rustycog-events, allowing seamless integration while maintaining architectural
 //! separation.
 
-use rustycog_core::error::DomainError;
 use rustycog_config::QueueConfig;
+use rustycog_core::error::DomainError;
 use rustycog_core::error::ServiceError;
 use rustycog_events::{
     adapter::{ErrorMapper, GenericEventPublisherAdapter, MultiQueueEventPublisher},
-    ConcreteEventPublisher, 
-    create_event_publisher_from_queue_config,
+    create_event_publisher_from_queue_config, ConcreteEventPublisher,
 };
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -24,27 +23,25 @@ impl ErrorMapper<DomainError> for HiveErrorMapper {
             DomainError::EntityNotFound { entity_type, id } => {
                 ServiceError::not_found(format!("{} with id '{}' not found", entity_type, id))
             }
-            DomainError::InvalidInput { message } => {
-                ServiceError::validation(message)
-            }
+            DomainError::InvalidInput { message } => ServiceError::validation(message),
             DomainError::BusinessRuleViolation { rule } => {
                 ServiceError::business(format!("Business rule violation: {}", rule))
             }
             DomainError::Unauthorized { operation } => {
                 ServiceError::authentication(format!("Unauthorized: {}", operation))
             }
-            DomainError::ResourceAlreadyExists { resource_type, identifier } => {
-                ServiceError::conflict(format!("{} with identifier '{}' already exists", resource_type, identifier))
-            }
-            DomainError::ExternalServiceError { service, message } => {
-                ServiceError::infrastructure(format!("External service error from {}: {}", service, message))
-            }
-            DomainError::PermissionDenied { message } => {
-                ServiceError::authorization(message)
-            }
-            DomainError::Internal { message } => {
-                ServiceError::internal(message)
-            }
+            DomainError::ResourceAlreadyExists {
+                resource_type,
+                identifier,
+            } => ServiceError::conflict(format!(
+                "{} with identifier '{}' already exists",
+                resource_type, identifier
+            )),
+            DomainError::ExternalServiceError { service, message } => ServiceError::infrastructure(
+                format!("External service error from {}: {}", service, message),
+            ),
+            DomainError::PermissionDenied { message } => ServiceError::authorization(message),
+            DomainError::Internal { message } => ServiceError::internal(message),
         }
     }
 
@@ -56,51 +53,35 @@ impl ErrorMapper<DomainError> for HiveErrorMapper {
             ServiceError::Authorization { message, .. } => {
                 DomainError::PermissionDenied { message }
             }
-            ServiceError::NotFound { message, .. } => {
-                DomainError::EntityNotFound { 
-                    entity_type: "Resource".to_string(), 
-                    id: message 
-                }
-            }
-            ServiceError::Infrastructure { message, .. } => {
-                DomainError::ExternalServiceError { 
-                    service: "Infrastructure".to_string(), 
-                    message 
-                }
-            }
-            ServiceError::Validation { message, .. } => {
-                DomainError::InvalidInput { message }
-            }
+            ServiceError::NotFound { message, .. } => DomainError::EntityNotFound {
+                entity_type: "Resource".to_string(),
+                id: message,
+            },
+            ServiceError::Infrastructure { message, .. } => DomainError::ExternalServiceError {
+                service: "Infrastructure".to_string(),
+                message,
+            },
+            ServiceError::Validation { message, .. } => DomainError::InvalidInput { message },
             ServiceError::Business { message, .. } => {
                 DomainError::BusinessRuleViolation { rule: message }
             }
-            ServiceError::Timeout { message, .. } => {
-                DomainError::ExternalServiceError { 
-                    service: "Timeout".to_string(), 
-                    message 
-                }
-            }
-            ServiceError::ServiceUnavailable { message, .. } => {
-                DomainError::ExternalServiceError { 
-                    service: "Unavailable".to_string(), 
-                    message 
-                }
-            }
-            ServiceError::Internal { message, .. } => {
-                DomainError::Internal { message }
-            }
-            ServiceError::Conflict { message, .. } => {
-                DomainError::ExternalServiceError { 
-                    service: "Conflict".to_string(), 
-                    message 
-                }
-            }
-            ServiceError::RateLimit { message, .. } => {
-                DomainError::ExternalServiceError { 
-                    service: "RateLimit".to_string(), 
-                    message 
-                }
-            }
+            ServiceError::Timeout { message, .. } => DomainError::ExternalServiceError {
+                service: "Timeout".to_string(),
+                message,
+            },
+            ServiceError::ServiceUnavailable { message, .. } => DomainError::ExternalServiceError {
+                service: "Unavailable".to_string(),
+                message,
+            },
+            ServiceError::Internal { message, .. } => DomainError::Internal { message },
+            ServiceError::Conflict { message, .. } => DomainError::ExternalServiceError {
+                service: "Conflict".to_string(),
+                message,
+            },
+            ServiceError::RateLimit { message, .. } => DomainError::ExternalServiceError {
+                service: "RateLimit".to_string(),
+                message,
+            },
         }
     }
 }
@@ -109,8 +90,9 @@ impl ErrorMapper<DomainError> for HiveErrorMapper {
 pub async fn create_event_publisher_with_queue_config(
     config: &QueueConfig,
 ) -> Result<Arc<ConcreteEventPublisher>, DomainError> {
-    create_event_publisher_from_queue_config(config).await
-    .map_err(|service_error| HiveErrorMapper.from_service_error(service_error))
+    create_event_publisher_from_queue_config(config)
+        .await
+        .map_err(|service_error| HiveErrorMapper.from_service_error(service_error))
 }
 
 /// Factory function to create a multi-queue event publisher with specific queue names
@@ -152,10 +134,11 @@ pub async fn create_multi_queue_event_publisher_async(
 
     // Create a single publisher (can be extended for multiple publishers for different queues)
     let adapted_publisher = create_event_publisher_with_queue_config(config).await?;
-    let publisher = GenericEventPublisherAdapter::<DomainError>::new(adapted_publisher, error_mapper);
+    let publisher =
+        GenericEventPublisherAdapter::<DomainError>::new(adapted_publisher, error_mapper);
 
     Ok(Arc::new(MultiQueueEventPublisher::new(
         vec![publisher],
         queue_names,
     )))
-} 
+}

@@ -82,6 +82,7 @@ manifesto-migration = { path = "migration" }
 manifesto-configuration = { path = "configuration" }
 manifesto-setup = { path = "setup" }
 rustycog-events = { path = "../rustycog/rustycog-events", features = ["test-utils"] }
+rustycog-outbox = { path = "../rustycog/rustycog-outbox" }
 rustycog-testing = { path = "../rustycog/rustycog-testing" }
 rustycog-config = { path = "../rustycog/rustycog-config" }
 rustycog-core = { path = "../rustycog/rustycog-core" }

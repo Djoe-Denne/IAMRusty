@@ -12,6 +12,7 @@ members = [
     "rustycog/rustycog-command",
     "rustycog/rustycog-db",
     "rustycog/rustycog-events",
+    "rustycog/rustycog-outbox",
     "rustycog/rustycog-http",
     "rustycog/rustycog-config",
     "rustycog/rustycog-permission",

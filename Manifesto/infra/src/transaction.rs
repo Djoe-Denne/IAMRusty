@@ -4,21 +4,25 @@ use manifesto_domain::entity::{Permission, Project, ProjectMember, Resource, Rol
 use manifesto_domain::value_objects::PermissionLevel;
 use rustycog_core::error::DomainError;
 use rustycog_db::DbConnectionPool;
+use rustycog_events::DomainEvent;
+use rustycog_outbox::OutboxRecorder;
 
 use crate::repository::{
     MemberWriteRepositoryImpl, PermissionReadRepositoryImpl,
     ProjectMemberRolePermissionWriteRepositoryImpl, ProjectWriteRepositoryImpl,
-    ResourceReadRepositoryImpl, RolePermissionReadRepositoryImpl, RolePermissionWriteRepositoryImpl,
+    ResourceReadRepositoryImpl, RolePermissionReadRepositoryImpl,
+    RolePermissionWriteRepositoryImpl,
 };
 
 #[derive(Clone)]
 pub struct ProjectCreationUnitOfWorkImpl {
     db: DbConnectionPool,
+    outbox: OutboxRecorder,
 }
 
 impl ProjectCreationUnitOfWorkImpl {
-    pub fn new(db: DbConnectionPool) -> Self {
-        Self { db }
+    pub fn new(db: DbConnectionPool, outbox: OutboxRecorder) -> Self {
+        Self { db, outbox }
     }
 }
 
@@ -29,12 +33,12 @@ impl ProjectCreationUnitOfWork for ProjectCreationUnitOfWorkImpl {
         project: Project,
         owner_member: ProjectMember,
         owner_resource_names: &[&str],
+        event: Box<dyn DomainEvent>,
     ) -> Result<(Project, ProjectMember), ApplicationError> {
-        let txn = self
-            .db
-            .begin_write_transaction()
-            .await
-            .map_err(|e| ApplicationError::Internal(format!("failed to begin transaction: {e}")))?;
+        let txn =
+            self.db.begin_write_transaction().await.map_err(|e| {
+                ApplicationError::Internal(format!("failed to begin transaction: {e}"))
+            })?;
 
         let result = async {
             let created_project =
@@ -43,13 +47,9 @@ impl ProjectCreationUnitOfWork for ProjectCreationUnitOfWorkImpl {
                 MemberWriteRepositoryImpl::save_with_connection(&txn, &owner_member).await?;
 
             for resource_name in owner_resource_names {
-                let role_permission = get_or_create_role_permission(
-                    &txn,
-                    created_project.id,
-                    resource_name,
-                    "owner",
-                )
-                .await?;
+                let role_permission =
+                    get_or_create_role_permission(&txn, created_project.id, resource_name, "owner")
+                        .await?;
 
                 ProjectMemberRolePermissionWriteRepositoryImpl::grant_known_with_connection(
                     &txn,
@@ -59,7 +59,13 @@ impl ProjectCreationUnitOfWork for ProjectCreationUnitOfWorkImpl {
                 .await?;
             }
 
-            Ok::<_, DomainError>((created_project, owner_member))
+            self.outbox.record(&txn, &event).await.map_err(|e| {
+                ApplicationError::Internal(format!(
+                    "failed to record ProjectCreated outbox event: {e}"
+                ))
+            })?;
+
+            Ok::<_, ApplicationError>((created_project, owner_member))
         }
         .await;
 
@@ -77,7 +83,7 @@ impl ProjectCreationUnitOfWork for ProjectCreationUnitOfWorkImpl {
                         rollback_error
                     );
                 }
-                Err(ApplicationError::from(error))
+                Err(error)
             }
         }
     }

@@ -11,10 +11,14 @@
             "id": "66ebf6f7f35f706c",
             "type": "leaf",
             "state": {
-              "type": "graph",
-              "state": {},
-              "icon": "lucide-git-fork",
-              "title": "Vue graphique"
+              "type": "markdown",
+              "state": {
+                "file": "projects/rustycog/references/rustycog-outbox.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "rustycog-outbox"
             }
           },
           {
@@ -206,6 +210,9 @@
   },
   "active": "66ebf6f7f35f706c",
   "lastOpenFiles": [
+    "projects/rustycog/references/rustycog-events.md",
+    "projects/rustycog/references/index.md",
+    "projects/rustycog/references/rustycog-outbox.md",
     "skills/creating-testcontainer-fixtures.md",
     "projects/sentinel-sync/skills/extending-sentinel-sync-with-new-events.md",
     "projects/sentinel-sync/skills",
@@ -236,9 +243,6 @@
     "projects/sentinel",
     "projects/manifesto/references/manifesto-service.md",
     "projects/manifesto/manifesto.md",
-    "projects/manifesto/concepts/component-instance-permissions.md",
-    "projects/manifesto/concepts/component-catalog-and-fallback-adapter.md",
-    "projects/manifesto/references/manifesto-testing-and-fixtures.md",
     "projects/manifesto/skills",
     "_scripts/__pycache__/uncomment_links_between_islands.cpython-313.pyc",
     "_scripts/uncomment_links_between_islands.py"

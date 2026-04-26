@@ -4,11 +4,11 @@ mod common;
 mod fixtures;
 
 use common::*;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use serial_test::serial;
 
 use iam_configuration;
-use iam_configuration::{QueueConfig, clear_config_cache, load_config};
+use iam_configuration::{clear_config_cache, load_config, QueueConfig};
 use rustycog_testing::TestSqsFixture;
 use std::sync::Arc;
 

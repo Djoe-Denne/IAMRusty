@@ -14,17 +14,18 @@ sources:
   - rustycog/README.md
   - rustycog/rustycog-events/src/lib.rs
   - rustycog/rustycog-events/src/event.rs
+  - rustycog/rustycog-outbox/src/lib.rs
   - rustycog/rustycog-testing/src/common/kafka_testcontainer.rs
   - rustycog/rustycog-testing/src/common/sqs_testcontainer.rs
   - hive-events/README.md
 summary: >-
-  The platform uses decoupled services plus transport-neutral events, including SQS fanout when one event must reach multiple services.
+  The platform uses decoupled services plus transport-neutral events, SQS fanout, and a transactional outbox for durable event intent.
 provenance:
   extracted: 0.8
   inferred: 0.12
   ambiguous: 0.08
 created: 2026-04-14T16:54:59.5971424Z
-updated: 2026-04-25T10:53:00Z
+updated: 2026-04-26T13:36:00Z
 ---
 
 # Event-Driven Microservice Platform
@@ -40,6 +41,7 @@ AIForAll favors asynchronous coordination between bounded services instead of pu
 - `QueueConfig` and factory wiring let services switch Kafka/SQS/no-op modes without rewriting higher-level event call sites.
 - SQS fanout is now represented in config rather than service-specific code: an event type maps to a list of destination queues, and the RustyCog SQS publisher sends the same event to each queue.
 - SQS consumers poll every configured physical queue independently and delegate all accepted messages to the same service handler.
+- `[[projects/rustycog/references/rustycog-outbox]]` gives write-heavy services a durable event-intent bridge: domain rows and outbox rows are committed together, then an embedded dispatcher publishes later.
 - The test harness shows both transports are active parts of the codebase: Kafka tests provision a KRaft container and consume messages back from the topic, while SQS tests provision LocalStack and exercise real queue URLs and message bodies.
 - Hive is a good example of an HTTP-first service that still emits a substantial event stream, while Telegraph is a queue-aware consumer and IAMRusty combines HTTP-first flows with queue-backed side effects. ^[inferred]
 - Asynchronous messaging lets services keep ownership over their own data and still participate in longer workflows. ^[inferred]
@@ -58,6 +60,7 @@ AIForAll favors asynchronous coordination between bounded services instead of pu
 - <!-- [[projects/manifesto/references/manifesto-service]] --> — Project-service orchestration and cascading ADR
 - [[projects/rustycog/references/index]] — Code-backed inventory of the event crates
 - [[projects/rustycog/references/rustycog-events]] — Crate-level event transport and publisher details
+- [[projects/rustycog/references/rustycog-outbox]] — Durable event-intent bridge between DB transactions and event dispatch
 - [[projects/rustycog/rustycog]] — Shared SDK project implementing transport abstractions.
 - [[entities/domain-event]] — Shared event envelope entity
 - [[references/platform-building-blocks]] — Event contracts and shared infrastructure primitives

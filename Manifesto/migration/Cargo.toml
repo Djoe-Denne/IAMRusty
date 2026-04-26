@@ -14,6 +14,7 @@ path = "src/main.rs"
 # Database migration
 sea-orm-migration = { workspace = true }
 sea-orm = { workspace = true }
+rustycog-outbox = { path = "../../rustycog/rustycog-outbox" }
 
 # Async runtime
 tokio = { workspace = true }
