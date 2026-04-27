@@ -65,6 +65,10 @@ where
             token_service,
         }
     }
+    fn is_rotation_lost_race(error: &dyn std::error::Error) -> bool {
+        let message = error.to_string();
+        message.contains("RecordNotFound") || message.contains("Refresh token not found")
+    }
 }
 
 #[async_trait]
@@ -137,7 +141,11 @@ where
             .await
             .map_err(|e| {
                 debug!("Error rotating refresh token: {}", e);
-                DomainError::RepositoryError(e.to_string())
+                if Self::is_rotation_lost_race(&e) {
+                    DomainError::InvalidToken
+                } else {
+                    DomainError::RepositoryError(e.to_string())
+                }
             })?;
 
         // Calculate expiration times in seconds
