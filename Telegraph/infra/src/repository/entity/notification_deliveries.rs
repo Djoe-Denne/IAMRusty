@@ -63,11 +63,11 @@ impl TryFrom<String> for DeliveryMethod {
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         match value.as_str() {
-            "email" => Ok(DeliveryMethod::Email),
-            "sms" => Ok(DeliveryMethod::Sms),
-            "push" => Ok(DeliveryMethod::Push),
-            "in_app" => Ok(DeliveryMethod::InApp),
-            _ => Err(format!("Invalid delivery method: {}", value)),
+            "email" => Ok(Self::Email),
+            "sms" => Ok(Self::Sms),
+            "push" => Ok(Self::Push),
+            "in_app" => Ok(Self::InApp),
+            _ => Err(format!("Invalid delivery method: {value}")),
         }
     }
 }
@@ -98,23 +98,25 @@ impl TryFrom<String> for DeliveryStatus {
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         match value.as_str() {
-            "pending" => Ok(DeliveryStatus::Pending),
-            "sent" => Ok(DeliveryStatus::Sent),
-            "delivered" => Ok(DeliveryStatus::Delivered),
-            "failed" => Ok(DeliveryStatus::Failed),
-            "bounced" => Ok(DeliveryStatus::Bounced),
-            _ => Err(format!("Invalid delivery status: {}", value)),
+            "pending" => Ok(Self::Pending),
+            "sent" => Ok(Self::Sent),
+            "delivered" => Ok(Self::Delivered),
+            "failed" => Ok(Self::Failed),
+            "bounced" => Ok(Self::Bounced),
+            _ => Err(format!("Invalid delivery status: {value}")),
         }
     }
 }
 
 impl Model {
     /// Check if delivery can be retried
+    #[must_use]
     pub fn can_retry(&self) -> bool {
         matches!(self.status.as_str(), "pending" | "failed") && self.attempt_count < 3
     }
 
     /// Check if delivery is successful
+    #[must_use]
     pub fn is_successful(&self) -> bool {
         matches!(self.status.as_str(), "sent" | "delivered")
     }

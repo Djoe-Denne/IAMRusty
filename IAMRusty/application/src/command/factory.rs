@@ -62,6 +62,7 @@ pub struct IamRegistryUseCases {
 
 impl CommandRegistryFactory {
     /// Create a command registry with all standard IAM commands registered
+    #[must_use]
     pub fn create_iam_registry(
         usecases: IamRegistryUseCases,
         command_config: CommandConfig,
@@ -190,7 +191,7 @@ impl CommandRegistryFactory {
         builder = builder.register::<GetUserCommand, _>(
             "get_user".to_string(),
             get_user_handler,
-            user_error_mapper.clone(),
+            user_error_mapper,
         );
 
         // Register auth commands
@@ -296,6 +297,7 @@ impl CommandRegistryFactory {
     }
 
     /// Create an empty registry builder for custom command registration
+    #[must_use]
     pub fn create_empty_builder() -> CommandRegistryBuilder {
         CommandRegistryBuilder::new()
     }
@@ -389,7 +391,7 @@ impl CommandRegistryFactory {
         CommandRegistryBuilder::new().register::<GetUserCommand, _>(
             "get_user".to_string(),
             get_user_handler,
-            user_error_mapper.clone(),
+            user_error_mapper,
         )
     }
 

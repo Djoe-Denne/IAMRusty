@@ -4,13 +4,14 @@ use iam_application::usecase::login::PasswordService as AppPasswordService;
 use iam_domain::service::auth_service::AuthError;
 use std::sync::Arc;
 
-/// Adapter that bridges the application's PasswordService trait with the infrastructure implementation
+/// Adapter that bridges the application's `PasswordService` trait with the infrastructure implementation
 pub struct PasswordServiceAdapter {
     password_service: Arc<PasswordService>,
 }
 
 impl PasswordServiceAdapter {
-    pub fn new(password_service: Arc<PasswordService>) -> Self {
+    #[must_use]
+    pub const fn new(password_service: Arc<PasswordService>) -> Self {
         Self { password_service }
     }
 }

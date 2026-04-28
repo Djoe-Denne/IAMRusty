@@ -1,7 +1,7 @@
-//! Hive event -> OpenFGA tuple translation.
+//! Hive event -> `OpenFGA` tuple translation.
 //!
 //! Maps organization lifecycle and membership events from `hive-events`
-//! onto tuples for the `organization` OpenFGA type.
+//! onto tuples for the `organization` `OpenFGA` type.
 //!
 //! `OrganizationDeleted` intentionally emits no per-tuple deletes here: the
 //! store-level clean-up of every dangling `organization:{id}` tuple is best
@@ -19,12 +19,12 @@ use crate::fga_client::Tuple;
 pub struct HiveTranslator;
 
 impl HiveTranslator {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self
     }
 }
 
-/// Map a Hive `Role.permission` string onto the relation name the OpenFGA
+/// Map a Hive `Role.permission` string onto the relation name the `OpenFGA`
 /// `organization` type exposes. Returns `None` for unrecognized permission
 /// strings — the translator skips them rather than failing the whole event.
 fn role_to_org_relation(permission: &str) -> Option<&'static str> {
@@ -38,7 +38,7 @@ fn role_to_org_relation(permission: &str) -> Option<&'static str> {
 }
 
 /// Build one tuple per role on the organization. Sub-resource roles
-/// (member, external_link, etc.) collapse to organization-level relations
+/// (member, `external_link`, etc.) collapse to organization-level relations
 /// because the old Casbin models treated them as "unidentified resources".
 fn role_tuples_for_member(
     organization_id: uuid::Uuid,

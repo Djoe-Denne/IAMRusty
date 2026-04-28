@@ -17,7 +17,7 @@ pub use rustycog_logger::setup_logging;
 pub type AppConfig = ManifestoConfig;
 
 /// Main Manifesto service configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ManifestoConfig {
     /// Server configuration
     #[serde(default)]
@@ -51,7 +51,7 @@ pub struct ManifestoConfig {
     #[serde(default)]
     pub service: ServiceConfig,
 
-    /// OpenFGA authorization checker configuration.
+    /// `OpenFGA` authorization checker configuration.
     #[serde(default)]
     pub openfga: OpenFgaClientConfig,
 }
@@ -66,7 +66,7 @@ pub struct ComponentServiceConfig {
     pub timeout_seconds: u64,
 }
 
-fn default_timeout_seconds() -> u64 {
+const fn default_timeout_seconds() -> u64 {
     10
 }
 
@@ -81,7 +81,7 @@ impl Default for ComponentServiceConfig {
 }
 
 /// Service-specific configuration options
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ServiceConfig {
     /// Component service configuration
     #[serde(default)]
@@ -133,7 +133,7 @@ pub struct BusinessConfig {
 }
 
 // Default value functions
-fn default_true() -> bool {
+const fn default_true() -> bool {
     true
 }
 fn default_email_provider() -> String {
@@ -151,62 +151,38 @@ fn default_notification_provider() -> String {
 fn default_cache_provider() -> String {
     "memory".to_string()
 }
-fn default_cache_ttl() -> u32 {
+const fn default_cache_ttl() -> u32 {
     3600
 } // 1 hour
-fn default_max_projects_per_user() -> u32 {
+const fn default_max_projects_per_user() -> u32 {
     100
 }
-fn default_max_projects_per_org() -> u32 {
+const fn default_max_projects_per_org() -> u32 {
     500
 }
-fn default_max_members_per_project() -> u32 {
+const fn default_max_members_per_project() -> u32 {
     100
 }
-fn default_max_components_per_project() -> u32 {
+const fn default_max_components_per_project() -> u32 {
     50
 }
-fn default_page_size() -> u32 {
+const fn default_page_size() -> u32 {
     20
 }
-fn default_max_page_size() -> u32 {
+const fn default_max_page_size() -> u32 {
     100
 }
-fn default_project_name_max_length() -> usize {
+const fn default_project_name_max_length() -> usize {
     255
 }
-fn default_project_description_max_length() -> usize {
+const fn default_project_description_max_length() -> usize {
     2000
 }
-fn default_member_removal_grace_period_days() -> u32 {
+const fn default_member_removal_grace_period_days() -> u32 {
     30
 }
 
 // Default implementations
-impl Default for ManifestoConfig {
-    fn default() -> Self {
-        Self {
-            server: ServerConfig::default(),
-            auth: AuthConfig::default(),
-            logging: LoggingConfig::default(),
-            command: CommandConfig::default(),
-            queue: QueueConfig::default(),
-            database: DatabaseConfig::default(),
-            scaleway: ScalewayConfig::default(),
-            service: ServiceConfig::default(),
-            openfga: OpenFgaClientConfig::default(),
-        }
-    }
-}
-
-impl Default for ServiceConfig {
-    fn default() -> Self {
-        Self {
-            component_service: ComponentServiceConfig::default(),
-            business: BusinessConfig::default(),
-        }
-    }
-}
 
 impl Default for BusinessConfig {
     fn default() -> Self {
@@ -225,9 +201,9 @@ impl Default for BusinessConfig {
 }
 
 // Trait implementations for rustycog-config integration
-impl ConfigLoader<ManifestoConfig> for ManifestoConfig {
-    fn create_default() -> ManifestoConfig {
-        ManifestoConfig::default()
+impl ConfigLoader<Self> for ManifestoConfig {
+    fn create_default() -> Self {
+        Self::default()
     }
 
     fn config_prefix() -> &'static str {

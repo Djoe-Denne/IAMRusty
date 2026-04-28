@@ -20,7 +20,7 @@ impl CommandErrorMapper for ComponentErrorMapper {
         if let Some(error) = error.downcast_ref::<ApplicationError>() {
             match error {
                 ApplicationError::Domain(domain_error) => {
-                    CommandError::business("domain_error", &domain_error.to_string())
+                    CommandError::business("domain_error", domain_error.to_string())
                 }
                 ApplicationError::Validation(msg) => {
                     CommandError::validation("validation_failed", msg)
@@ -34,7 +34,7 @@ impl CommandErrorMapper for ComponentErrorMapper {
                 }
             }
         } else {
-            CommandError::business("unknown_error", &error.to_string())
+            CommandError::business("unknown_error", error.to_string())
         }
     }
 }
@@ -52,6 +52,7 @@ pub struct AddComponentCommand {
 }
 
 impl AddComponentCommand {
+    #[must_use]
     pub fn new(project_id: Uuid, request: AddComponentRequest, user_id: Uuid) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -121,6 +122,7 @@ pub struct GetComponentCommand {
 }
 
 impl GetComponentCommand {
+    #[must_use]
     pub fn new(project_id: Uuid, component_id: Uuid, user_id: Option<Uuid>) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -183,6 +185,7 @@ pub struct ListComponentsCommand {
 }
 
 impl ListComponentsCommand {
+    #[must_use]
     pub fn new(project_id: Uuid, user_id: Option<Uuid>) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -246,6 +249,7 @@ pub struct UpdateComponentStatusCommand {
 }
 
 impl UpdateComponentStatusCommand {
+    #[must_use]
     pub fn new(
         project_id: Uuid,
         component_id: Uuid,
@@ -326,6 +330,7 @@ pub struct RemoveComponentCommand {
 }
 
 impl RemoveComponentCommand {
+    #[must_use]
     pub fn new(project_id: Uuid, component_id: Uuid, user_id: Uuid) -> Self {
         Self {
             command_id: Uuid::new_v4(),

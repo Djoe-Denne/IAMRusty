@@ -23,6 +23,7 @@ pub struct ComponentAddedEvent {
 }
 
 impl ComponentAddedEvent {
+    #[must_use]
     pub fn new(
         project_id: Uuid,
         component_id: Uuid,
@@ -56,6 +57,7 @@ pub struct ComponentStatusChangedEvent {
 }
 
 impl ComponentStatusChangedEvent {
+    #[must_use]
     pub fn new(
         project_id: Uuid,
         component_id: Uuid,
@@ -91,6 +93,7 @@ pub struct ComponentRemovedEvent {
 }
 
 impl ComponentRemovedEvent {
+    #[must_use]
     pub fn new(
         project_id: Uuid,
         component_id: Uuid,

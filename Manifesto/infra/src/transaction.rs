@@ -21,7 +21,7 @@ pub struct ProjectCreationUnitOfWorkImpl {
 }
 
 impl ProjectCreationUnitOfWorkImpl {
-    pub fn new(db: DbConnectionPool, outbox: OutboxRecorder) -> Self {
+    pub const fn new(db: DbConnectionPool, outbox: OutboxRecorder) -> Self {
         Self { db, outbox }
     }
 }
@@ -139,9 +139,6 @@ fn normalize_permission(permission: Permission) -> Result<Permission, DomainErro
     })
 }
 
-fn normalize_resource(resource: Resource) -> Resource {
-    Resource {
-        name: resource.name,
-        created_at: resource.created_at,
-    }
+const fn normalize_resource(resource: Resource) -> Resource {
+    resource
 }

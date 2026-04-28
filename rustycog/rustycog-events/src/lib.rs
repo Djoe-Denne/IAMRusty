@@ -1,4 +1,4 @@
-//! # RustyCog Events
+//! # `RustyCog` Events
 //!
 //! Event publishing and subscription utilities.
 
@@ -32,7 +32,7 @@ pub use kafka::{KafkaEventConsumer, KafkaEventPublisher};
 pub use no_op::*;
 pub use sqs::{SqsEventConsumer, SqsEventPublisher};
 
-/// Concrete event publisher that can be Kafka, SQS, or NoOp
+/// Concrete event publisher that can be Kafka, SQS, or `NoOp`
 pub enum ConcreteEventPublisher {
     Kafka(KafkaEventPublisher),
     Sqs(SqsEventPublisher),
@@ -42,15 +42,13 @@ pub enum ConcreteEventPublisher {
 impl ConcreteEventPublisher {
     pub async fn new(config: &QueueConfig) -> Result<Self, ServiceError> {
         match config {
-            QueueConfig::Kafka(kafka_config) => Ok(ConcreteEventPublisher::Kafka(
+            QueueConfig::Kafka(kafka_config) => Ok(Self::Kafka(
                 KafkaEventPublisher::new(kafka_config.clone()).await?,
             )),
-            QueueConfig::Sqs(sqs_config) => Ok(ConcreteEventPublisher::Sqs(
-                SqsEventPublisher::new(sqs_config.clone()).await?,
-            )),
-            QueueConfig::Disabled => Ok(ConcreteEventPublisher::NoOp(Arc::new(
-                NoOpEventPublisher::new(),
-            ))),
+            QueueConfig::Sqs(sqs_config) => {
+                Ok(Self::Sqs(SqsEventPublisher::new(sqs_config.clone()).await?))
+            }
+            QueueConfig::Disabled => Ok(Self::NoOp(Arc::new(NoOpEventPublisher::new()))),
         }
     }
 }
@@ -59,25 +57,25 @@ impl ConcreteEventPublisher {
 impl EventPublisher<ServiceError> for ConcreteEventPublisher {
     async fn publish(&self, event: &Box<dyn DomainEvent>) -> Result<(), ServiceError> {
         match self {
-            ConcreteEventPublisher::Kafka(kafka) => kafka.publish(event).await,
-            ConcreteEventPublisher::Sqs(sqs) => sqs.publish(event).await,
-            ConcreteEventPublisher::NoOp(no_op) => no_op.publish(event).await,
+            Self::Kafka(kafka) => kafka.publish(event).await,
+            Self::Sqs(sqs) => sqs.publish(event).await,
+            Self::NoOp(no_op) => no_op.publish(event).await,
         }
     }
 
     async fn publish_batch(&self, events: &Vec<Box<dyn DomainEvent>>) -> Result<(), ServiceError> {
         match self {
-            ConcreteEventPublisher::Kafka(kafka) => kafka.publish_batch(events).await,
-            ConcreteEventPublisher::Sqs(sqs) => sqs.publish_batch(events).await,
-            ConcreteEventPublisher::NoOp(no_op) => no_op.publish_batch(events).await,
+            Self::Kafka(kafka) => kafka.publish_batch(events).await,
+            Self::Sqs(sqs) => sqs.publish_batch(events).await,
+            Self::NoOp(no_op) => no_op.publish_batch(events).await,
         }
     }
 
     async fn health_check(&self) -> Result<(), ServiceError> {
         match self {
-            ConcreteEventPublisher::Kafka(kafka) => kafka.health_check().await,
-            ConcreteEventPublisher::Sqs(sqs) => sqs.health_check().await,
-            ConcreteEventPublisher::NoOp(no_op) => no_op.health_check().await,
+            Self::Kafka(kafka) => kafka.health_check().await,
+            Self::Sqs(sqs) => sqs.health_check().await,
+            Self::NoOp(no_op) => no_op.health_check().await,
         }
     }
 }
@@ -95,7 +93,7 @@ fn is_test_kafka_container_running() -> bool {
 }
 
 /// Check if we're running in test mode
-fn is_test_mode() -> bool {
+const fn is_test_mode() -> bool {
     cfg!(test) || cfg!(feature = "test-utils")
 }
 
@@ -148,14 +146,13 @@ pub async fn create_kafka_event_publisher(
                         ))));
                     }
                 }
-            } else {
-                tracing::info!(
-                    "Test mode: No Kafka test container detected or Kafka disabled, using no-op event publisher"
-                );
-                return Ok(Arc::new(ConcreteEventPublisher::NoOp(Arc::new(
-                    NoOpEventPublisher::new(),
-                ))));
             }
+            tracing::info!(
+                "Test mode: No Kafka test container detected or Kafka disabled, using no-op event publisher"
+            );
+            return Ok(Arc::new(ConcreteEventPublisher::NoOp(Arc::new(
+                NoOpEventPublisher::new(),
+            ))));
         }
 
         #[cfg(not(any(test, feature = "test-utils")))]
@@ -224,12 +221,11 @@ pub async fn create_sqs_event_publisher(
                         ))));
                     }
                 }
-            } else {
-                tracing::info!("Test mode: SQS disabled, using no-op event publisher");
-                return Ok(Arc::new(ConcreteEventPublisher::NoOp(Arc::new(
-                    NoOpEventPublisher::new(),
-                ))));
             }
+            tracing::info!("Test mode: SQS disabled, using no-op event publisher");
+            return Ok(Arc::new(ConcreteEventPublisher::NoOp(Arc::new(
+                NoOpEventPublisher::new(),
+            ))));
         }
 
         #[cfg(not(any(test, feature = "test-utils")))]
@@ -327,7 +323,7 @@ pub trait EventHandler: Send + Sync {
     fn supports_event_type(&self, event_type: &str) -> bool;
 }
 
-/// Concrete event consumer that can be Kafka, SQS, or NoOp
+/// Concrete event consumer that can be Kafka, SQS, or `NoOp`
 pub enum ConcreteEventConsumer {
     Kafka(KafkaEventConsumer),
     Sqs(SqsEventConsumer),
@@ -341,25 +337,25 @@ impl EventConsumer for ConcreteEventConsumer {
         H: EventHandler + Send + Sync + 'static,
     {
         match self {
-            ConcreteEventConsumer::Kafka(kafka) => kafka.start(handler).await,
-            ConcreteEventConsumer::Sqs(sqs) => sqs.start(handler).await,
-            ConcreteEventConsumer::NoOp(no_op) => no_op.start(handler).await,
+            Self::Kafka(kafka) => kafka.start(handler).await,
+            Self::Sqs(sqs) => sqs.start(handler).await,
+            Self::NoOp(no_op) => no_op.start(handler).await,
         }
     }
 
     async fn stop(&self) -> Result<(), ServiceError> {
         match self {
-            ConcreteEventConsumer::Kafka(kafka) => kafka.stop().await,
-            ConcreteEventConsumer::Sqs(sqs) => sqs.stop().await,
-            ConcreteEventConsumer::NoOp(no_op) => no_op.stop().await,
+            Self::Kafka(kafka) => kafka.stop().await,
+            Self::Sqs(sqs) => sqs.stop().await,
+            Self::NoOp(no_op) => no_op.stop().await,
         }
     }
 
     async fn health_check(&self) -> Result<(), ServiceError> {
         match self {
-            ConcreteEventConsumer::Kafka(kafka) => kafka.health_check().await,
-            ConcreteEventConsumer::Sqs(sqs) => sqs.health_check().await,
-            ConcreteEventConsumer::NoOp(no_op) => no_op.health_check().await,
+            Self::Kafka(kafka) => kafka.health_check().await,
+            Self::Sqs(sqs) => sqs.health_check().await,
+            Self::NoOp(no_op) => no_op.health_check().await,
         }
     }
 }
@@ -406,14 +402,13 @@ pub async fn create_kafka_event_consumer(
                         )));
                     }
                 }
-            } else {
-                tracing::info!(
-                    "Test mode: No Kafka test container detected or Kafka disabled, using no-op event consumer"
-                );
-                return Ok(Arc::new(ConcreteEventConsumer::NoOp(
-                    NoOpEventConsumer::new(),
-                )));
             }
+            tracing::info!(
+                "Test mode: No Kafka test container detected or Kafka disabled, using no-op event consumer"
+            );
+            return Ok(Arc::new(ConcreteEventConsumer::NoOp(
+                NoOpEventConsumer::new(),
+            )));
         }
 
         #[cfg(not(any(test, feature = "test-utils")))]
@@ -480,12 +475,11 @@ pub async fn create_sqs_event_consumer(
                         )));
                     }
                 }
-            } else {
-                tracing::info!("Test mode: SQS disabled, using no-op event consumer");
-                return Ok(Arc::new(ConcreteEventConsumer::NoOp(
-                    NoOpEventConsumer::new(),
-                )));
             }
+            tracing::info!("Test mode: SQS disabled, using no-op event consumer");
+            return Ok(Arc::new(ConcreteEventConsumer::NoOp(
+                NoOpEventConsumer::new(),
+            )));
         }
 
         #[cfg(not(any(test, feature = "test-utils")))]

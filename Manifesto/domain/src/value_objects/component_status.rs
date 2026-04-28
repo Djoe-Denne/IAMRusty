@@ -12,7 +12,8 @@ pub enum ComponentStatus {
 
 impl ComponentStatus {
     /// Check if this status can transition to the target status
-    pub fn can_transition_to(&self, target: &ComponentStatus) -> bool {
+    #[must_use]
+    pub fn can_transition_to(&self, target: &Self) -> bool {
         match (self, target) {
             // From Pending
             (Self::Pending, Self::Configured) => true,
@@ -28,18 +29,18 @@ impl ComponentStatus {
     }
 
     /// Attempt to transition to the target status
-    pub fn transition_to(&self, target: ComponentStatus) -> Result<ComponentStatus, DomainError> {
+    pub fn transition_to(&self, target: Self) -> Result<Self, DomainError> {
         if self.can_transition_to(&target) {
             Ok(target)
         } else {
             Err(DomainError::business_rule_violation(&format!(
-                "Cannot transition component from {:?} to {:?}",
-                self, target
+                "Cannot transition component from {self:?} to {target:?}"
             )))
         }
     }
 
-    pub fn as_str(&self) -> &'static str {
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
         match self {
             Self::Pending => "pending",
             Self::Configured => "configured",
@@ -55,8 +56,7 @@ impl ComponentStatus {
             "active" => Ok(Self::Active),
             "disabled" => Ok(Self::Disabled),
             _ => Err(DomainError::invalid_input(&format!(
-                "Invalid component status: {}",
-                s
+                "Invalid component status: {s}"
             ))),
         }
     }

@@ -71,6 +71,6 @@ where
 
         value.validate().map_err(ValidationError::from)?;
 
-        Ok(ValidatedJson(value))
+        Ok(Self(value))
     }
 }

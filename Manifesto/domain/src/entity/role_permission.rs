@@ -18,7 +18,8 @@ pub struct RolePermission {
 
 impl RolePermission {
     /// Create a new role permission
-    pub fn new(
+    #[must_use]
+    pub const fn new(
         id: Option<Uuid>,
         name: Option<String>,
         project_id: Uuid,
@@ -43,14 +44,15 @@ impl RolePermission {
 }
 
 /// Helper struct to represent permission-resource combinations for easier handling
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PermissionResourceCombo {
     pub permission_level: String,
     pub resource_name: String,
 }
 
 impl PermissionResourceCombo {
-    pub fn new(permission_level: String, resource_name: String) -> Self {
+    #[must_use]
+    pub const fn new(permission_level: String, resource_name: String) -> Self {
         Self {
             permission_level,
             resource_name,

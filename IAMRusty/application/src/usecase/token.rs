@@ -91,8 +91,8 @@ impl<RTS> TokenUseCaseImpl<RTS>
 where
     RTS: RefreshTokenService,
 {
-    /// Create a new TokenUseCaseImpl
-    pub fn new(refresh_token_service: Arc<RTS>) -> Self {
+    /// Create a new `TokenUseCaseImpl`
+    pub const fn new(refresh_token_service: Arc<RTS>) -> Self {
         Self {
             refresh_token_service,
         }

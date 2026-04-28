@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use rustycog_events::{BaseEvent, DomainEvent};
+use rustycog_events::BaseEvent;
 
 // =============================================================================
 // Organization Events
@@ -48,6 +48,7 @@ pub struct OrganizationDeletedEvent {
 // =============================================================================
 
 impl OrganizationCreatedEvent {
+    #[must_use]
     pub fn new(
         organization_id: Uuid,
         organization_name: String,
@@ -67,6 +68,7 @@ impl OrganizationCreatedEvent {
 }
 
 impl OrganizationUpdatedEvent {
+    #[must_use]
     pub fn new(
         organization_id: Uuid,
         organization_name: String,
@@ -86,6 +88,7 @@ impl OrganizationUpdatedEvent {
 }
 
 impl OrganizationDeletedEvent {
+    #[must_use]
     pub fn new(
         organization_id: Uuid,
         organization_name: String,

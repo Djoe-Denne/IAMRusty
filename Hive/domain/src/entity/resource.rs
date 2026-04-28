@@ -1,9 +1,8 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 /// Resource entity representing a specific resource in the system
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Resource {
     pub name: String,
     pub description: Option<String>,
@@ -12,7 +11,8 @@ pub struct Resource {
 
 impl Resource {
     /// Create a new resource
-    pub fn new(
+    #[must_use]
+    pub const fn new(
         name: String,
         description: Option<String>,
         created_at: Option<DateTime<Utc>>,

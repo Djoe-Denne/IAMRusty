@@ -6,7 +6,7 @@ use uuid::Uuid;
 use rustycog_core::error::DomainError;
 
 /// External provider entity representing third-party provider configurations
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExternalProvider {
     pub id: Uuid,
     pub provider_source: String,
@@ -48,12 +48,12 @@ impl ExternalProvider {
     }
 
     /// Activate the provider
-    pub fn activate(&mut self) {
+    pub const fn activate(&mut self) {
         self.is_active = true;
     }
 
     /// Deactivate the provider
-    pub fn deactivate(&mut self) {
+    pub const fn deactivate(&mut self) {
         self.is_active = false;
     }
 

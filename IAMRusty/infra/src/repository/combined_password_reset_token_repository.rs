@@ -22,7 +22,7 @@ where
     W: PasswordResetTokenWriteRepository,
 {
     /// Create a new combined repository
-    pub fn new(read_repo: Arc<R>, write_repo: Arc<W>) -> Self {
+    pub const fn new(read_repo: Arc<R>, write_repo: Arc<W>) -> Self {
         Self {
             read_repo,
             write_repo,

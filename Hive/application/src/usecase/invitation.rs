@@ -144,19 +144,19 @@ impl InvitationUseCase for InvitationUseCaseImpl {
         request: &CreateInvitationRequest,
         invited_by_user_id: Uuid,
     ) -> Result<InvitationResponse, ApplicationError> {
-        let role_permissions = request.roles.iter().map(|role| role.into()).collect();
+        let role_permissions = request.roles.iter().map(std::convert::Into::into).collect();
         let invitation = self
             .invitation_service
             .create_invitation_by_email(
-                organization_id.clone(),
+                organization_id,
                 request.email.clone(),
                 role_permissions,
-                invited_by_user_id.clone(),
+                invited_by_user_id,
                 request.message.clone(),
                 None,
             )
             .await
-            .map_err(|e| ApplicationError::Domain(e))?;
+            .map_err(ApplicationError::Domain)?;
 
         self.publish_invitation_created_event(
             organization_id,
@@ -181,7 +181,7 @@ impl InvitationUseCase for InvitationUseCaseImpl {
         self.invitation_service
             .accept_invitation(token, user_id)
             .await
-            .map_err(|e| ApplicationError::Domain(e))?;
+            .map_err(ApplicationError::Domain)?;
 
         Ok(())
     }
@@ -190,7 +190,7 @@ impl InvitationUseCase for InvitationUseCaseImpl {
         self.invitation_service
             .cancel_invitation(invitation_id)
             .await
-            .map_err(|e| ApplicationError::Domain(e))?;
+            .map_err(ApplicationError::Domain)?;
 
         Ok(())
     }
@@ -203,7 +203,7 @@ impl InvitationUseCase for InvitationUseCaseImpl {
             .invitation_service
             .get_invitation(invitation_id)
             .await
-            .map_err(|e| ApplicationError::Domain(e))?;
+            .map_err(ApplicationError::Domain)?;
 
         Ok(self.invitation_to_response(&invitation))
     }

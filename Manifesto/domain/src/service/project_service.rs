@@ -52,7 +52,7 @@ where
     PR: ProjectRepository,
     CR: ComponentReadRepository,
 {
-    pub fn new(project_repo: Arc<PR>, component_repo: Arc<CR>) -> Self {
+    pub const fn new(project_repo: Arc<PR>, component_repo: Arc<CR>) -> Self {
         Self {
             project_repo,
             component_repo,

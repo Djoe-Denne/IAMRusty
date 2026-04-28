@@ -1,7 +1,7 @@
 //! HTTP layer: Axum web server and endpoints
 //!
 //! This crate provides the HTTP interface for the application,
-//! implementing the OpenAPI specification.
+//! implementing the `OpenAPI` specification.
 
 use axum::Router;
 use iam_configuration::ServerConfig;
@@ -32,7 +32,7 @@ pub const SERVICE_PREFIX: &str = "/iam";
 
 /// Create the application routes using the fluent builder API
 pub fn create_router(state: AppState) -> Router {
-    RouteBuilder::new(state.clone())
+    RouteBuilder::new(state)
         .health_check()
         // Public authentication routes
         .get("/.well-known/jwks.json", jwks)

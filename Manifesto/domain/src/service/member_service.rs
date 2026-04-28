@@ -55,7 +55,7 @@ impl<MR> MemberServiceImpl<MR>
 where
     MR: MemberRepository,
 {
-    pub fn new(member_repo: Arc<MR>) -> Self {
+    pub const fn new(member_repo: Arc<MR>) -> Self {
         Self { member_repo }
     }
 }
@@ -74,10 +74,7 @@ where
             .find_by_project_and_user(&project_id, &user_id)
             .await?
             .ok_or_else(|| {
-                DomainError::entity_not_found(
-                    "ProjectMember",
-                    &format!("{}/{}", project_id, user_id),
-                )
+                DomainError::entity_not_found("ProjectMember", &format!("{project_id}/{user_id}"))
             })
     }
 

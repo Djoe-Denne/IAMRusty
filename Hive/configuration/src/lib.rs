@@ -29,7 +29,7 @@ pub struct ExternalProviderServiceConfig {
 }
 
 /// Main application configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppConfig {
     /// Server configuration
     pub server: ServerConfig,
@@ -51,7 +51,7 @@ pub struct AppConfig {
     pub command: CommandConfig,
     /// Queue configuration (Kafka, SQS, or Disabled)
     pub queue: QueueConfig,
-    /// OpenFGA authorization checker configuration.
+    /// `OpenFGA` authorization checker configuration.
     #[serde(default)]
     pub openfga: OpenFgaClientConfig,
 }
@@ -64,7 +64,7 @@ impl Default for IamServiceConfig {
     fn default() -> Self {
         Self {
             base_url: "http://localhost:8080".to_string(),
-            api_key: "".to_string(),
+            api_key: String::new(),
             timeout_seconds: 10,
         }
     }
@@ -81,30 +81,13 @@ impl Default for ExternalProviderServiceConfig {
     }
 }
 
-impl Default for AppConfig {
-    fn default() -> Self {
-        Self {
-            server: ServerConfig::default(),
-            auth: AuthConfig::default(),
-            database: DatabaseConfig::default(),
-            iam_service: IamServiceConfig::default(),
-            external_provider_service: ExternalProviderServiceConfig::default(),
-            logging: LoggingConfig::default(),
-            scaleway: ScalewayConfig::default(),
-            command: CommandConfig::default(),
-            queue: QueueConfig::default(),
-            openfga: OpenFgaClientConfig::default(),
-        }
-    }
-}
-
 /***********************************
  *  ConfigLoader implementation
  *********************************/
 
-impl ConfigLoader<AppConfig> for AppConfig {
-    fn create_default() -> AppConfig {
-        AppConfig::default()
+impl ConfigLoader<Self> for AppConfig {
+    fn create_default() -> Self {
+        Self::default()
     }
 
     fn config_prefix() -> &'static str {

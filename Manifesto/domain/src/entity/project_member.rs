@@ -22,6 +22,7 @@ pub struct ProjectMember {
 
 impl ProjectMember {
     /// Create a new project member
+    #[must_use]
     pub fn new(
         project_id: Uuid,
         user_id: Uuid,
@@ -44,7 +45,8 @@ impl ProjectMember {
     }
 
     /// Check if the member is active (not removed)
-    pub fn is_active(&self) -> bool {
+    #[must_use]
+    pub const fn is_active(&self) -> bool {
         self.removed_at.is_none()
     }
 
@@ -64,6 +66,7 @@ impl ProjectMember {
     }
 
     /// Check if member has specific permission on a resource
+    #[must_use]
     pub fn has_permission(
         &self,
         resource_name: &str,
@@ -88,6 +91,7 @@ impl ProjectMember {
     }
 
     /// Get permission level for a specific resource
+    #[must_use]
     pub fn get_permission_for_resource(&self, resource_name: &str) -> Option<PermissionLevel> {
         if !self.is_active() {
             return None;
@@ -106,7 +110,8 @@ impl ProjectMember {
     }
 
     /// Check if member can manage another member (based on project resource permission)
-    pub fn can_manage_member(&self, other: &ProjectMember) -> bool {
+    #[must_use]
+    pub fn can_manage_member(&self, other: &Self) -> bool {
         if !self.is_active() || !other.is_active() {
             return false;
         }

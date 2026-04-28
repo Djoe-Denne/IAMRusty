@@ -58,6 +58,7 @@ pub struct SyncJobCompletedEventData {
 // =============================================================================
 
 impl SyncJobStartedEvent {
+    #[must_use]
     pub fn new(
         organization_id: Uuid,
         external_link_id: Uuid,
@@ -77,6 +78,7 @@ impl SyncJobStartedEvent {
 }
 
 impl SyncJobCompletedEvent {
+    #[must_use]
     pub fn new(data: SyncJobCompletedEventData) -> Self {
         Self {
             base: BaseEvent::new("sync_job_completed".to_string(), data.organization_id),

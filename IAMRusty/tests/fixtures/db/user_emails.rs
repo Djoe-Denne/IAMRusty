@@ -23,7 +23,7 @@ pub struct UserEmailFixtureBuilder {
 
 impl UserEmailFixtureBuilder {
     /// Create a new user email fixture builder
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             id: None,
             user_id: None,
@@ -36,13 +36,13 @@ impl UserEmailFixtureBuilder {
     }
 
     /// Set the email ID
-    pub fn id(mut self, id: Uuid) -> Self {
+    pub const fn id(mut self, id: Uuid) -> Self {
         self.id = Some(id);
         self
     }
 
     /// Set the user ID
-    pub fn user_id(mut self, user_id: Uuid) -> Self {
+    pub const fn user_id(mut self, user_id: Uuid) -> Self {
         self.user_id = Some(user_id);
         self
     }
@@ -54,32 +54,32 @@ impl UserEmailFixtureBuilder {
     }
 
     /// Set whether this is the primary email
-    pub fn is_primary(mut self, is_primary: bool) -> Self {
+    pub const fn is_primary(mut self, is_primary: bool) -> Self {
         self.is_primary = Some(is_primary);
         self
     }
 
     /// Set whether this email is verified
-    pub fn is_verified(mut self, is_verified: bool) -> Self {
+    pub const fn is_verified(mut self, is_verified: bool) -> Self {
         self.is_verified = Some(is_verified);
         self
     }
 
-    /// Set the created_at timestamp
-    pub fn created_at(mut self, created_at: NaiveDateTime) -> Self {
+    /// Set the `created_at` timestamp
+    pub const fn created_at(mut self, created_at: NaiveDateTime) -> Self {
         self.created_at = Some(created_at);
         self
     }
 
-    /// Set the updated_at timestamp
-    pub fn updated_at(mut self, updated_at: NaiveDateTime) -> Self {
+    /// Set the `updated_at` timestamp
+    pub const fn updated_at(mut self, updated_at: NaiveDateTime) -> Self {
         self.updated_at = Some(updated_at);
         self
     }
 
     /// Commit the user email to the database
     pub async fn commit(self, db: Arc<DatabaseConnection>) -> Result<UserEmailFixture, DbErr> {
-        let fixture = DbFixture::commit(self, &*db).await?;
+        let fixture = DbFixture::commit(self, &db).await?;
         Ok(UserEmailFixture { inner: fixture })
     }
 
@@ -214,17 +214,17 @@ impl UserEmailFixture {
     }
 
     /// Get the user email model
-    pub fn model(&self) -> &UserEmailModel {
+    pub const fn model(&self) -> &UserEmailModel {
         self.inner.model()
     }
 
     /// Get the email ID
-    pub fn id(&self) -> Uuid {
+    pub const fn id(&self) -> Uuid {
         self.model().id
     }
 
     /// Get the user ID
-    pub fn user_id(&self) -> Uuid {
+    pub const fn user_id(&self) -> Uuid {
         self.model().user_id
     }
 
@@ -234,22 +234,22 @@ impl UserEmailFixture {
     }
 
     /// Check if this is the primary email
-    pub fn is_primary(&self) -> bool {
+    pub const fn is_primary(&self) -> bool {
         self.model().is_primary
     }
 
     /// Check if this email is verified
-    pub fn is_verified(&self) -> bool {
+    pub const fn is_verified(&self) -> bool {
         self.model().is_verified
     }
 
-    /// Get the created_at timestamp
-    pub fn created_at(&self) -> NaiveDateTime {
+    /// Get the `created_at` timestamp
+    pub const fn created_at(&self) -> NaiveDateTime {
         self.model().created_at
     }
 
-    /// Get the updated_at timestamp
-    pub fn updated_at(&self) -> NaiveDateTime {
+    /// Get the `updated_at` timestamp
+    pub const fn updated_at(&self) -> NaiveDateTime {
         self.model().updated_at
     }
 }

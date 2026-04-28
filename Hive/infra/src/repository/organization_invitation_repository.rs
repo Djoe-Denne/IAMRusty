@@ -1,20 +1,19 @@
-//! OrganizationInvitationRepository SeaORM implementation
+//! `OrganizationInvitationRepository` `SeaORM` implementation
 
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use hive_domain::entity::{InvitationStatus, OrganizationInvitation};
 use hive_domain::port::repository::{
     OrganizationInvitationReadRepository, OrganizationInvitationRepository,
     OrganizationInvitationWriteRepository,
 };
 use rustycog_core::error::DomainError;
-use sea_orm::QuerySelect;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, JsonValue,
-    Order, PaginatorTrait, QueryFilter, QueryOrder, Set,
+    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, Order,
+    PaginatorTrait, QueryFilter, QueryOrder,
 };
 use std::sync::Arc;
-use tracing::{debug, error};
+use tracing::debug;
 use uuid::Uuid;
 
 use super::entity::{organization_invitations, prelude::OrganizationInvitations};
@@ -44,7 +43,7 @@ impl OrganizationInvitationMapper {
             organization_name: None,
             aggregate_id: model.aggregate_id,
             role_permissions: serde_json::from_value(model.role_permissions).map_err(|e| {
-                DomainError::invalid_input(&format!("Invalid role permissions: {}", e))
+                DomainError::invalid_input(&format!("Invalid role permissions: {e}"))
             })?,
             invited_by_user_id: model.invited_by_user_id,
             token: model.token,
@@ -56,6 +55,7 @@ impl OrganizationInvitationMapper {
         })
     }
 
+    #[must_use]
     pub fn to_active_model(
         invitation: &OrganizationInvitation,
     ) -> organization_invitations::ActiveModel {
@@ -70,9 +70,9 @@ impl OrganizationInvitationMapper {
             id: ActiveValue::Set(invitation.id),
             organization_id: ActiveValue::Set(invitation.organization_id),
             aggregate_id: ActiveValue::Set(invitation.aggregate_id.clone()),
-            role_permissions: ActiveValue::Set(JsonValue::from(
+            role_permissions: ActiveValue::Set(
                 serde_json::to_value(&invitation.role_permissions).unwrap(),
-            )),
+            ),
             invited_by_user_id: ActiveValue::Set(invitation.invited_by_user_id),
             token: ActiveValue::Set(invitation.token.clone()),
             status: ActiveValue::Set(status_str.to_string()),
@@ -91,7 +91,8 @@ pub struct OrganizationInvitationReadRepositoryImpl {
 }
 
 impl OrganizationInvitationReadRepositoryImpl {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    #[must_use]
+    pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
 }
@@ -285,7 +286,8 @@ pub struct OrganizationInvitationWriteRepositoryImpl {
 }
 
 impl OrganizationInvitationWriteRepositoryImpl {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    #[must_use]
+    pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
 }

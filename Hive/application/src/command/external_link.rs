@@ -18,6 +18,7 @@ pub struct CreateExternalLinkCommand {
 }
 
 impl CreateExternalLinkCommand {
+    #[must_use]
     pub fn new(organization_id: Uuid, request: &CreateExternalLinkRequest, user_id: Uuid) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -66,7 +67,7 @@ impl CommandHandler<CreateExternalLinkCommand> for CreateExternalLinkCommandHand
         self.external_link_usecase
             .create_link(command.organization_id, &command.request)
             .await
-            .map_err(|e| CommandError::business("create_external_link_failed", &e.to_string()))
+            .map_err(|e| CommandError::business("create_external_link_failed", e.to_string()))
     }
 }
 
@@ -77,23 +78,23 @@ impl CommandErrorMapper for ExternalLinkErrorMapper {
         if let Some(error) = error.downcast_ref::<ApplicationError>() {
             match error {
                 ApplicationError::Domain(domain_error) => {
-                    CommandError::business("domain_error", &domain_error.to_string())
+                    CommandError::business("domain_error", domain_error.to_string())
                 }
                 ApplicationError::ValidationError(_) => {
-                    CommandError::validation("validation_failed", &error.to_string())
+                    CommandError::validation("validation_failed", error.to_string())
                 }
                 ApplicationError::ExternalService { .. } => {
-                    CommandError::infrastructure("external_error", &error.to_string())
+                    CommandError::infrastructure("external_error", error.to_string())
                 }
                 ApplicationError::RateLimit { .. } => {
-                    CommandError::business("rate_limit", &error.to_string())
+                    CommandError::business("rate_limit", error.to_string())
                 }
                 ApplicationError::Internal { .. } => {
-                    CommandError::infrastructure("internal_error", &error.to_string())
+                    CommandError::infrastructure("internal_error", error.to_string())
                 }
             }
         } else {
-            CommandError::infrastructure("unknown_error", &error.to_string())
+            CommandError::infrastructure("unknown_error", error.to_string())
         }
     }
 }

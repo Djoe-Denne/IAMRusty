@@ -84,8 +84,8 @@ where
     T: iam_domain::port::repository::TokenRepository,
     UE: iam_domain::port::repository::UserEmailRepository,
 {
-    /// Create a new ProviderUseCaseImpl
-    pub fn new(auth_service: Arc<OAuthService<U, T, UE>>) -> Self {
+    /// Create a new `ProviderUseCaseImpl`
+    pub const fn new(auth_service: Arc<OAuthService<U, T, UE>>) -> Self {
         Self { auth_service }
     }
 }
@@ -120,9 +120,9 @@ where
                 iam_domain::error::DomainError::NoTokenForProvider => {
                     ProviderError::NoTokenForProvider
                 }
-                iam_domain::error::DomainError::RepositoryError(msg) => ProviderError::DbError(
-                    Box::new(std::io::Error::new(std::io::ErrorKind::Other, msg)),
-                ),
+                iam_domain::error::DomainError::RepositoryError(msg) => {
+                    ProviderError::DbError(Box::new(std::io::Error::other(msg)))
+                }
                 _ => ProviderError::AuthError(e.to_string()),
             })
     }
@@ -143,9 +143,9 @@ where
                 iam_domain::error::DomainError::NoTokenForProvider => {
                     ProviderError::NoTokenForProvider
                 }
-                iam_domain::error::DomainError::RepositoryError(msg) => ProviderError::DbError(
-                    Box::new(std::io::Error::new(std::io::ErrorKind::Other, msg)),
-                ),
+                iam_domain::error::DomainError::RepositoryError(msg) => {
+                    ProviderError::DbError(Box::new(std::io::Error::other(msg)))
+                }
                 _ => ProviderError::AuthError(e.to_string()),
             })
     }

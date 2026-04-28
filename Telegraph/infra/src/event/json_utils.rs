@@ -4,7 +4,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 use telegraph_domain::DomainError;
 
-/// Convert a serde_json::Value to HashMap<String, String>
+/// Convert a `serde_json::Value` to `HashMap`<String, String>
 /// Flattens nested objects using dot notation (e.g., "user.email")
 pub fn json_to_string_map(value: &Value) -> Result<HashMap<String, String>, DomainError> {
     let mut map = HashMap::new();
@@ -13,11 +13,11 @@ pub fn json_to_string_map(value: &Value) -> Result<HashMap<String, String>, Doma
     // and we want to extract its fields directly (not nested under the root key)
     if let Value::Object(obj) = value {
         for (key, val) in obj {
-            flatten_json_value(val, &key, &mut map)?;
+            flatten_json_value(val, key, &mut map)?;
         }
     } else {
         // If root is not an object, just flatten normally
-        flatten_json_value(value, &"".to_string(), &mut map)?;
+        flatten_json_value(value, "", &mut map)?;
     }
     Ok(map)
 }
@@ -65,7 +65,7 @@ fn join_path(prefix: &str, key: &str) -> String {
     if prefix.is_empty() {
         key.to_string()
     } else {
-        format!("{}.{}", prefix, key)
+        format!("{prefix}.{key}")
     }
 }
 

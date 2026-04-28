@@ -10,18 +10,19 @@ use uuid::Uuid;
 
 use crate::repository::entity::{password_reset_tokens, prelude::*};
 
-/// SeaORM implementation of PasswordResetTokenReadRepository
+/// `SeaORM` implementation of `PasswordResetTokenReadRepository`
 pub struct PasswordResetTokenReadRepositoryImpl {
     db: Arc<DatabaseConnection>,
 }
 
 impl PasswordResetTokenReadRepositoryImpl {
     /// Create a new instance
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    #[must_use]
+    pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
 
-    /// Convert SeaORM model to domain entity
+    /// Convert `SeaORM` model to domain entity
     fn to_domain(model: password_reset_tokens::Model) -> PasswordResetToken {
         PasswordResetToken {
             id: model.id,

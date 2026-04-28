@@ -47,7 +47,7 @@ pub trait PermissionService: Send + Sync {
     /// Delete a resource by id
     async fn delete_resource(&self, resource_id: &str) -> Result<(), DomainError>;
 
-    /// Get or create a role_permission for a project+resource+permission combination
+    /// Get or create a `role_permission` for a project+resource+permission combination
     async fn get_or_create_role_permission(
         &self,
         project_id: Uuid,
@@ -55,7 +55,7 @@ pub trait PermissionService: Send + Sync {
         permission_level: &str,
     ) -> Result<RolePermission, DomainError>;
 
-    /// Get role_permissions for a project
+    /// Get `role_permissions` for a project
     async fn get_role_permissions_for_project(
         &self,
         project_id: &Uuid,
@@ -100,7 +100,7 @@ where
     RPR: RolePermissionRepository,
     PMRPR: ProjectMemberRolePermissionRepository,
 {
-    pub fn new(
+    pub const fn new(
         permission_repo: Arc<PR>,
         resource_repo: Arc<RR>,
         role_permission_repo: Arc<RPR>,

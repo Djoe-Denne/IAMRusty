@@ -79,6 +79,7 @@ pub struct DeliveryAttempt {
 
 impl MessageDelivery {
     /// Create a new message delivery record
+    #[must_use]
     pub fn new(message_id: Uuid, mode: CommunicationMode) -> Self {
         let now = Utc::now();
 
@@ -155,12 +156,14 @@ impl MessageDelivery {
     }
 
     /// Check if delivery can be retried
-    pub fn can_retry(&self, max_attempts: u32) -> bool {
+    #[must_use]
+    pub const fn can_retry(&self, max_attempts: u32) -> bool {
         matches!(self.status, DeliveryStatus::Failed) && self.attempts < max_attempts
     }
 
     /// Check if delivery is in a final state
-    pub fn is_final(&self) -> bool {
+    #[must_use]
+    pub const fn is_final(&self) -> bool {
         matches!(
             self.status,
             DeliveryStatus::Delivered
@@ -171,7 +174,8 @@ impl MessageDelivery {
     }
 
     /// Check if delivery was successful
-    pub fn is_successful(&self) -> bool {
+    #[must_use]
+    pub const fn is_successful(&self) -> bool {
         matches!(
             self.status,
             DeliveryStatus::Delivered | DeliveryStatus::Read
@@ -179,6 +183,7 @@ impl MessageDelivery {
     }
 
     /// Get delivery duration if available
+    #[must_use]
     pub fn delivery_duration(&self) -> Option<chrono::Duration> {
         self.delivered_at
             .map(|delivered| delivered - self.created_at)
@@ -187,6 +192,7 @@ impl MessageDelivery {
 
 impl DeliveryAttempt {
     /// Create a new delivery attempt
+    #[must_use]
     pub fn new(delivery_id: Uuid, attempt_number: u32) -> Self {
         Self {
             id: Uuid::new_v4(),
@@ -225,14 +231,14 @@ impl DeliveryAttempt {
 impl std::fmt::Display for DeliveryStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            DeliveryStatus::Pending => write!(f, "pending"),
-            DeliveryStatus::Processing => write!(f, "processing"),
-            DeliveryStatus::Sent => write!(f, "sent"),
-            DeliveryStatus::Delivered => write!(f, "delivered"),
-            DeliveryStatus::Failed => write!(f, "failed"),
-            DeliveryStatus::Rejected => write!(f, "rejected"),
-            DeliveryStatus::Bounced => write!(f, "bounced"),
-            DeliveryStatus::Read => write!(f, "read"),
+            Self::Pending => write!(f, "pending"),
+            Self::Processing => write!(f, "processing"),
+            Self::Sent => write!(f, "sent"),
+            Self::Delivered => write!(f, "delivered"),
+            Self::Failed => write!(f, "failed"),
+            Self::Rejected => write!(f, "rejected"),
+            Self::Bounced => write!(f, "bounced"),
+            Self::Read => write!(f, "read"),
         }
     }
 }

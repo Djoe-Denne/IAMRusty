@@ -7,7 +7,6 @@ use common::*;
 use serde_json::{json, Value};
 use serial_test::serial;
 
-use iam_configuration;
 use iam_configuration::{clear_config_cache, load_config};
 use rustycog_testing::TestKafkaFixture;
 use std::sync::Arc;
@@ -72,7 +71,7 @@ async fn test_signup_kafka_integration() {
 
     // Make signup request
     let response = client
-        .post(&format!("{}/api/auth/signup", base_url))
+        .post(format!("{base_url}/api/auth/signup"))
         .header("Content-Type", "application/json")
         .json(&signup_data)
         .send()
@@ -163,7 +162,7 @@ fn print_kafka_environment() {
         "RUSTYCOG_KAFKA__PORT",
     ] {
         if let Ok(val) = std::env::var(key) {
-            println!("   {}: {}", key, val);
+            println!("   {key}: {val}");
         }
     }
 }
@@ -217,6 +216,6 @@ fn verify_kafka_signup_event(event: &Value, test_email: &str, test_username: &st
 
 fn assert_optional_string(event: &Value, key: &str, expected: &str, message: &str) {
     if let Some(value) = event.get(key) {
-        assert_eq!(value.as_str().unwrap(), expected, "{}", message);
+        assert_eq!(value.as_str().unwrap(), expected, "{message}");
     }
 }

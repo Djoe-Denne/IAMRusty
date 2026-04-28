@@ -1,6 +1,5 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 use crate::ApplicationError;
 use rustycog_core::error::DomainError;
@@ -48,11 +47,12 @@ pub struct PaginationRequest {
 
 impl PaginationResponse {
     /// Create a new pagination response
+    #[must_use]
     pub fn new(current_page: u32, page_size: u32, total_items: Option<i64>) -> Self {
         let total_pages =
-            total_items.map(|total| ((total as f64) / (page_size as f64)).ceil() as u32);
+            total_items.map(|total| ((total as f64) / f64::from(page_size)).ceil() as u32);
 
-        let has_next = total_pages.map_or(false, |total| current_page < total);
+        let has_next = total_pages.is_some_and(|total| current_page < total);
         let has_previous = current_page > 1;
 
         Self {
@@ -68,6 +68,7 @@ impl PaginationResponse {
     }
 
     /// Create pagination response with cursor support
+    #[must_use]
     pub fn with_cursors(
         current_page: u32,
         page_size: u32,
@@ -94,11 +95,13 @@ impl Default for PaginationRequest {
 
 impl PaginationRequest {
     /// Get page number, defaulting to 1
+    #[must_use]
     pub fn page(&self) -> u32 {
         self.page.unwrap_or(1)
     }
 
     /// Get page size, defaulting to 20
+    #[must_use]
     pub fn page_size(&self) -> u32 {
         self.page_size.unwrap_or(20).min(100) // Cap at 100
     }
@@ -113,7 +116,7 @@ impl From<ApplicationError> for ApiErrorResponse {
                 let (error_type, message) = match domain_error {
                     DomainError::EntityNotFound { entity_type, id } => (
                         "entity_not_found".to_string(),
-                        format!("{} not found: {}", entity_type, id),
+                        format!("{entity_type} not found: {id}"),
                     ),
                     DomainError::InvalidInput { message } => ("invalid_input".to_string(), message),
                     DomainError::BusinessRuleViolation { rule } => {
@@ -121,23 +124,23 @@ impl From<ApplicationError> for ApiErrorResponse {
                     }
                     DomainError::Unauthorized { operation } => (
                         "unauthorized".to_string(),
-                        format!("Unauthorized: {}", operation),
+                        format!("Unauthorized: {operation}"),
                     ),
                     DomainError::ResourceAlreadyExists {
                         resource_type,
                         identifier,
                     } => (
                         "resource_already_exists".to_string(),
-                        format!("{} already exists: {}", resource_type, identifier),
+                        format!("{resource_type} already exists: {identifier}"),
                     ),
                     DomainError::ExternalServiceError { service, message } => (
                         "external_service_error".to_string(),
-                        format!("External service error ({}): {}", service, message),
+                        format!("External service error ({service}): {message}"),
                     ),
                     DomainError::PermissionDenied { message } => {
                         ("permission_denied".to_string(), message)
                     }
-                    DomainError::Internal { message } => (
+                    DomainError::Internal { message: _ } => (
                         "internal_error".to_string(),
                         "An internal error occurred".to_string(),
                     ),
@@ -174,7 +177,7 @@ impl From<ApplicationError> for ApiErrorResponse {
             }
             ApplicationError::ExternalService { service, message } => Self {
                 error_type: "external_service_error".to_string(),
-                message: format!("External service error ({}): {}", service, message),
+                message: format!("External service error ({service}): {message}"),
                 timestamp,
                 request_id: None,
                 details: None,
@@ -188,7 +191,7 @@ impl From<ApplicationError> for ApiErrorResponse {
                 details: None,
                 validation_errors: None,
             },
-            ApplicationError::Internal { message } => Self {
+            ApplicationError::Internal { message: _ } => Self {
                 error_type: "internal_error".to_string(),
                 message: "An internal error occurred".to_string(),
                 timestamp,

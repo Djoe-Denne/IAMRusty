@@ -1,7 +1,7 @@
 //! Common test utilities for Telegraph
 //!
 //! Provides test infrastructure following rustycog-testing patterns
-//! and Telegraph-specific test setup, including the real OpenFGA
+//! and Telegraph-specific test setup, including the real `OpenFGA`
 //! testcontainer every permission-gated route is routed through
 //! (mirrors `Manifesto/tests/common.rs`).
 
@@ -11,8 +11,7 @@ use rustycog_config::ServerConfig;
 use rustycog_testing::sqs_testcontainer::TestSqs;
 use rustycog_testing::*;
 use std::sync::Arc;
-use std::sync::OnceLock;
-use telegraph_configuration::{load_config, setup_logging, TelegraphConfig};
+use telegraph_configuration::TelegraphConfig;
 use telegraph_http_server::SERVICE_PREFIX;
 use telegraph_setup::app::{AppBuilder, TelegraphApp};
 use telegraphmigration::{Migrator, MigratorTrait};
@@ -26,13 +25,11 @@ use telegraphmigration::{Migrator, MigratorTrait};
 pub use rustycog_testing::common::openfga_testcontainer::TestOpenFga;
 
 // Re-export the permission domain types tests need to express tuples.
-pub use rustycog_permission::{Permission, ResourceRef, Subject};
 
 #[path = "fixtures/mod.rs"]
 mod fixtures;
 
 use fixtures::smtp::testcontainer::TestSmtp;
-use fixtures::*;
 
 static mut APP: Option<TelegraphApp> = None;
 /// Telegraph test descriptor following rustycog-testing patterns
@@ -45,7 +42,7 @@ impl ServiceTestDescriptor<TelegraphTestFixture> for TelegraphTestDescriptor {
     async fn build_app(
         &self,
         config: TelegraphConfig,
-        server_config: ServerConfig,
+        _server_config: ServerConfig,
     ) -> anyhow::Result<()> {
         let app = AppBuilder::new(config).build().await?;
         unsafe {
@@ -56,7 +53,7 @@ impl ServiceTestDescriptor<TelegraphTestFixture> for TelegraphTestDescriptor {
 
     async fn run_app(
         &self,
-        config: TelegraphConfig,
+        _config: TelegraphConfig,
         server_config: ServerConfig,
     ) -> anyhow::Result<()> {
         unsafe {
@@ -95,7 +92,7 @@ impl ServiceTestDescriptor<TelegraphTestFixture> for TelegraphTestDescriptor {
 }
 
 impl TelegraphTestDescriptor {
-    fn has_smtp(&self) -> bool {
+    const fn has_smtp(&self) -> bool {
         true
     }
 }
@@ -129,36 +126,36 @@ impl TelegraphTestFixture {
     }
 
     /// Get the SQS client
-    pub fn sqs(&self) -> &TestSqs {
+    pub const fn sqs(&self) -> &TestSqs {
         self.fixture.sqs()
     }
 
     /// Get the SMTP container
-    pub fn smtp(&self) -> &std::sync::Arc<TestSmtp> {
+    pub const fn smtp(&self) -> &std::sync::Arc<TestSmtp> {
         self.smtp.as_ref().expect("SMTP container not initialized")
     }
 
-    /// Get the OpenFGA fixture
-    pub fn openfga(&self) -> &TestOpenFga {
+    /// Get the `OpenFGA` fixture
+    pub const fn openfga(&self) -> &TestOpenFga {
         self.fixture.openfga()
     }
 }
 
 /// Setup Telegraph test server with database, SMTP, and the real
-/// OpenFGA testcontainer.
+/// `OpenFGA` testcontainer.
 ///
 /// Returns a 4-tuple:
 /// 1. [`TelegraphTestFixture`] — owns the test DB, SQS testcontainer,
-///    SMTP container, and the singleton OpenFGA testcontainer.
+///    SMTP container, and the singleton `OpenFGA` testcontainer.
 /// 2. `String` — base URL of the live HTTP server.
 /// 3. `Client` — `reqwest` client preconfigured for the test server.
 /// 4. `TestOpenFga` (clone) — typed handle exposing `allow` / `deny`
-///    against the real OpenFGA Check pipeline. The harness writes
+///    against the real `OpenFGA` Check pipeline. The harness writes
 ///    **no** permissive default; each test must explicitly call
 ///    `openfga.allow(...)` for every tuple the route guard will check
 ///    (default = deny).
 ///
-/// The OpenFGA fixture is process-global, so tests must remain
+/// The `OpenFGA` fixture is process-global, so tests must remain
 /// `#[serial]` to avoid tuple-state collisions.
 pub async fn setup_test_server(
 ) -> Result<(TelegraphTestFixture, String, Client, TestOpenFga), Box<dyn std::error::Error>> {

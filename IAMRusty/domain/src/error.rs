@@ -27,7 +27,7 @@ pub enum DomainError {
     #[error("Authorization error: {0}")]
     AuthorizationError(String),
 
-    /// OAuth2 error
+    /// `OAuth2` error
     #[error("OAuth2 error: {0}")]
     OAuth2Error(String),
 

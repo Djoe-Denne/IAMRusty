@@ -232,6 +232,7 @@ where
     RTS: RegistrationTokenService,
     EP: EventPublisher<DomainError>,
 {
+    #[must_use]
     pub fn new(dependencies: AuthServiceDependencies<UR, UER, EVR, PS, TS, RTS, EP>) -> Self {
         Self::from_parts(dependencies, None, None)
     }
@@ -373,7 +374,7 @@ where
             let registration_token = self
                 .registration_token_service
                 .generate_registration_token(updated_user.id, request.email.clone())
-                .map_err(|e| AuthError::RepositoryError(e))?;
+                .map_err(AuthError::RepositoryError)?;
 
             return Ok(SignupResponse::RegistrationRequired {
                 user: IncompleteUserProfile {
@@ -441,7 +442,7 @@ where
         let registration_token = self
             .registration_token_service
             .generate_registration_token(created_user.id, request.email.clone())
-            .map_err(|e| AuthError::RepositoryError(e))?;
+            .map_err(AuthError::RepositoryError)?;
 
         Ok(SignupResponse::RegistrationRequired {
             user: IncompleteUserProfile {
@@ -492,7 +493,7 @@ where
             let registration_token = self
                 .registration_token_service
                 .generate_registration_token(user.id, request.email.clone())
-                .map_err(|e| AuthError::RepositoryError(e))?;
+                .map_err(AuthError::RepositoryError)?;
 
             return Ok(LoginResponse::RegistrationIncomplete {
                 registration_token,
@@ -557,26 +558,24 @@ where
             .await
             .map_err(|e| AuthError::RepositoryError(DomainError::RepositoryError(e.to_string())))?;
 
-        let verification = match verification {
-            Some(v) => v,
-            None => {
-                // Check if the email exists in user_emails to distinguish between
-                // nonexistent email (404) vs invalid token (400)
-                let user_email_exists = self
-                    .user_email_repository
-                    .find_by_email(&request.email)
-                    .await
-                    .map_err(|e| {
-                        AuthError::RepositoryError(DomainError::RepositoryError(e.to_string()))
-                    })?
-                    .is_some();
+        let verification = if let Some(v) = verification {
+            v
+        } else {
+            // Check if the email exists in user_emails to distinguish between
+            // nonexistent email (404) vs invalid token (400)
+            let user_email_exists = self
+                .user_email_repository
+                .find_by_email(&request.email)
+                .await
+                .map_err(|e| {
+                    AuthError::RepositoryError(DomainError::RepositoryError(e.to_string()))
+                })?
+                .is_some();
 
-                if !user_email_exists {
-                    return Err(AuthError::EmailNotFound);
-                } else {
-                    return Err(AuthError::InvalidVerificationToken);
-                }
+            if user_email_exists {
+                return Err(AuthError::InvalidVerificationToken);
             }
+            return Err(AuthError::EmailNotFound);
         };
 
         // Check if token is expired

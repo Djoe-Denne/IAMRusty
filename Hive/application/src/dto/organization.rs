@@ -128,6 +128,7 @@ impl From<Organization> for OrganizationResponse {
 
 impl OrganizationResponse {
     /// Create response with additional computed fields
+    #[must_use]
     pub fn with_details(
         organization: Organization,
         member_count: Option<i64>,
@@ -155,7 +156,8 @@ impl OrganizationResponse {
 
 impl OrganizationListResponse {
     /// Create a new list response
-    pub fn new(
+    #[must_use]
+    pub const fn new(
         organizations: Vec<OrganizationResponse>,
         pagination: super::PaginationResponse,
     ) -> Self {

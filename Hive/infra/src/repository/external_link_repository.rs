@@ -1,7 +1,7 @@
-//! ExternalLinkRepository SeaORM implementation
+//! `ExternalLinkRepository` `SeaORM` implementation
 
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use hive_domain::entity::{ExternalLink, SyncStatus};
 use hive_domain::port::repository::{
     ExternalLinkReadRepository, ExternalLinkRepository, ExternalLinkWriteRepository,
@@ -45,10 +45,11 @@ impl ExternalLinkMapper {
             created_at: model.created_at,
             updated_at: model.updated_at,
             organization_name: None,
-            provider_source: provider_source.clone(),
+            provider_source,
         })
     }
 
+    #[must_use]
     pub fn to_active_model(link: &ExternalLink) -> external_links::ActiveModel {
         let last_sync_status_str = link
             .last_sync_status
@@ -78,7 +79,8 @@ pub struct ExternalLinkReadRepositoryImpl {
 }
 
 impl ExternalLinkReadRepositoryImpl {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    #[must_use]
+    pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
 }
@@ -98,7 +100,7 @@ impl ExternalLinkReadRepository for ExternalLinkReadRepositoryImpl {
         match link {
             Some((model, provider)) => Ok(Some(ExternalLinkMapper::to_domain(
                 model,
-                provider.map(|p| p.provider_type.clone()),
+                provider.map(|p| p.provider_type),
             )?)),
             None => Ok(None),
         }
@@ -125,7 +127,7 @@ impl ExternalLinkReadRepository for ExternalLinkReadRepositoryImpl {
             let (link, provider) = model;
             result.push(ExternalLinkMapper::to_domain(
                 link,
-                provider.map(|p| p.provider_type.clone()),
+                provider.map(|p| p.provider_type),
             )?);
         }
         Ok(result)
@@ -152,7 +154,7 @@ impl ExternalLinkReadRepository for ExternalLinkReadRepositoryImpl {
         match link {
             Some((model, provider)) => Ok(Some(ExternalLinkMapper::to_domain(
                 model,
-                provider.map(|p| p.provider_type.clone()),
+                provider.map(|p| p.provider_type),
             )?)),
             None => Ok(None),
         }
@@ -173,7 +175,7 @@ impl ExternalLinkReadRepository for ExternalLinkReadRepositoryImpl {
             let (link, provider) = model;
             result.push(ExternalLinkMapper::to_domain(
                 link,
-                provider.map(|p| p.provider_type.clone()),
+                provider.map(|p| p.provider_type),
             )?);
         }
         Ok(result)
@@ -206,7 +208,7 @@ impl ExternalLinkReadRepository for ExternalLinkReadRepositoryImpl {
             let (link, provider) = model;
             result.push(ExternalLinkMapper::to_domain(
                 link,
-                provider.map(|p| p.provider_type.clone()),
+                provider.map(|p| p.provider_type),
             )?);
         }
         Ok(result)
@@ -235,7 +237,8 @@ pub struct ExternalLinkWriteRepositoryImpl {
 }
 
 impl ExternalLinkWriteRepositoryImpl {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    #[must_use]
+    pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
 }
@@ -279,19 +282,7 @@ impl ExternalLinkWriteRepository for ExternalLinkWriteRepositoryImpl {
                 .await
                 .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
-            let saved_model = external_links::Model {
-                id: result.id,
-                organization_id: result.organization_id,
-                provider_id: result.provider_id,
-                provider_config: result.provider_config,
-                sync_enabled: result.sync_enabled,
-                sync_settings: result.sync_settings,
-                last_sync_at: result.last_sync_at,
-                last_sync_status: result.last_sync_status,
-                sync_error: result.sync_error,
-                created_at: result.created_at,
-                updated_at: result.updated_at,
-            };
+            let saved_model = result;
             return ExternalLinkMapper::to_domain(saved_model, link.provider_source.clone());
         }
     }

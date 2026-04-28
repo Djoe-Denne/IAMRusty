@@ -22,6 +22,7 @@ impl ExternalProviderMockService {
         }
     }
 
+    #[must_use]
     pub fn base_url(&self) -> String {
         self.server.uri()
     }
@@ -30,7 +31,7 @@ impl ExternalProviderMockService {
         Mock::given(method("POST"))
             .and(path("/config/validate"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({"ok": true})))
-            .mount(&*self.server)
+            .mount(&self.server)
             .await;
         self
     }
@@ -43,7 +44,7 @@ impl ExternalProviderMockService {
                 ResponseTemplate::new(400)
                     .set_body_json(serde_json::json!({"error": message_contains})),
             )
-            .mount(&*self.server)
+            .mount(&self.server)
             .await;
         self
     }
@@ -54,7 +55,7 @@ impl ExternalProviderMockService {
             .respond_with(
                 ResponseTemplate::new(200).set_body_json(ConnectionTestResponseBody { connected }),
             )
-            .mount(&*self.server)
+            .mount(&self.server)
             .await;
         self
     }
@@ -66,7 +67,7 @@ impl ExternalProviderMockService {
                 name: name.to_string(),
                 external_id: external_id.to_string(),
             }))
-            .mount(&*self.server)
+            .mount(&self.server)
             .await;
         self
     }
@@ -75,7 +76,7 @@ impl ExternalProviderMockService {
         Mock::given(method("POST"))
             .and(path("/members"))
             .respond_with(ResponseTemplate::new(200).set_body_json(MembersResponse { members }))
-            .mount(&*self.server)
+            .mount(&self.server)
             .await;
         self
     }
@@ -87,7 +88,7 @@ impl ExternalProviderMockService {
                 ResponseTemplate::new(200)
                     .set_body_json(serde_json::json!({"is_member": is_member})),
             )
-            .mount(&*self.server)
+            .mount(&self.server)
             .await;
         self
     }

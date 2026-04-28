@@ -36,7 +36,7 @@ pub enum SecretError {
 }
 
 /// Secret storage configuration
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "type")]
 pub enum SecretStorage {
     /// Plain text secret (for backward compatibility)
@@ -55,7 +55,7 @@ pub enum SecretStorage {
         /// Optional key ID for JWKS
         key_id: Option<String>,
     },
-    /// HashiCorp Vault (future implementation)
+    /// `HashiCorp` Vault (future implementation)
     #[serde(rename = "vault")]
     Vault {
         /// Vault server URL
@@ -94,11 +94,11 @@ impl SecretStorage {
     /// Resolve the secret from the configured storage
     pub fn resolve(&self) -> Result<JwtSecret, SecretError> {
         match self {
-            SecretStorage::PlainText { value } => {
+            Self::PlainText { value } => {
                 tracing::debug!("Resolving plain text JWT secret (length: {})", value.len());
                 Ok(JwtSecret::Hmac(value.clone()))
             }
-            SecretStorage::PemFile {
+            Self::PemFile {
                 private_key_path,
                 public_key_path,
                 key_id,
@@ -114,8 +114,7 @@ impl SecretStorage {
                         e
                     );
                     SecretError::FileReadError(format!(
-                        "Failed to read private key from {}: {}",
-                        private_key_path, e
+                        "Failed to read private key from {private_key_path}: {e}"
                     ))
                 })?;
                 tracing::debug!(
@@ -127,8 +126,7 @@ impl SecretStorage {
                 let public_key = fs::read_to_string(public_key_path).map_err(|e| {
                     tracing::error!("Failed to read public key from {}: {}", public_key_path, e);
                     SecretError::FileReadError(format!(
-                        "Failed to read public key from {}: {}",
-                        public_key_path, e
+                        "Failed to read public key from {public_key_path}: {e}"
                     ))
                 })?;
                 tracing::debug!("Successfully read public key ({} bytes)", public_key.len());
@@ -142,13 +140,13 @@ impl SecretStorage {
                     key_id,
                 })
             }
-            SecretStorage::Vault { .. } => {
+            Self::Vault { .. } => {
                 tracing::warn!("Vault secret storage requested but not yet implemented");
                 Err(SecretError::InvalidFormat(
                     "Vault secret storage not yet implemented".to_string(),
                 ))
             }
-            SecretStorage::GcpSecretManager { .. } => {
+            Self::GcpSecretManager { .. } => {
                 tracing::warn!("GCP Secret Manager requested but not yet implemented");
                 Err(SecretError::InvalidFormat(
                     "GCP Secret Manager not yet implemented".to_string(),
@@ -238,16 +236,18 @@ impl JwtConfig {
     }
 
     /// Check if the configuration uses RSA keys
-    pub fn uses_rsa(&self) -> bool {
+    #[must_use]
+    pub const fn uses_rsa(&self) -> bool {
         matches!(self.secret, SecretStorage::PemFile { .. })
     }
 
     /// Check if the configuration uses HMAC
-    pub fn uses_hmac(&self) -> bool {
+    #[must_use]
+    pub const fn uses_hmac(&self) -> bool {
         matches!(self.secret, SecretStorage::PlainText { .. })
     }
 
-    /// Create a JwtAlgorithm from this configuration
+    /// Create a `JwtAlgorithm` from this configuration
     /// This method bridges the configuration with the JWT encoder implementation
     pub fn create_jwt_algorithm(&self) -> Result<JwtAlgorithm, SecretError> {
         match self.resolve_secret()? {
@@ -269,7 +269,7 @@ impl Default for JwtConfig {
     fn default() -> Self {
         Self {
             secret: SecretStorage::PlainText {
-                value: "".to_string(),
+                value: String::new(),
             },
             expiration_seconds: default_jwt_expiration(),
             refresh_token_expiration_seconds: default_refresh_token_expiration(),
@@ -279,7 +279,7 @@ impl Default for JwtConfig {
 
 /// JWT algorithm configuration
 /// This is re-exported from the infra crate to avoid circular dependencies
-/// It should match the JwtAlgorithm enum in infra::token::jwt_encoder
+/// It should match the `JwtAlgorithm` enum in `infra::token::jwt_encoder`
 #[derive(Debug, Clone)]
 pub enum JwtAlgorithm {
     /// RSA256 with key pair
@@ -353,11 +353,11 @@ fn default_gitlab_user_url() -> String {
     "https://gitlab.com/api/v4/user".to_string()
 }
 
-fn default_jwt_expiration() -> u64 {
+const fn default_jwt_expiration() -> u64 {
     900 // 15 minutes
 }
 
-fn default_refresh_token_expiration() -> u64 {
+const fn default_refresh_token_expiration() -> u64 {
     2_592_000 // 30 days (30 * 24 * 60 * 60)
 }
 
@@ -374,7 +374,7 @@ pub struct ProviderConfig {
 
 impl From<&GitHubConfig> for ProviderConfig {
     fn from(config: &GitHubConfig) -> Self {
-        ProviderConfig {
+        Self {
             client_id: config.client_id.clone(),
             client_secret: config.client_secret.clone(),
             redirect_uri: config.redirect_uri.clone(),
@@ -384,7 +384,7 @@ impl From<&GitHubConfig> for ProviderConfig {
 
 impl From<&GitLabConfig> for ProviderConfig {
     fn from(config: &GitLabConfig) -> Self {
-        ProviderConfig {
+        Self {
             client_id: config.client_id.clone(),
             client_secret: config.client_secret.clone(),
             redirect_uri: config.redirect_uri.clone(),
@@ -399,7 +399,7 @@ pub type GitlabConfig = GitLabConfig;
 /// Global configuration cache
 static CONFIG_CACHE: OnceLock<Arc<Mutex<Option<AppConfig>>>> = OnceLock::new();
 
-/// Configuration cache implementation for AppConfig
+/// Configuration cache implementation for `AppConfig`
 pub struct AppConfigCache;
 
 impl ConfigCache<AppConfig> for AppConfigCache {
@@ -423,10 +423,10 @@ impl ConfigCache<AppConfig> for AppConfigCache {
     }
 }
 
-/// Configuration loader implementation for AppConfig
-impl ConfigLoader<AppConfig> for AppConfig {
-    fn create_default() -> AppConfig {
-        AppConfig {
+/// Configuration loader implementation for `AppConfig`
+impl ConfigLoader<Self> for AppConfig {
+    fn create_default() -> Self {
+        Self {
             server: ServerConfig::default(),
             auth: AuthConfig::default(),
             database: DatabaseConfig::default(),

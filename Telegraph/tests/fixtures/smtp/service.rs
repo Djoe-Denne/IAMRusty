@@ -1,9 +1,8 @@
 use super::resources::*;
 use rustycog_testing::wiremock::MockServerFixture;
-use serde::Serialize;
 use std::sync::Arc;
 use wiremock::{
-    matchers::{body_string_contains, header, method, path, query_param},
+    matchers::{body_string_contains, method, path},
     Mock, MockServer, Request, ResponseTemplate,
 };
 
@@ -57,7 +56,7 @@ impl SmtpService {
                     .set_body_json(&response)
                     .insert_header("content-type", "application/json"),
             )
-            .mount(&*self.server)
+            .mount(&self.server)
             .await;
 
         self
@@ -72,7 +71,7 @@ impl SmtpService {
                     .set_body_json(&capabilities)
                     .insert_header("content-type", "application/json"),
             )
-            .mount(&*self.server)
+            .mount(&self.server)
             .await;
 
         self
@@ -89,7 +88,7 @@ impl SmtpService {
                     .set_body_json(&response)
                     .insert_header("content-type", "application/json"),
             )
-            .mount(&*self.server)
+            .mount(&self.server)
             .await;
 
         self
@@ -105,7 +104,7 @@ impl SmtpService {
                     .set_body_json(&response)
                     .insert_header("content-type", "application/json"),
             )
-            .mount(&*self.server)
+            .mount(&self.server)
             .await;
 
         self
@@ -121,7 +120,7 @@ impl SmtpService {
                     .set_body_json(&response)
                     .insert_header("content-type", "application/json"),
             )
-            .mount(&*self.server)
+            .mount(&self.server)
             .await;
 
         self
@@ -154,7 +153,7 @@ impl SmtpService {
                 .set_body_json(&response)
                 .insert_header("content-type", "application/json"),
         )
-        .mount(&*self.server)
+        .mount(&self.server)
         .await;
 
         self
@@ -169,7 +168,7 @@ impl SmtpService {
                     .set_body_json(&response)
                     .insert_header("content-type", "application/json"),
             )
-            .mount(&*self.server)
+            .mount(&self.server)
             .await;
 
         self
@@ -294,7 +293,7 @@ impl SmtpService {
     }
 
     /// Advanced mock for testing specific SMTP scenarios
-    pub async fn mock_custom_scenario(&self) -> SmtpScenarioBuilder {
+    pub async fn mock_custom_scenario(&self) -> SmtpScenarioBuilder<'_> {
         SmtpScenarioBuilder::new(self)
     }
 }
@@ -305,7 +304,7 @@ pub struct SmtpScenarioBuilder<'a> {
 }
 
 impl<'a> SmtpScenarioBuilder<'a> {
-    fn new(service: &'a SmtpService) -> Self {
+    const fn new(service: &'a SmtpService) -> Self {
         Self { service }
     }
 

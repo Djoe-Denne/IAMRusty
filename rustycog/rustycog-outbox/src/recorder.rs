@@ -11,7 +11,8 @@ use crate::entity::{self, STATUS_PENDING};
 pub struct OutboxRecorder;
 
 impl OutboxRecorder {
-    pub fn new() -> Self {
+    #[must_use]
+    pub const fn new() -> Self {
         Self
     }
 

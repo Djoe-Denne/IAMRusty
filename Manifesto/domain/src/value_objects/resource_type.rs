@@ -15,31 +15,33 @@ impl ResourceType {
     /// Convert from string representation
     pub fn from_str(s: &str) -> Result<Self, DomainError> {
         match s.to_lowercase().as_str() {
-            "internal" => Ok(ResourceType::Internal),
-            "component" => Ok(ResourceType::Component),
+            "internal" => Ok(Self::Internal),
+            "component" => Ok(Self::Component),
             _ => Err(DomainError::invalid_input(&format!(
-                "Invalid resource type: {}",
-                s
+                "Invalid resource type: {s}"
             ))),
         }
     }
 
     /// Convert to string representation
-    pub fn to_str(&self) -> &'static str {
+    #[must_use]
+    pub const fn to_str(&self) -> &'static str {
         match self {
-            ResourceType::Internal => "internal",
-            ResourceType::Component => "component",
+            Self::Internal => "internal",
+            Self::Component => "component",
         }
     }
 
     /// Check if this is an internal resource
-    pub fn is_internal(&self) -> bool {
-        matches!(self, ResourceType::Internal)
+    #[must_use]
+    pub const fn is_internal(&self) -> bool {
+        matches!(self, Self::Internal)
     }
 
     /// Check if this is a component resource
-    pub fn is_component(&self) -> bool {
-        matches!(self, ResourceType::Component)
+    #[must_use]
+    pub const fn is_component(&self) -> bool {
+        matches!(self, Self::Component)
     }
 }
 

@@ -52,7 +52,7 @@ impl GitLabService {
                     .set_body_json(response)
                     .insert_header("content-type", "application/json"),
             )
-            .mount(&*self.server)
+            .mount(&self.server)
             .await;
 
         self
@@ -78,7 +78,7 @@ impl GitLabService {
                     .set_body_json(response)
                     .insert_header("content-type", "application/json"),
             )
-            .mount(&*self.server)
+            .mount(&self.server)
             .await;
 
         self
@@ -99,7 +99,7 @@ impl GitLabService {
                     .set_body_json(response)
                     .insert_header("content-type", "application/json"),
             )
-            .mount(&*self.server)
+            .mount(&self.server)
             .await;
 
         self

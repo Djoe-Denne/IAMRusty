@@ -10,12 +10,11 @@ use hive_application::{
 use rustycog_command::CommandContext;
 use rustycog_http::{AppState, AuthUser, OptionalAuthUser, ValidatedJson};
 use rustycog_permission::ResourceId;
-use uuid::Uuid;
 
 use crate::error::HttpError;
 
 /// Add a member to an organization
-/// POST /api/organizations/{organization_id}/members
+/// POST /`api/organizations/{organization_id}/members`
 pub async fn add_member(
     State(state): State<AppState>,
     Path(organization_id): Path<ResourceId>,
@@ -32,14 +31,14 @@ pub async fn add_member(
         .execute(command, context)
         .await
         .map_err(|e| HttpError::Internal {
-            message: format!("Command execution failed: {}", e),
+            message: format!("Command execution failed: {e}"),
         })?;
 
     Ok(Json(result))
 }
 
 /// List organization members
-/// GET /api/organizations/{organization_id}/members
+/// GET /`api/organizations/{organization_id}/members`
 pub async fn list_members(
     State(state): State<AppState>,
     Path(organization_id): Path<ResourceId>,
@@ -49,7 +48,7 @@ pub async fn list_members(
     tracing::info!("Listing members for organization: {}", organization_id);
 
     let command = ListMembersCommand::new(organization_id.id(), pagination, auth_user.user_id());
-    let mut context =
+    let context =
         CommandContext::new().with_metadata("operation".to_string(), "list_members".to_string());
 
     let result = state
@@ -57,14 +56,14 @@ pub async fn list_members(
         .execute(command, context)
         .await
         .map_err(|e| HttpError::Internal {
-            message: format!("Command execution failed: {}", e),
+            message: format!("Command execution failed: {e}"),
         })?;
 
     Ok(Json(result))
 }
 
 /// Get a specific member
-/// GET /api/organizations/{organization_id}/members/{user_id}
+/// GET /`api/organizations/{organization_id}/members/{user_id`}
 pub async fn get_member(
     State(state): State<AppState>,
     Path((organization_id, user_id)): Path<(ResourceId, ResourceId)>,
@@ -77,7 +76,7 @@ pub async fn get_member(
     );
 
     let command = GetMemberCommand::new(organization_id.id(), user_id.id(), auth_user.user_id());
-    let mut context =
+    let context =
         CommandContext::new().with_metadata("operation".to_string(), "get_member".to_string());
 
     let result = state
@@ -85,14 +84,14 @@ pub async fn get_member(
         .execute(command, context)
         .await
         .map_err(|e| HttpError::Internal {
-            message: format!("Command execution failed: {}", e),
+            message: format!("Command execution failed: {e}"),
         })?;
 
     Ok(Json(result))
 }
 
 /// Remove a member from an organization
-/// DELETE /api/organizations/{organization_id}/members/{user_id}
+/// DELETE /`api/organizations/{organization_id}/members/{user_id`}
 pub async fn remove_member(
     State(state): State<AppState>,
     Path((organization_id, user_id)): Path<(ResourceId, ResourceId)>,
@@ -108,19 +107,19 @@ pub async fn remove_member(
     let context =
         CommandContext::new().with_metadata("operation".to_string(), "remove_member".to_string());
 
-    let result = state
+    state
         .command_service
         .execute(command, context)
         .await
         .map_err(|e| HttpError::Internal {
-            message: format!("Command execution failed: {}", e),
+            message: format!("Command execution failed: {e}"),
         })?;
 
-    Ok(Json(result))
+    Ok(Json(()))
 }
 
 /// Update a member's role
-/// PATCH /organizations/{organization_id}/members/{user_id}
+/// PATCH /`organizations/{organization_id}/members/{user_id`}
 pub async fn update_member(
     State(state): State<AppState>,
     Path((organization_id, user_id)): Path<(ResourceId, ResourceId)>,
@@ -147,7 +146,7 @@ pub async fn update_member(
         .execute(command, context)
         .await
         .map_err(|e| HttpError::Internal {
-            message: format!("Command execution failed: {}", e),
+            message: format!("Command execution failed: {e}"),
         })?;
 
     Ok(Json(result))

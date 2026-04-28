@@ -2,9 +2,8 @@
 
 use async_trait::async_trait;
 use std::collections::HashMap;
-use uuid::Uuid;
 
-use crate::entity::{CommunicationMode, MessageTemplate, RenderedTemplate};
+use crate::entity::{CommunicationMode, RenderedTemplate};
 use crate::error::DomainError;
 
 /// Port for template management and rendering

@@ -35,16 +35,19 @@ impl ActiveModelBehavior for ActiveModel {}
 
 impl Model {
     /// Check if the token has expired
+    #[must_use]
     pub fn is_expired(&self) -> bool {
         Utc::now() > self.expires_at
     }
 
     /// Check if the token has been used
-    pub fn is_used(&self) -> bool {
+    #[must_use]
+    pub const fn is_used(&self) -> bool {
         self.used_at.is_some()
     }
 
     /// Check if the token is valid (not expired and not used)
+    #[must_use]
     pub fn is_valid(&self) -> bool {
         !self.is_expired() && !self.is_used()
     }

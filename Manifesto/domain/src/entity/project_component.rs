@@ -72,6 +72,7 @@ impl ProjectComponent {
     }
 
     /// Check if the component is active
+    #[must_use]
     pub fn is_active(&self) -> bool {
         self.status == ComponentStatus::Active
     }

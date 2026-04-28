@@ -18,7 +18,8 @@ pub enum UserErrorCode {
 }
 
 impl UserErrorCode {
-    pub fn as_str(&self) -> &'static str {
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
         match self {
             Self::RepositoryError => "repository_error",
             Self::TokenServiceError => "token_service_error",
@@ -73,11 +74,11 @@ impl CommandErrorMapper for UserErrorMapper {
                     error.to_string(),
                 ),
                 UserError::TokenServiceError(inner) => {
-                    let error_msg = inner.to_string();
+                    let error_msg = inner.clone();
                     if Self::is_authentication_related_error(&error_msg) {
                         CommandError::validation(
                             UserErrorCode::AuthenticationFailed.as_str(),
-                            format!("Authentication failed: {}", error_msg),
+                            format!("Authentication failed: {error_msg}"),
                         )
                     } else {
                         CommandError::infrastructure(
@@ -131,6 +132,7 @@ pub struct GetUserCommand {
 
 impl GetUserCommand {
     /// Create a new get user command
+    #[must_use]
     pub fn new(user_id: Uuid) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -169,7 +171,7 @@ where
     U: UserUseCase + ?Sized,
 {
     /// Create a new get user command handler
-    pub fn new(user_use_case: Arc<U>) -> Self {
+    pub const fn new(user_use_case: Arc<U>) -> Self {
         Self { user_use_case }
     }
 }

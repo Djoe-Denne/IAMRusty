@@ -64,6 +64,7 @@ pub struct InvitationCreatedEventData {
 // =============================================================================
 
 impl InvitationCreatedEvent {
+    #[must_use]
     pub fn new(data: InvitationCreatedEventData) -> Self {
         Self {
             base: BaseEvent::new("invitation_created".to_string(), data.organization_id),
@@ -80,6 +81,7 @@ impl InvitationCreatedEvent {
 }
 
 impl InvitationAcceptedEvent {
+    #[must_use]
     pub fn new(
         organization_id: Uuid,
         organization_name: String,
@@ -99,6 +101,7 @@ impl InvitationAcceptedEvent {
 }
 
 impl InvitationExpiredEvent {
+    #[must_use]
     pub fn new(
         organization_id: Uuid,
         organization_name: String,

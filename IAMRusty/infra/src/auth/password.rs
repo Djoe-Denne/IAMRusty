@@ -12,6 +12,7 @@ pub struct PasswordService {
 
 impl PasswordService {
     /// Create a new password service with default Argon2 configuration
+    #[must_use]
     pub fn new() -> Self {
         // Use default Argon2 configuration which is secure for most applications
         Self {
@@ -27,8 +28,7 @@ impl PasswordService {
             Err(e) => {
                 error!("Password hashing failed: {}", e);
                 Err(DomainError::RepositoryError(format!(
-                    "Password hashing failed: {}",
-                    e
+                    "Password hashing failed: {e}"
                 )))
             }
         }
@@ -38,7 +38,7 @@ impl PasswordService {
     pub fn verify_password(&self, password: &str, hash: &str) -> Result<bool, DomainError> {
         let parsed_hash = PasswordHash::new(hash).map_err(|e| {
             error!("Invalid password hash format: {}", e);
-            DomainError::RepositoryError(format!("Invalid password hash format: {}", e))
+            DomainError::RepositoryError(format!("Invalid password hash format: {e}"))
         })?;
 
         match self
@@ -48,8 +48,7 @@ impl PasswordService {
             Ok(()) => Ok(true),
             Err(argon2::password_hash::Error::Password) => Ok(false), // Password doesn't match
             Err(e) => Err(DomainError::RepositoryError(format!(
-                "Password verification failed: {}",
-                e
+                "Password verification failed: {e}"
             ))),
         }
     }

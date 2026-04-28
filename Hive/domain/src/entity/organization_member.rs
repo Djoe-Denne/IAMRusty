@@ -21,8 +21,9 @@ pub struct OrganizationMember {
 }
 
 /// Member status enumeration
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum MemberStatus {
+    #[default]
     Pending,
     Active,
     Suspended,
@@ -40,6 +41,7 @@ impl From<MemberStatus> for String {
 
 impl OrganizationMember {
     /// Create a new organization member (for direct addition)
+    #[must_use]
     pub fn new(organization_id: Uuid, user_id: Uuid, invited_by_user_id: Option<Uuid>) -> Self {
         let now = Utc::now();
         Self {
@@ -115,23 +117,20 @@ impl OrganizationMember {
     }
 
     /// Check if member is active
-    pub fn is_active(&self) -> bool {
+    #[must_use]
+    pub const fn is_active(&self) -> bool {
         matches!(self.status, MemberStatus::Active)
     }
 
     /// Check if member is pending
-    pub fn is_pending(&self) -> bool {
+    #[must_use]
+    pub const fn is_pending(&self) -> bool {
         matches!(self.status, MemberStatus::Pending)
     }
 
     /// Check if member is suspended
-    pub fn is_suspended(&self) -> bool {
+    #[must_use]
+    pub const fn is_suspended(&self) -> bool {
         matches!(self.status, MemberStatus::Suspended)
-    }
-}
-
-impl Default for MemberStatus {
-    fn default() -> Self {
-        MemberStatus::Pending
     }
 }

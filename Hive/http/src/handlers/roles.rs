@@ -6,14 +6,13 @@ use hive_application::{
     GetRoleCommand, ListRolesCommand, MemberRole, MemberRoleListResponse, PaginationRequest,
 };
 use rustycog_command::CommandContext;
-use rustycog_http::{AppState, AuthUser, ValidatedJson};
+use rustycog_http::{AppState, AuthUser};
 use rustycog_permission::ResourceId;
-use uuid::Uuid;
 
 use crate::error::HttpError;
 
 /// List roles for an organization
-/// GET /api/organizations/{organization_id}/roles
+/// GET /`api/organizations/{organization_id}/roles`
 pub async fn list_roles(
     State(state): State<AppState>,
     Path(organization_id): Path<ResourceId>,
@@ -30,14 +29,14 @@ pub async fn list_roles(
         .execute(command, context)
         .await
         .map_err(|e| HttpError::Internal {
-            message: format!("Command execution failed: {}", e),
+            message: format!("Command execution failed: {e}"),
         })?;
 
     Ok(Json(MemberRoleListResponse { roles: result }))
 }
 
 /// Get a specific role
-/// GET /api/organizations/{organization_id}/roles/{role_id}
+/// GET /`api/organizations/{organization_id}/roles/{role_id`}
 pub async fn get_role(
     State(state): State<AppState>,
     Path((organization_id, role_id)): Path<(ResourceId, ResourceId)>,
@@ -57,7 +56,7 @@ pub async fn get_role(
         .execute(command, context)
         .await
         .map_err(|e| HttpError::Internal {
-            message: format!("Command execution failed: {}", e),
+            message: format!("Command execution failed: {e}"),
         })?;
 
     Ok(Json(result))

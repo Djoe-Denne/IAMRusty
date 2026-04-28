@@ -1,14 +1,13 @@
 //! Process event command for Telegraph application
 
 use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
 use serde_json;
 use std::collections::HashMap;
 use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::usecase::EventProcessingUseCaseTrait;
-use iam_events::{DomainEvent, IamDomainEvent};
+use iam_events::DomainEvent;
 use rustycog_command::{Command, CommandError, CommandErrorMapper, CommandHandler};
 use telegraph_domain::DomainError;
 
@@ -40,7 +39,7 @@ pub struct SendMessageRecipient {
     pub email: Option<String>,
 }
 
-fn default_attempt() -> u32 {
+const fn default_attempt() -> u32 {
     1
 }
 
@@ -79,49 +78,51 @@ impl ProcessEventCommand {
 
     /// Extract email from JSON recursively
     fn extract_email_from_json(value: &serde_json::Value) -> Option<String> {
-        match value {
-            serde_json::Value::Object(obj) => {
-                // Try to find email field directly
-                if let Some(serde_json::Value::String(email)) = obj.get("email") {
-                    return Some(email.clone());
-                }
+        if let serde_json::Value::Object(obj) = value {
+            // Try to find email field directly
+            if let Some(serde_json::Value::String(email)) = obj.get("email") {
+                return Some(email.clone());
+            }
 
-                // Search recursively in nested objects
-                for val in obj.values() {
-                    if let Some(email) = Self::extract_email_from_json(val) {
-                        return Some(email);
-                    }
+            // Search recursively in nested objects
+            for val in obj.values() {
+                if let Some(email) = Self::extract_email_from_json(val) {
+                    return Some(email);
                 }
             }
-            _ => {}
         }
         None
     }
 
     /// Set the attempt number
-    pub fn with_attempt(mut self, attempt: u32) -> Self {
+    #[must_use]
+    pub const fn with_attempt(mut self, attempt: u32) -> Self {
         self.attempt = attempt;
         self
     }
 
     /// Add metadata
+    #[must_use]
     pub fn with_metadata(mut self, key: String, value: String) -> Self {
         self.metadata.insert(key, value);
         self
     }
 
     /// Get the original event ID
-    pub fn event_id(&self) -> Uuid {
+    #[must_use]
+    pub const fn event_id(&self) -> Uuid {
         self.original_event_id
     }
 
     /// Get the event type
+    #[must_use]
     pub fn event_type(&self) -> &str {
         &self.event_type
     }
 
     /// Get the user ID associated with the event
-    pub fn user_id(&self) -> Option<Uuid> {
+    #[must_use]
+    pub const fn user_id(&self) -> Option<Uuid> {
         self.recipient.user_id
     }
 }
@@ -186,7 +187,7 @@ where
     E: EventProcessingUseCaseTrait + ?Sized,
 {
     /// Create a new process event command handler
-    pub fn new(event_processing_usecase: Arc<E>) -> Self {
+    pub const fn new(event_processing_usecase: Arc<E>) -> Self {
         Self {
             event_processing_usecase,
         }

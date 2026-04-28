@@ -95,6 +95,7 @@ where
     Ok((base_url, client))
 }
 
+#[must_use]
 pub fn create_test_client() -> Client {
     Client::builder()
         .redirect(reqwest::redirect::Policy::none())

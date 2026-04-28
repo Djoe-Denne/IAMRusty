@@ -18,7 +18,8 @@ pub enum OAuthLoginErrorCode {
 }
 
 impl OAuthLoginErrorCode {
-    pub fn as_str(&self) -> &'static str {
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
         match self {
             Self::AuthenticationFailed => "authentication_failed",
             Self::TokenExpired => "token_expired",
@@ -72,7 +73,7 @@ impl CommandErrorMapper for OAuthLoginErrorMapper {
             if Self::is_authentication_related_error(&error_msg) {
                 CommandError::business(
                     OAuthLoginErrorCode::AuthenticationFailed.as_str(),
-                    format!("OAuth authentication failed: {}", error_msg),
+                    format!("OAuth authentication failed: {error_msg}"),
                 )
             } else {
                 CommandError::infrastructure(
@@ -109,6 +110,7 @@ pub struct OAuthLoginCommand {
 
 impl OAuthLoginCommand {
     /// Create a new OAuth login command
+    #[must_use]
     pub fn new(provider: Provider, code: String) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -155,7 +157,7 @@ where
     O: OAuthUseCase + ?Sized,
 {
     /// Create a new OAuth login command handler
-    pub fn new(oauth_use_case: Arc<O>) -> Self {
+    pub const fn new(oauth_use_case: Arc<O>) -> Self {
         Self { oauth_use_case }
     }
 }
@@ -184,6 +186,7 @@ pub struct GenerateOAuthStartUrlCommand {
 
 impl GenerateOAuthStartUrlCommand {
     /// Create a new generate OAuth start URL command
+    #[must_use]
     pub fn new(provider: Provider) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -223,7 +226,7 @@ where
     O: OAuthUseCase + ?Sized,
 {
     /// Create a new generate OAuth start URL command handler
-    pub fn new(oauth_use_case: Arc<O>) -> Self {
+    pub const fn new(oauth_use_case: Arc<O>) -> Self {
         Self { oauth_use_case }
     }
 }

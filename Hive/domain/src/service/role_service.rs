@@ -30,7 +30,7 @@ pub trait RoleService: Send + Sync {
     /**
      * Create default system roles for a new organization
      *
-     * @param organization_id - The ID of the organization to create the default roles for
+     * @param `organization_id` - The ID of the organization to create the default roles for
      */
     async fn create_default_roles(
         &self,
@@ -40,16 +40,16 @@ pub trait RoleService: Send + Sync {
     /**
      * Delete all roles for an organization
      *
-     * @param organization_id - The ID of the organization to delete the roles for
+     * @param `organization_id` - The ID of the organization to delete the roles for
      */
     async fn delete_organization_roles(&self, organization_id: &Uuid) -> Result<(), DomainError>;
 
     /**
      * Find a role permission by resource type and permission
      *
-     * @param resource_type - The type of the resource to find the role permission for
+     * @param `resource_type` - The type of the resource to find the role permission for
      * @param permission - The permission to find the role permission for
-     * @param role_permissions - The list of role permissions to search in
+     * @param `role_permissions` - The list of role permissions to search in
      */
     async fn find_role_permissions(
         &self,
@@ -61,8 +61,8 @@ pub trait RoleService: Send + Sync {
     /**
      * Find role permissions by organization ID
      *
-     * @param organization_id - The ID of the organization to find the role permissions for
-     * @param role_permissions - The list of role permissions to search in
+     * @param `organization_id` - The ID of the organization to find the role permissions for
+     * @param `role_permissions` - The list of role permissions to search in
      */
     async fn find_role_permissions_by_organization(
         &self,
@@ -73,8 +73,8 @@ pub trait RoleService: Send + Sync {
     /**
      * Add roles to a member
      *
-     * @param organization_id - The ID of the organization to add the roles to
-     * @param member_id - The ID of the member to add the roles to
+     * @param `organization_id` - The ID of the organization to add the roles to
+     * @param `member_id` - The ID of the member to add the roles to
      * @param roles - The roles to add to the member
      */
     async fn add_roles(
@@ -93,7 +93,7 @@ where
     RPR: RolePermissionRepository,
 {
     /// Create a new member service
-    pub fn new(
+    pub const fn new(
         member_role_repo: Arc<MOR>,
         resource_repo: Arc<RR>,
         permission_repo: Arc<PR>,
@@ -190,7 +190,7 @@ where
             })
             .ok_or(DomainError::entity_not_found(
                 "RolePermission",
-                &format!("resource_type={}, permission={}", resource_type, permission),
+                &format!("resource_type={resource_type}, permission={permission}"),
             ))
             .cloned()
     }
@@ -226,7 +226,7 @@ where
     ) -> Result<Vec<RolePermission>, DomainError> {
         let roles = self
             .role_permission_repo
-            .find_by_organization_roles(organization_id, &role_permissions)
+            .find_by_organization_roles(organization_id, role_permissions)
             .await
             .map_err(|e| DomainError::Internal {
                 message: e.to_string(),

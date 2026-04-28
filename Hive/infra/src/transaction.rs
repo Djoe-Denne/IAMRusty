@@ -11,7 +11,7 @@ pub struct HiveOutboxUnitOfWorkImpl {
 }
 
 impl HiveOutboxUnitOfWorkImpl {
-    pub fn new(db: DbConnectionPool, outbox: OutboxRecorder) -> Self {
+    pub const fn new(db: DbConnectionPool, outbox: OutboxRecorder) -> Self {
         Self { db, outbox }
     }
 }

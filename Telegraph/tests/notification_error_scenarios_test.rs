@@ -33,8 +33,8 @@ async fn test_get_notifications_negative_page() {
     let jwt_token = create_jwt_token(user_id);
 
     let response = client
-        .get(format!("{}/api/notifications?page=-1", base_url))
-        .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
+        .get(format!("{base_url}/api/notifications?page=-1"))
+        .header(header::AUTHORIZATION, format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -42,7 +42,7 @@ async fn test_get_notifications_negative_page() {
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }
 
-/// Test parameter validation - per_page exceeds maximum limit
+/// Test parameter validation - `per_page` exceeds maximum limit
 #[tokio::test]
 #[serial]
 async fn test_get_notifications_per_page_exceeds_limit() {
@@ -54,8 +54,8 @@ async fn test_get_notifications_per_page_exceeds_limit() {
     let jwt_token = create_jwt_token(user_id);
 
     let response = client
-        .get(format!("{}/api/notifications?per_page=101", base_url))
-        .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
+        .get(format!("{base_url}/api/notifications?per_page=101"))
+        .header(header::AUTHORIZATION, format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -63,7 +63,7 @@ async fn test_get_notifications_per_page_exceeds_limit() {
     assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
 }
 
-/// Test parameter validation - per_page is zero
+/// Test parameter validation - `per_page` is zero
 #[tokio::test]
 #[serial]
 async fn test_get_notifications_per_page_zero() {
@@ -75,8 +75,8 @@ async fn test_get_notifications_per_page_zero() {
     let jwt_token = create_jwt_token(user_id);
 
     let response = client
-        .get(format!("{}/api/notifications?per_page=0", base_url))
-        .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
+        .get(format!("{base_url}/api/notifications?per_page=0"))
+        .header(header::AUTHORIZATION, format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -106,7 +106,7 @@ async fn test_get_notifications_malformed_params() {
     for uri in malformed_requests {
         let response = client
             .get(uri.clone())
-            .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
+            .header(header::AUTHORIZATION, format!("Bearer {jwt_token}"))
             .send()
             .await
             .expect("Failed to send request");
@@ -143,10 +143,9 @@ async fn test_mark_notification_read_invalid_rights() {
 
     let response = client
         .put(format!(
-            "{}/api/notifications/{}/read",
-            base_url, invalid_right_uuid
+            "{base_url}/api/notifications/{invalid_right_uuid}/read"
         ))
-        .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
+        .header(header::AUTHORIZATION, format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -154,8 +153,7 @@ async fn test_mark_notification_read_invalid_rights() {
     assert_eq!(
         response.status(),
         StatusCode::FORBIDDEN,
-        "Invalid right UUID {} should return 403",
-        invalid_right_uuid
+        "Invalid right UUID {invalid_right_uuid} should return 403"
     );
 }
 
@@ -181,7 +179,7 @@ async fn test_jwt_validation_edge_cases() {
 
     for (auth_header, expected_status) in test_cases {
         let response = client
-            .get(format!("{}/api/notifications", base_url))
+            .get(format!("{base_url}/api/notifications"))
             .header(header::AUTHORIZATION, auth_header)
             .send()
             .await
@@ -190,9 +188,7 @@ async fn test_jwt_validation_edge_cases() {
         assert_eq!(
             response.status(),
             expected_status,
-            "Auth header '{}' should return {}",
-            auth_header,
-            expected_status
+            "Auth header '{auth_header}' should return {expected_status}"
         );
     }
 }
@@ -210,8 +206,8 @@ async fn test_page_number_error_handling() {
 
     // Request an extremely large page that might cause memory issues
     let response = client
-        .get(format!("{}/api/notifications?page=101", base_url))
-        .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
+        .get(format!("{base_url}/api/notifications?page=101"))
+        .header(header::AUTHORIZATION, format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -233,8 +229,8 @@ async fn test_empty_database_scenarios() {
 
     // Test get notifications with no data
     let response = client
-        .get(format!("{}/api/notifications", base_url))
-        .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
+        .get(format!("{base_url}/api/notifications"))
+        .header(header::AUTHORIZATION, format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -245,12 +241,12 @@ async fn test_empty_database_scenarios() {
 
     assert_eq!(result["notifications"].as_array().unwrap().len(), 0);
     assert_eq!(result["total_count"].as_u64().unwrap(), 0);
-    assert_eq!(result["has_more"].as_bool().unwrap(), false);
+    assert!(!result["has_more"].as_bool().unwrap());
 
     // Test unread count with no data
     let count_response = client
-        .get(format!("{}/api/notifications/unread-count", base_url))
-        .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
+        .get(format!("{base_url}/api/notifications/unread-count"))
+        .header(header::AUTHORIZATION, format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -288,22 +284,22 @@ async fn test_pagination_boundary_conditions() {
     // Test edge cases around the single notification
     let test_cases = vec![
         (
-            format!("{}/api/notifications?page=0&per_page=1", base_url),
+            format!("{base_url}/api/notifications?page=0&per_page=1"),
             1,
             false,
         ), // Exact match
         (
-            format!("{}/api/notifications?page=0&per_page=2", base_url),
+            format!("{base_url}/api/notifications?page=0&per_page=2"),
             1,
             false,
         ), // per_page > available
         (
-            format!("{}/api/notifications?page=1&per_page=1", base_url),
+            format!("{base_url}/api/notifications?page=1&per_page=1"),
             0,
             false,
         ), // page beyond data
         (
-            format!("{}/api/notifications?page=0&per_page=100", base_url),
+            format!("{base_url}/api/notifications?page=0&per_page=100"),
             1,
             false,
         ), // large per_page
@@ -312,7 +308,7 @@ async fn test_pagination_boundary_conditions() {
     for (uri, expected_count, expected_has_more) in test_cases {
         let response = client
             .get(uri.clone())
-            .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
+            .header(header::AUTHORIZATION, format!("Bearer {jwt_token}"))
             .send()
             .await
             .expect("Failed to send request");
@@ -320,8 +316,7 @@ async fn test_pagination_boundary_conditions() {
         assert_eq!(
             response.status(),
             StatusCode::OK,
-            "Request to {} should succeed",
-            uri
+            "Request to {uri} should succeed"
         );
 
         let result: Value = response.json().await.expect("Failed to parse response");
@@ -329,17 +324,13 @@ async fn test_pagination_boundary_conditions() {
         assert_eq!(
             result["notifications"].as_array().unwrap().len(),
             expected_count,
-            "URI {} should return {} notifications",
-            uri,
-            expected_count
+            "URI {uri} should return {expected_count} notifications"
         );
 
         assert_eq!(
             result["has_more"].as_bool().unwrap(),
             expected_has_more,
-            "URI {} should have has_more={}",
-            uri,
-            expected_has_more
+            "URI {uri} should have has_more={expected_has_more}"
         );
     }
 }

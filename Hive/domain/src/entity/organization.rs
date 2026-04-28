@@ -6,7 +6,7 @@ use uuid::Uuid;
 use rustycog_core::error::DomainError;
 
 /// Organization entity representing a business organization
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Organization {
     pub id: Uuid,
     pub name: String,
@@ -78,6 +78,7 @@ impl Organization {
     }
 
     /// Check if user is the owner of this organization
+    #[must_use]
     pub fn is_owned_by(&self, user_id: &Uuid) -> bool {
         self.owner_user_id == *user_id
     }
@@ -156,7 +157,7 @@ mod tests {
     #[test]
     fn test_validate_name_empty() {
         let owner_id = Uuid::new_v4();
-        let result = Organization::new("".to_string(), "test".to_string(), None, owner_id);
+        let result = Organization::new(String::new(), "test".to_string(), None, owner_id);
         assert!(result.is_err());
     }
 

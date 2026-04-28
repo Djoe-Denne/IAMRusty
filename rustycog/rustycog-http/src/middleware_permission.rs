@@ -100,7 +100,7 @@ pub async fn permission_middleware(
 /// If the path *does* carry a resource UUID, the middleware always consults
 /// the centralized `PermissionChecker`:
 /// - When a `Subject` (UUID) is attached to the request extensions, the
-///   check uses [`Subject::new`] (renders as `user:{uuid}` on the OpenFGA
+///   check uses [`Subject::new`] (renders as `user:{uuid}` on the `OpenFGA`
 ///   wire).
 /// - When no subject is attached, the check uses [`Subject::wildcard`]
 ///   (renders as `user:*`). This honors public-read tuples like
@@ -120,15 +120,14 @@ pub async fn optional_permission_middleware(
         return Ok(next.run(req).await);
     };
 
-    let subject = match user_id {
-        Some(uid) => Subject::new(uid),
-        None => {
-            debug!(
-                path = %request_path,
-                "optional_permission_middleware: anonymous caller, consulting checker with Subject::wildcard()"
-            );
-            Subject::wildcard()
-        }
+    let subject = if let Some(uid) = user_id {
+        Subject::new(uid)
+    } else {
+        debug!(
+            path = %request_path,
+            "optional_permission_middleware: anonymous caller, consulting checker with Subject::wildcard()"
+        );
+        Subject::wildcard()
     };
     let resource = ResourceRef::new(guard.object_type, resource_id);
 

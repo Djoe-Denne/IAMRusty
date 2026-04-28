@@ -1,4 +1,4 @@
-//! SeaORM Entity prelude for convenient imports
+//! `SeaORM` Entity prelude for convenient imports
 
 pub use super::external_links::Entity as ExternalLinks;
 pub use super::external_providers::Entity as ExternalProviders;

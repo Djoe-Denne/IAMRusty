@@ -62,7 +62,7 @@ pub struct UserLoggedInEvent {
     pub user_id: Uuid,
     /// Email used for login
     pub email: String,
-    /// Login method (email_password, oauth_github, oauth_gitlab, etc.)
+    /// Login method (`email_password`, `oauth_github`, `oauth_gitlab`, etc.)
     pub login_method: String,
 }
 
@@ -83,7 +83,8 @@ pub struct PasswordResetRequestedEvent {
 
 // Event constructors
 impl UserSignedUpEvent {
-    /// Create a new UserSignedUp event
+    /// Create a new `UserSignedUp` event
+    #[must_use]
     pub fn new(
         user_id: Uuid,
         email: String,
@@ -105,7 +106,8 @@ impl UserSignedUpEvent {
 }
 
 impl UserEmailVerifiedEvent {
-    /// Create a new UserEmailVerified event
+    /// Create a new `UserEmailVerified` event
+    #[must_use]
     pub fn new(user_id: Uuid, email: String) -> Self {
         Self {
             base: BaseEvent::new("user_email_verified".to_string(), user_id),
@@ -116,7 +118,8 @@ impl UserEmailVerifiedEvent {
 }
 
 impl UserLoggedInEvent {
-    /// Create a new UserLoggedIn event
+    /// Create a new `UserLoggedIn` event
+    #[must_use]
     pub fn new(user_id: Uuid, email: String, login_method: String) -> Self {
         Self {
             base: BaseEvent::new("user_logged_in".to_string(), user_id),
@@ -128,7 +131,8 @@ impl UserLoggedInEvent {
 }
 
 impl PasswordResetRequestedEvent {
-    /// Create a new PasswordResetRequested event
+    /// Create a new `PasswordResetRequested` event
+    #[must_use]
     pub fn new(
         user_id: Uuid,
         email: String,
@@ -169,7 +173,7 @@ impl DomainEvent for UserSignedUpEvent {
 
     fn to_json(&self) -> Result<String, ServiceError> {
         serde_json::to_string(self)
-            .map_err(|e| ServiceError::internal(&format!("Failed to serialize event: {}", e)))
+            .map_err(|e| ServiceError::internal(format!("Failed to serialize event: {e}")))
     }
 
     fn metadata(&self) -> HashMap<String, String> {
@@ -200,7 +204,7 @@ impl DomainEvent for UserEmailVerifiedEvent {
 
     fn to_json(&self) -> Result<String, ServiceError> {
         serde_json::to_string(self)
-            .map_err(|e| ServiceError::internal(&format!("Failed to serialize event: {}", e)))
+            .map_err(|e| ServiceError::internal(format!("Failed to serialize event: {e}")))
     }
 
     fn metadata(&self) -> HashMap<String, String> {
@@ -231,7 +235,7 @@ impl DomainEvent for UserLoggedInEvent {
 
     fn to_json(&self) -> Result<String, ServiceError> {
         serde_json::to_string(self)
-            .map_err(|e| ServiceError::internal(&format!("Failed to serialize event: {}", e)))
+            .map_err(|e| ServiceError::internal(format!("Failed to serialize event: {e}")))
     }
 
     fn metadata(&self) -> HashMap<String, String> {
@@ -262,7 +266,7 @@ impl DomainEvent for PasswordResetRequestedEvent {
 
     fn to_json(&self) -> Result<String, ServiceError> {
         serde_json::to_string(self)
-            .map_err(|e| ServiceError::internal(&format!("Failed to serialize event: {}", e)))
+            .map_err(|e| ServiceError::internal(format!("Failed to serialize event: {e}")))
     }
 
     fn metadata(&self) -> HashMap<String, String> {
@@ -273,60 +277,60 @@ impl DomainEvent for PasswordResetRequestedEvent {
 impl DomainEvent for IamDomainEvent {
     fn event_type(&self) -> &str {
         match self {
-            IamDomainEvent::UserSignedUp(event) => event.event_type(),
-            IamDomainEvent::UserEmailVerified(event) => event.event_type(),
-            IamDomainEvent::UserLoggedIn(event) => event.event_type(),
-            IamDomainEvent::PasswordResetRequested(event) => event.event_type(),
+            Self::UserSignedUp(event) => event.event_type(),
+            Self::UserEmailVerified(event) => event.event_type(),
+            Self::UserLoggedIn(event) => event.event_type(),
+            Self::PasswordResetRequested(event) => event.event_type(),
         }
     }
 
     fn event_id(&self) -> Uuid {
         match self {
-            IamDomainEvent::UserSignedUp(event) => event.event_id(),
-            IamDomainEvent::UserEmailVerified(event) => event.event_id(),
-            IamDomainEvent::UserLoggedIn(event) => event.event_id(),
-            IamDomainEvent::PasswordResetRequested(event) => event.event_id(),
+            Self::UserSignedUp(event) => event.event_id(),
+            Self::UserEmailVerified(event) => event.event_id(),
+            Self::UserLoggedIn(event) => event.event_id(),
+            Self::PasswordResetRequested(event) => event.event_id(),
         }
     }
 
     fn aggregate_id(&self) -> Uuid {
         match self {
-            IamDomainEvent::UserSignedUp(event) => event.aggregate_id(),
-            IamDomainEvent::UserEmailVerified(event) => event.aggregate_id(),
-            IamDomainEvent::UserLoggedIn(event) => event.aggregate_id(),
-            IamDomainEvent::PasswordResetRequested(event) => event.aggregate_id(),
+            Self::UserSignedUp(event) => event.aggregate_id(),
+            Self::UserEmailVerified(event) => event.aggregate_id(),
+            Self::UserLoggedIn(event) => event.aggregate_id(),
+            Self::PasswordResetRequested(event) => event.aggregate_id(),
         }
     }
 
     fn occurred_at(&self) -> chrono::DateTime<chrono::Utc> {
         match self {
-            IamDomainEvent::UserSignedUp(event) => event.occurred_at(),
-            IamDomainEvent::UserEmailVerified(event) => event.occurred_at(),
-            IamDomainEvent::UserLoggedIn(event) => event.occurred_at(),
-            IamDomainEvent::PasswordResetRequested(event) => event.occurred_at(),
+            Self::UserSignedUp(event) => event.occurred_at(),
+            Self::UserEmailVerified(event) => event.occurred_at(),
+            Self::UserLoggedIn(event) => event.occurred_at(),
+            Self::PasswordResetRequested(event) => event.occurred_at(),
         }
     }
 
     fn version(&self) -> u32 {
         match self {
-            IamDomainEvent::UserSignedUp(event) => event.version(),
-            IamDomainEvent::UserEmailVerified(event) => event.version(),
-            IamDomainEvent::UserLoggedIn(event) => event.version(),
-            IamDomainEvent::PasswordResetRequested(event) => event.version(),
+            Self::UserSignedUp(event) => event.version(),
+            Self::UserEmailVerified(event) => event.version(),
+            Self::UserLoggedIn(event) => event.version(),
+            Self::PasswordResetRequested(event) => event.version(),
         }
     }
 
     fn to_json(&self) -> Result<String, ServiceError> {
         serde_json::to_string(self)
-            .map_err(|e| ServiceError::internal(&format!("Failed to serialize event: {}", e)))
+            .map_err(|e| ServiceError::internal(format!("Failed to serialize event: {e}")))
     }
 
     fn metadata(&self) -> HashMap<String, String> {
         match self {
-            IamDomainEvent::UserSignedUp(event) => event.metadata(),
-            IamDomainEvent::UserEmailVerified(event) => event.metadata(),
-            IamDomainEvent::UserLoggedIn(event) => event.metadata(),
-            IamDomainEvent::PasswordResetRequested(event) => event.metadata(),
+            Self::UserSignedUp(event) => event.metadata(),
+            Self::UserEmailVerified(event) => event.metadata(),
+            Self::UserLoggedIn(event) => event.metadata(),
+            Self::PasswordResetRequested(event) => event.metadata(),
         }
     }
 }
@@ -334,12 +338,13 @@ impl DomainEvent for IamDomainEvent {
 // Convenience methods for IamDomainEvent
 impl IamDomainEvent {
     /// Get the user ID associated with this event
-    pub fn user_id(&self) -> Uuid {
+    #[must_use]
+    pub const fn user_id(&self) -> Uuid {
         match self {
-            IamDomainEvent::UserSignedUp(event) => event.user_id,
-            IamDomainEvent::UserEmailVerified(event) => event.user_id,
-            IamDomainEvent::UserLoggedIn(event) => event.user_id,
-            IamDomainEvent::PasswordResetRequested(event) => event.user_id,
+            Self::UserSignedUp(event) => event.user_id,
+            Self::UserEmailVerified(event) => event.user_id,
+            Self::UserLoggedIn(event) => event.user_id,
+            Self::PasswordResetRequested(event) => event.user_id,
         }
     }
 }

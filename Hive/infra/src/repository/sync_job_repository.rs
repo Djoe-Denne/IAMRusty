@@ -1,4 +1,4 @@
-//! SyncJobRepository SeaORM implementation
+//! `SyncJobRepository` `SeaORM` implementation
 
 use async_trait::async_trait;
 use hive_domain::entity::{SyncJob, SyncJobStatus, SyncJobType};
@@ -66,7 +66,8 @@ pub struct SyncJobReadRepositoryImpl {
 }
 
 impl SyncJobReadRepositoryImpl {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    #[must_use]
+    pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
 }
@@ -224,7 +225,8 @@ pub struct SyncJobWriteRepositoryImpl {
 }
 
 impl SyncJobWriteRepositoryImpl {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    #[must_use]
+    pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
 }
@@ -263,7 +265,7 @@ impl SyncJobWriteRepository for SyncJobWriteRepositoryImpl {
                 details: result.details.unwrap(),
                 created_at: result.created_at.unwrap(),
             };
-            return Ok(SyncJobMapper::to_domain(saved_model)?);
+            return SyncJobMapper::to_domain(saved_model);
         }
 
         // Insert
@@ -273,21 +275,7 @@ impl SyncJobWriteRepository for SyncJobWriteRepositoryImpl {
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
-        let saved_model = sync_jobs::Model {
-            id: result.id,
-            organization_external_link_id: result.organization_external_link_id,
-            job_type: result.job_type,
-            status: result.status,
-            items_processed: result.items_processed,
-            items_created: result.items_created,
-            items_updated: result.items_updated,
-            items_failed: result.items_failed,
-            started_at: result.started_at,
-            completed_at: result.completed_at,
-            error_message: result.error_message,
-            details: result.details,
-            created_at: result.created_at,
-        };
+        let saved_model = result;
 
         SyncJobMapper::to_domain(saved_model)
     }

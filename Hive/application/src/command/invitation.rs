@@ -21,6 +21,7 @@ pub struct CreateInvitationCommand {
 }
 
 impl CreateInvitationCommand {
+    #[must_use]
     pub fn new(
         organization_id: Uuid,
         request: CreateInvitationRequest,
@@ -75,7 +76,7 @@ impl CommandHandler<CreateInvitationCommand> for CreateInvitationCommandHandler 
                 command.invited_by_user_id,
             )
             .await
-            .map_err(|e| CommandError::business("create_invitation_failed", &e.to_string()))
+            .map_err(|e| CommandError::business("create_invitation_failed", e.to_string()))
     }
 }
 
@@ -89,6 +90,7 @@ pub struct ListInvitationsCommand {
 }
 
 impl ListInvitationsCommand {
+    #[must_use]
     pub fn new(
         organization_id: Uuid,
         pagination: PaginationRequest,
@@ -134,7 +136,7 @@ impl ListInvitationsCommandHandler {
 impl CommandHandler<ListInvitationsCommand> for ListInvitationsCommandHandler {
     async fn handle(
         &self,
-        command: ListInvitationsCommand,
+        _command: ListInvitationsCommand,
     ) -> Result<InvitationListResponse, CommandError> {
         // TODO: Implement list_invitations in InvitationUseCase
         Err(CommandError::business(
@@ -154,6 +156,7 @@ pub struct CancelInvitationCommand {
 }
 
 impl CancelInvitationCommand {
+    #[must_use]
     pub fn new(organization_id: Uuid, invitation_id: Uuid, user_id: Option<Uuid>) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -193,7 +196,7 @@ impl CancelInvitationCommandHandler {
 
 #[async_trait]
 impl CommandHandler<CancelInvitationCommand> for CancelInvitationCommandHandler {
-    async fn handle(&self, command: CancelInvitationCommand) -> Result<(), CommandError> {
+    async fn handle(&self, _command: CancelInvitationCommand) -> Result<(), CommandError> {
         // TODO: Implement cancel_invitation in InvitationUseCase
         Err(CommandError::business(
             "cancel_invitation_not_implemented",
@@ -211,6 +214,7 @@ pub struct AcceptInvitationCommand {
 }
 
 impl AcceptInvitationCommand {
+    #[must_use]
     pub fn new(token: String, user_id: Uuid) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -259,7 +263,7 @@ impl CommandHandler<AcceptInvitationCommand> for AcceptInvitationCommandHandler 
         self.invitation_usecase
             .accept_invitation(command.token, command.user_id)
             .await
-            .map_err(|e| CommandError::business("accept_invitation_failed", &e.to_string()))
+            .map_err(|e| CommandError::business("accept_invitation_failed", e.to_string()))
     }
 }
 
@@ -271,6 +275,7 @@ pub struct GetInvitationByTokenCommand {
 }
 
 impl GetInvitationByTokenCommand {
+    #[must_use]
     pub fn new(token: String) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -316,7 +321,7 @@ impl GetInvitationByTokenCommandHandler {
 impl CommandHandler<GetInvitationByTokenCommand> for GetInvitationByTokenCommandHandler {
     async fn handle(
         &self,
-        command: GetInvitationByTokenCommand,
+        _command: GetInvitationByTokenCommand,
     ) -> Result<InvitationDetailsResponse, CommandError> {
         // TODO: Implement get_invitation_by_token in InvitationUseCase
         Err(CommandError::business(
@@ -335,6 +340,7 @@ pub struct ResendInvitationCommand {
 }
 
 impl ResendInvitationCommand {
+    #[must_use]
     pub fn new(organization_id: Uuid, invitation_id: Uuid) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -373,7 +379,7 @@ impl ResendInvitationCommandHandler {
 
 #[async_trait]
 impl CommandHandler<ResendInvitationCommand> for ResendInvitationCommandHandler {
-    async fn handle(&self, command: ResendInvitationCommand) -> Result<(), CommandError> {
+    async fn handle(&self, _command: ResendInvitationCommand) -> Result<(), CommandError> {
         // TODO: Implement resend_invitation in InvitationUseCase
         Err(CommandError::business(
             "resend_invitation_not_implemented",
@@ -389,23 +395,23 @@ impl CommandErrorMapper for InvitationErrorMapper {
         if let Some(error) = error.downcast_ref::<ApplicationError>() {
             match error {
                 ApplicationError::Domain(domain_error) => {
-                    CommandError::business("domain_error", &domain_error.to_string())
+                    CommandError::business("domain_error", domain_error.to_string())
                 }
                 ApplicationError::ValidationError(_) => {
-                    CommandError::validation("validation_failed", &error.to_string())
+                    CommandError::validation("validation_failed", error.to_string())
                 }
                 ApplicationError::ExternalService { .. } => {
-                    CommandError::infrastructure("external_error", &error.to_string())
+                    CommandError::infrastructure("external_error", error.to_string())
                 }
                 ApplicationError::RateLimit { .. } => {
-                    CommandError::business("rate_limit", &error.to_string())
+                    CommandError::business("rate_limit", error.to_string())
                 }
                 ApplicationError::Internal { .. } => {
-                    CommandError::infrastructure("internal_error", &error.to_string())
+                    CommandError::infrastructure("internal_error", error.to_string())
                 }
             }
         } else {
-            CommandError::infrastructure("unknown_error", &error.to_string())
+            CommandError::infrastructure("unknown_error", error.to_string())
         }
     }
 }

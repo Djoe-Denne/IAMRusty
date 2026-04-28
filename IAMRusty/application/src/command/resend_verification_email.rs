@@ -19,6 +19,7 @@ pub struct ResendVerificationEmailCommand {
 
 impl ResendVerificationEmailCommand {
     /// Create a new command instance
+    #[must_use]
     pub fn new(email: String) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -61,7 +62,7 @@ impl<A> ResendVerificationEmailCommandHandler<A>
 where
     A: LoginUseCase + ?Sized,
 {
-    pub fn new(login_use_case: std::sync::Arc<A>) -> Self {
+    pub const fn new(login_use_case: std::sync::Arc<A>) -> Self {
         Self { login_use_case }
     }
 }

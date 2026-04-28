@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
 
 /// SMTP email message structure for testing
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -28,10 +27,9 @@ impl SmtpEmail {
             cc: None,
             bcc: None,
             subject: "Welcome to AI For All!".to_string(),
-            text_body: Some(format!("Welcome {}, thank you for signing up!", username)),
+            text_body: Some(format!("Welcome {username}, thank you for signing up!")),
             html_body: Some(format!(
-                "<h1>Welcome {}!</h1><p>Thank you for signing up to AI For All.</p>",
-                username
+                "<h1>Welcome {username}!</h1><p>Thank you for signing up to AI For All.</p>"
             )),
             message_id: Some("test-message-id-123".to_string()),
         }
@@ -45,10 +43,9 @@ impl SmtpEmail {
             cc: None,
             bcc: None,
             subject: "Password Reset Request".to_string(),
-            text_body: Some(format!("Hi {}, you requested a password reset.", username)),
+            text_body: Some(format!("Hi {username}, you requested a password reset.")),
             html_body: Some(format!(
-                "<h1>Password Reset</h1><p>Hi {}, you requested a password reset.</p>",
-                username
+                "<h1>Password Reset</h1><p>Hi {username}, you requested a password reset.</p>"
             )),
             message_id: Some("test-password-reset-456".to_string()),
         }
@@ -62,13 +59,9 @@ impl SmtpEmail {
             cc: None,
             bcc: None,
             subject: "Email Verification".to_string(),
-            text_body: Some(format!(
-                "Hi {}, please verify your email address.",
-                username
-            )),
+            text_body: Some(format!("Hi {username}, please verify your email address.")),
             html_body: Some(format!(
-                "<h1>Email Verification</h1><p>Hi {}, please verify your email address.</p>",
-                username
+                "<h1>Email Verification</h1><p>Hi {username}, please verify your email address.</p>"
             )),
             message_id: Some("test-email-verify-789".to_string()),
         }
@@ -190,12 +183,12 @@ impl SmtpConnectionRequest {
         }
     }
 
-    pub fn with_tls(mut self, use_tls: bool) -> Self {
+    pub const fn with_tls(mut self, use_tls: bool) -> Self {
         self.use_tls = use_tls;
         self
     }
 
-    pub fn with_starttls(mut self, use_starttls: bool) -> Self {
+    pub const fn with_starttls(mut self, use_starttls: bool) -> Self {
         self.use_starttls = use_starttls;
         self
     }
@@ -250,7 +243,7 @@ impl SmtpResponse {
     pub fn message_accepted(message_id: &str) -> Self {
         Self {
             code: 250,
-            message: format!("Message accepted for delivery id={}", message_id),
+            message: format!("Message accepted for delivery id={message_id}"),
             enhanced_status_code: Some("2.0.0".to_string()),
         }
     }
@@ -313,9 +306,9 @@ impl SmtpCapabilities {
         let mut lines = vec![format!("250-{}", self.hostname)];
         for (i, ext) in self.extensions.iter().enumerate() {
             if i == self.extensions.len() - 1 {
-                lines.push(format!("250 {}", ext)); // Last line uses space instead of dash
+                lines.push(format!("250 {ext}")); // Last line uses space instead of dash
             } else {
-                lines.push(format!("250-{}", ext));
+                lines.push(format!("250-{ext}"));
             }
         }
         lines

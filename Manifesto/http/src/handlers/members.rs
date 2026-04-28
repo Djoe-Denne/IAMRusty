@@ -20,12 +20,12 @@ fn specific_resource_name(resource: &str, resource_id: Uuid) -> String {
     if resource.eq_ignore_ascii_case("component") {
         resource_id.to_string()
     } else {
-        format!("{}:{}", resource, resource_id)
+        format!("{resource}:{resource_id}")
     }
 }
 
 /// Add a member to a project
-/// POST /api/projects/{project_id}/members
+/// POST /`api/projects/{project_id}/members`
 pub async fn add_member(
     State(state): State<AppState>,
     Path(project_id): Path<ResourceId>,
@@ -51,7 +51,7 @@ pub async fn add_member(
 }
 
 /// Get a member
-/// GET /api/projects/{project_id}/members/{user_id}
+/// GET /`api/projects/{project_id}/members/{user_id`}
 pub async fn get_member(
     State(state): State<AppState>,
     Path((project_id, user_id)): Path<(ResourceId, Uuid)>,
@@ -72,7 +72,7 @@ pub async fn get_member(
 }
 
 /// List members for a project
-/// GET /api/projects/{project_id}/members
+/// GET /`api/projects/{project_id}/members`
 pub async fn list_members(
     State(state): State<AppState>,
     Path(project_id): Path<ResourceId>,
@@ -94,7 +94,7 @@ pub async fn list_members(
 }
 
 /// Update a member's permissions
-/// PUT /api/projects/{project_id}/members/{user_id}
+/// PUT /`api/projects/{project_id}/members/{user_id`}
 pub async fn update_member(
     State(state): State<AppState>,
     Path((project_id, user_id)): Path<(ResourceId, Uuid)>,
@@ -120,7 +120,7 @@ pub async fn update_member(
 }
 
 /// Remove a member from a project
-/// DELETE /api/projects/{project_id}/members/{user_id}
+/// DELETE /`api/projects/{project_id}/members/{user_id`}
 pub async fn remove_member(
     State(state): State<AppState>,
     Path((project_id, user_id)): Path<(ResourceId, Uuid)>,
@@ -150,7 +150,7 @@ pub struct GrantPermissionPathRequest {
 }
 
 /// Grant a permission to a member on a generic resource
-/// POST /api/projects/{project_id}/members/{user_id}/permissions/{resource}
+/// POST /`api/projects/{project_id}/members/{user_id}/permissions/{resource`}
 pub async fn grant_permission(
     State(state): State<AppState>,
     Path((project_id, user_id, resource)): Path<(ResourceId, Uuid, String)>,
@@ -184,7 +184,7 @@ pub async fn grant_permission(
 }
 
 /// Grant a permission to a member on a specific resource (e.g., a specific component)
-/// POST /api/projects/{project_id}/members/{user_id}/permissions/{resource}/{resource_id}
+/// POST /`api/projects/{project_id}/members/{user_id}/permissions/{resource}/{resource_id`}
 pub async fn grant_permission_specific(
     State(state): State<AppState>,
     Path((project_id, user_id, resource, resource_id)): Path<(ResourceId, Uuid, String, Uuid)>,
@@ -221,7 +221,7 @@ pub async fn grant_permission_specific(
 }
 
 /// Revoke a permission from a member on a generic resource
-/// DELETE /api/projects/{project_id}/members/{user_id}/permissions/{resource}
+/// DELETE /`api/projects/{project_id}/members/{user_id}/permissions/{resource`}
 pub async fn revoke_permission(
     State(state): State<AppState>,
     Path((project_id, user_id, resource)): Path<(ResourceId, Uuid, String)>,
@@ -248,7 +248,7 @@ pub async fn revoke_permission(
 }
 
 /// Revoke a permission from a member on a specific resource (e.g., a specific component)
-/// DELETE /api/projects/{project_id}/members/{user_id}/permissions/{resource}/{resource_id}
+/// DELETE /`api/projects/{project_id}/members/{user_id}/permissions/{resource}/{resource_id`}
 pub async fn revoke_permission_specific(
     State(state): State<AppState>,
     Path((project_id, user_id, resource, resource_id)): Path<(ResourceId, Uuid, String, Uuid)>,

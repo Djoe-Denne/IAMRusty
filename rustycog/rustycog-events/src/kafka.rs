@@ -33,10 +33,10 @@ impl KafkaEventPublisher {
 
         // Basic configuration
         client_config
-            .set("bootstrap.servers", &config.brokers())
+            .set("bootstrap.servers", config.brokers())
             .set("client.id", &config.client_id)
-            .set("message.timeout.ms", &config.timeout_ms.to_string())
-            .set("retries", &config.max_retries.to_string())
+            .set("message.timeout.ms", config.timeout_ms.to_string())
+            .set("retries", config.max_retries.to_string())
             .set("compression.type", &config.compression);
 
         // Security configuration
@@ -90,7 +90,7 @@ impl KafkaEventPublisher {
             .set("linger.ms", "5");
 
         client_config.create().map_err(|e| {
-            ServiceError::infrastructure(format!("Failed to create Kafka producer: {}", e))
+            ServiceError::infrastructure(format!("Failed to create Kafka producer: {e}"))
         })
     }
 
@@ -98,7 +98,7 @@ impl KafkaEventPublisher {
     fn serialize_event(&self, event: &dyn DomainEvent) -> Result<String, ServiceError> {
         event
             .to_json()
-            .map_err(|e| ServiceError::infrastructure(format!("Failed to serialize event: {}", e)))
+            .map_err(|e| ServiceError::infrastructure(format!("Failed to serialize event: {e}")))
     }
 
     /// Get topic for event
@@ -178,8 +178,7 @@ impl EventPublisher<ServiceError> for KafkaEventPublisher {
                     "❌ Failed to publish event to Kafka"
                 );
                 Err(ServiceError::infrastructure(format!(
-                    "Failed to publish event to Kafka: {}",
-                    kafka_error
+                    "Failed to publish event to Kafka: {kafka_error}"
                 )))
             }
         }
@@ -200,10 +199,7 @@ impl EventPublisher<ServiceError> for KafkaEventPublisher {
         );
 
         // Publish all events concurrently
-        let futures: Vec<_> = events
-            .into_iter()
-            .map(|event| self.publish(event))
-            .collect();
+        let futures: Vec<_> = events.iter().map(|event| self.publish(event)).collect();
 
         // Wait for all to complete
         let results: Vec<Result<(), ServiceError>> = futures::future::join_all(futures).await;
@@ -214,7 +210,7 @@ impl EventPublisher<ServiceError> for KafkaEventPublisher {
             .enumerate()
             .filter_map(|(i, result)| match result {
                 Err(e) => Some((i, e)),
-                Ok(_) => None,
+                Ok(()) => None,
             })
             .collect();
 
@@ -230,8 +226,7 @@ impl EventPublisher<ServiceError> for KafkaEventPublisher {
             // Return the first error for simplicity
             // In production, you might want to return all errors or a summary
             return Err(ServiceError::infrastructure(format!(
-                "Failed to publish {} events in batch. First error: {}",
-                failure_count, first_error
+                "Failed to publish {failure_count} events in batch. First error: {first_error}"
             )));
         }
 
@@ -263,8 +258,7 @@ impl EventPublisher<ServiceError> for KafkaEventPublisher {
             Err(e) => {
                 error!(error = %e, "Kafka health check failed");
                 Err(ServiceError::infrastructure(format!(
-                    "Kafka health check failed: {}",
-                    e
+                    "Kafka health check failed: {e}"
                 )))
             }
         }
@@ -296,9 +290,9 @@ impl KafkaEventConsumer {
 
         // Basic configuration
         client_config
-            .set("bootstrap.servers", &config.brokers())
-            .set("client.id", &format!("{}-consumer", config.client_id))
-            .set("group.id", &format!("{}-group", config.client_id))
+            .set("bootstrap.servers", config.brokers())
+            .set("client.id", format!("{}-consumer", config.client_id))
+            .set("group.id", format!("{}-group", config.client_id))
             .set("session.timeout.ms", "30000")
             .set("heartbeat.interval.ms", "10000")
             .set("max.poll.interval.ms", "300000")
@@ -341,14 +335,14 @@ impl KafkaEventConsumer {
         }
 
         let consumer: StreamConsumer = client_config.create().map_err(|e| {
-            ServiceError::infrastructure(format!("Failed to create Kafka consumer: {}", e))
+            ServiceError::infrastructure(format!("Failed to create Kafka consumer: {e}"))
         })?;
 
         // Subscribe to the user events topic
         consumer
             .subscribe(&[&config.user_events_topic])
             .map_err(|e| {
-                ServiceError::infrastructure(format!("Failed to subscribe to Kafka topic: {}", e))
+                ServiceError::infrastructure(format!("Failed to subscribe to Kafka topic: {e}"))
             })?;
 
         Ok(consumer)
@@ -365,14 +359,13 @@ impl KafkaEventConsumer {
 
         let payload_str = std::str::from_utf8(payload).map_err(|e| {
             ServiceError::infrastructure(format!(
-                "Failed to parse Kafka message payload as UTF-8: {}",
-                e
+                "Failed to parse Kafka message payload as UTF-8: {e}"
             ))
         })?;
 
         // Parse the JSON payload
         let data: Value = serde_json::from_str(payload_str).map_err(|e| {
-            ServiceError::infrastructure(format!("Failed to parse Kafka message as JSON: {}", e))
+            ServiceError::infrastructure(format!("Failed to parse Kafka message as JSON: {e}"))
         })?;
 
         // Extract metadata from headers if available
@@ -390,7 +383,7 @@ impl KafkaEventConsumer {
         // Try to extract event information from headers first, then fallback to payload
         let event_id = metadata
             .get("event_id")
-            .map(|s| s.as_str())
+            .map(std::string::String::as_str)
             .or_else(|| data.get("event_id").and_then(|v| v.as_str()))
             .ok_or_else(|| {
                 ServiceError::infrastructure("Missing event_id in Kafka message".to_string())
@@ -398,7 +391,7 @@ impl KafkaEventConsumer {
 
         let event_type = metadata
             .get("event_type")
-            .map(|s| s.as_str())
+            .map(std::string::String::as_str)
             .or_else(|| data.get("event_type").and_then(|v| v.as_str()))
             .ok_or_else(|| {
                 ServiceError::infrastructure("Missing event_type in Kafka message".to_string())
@@ -406,7 +399,7 @@ impl KafkaEventConsumer {
 
         let aggregate_id = metadata
             .get("aggregate_id")
-            .map(|s| s.as_str())
+            .map(std::string::String::as_str)
             .or_else(|| data.get("aggregate_id").and_then(|v| v.as_str()))
             .ok_or_else(|| {
                 ServiceError::infrastructure("Missing aggregate_id in Kafka message".to_string())
@@ -415,9 +408,12 @@ impl KafkaEventConsumer {
         let occurred_at = data
             .get("occurred_at")
             .and_then(|v| v.as_str())
-            .unwrap_or_else(|| "1970-01-01T00:00:00Z");
+            .unwrap_or("1970-01-01T00:00:00Z");
 
-        let version = data.get("version").and_then(|v| v.as_i64()).unwrap_or(1) as i32;
+        let version = data
+            .get("version")
+            .and_then(serde_json::Value::as_i64)
+            .unwrap_or(1) as i32;
 
         let event_data = data.get("data").unwrap_or(&data).clone();
 
@@ -452,7 +448,7 @@ impl KafkaEventConsumer {
             Ok(Ok(message)) => {
                 match self.parse_message(&message) {
                     Ok(event) => {
-                        if handler.supports_event_type(&event.event_type()) {
+                        if handler.supports_event_type(event.event_type()) {
                             if let Err(e) = handler.handle_event(event).await {
                                 warn!(
                                     error = %e,
@@ -502,8 +498,7 @@ impl KafkaEventConsumer {
             Ok(Err(e)) => {
                 error!(error = %e, "Error receiving Kafka message");
                 return Err(ServiceError::infrastructure(format!(
-                    "Kafka receive error: {}",
-                    e
+                    "Kafka receive error: {e}"
                 )));
             }
             Err(_) => {
@@ -575,8 +570,7 @@ impl EventConsumer for KafkaEventConsumer {
                     "❌ Kafka consumer health check failed"
                 );
                 Err(ServiceError::infrastructure(format!(
-                    "Kafka consumer health check failed: {}",
-                    e
+                    "Kafka consumer health check failed: {e}"
                 )))
             }
         }
@@ -610,8 +604,7 @@ impl DomainEvent for KafkaGenericDomainEvent {
 
     fn occurred_at(&self) -> chrono::DateTime<chrono::Utc> {
         chrono::DateTime::parse_from_rfc3339(&self.occurred_at)
-            .map(|dt| dt.with_timezone(&chrono::Utc))
-            .unwrap_or_else(|_| chrono::Utc::now())
+            .map_or_else(|_| chrono::Utc::now(), |dt| dt.with_timezone(&chrono::Utc))
     }
 
     fn version(&self) -> u32 {
@@ -620,7 +613,7 @@ impl DomainEvent for KafkaGenericDomainEvent {
 
     fn to_json(&self) -> Result<String, ServiceError> {
         serde_json::to_string(&self.data).map_err(|e| {
-            ServiceError::infrastructure(format!("Failed to serialize event data: {}", e))
+            ServiceError::infrastructure(format!("Failed to serialize event data: {e}"))
         })
     }
 

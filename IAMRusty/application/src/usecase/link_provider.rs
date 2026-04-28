@@ -88,7 +88,7 @@ where
     UER: iam_domain::port::repository::UserEmailRepository,
     TR: iam_domain::port::repository::TokenRepository,
 {
-    /// Create a new LinkProviderUseCaseImpl
+    /// Create a new `LinkProviderUseCaseImpl`
     pub fn new(
         github_auth: Arc<GH>,
         gitlab_auth: Arc<GL>,

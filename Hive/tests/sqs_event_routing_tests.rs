@@ -165,8 +165,8 @@ async fn routes_organization_created_to_sentinel_sync_queue() {
     };
 
     let res = client
-        .post(format!("{}/api/organizations", server_url))
-        .header("Authorization", format!("Bearer {}", token))
+        .post(format!("{server_url}/api/organizations"))
+        .header("Authorization", format!("Bearer {token}"))
         .json(&create_body)
         .send()
         .await
@@ -203,7 +203,7 @@ async fn routes_organization_updated_to_sentinel_sync_queue() {
 
     let res = client
         .put(format!("{}/api/organizations/{}", server_url, org.id))
-        .header("Authorization", format!("Bearer {}", token))
+        .header("Authorization", format!("Bearer {token}"))
         .json(&serde_json::json!({
             "name": "SQS Routed Org Updated",
             "description": "Updated through SQS routing test"
@@ -255,7 +255,7 @@ async fn routes_member_joined_to_sentinel_sync_queue() {
             "{}/api/organizations/{}/members",
             server_url, org.id
         ))
-        .header("Authorization", format!("Bearer {}", token))
+        .header("Authorization", format!("Bearer {token}"))
         .json(&body)
         .send()
         .await
@@ -303,7 +303,7 @@ async fn routes_member_removed_to_sentinel_sync_queue() {
             "{}/api/organizations/{}/members/{}",
             server_url, org.id, removed_user_id
         ))
-        .header("Authorization", format!("Bearer {}", token))
+        .header("Authorization", format!("Bearer {token}"))
         .send()
         .await
         .unwrap();

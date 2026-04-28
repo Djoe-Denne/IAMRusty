@@ -22,7 +22,8 @@ pub struct NotificationReadRepositoryImpl {
 }
 
 impl NotificationReadRepositoryImpl {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    #[must_use]
+    pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
 }
@@ -47,13 +48,13 @@ impl NotificationReadRepository for NotificationReadRepositoryImpl {
             query = query.filter(notifications::Column::IsRead.eq(false));
         }
 
-        let paginator = query.paginate(self.db.as_ref(), per_page as u64);
+        let paginator = query.paginate(self.db.as_ref(), u64::from(per_page));
         let total = paginator.num_items().await.map_err(|e| {
-            DomainError::infrastructure_error(format!("Failed to count notifications: {}", e))
+            DomainError::infrastructure_error(format!("Failed to count notifications: {e}"))
         })?;
 
-        let notifications = paginator.fetch_page(page as u64).await.map_err(|e| {
-            DomainError::infrastructure_error(format!("Failed to fetch notifications: {}", e))
+        let notifications = paginator.fetch_page(u64::from(page)).await.map_err(|e| {
+            DomainError::infrastructure_error(format!("Failed to fetch notifications: {e}"))
         })?;
 
         let domain_notifications: Result<Vec<NotificationCommunication>, DomainError> =
@@ -76,7 +77,7 @@ impl NotificationReadRepository for NotificationReadRepositoryImpl {
             .one(self.db.as_ref())
             .await
             .map_err(|e| {
-                DomainError::infrastructure_error(format!("Failed to get notification: {}", e))
+                DomainError::infrastructure_error(format!("Failed to get notification: {e}"))
             })?;
 
         match notification {
@@ -101,7 +102,7 @@ impl NotificationReadRepository for NotificationReadRepositoryImpl {
             .all(self.db.as_ref())
             .await
             .map_err(|e| {
-                DomainError::infrastructure_error(format!("Failed to get delivery records: {}", e))
+                DomainError::infrastructure_error(format!("Failed to get delivery records: {e}"))
             })?;
 
         let domain_deliveries: Result<Vec<MessageDelivery>, DomainError> = deliveries
@@ -123,8 +124,7 @@ impl NotificationReadRepository for NotificationReadRepositoryImpl {
             .await
             .map_err(|e| {
                 DomainError::infrastructure_error(format!(
-                    "Failed to count unread notifications: {}",
-                    e
+                    "Failed to count unread notifications: {e}"
                 ))
             })?;
 
@@ -146,7 +146,7 @@ impl NotificationReadRepository for NotificationReadRepositoryImpl {
             .one(self.db.as_ref())
             .await
             .map_err(|e| {
-                DomainError::infrastructure_error(format!("Failed to get notification: {}", e))
+                DomainError::infrastructure_error(format!("Failed to get notification: {e}"))
             })?;
 
         match notification {

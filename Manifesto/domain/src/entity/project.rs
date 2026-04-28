@@ -23,6 +23,7 @@ pub struct Project {
 
 impl Project {
     /// Create a new project builder
+    #[must_use]
     pub fn builder() -> ProjectBuilder {
         ProjectBuilder::default()
     }
@@ -65,11 +66,13 @@ impl Project {
     }
 
     /// Check if the project can be published
+    #[must_use]
     pub fn can_publish(&self) -> bool {
         self.status == ProjectStatus::Draft
     }
 
     /// Check if the project is public
+    #[must_use]
     pub fn is_public(&self) -> bool {
         self.visibility.is_public()
     }
@@ -139,52 +142,62 @@ pub struct ProjectBuilder {
 }
 
 impl ProjectBuilder {
-    pub fn id(mut self, id: Uuid) -> Self {
+    #[must_use]
+    pub const fn id(mut self, id: Uuid) -> Self {
         self.id = Some(id);
         self
     }
 
+    #[must_use]
     pub fn name(mut self, name: String) -> Self {
         self.name = Some(name);
         self
     }
 
+    #[must_use]
     pub fn description(mut self, description: Option<String>) -> Self {
         self.description = description;
         self
     }
 
-    pub fn status(mut self, status: ProjectStatus) -> Self {
+    #[must_use]
+    pub const fn status(mut self, status: ProjectStatus) -> Self {
         self.status = Some(status);
         self
     }
 
-    pub fn owner_type(mut self, owner_type: OwnerType) -> Self {
+    #[must_use]
+    pub const fn owner_type(mut self, owner_type: OwnerType) -> Self {
         self.owner_type = Some(owner_type);
         self
     }
 
-    pub fn owner_id(mut self, owner_id: Uuid) -> Self {
+    #[must_use]
+    pub const fn owner_id(mut self, owner_id: Uuid) -> Self {
         self.owner_id = Some(owner_id);
         self
     }
 
-    pub fn created_by(mut self, created_by: Uuid) -> Self {
+    #[must_use]
+    pub const fn created_by(mut self, created_by: Uuid) -> Self {
         self.created_by = Some(created_by);
         self
     }
 
-    pub fn visibility(mut self, visibility: Visibility) -> Self {
+    #[must_use]
+    pub const fn visibility(mut self, visibility: Visibility) -> Self {
         self.visibility = Some(visibility);
         self
     }
 
-    pub fn external_collaboration_enabled(mut self, enabled: bool) -> Self {
+    #[must_use]
+    pub const fn external_collaboration_enabled(mut self, enabled: bool) -> Self {
         self.external_collaboration_enabled = Some(enabled);
         self
     }
 
-    pub fn data_classification(mut self, classification: DataClassification) -> Self {
+    #[must_use]
+    pub const fn data_classification(mut self, classification: DataClassification) -> Self {
         self.data_classification = Some(classification);
         self
     }

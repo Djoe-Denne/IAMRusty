@@ -56,16 +56,19 @@ pub struct ProviderInfo {
 
 impl RegistrationTokenClaims {
     /// Creates new registration token claims for email/password flow
+    #[must_use]
     pub fn new(user_id: Uuid, email: String) -> Self {
         Self::new_with_flow(user_id, email, RegistrationFlow::EmailPassword)
     }
 
     /// Creates new registration token claims for OAuth flow
+    #[must_use]
     pub fn new_oauth(user_id: Uuid, email: String) -> Self {
         Self::new_with_flow(user_id, email, RegistrationFlow::OAuth)
     }
 
     /// Creates new registration token claims with specified flow type
+    #[must_use]
     pub fn new_with_flow(user_id: Uuid, email: String, flow: RegistrationFlow) -> Self {
         let now = Utc::now();
         let expires_in = Duration::hours(24); // 24 hours as recommended
@@ -83,6 +86,7 @@ impl RegistrationTokenClaims {
     }
 
     /// Check if the token is expired
+    #[must_use]
     pub fn is_expired(&self) -> bool {
         Utc::now().timestamp() > self.exp
     }
@@ -93,16 +97,19 @@ impl RegistrationTokenClaims {
     }
 
     /// Validate that this is a registration token
+    #[must_use]
     pub fn is_registration_token(&self) -> bool {
         self.sub == "registration"
     }
 
     /// Check if this is an OAuth flow
+    #[must_use]
     pub fn is_oauth_flow(&self) -> bool {
         self.flow == RegistrationFlow::OAuth
     }
 
     /// Check if this is an email/password flow
+    #[must_use]
     pub fn is_email_password_flow(&self) -> bool {
         self.flow == RegistrationFlow::EmailPassword
     }

@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /// Represents an email verification token
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct EmailVerification {
     /// Unique identifier for the verification record
     pub id: Uuid,
@@ -23,6 +23,7 @@ pub struct EmailVerification {
 
 impl EmailVerification {
     /// Creates a new email verification with a token that expires in the specified duration
+    #[must_use]
     pub fn new(email: String, verification_token: String, expires_in_hours: i64) -> Self {
         let now = Utc::now();
         Self {
@@ -35,11 +36,13 @@ impl EmailVerification {
     }
 
     /// Checks if the verification token has expired
+    #[must_use]
     pub fn is_expired(&self) -> bool {
         Utc::now() > self.expires_at
     }
 
     /// Checks if this verification token matches the provided token
+    #[must_use]
     pub fn matches_token(&self, token: &str) -> bool {
         self.verification_token == token
     }

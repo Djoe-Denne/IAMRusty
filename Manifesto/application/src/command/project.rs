@@ -24,7 +24,7 @@ impl CommandErrorMapper for ProjectErrorMapper {
         if let Some(error) = error.downcast_ref::<ApplicationError>() {
             match error {
                 ApplicationError::Domain(domain_error) => {
-                    CommandError::business("domain_error", &domain_error.to_string())
+                    CommandError::business("domain_error", domain_error.to_string())
                 }
                 ApplicationError::Validation(msg) => {
                     CommandError::validation("validation_failed", msg)
@@ -38,7 +38,7 @@ impl CommandErrorMapper for ProjectErrorMapper {
                 }
             }
         } else {
-            CommandError::business("unknown_error", &error.to_string())
+            CommandError::business("unknown_error", error.to_string())
         }
     }
 }
@@ -55,6 +55,7 @@ pub struct CreateProjectCommand {
 }
 
 impl CreateProjectCommand {
+    #[must_use]
     pub fn new(request: CreateProjectRequest, user_id: Uuid) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -120,6 +121,7 @@ pub struct GetProjectCommand {
 }
 
 impl GetProjectCommand {
+    #[must_use]
     pub fn new(project_id: Uuid, user_id: Option<Uuid>) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -178,6 +180,7 @@ pub struct GetProjectDetailCommand {
 }
 
 impl GetProjectDetailCommand {
+    #[must_use]
     pub fn new(project_id: Uuid, user_id: Option<Uuid>) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -240,6 +243,7 @@ pub struct UpdateProjectCommand {
 }
 
 impl UpdateProjectCommand {
+    #[must_use]
     pub fn new(project_id: Uuid, request: UpdateProjectRequest, user_id: Uuid) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -307,6 +311,7 @@ pub struct DeleteProjectCommand {
 }
 
 impl DeleteProjectCommand {
+    #[must_use]
     pub fn new(project_id: Uuid, user_id: Uuid) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -369,6 +374,7 @@ pub struct ListProjectsCommand {
 }
 
 impl ListProjectsCommand {
+    #[must_use]
     pub fn new(
         owner_type: Option<String>,
         owner_id: Option<Uuid>,
@@ -427,14 +433,14 @@ impl CommandHandler<ListProjectsCommand> for ListProjectsCommandHandler {
             .as_ref()
             .map(|s| OwnerType::from_str(s))
             .transpose()
-            .map_err(|e| CommandError::validation("invalid_owner_type", &e.to_string()))?;
+            .map_err(|e| CommandError::validation("invalid_owner_type", e.to_string()))?;
 
         let status = command
             .status
             .as_ref()
             .map(|s| ProjectStatus::from_str(s))
             .transpose()
-            .map_err(|e| CommandError::validation("invalid_status", &e.to_string()))?;
+            .map_err(|e| CommandError::validation("invalid_status", e.to_string()))?;
 
         self.project_usecase
             .list_projects(
@@ -462,6 +468,7 @@ pub struct PublishProjectCommand {
 }
 
 impl PublishProjectCommand {
+    #[must_use]
     pub fn new(project_id: Uuid, user_id: Uuid) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -523,6 +530,7 @@ pub struct ArchiveProjectCommand {
 }
 
 impl ArchiveProjectCommand {
+    #[must_use]
     pub fn new(project_id: Uuid, user_id: Uuid) -> Self {
         Self {
             command_id: Uuid::new_v4(),

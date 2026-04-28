@@ -1,4 +1,4 @@
-//! Transactional outbox support for RustyCog services.
+//! Transactional outbox support for `RustyCog` services.
 //!
 //! This crate intentionally bridges `rustycog-db` and `rustycog-events` so the
 //! event transport crate can remain database-free.

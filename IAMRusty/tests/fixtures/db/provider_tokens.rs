@@ -26,7 +26,7 @@ pub struct ProviderTokenFixtureBuilder {
 
 impl ProviderTokenFixtureBuilder {
     /// Create a new provider token fixture builder
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             id: None,
             user_id: None,
@@ -41,13 +41,13 @@ impl ProviderTokenFixtureBuilder {
     }
 
     /// Set the token ID (auto-increment, usually not set manually)
-    pub fn id(mut self, id: i32) -> Self {
+    pub const fn id(mut self, id: i32) -> Self {
         self.id = Some(id);
         self
     }
 
     /// Set the user ID
-    pub fn user_id(mut self, user_id: Uuid) -> Self {
+    pub const fn user_id(mut self, user_id: Uuid) -> Self {
         self.user_id = Some(user_id);
         self
     }
@@ -70,20 +70,20 @@ impl ProviderTokenFixtureBuilder {
         self
     }
 
-    /// Set the expires_in value
-    pub fn expires_in(mut self, expires_in: Option<i32>) -> Self {
+    /// Set the `expires_in` value
+    pub const fn expires_in(mut self, expires_in: Option<i32>) -> Self {
         self.expires_in = Some(expires_in);
         self
     }
 
-    /// Set the created_at timestamp
-    pub fn created_at(mut self, created_at: NaiveDateTime) -> Self {
+    /// Set the `created_at` timestamp
+    pub const fn created_at(mut self, created_at: NaiveDateTime) -> Self {
         self.created_at = Some(created_at);
         self
     }
 
-    /// Set the updated_at timestamp
-    pub fn updated_at(mut self, updated_at: NaiveDateTime) -> Self {
+    /// Set the `updated_at` timestamp
+    pub const fn updated_at(mut self, updated_at: NaiveDateTime) -> Self {
         self.updated_at = Some(updated_at);
         self
     }
@@ -96,7 +96,7 @@ impl ProviderTokenFixtureBuilder {
 
     /// Commit the provider token to the database
     pub async fn commit(self, db: Arc<DatabaseConnection>) -> Result<ProviderTokenFixture, DbErr> {
-        let fixture = DbFixture::commit(self, &*db).await?;
+        let fixture = DbFixture::commit(self, &db).await?;
         Ok(ProviderTokenFixture { inner: fixture })
     }
 
@@ -253,17 +253,17 @@ impl ProviderTokenFixture {
     }
 
     /// Get the provider token model
-    pub fn model(&self) -> &ProviderTokenModel {
+    pub const fn model(&self) -> &ProviderTokenModel {
         self.inner.model()
     }
 
     /// Get the token ID
-    pub fn id(&self) -> i32 {
+    pub const fn id(&self) -> i32 {
         self.model().id
     }
 
     /// Get the user ID
-    pub fn user_id(&self) -> Uuid {
+    pub const fn user_id(&self) -> Uuid {
         self.model().user_id
     }
 
@@ -278,22 +278,22 @@ impl ProviderTokenFixture {
     }
 
     /// Get the refresh token
-    pub fn refresh_token(&self) -> Option<&String> {
+    pub const fn refresh_token(&self) -> Option<&String> {
         self.model().refresh_token.as_ref()
     }
 
-    /// Get the expires_in value
-    pub fn expires_in(&self) -> Option<i32> {
+    /// Get the `expires_in` value
+    pub const fn expires_in(&self) -> Option<i32> {
         self.model().expires_in
     }
 
-    /// Get the created_at timestamp
-    pub fn created_at(&self) -> NaiveDateTime {
+    /// Get the `created_at` timestamp
+    pub const fn created_at(&self) -> NaiveDateTime {
         self.model().created_at
     }
 
-    /// Get the updated_at timestamp
-    pub fn updated_at(&self) -> NaiveDateTime {
+    /// Get the `updated_at` timestamp
+    pub const fn updated_at(&self) -> NaiveDateTime {
         self.model().updated_at
     }
 

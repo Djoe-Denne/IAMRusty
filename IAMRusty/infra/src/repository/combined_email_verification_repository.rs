@@ -15,7 +15,7 @@ use super::email_verification_write::{
     EmailVerificationWriteRepository, SeaOrmEmailVerificationWriteRepository,
 };
 
-/// Combined email verification repository that implements the domain's EmailVerificationRepository trait
+/// Combined email verification repository that implements the domain's `EmailVerificationRepository` trait
 #[derive(Clone)]
 pub struct CombinedEmailVerificationRepository {
     read_repo: Arc<dyn EmailVerificationReadRepository>,
@@ -33,7 +33,8 @@ impl CombinedEmailVerificationRepository {
         }
     }
 
-    /// Create a new combined repository with SeaORM implementations
+    /// Create a new combined repository with `SeaORM` implementations
+    #[must_use]
     pub fn new_with_sea_orm(
         read_repo: Arc<SeaOrmEmailVerificationReadRepository>,
         write_repo: Arc<SeaOrmEmailVerificationWriteRepository>,
@@ -81,7 +82,6 @@ impl DomainEmailVerificationWriteRepository for CombinedEmailVerificationReposit
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     #[test]
     fn test_combined_repository_structure() {

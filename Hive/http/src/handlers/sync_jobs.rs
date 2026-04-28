@@ -2,10 +2,7 @@ use axum::{
     extract::{Path, State},
     response::Json,
 };
-use hive_application::{
-    StartSyncJobCommand, StartSyncJobRequest, SyncJobListResponse, SyncJobLogsResponse,
-    SyncJobResponse, SyncJobStatusResponse,
-};
+use hive_application::{StartSyncJobCommand, StartSyncJobRequest, SyncJobResponse};
 use rustycog_command::{CommandContext, CommandError};
 use rustycog_http::{AppState, AuthUser, ValidatedJson};
 use uuid::Uuid;

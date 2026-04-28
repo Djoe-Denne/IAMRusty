@@ -25,6 +25,7 @@ pub struct MemberAddedEvent {
 }
 
 impl MemberAddedEvent {
+    #[must_use]
     pub fn new(
         project_id: Uuid,
         member_id: Uuid,
@@ -68,6 +69,7 @@ pub struct ResourcePermission {
 }
 
 impl MemberPermissionsUpdatedEvent {
+    #[must_use]
     pub fn new(
         project_id: Uuid,
         member_id: Uuid,
@@ -101,6 +103,7 @@ pub struct MemberRemovedEvent {
 }
 
 impl MemberRemovedEvent {
+    #[must_use]
     pub fn new(
         project_id: Uuid,
         member_id: Uuid,
@@ -134,6 +137,7 @@ pub struct PermissionGrantedEvent {
 }
 
 impl PermissionGrantedEvent {
+    #[must_use]
     pub fn new(
         project_id: Uuid,
         member_id: Uuid,
@@ -170,6 +174,7 @@ pub struct PermissionRevokedEvent {
 }
 
 impl PermissionRevokedEvent {
+    #[must_use]
     pub fn new(
         project_id: Uuid,
         member_id: Uuid,

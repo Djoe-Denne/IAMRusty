@@ -8,15 +8,16 @@ use uuid::Uuid;
 
 use super::entity::{prelude::RefreshTokens, refresh_tokens};
 
-/// SeaORM implementation of RefreshTokenReadRepository
+/// `SeaORM` implementation of `RefreshTokenReadRepository`
 #[derive(Clone)]
 pub struct RefreshTokenReadRepositoryImpl {
     db: Arc<DatabaseConnection>,
 }
 
 impl RefreshTokenReadRepositoryImpl {
-    /// Create a new RefreshTokenReadRepositoryImpl
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    /// Create a new `RefreshTokenReadRepositoryImpl`
+    #[must_use]
+    pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
 

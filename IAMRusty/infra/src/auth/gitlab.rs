@@ -25,7 +25,7 @@ struct GitLabUser {
     avatar_url: Option<String>,
 }
 
-/// GitLab OAuth2 client
+/// GitLab `OAuth2` client
 pub struct GitLabOAuth2Client {
     client: BasicClient,
     user_url: String,
@@ -33,7 +33,8 @@ pub struct GitLabOAuth2Client {
 }
 
 impl GitLabOAuth2Client {
-    /// Create a new GitLab OAuth2 client
+    /// Create a new GitLab `OAuth2` client
+    #[must_use]
     pub fn new(
         client_id: String,
         client_secret: String,
@@ -57,7 +58,8 @@ impl GitLabOAuth2Client {
         }
     }
 
-    /// Create a new GitLab OAuth2 client from a GitlabConfig
+    /// Create a new GitLab `OAuth2` client from a `GitlabConfig`
+    #[must_use]
     pub fn from_config(config: &GitLabConfig) -> Self {
         Self::new(
             config.client_id.clone(),
@@ -80,7 +82,7 @@ impl ProviderOAuth2Client for GitLabOAuth2Client {
         // Generate the authorization URL
         let (auth_url, _csrf_token) = self
             .client
-            .authorize_url(|| oauth2::CsrfToken::new_random())
+            .authorize_url(oauth2::CsrfToken::new_random)
             .add_scope(oauth2::Scope::new(self.get_scope()))
             .url();
 
@@ -97,7 +99,7 @@ impl ProviderOAuth2Client for GitLabOAuth2Client {
             .await
             .map_err(|e| {
                 error!("Failed to exchange GitLab code for token: {}", e);
-                DomainError::OAuth2Error(format!("GitLab token exchange failed: {}", e))
+                DomainError::OAuth2Error(format!("GitLab token exchange failed: {e}"))
             })?;
 
         // Convert to domain ProviderTokens
@@ -132,7 +134,7 @@ impl ProviderOAuth2Client for GitLabOAuth2Client {
             .await
             .map_err(|e| {
                 error!("Failed to fetch GitLab user profile: {}", e);
-                DomainError::UserProfileError(format!("GitLab API request failed: {}", e))
+                DomainError::UserProfileError(format!("GitLab API request failed: {e}"))
             })?;
 
         debug!("GitLab API response status: {}", response.status());
@@ -140,14 +142,14 @@ impl ProviderOAuth2Client for GitLabOAuth2Client {
 
         let text = response.text().await.map_err(|e| {
             error!("Failed to get GitLab response text: {}", e);
-            DomainError::UserProfileError(format!("Failed to get GitLab response text: {}", e))
+            DomainError::UserProfileError(format!("Failed to get GitLab response text: {e}"))
         })?;
 
         debug!("GitLab API response body: {}", text);
 
         let gitlab_user = serde_json::from_str::<GitLabUser>(&text).map_err(|e| {
             error!("Failed to parse GitLab user response: {}", e);
-            DomainError::UserProfileError(format!("Failed to parse GitLab user: {}", e))
+            DomainError::UserProfileError(format!("Failed to parse GitLab user: {e}"))
         })?;
 
         // Convert to domain ProviderUserProfile
@@ -181,15 +183,14 @@ impl OAuthService for GitLabOAuth2Client {
 
     fn generate_relink_authorize_url(&self) -> String {
         // For relink, we need to modify the redirect URI to use relink-callback
-        let redirect_uri = self
-            .client
-            .redirect_url()
-            .map(|url| {
+        let redirect_uri = self.client.redirect_url().map_or_else(
+            || "http://localhost:8080/api/auth/gitlab/relink-callback".to_string(),
+            |url| {
                 let url_str = url.as_str();
                 // Replace /callback with /relink-callback
                 url_str.replace("/callback", "/relink-callback")
-            })
-            .unwrap_or_else(|| "http://localhost:8080/api/auth/gitlab/relink-callback".to_string());
+            },
+        );
 
         // Create a temporary client with the relink redirect URI
         let relink_client = BasicClient::new(
@@ -202,7 +203,7 @@ impl OAuthService for GitLabOAuth2Client {
 
         // Generate the authorization URL with relink redirect URI
         let (auth_url, _csrf_token) = relink_client
-            .authorize_url(|| oauth2::CsrfToken::new_random())
+            .authorize_url(oauth2::CsrfToken::new_random)
             .add_scope(oauth2::Scope::new(self.get_scope()))
             .url();
 

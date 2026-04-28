@@ -4,10 +4,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::{
-    dto::{
-        StartSyncJobRequest, SyncJobListResponse, SyncJobLogsResponse, SyncJobResponse,
-        SyncJobStatusResponse,
-    },
+    dto::{StartSyncJobRequest, SyncJobResponse},
     usecase::SyncJobUseCase,
     ApplicationError,
 };
@@ -21,6 +18,7 @@ pub struct StartSyncJobCommand {
 }
 
 impl StartSyncJobCommand {
+    #[must_use]
     pub fn new(organization_id: Uuid, request: StartSyncJobRequest, user_id: Uuid) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -64,7 +62,7 @@ impl CommandHandler<StartSyncJobCommand> for StartSyncJobCommandHandler {
         self.sync_job_usecase
             .start_sync_job(command.organization_id, command.request, command.user_id)
             .await
-            .map_err(|e| CommandError::business("start_sync_job_failed", &e.to_string()))
+            .map_err(|e| CommandError::business("start_sync_job_failed", e.to_string()))
     }
 }
 
@@ -73,9 +71,9 @@ pub struct SyncJobErrorMapper;
 impl CommandErrorMapper for SyncJobErrorMapper {
     fn map_error(&self, error: Box<dyn std::error::Error + Send + Sync>) -> CommandError {
         if let Some(error) = error.downcast_ref::<ApplicationError>() {
-            CommandError::infrastructure("sync_job_operation_failed", &error.to_string())
+            CommandError::infrastructure("sync_job_operation_failed", error.to_string())
         } else {
-            CommandError::business("unknown_error", &error.to_string())
+            CommandError::business("unknown_error", error.to_string())
         }
     }
 }

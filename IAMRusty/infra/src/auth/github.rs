@@ -9,7 +9,6 @@ use oauth2::{
     HttpRequest, HttpResponse, RedirectUrl, TokenResponse, TokenUrl,
 };
 use serde::Deserialize;
-use std::env;
 use tracing::{debug, error};
 
 async fn async_http_client(request: HttpRequest) -> Result<HttpResponse, Error<reqwest::Error>> {
@@ -80,7 +79,7 @@ struct GitHubEmail {
     visibility: Option<String>,
 }
 
-/// GitHub OAuth2 client
+/// GitHub `OAuth2` client
 pub struct GitHubOAuth2Client {
     client: BasicClient,
     user_url: String,
@@ -88,7 +87,8 @@ pub struct GitHubOAuth2Client {
 }
 
 impl GitHubOAuth2Client {
-    /// Create a new GitHub OAuth2 client
+    /// Create a new GitHub `OAuth2` client
+    #[must_use]
     pub fn new(
         client_id: String,
         client_secret: String,
@@ -112,7 +112,8 @@ impl GitHubOAuth2Client {
         }
     }
 
-    /// Create a new GitHub OAuth2 client from a GithubConfig
+    /// Create a new GitHub `OAuth2` client from a `GithubConfig`
+    #[must_use]
     pub fn from_config(config: &GitHubConfig) -> Self {
         Self::new(
             config.client_id.clone(),
@@ -135,7 +136,7 @@ impl ProviderOAuth2Client for GitHubOAuth2Client {
         // Generate the authorization URL
         let (auth_url, _csrf_token) = self
             .client
-            .authorize_url(|| oauth2::CsrfToken::new_random())
+            .authorize_url(oauth2::CsrfToken::new_random)
             .add_scope(oauth2::Scope::new(self.get_scope()))
             .url();
 
@@ -153,7 +154,7 @@ impl ProviderOAuth2Client for GitHubOAuth2Client {
             .await
             .map_err(|e| {
                 error!("Failed to exchange GitHub code for token: {}", e);
-                DomainError::OAuth2Error(format!("GitHub token exchange failed: {}", e))
+                DomainError::OAuth2Error(format!("GitHub token exchange failed: {e}"))
             })?;
 
         // Convert to domain ProviderTokens
@@ -188,18 +189,21 @@ impl ProviderOAuth2Client for GitHubOAuth2Client {
             .await
             .map_err(|e| {
                 error!("Failed to fetch GitHub user profile: {}", e);
-                DomainError::UserProfileError(format!("GitHub API request failed: {}", e))
+                DomainError::UserProfileError(format!("GitHub API request failed: {e}"))
             })?
             .json::<GitHubUser>()
             .await
             .map_err(|e| {
                 error!("Failed to parse GitHub user response: {}", e);
-                DomainError::UserProfileError(format!("Failed to parse GitHub user: {}", e))
+                DomainError::UserProfileError(format!("Failed to parse GitHub user: {e}"))
             })?;
 
         // If email is null or empty, fetch from emails API
         let email = if github_user.email.is_none()
-            || github_user.email.as_ref().map_or(true, |e| e.is_empty())
+            || github_user
+                .email
+                .as_ref()
+                .is_none_or(std::string::String::is_empty)
         {
             debug!("User email is null or empty, fetching from emails API");
 
@@ -213,16 +217,13 @@ impl ProviderOAuth2Client for GitHubOAuth2Client {
                 .await
                 .map_err(|e| {
                     error!("Failed to fetch GitHub user emails: {}", e);
-                    DomainError::UserProfileError(format!(
-                        "GitHub emails API request failed: {}",
-                        e
-                    ))
+                    DomainError::UserProfileError(format!("GitHub emails API request failed: {e}"))
                 })?
                 .json::<Vec<GitHubEmail>>()
                 .await
                 .map_err(|e| {
                     error!("Failed to parse GitHub emails response: {}", e);
-                    DomainError::UserProfileError(format!("Failed to parse GitHub emails: {}", e))
+                    DomainError::UserProfileError(format!("Failed to parse GitHub emails: {e}"))
                 })?;
 
             // Find the primary email
@@ -265,15 +266,14 @@ impl OAuthService for GitHubOAuth2Client {
 
     fn generate_relink_authorize_url(&self) -> String {
         // For relink, we need to modify the redirect URI to use relink-callback
-        let redirect_uri = self
-            .client
-            .redirect_url()
-            .map(|url| {
+        let redirect_uri = self.client.redirect_url().map_or_else(
+            || "http://localhost:8080/api/auth/github/relink-callback".to_string(),
+            |url| {
                 let url_str = url.as_str();
                 // Replace /callback with /relink-callback
                 url_str.replace("/callback", "/relink-callback")
-            })
-            .unwrap_or_else(|| "http://localhost:8080/api/auth/github/relink-callback".to_string());
+            },
+        );
 
         // Create a temporary client with the relink redirect URI
         let relink_client = BasicClient::new(
@@ -286,7 +286,7 @@ impl OAuthService for GitHubOAuth2Client {
 
         // Generate the authorization URL with relink redirect URI
         let (auth_url, _csrf_token) = relink_client
-            .authorize_url(|| oauth2::CsrfToken::new_random())
+            .authorize_url(oauth2::CsrfToken::new_random)
             .add_scope(oauth2::Scope::new(self.get_scope()))
             .url();
 
@@ -316,7 +316,7 @@ impl OAuthService for GitHubOAuth2Client {
             .await
             .map_err(|e| {
                 error!("Failed to exchange GitHub code for token: {}", e);
-                AuthError::AuthenticationError(format!("GitHub token exchange failed: {}", e))
+                AuthError::AuthenticationError(format!("GitHub token exchange failed: {e}"))
             })?;
 
         // Convert to domain ProviderTokens
@@ -330,7 +330,7 @@ impl OAuthService for GitHubOAuth2Client {
         let profile = ProviderOAuth2Client::get_user_profile(self, &tokens)
             .await
             .map_err(|e| {
-                AuthError::AuthenticationError(format!("GitHub profile fetch failed: {}", e))
+                AuthError::AuthenticationError(format!("GitHub profile fetch failed: {e}"))
             })?;
 
         debug!("Successfully exchanged GitHub code for tokens and profile");

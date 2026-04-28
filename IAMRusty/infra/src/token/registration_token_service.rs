@@ -43,7 +43,7 @@ impl RegistrationTokenServiceImpl {
     /// material instead of hard-coding `Algorithm::RS256` (which would
     /// mismatch when the service is constructed with an HS256 secret in
     /// the `test-relaxed-jwt` build).
-    fn get_algorithm(&self) -> Algorithm {
+    const fn get_algorithm(&self) -> Algorithm {
         match &self.algorithm_config {
             JwtAlgorithm::RS256(_) => Algorithm::RS256,
             JwtAlgorithm::HS256(_) => Algorithm::HS256,
@@ -62,7 +62,7 @@ impl RegistrationTokenServiceImpl {
             JwtAlgorithm::RS256(key_pair) => {
                 EncodingKey::from_rsa_pem(key_pair.private_key.as_bytes()).map_err(|e| {
                     error!("Failed to create RSA encoding key: {}", e);
-                    DomainError::AuthorizationError(format!("Invalid private key: {}", e))
+                    DomainError::AuthorizationError(format!("Invalid private key: {e}"))
                 })
             }
             JwtAlgorithm::HS256(secret) => Ok(EncodingKey::from_secret(secret.as_bytes())),
@@ -138,7 +138,7 @@ impl RegistrationTokenService for RegistrationTokenServiceImpl {
 
         jsonwebtoken::encode(&header, &claims, &encoding_key).map_err(|e| {
             error!("Failed to encode registration JWT: {}", e);
-            DomainError::AuthorizationError(format!("Registration token encoding failed: {}", e))
+            DomainError::AuthorizationError(format!("Registration token encoding failed: {e}"))
         })
     }
 
@@ -174,8 +174,7 @@ impl RegistrationTokenService for RegistrationTokenServiceImpl {
         jsonwebtoken::encode(&header, &claims, &encoding_key).map_err(|e| {
             error!("Failed to encode OAuth registration JWT: {}", e);
             DomainError::AuthorizationError(format!(
-                "OAuth registration token encoding failed: {}",
-                e
+                "OAuth registration token encoding failed: {e}"
             ))
         })
     }

@@ -60,10 +60,9 @@ async fn test_mark_as_read_operation() {
 
     let response = client
         .put(format!(
-            "{}/api/notifications/{}/read",
-            base_url, notification_id
+            "{base_url}/api/notifications/{notification_id}/read"
         ))
-        .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
+        .header(header::AUTHORIZATION, format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -102,10 +101,10 @@ async fn test_large_dataset_pagination() {
     for i in 1..=50 {
         let _notification = NotificationFixtureBuilder::new()
             .user_id(user_id)
-            .title(format!("Bulk notification {}", i))
+            .title(format!("Bulk notification {i}"))
             .commit(&db)
             .await
-            .expect(&format!("Failed to create notification {}", i));
+            .unwrap_or_else(|_| panic!("Failed to create notification {i}"));
     }
 
     // Test various page sizes
@@ -119,10 +118,9 @@ async fn test_large_dataset_pagination() {
         loop {
             let response = client
                 .get(format!(
-                    "{}/api/notifications?page={}&per_page={}",
-                    base_url, page, per_page
+                    "{base_url}/api/notifications?page={page}&per_page={per_page}"
                 ))
-                .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
+                .header(header::AUTHORIZATION, format!("Bearer {jwt_token}"))
                 .send()
                 .await
                 .expect("Failed to send request");
@@ -130,8 +128,7 @@ async fn test_large_dataset_pagination() {
             assert_eq!(
                 response.status(),
                 StatusCode::OK,
-                "Page {} should be successful",
-                page
+                "Page {page} should be successful"
             );
 
             let result: Value = response.json().await.expect("Failed to parse response");
@@ -148,8 +145,7 @@ async fn test_large_dataset_pagination() {
                 let id = notification["id"].as_str().expect("id should be a string");
                 assert!(
                     all_notification_ids.insert(id.to_string()),
-                    "Duplicate notification ID found: {}",
-                    id
+                    "Duplicate notification ID found: {id}"
                 );
             }
 
@@ -168,14 +164,12 @@ async fn test_large_dataset_pagination() {
         // ✅ Verify we collected exactly 50 notifications
         assert_eq!(
             total_collected, 50,
-            "Should collect exactly 50 notifications with per_page={}",
-            per_page
+            "Should collect exactly 50 notifications with per_page={per_page}"
         );
         assert_eq!(
             all_notification_ids.len(),
             50,
-            "Should have 50 unique notification IDs with per_page={}",
-            per_page
+            "Should have 50 unique notification IDs with per_page={per_page}"
         );
     }
 }
@@ -210,8 +204,8 @@ async fn test_expired_notifications_handling() {
 
     // Get notifications
     let response = client
-        .get(format!("{}/api/notifications", base_url))
-        .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
+        .get(format!("{base_url}/api/notifications"))
+        .header(header::AUTHORIZATION, format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -238,7 +232,7 @@ async fn test_expired_notifications_handling() {
     );
 
     // Find expired notification and verify it's marked or handled appropriately
-    let expired_notification = notifications
+    let _expired_notification = notifications
         .iter()
         .find(|n| n["title"].as_str().unwrap().contains("Expired"))
         .expect("Should find expired notification");
@@ -263,10 +257,10 @@ async fn test_multi_user_isolation_comprehensive() {
 
     let jwt_a = create_jwt_token(user_a);
     let jwt_b = create_jwt_token(user_b);
-    let jwt_c = create_jwt_token(user_c);
+    let _jwt_c = create_jwt_token(user_c);
 
     // Create notifications for each user
-    let notification_a = NotificationFixtureBuilder::new()
+    let _notification_a = NotificationFixtureBuilder::new()
         .user_id(user_a)
         .title("User A notification".to_string())
         .commit(&db)
@@ -289,8 +283,8 @@ async fn test_multi_user_isolation_comprehensive() {
 
     // User A should only see their notification
     let response_a = client
-        .get(format!("{}/api/notifications", base_url))
-        .header(header::AUTHORIZATION, format!("Bearer {}", jwt_a))
+        .get(format!("{base_url}/api/notifications"))
+        .header(header::AUTHORIZATION, format!("Bearer {jwt_a}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -316,8 +310,8 @@ async fn test_multi_user_isolation_comprehensive() {
 
     // User B should only see their notification
     let response_b = client
-        .get(format!("{}/api/notifications", base_url))
-        .header(header::AUTHORIZATION, format!("Bearer {}", jwt_b))
+        .get(format!("{base_url}/api/notifications"))
+        .header(header::AUTHORIZATION, format!("Bearer {jwt_b}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -348,7 +342,7 @@ async fn test_multi_user_isolation_comprehensive() {
             base_url,
             notification_b.id()
         ))
-        .header(header::AUTHORIZATION, format!("Bearer {}", jwt_a))
+        .header(header::AUTHORIZATION, format!("Bearer {jwt_a}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -430,8 +424,8 @@ async fn test_complex_notification_filtering() {
 
     // Test 1: Get all notifications
     let all_response = client
-        .get(format!("{}/api/notifications", base_url))
-        .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
+        .get(format!("{base_url}/api/notifications"))
+        .header(header::AUTHORIZATION, format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -448,8 +442,8 @@ async fn test_complex_notification_filtering() {
 
     // Test 2: Get only unread notifications
     let unread_response = client
-        .get(format!("{}/api/notifications?unread_only=true", base_url))
-        .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
+        .get(format!("{base_url}/api/notifications?unread_only=true"))
+        .header(header::AUTHORIZATION, format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -473,17 +467,16 @@ async fn test_complex_notification_filtering() {
 
     // Verify all returned notifications are unread
     for notification in unread_notifications {
-        assert_eq!(
-            notification["is_read"].as_bool().unwrap(),
-            false,
+        assert!(
+            !notification["is_read"].as_bool().unwrap(),
             "All filtered notifications should be unread"
         );
     }
 
     // Test 3: Verify unread count matches filtered results
     let count_response = client
-        .get(format!("{}/api/notifications/unread-count", base_url))
-        .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
+        .get(format!("{base_url}/api/notifications/unread-count"))
+        .header(header::AUTHORIZATION, format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send request");

@@ -14,7 +14,7 @@ pub const SERVICE_PREFIX: &str = "/manifesto";
 /// Create the application routes using the fluent builder API.
 ///
 /// Every guarded route delegates to the centralized `PermissionChecker`
-/// wired into `AppState` (OpenFGA in production). Project-scoped routes use
+/// wired into `AppState` (`OpenFGA` in production). Project-scoped routes use
 /// the `"project"` object type; component-scoped routes use `"component"`.
 /// Members, permission grants, and archives all collapse to project-level
 /// relations.

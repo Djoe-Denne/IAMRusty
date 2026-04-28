@@ -12,12 +12,12 @@ use std::sync::Arc;
 
 use crate::event::{DomainEvent, EventPublisher};
 
-/// Trait for bidirectional mapping between custom error types and ServiceError
+/// Trait for bidirectional mapping between custom error types and `ServiceError`
 pub trait ErrorMapper<E>: Send + Sync {
-    /// Map a custom error type to ServiceError
+    /// Map a custom error type to `ServiceError`
     fn to_service_error(&self, error: E) -> ServiceError;
 
-    /// Map a ServiceError back to custom error type
+    /// Map a `ServiceError` back to custom error type
     fn from_service_error(&self, error: ServiceError) -> E;
 }
 
@@ -74,7 +74,8 @@ pub struct MultiQueueEventPublisher<TError> {
 
 impl<TError> MultiQueueEventPublisher<TError> {
     /// Create a new multi-queue event publisher
-    pub fn new(
+    #[must_use]
+    pub const fn new(
         publishers: Vec<GenericEventPublisherAdapter<TError>>,
         queue_names: HashSet<String>,
     ) -> Self {
@@ -85,12 +86,14 @@ impl<TError> MultiQueueEventPublisher<TError> {
     }
 
     /// Check if this publisher handles the given queue name
+    #[must_use]
     pub fn handles_queue(&self, queue_name: &str) -> bool {
         self.queue_names.is_empty() || self.queue_names.contains(queue_name)
     }
 
     /// Get the queue names this publisher handles
-    pub fn queue_names(&self) -> &HashSet<String> {
+    #[must_use]
+    pub const fn queue_names(&self) -> &HashSet<String> {
         &self.queue_names
     }
 }

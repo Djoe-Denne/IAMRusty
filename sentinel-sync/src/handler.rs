@@ -1,5 +1,5 @@
 //! `EventHandler` implementation that wires the translators, idempotency
-//! ledger, and OpenFGA write client together.
+//! ledger, and `OpenFGA` write client together.
 
 use std::sync::Arc;
 
@@ -56,7 +56,7 @@ impl EventHandler for SyncEventHandler {
             .ledger
             .begin(event_id)
             .await
-            .map_err(|e| ServiceError::internal(&format!("ledger.begin failed: {e}")))?;
+            .map_err(|e| ServiceError::internal(format!("ledger.begin failed: {e}")))?;
         if !should_process {
             debug!(event_id = %event_id, event_type = %event_type, "completed duplicate event, skipping");
             return Ok(());
@@ -64,7 +64,7 @@ impl EventHandler for SyncEventHandler {
 
         let raw = event.to_json().and_then(|s| {
             serde_json::from_str::<serde_json::Value>(&s)
-                .map_err(|e| ServiceError::internal(&format!("event json decode: {e}")))
+                .map_err(|e| ServiceError::internal(format!("event json decode: {e}")))
         })?;
 
         let Some((delta, translator_name)) = self.translate(&raw) else {
@@ -72,7 +72,7 @@ impl EventHandler for SyncEventHandler {
             self.ledger
                 .complete(event_id)
                 .await
-                .map_err(|e| ServiceError::internal(&format!("ledger.complete failed: {e}")))?;
+                .map_err(|e| ServiceError::internal(format!("ledger.complete failed: {e}")))?;
             return Ok(());
         };
 
@@ -86,7 +86,7 @@ impl EventHandler for SyncEventHandler {
             self.ledger
                 .complete(event_id)
                 .await
-                .map_err(|e| ServiceError::internal(&format!("ledger.complete failed: {e}")))?;
+                .map_err(|e| ServiceError::internal(format!("ledger.complete failed: {e}")))?;
             return Ok(());
         }
 
@@ -101,7 +101,7 @@ impl EventHandler for SyncEventHandler {
         self.ledger
             .complete(event_id)
             .await
-            .map_err(|e| ServiceError::internal(&format!("ledger.complete failed: {e}")))?;
+            .map_err(|e| ServiceError::internal(format!("ledger.complete failed: {e}")))?;
 
         info!(
             event_id = %event_id,

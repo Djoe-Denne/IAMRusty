@@ -20,13 +20,13 @@ pub enum HttpError {
 impl IntoResponse for HttpError {
     fn into_response(self) -> Response {
         let (status, error_message) = match self {
-            HttpError::BadRequest { message } => (StatusCode::BAD_REQUEST, message),
-            HttpError::Unauthorized { message } => (StatusCode::UNAUTHORIZED, message),
-            HttpError::Forbidden { message } => (StatusCode::FORBIDDEN, message),
-            HttpError::NotFound { message } => (StatusCode::NOT_FOUND, message),
-            HttpError::Conflict { message } => (StatusCode::CONFLICT, message),
-            HttpError::Validation { message } => (StatusCode::UNPROCESSABLE_ENTITY, message),
-            HttpError::Internal { message } => (StatusCode::INTERNAL_SERVER_ERROR, message),
+            Self::BadRequest { message } => (StatusCode::BAD_REQUEST, message),
+            Self::Unauthorized { message } => (StatusCode::UNAUTHORIZED, message),
+            Self::Forbidden { message } => (StatusCode::FORBIDDEN, message),
+            Self::NotFound { message } => (StatusCode::NOT_FOUND, message),
+            Self::Conflict { message } => (StatusCode::CONFLICT, message),
+            Self::Validation { message } => (StatusCode::UNPROCESSABLE_ENTITY, message),
+            Self::Internal { message } => (StatusCode::INTERNAL_SERVER_ERROR, message),
         };
 
         let body = Json(json!({
@@ -37,7 +37,8 @@ impl IntoResponse for HttpError {
     }
 }
 
-/// Map CommandError to HttpError
+/// Map `CommandError` to `HttpError`
+#[must_use]
 pub fn error_mapper(error: CommandError) -> HttpError {
     match error {
         CommandError::Validation { message, .. } => HttpError::Validation { message },

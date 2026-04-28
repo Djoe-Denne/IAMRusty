@@ -30,42 +30,42 @@ pub enum ApparatusDomainEvent {
 impl DomainEvent for ApparatusDomainEvent {
     fn event_type(&self) -> &str {
         match self {
-            ApparatusDomainEvent::ComponentStatusChanged(event) => event.base.event_type.as_str(),
+            Self::ComponentStatusChanged(event) => event.base.event_type.as_str(),
         }
     }
 
     fn event_id(&self) -> Uuid {
         match self {
-            ApparatusDomainEvent::ComponentStatusChanged(event) => event.base.event_id,
+            Self::ComponentStatusChanged(event) => event.base.event_id,
         }
     }
 
     fn aggregate_id(&self) -> Uuid {
         match self {
-            ApparatusDomainEvent::ComponentStatusChanged(event) => event.base.aggregate_id,
+            Self::ComponentStatusChanged(event) => event.base.aggregate_id,
         }
     }
 
     fn occurred_at(&self) -> DateTime<Utc> {
         match self {
-            ApparatusDomainEvent::ComponentStatusChanged(event) => event.base.occurred_at,
+            Self::ComponentStatusChanged(event) => event.base.occurred_at,
         }
     }
 
     fn version(&self) -> u32 {
         match self {
-            ApparatusDomainEvent::ComponentStatusChanged(event) => event.base.version,
+            Self::ComponentStatusChanged(event) => event.base.version,
         }
     }
 
     fn to_json(&self) -> Result<String, ServiceError> {
         serde_json::to_string(self)
-            .map_err(|e| ServiceError::internal(&format!("Failed to serialize event: {}", e)))
+            .map_err(|e| ServiceError::internal(format!("Failed to serialize event: {e}")))
     }
 
     fn metadata(&self) -> HashMap<String, String> {
         match self {
-            ApparatusDomainEvent::ComponentStatusChanged(event) => event.base.metadata.clone(),
+            Self::ComponentStatusChanged(event) => event.base.metadata.clone(),
         }
     }
 }

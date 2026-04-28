@@ -26,7 +26,7 @@ impl CommandErrorMapper for MemberErrorMapper {
         if let Some(error) = error.downcast_ref::<ApplicationError>() {
             match error {
                 ApplicationError::Domain(domain_error) => {
-                    CommandError::business("domain_error", &domain_error.to_string())
+                    CommandError::business("domain_error", domain_error.to_string())
                 }
                 ApplicationError::Validation(msg) => {
                     CommandError::validation("validation_failed", msg)
@@ -40,7 +40,7 @@ impl CommandErrorMapper for MemberErrorMapper {
                 }
             }
         } else {
-            CommandError::business("unknown_error", &error.to_string())
+            CommandError::business("unknown_error", error.to_string())
         }
     }
 }
@@ -58,6 +58,7 @@ pub struct AddMemberCommand {
 }
 
 impl AddMemberCommand {
+    #[must_use]
     pub fn new(project_id: Uuid, request: AddMemberRequest, added_by: Uuid) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -133,6 +134,7 @@ pub struct GetMemberCommand {
 }
 
 impl GetMemberCommand {
+    #[must_use]
     pub fn new(project_id: Uuid, user_id: Uuid) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -191,6 +193,7 @@ pub struct ListMembersCommand {
 }
 
 impl ListMembersCommand {
+    #[must_use]
     pub fn new(project_id: Uuid, pagination: PaginationRequest) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -254,6 +257,7 @@ pub struct UpdateMemberCommand {
 }
 
 impl UpdateMemberCommand {
+    #[must_use]
     pub fn new(
         project_id: Uuid,
         user_id: Uuid,
@@ -355,6 +359,7 @@ pub struct RemoveMemberCommand {
 }
 
 impl RemoveMemberCommand {
+    #[must_use]
     pub fn new(project_id: Uuid, user_id: Uuid, requester_id: Uuid) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -416,6 +421,7 @@ pub struct GrantPermissionCommand {
 }
 
 impl GrantPermissionCommand {
+    #[must_use]
     pub fn new(
         project_id: Uuid,
         user_id: Uuid,
@@ -513,6 +519,7 @@ pub struct RevokePermissionCommand {
 }
 
 impl RevokePermissionCommand {
+    #[must_use]
     pub fn new(project_id: Uuid, user_id: Uuid, resource: String, requester_id: Uuid) -> Self {
         Self {
             command_id: Uuid::new_v4(),

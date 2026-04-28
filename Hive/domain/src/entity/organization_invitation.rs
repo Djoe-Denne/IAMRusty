@@ -23,7 +23,7 @@ pub struct OrganizationInvitation {
 }
 
 /// Invitation status enumeration
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum InvitationStatus {
     Pending,
     Accepted,
@@ -110,16 +110,19 @@ impl OrganizationInvitation {
     }
 
     /// Check if invitation is expired
+    #[must_use]
     pub fn is_expired(&self) -> bool {
         Utc::now() > self.expires_at
     }
 
     /// Check if invitation is pending and not expired
+    #[must_use]
     pub fn is_valid(&self) -> bool {
         matches!(self.status, InvitationStatus::Pending) && !self.is_expired()
     }
 
     /// Check if invitation can be accepted
+    #[must_use]
     pub fn can_be_accepted(&self) -> bool {
         self.is_valid()
     }
@@ -137,12 +140,7 @@ impl OrganizationInvitation {
         // For now, we'll use a UUID-based approach
         let uuid1 = Uuid::new_v4();
         let uuid2 = Uuid::new_v4();
-        format!(
-            "{}{}",
-            uuid1.simple().to_string(),
-            uuid2.simple().to_string()
-        )[..64]
-            .to_string()
+        format!("{}{}", uuid1.simple(), uuid2.simple())[..64].to_string()
     }
 
     pub fn update_organization_name(&mut self, organization_name: &str) {
@@ -151,12 +149,13 @@ impl OrganizationInvitation {
 }
 
 impl InvitationStatus {
-    pub fn as_str(&self) -> &str {
+    #[must_use]
+    pub const fn as_str(&self) -> &str {
         match self {
-            InvitationStatus::Pending => "pending",
-            InvitationStatus::Accepted => "accepted",
-            InvitationStatus::Expired => "expired",
-            InvitationStatus::Cancelled => "cancelled",
+            Self::Pending => "pending",
+            Self::Accepted => "accepted",
+            Self::Expired => "expired",
+            Self::Cancelled => "cancelled",
         }
     }
 }

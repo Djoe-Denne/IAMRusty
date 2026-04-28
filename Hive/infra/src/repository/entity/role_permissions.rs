@@ -1,4 +1,4 @@
-//! Role Permissions SeaORM Entity
+//! Role Permissions `SeaORM` Entity
 
 use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*;

@@ -11,7 +11,8 @@ pub enum DataClassification {
 }
 
 impl DataClassification {
-    pub fn as_str(&self) -> &'static str {
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
         match self {
             Self::Public => "public",
             Self::Internal => "internal",
@@ -27,8 +28,7 @@ impl DataClassification {
             "confidential" => Ok(Self::Confidential),
             "restricted" => Ok(Self::Restricted),
             _ => Err(DomainError::invalid_input(&format!(
-                "Invalid data classification: {}",
-                s
+                "Invalid data classification: {s}"
             ))),
         }
     }

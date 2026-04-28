@@ -9,16 +9,17 @@ pub struct TemplateEnvironmentService;
 
 impl TemplateEnvironmentService {
     /// Create a new template environment service
-    pub fn new() -> Self {
+    #[must_use]
+    pub const fn new() -> Self {
         Self
     }
 
-    /// Get all environment variables starting with "TELEGRAPH__TEMPLATE__"
+    /// Get all environment variables starting with "`TELEGRAPH__TEMPLATE`__"
     /// Returns a map with lowercase keys and '__' replaced with '.'
     ///
     /// Example:
-    /// - TELEGRAPH__TEMPLATE__BASE__URL=https://example.com becomes base.url=https://example.com
-    /// - TELEGRAPH__TEMPLATE__VERIFY__URL=https://example.com/verify becomes verify.url=https://example.com/verify
+    /// - `TELEGRAPH__TEMPLATE__BASE__URL=https://example.com` becomes base.url=https://example.com
+    /// - `TELEGRAPH__TEMPLATE__VERIFY__URL=https://example.com/verify` becomes verify.url=https://example.com/verify
     pub fn get_template_variables(&self) -> HashMap<String, String> {
         let mut variables = HashMap::new();
         let prefix = "TELEGRAPH__TEMPLATE__";
@@ -29,10 +30,8 @@ impl TemplateEnvironmentService {
         );
 
         for (key, value) in env::vars() {
-            if key.starts_with(prefix) {
+            if let Some(template_key) = key.strip_prefix(prefix) {
                 // Remove the prefix
-                let template_key = &key[prefix.len()..];
-
                 // Convert to lowercase and replace '__' with '.'
                 let normalized_key = template_key.to_lowercase().replace("__", ".");
 
@@ -65,31 +64,29 @@ impl TemplateEnvironmentService {
     pub fn get_template_variable(&self, key: &str) -> Option<String> {
         let env_key = format!(
             "TELEGRAPH__TEMPLATE__{}",
-            key.to_uppercase().replace(".", "__")
+            key.to_uppercase().replace('.', "__")
         );
 
-        match env::var(&env_key) {
-            Ok(value) => {
-                debug!(
-                    key = %key,
-                    env_key = %env_key,
-                    value = %value,
-                    "Found template environment variable"
-                );
-                Some(value)
-            }
-            Err(_) => {
-                debug!(
-                    key = %key,
-                    env_key = %env_key,
-                    "Template environment variable not found"
-                );
-                None
-            }
+        if let Ok(value) = env::var(&env_key) {
+            debug!(
+                key = %key,
+                env_key = %env_key,
+                value = %value,
+                "Found template environment variable"
+            );
+            Some(value)
+        } else {
+            debug!(
+                key = %key,
+                env_key = %env_key,
+                "Template environment variable not found"
+            );
+            None
         }
     }
 
     /// Check if a template variable exists
+    #[must_use]
     pub fn has_template_variable(&self, key: &str) -> bool {
         self.get_template_variable(key).is_some()
     }
@@ -143,7 +140,7 @@ mod tests {
         for (key, expected_env_key) in test_cases {
             let env_key = format!(
                 "TELEGRAPH__TEMPLATE__{}",
-                key.to_uppercase().replace(".", "__")
+                key.to_uppercase().replace('.', "__")
             );
             assert_eq!(env_key, expected_env_key);
         }

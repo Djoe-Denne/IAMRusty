@@ -1,7 +1,7 @@
 //! `PermissionChecker` implementations.
 //!
 //! - [`OpenFgaPermissionChecker`] is the production implementation. It calls
-//!   the OpenFGA `Check` HTTP endpoint.
+//!   the `OpenFGA` `Check` HTTP endpoint.
 //! - [`InMemoryPermissionChecker`] is a deterministic implementation intended
 //!   for unit and integration tests.
 //! - [`CachedPermissionChecker`] wraps any inner checker with a short-TTL LRU
@@ -23,7 +23,7 @@ use crate::{Permission, PermissionChecker, ResourceRef, Subject};
 // OpenFGA
 // =============================================================================
 
-/// Production permission checker that calls OpenFGA's `Check` endpoint.
+/// Production permission checker that calls `OpenFGA`'s `Check` endpoint.
 pub struct OpenFgaPermissionChecker {
     config: OpenFgaClientConfig,
     http: reqwest::Client,
@@ -135,6 +135,7 @@ pub struct InMemoryPermissionChecker {
 }
 
 impl InMemoryPermissionChecker {
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -180,7 +181,7 @@ struct CacheKey {
 /// Short-TTL LRU cache around any `PermissionChecker`.
 ///
 /// Decisions are cached by `(subject, action, resource)`. The cache uses
-/// time-based invalidation only — a revoke in OpenFGA is visible once the
+/// time-based invalidation only — a revoke in `OpenFGA` is visible once the
 /// cached decision expires. Choose a TTL that balances latency against the
 /// blast radius of a stale allow.
 pub struct CachedPermissionChecker {

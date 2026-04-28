@@ -1,4 +1,4 @@
-//! RolePermissionRepository SeaORM implementation
+//! `RolePermissionRepository` `SeaORM` implementation
 
 use async_trait::async_trait;
 use hive_domain::entity::{
@@ -12,11 +12,9 @@ use hive_domain::port::repository::{
 use rustycog_core::error::DomainError;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
-    TryIntoModel,
 };
-use serde::de;
 use std::sync::Arc;
-use tracing::{debug, error};
+use tracing::debug;
 use uuid::Uuid;
 
 use super::entity::{prelude::RolePermissions as OrganizationRolePermissions, role_permissions};
@@ -24,6 +22,7 @@ use super::entity::{prelude::RolePermissions as OrganizationRolePermissions, rol
 pub struct RolePermissionMapper;
 
 impl RolePermissionMapper {
+    #[must_use]
     pub fn to_domain(model: role_permissions::Model) -> RolePermission {
         RolePermission::new(
             Some(model.id),
@@ -34,11 +33,12 @@ impl RolePermissionMapper {
                 None,
                 Some(model.created_at),
             ),
-            &Resource::new(model.resource_id.into(), None, Some(model.created_at)),
+            &Resource::new(model.resource_id, None, Some(model.created_at)),
             Some(model.created_at),
         )
     }
 
+    #[must_use]
     pub fn to_active_model(role_permission: &RolePermission) -> role_permissions::ActiveModel {
         role_permissions::ActiveModel {
             id: ActiveValue::Set(role_permission.id.unwrap_or(Uuid::new_v4())),
@@ -59,7 +59,8 @@ pub struct RolePermissionReadRepositoryImpl {
 }
 
 impl RolePermissionReadRepositoryImpl {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    #[must_use]
+    pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
 }
@@ -116,16 +117,14 @@ impl RolePermissionReadRepository for RolePermissionReadRepositoryImpl {
                 role_permissions::Column::ResourceId.is_in(
                     role_permissions
                         .iter()
-                        .map(|role| role.resource.name.clone())
-                        .collect::<Vec<_>>(),
+                        .map(|role| role.resource.name.clone()),
                 ),
             )
             .filter(
                 role_permissions::Column::PermissionId.is_in(
                     role_permissions
                         .iter()
-                        .map(|role| role.permission.level.to_str().to_string())
-                        .collect::<Vec<_>>(),
+                        .map(|role| role.permission.level.to_str().to_string()),
                 ),
             )
             .all(self.db.as_ref())
@@ -146,7 +145,8 @@ pub struct RolePermissionWriteRepositoryImpl {
 }
 
 impl RolePermissionWriteRepositoryImpl {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    #[must_use]
+    pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
 }
@@ -160,11 +160,7 @@ impl RolePermissionWriteRepository for RolePermissionWriteRepositoryImpl {
     ) -> Result<RolePermission, DomainError> {
         debug!(
             "Saving role permission with {} for organization {}",
-            role_permission
-                .name
-                .as_ref()
-                .map(|n| n.as_str())
-                .unwrap_or("Unknown"),
+            role_permission.name.as_deref().unwrap_or("Unknown"),
             organization_id
         );
 

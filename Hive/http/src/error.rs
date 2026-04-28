@@ -44,7 +44,7 @@ pub enum HttpError {
 impl IntoResponse for HttpError {
     fn into_response(self) -> Response {
         let (status, error_response) = match self {
-            HttpError::Application(app_error) => {
+            Self::Application(app_error) => {
                 // Convert ApplicationError to appropriate HTTP status and response
                 match &app_error {
                     ApplicationError::Domain(domain_error) => match domain_error {
@@ -91,7 +91,7 @@ impl IntoResponse for HttpError {
                     ),
                 }
             }
-            HttpError::BadRequest { message } => (
+            Self::BadRequest { message } => (
                 StatusCode::BAD_REQUEST,
                 ApiErrorResponse {
                     error_type: "bad_request".to_string(),
@@ -102,7 +102,7 @@ impl IntoResponse for HttpError {
                     validation_errors: None,
                 },
             ),
-            HttpError::Validation { message } => (
+            Self::Validation { message } => (
                 StatusCode::BAD_REQUEST,
                 ApiErrorResponse {
                     error_type: "validation_error".to_string(),
@@ -113,7 +113,7 @@ impl IntoResponse for HttpError {
                     validation_errors: None,
                 },
             ),
-            HttpError::Unauthorized => (
+            Self::Unauthorized => (
                 StatusCode::UNAUTHORIZED,
                 ApiErrorResponse {
                     error_type: "unauthorized".to_string(),
@@ -124,7 +124,7 @@ impl IntoResponse for HttpError {
                     validation_errors: None,
                 },
             ),
-            HttpError::Forbidden => (
+            Self::Forbidden => (
                 StatusCode::FORBIDDEN,
                 ApiErrorResponse {
                     error_type: "forbidden".to_string(),
@@ -135,7 +135,7 @@ impl IntoResponse for HttpError {
                     validation_errors: None,
                 },
             ),
-            HttpError::NotFound => (
+            Self::NotFound => (
                 StatusCode::NOT_FOUND,
                 ApiErrorResponse {
                     error_type: "not_found".to_string(),
@@ -146,7 +146,7 @@ impl IntoResponse for HttpError {
                     validation_errors: None,
                 },
             ),
-            HttpError::Conflict { message } => (
+            Self::Conflict { message } => (
                 StatusCode::CONFLICT,
                 ApiErrorResponse {
                     error_type: "conflict".to_string(),
@@ -157,7 +157,7 @@ impl IntoResponse for HttpError {
                     validation_errors: None,
                 },
             ),
-            HttpError::PayloadTooLarge => (
+            Self::PayloadTooLarge => (
                 StatusCode::PAYLOAD_TOO_LARGE,
                 ApiErrorResponse {
                     error_type: "payload_too_large".to_string(),
@@ -168,7 +168,7 @@ impl IntoResponse for HttpError {
                     validation_errors: None,
                 },
             ),
-            HttpError::RateLimit => (
+            Self::RateLimit => (
                 StatusCode::TOO_MANY_REQUESTS,
                 ApiErrorResponse {
                     error_type: "rate_limit_exceeded".to_string(),
@@ -179,7 +179,7 @@ impl IntoResponse for HttpError {
                     validation_errors: None,
                 },
             ),
-            HttpError::Internal { message } => (
+            Self::Internal { message } => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 ApiErrorResponse {
                     error_type: "internal_error".to_string(),

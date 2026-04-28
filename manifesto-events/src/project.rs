@@ -25,6 +25,7 @@ pub struct ProjectCreatedEvent {
 }
 
 impl ProjectCreatedEvent {
+    #[must_use]
     pub fn new(
         project_id: Uuid,
         project_name: String,
@@ -60,6 +61,7 @@ pub struct ProjectUpdatedEvent {
 }
 
 impl ProjectUpdatedEvent {
+    #[must_use]
     pub fn new(
         project_id: Uuid,
         project_name: String,
@@ -90,6 +92,7 @@ pub struct ProjectDeletedEvent {
 }
 
 impl ProjectDeletedEvent {
+    #[must_use]
     pub fn new(
         project_id: Uuid,
         project_name: String,
@@ -118,6 +121,7 @@ pub struct ProjectPublishedEvent {
 }
 
 impl ProjectPublishedEvent {
+    #[must_use]
     pub fn new(
         project_id: Uuid,
         project_name: String,
@@ -146,6 +150,7 @@ pub struct ProjectArchivedEvent {
 }
 
 impl ProjectArchivedEvent {
+    #[must_use]
     pub fn new(
         project_id: Uuid,
         project_name: String,

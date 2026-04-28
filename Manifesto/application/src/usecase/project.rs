@@ -206,7 +206,7 @@ impl ProjectUseCaseImpl {
             OwnerType::Organization => self.business_config.max_projects_per_org,
         };
 
-        if current_count >= limit as i64 {
+        if current_count >= i64::from(limit) {
             return Err(ApplicationError::Validation(format!(
                 "Project quota exceeded for {} owner {}",
                 owner_type.as_str(),
@@ -304,8 +304,7 @@ impl ProjectUseCase for ProjectUseCaseImpl {
                     .await?;
                 let role_permission_id = role_permission.id.ok_or_else(|| {
                     ApplicationError::Internal(format!(
-                        "Missing role permission ID for owner resource '{}'",
-                        resource
+                        "Missing role permission ID for owner resource '{resource}'"
                     ))
                 })?;
 

@@ -8,7 +8,8 @@ pub struct GenericCommandService {
 
 impl GenericCommandService {
     /// Create a new generic command service
-    pub fn new(registry: Arc<CommandRegistry>) -> Self {
+    #[must_use]
+    pub const fn new(registry: Arc<CommandRegistry>) -> Self {
         Self { registry }
     }
 
@@ -22,11 +23,13 @@ impl GenericCommandService {
     }
 
     /// List all available command types
+    #[must_use]
     pub fn list_available_commands(&self) -> Vec<String> {
         self.registry.list_command_types()
     }
 
     /// Check if a command type is supported
+    #[must_use]
     pub fn supports_command(&self, command_type: &str) -> bool {
         self.registry.get_handler(command_type).is_some()
     }
@@ -167,7 +170,7 @@ mod tests {
             .build();
 
         let service = GenericCommandService::new(Arc::new(registry));
-        let cloned_service = service.clone();
+        let cloned_service = service;
 
         assert!(cloned_service.supports_command("test_command"));
     }
@@ -182,7 +185,7 @@ mod tests {
             .build();
 
         let service = GenericCommandService::new(Arc::new(registry));
-        let command = TestCommand::new("".to_string()); // Empty data should fail validation
+        let command = TestCommand::new(String::new()); // Empty data should fail validation
         let context = CommandContext::new();
 
         let result = service.execute(command, context).await;

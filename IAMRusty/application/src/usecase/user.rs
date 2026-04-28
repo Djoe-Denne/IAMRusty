@@ -73,8 +73,8 @@ impl<US> UserUseCaseImpl<US>
 where
     US: UserService + Send + Sync,
 {
-    /// Create a new UserUseCaseImpl
-    pub fn new(user_service: Arc<US>) -> Self {
+    /// Create a new `UserUseCaseImpl`
+    pub const fn new(user_service: Arc<US>) -> Self {
         Self { user_service }
     }
 }

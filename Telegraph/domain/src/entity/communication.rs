@@ -48,20 +48,22 @@ pub enum CommunicationMode {
 }
 
 impl CommunicationMode {
-    pub fn as_str(&self) -> &'static str {
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
         match self {
-            CommunicationMode::Email => "email",
-            CommunicationMode::Notification => "notification",
+            Self::Email => "email",
+            Self::Notification => "notification",
         }
     }
 }
 
 impl Communication {
     /// Get the recipient from any communication type
-    pub fn recipient(&self) -> &CommunicationRecipient {
+    #[must_use]
+    pub const fn recipient(&self) -> &CommunicationRecipient {
         match self {
-            Communication::Email(email) => &email.recipient,
-            Communication::Notification(notification) => &notification.recipient,
+            Self::Email(email) => &email.recipient,
+            Self::Notification(notification) => &notification.recipient,
         }
     }
 }

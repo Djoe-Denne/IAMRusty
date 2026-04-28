@@ -1,4 +1,4 @@
-//! # RustyCog Database
+//! # `RustyCog` Database
 //!
 //! Database management utilities including connection pooling and migrations.
 use rustycog_config::DatabaseConfig;
@@ -97,7 +97,7 @@ impl DbConnectionPool {
     pub async fn new_from_url(db_url: &str, read_replicas: Vec<String>) -> Result<Self, DbErr> {
         // Parse the URL to create a DatabaseConfig
         let db_config = DatabaseConfig::from_url(db_url)
-            .map_err(|e| DbErr::Custom(format!("Failed to parse database URL: {}", e)))?;
+            .map_err(|e| DbErr::Custom(format!("Failed to parse database URL: {e}")))?;
 
         let mut config = db_config;
         config.read_replicas = read_replicas;

@@ -5,7 +5,6 @@ use crate::usecase::{
 };
 use async_trait::async_trait;
 use rustycog_command::{Command, CommandError, CommandErrorMapper, CommandHandler};
-use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 use validator::Validate;
@@ -23,6 +22,7 @@ pub struct GetNotificationsCommand {
 }
 
 impl GetNotificationsCommand {
+    #[must_use]
     pub fn new(
         user_id: Uuid,
         page: Option<u8>,
@@ -53,12 +53,12 @@ impl Command for GetNotificationsCommand {
 
     fn validate(&self) -> Result<(), CommandError> {
         Validate::validate(self).map_err(|e| {
-            CommandError::validation("VALIDATION_ERROR", format!("Validation failed: {}", e))
+            CommandError::validation("VALIDATION_ERROR", format!("Validation failed: {e}"))
         })
     }
 }
 
-/// Handler for GetNotificationsCommand
+/// Handler for `GetNotificationsCommand`
 pub struct GetNotificationsCommandHandler {
     notification_usecase: Arc<dyn NotificationUseCaseTrait>,
 }
@@ -98,7 +98,7 @@ impl CommandHandler<GetNotificationsCommand> for GetNotificationsCommandHandler 
     }
 }
 
-/// Error mapper for GetNotificationsCommand
+/// Error mapper for `GetNotificationsCommand`
 pub struct GetNotificationsErrorMapper;
 
 impl CommandErrorMapper for GetNotificationsErrorMapper {
@@ -115,6 +115,7 @@ pub struct GetUnreadCountCommand {
 }
 
 impl GetUnreadCountCommand {
+    #[must_use]
     pub fn new(user_id: Uuid) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -141,7 +142,7 @@ impl Command for GetUnreadCountCommand {
     }
 }
 
-/// Handler for GetUnreadCountCommand
+/// Handler for `GetUnreadCountCommand`
 pub struct GetUnreadCountCommandHandler {
     notification_usecase: Arc<dyn NotificationUseCaseTrait>,
 }
@@ -178,7 +179,7 @@ impl CommandHandler<GetUnreadCountCommand> for GetUnreadCountCommandHandler {
     }
 }
 
-/// Error mapper for GetUnreadCountCommand
+/// Error mapper for `GetUnreadCountCommand`
 pub struct GetUnreadCountErrorMapper;
 
 impl CommandErrorMapper for GetUnreadCountErrorMapper {
@@ -196,6 +197,7 @@ pub struct MarkNotificationReadCommand {
 }
 
 impl MarkNotificationReadCommand {
+    #[must_use]
     pub fn new(notification_id: Uuid, user_id: Uuid) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -235,7 +237,7 @@ impl Command for MarkNotificationReadCommand {
     }
 }
 
-/// Handler for MarkNotificationReadCommand
+/// Handler for `MarkNotificationReadCommand`
 pub struct MarkNotificationReadCommandHandler {
     notification_usecase: Arc<dyn NotificationUseCaseTrait>,
 }
@@ -273,7 +275,7 @@ impl CommandHandler<MarkNotificationReadCommand> for MarkNotificationReadCommand
     }
 }
 
-/// Error mapper for MarkNotificationReadCommand
+/// Error mapper for `MarkNotificationReadCommand`
 pub struct MarkNotificationReadErrorMapper;
 
 impl CommandErrorMapper for MarkNotificationReadErrorMapper {

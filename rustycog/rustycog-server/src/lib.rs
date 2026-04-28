@@ -1,4 +1,4 @@
-//! # RustyCog Server
+//! # `RustyCog` Server
 //!
 //! Server setup and application bootstrapping utilities.
 

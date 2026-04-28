@@ -58,17 +58,17 @@ pub enum LoginError {
 impl From<AuthError> for LoginError {
     fn from(error: AuthError) -> Self {
         match error {
-            AuthError::UserAlreadyExists => LoginError::UserAlreadyExists,
-            AuthError::UserNotFound => LoginError::UserNotFound,
-            AuthError::InvalidCredentials => LoginError::InvalidCredentials,
-            AuthError::WeakPassword => LoginError::WeakPassword,
-            AuthError::InvalidEmail => LoginError::InvalidEmail,
-            AuthError::EmailNotVerified => LoginError::EmailNotVerified,
-            AuthError::EmailNotFound => LoginError::EmailNotFound,
-            AuthError::EmailAlreadyVerified => LoginError::EmailAlreadyVerified,
-            AuthError::InvalidVerificationToken => LoginError::InvalidVerificationToken,
-            AuthError::VerificationTokenExpired => LoginError::VerificationTokenExpired,
-            _ => LoginError::AuthServiceError(error.to_string()),
+            AuthError::UserAlreadyExists => Self::UserAlreadyExists,
+            AuthError::UserNotFound => Self::UserNotFound,
+            AuthError::InvalidCredentials => Self::InvalidCredentials,
+            AuthError::WeakPassword => Self::WeakPassword,
+            AuthError::InvalidEmail => Self::InvalidEmail,
+            AuthError::EmailNotVerified => Self::EmailNotVerified,
+            AuthError::EmailNotFound => Self::EmailNotFound,
+            AuthError::EmailAlreadyVerified => Self::EmailAlreadyVerified,
+            AuthError::InvalidVerificationToken => Self::InvalidVerificationToken,
+            AuthError::VerificationTokenExpired => Self::VerificationTokenExpired,
+            _ => Self::AuthServiceError(error.to_string()),
         }
     }
 }
@@ -112,7 +112,8 @@ where
     RTS: RegistrationTokenService,
     EP: EventPublisher<DomainError>,
 {
-    pub fn new(auth_service: Arc<AuthService<UR, UER, EVR, PS, TS, RTS, EP>>) -> Self {
+    #[must_use]
+    pub const fn new(auth_service: Arc<AuthService<UR, UER, EVR, PS, TS, RTS, EP>>) -> Self {
         Self { auth_service }
     }
 }

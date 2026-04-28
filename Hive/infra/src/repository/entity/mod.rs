@@ -1,4 +1,4 @@
-//! SeaORM Entity definitions for Hive domain
+//! `SeaORM` Entity definitions for Hive domain
 
 pub mod external_links;
 pub mod external_providers;

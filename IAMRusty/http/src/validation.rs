@@ -75,76 +75,73 @@ const COMMON_WEAK_PASSWORDS: &[&str] = &[
 
 /// Custom validation function for provider names
 pub fn validate_provider_name(provider: &str) -> Result<(), ValidationError> {
-    debug!("Validating provider name: '{}'", provider);
+    debug!("Validating provider name: '{provider}'");
 
     let valid_providers = ["github", "gitlab"];
     let lowercase_provider = provider.to_lowercase();
 
-    debug!("Lowercase provider: '{}'", lowercase_provider);
-    debug!("Valid providers: {:?}", valid_providers);
+    debug!("Lowercase provider: '{lowercase_provider}'");
+    debug!("Valid providers: {valid_providers:?}");
 
     if !valid_providers.contains(&lowercase_provider.as_str()) {
-        warn!(
-            "Invalid provider name '{}' (lowercase: '{}')",
-            provider, lowercase_provider
-        );
+        warn!("Invalid provider name '{provider}' (lowercase: '{lowercase_provider}')");
         return Err(ValidationError::new("invalid_provider"));
     }
 
-    debug!("Provider name '{}' is valid", provider);
+    debug!("Provider name '{provider}' is valid");
     Ok(())
 }
 
 /// Custom validation function for non-empty strings
 pub fn validate_non_empty_string(value: &str) -> Result<(), ValidationError> {
-    debug!("Validating non-empty string: '{}'", value);
+    debug!("Validating non-empty string: '{value}'");
 
     if value.trim().is_empty() {
-        warn!("String is empty or whitespace only: '{}'", value);
+        warn!("String is empty or whitespace only: '{value}'");
         return Err(ValidationError::new("empty_string"));
     }
 
-    debug!("String is valid (non-empty): '{}'", value);
+    debug!("String is valid (non-empty): '{value}'");
     Ok(())
 }
 
 /// Custom validation function for usernames
 pub fn validate_username(username: &str) -> Result<(), ValidationError> {
-    debug!("Validating username: '{}'", username);
+    debug!("Validating username: '{username}'");
 
     if username.trim().is_empty() {
-        warn!("Username is empty: '{}'", username);
+        warn!("Username is empty: '{username}'");
         return Err(ValidationError::new("empty_username"));
     }
 
     if !USERNAME_REGEX.is_match(username) {
-        warn!("Username format invalid: '{}'", username);
+        warn!("Username format invalid: '{username}'");
         return Err(ValidationError::new("invalid_username_format"));
     }
 
     // Require at least one letter (cannot be only numbers/symbols)
     if !HAS_LETTER_REGEX.is_match(username) {
-        warn!("Username must contain at least one letter: '{}'", username);
+        warn!("Username must contain at least one letter: '{username}'");
         return Err(ValidationError::new("username_needs_letter"));
     }
 
-    debug!("Username is valid: '{}'", username);
+    debug!("Username is valid: '{username}'");
     Ok(())
 }
 
 /// Custom validation function for email addresses
 pub fn validate_email_format(email: &str) -> Result<(), ValidationError> {
-    debug!("Validating email: '{}'", email);
+    debug!("Validating email: '{email}'");
 
     let trimmed_email = email.trim();
 
     if trimmed_email.is_empty() {
-        warn!("Email is empty: '{}'", email);
+        warn!("Email is empty: '{email}'");
         return Err(ValidationError::new("empty_email"));
     }
 
     if !EMAIL_REGEX.is_match(trimmed_email) {
-        warn!("Email format invalid: '{}'", email);
+        warn!("Email format invalid: '{email}'");
         return Err(ValidationError::new("invalid_email_format"));
     }
 
@@ -154,7 +151,7 @@ pub fn validate_email_format(email: &str) -> Result<(), ValidationError> {
         return Err(ValidationError::new("email_too_long"));
     }
 
-    debug!("Email is valid: '{}'", email);
+    debug!("Email is valid: '{email}'");
     Ok(())
 }
 
@@ -208,45 +205,46 @@ pub fn validate_strong_password(password: &str) -> Result<(), ValidationError> {
 
 /// Custom validation function for verification tokens
 pub fn validate_verification_token(token: &str) -> Result<(), ValidationError> {
-    debug!("Validating verification token: '{}'", token);
+    debug!("Validating verification token: '{token}'");
 
     if token.trim().is_empty() {
-        warn!("Verification token is empty: '{}'", token);
+        warn!("Verification token is empty: '{token}'");
         return Err(ValidationError::new("empty_verification_token"));
     }
 
     if !VERIFICATION_TOKEN_REGEX.is_match(token) {
-        warn!("Verification token format invalid: '{}'", token);
+        warn!("Verification token format invalid: '{token}'");
         return Err(ValidationError::new("invalid_verification_token_format"));
     }
 
-    debug!("Verification token is valid: '{}'", token);
+    debug!("Verification token is valid: '{token}'");
     Ok(())
 }
 
 /// Custom validation function for password reset tokens
 /// Only validates the basic format, not business logic (expiry, usage, etc.)
 pub fn validate_reset_token_format(token: &str) -> Result<(), ValidationError> {
-    debug!("Validating reset token format: '{}'", token);
+    debug!("Validating reset token format: '{token}'");
 
     if token.trim().is_empty() {
-        warn!("Reset token is empty: '{}'", token);
+        warn!("Reset token is empty: '{token}'");
         return Err(ValidationError::new("empty_reset_token"));
     }
 
     // For now, accept any reasonable token format - business logic will validate the rest
     // The generated tokens are 32 chars of alphanumeric, but we'll be more lenient for testing
-    if token.len() < 1 || token.len() > 100 {
+    if token.is_empty() || token.len() > 100 {
         warn!("Reset token invalid length: {} characters", token.len());
         return Err(ValidationError::new("invalid_reset_token_length"));
     }
 
-    debug!("Reset token format is valid: '{}'", token);
+    debug!("Reset token format is valid: '{token}'");
     Ok(())
 }
 
 /// Mask email address for privacy in API responses
 /// Example: "user@example.com" -> "u***@e*****e.com"
+#[must_use]
 pub fn mask_email(email: &str) -> String {
     let parts: Vec<&str> = email.split('@').collect();
     if parts.len() != 2 {
@@ -285,13 +283,13 @@ pub fn mask_email(email: &str) -> String {
                 )
             };
 
-            format!("{}.{}", masked_domain_name, tld)
+            format!("{masked_domain_name}.{tld}")
         } else {
             "***.***".to_string()
         }
     };
 
-    format!("{}@{}", masked_local, masked_domain)
+    format!("{masked_local}@{masked_domain}")
 }
 
 /// Custom validation function for OAuth codes
@@ -299,7 +297,7 @@ pub fn validate_oauth_code(code: &str) -> Result<(), ValidationError> {
     debug!("Validating OAuth code: '{}' (length: {})", code, code.len());
 
     if code.trim().is_empty() {
-        warn!("OAuth code is empty or whitespace only: '{}'", code);
+        warn!("OAuth code is empty or whitespace only: '{code}'");
         return Err(ValidationError::new("empty_oauth_code"));
     }
 
@@ -309,7 +307,7 @@ pub fn validate_oauth_code(code: &str) -> Result<(), ValidationError> {
         return Err(ValidationError::new("oauth_code_too_long"));
     }
 
-    debug!("OAuth code is valid: '{}'", code);
+    debug!("OAuth code is valid: '{code}'");
     Ok(())
 }
 
@@ -322,7 +320,7 @@ pub fn validate_refresh_token(token: &str) -> Result<(), ValidationError> {
     );
 
     if token.trim().is_empty() {
-        warn!("Refresh token is empty or whitespace only: '{}'", token);
+        warn!("Refresh token is empty or whitespace only: '{token}'");
         return Err(ValidationError::new("empty_refresh_token"));
     }
 
@@ -335,7 +333,7 @@ pub fn validate_refresh_token(token: &str) -> Result<(), ValidationError> {
         return Err(ValidationError::new("invalid_refresh_token_length"));
     }
 
-    debug!("Refresh token is valid: '{}'", token);
+    debug!("Refresh token is valid: '{token}'");
     Ok(())
 }
 
@@ -362,7 +360,7 @@ mod tests {
 
         // Empty provider
         let empty_provider = ProviderPath {
-            provider_name: "".to_string(),
+            provider_name: String::new(),
         };
         assert!(empty_provider.validate().is_err());
 
@@ -425,7 +423,7 @@ mod tests {
 
         // Empty token
         let empty_token = RefreshTokenRequest {
-            refresh_token: "".to_string(),
+            refresh_token: String::new(),
         };
         assert!(empty_token.validate().is_err());
     }

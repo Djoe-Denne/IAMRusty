@@ -1,6 +1,6 @@
 //! Hive event adapter implementation using rustycog-events generic adapter system
 //!
-//! This module provides Hive-specific implementations of the EventAdapter and ErrorMapper
+//! This module provides Hive-specific implementations of the `EventAdapter` and `ErrorMapper`
 //! traits from rustycog-events, allowing seamless integration while maintaining architectural
 //! separation.
 
@@ -21,24 +21,23 @@ impl ErrorMapper<DomainError> for HiveErrorMapper {
     fn to_service_error(&self, error: DomainError) -> ServiceError {
         match error {
             DomainError::EntityNotFound { entity_type, id } => {
-                ServiceError::not_found(format!("{} with id '{}' not found", entity_type, id))
+                ServiceError::not_found(format!("{entity_type} with id '{id}' not found"))
             }
             DomainError::InvalidInput { message } => ServiceError::validation(message),
             DomainError::BusinessRuleViolation { rule } => {
-                ServiceError::business(format!("Business rule violation: {}", rule))
+                ServiceError::business(format!("Business rule violation: {rule}"))
             }
             DomainError::Unauthorized { operation } => {
-                ServiceError::authentication(format!("Unauthorized: {}", operation))
+                ServiceError::authentication(format!("Unauthorized: {operation}"))
             }
             DomainError::ResourceAlreadyExists {
                 resource_type,
                 identifier,
             } => ServiceError::conflict(format!(
-                "{} with identifier '{}' already exists",
-                resource_type, identifier
+                "{resource_type} with identifier '{identifier}' already exists"
             )),
             DomainError::ExternalServiceError { service, message } => ServiceError::infrastructure(
-                format!("External service error from {}: {}", service, message),
+                format!("External service error from {service}: {message}"),
             ),
             DomainError::PermissionDenied { message } => ServiceError::authorization(message),
             DomainError::Internal { message } => ServiceError::internal(message),
@@ -96,7 +95,7 @@ pub async fn create_event_publisher_with_queue_config(
 }
 
 /// Factory function to create a multi-queue event publisher with specific queue names
-/// If queue_names is empty, it will handle all queues configured in the QueueConfig
+/// If `queue_names` is empty, it will handle all queues configured in the `QueueConfig`
 ///
 /// # Examples
 ///

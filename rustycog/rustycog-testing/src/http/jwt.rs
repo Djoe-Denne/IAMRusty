@@ -14,11 +14,13 @@ struct TestClaims {
 }
 
 /// Create a JWT token for the given user ID with a shared HS256 test secret
+#[must_use]
 pub fn create_jwt_token(user_id: Uuid) -> String {
     create_jwt_token_with_secret(user_id, TEST_HS256_SECRET)
 }
 
 /// Create a JWT token with a caller-provided HS256 secret
+#[must_use]
 pub fn create_jwt_token_with_secret(user_id: Uuid, secret: &str) -> String {
     let now = Utc::now();
     let claims = TestClaims {

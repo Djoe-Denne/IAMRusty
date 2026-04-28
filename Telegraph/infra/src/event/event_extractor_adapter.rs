@@ -13,7 +13,8 @@ pub struct JsonEventExtractor;
 
 impl JsonEventExtractor {
     /// Create a new JSON event extractor
-    pub fn new() -> Self {
+    #[must_use]
+    pub const fn new() -> Self {
         Self
     }
 }
@@ -27,10 +28,10 @@ impl EventExtractor for JsonEventExtractor {
     ) -> Result<HashMap<String, String>, DomainError> {
         // Serialize the domain event to JSON
         let event_json = event.to_json().map_err(|e| {
-            DomainError::EventProcessingError(format!("Failed to serialize event to JSON: {}", e))
+            DomainError::EventProcessingError(format!("Failed to serialize event to JSON: {e}"))
         })?;
         let event_json: serde_json::Value = serde_json::from_str(&event_json).map_err(|e| {
-            DomainError::EventProcessingError(format!("Failed to parse event to JSON: {}", e))
+            DomainError::EventProcessingError(format!("Failed to parse event to JSON: {e}"))
         })?;
 
         debug!("Event JSON: {}", event_json);

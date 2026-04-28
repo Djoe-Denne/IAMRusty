@@ -67,10 +67,10 @@ impl CommunicationFactory {
                 text_body,
             } => {
                 // Use subject from descriptor or template variables, fallback to rendered subject
-                let final_subject = if !email_desc.subject.is_empty() {
-                    self.interpolate_string(&email_desc.subject, &variables)
-                } else {
+                let final_subject = if email_desc.subject.is_empty() {
                     subject
+                } else {
+                    self.interpolate_string(&email_desc.subject, &variables)
                 };
                 (final_subject, html_body, text_body)
             }
@@ -130,10 +130,10 @@ impl CommunicationFactory {
         let (title, body, data) = match rendered_template {
             RenderedTemplate::Notification { title, body, data } => {
                 // Use title from descriptor or template variables, fallback to rendered title
-                let final_title = if !notification_desc.title.is_empty() {
-                    self.interpolate_string(&notification_desc.title, &variables)
-                } else {
+                let final_title = if notification_desc.title.is_empty() {
                     title
+                } else {
+                    self.interpolate_string(&notification_desc.title, &variables)
                 };
                 (final_title, body, data)
             }
@@ -189,7 +189,7 @@ impl CommunicationFactory {
         if descriptor.notification.is_some() {
             match self.build_notification_communication(event).await {
                 Ok(notification_comm) => {
-                    communications.push(Communication::Notification(notification_comm))
+                    communications.push(Communication::Notification(notification_comm));
                 }
                 Err(e) => {
                     warn!(
@@ -222,7 +222,7 @@ impl CommunicationFactory {
         &self,
         event_type: &str,
     ) -> Result<CommunicationDescriptor, DomainError> {
-        let descriptor_path = self.descriptor_dir.join(format!("{}.toml", event_type));
+        let descriptor_path = self.descriptor_dir.join(format!("{event_type}.toml"));
 
         if !descriptor_path.exists() {
             return Err(DomainError::EventProcessingError(format!(
@@ -267,7 +267,7 @@ impl CommunicationFactory {
     ) -> String {
         let mut result = template_str.to_string();
         for (key, value) in variables {
-            let placeholder = format!("{{{}}}", key);
+            let placeholder = format!("{{{key}}}");
             result = result.replace(&placeholder, value);
         }
         result

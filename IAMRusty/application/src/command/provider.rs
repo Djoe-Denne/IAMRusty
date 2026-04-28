@@ -23,7 +23,8 @@ pub enum LinkProviderErrorCode {
 }
 
 impl LinkProviderErrorCode {
-    pub fn as_str(&self) -> &'static str {
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
         match self {
             Self::AuthenticationFailed => "authentication_failed",
             Self::UserNotFound => "user_not_found",
@@ -49,7 +50,8 @@ pub enum ProviderErrorCode {
 }
 
 impl ProviderErrorCode {
-    pub fn as_str(&self) -> &'static str {
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
         match self {
             Self::UserNotFound => "user_not_found",
             Self::ProviderNotSupported => "provider_not_supported",
@@ -99,7 +101,7 @@ impl CommandErrorMapper for LinkProviderErrorMapper {
                         }
                         DomainError::RepositoryError(msg) => CommandError::infrastructure(
                             LinkProviderErrorCode::RepositoryError.as_str(),
-                            format!("Database error: {}", msg),
+                            format!("Database error: {msg}"),
                         ),
                         _ => CommandError::infrastructure(
                             LinkProviderErrorCode::RepositoryError.as_str(),
@@ -109,7 +111,7 @@ impl CommandErrorMapper for LinkProviderErrorMapper {
                 }
                 LinkProviderError::ProviderNotConfigured(provider) => CommandError::infrastructure(
                     LinkProviderErrorCode::ProviderNotConfigured.as_str(),
-                    format!("Provider {} not configured", provider),
+                    format!("Provider {provider} not configured"),
                 ),
             }
         } else {
@@ -134,7 +136,7 @@ impl CommandErrorMapper for ProviderErrorMapper {
                 ),
                 ProviderError::ProviderNotSupported(provider) => CommandError::validation(
                     ProviderErrorCode::ProviderNotSupported.as_str(),
-                    format!("Unsupported provider: {}", provider),
+                    format!("Unsupported provider: {provider}"),
                 ),
                 ProviderError::NoTokenForProvider => CommandError::business(
                     ProviderErrorCode::NoTokenForProvider.as_str(),
@@ -146,7 +148,7 @@ impl CommandErrorMapper for ProviderErrorMapper {
                 ),
                 ProviderError::DbError(e) => CommandError::infrastructure(
                     ProviderErrorCode::DatabaseError.as_str(),
-                    format!("Database error: {}", e),
+                    format!("Database error: {e}"),
                 ),
             }
         } else {
@@ -175,6 +177,7 @@ pub struct LinkProviderCommand {
 
 impl LinkProviderCommand {
     /// Create a new link provider command
+    #[must_use]
     pub fn new(user_id: Uuid, provider: Provider, code: String, redirect_uri: String) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -246,7 +249,7 @@ where
     L: LinkProviderUseCase + ?Sized,
 {
     /// Create a new link provider command handler
-    pub fn new(link_provider_use_case: Arc<L>) -> Self {
+    pub const fn new(link_provider_use_case: Arc<L>) -> Self {
         Self {
             link_provider_use_case,
         }
@@ -285,6 +288,7 @@ pub struct GenerateLinkProviderStartUrlCommand {
 
 impl GenerateLinkProviderStartUrlCommand {
     /// Create a new generate link provider start URL command
+    #[must_use]
     pub fn new(provider: Provider) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -324,7 +328,7 @@ where
     L: LinkProviderUseCase + ?Sized,
 {
     /// Create a new generate link provider start URL command handler
-    pub fn new(link_provider_use_case: Arc<L>) -> Self {
+    pub const fn new(link_provider_use_case: Arc<L>) -> Self {
         Self {
             link_provider_use_case,
         }
@@ -360,6 +364,7 @@ pub struct GetProviderTokenCommand {
 
 impl GetProviderTokenCommand {
     /// Create a new get provider token command
+    #[must_use]
     pub fn new(user_id: Uuid, provider: Provider) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -407,7 +412,7 @@ where
     P: ProviderUseCase + ?Sized,
 {
     /// Create a new get provider token command handler
-    pub fn new(provider_use_case: Arc<P>) -> Self {
+    pub const fn new(provider_use_case: Arc<P>) -> Self {
         Self { provider_use_case }
     }
 }
@@ -441,6 +446,7 @@ pub struct RevokeProviderTokenCommand {
 
 impl RevokeProviderTokenCommand {
     /// Create a new revoke provider token command
+    #[must_use]
     pub fn new(user_id: Uuid, provider: Provider) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -488,7 +494,7 @@ where
     P: ProviderUseCase + ?Sized,
 {
     /// Create a new revoke provider token command handler
-    pub fn new(provider_use_case: Arc<P>) -> Self {
+    pub const fn new(provider_use_case: Arc<P>) -> Self {
         Self { provider_use_case }
     }
 }
@@ -523,6 +529,7 @@ pub struct RelinkProviderCommand {
 
 impl RelinkProviderCommand {
     /// Create a new relink provider command
+    #[must_use]
     pub fn new(user_id: Uuid, provider: Provider, code: String, redirect_uri: String) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -594,7 +601,7 @@ where
     L: LinkProviderUseCase + ?Sized,
 {
     /// Create a new relink provider command handler
-    pub fn new(link_provider_use_case: Arc<L>) -> Self {
+    pub const fn new(link_provider_use_case: Arc<L>) -> Self {
         Self {
             link_provider_use_case,
         }
@@ -633,6 +640,7 @@ pub struct GenerateRelinkProviderStartUrlCommand {
 
 impl GenerateRelinkProviderStartUrlCommand {
     /// Create a new generate relink provider start URL command
+    #[must_use]
     pub fn new(provider: Provider) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -672,7 +680,7 @@ where
     L: LinkProviderUseCase + ?Sized,
 {
     /// Create a new generate relink provider start URL command handler
-    pub fn new(link_provider_use_case: Arc<L>) -> Self {
+    pub const fn new(link_provider_use_case: Arc<L>) -> Self {
         Self {
             link_provider_use_case,
         }

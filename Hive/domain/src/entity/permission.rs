@@ -3,7 +3,7 @@ use rustycog_core::error::DomainError;
 use serde::{Deserialize, Serialize};
 
 /// Permission entity representing a specific permission level
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PermissionLevel {
     Read,
     Write,
@@ -14,22 +14,23 @@ pub enum PermissionLevel {
 impl PermissionLevel {
     pub fn from_str(s: &str) -> Result<Self, DomainError> {
         match s {
-            "read" => Ok(PermissionLevel::Read),
-            "write" => Ok(PermissionLevel::Write),
-            "admin" => Ok(PermissionLevel::Admin),
-            "owner" => Ok(PermissionLevel::Owner),
+            "read" => Ok(Self::Read),
+            "write" => Ok(Self::Write),
+            "admin" => Ok(Self::Admin),
+            "owner" => Ok(Self::Owner),
             _ => Err(DomainError::InvalidInput {
-                message: format!("Invalid permission level: {}", s),
+                message: format!("Invalid permission level: {s}"),
             }),
         }
     }
 
-    pub fn to_str(&self) -> &str {
+    #[must_use]
+    pub const fn to_str(&self) -> &str {
         match self {
-            PermissionLevel::Read => "read",
-            PermissionLevel::Write => "write",
-            PermissionLevel::Admin => "admin",
-            PermissionLevel::Owner => "owner",
+            Self::Read => "read",
+            Self::Write => "write",
+            Self::Admin => "admin",
+            Self::Owner => "owner",
         }
     }
 }
@@ -37,10 +38,10 @@ impl PermissionLevel {
 impl From<rustycog_permission::Permission> for PermissionLevel {
     fn from(permission: rustycog_permission::Permission) -> Self {
         match permission {
-            rustycog_permission::Permission::Read => PermissionLevel::Read,
-            rustycog_permission::Permission::Write => PermissionLevel::Write,
-            rustycog_permission::Permission::Admin => PermissionLevel::Admin,
-            rustycog_permission::Permission::Owner => PermissionLevel::Owner,
+            rustycog_permission::Permission::Read => Self::Read,
+            rustycog_permission::Permission::Write => Self::Write,
+            rustycog_permission::Permission::Admin => Self::Admin,
+            rustycog_permission::Permission::Owner => Self::Owner,
         }
     }
 }
@@ -48,16 +49,16 @@ impl From<rustycog_permission::Permission> for PermissionLevel {
 impl From<PermissionLevel> for rustycog_permission::Permission {
     fn from(permission: PermissionLevel) -> Self {
         match permission {
-            PermissionLevel::Read => rustycog_permission::Permission::Read,
-            PermissionLevel::Write => rustycog_permission::Permission::Write,
-            PermissionLevel::Admin => rustycog_permission::Permission::Admin,
-            PermissionLevel::Owner => rustycog_permission::Permission::Owner,
+            PermissionLevel::Read => Self::Read,
+            PermissionLevel::Write => Self::Write,
+            PermissionLevel::Admin => Self::Admin,
+            PermissionLevel::Owner => Self::Owner,
         }
     }
 }
 
 /// Permission entity representing a specific permission level
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Permission {
     pub level: PermissionLevel,
     pub description: Option<String>,
@@ -66,7 +67,8 @@ pub struct Permission {
 
 impl Permission {
     /// Create a new permission
-    pub fn new(
+    #[must_use]
+    pub const fn new(
         level: PermissionLevel,
         description: Option<String>,
         created_at: Option<DateTime<Utc>>,

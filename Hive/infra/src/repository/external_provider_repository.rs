@@ -1,4 +1,4 @@
-//! ExternalProviderRepository SeaORM implementation
+//! `ExternalProviderRepository` `SeaORM` implementation
 
 use async_trait::async_trait;
 use hive_domain::entity::ExternalProvider;
@@ -7,8 +7,7 @@ use hive_domain::port::repository::{
 };
 use rustycog_core::error::DomainError;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait,
-    QueryFilter, Set,
+    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
 };
 use std::sync::Arc;
 use tracing::debug;
@@ -30,6 +29,7 @@ impl ExternalProviderMapper {
         })
     }
 
+    #[must_use]
     pub fn to_active_model(provider: &ExternalProvider) -> external_providers::ActiveModel {
         external_providers::ActiveModel {
             id: ActiveValue::Set(provider.id),
@@ -49,7 +49,8 @@ pub struct ExternalProviderReadRepositoryImpl {
 }
 
 impl ExternalProviderReadRepositoryImpl {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    #[must_use]
+    pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
 }
@@ -127,7 +128,8 @@ pub struct ExternalProviderWriteRepositoryImpl {
 }
 
 impl ExternalProviderWriteRepositoryImpl {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    #[must_use]
+    pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
 }

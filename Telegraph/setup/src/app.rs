@@ -312,12 +312,13 @@ pub struct AppBuilder {
 
 impl AppBuilder {
     /// Create a new app builder
-    pub fn new(config: TelegraphConfig) -> Self {
+    #[must_use]
+    pub const fn new(config: TelegraphConfig) -> Self {
         Self { config }
     }
 
     /// Build the Telegraph application
     pub async fn build(self) -> Result<TelegraphApp, anyhow::Error> {
-        Ok(TelegraphApp::new(self.config).await?)
+        TelegraphApp::new(self.config).await
     }
 }

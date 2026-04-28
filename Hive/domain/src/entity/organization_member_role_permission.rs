@@ -17,6 +17,7 @@ pub struct OrganizationMemberRolePermission {
 
 impl OrganizationMemberRolePermission {
     /// Create a new organization member role permission
+    #[must_use]
     pub fn new(
         id: Option<Uuid>,
         organization_id: &Uuid,
@@ -26,8 +27,8 @@ impl OrganizationMemberRolePermission {
     ) -> Self {
         Self {
             id,
-            organization_id: organization_id.clone(),
-            member_id: member_id.clone(),
+            organization_id: *organization_id,
+            member_id: *member_id,
             role_permission: role_permission.clone(),
             created_at,
         }

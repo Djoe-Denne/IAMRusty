@@ -71,7 +71,8 @@ pub struct RolePermissionReadRepositoryImpl {
 }
 
 impl RolePermissionReadRepositoryImpl {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    #[must_use]
+    pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
 
@@ -192,7 +193,8 @@ pub struct RolePermissionWriteRepositoryImpl {
 }
 
 impl RolePermissionWriteRepositoryImpl {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    #[must_use]
+    pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
 
@@ -244,7 +246,8 @@ pub struct RolePermissionRepositoryImpl {
 }
 
 impl RolePermissionRepositoryImpl {
-    pub fn new(
+    #[must_use]
+    pub const fn new(
         read_repo: Arc<RolePermissionReadRepositoryImpl>,
         write_repo: Arc<RolePermissionWriteRepositoryImpl>,
     ) -> Self {

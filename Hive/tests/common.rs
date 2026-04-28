@@ -1,7 +1,7 @@
 //! Common test utilities for Hive
 //!
 //! Mirrors rustycog-testing patterns and Telegraph tests structure, plus
-//! the real OpenFGA testcontainer every permission-touching Hive test
+//! the real `OpenFGA` testcontainer every permission-touching Hive test
 //! routes through (mirrors `Manifesto/tests/common.rs`).
 
 use async_trait::async_trait;
@@ -25,7 +25,6 @@ use hive_setup::app::AppBuilder;
 pub use rustycog_testing::common::openfga_testcontainer::TestOpenFga;
 
 // Re-export the permission domain types tests need to express tuples.
-pub use rustycog_permission::{Permission, ResourceRef, Subject};
 
 // Re-export fixtures
 #[path = "fixtures/mod.rs"]
@@ -108,26 +107,26 @@ impl HiveTestFixture {
         self.fixture.db()
     }
 
-    /// Get the OpenFGA fixture
-    pub fn openfga(&self) -> &TestOpenFga {
+    /// Get the `OpenFGA` fixture
+    pub const fn openfga(&self) -> &TestOpenFga {
         self.fixture.openfga()
     }
 }
 
-/// Bootstrap the Hive test server **and** the real OpenFGA testcontainer.
+/// Bootstrap the Hive test server **and** the real `OpenFGA` testcontainer.
 ///
 /// Returns a 4-tuple:
-/// 1. [`HiveTestFixture`] — owns the test DB, the singleton OpenFGA
+/// 1. [`HiveTestFixture`] — owns the test DB, the singleton `OpenFGA`
 ///    testcontainer, and the migration lifecycle.
 /// 2. `String` — base URL of the live HTTP server.
 /// 3. `Client` — `reqwest` client preconfigured for the test server.
 /// 4. `TestOpenFga` (clone) — typed handle exposing `allow` / `deny`
-///    against the real OpenFGA Check pipeline. The harness writes
+///    against the real `OpenFGA` Check pipeline. The harness writes
 ///    **no** permissive default; each test must explicitly call
 ///    `openfga.allow(...)` for every tuple the route guard will check
 ///    (default = deny).
 ///
-/// The OpenFGA fixture is process-global, so tests must remain
+/// The `OpenFGA` fixture is process-global, so tests must remain
 /// `#[serial]` to avoid tuple-state collisions.
 pub async fn setup_test_server(
 ) -> Result<(HiveTestFixture, String, Client, TestOpenFga), Box<dyn std::error::Error>> {

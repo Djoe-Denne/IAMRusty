@@ -58,8 +58,8 @@ where
     R: RefreshTokenRepository,
     T: AuthTokenService + JwtTokenEncoder,
 {
-    /// Create a new RefreshTokenServiceImpl
-    pub fn new(refresh_token_repo: Arc<R>, token_service: Arc<T>) -> Self {
+    /// Create a new `RefreshTokenServiceImpl`
+    pub const fn new(refresh_token_repo: Arc<R>, token_service: Arc<T>) -> Self {
         Self {
             refresh_token_repo,
             token_service,

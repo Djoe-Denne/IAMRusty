@@ -1,4 +1,4 @@
-//! ResourceRepository SeaORM implementation
+//! `ResourceRepository` `SeaORM` implementation
 
 use async_trait::async_trait;
 use hive_domain::entity::Resource;
@@ -30,7 +30,8 @@ pub struct ResourceReadRepositoryImpl {
 }
 
 impl ResourceReadRepositoryImpl {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    #[must_use]
+    pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
 }

@@ -1,6 +1,5 @@
 use async_trait::async_trait;
 use sea_orm::DatabaseConnection;
-use std::sync::Arc;
 
 /// Common trait for all entity fixture builders
 #[async_trait]

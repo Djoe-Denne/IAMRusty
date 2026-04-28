@@ -44,7 +44,7 @@ impl<RS> RegistrationUseCaseImpl<RS>
 where
     RS: RegistrationService + Send + Sync,
 {
-    pub fn new(registration_service: Arc<RS>) -> Self {
+    pub const fn new(registration_service: Arc<RS>) -> Self {
         Self {
             registration_service,
         }

@@ -20,6 +20,7 @@ pub struct RequestPasswordResetCommand {
 
 impl RequestPasswordResetCommand {
     /// Create a new request password reset command
+    #[must_use]
     pub fn new(email: String) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -73,7 +74,7 @@ where
     A: PasswordResetUseCase + ?Sized,
 {
     /// Create a new request password reset command handler
-    pub fn new(password_reset_use_case: Arc<A>) -> Self {
+    pub const fn new(password_reset_use_case: Arc<A>) -> Self {
         Self {
             password_reset_use_case,
         }
@@ -111,6 +112,7 @@ pub struct ValidateResetTokenCommand {
 
 impl ValidateResetTokenCommand {
     /// Create a new validate reset token command
+    #[must_use]
     pub fn new(reset_token: String) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -157,7 +159,7 @@ where
     A: PasswordResetUseCase + ?Sized,
 {
     /// Create a new validate reset token command handler
-    pub fn new(password_reset_use_case: Arc<A>) -> Self {
+    pub const fn new(password_reset_use_case: Arc<A>) -> Self {
         Self {
             password_reset_use_case,
         }
@@ -197,6 +199,7 @@ pub struct ResetPasswordUnauthenticatedCommand {
 
 impl ResetPasswordUnauthenticatedCommand {
     /// Create a new reset password unauthenticated command
+    #[must_use]
     pub fn new(reset_token: String, new_password: String) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -258,7 +261,7 @@ where
     A: PasswordResetUseCase + ?Sized,
 {
     /// Create a new reset password unauthenticated command handler
-    pub fn new(password_reset_use_case: Arc<A>) -> Self {
+    pub const fn new(password_reset_use_case: Arc<A>) -> Self {
         Self {
             password_reset_use_case,
         }
@@ -303,6 +306,7 @@ pub struct ResetPasswordAuthenticatedCommand {
 
 impl ResetPasswordAuthenticatedCommand {
     /// Create a new reset password authenticated command
+    #[must_use]
     pub fn new(user_id: Uuid, current_password: String, new_password: String) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -350,7 +354,7 @@ where
     A: PasswordResetUseCase + ?Sized,
 {
     /// Create a new reset password authenticated command handler
-    pub fn new(password_reset_use_case: Arc<A>) -> Self {
+    pub const fn new(password_reset_use_case: Arc<A>) -> Self {
         Self {
             password_reset_use_case,
         }
@@ -398,22 +402,23 @@ pub enum PasswordResetErrorCode {
 }
 
 impl PasswordResetErrorCode {
-    pub fn as_str(&self) -> &'static str {
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
         match self {
-            PasswordResetErrorCode::UserNotFound => "user_not_found",
-            PasswordResetErrorCode::EmailNotFound => "email_not_found",
-            PasswordResetErrorCode::InvalidToken => "invalid_token",
-            PasswordResetErrorCode::TokenExpired => "token_expired",
-            PasswordResetErrorCode::TokenAlreadyUsed => "token_already_used",
-            PasswordResetErrorCode::IncorrectCurrentPassword => "incorrect_current_password",
-            PasswordResetErrorCode::RepositoryError => "repository_error",
-            PasswordResetErrorCode::EventPublishingError => "event_publishing_error",
-            PasswordResetErrorCode::TokenServiceError => "token_service_error",
-            PasswordResetErrorCode::PasswordHashingError => "password_hashing_error",
-            PasswordResetErrorCode::AuthenticationFailed => "authentication_failed",
-            PasswordResetErrorCode::ValidationFailed => "validation_failed",
-            PasswordResetErrorCode::NoPasswordAuth => "no_password_auth",
-            PasswordResetErrorCode::AntiEnumerationSecurity => "anti_enumeration_security",
+            Self::UserNotFound => "user_not_found",
+            Self::EmailNotFound => "email_not_found",
+            Self::InvalidToken => "invalid_token",
+            Self::TokenExpired => "token_expired",
+            Self::TokenAlreadyUsed => "token_already_used",
+            Self::IncorrectCurrentPassword => "incorrect_current_password",
+            Self::RepositoryError => "repository_error",
+            Self::EventPublishingError => "event_publishing_error",
+            Self::TokenServiceError => "token_service_error",
+            Self::PasswordHashingError => "password_hashing_error",
+            Self::AuthenticationFailed => "authentication_failed",
+            Self::ValidationFailed => "validation_failed",
+            Self::NoPasswordAuth => "no_password_auth",
+            Self::AntiEnumerationSecurity => "anti_enumeration_security",
         }
     }
 }
@@ -461,15 +466,15 @@ impl CommandErrorMapper for PasswordResetErrorMapper {
                 ),
                 PasswordResetError::RepositoryError(msg) => CommandError::infrastructure(
                     PasswordResetErrorCode::RepositoryError.as_str(),
-                    format!("Repository error: {}", msg),
+                    format!("Repository error: {msg}"),
                 ),
                 PasswordResetError::EventPublishingError(msg) => CommandError::infrastructure(
                     PasswordResetErrorCode::EventPublishingError.as_str(),
-                    format!("Event publishing error: {}", msg),
+                    format!("Event publishing error: {msg}"),
                 ),
                 PasswordResetError::ServiceError(msg) => CommandError::infrastructure(
                     PasswordResetErrorCode::TokenServiceError.as_str(),
-                    format!("Service error: {}", msg),
+                    format!("Service error: {msg}"),
                 ),
             }
         } else {
@@ -478,12 +483,12 @@ impl CommandErrorMapper for PasswordResetErrorMapper {
             if Self::is_authentication_related_error(&error_msg) {
                 CommandError::authentication(
                     PasswordResetErrorCode::AuthenticationFailed.as_str(),
-                    format!("Authentication failed: {}", error_msg),
+                    format!("Authentication failed: {error_msg}"),
                 )
             } else if Self::is_validation_related_error(&error_msg) {
                 CommandError::validation(
                     PasswordResetErrorCode::ValidationFailed.as_str(),
-                    format!("Validation failed: {}", error_msg),
+                    format!("Validation failed: {error_msg}"),
                 )
             } else {
                 CommandError::infrastructure(

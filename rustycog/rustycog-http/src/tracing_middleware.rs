@@ -15,22 +15,21 @@ pub async fn tracing_middleware(mut request: Request, next: Next) -> Response {
     let start_time = Instant::now();
 
     // Extract or generate correlation ID
-    let correlation_id = match request
+    let correlation_id = if let Some(id) = request
         .headers()
         .get(X_CORRELATION_ID)
         .and_then(|v| v.to_str().ok())
     {
-        Some(id) => id.to_string(),
-        None => {
-            let id = Uuid::new_v4().to_string();
-            // Insert the generated correlation ID into the request headers
-            request.headers_mut().insert(
-                X_CORRELATION_ID,
-                id.parse()
-                    .expect("Generated UUID should be valid header value"),
-            );
-            id
-        }
+        id.to_string()
+    } else {
+        let id = Uuid::new_v4().to_string();
+        // Insert the generated correlation ID into the request headers
+        request.headers_mut().insert(
+            X_CORRELATION_ID,
+            id.parse()
+                .expect("Generated UUID should be valid header value"),
+        );
+        id
     };
 
     // Extract request ID if present
@@ -38,13 +37,13 @@ pub async fn tracing_middleware(mut request: Request, next: Next) -> Response {
         .headers()
         .get(X_REQUEST_ID)
         .and_then(|v| v.to_str().ok())
-        .map(|s| s.to_string());
+        .map(std::string::ToString::to_string);
 
     // Extract user ID from request extensions if authenticated
     let user_id = request
         .extensions()
         .get::<AuthUser>()
-        .map(|auth_user| auth_user.user_id.clone());
+        .map(|auth_user| auth_user.user_id);
 
     // Get the request method and URI for logging
     let method = request.method().clone();
@@ -112,17 +111,19 @@ pub async fn tracing_middleware(mut request: Request, next: Next) -> Response {
 }
 
 /// Extract correlation ID from request headers
+#[must_use]
 pub fn get_correlation_id(headers: &HeaderMap) -> Option<String> {
     headers
         .get(X_CORRELATION_ID)
         .and_then(|v| v.to_str().ok())
-        .map(|s| s.to_string())
+        .map(std::string::ToString::to_string)
 }
 
 /// Extract request ID from request headers
+#[must_use]
 pub fn get_request_id(headers: &HeaderMap) -> Option<String> {
     headers
         .get(X_REQUEST_ID)
         .and_then(|v| v.to_str().ok())
-        .map(|s| s.to_string())
+        .map(std::string::ToString::to_string)
 }

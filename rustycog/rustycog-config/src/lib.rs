@@ -1,4 +1,4 @@
-//! Core configuration crate for RustyCog services
+//! Core configuration crate for `RustyCog` services
 //!
 //! This crate provides core configuration structures and utilities that can be shared
 //! across multiple services, including server, database, command retry, Kafka, and logging configuration.
@@ -90,7 +90,7 @@ fn default_key_path() -> String {
     "./certs/key.pem".to_string()
 }
 
-fn default_tls_port() -> u16 {
+const fn default_tls_port() -> u16 {
     8443
 }
 
@@ -120,7 +120,7 @@ pub struct DatabaseConfig {
     pub read_replicas: Vec<String>,
 }
 
-fn default_db_port() -> u16 {
+const fn default_db_port() -> u16 {
     5432
 }
 
@@ -129,6 +129,7 @@ static PORT_CACHE: OnceLock<Arc<Mutex<HashMap<String, u16>>>> = OnceLock::new();
 
 impl DatabaseConfig {
     /// Construct the primary database URL from components
+    #[must_use]
     pub fn url(&self) -> String {
         let port = self.actual_port();
 
@@ -179,8 +180,15 @@ impl DatabaseConfig {
         }
     }
 
-    /// Create a new DatabaseConfig with the specified components
-    pub fn new(username: String, password: String, host: String, port: u16, db: String) -> Self {
+    /// Create a new `DatabaseConfig` with the specified components
+    #[must_use]
+    pub const fn new(
+        username: String,
+        password: String,
+        host: String,
+        port: u16,
+        db: String,
+    ) -> Self {
         Self {
             creds: DatabaseCredentials { username, password },
             host,
@@ -190,11 +198,11 @@ impl DatabaseConfig {
         }
     }
 
-    /// Create a DatabaseConfig from a URL (for backward compatibility)
+    /// Create a `DatabaseConfig` from a URL (for backward compatibility)
     pub fn from_url(url: &str) -> Result<Self, String> {
         use url::Url;
 
-        let parsed = Url::parse(url).map_err(|e| format!("Invalid URL: {}", e))?;
+        let parsed = Url::parse(url).map_err(|e| format!("Invalid URL: {e}"))?;
 
         if parsed.scheme() != "postgres" && parsed.scheme() != "postgresql" {
             return Err("URL must use postgres:// or postgresql:// scheme".to_string());
@@ -241,33 +249,19 @@ impl Default for DatabaseConfig {
 }
 
 /// Shared authentication configuration for service-side bearer token verification
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AuthConfig {
     /// JWT verification settings
     #[serde(default)]
     pub jwt: JwtAuthConfig,
 }
 
-impl Default for AuthConfig {
-    fn default() -> Self {
-        Self {
-            jwt: JwtAuthConfig::default(),
-        }
-    }
-}
-
 /// JWT verification configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct JwtAuthConfig {
     /// HS256 secret used to verify bearer tokens
     #[serde(default)]
     pub hs256_secret: Option<String>,
-}
-
-impl Default for JwtAuthConfig {
-    fn default() -> Self {
-        Self { hs256_secret: None }
-    }
 }
 
 /// Scaleway configuration
@@ -285,24 +279,24 @@ pub struct ScalewayConfig {
     pub secret_key: String,
 }
 
-fn default_scaleway_project_id() -> String {
-    "".to_string()
+const fn default_scaleway_project_id() -> String {
+    String::new()
 }
 
-fn default_scaleway_organization_id() -> String {
-    "".to_string()
+const fn default_scaleway_organization_id() -> String {
+    String::new()
 }
 
-fn default_scaleway_region() -> String {
-    "".to_string()
+const fn default_scaleway_region() -> String {
+    String::new()
 }
 
-fn default_scaleway_access_key() -> String {
-    "".to_string()
+const fn default_scaleway_access_key() -> String {
+    String::new()
 }
 
-fn default_scaleway_secret_key() -> String {
-    "".to_string()
+const fn default_scaleway_secret_key() -> String {
+    String::new()
 }
 
 impl Default for ScalewayConfig {
@@ -333,7 +327,7 @@ impl Default for ConsoleLoggingOutput {
     }
 }
 
-fn default_console_logging_enabled() -> bool {
+const fn default_console_logging_enabled() -> bool {
     true
 }
 
@@ -351,7 +345,7 @@ impl Default for FileLoggingOutput {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ScalewayLokiLoggingOutput {
     /// scaleway datasource uuid
     pub datasource_uuid: String,
@@ -359,22 +353,13 @@ pub struct ScalewayLokiLoggingOutput {
     pub cockpit_token: String,
 }
 
-impl Default for ScalewayLokiLoggingOutput {
-    fn default() -> Self {
-        Self {
-            datasource_uuid: "".to_string(),
-            cockpit_token: "".to_string(),
-        }
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LoggingConfig {
     /// Log level (trace, debug, info, warn, error)
     #[serde(default = "default_log_level")]
     pub level: String,
-    /// Optional target directives (tracing EnvFilter syntax).
-    /// Example: "warn,my_service=debug,tokio=warn"
+    /// Optional target directives (tracing `EnvFilter` syntax).
+    /// Example: "`warn,my_service=debug,tokio=warn`"
     #[serde(default)]
     pub filter: Option<String>,
     /// Logging output
@@ -436,23 +421,23 @@ pub struct CommandRetryConfig {
     pub use_jitter: bool,
 }
 
-fn default_max_attempts() -> u32 {
+const fn default_max_attempts() -> u32 {
     3
 }
 
-fn default_base_delay_ms() -> u64 {
+const fn default_base_delay_ms() -> u64 {
     100
 }
 
-fn default_max_delay_ms() -> u64 {
+const fn default_max_delay_ms() -> u64 {
     30000
 }
 
-fn default_backoff_multiplier() -> f64 {
+const fn default_backoff_multiplier() -> f64 {
     2.0
 }
 
-fn default_use_jitter() -> bool {
+const fn default_use_jitter() -> bool {
     true
 }
 
@@ -469,7 +454,7 @@ impl Default for CommandRetryConfig {
 }
 
 /// Command configuration with retry settings and command-specific overrides
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct CommandConfig {
     /// Default retry configuration for all commands
     #[serde(default)]
@@ -479,18 +464,10 @@ pub struct CommandConfig {
     pub overrides: HashMap<String, CommandRetryConfig>,
 }
 
-impl Default for CommandConfig {
-    fn default() -> Self {
-        Self {
-            retry: CommandRetryConfig::default(),
-            overrides: HashMap::new(),
-        }
-    }
-}
-
 impl CommandConfig {
     /// Get retry configuration for a specific command
     /// Returns command-specific config if available, otherwise returns default
+    #[must_use]
     pub fn get_retry_config(&self, command_type: &str) -> &CommandRetryConfig {
         self.overrides.get(command_type).unwrap_or(&self.retry)
     }
@@ -520,13 +497,13 @@ pub struct SqsConfig {
     /// AWS session token (optional, for temporary credentials)
     #[serde(default)]
     pub session_token: Option<String>,
-    /// Custom endpoint host (for LocalStack or custom SQS implementations)
+    /// Custom endpoint host (for `LocalStack` or custom SQS implementations)
     #[serde(default = "default_sqs_host")]
     pub host: String,
-    /// Custom endpoint port (for LocalStack or custom SQS implementations, 0 for random port)
+    /// Custom endpoint port (for `LocalStack` or custom SQS implementations, 0 for random port)
     #[serde(default = "default_sqs_port")]
     pub port: u16,
-    /// Custom endpoint URL (for LocalStack or custom SQS implementations) - deprecated, use host/port instead
+    /// Custom endpoint URL (for `LocalStack` or custom SQS implementations) - deprecated, use host/port instead
     #[serde(default)]
     pub endpoint_url: Option<String>,
     /// Whether to enable SQS (for testing/development flexibility)
@@ -542,11 +519,13 @@ pub struct SqsConfig {
 
 impl SqsConfig {
     /// Check if a queue is a FIFO queue based on queue name
+    #[must_use]
     pub fn is_fifo_queue(&self, queue_name: &str) -> bool {
         queue_name.ends_with(".fifo")
     }
 
     /// Get destination queue names for a specific event type, falling back to default queues.
+    #[must_use]
     pub fn get_queue_names(&self, event_type: &str) -> Vec<&str> {
         let queue_names = self
             .queues
@@ -565,6 +544,7 @@ impl SqsConfig {
     }
 
     /// Build the full queue URL for a given queue name.
+    #[must_use]
     pub fn queue_url(&self, queue_name: &str) -> String {
         if self.host == "localhost" || self.host == "localstack" {
             // For LocalStack or custom endpoint
@@ -584,6 +564,7 @@ impl SqsConfig {
     }
 
     /// Get all destination queue URLs for a specific event type.
+    #[must_use]
     pub fn get_queue_urls(&self, event_type: &str) -> Vec<String> {
         self.get_queue_names(event_type)
             .into_iter()
@@ -592,6 +573,7 @@ impl SqsConfig {
     }
 
     /// Get every configured physical queue name.
+    #[must_use]
     pub fn all_queue_names(&self) -> HashSet<String> {
         let mut all_queues = HashSet::new();
 
@@ -609,6 +591,7 @@ impl SqsConfig {
     }
 
     /// Get every configured physical queue URL.
+    #[must_use]
     pub fn all_queue_urls(&self) -> Vec<String> {
         self.all_queue_names()
             .into_iter()
@@ -661,7 +644,8 @@ impl SqsConfig {
         }
     }
 
-    /// Get the endpoint URL for SQS (constructs from host/port or uses legacy endpoint_url)
+    /// Get the endpoint URL for SQS (constructs from host/port or uses legacy `endpoint_url`)
+    #[must_use]
     pub fn endpoint_url(&self) -> Option<String> {
         // If legacy endpoint_url is provided, use it
         if let Some(ref url) = self.endpoint_url {
@@ -678,7 +662,8 @@ impl SqsConfig {
         }
     }
 
-    /// Create a new SqsConfig with the specified components
+    /// Create a new `SqsConfig` with the specified components
+    #[must_use]
     pub fn new(
         region: String,
         account_id: String,
@@ -754,38 +739,38 @@ fn default_sqs_host() -> String {
     "localhost".to_string()
 }
 
-fn default_sqs_port() -> u16 {
+const fn default_sqs_port() -> u16 {
     4566 // LocalStack SQS default port
 }
 
-fn default_sqs_enabled() -> bool {
+const fn default_sqs_enabled() -> bool {
     true
 }
 
-fn default_sqs_max_retries() -> u32 {
+const fn default_sqs_max_retries() -> u32 {
     3
 }
 
-fn default_sqs_timeout_seconds() -> u64 {
+const fn default_sqs_timeout_seconds() -> u64 {
     30
 }
 
-/// OpenFGA HTTP client configuration shared by services that use
+/// `OpenFGA` HTTP client configuration shared by services that use
 /// `rustycog-permission` and by writers such as `sentinel-sync`.
 ///
 /// `host` / `port` are split deliberately, matching [`DatabaseConfig`] and
 /// [`SqsConfig`]. In tests, `port = 0` asks [`Self::actual_port`] to resolve a
-/// free random host port and cache it so the OpenFGA testcontainer fixture and
+/// free random host port and cache it so the `OpenFGA` testcontainer fixture and
 /// the app boot path agree on the same port.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OpenFgaClientConfig {
-    /// URL scheme for the OpenFGA HTTP API.
+    /// URL scheme for the `OpenFGA` HTTP API.
     #[serde(default = "default_openfga_scheme")]
     pub scheme: String,
-    /// Hostname or IP for the OpenFGA HTTP API.
+    /// Hostname or IP for the `OpenFGA` HTTP API.
     #[serde(default = "default_openfga_host")]
     pub host: String,
-    /// Port for the OpenFGA HTTP API. Use `0` in test configs for a random
+    /// Port for the `OpenFGA` HTTP API. Use `0` in test configs for a random
     /// free host port resolved through [`Self::actual_port`].
     #[serde(default = "default_openfga_port")]
     pub port: u16,
@@ -804,6 +789,7 @@ pub struct OpenFgaClientConfig {
 
 impl OpenFgaClientConfig {
     /// Build the API base URL from `scheme`, `host`, and the resolved port.
+    #[must_use]
     pub fn api_url(&self) -> String {
         format!(
             "{}://{}:{}",
@@ -848,7 +834,7 @@ impl OpenFgaClientConfig {
         }
     }
 
-    /// Clear cached random OpenFGA ports so the next container start gets a
+    /// Clear cached random `OpenFGA` ports so the next container start gets a
     /// fresh host port.
     pub fn clear_port_cache() {
         if let Some(cache) = PORT_CACHE.get() {
@@ -881,7 +867,7 @@ fn default_openfga_host() -> String {
     "localhost".to_string()
 }
 
-fn default_openfga_port() -> u16 {
+const fn default_openfga_port() -> u16 {
     8090
 }
 
@@ -899,17 +885,18 @@ pub enum QueueConfig {
 
 impl Default for QueueConfig {
     fn default() -> Self {
-        QueueConfig::Kafka(KafkaConfig::default())
+        Self::Kafka(KafkaConfig::default())
     }
 }
 
 impl QueueConfig {
     /// Check if queue is enabled
-    pub fn is_enabled(&self) -> bool {
+    #[must_use]
+    pub const fn is_enabled(&self) -> bool {
         match self {
-            QueueConfig::Kafka(config) => config.enabled,
-            QueueConfig::Sqs(config) => config.enabled,
-            QueueConfig::Disabled => false,
+            Self::Kafka(config) => config.enabled,
+            Self::Sqs(config) => config.enabled,
+            Self::Disabled => false,
         }
     }
 }
@@ -941,7 +928,7 @@ pub struct KafkaConfig {
     /// Compression type for messages (none, gzip, snappy, lz4, zstd)
     #[serde(default = "default_kafka_compression")]
     pub compression: String,
-    /// Security protocol (plaintext, ssl, sasl_plaintext, sasl_ssl)
+    /// Security protocol (plaintext, ssl, `sasl_plaintext`, `sasl_ssl`)
     #[serde(default = "default_kafka_security_protocol")]
     pub security_protocol: String,
     /// SASL mechanism (PLAIN, SCRAM-SHA-256, SCRAM-SHA-512, GSSAPI, OAUTHBEARER)
@@ -972,6 +959,7 @@ pub struct KafkaConfig {
 
 impl KafkaConfig {
     /// Get the brokers string for Kafka client configuration
+    #[must_use]
     pub fn brokers(&self) -> String {
         let port = self.actual_port();
         let primary_broker = format!("{}:{}", self.host, port);
@@ -1026,7 +1014,8 @@ impl KafkaConfig {
         }
     }
 
-    /// Create a new KafkaConfig with the specified components
+    /// Create a new `KafkaConfig` with the specified components
+    #[must_use]
     pub fn new(host: String, port: u16, user_events_topic: String, client_id: String) -> Self {
         Self {
             host,
@@ -1049,7 +1038,7 @@ impl KafkaConfig {
         }
     }
 
-    /// Create a KafkaConfig from a brokers string (for backward compatibility)
+    /// Create a `KafkaConfig` from a brokers string (for backward compatibility)
     pub fn from_brokers(brokers: &str) -> Result<Self, String> {
         let broker_list: Vec<&str> = brokers.split(',').collect();
         if broker_list.is_empty() {
@@ -1062,15 +1051,14 @@ impl KafkaConfig {
 
         if parts.len() != 2 {
             return Err(format!(
-                "Invalid broker format '{}', expected 'host:port'",
-                primary_broker
+                "Invalid broker format '{primary_broker}', expected 'host:port'"
             ));
         }
 
         let host = parts[0].to_string();
         let port = parts[1]
             .parse::<u16>()
-            .map_err(|_| format!("Invalid port in broker '{}'", primary_broker))?;
+            .map_err(|_| format!("Invalid port in broker '{primary_broker}'"))?;
 
         // Handle additional brokers
         let additional_brokers = if broker_list.len() > 1 {
@@ -1143,7 +1131,7 @@ fn default_kafka_host() -> String {
     "localhost".to_string()
 }
 
-fn default_kafka_port() -> u16 {
+const fn default_kafka_port() -> u16 {
     9092
 }
 
@@ -1155,15 +1143,15 @@ fn default_kafka_client_id() -> String {
     "rustycog-service".to_string()
 }
 
-fn default_kafka_timeout_ms() -> u64 {
+const fn default_kafka_timeout_ms() -> u64 {
     5000
 }
 
-fn default_kafka_max_retries() -> u32 {
+const fn default_kafka_max_retries() -> u32 {
     3
 }
 
-fn default_kafka_enabled() -> bool {
+const fn default_kafka_enabled() -> bool {
     true
 }
 
@@ -1307,7 +1295,7 @@ fn build_config_with_env_prefix(env_prefix: &str) -> Result<Config, ConfigError>
 
     // Load environment-specific configuration if different from base
     if env != "development" {
-        let env_config_path = format!("config/{}.toml", env);
+        let env_config_path = format!("config/{env}.toml");
         if Path::new(&env_config_path).exists() && env_config_path != config_file {
             tracing::debug!("Loading environment configuration from {}", env_config_path);
             builder =
@@ -1415,7 +1403,7 @@ pub fn load_sqs_config() -> Result<SqsConfig, ConfigError> {
     load_config_part::<SqsConfig>("sqs")
 }
 
-/// Load OpenFGA configuration
+/// Load `OpenFGA` configuration
 pub fn load_openfga_config() -> Result<OpenFgaClientConfig, ConfigError> {
     load_config_part::<OpenFgaClientConfig>("openfga")
 }
@@ -1427,7 +1415,7 @@ where
 {
     let default_config = T::create_default();
     toml::to_string_pretty(&default_config)
-        .map_err(|e| ConfigError::Message(format!("Failed to serialize default config: {}", e)))
+        .map_err(|e| ConfigError::Message(format!("Failed to serialize default config: {e}")))
 }
 
 #[cfg(test)]

@@ -1,4 +1,4 @@
-//! OrganizationMemberRepository SeaORM implementation
+//! `OrganizationMemberRepository` `SeaORM` implementation
 
 use async_trait::async_trait;
 use hive_domain::entity::{MemberStatus, OrganizationMember};
@@ -8,11 +8,11 @@ use hive_domain::port::repository::{
 };
 use rustycog_core::error::DomainError;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, Order,
-    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set,
+    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, Order,
+    PaginatorTrait, QueryFilter, QueryOrder,
 };
 use std::sync::Arc;
-use tracing::{debug, error};
+use tracing::debug;
 use uuid::Uuid;
 
 use super::entity::{organization_members, prelude::OrganizationMembers};
@@ -49,6 +49,7 @@ impl OrganizationMemberMapper {
         })
     }
 
+    #[must_use]
     pub fn to_active_model(member: &OrganizationMember) -> organization_members::ActiveModel {
         let status_str = match member.status {
             MemberStatus::Pending => "pending",
@@ -77,7 +78,8 @@ pub struct OrganizationMemberReadRepositoryImpl {
 }
 
 impl OrganizationMemberReadRepositoryImpl {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    #[must_use]
+    pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
 }
@@ -135,8 +137,8 @@ impl OrganizationMemberReadRepository for OrganizationMemberReadRepositoryImpl {
         let members = OrganizationMembers::find()
             .filter(organization_members::Column::OrganizationId.eq(*organization_id))
             .order_by(organization_members::Column::CreatedAt, Order::Desc)
-            .paginate(self.db.as_ref(), page_size as u64)
-            .fetch_page(page as u64)
+            .paginate(self.db.as_ref(), u64::from(page_size))
+            .fetch_page(u64::from(page))
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
@@ -234,7 +236,8 @@ pub struct OrganizationMemberWriteRepositoryImpl {
 }
 
 impl OrganizationMemberWriteRepositoryImpl {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    #[must_use]
+    pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
 }

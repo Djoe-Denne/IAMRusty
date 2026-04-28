@@ -58,7 +58,7 @@ impl CommandErrorMapper for AuthErrorMapper {
                     if Self::is_authentication_related_error(msg) {
                         CommandError::validation(
                             AuthErrorCode::AuthenticationFailed.as_str(),
-                            format!("Authentication failed: {}", msg),
+                            format!("Authentication failed: {msg}"),
                         )
                     } else {
                         CommandError::infrastructure(
@@ -73,7 +73,7 @@ impl CommandErrorMapper for AuthErrorMapper {
             if Self::is_authentication_related_error(&error_msg) {
                 CommandError::validation(
                     AuthErrorCode::AuthenticationFailed.as_str(),
-                    format!("Authentication failed: {}", error_msg),
+                    format!("Authentication failed: {error_msg}"),
                 )
             } else {
                 CommandError::infrastructure(
@@ -110,6 +110,7 @@ pub struct SignupCommand {
 
 impl SignupCommand {
     /// Create a new signup command
+    #[must_use]
     pub fn new(email: String, password: String) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -166,7 +167,7 @@ where
     A: LoginUseCase + ?Sized,
 {
     /// Create a new signup command handler
-    pub fn new(login_use_case: Arc<A>) -> Self {
+    pub const fn new(login_use_case: Arc<A>) -> Self {
         Self { login_use_case }
     }
 }

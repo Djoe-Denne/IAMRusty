@@ -63,7 +63,7 @@ pub struct GitLabUserBuilder {
 }
 
 impl GitLabUserBuilder {
-    pub fn id(mut self, id: i64) -> Self {
+    pub const fn id(mut self, id: i64) -> Self {
         self.id = Some(id);
         self
     }
@@ -74,12 +74,12 @@ impl GitLabUserBuilder {
     }
 
     pub fn email(mut self, email: Option<impl Into<String>>) -> Self {
-        self.email = Some(email.map(|e| e.into()));
+        self.email = Some(email.map(std::convert::Into::into));
         self
     }
 
     pub fn avatar_url(mut self, avatar_url: Option<impl Into<String>>) -> Self {
-        self.avatar_url = Some(avatar_url.map(|u| u.into()));
+        self.avatar_url = Some(avatar_url.map(std::convert::Into::into));
         self
     }
 

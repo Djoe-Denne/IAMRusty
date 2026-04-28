@@ -30,7 +30,7 @@ pub struct AppState {
 }
 
 impl AppState {
-    /// Create a new AppState
+    /// Create a new `AppState`
     pub fn new(
         command_service: Arc<GenericCommandService>,
         user_id_extractor: UserIdExtractor,
@@ -57,8 +57,9 @@ pub struct RouteBuilder {
 
 impl RouteBuilder {
     /// Create a new route builder
-    pub fn new(state: AppState) -> RouteBuilder {
-        RouteBuilder {
+    #[must_use]
+    pub fn new(state: AppState) -> Self {
+        Self {
             router: Router::new(),
             state,
             current_path: None,
@@ -90,6 +91,7 @@ impl RouteBuilder {
         }
     }
 
+    #[must_use]
     pub fn route(
         mut self,
         path: &str,
@@ -171,6 +173,7 @@ impl RouteBuilder {
     }
 
     /// Add nested routes with a prefix
+    #[must_use]
     pub fn nest(mut self, prefix: &str, router: Router<AppState>) -> Self {
         self.router = self.router.nest(prefix, router);
         self
@@ -232,20 +235,22 @@ pub async fn serve_router(app: Router, config: ServerConfig) -> anyhow::Result<(
 
 impl RouteBuilder {
     /// Mark the current route as requiring authentication
-    pub fn authenticated(mut self) -> Self {
+    #[must_use]
+    pub const fn authenticated(mut self) -> Self {
         self.pending_auth = Some(true);
         self
     }
 
     /// Mark the current route as allowing optional authentication
-    pub fn might_be_authenticated(mut self) -> Self {
+    #[must_use]
+    pub const fn might_be_authenticated(mut self) -> Self {
         self.pending_auth = Some(false);
         self
     }
 
     /// Attach a centralized permission guard to the current route.
     ///
-    /// `object_type` must match an OpenFGA type defined in `openfga/model.fga`
+    /// `object_type` must match an `OpenFGA` type defined in `openfga/model.fga`
     /// (e.g. `"organization"`, `"project"`, `"component"`, `"notification"`).
     /// The middleware extracts the deepest UUID path segment and builds a
     /// `ResourceRef` of that type, then calls

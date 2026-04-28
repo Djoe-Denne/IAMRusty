@@ -26,17 +26,17 @@ pub struct MemberFixture {
 
 impl MemberFixture {
     /// Get the member ID
-    pub fn id(&self) -> Uuid {
+    pub const fn id(&self) -> Uuid {
         self.inner.model.id
     }
 
     /// Get the project ID
-    pub fn project_id(&self) -> Uuid {
+    pub const fn project_id(&self) -> Uuid {
         self.inner.model.project_id
     }
 
     /// Get the user ID
-    pub fn user_id(&self) -> Uuid {
+    pub const fn user_id(&self) -> Uuid {
         self.inner.model.user_id
     }
 
@@ -46,12 +46,12 @@ impl MemberFixture {
     }
 
     /// Check if member is active (not removed)
-    pub fn is_active(&self) -> bool {
+    pub const fn is_active(&self) -> bool {
         self.inner.model.removed_at.is_none()
     }
 
     /// Get the inner model
-    pub fn model(&self) -> &MemberModel {
+    pub const fn model(&self) -> &MemberModel {
         &self.inner.model
     }
 }
@@ -69,7 +69,7 @@ pub struct MemberFixtureBuilder {
 
 impl MemberFixtureBuilder {
     /// Create a new member fixture builder
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             id: None,
             project_id: None,
@@ -81,19 +81,19 @@ impl MemberFixtureBuilder {
     }
 
     /// Set the member ID
-    pub fn id(mut self, id: Uuid) -> Self {
+    pub const fn id(mut self, id: Uuid) -> Self {
         self.id = Some(id);
         self
     }
 
     /// Set the project ID
-    pub fn for_project(mut self, project_id: Uuid) -> Self {
+    pub const fn for_project(mut self, project_id: Uuid) -> Self {
         self.project_id = Some(project_id);
         self
     }
 
     /// Set the user ID
-    pub fn user_id(mut self, user_id: Uuid) -> Self {
+    pub const fn user_id(mut self, user_id: Uuid) -> Self {
         self.user_id = Some(user_id);
         self
     }
@@ -130,7 +130,7 @@ impl MemberFixtureBuilder {
         self
     }
 
-    /// Set as org_cascade source
+    /// Set as `org_cascade` source
     pub fn source_org_cascade(mut self) -> Self {
         self.source = Some("org_cascade".to_string());
         self
@@ -143,7 +143,7 @@ impl MemberFixtureBuilder {
     }
 
     /// Set who added this member
-    pub fn added_by(mut self, added_by: Uuid) -> Self {
+    pub const fn added_by(mut self, added_by: Uuid) -> Self {
         self.added_by = Some(added_by);
         self
     }
@@ -167,7 +167,7 @@ impl MemberFixtureBuilder {
             user_id: ActiveValue::Set(user_id),
             source: ActiveValue::Set(self.source.unwrap_or_else(|| "direct".to_string())),
             added_by: ActiveValue::Set(self.added_by),
-            added_at: ActiveValue::Set(now.clone()),
+            added_at: ActiveValue::Set(now),
             removed_at: ActiveValue::NotSet,
             removal_reason: ActiveValue::NotSet,
             grace_period_ends_at: ActiveValue::NotSet,
@@ -201,7 +201,7 @@ impl MemberFixtureBuilder {
                         project_id: ActiveValue::Set(project_id),
                         permission_id: ActiveValue::Set(permission_level.clone()),
                         resource_id: ActiveValue::Set(resource.to_string()),
-                        created_at: ActiveValue::Set(now.clone()),
+                        created_at: ActiveValue::Set(now),
                     };
                     role_permission.insert(db.as_ref()).await?;
                     new_role_permission_id

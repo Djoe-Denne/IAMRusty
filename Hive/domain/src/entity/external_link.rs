@@ -6,7 +6,7 @@ use uuid::Uuid;
 use rustycog_core::error::DomainError;
 
 /// External link entity representing connection between organization and external provider
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExternalLink {
     pub id: Uuid,
     pub organization_id: Uuid,
@@ -24,7 +24,7 @@ pub struct ExternalLink {
 }
 
 /// Sync status enumeration
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SyncStatus {
     Success,
     Failed,
@@ -47,7 +47,7 @@ impl ExternalLink {
         Ok(Self {
             id: Uuid::new_v4(),
             organization_id,
-            organization_name: organization_name.clone(),
+            organization_name,
             provider_id,
             provider_source,
             provider_config,
@@ -112,22 +112,26 @@ impl ExternalLink {
     }
 
     /// Check if sync is currently enabled
-    pub fn is_sync_enabled(&self) -> bool {
+    #[must_use]
+    pub const fn is_sync_enabled(&self) -> bool {
         self.sync_enabled
     }
 
     /// Check if last sync was successful
-    pub fn is_last_sync_successful(&self) -> bool {
+    #[must_use]
+    pub const fn is_last_sync_successful(&self) -> bool {
         matches!(self.last_sync_status, Some(SyncStatus::Success))
     }
 
     /// Check if the link has ever been synced
-    pub fn has_been_synced(&self) -> bool {
+    #[must_use]
+    pub const fn has_been_synced(&self) -> bool {
         self.last_sync_at.is_some()
     }
 
     /// Get sync health status
-    pub fn get_sync_health(&self) -> SyncHealth {
+    #[must_use]
+    pub const fn get_sync_health(&self) -> SyncHealth {
         match (&self.last_sync_status, &self.sync_error) {
             (Some(SyncStatus::Success), _) => SyncHealth::Healthy,
             (Some(SyncStatus::Partial), _) => SyncHealth::Warning,
@@ -164,7 +168,7 @@ impl ExternalLink {
 }
 
 /// Sync health enumeration
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SyncHealth {
     Healthy,
     Warning,
@@ -174,23 +178,23 @@ pub enum SyncHealth {
 
 impl SyncStatus {
     /// Get string representation
-    pub fn as_str(&self) -> &'static str {
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
         match self {
-            SyncStatus::Success => "success",
-            SyncStatus::Failed => "failed",
-            SyncStatus::Partial => "partial",
+            Self::Success => "success",
+            Self::Failed => "failed",
+            Self::Partial => "partial",
         }
     }
 
     /// Parse from string
     pub fn from_str(s: &str) -> Result<Self, DomainError> {
         match s.to_lowercase().as_str() {
-            "success" => Ok(SyncStatus::Success),
-            "failed" => Ok(SyncStatus::Failed),
-            "partial" => Ok(SyncStatus::Partial),
+            "success" => Ok(Self::Success),
+            "failed" => Ok(Self::Failed),
+            "partial" => Ok(Self::Partial),
             _ => Err(DomainError::invalid_input(&format!(
-                "Unknown sync status: {}",
-                s
+                "Unknown sync status: {s}"
             ))),
         }
     }

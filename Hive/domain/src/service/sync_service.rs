@@ -50,15 +50,15 @@ pub trait SyncService: Send + Sync {
     /**
      * Execute sync for organization info
      *
-     * @param sync_job_id - The ID of the sync job
+     * @param `sync_job_id` - The ID of the sync job
      */
     async fn sync_organization_info(&self, sync_job_id: Uuid) -> Result<Organization, DomainError>;
 
     /**
      * Execute sync for members
      *
-     * @param sync_job_id - The ID of the sync job
-     * @param auto_invite - Whether to automatically invite new members found
+     * @param `sync_job_id` - The ID of the sync job
+     * @param `auto_invite` - Whether to automatically invite new members found
      */
     async fn sync_members(
         &self,
@@ -77,7 +77,7 @@ where
     PC: ExternalProviderClient,
 {
     /// Create a new sync service
-    pub fn new(
+    pub const fn new(
         sync_job_repo: Arc<SR>,
         external_link_repo: Arc<LR>,
         organization_repo: Arc<OR>,
@@ -106,7 +106,7 @@ where
         let updated_org = self
             .organization_service
             .update_organization(
-                organization_id.clone(),
+                organization_id,
                 Some(
                     external_org_info
                         .display_name
@@ -220,9 +220,9 @@ where
 
         let updated_org = self
             .update_organization_from_external(
-                external_link.organization_id.clone(),
+                external_link.organization_id,
                 &external_org_info,
-                organization.owner_user_id.clone(),
+                organization.owner_user_id,
             )
             .await?;
 
@@ -296,15 +296,14 @@ where
             }
 
             // For now, we'll invite by email if available, otherwise skip
-            let invite_identifier = match &external_member.email {
-                Some(email) => email.clone(),
-                None => {
-                    result.errors.push(format!(
-                        "External member {} has no email address, skipping",
-                        external_member.username
-                    ));
-                    continue;
-                }
+            let invite_identifier = if let Some(email) = &external_member.email {
+                email.clone()
+            } else {
+                result.errors.push(format!(
+                    "External member {} has no email address, skipping",
+                    external_member.username
+                ));
+                continue;
             };
 
             // Check if user is already a member

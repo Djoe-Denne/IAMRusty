@@ -155,8 +155,8 @@ async fn routes_project_created_to_sentinel_sync_queue() {
     let jwt_token = create_test_jwt_token(creator_id);
 
     let response = client
-        .post(&format!("{}/api/projects", base_url))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .post(format!("{base_url}/api/projects"))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "name": "SQS Routed Project",
@@ -216,12 +216,12 @@ async fn routes_member_added_to_sentinel_sync_queue() {
 
     let jwt_token = create_test_jwt_token(owner_id);
     let response = client
-        .post(&format!(
+        .post(format!(
             "{}/api/projects/{}/members",
             base_url,
             project.id()
         ))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "user_id": new_member_id.to_string(),

@@ -21,7 +21,7 @@ pub const SERVICE_PREFIX: &str = "/telegraph";
 
 /// Create and start the Telegraph HTTP server.
 ///
-/// Notification ownership is expressed in OpenFGA as
+/// Notification ownership is expressed in `OpenFGA` as
 /// `notification:{id}#recipient@user:{user_id}` tuples written by
 /// sentinel-sync on `NotificationCreated`. The route layer simply asks the
 /// centralized checker whether the caller can write the notification.

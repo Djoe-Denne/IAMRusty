@@ -34,6 +34,7 @@ mod processor {
 
     impl CompositeEventProcessor {
         /// Create a new composite event processor
+        #[must_use]
         pub fn new(config: EventHandlerConfig) -> Self {
             Self {
                 event_handlers: HashMap::new(),

@@ -20,7 +20,7 @@ pub fn to_domain_notification(
 ) -> Result<NotificationCommunication, DomainError> {
     // Deserialize content from JSON bytes
     let content_str = String::from_utf8(model.content)
-        .map_err(|e| DomainError::infrastructure_error(format!("Invalid UTF-8 content: {}", e)))?;
+        .map_err(|e| DomainError::infrastructure_error(format!("Invalid UTF-8 content: {e}")))?;
 
     // Create recipient - for notifications we primarily use user_id
     let recipient = CommunicationRecipient {
@@ -97,7 +97,7 @@ pub fn to_infra_notification(
     let title = notification.title;
 
     Ok(notifications::ActiveModel {
-        id: ActiveValue::Set(notification.id.unwrap_or_else(|| Uuid::new_v4())),
+        id: ActiveValue::Set(notification.id.unwrap_or_else(Uuid::new_v4)),
         user_id: ActiveValue::Set(user_id),
         title: ActiveValue::Set(title),
         content: ActiveValue::Set(notification.body.as_bytes().to_vec()),
@@ -105,8 +105,8 @@ pub fn to_infra_notification(
         is_read: ActiveValue::Set(notification.is_read.unwrap_or(false)),
         priority: ActiveValue::Set(priority),
         expires_at: ActiveValue::NotSet, // Could be calculated based on priority or content
-        created_at: ActiveValue::Set(notification.created_at.unwrap_or_else(|| Utc::now())),
-        updated_at: ActiveValue::Set(notification.updated_at.unwrap_or_else(|| Utc::now())),
+        created_at: ActiveValue::Set(notification.created_at.unwrap_or_else(Utc::now)),
+        updated_at: ActiveValue::Set(notification.updated_at.unwrap_or_else(Utc::now)),
         read_at: ActiveValue::Set(notification.read_at),
     })
 }

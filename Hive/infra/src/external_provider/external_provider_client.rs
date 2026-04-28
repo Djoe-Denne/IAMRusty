@@ -2,14 +2,11 @@ use async_trait::async_trait;
 use reqwest::{Client, Response};
 use serde_json::Value;
 use std::time::Duration;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 
 use hive_configuration::ExternalProviderServiceConfig;
-use hive_domain::{
-    port::service::{
-        ExternalMember, ExternalOrganizationInfo, ExternalProviderClient, ExternalProviderInfo,
-    },
-    RolePermission,
+use hive_domain::port::service::{
+    ExternalMember, ExternalOrganizationInfo, ExternalProviderClient,
 };
 use rustycog_core::error::DomainError;
 
@@ -27,7 +24,7 @@ impl HttpExternalProviderClient {
         base_url: String,
         api_key: Option<String>,
         timeout_seconds: u64,
-        max_retries: u32,
+        _max_retries: u32,
     ) -> Result<Self, DomainError> {
         let client = Client::builder()
             .timeout(Duration::from_secs(timeout_seconds))
@@ -64,7 +61,7 @@ impl HttpExternalProviderClient {
 
         if let Some(ref api_key) = self.api_key {
             if let Ok(auth_value) =
-                reqwest::header::HeaderValue::from_str(&format!("Bearer {}", api_key))
+                reqwest::header::HeaderValue::from_str(&format!("Bearer {api_key}"))
             {
                 headers.insert(reqwest::header::AUTHORIZATION, auth_value);
             }
@@ -95,7 +92,7 @@ impl HttpExternalProviderClient {
             );
             return Err(DomainError::external_service_error(
                 "external_provider_service",
-                &format!("HTTP {}: {}", status, response_text),
+                &format!("HTTP {status}: {response_text}"),
             ));
         }
 
@@ -103,7 +100,7 @@ impl HttpExternalProviderClient {
             error!("Failed to parse response: {}, body: {}", e, response_text);
             DomainError::external_service_error(
                 "external_provider_service",
-                &format!("Invalid JSON response: {}", e),
+                &format!("Invalid JSON response: {e}"),
             )
         })
     }
@@ -188,7 +185,7 @@ impl ExternalProviderClient for HttpExternalProviderClient {
 
         response
             .get("connected")
-            .and_then(|v| v.as_bool())
+            .and_then(serde_json::Value::as_bool)
             .ok_or_else(|| {
                 DomainError::external_service_error(
                     "external_provider_service",
@@ -253,7 +250,7 @@ impl ExternalProviderClient for HttpExternalProviderClient {
                     error!("Failed to deserialize member: {}", e);
                     DomainError::external_service_error(
                         "external_provider_service",
-                        &format!("Invalid member format: {}", e),
+                        &format!("Invalid member format: {e}"),
                     )
                 })
             })
@@ -281,7 +278,7 @@ impl ExternalProviderClient for HttpExternalProviderClient {
 
         response
             .get("is_member")
-            .and_then(|v| v.as_bool())
+            .and_then(serde_json::Value::as_bool)
             .ok_or_else(|| {
                 DomainError::external_service_error(
                     "external_provider_service",

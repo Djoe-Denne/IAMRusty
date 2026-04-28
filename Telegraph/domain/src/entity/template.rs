@@ -86,12 +86,14 @@ impl MessageTemplate {
     }
 
     /// Set template description
+    #[must_use]
     pub fn with_description(mut self, description: String) -> Self {
         self.description = Some(description);
         self
     }
 
     /// Add default variable
+    #[must_use]
     pub fn with_default_variable(mut self, key: String, value: String) -> Self {
         self.default_variables.insert(key, value);
         self
@@ -148,7 +150,7 @@ impl MessageTemplate {
                 let mut data = default_data.clone();
                 // Add variables to data payload
                 for (key, value) in &merged_variables {
-                    data.insert(format!("var_{}", key), value.clone());
+                    data.insert(format!("var_{key}"), value.clone());
                 }
 
                 Ok(RenderedTemplate::Notification {
@@ -171,7 +173,7 @@ impl MessageTemplate {
         let mut result = text.to_string();
 
         for (key, value) in variables {
-            let placeholder = format!("{{{{{}}}}}", key);
+            let placeholder = format!("{{{{{key}}}}}");
             result = result.replace(&placeholder, value);
         }
 
@@ -194,8 +196,7 @@ impl MessageTemplate {
             (CommunicationMode::Email, TemplateContent::Email { .. }) => Ok(()),
             (CommunicationMode::Notification, TemplateContent::Notification { .. }) => Ok(()),
             _ => Err(DomainError::invalid_message(format!(
-                "Communication mode {:?} does not match template content type",
-                mode
+                "Communication mode {mode:?} does not match template content type"
             ))),
         }
     }

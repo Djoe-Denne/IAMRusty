@@ -1,4 +1,4 @@
-//! Real OpenFGA test container utilities.
+//! Real `OpenFGA` test container utilities.
 //!
 //! Provides a singleton `openfga/openfga` container reachable over HTTP for
 //! integration tests that exercise the production [`rustycog_permission`]
@@ -17,7 +17,7 @@
 //!
 //! Splitting `host` and `port` instead of carrying a single `api_url` string
 //! mirrors the convention used by [`DatabaseConfig`] / [`SqsConfig`] and is
-//! what lets two test binaries run in parallel against their own OpenFGA
+//! what lets two test binaries run in parallel against their own `OpenFGA`
 //! containers — each one binds a different random host port instead of
 //! fighting over a fixed `8090`.
 //!
@@ -49,17 +49,17 @@ const MODEL_JSON: &str = include_str!("../../../../openfga/model.json");
 /// so `cleanup_existing_openfga_container` only tears down its own container.
 const CONTAINER_NAME: &str = "openfga_test-fga";
 
-/// OpenFGA Docker image tag pinned for reproducibility. Bump deliberately.
+/// `OpenFGA` Docker image tag pinned for reproducibility. Bump deliberately.
 const OPENFGA_IMAGE_TAG: &str = "v1.5.0";
 
-/// Global test OpenFGA container instance.
+/// Global test `OpenFGA` container instance.
 static TEST_OPENFGA_CONTAINER: OnceLock<Arc<Mutex<Option<Arc<TestOpenFgaContainer>>>>> =
     OnceLock::new();
 
 /// One-time guard for the cleanup-handler registration.
 static OPENFGA_CLEANUP_REGISTERED: AtomicBool = AtomicBool::new(false);
 
-/// Test OpenFGA container wrapper.
+/// Test `OpenFGA` container wrapper.
 ///
 /// Owns the underlying `ContainerAsync<GenericImage>` and exposes
 /// [`Self::cleanup`] for explicit teardown. The container is otherwise
@@ -110,7 +110,7 @@ pub struct TestOpenFga {
 }
 
 impl TestOpenFga {
-    /// Get or create the global test OpenFGA fixture.
+    /// Get or create the global test `OpenFGA` fixture.
     ///
     /// The first call starts the singleton container, creates a store, and
     /// uploads the authorization model. Subsequent calls reuse the same
@@ -138,14 +138,17 @@ impl TestOpenFga {
     }
 
     /// Base URL the production checker should use as `OpenFgaClientConfig::api_url`.
+    #[must_use]
     pub fn base_url(&self) -> &str {
         &self.base_url
     }
 
+    #[must_use]
     pub fn store_id(&self) -> &str {
         &self.store_id
     }
 
+    #[must_use]
     pub fn authorization_model_id(&self) -> &str {
         &self.authorization_model_id
     }
@@ -158,6 +161,7 @@ impl TestOpenFga {
     /// is the materialized random port — there is no `api_url` field on
     /// `OpenFgaClientConfig`; the URL is built on the fly via
     /// `OpenFgaClientConfig::api_url()`.
+    #[must_use]
     pub fn client_config(&self) -> OpenFgaClientConfig {
         OpenFgaClientConfig {
             scheme: "http".to_string(),
@@ -177,7 +181,7 @@ impl TestOpenFga {
     /// Grant `(subject, action, resource)` by writing the underlying
     /// **writable** relation tuple.
     ///
-    /// `Permission` maps to the *derived* OpenFGA relation that the
+    /// `Permission` maps to the *derived* `OpenFGA` relation that the
     /// production checker queries (`administer`, `own`, `read`, `write`).
     /// Tuples may only be written on relations the model declares with
     /// `[user]` direct restrictions, so this helper translates each
@@ -212,7 +216,7 @@ impl TestOpenFga {
     }
 
     /// Wildcard-allow: grants `(user:*, action, resource)`. Only meaningful
-    /// when the OpenFGA model declares the underlying relation with
+    /// when the `OpenFGA` model declares the underlying relation with
     /// `[user, user:*]` (today only `project.viewer`).
     pub async fn allow_wildcard(
         &self,
@@ -403,7 +407,7 @@ impl TestOpenFga {
     }
 }
 
-/// OpenFGA tuple key returned by the `Read` endpoint.
+/// `OpenFGA` tuple key returned by the `Read` endpoint.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TupleKey {
     pub user: String,
@@ -411,7 +415,7 @@ pub struct TupleKey {
     pub object: String,
 }
 
-/// Map a `(object_type, Permission)` pair to the OpenFGA relation a tuple
+/// Map a `(object_type, Permission)` pair to the `OpenFGA` relation a tuple
 /// must be written on so that `Check(subject, Permission::relation(),
 /// object)` succeeds against the checked-in
 /// [`openfga/model.json`](../../../../openfga/model.json) authorization
@@ -420,7 +424,7 @@ pub struct TupleKey {
 /// `Permission::relation()` returns the *derived* relation
 /// (`administer`, `own`, `read`, `write`); those relations are computed
 /// from the underlying direct relations (`admin`, `owner`, `viewer`,
-/// `member`). OpenFGA only allows tuple writes against direct relations,
+/// `member`). `OpenFGA` only allows tuple writes against direct relations,
 /// so this helper inverts the mapping per object type.
 ///
 /// Special cases:
@@ -432,12 +436,13 @@ pub struct TupleKey {
 ///   relations are *only* derivable from a parent project tuple — write
 ///   `(subject, Admin, project:<id>)` instead of trying to grant admin
 ///   directly on a component.
+#[must_use]
 pub fn writable_relation_for(object_type: &str, action: Permission) -> &'static str {
     match (object_type, action) {
         ("notification", _) => "recipient",
         ("component", Permission::Read) => "viewer",
         ("component", Permission::Write) => "editor",
-        ("component", Permission::Admin) | ("component", Permission::Owner) => panic!(
+        ("component", Permission::Admin | Permission::Owner) => panic!(
             "component admin/owner is not directly writable; grant the parent project tuple instead"
         ),
         (_, Permission::Read) => "viewer",
@@ -447,7 +452,7 @@ pub fn writable_relation_for(object_type: &str, action: Permission) -> &'static 
     }
 }
 
-/// Get or create the global OpenFGA test container. Returns the wrapper
+/// Get or create the global `OpenFGA` test container. Returns the wrapper
 /// plus the resolved base URL and host port.
 ///
 /// Port resolution flow:
@@ -547,7 +552,7 @@ async fn register_openfga_cleanup_handler() {
     info!("Registering OpenFGA test container cleanup handler");
 }
 
-/// Poll `GET {base_url}/healthz` until OpenFGA reports SERVING. Bounded at
+/// Poll `GET {base_url}/healthz` until `OpenFGA` reports SERVING. Bounded at
 /// 30 attempts × 1s — far more than the typical 1–2s warm-up.
 async fn wait_for_openfga(base_url: &str) -> Result<(), Box<dyn std::error::Error>> {
     let url = format!("{base_url}/healthz");
@@ -625,7 +630,7 @@ async fn provision_store_and_model(
     Ok((store.id, model.authorization_model_id))
 }
 
-/// Publish the resolved fixture coordinates into every OpenFGA env-var
+/// Publish the resolved fixture coordinates into every `OpenFGA` env-var
 /// prefix that exists in this repo today. Confined to one `unsafe` block
 /// per the testcontainer-fixture skill so env mutation has a single source.
 ///

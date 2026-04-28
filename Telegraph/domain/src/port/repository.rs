@@ -8,7 +8,7 @@ use crate::entity::delivery::MessageDelivery;
 use crate::error::DomainError;
 use uuid::Uuid;
 
-/// Read operations for CommunicationMessage entity
+/// Read operations for `CommunicationMessage` entity
 #[async_trait::async_trait]
 pub trait NotificationReadRepository: Send + Sync {
     /// Get notifications for a user

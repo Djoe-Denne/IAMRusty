@@ -7,15 +7,16 @@ use sea_orm::{ActiveModelTrait, ActiveValue, DatabaseConnection, DbErr, EntityTr
 use std::sync::Arc;
 use tracing::{debug, error};
 
-/// SeaORM implementation of UserWriteRepository
+/// `SeaORM` implementation of `UserWriteRepository`
 #[derive(Clone)]
 pub struct UserWriteRepositoryImpl {
     db: Arc<DatabaseConnection>,
 }
 
 impl UserWriteRepositoryImpl {
-    /// Create a new UserWriteRepositoryImpl
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    /// Create a new `UserWriteRepositoryImpl`
+    #[must_use]
+    pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
 

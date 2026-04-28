@@ -86,6 +86,7 @@ pub struct BaseEvent {
 
 impl BaseEvent {
     /// Create a new base event
+    #[must_use]
     pub fn new(event_type: String, aggregate_id: Uuid) -> Self {
         Self {
             event_id: Uuid::new_v4(),
@@ -98,13 +99,15 @@ impl BaseEvent {
     }
 
     /// Add metadata to the event
+    #[must_use]
     pub fn with_metadata(mut self, key: String, value: String) -> Self {
         self.metadata.insert(key, value);
         self
     }
 
     /// Set the event version
-    pub fn with_version(mut self, version: u32) -> Self {
+    #[must_use]
+    pub const fn with_version(mut self, version: u32) -> Self {
         self.version = version;
         self
     }

@@ -4,7 +4,7 @@ use iam_domain::port::repository::{UserEmailReadRepository, UserEmailWriteReposi
 use sea_orm::DbErr;
 use uuid::Uuid;
 
-/// Combined UserEmail Repository that delegates to separate read/write implementations
+/// Combined `UserEmail` Repository that delegates to separate read/write implementations
 #[derive(Clone)]
 pub struct CombinedUserEmailRepository<R, W>
 where
@@ -21,7 +21,7 @@ where
     W: UserEmailWriteRepository<Error = DbErr>,
 {
     /// Create a new combined repository
-    pub fn new(read_repo: R, write_repo: W) -> Self {
+    pub const fn new(read_repo: R, write_repo: W) -> Self {
         Self {
             read_repo,
             write_repo,

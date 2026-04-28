@@ -23,7 +23,8 @@ pub struct NotificationWriteRepositoryImpl {
 }
 
 impl NotificationWriteRepositoryImpl {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    #[must_use]
+    pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
 }
@@ -46,7 +47,7 @@ impl NotificationWriteRepository for NotificationWriteRepositoryImpl {
             .exec_with_returning(self.db.as_ref())
             .await
             .map_err(|e| {
-                DomainError::infrastructure_error(format!("Failed to create notification: {}", e))
+                DomainError::infrastructure_error(format!("Failed to create notification: {e}"))
             })?;
 
         mappers::to_domain_notification(result)
@@ -64,8 +65,7 @@ impl NotificationWriteRepository for NotificationWriteRepositoryImpl {
 
         let txn = self.db.begin().await.map_err(|e| {
             DomainError::infrastructure_error(format!(
-                "Failed to begin notification transaction: {}",
-                e
+                "Failed to begin notification transaction: {e}"
             ))
         })?;
 
@@ -75,10 +75,7 @@ impl NotificationWriteRepository for NotificationWriteRepositoryImpl {
                 .exec_with_returning(&txn)
                 .await
                 .map_err(|e| {
-                    DomainError::infrastructure_error(format!(
-                        "Failed to create notification: {}",
-                        e
-                    ))
+                    DomainError::infrastructure_error(format!("Failed to create notification: {e}"))
                 })?;
 
             let notification = mappers::to_domain_notification(notification_row)?;
@@ -89,8 +86,7 @@ impl NotificationWriteRepository for NotificationWriteRepositoryImpl {
                 .await
                 .map_err(|e| {
                     DomainError::infrastructure_error(format!(
-                        "Failed to create delivery record: {}",
-                        e
+                        "Failed to create delivery record: {e}"
                     ))
                 })?;
             let delivery = mappers::to_domain_delivery(delivery_row)?;
@@ -103,8 +99,7 @@ impl NotificationWriteRepository for NotificationWriteRepositoryImpl {
             Ok(created) => {
                 txn.commit().await.map_err(|e| {
                     DomainError::infrastructure_error(format!(
-                        "Failed to commit notification transaction: {}",
-                        e
+                        "Failed to commit notification transaction: {e}"
                     ))
                 })?;
                 Ok(created)
@@ -139,15 +134,13 @@ impl NotificationWriteRepository for NotificationWriteRepositoryImpl {
             .await
             .map_err(|e| {
                 DomainError::infrastructure_error(format!(
-                    "Failed to mark notification as read: {}",
-                    e
+                    "Failed to mark notification as read: {e}"
                 ))
             })?;
 
         if result.rows_affected == 0 {
             return Err(DomainError::notification_not_found(format!(
-                "Notification not found: {}",
-                notification_id
+                "Notification not found: {notification_id}"
             )));
         }
 
@@ -157,14 +150,12 @@ impl NotificationWriteRepository for NotificationWriteRepositoryImpl {
             .await
             .map_err(|e| {
                 DomainError::infrastructure_error(format!(
-                    "Failed to fetch updated notification: {}",
-                    e
+                    "Failed to fetch updated notification: {e}"
                 ))
             })?
             .ok_or_else(|| {
                 DomainError::notification_not_found(format!(
-                    "Notification not found after update: {}",
-                    notification_id
+                    "Notification not found after update: {notification_id}"
                 ))
             })?;
 
@@ -181,8 +172,7 @@ impl NotificationWriteRepository for NotificationWriteRepositoryImpl {
             .await
             .map_err(|e| {
                 DomainError::infrastructure_error(format!(
-                    "Failed to delete expired notifications: {}",
-                    e
+                    "Failed to delete expired notifications: {e}"
                 ))
             })?;
 
@@ -205,10 +195,7 @@ impl NotificationWriteRepository for NotificationWriteRepositoryImpl {
             .exec_with_returning(self.db.as_ref())
             .await
             .map_err(|e| {
-                DomainError::infrastructure_error(format!(
-                    "Failed to create delivery record: {}",
-                    e
-                ))
+                DomainError::infrastructure_error(format!("Failed to create delivery record: {e}"))
             })?;
 
         mappers::to_domain_delivery(result)
@@ -249,13 +236,12 @@ impl NotificationWriteRepository for NotificationWriteRepositoryImpl {
         }
 
         let result = update.exec(self.db.as_ref()).await.map_err(|e| {
-            DomainError::infrastructure_error(format!("Failed to update delivery status: {}", e))
+            DomainError::infrastructure_error(format!("Failed to update delivery status: {e}"))
         })?;
 
         if result.rows_affected == 0 {
             return Err(DomainError::notification_not_found(format!(
-                "Delivery record not found: {}",
-                delivery_id
+                "Delivery record not found: {delivery_id}"
             )));
         }
 
@@ -264,15 +250,11 @@ impl NotificationWriteRepository for NotificationWriteRepositoryImpl {
             .one(self.db.as_ref())
             .await
             .map_err(|e| {
-                DomainError::infrastructure_error(format!(
-                    "Failed to fetch updated delivery: {}",
-                    e
-                ))
+                DomainError::infrastructure_error(format!("Failed to fetch updated delivery: {e}"))
             })?
             .ok_or_else(|| {
                 DomainError::notification_not_found(format!(
-                    "Delivery record not found after update: {}",
-                    delivery_id
+                    "Delivery record not found after update: {delivery_id}"
                 ))
             })?;
 
@@ -306,15 +288,13 @@ impl NotificationWriteRepository for NotificationWriteRepositoryImpl {
             .await
             .map_err(|e| {
                 DomainError::infrastructure_error(format!(
-                    "Failed to increment delivery attempt: {}",
-                    e
+                    "Failed to increment delivery attempt: {e}"
                 ))
             })?;
 
         if result.rows_affected == 0 {
             return Err(DomainError::notification_not_found(format!(
-                "Delivery record not found: {}",
-                delivery_id
+                "Delivery record not found: {delivery_id}"
             )));
         }
 
@@ -323,15 +303,11 @@ impl NotificationWriteRepository for NotificationWriteRepositoryImpl {
             .one(self.db.as_ref())
             .await
             .map_err(|e| {
-                DomainError::infrastructure_error(format!(
-                    "Failed to fetch updated delivery: {}",
-                    e
-                ))
+                DomainError::infrastructure_error(format!("Failed to fetch updated delivery: {e}"))
             })?
             .ok_or_else(|| {
                 DomainError::notification_not_found(format!(
-                    "Delivery record not found after update: {}",
-                    delivery_id
+                    "Delivery record not found after update: {delivery_id}"
                 ))
             })?;
 

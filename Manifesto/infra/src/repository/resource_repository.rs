@@ -10,7 +10,8 @@ use uuid::Uuid;
 use super::entity::{prelude::Resources, resources};
 
 /// Generate the resource ID for a specific component instance
-/// Uses just the UUID since resource_type identifies it as a component_instance
+/// Uses just the UUID since `resource_type` identifies it as a `component_instance`
+#[must_use]
 pub fn component_resource_id(component_id: &Uuid) -> String {
     component_id.to_string()
 }
@@ -32,7 +33,8 @@ pub struct ResourceReadRepositoryImpl {
 }
 
 impl ResourceReadRepositoryImpl {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    #[must_use]
+    pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
 
@@ -96,7 +98,8 @@ pub struct ResourceWriteRepositoryImpl {
 }
 
 impl ResourceWriteRepositoryImpl {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    #[must_use]
+    pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
 }

@@ -16,7 +16,8 @@ pub struct ProjectMemberRolePermission {
 
 impl ProjectMemberRolePermission {
     /// Create a new project member role permission
-    pub fn new(
+    #[must_use]
+    pub const fn new(
         id: Option<Uuid>,
         member_id: Uuid,
         role_permission: RolePermission,

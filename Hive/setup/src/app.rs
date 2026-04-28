@@ -133,7 +133,7 @@ impl Application {
 
         tracing::info!("Hive application initialized successfully");
 
-        Ok(Application {
+        Ok(Self {
             config,
             state,
             outbox_dispatcher,
@@ -196,6 +196,7 @@ impl Application {
         create_router(self.state.clone())
     }
 
+    #[must_use]
     pub fn start_background_tasks(&self) -> Vec<tokio::task::JoinHandle<anyhow::Result<()>>> {
         let dispatcher = self.outbox_dispatcher.clone();
         vec![tokio::spawn(async move {
@@ -255,8 +256,7 @@ async fn setup_application(
         sync_service,
     ) = setup_domain(db.clone(), config).await?;
 
-    let outbox_unit_of_work =
-        Arc::new(HiveOutboxUnitOfWorkImpl::new(db, OutboxRecorder::default()));
+    let outbox_unit_of_work = Arc::new(HiveOutboxUnitOfWorkImpl::new(db, OutboxRecorder));
 
     // Create organization use case
     let organization_usecase = Arc::new(OrganizationUseCaseImpl::new_with_outbox_unit_of_work(
@@ -332,14 +332,14 @@ async fn setup_domain(
     ) = setup_infra(db, config).await?;
 
     let role_service = Arc::new(RoleServiceImpl::new(
-        member_role_repo.clone(),
-        resource_repo.clone(),
-        permission_repo.clone(),
-        role_permission_repo.clone(),
+        member_role_repo,
+        resource_repo,
+        permission_repo,
+        role_permission_repo,
     ));
 
     let member_service = Arc::new(MemberServiceImpl::new(
-        member_repo.clone(),
+        member_repo,
         organization_repo.clone(),
         role_service.clone(),
     ));
@@ -351,7 +351,7 @@ async fn setup_domain(
     ));
 
     let invitation_service = Arc::new(InvitationServiceImpl::new(
-        invitation_repo.clone(),
+        invitation_repo,
         organization_service.clone(),
         member_service.clone(),
     ));
@@ -359,14 +359,14 @@ async fn setup_domain(
     let external_provider_service = Arc::new(ExternalProviderServiceImpl::new(
         organization_repo.clone(),
         external_link_repo.clone(),
-        external_provider_repo.clone(),
+        external_provider_repo,
         provider_client.clone(),
     ));
 
     let sync_service = Arc::new(SyncServiceImpl::new(
-        sync_job_repo.clone(),
-        external_link_repo.clone(),
-        organization_repo.clone(),
+        sync_job_repo,
+        external_link_repo,
+        organization_repo,
         organization_service.clone(),
         invitation_service.clone(),
         provider_client,
@@ -500,12 +500,13 @@ pub struct AppBuilder {
 
 impl AppBuilder {
     /// Create a new app builder
-    pub fn new(config: AppConfig) -> Self {
+    #[must_use]
+    pub const fn new(config: AppConfig) -> Self {
         Self { config }
     }
 
     /// Build the Hive application
     pub async fn build(self) -> Result<Application, anyhow::Error> {
-        Ok(Application::new(self.config).await?)
+        Application::new(self.config).await
     }
 }

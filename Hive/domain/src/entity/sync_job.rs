@@ -5,7 +5,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 /// Sync job entity for tracking synchronization operations
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SyncJob {
     pub id: Uuid,
     pub organization_external_link_id: Uuid,
@@ -23,7 +23,7 @@ pub struct SyncJob {
 }
 
 /// Sync job type enumeration
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SyncJobType {
     FullSync,
     IncrementalSync,
@@ -31,7 +31,7 @@ pub enum SyncJobType {
 }
 
 /// Sync job status enumeration
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SyncJobStatus {
     Running,
     Completed,
@@ -40,6 +40,7 @@ pub enum SyncJobStatus {
 
 impl SyncJob {
     /// Create a new sync job
+    #[must_use]
     pub fn new(
         organization_external_link_id: Uuid,
         job_type: SyncJobType,
@@ -154,41 +155,48 @@ impl SyncJob {
     }
 
     /// Check if job is running
-    pub fn is_running(&self) -> bool {
+    #[must_use]
+    pub const fn is_running(&self) -> bool {
         matches!(self.status, SyncJobStatus::Running)
     }
 
     /// Check if job is completed
-    pub fn is_completed(&self) -> bool {
+    #[must_use]
+    pub const fn is_completed(&self) -> bool {
         matches!(self.status, SyncJobStatus::Completed)
     }
 
     /// Check if job failed
-    pub fn is_failed(&self) -> bool {
+    #[must_use]
+    pub const fn is_failed(&self) -> bool {
         matches!(self.status, SyncJobStatus::Failed)
     }
 
     /// Check if job is finished (completed or failed)
-    pub fn is_finished(&self) -> bool {
+    #[must_use]
+    pub const fn is_finished(&self) -> bool {
         self.is_completed() || self.is_failed()
     }
 
     /// Get job duration
+    #[must_use]
     pub fn get_duration(&self) -> Option<chrono::Duration> {
         self.completed_at.map(|end| end - self.started_at)
     }
 
     /// Calculate success rate
+    #[must_use]
     pub fn get_success_rate(&self) -> f64 {
         if self.items_processed == 0 {
             return 1.0;
         }
 
         let successful = self.items_created + self.items_updated;
-        successful as f64 / self.items_processed as f64
+        f64::from(successful) / f64::from(self.items_processed)
     }
 
     /// Get summary statistics
+    #[must_use]
     pub fn get_summary(&self) -> SyncJobSummary {
         SyncJobSummary {
             total_processed: self.items_processed,
@@ -212,23 +220,23 @@ pub struct SyncJobSummary {
 
 impl SyncJobType {
     /// Get string representation
-    pub fn as_str(&self) -> &'static str {
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
         match self {
-            SyncJobType::FullSync => "full_sync",
-            SyncJobType::IncrementalSync => "incremental_sync",
-            SyncJobType::MembersOnly => "members_only",
+            Self::FullSync => "full_sync",
+            Self::IncrementalSync => "incremental_sync",
+            Self::MembersOnly => "members_only",
         }
     }
 
     /// Parse from string
     pub fn from_str(s: &str) -> Result<Self, DomainError> {
         match s.to_lowercase().as_str() {
-            "full_sync" => Ok(SyncJobType::FullSync),
-            "incremental_sync" => Ok(SyncJobType::IncrementalSync),
-            "members_only" => Ok(SyncJobType::MembersOnly),
+            "full_sync" => Ok(Self::FullSync),
+            "incremental_sync" => Ok(Self::IncrementalSync),
+            "members_only" => Ok(Self::MembersOnly),
             _ => Err(DomainError::invalid_input(&format!(
-                "Unknown sync job type: {}",
-                s
+                "Unknown sync job type: {s}"
             ))),
         }
     }
@@ -236,23 +244,23 @@ impl SyncJobType {
 
 impl SyncJobStatus {
     /// Get string representation
-    pub fn as_str(&self) -> &'static str {
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
         match self {
-            SyncJobStatus::Running => "running",
-            SyncJobStatus::Completed => "completed",
-            SyncJobStatus::Failed => "failed",
+            Self::Running => "running",
+            Self::Completed => "completed",
+            Self::Failed => "failed",
         }
     }
 
     /// Parse from string
     pub fn from_str(s: &str) -> Result<Self, DomainError> {
         match s.to_lowercase().as_str() {
-            "running" => Ok(SyncJobStatus::Running),
-            "completed" => Ok(SyncJobStatus::Completed),
-            "failed" => Ok(SyncJobStatus::Failed),
+            "running" => Ok(Self::Running),
+            "completed" => Ok(Self::Completed),
+            "failed" => Ok(Self::Failed),
             _ => Err(DomainError::invalid_input(&format!(
-                "Unknown sync job status: {}",
-                s
+                "Unknown sync job status: {s}"
             ))),
         }
     }

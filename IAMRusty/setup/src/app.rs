@@ -4,7 +4,6 @@ use chrono::Duration;
 use std::sync::Arc;
 use tracing::info;
 
-use iam_configuration::ServerConfig as HttpServerConfig;
 use iam_http_server::{create_app_routes, create_router};
 use iam_infra::{
     auth::{
@@ -63,7 +62,10 @@ pub struct IAMRustyApp {
 }
 
 impl IAMRustyApp {
-    pub fn new(app_state: AppState, outbox_dispatcher: Arc<OutboxDispatcher<DomainError>>) -> Self {
+    pub const fn new(
+        app_state: AppState,
+        outbox_dispatcher: Arc<OutboxDispatcher<DomainError>>,
+    ) -> Self {
         Self {
             app_state,
             outbox_dispatcher,
@@ -74,10 +76,12 @@ impl IAMRustyApp {
         create_router(self.app_state.clone())
     }
 
+    #[must_use]
     pub fn state(&self) -> AppState {
         self.app_state.clone()
     }
 
+    #[must_use]
     pub fn start_background_tasks(&self) -> Vec<tokio::task::JoinHandle<anyhow::Result<()>>> {
         let dispatcher = self.outbox_dispatcher.clone();
         vec![tokio::spawn(async move {
@@ -209,8 +213,7 @@ where
 
     let token_read_repo = TokenReadRepositoryImpl::new(db_pool.get_read_connection());
     let token_write_repo = TokenWriteRepositoryImpl::new(db_pool.get_write_connection());
-    let token_repo_login =
-        CombinedTokenRepository::new(token_read_repo.clone(), token_write_repo.clone());
+    let token_repo_login = CombinedTokenRepository::new(token_read_repo, token_write_repo);
 
     let token_read_repo_link = TokenReadRepositoryImpl::new(db_pool.get_read_connection());
     let token_write_repo_link = TokenWriteRepositoryImpl::new(db_pool.get_write_connection());
@@ -243,7 +246,7 @@ where
     tracing::debug!("Successfully created JWT algorithm config");
 
     // Convert configuration JwtAlgorithm to infra JwtAlgorithm
-    let jwt_algorithm = match jwt_algorithm_config.clone() {
+    let jwt_algorithm = match jwt_algorithm_config {
         iam_configuration::JwtAlgorithm::HS256(secret) => {
             tracing::info!(
                 "Using HMAC256 JWT algorithm (secret length: {})",
@@ -275,9 +278,8 @@ where
 
     // Create registration token service
     tracing::info!("Creating registration token service");
-    let registration_token_service = Arc::new(
-        iam_infra::token::RegistrationTokenServiceImpl::new(jwt_algorithm.clone()).unwrap(),
-    );
+    let registration_token_service =
+        Arc::new(iam_infra::token::RegistrationTokenServiceImpl::new(jwt_algorithm).unwrap());
 
     // Create OAuth service for OAuth flows
     let mut oauth_service = iam_domain::service::oauth_service::OAuthService::new(
@@ -332,7 +334,7 @@ where
     let signup_transaction = Arc::new(SignupTransactionImpl::new(db_pool.get_write_connection()));
     let outbox_unit_of_work = Arc::new(IamOutboxUnitOfWorkImpl::new(
         db_pool.clone(),
-        OutboxRecorder::default(),
+        OutboxRecorder,
     ));
     let auth_service = Arc::new(
         iam_domain::service::auth_service::AuthService::new_with_signup_transaction_and_outbox(
@@ -340,7 +342,7 @@ where
                 user_repository: Arc::new(user_repo.clone()),
                 user_email_repository: Arc::new(user_email_repo.clone()),
                 email_verification_repository: Arc::new(email_verification_repo.clone()),
-                password_service: password_service_adapter.clone(),
+                password_service: password_service_adapter,
                 token_service: token_service.clone(),
                 registration_token_service: registration_token_service.clone(),
                 event_publisher: event_publisher.clone(),
@@ -361,8 +363,8 @@ where
                 user_read_repo: Arc::new(user_repo.clone()),
                 user_write_repo: Arc::new(user_repo.clone()),
                 user_email_repo: Arc::new(user_email_repo.clone()),
-                email_verification_repo: Arc::new(email_verification_repo.clone()),
-                registration_token_service: registration_token_service.clone(),
+                email_verification_repo: Arc::new(email_verification_repo),
+                registration_token_service,
                 token_service: token_service.clone(),
                 event_publisher: event_publisher.clone(),
             },
@@ -376,7 +378,7 @@ where
     // Create password reset use case
     tracing::info!("Creating password reset service adapter");
     let password_reset_service_adapter =
-        Arc::new(PasswordResetServiceAdapter::new(password_service.clone()));
+        Arc::new(PasswordResetServiceAdapter::new(password_service));
 
     tracing::info!("Creating password reset use case");
     let password_reset_usecase = Arc::new(PasswordResetUseCaseImpl::new_with_outbox_unit_of_work(
@@ -416,7 +418,7 @@ where
     let refresh_token_service_for_commands =
         Arc::new(iam_domain::service::RefreshTokenServiceImpl::new(
             Arc::new(refresh_token_repo),
-            token_service.clone(),
+            token_service,
         ));
 
     let user_usecase_for_commands = UserUseCaseImpl::new(user_service_for_commands);
@@ -431,8 +433,8 @@ where
             token: Arc::new(token_usecase_for_commands),
             user: Arc::new(user_usecase_for_commands),
             login_auth: Arc::new(login_usecase),
-            registration: registration_usecase.clone(),
-            password_reset: password_reset_usecase.clone(),
+            registration: registration_usecase,
+            password_reset: password_reset_usecase,
         },
         config.command.clone(),
     );
@@ -457,14 +459,7 @@ pub async fn run_server(app: IAMRustyApp, app_config: ServerConfig) -> Result<()
     info!("Starting IAM service...");
 
     // Convert our ServerConfig to HttpServerConfig
-    let server_config = HttpServerConfig {
-        host: app_config.host,
-        port: app_config.port,
-        tls_enabled: app_config.tls_enabled,
-        tls_cert_path: app_config.tls_cert_path,
-        tls_key_path: app_config.tls_key_path,
-        tls_port: app_config.tls_port,
-    };
+    let server_config = app_config;
 
     // Start server (HTTP or HTTPS based on configuration)
     if server_config.tls_enabled {
@@ -504,7 +499,7 @@ pub async fn run_server(app: IAMRustyApp, app_config: ServerConfig) -> Result<()
         result = &mut server_handle => {
             match result {
                 Ok(Ok(())) => Ok(()),
-                Ok(Err(error)) => Err(error.into()),
+                Ok(Err(error)) => Err(error),
                 Err(error) => Err(anyhow::anyhow!("IAMRusty HTTP server task panicked: {}", error)),
             }
         }

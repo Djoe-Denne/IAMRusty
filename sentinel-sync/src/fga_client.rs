@@ -1,4 +1,4 @@
-//! Minimal OpenFGA HTTP client used by sentinel-sync to write and delete
+//! Minimal `OpenFGA` HTTP client used by sentinel-sync to write and delete
 //! relation tuples. Keeps only the surface the sync worker needs.
 
 use std::time::Duration;
@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use crate::config::OpenFgaConfig;
 
-/// One relation tuple, expressed in the OpenFGA wire format
+/// One relation tuple, expressed in the `OpenFGA` wire format
 /// `{object_type}:{object_id}#{relation}@{user_type}:{user_id}`.
 #[derive(Debug, Clone, Serialize, PartialEq, Eq, Hash)]
 pub struct Tuple {
@@ -89,7 +89,7 @@ struct TupleKeyList<'a> {
     tuple_keys: Vec<TupleKey<'a>>,
 }
 
-/// Thin HTTP client around OpenFGA's `/stores/{id}/write` endpoint.
+/// Thin HTTP client around `OpenFGA`'s `/stores/{id}/write` endpoint.
 #[derive(Clone)]
 pub struct OpenFgaWriteClient {
     config: OpenFgaConfig,
@@ -115,7 +115,7 @@ impl OpenFgaWriteClient {
 
     /// Write and/or delete a batch of tuples atomically.
     ///
-    /// OpenFGA's write endpoint is atomic per call, so the caller can fuse
+    /// `OpenFGA`'s write endpoint is atomic per call, so the caller can fuse
     /// "remove old, add new" transitions into one request.
     pub async fn write(&self, writes: &[Tuple], deletes: &[Tuple]) -> Result<()> {
         if writes.is_empty() && deletes.is_empty() {

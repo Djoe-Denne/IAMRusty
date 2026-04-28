@@ -19,7 +19,8 @@ use super::role_permission_repository::RolePermissionReadRepositoryImpl;
 pub struct ProjectMemberRolePermissionMapper;
 
 impl ProjectMemberRolePermissionMapper {
-    pub fn to_domain(
+    #[must_use]
+    pub const fn to_domain(
         model: project_member_role_permissions::Model,
         role_permission: RolePermission,
     ) -> ProjectMemberRolePermission {
@@ -57,7 +58,8 @@ pub struct ProjectMemberRolePermissionReadRepositoryImpl {
 }
 
 impl ProjectMemberRolePermissionReadRepositoryImpl {
-    pub fn new(
+    #[must_use]
+    pub const fn new(
         db: Arc<DatabaseConnection>,
         role_permission_repo: Arc<RolePermissionReadRepositoryImpl>,
     ) -> Self {
@@ -115,7 +117,8 @@ pub struct ProjectMemberRolePermissionWriteRepositoryImpl {
 }
 
 impl ProjectMemberRolePermissionWriteRepositoryImpl {
-    pub fn new(
+    #[must_use]
+    pub const fn new(
         db: Arc<DatabaseConnection>,
         role_permission_repo: Arc<RolePermissionReadRepositoryImpl>,
     ) -> Self {
@@ -238,7 +241,8 @@ pub struct ProjectMemberRolePermissionRepositoryImpl {
 }
 
 impl ProjectMemberRolePermissionRepositoryImpl {
-    pub fn new(
+    #[must_use]
+    pub const fn new(
         read_repo: Arc<ProjectMemberRolePermissionReadRepositoryImpl>,
         write_repo: Arc<ProjectMemberRolePermissionWriteRepositoryImpl>,
     ) -> Self {

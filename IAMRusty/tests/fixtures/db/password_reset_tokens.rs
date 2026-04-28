@@ -24,7 +24,7 @@ pub struct PasswordResetTokenFixtureBuilder {
 
 impl PasswordResetTokenFixtureBuilder {
     /// Create a new password reset token fixture builder
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             id: None,
             user_id: None,
@@ -36,13 +36,13 @@ impl PasswordResetTokenFixtureBuilder {
     }
 
     /// Set the token ID
-    pub fn id(mut self, id: Uuid) -> Self {
+    pub const fn id(mut self, id: Uuid) -> Self {
         self.id = Some(id);
         self
     }
 
     /// Set the user ID
-    pub fn user_id(mut self, user_id: Uuid) -> Self {
+    pub const fn user_id(mut self, user_id: Uuid) -> Self {
         self.user_id = Some(user_id);
         self
     }
@@ -53,20 +53,20 @@ impl PasswordResetTokenFixtureBuilder {
         self
     }
 
-    /// Set the expires_at timestamp
-    pub fn expires_at(mut self, expires_at: DateTime<Utc>) -> Self {
+    /// Set the `expires_at` timestamp
+    pub const fn expires_at(mut self, expires_at: DateTime<Utc>) -> Self {
         self.expires_at = Some(expires_at);
         self
     }
 
-    /// Set the created_at timestamp
-    pub fn created_at(mut self, created_at: DateTime<Utc>) -> Self {
+    /// Set the `created_at` timestamp
+    pub const fn created_at(mut self, created_at: DateTime<Utc>) -> Self {
         self.created_at = Some(created_at);
         self
     }
 
-    /// Set the used_at timestamp (None means not used)
-    pub fn used_at(mut self, used_at: Option<DateTime<Utc>>) -> Self {
+    /// Set the `used_at` timestamp (None means not used)
+    pub const fn used_at(mut self, used_at: Option<DateTime<Utc>>) -> Self {
         self.used_at = Some(used_at);
         self
     }
@@ -78,7 +78,7 @@ impl PasswordResetTokenFixtureBuilder {
     }
 
     /// Mark as not used
-    pub fn mark_as_not_used(mut self) -> Self {
+    pub const fn mark_as_not_used(mut self) -> Self {
         self.used_at = Some(None);
         self
     }
@@ -92,7 +92,7 @@ impl PasswordResetTokenFixtureBuilder {
             .raw_token
             .clone()
             .unwrap_or_else(Self::generate_raw_token);
-        let fixture = DbFixture::commit(self, &*db).await?;
+        let fixture = DbFixture::commit(self, &db).await?;
         Ok(PasswordResetTokenFixture {
             inner: fixture,
             raw_token,
@@ -229,17 +229,17 @@ impl PasswordResetTokenFixture {
     }
 
     /// Get the underlying model
-    pub fn model(&self) -> &PasswordResetTokenModel {
+    pub const fn model(&self) -> &PasswordResetTokenModel {
         self.inner.model()
     }
 
     /// Get the token ID
-    pub fn id(&self) -> Uuid {
+    pub const fn id(&self) -> Uuid {
         self.model().id
     }
 
     /// Get the user ID
-    pub fn user_id(&self) -> Uuid {
+    pub const fn user_id(&self) -> Uuid {
         self.model().user_id
     }
 
@@ -253,23 +253,23 @@ impl PasswordResetTokenFixture {
         &self.model().token_hash
     }
 
-    /// Get the expires_at timestamp
-    pub fn expires_at(&self) -> DateTime<Utc> {
+    /// Get the `expires_at` timestamp
+    pub const fn expires_at(&self) -> DateTime<Utc> {
         self.model().expires_at
     }
 
-    /// Get the created_at timestamp
-    pub fn created_at(&self) -> DateTime<Utc> {
+    /// Get the `created_at` timestamp
+    pub const fn created_at(&self) -> DateTime<Utc> {
         self.model().created_at
     }
 
-    /// Get the used_at timestamp
-    pub fn used_at(&self) -> Option<DateTime<Utc>> {
+    /// Get the `used_at` timestamp
+    pub const fn used_at(&self) -> Option<DateTime<Utc>> {
         self.model().used_at
     }
 
     /// Check if the token is used
-    pub fn is_used(&self) -> bool {
+    pub const fn is_used(&self) -> bool {
         self.model().is_used()
     }
 

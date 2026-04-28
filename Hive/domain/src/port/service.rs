@@ -1,6 +1,5 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 use crate::RolePermission;
 use rustycog_core::error::DomainError;

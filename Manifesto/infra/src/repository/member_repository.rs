@@ -37,6 +37,7 @@ impl MemberMapper {
         })
     }
 
+    #[must_use]
     pub fn to_active_model(member: &ProjectMember) -> project_members::ActiveModel {
         project_members::ActiveModel {
             id: ActiveValue::Set(member.id),
@@ -45,10 +46,12 @@ impl MemberMapper {
             source: ActiveValue::Set(member.source.as_str().to_string()),
             added_by: ActiveValue::Set(member.added_by),
             added_at: ActiveValue::Set(member.added_at.into()),
-            removed_at: ActiveValue::Set(member.removed_at.map(|dt| dt.into())),
+            removed_at: ActiveValue::Set(member.removed_at.map(std::convert::Into::into)),
             removal_reason: ActiveValue::Set(member.removal_reason.clone()),
-            grace_period_ends_at: ActiveValue::Set(member.grace_period_ends_at.map(|dt| dt.into())),
-            last_access_at: ActiveValue::Set(member.last_access_at.map(|dt| dt.into())),
+            grace_period_ends_at: ActiveValue::Set(
+                member.grace_period_ends_at.map(std::convert::Into::into),
+            ),
+            last_access_at: ActiveValue::Set(member.last_access_at.map(std::convert::Into::into)),
         }
     }
 }
@@ -60,7 +63,8 @@ pub struct MemberReadRepositoryImpl {
 }
 
 impl MemberReadRepositoryImpl {
-    pub fn new(
+    #[must_use]
+    pub const fn new(
         db: Arc<DatabaseConnection>,
         pmrp_repo: Arc<ProjectMemberRolePermissionReadRepositoryImpl>,
     ) -> Self {
@@ -152,8 +156,8 @@ impl MemberReadRepository for MemberReadRepositoryImpl {
 
         let members = query
             .filter(conditions)
-            .paginate(self.db.as_ref(), page_size as u64)
-            .fetch_page(page as u64)
+            .paginate(self.db.as_ref(), u64::from(page_size))
+            .fetch_page(u64::from(page))
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
@@ -184,7 +188,8 @@ pub struct MemberWriteRepositoryImpl {
 }
 
 impl MemberWriteRepositoryImpl {
-    pub fn new(
+    #[must_use]
+    pub const fn new(
         db: Arc<DatabaseConnection>,
         pmrp_repo: Arc<ProjectMemberRolePermissionReadRepositoryImpl>,
     ) -> Self {

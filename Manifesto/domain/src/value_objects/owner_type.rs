@@ -9,7 +9,8 @@ pub enum OwnerType {
 }
 
 impl OwnerType {
-    pub fn as_str(&self) -> &'static str {
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
         match self {
             Self::Personal => "personal",
             Self::Organization => "organization",
@@ -21,8 +22,7 @@ impl OwnerType {
             "personal" => Ok(Self::Personal),
             "organization" => Ok(Self::Organization),
             _ => Err(DomainError::invalid_input(&format!(
-                "Invalid owner type: {}",
-                s
+                "Invalid owner type: {s}"
             ))),
         }
     }

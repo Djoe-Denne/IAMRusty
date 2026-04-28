@@ -17,17 +17,17 @@ pub struct DbFixtures;
 
 impl DbFixtures {
     /// Create a new project fixture builder
-    pub fn project() -> ProjectFixtureBuilder {
+    pub const fn project() -> ProjectFixtureBuilder {
         ProjectFixtureBuilder::new()
     }
 
     /// Create a new component fixture builder
-    pub fn component() -> ComponentFixtureBuilder {
+    pub const fn component() -> ComponentFixtureBuilder {
         ComponentFixtureBuilder::new()
     }
 
     /// Create a new member fixture builder
-    pub fn member() -> MemberFixtureBuilder {
+    pub const fn member() -> MemberFixtureBuilder {
         MemberFixtureBuilder::new()
     }
 

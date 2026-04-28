@@ -11,19 +11,20 @@ use uuid::Uuid;
 
 use super::entity::{prelude::ProviderTokens as ProviderTokensEntity, provider_tokens};
 
-/// SeaORM implementation of TokenWriteRepository
+/// `SeaORM` implementation of `TokenWriteRepository`
 #[derive(Clone)]
 pub struct TokenWriteRepositoryImpl {
     db: Arc<DatabaseConnection>,
 }
 
 impl TokenWriteRepositoryImpl {
-    /// Create a new TokenWriteRepositoryImpl
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    /// Create a new `TokenWriteRepositoryImpl`
+    #[must_use]
+    pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
 
-    /// Convert domain ProviderTokens to a database model
+    /// Convert domain `ProviderTokens` to a database model
     fn to_model(
         user_id: Uuid,
         provider: Provider,

@@ -25,7 +25,7 @@ pub trait UserReadRepository {
     async fn find_by_username(&self, username: &str) -> Result<Option<User>, Self::Error>;
 
     /// Find a user by provider and provider user ID
-    /// This looks up via the provider_tokens table
+    /// This looks up via the `provider_tokens` table
     async fn find_by_provider_user_id(
         &self,
         provider: Provider,
@@ -67,7 +67,7 @@ where
     type Error = <T as UserReadRepository>::Error;
 }
 
-/// Read operations for UserEmail entity
+/// Read operations for `UserEmail` entity
 #[async_trait::async_trait]
 pub trait UserEmailReadRepository {
     /// Error type returned by this repository
@@ -89,7 +89,7 @@ pub trait UserEmailReadRepository {
     ) -> Result<Option<UserEmail>, Self::Error>;
 }
 
-/// Write operations for UserEmail entity
+/// Write operations for `UserEmail` entity
 #[async_trait::async_trait]
 pub trait UserEmailWriteRepository {
     /// Error type returned by this repository
@@ -108,7 +108,7 @@ pub trait UserEmailWriteRepository {
     async fn set_as_primary(&self, user_id: Uuid, email_id: Uuid) -> Result<(), Self::Error>;
 }
 
-/// Combined read and write operations for UserEmail entity
+/// Combined read and write operations for `UserEmail` entity
 #[async_trait::async_trait]
 pub trait UserEmailRepository: UserEmailReadRepository + UserEmailWriteRepository
 where
@@ -129,7 +129,7 @@ where
     type Error = <T as UserEmailReadRepository>::Error;
 }
 
-/// Read operations for OAuth2 tokens
+/// Read operations for `OAuth2` tokens
 #[async_trait::async_trait]
 pub trait TokenReadRepository {
     /// Error type returned by this repository
@@ -142,7 +142,7 @@ pub trait TokenReadRepository {
         provider: Provider,
     ) -> Result<Option<ProviderTokens>, Self::Error>;
 
-    /// Get provider link information (user_id, provider, provider_user_id)
+    /// Get provider link information (`user_id`, provider, `provider_user_id`)
     async fn get_provider_link(
         &self,
         user_id: Uuid,
@@ -156,7 +156,7 @@ pub trait TokenReadRepository {
     ) -> Result<Vec<ProviderLink>, Self::Error>;
 }
 
-/// Write operations for OAuth2 tokens
+/// Write operations for `OAuth2` tokens
 #[async_trait::async_trait]
 pub trait TokenWriteRepository {
     /// Error type returned by this repository
@@ -179,7 +179,7 @@ pub trait TokenWriteRepository {
     ) -> Result<(), Self::Error>;
 }
 
-/// Combined read and write operations for OAuth2 tokens
+/// Combined read and write operations for `OAuth2` tokens
 #[async_trait::async_trait]
 pub trait TokenRepository: TokenReadRepository + TokenWriteRepository
 where
@@ -260,7 +260,7 @@ where
     type Error = <T as RefreshTokenReadRepository>::Error;
 }
 
-/// Read operations for EmailVerification entity
+/// Read operations for `EmailVerification` entity
 #[async_trait::async_trait]
 pub trait EmailVerificationReadRepository {
     /// Error type returned by this repository
@@ -277,7 +277,7 @@ pub trait EmailVerificationReadRepository {
     async fn find_by_email(&self, email: &str) -> Result<Option<EmailVerification>, Self::Error>;
 }
 
-/// Write operations for EmailVerification entity
+/// Write operations for `EmailVerification` entity
 #[async_trait::async_trait]
 pub trait EmailVerificationWriteRepository {
     /// Error type returned by this repository
@@ -293,7 +293,7 @@ pub trait EmailVerificationWriteRepository {
     async fn delete_by_id(&self, id: Uuid) -> Result<(), Self::Error>;
 }
 
-/// Combined read and write operations for EmailVerification entity
+/// Combined read and write operations for `EmailVerification` entity
 #[async_trait::async_trait]
 pub trait EmailVerificationRepository:
     EmailVerificationReadRepository + EmailVerificationWriteRepository

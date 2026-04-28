@@ -1,14 +1,13 @@
 //! Event consumer for processing IAM domain events
 
 use async_trait::async_trait;
-use iam_events::{DomainEvent, IamDomainEvent};
+use iam_events::DomainEvent;
 use rustycog_command::{CommandContext, GenericCommandService};
 use rustycog_core::error::ServiceError;
 use rustycog_events::{
     create_event_consumer_from_queue_config, ConcreteEventConsumer,
     EventConsumer as RustycogEventConsumer, EventHandler,
 };
-use serde_json;
 use std::sync::Arc;
 use telegraph_application::command::ProcessEventCommand;
 use telegraph_configuration::TelegraphConfig;
@@ -31,8 +30,7 @@ impl EventConsumer {
             .await
             .map_err(|e| {
                 telegraph_domain::DomainError::InfrastructureError(format!(
-                    "Failed to create event consumer: {}",
-                    e
+                    "Failed to create event consumer: {e}"
                 ))
             })?;
 
@@ -60,10 +58,7 @@ impl EventConsumer {
         let handler = TelegraphEventHandler::new(self.config.clone(), self.command_service.clone());
 
         self.inner_consumer.start(handler).await.map_err(|e| {
-            telegraph_domain::DomainError::InfrastructureError(format!(
-                "Event consumer error: {}",
-                e
-            ))
+            telegraph_domain::DomainError::InfrastructureError(format!("Event consumer error: {e}"))
         })?;
 
         Ok(())
@@ -75,8 +70,7 @@ impl EventConsumer {
 
         self.inner_consumer.stop().await.map_err(|e| {
             telegraph_domain::DomainError::InfrastructureError(format!(
-                "Failed to stop event consumer: {}",
-                e
+                "Failed to stop event consumer: {e}"
             ))
         })?;
 
@@ -87,8 +81,7 @@ impl EventConsumer {
     pub async fn health_check(&self) -> Result<(), telegraph_domain::DomainError> {
         self.inner_consumer.health_check().await.map_err(|e| {
             telegraph_domain::DomainError::InfrastructureError(format!(
-                "Event consumer health check failed: {}",
-                e
+                "Event consumer health check failed: {e}"
             ))
         })?;
 
@@ -104,7 +97,8 @@ pub struct TelegraphEventHandler {
 
 impl TelegraphEventHandler {
     /// Create a new Telegraph event handler
-    pub fn new(config: TelegraphConfig, command_service: Arc<GenericCommandService>) -> Self {
+    #[must_use]
+    pub const fn new(config: TelegraphConfig, command_service: Arc<GenericCommandService>) -> Self {
         Self {
             config,
             command_service,
@@ -145,8 +139,7 @@ impl EventHandler for TelegraphEventHandler {
                     "Failed to process event via command service"
                 );
                 Err(ServiceError::infrastructure(format!(
-                    "Command execution failed: {}",
-                    e
+                    "Command execution failed: {e}"
                 )))
             }
         }

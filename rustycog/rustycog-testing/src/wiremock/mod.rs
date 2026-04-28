@@ -89,11 +89,13 @@ impl MockServerFixture {
     }
 
     /// Get the mock server instance
+    #[must_use]
     pub fn server(&self) -> Arc<MockServer> {
         self.server.clone()
     }
 
     /// Get the base URL
+    #[must_use]
     pub fn base_url(&self) -> String {
         self.server.uri()
     }

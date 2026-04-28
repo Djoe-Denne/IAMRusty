@@ -47,7 +47,7 @@ pub struct NotificationServiceImpl<NR> {
 }
 
 impl<NR> NotificationServiceImpl<NR> {
-    pub fn new(notification_repo: Arc<NR>) -> Self {
+    pub const fn new(notification_repo: Arc<NR>) -> Self {
         Self { notification_repo }
     }
 }
@@ -125,8 +125,7 @@ where
             self.notification_repo.mark_as_read(notification_id).await
         } else {
             Err(DomainError::notification_not_found(format!(
-                "Notification not found: {}",
-                notification_id
+                "Notification not found: {notification_id}"
             )))
         }
     }

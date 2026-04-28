@@ -136,7 +136,7 @@ impl MemberUseCaseImpl {
 
     async fn enforce_member_quota(&self, project_id: &Uuid) -> Result<(), ApplicationError> {
         let active_members = self.member_service.count_active_members(project_id).await?;
-        if active_members >= self.business_config.max_members_per_project as i64 {
+        if active_members >= i64::from(self.business_config.max_members_per_project) {
             return Err(ApplicationError::Validation(format!(
                 "Project {} has reached the maximum number of members ({})",
                 project_id, self.business_config.max_members_per_project
@@ -375,7 +375,9 @@ impl MemberUseCase for MemberUseCaseImpl {
             .remove_member(
                 &project_id,
                 &user_id,
-                Some(self.business_config.member_removal_grace_period_days as i64),
+                Some(i64::from(
+                    self.business_config.member_removal_grace_period_days,
+                )),
             )
             .await?;
 

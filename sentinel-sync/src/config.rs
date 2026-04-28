@@ -1,7 +1,7 @@
 //! Typed configuration for the sentinel-sync worker.
 //!
 //! The worker reuses `rustycog-config`'s shared building blocks (logging,
-//! queue, OpenFGA).
+//! queue, `OpenFGA`).
 
 pub use rustycog_config::OpenFgaClientConfig as OpenFgaConfig;
 use rustycog_config::{LoggingConfig, QueueConfig};
@@ -14,7 +14,7 @@ pub struct SentinelSyncConfig {
     pub logging: LoggingConfig,
     /// Queue (Kafka/SQS/Disabled) the worker consumes from.
     pub queue: QueueConfig,
-    /// OpenFGA server the worker writes tuples into.
+    /// `OpenFGA` server the worker writes tuples into.
     pub openfga: OpenFgaConfig,
     /// Idempotency ledger configuration.
     #[serde(default)]
@@ -49,7 +49,7 @@ fn default_backend() -> String {
 
 impl SentinelSyncConfig {
     /// Load config from `config/sentinel-sync.toml` and `SENTINEL_SYNC__*`
-    /// env vars. Mirrors the convention used by every other RustyCog service.
+    /// env vars. Mirrors the convention used by every other `RustyCog` service.
     pub fn load() -> Result<Self, rustycog_config::ConfigError> {
         use rustycog_config::{Config, Environment, File, FileFormat};
 
@@ -67,6 +67,6 @@ impl SentinelSyncConfig {
                     .try_parsing(true),
             );
 
-        builder.build()?.try_deserialize::<SentinelSyncConfig>()
+        builder.build()?.try_deserialize::<Self>()
     }
 }

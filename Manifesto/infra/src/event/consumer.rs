@@ -29,7 +29,7 @@ impl ApparatusEventConsumer {
         let inner_consumer = create_event_consumer_from_queue_config(queue_config)
             .await
             .map_err(|e| {
-                DomainError::internal_error(&format!("Failed to create event consumer: {}", e))
+                DomainError::internal_error(&format!("Failed to create event consumer: {e}"))
             })?;
 
         Ok(Self {
@@ -39,6 +39,7 @@ impl ApparatusEventConsumer {
     }
 
     /// Whether the underlying queue consumer is a no-op placeholder.
+    #[must_use]
     pub fn is_noop(&self) -> bool {
         matches!(self.inner_consumer.as_ref(), ConcreteEventConsumer::NoOp(_))
     }
@@ -52,7 +53,7 @@ impl ApparatusEventConsumer {
         self.inner_consumer
             .start(handler)
             .await
-            .map_err(|e| DomainError::internal_error(&format!("Event consumer error: {}", e)))?;
+            .map_err(|e| DomainError::internal_error(&format!("Event consumer error: {e}")))?;
 
         Ok(())
     }
@@ -62,7 +63,7 @@ impl ApparatusEventConsumer {
         info!("Stopping Apparatus event consumer");
 
         self.inner_consumer.stop().await.map_err(|e| {
-            DomainError::internal_error(&format!("Failed to stop event consumer: {}", e))
+            DomainError::internal_error(&format!("Failed to stop event consumer: {e}"))
         })?;
 
         Ok(())
@@ -71,7 +72,7 @@ impl ApparatusEventConsumer {
     /// Health check for the event consumer
     pub async fn health_check(&self) -> Result<(), DomainError> {
         self.inner_consumer.health_check().await.map_err(|e| {
-            DomainError::internal_error(&format!("Event consumer health check failed: {}", e))
+            DomainError::internal_error(&format!("Event consumer health check failed: {e}"))
         })?;
 
         Ok(())
@@ -85,7 +86,8 @@ pub struct ApparatusEventHandler {
 
 impl ApparatusEventHandler {
     /// Create a new apparatus event handler
-    pub fn new(component_processor: Arc<ComponentStatusProcessor>) -> Self {
+    #[must_use]
+    pub const fn new(component_processor: Arc<ComponentStatusProcessor>) -> Self {
         Self {
             component_processor,
         }
@@ -126,13 +128,13 @@ impl EventHandler for ApparatusEventHandler {
         // Serialize to JSON and deserialize as ApparatusDomainEvent
         let event_json = event.to_json().map_err(|e| {
             error!("Failed to serialize event: {}", e);
-            ServiceError::infrastructure(format!("Failed to serialize event: {}", e))
+            ServiceError::infrastructure(format!("Failed to serialize event: {e}"))
         })?;
 
         let apparatus_event: ApparatusDomainEvent =
             serde_json::from_str(&event_json).map_err(|e| {
                 error!("Failed to parse apparatus event: {}", e);
-                ServiceError::validation(format!("Failed to parse event: {}", e))
+                ServiceError::validation(format!("Failed to parse event: {e}"))
             })?;
 
         self.process_apparatus_event(apparatus_event).await?;
@@ -155,6 +157,7 @@ impl EventHandler for ApparatusEventHandler {
 }
 
 /// Helper to create event consumer with all processors
+#[must_use]
 pub fn create_apparatus_event_consumer(
     component_processor: Arc<ComponentStatusProcessor>,
 ) -> Arc<ApparatusEventHandler> {

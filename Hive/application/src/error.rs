@@ -30,6 +30,7 @@ pub struct ValidationError {
 
 impl ApplicationError {
     /// Create an external service error
+    #[must_use]
     pub fn external_service_error(service: &str, message: &str) -> Self {
         Self::ExternalService {
             service: service.to_string(),
@@ -38,6 +39,7 @@ impl ApplicationError {
     }
 
     /// Create a rate limit error
+    #[must_use]
     pub fn rate_limit(message: &str) -> Self {
         Self::RateLimit {
             message: message.to_string(),
@@ -45,6 +47,7 @@ impl ApplicationError {
     }
 
     /// Create an internal error
+    #[must_use]
     pub fn internal_error(message: &str) -> Self {
         Self::Internal {
             message: message.to_string(),
@@ -52,11 +55,13 @@ impl ApplicationError {
     }
 
     /// Create a validation error
-    pub fn validation_error(errors: Vec<ValidationError>) -> Self {
+    #[must_use]
+    pub const fn validation_error(errors: Vec<ValidationError>) -> Self {
         Self::ValidationError(errors)
     }
 
     /// Create a simple validation error with single field
+    #[must_use]
     pub fn single_validation_error(field: &str, message: &str) -> Self {
         Self::ValidationError(vec![ValidationError {
             field: field.to_string(),
@@ -68,7 +73,8 @@ impl ApplicationError {
 
 impl ValidationError {
     /// Create a new validation error
-    pub fn new(field: String, message: String, code: Option<String>) -> Self {
+    #[must_use]
+    pub const fn new(field: String, message: String, code: Option<String>) -> Self {
         Self {
             field,
             message,
@@ -77,6 +83,7 @@ impl ValidationError {
     }
 
     /// Create a validation error with just field and message
+    #[must_use]
     pub fn simple(field: &str, message: &str) -> Self {
         Self {
             field: field.to_string(),
@@ -86,6 +93,7 @@ impl ValidationError {
     }
 
     /// Create a validation error with a code
+    #[must_use]
     pub fn with_code(field: &str, message: &str, code: &str) -> Self {
         Self {
             field: field.to_string(),

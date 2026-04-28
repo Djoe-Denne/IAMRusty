@@ -13,30 +13,37 @@ use hive_infra::repository::entity::{
 pub struct DbFixtures;
 
 impl DbFixtures {
+    #[must_use]
     pub fn resource() -> ResourceFixtureBuilder {
         ResourceFixtureBuilder::new()
     }
 
+    #[must_use]
     pub fn permission() -> PermissionFixtureBuilder {
         PermissionFixtureBuilder::new()
     }
 
+    #[must_use]
     pub fn organization() -> OrganizationFixtureBuilder {
         OrganizationFixtureBuilder::new()
     }
 
+    #[must_use]
     pub fn organization_member() -> OrganizationMemberFixtureBuilder {
         OrganizationMemberFixtureBuilder::new()
     }
 
+    #[must_use]
     pub fn role_permission() -> RolePermissionFixtureBuilder {
         RolePermissionFixtureBuilder::new()
     }
 
+    #[must_use]
     pub fn member_role_permission_link() -> MemberRolePermissionLinkBuilder {
         MemberRolePermissionLinkBuilder::new()
     }
 
+    #[must_use]
     pub fn external_provider() -> ExternalProviderFixtureBuilder {
         ExternalProviderFixtureBuilder::new()
     }
@@ -64,14 +71,14 @@ impl DbFixtures {
         let org = Self::organization()
             .owner_user_id(owner_user_id)
             .name("Test Org")
-            .slug(&format!("test-org-{}", &Uuid::new_v4().to_string()[..8]))
+            .slug(format!("test-org-{}", &Uuid::new_v4().to_string()[..8]))
             .description(Some("Seeded org"))
             .commit(Arc::new(db.clone()))
             .await?;
 
         let mut members: Vec<organization_members::Model> = Vec::new();
 
-        for (user_id, _perm) in &user_rights {
+        for user_id in user_rights.keys() {
             let member = Self::organization_member()
                 .organization_id(org.id)
                 .user_id(user_id.parse::<Uuid>().unwrap())
@@ -88,8 +95,8 @@ impl DbFixtures {
                 .organization_id(org.id)
                 .permission_id(perm)
                 .resource_id("organization")
-                .name(&format!("org_{}_role", perm))
-                .description(Some(&format!("{} on organization", perm)))
+                .name(format!("org_{perm}_role"))
+                .description(Some(&format!("{perm} on organization")))
                 .commit(Arc::new(db.clone()))
                 .await?;
 
@@ -129,7 +136,14 @@ pub struct ResourceFixtureBuilder {
     description: Option<String>,
 }
 
+impl Default for ResourceFixtureBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ResourceFixtureBuilder {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             id: "organization".to_string(),
@@ -155,7 +169,7 @@ impl ResourceFixtureBuilder {
     }
 
     pub fn description(mut self, description: Option<impl Into<String>>) -> Self {
-        self.description = description.map(|d| d.into());
+        self.description = description.map(std::convert::Into::into);
         self
     }
 
@@ -179,7 +193,14 @@ pub struct PermissionFixtureBuilder {
     description: Option<String>,
 }
 
+impl Default for PermissionFixtureBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PermissionFixtureBuilder {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             id: "read".to_string(),
@@ -199,7 +220,7 @@ impl PermissionFixtureBuilder {
     }
 
     pub fn description(mut self, description: Option<impl Into<String>>) -> Self {
-        self.description = description.map(|d| d.into());
+        self.description = description.map(std::convert::Into::into);
         self
     }
 
@@ -226,14 +247,21 @@ pub struct OrganizationFixtureBuilder {
     settings: serde_json::Value,
 }
 
+impl Default for OrganizationFixtureBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl OrganizationFixtureBuilder {
+    #[must_use]
     pub fn new() -> Self {
         let id = Uuid::new_v4();
         let slug_suffix = &Uuid::new_v4().to_string()[..8];
         Self {
             id,
             name: "Test Org".to_string(),
-            slug: format!("test-org-{}", slug_suffix),
+            slug: format!("test-org-{slug_suffix}"),
             description: Some("Seeded org".to_string()),
             avatar_url: None,
             owner_user_id: Uuid::new_v4(),
@@ -241,7 +269,8 @@ impl OrganizationFixtureBuilder {
         }
     }
 
-    pub fn id(mut self, id: Uuid) -> Self {
+    #[must_use]
+    pub const fn id(mut self, id: Uuid) -> Self {
         self.id = id;
         self
     }
@@ -257,20 +286,22 @@ impl OrganizationFixtureBuilder {
     }
 
     pub fn description(mut self, description: Option<impl Into<String>>) -> Self {
-        self.description = description.map(|d| d.into());
+        self.description = description.map(std::convert::Into::into);
         self
     }
 
     pub fn avatar_url(mut self, avatar_url: Option<impl Into<String>>) -> Self {
-        self.avatar_url = avatar_url.map(|a| a.into());
+        self.avatar_url = avatar_url.map(std::convert::Into::into);
         self
     }
 
-    pub fn owner_user_id(mut self, owner_user_id: Uuid) -> Self {
+    #[must_use]
+    pub const fn owner_user_id(mut self, owner_user_id: Uuid) -> Self {
         self.owner_user_id = owner_user_id;
         self
     }
 
+    #[must_use]
     pub fn settings(mut self, settings: serde_json::Value) -> Self {
         self.settings = settings;
         self
@@ -305,7 +336,14 @@ pub struct OrganizationMemberFixtureBuilder {
     joined_at: Option<chrono::DateTime<Utc>>,
 }
 
+impl Default for OrganizationMemberFixtureBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl OrganizationMemberFixtureBuilder {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             id: Uuid::new_v4(),
@@ -318,17 +356,20 @@ impl OrganizationMemberFixtureBuilder {
         }
     }
 
-    pub fn id(mut self, id: Uuid) -> Self {
+    #[must_use]
+    pub const fn id(mut self, id: Uuid) -> Self {
         self.id = id;
         self
     }
 
-    pub fn organization_id(mut self, organization_id: Uuid) -> Self {
+    #[must_use]
+    pub const fn organization_id(mut self, organization_id: Uuid) -> Self {
         self.organization_id = Some(organization_id);
         self
     }
 
-    pub fn user_id(mut self, user_id: Uuid) -> Self {
+    #[must_use]
+    pub const fn user_id(mut self, user_id: Uuid) -> Self {
         self.user_id = Some(user_id);
         self
     }
@@ -338,16 +379,19 @@ impl OrganizationMemberFixtureBuilder {
         self
     }
 
-    pub fn invited_by_user_id(mut self, invited_by_user_id: Option<Uuid>) -> Self {
+    #[must_use]
+    pub const fn invited_by_user_id(mut self, invited_by_user_id: Option<Uuid>) -> Self {
         self.invited_by_user_id = invited_by_user_id;
         self
     }
 
+    #[must_use]
     pub fn invited_now(mut self) -> Self {
         self.invited_at = Some(Utc::now());
         self
     }
 
+    #[must_use]
     pub fn joined_now(mut self) -> Self {
         self.joined_at = Some(Utc::now());
         self
@@ -384,7 +428,14 @@ pub struct RolePermissionFixtureBuilder {
     resource_id: Option<String>,
 }
 
+impl Default for RolePermissionFixtureBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RolePermissionFixtureBuilder {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             id: Uuid::new_v4(),
@@ -396,7 +447,8 @@ impl RolePermissionFixtureBuilder {
         }
     }
 
-    pub fn id(mut self, id: Uuid) -> Self {
+    #[must_use]
+    pub const fn id(mut self, id: Uuid) -> Self {
         self.id = id;
         self
     }
@@ -407,11 +459,12 @@ impl RolePermissionFixtureBuilder {
     }
 
     pub fn description(mut self, description: Option<impl Into<String>>) -> Self {
-        self.description = description.map(|d| d.into());
+        self.description = description.map(std::convert::Into::into);
         self
     }
 
-    pub fn organization_id(mut self, organization_id: Uuid) -> Self {
+    #[must_use]
+    pub const fn organization_id(mut self, organization_id: Uuid) -> Self {
         self.organization_id = Some(organization_id);
         self
     }
@@ -451,7 +504,14 @@ pub struct MemberRolePermissionLinkBuilder {
     role_permission_id: Option<Uuid>,
 }
 
+impl Default for MemberRolePermissionLinkBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MemberRolePermissionLinkBuilder {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             id: Uuid::new_v4(),
@@ -460,17 +520,20 @@ impl MemberRolePermissionLinkBuilder {
         }
     }
 
-    pub fn id(mut self, id: Uuid) -> Self {
+    #[must_use]
+    pub const fn id(mut self, id: Uuid) -> Self {
         self.id = id;
         self
     }
 
-    pub fn member_id(mut self, member_id: Uuid) -> Self {
+    #[must_use]
+    pub const fn member_id(mut self, member_id: Uuid) -> Self {
         self.member_id = Some(member_id);
         self
     }
 
-    pub fn role_permission_id(mut self, role_permission_id: Uuid) -> Self {
+    #[must_use]
+    pub const fn role_permission_id(mut self, role_permission_id: Uuid) -> Self {
         self.role_permission_id = Some(role_permission_id);
         self
     }
@@ -501,7 +564,14 @@ pub struct ExternalProviderFixtureBuilder {
     is_active: bool,
 }
 
+impl Default for ExternalProviderFixtureBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ExternalProviderFixtureBuilder {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             id: Uuid::new_v4(),
@@ -512,7 +582,8 @@ impl ExternalProviderFixtureBuilder {
         }
     }
 
-    pub fn id(mut self, id: Uuid) -> Self {
+    #[must_use]
+    pub const fn id(mut self, id: Uuid) -> Self {
         self.id = id;
         self
     }
@@ -527,12 +598,14 @@ impl ExternalProviderFixtureBuilder {
         self
     }
 
+    #[must_use]
     pub fn config_schema(mut self, schema: Option<serde_json::Value>) -> Self {
         self.config_schema = schema;
         self
     }
 
-    pub fn is_active(mut self, is_active: bool) -> Self {
+    #[must_use]
+    pub const fn is_active(mut self, is_active: bool) -> Self {
         self.is_active = is_active;
         self
     }

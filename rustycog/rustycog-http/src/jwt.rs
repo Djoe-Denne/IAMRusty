@@ -1,4 +1,4 @@
-use chrono::{DateTime, Duration, Utc};
+use chrono::{Duration, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -23,6 +23,7 @@ pub struct TokenClaims {
 
 impl TokenClaims {
     /// Creates new token claims for a user
+    #[must_use]
     pub fn new(user_id: &str, username: &str, expires_in: Duration) -> Self {
         let now = Utc::now();
         Self {

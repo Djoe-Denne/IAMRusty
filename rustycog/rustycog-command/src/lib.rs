@@ -1,4 +1,4 @@
-//! # RustyCog Command
+//! # `RustyCog` Command
 //!
 //! Generic command pattern implementation with registry and execution framework.
 
@@ -94,6 +94,7 @@ impl CommandError {
     }
 
     /// Get the error code
+    #[must_use]
     pub fn code(&self) -> &str {
         match self {
             Self::Validation { code, .. } => code,
@@ -106,6 +107,7 @@ impl CommandError {
     }
 
     /// Get the error message
+    #[must_use]
     pub fn message(&self) -> &str {
         match self {
             Self::Validation { message, .. } => message,
@@ -155,6 +157,7 @@ pub struct CommandContext {
 }
 
 impl CommandContext {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             execution_id: Uuid::new_v4(),
@@ -164,16 +167,19 @@ impl CommandContext {
         }
     }
 
-    pub fn with_user_id(mut self, user_id: Uuid) -> Self {
+    #[must_use]
+    pub const fn with_user_id(mut self, user_id: Uuid) -> Self {
         self.user_id = Some(user_id);
         self
     }
 
+    #[must_use]
     pub fn with_request_id(mut self, request_id: String) -> Self {
         self.request_id = Some(request_id);
         self
     }
 
+    #[must_use]
     pub fn with_metadata(mut self, key: String, value: String) -> Self {
         self.metadata.insert(key, value);
         self

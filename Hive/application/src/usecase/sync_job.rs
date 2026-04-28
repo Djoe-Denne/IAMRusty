@@ -100,7 +100,7 @@ impl SyncJobUseCase for SyncJobUseCaseImpl {
             .start_sync_job(
                 request.external_link_id,
                 hive_domain::SyncJobType::from_str(&request.job_type)
-                    .map_err(|e| ApplicationError::Domain(e))?,
+                    .map_err(ApplicationError::Domain)?,
                 requested_by_user_id,
             )
             .await?;

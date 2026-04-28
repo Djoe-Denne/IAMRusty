@@ -10,12 +10,11 @@ use hive_application::{
 use rustycog_command::CommandContext;
 use rustycog_http::{AppState, AuthUser, OptionalAuthUser, ValidatedJson};
 use rustycog_permission::ResourceId;
-use uuid::Uuid;
 
 use crate::error::HttpError;
 
 /// Create an invitation
-/// POST /api/organizations/{organization_id}/invitations
+/// POST /`api/organizations/{organization_id}/invitations`
 pub async fn create_invitation(
     State(state): State<AppState>,
     Path(organization_id): Path<ResourceId>,
@@ -34,14 +33,14 @@ pub async fn create_invitation(
         .execute(command, context)
         .await
         .map_err(|e| HttpError::Internal {
-            message: format!("Command execution failed: {}", e),
+            message: format!("Command execution failed: {e}"),
         })?;
 
     Ok(Json(result))
 }
 
 /// List organization invitations
-/// GET /organizations/{organization_id}/invitations
+/// GET /`organizations/{organization_id}/invitations`
 pub async fn list_invitations(
     State(state): State<AppState>,
     Path(organization_id): Path<ResourceId>,
@@ -64,14 +63,14 @@ pub async fn list_invitations(
         .execute(command, context)
         .await
         .map_err(|e| HttpError::Internal {
-            message: format!("Command execution failed: {}", e),
+            message: format!("Command execution failed: {e}"),
         })?;
 
     Ok(Json(result))
 }
 
 /// Get a specific invitation
-/// GET /organizations/{organization_id}/invitations/{invitation_id}
+/// GET /`organizations/{organization_id}/invitations/{invitation_id`}
 pub async fn get_invitation(
     State(state): State<AppState>,
     Path((_organization_id, invitation_id)): Path<(ResourceId, String)>,
@@ -93,7 +92,7 @@ pub async fn get_invitation(
         .execute(command, context)
         .await
         .map_err(|e| HttpError::Internal {
-            message: format!("Command execution failed: {}", e),
+            message: format!("Command execution failed: {e}"),
         })?;
 
     Ok(Json(result))
@@ -113,15 +112,15 @@ pub async fn accept_invitation(
         .with_user_id(auth_user.user_id)
         .with_metadata("operation".to_string(), "accept_invitation".to_string());
 
-    let result = state
+    state
         .command_service
         .execute(command, context)
         .await
         .map_err(|e| HttpError::Internal {
-            message: format!("Command execution failed: {}", e),
+            message: format!("Command execution failed: {e}"),
         })?;
 
-    Ok(Json(result))
+    Ok(Json(()))
 }
 
 /// Get invitation details by token (public endpoint)
@@ -146,7 +145,7 @@ pub async fn get_invitation_by_token(
         .execute(command, context)
         .await
         .map_err(|e| HttpError::Internal {
-            message: format!("Command execution failed: {}", e),
+            message: format!("Command execution failed: {e}"),
         })?;
 
     Ok(Json(result))

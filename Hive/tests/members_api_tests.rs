@@ -1,14 +1,12 @@
 use reqwest::StatusCode;
 use rustycog_testing::http::jwt::create_jwt_token;
-use sea_orm::{ActiveModelTrait, EntityTrait, Set};
+use sea_orm::{ActiveModelTrait, EntityTrait};
 use serial_test::serial;
 use uuid::Uuid;
 
 use hive_application::dto::member::{AddMemberRequest, MemberResponse};
 use hive_application::dto::role::{MemberRole, MemberRolePermission};
-use hive_infra::repository::entity::{
-    organization_member_role_permissions, organization_members, role_permissions,
-};
+use hive_infra::repository::entity::organization_members;
 
 mod common;
 use common::{fixtures::db::DbFixtures, setup_test_server, Permission, ResourceRef, Subject};
@@ -85,7 +83,7 @@ async fn add_member_forbidden_for_read_only_member() {
             "{}/api/organizations/{}/members",
             server_url, org.id
         ))
-        .header("Authorization", format!("Bearer {}", token))
+        .header("Authorization", format!("Bearer {token}"))
         .json(&body)
         .send()
         .await
@@ -129,7 +127,7 @@ async fn add_member_happy_path_by_owner() {
             "{}/api/organizations/{}/members",
             server_url, org.id
         ))
-        .header("Authorization", format!("Bearer {}", token))
+        .header("Authorization", format!("Bearer {token}"))
         .json(&body)
         .send()
         .await
@@ -183,7 +181,7 @@ async fn list_members_requires_auth_and_forbids_non_member() {
             "{}/api/organizations/{}/members?page=0&page_size=10",
             server_url, org.id
         ))
-        .header("Authorization", format!("Bearer {}", token))
+        .header("Authorization", format!("Bearer {token}"))
         .send()
         .await
         .unwrap();
@@ -216,13 +214,13 @@ async fn list_members_happy_path_for_owner() {
             "{}/api/organizations/{}/members?page=0&page_size=10",
             server_url, org.id
         ))
-        .header("Authorization", format!("Bearer {}", token))
+        .header("Authorization", format!("Bearer {token}"))
         .send()
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let body: serde_json::Value = res.json().await.unwrap();
-    assert!(body["members"].as_array().unwrap().len() >= 1);
+    assert!(!body["members"].as_array().unwrap().is_empty());
 }
 
 #[tokio::test]
@@ -259,7 +257,7 @@ async fn get_member_requires_auth_and_forbids_non_member() {
             "{}/api/organizations/{}/members/{}",
             server_url, org.id, owner_id
         ))
-        .header("Authorization", format!("Bearer {}", token))
+        .header("Authorization", format!("Bearer {token}"))
         .send()
         .await
         .unwrap();
@@ -292,7 +290,7 @@ async fn get_member_happy_path_for_owner() {
             "{}/api/organizations/{}/members/{}",
             server_url, org.id, owner_id
         ))
-        .header("Authorization", format!("Bearer {}", token))
+        .header("Authorization", format!("Bearer {token}"))
         .send()
         .await
         .unwrap();
@@ -345,7 +343,7 @@ async fn remove_member_requires_auth_and_forbids_read_only() {
             "{}/api/organizations/{}/members/{}",
             server_url, org.id, read_user_id
         ))
-        .header("Authorization", format!("Bearer {}", token))
+        .header("Authorization", format!("Bearer {token}"))
         .send()
         .await
         .unwrap();
@@ -386,7 +384,7 @@ async fn remove_member_happy_path_by_owner() {
             "{}/api/organizations/{}/members/{}",
             server_url, org.id, read_user_id
         ))
-        .header("Authorization", format!("Bearer {}", token))
+        .header("Authorization", format!("Bearer {token}"))
         .send()
         .await
         .unwrap();

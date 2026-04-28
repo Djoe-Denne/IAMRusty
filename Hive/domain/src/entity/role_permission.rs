@@ -6,7 +6,7 @@ use crate::entity::{permission::Permission, resource::Resource};
 
 /// Role permission entity representing a named permission-resource combination
 /// This acts like a permission group/template that can be assigned to users
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RolePermission {
     pub id: Option<Uuid>,
     pub name: Option<String>,
@@ -18,6 +18,7 @@ pub struct RolePermission {
 
 impl RolePermission {
     /// Create a new role permission
+    #[must_use]
     pub fn new(
         id: Option<Uuid>,
         name: Option<String>,
@@ -43,14 +44,15 @@ impl RolePermission {
 }
 
 /// Helper struct to represent permission-resource combinations for easier handling
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PermissionResourceCombo {
     pub permission_level: String,
     pub resource_type: String,
 }
 
 impl PermissionResourceCombo {
-    pub fn new(permission_level: String, resource_type: String) -> Self {
+    #[must_use]
+    pub const fn new(permission_level: String, resource_type: String) -> Self {
         Self {
             permission_level,
             resource_type,

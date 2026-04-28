@@ -9,18 +9,19 @@ use uuid::Uuid;
 
 use crate::repository::entity::{password_reset_tokens, prelude::*};
 
-/// SeaORM implementation of PasswordResetTokenWriteRepository
+/// `SeaORM` implementation of `PasswordResetTokenWriteRepository`
 pub struct PasswordResetTokenWriteRepositoryImpl {
     db: Arc<DatabaseConnection>,
 }
 
 impl PasswordResetTokenWriteRepositoryImpl {
     /// Create a new instance
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    #[must_use]
+    pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
 
-    /// Convert domain entity to SeaORM active model for insertion
+    /// Convert domain entity to `SeaORM` active model for insertion
     fn to_active_model_insert(token: &PasswordResetToken) -> password_reset_tokens::ActiveModel {
         password_reset_tokens::ActiveModel {
             id: Set(token.id),
@@ -32,7 +33,7 @@ impl PasswordResetTokenWriteRepositoryImpl {
         }
     }
 
-    /// Convert domain entity to SeaORM active model for update
+    /// Convert domain entity to `SeaORM` active model for update
     fn to_active_model_update(token: &PasswordResetToken) -> password_reset_tokens::ActiveModel {
         password_reset_tokens::ActiveModel {
             id: Set(token.id),

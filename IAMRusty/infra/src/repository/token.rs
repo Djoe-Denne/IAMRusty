@@ -11,18 +11,19 @@ use uuid::Uuid;
 
 use super::entity::{prelude::ProviderTokens as ProviderTokensEntity, provider_tokens};
 
-/// SeaORM implementation of TokenRepository
+/// `SeaORM` implementation of `TokenRepository`
 pub struct TokenRepositoryImpl {
     db: DatabaseConnection,
 }
 
 impl TokenRepositoryImpl {
-    /// Create a new TokenRepositoryImpl
-    pub fn new(db: DatabaseConnection) -> Self {
+    /// Create a new `TokenRepositoryImpl`
+    #[must_use]
+    pub const fn new(db: DatabaseConnection) -> Self {
         Self { db }
     }
 
-    /// Convert domain ProviderTokens to a database model
+    /// Convert domain `ProviderTokens` to a database model
     fn to_model(
         user_id: Uuid,
         provider: Provider,
@@ -42,7 +43,7 @@ impl TokenRepositoryImpl {
         }
     }
 
-    /// Convert a database model to domain ProviderTokens
+    /// Convert a database model to domain `ProviderTokens`
     fn to_domain(model: provider_tokens::Model) -> ProviderTokens {
         ProviderTokens {
             access_token: model.access_token,
@@ -51,7 +52,7 @@ impl TokenRepositoryImpl {
         }
     }
 
-    /// Convert a database model to domain ProviderLink
+    /// Convert a database model to domain `ProviderLink`
     fn to_provider_link(model: provider_tokens::Model) -> ProviderLink {
         ProviderLink {
             user_id: model.user_id,

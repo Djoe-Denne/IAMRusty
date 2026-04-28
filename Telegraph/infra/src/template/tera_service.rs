@@ -6,16 +6,12 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tera::{Context, Tera};
 use tokio::sync::RwLock;
-use uuid::Uuid;
 
 use tracing::{debug, error, info, warn};
 
 use crate::environment::template_env_service::TemplateEnvironmentService;
 use telegraph_configuration::TemplateConfig;
-use telegraph_domain::{
-    Communication, CommunicationMode, DomainError, MessageTemplate, RenderedTemplate,
-    TemplateContent, TemplateService,
-};
+use telegraph_domain::{CommunicationMode, DomainError, RenderedTemplate, TemplateService};
 
 /// File-based template service using Tera template engine
 pub struct TeraTemplateService {
@@ -85,8 +81,7 @@ impl TeraTemplateService {
                     "Failed to initialize Tera template engine"
                 );
                 Err(DomainError::template_load_error(format!(
-                    "Failed to initialize Tera: {}",
-                    e
+                    "Failed to initialize Tera: {e}"
                 )))
             }
         }
@@ -109,7 +104,7 @@ impl TeraTemplateService {
         mode: &CommunicationMode,
         extension: &str,
     ) -> String {
-        format!("{}_{}.{}", template_name, mode.to_string(), extension)
+        format!("{template_name}_{mode}.{extension}")
     }
 
     /// Get template paths for a given template name and mode
@@ -118,19 +113,16 @@ impl TeraTemplateService {
         template_name: &str,
         mode: &CommunicationMode,
     ) -> (String, Option<String>) {
-        match mode {
-            CommunicationMode::Email => {
-                let html_template =
-                    self.build_template_filename(template_name, mode, &self.config.extensions.html);
-                let text_template =
-                    self.build_template_filename(template_name, mode, &self.config.extensions.text);
-                (text_template, Some(html_template))
-            }
-            _ => {
-                let template =
-                    self.build_template_filename(template_name, mode, &self.config.extensions.text);
-                (template, None)
-            }
+        if mode == &CommunicationMode::Email {
+            let html_template =
+                self.build_template_filename(template_name, mode, &self.config.extensions.html);
+            let text_template =
+                self.build_template_filename(template_name, mode, &self.config.extensions.text);
+            (text_template, Some(html_template))
+        } else {
+            let template =
+                self.build_template_filename(template_name, mode, &self.config.extensions.text);
+            (template, None)
         }
     }
 
@@ -165,8 +157,7 @@ impl TeraTemplateService {
 
         tera.render(template_name, &context).map_err(|e| {
             DomainError::template_render_error(format!(
-                "Failed to render template '{}': {}",
-                template_name, e
+                "Failed to render template '{template_name}': {e}"
             ))
         })
     }
@@ -180,7 +171,7 @@ impl TemplateService for TeraTemplateService {
         mode: &CommunicationMode,
     ) -> Result<String, DomainError> {
         // Build the expected template name using the event type and mode
-        let template_name = format!("{}_{}", event_type, mode.to_string());
+        let template_name = format!("{event_type}_{mode}");
 
         // Check if template files exist for this template name
         if self.template_files_exist(&template_name, mode).await {
@@ -209,8 +200,7 @@ impl TemplateService for TeraTemplateService {
                     "No template found for event type"
                 );
                 Err(DomainError::template_not_found(format!(
-                    "No template found for event type '{}' and mode '{}'",
-                    event_type, mode
+                    "No template found for event type '{event_type}' and mode '{mode}'"
                 )))
             }
         }
@@ -224,8 +214,7 @@ impl TemplateService for TeraTemplateService {
     ) -> Result<RenderedTemplate, DomainError> {
         if !self.template_files_exist(template_name, mode).await {
             return Err(DomainError::template_not_found(format!(
-                "Template '{}' for mode '{}' not found",
-                template_name, mode
+                "Template '{template_name}' for mode '{mode}' not found"
             )));
         }
 
@@ -279,7 +268,7 @@ impl TemplateService for TeraTemplateService {
                 // For now, we'll use a simple approach
                 let subject = merged_variables
                     .get("subject")
-                    .unwrap_or(&format!("{} Email", template_name))
+                    .unwrap_or(&format!("{template_name} Email"))
                     .clone();
 
                 Ok(RenderedTemplate::Email {
@@ -294,7 +283,7 @@ impl TemplateService for TeraTemplateService {
                     .await?;
                 let title = merged_variables
                     .get("title")
-                    .unwrap_or(&format!("{} Notification", template_name))
+                    .unwrap_or(&format!("{template_name} Notification"))
                     .clone();
 
                 Ok(RenderedTemplate::Notification {

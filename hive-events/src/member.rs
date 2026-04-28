@@ -88,6 +88,7 @@ pub struct MemberInvitedEventData {
 // =============================================================================
 
 impl MemberInvitedEvent {
+    #[must_use]
     pub fn new(data: MemberInvitedEventData) -> Self {
         Self {
             base: BaseEvent::new("member_invited".to_string(), data.organization_id),
@@ -105,6 +106,7 @@ impl MemberInvitedEvent {
 }
 
 impl MemberJoinedEvent {
+    #[must_use]
     pub fn new(
         organization_id: Uuid,
         organization_name: String,
@@ -124,6 +126,7 @@ impl MemberJoinedEvent {
 }
 
 impl MemberRolesUpdatedEvent {
+    #[must_use]
     pub fn new(
         organization_id: Uuid,
         organization_name: String,
@@ -143,6 +146,7 @@ impl MemberRolesUpdatedEvent {
 }
 
 impl MemberRemovedEvent {
+    #[must_use]
     pub fn new(
         organization_id: Uuid,
         organization_name: String,
@@ -152,8 +156,8 @@ impl MemberRemovedEvent {
         removed_at: DateTime<Utc>,
     ) -> Self {
         Self {
-            base: BaseEvent::new("member_removed".to_string(), organization_id.clone()),
-            organization_id: organization_id.clone(),
+            base: BaseEvent::new("member_removed".to_string(), organization_id),
+            organization_id,
             organization_name,
             user_id,
             user_email,

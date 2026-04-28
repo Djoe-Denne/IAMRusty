@@ -134,7 +134,7 @@ impl Application {
 
         tracing::info!("Manifesto application initialized successfully");
 
-        Ok(Application {
+        Ok(Self {
             config,
             state,
             apparatus_event_consumer,
@@ -250,6 +250,7 @@ impl Application {
         create_router(self.state.clone())
     }
 
+    #[must_use]
     pub fn start_background_tasks(&self) -> Vec<tokio::task::JoinHandle<anyhow::Result<()>>> {
         let mut tasks = Vec::new();
 
@@ -414,17 +415,17 @@ async fn setup_domain(
         ));
 
     let project_service = Arc::new(ProjectServiceImpl::new(
-        project_repo.clone(),
+        project_repo,
         component_repo.clone(),
     ));
 
     let component_service = Arc::new(ComponentServiceImpl::new(
-        component_repo.clone(),
+        component_repo,
         component_service_adapter,
         permission_service.clone(),
     ));
 
-    let member_service = Arc::new(MemberServiceImpl::new(member_repo.clone()));
+    let member_service = Arc::new(MemberServiceImpl::new(member_repo));
 
     Ok((
         project_service,
@@ -451,16 +452,16 @@ async fn setup_repositories(
     let project_read_repo = Arc::new(ProjectReadRepositoryImpl::new(db.get_read_connection()));
     let project_write_repo = Arc::new(ProjectWriteRepositoryImpl::new(db.get_write_connection()));
     let project_repo = Arc::new(ProjectRepositoryImpl::new(
-        project_read_repo.clone(),
-        project_write_repo.clone(),
+        project_read_repo,
+        project_write_repo,
     ));
 
     let component_read_repo = Arc::new(ComponentReadRepositoryImpl::new(db.get_read_connection()));
     let component_write_repo =
         Arc::new(ComponentWriteRepositoryImpl::new(db.get_write_connection()));
     let component_repo = Arc::new(ComponentRepositoryImpl::new(
-        component_read_repo.clone(),
-        component_write_repo.clone(),
+        component_read_repo,
+        component_write_repo,
     ));
 
     let permission_repo = Arc::new(PermissionReadRepositoryImpl::new(db.get_read_connection()));
@@ -468,8 +469,8 @@ async fn setup_repositories(
     let resource_read_repo = Arc::new(ResourceReadRepositoryImpl::new(db.get_read_connection()));
     let resource_write_repo = Arc::new(ResourceWriteRepositoryImpl::new(db.get_write_connection()));
     let resource_repo = Arc::new(ResourceRepositoryImpl::new(
-        resource_read_repo.clone(),
-        resource_write_repo.clone(),
+        resource_read_repo,
+        resource_write_repo,
     ));
 
     let role_permission_read_repo = Arc::new(RolePermissionReadRepositoryImpl::new(
@@ -480,7 +481,7 @@ async fn setup_repositories(
     ));
     let role_permission_repo = Arc::new(RolePermissionRepositoryImpl::new(
         role_permission_read_repo.clone(),
-        role_permission_write_repo.clone(),
+        role_permission_write_repo,
     ));
 
     let pmrp_read_repo = Arc::new(ProjectMemberRolePermissionReadRepositoryImpl::new(
@@ -489,11 +490,11 @@ async fn setup_repositories(
     ));
     let pmrp_write_repo = Arc::new(ProjectMemberRolePermissionWriteRepositoryImpl::new(
         db.get_write_connection(),
-        role_permission_read_repo.clone(),
+        role_permission_read_repo,
     ));
     let pmrp_repo = Arc::new(ProjectMemberRolePermissionRepositoryImpl::new(
         pmrp_read_repo.clone(),
-        pmrp_write_repo.clone(),
+        pmrp_write_repo,
     ));
 
     let member_read_repo = Arc::new(MemberReadRepositoryImpl::new(
@@ -502,11 +503,11 @@ async fn setup_repositories(
     ));
     let member_write_repo = Arc::new(MemberWriteRepositoryImpl::new(
         db.get_write_connection(),
-        pmrp_read_repo.clone(),
+        pmrp_read_repo,
     ));
     let member_repo = Arc::new(MemberRepositoryImpl::new(
-        member_read_repo.clone(),
-        member_write_repo.clone(),
+        member_read_repo,
+        member_write_repo,
     ));
 
     Ok((

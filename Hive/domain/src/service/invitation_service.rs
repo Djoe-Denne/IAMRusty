@@ -27,12 +27,12 @@ pub trait InvitationService: Send + Sync {
     /**
      * Create an invitation to join an organization by email. used for non existing users
      *
-     * @param organization_id - The ID of the organization to invite the user to
+     * @param `organization_id` - The ID of the organization to invite the user to
      * @param email - The email of the user to invite
-     * @param role_permissions - The roles to assign to the user
-     * @param invited_by_user_id - The ID of the user who invited the user
+     * @param `role_permissions` - The roles to assign to the user
+     * @param `invited_by_user_id` - The ID of the user who invited the user
      * @param message - The message to send to the user
-     * @param expires_in_days - The number of days the invitation will expire
+     * @param `expires_in_days` - The number of days the invitation will expire
      */
     async fn create_invitation_by_email(
         &self,
@@ -47,12 +47,12 @@ pub trait InvitationService: Send + Sync {
     /**
      * Create an invitation to join an organization by user. used for existing users
      *
-     * @param organization_id - The ID of the organization to invite the user to
-     * @param user_id - The ID of the user to invite
-     * @param role_permissions - The roles to assign to the user
-     * @param invited_by_user_id - The ID of the user who invited the user
+     * @param `organization_id` - The ID of the organization to invite the user to
+     * @param `user_id` - The ID of the user to invite
+     * @param `role_permissions` - The roles to assign to the user
+     * @param `invited_by_user_id` - The ID of the user who invited the user
      * @param message - The message to send to the user
-     * @param expires_in_days - The number of days the invitation will expire
+     * @param `expires_in_days` - The number of days the invitation will expire
      */
     async fn create_invitation_by_user(
         &self,
@@ -68,7 +68,7 @@ pub trait InvitationService: Send + Sync {
      * Accept an invitation
      *
      * @param token - The token of the invitation
-     * @param user_id - The ID of the user accepting the invitation
+     * @param `user_id` - The ID of the user accepting the invitation
      */
     async fn accept_invitation(
         &self,
@@ -79,14 +79,14 @@ pub trait InvitationService: Send + Sync {
     /**
      * Cancel an invitation
      *
-     * @param invitation_id - The ID of the invitation to cancel
+     * @param `invitation_id` - The ID of the invitation to cancel
      */
     async fn cancel_invitation(&self, invitation_id: Uuid) -> Result<(), DomainError>;
 
     /**
      * Get an invitation by ID
      *
-     * @param invitation_id - The ID of the invitation to get
+     * @param `invitation_id` - The ID of the invitation to get
      */
     async fn get_invitation(
         &self,
@@ -96,8 +96,8 @@ pub trait InvitationService: Send + Sync {
     /**
      * Get an invitation by organization and invited user
      *
-     * @param organization_id - The ID of the organization the invitation belongs to
-     * @param invited_aggregate_id - The ID of the user the invitation is for
+     * @param `organization_id` - The ID of the organization the invitation belongs to
+     * @param `invited_aggregate_id` - The ID of the user the invitation is for
      */
     async fn get_invitation_by_organization_invited_aggregate_id(
         &self,
@@ -108,7 +108,7 @@ pub trait InvitationService: Send + Sync {
     /**
      * List invitations for an organization
      *
-     * @param organization_id - The ID of the organization to list the invitations for
+     * @param `organization_id` - The ID of the organization to list the invitations for
      */
     async fn list_invitations(
         &self,
@@ -128,7 +128,7 @@ where
     MS: MemberService,
 {
     /// Create a new invitation service
-    pub fn new(
+    pub const fn new(
         invitation_repo: Arc<IR>,
         organization_service: Arc<OS>,
         member_service: Arc<MS>,
@@ -364,7 +364,7 @@ where
             .invitation_repo
             .find_by_organization_and_aggregate_id_status(
                 &organization_id,
-                &invited_aggregate_id,
+                invited_aggregate_id,
                 &InvitationStatus::Pending,
             )
             .await

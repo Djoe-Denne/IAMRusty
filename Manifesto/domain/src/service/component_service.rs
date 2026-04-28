@@ -6,7 +6,6 @@ use uuid::Uuid;
 use crate::entity::ProjectComponent;
 use crate::port::{ComponentRepository, ComponentServicePort};
 use crate::service::PermissionService;
-use crate::value_objects::ComponentStatus;
 
 #[async_trait]
 pub trait ComponentService: Send + Sync {
@@ -96,7 +95,7 @@ where
             .ok_or_else(|| {
                 DomainError::entity_not_found(
                     "ProjectComponent",
-                    &format!("{}/{}", project_id, component_type),
+                    &format!("{project_id}/{component_type}"),
                 )
             })
     }
@@ -164,8 +163,7 @@ where
 
         if !exists {
             return Err(DomainError::invalid_input(&format!(
-                "Component type '{}' does not exist in the component register",
-                component_type
+                "Component type '{component_type}' does not exist in the component register"
             )));
         }
 

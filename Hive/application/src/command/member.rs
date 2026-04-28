@@ -22,6 +22,7 @@ pub struct AddMemberCommand {
 }
 
 impl AddMemberCommand {
+    #[must_use]
     pub fn new(organization_id: Uuid, request: &AddMemberRequest, added_by_user_id: Uuid) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -69,7 +70,7 @@ impl CommandHandler<AddMemberCommand> for AddMemberCommandHandler {
                 command.added_by_user_id,
             )
             .await
-            .map_err(|e| CommandError::business("add_member_failed", &e.to_string()))
+            .map_err(|e| CommandError::business("add_member_failed", e.to_string()))
     }
 }
 
@@ -83,6 +84,7 @@ pub struct RemoveMemberCommand {
 }
 
 impl RemoveMemberCommand {
+    #[must_use]
     pub fn new(organization_id: Uuid, user_id: Uuid, removed_by_user_id: Uuid) -> Self {
         // TODO: Get removed_by_user_id from context
         Self {
@@ -127,7 +129,7 @@ impl CommandHandler<RemoveMemberCommand> for RemoveMemberCommandHandler {
         self.member_usecase
             .remove_member(command.organization_id, command.user_id)
             .await
-            .map_err(|e| CommandError::business("remove_member_failed", &e.to_string()))
+            .map_err(|e| CommandError::business("remove_member_failed", e.to_string()))
     }
 }
 
@@ -142,6 +144,7 @@ pub struct ListMembersCommand {
 }
 
 impl ListMembersCommand {
+    #[must_use]
     pub fn new(
         organization_id: Uuid,
         pagination: PaginationRequest,
@@ -192,7 +195,7 @@ impl CommandHandler<ListMembersCommand> for ListMembersCommandHandler {
         self.member_usecase
             .list_members(command.organization_id, &command.pagination)
             .await
-            .map_err(|e| CommandError::business("list_members_failed", &e.to_string()))
+            .map_err(|e| CommandError::business("list_members_failed", e.to_string()))
     }
 }
 
@@ -206,6 +209,7 @@ pub struct GetMemberCommand {
 }
 
 impl GetMemberCommand {
+    #[must_use]
     pub fn new(organization_id: Uuid, user_id: Uuid, requesting_user_id: Option<Uuid>) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -249,7 +253,7 @@ impl CommandHandler<GetMemberCommand> for GetMemberCommandHandler {
         self.member_usecase
             .get_member(command.organization_id, command.user_id)
             .await
-            .map_err(|e| CommandError::business("get_member_failed", &e.to_string()))
+            .map_err(|e| CommandError::business("get_member_failed", e.to_string()))
     }
 }
 
@@ -264,6 +268,7 @@ pub struct UpdateMemberCommand {
 }
 
 impl UpdateMemberCommand {
+    #[must_use]
     pub fn new(
         organization_id: Uuid,
         user_id: Uuid,
@@ -313,7 +318,7 @@ impl CommandHandler<UpdateMemberCommand> for UpdateMemberCommandHandler {
         self.member_usecase
             .update_member(command.organization_id, command.user_id, &command.request)
             .await
-            .map_err(|e| CommandError::business("update_member_failed", &e.to_string()))
+            .map_err(|e| CommandError::business("update_member_failed", e.to_string()))
     }
 }
 
@@ -325,23 +330,23 @@ impl CommandErrorMapper for MemberErrorMapper {
         if let Some(error) = error.downcast_ref::<ApplicationError>() {
             match error {
                 ApplicationError::Domain(domain_error) => {
-                    CommandError::business("domain_error", &domain_error.to_string())
+                    CommandError::business("domain_error", domain_error.to_string())
                 }
                 ApplicationError::ValidationError(_) => {
-                    CommandError::validation("validation_failed", &error.to_string())
+                    CommandError::validation("validation_failed", error.to_string())
                 }
                 ApplicationError::ExternalService { .. } => {
-                    CommandError::infrastructure("external_error", &error.to_string())
+                    CommandError::infrastructure("external_error", error.to_string())
                 }
                 ApplicationError::RateLimit { .. } => {
-                    CommandError::business("rate_limit", &error.to_string())
+                    CommandError::business("rate_limit", error.to_string())
                 }
                 ApplicationError::Internal { .. } => {
-                    CommandError::infrastructure("internal_error", &error.to_string())
+                    CommandError::infrastructure("internal_error", error.to_string())
                 }
             }
         } else {
-            CommandError::infrastructure("unknown_error", &error.to_string())
+            CommandError::infrastructure("unknown_error", error.to_string())
         }
     }
 }

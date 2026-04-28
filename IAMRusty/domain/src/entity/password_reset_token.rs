@@ -22,6 +22,7 @@ pub struct PasswordResetToken {
 
 impl PasswordResetToken {
     /// Create a new password reset token
+    #[must_use]
     pub fn new(user_id: Uuid, raw_token: &str, expiration_hours: i64) -> Self {
         let now = Utc::now();
         let expires_at = now + Duration::hours(expiration_hours);
@@ -37,6 +38,7 @@ impl PasswordResetToken {
     }
 
     /// Hash a raw token using SHA-256
+    #[must_use]
     pub fn hash_token(raw_token: &str) -> String {
         let mut hasher = Sha256::new();
         hasher.update(raw_token.as_bytes());
@@ -44,21 +46,25 @@ impl PasswordResetToken {
     }
 
     /// Verify if a raw token matches this token's hash
+    #[must_use]
     pub fn verify_token(&self, raw_token: &str) -> bool {
         self.token_hash == Self::hash_token(raw_token)
     }
 
     /// Check if the token has expired
+    #[must_use]
     pub fn is_expired(&self) -> bool {
         Utc::now() > self.expires_at
     }
 
     /// Check if the token has been used
-    pub fn is_used(&self) -> bool {
+    #[must_use]
+    pub const fn is_used(&self) -> bool {
         self.used_at.is_some()
     }
 
     /// Check if the token is valid (not expired and not used)
+    #[must_use]
     pub fn is_valid(&self) -> bool {
         !self.is_expired() && !self.is_used()
     }
@@ -69,6 +75,7 @@ impl PasswordResetToken {
     }
 
     /// Generate a secure random token string
+    #[must_use]
     pub fn generate_raw_token() -> String {
         use rand::Rng;
         const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";

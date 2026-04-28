@@ -74,6 +74,7 @@ impl TelegraphCommandRegistryFactory {
     }
 
     /// Create an empty registry builder for custom command registration
+    #[must_use]
     pub fn create_empty_builder() -> CommandRegistryBuilder {
         CommandRegistryBuilder::new()
     }

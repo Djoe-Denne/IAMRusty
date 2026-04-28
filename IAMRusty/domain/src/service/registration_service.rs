@@ -53,13 +53,14 @@ impl UsernameValidator {
             return Err(DomainError::InvalidUsername);
         }
         // Require at least one letter (cannot be only numbers/symbols)
-        if !username.chars().any(|c| c.is_alphabetic()) {
+        if !username.chars().any(char::is_alphabetic) {
             return Err(DomainError::InvalidUsername);
         }
         Ok(())
     }
 
     /// Generate username suggestions when username is taken
+    #[must_use]
     pub fn generate_suggestions(base_username: &str) -> Vec<String> {
         let mut suggestions = Vec::new();
 
@@ -72,7 +73,7 @@ impl UsernameValidator {
                 .unwrap_or_default()
                 .as_millis()
                 % 1000; // Get last 3 digits of milliseconds
-            suggestions.push(format!("{}_{}", base_username, timestamp));
+            suggestions.push(format!("{base_username}_{timestamp}"));
         }
         suggestions
     }
@@ -142,6 +143,7 @@ where
     TS: AuthTokenService + Send + Sync,
     EP: EventPublisher<DomainError> + Send + Sync,
 {
+    #[must_use]
     pub fn new(
         dependencies: RegistrationServiceDependencies<UR, UW, UER, EVR, RTS, TS, EP>,
     ) -> Self {
@@ -277,22 +279,19 @@ where
         if token_claims.is_email_password_flow() {
             // Get verification token if email is not verified
             // Telegraph will build the verification URL from environment variables
-            let verification_token = if !user_email.is_verified {
-                match self
-                    .email_verification_repo
-                    .find_by_email(&user_email.email)
-                    .await
-                {
-                    Ok(Some(verification)) => Some(verification.verification_token),
-                    _ => {
-                        tracing::warn!(
-                            "No verification token found for unverified email: {}",
-                            user_email.email
-                        );
-                        None
-                    }
-                }
+            let verification_token = if user_email.is_verified {
+                None
+            } else if let Ok(Some(verification)) = self
+                .email_verification_repo
+                .find_by_email(&user_email.email)
+                .await
+            {
+                Some(verification.verification_token)
             } else {
+                tracing::warn!(
+                    "No verification token found for unverified email: {}",
+                    user_email.email
+                );
                 None
             };
 
@@ -326,7 +325,7 @@ where
 
     async fn check_username(&self, username: &str) -> Result<UsernameCheckResult, DomainError> {
         // Validate username format first
-        if let Err(_) = UsernameValidator::validate(username) {
+        if UsernameValidator::validate(username).is_err() {
             return Ok(UsernameCheckResult {
                 available: false,
                 suggestions: UsernameValidator::generate_suggestions(username),

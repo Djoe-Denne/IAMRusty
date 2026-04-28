@@ -22,7 +22,7 @@ pub struct UserFixtureBuilder {
 
 impl UserFixtureBuilder {
     /// Create a new user fixture builder
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             id: None,
             username: None,
@@ -34,7 +34,7 @@ impl UserFixtureBuilder {
     }
 
     /// Set the user ID
-    pub fn id(mut self, id: Uuid) -> Self {
+    pub const fn id(mut self, id: Uuid) -> Self {
         self.id = Some(id);
         self
     }
@@ -57,21 +57,21 @@ impl UserFixtureBuilder {
         self
     }
 
-    /// Set the created_at timestamp
-    pub fn created_at(mut self, created_at: NaiveDateTime) -> Self {
+    /// Set the `created_at` timestamp
+    pub const fn created_at(mut self, created_at: NaiveDateTime) -> Self {
         self.created_at = Some(created_at);
         self
     }
 
-    /// Set the updated_at timestamp
-    pub fn updated_at(mut self, updated_at: NaiveDateTime) -> Self {
+    /// Set the `updated_at` timestamp
+    pub const fn updated_at(mut self, updated_at: NaiveDateTime) -> Self {
         self.updated_at = Some(updated_at);
         self
     }
 
     /// Commit the user to the database
     pub async fn commit(self, db: Arc<DatabaseConnection>) -> Result<UserFixture, DbErr> {
-        let fixture = DbFixture::commit(self, &*db).await?;
+        let fixture = DbFixture::commit(self, &db).await?;
         Ok(UserFixture { inner: fixture })
     }
 
@@ -185,12 +185,12 @@ impl UserFixture {
     }
 
     /// Get the user model
-    pub fn model(&self) -> &UserModel {
+    pub const fn model(&self) -> &UserModel {
         self.inner.model()
     }
 
     /// Get the user ID
-    pub fn id(&self) -> Uuid {
+    pub const fn id(&self) -> Uuid {
         self.model().id
     }
 
@@ -200,17 +200,17 @@ impl UserFixture {
     }
 
     /// Get the avatar URL
-    pub fn avatar_url(&self) -> Option<&String> {
+    pub const fn avatar_url(&self) -> Option<&String> {
         self.model().avatar_url.as_ref()
     }
 
-    /// Get the created_at timestamp
-    pub fn created_at(&self) -> NaiveDateTime {
+    /// Get the `created_at` timestamp
+    pub const fn created_at(&self) -> NaiveDateTime {
         self.model().created_at
     }
 
-    /// Get the updated_at timestamp
-    pub fn updated_at(&self) -> NaiveDateTime {
+    /// Get the `updated_at` timestamp
+    pub const fn updated_at(&self) -> NaiveDateTime {
         self.model().updated_at
     }
 }

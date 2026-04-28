@@ -61,7 +61,7 @@ pub trait OrganizationRepository:
 {
 }
 
-/// Read operations for OrganizationMember entities
+/// Read operations for `OrganizationMember` entities
 #[async_trait]
 pub trait OrganizationMemberReadRepository: Send + Sync {
     /// Find member by ID
@@ -102,7 +102,7 @@ pub trait OrganizationMemberReadRepository: Send + Sync {
     ) -> Result<i64, DomainError>;
 }
 
-/// Write operations for OrganizationMember entities
+/// Write operations for `OrganizationMember` entities
 #[async_trait]
 pub trait OrganizationMemberWriteRepository: Send + Sync {
     /// Check if user is a member of organization
@@ -118,7 +118,7 @@ pub trait OrganizationMemberWriteRepository: Send + Sync {
     async fn delete_by_organization(&self, organization_id: &Uuid) -> Result<(), DomainError>;
 }
 
-/// Combined OrganizationMember repository
+/// Combined `OrganizationMember` repository
 #[async_trait]
 pub trait OrganizationMemberRepository:
     Send + Sync + OrganizationMemberReadRepository + OrganizationMemberWriteRepository
@@ -152,7 +152,7 @@ pub trait ResourceReadRepository: Send + Sync {
 #[async_trait]
 pub trait ResourceRepository: Send + Sync + ResourceReadRepository {}
 
-/// Read operations for RolePermission entities
+/// Read operations for `RolePermission` entities
 #[async_trait]
 pub trait RolePermissionReadRepository: Send + Sync {
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<RolePermission>, DomainError>;
@@ -169,7 +169,7 @@ pub trait RolePermissionReadRepository: Send + Sync {
     ) -> Result<Vec<RolePermission>, DomainError>;
 }
 
-/// Write operations for RolePermission entities
+/// Write operations for `RolePermission` entities
 #[async_trait]
 pub trait RolePermissionWriteRepository: Send + Sync {
     async fn save(
@@ -180,14 +180,14 @@ pub trait RolePermissionWriteRepository: Send + Sync {
     async fn delete_by_organization(&self, organization_id: &Uuid) -> Result<(), DomainError>;
 }
 
-/// Combined RolePermission repository
+/// Combined `RolePermission` repository
 #[async_trait]
 pub trait RolePermissionRepository:
     Send + Sync + RolePermissionReadRepository + RolePermissionWriteRepository
 {
 }
 
-/// Read operations for MemberRole entities
+/// Read operations for `MemberRole` entities
 #[async_trait]
 pub trait MemberRoleReadRepository: Send + Sync {
     async fn find_by_organization_member(
@@ -196,7 +196,7 @@ pub trait MemberRoleReadRepository: Send + Sync {
     ) -> Result<Vec<OrganizationMemberRolePermission>, DomainError>;
 }
 
-/// Write operations for MemberRole entities
+/// Write operations for `MemberRole` entities
 #[async_trait]
 pub trait MemberRoleWriteRepository: Send + Sync {
     async fn save(
@@ -207,14 +207,14 @@ pub trait MemberRoleWriteRepository: Send + Sync {
     async fn delete_by_organization(&self, organization_id: &Uuid) -> Result<(), DomainError>;
 }
 
-/// Combined MemberRole repository
+/// Combined `MemberRole` repository
 #[async_trait]
 pub trait MemberRoleRepository:
     Send + Sync + MemberRoleReadRepository + MemberRoleWriteRepository
 {
 }
 
-/// Read operations for OrganizationInvitation entities
+/// Read operations for `OrganizationInvitation` entities
 #[async_trait]
 pub trait OrganizationInvitationReadRepository: Send + Sync {
     /// Find invitation by ID
@@ -265,7 +265,7 @@ pub trait OrganizationInvitationReadRepository: Send + Sync {
     ) -> Result<i64, DomainError>;
 }
 
-/// Write operations for OrganizationInvitation entities
+/// Write operations for `OrganizationInvitation` entities
 #[async_trait]
 pub trait OrganizationInvitationWriteRepository: Send + Sync {
     /// Save invitation (create or update)
@@ -278,14 +278,14 @@ pub trait OrganizationInvitationWriteRepository: Send + Sync {
     async fn delete_by_id(&self, id: &Uuid) -> Result<(), DomainError>;
 }
 
-/// Combined OrganizationInvitation repository
+/// Combined `OrganizationInvitation` repository
 #[async_trait]
 pub trait OrganizationInvitationRepository:
     Send + Sync + OrganizationInvitationReadRepository + OrganizationInvitationWriteRepository
 {
 }
 
-/// Read operations for ExternalProvider entities
+/// Read operations for `ExternalProvider` entities
 #[async_trait]
 pub trait ExternalProviderReadRepository: Send + Sync {
     /// Find provider by ID
@@ -304,7 +304,7 @@ pub trait ExternalProviderReadRepository: Send + Sync {
     async fn find_active(&self) -> Result<Vec<ExternalProvider>, DomainError>;
 }
 
-/// Write operations for ExternalProvider entities
+/// Write operations for `ExternalProvider` entities
 #[async_trait]
 pub trait ExternalProviderWriteRepository: Send + Sync {
     /// Save provider (create or update)
@@ -314,14 +314,14 @@ pub trait ExternalProviderWriteRepository: Send + Sync {
     async fn delete_by_id(&self, id: &Uuid) -> Result<(), DomainError>;
 }
 
-/// Combined ExternalProvider repository
+/// Combined `ExternalProvider` repository
 #[async_trait]
 pub trait ExternalProviderRepository:
     Send + Sync + ExternalProviderReadRepository + ExternalProviderWriteRepository
 {
 }
 
-/// Read operations for ExternalLink entities
+/// Read operations for `ExternalLink` entities
 #[async_trait]
 pub trait ExternalLinkReadRepository: Send + Sync {
     /// Find link by ID
@@ -351,7 +351,7 @@ pub trait ExternalLinkReadRepository: Send + Sync {
     async fn count_by_organization(&self, organization_id: &Uuid) -> Result<i64, DomainError>;
 }
 
-/// Write operations for ExternalLink entities
+/// Write operations for `ExternalLink` entities
 #[async_trait]
 pub trait ExternalLinkWriteRepository: Send + Sync {
     /// Save link (create or update)
@@ -361,14 +361,14 @@ pub trait ExternalLinkWriteRepository: Send + Sync {
     async fn delete_by_id(&self, id: &Uuid) -> Result<(), DomainError>;
 }
 
-/// Combined ExternalLink repository
+/// Combined `ExternalLink` repository
 #[async_trait]
 pub trait ExternalLinkRepository:
     Send + Sync + ExternalLinkReadRepository + ExternalLinkWriteRepository
 {
 }
 
-/// Read operations for SyncJob entities
+/// Read operations for `SyncJob` entities
 #[async_trait]
 pub trait SyncJobReadRepository: Send + Sync {
     /// Find job by ID
@@ -405,7 +405,7 @@ pub trait SyncJobReadRepository: Send + Sync {
     async fn count_running(&self) -> Result<i64, DomainError>;
 }
 
-/// Write operations for SyncJob entities
+/// Write operations for `SyncJob` entities
 #[async_trait]
 pub trait SyncJobWriteRepository: Send + Sync {
     /// Save job (create or update)
@@ -415,6 +415,6 @@ pub trait SyncJobWriteRepository: Send + Sync {
     async fn delete_by_id(&self, id: &Uuid) -> Result<(), DomainError>;
 }
 
-/// Combined SyncJob repository
+/// Combined `SyncJob` repository
 #[async_trait]
 pub trait SyncJobRepository: Send + Sync + SyncJobReadRepository + SyncJobWriteRepository {}

@@ -36,6 +36,7 @@ impl ProjectMapper {
         })
     }
 
+    #[must_use]
     pub fn to_active_model(project: &Project) -> projects::ActiveModel {
         projects::ActiveModel {
             id: ActiveValue::Set(project.id),
@@ -52,7 +53,7 @@ impl ProjectMapper {
             data_classification: ActiveValue::Set(project.data_classification.as_str().to_string()),
             created_at: ActiveValue::Set(project.created_at.into()),
             updated_at: ActiveValue::Set(project.updated_at.into()),
-            published_at: ActiveValue::Set(project.published_at.map(|dt| dt.into())),
+            published_at: ActiveValue::Set(project.published_at.map(std::convert::Into::into)),
         }
     }
 }
@@ -63,7 +64,8 @@ pub struct ProjectReadRepositoryImpl {
 }
 
 impl ProjectReadRepositoryImpl {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    #[must_use]
+    pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
 }
@@ -139,15 +141,15 @@ impl ProjectReadRepository for ProjectReadRepositoryImpl {
         }
 
         if let Some(search_term) = filters.search.as_ref() {
-            let like_pattern = format!("%{}%", search_term);
+            let like_pattern = format!("%{search_term}%");
             conditions = conditions.add(projects::Column::Name.like(&like_pattern));
         }
 
         let projects = query
             .filter(conditions)
             .order_by(projects::Column::CreatedAt, Order::Desc)
-            .paginate(self.db.as_ref(), filters.page_size as u64)
-            .fetch_page(filters.page as u64)
+            .paginate(self.db.as_ref(), u64::from(filters.page_size))
+            .fetch_page(u64::from(filters.page))
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
@@ -206,7 +208,7 @@ impl ProjectReadRepository for ProjectReadRepositoryImpl {
         }
 
         if let Some(search_term) = search.as_ref() {
-            let like_pattern = format!("%{}%", search_term);
+            let like_pattern = format!("%{search_term}%");
             conditions = conditions.add(projects::Column::Name.like(&like_pattern));
         }
 
@@ -226,7 +228,8 @@ pub struct ProjectWriteRepositoryImpl {
 }
 
 impl ProjectWriteRepositoryImpl {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    #[must_use]
+    pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
 

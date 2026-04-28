@@ -17,17 +17,18 @@ pub trait EmailVerificationWriteRepository: Send + Sync {
     async fn delete_by_id(&self, id: Uuid) -> Result<(), DomainError>;
 }
 
-/// SeaORM implementation of EmailVerificationWriteRepository
+/// `SeaORM` implementation of `EmailVerificationWriteRepository`
 pub struct SeaOrmEmailVerificationWriteRepository {
     db: Arc<DatabaseConnection>,
 }
 
 impl SeaOrmEmailVerificationWriteRepository {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    #[must_use]
+    pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
 
-    /// Convert domain EmailVerification to SeaORM ActiveModel
+    /// Convert domain `EmailVerification` to `SeaORM` `ActiveModel`
     fn to_active_model(
         &self,
         verification: &EmailVerification,
@@ -48,7 +49,7 @@ impl EmailVerificationWriteRepository for SeaOrmEmailVerificationWriteRepository
         let active_model = self.to_active_model(verification);
 
         active_model.insert(self.db.as_ref()).await.map_err(|e| {
-            DomainError::RepositoryError(format!("Failed to create email verification: {}", e))
+            DomainError::RepositoryError(format!("Failed to create email verification: {e}"))
         })?;
 
         Ok(())
@@ -60,7 +61,7 @@ impl EmailVerificationWriteRepository for SeaOrmEmailVerificationWriteRepository
             .exec(self.db.as_ref())
             .await
             .map_err(|e| {
-                DomainError::RepositoryError(format!("Failed to delete email verification: {}", e))
+                DomainError::RepositoryError(format!("Failed to delete email verification: {e}"))
             })?;
 
         Ok(())
@@ -73,8 +74,7 @@ impl EmailVerificationWriteRepository for SeaOrmEmailVerificationWriteRepository
             .await
             .map_err(|e| {
                 DomainError::RepositoryError(format!(
-                    "Failed to delete email verification by id: {}",
-                    e
+                    "Failed to delete email verification by id: {e}"
                 ))
             })?;
 

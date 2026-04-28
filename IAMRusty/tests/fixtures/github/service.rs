@@ -36,7 +36,7 @@ impl GitHubService {
     }
 
     /// Mock OAuth token exchange endpoint
-    /// POST /login/oauth/access_token
+    /// POST /`login/oauth/access_token`
     pub async fn oauth_token(
         &self,
         status_code: u16,
@@ -47,13 +47,13 @@ impl GitHubService {
             .and(path("/login/oauth/access_token"))
             .and(header("accept", "application/json"))
             .and(header("content-type", "application/x-www-form-urlencoded"))
-            .and(body_string_contains(&format!("code={}", &request.code)))
+            .and(body_string_contains(format!("code={}", &request.code)))
             .respond_with(
                 ResponseTemplate::new(status_code)
                     .set_body_json(response)
                     .insert_header("content-type", "application/json"),
             )
-            .mount(&*self.server)
+            .mount(&self.server)
             .await;
 
         self
@@ -90,7 +90,7 @@ impl GitHubService {
             ))
             // Don't match exact redirect_uri, scope, or state since they may vary
             .respond_with(response_template)
-            .mount(&*self.server)
+            .mount(&self.server)
             .await;
 
         self
@@ -117,7 +117,7 @@ impl GitHubService {
                     .set_body_json(response)
                     .insert_header("content-type", "application/json"),
             )
-            .mount(&*self.server)
+            .mount(&self.server)
             .await;
 
         self
@@ -144,7 +144,7 @@ impl GitHubService {
                     .set_body_json(response)
                     .insert_header("content-type", "application/json"),
             )
-            .mount(&*self.server)
+            .mount(&self.server)
             .await;
 
         self
@@ -165,7 +165,7 @@ impl GitHubService {
                     .set_body_json(response)
                     .insert_header("content-type", "application/json"),
             )
-            .mount(&*self.server)
+            .mount(&self.server)
             .await;
 
         self

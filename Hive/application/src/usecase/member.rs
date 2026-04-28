@@ -112,7 +112,7 @@ impl MemberUseCaseImpl {
         }
     }
 
-    /// Convert domain OrganizationMember to response DTO
+    /// Convert domain `OrganizationMember` to response DTO
     fn member_to_response(&self, member: &OrganizationMember) -> MemberResponse {
         MemberResponse {
             id: member.id.unwrap(),
@@ -148,7 +148,7 @@ impl MemberUseCaseImpl {
             organization_name.to_string(),
             member.user_id,
             roles,
-            member.joined_at.unwrap_or_else(|| Utc::now()),
+            member.joined_at.unwrap_or_else(Utc::now),
         ));
 
         self.record_or_publish_event(event.into()).await
@@ -164,11 +164,11 @@ impl MemberUseCaseImpl {
         removed_by_user_id: Uuid,
     ) -> Result<(), ApplicationError> {
         let event = HiveDomainEvent::MemberRemoved(MemberRemovedEvent::new(
-            organization_id.clone(),
+            organization_id,
             organization_name.to_string(),
-            user_id.clone(),
+            user_id,
             user_email.to_string(),
-            removed_by_user_id.clone(),
+            removed_by_user_id,
             Utc::now(),
         ));
 
@@ -192,13 +192,13 @@ impl MemberUseCase for MemberUseCaseImpl {
             .map_err(ApplicationError::Domain)?;
 
         let role_permissions: Vec<RolePermission> =
-            request.roles.iter().map(|role| role.into()).collect();
+            request.roles.iter().map(std::convert::Into::into).collect();
 
         // Use domain service to add member
         let member = self
             .member_service
             .add_member(
-                organization_id.clone(),
+                organization_id,
                 request.user_id,
                 role_permissions.clone(),
                 Some(user_id),
@@ -265,7 +265,7 @@ impl MemberUseCase for MemberUseCaseImpl {
             .collect();
 
         let total_count = members.len() as i64;
-        let total_pages = (total_count as f64 / pagination.page_size() as f64).ceil() as u32;
+        let total_pages = (total_count as f64 / f64::from(pagination.page_size())).ceil() as u32;
         let has_next = pagination.page() < total_pages;
 
         Ok(MemberListResponse {
@@ -314,7 +314,7 @@ impl MemberUseCase for MemberUseCaseImpl {
         request: &UpdateMemberRolesRequest,
     ) -> Result<MemberResponse, ApplicationError> {
         let role_permissions: Vec<RolePermission> =
-            request.roles.iter().map(|role| role.into()).collect();
+            request.roles.iter().map(std::convert::Into::into).collect();
 
         let member = self
             .member_service

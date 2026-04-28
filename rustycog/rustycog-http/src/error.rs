@@ -46,7 +46,8 @@ impl ValidationError {
         }
     }
 
-    pub fn with_status(mut self, status: StatusCode) -> Self {
+    #[must_use]
+    pub const fn with_status(mut self, status: StatusCode) -> Self {
         self.status = status;
         self
     }
@@ -65,27 +66,31 @@ impl IntoResponse for ValidationError {
     }
 }
 
-/// Convert validator ValidationErrors to our uniform format
+/// Convert validator `ValidationErrors` to our uniform format
 impl From<ValidatorValidationErrors> for ValidationError {
     fn from(errors: ValidatorValidationErrors) -> Self {
         // Extract the first validation error for a clean message
-        let (field, error_info) = errors
-            .errors()
-            .iter()
-            .next()
-            .map(|(field, error_kind)| {
-                let first_error = match error_kind {
-                    validator::ValidationErrorsKind::Field(errors) => errors
-                        .first()
-                        .map(|e| (e.code.as_ref(), e.message.as_deref())),
-                    _ => None,
-                };
-                (field.as_ref(), first_error)
-            })
-            .unwrap_or(("unknown", None));
+        let (field, error_info) =
+            errors
+                .errors()
+                .iter()
+                .next()
+                .map_or(("unknown", None), |(field, error_kind)| {
+                    let first_error = match error_kind {
+                        validator::ValidationErrorsKind::Field(errors) => errors
+                            .first()
+                            .map(|e| (e.code.as_ref(), e.message.as_deref())),
+                        _ => None,
+                    };
+                    (field.as_ref(), first_error)
+                });
 
-        let (error_code, message) = if let Some((code, msg)) = error_info {
-            let formatted_message = msg.map(|s| s.to_string()).unwrap_or_else(|| match code {
+        let (error_code, message) =
+            if let Some((code, msg)) = error_info {
+                let formatted_message =
+                    msg.map_or_else(
+                        || {
+                            match code {
                 "empty_string" | "empty_password" | "empty_email" | "empty_username" => {
                     format!("{} is required", field.replace('_', " "))
                 }
@@ -103,23 +108,26 @@ impl From<ValidatorValidationErrors> for ValidationError {
                 "email_too_long" => "Email address is too long".to_string(),
                 "password_too_long" => "Password is too long".to_string(),
                 _ => format!("Invalid {}", field.replace('_', " ")),
-            });
-            (format!("validation_{}", code), formatted_message)
-        } else {
-            (
-                "validation_failed".to_string(),
-                "Validation failed".to_string(),
-            )
-        };
+            }
+                        },
+                        std::string::ToString::to_string,
+                    );
+                (format!("validation_{code}"), formatted_message)
+            } else {
+                (
+                    "validation_failed".to_string(),
+                    "Validation failed".to_string(),
+                )
+            };
 
-        ValidationError::new(error_code, message)
+        Self::new(error_code, message)
     }
 }
 
 /// Convert JSON parsing errors to our uniform format
 impl From<JsonRejection> for ValidationError {
     fn from(_rejection: JsonRejection) -> Self {
-        ValidationError::new("invalid_json", "Invalid JSON format in request body")
+        Self::new("invalid_json", "Invalid JSON format in request body")
             .with_status(StatusCode::BAD_REQUEST)
     }
 }
@@ -147,20 +155,20 @@ pub enum GenericHttpError {
 impl IntoResponse for GenericHttpError {
     fn into_response(self) -> Response {
         let (status, error_code, message) = match self {
-            GenericHttpError::AuthenticationRequired => (
+            Self::AuthenticationRequired => (
                 StatusCode::UNAUTHORIZED,
                 "authentication_required".to_string(),
                 "Authentication required".to_string(),
             ),
-            GenericHttpError::InvalidRequest(msg) => {
+            Self::InvalidRequest(msg) => {
                 (StatusCode::BAD_REQUEST, "invalid_request".to_string(), msg)
             }
-            GenericHttpError::InternalServerError(msg) => (
+            Self::InternalServerError(msg) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "internal_server_error".to_string(),
                 msg,
             ),
-            GenericHttpError::Validation(validation_error) => {
+            Self::Validation(validation_error) => {
                 return validation_error.into_response();
             }
         };

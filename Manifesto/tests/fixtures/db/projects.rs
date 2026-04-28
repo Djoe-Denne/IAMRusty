@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 // Import the entity types from infra crate
 use manifesto_infra::repository::entity::projects::{
-    ActiveModel as ProjectActiveModel, Entity as ProjectsEntity, Model as ProjectModel,
+    ActiveModel as ProjectActiveModel, Model as ProjectModel,
 };
 
 /// Project fixture wrapper
@@ -19,7 +19,7 @@ pub struct ProjectFixture {
 
 impl ProjectFixture {
     /// Get the project ID
-    pub fn id(&self) -> Uuid {
+    pub const fn id(&self) -> Uuid {
         self.inner.model.id
     }
 
@@ -34,12 +34,12 @@ impl ProjectFixture {
     }
 
     /// Get the project owner ID
-    pub fn owner_id(&self) -> Uuid {
+    pub const fn owner_id(&self) -> Uuid {
         self.inner.model.owner_id
     }
 
     /// Get the inner model
-    pub fn model(&self) -> &ProjectModel {
+    pub const fn model(&self) -> &ProjectModel {
         &self.inner.model
     }
 }
@@ -61,7 +61,7 @@ pub struct ProjectFixtureBuilder {
 
 impl ProjectFixtureBuilder {
     /// Create a new project fixture builder
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             id: None,
             name: None,
@@ -77,7 +77,7 @@ impl ProjectFixtureBuilder {
     }
 
     /// Set the project ID
-    pub fn id(mut self, id: Uuid) -> Self {
+    pub const fn id(mut self, id: Uuid) -> Self {
         self.id = Some(id);
         self
     }
@@ -125,7 +125,7 @@ impl ProjectFixtureBuilder {
     }
 
     /// Set the owner ID
-    pub fn owner_id(mut self, owner_id: Uuid) -> Self {
+    pub const fn owner_id(mut self, owner_id: Uuid) -> Self {
         self.owner_id = Some(owner_id);
         self
     }
@@ -146,8 +146,8 @@ impl ProjectFixtureBuilder {
         self
     }
 
-    /// Set the created_by user
-    pub fn created_by(mut self, created_by: Uuid) -> Self {
+    /// Set the `created_by` user
+    pub const fn created_by(mut self, created_by: Uuid) -> Self {
         self.created_by = Some(created_by);
         self
     }
@@ -171,7 +171,7 @@ impl ProjectFixtureBuilder {
     }
 
     /// Set external collaboration enabled
-    pub fn external_collaboration_enabled(mut self, enabled: bool) -> Self {
+    pub const fn external_collaboration_enabled(mut self, enabled: bool) -> Self {
         self.external_collaboration_enabled = Some(enabled);
         self
     }
@@ -191,7 +191,7 @@ impl ProjectFixtureBuilder {
 
         let active_model = ProjectActiveModel {
             id: ActiveValue::Set(id),
-            name: ActiveValue::Set(self.name.unwrap_or_else(|| format!("Test Project {}", id))),
+            name: ActiveValue::Set(self.name.unwrap_or_else(|| format!("Test Project {id}"))),
             description: ActiveValue::Set(self.description),
             status: ActiveValue::Set(self.status.unwrap_or_else(|| "draft".to_string())),
             owner_type: ActiveValue::Set(self.owner_type.unwrap_or_else(|| "personal".to_string())),

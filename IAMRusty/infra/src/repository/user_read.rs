@@ -12,15 +12,16 @@ use super::entity::{
     provider_tokens, user_emails, users,
 };
 
-/// SeaORM implementation of UserReadRepository
+/// `SeaORM` implementation of `UserReadRepository`
 #[derive(Clone)]
 pub struct UserReadRepositoryImpl {
     db: Arc<DatabaseConnection>,
 }
 
 impl UserReadRepositoryImpl {
-    /// Create a new UserReadRepositoryImpl
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    /// Create a new `UserReadRepositoryImpl`
+    #[must_use]
+    pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
 

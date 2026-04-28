@@ -24,7 +24,7 @@ pub struct RefreshTokenFixtureBuilder {
 
 impl RefreshTokenFixtureBuilder {
     /// Create a new refresh token fixture builder
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             id: None,
             user_id: None,
@@ -36,13 +36,13 @@ impl RefreshTokenFixtureBuilder {
     }
 
     /// Set the token ID
-    pub fn id(mut self, id: Uuid) -> Self {
+    pub const fn id(mut self, id: Uuid) -> Self {
         self.id = Some(id);
         self
     }
 
     /// Set the user ID
-    pub fn user_id(mut self, user_id: Uuid) -> Self {
+    pub const fn user_id(mut self, user_id: Uuid) -> Self {
         self.user_id = Some(user_id);
         self
     }
@@ -54,26 +54,26 @@ impl RefreshTokenFixtureBuilder {
     }
 
     /// Set whether the token is valid
-    pub fn is_valid(mut self, is_valid: bool) -> Self {
+    pub const fn is_valid(mut self, is_valid: bool) -> Self {
         self.is_valid = Some(is_valid);
         self
     }
 
-    /// Set the created_at timestamp
-    pub fn created_at(mut self, created_at: DateTimeWithTimeZone) -> Self {
+    /// Set the `created_at` timestamp
+    pub const fn created_at(mut self, created_at: DateTimeWithTimeZone) -> Self {
         self.created_at = Some(created_at);
         self
     }
 
-    /// Set the expires_at timestamp
-    pub fn expires_at(mut self, expires_at: DateTimeWithTimeZone) -> Self {
+    /// Set the `expires_at` timestamp
+    pub const fn expires_at(mut self, expires_at: DateTimeWithTimeZone) -> Self {
         self.expires_at = Some(expires_at);
         self
     }
 
     /// Commit the refresh token to the database
     pub async fn commit(self, db: Arc<DatabaseConnection>) -> Result<RefreshTokenFixture, DbErr> {
-        let fixture = DbFixture::commit(self, &*db).await?;
+        let fixture = DbFixture::commit(self, &db).await?;
         Ok(RefreshTokenFixture { inner: fixture })
     }
 
@@ -198,17 +198,17 @@ impl RefreshTokenFixture {
     }
 
     /// Get the refresh token model
-    pub fn model(&self) -> &RefreshTokenModel {
+    pub const fn model(&self) -> &RefreshTokenModel {
         self.inner.model()
     }
 
     /// Get the token ID
-    pub fn id(&self) -> Uuid {
+    pub const fn id(&self) -> Uuid {
         self.model().id
     }
 
     /// Get the user ID
-    pub fn user_id(&self) -> Uuid {
+    pub const fn user_id(&self) -> Uuid {
         self.model().user_id
     }
 
@@ -218,17 +218,17 @@ impl RefreshTokenFixture {
     }
 
     /// Check if the token is valid
-    pub fn is_valid(&self) -> bool {
+    pub const fn is_valid(&self) -> bool {
         self.model().is_valid
     }
 
-    /// Get the created_at timestamp
-    pub fn created_at(&self) -> DateTimeWithTimeZone {
+    /// Get the `created_at` timestamp
+    pub const fn created_at(&self) -> DateTimeWithTimeZone {
         self.model().created_at
     }
 
-    /// Get the expires_at timestamp
-    pub fn expires_at(&self) -> DateTimeWithTimeZone {
+    /// Get the `expires_at` timestamp
+    pub const fn expires_at(&self) -> DateTimeWithTimeZone {
         self.model().expires_at
     }
 

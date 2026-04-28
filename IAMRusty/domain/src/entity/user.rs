@@ -5,8 +5,8 @@ use uuid::Uuid;
 /// Represents a user in the system
 ///
 /// Users can link multiple OAuth providers and have multiple email addresses.
-/// Email addresses are stored separately in the UserEmail entity.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+/// Email addresses are stored separately in the `UserEmail` entity.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct User {
     /// Unique identifier for the user
     pub id: Uuid,
@@ -29,6 +29,7 @@ pub struct User {
 
 impl User {
     /// Creates a new user without username (incomplete registration)
+    #[must_use]
     pub fn new_incomplete(avatar_url: Option<String>) -> Self {
         let now = Utc::now();
         Self {
@@ -42,6 +43,7 @@ impl User {
     }
 
     /// Creates a new user with username (complete registration)
+    #[must_use]
     pub fn new(username: String, avatar_url: Option<String>) -> Self {
         let now = Utc::now();
         Self {
@@ -55,6 +57,7 @@ impl User {
     }
 
     /// Creates a new user with password authentication but no username (incomplete registration)
+    #[must_use]
     pub fn new_incomplete_with_password(password_hash: String, avatar_url: Option<String>) -> Self {
         let now = Utc::now();
         Self {
@@ -68,6 +71,7 @@ impl User {
     }
 
     /// Creates a new user with password authentication and username (complete registration)
+    #[must_use]
     pub fn new_with_password(
         username: String,
         password_hash: String,
@@ -102,12 +106,14 @@ impl User {
     }
 
     /// Check if the user has completed registration (has username)
-    pub fn is_registration_complete(&self) -> bool {
+    #[must_use]
+    pub const fn is_registration_complete(&self) -> bool {
         self.username.is_some()
     }
 
     /// Check if the user has started but not completed registration
-    pub fn is_registration_incomplete(&self) -> bool {
+    #[must_use]
+    pub const fn is_registration_incomplete(&self) -> bool {
         self.username.is_none()
     }
 
@@ -118,7 +124,8 @@ impl User {
     }
 
     /// Checks if the user has password authentication enabled
-    pub fn has_password(&self) -> bool {
+    #[must_use]
+    pub const fn has_password(&self) -> bool {
         self.password_hash.is_some()
     }
 }

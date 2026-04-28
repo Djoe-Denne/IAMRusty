@@ -24,7 +24,7 @@ pub trait OrganizationUseCase: Send + Sync {
      * Create a new organization
      *
      * @param request - The request to create the organization
-     * @param user_id - The ID of the user creating the organization
+     * @param `user_id` - The ID of the user creating the organization
      */
     async fn create_organization(
         &self,
@@ -35,8 +35,8 @@ pub trait OrganizationUseCase: Send + Sync {
     /**
      * Get an organization
      *
-     * @param organization_id - The ID of the organization
-     * @param user_id - The ID of the user requesting the organization
+     * @param `organization_id` - The ID of the organization
+     * @param `user_id` - The ID of the user requesting the organization
      */
     async fn get_organization(
         &self,
@@ -47,9 +47,9 @@ pub trait OrganizationUseCase: Send + Sync {
     /**
      * Update an organization
      *
-     * @param organization_id - The ID of the organization
+     * @param `organization_id` - The ID of the organization
      * @param request - The request to update the organization
-     * @param user_id - The ID of the user updating the organization
+     * @param `user_id` - The ID of the user updating the organization
      */
     async fn update_organization(
         &self,
@@ -61,8 +61,8 @@ pub trait OrganizationUseCase: Send + Sync {
     /**
      * Delete an organization
      *
-     * @param organization_id - The ID of the organization
-     * @param user_id - The ID of the user deleting the organization
+     * @param `organization_id` - The ID of the organization
+     * @param `user_id` - The ID of the user deleting the organization
      */
     async fn delete_organization(
         &self,
@@ -73,7 +73,7 @@ pub trait OrganizationUseCase: Send + Sync {
     /**
      * List organizations
      *
-     * @param user_id - The ID of the user listing the organizations
+     * @param `user_id` - The ID of the user listing the organizations
      * @param pagination - The pagination request
      */
     async fn list_organizations(
@@ -86,7 +86,7 @@ pub trait OrganizationUseCase: Send + Sync {
      * Search organizations
      *
      * @param request - The request to search the organizations
-     * @param user_id - The ID of the user searching the organizations
+     * @param `user_id` - The ID of the user searching the organizations
      */
     async fn search_organizations(
         &self,
@@ -186,33 +186,33 @@ impl OrganizationUseCaseImpl {
             if request.name.is_some() {
                 "name".to_string()
             } else {
-                "".to_string()
+                String::new()
             },
             if request.description.is_some() {
                 "description".to_string()
             } else {
-                "".to_string()
+                String::new()
             },
             if request.avatar_url.is_some() {
                 "avatar_url".to_string()
             } else {
-                "".to_string()
+                String::new()
             },
             if request.settings.is_some() {
                 "settings".to_string()
             } else {
-                "".to_string()
+                String::new()
             },
         ]
         .into_iter()
-        .filter(|field| *field != "".to_string())
+        .filter(|field| *field != String::new())
         .collect::<Vec<String>>();
 
         let event = HiveDomainEvent::OrganizationUpdated(OrganizationUpdatedEvent::new(
-            organization.id.clone(),
+            organization.id,
             organization.name.clone(),
             updated_fields,
-            user_id.clone(),
+            user_id,
             Utc::now(),
         ));
 
@@ -226,9 +226,9 @@ impl OrganizationUseCaseImpl {
         user_id: Uuid,
     ) -> Result<(), ApplicationError> {
         let event = HiveDomainEvent::OrganizationDeleted(OrganizationDeletedEvent::new(
-            organization.id.clone(),
+            organization.id,
             organization.name.clone(),
-            user_id.clone(),
+            user_id,
             Utc::now(),
         ));
 
@@ -288,7 +288,7 @@ impl OrganizationUseCase for OrganizationUseCaseImpl {
         let updated_organization = self
             .organization_service
             .update_organization(
-                organization_id.clone(),
+                organization_id,
                 request.name.clone(),
                 request.description.clone(),
                 request.avatar_url.clone(),
@@ -318,7 +318,7 @@ impl OrganizationUseCase for OrganizationUseCaseImpl {
 
         // Use domain service to delete organization
         self.organization_service
-            .delete_organization(organization_id.clone())
+            .delete_organization(organization_id)
             .await
             .map_err(ApplicationError::Domain)?;
 
@@ -341,7 +341,7 @@ impl OrganizationUseCase for OrganizationUseCaseImpl {
             .map_err(ApplicationError::Domain)?;
 
         let total_count = organizations.len() as i64;
-        let total_pages = (total_count as f64 / pagination.page_size() as f64).ceil() as u32;
+        let total_pages = (total_count as f64 / f64::from(pagination.page_size())).ceil() as u32;
         let pagination_response = PaginationResponse {
             current_page: pagination.page(),
             total_items: Some(total_count),
@@ -382,15 +382,15 @@ impl OrganizationUseCase for OrganizationUseCaseImpl {
             .search_organizations(
                 &request.query,
                 user_id,
-                request.page.unwrap_or(1) as u32,
-                request.page_size.unwrap_or(10) as u32,
+                request.page.unwrap_or(1),
+                request.page_size.unwrap_or(10),
             )
             .await
             .map_err(ApplicationError::Domain)?;
 
         let total_count = organizations.len() as i64;
         let total_pages =
-            (total_count as f64 / request.page_size.unwrap_or(10) as f64).ceil() as u32;
+            (total_count as f64 / f64::from(request.page_size.unwrap_or(10))).ceil() as u32;
         let pagination_response = PaginationResponse {
             current_page: request.page.unwrap_or(1),
             total_items: Some(total_count),

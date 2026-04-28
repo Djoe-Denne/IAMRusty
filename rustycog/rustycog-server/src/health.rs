@@ -1,7 +1,5 @@
 //! Health check utilities
 
-use rustycog_core::error::ServiceError;
-
 /// Health check status
 #[derive(Debug, Clone)]
 pub enum HealthStatus {

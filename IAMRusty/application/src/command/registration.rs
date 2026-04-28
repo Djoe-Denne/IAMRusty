@@ -27,7 +27,8 @@ pub enum RegistrationErrorCode {
 }
 
 impl RegistrationErrorCode {
-    pub fn as_str(&self) -> &'static str {
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
         match self {
             Self::RepositoryError => "repository_error",
             Self::TokenServiceError => "token_service_error",
@@ -114,6 +115,7 @@ pub struct CompleteRegistrationCommand {
 }
 
 impl CompleteRegistrationCommand {
+    #[must_use]
     pub fn new(registration_token: String, username: String) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -168,7 +170,7 @@ impl Command for CompleteRegistrationCommand {
         }
 
         // Require at least one letter (cannot be only numbers/symbols)
-        if !self.username.chars().any(|c| c.is_alphabetic()) {
+        if !self.username.chars().any(char::is_alphabetic) {
             return Err(CommandError::validation(
                 RegistrationErrorCode::ValidationFailed.as_str(),
                 "Username must contain at least one letter",
@@ -189,6 +191,7 @@ pub struct CheckUsernameCommand {
 }
 
 impl CheckUsernameCommand {
+    #[must_use]
     pub fn new(username: String) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -239,7 +242,7 @@ impl<R> CompleteRegistrationCommandHandler<R>
 where
     R: RegistrationUseCase + ?Sized,
 {
-    pub fn new(registration_use_case: Arc<R>) -> Self {
+    pub const fn new(registration_use_case: Arc<R>) -> Self {
         Self {
             registration_use_case,
         }
@@ -279,7 +282,7 @@ impl<R> CheckUsernameCommandHandler<R>
 where
     R: RegistrationUseCase + ?Sized,
 {
-    pub fn new(registration_use_case: Arc<R>) -> Self {
+    pub const fn new(registration_use_case: Arc<R>) -> Self {
         Self {
             registration_use_case,
         }

@@ -106,7 +106,7 @@ impl NotificationUseCaseImpl {
     /// Convert domain notification to response
     fn to_notification_response(notification: NotificationCommunication) -> NotificationResponse {
         NotificationResponse {
-            id: notification.id.unwrap_or_else(|| Uuid::new_v4()),
+            id: notification.id.unwrap_or_else(Uuid::new_v4),
             title: notification.title,
             body: notification.body,
             is_read: notification.is_read.unwrap_or(false),
@@ -146,7 +146,7 @@ impl NotificationUseCaseTrait for NotificationUseCaseImpl {
             .map(Self::to_notification_response)
             .collect();
 
-        let current_last_index = (page + 1) as u64 * per_page as u64;
+        let current_last_index = u64::from(page + 1) * u64::from(per_page);
         let has_more = current_last_index < total_count;
 
         Ok(GetNotificationsResponse {

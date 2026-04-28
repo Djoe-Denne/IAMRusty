@@ -1,4 +1,4 @@
-//! RolePermissionRepository SeaORM implementation
+//! `RolePermissionRepository` `SeaORM` implementation
 
 use async_trait::async_trait;
 use hive_domain::port::repository::{
@@ -14,11 +14,11 @@ use hive_domain::{
 };
 use rustycog_core::error::DomainError;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityOrSelect,
-    EntityTrait, ModelTrait, QueryFilter, QuerySelect, QueryTrait, Set,
+    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
+    QuerySelect, QueryTrait,
 };
 use std::sync::Arc;
-use tracing::{debug, error};
+use tracing::debug;
 use uuid::Uuid;
 
 use super::entity::{
@@ -30,6 +30,7 @@ use super::entity::{
 pub struct MemberRoleMapper;
 
 impl MemberRoleMapper {
+    #[must_use]
     pub fn to_domain(
         model: organization_member_role_permissions::Model,
         role_permission: role_permissions::Model,
@@ -51,7 +52,7 @@ impl MemberRoleMapper {
                     Some(role_permission.created_at),
                 ),
                 &Resource::new(
-                    role_permission.resource_id.into(),
+                    role_permission.resource_id,
                     None,
                     Some(role_permission.created_at),
                 ),
@@ -61,6 +62,7 @@ impl MemberRoleMapper {
         }
     }
 
+    #[must_use]
     pub fn to_active_model(
         member_role: &OrganizationMemberRolePermission,
     ) -> organization_member_role_permissions::ActiveModel {
@@ -80,7 +82,8 @@ pub struct MemberRoleReadRepositoryImpl {
 }
 
 impl MemberRoleReadRepositoryImpl {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    #[must_use]
+    pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
 }
@@ -116,7 +119,8 @@ pub struct MemberRoleWriteRepositoryImpl {
 }
 
 impl MemberRoleWriteRepositoryImpl {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    #[must_use]
+    pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
 }

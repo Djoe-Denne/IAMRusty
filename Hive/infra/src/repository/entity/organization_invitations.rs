@@ -1,4 +1,4 @@
-//! Organization Invitations SeaORM Entity
+//! Organization Invitations `SeaORM` Entity
 
 use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*;

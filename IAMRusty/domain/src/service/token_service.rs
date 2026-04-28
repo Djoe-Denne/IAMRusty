@@ -38,6 +38,7 @@ impl TokenService {
     }
 
     /// Get the JSON Web Key Set
+    #[must_use]
     pub fn jwks(&self) -> JwkSet {
         self.token_encoder.jwks()
     }

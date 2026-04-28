@@ -16,8 +16,8 @@ pub const SERVICE_PREFIX: &str = "/hive";
 /// Create the application routes using the fluent builder API
 ///
 /// All authorization goes through `AppState.permission_checker` (set up in
-/// `hive_setup`) which talks to the centralized OpenFGA store. Each guarded
-/// route declares the OpenFGA object type the deepest UUID path segment maps
+/// `hive_setup`) which talks to the centralized `OpenFGA` store. Each guarded
+/// route declares the `OpenFGA` object type the deepest UUID path segment maps
 /// onto (`"organization"` for every current Hive route — members and external
 /// links are modeled as derived relations on the parent organization).
 pub fn create_router(state: AppState) -> Router {

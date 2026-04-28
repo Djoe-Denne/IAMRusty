@@ -25,12 +25,13 @@ pub struct CapturedEvent {
 }
 
 impl CapturedEvent {
-    /// Parse the JSON data as a serde_json::Value for inspection
+    /// Parse the JSON data as a `serde_json::Value` for inspection
     pub fn parse_json(&self) -> Result<serde_json::Value, serde_json::Error> {
         serde_json::from_str(&self.json_data)
     }
 
     /// Get a field from the parsed JSON data
+    #[must_use]
     pub fn get_json_field(&self, field_name: &str) -> Option<serde_json::Value> {
         self.parse_json()
             .ok()
@@ -38,9 +39,10 @@ impl CapturedEvent {
     }
 
     /// Get a string field from the parsed JSON data
+    #[must_use]
     pub fn get_json_string_field(&self, field_name: &str) -> Option<String> {
         self.get_json_field(field_name)
-            .and_then(|v| v.as_str().map(|s| s.to_string()))
+            .and_then(|v| v.as_str().map(std::string::ToString::to_string))
     }
 }
 
@@ -52,6 +54,7 @@ pub struct MockEventPublisher {
 
 impl MockEventPublisher {
     /// Create a new mock event publisher
+    #[must_use]
     pub fn new() -> Self {
         Self {
             published_events: Arc::new(Mutex::new(Vec::new())),
@@ -59,18 +62,21 @@ impl MockEventPublisher {
     }
 
     /// Get all published events
+    #[must_use]
     pub fn get_published_events(&self) -> Vec<CapturedEvent> {
         let events = self.published_events.lock().unwrap();
         events.clone()
     }
 
     /// Get the total number of published events
+    #[must_use]
     pub fn get_event_count(&self) -> usize {
         let events = self.published_events.lock().unwrap();
         events.len()
     }
 
     /// Get events by type
+    #[must_use]
     pub fn get_events_by_type(&self, event_type: &str) -> Vec<CapturedEvent> {
         let events = self.published_events.lock().unwrap();
         events
@@ -81,40 +87,49 @@ impl MockEventPublisher {
     }
 
     /// Check if any events of a specific type were published
+    #[must_use]
     pub fn has_event_type(&self, event_type: &str) -> bool {
         let events = self.published_events.lock().unwrap();
         events.iter().any(|event| event.event_type == event_type)
     }
 
     /// Helper methods for common event types
+    #[must_use]
     pub fn has_password_reset_requested_event(&self) -> bool {
         self.has_event_type("password_reset_requested")
     }
 
+    #[must_use]
     pub fn get_password_reset_requested_events(&self) -> Vec<CapturedEvent> {
         self.get_events_by_type("password_reset_requested")
     }
 
+    #[must_use]
     pub fn has_user_signed_up_event(&self) -> bool {
         self.has_event_type("user_signed_up")
     }
 
+    #[must_use]
     pub fn get_user_signed_up_events(&self) -> Vec<CapturedEvent> {
         self.get_events_by_type("user_signed_up")
     }
 
+    #[must_use]
     pub fn has_user_email_verified_event(&self) -> bool {
         self.has_event_type("user_email_verified")
     }
 
+    #[must_use]
     pub fn get_user_email_verified_events(&self) -> Vec<CapturedEvent> {
         self.get_events_by_type("user_email_verified")
     }
 
+    #[must_use]
     pub fn has_user_logged_in_event(&self) -> bool {
         self.has_event_type("user_logged_in")
     }
 
+    #[must_use]
     pub fn get_user_logged_in_events(&self) -> Vec<CapturedEvent> {
         self.get_events_by_type("user_logged_in")
     }
@@ -162,6 +177,7 @@ impl MockEventPublisher {
     }
 
     /// Get a shared reference to this publisher (for dependency injection)
+    #[must_use]
     pub fn as_arc(self) -> Arc<Self> {
         Arc::new(self)
     }

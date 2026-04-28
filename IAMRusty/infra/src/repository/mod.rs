@@ -1,4 +1,4 @@
-//! Repository implementations using SeaORM
+//! Repository implementations using `SeaORM`
 
 // pub mod user; // Legacy - replaced by user_read and user_write
 pub mod entity;

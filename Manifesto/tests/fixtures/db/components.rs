@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 // Import the entity types from infra crate
 use manifesto_infra::repository::entity::project_components::{
-    ActiveModel as ComponentActiveModel, Entity as ComponentsEntity, Model as ComponentModel,
+    ActiveModel as ComponentActiveModel, Model as ComponentModel,
 };
 use manifesto_infra::repository::entity::resources::ActiveModel as ResourceActiveModel;
 
@@ -20,12 +20,12 @@ pub struct ComponentFixture {
 
 impl ComponentFixture {
     /// Get the component ID
-    pub fn id(&self) -> Uuid {
+    pub const fn id(&self) -> Uuid {
         self.inner.model.id
     }
 
     /// Get the project ID
-    pub fn project_id(&self) -> Uuid {
+    pub const fn project_id(&self) -> Uuid {
         self.inner.model.project_id
     }
 
@@ -40,7 +40,7 @@ impl ComponentFixture {
     }
 
     /// Get the inner model
-    pub fn model(&self) -> &ComponentModel {
+    pub const fn model(&self) -> &ComponentModel {
         &self.inner.model
     }
 }
@@ -56,7 +56,7 @@ pub struct ComponentFixtureBuilder {
 
 impl ComponentFixtureBuilder {
     /// Create a new component fixture builder
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             id: None,
             project_id: None,
@@ -66,13 +66,13 @@ impl ComponentFixtureBuilder {
     }
 
     /// Set the component ID
-    pub fn id(mut self, id: Uuid) -> Self {
+    pub const fn id(mut self, id: Uuid) -> Self {
         self.id = Some(id);
         self
     }
 
     /// Set the project ID
-    pub fn for_project(mut self, project_id: Uuid) -> Self {
+    pub const fn for_project(mut self, project_id: Uuid) -> Self {
         self.project_id = Some(project_id);
         self
     }
@@ -148,7 +148,7 @@ impl ComponentFixtureBuilder {
                     .unwrap_or_else(|| "taskboard".to_string()),
             ),
             status: ActiveValue::Set(self.status.unwrap_or_else(|| "pending".to_string())),
-            added_at: ActiveValue::Set(now.clone()),
+            added_at: ActiveValue::Set(now),
             configured_at: ActiveValue::NotSet,
             activated_at: ActiveValue::NotSet,
             disabled_at: ActiveValue::NotSet,

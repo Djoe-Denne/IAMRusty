@@ -1,5 +1,6 @@
 use sea_orm_migration::prelude::*;
 
+#[must_use]
 pub fn outbox_migration() -> Box<dyn MigrationTrait> {
     Box::new(Migration)
 }
@@ -7,7 +8,7 @@ pub fn outbox_migration() -> Box<dyn MigrationTrait> {
 pub struct Migration;
 
 impl MigrationName for Migration {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "m20260426_000001_create_rustycog_outbox_events"
     }
 }

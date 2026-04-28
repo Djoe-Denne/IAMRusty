@@ -15,7 +15,7 @@ use anyhow::Result;
 use crate::fga_client::Tuple;
 
 /// Result of translating a single event. Write and delete sets are applied
-/// atomically against OpenFGA.
+/// atomically against `OpenFGA`.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct TupleDelta {
     pub writes: Vec<Tuple>,
@@ -23,7 +23,7 @@ pub struct TupleDelta {
 }
 
 impl TupleDelta {
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.writes.is_empty() && self.deletes.is_empty()
     }
 

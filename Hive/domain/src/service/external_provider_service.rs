@@ -29,9 +29,9 @@ pub trait ExternalProviderService: Send + Sync {
     /**
      * Link an organization to an external provider
      *
-     * @param organization_id - The ID of the organization to link
-     * @param provider_id - The ID of the external provider
-     * @param provider_config - Configuration for the external provider connection
+     * @param `organization_id` - The ID of the organization to link
+     * @param `provider_id` - The ID of the external provider
+     * @param `provider_config` - Configuration for the external provider connection
      */
     async fn link_organization(
         &self,
@@ -43,8 +43,8 @@ pub trait ExternalProviderService: Send + Sync {
     /**
      * Unlink an organization from an external provider
      *
-     * @param organization_id - The ID of the organization to unlink
-     * @param provider_id - The ID of the external provider to unlink
+     * @param `organization_id` - The ID of the organization to unlink
+     * @param `provider_id` - The ID of the external provider to unlink
      */
     async fn unlink_organization(
         &self,
@@ -55,8 +55,8 @@ pub trait ExternalProviderService: Send + Sync {
     /**
      * Test connection to external provider
      *
-     * @param provider_id - The ID of the external provider
-     * @param provider_config - Configuration for the connection
+     * @param `provider_id` - The ID of the external provider
+     * @param `provider_config` - Configuration for the connection
      */
     async fn test_connection(
         &self,
@@ -67,8 +67,8 @@ pub trait ExternalProviderService: Send + Sync {
     /**
      * Get external link by organization and provider
      *
-     * @param organization_id - The ID of the organization
-     * @param provider_id - The ID of the provider
+     * @param `organization_id` - The ID of the organization
+     * @param `provider_id` - The ID of the provider
      */
     async fn get_external_link(
         &self,
@@ -79,7 +79,7 @@ pub trait ExternalProviderService: Send + Sync {
     /**
      * List external links for an organization
      *
-     * @param organization_id - The ID of the organization
+     * @param `organization_id` - The ID of the organization
      */
     async fn list_organization_links(
         &self,
@@ -95,7 +95,7 @@ where
     PC: ExternalProviderClient,
 {
     /// Create a new external provider service
-    pub fn new(
+    pub const fn new(
         organization_repo: Arc<OR>,
         external_link_repo: Arc<ELR>,
         external_provider_repo: Arc<EPR>,
@@ -151,10 +151,7 @@ where
         {
             return Err(DomainError::resource_already_exists(
                 "ExternalLink",
-                &format!(
-                    "organization_id={}, provider_id={}",
-                    organization_id, provider_id
-                ),
+                &format!("organization_id={organization_id}, provider_id={provider_id}"),
             ));
         }
 
@@ -188,10 +185,7 @@ where
             .ok_or_else(|| {
                 DomainError::entity_not_found(
                     "ExternalLink",
-                    &format!(
-                        "organization_id={}, provider_id={}",
-                        organization_id, provider_id
-                    ),
+                    &format!("organization_id={organization_id}, provider_id={provider_id}"),
                 )
             })?;
 
@@ -244,10 +238,7 @@ where
             .ok_or_else(|| {
                 DomainError::entity_not_found(
                     "ExternalLink",
-                    &format!(
-                        "organization_id={}, provider_id={}",
-                        organization_id, provider_id
-                    ),
+                    &format!("organization_id={organization_id}, provider_id={provider_id}"),
                 )
             })
     }
@@ -270,7 +261,7 @@ where
             .find_by_organization(&organization_id)
             .await?;
 
-        for link in links.iter_mut() {
+        for link in &mut links {
             link.set_organization_name(organization.name.clone());
             let provider = self
                 .external_provider_repo
@@ -279,7 +270,7 @@ where
                 .ok_or_else(|| {
                     DomainError::entity_not_found(
                         "ExternalProvider",
-                        &link.provider_source.clone().unwrap().to_string(),
+                        &link.provider_source.clone().unwrap(),
                     )
                 })?;
             link.set_provider_source(provider.provider_source.clone());

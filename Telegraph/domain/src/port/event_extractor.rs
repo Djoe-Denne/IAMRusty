@@ -9,7 +9,7 @@ use std::collections::HashMap;
 #[async_trait]
 pub trait EventExtractor: Send + Sync {
     /// Extract template variables from a domain event
-    /// Converts the event into a flat HashMap<String, String> suitable for template rendering
+    /// Converts the event into a flat `HashMap`<String, String> suitable for template rendering
     async fn extract_variables(
         &self,
         event: &dyn DomainEvent,

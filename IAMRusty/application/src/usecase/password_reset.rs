@@ -250,11 +250,12 @@ where
                     let reset_token = PasswordResetToken::new(user.id, &raw_token, 24); // 24 hours
 
                     // Store the token
-                    if let Ok(()) = self
-                        .password_reset_token_repository
-                        .create(&reset_token)
-                        .await
-                    {
+                    if matches!(
+                        self.password_reset_token_repository
+                            .create(&reset_token)
+                            .await,
+                        Ok(())
+                    ) {
                         // Publish event
                         let event =
                             DomainEvent::PasswordResetRequested(PasswordResetRequestedEvent::new(

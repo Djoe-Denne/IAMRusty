@@ -17,7 +17,7 @@ pub trait ExternalLinkUseCase: Send + Sync {
     /**
      * Create a new external link
      *
-     * @param organization_id - The ID of the organization
+     * @param `organization_id` - The ID of the organization
      * @param request - The request to create the external link
      */
     async fn create_link(
@@ -29,8 +29,8 @@ pub trait ExternalLinkUseCase: Send + Sync {
     /**
      * Delete an external link
      *
-     * @param organization_id - The ID of the organization
-     * @param link_id - The ID of the external link
+     * @param `organization_id` - The ID of the organization
+     * @param `link_id` - The ID of the external link
      */
     async fn delete_link(
         &self,
@@ -41,8 +41,8 @@ pub trait ExternalLinkUseCase: Send + Sync {
     /**
      * Test connection to external provider
      *
-     * @param provider_id - The ID of the external provider
-     * @param provider_config - Configuration for the connection
+     * @param `provider_id` - The ID of the external provider
+     * @param `provider_config` - Configuration for the connection
      */
     async fn test_connection(
         &self,
@@ -107,9 +107,9 @@ impl ExternalLinkUseCaseImpl {
     ) -> Result<(), ApplicationError> {
         let event = HiveDomainEvent::ExternalLinkCreated(ExternalLinkCreatedEvent::new(
             organization_id,
-            organization_name.to_string(),
+            organization_name.clone(),
             external_link_id,
-            provider_type.to_string(),
+            provider_type.clone(),
             created_at,
         ));
 
@@ -132,7 +132,7 @@ impl ExternalLinkUseCase for ExternalLinkUseCaseImpl {
                 &request.provider_config,
             )
             .await
-            .map_err(|e| ApplicationError::Domain(e))?;
+            .map_err(ApplicationError::Domain)?;
 
         let provider_source = external_link.provider_source.clone().unwrap();
 
@@ -172,14 +172,14 @@ impl ExternalLinkUseCase for ExternalLinkUseCaseImpl {
         self.external_provider_service
             .unlink_organization(organization_id, link_id)
             .await
-            .map_err(|e| ApplicationError::Domain(e))?;
+            .map_err(ApplicationError::Domain)?;
 
         Ok(())
     }
 
     async fn test_connection(
         &self,
-        organization_id: Uuid,
+        _organization_id: Uuid,
         provider_id: Uuid,
         provider_config: &serde_json::Value,
     ) -> Result<ConnectionTestResponse, ApplicationError> {
@@ -187,7 +187,7 @@ impl ExternalLinkUseCase for ExternalLinkUseCaseImpl {
             .external_provider_service
             .test_connection(provider_id, provider_config)
             .await
-            .map_err(|e| ApplicationError::Domain(e))?;
+            .map_err(ApplicationError::Domain)?;
 
         Ok(ConnectionTestResponse {
             success: result,

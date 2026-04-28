@@ -7,7 +7,7 @@ use uuid::Uuid;
 ///
 /// This captures the relationship between a user in our system and their
 /// account on a specific OAuth provider (GitHub, GitLab, etc.)
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ProviderLink {
     /// The user ID in our system
     pub user_id: Uuid,
@@ -24,6 +24,7 @@ pub struct ProviderLink {
 
 impl ProviderLink {
     /// Creates a new provider link
+    #[must_use]
     pub fn new(user_id: Uuid, provider: Provider, provider_user_id: String) -> Self {
         Self {
             user_id,

@@ -1,6 +1,6 @@
-//! SQS LocalStack test container utilities
+//! SQS `LocalStack` test container utilities
 //!
-//! This module provides a LocalStack SQS container for integration tests to verify real
+//! This module provides a `LocalStack` SQS container for integration tests to verify real
 //! event publishing functionality.
 
 use aws_config::{BehaviorVersion, Region};
@@ -88,7 +88,7 @@ impl TestSqs {
             std::env::set_var("IAM_QUEUE__TYPE", "sqs");
             // Configure SQS-specific settings
             std::env::set_var("IAM_QUEUE__SQS__HOST", host);
-            std::env::set_var("IAM_QUEUE__SQS__PORT", &port.to_string());
+            std::env::set_var("IAM_QUEUE__SQS__PORT", port.to_string());
             std::env::set_var("IAM_QUEUE__SQS__ENABLED", "true");
             std::env::set_var("IAM_QUEUE__SQS__REGION", &region);
             std::env::set_var("IAM_QUEUE__SQS__ACCESS_KEY_ID", access_key_id);
@@ -115,7 +115,7 @@ impl TestSqs {
         })
     }
 
-    /// Create SQS client configured for LocalStack
+    /// Create SQS client configured for `LocalStack`
     async fn create_sqs_client(
         endpoint_url: &str,
         region: &str,
@@ -137,7 +137,7 @@ impl TestSqs {
         Ok(client)
     }
 
-    /// Wait for LocalStack to be ready
+    /// Wait for `LocalStack` to be ready
     async fn wait_for_localstack(endpoint_url: &str) -> Result<(), Box<dyn std::error::Error>> {
         info!("Waiting for LocalStack to be ready...");
 
@@ -173,11 +173,7 @@ impl TestSqs {
             }
         }
 
-        Err(format!(
-            "LocalStack failed to become ready after {} attempts",
-            max_attempts
-        )
-        .into())
+        Err(format!("LocalStack failed to become ready after {max_attempts} attempts").into())
     }
 
     /// Create test queues using queue names from configuration
@@ -242,7 +238,7 @@ impl TestSqs {
     ) -> Result<String, Box<dyn std::error::Error>> {
         let queue_url = self
             .queue_url_for(queue_name)
-            .ok_or_else(|| format!("Queue '{}' not found in SQS fixture", queue_name))?;
+            .ok_or_else(|| format!("Queue '{queue_name}' not found in SQS fixture"))?;
 
         self.send_message_to_queue_url(queue_url, message_body)
             .await
@@ -296,9 +292,9 @@ impl TestSqs {
         // Get the event JSON and parse it back to a Value so it's properly structured in the data field
         let event_json_str = event
             .to_json()
-            .map_err(|e| format!("Failed to get event JSON: {}", e))?;
+            .map_err(|e| format!("Failed to get event JSON: {e}"))?;
         let event_data: serde_json::Value = serde_json::from_str(&event_json_str)
-            .map_err(|e| format!("Failed to parse event JSON: {}", e))?;
+            .map_err(|e| format!("Failed to parse event JSON: {e}"))?;
 
         let message_body = json!({
             "event_id": event.event_id(),
@@ -311,7 +307,7 @@ impl TestSqs {
         });
 
         serde_json::to_string(&message_body)
-            .map_err(|e| format!("Failed to serialize event for SQS: {}", e).into())
+            .map_err(|e| format!("Failed to serialize event for SQS: {e}").into())
     }
 
     /// Receive messages from the queue
@@ -333,7 +329,7 @@ impl TestSqs {
     ) -> Result<Vec<Message>, Box<dyn std::error::Error>> {
         let queue_url = self
             .queue_url_for(queue_name)
-            .ok_or_else(|| format!("Queue '{}' not found in SQS fixture", queue_name))?;
+            .ok_or_else(|| format!("Queue '{queue_name}' not found in SQS fixture"))?;
 
         self.receive_messages_from_queue_url(queue_url, max_messages, wait_time_seconds)
             .await
@@ -406,7 +402,7 @@ impl TestSqs {
     ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
         let queue_url = self
             .queue_url_for(queue_name)
-            .ok_or_else(|| format!("Queue '{}' not found in SQS fixture", queue_name))?;
+            .ok_or_else(|| format!("Queue '{queue_name}' not found in SQS fixture"))?;
 
         self.get_all_messages_from_queue_url(queue_url, max_wait_secs)
             .await
@@ -476,7 +472,7 @@ impl TestSqs {
     ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
         let queue_url = self
             .queue_url_for(queue_name)
-            .ok_or_else(|| format!("Queue '{}' not found in SQS fixture", queue_name))?;
+            .ok_or_else(|| format!("Queue '{queue_name}' not found in SQS fixture"))?;
 
         self.wait_for_messages_from_queue_url(queue_url, expected_count, max_wait_secs)
             .await
@@ -568,7 +564,7 @@ impl TestSqs {
     ) -> Result<(), Box<dyn std::error::Error>> {
         let queue_url = self
             .queue_url_for(queue_name)
-            .ok_or_else(|| format!("Queue '{}' not found in SQS fixture", queue_name))?;
+            .ok_or_else(|| format!("Queue '{queue_name}' not found in SQS fixture"))?;
 
         self.purge_queue_url(queue_url).await
     }
@@ -648,7 +644,7 @@ async fn get_or_create_test_sqs_container(
     info!("Starting LocalStack SQS container on port {}...", sqs_port);
     let sqs_container = localstack_image.start().await?;
 
-    let endpoint_url = format!("http://localhost:{}", sqs_port);
+    let endpoint_url = format!("http://localhost:{sqs_port}");
 
     info!("Test SQS LocalStack container started");
     info!("Endpoint URL: {}", endpoint_url);
@@ -678,12 +674,12 @@ async fn cleanup_existing_sqs_container() {
     for container_name in &containers {
         // Stop the container
         let _ = Command::new("docker")
-            .args(&["stop", container_name])
+            .args(["stop", container_name])
             .output();
 
         // Remove the container
         let _ = Command::new("docker")
-            .args(&["rm", "-f", container_name])
+            .args(["rm", "-f", container_name])
             .output();
 
         debug!("Cleaned up container: {}", container_name);
@@ -729,11 +725,10 @@ impl TestSqsFixture {
             }
         }
 
-        Err(format!(
-            "Event with type '{}' not found within {} seconds",
-            event_type, timeout_secs
+        Err(
+            format!("Event with type '{event_type}' not found within {timeout_secs} seconds")
+                .into(),
         )
-        .into())
     }
 
     /// Send a test event to the queue
@@ -764,16 +759,13 @@ impl TestSqsFixture {
             if let Some(container_arc) = container_guard.take() {
                 info!("Manually cleaning up test SQS container");
 
-                match Arc::try_unwrap(container_arc) {
-                    Ok(container) => {
-                        container.cleanup().await;
-                        info!("Test SQS container cleanup completed");
-                    }
-                    Err(_) => {
-                        warn!("Could not cleanup SQS container: still has references");
-                        // Fallback cleanup using Docker commands
-                        cleanup_existing_sqs_container().await;
-                    }
+                if let Ok(container) = Arc::try_unwrap(container_arc) {
+                    container.cleanup().await;
+                    info!("Test SQS container cleanup completed");
+                } else {
+                    warn!("Could not cleanup SQS container: still has references");
+                    // Fallback cleanup using Docker commands
+                    cleanup_existing_sqs_container().await;
                 }
             }
         }

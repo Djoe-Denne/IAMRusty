@@ -35,18 +35,20 @@ where
             .copied()
             .ok_or(StatusCode::UNAUTHORIZED)?;
 
-        Ok(AuthUser { user_id })
+        Ok(Self { user_id })
     }
 }
 
 impl OptionalAuthUser {
     /// Get the user ID if authenticated, None otherwise
+    #[must_use]
     pub fn user_id(&self) -> Option<Uuid> {
         self.user.as_ref().map(|u| u.user_id)
     }
 
     /// Check if the user is authenticated
-    pub fn is_authenticated(&self) -> bool {
+    #[must_use]
+    pub const fn is_authenticated(&self) -> bool {
         self.user.is_some()
     }
 }
@@ -60,7 +62,7 @@ where
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
         let user_id = parts.extensions.get::<Uuid>().copied();
 
-        Ok(OptionalAuthUser {
+        Ok(Self {
             user: user_id.map(|user_id| AuthUser { user_id }),
         })
     }
@@ -96,7 +98,7 @@ pub async fn auth_middleware(
         .headers()
         .get("x-request-id")
         .and_then(|h| h.to_str().ok())
-        .map(|s| s.to_string());
+        .map(std::string::ToString::to_string);
 
     debug!(
         "Try to validate token for query {}",
@@ -137,7 +139,7 @@ pub async fn optional_auth_middleware(
                 .headers()
                 .get("x-request-id")
                 .and_then(|h| h.to_str().ok())
-                .map(|s| s.to_string());
+                .map(std::string::ToString::to_string);
 
             debug!(
                 "Try to validate optional token for query {}",
@@ -151,9 +153,8 @@ pub async fn optional_auth_middleware(
                 req.extensions_mut().insert(user_id);
                 debug!("User ID added to request extensions: {:?}", user_id);
                 return Ok(next.run(req).await);
-            } else {
-                debug!("Optional user ID extraction failed, continuing without auth");
             }
+            debug!("Optional user ID extraction failed, continuing without auth");
         }
     }
 

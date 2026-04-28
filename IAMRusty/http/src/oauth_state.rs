@@ -6,7 +6,7 @@ use thiserror::Error;
 use uuid::Uuid;
 
 /// OAuth operation type
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "type")]
 pub enum OAuthOperation {
     /// Login operation (create new user or authenticate existing)
@@ -44,6 +44,7 @@ pub enum StateError {
 
 impl OAuthState {
     /// Create a new login state
+    #[must_use]
     pub fn new_login() -> Self {
         Self {
             operation: OAuthOperation::Login,
@@ -52,6 +53,7 @@ impl OAuthState {
     }
 
     /// Create a new link provider state
+    #[must_use]
     pub fn new_link(user_id: Uuid) -> Self {
         Self {
             operation: OAuthOperation::Link { user_id },
@@ -69,17 +71,19 @@ impl OAuthState {
     pub fn decode(encoded: &str) -> Result<Self, StateError> {
         let json_bytes = general_purpose::URL_SAFE_NO_PAD.decode(encoded)?;
         let json = String::from_utf8(json_bytes).map_err(|_| StateError::InvalidFormat)?;
-        let state: OAuthState = serde_json::from_str(&json)?;
+        let state: Self = serde_json::from_str(&json)?;
         Ok(state)
     }
 
     /// Check if this is a login operation
-    pub fn is_login(&self) -> bool {
+    #[must_use]
+    pub const fn is_login(&self) -> bool {
         matches!(self.operation, OAuthOperation::Login)
     }
 
     /// Check if this is a link operation and return the user ID
-    pub fn get_link_user_id(&self) -> Option<Uuid> {
+    #[must_use]
+    pub const fn get_link_user_id(&self) -> Option<Uuid> {
         match &self.operation {
             OAuthOperation::Link { user_id } => Some(*user_id),
             _ => None,

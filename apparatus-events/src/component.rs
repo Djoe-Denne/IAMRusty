@@ -21,6 +21,7 @@ pub struct ComponentStatusChangedEvent {
 }
 
 impl ComponentStatusChangedEvent {
+    #[must_use]
     pub fn new(
         project_id: Uuid,
         component_type: String,

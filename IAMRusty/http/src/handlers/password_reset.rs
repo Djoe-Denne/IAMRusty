@@ -1,5 +1,5 @@
-use crate::{error::AuthError, validation::*};
-use axum::{extract::State, http::StatusCode, Json};
+use crate::error::AuthError;
+use axum::{extract::State, Json};
 use iam_application::command::{
     password_reset::{
         RequestPasswordResetCommand, ResetPasswordAuthenticatedCommand,
@@ -190,7 +190,7 @@ pub async fn reset_password_authenticated(
     let user_context = CommandContext::new()
         .with_user_id(auth_user.user_id)
         .with_metadata("operation".to_string(), "get_user".to_string());
-    let user = state
+    let _user = state
         .command_service
         .execute(GetUserCommand::new(auth_user.user_id), user_context)
         .await

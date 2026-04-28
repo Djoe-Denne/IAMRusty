@@ -10,7 +10,8 @@ pub enum Visibility {
 }
 
 impl Visibility {
-    pub fn as_str(&self) -> &'static str {
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
         match self {
             Self::Private => "private",
             Self::Internal => "internal",
@@ -24,14 +25,14 @@ impl Visibility {
             "internal" => Ok(Self::Internal),
             "public" => Ok(Self::Public),
             _ => Err(DomainError::invalid_input(&format!(
-                "Invalid visibility: {}",
-                s
+                "Invalid visibility: {s}"
             ))),
         }
     }
 
     /// Check if this visibility allows public access
-    pub fn is_public(&self) -> bool {
+    #[must_use]
+    pub const fn is_public(&self) -> bool {
         matches!(self, Self::Public)
     }
 }

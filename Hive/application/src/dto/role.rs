@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use validator::Validate;
@@ -30,10 +30,10 @@ impl From<MemberRolePermission> for &str {
 impl From<MemberRolePermission> for String {
     fn from(permission: MemberRolePermission) -> Self {
         match permission {
-            MemberRolePermission::Read => String::from("read"),
-            MemberRolePermission::Write => String::from("write"),
-            MemberRolePermission::Delete => String::from("delete"),
-            MemberRolePermission::Admin => String::from("admin"),
+            MemberRolePermission::Read => Self::from("read"),
+            MemberRolePermission::Write => Self::from("write"),
+            MemberRolePermission::Delete => Self::from("delete"),
+            MemberRolePermission::Admin => Self::from("admin"),
         }
     }
 }
@@ -41,10 +41,10 @@ impl From<MemberRolePermission> for String {
 impl From<String> for MemberRolePermission {
     fn from(permission: String) -> Self {
         match permission.to_lowercase().as_str() {
-            "read" => MemberRolePermission::Read,
-            "write" => MemberRolePermission::Write,
-            "delete" => MemberRolePermission::Delete,
-            "admin" => MemberRolePermission::Admin,
+            "read" => Self::Read,
+            "write" => Self::Write,
+            "delete" => Self::Delete,
+            "admin" => Self::Admin,
             _ => panic!("Invalid member role permission"),
         }
     }
@@ -52,7 +52,7 @@ impl From<String> for MemberRolePermission {
 
 impl From<MemberRolePermission> for PermissionLevel {
     fn from(permission: MemberRolePermission) -> Self {
-        PermissionLevel::from_str(permission.into()).unwrap()
+        Self::from_str(permission.into()).unwrap()
     }
 }
 
@@ -87,7 +87,7 @@ pub struct UpdateMemberRoleRequest {
 impl From<&MemberRole> for RolePermission {
     fn from(member_role: &MemberRole) -> Self {
         let permission = Permission::new(member_role.permissions.into(), None, None);
-        RolePermission::new(
+        Self::new(
             None,
             None,
             member_role.organization_id,
@@ -100,7 +100,7 @@ impl From<&MemberRole> for RolePermission {
 
 impl From<RolePermission> for MemberRole {
     fn from(role_permission: RolePermission) -> Self {
-        MemberRole {
+        Self {
             organization_id: role_permission.organization_id,
             resource: role_permission.resource.name,
             permissions: role_permission.permission.level.to_str().to_string().into(),

@@ -1,4 +1,4 @@
-//! PermissionRepository SeaORM implementation
+//! `PermissionRepository` `SeaORM` implementation
 
 use async_trait::async_trait;
 use hive_domain::entity::{Permission, PermissionLevel};
@@ -30,7 +30,8 @@ pub struct PermissionReadRepositoryImpl {
 }
 
 impl PermissionReadRepositoryImpl {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    #[must_use]
+    pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
 }

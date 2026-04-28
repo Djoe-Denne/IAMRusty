@@ -12,8 +12,9 @@ use tracing;
 pub struct NoOpEventPublisher;
 
 impl NoOpEventPublisher {
-    /// Create a new NoOpEventPublisher
-    pub fn new() -> Self {
+    /// Create a new `NoOpEventPublisher`
+    #[must_use]
+    pub const fn new() -> Self {
         Self
     }
 }
@@ -58,8 +59,9 @@ impl EventPublisher<ServiceError> for NoOpEventPublisher {
 pub struct NoOpEventConsumer;
 
 impl NoOpEventConsumer {
-    /// Create a new NoOpEventConsumer
-    pub fn new() -> Self {
+    /// Create a new `NoOpEventConsumer`
+    #[must_use]
+    pub const fn new() -> Self {
         Self
     }
 }

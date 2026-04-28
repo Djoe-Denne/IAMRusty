@@ -23,7 +23,7 @@ pub struct EmailVerificationFixtureBuilder {
 
 impl EmailVerificationFixtureBuilder {
     /// Create a new email verification fixture builder
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             id: None,
             email: None,
@@ -34,7 +34,7 @@ impl EmailVerificationFixtureBuilder {
     }
 
     /// Set the verification ID
-    pub fn id(mut self, id: Uuid) -> Self {
+    pub const fn id(mut self, id: Uuid) -> Self {
         self.id = Some(id);
         self
     }
@@ -51,14 +51,14 @@ impl EmailVerificationFixtureBuilder {
         self
     }
 
-    /// Set the expires_at timestamp
-    pub fn expires_at(mut self, expires_at: DateTimeWithTimeZone) -> Self {
+    /// Set the `expires_at` timestamp
+    pub const fn expires_at(mut self, expires_at: DateTimeWithTimeZone) -> Self {
         self.expires_at = Some(expires_at);
         self
     }
 
-    /// Set the created_at timestamp
-    pub fn created_at(mut self, created_at: DateTimeWithTimeZone) -> Self {
+    /// Set the `created_at` timestamp
+    pub const fn created_at(mut self, created_at: DateTimeWithTimeZone) -> Self {
         self.created_at = Some(created_at);
         self
     }
@@ -68,7 +68,7 @@ impl EmailVerificationFixtureBuilder {
         self,
         db: Arc<DatabaseConnection>,
     ) -> Result<EmailVerificationFixture, DbErr> {
-        let fixture = DbFixture::commit(self, &*db).await?;
+        let fixture = DbFixture::commit(self, &db).await?;
         Ok(EmailVerificationFixture { inner: fixture })
     }
 
@@ -212,12 +212,12 @@ impl EmailVerificationFixture {
     }
 
     /// Get the email verification model
-    pub fn model(&self) -> &EmailVerificationModel {
+    pub const fn model(&self) -> &EmailVerificationModel {
         self.inner.model()
     }
 
     /// Get the verification ID
-    pub fn id(&self) -> Uuid {
+    pub const fn id(&self) -> Uuid {
         self.model().id
     }
 
@@ -231,13 +231,13 @@ impl EmailVerificationFixture {
         &self.model().verification_token
     }
 
-    /// Get the expires_at timestamp
-    pub fn expires_at(&self) -> DateTimeWithTimeZone {
+    /// Get the `expires_at` timestamp
+    pub const fn expires_at(&self) -> DateTimeWithTimeZone {
         self.model().expires_at
     }
 
-    /// Get the created_at timestamp
-    pub fn created_at(&self) -> DateTimeWithTimeZone {
+    /// Get the `created_at` timestamp
+    pub const fn created_at(&self) -> DateTimeWithTimeZone {
         self.model().created_at
     }
 

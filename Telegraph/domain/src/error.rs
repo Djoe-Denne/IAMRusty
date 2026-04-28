@@ -3,7 +3,7 @@
 use thiserror::Error;
 
 /// Domain-specific errors for Telegraph communication service
-#[derive(Error, Debug, Clone, PartialEq)]
+#[derive(Error, Debug, Clone, PartialEq, Eq)]
 pub enum DomainError {
     /// Invalid message content
     #[error("Invalid message content: {0}")]
@@ -170,28 +170,29 @@ impl DomainError {
     }
 
     /// Check if this is a recoverable error (should retry)
-    pub fn is_recoverable(&self) -> bool {
+    #[must_use]
+    pub const fn is_recoverable(&self) -> bool {
         matches!(
             self,
-            DomainError::ServiceUnavailable(_)
-                | DomainError::DeliveryFailed(_)
-                | DomainError::InfrastructureError(_)
+            Self::ServiceUnavailable(_) | Self::DeliveryFailed(_) | Self::InfrastructureError(_)
         )
     }
 
     /// Check if this is a configuration-related error
-    pub fn is_configuration_error(&self) -> bool {
-        matches!(self, DomainError::ConfigurationError(_))
+    #[must_use]
+    pub const fn is_configuration_error(&self) -> bool {
+        matches!(self, Self::ConfigurationError(_))
     }
 
     /// Check if this is a validation error
-    pub fn is_validation_error(&self) -> bool {
+    #[must_use]
+    pub const fn is_validation_error(&self) -> bool {
         matches!(
             self,
-            DomainError::InvalidMessage(_)
-                | DomainError::InvalidRecipient(_)
-                | DomainError::InvalidEmail(_)
-                | DomainError::InvalidPhoneNumber(_)
+            Self::InvalidMessage(_)
+                | Self::InvalidRecipient(_)
+                | Self::InvalidEmail(_)
+                | Self::InvalidPhoneNumber(_)
         )
     }
 }

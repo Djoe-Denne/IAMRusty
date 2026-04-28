@@ -14,7 +14,8 @@ pub struct EmailEventProcessor {
 
 impl EmailEventProcessor {
     /// Create a new email event processor
-    pub fn new(
+    #[must_use]
+    pub const fn new(
         email_service: Arc<EmailService>,
         communication_factory: Arc<CommunicationFactory>,
     ) -> Self {
@@ -28,7 +29,7 @@ impl EmailEventProcessor {
     pub async fn process(&self, event: &EventContext) -> Result<(), DomainError> {
         info!(
             event_id = %event.event_id,
-            event_type = event.event_type.to_string(),
+            event_type = event.event_type.clone(),
             user_id = %event.recipient.user_id.unwrap_or_default(),
             "Processing email event"
         );
@@ -51,7 +52,7 @@ impl EmailEventProcessor {
 
         info!(
             event_id = %event.event_id,
-            event_type = event.event_type.to_string(),
+            event_type = event.event_type.clone(),
             email = %email,
             subject = %email_communication.subject,
             "Email sent successfully using communication factory"

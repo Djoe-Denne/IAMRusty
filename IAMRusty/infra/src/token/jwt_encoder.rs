@@ -50,8 +50,9 @@ pub struct JwtTokenService {
 }
 
 impl JwtTokenService {
-    /// Create a new JwtTokenService with RSA256 keys
-    pub fn with_rsa(key_pair: JwtKeyPair, access_token_expiration: u64) -> Self {
+    /// Create a new `JwtTokenService` with RSA256 keys
+    #[must_use]
+    pub const fn with_rsa(key_pair: JwtKeyPair, access_token_expiration: u64) -> Self {
         Self {
             algorithm_config: JwtAlgorithm::RS256(key_pair),
             access_token_expiration,
@@ -59,7 +60,7 @@ impl JwtTokenService {
         }
     }
 
-    /// Create a new JwtTokenService with HMAC256 secret.
+    /// Create a new `JwtTokenService` with HMAC256 secret.
     ///
     /// Only available when the `test-relaxed-jwt` Cargo feature is on
     /// (enabled by `iam-service`'s dev-dependency on `iam-infra`). The
@@ -67,7 +68,8 @@ impl JwtTokenService {
     /// release-mode caller would fail to compile rather than slip an
     /// HS256 service into the runtime.
     #[cfg(feature = "test-relaxed-jwt")]
-    pub fn with_hmac(secret: String, access_token_expiration: u64) -> Self {
+    #[must_use]
+    pub const fn with_hmac(secret: String, access_token_expiration: u64) -> Self {
         Self {
             algorithm_config: JwtAlgorithm::HS256(secret),
             access_token_expiration,
@@ -75,7 +77,7 @@ impl JwtTokenService {
         }
     }
 
-    /// Create a new JwtTokenService with custom refresh token expiration.
+    /// Create a new `JwtTokenService` with custom refresh token expiration.
     ///
     /// In production builds (no `test-relaxed-jwt` feature) the
     /// `algorithm_config` must be RS256 — passing HS256 trips the
@@ -83,7 +85,8 @@ impl JwtTokenService {
     /// `RegistrationTokenServiceImpl::new` enforces. The `test-relaxed-jwt`
     /// build (test harness only) compiles the assertion out, so the
     /// in-tree HS256 `test.toml` boots without committing RSA PEM keys.
-    pub fn with_refresh_expiration(
+    #[must_use]
+    pub const fn with_refresh_expiration(
         algorithm_config: JwtAlgorithm,
         access_token_expiration: u64,
         refresh_token_expiration: u64,
@@ -109,7 +112,7 @@ impl JwtTokenService {
     }
 
     /// Get the algorithm used by this service
-    fn get_algorithm(&self) -> Algorithm {
+    const fn get_algorithm(&self) -> Algorithm {
         match &self.algorithm_config {
             JwtAlgorithm::RS256(_) => Algorithm::RS256,
             JwtAlgorithm::HS256(_) => Algorithm::HS256,
@@ -122,7 +125,7 @@ impl JwtTokenService {
             JwtAlgorithm::RS256(key_pair) => {
                 EncodingKey::from_rsa_pem(key_pair.private_key.as_bytes()).map_err(|e| {
                     error!("Failed to create RSA encoding key: {}", e);
-                    DomainError::AuthorizationError(format!("Invalid private key: {}", e))
+                    DomainError::AuthorizationError(format!("Invalid private key: {e}"))
                 })
             }
             JwtAlgorithm::HS256(secret) => Ok(EncodingKey::from_secret(secret.as_bytes())),
@@ -154,7 +157,7 @@ impl JwtTokenService {
     fn extract_rsa_components(&self, public_key_pem: &str) -> Result<(String, String), String> {
         // 1. Parser le PEM (PKCS#8 ou PKCS#1) en RsaPublicKey
         let rsa_pub = RsaPublicKey::from_public_key_pem(public_key_pem)
-            .map_err(|e| format!("Failed to parse RSA public key PEM: {}", e))?;
+            .map_err(|e| format!("Failed to parse RSA public key PEM: {e}"))?;
 
         // 2. Récupérer le modulus (n) et l'exposant (e) sous forme de BigUint
         let n_big = rsa_pub.n();
@@ -191,7 +194,7 @@ impl JwtTokenEncoder for JwtTokenService {
 
         jsonwebtoken::encode(&header, claims, &encoding_key).map_err(|e| {
             error!("Failed to encode JWT: {}", e);
-            DomainError::AuthorizationError(format!("Token encoding failed: {}", e))
+            DomainError::AuthorizationError(format!("Token encoding failed: {e}"))
         })
     }
 
@@ -236,7 +239,7 @@ impl JwtTokenEncoder for JwtTokenService {
                             use_: "sig".to_string(),
                             alg: "RS256".to_string(),
                             n: n.clone(),
-                            e: e.clone(),
+                            e,
                         };
 
                         debug!("Successfully created JWKS with RSA key (kid: {}, modulus length: {} chars)", 
@@ -270,7 +273,7 @@ impl AuthTokenService for JwtTokenService {
 
         let claims = TokenClaims {
             sub: user_id.to_string(),
-            username: "".to_string(), // This could be enhanced to include username
+            username: String::new(), // This could be enhanced to include username
             exp: expires_at.timestamp(),
             iat: now.timestamp(),
             jti: Uuid::new_v4().to_string(),

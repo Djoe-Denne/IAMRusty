@@ -29,8 +29,8 @@ where
     GH: OAuthService + 'static,
     GL: OAuthService + 'static,
 {
-    /// Create a new AuthProviderFactory
-    pub fn new(github_auth: Arc<GH>, gitlab_auth: Arc<GL>) -> Self {
+    /// Create a new `AuthProviderFactory`
+    pub const fn new(github_auth: Arc<GH>, gitlab_auth: Arc<GL>) -> Self {
         Self {
             github_auth,
             gitlab_auth,
@@ -39,6 +39,7 @@ where
 
     /// Get the authentication service for a specific provider
     /// Returns the concrete type wrapped in Arc with unified error type
+    #[must_use]
     pub fn get_oauth_service(
         &self,
         provider: Provider,
@@ -56,7 +57,7 @@ struct OAuthServiceWrapper<AS: OAuthService> {
 }
 
 impl<AS: OAuthService> OAuthServiceWrapper<AS> {
-    fn new(inner: Arc<AS>) -> Self {
+    const fn new(inner: Arc<AS>) -> Self {
         Self { inner }
     }
 }

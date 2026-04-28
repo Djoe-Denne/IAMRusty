@@ -107,8 +107,8 @@ where
     RTS: RegistrationTokenService,
     TS: AuthTokenService,
 {
-    /// Create a new OAuthUseCaseImpl
-    pub fn new(
+    /// Create a new `OAuthUseCaseImpl`
+    pub const fn new(
         oauth_service: Arc<OAuthService<UR, TR, UER>>,
         registration_token_service: Arc<RTS>,
         token_service: Arc<TS>,
@@ -162,11 +162,11 @@ where
                     email.clone(),
                     iam_domain::entity::registration_token::ProviderInfo {
                         email: email.clone(),
-                        suggested_username: user.username.clone().unwrap_or_else(|| "".to_string()), // Default to empty string if no username
+                        suggested_username: user.username.clone().unwrap_or_else(String::new), // Default to empty string if no username
                         avatar: user.avatar_url.clone(),
                     },
                 )
-                .map_err(|e| OAuthError::DomainError(e))?;
+                .map_err(OAuthError::DomainError)?;
 
             return Ok(OAuthResponse::Registration(OAuthRegistrationResponse {
                 registration_token,

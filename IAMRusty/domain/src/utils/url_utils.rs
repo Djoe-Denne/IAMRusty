@@ -5,17 +5,20 @@ pub struct UrlUtils;
 
 impl UrlUtils {
     /// URL encode a string value
+    #[must_use]
     pub fn url_encode(value: &str) -> String {
         urlencoding::encode(value).to_string()
     }
 
     /// URL decode a string value  
+    #[must_use]
     pub fn url_decode(value: &str) -> String {
         urlencoding::decode(value).unwrap_or_default().to_string()
     }
 
     /// Build a verification URL from email and token
+    #[must_use]
     pub fn build_verification_url() -> String {
-        format!("/api/auth/verify")
+        "/api/auth/verify".to_string()
     }
 }

@@ -17,17 +17,18 @@ pub trait EmailVerificationReadRepository: Send + Sync {
     async fn find_by_email(&self, email: &str) -> Result<Option<EmailVerification>, DomainError>;
 }
 
-/// SeaORM implementation of EmailVerificationReadRepository
+/// `SeaORM` implementation of `EmailVerificationReadRepository`
 pub struct SeaOrmEmailVerificationReadRepository {
     db: Arc<DatabaseConnection>,
 }
 
 impl SeaOrmEmailVerificationReadRepository {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    #[must_use]
+    pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
 
-    /// Convert SeaORM Model to domain EmailVerification
+    /// Convert `SeaORM` Model to domain `EmailVerification`
     fn to_domain_entity(&self, model: user_email_verification::Model) -> EmailVerification {
         EmailVerification {
             id: model.id,
@@ -55,7 +56,7 @@ impl EmailVerificationReadRepository for SeaOrmEmailVerificationReadRepository {
             .one(self.db.as_ref())
             .await
             .map_err(|e| {
-                DomainError::RepositoryError(format!("Failed to find email verification: {}", e))
+                DomainError::RepositoryError(format!("Failed to find email verification: {e}"))
             })?;
 
         Ok(model.map(|m| self.to_domain_entity(m)))
@@ -71,8 +72,7 @@ impl EmailVerificationReadRepository for SeaOrmEmailVerificationReadRepository {
             .await
             .map_err(|e| {
                 DomainError::RepositoryError(format!(
-                    "Failed to find email verification by email: {}",
-                    e
+                    "Failed to find email verification by email: {e}"
                 ))
             })?;
 

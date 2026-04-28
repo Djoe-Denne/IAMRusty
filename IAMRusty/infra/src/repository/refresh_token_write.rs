@@ -11,15 +11,16 @@ use uuid::Uuid;
 
 use super::entity::{prelude::RefreshTokens, refresh_tokens};
 
-/// SeaORM implementation of RefreshTokenWriteRepository
+/// `SeaORM` implementation of `RefreshTokenWriteRepository`
 #[derive(Clone)]
 pub struct RefreshTokenWriteRepositoryImpl {
     db: Arc<DatabaseConnection>,
 }
 
 impl RefreshTokenWriteRepositoryImpl {
-    /// Create a new RefreshTokenWriteRepositoryImpl
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    /// Create a new `RefreshTokenWriteRepositoryImpl`
+    #[must_use]
+    pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
 
@@ -119,8 +120,7 @@ impl RefreshTokenWriteRepository for RefreshTokenWriteRepositoryImpl {
         if delete_result.rows_affected == 0 {
             txn.rollback().await?;
             return Err(DbErr::RecordNotFound(format!(
-                "Refresh token not found: {}",
-                old_token_id
+                "Refresh token not found: {old_token_id}"
             )));
         }
 

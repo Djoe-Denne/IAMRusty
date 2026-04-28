@@ -20,6 +20,7 @@ pub struct StoredOutboxEvent {
 }
 
 impl StoredOutboxEvent {
+    #[must_use]
     pub fn from_model(model: entity::Model) -> Self {
         let metadata = serde_json::from_value(model.metadata_json).unwrap_or_default();
 

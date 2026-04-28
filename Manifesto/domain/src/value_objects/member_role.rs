@@ -13,16 +13,19 @@ pub enum MemberRole {
 impl MemberRole {
     /// Check if this role can manage another role
     /// (e.g., Admin can manage Write and Read, but not Owner)
-    pub fn can_manage(&self, other: &MemberRole) -> bool {
+    #[must_use]
+    pub fn can_manage(&self, other: &Self) -> bool {
         self > other
     }
 
     /// Check if this role has at least the permissions of another role
-    pub fn has_permission_of(&self, other: &MemberRole) -> bool {
+    #[must_use]
+    pub fn has_permission_of(&self, other: &Self) -> bool {
         self >= other
     }
 
-    pub fn as_str(&self) -> &'static str {
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
         match self {
             Self::Read => "read",
             Self::Write => "write",
@@ -38,8 +41,7 @@ impl MemberRole {
             "admin" => Ok(Self::Admin),
             "owner" => Ok(Self::Owner),
             _ => Err(DomainError::invalid_input(&format!(
-                "Invalid member role: {}",
-                s
+                "Invalid member role: {s}"
             ))),
         }
     }

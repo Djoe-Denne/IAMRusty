@@ -1,8 +1,8 @@
 use sea_orm_migration::prelude::*;
 
-/// Migration to drop the unique index on resources.resource_type
+/// Migration to drop the unique index on `resources.resource_type`
 /// This index was originally created for generic resource types (project, component, member)
-/// but it prevents creating multiple component instance resources which share the same resource_type.
+/// but it prevents creating multiple component instance resources which share the same `resource_type`.
 #[derive(DeriveMigrationName)]
 pub struct Migration;
 

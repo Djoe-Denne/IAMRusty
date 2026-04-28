@@ -189,8 +189,7 @@ impl ComponentUseCase for ComponentUseCaseImpl {
 
         if component.project_id != project_id {
             return Err(ApplicationError::NotFound(format!(
-                "ProjectComponent not found for project {}",
-                project_id
+                "ProjectComponent not found for project {project_id}"
             )));
         }
 
@@ -223,8 +222,7 @@ impl ComponentUseCase for ComponentUseCaseImpl {
 
         if component.project_id != project_id {
             return Err(ApplicationError::NotFound(format!(
-                "ProjectComponent not found for project {}",
-                project_id
+                "ProjectComponent not found for project {project_id}"
             )));
         }
 
@@ -268,8 +266,7 @@ impl ComponentUseCase for ComponentUseCaseImpl {
 
         if component.project_id != project_id {
             return Err(ApplicationError::NotFound(format!(
-                "ProjectComponent not found for project {}",
-                project_id
+                "ProjectComponent not found for project {project_id}"
             )));
         }
 

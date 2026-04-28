@@ -2,7 +2,7 @@
 //!
 //! Boots a single event consumer that receives domain events from Hive,
 //! Manifesto, and IAM, feeds each event through the per-service translator,
-//! and writes the resulting tuple deltas into OpenFGA.
+//! and writes the resulting tuple deltas into `OpenFGA`.
 
 use std::sync::Arc;
 

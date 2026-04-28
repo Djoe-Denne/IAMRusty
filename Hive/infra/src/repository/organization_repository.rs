@@ -1,4 +1,4 @@
-//! OrganizationRepository SeaORM implementation with read/write split and combined delegator
+//! `OrganizationRepository` `SeaORM` implementation with read/write split and combined delegator
 
 use async_trait::async_trait;
 use hive_domain::entity::Organization;
@@ -22,6 +22,7 @@ use super::entity::{
 pub struct OrganizationMapper;
 
 impl OrganizationMapper {
+    #[must_use]
     pub fn to_domain(model: organizations::Model) -> Organization {
         Organization {
             id: model.id,
@@ -36,6 +37,7 @@ impl OrganizationMapper {
         }
     }
 
+    #[must_use]
     pub fn to_active_model(organization: &Organization) -> organizations::ActiveModel {
         organizations::ActiveModel {
             id: ActiveValue::Set(organization.id),
@@ -58,7 +60,8 @@ pub struct OrganizationReadRepositoryImpl {
 }
 
 impl OrganizationReadRepositoryImpl {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    #[must_use]
+    pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
 }
@@ -120,8 +123,8 @@ impl OrganizationReadRepository for OrganizationReadRepositoryImpl {
             .filter(organization_members::Column::UserId.eq(*user_id))
             .filter(organization_members::Column::Status.eq("Active"))
             .order_by(organizations::Column::CreatedAt, Order::Desc)
-            .paginate(self.db.as_ref(), page_size as u64)
-            .fetch_page(page as u64)
+            .paginate(self.db.as_ref(), u64::from(page_size))
+            .fetch_page(u64::from(page))
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
@@ -148,7 +151,7 @@ impl OrganizationReadRepository for OrganizationReadRepositoryImpl {
 
         let mut query = Organizations::find();
 
-        let like_pattern = format!("%{}%", name_pattern);
+        let like_pattern = format!("%{name_pattern}%");
 
         // Filter public by default using settings JSON column
         let mut access_condition: Condition =
@@ -168,8 +171,8 @@ impl OrganizationReadRepository for OrganizationReadRepositoryImpl {
         let organizations = query
             .filter(full_condition)
             .order_by(organizations::Column::CreatedAt, Order::Desc)
-            .paginate(self.db.as_ref(), page_size as u64)
-            .fetch_page(page as u64)
+            .paginate(self.db.as_ref(), u64::from(page_size))
+            .fetch_page(u64::from(page))
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
@@ -198,7 +201,8 @@ pub struct OrganizationWriteRepositoryImpl {
 }
 
 impl OrganizationWriteRepositoryImpl {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    #[must_use]
+    pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
 }
@@ -249,7 +253,7 @@ impl OrganizationWriteRepository for OrganizationWriteRepositoryImpl {
         } else {
             // Insert
             let active_model = OrganizationMapper::to_active_model(organization);
-            let inserted = organizations::ActiveModel { ..active_model }
+            let inserted = active_model
                 .insert(self.db.as_ref())
                 .await
                 .map_err(|e| DomainError::internal_error(&e.to_string()))?;

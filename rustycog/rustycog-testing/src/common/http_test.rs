@@ -23,7 +23,7 @@ where
     let config = load_config_fresh::<D::Config>().expect("failed to load config");
 
     // Initialize logging for the test server
-    if config.logging_config().level != "" {
+    if !config.logging_config().level.is_empty() {
         setup_logging(&config);
     }
 
@@ -40,12 +40,12 @@ where
         tls_cert_path: if config.server_config().tls_enabled {
             config.server_config().tls_cert_path.clone()
         } else {
-            "".to_string()
+            String::new()
         },
         tls_key_path: if config.server_config().tls_enabled {
             config.server_config().tls_key_path.clone()
         } else {
-            "".to_string()
+            String::new()
         },
         tls_port: if config.server_config().tls_enabled {
             config.server_config().tls_port

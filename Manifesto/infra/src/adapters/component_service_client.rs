@@ -38,7 +38,7 @@ impl ComponentServiceClient {
         headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
 
         if let Some(api_key) = self.api_key.as_ref() {
-            if let Ok(auth_value) = HeaderValue::from_str(&format!("Bearer {}", api_key)) {
+            if let Ok(auth_value) = HeaderValue::from_str(&format!("Bearer {api_key}")) {
                 headers.insert(AUTHORIZATION, auth_value);
             }
         }
@@ -74,14 +74,14 @@ impl ComponentServicePort for ComponentServiceClient {
             );
             return Err(DomainError::external_service_error(
                 "component_service",
-                &format!("HTTP {}: {}", status, response_body),
+                &format!("HTTP {status}: {response_body}"),
             ));
         }
 
         let components: Vec<ComponentInfo> = response.json().await.map_err(|e| {
             DomainError::external_service_error(
                 "component_service",
-                &format!("Failed to parse component list: {}", e),
+                &format!("Failed to parse component list: {e}"),
             )
         })?;
 

@@ -28,8 +28,8 @@ impl Default for EmailConfig {
         Self {
             smtp_host: "localhost".to_string(),
             smtp_port: 587,
-            smtp_username: "".to_string(),
-            smtp_password: "".to_string(),
+            smtp_username: String::new(),
+            smtp_password: String::new(),
             from_email: "noreply@example.com".to_string(),
             from_name: "Telegraph".to_string(),
             use_tls: true,
@@ -52,6 +52,7 @@ impl EmailAdapter {
     }
 
     /// Create a new email adapter with default configuration (for testing)
+    #[must_use]
     pub fn new_default() -> Self {
         let config = EmailConfig::default();
         Self {
@@ -66,7 +67,7 @@ impl EmailAdapter {
     ) -> Result<AsyncSmtpTransport<Tokio1Executor>, DomainError> {
         let mut mailer_builder = AsyncSmtpTransport::<Tokio1Executor>::relay(&config.smtp_host)
             .map_err(|e| {
-                DomainError::InfrastructureError(format!("Failed to create SMTP relay: {}", e))
+                DomainError::InfrastructureError(format!("Failed to create SMTP relay: {e}"))
             })?;
 
         // Set port
@@ -82,7 +83,7 @@ impl EmailAdapter {
         // Set TLS configuration
         if config.use_tls {
             let tls_params = TlsParameters::new(config.smtp_host.clone()).map_err(|e| {
-                DomainError::InfrastructureError(format!("Failed to create TLS parameters: {}", e))
+                DomainError::InfrastructureError(format!("Failed to create TLS parameters: {e}"))
             })?;
             mailer_builder = mailer_builder.tls(Tls::Required(tls_params));
         } else {
@@ -111,9 +112,9 @@ impl EmailProvider for EmailAdapter {
 
         // Build the email message
         let from_address = format!("{} <{}>", self.config.from_name, self.config.from_email);
-        let mut message_builder = Message::builder()
+        let message_builder = Message::builder()
             .from(from_address.parse().map_err(|e| {
-                DomainError::InfrastructureError(format!("Invalid from address: {}", e))
+                DomainError::InfrastructureError(format!("Invalid from address: {e}"))
             })?)
             .to(email
                 .recipient
@@ -121,7 +122,7 @@ impl EmailProvider for EmailAdapter {
                 .as_ref()
                 .unwrap()
                 .parse()
-                .map_err(|e| DomainError::invalid_email(format!("Invalid to address: {}", e)))?)
+                .map_err(|e| DomainError::invalid_email(format!("Invalid to address: {e}")))?)
             .subject(email.subject.clone());
 
         // Set message body
@@ -131,21 +132,21 @@ impl EmailProvider for EmailAdapter {
                 .singlepart(
                     lettre::message::SinglePart::builder()
                         .header(ContentType::TEXT_PLAIN)
-                        .body(email.text_body.to_string()),
+                        .body(email.text_body.clone()),
                 )
                 .singlepart(
                     lettre::message::SinglePart::builder()
                         .header(ContentType::TEXT_HTML)
-                        .body(html.to_string()),
+                        .body(html),
                 );
 
             message_builder.multipart(body)
         } else {
             // Send only text
-            message_builder.body(email.text_body.to_string())
+            message_builder.body(email.text_body.clone())
         }
         .map_err(|e| {
-            DomainError::InfrastructureError(format!("Failed to build email message: {}", e))
+            DomainError::InfrastructureError(format!("Failed to build email message: {e}"))
         })?;
 
         // Send the email
@@ -167,8 +168,7 @@ impl EmailProvider for EmailAdapter {
                     "Failed to send email via SMTP"
                 );
                 Err(DomainError::InfrastructureError(format!(
-                    "Failed to send email: {}",
-                    e
+                    "Failed to send email: {e}"
                 )))
             }
         }
@@ -204,8 +204,7 @@ impl EmailProvider for EmailAdapter {
                     "❌ Email service health check failed - SMTP connection error"
                 );
                 Err(DomainError::InfrastructureError(format!(
-                    "SMTP health check error: {}",
-                    e
+                    "SMTP health check error: {e}"
                 )))
             }
         }

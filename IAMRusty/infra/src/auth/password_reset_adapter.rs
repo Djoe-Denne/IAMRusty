@@ -4,13 +4,14 @@ use iam_application::usecase::password_reset::PasswordResetError;
 use iam_application::usecase::password_reset::PasswordService as PasswordResetPasswordService;
 use std::sync::Arc;
 
-/// Adapter that bridges the password reset use case's PasswordService trait with the infrastructure implementation
+/// Adapter that bridges the password reset use case's `PasswordService` trait with the infrastructure implementation
 pub struct PasswordResetServiceAdapter {
     password_service: Arc<PasswordService>,
 }
 
 impl PasswordResetServiceAdapter {
-    pub fn new(password_service: Arc<PasswordService>) -> Self {
+    #[must_use]
+    pub const fn new(password_service: Arc<PasswordService>) -> Self {
         Self { password_service }
     }
 }
@@ -37,7 +38,6 @@ impl PasswordResetPasswordService for PasswordResetServiceAdapter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use iam_domain::error::DomainError;
 
     #[tokio::test]
     async fn test_hash_password() {

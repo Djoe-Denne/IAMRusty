@@ -4,11 +4,7 @@
 //! Events are used for inter-service communication, particularly with the Telegraph
 //! notification service.
 
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
-
-use rustycog_events::{BaseEvent, DomainEvent};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Role {
@@ -17,7 +13,8 @@ pub struct Role {
 }
 
 impl Role {
-    pub fn new(permission: String, resource: String) -> Self {
+    #[must_use]
+    pub const fn new(permission: String, resource: String) -> Self {
         Self {
             permission,
             resource,

@@ -3,13 +3,11 @@ use axum::{
     response::Json,
 };
 use hive_application::{
-    ConnectionTestResponse, CreateExternalLinkCommand, CreateExternalLinkRequest,
-    ExternalLinkListResponse, ExternalLinkResponse, ToggleSyncRequest, UpdateExternalLinkRequest,
+    CreateExternalLinkCommand, CreateExternalLinkRequest, ExternalLinkResponse,
 };
 use rustycog_command::CommandContext;
 use rustycog_http::{AppState, AuthUser, ValidatedJson};
 use rustycog_permission::ResourceId;
-use uuid::Uuid;
 
 use crate::error::HttpError;
 
@@ -34,7 +32,7 @@ pub async fn create_external_link(
         .execute(command, context)
         .await
         .map_err(|e| HttpError::Internal {
-            message: format!("Command execution failed: {}", e),
+            message: format!("Command execution failed: {e}"),
         })?;
 
     Ok(Json(result))

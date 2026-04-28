@@ -1,5 +1,5 @@
 //! Idempotency ledger: records event processing state so completed events are
-//! skipped while failed OpenFGA writes remain retryable.
+//! skipped while failed `OpenFGA` writes remain retryable.
 //!
 //! The in-memory implementation is sufficient for tests and local dev. The
 //! Postgres-backed implementation stores durable `processing` / `failed` /
@@ -78,7 +78,7 @@ impl PostgresEventLedger {
         self.db
             .execute(Statement::from_string(
                 DbBackend::Postgres,
-                r#"
+                r"
                 CREATE TABLE IF NOT EXISTS sentinel_sync_event_ledger (
                     event_id TEXT PRIMARY KEY,
                     status TEXT NOT NULL,
@@ -87,7 +87,7 @@ impl PostgresEventLedger {
                     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
                     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
                 )
-                "#,
+                ",
             ))
             .await?;
         Ok(())
@@ -102,7 +102,7 @@ impl EventLedger for PostgresEventLedger {
         let row = txn
             .query_one(Statement::from_sql_and_values(
                 DbBackend::Postgres,
-                r#"
+                r"
                 INSERT INTO sentinel_sync_event_ledger
                     (event_id, status, attempts, created_at, updated_at)
                 VALUES ($1, 'processing', 1, now(), now())
@@ -113,7 +113,7 @@ impl EventLedger for PostgresEventLedger {
                         updated_at = now()
                 WHERE sentinel_sync_event_ledger.status <> 'completed'
                 RETURNING event_id
-                "#,
+                ",
                 [event_id.into()],
             ))
             .await?;
@@ -125,13 +125,13 @@ impl EventLedger for PostgresEventLedger {
         self.db
             .execute(Statement::from_sql_and_values(
                 DbBackend::Postgres,
-                r#"
+                r"
                 UPDATE sentinel_sync_event_ledger
                 SET status = 'completed',
                     last_error = NULL,
                     updated_at = now()
                 WHERE event_id = $1
-                "#,
+                ",
                 [event_id.to_string().into()],
             ))
             .await?;
@@ -142,13 +142,13 @@ impl EventLedger for PostgresEventLedger {
         self.db
             .execute(Statement::from_sql_and_values(
                 DbBackend::Postgres,
-                r#"
+                r"
                 UPDATE sentinel_sync_event_ledger
                 SET status = 'failed',
                     last_error = $2,
                     updated_at = now()
                 WHERE event_id = $1 AND status <> 'completed'
-                "#,
+                ",
                 [event_id.to_string().into(), error.to_string().into()],
             ))
             .await?;

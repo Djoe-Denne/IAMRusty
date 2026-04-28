@@ -28,27 +28,26 @@ pub enum AuthErrorCode {
 }
 
 impl AuthErrorCode {
-    pub fn as_str(&self) -> &'static str {
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
         match self {
-            AuthErrorCode::InvalidCredentials => "invalid_credentials",
-            AuthErrorCode::EmailNotVerified => "email_not_verified",
-            AuthErrorCode::UserAlreadyExists => "user_already_exists",
-            AuthErrorCode::UserNotFound => "user_not_found",
-            AuthErrorCode::WeakPassword => "weak_password",
-            AuthErrorCode::InvalidEmail => "invalid_email",
-            AuthErrorCode::EmailNotFound => "email_not_found",
-            AuthErrorCode::EmailAlreadyVerified => "email_already_verified",
-            AuthErrorCode::InvalidVerificationToken => "invalid_verification_token",
-            AuthErrorCode::VerificationTokenExpired => "verification_token_expired",
-            AuthErrorCode::RepositoryError => "repository_error",
-            AuthErrorCode::EventPublishingError => "event_publishing_error",
-            AuthErrorCode::TokenServiceError => "token_service_error",
-            AuthErrorCode::PasswordHashingError => "password_hashing_error",
-            AuthErrorCode::VerificationTokenGenerationError => {
-                "verification_token_generation_error"
-            }
-            AuthErrorCode::AuthenticationFailed => "authentication_failed",
-            AuthErrorCode::ValidationFailed => "validation_failed",
+            Self::InvalidCredentials => "invalid_credentials",
+            Self::EmailNotVerified => "email_not_verified",
+            Self::UserAlreadyExists => "user_already_exists",
+            Self::UserNotFound => "user_not_found",
+            Self::WeakPassword => "weak_password",
+            Self::InvalidEmail => "invalid_email",
+            Self::EmailNotFound => "email_not_found",
+            Self::EmailAlreadyVerified => "email_already_verified",
+            Self::InvalidVerificationToken => "invalid_verification_token",
+            Self::VerificationTokenExpired => "verification_token_expired",
+            Self::RepositoryError => "repository_error",
+            Self::EventPublishingError => "event_publishing_error",
+            Self::TokenServiceError => "token_service_error",
+            Self::PasswordHashingError => "password_hashing_error",
+            Self::VerificationTokenGenerationError => "verification_token_generation_error",
+            Self::AuthenticationFailed => "authentication_failed",
+            Self::ValidationFailed => "validation_failed",
         }
     }
 }
@@ -103,7 +102,7 @@ impl CommandErrorMapper for AuthErrorMapper {
                     if Self::is_authentication_related_error(msg) {
                         CommandError::validation(
                             AuthErrorCode::AuthenticationFailed.as_str(),
-                            format!("Authentication failed: {}", msg),
+                            format!("Authentication failed: {msg}"),
                         )
                     } else {
                         CommandError::infrastructure(
@@ -118,7 +117,7 @@ impl CommandErrorMapper for AuthErrorMapper {
             if Self::is_authentication_related_error(&error_msg) {
                 CommandError::validation(
                     AuthErrorCode::AuthenticationFailed.as_str(),
-                    format!("Authentication failed: {}", error_msg),
+                    format!("Authentication failed: {error_msg}"),
                 )
             } else {
                 CommandError::infrastructure(
@@ -155,6 +154,7 @@ pub struct PasswordLoginCommand {
 
 impl PasswordLoginCommand {
     /// Create a new password login command
+    #[must_use]
     pub fn new(email: String, password: String) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -216,7 +216,7 @@ where
     A: LoginUseCase + ?Sized,
 {
     /// Create a new password login command handler
-    pub fn new(login_use_case: Arc<A>) -> Self {
+    pub const fn new(login_use_case: Arc<A>) -> Self {
         Self { login_use_case }
     }
 }

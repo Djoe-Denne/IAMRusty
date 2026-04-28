@@ -36,12 +36,12 @@ impl NotificationDeliveryFixtureBuilder {
         self,
         db: &DatabaseConnection,
     ) -> Result<NotificationDeliveryFixture, DbErr> {
-        let fixture = DbFixture::commit(self, &*db).await?;
+        let fixture = DbFixture::commit(self, db).await?;
         Ok(NotificationDeliveryFixture { inner: fixture })
     }
 
     /// Set the notification ID
-    pub fn notification_id(mut self, notification_id: Uuid) -> Self {
+    pub const fn notification_id(mut self, notification_id: Uuid) -> Self {
         self.notification_id = notification_id;
         self
     }
@@ -59,19 +59,19 @@ impl NotificationDeliveryFixtureBuilder {
     }
 
     /// Set the attempt count
-    pub fn attempt_count(mut self, attempt_count: i16) -> Self {
+    pub const fn attempt_count(mut self, attempt_count: i16) -> Self {
         self.attempt_count = attempt_count;
         self
     }
 
     /// Set the last attempt timestamp
-    pub fn last_attempt_at(mut self, last_attempt_at: Option<DateTime<Utc>>) -> Self {
+    pub const fn last_attempt_at(mut self, last_attempt_at: Option<DateTime<Utc>>) -> Self {
         self.last_attempt_at = last_attempt_at;
         self
     }
 
     /// Set the delivered timestamp
-    pub fn delivered_at(mut self, delivered_at: Option<DateTime<Utc>>) -> Self {
+    pub const fn delivered_at(mut self, delivered_at: Option<DateTime<Utc>>) -> Self {
         self.delivered_at = delivered_at;
         self
     }
@@ -160,7 +160,7 @@ impl NotificationDeliveryFixtureBuilder {
         self.attempt_count = attempts;
         self.last_attempt_at = Some(Utc::now() - chrono::Duration::minutes(1));
         if attempts >= 3 {
-            self.error_message = Some(format!("Failed after {} attempts", attempts));
+            self.error_message = Some(format!("Failed after {attempts} attempts"));
         }
         self
     }
@@ -216,47 +216,47 @@ impl NotificationDeliveryFixture {
         Ok(found.is_some())
     }
 
-    pub fn model(&self) -> &notification_deliveries::Model {
+    pub const fn model(&self) -> &notification_deliveries::Model {
         self.inner.model()
     }
 
-    pub fn id(&self) -> Uuid {
+    pub const fn id(&self) -> Uuid {
         self.model().id
     }
 
-    pub fn notification_id(&self) -> Uuid {
+    pub const fn notification_id(&self) -> Uuid {
         self.model().notification_id
     }
 
-    pub fn delivery_method(&self) -> &String {
+    pub const fn delivery_method(&self) -> &String {
         &self.model().delivery_method
     }
 
-    pub fn status(&self) -> &String {
+    pub const fn status(&self) -> &String {
         &self.model().status
     }
 
-    pub fn attempt_count(&self) -> i16 {
+    pub const fn attempt_count(&self) -> i16 {
         self.model().attempt_count
     }
 
-    pub fn last_attempt_at(&self) -> Option<DateTime<Utc>> {
+    pub const fn last_attempt_at(&self) -> Option<DateTime<Utc>> {
         self.model().last_attempt_at
     }
 
-    pub fn delivered_at(&self) -> Option<DateTime<Utc>> {
+    pub const fn delivered_at(&self) -> Option<DateTime<Utc>> {
         self.model().delivered_at
     }
 
-    pub fn error_message(&self) -> Option<&String> {
+    pub const fn error_message(&self) -> Option<&String> {
         self.model().error_message.as_ref()
     }
 
-    pub fn created_at(&self) -> DateTime<Utc> {
+    pub const fn created_at(&self) -> DateTime<Utc> {
         self.model().created_at
     }
 
-    pub fn updated_at(&self) -> DateTime<Utc> {
+    pub const fn updated_at(&self) -> DateTime<Utc> {
         self.model().updated_at
     }
 }

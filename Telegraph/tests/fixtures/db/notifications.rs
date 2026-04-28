@@ -5,7 +5,7 @@ use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use super::common::{FixtureBuilder, FixtureFactory};
+use super::common::FixtureFactory;
 use rustycog_testing::db::{CommittedFixture, DbFixture, TestData};
 use telegraph_infra::repository::entity::notifications;
 
@@ -42,12 +42,12 @@ impl NotificationFixtureBuilder {
     }
 
     pub async fn commit(self, db: &DatabaseConnection) -> Result<NotificationFixture, DbErr> {
-        let fixture = DbFixture::commit(self, &*db).await?;
+        let fixture = DbFixture::commit(self, db).await?;
         Ok(NotificationFixture { inner: fixture })
     }
 
     /// Set the user ID
-    pub fn user_id(mut self, user_id: Uuid) -> Self {
+    pub const fn user_id(mut self, user_id: Uuid) -> Self {
         self.user_id = user_id;
         self
     }
@@ -73,25 +73,25 @@ impl NotificationFixtureBuilder {
     }
 
     /// Set whether the notification is read
-    pub fn is_read(mut self, is_read: bool) -> Self {
+    pub const fn is_read(mut self, is_read: bool) -> Self {
         self.is_read = is_read;
         self
     }
 
     /// Set the priority (1=high, 2=medium, 3=normal, 4=low)
-    pub fn priority(mut self, priority: i16) -> Self {
+    pub const fn priority(mut self, priority: i16) -> Self {
         self.priority = priority;
         self
     }
 
     /// Set expiration date
-    pub fn expires_at(mut self, expires_at: Option<DateTime<Utc>>) -> Self {
+    pub const fn expires_at(mut self, expires_at: Option<DateTime<Utc>>) -> Self {
         self.expires_at = expires_at;
         self
     }
 
     /// Set read timestamp
-    pub fn read_at(mut self, read_at: Option<DateTime<Utc>>) -> Self {
+    pub const fn read_at(mut self, read_at: Option<DateTime<Utc>>) -> Self {
         self.read_at = read_at;
         self
     }
@@ -188,9 +188,9 @@ impl DbFixture<notifications::Entity, notifications::Model, notifications::Activ
     }
 }
 
-impl FixtureFactory<NotificationFixtureBuilder> for NotificationFixtureBuilder {
-    fn default() -> NotificationFixtureBuilder {
-        NotificationFixtureBuilder::new()
+impl FixtureFactory<Self> for NotificationFixtureBuilder {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -209,51 +209,51 @@ impl NotificationFixture {
         Ok(found.is_some())
     }
 
-    pub fn model(&self) -> &notifications::Model {
+    pub const fn model(&self) -> &notifications::Model {
         self.inner.model()
     }
 
-    pub fn id(&self) -> Uuid {
+    pub const fn id(&self) -> Uuid {
         self.model().id
     }
 
-    pub fn user_id(&self) -> Uuid {
+    pub const fn user_id(&self) -> Uuid {
         self.model().user_id
     }
 
-    pub fn title(&self) -> &String {
+    pub const fn title(&self) -> &String {
         &self.model().title
     }
 
-    pub fn content(&self) -> &Vec<u8> {
+    pub const fn content(&self) -> &Vec<u8> {
         &self.model().content
     }
 
-    pub fn content_type(&self) -> &String {
+    pub const fn content_type(&self) -> &String {
         &self.model().content_type
     }
 
-    pub fn is_read(&self) -> bool {
+    pub const fn is_read(&self) -> bool {
         self.model().is_read
     }
 
-    pub fn priority(&self) -> i16 {
+    pub const fn priority(&self) -> i16 {
         self.model().priority
     }
 
-    pub fn expires_at(&self) -> Option<DateTime<Utc>> {
+    pub const fn expires_at(&self) -> Option<DateTime<Utc>> {
         self.model().expires_at
     }
 
-    pub fn read_at(&self) -> Option<DateTime<Utc>> {
+    pub const fn read_at(&self) -> Option<DateTime<Utc>> {
         self.model().read_at
     }
 
-    pub fn created_at(&self) -> DateTime<Utc> {
+    pub const fn created_at(&self) -> DateTime<Utc> {
         self.model().created_at
     }
 
-    pub fn updated_at(&self) -> DateTime<Utc> {
+    pub const fn updated_at(&self) -> DateTime<Utc> {
         self.model().updated_at
     }
 }

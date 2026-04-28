@@ -62,114 +62,114 @@ pub enum ManifestoDomainEvent {
 impl DomainEvent for ManifestoDomainEvent {
     fn event_type(&self) -> &str {
         match self {
-            ManifestoDomainEvent::ProjectCreated(event) => event.base.event_type.as_str(),
-            ManifestoDomainEvent::ProjectUpdated(event) => event.base.event_type.as_str(),
-            ManifestoDomainEvent::ProjectDeleted(event) => event.base.event_type.as_str(),
-            ManifestoDomainEvent::ProjectPublished(event) => event.base.event_type.as_str(),
-            ManifestoDomainEvent::ProjectArchived(event) => event.base.event_type.as_str(),
-            ManifestoDomainEvent::ComponentAdded(event) => event.base.event_type.as_str(),
-            ManifestoDomainEvent::ComponentStatusChanged(event) => event.base.event_type.as_str(),
-            ManifestoDomainEvent::ComponentRemoved(event) => event.base.event_type.as_str(),
-            ManifestoDomainEvent::MemberAdded(event) => event.base.event_type.as_str(),
-            ManifestoDomainEvent::MemberPermissionsUpdated(event) => event.base.event_type.as_str(),
-            ManifestoDomainEvent::MemberRemoved(event) => event.base.event_type.as_str(),
-            ManifestoDomainEvent::PermissionGranted(event) => event.base.event_type.as_str(),
-            ManifestoDomainEvent::PermissionRevoked(event) => event.base.event_type.as_str(),
+            Self::ProjectCreated(event) => event.base.event_type.as_str(),
+            Self::ProjectUpdated(event) => event.base.event_type.as_str(),
+            Self::ProjectDeleted(event) => event.base.event_type.as_str(),
+            Self::ProjectPublished(event) => event.base.event_type.as_str(),
+            Self::ProjectArchived(event) => event.base.event_type.as_str(),
+            Self::ComponentAdded(event) => event.base.event_type.as_str(),
+            Self::ComponentStatusChanged(event) => event.base.event_type.as_str(),
+            Self::ComponentRemoved(event) => event.base.event_type.as_str(),
+            Self::MemberAdded(event) => event.base.event_type.as_str(),
+            Self::MemberPermissionsUpdated(event) => event.base.event_type.as_str(),
+            Self::MemberRemoved(event) => event.base.event_type.as_str(),
+            Self::PermissionGranted(event) => event.base.event_type.as_str(),
+            Self::PermissionRevoked(event) => event.base.event_type.as_str(),
         }
     }
 
     fn event_id(&self) -> Uuid {
         match self {
-            ManifestoDomainEvent::ProjectCreated(event) => event.base.event_id,
-            ManifestoDomainEvent::ProjectUpdated(event) => event.base.event_id,
-            ManifestoDomainEvent::ProjectDeleted(event) => event.base.event_id,
-            ManifestoDomainEvent::ProjectPublished(event) => event.base.event_id,
-            ManifestoDomainEvent::ProjectArchived(event) => event.base.event_id,
-            ManifestoDomainEvent::ComponentAdded(event) => event.base.event_id,
-            ManifestoDomainEvent::ComponentStatusChanged(event) => event.base.event_id,
-            ManifestoDomainEvent::ComponentRemoved(event) => event.base.event_id,
-            ManifestoDomainEvent::MemberAdded(event) => event.base.event_id,
-            ManifestoDomainEvent::MemberPermissionsUpdated(event) => event.base.event_id,
-            ManifestoDomainEvent::MemberRemoved(event) => event.base.event_id,
-            ManifestoDomainEvent::PermissionGranted(event) => event.base.event_id,
-            ManifestoDomainEvent::PermissionRevoked(event) => event.base.event_id,
+            Self::ProjectCreated(event) => event.base.event_id,
+            Self::ProjectUpdated(event) => event.base.event_id,
+            Self::ProjectDeleted(event) => event.base.event_id,
+            Self::ProjectPublished(event) => event.base.event_id,
+            Self::ProjectArchived(event) => event.base.event_id,
+            Self::ComponentAdded(event) => event.base.event_id,
+            Self::ComponentStatusChanged(event) => event.base.event_id,
+            Self::ComponentRemoved(event) => event.base.event_id,
+            Self::MemberAdded(event) => event.base.event_id,
+            Self::MemberPermissionsUpdated(event) => event.base.event_id,
+            Self::MemberRemoved(event) => event.base.event_id,
+            Self::PermissionGranted(event) => event.base.event_id,
+            Self::PermissionRevoked(event) => event.base.event_id,
         }
     }
 
     fn aggregate_id(&self) -> Uuid {
         match self {
-            ManifestoDomainEvent::ProjectCreated(event) => event.base.aggregate_id,
-            ManifestoDomainEvent::ProjectUpdated(event) => event.base.aggregate_id,
-            ManifestoDomainEvent::ProjectDeleted(event) => event.base.aggregate_id,
-            ManifestoDomainEvent::ProjectPublished(event) => event.base.aggregate_id,
-            ManifestoDomainEvent::ProjectArchived(event) => event.base.aggregate_id,
-            ManifestoDomainEvent::ComponentAdded(event) => event.base.aggregate_id,
-            ManifestoDomainEvent::ComponentStatusChanged(event) => event.base.aggregate_id,
-            ManifestoDomainEvent::ComponentRemoved(event) => event.base.aggregate_id,
-            ManifestoDomainEvent::MemberAdded(event) => event.base.aggregate_id,
-            ManifestoDomainEvent::MemberPermissionsUpdated(event) => event.base.aggregate_id,
-            ManifestoDomainEvent::MemberRemoved(event) => event.base.aggregate_id,
-            ManifestoDomainEvent::PermissionGranted(event) => event.base.aggregate_id,
-            ManifestoDomainEvent::PermissionRevoked(event) => event.base.aggregate_id,
+            Self::ProjectCreated(event) => event.base.aggregate_id,
+            Self::ProjectUpdated(event) => event.base.aggregate_id,
+            Self::ProjectDeleted(event) => event.base.aggregate_id,
+            Self::ProjectPublished(event) => event.base.aggregate_id,
+            Self::ProjectArchived(event) => event.base.aggregate_id,
+            Self::ComponentAdded(event) => event.base.aggregate_id,
+            Self::ComponentStatusChanged(event) => event.base.aggregate_id,
+            Self::ComponentRemoved(event) => event.base.aggregate_id,
+            Self::MemberAdded(event) => event.base.aggregate_id,
+            Self::MemberPermissionsUpdated(event) => event.base.aggregate_id,
+            Self::MemberRemoved(event) => event.base.aggregate_id,
+            Self::PermissionGranted(event) => event.base.aggregate_id,
+            Self::PermissionRevoked(event) => event.base.aggregate_id,
         }
     }
 
     fn occurred_at(&self) -> DateTime<Utc> {
         match self {
-            ManifestoDomainEvent::ProjectCreated(event) => event.base.occurred_at,
-            ManifestoDomainEvent::ProjectUpdated(event) => event.base.occurred_at,
-            ManifestoDomainEvent::ProjectDeleted(event) => event.base.occurred_at,
-            ManifestoDomainEvent::ProjectPublished(event) => event.base.occurred_at,
-            ManifestoDomainEvent::ProjectArchived(event) => event.base.occurred_at,
-            ManifestoDomainEvent::ComponentAdded(event) => event.base.occurred_at,
-            ManifestoDomainEvent::ComponentStatusChanged(event) => event.base.occurred_at,
-            ManifestoDomainEvent::ComponentRemoved(event) => event.base.occurred_at,
-            ManifestoDomainEvent::MemberAdded(event) => event.base.occurred_at,
-            ManifestoDomainEvent::MemberPermissionsUpdated(event) => event.base.occurred_at,
-            ManifestoDomainEvent::MemberRemoved(event) => event.base.occurred_at,
-            ManifestoDomainEvent::PermissionGranted(event) => event.base.occurred_at,
-            ManifestoDomainEvent::PermissionRevoked(event) => event.base.occurred_at,
+            Self::ProjectCreated(event) => event.base.occurred_at,
+            Self::ProjectUpdated(event) => event.base.occurred_at,
+            Self::ProjectDeleted(event) => event.base.occurred_at,
+            Self::ProjectPublished(event) => event.base.occurred_at,
+            Self::ProjectArchived(event) => event.base.occurred_at,
+            Self::ComponentAdded(event) => event.base.occurred_at,
+            Self::ComponentStatusChanged(event) => event.base.occurred_at,
+            Self::ComponentRemoved(event) => event.base.occurred_at,
+            Self::MemberAdded(event) => event.base.occurred_at,
+            Self::MemberPermissionsUpdated(event) => event.base.occurred_at,
+            Self::MemberRemoved(event) => event.base.occurred_at,
+            Self::PermissionGranted(event) => event.base.occurred_at,
+            Self::PermissionRevoked(event) => event.base.occurred_at,
         }
     }
 
     fn version(&self) -> u32 {
         match self {
-            ManifestoDomainEvent::ProjectCreated(event) => event.base.version,
-            ManifestoDomainEvent::ProjectUpdated(event) => event.base.version,
-            ManifestoDomainEvent::ProjectDeleted(event) => event.base.version,
-            ManifestoDomainEvent::ProjectPublished(event) => event.base.version,
-            ManifestoDomainEvent::ProjectArchived(event) => event.base.version,
-            ManifestoDomainEvent::ComponentAdded(event) => event.base.version,
-            ManifestoDomainEvent::ComponentStatusChanged(event) => event.base.version,
-            ManifestoDomainEvent::ComponentRemoved(event) => event.base.version,
-            ManifestoDomainEvent::MemberAdded(event) => event.base.version,
-            ManifestoDomainEvent::MemberPermissionsUpdated(event) => event.base.version,
-            ManifestoDomainEvent::MemberRemoved(event) => event.base.version,
-            ManifestoDomainEvent::PermissionGranted(event) => event.base.version,
-            ManifestoDomainEvent::PermissionRevoked(event) => event.base.version,
+            Self::ProjectCreated(event) => event.base.version,
+            Self::ProjectUpdated(event) => event.base.version,
+            Self::ProjectDeleted(event) => event.base.version,
+            Self::ProjectPublished(event) => event.base.version,
+            Self::ProjectArchived(event) => event.base.version,
+            Self::ComponentAdded(event) => event.base.version,
+            Self::ComponentStatusChanged(event) => event.base.version,
+            Self::ComponentRemoved(event) => event.base.version,
+            Self::MemberAdded(event) => event.base.version,
+            Self::MemberPermissionsUpdated(event) => event.base.version,
+            Self::MemberRemoved(event) => event.base.version,
+            Self::PermissionGranted(event) => event.base.version,
+            Self::PermissionRevoked(event) => event.base.version,
         }
     }
 
     fn to_json(&self) -> Result<String, ServiceError> {
         serde_json::to_string(self)
-            .map_err(|e| ServiceError::internal(&format!("Failed to serialize event: {}", e)))
+            .map_err(|e| ServiceError::internal(format!("Failed to serialize event: {e}")))
     }
 
     fn metadata(&self) -> HashMap<String, String> {
         match self {
-            ManifestoDomainEvent::ProjectCreated(event) => event.base.metadata.clone(),
-            ManifestoDomainEvent::ProjectUpdated(event) => event.base.metadata.clone(),
-            ManifestoDomainEvent::ProjectDeleted(event) => event.base.metadata.clone(),
-            ManifestoDomainEvent::ProjectPublished(event) => event.base.metadata.clone(),
-            ManifestoDomainEvent::ProjectArchived(event) => event.base.metadata.clone(),
-            ManifestoDomainEvent::ComponentAdded(event) => event.base.metadata.clone(),
-            ManifestoDomainEvent::ComponentStatusChanged(event) => event.base.metadata.clone(),
-            ManifestoDomainEvent::ComponentRemoved(event) => event.base.metadata.clone(),
-            ManifestoDomainEvent::MemberAdded(event) => event.base.metadata.clone(),
-            ManifestoDomainEvent::MemberPermissionsUpdated(event) => event.base.metadata.clone(),
-            ManifestoDomainEvent::MemberRemoved(event) => event.base.metadata.clone(),
-            ManifestoDomainEvent::PermissionGranted(event) => event.base.metadata.clone(),
-            ManifestoDomainEvent::PermissionRevoked(event) => event.base.metadata.clone(),
+            Self::ProjectCreated(event) => event.base.metadata.clone(),
+            Self::ProjectUpdated(event) => event.base.metadata.clone(),
+            Self::ProjectDeleted(event) => event.base.metadata.clone(),
+            Self::ProjectPublished(event) => event.base.metadata.clone(),
+            Self::ProjectArchived(event) => event.base.metadata.clone(),
+            Self::ComponentAdded(event) => event.base.metadata.clone(),
+            Self::ComponentStatusChanged(event) => event.base.metadata.clone(),
+            Self::ComponentRemoved(event) => event.base.metadata.clone(),
+            Self::MemberAdded(event) => event.base.metadata.clone(),
+            Self::MemberPermissionsUpdated(event) => event.base.metadata.clone(),
+            Self::MemberRemoved(event) => event.base.metadata.clone(),
+            Self::PermissionGranted(event) => event.base.metadata.clone(),
+            Self::PermissionRevoked(event) => event.base.metadata.clone(),
         }
     }
 }

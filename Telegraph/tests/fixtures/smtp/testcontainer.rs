@@ -1,6 +1,6 @@
-//! SMTP MailHog test container for Telegraph email testing
+//! SMTP `MailHog` test container for Telegraph email testing
 //!
-//! This module provides a MailHog SMTP container specifically for Telegraph integration tests
+//! This module provides a `MailHog` SMTP container specifically for Telegraph integration tests
 //! to verify email sending functionality.
 
 use reqwest::Client;
@@ -34,7 +34,7 @@ pub struct EmailAddress {
     pub address: String,
 }
 
-/// MailHog SMTP test container
+/// `MailHog` SMTP test container
 pub struct TestSmtpContainer {
     container: ContainerAsync<GenericImage>,
 }
@@ -57,7 +57,7 @@ impl TestSmtpContainer {
     }
 }
 
-/// MailHog SMTP test container
+/// `MailHog` SMTP test container
 pub struct TestSmtp {
     pub smtp_port: u16,
     pub api_port: u16,
@@ -66,16 +66,16 @@ pub struct TestSmtp {
 }
 
 impl TestSmtp {
-    /// Create a new SMTP test container with MailHog
+    /// Create a new SMTP test container with `MailHog`
     pub async fn new() -> Result<Arc<Self>, Box<dyn std::error::Error>> {
         info!("Creating new MailHog SMTP test container");
 
         let smtp_config = load_config_part::<SmtpConfig>("communication.email.smtp")?;
-        let _ = Self::get_or_create_smtp_container(&smtp_config).await?;
+        let () = Self::get_or_create_smtp_container(&smtp_config).await?;
 
         // Use the configured ports directly since we mapped them
-        let smtp_port = smtp_config.port as u16;
-        let api_port = 8025 as u16;
+        let smtp_port = smtp_config.port;
+        let api_port = 8025_u16;
         let host = "127.0.0.1".to_string();
 
         let client = Client::new();
@@ -158,19 +158,19 @@ impl TestSmtp {
         for container_name in &containers {
             // Stop the container
             let _ = Command::new("docker")
-                .args(&["stop", container_name])
+                .args(["stop", container_name])
                 .output();
 
             // Remove the container
             let _ = Command::new("docker")
-                .args(&["rm", "-f", container_name])
+                .args(["rm", "-f", container_name])
                 .output();
 
             debug!("Cleaned up container: {}", container_name);
         }
     }
 
-    /// Wait for MailHog to be ready
+    /// Wait for `MailHog` to be ready
     async fn wait_for_ready(&self) -> Result<(), Box<dyn std::error::Error>> {
         let api_url = format!("http://{}:{}/api/v1/messages", self.host, self.api_port);
 
@@ -189,7 +189,7 @@ impl TestSmtp {
         Err("MailHog failed to become ready within timeout".into())
     }
 
-    /// Get all emails sent to MailHog
+    /// Get all emails sent to `MailHog`
     pub async fn get_emails(&self) -> Result<Vec<TestEmail>, Box<dyn std::error::Error>> {
         let api_url = format!("http://{}:{}/api/v1/messages", self.host, self.api_port);
 
@@ -212,7 +212,7 @@ impl TestSmtp {
         Ok(test_emails)
     }
 
-    /// Parse a MailHog message into TestEmail
+    /// Parse a `MailHog` message into `TestEmail`
     fn parse_mailhog_message(
         &self,
         message: &serde_json::Value,
@@ -241,7 +241,7 @@ impl TestSmtp {
         let (text_content, html_content) = parse_mailhog_bodies(message);
 
         let from = EmailAddress {
-            name: "".to_string(),
+            name: String::new(),
             address: mailhog_address(from_obj),
         };
 
@@ -284,7 +284,7 @@ impl TestSmtp {
         found
     }
 
-    /// Clear all emails from MailHog
+    /// Clear all emails from `MailHog`
     pub async fn clear_emails(&self) -> Result<(), Box<dyn std::error::Error>> {
         let api_url = format!("http://{}:{}/api/v1/messages", self.host, self.api_port);
         self.client.delete(&api_url).send().await?;
@@ -296,7 +296,7 @@ impl TestSmtp {
         &self.host
     }
 
-    pub fn smtp_port(&self) -> u16 {
+    pub const fn smtp_port(&self) -> u16 {
         self.smtp_port
     }
 }
@@ -309,7 +309,7 @@ fn parse_mailhog_recipients(message: &serde_json::Value) -> Vec<EmailAddress> {
         .flatten()
         .filter_map(|v| v.as_object())
         .map(|obj| EmailAddress {
-            name: "".to_string(),
+            name: String::new(),
             address: mailhog_address(obj),
         })
         .collect()
@@ -320,9 +320,9 @@ fn mailhog_address(obj: &serde_json::Map<String, serde_json::Value>) -> String {
     let domain = obj.get("Domain").and_then(|v| v.as_str()).unwrap_or("");
 
     if mailbox.is_empty() || domain.is_empty() {
-        "".to_string()
+        String::new()
     } else {
-        format!("{}@{}", mailbox, domain)
+        format!("{mailbox}@{domain}")
     }
 }
 

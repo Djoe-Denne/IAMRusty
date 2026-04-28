@@ -4,8 +4,6 @@ pub mod notifications;
 
 use rustycog_testing::db::TestData;
 use sea_orm::DatabaseConnection;
-use std::sync::Arc;
-use telegraphmigration::{Migrator, MigratorTrait};
 
 pub use common::*;
 pub use notification_deliveries::*;

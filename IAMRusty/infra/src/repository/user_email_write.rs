@@ -12,15 +12,16 @@ use uuid::Uuid;
 
 use super::entity::{prelude::UserEmails, user_emails};
 
-/// SeaORM implementation of UserEmailWriteRepository
+/// `SeaORM` implementation of `UserEmailWriteRepository`
 #[derive(Clone)]
 pub struct UserEmailWriteRepositoryImpl {
     db: Arc<DatabaseConnection>,
 }
 
 impl UserEmailWriteRepositoryImpl {
-    /// Create a new UserEmailWriteRepositoryImpl
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    /// Create a new `UserEmailWriteRepositoryImpl`
+    #[must_use]
+    pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
 

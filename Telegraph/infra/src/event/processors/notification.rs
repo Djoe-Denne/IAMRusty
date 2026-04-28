@@ -43,7 +43,7 @@ impl DatabaseNotificationProcessor {
 
         info!(
             event_id = %event.event_id,
-            event_type = event.event_type.to_string(),
+            event_type = event.event_type.clone(),
             user_id = %user_id,
             title = %notification_communication.title,
             "Creating database notification"
@@ -73,7 +73,7 @@ impl EventHandler for DatabaseNotificationProcessor {
     async fn handle_event(&self, event: &EventContext) -> Result<(), DomainError> {
         info!(
             event_id = %event.event_id,
-            event_type = event.event_type.to_string(),
+            event_type = event.event_type.clone(),
             user_id = %event.recipient.user_id.unwrap_or_default(),
             "Processing database notification event"
         );

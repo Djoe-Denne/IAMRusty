@@ -7,13 +7,13 @@ use crate::error::DomainError;
 use async_trait::async_trait;
 use uuid::Uuid;
 
-/// Provider OAuth2 client interface
+/// Provider `OAuth2` client interface
 #[async_trait::async_trait]
 pub trait ProviderOAuth2Client {
-    /// Get the OAuth2 scopes for this provider
+    /// Get the `OAuth2` scopes for this provider
     fn get_scope(&self) -> String;
 
-    /// Generate a URL to start the OAuth2 flow
+    /// Generate a URL to start the `OAuth2` flow
     fn generate_authorize_url(&self) -> String;
 
     /// Exchange an authorization code for tokens

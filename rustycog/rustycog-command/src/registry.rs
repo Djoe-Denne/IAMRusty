@@ -30,6 +30,7 @@ impl Default for RetryPolicy {
 }
 
 impl RetryPolicy {
+    #[must_use]
     pub fn calculate_delay(&self, attempt: u32) -> Duration {
         let base_delay_ms = self.base_delay.as_millis() as f64;
         let exponential_delay = base_delay_ms * self.backoff_multiplier.powi(attempt as i32);
@@ -41,10 +42,12 @@ impl RetryPolicy {
 
         if self.use_jitter {
             // Simple jitter using system time - not cryptographically secure but sufficient for retry jitter
-            let time_nanos = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .subsec_nanos() as f64;
+            let time_nanos = f64::from(
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .subsec_nanos(),
+            );
             let jitter = (time_nanos / 1_000_000_000.0 - 0.5) * 0.1; // ±5% jitter
             let jitter_factor = 1.0 + jitter;
             delay = Duration::from_millis((delay.as_millis() as f64 * jitter_factor) as u64);
@@ -53,7 +56,8 @@ impl RetryPolicy {
         delay
     }
 
-    pub fn is_retryable(&self, error: &CommandError) -> bool {
+    #[must_use]
+    pub const fn is_retryable(&self, error: &CommandError) -> bool {
         matches!(
             error,
             CommandError::Infrastructure { .. } | CommandError::Timeout { .. }
@@ -95,7 +99,8 @@ impl Default for RegistryConfig {
 }
 
 impl RegistryConfig {
-    /// Create a new RegistryConfig from a CommandRetryConfig
+    /// Create a new `RegistryConfig` from a `CommandRetryConfig`
+    #[must_use]
     pub fn from_retry_config(retry_config: &rustycog_config::CommandRetryConfig) -> Self {
         Self {
             default_timeout: Duration::from_secs(30),
@@ -131,7 +136,7 @@ impl MetricsCollector for LoggingMetricsCollector {
 
 /// Trait for error mapping that command handlers can implement
 pub trait CommandErrorMapper: Send + Sync {
-    /// Map a domain error to CommandError
+    /// Map a domain error to `CommandError`
     fn map_error(&self, error: Box<dyn std::error::Error + Send + Sync>) -> CommandError;
 }
 
@@ -152,7 +157,7 @@ pub trait DynCommandHandler: Send + Sync {
     fn error_mapper(&self) -> Arc<dyn CommandErrorMapper>;
 }
 
-/// Wrapper that implements DynCommandHandler for concrete command handlers
+/// Wrapper that implements `DynCommandHandler` for concrete command handlers
 pub struct CommandHandlerWrapper<C, H>
 where
     C: Command + 'static,
@@ -224,6 +229,7 @@ pub struct CommandRegistry {
 
 impl CommandRegistry {
     /// Create a new command registry with default configuration
+    #[must_use]
     pub fn new() -> Self {
         Self {
             handlers: HashMap::new(),
@@ -233,6 +239,7 @@ impl CommandRegistry {
     }
 
     /// Create a new command registry with custom configuration
+    #[must_use]
     pub fn with_config(config: RegistryConfig) -> Self {
         Self {
             handlers: HashMap::new(),
@@ -268,6 +275,7 @@ impl CommandRegistry {
     }
 
     /// Get a handler for a command type
+    #[must_use]
     pub fn get_handler(&self, command_type: &str) -> Option<Arc<dyn DynCommandHandler>> {
         self.handlers.get(command_type).cloned()
     }
@@ -287,7 +295,7 @@ impl CommandRegistry {
         let handler = self.get_handler(command_type).ok_or_else(|| {
             CommandError::infrastructure(
                 "handler_not_found",
-                format!("No handler registered for command type: {}", command_type),
+                format!("No handler registered for command type: {command_type}"),
             )
         })?;
 
@@ -502,20 +510,21 @@ impl CommandRegistry {
             return;
         }
 
-        match error {
-            Some(error) => warn!(
+        if let Some(error) = error {
+            warn!(
                 command_type = %command_type,
                 error = %error,
                 retry_attempt = retry_attempts,
                 delay_ms = delay.as_millis() as u64,
                 "Command failed, retrying"
-            ),
-            None => warn!(
+            );
+        } else {
+            warn!(
                 command_type = %command_type,
                 retry_attempt = retry_attempts,
                 delay_ms = delay.as_millis() as u64,
                 "Command timed out, retrying"
-            ),
+            );
         }
     }
 
@@ -565,13 +574,14 @@ impl CommandRegistry {
             duration_ms: duration.as_millis() as u64,
             success: false,
             retry_attempts,
-            error_type: Some(format!("{:?}", error)),
+            error_type: Some(format!("{error:?}")),
         };
 
         self.metrics_collector.record_metrics(metrics).await;
     }
 
     /// List all registered command types
+    #[must_use]
     pub fn list_command_types(&self) -> Vec<String> {
         self.handlers.keys().cloned().collect()
     }
@@ -590,6 +600,7 @@ pub struct CommandRegistryBuilder {
 
 impl CommandRegistryBuilder {
     /// Create a new registry builder with default configuration
+    #[must_use]
     pub fn new() -> Self {
         Self {
             registry: CommandRegistry::new(),
@@ -597,6 +608,7 @@ impl CommandRegistryBuilder {
     }
 
     /// Create a new registry builder with custom configuration
+    #[must_use]
     pub fn with_config(config: RegistryConfig) -> Self {
         Self {
             registry: CommandRegistry::with_config(config),
@@ -630,6 +642,7 @@ impl CommandRegistryBuilder {
     }
 
     /// Build the registry
+    #[must_use]
     pub fn build(self) -> CommandRegistry {
         self.registry
     }

@@ -71,7 +71,7 @@ pub trait OrganizationService: Send + Sync {
     /**
      * List organizations for a user
      *
-     * @param user_id - The ID of the user to list the organizations for
+     * @param `user_id` - The ID of the user to list the organizations for
      */
     async fn list_user_organizations(
         &self,
@@ -83,7 +83,7 @@ pub trait OrganizationService: Send + Sync {
     /**
      * Search organizations by name
      *
-     * @param name_pattern - The pattern to search for
+     * @param `name_pattern` - The pattern to search for
      */
     async fn search_organizations(
         &self,
@@ -101,7 +101,11 @@ where
     RS: RoleService,
 {
     /// Create a new organization service
-    pub fn new(organization_repo: Arc<OR>, member_service: Arc<MS>, role_service: Arc<RS>) -> Self {
+    pub const fn new(
+        organization_repo: Arc<OR>,
+        member_service: Arc<MS>,
+        role_service: Arc<RS>,
+    ) -> Self {
         Self {
             organization_repo,
             member_service,
@@ -134,7 +138,7 @@ where
             ));
         }
 
-        let saved_org = self.organization_repo.save(&organization).await?;
+        let saved_org = self.organization_repo.save(organization).await?;
 
         // Create default system roles for the organization
         let default_roles = self
@@ -226,7 +230,7 @@ where
     async fn get_organization(&self, id: &Uuid) -> Result<Organization, DomainError> {
         let organization = self
             .organization_repo
-            .find_by_id(&id)
+            .find_by_id(id)
             .await?
             .ok_or_else(|| DomainError::entity_not_found("Organization", &id.to_string()))?;
 

@@ -68,7 +68,7 @@ impl SqsEventPublisher {
         // Get the event JSON and parse it back to a Value so it's properly structured in the data field
         let event_json_str = event.to_json()?;
         let event_data: serde_json::Value = serde_json::from_str(&event_json_str).map_err(|e| {
-            ServiceError::infrastructure(format!("Failed to parse event JSON: {}", e))
+            ServiceError::infrastructure(format!("Failed to parse event JSON: {e}"))
         })?;
 
         let message_body = json!({
@@ -82,7 +82,7 @@ impl SqsEventPublisher {
         });
 
         serde_json::to_string(&message_body).map_err(|e| {
-            ServiceError::infrastructure(format!("Failed to serialize event for SQS: {}", e))
+            ServiceError::infrastructure(format!("Failed to serialize event for SQS: {e}"))
         })
     }
 
@@ -179,7 +179,7 @@ impl SqsEventPublisher {
         for (queue_idx, queue_name) in queue_names.into_iter().enumerate() {
             let entry = self.build_batch_entry(
                 event,
-                format!("entry_{}_{}", idx, queue_idx),
+                format!("entry_{idx}_{queue_idx}"),
                 message_body.clone(),
                 message_attributes.clone(),
                 &queue_name,
@@ -210,7 +210,7 @@ impl SqsEventPublisher {
         }
 
         entry.build().map_err(|e| {
-            ServiceError::infrastructure(format!("Failed to build SQS batch entry: {}", e))
+            ServiceError::infrastructure(format!("Failed to build SQS batch entry: {e}"))
         })
     }
 
@@ -270,8 +270,7 @@ impl SqsEventPublisher {
                     "Failed to send message batch to SQS"
                 );
                 Some(ServiceError::infrastructure(format!(
-                    "Failed to send batch to SQS: {}",
-                    aws_error
+                    "Failed to send batch to SQS: {aws_error}"
                 )))
             }
         }
@@ -377,8 +376,7 @@ impl EventPublisher<ServiceError> for SqsEventPublisher {
                     );
                     if first_error.is_none() {
                         first_error = Some(ServiceError::infrastructure(format!(
-                            "Failed to publish event to SQS queue '{}': {}",
-                            queue_name, aws_error
+                            "Failed to publish event to SQS queue '{queue_name}': {aws_error}"
                         )));
                     }
                 }
@@ -451,8 +449,7 @@ impl EventPublisher<ServiceError> for SqsEventPublisher {
                         "SQS health check failed"
                     );
                     return Err(ServiceError::infrastructure(format!(
-                        "SQS health check failed for queue '{}': {}",
-                        queue_name, aws_error
+                        "SQS health check failed for queue '{queue_name}': {aws_error}"
                     )));
                 }
             }
@@ -488,7 +485,7 @@ impl SqsEventConsumer {
     /// Parse message body into a domain event
     fn parse_message_body(body: &str) -> Result<Box<dyn DomainEvent>, ServiceError> {
         let message: Value = serde_json::from_str(body).map_err(|e| {
-            ServiceError::infrastructure(format!("Failed to parse SQS message: {}", e))
+            ServiceError::infrastructure(format!("Failed to parse SQS message: {e}"))
         })?;
 
         // Extract basic event information
@@ -520,7 +517,10 @@ impl SqsEventConsumer {
                 ServiceError::infrastructure("Missing occurred_at in SQS message".to_string())
             })?;
 
-        let version = message.get("version").and_then(|v| v.as_i64()).unwrap_or(1) as i32;
+        let version = message
+            .get("version")
+            .and_then(serde_json::Value::as_i64)
+            .unwrap_or(1) as i32;
 
         let data = message.get("data").ok_or_else(|| {
             ServiceError::infrastructure("Missing data in SQS message".to_string())
@@ -571,8 +571,7 @@ impl SqsEventConsumer {
                     "Failed to receive messages from SQS"
                 );
                 return Err(ServiceError::infrastructure(format!(
-                    "SQS receive error: {}",
-                    e
+                    "SQS receive error: {e}"
                 )));
             }
         };
@@ -685,12 +684,9 @@ impl EventConsumer for SqsEventConsumer {
 
             tasks.push(tokio::spawn(async move {
                 while !should_stop.load(Ordering::SeqCst) {
-                    if let Err(e) = SqsEventConsumer::poll_queue_and_handle_messages(
-                        &client,
-                        &queue_url,
-                        handler.as_ref(),
-                    )
-                    .await
+                    if let Err(e) =
+                        Self::poll_queue_and_handle_messages(&client, &queue_url, handler.as_ref())
+                            .await
                     {
                         error!(
                             error = %e,
@@ -708,7 +704,7 @@ impl EventConsumer for SqsEventConsumer {
 
         for task in tasks {
             task.await.map_err(|e| {
-                ServiceError::infrastructure(format!("SQS consumer task panicked: {}", e))
+                ServiceError::infrastructure(format!("SQS consumer task panicked: {e}"))
             })??;
         }
 
@@ -756,8 +752,7 @@ impl EventConsumer for SqsEventConsumer {
                         "SQS consumer health check failed"
                     );
                     return Err(ServiceError::infrastructure(format!(
-                        "SQS consumer health check failed for queue '{}': {}",
-                        queue_name, aws_error
+                        "SQS consumer health check failed for queue '{queue_name}': {aws_error}"
                     )));
                 }
             }
@@ -794,8 +789,7 @@ impl DomainEvent for GenericDomainEvent {
 
     fn occurred_at(&self) -> chrono::DateTime<chrono::Utc> {
         chrono::DateTime::parse_from_rfc3339(&self.occurred_at)
-            .map(|dt| dt.with_timezone(&chrono::Utc))
-            .unwrap_or_else(|_| chrono::Utc::now())
+            .map_or_else(|_| chrono::Utc::now(), |dt| dt.with_timezone(&chrono::Utc))
     }
 
     fn version(&self) -> u32 {
@@ -804,7 +798,7 @@ impl DomainEvent for GenericDomainEvent {
 
     fn to_json(&self) -> Result<String, ServiceError> {
         serde_json::to_string(&self.data).map_err(|e| {
-            ServiceError::infrastructure(format!("Failed to serialize event data: {}", e))
+            ServiceError::infrastructure(format!("Failed to serialize event data: {e}"))
         })
     }
 

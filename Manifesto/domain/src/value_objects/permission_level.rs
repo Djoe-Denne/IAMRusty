@@ -15,34 +15,36 @@ impl PermissionLevel {
     /// Convert from string representation
     pub fn from_str(s: &str) -> Result<Self, DomainError> {
         match s.to_lowercase().as_str() {
-            "read" => Ok(PermissionLevel::Read),
-            "write" => Ok(PermissionLevel::Write),
-            "admin" => Ok(PermissionLevel::Admin),
-            "owner" => Ok(PermissionLevel::Owner),
+            "read" => Ok(Self::Read),
+            "write" => Ok(Self::Write),
+            "admin" => Ok(Self::Admin),
+            "owner" => Ok(Self::Owner),
             _ => Err(DomainError::invalid_input(&format!(
-                "Invalid permission level: {}",
-                s
+                "Invalid permission level: {s}"
             ))),
         }
     }
 
     /// Convert to string representation
-    pub fn to_str(&self) -> &'static str {
+    #[must_use]
+    pub const fn to_str(&self) -> &'static str {
         match self {
-            PermissionLevel::Read => "read",
-            PermissionLevel::Write => "write",
-            PermissionLevel::Admin => "admin",
-            PermissionLevel::Owner => "owner",
+            Self::Read => "read",
+            Self::Write => "write",
+            Self::Admin => "admin",
+            Self::Owner => "owner",
         }
     }
 
     /// Check if this permission level has at least the required permission
-    pub fn has_permission(&self, required: &PermissionLevel) -> bool {
+    #[must_use]
+    pub fn has_permission(&self, required: &Self) -> bool {
         self >= required
     }
 
     /// Check if this permission can manage another permission level
-    pub fn can_manage(&self, other: &PermissionLevel) -> bool {
+    #[must_use]
+    pub fn can_manage(&self, other: &Self) -> bool {
         self > other
     }
 }

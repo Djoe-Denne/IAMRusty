@@ -1,4 +1,4 @@
-//! Sync Jobs SeaORM Entity
+//! Sync Jobs `SeaORM` Entity
 
 use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*;

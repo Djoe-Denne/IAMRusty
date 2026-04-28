@@ -1,8 +1,6 @@
-use async_trait::async_trait;
 use axum::{
     extract::{FromRequest, Request},
-    http::StatusCode,
-    response::{IntoResponse, Json},
+    response::Json,
 };
 use chrono;
 use hive_application::{ApiErrorResponse, ApiValidationError};
@@ -31,7 +29,7 @@ where
 
         // Validate the payload
         match value.validate() {
-            Ok(_) => Ok(ValidatedJson(value)),
+            Ok(()) => Ok(Self(value)),
             Err(validation_errors) => {
                 let errors: Vec<ApiValidationError> = validation_errors
                     .field_errors()
@@ -40,16 +38,16 @@ where
                         errors.iter().map(|error| ApiValidationError {
                             field: field.to_string(),
                             code: Some(error.code.to_string()),
-                            message: error
-                                .message
-                                .as_ref()
-                                .map_or_else(|| error.code.to_string(), |m| m.to_string()),
+                            message: error.message.as_ref().map_or_else(
+                                || error.code.to_string(),
+                                std::string::ToString::to_string,
+                            ),
                             rejected_value: None, // We could extract this from the error if needed
                         })
                     })
                     .collect();
 
-                let error_response = ApiErrorResponse {
+                let _error_response = ApiErrorResponse {
                     error_type: "validation_error".to_string(),
                     message: "Validation failed".to_string(),
                     timestamp: chrono::Utc::now(),
@@ -72,7 +70,7 @@ where
     T: Validate,
 {
     match params.validate() {
-        Ok(_) => Ok(()),
+        Ok(()) => Ok(()),
         Err(_) => Err(HttpError::Validation {
             message: "Invalid query parameters".to_string(),
         }),
@@ -96,7 +94,7 @@ pub fn validate_pagination(
 
     if page_size == 0 || page_size > max_page_size {
         return Err(HttpError::Validation {
-            message: format!("Page size must be between 1 and {}", max_page_size),
+            message: format!("Page size must be between 1 and {max_page_size}"),
         });
     }
 

@@ -11,7 +11,8 @@ pub enum MemberSource {
 }
 
 impl MemberSource {
-    pub fn as_str(&self) -> &'static str {
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
         match self {
             Self::Direct => "direct",
             Self::OrgCascade => "org_cascade",
@@ -27,8 +28,7 @@ impl MemberSource {
             "invitation" => Ok(Self::Invitation),
             "third_party_sync" => Ok(Self::ThirdPartySync),
             _ => Err(DomainError::invalid_input(&format!(
-                "Invalid member source: {}",
-                s
+                "Invalid member source: {s}"
             ))),
         }
     }

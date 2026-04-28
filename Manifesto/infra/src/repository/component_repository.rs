@@ -30,6 +30,7 @@ impl ComponentMapper {
         })
     }
 
+    #[must_use]
     pub fn to_active_model(component: &ProjectComponent) -> project_components::ActiveModel {
         project_components::ActiveModel {
             id: ActiveValue::Set(component.id),
@@ -37,9 +38,9 @@ impl ComponentMapper {
             component_type: ActiveValue::Set(component.component_type.clone()),
             status: ActiveValue::Set(component.status.as_str().to_string()),
             added_at: ActiveValue::Set(component.added_at.into()),
-            configured_at: ActiveValue::Set(component.configured_at.map(|dt| dt.into())),
-            activated_at: ActiveValue::Set(component.activated_at.map(|dt| dt.into())),
-            disabled_at: ActiveValue::Set(component.disabled_at.map(|dt| dt.into())),
+            configured_at: ActiveValue::Set(component.configured_at.map(std::convert::Into::into)),
+            activated_at: ActiveValue::Set(component.activated_at.map(std::convert::Into::into)),
+            disabled_at: ActiveValue::Set(component.disabled_at.map(std::convert::Into::into)),
         }
     }
 }
@@ -50,7 +51,8 @@ pub struct ComponentReadRepositoryImpl {
 }
 
 impl ComponentReadRepositoryImpl {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    #[must_use]
+    pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
 }
@@ -121,7 +123,8 @@ pub struct ComponentWriteRepositoryImpl {
 }
 
 impl ComponentWriteRepositoryImpl {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    #[must_use]
+    pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
 }

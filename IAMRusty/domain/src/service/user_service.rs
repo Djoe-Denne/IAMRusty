@@ -46,8 +46,8 @@ where
     UER: UserEmailRepository,
     T: AuthTokenService,
 {
-    /// Create a new UserServiceImpl
-    pub fn new(user_repo: Arc<UR>, user_email_repo: Arc<UER>, token_service: Arc<T>) -> Self {
+    /// Create a new `UserServiceImpl`
+    pub const fn new(user_repo: Arc<UR>, user_email_repo: Arc<UER>, token_service: Arc<T>) -> Self {
         Self {
             user_repo,
             user_email_repo,
@@ -93,6 +93,6 @@ where
         self.token_service
             .validate_access_token(token)
             .await
-            .map_err(|e| DomainError::InvalidToken)
+            .map_err(|_e| DomainError::InvalidToken)
     }
 }

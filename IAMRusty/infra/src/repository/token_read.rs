@@ -10,19 +10,20 @@ use uuid::Uuid;
 
 use super::entity::{prelude::ProviderTokens as ProviderTokensEntity, provider_tokens};
 
-/// SeaORM implementation of TokenReadRepository
+/// `SeaORM` implementation of `TokenReadRepository`
 #[derive(Clone)]
 pub struct TokenReadRepositoryImpl {
     db: Arc<DatabaseConnection>,
 }
 
 impl TokenReadRepositoryImpl {
-    /// Create a new TokenReadRepositoryImpl
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    /// Create a new `TokenReadRepositoryImpl`
+    #[must_use]
+    pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
 
-    /// Convert a database model to domain ProviderTokens
+    /// Convert a database model to domain `ProviderTokens`
     fn to_domain(model: provider_tokens::Model) -> ProviderTokens {
         ProviderTokens {
             access_token: model.access_token,
@@ -31,7 +32,7 @@ impl TokenReadRepositoryImpl {
         }
     }
 
-    /// Convert a database model to domain ProviderLink
+    /// Convert a database model to domain `ProviderLink`
     fn to_provider_link(model: provider_tokens::Model) -> ProviderLink {
         ProviderLink {
             user_id: model.user_id,

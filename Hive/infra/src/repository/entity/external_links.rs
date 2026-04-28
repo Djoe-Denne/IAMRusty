@@ -1,4 +1,4 @@
-//! External Links SeaORM Entity
+//! External Links `SeaORM` Entity
 
 use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*;

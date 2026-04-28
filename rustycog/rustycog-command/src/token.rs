@@ -12,7 +12,8 @@ pub struct ValidateTokenCommand {
 }
 
 impl ValidateTokenCommand {
-    /// Create a new ValidateTokenCommand
+    /// Create a new `ValidateTokenCommand`
+    #[must_use]
     pub fn new(token: String) -> Self {
         Self {
             token,

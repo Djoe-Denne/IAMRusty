@@ -52,13 +52,13 @@ pub struct TelegraphConfig {
     #[serde(default)]
     pub database: DatabaseConfig,
 
-    /// OpenFGA authorization checker configuration.
+    /// `OpenFGA` authorization checker configuration.
     #[serde(default)]
     pub openfga: OpenFgaClientConfig,
 }
 
 /// Configuration for a specific queue and its events
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct QueueEventConfig {
     /// Events that this queue processes
     pub events: Vec<String>,
@@ -74,7 +74,7 @@ pub struct EventConfig {
     /// Communication modes to use for this event (notification, email, sms, etc.)
     pub modes: Vec<String>,
 
-    /// Template name prefix for this event (e.g., "user_signed_up")
+    /// Template name prefix for this event (e.g., "`user_signed_up`")
     #[serde(default)]
     pub template: Option<String>,
 
@@ -84,7 +84,7 @@ pub struct EventConfig {
 }
 
 /// Communication service configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct CommunicationConfig {
     /// Email service configuration
     #[serde(default)]
@@ -188,7 +188,7 @@ pub struct TemplateExtensions {
 }
 
 // Default value functions
-fn default_true() -> bool {
+const fn default_true() -> bool {
     true
 }
 fn default_email_provider() -> String {
@@ -203,7 +203,7 @@ fn default_from_name() -> String {
 fn default_smtp_host() -> String {
     "localhost".to_string()
 }
-fn default_smtp_port() -> u16 {
+const fn default_smtp_port() -> u16 {
     587
 }
 fn default_notification_provider() -> String {
@@ -242,31 +242,12 @@ impl Default for TelegraphConfig {
     }
 }
 
-impl Default for QueueEventConfig {
-    fn default() -> Self {
-        Self {
-            events: vec![],
-            event_configs: HashMap::new(),
-        }
-    }
-}
-
 impl Default for EventConfig {
     fn default() -> Self {
         Self {
             modes: vec!["notification".to_string()],
             template: None,
             settings: HashMap::new(),
-        }
-    }
-}
-
-impl Default for CommunicationConfig {
-    fn default() -> Self {
-        Self {
-            email: EmailConfig::default(),
-            notification: NotificationConfig::default(),
-            template: TemplateConfig::default(),
         }
     }
 }
@@ -324,9 +305,9 @@ impl Default for TemplateExtensions {
 }
 
 // Trait implementations for rustycog-config integration
-impl ConfigLoader<TelegraphConfig> for TelegraphConfig {
-    fn create_default() -> TelegraphConfig {
-        TelegraphConfig::default()
+impl ConfigLoader<Self> for TelegraphConfig {
+    fn create_default() -> Self {
+        Self::default()
     }
 
     fn config_prefix() -> &'static str {
@@ -396,11 +377,13 @@ impl HasOpenFgaConfig for TelegraphConfig {
 
 impl TelegraphConfig {
     /// Get the configuration for a specific queue
+    #[must_use]
     pub fn get_queue_config(&self, queue_name: &str) -> Option<&QueueEventConfig> {
         self.queues.get(queue_name)
     }
 
     /// Get the event configuration for a specific event in a queue
+    #[must_use]
     pub fn get_event_config(&self, queue_name: &str, event_name: &str) -> Option<&EventConfig> {
         self.get_queue_config(queue_name)?
             .event_configs
@@ -408,13 +391,14 @@ impl TelegraphConfig {
     }
 
     /// Check if a queue should process a specific event
+    #[must_use]
     pub fn queue_handles_event(&self, queue_name: &str, event_name: &str) -> bool {
         self.get_queue_config(queue_name)
-            .map(|config| config.events.contains(&event_name.to_string()))
-            .unwrap_or(false)
+            .is_some_and(|config| config.events.contains(&event_name.to_string()))
     }
 
     /// Get all queues that handle a specific event
+    #[must_use]
     pub fn queues_for_event(&self, event_name: &str) -> Vec<&str> {
         self.queues
             .iter()

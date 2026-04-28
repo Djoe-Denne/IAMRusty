@@ -1,6 +1,6 @@
-//! IAMRusty event adapter implementation using rustycog-events generic adapter system
+//! `IAMRusty` event adapter implementation using rustycog-events generic adapter system
 //!
-//! This module provides IAMRusty-specific implementations of the EventAdapter and ErrorMapper
+//! This module provides IAMRusty-specific implementations of the `EventAdapter` and `ErrorMapper`
 //! traits from rustycog-events, allowing seamless integration while maintaining architectural
 //! separation.
 
@@ -20,29 +20,29 @@ impl ErrorMapper<DomainError> for IAMErrorMapper {
         match error {
             DomainError::UserNotFound => ServiceError::not_found("User not found"),
             DomainError::ProviderNotSupported(provider) => {
-                ServiceError::validation(format!("Provider not supported: {}", provider))
+                ServiceError::validation(format!("Provider not supported: {provider}"))
             }
             DomainError::BusinessRuleViolation(message) => ServiceError::business(message),
             DomainError::InvalidToken => ServiceError::authentication("Invalid token"),
             DomainError::TokenExpired => ServiceError::authentication("Token expired"),
             DomainError::AuthorizationError(message) => ServiceError::authorization(message),
             DomainError::OAuth2Error(message) => {
-                ServiceError::infrastructure(format!("OAuth2 error: {}", message))
+                ServiceError::infrastructure(format!("OAuth2 error: {message}"))
             }
             DomainError::UserProfileError(message) => {
-                ServiceError::infrastructure(format!("User profile error: {}", message))
+                ServiceError::infrastructure(format!("User profile error: {message}"))
             }
             DomainError::NoTokenForProvider => {
                 ServiceError::not_found("No token found for provider and user".to_string())
             }
             DomainError::TokenGenerationFailed(message) => {
-                ServiceError::internal(format!("Token generation failed: {}", message))
+                ServiceError::internal(format!("Token generation failed: {message}"))
             }
             DomainError::TokenValidationFailed(message) => {
-                ServiceError::validation(format!("Token validation failed: {}", message))
+                ServiceError::validation(format!("Token validation failed: {message}"))
             }
             DomainError::RepositoryError(message) => {
-                ServiceError::infrastructure(format!("Repository error: {}", message))
+                ServiceError::infrastructure(format!("Repository error: {message}"))
             }
             // Registration-specific errors
             DomainError::UsernameTaken => {
@@ -55,10 +55,10 @@ impl ErrorMapper<DomainError> for IAMErrorMapper {
                 ServiceError::business("Registration already completed".to_string())
             }
             DomainError::TokenServiceError(message) => {
-                ServiceError::infrastructure(format!("Token service error: {}", message))
+                ServiceError::infrastructure(format!("Token service error: {message}"))
             }
             DomainError::EventError(message) => {
-                ServiceError::infrastructure(format!("Event error: {}", message))
+                ServiceError::infrastructure(format!("Event error: {message}"))
             }
             DomainError::TokenNotFound => ServiceError::authentication("Token not found"),
         }
@@ -75,25 +75,25 @@ impl ErrorMapper<DomainError> for IAMErrorMapper {
             ServiceError::Validation { message, .. } => DomainError::TokenValidationFailed(message),
             ServiceError::Business { message, .. } => DomainError::BusinessRuleViolation(message),
             ServiceError::Timeout { message, .. } => {
-                DomainError::RepositoryError(format!("Timeout: {}", message))
+                DomainError::RepositoryError(format!("Timeout: {message}"))
             }
             ServiceError::ServiceUnavailable { message, .. } => {
-                DomainError::RepositoryError(format!("Service unavailable: {}", message))
+                DomainError::RepositoryError(format!("Service unavailable: {message}"))
             }
             ServiceError::Internal { message, .. } => {
-                DomainError::RepositoryError(format!("Internal error: {}", message))
+                DomainError::RepositoryError(format!("Internal error: {message}"))
             }
             ServiceError::Conflict { message, .. } => {
-                DomainError::RepositoryError(format!("Conflict: {}", message))
+                DomainError::RepositoryError(format!("Conflict: {message}"))
             }
             ServiceError::RateLimit { message, .. } => {
-                DomainError::RepositoryError(format!("Rate limit: {}", message))
+                DomainError::RepositoryError(format!("Rate limit: {message}"))
             }
         }
     }
 }
 
-/// Factory function to create an event publisher with queue config for IAMRusty domain layer
+/// Factory function to create an event publisher with queue config for `IAMRusty` domain layer
 pub async fn create_event_publisher_with_queue_config(
     config: &QueueConfig,
 ) -> Result<Arc<ConcreteEventPublisher>, DomainError> {

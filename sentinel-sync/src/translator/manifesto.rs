@@ -1,4 +1,4 @@
-//! Manifesto event -> OpenFGA tuple translation.
+//! Manifesto event -> `OpenFGA` tuple translation.
 //!
 //! Projects live under an optional parent organization (`owner_type ==
 //! "organization"`). Components live under their project. Members and
@@ -15,13 +15,13 @@ use crate::fga_client::Tuple;
 pub struct ManifestoTranslator;
 
 impl ManifestoTranslator {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self
     }
 }
 
 /// Translate the string `permission` field on Manifesto events into the
-/// corresponding OpenFGA relation on `project` or `component`.
+/// corresponding `OpenFGA` relation on `project` or `component`.
 ///
 /// Unknown permissions yield `None`; the translator skips the tuple rather
 /// than fabricating a relation.
@@ -35,7 +35,7 @@ fn permission_to_relation(permission: &str) -> Option<&'static str> {
     }
 }
 
-/// Map the string `resource` on Manifesto events to an OpenFGA object type.
+/// Map the string `resource` on Manifesto events to an `OpenFGA` object type.
 /// Anything unrecognized falls back to `project`, which preserves the old
 /// Casbin "unidentified resource" semantics.
 fn resource_to_object_type(resource: &str) -> &'static str {

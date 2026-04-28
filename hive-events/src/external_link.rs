@@ -25,6 +25,7 @@ pub struct ExternalLinkCreatedEvent {
 // =============================================================================
 
 impl ExternalLinkCreatedEvent {
+    #[must_use]
     pub fn new(
         organization_id: Uuid,
         organization_name: String,

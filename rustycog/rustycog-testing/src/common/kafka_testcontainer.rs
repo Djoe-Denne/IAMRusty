@@ -28,7 +28,7 @@ fn kafka_broker_addresses(
         .split(',')
         .map(|broker| broker.trim().parse::<std::net::SocketAddr>())
         .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| format!("Invalid Kafka broker address '{}': {}", brokers, e).into())
+        .map_err(|e| format!("Invalid Kafka broker address '{brokers}': {e}").into())
 }
 
 /// Test Kafka container wrapper
@@ -121,11 +121,7 @@ impl TestKafka {
             }
         }
 
-        Err(format!(
-            "Kafka failed to become ready after {} attempts",
-            max_attempts
-        )
-        .into())
+        Err(format!("Kafka failed to become ready after {max_attempts} attempts").into())
     }
 
     async fn can_connect_to_any(addresses: &[std::net::SocketAddr]) -> bool {
@@ -213,16 +209,14 @@ async fn get_or_create_test_kafka_container(
         )
         .with_env_var(
             "KAFKA_ADVERTISED_LISTENERS",
-            &format!(
-                "PLAINTEXT://localhost:{},PLAINTEXT_HOST://localhost:{}",
-                kafka_port, kafka_port
+            format!(
+                "PLAINTEXT://localhost:{kafka_port},PLAINTEXT_HOST://localhost:{kafka_port}"
             ),
         )
         .with_env_var(
             "KAFKA_LISTENERS",
-            &format!(
-                "PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093,PLAINTEXT_HOST://0.0.0.0:{}",
-                kafka_port
+            format!(
+                "PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093,PLAINTEXT_HOST://0.0.0.0:{kafka_port}"
             ),
         )
         .with_env_var("KAFKA_INTER_BROKER_LISTENER_NAME", "PLAINTEXT")
@@ -245,7 +239,7 @@ async fn get_or_create_test_kafka_container(
     info!("Starting Kafka container on port {}...", kafka_port);
     let kafka_container = kafka_image.start().await?;
 
-    let brokers = format!("localhost:{}", kafka_port);
+    let brokers = format!("localhost:{kafka_port}");
 
     info!("Test Kafka container started");
     info!("Brokers: {}", brokers);
@@ -278,12 +272,12 @@ async fn cleanup_existing_kafka_container() {
     for container_name in &containers {
         // Stop the container
         let _ = Command::new("docker")
-            .args(&["stop", container_name])
+            .args(["stop", container_name])
             .output();
 
         // Remove the container
         let _ = Command::new("docker")
-            .args(&["rm", "-f", container_name])
+            .args(["rm", "-f", container_name])
             .output();
 
         debug!("Cleaned up container: {}", container_name);
@@ -329,11 +323,10 @@ impl TestKafkaFixture {
             }
         }
 
-        Err(format!(
-            "Event with type '{}' not found within {} seconds",
-            event_type, timeout_secs
+        Err(
+            format!("Event with type '{event_type}' not found within {timeout_secs} seconds")
+                .into(),
         )
-        .into())
     }
 
     /// Cleanup Kafka container (for test cleanup)
@@ -344,16 +337,13 @@ impl TestKafkaFixture {
             if let Some(container_arc) = container_guard.take() {
                 info!("Manually cleaning up test Kafka container");
 
-                match Arc::try_unwrap(container_arc) {
-                    Ok(container) => {
-                        container.cleanup().await;
-                        info!("Test Kafka container cleanup completed");
-                    }
-                    Err(_) => {
-                        warn!("Could not cleanup Kafka container: still has references");
-                        // Fallback cleanup using Docker commands
-                        cleanup_existing_kafka_container().await;
-                    }
+                if let Ok(container) = Arc::try_unwrap(container_arc) {
+                    container.cleanup().await;
+                    info!("Test Kafka container cleanup completed");
+                } else {
+                    warn!("Could not cleanup Kafka container: still has references");
+                    // Fallback cleanup using Docker commands
+                    cleanup_existing_kafka_container().await;
                 }
             }
         }
@@ -376,7 +366,7 @@ impl TestKafkaConsumer {
         let consumer: rdkafka::consumer::StreamConsumer = ClientConfig::new()
             .set(
                 "group.id",
-                &format!("test-consumer-{}", uuid::Uuid::new_v4()),
+                format!("test-consumer-{}", uuid::Uuid::new_v4()),
             )
             .set("bootstrap.servers", brokers)
             .set("enable.partition.eof", "false")

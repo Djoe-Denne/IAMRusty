@@ -1,11 +1,11 @@
-//! Core error types for RustyCog
+//! Core error types for `RustyCog`
 //!
-//! This module defines the fundamental error types used throughout the RustyCog ecosystem.
+//! This module defines the fundamental error types used throughout the `RustyCog` ecosystem.
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-/// Core service error type that all RustyCog services should use
+/// Core service error type that all `RustyCog` services should use
 #[derive(Debug, Error, Clone, Serialize, Deserialize)]
 pub enum ServiceError {
     /// Validation error - input data is invalid
@@ -220,7 +220,8 @@ impl ServiceError {
     }
 
     /// Get the error category for metrics and logging
-    pub fn category(&self) -> &'static str {
+    #[must_use]
+    pub const fn category(&self) -> &'static str {
         match self {
             Self::Validation { .. } => "validation",
             Self::Authentication { .. } => "authentication",
@@ -237,7 +238,8 @@ impl ServiceError {
     }
 
     /// Check if this error is retryable
-    pub fn is_retryable(&self) -> bool {
+    #[must_use]
+    pub const fn is_retryable(&self) -> bool {
         matches!(
             self,
             Self::Infrastructure { .. }
@@ -248,7 +250,8 @@ impl ServiceError {
     }
 
     /// Get the HTTP status code that should be returned for this error
-    pub fn http_status_code(&self) -> u16 {
+    #[must_use]
+    pub const fn http_status_code(&self) -> u16 {
         match self {
             Self::Validation { .. } => 400,
             Self::Authentication { .. } => 401,
@@ -267,7 +270,7 @@ impl ServiceError {
 /// Domain error type for business logic errors
 ///
 /// This is a more specific error type that domain services can use
-/// and will be mapped to ServiceError by the application layer.
+/// and will be mapped to `ServiceError` by the application layer.
 /// Domain-specific errors for the Hive service
 #[derive(Debug, Error)]
 pub enum DomainError {
@@ -301,6 +304,7 @@ pub enum DomainError {
 
 impl DomainError {
     /// Create an entity not found error
+    #[must_use]
     pub fn entity_not_found(entity_type: &str, id: &str) -> Self {
         Self::EntityNotFound {
             entity_type: entity_type.to_string(),
@@ -309,6 +313,7 @@ impl DomainError {
     }
 
     /// Create an invalid input error
+    #[must_use]
     pub fn invalid_input(message: &str) -> Self {
         Self::InvalidInput {
             message: message.to_string(),
@@ -316,6 +321,7 @@ impl DomainError {
     }
 
     /// Create a business rule violation error
+    #[must_use]
     pub fn business_rule_violation(rule: &str) -> Self {
         Self::BusinessRuleViolation {
             rule: rule.to_string(),
@@ -323,6 +329,7 @@ impl DomainError {
     }
 
     /// Create an unauthorized error
+    #[must_use]
     pub fn unauthorized(operation: &str) -> Self {
         Self::Unauthorized {
             operation: operation.to_string(),
@@ -330,6 +337,7 @@ impl DomainError {
     }
 
     /// Create a resource already exists error
+    #[must_use]
     pub fn resource_already_exists(resource_type: &str, identifier: &str) -> Self {
         Self::ResourceAlreadyExists {
             resource_type: resource_type.to_string(),
@@ -338,6 +346,7 @@ impl DomainError {
     }
 
     /// Create an external service error
+    #[must_use]
     pub fn external_service_error(service: &str, message: &str) -> Self {
         Self::ExternalServiceError {
             service: service.to_string(),
@@ -346,6 +355,7 @@ impl DomainError {
     }
 
     /// Create a permission denied error
+    #[must_use]
     pub fn permission_denied(message: &str) -> Self {
         Self::PermissionDenied {
             message: message.to_string(),
@@ -353,6 +363,7 @@ impl DomainError {
     }
 
     /// Create an internal error
+    #[must_use]
     pub fn internal_error(message: &str) -> Self {
         Self::Internal {
             message: message.to_string(),
@@ -364,20 +375,21 @@ impl From<DomainError> for ServiceError {
     fn from(domain_error: DomainError) -> Self {
         match domain_error {
             DomainError::EntityNotFound { entity_type, id } => {
-                ServiceError::not_found_resource("", entity_type, id)
+                Self::not_found_resource("", entity_type, id)
             }
-            DomainError::InvalidInput { message } => ServiceError::validation(message),
-            DomainError::BusinessRuleViolation { rule } => ServiceError::business(rule),
-            DomainError::Unauthorized { operation } => ServiceError::authorization(operation),
+            DomainError::InvalidInput { message } => Self::validation(message),
+            DomainError::BusinessRuleViolation { rule } => Self::business(rule),
+            DomainError::Unauthorized { operation } => Self::authorization(operation),
             DomainError::ResourceAlreadyExists {
                 resource_type,
-                identifier,
-            } => ServiceError::conflict(resource_type),
-            DomainError::Internal { message } => ServiceError::internal(message),
-            DomainError::ExternalServiceError { service, message } => {
-                ServiceError::infrastructure(message)
-            }
-            DomainError::PermissionDenied { message } => ServiceError::authorization(message),
+                identifier: _,
+            } => Self::conflict(resource_type),
+            DomainError::Internal { message } => Self::internal(message),
+            DomainError::ExternalServiceError {
+                service: _,
+                message,
+            } => Self::infrastructure(message),
+            DomainError::PermissionDenied { message } => Self::authorization(message),
         }
     }
 }

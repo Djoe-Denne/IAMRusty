@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 /// Resource entity representing a specific resource in the system
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Resource {
     pub name: String,
     pub created_at: Option<DateTime<Utc>>,
@@ -10,7 +10,8 @@ pub struct Resource {
 
 impl Resource {
     /// Create a new resource
-    pub fn new(name: String, created_at: Option<DateTime<Utc>>) -> Self {
+    #[must_use]
+    pub const fn new(name: String, created_at: Option<DateTime<Utc>>) -> Self {
         Self { name, created_at }
     }
 }

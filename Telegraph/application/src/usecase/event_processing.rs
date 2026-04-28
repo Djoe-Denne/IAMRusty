@@ -68,7 +68,7 @@ impl EventProcessingUseCaseTrait for EventProcessingUseCase {
 /// Mapper for Event command to Event context
 impl From<ProcessEventCommand> for EventContext {
     fn from(command: ProcessEventCommand) -> Self {
-        EventContext {
+        Self {
             event_id: command.event_id(),
             event_type: command.event_type().to_string(),
             recipient: EventRecipient {

@@ -1,34 +1,36 @@
 use serde::{Deserialize, Serialize};
 
-/// Supported OAuth2 Providers
+/// Supported `OAuth2` Providers
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum Provider {
-    /// GitHub OAuth2 provider
+    /// GitHub `OAuth2` provider
     GitHub,
-    /// GitLab OAuth2 provider
+    /// GitLab `OAuth2` provider
     GitLab,
 }
 
 impl Provider {
     /// Converts a string to a Provider enum
+    #[must_use]
     pub fn from_str(provider: &str) -> Option<Self> {
         match provider.to_lowercase().as_str() {
-            "github" => Some(Provider::GitHub),
-            "gitlab" => Some(Provider::GitLab),
+            "github" => Some(Self::GitHub),
+            "gitlab" => Some(Self::GitLab),
             _ => None,
         }
     }
 
     /// Converts a Provider enum to a string
-    pub fn as_str(&self) -> &'static str {
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
         match self {
-            Provider::GitHub => "github",
-            Provider::GitLab => "gitlab",
+            Self::GitHub => "github",
+            Self::GitLab => "gitlab",
         }
     }
 }
 
-/// Represents OAuth2 tokens for a provider
+/// Represents `OAuth2` tokens for a provider
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProviderTokens {
     /// The access token

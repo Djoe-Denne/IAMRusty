@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /// Represents an email address associated with a user
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct UserEmail {
     /// Unique identifier for this email record
     pub id: Uuid,
@@ -29,6 +29,7 @@ pub struct UserEmail {
 
 impl UserEmail {
     /// Creates a new user email
+    #[must_use]
     pub fn new(user_id: Uuid, email: String, is_primary: bool, is_verified: bool) -> Self {
         let now = Utc::now();
         Self {
@@ -43,11 +44,13 @@ impl UserEmail {
     }
 
     /// Creates a new primary email (usually for new users)
+    #[must_use]
     pub fn new_primary(user_id: Uuid, email: String, is_verified: bool) -> Self {
         Self::new(user_id, email, true, is_verified)
     }
 
     /// Creates a new secondary email
+    #[must_use]
     pub fn new_secondary(user_id: Uuid, email: String, is_verified: bool) -> Self {
         Self::new(user_id, email, false, is_verified)
     }

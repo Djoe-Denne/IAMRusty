@@ -18,7 +18,8 @@ pub enum TokenErrorCode {
 }
 
 impl TokenErrorCode {
-    pub fn as_str(&self) -> &'static str {
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
         match self {
             Self::RepositoryError => "repository_error",
             Self::TokenServiceError => "token_service_error",
@@ -73,11 +74,11 @@ impl CommandErrorMapper for TokenErrorMapper {
                     error.to_string(),
                 ),
                 TokenError::TokenServiceError(inner) => {
-                    let error_msg = inner.to_string();
+                    let error_msg = inner.clone();
                     if Self::is_authentication_related_error(&error_msg) {
                         CommandError::business(
                             TokenErrorCode::AuthenticationFailed.as_str(),
-                            format!("Authentication failed: {}", error_msg),
+                            format!("Authentication failed: {error_msg}"),
                         )
                     } else {
                         CommandError::infrastructure(
@@ -105,7 +106,7 @@ impl CommandErrorMapper for TokenErrorMapper {
             if Self::is_authentication_related_error(&error_msg) {
                 CommandError::validation(
                     TokenErrorCode::AuthenticationFailed.as_str(),
-                    format!("Authentication failed: {}", error_msg),
+                    format!("Authentication failed: {error_msg}"),
                 )
             } else {
                 CommandError::infrastructure(
@@ -140,6 +141,7 @@ pub struct RefreshTokenCommand {
 
 impl RefreshTokenCommand {
     /// Create a new refresh token command
+    #[must_use]
     pub fn new(refresh_token: String) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -181,6 +183,7 @@ pub struct RevokeTokenCommand {
 
 impl RevokeTokenCommand {
     /// Create a new revoke token command
+    #[must_use]
     pub fn new(refresh_token: String) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -222,6 +225,7 @@ pub struct RevokeAllTokensCommand {
 
 impl RevokeAllTokensCommand {
     /// Create a new revoke all tokens command
+    #[must_use]
     pub fn new(user_id: Uuid) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -256,6 +260,7 @@ pub struct GetJwksCommand {
 
 impl GetJwksCommand {
     /// Create a new get JWKS command
+    #[must_use]
     pub fn new() -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -293,7 +298,7 @@ where
     T: TokenUseCase + ?Sized,
 {
     /// Create a new refresh token command handler
-    pub fn new(token_use_case: Arc<T>) -> Self {
+    pub const fn new(token_use_case: Arc<T>) -> Self {
         Self { token_use_case }
     }
 }
@@ -327,7 +332,7 @@ where
     T: TokenUseCase + ?Sized,
 {
     /// Create a new revoke token command handler
-    pub fn new(token_use_case: Arc<T>) -> Self {
+    pub const fn new(token_use_case: Arc<T>) -> Self {
         Self { token_use_case }
     }
 }
@@ -358,7 +363,7 @@ where
     T: TokenUseCase + ?Sized,
 {
     /// Create a new revoke all tokens command handler
-    pub fn new(token_use_case: Arc<T>) -> Self {
+    pub const fn new(token_use_case: Arc<T>) -> Self {
         Self { token_use_case }
     }
 }
@@ -389,7 +394,7 @@ where
     T: TokenUseCase + ?Sized,
 {
     /// Create a new get JWKS command handler
-    pub fn new(token_use_case: Arc<T>) -> Self {
+    pub const fn new(token_use_case: Arc<T>) -> Self {
         Self { token_use_case }
     }
 }

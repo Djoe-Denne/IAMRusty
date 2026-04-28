@@ -62,7 +62,7 @@ pub async fn create_organization(
 }
 
 /// Get an organization by ID
-/// GET /api/organizations/{organization_id}
+/// GET /`api/organizations/{organization_id`}
 pub async fn get_organization(
     State(state): State<AppState>,
     Path(organization_id): Path<ResourceId>,
@@ -88,7 +88,7 @@ pub async fn get_organization(
 }
 
 /// Update an organization
-/// PUT /api/organizations/{organization_id}
+/// PUT /`api/organizations/{organization_id`}
 pub async fn update_organization(
     State(state): State<AppState>,
     Path(organization_id): Path<ResourceId>,
@@ -110,7 +110,7 @@ pub async fn update_organization(
 }
 
 /// Delete an organization
-/// DELETE /api/organizations/{organization_id}
+/// DELETE /`api/organizations/{organization_id`}
 pub async fn delete_organization(
     State(state): State<AppState>,
     Path(organization_id): Path<ResourceId>,
@@ -121,13 +121,13 @@ pub async fn delete_organization(
     let command = DeleteOrganizationCommand::new(organization_id.id(), auth_user.user_id);
     let context = CommandContext::new().with_user_id(auth_user.user_id);
 
-    let result = state
+    state
         .command_service
         .execute(command, context)
         .await
         .map_err(error_mapper)?;
 
-    Ok(Json(result))
+    Ok(Json(()))
 }
 
 /// List organizations for the current user

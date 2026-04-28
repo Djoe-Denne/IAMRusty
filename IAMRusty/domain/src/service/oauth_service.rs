@@ -15,7 +15,7 @@ use super::TokenService;
 
 use std::collections::HashMap;
 
-/// Authentication service for OAuth2 providers
+/// Authentication service for `OAuth2` providers
 pub struct OAuthService<U, T, UE>
 where
     U: UserRepository,
@@ -51,7 +51,7 @@ where
         }
     }
 
-    /// Register an OAuth2 provider client
+    /// Register an `OAuth2` provider client
     pub fn register_provider_client(
         &mut self,
         provider: Provider,
@@ -60,14 +60,14 @@ where
         self.provider_clients.insert(provider, client);
     }
 
-    /// Get OAuth2 provider client for the specified provider
+    /// Get `OAuth2` provider client for the specified provider
     fn get_provider_client(
         &self,
         provider: Provider,
     ) -> Result<&(dyn ProviderOAuth2Client + Send + Sync), DomainError> {
         self.provider_clients
             .get(&provider)
-            .map(|client| client.as_ref())
+            .map(std::convert::AsRef::as_ref)
             .ok_or_else(|| {
                 DomainError::AuthorizationError(format!(
                     "Provider client not configured: {}",
@@ -76,7 +76,7 @@ where
             })
     }
 
-    /// Generate an authorization URL for the provider's OAuth2 flow
+    /// Generate an authorization URL for the provider's `OAuth2` flow
     pub fn generate_authorize_url(&self, provider: &str) -> Result<String, DomainError> {
         let provider = Provider::from_str(provider)
             .ok_or_else(|| DomainError::ProviderNotSupported(provider.to_string()))?;
@@ -86,7 +86,7 @@ where
         Ok(client.generate_authorize_url())
     }
 
-    /// Process OAuth2 callback and return user and JWT token
+    /// Process `OAuth2` callback and return user and JWT token
     pub async fn process_callback(
         &self,
         provider_name: &str,

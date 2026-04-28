@@ -1,6 +1,6 @@
 //! Test database utilities with testcontainers
 //!
-//! This module provides a single PostgreSQL container for all tests with table truncation
+//! This module provides a single `PostgreSQL` container for all tests with table truncation
 //! between tests to ensure test isolation while maintaining performance.
 
 use crate::common::openfga_testcontainer::TestOpenFga;
@@ -109,7 +109,7 @@ impl TestDatabase {
     }
 
     /// Get the connection pool
-    pub fn get_pool(&self) -> &DbConnectionPool {
+    pub const fn get_pool(&self) -> &DbConnectionPool {
         &self.pool
     }
 }
@@ -155,7 +155,7 @@ async fn get_or_create_test_container() -> Result<Arc<TestDatabaseContainer>, Db
     let container = postgres_image
         .start()
         .await
-        .map_err(|e| DbErr::Custom(format!("Failed to start container: {}", e)))?;
+        .map_err(|e| DbErr::Custom(format!("Failed to start container: {e}")))?;
 
     let database_url = format!(
         "postgres://{}:{}@{}:{}/{}",
@@ -189,7 +189,7 @@ async fn cleanup_existing_container() {
     debug!("Checking for existing test container 'test-db'");
 
     // Try to stop the container if it's running
-    let stop_result = Command::new("docker").args(&["stop", "test-db"]).output();
+    let stop_result = Command::new("docker").args(["stop", "test-db"]).output();
 
     match stop_result {
         Ok(output) if output.status.success() => {
@@ -205,7 +205,7 @@ async fn cleanup_existing_container() {
 
     // Try to remove the container
     let rm_result = Command::new("docker")
-        .args(&["rm", "-f", "test-db"])
+        .args(["rm", "-f", "test-db"])
         .output();
 
     match rm_result {
@@ -235,7 +235,7 @@ async fn wait_for_database(database_url: &str) -> Result<(), DbErr> {
             Ok(Ok(conn)) => {
                 // Test the connection with a simple query
                 match conn.ping().await {
-                    Ok(_) => {
+                    Ok(()) => {
                         info!("Database is ready after {} attempts", attempts + 1);
                         return Ok(());
                     }
@@ -263,8 +263,7 @@ async fn wait_for_database(database_url: &str) -> Result<(), DbErr> {
     }
 
     Err(DbErr::Custom(format!(
-        "Database failed to become ready after {} attempts",
-        max_attempts
+        "Database failed to become ready after {max_attempts} attempts"
     )))
 }
 
@@ -283,8 +282,8 @@ async fn register_cleanup_handler() {
 
         // Use direct docker command to cleanup the specific container
         use std::process::Command;
-        let _ = Command::new("docker").args(&["stop", "test-db"]).output();
-        let _ = Command::new("docker").args(&["rm", "test-db"]).output();
+        let _ = Command::new("docker").args(["stop", "test-db"]).output();
+        let _ = Command::new("docker").args(["rm", "test-db"]).output();
 
         std::process::exit(0);
     });
@@ -372,20 +371,20 @@ impl TestFixture {
     }
 
     /// Get the SQS client
-    pub fn sqs(&self) -> &TestSqs {
+    pub const fn sqs(&self) -> &TestSqs {
         self.sqs.as_ref().unwrap()
     }
 
-    /// Get the OpenFGA fixture. Panics when `descriptor.has_openfga()`
+    /// Get the `OpenFGA` fixture. Panics when `descriptor.has_openfga()`
     /// returned `false` at construction time.
-    pub fn openfga(&self) -> &TestOpenFga {
+    pub const fn openfga(&self) -> &TestOpenFga {
         self.openfga
             .as_ref()
             .expect("OpenFGA fixture was not requested by the test descriptor")
     }
 
-    /// Mutable handle to the OpenFGA fixture (for `reset()` etc.).
-    pub fn openfga_mut(&mut self) -> &mut TestOpenFga {
+    /// Mutable handle to the `OpenFGA` fixture (for `reset()` etc.).
+    pub const fn openfga_mut(&mut self) -> &mut TestOpenFga {
         self.openfga
             .as_mut()
             .expect("OpenFGA fixture was not requested by the test descriptor")
@@ -462,7 +461,7 @@ impl Drop for TestFixture {
                 // Optionally cleanup container
                 if cleanup_container {
                     info!("Cleaning up test container on TestFixture drop");
-                    if let Err(e) = TestFixture::cleanup_container().await {
+                    if let Err(e) = Self::cleanup_container().await {
                         warn!("Failed to cleanup container on drop: {}", e);
                     }
                 }

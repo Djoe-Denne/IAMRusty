@@ -1,4 +1,4 @@
-//! Repository implementations using SeaORM for Hive domain
+//! Repository implementations using `SeaORM` for Hive domain
 
 pub mod entity;
 

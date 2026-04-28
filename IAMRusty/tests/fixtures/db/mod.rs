@@ -11,39 +11,38 @@ pub mod users;
 use iam_infra::auth::PasswordService;
 use sea_orm::{DatabaseConnection, DbErr};
 use std::sync::Arc;
-use uuid::Uuid;
 
 /// Main entry point for DB fixtures
 pub struct DbFixtures;
 
 impl DbFixtures {
     /// Create a new user fixture builder
-    pub fn user() -> users::UserFixtureBuilder {
+    pub const fn user() -> users::UserFixtureBuilder {
         users::UserFixtureBuilder::new()
     }
 
     /// Create a new user email fixture builder
-    pub fn user_email() -> user_emails::UserEmailFixtureBuilder {
+    pub const fn user_email() -> user_emails::UserEmailFixtureBuilder {
         user_emails::UserEmailFixtureBuilder::new()
     }
 
     /// Create a new provider token fixture builder
-    pub fn provider_token() -> provider_tokens::ProviderTokenFixtureBuilder {
+    pub const fn provider_token() -> provider_tokens::ProviderTokenFixtureBuilder {
         provider_tokens::ProviderTokenFixtureBuilder::new()
     }
 
     /// Create a new refresh token fixture builder
-    pub fn refresh_token() -> refresh_tokens::RefreshTokenFixtureBuilder {
+    pub const fn refresh_token() -> refresh_tokens::RefreshTokenFixtureBuilder {
         refresh_tokens::RefreshTokenFixtureBuilder::new()
     }
 
     /// Create a new email verification fixture builder
-    pub fn email_verification() -> email_verification::EmailVerificationFixtureBuilder {
+    pub const fn email_verification() -> email_verification::EmailVerificationFixtureBuilder {
         email_verification::EmailVerificationFixtureBuilder::new()
     }
 
     /// Create a new password reset token fixture builder
-    pub fn password_reset_token() -> password_reset_tokens::PasswordResetTokenFixtureBuilder {
+    pub const fn password_reset_token() -> password_reset_tokens::PasswordResetTokenFixtureBuilder {
         password_reset_tokens::PasswordResetTokenFixtureBuilder::new()
     }
 
@@ -60,7 +59,7 @@ impl DbFixtures {
         let password_service = PasswordService::new();
         let password_hash = password_service
             .hash_password(password)
-            .map_err(|e| DbErr::Custom(format!("Failed to hash password: {}", e)))?;
+            .map_err(|e| DbErr::Custom(format!("Failed to hash password: {e}")))?;
 
         // Create user
         let user = Self::user()
@@ -137,7 +136,7 @@ impl DbFixtures {
                     .commit(Arc::new(db.clone()))
                     .await?
             }
-            _ => return Err(DbErr::Custom(format!("Unsupported provider: {}", provider))),
+            _ => return Err(DbErr::Custom(format!("Unsupported provider: {provider}"))),
         };
 
         Ok((user, provider_token))

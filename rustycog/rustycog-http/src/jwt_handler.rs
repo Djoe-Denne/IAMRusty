@@ -140,6 +140,7 @@ pub struct UserIdExtractionHandler {
 
 impl UserIdExtractionHandler {
     /// Create a new user ID extraction handler
+    #[must_use]
     pub fn new(extractor: UserIdExtractor) -> Self {
         Self {
             extractor: Arc::new(extractor),

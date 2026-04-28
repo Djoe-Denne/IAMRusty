@@ -29,7 +29,7 @@ where
     W: UserWriteRepository<Error = DbErr>,
 {
     /// Create a new combined repository
-    pub fn new(read_repo: R, write_repo: W) -> Self {
+    pub const fn new(read_repo: R, write_repo: W) -> Self {
         Self {
             read_repo,
             write_repo,
@@ -101,7 +101,7 @@ where
     W: TokenWriteRepository<Error = DbErr>,
 {
     /// Create a new combined repository
-    pub fn new(read_repo: R, write_repo: W) -> Self {
+    pub const fn new(read_repo: R, write_repo: W) -> Self {
         Self {
             read_repo,
             write_repo,
@@ -172,7 +172,7 @@ where
     }
 }
 
-/// Combined RefreshToken Repository that delegates to separate read/write implementations
+/// Combined `RefreshToken` Repository that delegates to separate read/write implementations
 #[derive(Clone)]
 pub struct CombinedRefreshTokenRepository<R, W>
 where
@@ -189,7 +189,7 @@ where
     W: RefreshTokenWriteRepository<Error = DbErr>,
 {
     /// Create a new combined repository
-    pub fn new(read_repo: R, write_repo: W) -> Self {
+    pub const fn new(read_repo: R, write_repo: W) -> Self {
         Self {
             read_repo,
             write_repo,

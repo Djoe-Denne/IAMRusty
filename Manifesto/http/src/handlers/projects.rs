@@ -49,7 +49,7 @@ pub async fn create_project(
 }
 
 /// Get a project by ID
-/// GET /api/projects/{project_id}
+/// GET /`api/projects/{project_id`}
 pub async fn get_project(
     State(state): State<AppState>,
     Path(project_id): Path<ResourceId>,
@@ -75,7 +75,7 @@ pub async fn get_project(
 }
 
 /// Get project details (with components and member count)
-/// GET /api/projects/{project_id}/details
+/// GET /`api/projects/{project_id}/details`
 pub async fn get_project_detail(
     State(state): State<AppState>,
     Path(project_id): Path<ResourceId>,
@@ -101,7 +101,7 @@ pub async fn get_project_detail(
 }
 
 /// Update a project
-/// PUT /api/projects/{project_id}
+/// PUT /`api/projects/{project_id`}
 pub async fn update_project(
     State(state): State<AppState>,
     Path(project_id): Path<ResourceId>,
@@ -123,7 +123,7 @@ pub async fn update_project(
 }
 
 /// Delete a project
-/// DELETE /api/projects/{project_id}
+/// DELETE /`api/projects/{project_id`}
 pub async fn delete_project(
     State(state): State<AppState>,
     Path(project_id): Path<ResourceId>,
@@ -183,7 +183,7 @@ pub async fn list_projects(
 }
 
 /// Publish a project (transition from draft to active)
-/// POST /api/projects/{project_id}/publish
+/// POST /`api/projects/{project_id}/publish`
 pub async fn publish_project(
     State(state): State<AppState>,
     Path(project_id): Path<ResourceId>,
@@ -204,7 +204,7 @@ pub async fn publish_project(
 }
 
 /// Archive a project
-/// POST /api/projects/{project_id}/archive
+/// POST /`api/projects/{project_id}/archive`
 pub async fn archive_project(
     State(state): State<AppState>,
     Path(project_id): Path<ResourceId>,

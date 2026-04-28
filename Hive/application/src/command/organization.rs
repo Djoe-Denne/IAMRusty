@@ -24,6 +24,7 @@ pub struct CreateOrganizationCommand {
 }
 
 impl CreateOrganizationCommand {
+    #[must_use]
     pub fn new(request: CreateOrganizationRequest, user_id: Uuid) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -85,7 +86,7 @@ impl CommandHandler<CreateOrganizationCommand> for CreateOrganizationCommandHand
         self.organization_usecase
             .create_organization(&command.request, command.user_id)
             .await
-            .map_err(|e| CommandError::business("create_failed", &e.to_string()))
+            .map_err(|e| CommandError::business("create_failed", e.to_string()))
     }
 }
 
@@ -101,6 +102,7 @@ pub struct GetOrganizationCommand {
 }
 
 impl GetOrganizationCommand {
+    #[must_use]
     pub fn new(organization_id: Uuid, user_id: Option<Uuid>) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -149,7 +151,7 @@ impl CommandHandler<GetOrganizationCommand> for GetOrganizationCommandHandler {
         self.organization_usecase
             .get_organization(command.organization_id, command.user_id)
             .await
-            .map_err(|e| CommandError::business("get_failed", &e.to_string()))
+            .map_err(|e| CommandError::business("get_failed", e.to_string()))
     }
 }
 
@@ -166,6 +168,7 @@ pub struct UpdateOrganizationCommand {
 }
 
 impl UpdateOrganizationCommand {
+    #[must_use]
     pub fn new(organization_id: Uuid, request: UpdateOrganizationRequest, user_id: Uuid) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -223,7 +226,7 @@ impl CommandHandler<UpdateOrganizationCommand> for UpdateOrganizationCommandHand
         self.organization_usecase
             .update_organization(command.organization_id, &command.request, command.user_id)
             .await
-            .map_err(|e| CommandError::business("update_failed", &e.to_string()))
+            .map_err(|e| CommandError::business("update_failed", e.to_string()))
     }
 }
 
@@ -239,6 +242,7 @@ pub struct DeleteOrganizationCommand {
 }
 
 impl DeleteOrganizationCommand {
+    #[must_use]
     pub fn new(organization_id: Uuid, user_id: Uuid) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -283,7 +287,7 @@ impl CommandHandler<DeleteOrganizationCommand> for DeleteOrganizationCommandHand
         self.organization_usecase
             .delete_organization(command.organization_id, command.user_id)
             .await
-            .map_err(|e| CommandError::business("delete_failed", &e.to_string()))
+            .map_err(|e| CommandError::business("delete_failed", e.to_string()))
     }
 }
 
@@ -299,6 +303,7 @@ pub struct ListOrganizationsCommand {
 }
 
 impl ListOrganizationsCommand {
+    #[must_use]
     pub fn new(user_id: Uuid, pagination: PaginationRequest) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -346,7 +351,7 @@ impl CommandHandler<ListOrganizationsCommand> for ListOrganizationsCommandHandle
         self.organization_usecase
             .list_organizations(command.user_id, &command.pagination)
             .await
-            .map_err(|e| CommandError::business("list_failed", &e.to_string()))
+            .map_err(|e| CommandError::business("list_failed", e.to_string()))
     }
 }
 
@@ -362,6 +367,7 @@ pub struct SearchOrganizationsCommand {
 }
 
 impl SearchOrganizationsCommand {
+    #[must_use]
     pub fn new(request: OrganizationSearchRequest, user_id: Option<Uuid>) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -409,7 +415,7 @@ impl CommandHandler<SearchOrganizationsCommand> for SearchOrganizationsCommandHa
         self.organization_usecase
             .search_organizations(&command.request, command.user_id)
             .await
-            .map_err(|e| CommandError::business("search_failed", &e.to_string()))
+            .map_err(|e| CommandError::business("search_failed", e.to_string()))
     }
 }
 
@@ -424,23 +430,23 @@ impl CommandErrorMapper for OrganizationErrorMapper {
         if let Some(error) = error.downcast_ref::<ApplicationError>() {
             match error {
                 ApplicationError::Domain(domain_error) => {
-                    CommandError::business("domain_error", &domain_error.to_string())
+                    CommandError::business("domain_error", domain_error.to_string())
                 }
                 ApplicationError::ValidationError(_) => {
-                    CommandError::validation("validation_failed", &error.to_string())
+                    CommandError::validation("validation_failed", error.to_string())
                 }
                 ApplicationError::ExternalService { .. } => {
-                    CommandError::infrastructure("external_error", &error.to_string())
+                    CommandError::infrastructure("external_error", error.to_string())
                 }
                 ApplicationError::RateLimit { .. } => {
-                    CommandError::business("rate_limit", &error.to_string())
+                    CommandError::business("rate_limit", error.to_string())
                 }
                 ApplicationError::Internal { .. } => {
-                    CommandError::infrastructure("internal_error", &error.to_string())
+                    CommandError::infrastructure("internal_error", error.to_string())
                 }
             }
         } else {
-            CommandError::business("unknown_error", &error.to_string())
+            CommandError::business("unknown_error", error.to_string())
         }
     }
 }

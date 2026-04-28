@@ -1,4 +1,4 @@
-//! IAM event -> OpenFGA tuple translation.
+//! IAM event -> `OpenFGA` tuple translation.
 //!
 //! Populated by the `iam-translator` todo if any IAM events end up feeding
 //! authorization facts. Most IAM events are lifecycle notifications the
@@ -13,7 +13,7 @@ use super::{Translator, TupleDelta};
 pub struct IamTranslator;
 
 impl IamTranslator {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self
     }
 }

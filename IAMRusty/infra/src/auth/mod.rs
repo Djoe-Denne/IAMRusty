@@ -1,4 +1,4 @@
-//! OAuth2 client implementations and password services
+//! `OAuth2` client implementations and password services
 
 mod github;
 mod gitlab;

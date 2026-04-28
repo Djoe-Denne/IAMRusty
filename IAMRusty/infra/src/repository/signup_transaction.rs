@@ -14,7 +14,8 @@ pub struct SignupTransactionImpl {
 }
 
 impl SignupTransactionImpl {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    #[must_use]
+    pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
 }

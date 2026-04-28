@@ -40,8 +40,8 @@ where
     UER: UserEmailRepository,
     TR: TokenRepository,
 {
-    /// Create a new ProviderLinkService
-    pub fn new(user_repo: Arc<UR>, user_email_repo: Arc<UER>, token_repo: Arc<TR>) -> Self {
+    /// Create a new `ProviderLinkService`
+    pub const fn new(user_repo: Arc<UR>, user_email_repo: Arc<UER>, token_repo: Arc<TR>) -> Self {
         Self {
             user_repo,
             user_email_repo,
