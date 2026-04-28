@@ -264,6 +264,22 @@ jobs:
           shared-key: sonar
           cache-on-failure: true
 
+      - name: Run strict Clippy report
+        run: |
+          mkdir -p target/sonar
+
+          cargo clippy --workspace --all-targets --all-features --message-format=json -- \
+            -W clippy::all \
+            -W clippy::pedantic \
+            -W clippy::nursery \
+            -W clippy::cargo \
+            -W clippy::unwrap_used \
+            -W clippy::expect_used \
+            -W clippy::panic \
+            -W clippy::todo \
+            -W clippy::unimplemented \
+            > target/sonar/clippy.json
+
       - name: SonarCloud scan
         uses: SonarSource/sonarqube-scan-action@v7
         env:
