@@ -1,0 +1,235 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  fmt:
+    name: Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - run: cargo fmt --all -- --check
+
+  build:
+    name: Build (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    needs: [fmt]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: IAMRusty
+            cache_key: iam
+            package_args: >-
+              --package iam-service
+              --package iam-domain
+              --package iam-application
+              --package iam-infra
+              --package iam-http_server
+              --package iam-setup
+              --package iam-configuration
+          - service: Telegraph
+            cache_key: telegraph
+            package_args: >-
+              --package telegraph-service
+              --package telegraph-domain
+              --package telegraph-application
+              --package telegraph-infra
+              --package telegraph-http_server
+              --package telegraph-setup
+              --package telegraph-configuration
+          - service: Hive
+            cache_key: hive
+            package_args: >-
+              --package hive-service
+              --package hive-domain
+              --package hive-application
+              --package hive-infra
+              --package hive-http
+              --package hive-setup
+              --package hive-configuration
+          - service: Manifesto
+            cache_key: manifesto
+            package_args: >-
+              --package manifesto-service
+              --package manifesto-domain
+              --package manifesto-application
+              --package manifesto-infra
+              --package manifesto-http_server
+              --package manifesto-setup
+              --package manifesto-configuration
+          - service: Monolith
+            cache_key: monolith
+            package_args: --package oodhive-monolith
+          - service: Sentinel Sync
+            cache_key: sentinel-sync
+            package_args: --package sentinel-sync
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ${{ matrix.cache_key }}
+          cache-on-failure: true
+
+      - name: Build service
+        run: cargo build --locked --all-targets ${{ matrix.package_args }}
+
+  coverage:
+    name: Coverage (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    needs: [build]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: IAMRusty
+            cache_key: iam
+            artifact_name: lcov-iam
+            output_path: lcov-iam.info
+            package_args: >-
+              --package iam-service
+              --package iam-domain
+              --package iam-application
+              --package iam-infra
+              --package iam-http_server
+              --package iam-setup
+              --package iam-configuration
+          - service: Telegraph
+            cache_key: telegraph
+            artifact_name: lcov-telegraph
+            output_path: lcov-telegraph.info
+            package_args: >-
+              --package telegraph-service
+              --package telegraph-domain
+              --package telegraph-application
+              --package telegraph-infra
+              --package telegraph-http_server
+              --package telegraph-setup
+              --package telegraph-configuration
+          - service: Hive
+            cache_key: hive
+            artifact_name: lcov-hive
+            output_path: lcov-hive.info
+            package_args: >-
+              --package hive-service
+              --package hive-domain
+              --package hive-application
+              --package hive-infra
+              --package hive-http
+              --package hive-setup
+              --package hive-configuration
+          - service: Manifesto
+            cache_key: manifesto
+            artifact_name: lcov-manifesto
+            output_path: lcov-manifesto.info
+            package_args: >-
+              --package manifesto-service
+              --package manifesto-domain
+              --package manifesto-application
+              --package manifesto-infra
+              --package manifesto-http_server
+              --package manifesto-setup
+              --package manifesto-configuration
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ${{ matrix.cache_key }}
+          cache-on-failure: true
+
+      - uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Run integration tests with coverage
+        run: cargo llvm-cov ${{ matrix.package_args }} --locked --lcov --output-path ${{ matrix.output_path }}
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.output_path }}
+
+  merge-coverage:
+    name: Merge coverage
+    runs-on: ubuntu-latest
+    needs: [coverage]
+    steps:
+      - name: Download coverage artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: lcov-*
+          path: coverage-artifacts
+          merge-multiple: true
+
+      - name: Install LCOV tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lcov
+
+      - name: Merge LCOV reports
+        run: |
+          lcov_args=()
+          for report in coverage-artifacts/*.info; do
+            if [ -f "$report" ]; then
+              lcov_args+=(--add-tracefile "$report")
+            fi
+          done
+
+          if [ "${#lcov_args[@]}" -eq 0 ]; then
+            echo "No LCOV reports were downloaded."
+            exit 1
+          fi
+
+          lcov "${lcov_args[@]}" --output-file lcov.info
+
+      - name: Upload merged coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lcov
+          path: lcov.info
+
+  sonar:
+    name: SonarCloud
+    runs-on: ubuntu-latest
+    needs: [merge-coverage]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download coverage artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: lcov
+          path: .
+
+      - name: SonarCloud scan
+        uses: SonarSource/sonarqube-scan-action@v7
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.rust.lcov.reportPaths=lcov.info
