@@ -278,6 +278,8 @@ jobs:
             -W clippy::panic \
             -W clippy::todo \
             -W clippy::unimplemented \
+            -A clippy::cargo_common_metadata \
+            -A clippy::multiple_crate_versions \
             > target/sonar/clippy.json
 
       - name: SonarCloud scan
