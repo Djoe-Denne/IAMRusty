@@ -4,7 +4,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::entity::Project;
-use crate::port::{ComponentReadRepository, ProjectRepository};
+use crate::port::{ComponentReadRepository, ProjectListFilters, ProjectRepository};
 use crate::value_objects::{OwnerType, ProjectStatus};
 
 #[async_trait]
@@ -17,16 +17,8 @@ pub trait ProjectService: Send + Sync {
 
     async fn delete_project(&self, id: &Uuid) -> Result<(), DomainError>;
 
-    async fn list_projects(
-        &self,
-        owner_type: Option<OwnerType>,
-        owner_id: Option<Uuid>,
-        status: Option<ProjectStatus>,
-        search: Option<String>,
-        viewer_user_id: Option<Uuid>,
-        page: u32,
-        page_size: u32,
-    ) -> Result<Vec<Project>, DomainError>;
+    async fn list_projects(&self, filters: ProjectListFilters)
+        -> Result<Vec<Project>, DomainError>;
 
     async fn count_projects(
         &self,
@@ -116,25 +108,9 @@ where
 
     async fn list_projects(
         &self,
-        owner_type: Option<OwnerType>,
-        owner_id: Option<Uuid>,
-        status: Option<ProjectStatus>,
-        search: Option<String>,
-        viewer_user_id: Option<Uuid>,
-        page: u32,
-        page_size: u32,
+        filters: ProjectListFilters,
     ) -> Result<Vec<Project>, DomainError> {
-        self.project_repo
-            .list_with_filters(
-                owner_type,
-                owner_id,
-                status,
-                search,
-                viewer_user_id,
-                page,
-                page_size,
-            )
-            .await
+        self.project_repo.list_with_filters(filters).await
     }
 
     async fn count_projects(

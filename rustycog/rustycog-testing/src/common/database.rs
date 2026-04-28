@@ -6,9 +6,9 @@
 use crate::common::openfga_testcontainer::TestOpenFga;
 use crate::common::sqs_testcontainer::TestSqs;
 use crate::common::ServiceTestDescriptor;
-use rustycog_config::{ConfigLoader, DatabaseConfig, HasDbConfig};
+use rustycog_config::DatabaseConfig;
 use rustycog_db::DbConnectionPool;
-use sea_orm::{ConnectionTrait, Database, DatabaseConnection, DbErr, Statement};
+use sea_orm::{Database, DatabaseConnection, DbErr};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::sync::OnceLock;
@@ -393,75 +393,62 @@ impl TestFixture {
 
     /// Cleanup the global test container (stops and removes it)
     pub async fn cleanup_container() -> Result<(), DbErr> {
-        let container_mutex = TEST_CONTAINER.get();
-        if let Some(container_mutex) = container_mutex {
-            let mut container_guard = container_mutex.lock().await;
-            if let Some(container_arc) = container_guard.take() {
-                info!("Manually cleaning up test database container");
-
-                // Get the container name for fallback cleanup
-                let container_name = "test-db";
-
-                // Try to unwrap the Arc to get ownership
-                match Arc::try_unwrap(container_arc) {
-                    Ok(container) => {
-                        container.cleanup().await;
-                        info!("Test database container cleanup completed");
-                    }
-                    Err(arc) => {
-                        warn!(
-                            "Could not cleanup container: still has {} references",
-                            Arc::strong_count(&arc)
-                        );
-                        info!("Attempting fallback cleanup using Docker commands");
-
-                        // Fallback: use direct Docker commands
-                        use std::process::Command;
-
-                        // Stop the container
-                        let stop_result = Command::new("docker")
-                            .args(&["stop", container_name])
-                            .output();
-
-                        match stop_result {
-                            Ok(output) if output.status.success() => {
-                                info!("Successfully stopped container {}", container_name);
-                            }
-                            Ok(output) => {
-                                let stderr = String::from_utf8_lossy(&output.stderr);
-                                warn!("Failed to stop container {}: {}", container_name, stderr);
-                            }
-                            Err(e) => {
-                                warn!("Failed to execute docker stop: {}", e);
-                            }
-                        }
-
-                        // Remove the container
-                        let rm_result = Command::new("docker")
-                            .args(&["rm", "-f", container_name])
-                            .output();
-
-                        match rm_result {
-                            Ok(output) if output.status.success() => {
-                                info!("Successfully removed container {}", container_name);
-                            }
-                            Ok(output) => {
-                                let stderr = String::from_utf8_lossy(&output.stderr);
-                                warn!("Failed to remove container {}: {}", container_name, stderr);
-                            }
-                            Err(e) => {
-                                warn!("Failed to execute docker rm: {}", e);
-                            }
-                        }
-                    }
-                }
-            } else {
-                debug!("No test container to cleanup");
-            }
-        } else {
+        let Some(container_mutex) = TEST_CONTAINER.get() else {
             debug!("Test container mutex not initialized");
-        }
+            return Ok(());
+        };
+
+        let mut container_guard = container_mutex.lock().await;
+        let Some(container_arc) = container_guard.take() else {
+            debug!("No test container to cleanup");
+            return Ok(());
+        };
+
+        info!("Manually cleaning up test database container");
+        cleanup_test_db_container(container_arc).await;
         Ok(())
+    }
+}
+
+async fn cleanup_test_db_container(container_arc: Arc<TestDatabaseContainer>) {
+    match Arc::try_unwrap(container_arc) {
+        Ok(container) => {
+            container.cleanup().await;
+            info!("Test database container cleanup completed");
+        }
+        Err(arc) => {
+            warn!(
+                "Could not cleanup container: still has {} references",
+                Arc::strong_count(&arc)
+            );
+            info!("Attempting fallback cleanup using Docker commands");
+            cleanup_test_db_container_with_docker();
+        }
+    }
+}
+
+fn cleanup_test_db_container_with_docker() {
+    const CONTAINER_NAME: &str = "test-db";
+    run_docker_cleanup_command("stop", &[CONTAINER_NAME], "stopped");
+    run_docker_cleanup_command("rm", &["-f", CONTAINER_NAME], "removed");
+}
+
+fn run_docker_cleanup_command(command: &str, args: &[&str], success_action: &str) {
+    match std::process::Command::new("docker")
+        .arg(command)
+        .args(args)
+        .output()
+    {
+        Ok(output) if output.status.success() => {
+            info!("Successfully {} container {}", success_action, "test-db");
+        }
+        Ok(output) => {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            warn!("Failed to {} container test-db: {}", command, stderr);
+        }
+        Err(e) => {
+            warn!("Failed to execute docker {}: {}", command, e);
+        }
     }
 }
 

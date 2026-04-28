@@ -203,6 +203,25 @@ where
     outbox_unit_of_work: Option<Arc<dyn IamOutboxUnitOfWork>>,
 }
 
+pub struct AuthServiceDependencies<UR, UER, EVR, PS, TS, RTS, EP>
+where
+    UR: UserRepository,
+    UER: UserEmailRepository,
+    EVR: EmailVerificationRepository,
+    PS: PasswordService,
+    TS: AuthTokenService,
+    RTS: RegistrationTokenService,
+    EP: EventPublisher<DomainError>,
+{
+    pub user_repository: Arc<UR>,
+    pub user_email_repository: Arc<UER>,
+    pub email_verification_repository: Arc<EVR>,
+    pub password_service: Arc<PS>,
+    pub token_service: Arc<TS>,
+    pub registration_token_service: Arc<RTS>,
+    pub event_publisher: Arc<EP>,
+}
+
 impl<UR, UER, EVR, PS, TS, RTS, EP> AuthService<UR, UER, EVR, PS, TS, RTS, EP>
 where
     UR: UserRepository,
@@ -213,72 +232,44 @@ where
     RTS: RegistrationTokenService,
     EP: EventPublisher<DomainError>,
 {
-    pub fn new(
-        user_repository: Arc<UR>,
-        user_email_repository: Arc<UER>,
-        email_verification_repository: Arc<EVR>,
-        password_service: Arc<PS>,
-        token_service: Arc<TS>,
-        registration_token_service: Arc<RTS>,
-        event_publisher: Arc<EP>,
-    ) -> Self {
-        Self {
-            user_repository,
-            user_email_repository,
-            email_verification_repository,
-            password_service,
-            token_service,
-            registration_token_service,
-            event_publisher,
-            signup_transaction: None,
-            outbox_unit_of_work: None,
-        }
+    pub fn new(dependencies: AuthServiceDependencies<UR, UER, EVR, PS, TS, RTS, EP>) -> Self {
+        Self::from_parts(dependencies, None, None)
     }
 
     pub fn new_with_signup_transaction(
-        user_repository: Arc<UR>,
-        user_email_repository: Arc<UER>,
-        email_verification_repository: Arc<EVR>,
-        password_service: Arc<PS>,
-        token_service: Arc<TS>,
-        registration_token_service: Arc<RTS>,
-        event_publisher: Arc<EP>,
+        dependencies: AuthServiceDependencies<UR, UER, EVR, PS, TS, RTS, EP>,
         signup_transaction: Arc<dyn SignupTransaction>,
     ) -> Self {
-        Self {
-            user_repository,
-            user_email_repository,
-            email_verification_repository,
-            password_service,
-            token_service,
-            registration_token_service,
-            event_publisher,
-            signup_transaction: Some(signup_transaction),
-            outbox_unit_of_work: None,
-        }
+        Self::from_parts(dependencies, Some(signup_transaction), None)
     }
 
     pub fn new_with_signup_transaction_and_outbox(
-        user_repository: Arc<UR>,
-        user_email_repository: Arc<UER>,
-        email_verification_repository: Arc<EVR>,
-        password_service: Arc<PS>,
-        token_service: Arc<TS>,
-        registration_token_service: Arc<RTS>,
-        event_publisher: Arc<EP>,
+        dependencies: AuthServiceDependencies<UR, UER, EVR, PS, TS, RTS, EP>,
         signup_transaction: Arc<dyn SignupTransaction>,
         outbox_unit_of_work: Arc<dyn IamOutboxUnitOfWork>,
     ) -> Self {
+        Self::from_parts(
+            dependencies,
+            Some(signup_transaction),
+            Some(outbox_unit_of_work),
+        )
+    }
+
+    fn from_parts(
+        dependencies: AuthServiceDependencies<UR, UER, EVR, PS, TS, RTS, EP>,
+        signup_transaction: Option<Arc<dyn SignupTransaction>>,
+        outbox_unit_of_work: Option<Arc<dyn IamOutboxUnitOfWork>>,
+    ) -> Self {
         Self {
-            user_repository,
-            user_email_repository,
-            email_verification_repository,
-            password_service,
-            token_service,
-            registration_token_service,
-            event_publisher,
-            signup_transaction: Some(signup_transaction),
-            outbox_unit_of_work: Some(outbox_unit_of_work),
+            user_repository: dependencies.user_repository,
+            user_email_repository: dependencies.user_email_repository,
+            email_verification_repository: dependencies.email_verification_repository,
+            password_service: dependencies.password_service,
+            token_service: dependencies.token_service,
+            registration_token_service: dependencies.registration_token_service,
+            event_publisher: dependencies.event_publisher,
+            signup_transaction,
+            outbox_unit_of_work,
         }
     }
 
@@ -668,76 +659,16 @@ where
         // For security reasons (prevent user enumeration), always return success response
         // but only perform actions if the email exists and is unverified
         match user_email_result {
-            Some(user_email) => {
-                // Only proceed if email is not verified
-                if !user_email.is_verified {
-                    // Delete any existing verification tokens for this email first
-                    if let Err(e) = self
-                        .email_verification_repository
-                        .delete_by_email(&request.email)
-                        .await
-                    {
-                        tracing::warn!(
-                            "Failed to delete existing verification tokens for {}: {}",
-                            request.email,
-                            e
-                        );
-                        // Continue anyway - the create might still work if there were no existing tokens
-                    }
-
-                    // Generate verification token
-                    let verification_token = self.generate_verification_token();
-                    let email_verification = EmailVerification::new(
-                        request.email.clone(),
-                        verification_token,
-                        24, // Expires in 24 hours
-                    );
-
-                    // Save the verification token
-                    if let Err(e) = self
-                        .email_verification_repository
-                        .create(&email_verification)
-                        .await
-                    {
-                        tracing::error!("Failed to create verification token: {}", e);
-                        // Continue and return success to prevent information leakage
-                    } else {
-                        // Fetch user to include username for event
-                        if let Ok(Some(user)) =
-                            self.user_repository.find_by_id(user_email.user_id).await
-                        {
-                            // Only publish event if user has a username (complete registration)
-                            if let Some(username) = user.username {
-                                // Publish event to trigger email service
-                                // Telegraph will build the verification URL from environment variables
-                                let event: Box<dyn rustycog_events::event::DomainEvent + 'static> =
-                                    DomainEvent::UserSignedUp(UserSignedUpEvent::new(
-                                        user_email.user_id,
-                                        request.email.clone(),
-                                        username,
-                                        false,
-                                        Some(email_verification.verification_token.clone()),
-                                        Some(utils::UrlUtils::build_verification_url()),
-                                    ))
-                                    .into();
-
-                                if let Err(e) = self.record_or_publish_event(event).await {
-                                    tracing::warn!(
-                                        "Failed to record/publish UserSignedUp event: {}",
-                                        e
-                                    );
-                                    // Don't fail the resend for event publishing errors
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    // Email is already verified - log but don't reveal this information
-                    tracing::debug!(
-                        "Resend verification requested for already verified email: {}",
-                        request.email
-                    );
-                }
+            Some(user_email) if !user_email.is_verified => {
+                self.resend_unverified_email(&request.email, user_email.user_id)
+                    .await;
+            }
+            Some(_) => {
+                // Email is already verified - log but don't reveal this information
+                tracing::debug!(
+                    "Resend verification requested for already verified email: {}",
+                    request.email
+                );
             }
             None => {
                 // Email not found - log but don't reveal this information
@@ -754,5 +685,64 @@ where
                 "If your email is registered and unverified, a verification email has been sent."
                     .to_string(),
         })
+    }
+
+    async fn resend_unverified_email(&self, email: &str, user_id: Uuid) {
+        if let Err(e) = self
+            .email_verification_repository
+            .delete_by_email(email)
+            .await
+        {
+            tracing::warn!(
+                "Failed to delete existing verification tokens for {}: {}",
+                email,
+                e
+            );
+        }
+
+        let email_verification =
+            EmailVerification::new(email.to_string(), self.generate_verification_token(), 24);
+
+        if let Err(e) = self
+            .email_verification_repository
+            .create(&email_verification)
+            .await
+        {
+            tracing::error!("Failed to create verification token: {}", e);
+            return;
+        }
+
+        self.publish_resend_verification_event(email, user_id, &email_verification)
+            .await;
+    }
+
+    async fn publish_resend_verification_event(
+        &self,
+        email: &str,
+        user_id: Uuid,
+        email_verification: &EmailVerification,
+    ) {
+        let Ok(Some(user)) = self.user_repository.find_by_id(user_id).await else {
+            return;
+        };
+
+        let Some(username) = user.username else {
+            return;
+        };
+
+        let event: Box<dyn rustycog_events::event::DomainEvent + 'static> =
+            DomainEvent::UserSignedUp(UserSignedUpEvent::new(
+                user_id,
+                email.to_string(),
+                username,
+                false,
+                Some(email_verification.verification_token.clone()),
+                Some(utils::UrlUtils::build_verification_url()),
+            ))
+            .into();
+
+        if let Err(e) = self.record_or_publish_event(event).await {
+            tracing::warn!("Failed to record/publish UserSignedUp event: {}", e);
+        }
     }
 }

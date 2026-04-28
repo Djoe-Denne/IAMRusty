@@ -1,10 +1,12 @@
-use chrono::{DateTime, Utc};
 use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::{
-    entity::*,
-    port::{repository::*, service::*},
+    entity::{Organization, SyncJob, SyncJobType},
+    port::{
+        service::{ExternalOrganizationInfo, ExternalProviderClient},
+        ExternalLinkRepository, OrganizationRepository, SyncJobRepository,
+    },
     service::{invitation_service::InvitationService, organization_service::OrganizationService},
 };
 use rustycog_core::error::DomainError;
@@ -98,7 +100,7 @@ where
         &self,
         organization_id: Uuid,
         external_org_info: &ExternalOrganizationInfo,
-        requesting_user_id: Uuid,
+        _requesting_user_id: Uuid,
     ) -> Result<Organization, DomainError> {
         // Update organization with external info
         let updated_org = self
@@ -136,7 +138,7 @@ where
         &self,
         external_link_id: Uuid,
         job_type: SyncJobType,
-        requested_by_user_id: Uuid,
+        _requested_by_user_id: Uuid,
     ) -> Result<SyncJob, DomainError> {
         // Validate external link exists
         let external_link = self

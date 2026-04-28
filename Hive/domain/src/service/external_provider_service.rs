@@ -2,8 +2,11 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::{
-    entity::*,
-    port::{repository::*, service::ExternalProviderClient},
+    entity::ExternalLink,
+    port::{
+        service::ExternalProviderClient, ExternalLinkRepository, ExternalProviderRepository,
+        OrganizationRepository,
+    },
 };
 use rustycog_core::error::DomainError;
 

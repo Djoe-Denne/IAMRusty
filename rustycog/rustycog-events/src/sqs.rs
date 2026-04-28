@@ -3,7 +3,7 @@ use crate::{EventConsumer, EventHandler};
 use async_trait::async_trait;
 use aws_config::{BehaviorVersion, Region};
 use aws_credential_types::Credentials;
-use aws_sdk_sqs::{Client, Config};
+use aws_sdk_sqs::{types::Message, Client, Config};
 use rustycog_config::SqsConfig;
 use rustycog_core::error::ServiceError;
 use serde_json::{json, Value};
@@ -12,6 +12,9 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use tokio::time::{sleep, Duration};
 use tracing::{debug, error, info, warn};
+
+type SqsBatchEntry = aws_sdk_sqs::types::SendMessageBatchRequestEntry;
+type SqsBatchEntriesByQueue = HashMap<String, Vec<SqsBatchEntry>>;
 
 /// SQS event publisher implementation
 pub struct SqsEventPublisher {
@@ -144,6 +147,167 @@ impl SqsEventPublisher {
 
         attributes
     }
+
+    fn build_batch_entries(
+        &self,
+        events: &Vec<Box<dyn DomainEvent>>,
+    ) -> (SqsBatchEntriesByQueue, Option<ServiceError>) {
+        let mut entries_by_queue = HashMap::new();
+        let mut first_error = None;
+
+        for (idx, event) in events.iter().enumerate() {
+            if let Err(error) =
+                self.add_event_to_batch_entries(idx, event.as_ref(), &mut entries_by_queue)
+            {
+                first_error.get_or_insert(error);
+            }
+        }
+
+        (entries_by_queue, first_error)
+    }
+
+    fn add_event_to_batch_entries(
+        &self,
+        idx: usize,
+        event: &dyn DomainEvent,
+        entries_by_queue: &mut SqsBatchEntriesByQueue,
+    ) -> Result<(), ServiceError> {
+        let queue_names = self.get_queue_names_for_event(event)?;
+        let message_body = self.serialize_event(event)?;
+        let message_attributes = self.create_message_attributes(event);
+
+        for (queue_idx, queue_name) in queue_names.into_iter().enumerate() {
+            let entry = self.build_batch_entry(
+                event,
+                format!("entry_{}_{}", idx, queue_idx),
+                message_body.clone(),
+                message_attributes.clone(),
+                &queue_name,
+            )?;
+            entries_by_queue.entry(queue_name).or_default().push(entry);
+        }
+
+        Ok(())
+    }
+
+    fn build_batch_entry(
+        &self,
+        event: &dyn DomainEvent,
+        entry_id: String,
+        message_body: String,
+        message_attributes: HashMap<String, aws_sdk_sqs::types::MessageAttributeValue>,
+        queue_name: &str,
+    ) -> Result<SqsBatchEntry, ServiceError> {
+        let mut entry = SqsBatchEntry::builder()
+            .id(entry_id)
+            .message_body(message_body)
+            .set_message_attributes(Some(message_attributes));
+
+        if self.config.is_fifo_queue(queue_name) {
+            entry = entry
+                .message_group_id(event.aggregate_id().to_string())
+                .message_deduplication_id(event.event_id().to_string());
+        }
+
+        entry.build().map_err(|e| {
+            ServiceError::infrastructure(format!("Failed to build SQS batch entry: {}", e))
+        })
+    }
+
+    async fn send_batch_entries(
+        &self,
+        entries_by_queue: SqsBatchEntriesByQueue,
+    ) -> Option<ServiceError> {
+        let mut first_error = None;
+
+        for (queue_name, entries) in entries_by_queue {
+            let error = self.send_queue_batches(&queue_name, entries).await;
+            first_error = first_error.or(error);
+        }
+
+        first_error
+    }
+
+    async fn send_queue_batches(
+        &self,
+        queue_name: &str,
+        mut entries: Vec<SqsBatchEntry>,
+    ) -> Option<ServiceError> {
+        let queue_url = self.config.queue_url(queue_name);
+        let mut first_error = None;
+
+        while !entries.is_empty() {
+            let batch_entries: Vec<_> = entries.drain(..entries.len().min(10)).collect();
+            let error = self
+                .send_single_batch(queue_name, &queue_url, batch_entries)
+                .await;
+            first_error = first_error.or(error);
+        }
+
+        first_error
+    }
+
+    async fn send_single_batch(
+        &self,
+        queue_name: &str,
+        queue_url: &str,
+        batch_entries: Vec<SqsBatchEntry>,
+    ) -> Option<ServiceError> {
+        match self
+            .client
+            .send_message_batch()
+            .queue_url(queue_url)
+            .set_entries(Some(batch_entries))
+            .send()
+            .await
+        {
+            Ok(response) => self.log_batch_response(queue_name, queue_url, response),
+            Err(aws_error) => {
+                error!(
+                    queue_name = %queue_name,
+                    queue_url = %queue_url,
+                    error = %aws_error,
+                    "Failed to send message batch to SQS"
+                );
+                Some(ServiceError::infrastructure(format!(
+                    "Failed to send batch to SQS: {}",
+                    aws_error
+                )))
+            }
+        }
+    }
+
+    fn log_batch_response(
+        &self,
+        queue_name: &str,
+        queue_url: &str,
+        response: aws_sdk_sqs::operation::send_message_batch::SendMessageBatchOutput,
+    ) -> Option<ServiceError> {
+        let failed = response.failed();
+        if !failed.is_empty() {
+            error!(
+                failed_count = failed.len(),
+                queue_name = %queue_name,
+                queue_url = %queue_url,
+                "Some messages failed to send in batch"
+            );
+            let first_failed = &failed[0];
+            return Some(ServiceError::infrastructure(format!(
+                "SQS batch send failed: {} - {}",
+                first_failed.code(),
+                first_failed.message().unwrap_or("no message")
+            )));
+        }
+
+        let successful = response.successful();
+        info!(
+            successful_count = successful.len(),
+            queue_name = %queue_name,
+            queue_url = %queue_url,
+            "Messages successfully sent in batch"
+        );
+        None
+    }
 }
 
 #[async_trait]
@@ -245,141 +409,15 @@ impl EventPublisher<ServiceError> for SqsEventPublisher {
             "Publishing batch of events to SQS"
         );
 
-        let mut entries_by_queue: HashMap<
-            String,
-            Vec<aws_sdk_sqs::types::SendMessageBatchRequestEntry>,
-        > = HashMap::new();
-        let mut all_successful = true;
-        let mut first_error = None;
+        let (entries_by_queue, build_error) = self.build_batch_entries(events);
+        let send_error = self.send_batch_entries(entries_by_queue).await;
+        let first_error = build_error.or(send_error);
 
-        for (idx, event) in events.iter().enumerate() {
-            let queue_names = match self.get_queue_names_for_event(event.as_ref()) {
-                Ok(queue_names) => queue_names,
-                Err(e) => {
-                    all_successful = false;
-                    if first_error.is_none() {
-                        first_error = Some(e);
-                    }
-                    continue;
-                }
-            };
-
-            let message_body = match self.serialize_event(event.as_ref()) {
-                Ok(body) => body,
-                Err(e) => {
-                    all_successful = false;
-                    if first_error.is_none() {
-                        first_error = Some(e);
-                    }
-                    continue;
-                }
-            };
-
-            let message_attributes = self.create_message_attributes(event.as_ref());
-            for (queue_idx, queue_name) in queue_names.into_iter().enumerate() {
-                let entry_id = format!("entry_{}_{}", idx, queue_idx);
-                let mut entry = aws_sdk_sqs::types::SendMessageBatchRequestEntry::builder()
-                    .id(entry_id)
-                    .message_body(message_body.clone())
-                    .set_message_attributes(Some(message_attributes.clone()));
-
-                // For FIFO queues
-                if self.config.is_fifo_queue(&queue_name) {
-                    entry = entry
-                        .message_group_id(event.aggregate_id().to_string())
-                        .message_deduplication_id(event.event_id().to_string());
-                }
-
-                match entry.build() {
-                    Ok(built_entry) => {
-                        entries_by_queue
-                            .entry(queue_name)
-                            .or_default()
-                            .push(built_entry);
-                    }
-                    Err(e) => {
-                        all_successful = false;
-                        if first_error.is_none() {
-                            first_error = Some(ServiceError::infrastructure(format!(
-                                "Failed to build SQS batch entry: {}",
-                                e
-                            )));
-                        }
-                    }
-                }
-            }
-        }
-
-        // SQS supports batch sending up to 10 messages at a time.
-        let batch_size = 10;
-        for (queue_name, mut entries) in entries_by_queue {
-            let queue_url = self.config.queue_url(&queue_name);
-
-            while !entries.is_empty() {
-                let batch_len = entries.len().min(batch_size);
-                let batch_entries: Vec<_> = entries.drain(..batch_len).collect();
-                match self
-                    .client
-                    .send_message_batch()
-                    .queue_url(&queue_url)
-                    .set_entries(Some(batch_entries))
-                    .send()
-                    .await
-                {
-                    Ok(response) => {
-                        let failed = response.failed();
-                        if !failed.is_empty() {
-                            all_successful = false;
-                            error!(
-                                failed_count = failed.len(),
-                                queue_name = %queue_name,
-                                queue_url = %queue_url,
-                                "Some messages failed to send in batch"
-                            );
-                            if first_error.is_none() {
-                                let first_failed = &failed[0];
-                                first_error = Some(ServiceError::infrastructure(format!(
-                                    "SQS batch send failed: {} - {}",
-                                    first_failed.code(),
-                                    first_failed.message().unwrap_or("no message")
-                                )));
-                            }
-                        }
-
-                        let successful = response.successful();
-                        info!(
-                            successful_count = successful.len(),
-                            queue_name = %queue_name,
-                            queue_url = %queue_url,
-                            "Messages successfully sent in batch"
-                        );
-                    }
-                    Err(aws_error) => {
-                        all_successful = false;
-                        error!(
-                            queue_name = %queue_name,
-                            queue_url = %queue_url,
-                            error = %aws_error,
-                            "Failed to send message batch to SQS"
-                        );
-                        if first_error.is_none() {
-                            first_error = Some(ServiceError::infrastructure(format!(
-                                "Failed to send batch to SQS: {}",
-                                aws_error
-                            )));
-                        }
-                    }
-                }
-            }
-        }
-
-        if all_successful {
+        if let Some(error) = first_error {
+            Err(error)
+        } else {
             info!("Successfully published all events in batch");
             Ok(())
-        } else {
-            Err(first_error.unwrap_or_else(|| {
-                ServiceError::infrastructure("Some events failed to publish in batch".to_string())
-            }))
         }
     }
 
@@ -517,7 +555,7 @@ impl SqsEventConsumer {
     where
         H: EventHandler + Send + Sync,
     {
-        match client
+        let response = match client
             .receive_message()
             .queue_url(queue_url)
             .max_number_of_messages(10) // SQS max
@@ -525,60 +563,7 @@ impl SqsEventConsumer {
             .send()
             .await
         {
-            Ok(response) => {
-                if let Some(messages) = response.messages {
-                    for message in messages {
-                        if let Some(body) = message.body() {
-                            match Self::parse_message_body(body) {
-                                Ok(event) => {
-                                    let event_type = event.event_type().to_string();
-                                    if handler.supports_event_type(&event_type) {
-                                        if let Err(e) = handler.handle_event(event).await {
-                                            warn!(
-                                                error = %e,
-                                                message_id = message.message_id().unwrap_or("unknown"),
-                                                "Failed to handle message"
-                                            );
-                                            continue;
-                                        }
-                                    } else {
-                                        debug!(
-                                            event_type = %event_type,
-                                            "Handler doesn't support event type, skipping"
-                                        );
-                                    }
-
-                                    // Delete the message after successful processing
-                                    if let Some(receipt_handle) = message.receipt_handle() {
-                                        if let Err(e) = client
-                                            .delete_message()
-                                            .queue_url(queue_url)
-                                            .receipt_handle(receipt_handle)
-                                            .send()
-                                            .await
-                                        {
-                                            warn!(
-                                                error = %e,
-                                                message_id = message.message_id().unwrap_or("unknown"),
-                                                "Failed to delete processed message"
-                                            );
-                                        }
-                                    }
-                                }
-                                Err(e) => {
-                                    warn!(
-                                        error = %e,
-                                        message_id = message.message_id().unwrap_or("unknown"),
-                                        "Failed to parse message body"
-                                    );
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    info!("No messages received from SQS");
-                }
-            }
+            Ok(response) => response,
             Err(e) => {
                 error!(
                     error = %e,
@@ -590,9 +575,79 @@ impl SqsEventConsumer {
                     e
                 )));
             }
+        };
+
+        let Some(messages) = response.messages else {
+            info!("No messages received from SQS");
+            return Ok(());
+        };
+
+        for message in messages {
+            Self::handle_sqs_message(client, queue_url, handler, message).await;
         }
 
         Ok(())
+    }
+
+    async fn handle_sqs_message<H>(client: &Client, queue_url: &str, handler: &H, message: Message)
+    where
+        H: EventHandler + Send + Sync,
+    {
+        let Some(body) = message.body() else {
+            return;
+        };
+
+        let event = match Self::parse_message_body(body) {
+            Ok(event) => event,
+            Err(e) => {
+                warn!(
+                    error = %e,
+                    message_id = message.message_id().unwrap_or("unknown"),
+                    "Failed to parse message body"
+                );
+                return;
+            }
+        };
+
+        let event_type = event.event_type().to_string();
+        if !handler.supports_event_type(&event_type) {
+            debug!(
+                event_type = %event_type,
+                "Handler doesn't support event type, skipping"
+            );
+            return;
+        }
+
+        if let Err(e) = handler.handle_event(event).await {
+            warn!(
+                error = %e,
+                message_id = message.message_id().unwrap_or("unknown"),
+                "Failed to handle message"
+            );
+            return;
+        }
+
+        Self::delete_processed_message(client, queue_url, &message).await;
+    }
+
+    async fn delete_processed_message(client: &Client, queue_url: &str, message: &Message) {
+        let Some(receipt_handle) = message.receipt_handle() else {
+            return;
+        };
+
+        if let Err(e) = client
+            .delete_message()
+            .queue_url(queue_url)
+            .receipt_handle(receipt_handle)
+            .send()
+            .await
+        {
+            warn!(
+                error = %e,
+                message_id = message.message_id().unwrap_or("unknown"),
+                "Failed to delete processed message"
+            );
+        }
     }
 }
 

@@ -47,7 +47,7 @@ use rustycog_events::{adapter::MultiQueueEventPublisher, event::EventPublisher};
 use rustycog_outbox::{OutboxConfig, OutboxDispatcher, OutboxRecorder};
 
 use iam_application::{
-    command::{CommandRegistryFactory, GenericCommandService},
+    command::{CommandRegistryFactory, GenericCommandService, IamRegistryUseCases},
     usecase::{
         link_provider::LinkProviderUseCaseImpl, login::LoginUseCaseImpl, oauth::OAuthUseCaseImpl,
         password_reset::PasswordResetUseCaseImpl, provider::ProviderUseCaseImpl,
@@ -317,13 +317,13 @@ where
     );
 
     // Create domain services
-    let user_service = Arc::new(iam_domain::service::UserServiceImpl::new(
+    let _user_service = Arc::new(iam_domain::service::UserServiceImpl::new(
         Arc::new(user_repo.clone()),
         Arc::new(user_email_repo.clone()),
         token_service.clone(),
     ));
 
-    let refresh_token_service = Arc::new(iam_domain::service::RefreshTokenServiceImpl::new(
+    let _refresh_token_service = Arc::new(iam_domain::service::RefreshTokenServiceImpl::new(
         Arc::new(refresh_token_repo.clone()),
         token_service.clone(),
     ));
@@ -336,13 +336,15 @@ where
     ));
     let auth_service = Arc::new(
         iam_domain::service::auth_service::AuthService::new_with_signup_transaction_and_outbox(
-            Arc::new(user_repo.clone()),
-            Arc::new(user_email_repo.clone()),
-            Arc::new(email_verification_repo.clone()),
-            password_service_adapter.clone(),
-            token_service.clone(),
-            registration_token_service.clone(),
-            event_publisher.clone(),
+            iam_domain::service::auth_service::AuthServiceDependencies {
+                user_repository: Arc::new(user_repo.clone()),
+                user_email_repository: Arc::new(user_email_repo.clone()),
+                email_verification_repository: Arc::new(email_verification_repo.clone()),
+                password_service: password_service_adapter.clone(),
+                token_service: token_service.clone(),
+                registration_token_service: registration_token_service.clone(),
+                event_publisher: event_publisher.clone(),
+            },
             signup_transaction,
             outbox_unit_of_work.clone(),
         ),
@@ -355,13 +357,15 @@ where
     tracing::info!("Creating registration service");
     let registration_service = Arc::new(
         iam_domain::service::RegistrationServiceImpl::new_with_outbox_unit_of_work(
-            Arc::new(user_repo.clone()),
-            Arc::new(user_repo.clone()),
-            Arc::new(user_email_repo.clone()),
-            Arc::new(email_verification_repo.clone()),
-            registration_token_service.clone(),
-            token_service.clone(),
-            event_publisher.clone(),
+            iam_domain::service::registration_service::RegistrationServiceDependencies {
+                user_read_repo: Arc::new(user_repo.clone()),
+                user_write_repo: Arc::new(user_repo.clone()),
+                user_email_repo: Arc::new(user_email_repo.clone()),
+                email_verification_repo: Arc::new(email_verification_repo.clone()),
+                registration_token_service: registration_token_service.clone(),
+                token_service: token_service.clone(),
+                event_publisher: event_publisher.clone(),
+            },
             outbox_unit_of_work.clone(),
         ),
     );
@@ -420,14 +424,16 @@ where
 
     // Create command registry and service
     let registry = CommandRegistryFactory::create_iam_registry(
-        Arc::new(oauth_usecase),
-        Arc::new(link_provider_usecase),
-        Arc::new(provider_usecase),
-        Arc::new(token_usecase_for_commands),
-        Arc::new(user_usecase_for_commands),
-        Arc::new(login_usecase),
-        registration_usecase.clone(),
-        password_reset_usecase.clone(),
+        IamRegistryUseCases {
+            oauth: Arc::new(oauth_usecase),
+            link_provider: Arc::new(link_provider_usecase),
+            provider: Arc::new(provider_usecase),
+            token: Arc::new(token_usecase_for_commands),
+            user: Arc::new(user_usecase_for_commands),
+            login_auth: Arc::new(login_usecase),
+            registration: registration_usecase.clone(),
+            password_reset: password_reset_usecase.clone(),
+        },
         config.command.clone(),
     );
     let command_service = Arc::new(GenericCommandService::new(Arc::new(registry)));

@@ -1,6 +1,10 @@
 use uuid::Uuid;
 
-use crate::{entity::*, port::*, service::role_service::RoleService};
+use crate::{
+    entity::{MemberStatus, OrganizationMember, RolePermission},
+    port::{OrganizationMemberRepository, OrganizationRepository},
+    service::role_service::RoleService,
+};
 use rustycog_core::error::DomainError;
 use std::sync::Arc;
 use tracing::debug;
@@ -191,8 +195,7 @@ where
     /// Remove a member from an organization
     async fn remove_member(&self, organization_id: Uuid, user_id: Uuid) -> Result<(), DomainError> {
         // Validate organization exists
-        let organization = self
-            .organization_repo
+        self.organization_repo
             .find_by_id(&organization_id)
             .await?
             .ok_or_else(|| {

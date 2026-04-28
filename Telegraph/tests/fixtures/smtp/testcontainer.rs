@@ -10,11 +10,9 @@ use std::sync::Arc;
 use std::sync::OnceLock;
 use std::time::Duration;
 use telegraph_configuration::SmtpConfig;
-use testcontainers::bollard::container;
 use testcontainers::{runners::AsyncRunner, ContainerAsync, GenericImage, ImageExt};
 use tokio::sync::Mutex;
 use tracing::{debug, info, warn};
-use uuid::Uuid;
 
 /// Global test SMTP container instance
 static TEST_SMTP_CONTAINER: OnceLock<Arc<Mutex<Option<Arc<TestSmtpContainer>>>>> = OnceLock::new();
@@ -196,7 +194,6 @@ impl TestSmtp {
         let api_url = format!("http://{}:{}/api/v1/messages", self.host, self.api_port);
 
         let response = self.client.get(&api_url).send().await?;
-        let status = response.status();
         let text = response.text().await?;
 
         // MailHog returns emails in a specific format, parse them
@@ -226,50 +223,12 @@ impl TestSmtp {
             .unwrap_or("unknown")
             .to_string();
 
-        // Extract From address from the From object
         let from_obj = message
             .get("From")
             .and_then(|v| v.as_object())
             .ok_or("Missing From field")?;
-        let from_mailbox = from_obj
-            .get("Mailbox")
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
-        let from_domain = from_obj
-            .get("Domain")
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
-        let from_address = if from_mailbox.is_empty() || from_domain.is_empty() {
-            "".to_string()
-        } else {
-            format!("{}@{}", from_mailbox, from_domain)
-        };
 
-        // Extract To addresses from the To array of objects
-        let empty_vec = vec![];
-        let to_array = message
-            .get("To")
-            .and_then(|v| v.as_array())
-            .unwrap_or(&empty_vec);
-        let to_addresses: Vec<EmailAddress> = to_array
-            .iter()
-            .filter_map(|v| v.as_object())
-            .map(|obj| {
-                let mailbox = obj.get("Mailbox").and_then(|v| v.as_str()).unwrap_or("");
-                let domain = obj.get("Domain").and_then(|v| v.as_str()).unwrap_or("");
-                let address = if mailbox.is_empty() || domain.is_empty() {
-                    "".to_string()
-                } else {
-                    format!("{}@{}", mailbox, domain)
-                };
-                EmailAddress {
-                    name: "".to_string(),
-                    address,
-                }
-            })
-            .collect();
-
-        // Extract subject from Content.Headers.Subject
+        let to_addresses = parse_mailhog_recipients(message);
         let content = message
             .get("Content")
             .and_then(|v| v.as_object())
@@ -278,50 +237,12 @@ impl TestSmtp {
             .get("Headers")
             .and_then(|v| v.as_object())
             .ok_or("Missing Headers field")?;
-        let subject = headers
-            .get("Subject")
-            .and_then(|v| v.as_array())
-            .and_then(|arr| arr.first())
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
-
-        // Extract text and HTML content from MIME.Parts
-        let mut text_content = String::new();
-        let mut html_content = String::new();
-
-        if let Some(mime) = message.get("MIME").and_then(|v| v.as_object()) {
-            if let Some(parts) = mime.get("Parts").and_then(|v| v.as_array()) {
-                for part in parts {
-                    if let Some(part_obj) = part.as_object() {
-                        if let Some(part_headers) =
-                            part_obj.get("Headers").and_then(|v| v.as_object())
-                        {
-                            if let Some(content_type_array) =
-                                part_headers.get("Content-Type").and_then(|v| v.as_array())
-                            {
-                                if let Some(content_type) =
-                                    content_type_array.first().and_then(|v| v.as_str())
-                                {
-                                    let body =
-                                        part_obj.get("Body").and_then(|v| v.as_str()).unwrap_or("");
-
-                                    if content_type.contains("text/plain") {
-                                        text_content = body.to_string();
-                                    } else if content_type.contains("text/html") {
-                                        html_content = body.to_string();
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        let subject = mailhog_header(headers, "Subject");
+        let (text_content, html_content) = parse_mailhog_bodies(message);
 
         let from = EmailAddress {
             name: "".to_string(),
-            address: from_address,
+            address: mailhog_address(from_obj),
         };
 
         Ok(TestEmail {
@@ -378,4 +299,75 @@ impl TestSmtp {
     pub fn smtp_port(&self) -> u16 {
         self.smtp_port
     }
+}
+
+fn parse_mailhog_recipients(message: &serde_json::Value) -> Vec<EmailAddress> {
+    message
+        .get("To")
+        .and_then(|v| v.as_array())
+        .into_iter()
+        .flatten()
+        .filter_map(|v| v.as_object())
+        .map(|obj| EmailAddress {
+            name: "".to_string(),
+            address: mailhog_address(obj),
+        })
+        .collect()
+}
+
+fn mailhog_address(obj: &serde_json::Map<String, serde_json::Value>) -> String {
+    let mailbox = obj.get("Mailbox").and_then(|v| v.as_str()).unwrap_or("");
+    let domain = obj.get("Domain").and_then(|v| v.as_str()).unwrap_or("");
+
+    if mailbox.is_empty() || domain.is_empty() {
+        "".to_string()
+    } else {
+        format!("{}@{}", mailbox, domain)
+    }
+}
+
+fn mailhog_header(headers: &serde_json::Map<String, serde_json::Value>, name: &str) -> String {
+    headers
+        .get(name)
+        .and_then(|v| v.as_array())
+        .and_then(|arr| arr.first())
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string()
+}
+
+fn parse_mailhog_bodies(message: &serde_json::Value) -> (String, String) {
+    let mut text_content = String::new();
+    let mut html_content = String::new();
+
+    for part in mailhog_mime_parts(message) {
+        let content_type = mailhog_part_content_type(part);
+        let body = part.get("Body").and_then(|v| v.as_str()).unwrap_or("");
+
+        if content_type.contains("text/plain") {
+            text_content = body.to_string();
+        } else if content_type.contains("text/html") {
+            html_content = body.to_string();
+        }
+    }
+
+    (text_content, html_content)
+}
+
+fn mailhog_mime_parts(message: &serde_json::Value) -> Vec<&serde_json::Value> {
+    message
+        .get("MIME")
+        .and_then(|v| v.get("Parts"))
+        .and_then(|v| v.as_array())
+        .map(|parts| parts.iter().collect())
+        .unwrap_or_default()
+}
+
+fn mailhog_part_content_type(part: &serde_json::Value) -> &str {
+    part.get("Headers")
+        .and_then(|v| v.get("Content-Type"))
+        .and_then(|v| v.as_array())
+        .and_then(|arr| arr.first())
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
 }

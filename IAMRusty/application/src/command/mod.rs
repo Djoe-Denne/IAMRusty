@@ -14,7 +14,7 @@ pub mod verify_email;
 pub use rustycog_command::*;
 
 // Re-export our factory for building the command registry
-pub use factory::CommandRegistryFactory;
+pub use factory::{CommandRegistryFactory, IamRegistryUseCases};
 
 // Convenience alias for the new service
 pub type ExtensibleCommandService = GenericCommandService;

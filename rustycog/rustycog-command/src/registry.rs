@@ -280,30 +280,10 @@ impl CommandRegistry {
     ) -> Result<C::Result, CommandError> {
         let command_type = command.command_type();
         let start_time = Instant::now();
-        let mut retry_attempts = 0;
 
-        if self.config.enable_tracing {
-            info!(
-                command_type = %command_type,
-                command_id = %command.command_id(),
-                execution_id = %context.execution_id,
-                "Starting command execution"
-            );
-        }
+        self.trace_command_start(&command, &context);
+        self.validate_command(&command, command_type)?;
 
-        // Validate command first
-        if let Err(validation_error) = command.validate() {
-            if self.config.enable_tracing {
-                error!(
-                    command_type = %command_type,
-                    error = %validation_error,
-                    "Command validation failed"
-                );
-            }
-            return Err(validation_error);
-        }
-
-        // Get handler
         let handler = self.get_handler(command_type).ok_or_else(|| {
             CommandError::infrastructure(
                 "handler_not_found",
@@ -311,9 +291,19 @@ impl CommandRegistry {
             )
         })?;
 
-        let retry_policy = &self.config.retry_policy;
+        self.execute_with_retry(command, context, handler, command_type, start_time)
+            .await
+    }
 
-        // Retry loop
+    async fn execute_with_retry<C: Command + Clone + 'static>(
+        &self,
+        command: C,
+        context: CommandContext,
+        handler: Arc<dyn DynCommandHandler>,
+        command_type: &str,
+        start_time: Instant,
+    ) -> Result<C::Result, CommandError> {
+        let mut retry_attempts = 0;
         loop {
             let execution_future =
                 self.execute_once(handler.clone(), command.clone(), context.clone());
@@ -321,136 +311,211 @@ impl CommandRegistry {
 
             match execution_result {
                 Ok(Ok(result)) => {
-                    // Success
-                    let duration = start_time.elapsed();
-                    if self.config.enable_tracing {
-                        info!(
-                            command_type = %command_type,
-                            duration_ms = duration.as_millis() as u64,
-                            retry_attempts = retry_attempts,
-                            "Command executed successfully"
-                        );
-                    }
-
-                    if self.config.enable_metrics {
-                        self.record_success_metrics(&command, duration, retry_attempts)
-                            .await;
-                    }
-
+                    self.record_success(&command, command_type, start_time, retry_attempts)
+                        .await;
                     return Ok(result);
                 }
                 Ok(Err(e)) => {
-                    // Command failed
                     retry_attempts += 1;
-
-                    // Check if error is retryable
-                    if !retry_policy.is_retryable(&e) {
-                        let duration = start_time.elapsed();
-                        if self.config.enable_tracing {
-                            error!(
-                                command_type = %command_type,
-                                error = %e,
-                                duration_ms = duration.as_millis() as u64,
-                                retry_attempts = retry_attempts,
-                                "Command execution failed - error not retryable"
-                            );
-                        }
-
-                        if self.config.enable_metrics {
-                            self.record_failure_metrics(&command, start_time, retry_attempts, &e)
-                                .await;
-                        }
-
-                        return Err(e);
-                    }
-
-                    // Check if we've reached max attempts
-                    // When max_attempts is 0, we should not retry at all
-                    if retry_policy.max_attempts == 0 || retry_attempts >= retry_policy.max_attempts
-                    {
-                        let duration = start_time.elapsed();
-                        if self.config.enable_tracing {
-                            error!(
-                                command_type = %command_type,
-                                error = %e,
-                                duration_ms = duration.as_millis() as u64,
-                                retry_attempts = retry_attempts,
-                                "Command execution failed after maximum retries"
-                            );
-                        }
-
-                        if self.config.enable_metrics {
-                            self.record_failure_metrics(&command, start_time, retry_attempts, &e)
-                                .await;
-                        }
-
-                        return Err(CommandError::retry_exhausted(
-                            "max_retries_exceeded",
-                            e.to_string(),
-                        ));
-                    }
-
-                    // Calculate delay and retry
-                    let delay = retry_policy.calculate_delay(retry_attempts - 1);
-                    if self.config.enable_tracing {
-                        warn!(
-                            command_type = %command_type,
-                            error = %e,
-                            retry_attempt = retry_attempts,
-                            delay_ms = delay.as_millis() as u64,
-                            "Command failed, retrying"
-                        );
-                    }
-
+                    let delay = self
+                        .handle_command_failure(
+                            &command,
+                            command_type,
+                            start_time,
+                            retry_attempts,
+                            e,
+                        )
+                        .await?;
                     tokio::time::sleep(delay).await;
                 }
                 Err(_) => {
-                    // Timeout
                     retry_attempts += 1;
-                    let timeout_error =
-                        CommandError::timeout("command_timeout", "Command execution timed out");
-
-                    if retry_policy.max_attempts == 0 || retry_attempts >= retry_policy.max_attempts
-                    {
-                        let duration = start_time.elapsed();
-                        if self.config.enable_tracing {
-                            error!(
-                                command_type = %command_type,
-                                duration_ms = duration.as_millis() as u64,
-                                retry_attempts = retry_attempts,
-                                "Command execution timed out after retries"
-                            );
-                        }
-
-                        if self.config.enable_metrics {
-                            self.record_failure_metrics(
-                                &command,
-                                start_time,
-                                retry_attempts,
-                                &timeout_error,
-                            )
-                            .await;
-                        }
-
-                        return Err(CommandError::retry_exhausted(
-                            "timeout_retries_exceeded",
-                            "Timeout after retries",
-                        ));
-                    }
-
-                    let delay = retry_policy.calculate_delay(retry_attempts - 1);
-                    if self.config.enable_tracing {
-                        warn!(
-                            command_type = %command_type,
-                            retry_attempt = retry_attempts,
-                            delay_ms = delay.as_millis() as u64,
-                            "Command timed out, retrying"
-                        );
-                    }
-
+                    let delay = self
+                        .handle_command_timeout(&command, command_type, start_time, retry_attempts)
+                        .await?;
                     tokio::time::sleep(delay).await;
                 }
             }
+        }
+    }
+
+    fn trace_command_start<C: Command>(&self, command: &C, context: &CommandContext) {
+        if self.config.enable_tracing {
+            info!(
+                command_type = %command.command_type(),
+                command_id = %command.command_id(),
+                execution_id = %context.execution_id,
+                "Starting command execution"
+            );
+        }
+    }
+
+    fn validate_command<C: Command>(
+        &self,
+        command: &C,
+        command_type: &str,
+    ) -> Result<(), CommandError> {
+        command.validate().map_err(|validation_error| {
+            if self.config.enable_tracing {
+                error!(
+                    command_type = %command_type,
+                    error = %validation_error,
+                    "Command validation failed"
+                );
+            }
+            validation_error
+        })
+    }
+
+    async fn record_success<C: Command>(
+        &self,
+        command: &C,
+        command_type: &str,
+        start_time: Instant,
+        retry_attempts: u32,
+    ) {
+        let duration = start_time.elapsed();
+        if self.config.enable_tracing {
+            info!(
+                command_type = %command_type,
+                duration_ms = duration.as_millis() as u64,
+                retry_attempts = retry_attempts,
+                "Command executed successfully"
+            );
+        }
+
+        if self.config.enable_metrics {
+            self.record_success_metrics(command, duration, retry_attempts)
+                .await;
+        }
+    }
+
+    async fn handle_command_failure<C: Command>(
+        &self,
+        command: &C,
+        command_type: &str,
+        start_time: Instant,
+        retry_attempts: u32,
+        error: CommandError,
+    ) -> Result<Duration, CommandError> {
+        let retry_policy = &self.config.retry_policy;
+
+        if !retry_policy.is_retryable(&error) {
+            self.record_failure(
+                command,
+                command_type,
+                start_time,
+                retry_attempts,
+                &error,
+                "Command execution failed - error not retryable",
+            )
+            .await;
+            return Err(error);
+        }
+
+        if retry_policy.max_attempts == 0 || retry_attempts >= retry_policy.max_attempts {
+            self.record_failure(
+                command,
+                command_type,
+                start_time,
+                retry_attempts,
+                &error,
+                "Command execution failed after maximum retries",
+            )
+            .await;
+            return Err(CommandError::retry_exhausted(
+                "max_retries_exceeded",
+                error.to_string(),
+            ));
+        }
+
+        let delay = retry_policy.calculate_delay(retry_attempts - 1);
+        self.trace_retry(command_type, Some(&error), retry_attempts, delay);
+        Ok(delay)
+    }
+
+    async fn handle_command_timeout<C: Command>(
+        &self,
+        command: &C,
+        command_type: &str,
+        start_time: Instant,
+        retry_attempts: u32,
+    ) -> Result<Duration, CommandError> {
+        let retry_policy = &self.config.retry_policy;
+        let timeout_error = CommandError::timeout("command_timeout", "Command execution timed out");
+
+        if retry_policy.max_attempts == 0 || retry_attempts >= retry_policy.max_attempts {
+            self.record_failure(
+                command,
+                command_type,
+                start_time,
+                retry_attempts,
+                &timeout_error,
+                "Command execution timed out after retries",
+            )
+            .await;
+            return Err(CommandError::retry_exhausted(
+                "timeout_retries_exceeded",
+                "Timeout after retries",
+            ));
+        }
+
+        let delay = retry_policy.calculate_delay(retry_attempts - 1);
+        self.trace_retry(command_type, None, retry_attempts, delay);
+        Ok(delay)
+    }
+
+    async fn record_failure<C: Command>(
+        &self,
+        command: &C,
+        command_type: &str,
+        start_time: Instant,
+        retry_attempts: u32,
+        error: &CommandError,
+        message: &str,
+    ) {
+        let duration = start_time.elapsed();
+        if self.config.enable_tracing {
+            error!(
+                command_type = %command_type,
+                error = %error,
+                duration_ms = duration.as_millis() as u64,
+                retry_attempts = retry_attempts,
+                "{message}"
+            );
+        }
+
+        if self.config.enable_metrics {
+            self.record_failure_metrics(command, start_time, retry_attempts, error)
+                .await;
+        }
+    }
+
+    fn trace_retry(
+        &self,
+        command_type: &str,
+        error: Option<&CommandError>,
+        retry_attempts: u32,
+        delay: Duration,
+    ) {
+        if !self.config.enable_tracing {
+            return;
+        }
+
+        match error {
+            Some(error) => warn!(
+                command_type = %command_type,
+                error = %error,
+                retry_attempt = retry_attempts,
+                delay_ms = delay.as_millis() as u64,
+                "Command failed, retrying"
+            ),
+            None => warn!(
+                command_type = %command_type,
+                retry_attempt = retry_attempts,
+                delay_ms = delay.as_millis() as u64,
+                "Command timed out, retrying"
+            ),
         }
     }
 

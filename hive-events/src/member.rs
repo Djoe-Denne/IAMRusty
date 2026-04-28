@@ -71,33 +71,35 @@ pub struct MemberRemovedEvent {
     pub removed_at: DateTime<Utc>,
 }
 
+pub struct MemberInvitedEventData {
+    pub organization_id: Uuid,
+    pub organization_name: String,
+    pub invitation_id: Uuid,
+    pub email: String,
+    pub roles: Vec<Role>,
+    pub invited_by_user_id: Uuid,
+    pub invitation_token: String,
+    pub expires_at: DateTime<Utc>,
+    pub message: Option<String>,
+}
+
 // =============================================================================
 // Member Events implementations
 // =============================================================================
 
 impl MemberInvitedEvent {
-    pub fn new(
-        organization_id: Uuid,
-        organization_name: String,
-        invitation_id: Uuid,
-        email: String,
-        roles: Vec<Role>,
-        invited_by_user_id: Uuid,
-        invitation_token: String,
-        expires_at: DateTime<Utc>,
-        message: Option<String>,
-    ) -> Self {
+    pub fn new(data: MemberInvitedEventData) -> Self {
         Self {
-            base: BaseEvent::new("member_invited".to_string(), organization_id),
-            organization_id,
-            organization_name,
-            invitation_id,
-            email,
-            roles,
-            invited_by_user_id,
-            invitation_token,
-            expires_at,
-            message,
+            base: BaseEvent::new("member_invited".to_string(), data.organization_id),
+            organization_id: data.organization_id,
+            organization_name: data.organization_name,
+            invitation_id: data.invitation_id,
+            email: data.email,
+            roles: data.roles,
+            invited_by_user_id: data.invited_by_user_id,
+            invitation_token: data.invitation_token,
+            expires_at: data.expires_at,
+            message: data.message,
         }
     }
 }

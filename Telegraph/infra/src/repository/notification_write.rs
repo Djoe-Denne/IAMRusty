@@ -1,7 +1,7 @@
 use anyhow::Result;
 use chrono::Utc;
 use sea_orm::sea_query::Expr;
-use sea_orm::*;
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, TransactionTrait};
 use std::sync::Arc;
 use uuid::Uuid;
 

@@ -255,6 +255,15 @@ jobs:
             : > lcov.info
           fi
 
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: sonar
+          cache-on-failure: true
+
       - name: SonarCloud scan
         uses: SonarSource/sonarqube-scan-action@v7
         env:

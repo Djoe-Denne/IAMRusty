@@ -1,4 +1,8 @@
-use crate::{error::AuthError, oauth_state::OAuthState, validation::*};
+use crate::{
+    error::AuthError,
+    oauth_state::OAuthState,
+    validation::{validate_provider_name, PROVIDER_REGEX},
+};
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,

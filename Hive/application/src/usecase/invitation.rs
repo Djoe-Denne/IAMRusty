@@ -6,11 +6,14 @@ use hive_domain::{
     entity::{OrganizationInvitation, RolePermission},
     service::invitation_service::InvitationService,
 };
-use hive_events::{HiveDomainEvent, InvitationCreatedEvent, Role};
+use hive_events::{HiveDomainEvent, InvitationCreatedEvent, InvitationCreatedEventData, Role};
 use rustycog_core::error::DomainError;
 use rustycog_events::{DomainEvent, EventPublisher};
 
-use crate::{dto::*, ApplicationError, HiveOutboxUnitOfWork};
+use crate::{
+    dto::{CreateInvitationRequest, InvitationResponse},
+    ApplicationError, HiveOutboxUnitOfWork,
+};
 
 #[async_trait]
 pub trait InvitationUseCase: Send + Sync {
@@ -109,22 +112,24 @@ impl InvitationUseCaseImpl {
         expires_at: chrono::DateTime<chrono::Utc>,
     ) -> Result<(), ApplicationError> {
         let event = HiveDomainEvent::InvitationCreated(InvitationCreatedEvent::new(
-            organization_id,
-            organization_name.to_string(),
-            invitation_id,
-            email.to_string(),
-            role_permissions
-                .iter()
-                .map(|role| {
-                    Role::new(
-                        role.permission.level.to_str().to_string(),
-                        role.resource.name.clone(),
-                    )
-                })
-                .collect(),
-            invited_by_user_id,
-            invitation_token.to_string(),
-            expires_at,
+            InvitationCreatedEventData {
+                organization_id,
+                organization_name: organization_name.to_string(),
+                invitation_id,
+                email: email.to_string(),
+                roles: role_permissions
+                    .iter()
+                    .map(|role| {
+                        Role::new(
+                            role.permission.level.to_str().to_string(),
+                            role.resource.name.clone(),
+                        )
+                    })
+                    .collect(),
+                invited_by_user_id,
+                invitation_token: invitation_token.to_string(),
+                expires_at,
+            },
         ));
 
         self.record_or_publish_event(event.into()).await
@@ -173,8 +178,7 @@ impl InvitationUseCase for InvitationUseCaseImpl {
         token: String,
         user_id: Uuid,
     ) -> Result<(), ApplicationError> {
-        let invitation = self
-            .invitation_service
+        self.invitation_service
             .accept_invitation(token, user_id)
             .await
             .map_err(|e| ApplicationError::Domain(e))?;
@@ -183,8 +187,7 @@ impl InvitationUseCase for InvitationUseCaseImpl {
     }
 
     async fn cancel_invitation(&self, invitation_id: Uuid) -> Result<(), ApplicationError> {
-        let invitation = self
-            .invitation_service
+        self.invitation_service
             .cancel_invitation(invitation_id)
             .await
             .map_err(|e| ApplicationError::Domain(e))?;

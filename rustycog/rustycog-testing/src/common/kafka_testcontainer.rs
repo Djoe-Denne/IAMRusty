@@ -21,6 +21,16 @@ static TEST_KAFKA_CONTAINER: OnceLock<Arc<Mutex<Option<Arc<TestKafkaContainer>>>
 /// Flag to track if cleanup handler has been registered
 static KAFKA_CLEANUP_REGISTERED: AtomicBool = AtomicBool::new(false);
 
+fn kafka_broker_addresses(
+    brokers: &str,
+) -> Result<Vec<std::net::SocketAddr>, Box<dyn std::error::Error>> {
+    brokers
+        .split(',')
+        .map(|broker| broker.trim().parse::<std::net::SocketAddr>())
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| format!("Invalid Kafka broker address '{}': {}", brokers, e).into())
+}
+
 /// Test Kafka container wrapper
 pub struct TestKafkaContainer {
     container: ContainerAsync<GenericImage>,
@@ -94,44 +104,18 @@ impl TestKafka {
         info!("Waiting for Kafka to be ready...");
 
         let max_attempts = 30;
-        let mut attempts = 0;
+        let addresses = kafka_broker_addresses(brokers)?;
 
-        while attempts < max_attempts {
-            // Simple TCP connection test
-            if let Ok(addr) = brokers.parse::<std::net::SocketAddr>() {
-                match tokio::net::TcpStream::connect(addr).await {
-                    Ok(_) => {
-                        info!("Kafka is ready after {} attempts", attempts + 1);
-                        return Ok(());
-                    }
-                    Err(e) => {
-                        debug!("Kafka connection failed: {}", e);
-                    }
-                }
-            } else {
-                // If it's not a direct socket address, try parsing host:port
-                let parts: Vec<&str> = brokers.split(':').collect();
-                if parts.len() == 2 {
-                    if let Ok(port) = parts[1].parse::<u16>() {
-                        let addr = (parts[0], port);
-                        match tokio::net::TcpStream::connect(addr).await {
-                            Ok(_) => {
-                                info!("Kafka is ready after {} attempts", attempts + 1);
-                                return Ok(());
-                            }
-                            Err(e) => {
-                                debug!("Kafka connection failed: {}", e);
-                            }
-                        }
-                    }
-                }
+        for attempt in 1..=max_attempts {
+            if Self::can_connect_to_any(&addresses).await {
+                info!("Kafka is ready after {} attempts", attempt);
+                return Ok(());
             }
 
-            attempts += 1;
-            if attempts < max_attempts {
+            if attempt < max_attempts {
                 debug!(
                     "Retrying Kafka connection in 1 second... (attempt {}/{})",
-                    attempts, max_attempts
+                    attempt, max_attempts
                 );
                 tokio::time::sleep(Duration::from_secs(1)).await;
             }
@@ -142,6 +126,16 @@ impl TestKafka {
             max_attempts
         )
         .into())
+    }
+
+    async fn can_connect_to_any(addresses: &[std::net::SocketAddr]) -> bool {
+        for addr in addresses {
+            match tokio::net::TcpStream::connect(addr).await {
+                Ok(_) => return true,
+                Err(e) => debug!("Kafka connection failed: {}", e),
+            }
+        }
+        false
     }
 
     /// Wait for a message to be published to the topic

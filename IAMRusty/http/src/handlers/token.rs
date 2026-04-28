@@ -1,4 +1,4 @@
-use crate::{error::ApiError, validation::*};
+use crate::{error::ApiError, validation::validate_refresh_token};
 use axum::{extract::State, Json};
 use axum_valid::Valid;
 use iam_application::command::{token::RefreshTokenCommand, CommandContext};

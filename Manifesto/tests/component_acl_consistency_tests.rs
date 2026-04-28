@@ -10,6 +10,7 @@ use manifesto_domain::{
         Permission, Project, ProjectComponent, ProjectMemberRolePermission, Resource,
         RolePermission,
     },
+    port::ProjectListFilters,
     service::{ComponentService, PermissionService, ProjectService},
     value_objects::{OwnerType, ProjectStatus, Visibility},
 };
@@ -70,13 +71,7 @@ impl ProjectService for StaticProjectService {
 
     async fn list_projects(
         &self,
-        _owner_type: Option<OwnerType>,
-        _owner_id: Option<Uuid>,
-        _status: Option<ProjectStatus>,
-        _search: Option<String>,
-        _viewer_user_id: Option<Uuid>,
-        _page: u32,
-        _page_size: u32,
+        _filters: ProjectListFilters,
     ) -> Result<Vec<Project>, DomainError> {
         Ok(vec![self.project.clone()])
     }

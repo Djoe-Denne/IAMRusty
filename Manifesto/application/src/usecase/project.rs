@@ -6,6 +6,7 @@ use uuid::Uuid;
 
 use manifesto_domain::{
     entity::Project,
+    port::ProjectListFilters,
     service::{ComponentService, MemberService, PermissionService, ProjectService},
     value_objects::{DataClassification, MemberSource, OwnerType, ProjectStatus, Visibility},
     ProjectMember,
@@ -481,15 +482,15 @@ impl ProjectUseCase for ProjectUseCaseImpl {
 
         let projects = self
             .project_service
-            .list_projects(
+            .list_projects(ProjectListFilters {
                 owner_type,
                 owner_id,
                 status,
-                search.clone(),
-                user_id,
+                search: search.clone(),
+                viewer_user_id: user_id,
                 page,
                 page_size,
-            )
+            })
             .await?;
 
         let total_count = self

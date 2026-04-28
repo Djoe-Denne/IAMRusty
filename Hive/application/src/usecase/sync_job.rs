@@ -118,7 +118,7 @@ impl SyncJobUseCase for SyncJobUseCaseImpl {
 
         Ok(SyncJobResponse {
             id: job.id,
-            organization_id: organization_id,
+            organization_id,
             external_link_id: request.external_link_id,
             job_type: request.job_type,
             status: "running".to_string(),

@@ -8,6 +8,17 @@ use crate::entity::{
 };
 use crate::value_objects::{MemberSource, OwnerType, ProjectStatus};
 
+#[derive(Debug, Clone, Default)]
+pub struct ProjectListFilters {
+    pub owner_type: Option<OwnerType>,
+    pub owner_id: Option<Uuid>,
+    pub status: Option<ProjectStatus>,
+    pub search: Option<String>,
+    pub viewer_user_id: Option<Uuid>,
+    pub page: u32,
+    pub page_size: u32,
+}
+
 // =============================================================================
 // Project Repository Ports
 // =============================================================================
@@ -24,13 +35,7 @@ pub trait ProjectReadRepository: Send + Sync {
 
     async fn list_with_filters(
         &self,
-        owner_type: Option<OwnerType>,
-        owner_id: Option<Uuid>,
-        status: Option<ProjectStatus>,
-        search: Option<String>,
-        viewer_user_id: Option<Uuid>,
-        page: u32,
-        page_size: u32,
+        filters: ProjectListFilters,
     ) -> Result<Vec<Project>, DomainError>;
 
     async fn count(&self) -> Result<i64, DomainError>;

@@ -3,8 +3,8 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::{
-    entity::*,
-    port::*,
+    entity::Organization,
+    port::OrganizationRepository,
     service::{member_service::MemberService, role_service::RoleService},
 };
 use rustycog_core::error::DomainError;

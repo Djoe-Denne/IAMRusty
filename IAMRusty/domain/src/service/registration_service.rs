@@ -113,6 +113,25 @@ where
     outbox_unit_of_work: Option<Arc<dyn IamOutboxUnitOfWork>>,
 }
 
+pub struct RegistrationServiceDependencies<UR, UW, UER, EVR, RTS, TS, EP>
+where
+    UR: UserReadRepository,
+    UW: UserWriteRepository,
+    UER: UserEmailRepository,
+    EVR: EmailVerificationRepository,
+    RTS: RegistrationTokenService,
+    TS: AuthTokenService,
+    EP: EventPublisher<DomainError>,
+{
+    pub user_read_repo: Arc<UR>,
+    pub user_write_repo: Arc<UW>,
+    pub user_email_repo: Arc<UER>,
+    pub email_verification_repo: Arc<EVR>,
+    pub registration_token_service: Arc<RTS>,
+    pub token_service: Arc<TS>,
+    pub event_publisher: Arc<EP>,
+}
+
 impl<UR, UW, UER, EVR, RTS, TS, EP> RegistrationServiceImpl<UR, UW, UER, EVR, RTS, TS, EP>
 where
     UR: UserReadRepository + Send + Sync,
@@ -124,45 +143,31 @@ where
     EP: EventPublisher<DomainError> + Send + Sync,
 {
     pub fn new(
-        user_read_repo: Arc<UR>,
-        user_write_repo: Arc<UW>,
-        user_email_repo: Arc<UER>,
-        email_verification_repo: Arc<EVR>,
-        registration_token_service: Arc<RTS>,
-        token_service: Arc<TS>,
-        event_publisher: Arc<EP>,
+        dependencies: RegistrationServiceDependencies<UR, UW, UER, EVR, RTS, TS, EP>,
     ) -> Self {
-        Self {
-            user_read_repo,
-            user_write_repo,
-            user_email_repo,
-            email_verification_repo,
-            registration_token_service,
-            token_service,
-            event_publisher,
-            outbox_unit_of_work: None,
-        }
+        Self::from_parts(dependencies, None)
     }
 
     pub fn new_with_outbox_unit_of_work(
-        user_read_repo: Arc<UR>,
-        user_write_repo: Arc<UW>,
-        user_email_repo: Arc<UER>,
-        email_verification_repo: Arc<EVR>,
-        registration_token_service: Arc<RTS>,
-        token_service: Arc<TS>,
-        event_publisher: Arc<EP>,
+        dependencies: RegistrationServiceDependencies<UR, UW, UER, EVR, RTS, TS, EP>,
         outbox_unit_of_work: Arc<dyn IamOutboxUnitOfWork>,
     ) -> Self {
+        Self::from_parts(dependencies, Some(outbox_unit_of_work))
+    }
+
+    fn from_parts(
+        dependencies: RegistrationServiceDependencies<UR, UW, UER, EVR, RTS, TS, EP>,
+        outbox_unit_of_work: Option<Arc<dyn IamOutboxUnitOfWork>>,
+    ) -> Self {
         Self {
-            user_read_repo,
-            user_write_repo,
-            user_email_repo,
-            email_verification_repo,
-            registration_token_service,
-            token_service,
-            event_publisher,
-            outbox_unit_of_work: Some(outbox_unit_of_work),
+            user_read_repo: dependencies.user_read_repo,
+            user_write_repo: dependencies.user_write_repo,
+            user_email_repo: dependencies.user_email_repo,
+            email_verification_repo: dependencies.email_verification_repo,
+            registration_token_service: dependencies.registration_token_service,
+            token_service: dependencies.token_service,
+            event_publisher: dependencies.event_publisher,
+            outbox_unit_of_work,
         }
     }
 

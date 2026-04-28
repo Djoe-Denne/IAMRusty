@@ -48,10 +48,10 @@ pub enum CommunicationMode {
 }
 
 impl CommunicationMode {
-    pub fn to_string(&self) -> String {
+    pub fn as_str(&self) -> &'static str {
         match self {
-            CommunicationMode::Email => "email".to_string(),
-            CommunicationMode::Notification => "notification".to_string(),
+            CommunicationMode::Email => "email",
+            CommunicationMode::Notification => "notification",
         }
     }
 }
@@ -90,6 +90,6 @@ pub struct NotificationDescriptor {
 
 impl std::fmt::Display for CommunicationMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.to_string())
+        write!(f, "{}", self.as_str())
     }
 }

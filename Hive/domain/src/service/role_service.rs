@@ -1,9 +1,14 @@
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use std::sync::Arc;
 use tracing::debug;
 use uuid::Uuid;
 
-use crate::{entity::*, port::*};
+use crate::{
+    entity::{OrganizationMemberRolePermission, RolePermission},
+    port::{
+        MemberRoleRepository, PermissionRepository, ResourceRepository, RolePermissionRepository,
+    },
+};
 use rustycog_core::error::DomainError;
 
 /// Domain service for organization member management
@@ -205,7 +210,7 @@ where
                 &role,
                 Utc::now(),
             );
-            new_roles.push(self.member_role_repo.save(&new_role).await.map_err(|e| {
+            new_roles.push(self.member_role_repo.save(&new_role).await.map_err(|_| {
                 DomainError::BusinessRuleViolation {
                     rule: "Trying to add roles to a unexisting member".to_string(),
                 }

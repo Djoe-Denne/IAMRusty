@@ -29,46 +29,48 @@ pub fn flatten_json_value(
     map: &mut HashMap<String, String>,
 ) -> Result<(), DomainError> {
     match value {
-        Value::Object(obj) => {
-            for (key, val) in obj {
-                let new_key = if prefix.is_empty() {
-                    key.clone()
-                } else {
-                    format!("{}.{}", prefix, key)
-                };
-                flatten_json_value(val, &new_key, map)?;
-            }
-        }
-        Value::Array(arr) => {
-            for (index, val) in arr.iter().enumerate() {
-                let new_key = if prefix.is_empty() {
-                    index.to_string()
-                } else {
-                    format!("{}.{}", prefix, index)
-                };
-                flatten_json_value(val, &new_key, map)?;
-            }
-        }
-        Value::String(s) => {
-            if !prefix.is_empty() {
-                map.insert(prefix.to_string(), s.clone());
-            }
-        }
-        Value::Number(n) => {
-            if !prefix.is_empty() {
-                map.insert(prefix.to_string(), n.to_string());
-            }
-        }
-        Value::Bool(b) => {
-            if !prefix.is_empty() {
-                map.insert(prefix.to_string(), b.to_string());
-            }
-        }
-        Value::Null => {
-            if !prefix.is_empty() {
-                map.insert(prefix.to_string(), "null".to_string());
-            }
-        }
+        Value::Object(obj) => flatten_object(obj, prefix, map)?,
+        Value::Array(arr) => flatten_array(arr, prefix, map)?,
+        Value::String(s) => insert_prefixed(map, prefix, s.clone()),
+        Value::Number(n) => insert_prefixed(map, prefix, n.to_string()),
+        Value::Bool(b) => insert_prefixed(map, prefix, b.to_string()),
+        Value::Null => insert_prefixed(map, prefix, "null".to_string()),
     }
     Ok(())
+}
+
+fn flatten_object(
+    obj: &serde_json::Map<String, Value>,
+    prefix: &str,
+    map: &mut HashMap<String, String>,
+) -> Result<(), DomainError> {
+    for (key, val) in obj {
+        flatten_json_value(val, &join_path(prefix, key), map)?;
+    }
+    Ok(())
+}
+
+fn flatten_array(
+    arr: &[Value],
+    prefix: &str,
+    map: &mut HashMap<String, String>,
+) -> Result<(), DomainError> {
+    for (index, val) in arr.iter().enumerate() {
+        flatten_json_value(val, &join_path(prefix, &index.to_string()), map)?;
+    }
+    Ok(())
+}
+
+fn join_path(prefix: &str, key: &str) -> String {
+    if prefix.is_empty() {
+        key.to_string()
+    } else {
+        format!("{}.{}", prefix, key)
+    }
+}
+
+fn insert_prefixed(map: &mut HashMap<String, String>, prefix: &str, value: String) {
+    if !prefix.is_empty() {
+        map.insert(prefix.to_string(), value);
+    }
 }

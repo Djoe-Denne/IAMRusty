@@ -1,6 +1,8 @@
 use async_trait::async_trait;
 use manifesto_domain::entity::Project;
-use manifesto_domain::port::{ProjectReadRepository, ProjectRepository, ProjectWriteRepository};
+use manifesto_domain::port::{
+    ProjectListFilters, ProjectReadRepository, ProjectRepository, ProjectWriteRepository,
+};
 use manifesto_domain::value_objects::{DataClassification, OwnerType, ProjectStatus, Visibility};
 use rustycog_core::error::DomainError;
 use sea_orm::{
@@ -102,20 +104,14 @@ impl ProjectReadRepository for ProjectReadRepositoryImpl {
 
     async fn list_with_filters(
         &self,
-        owner_type: Option<OwnerType>,
-        owner_id: Option<Uuid>,
-        status: Option<ProjectStatus>,
-        search: Option<String>,
-        viewer_user_id: Option<Uuid>,
-        page: u32,
-        page_size: u32,
+        filters: ProjectListFilters,
     ) -> Result<Vec<Project>, DomainError> {
         debug!("Listing projects with filters");
 
         let mut query = Projects::find();
         let mut conditions = Condition::all();
 
-        let access_condition = if let Some(user_id) = viewer_user_id {
+        let access_condition = if let Some(user_id) = filters.viewer_user_id {
             query = query.left_join(project_members::Entity).distinct();
             Condition::any()
                 .add(projects::Column::Visibility.eq(Visibility::Public.as_str()))
@@ -130,19 +126,19 @@ impl ProjectReadRepository for ProjectReadRepositoryImpl {
 
         conditions = conditions.add(access_condition);
 
-        if let Some(ot) = owner_type {
+        if let Some(ot) = filters.owner_type {
             conditions = conditions.add(projects::Column::OwnerType.eq(ot.as_str()));
         }
 
-        if let Some(oid) = owner_id {
+        if let Some(oid) = filters.owner_id {
             conditions = conditions.add(projects::Column::OwnerId.eq(oid));
         }
 
-        if let Some(s) = status {
+        if let Some(s) = filters.status {
             conditions = conditions.add(projects::Column::Status.eq(s.as_str()));
         }
 
-        if let Some(search_term) = search.as_ref() {
+        if let Some(search_term) = filters.search.as_ref() {
             let like_pattern = format!("%{}%", search_term);
             conditions = conditions.add(projects::Column::Name.like(&like_pattern));
         }
@@ -150,8 +146,8 @@ impl ProjectReadRepository for ProjectReadRepositoryImpl {
         let projects = query
             .filter(conditions)
             .order_by(projects::Column::CreatedAt, Order::Desc)
-            .paginate(self.db.as_ref(), page_size as u64)
-            .fetch_page(page as u64)
+            .paginate(self.db.as_ref(), filters.page_size as u64)
+            .fetch_page(filters.page as u64)
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
@@ -333,25 +329,9 @@ impl ProjectReadRepository for ProjectRepositoryImpl {
 
     async fn list_with_filters(
         &self,
-        owner_type: Option<OwnerType>,
-        owner_id: Option<Uuid>,
-        status: Option<ProjectStatus>,
-        search: Option<String>,
-        viewer_user_id: Option<Uuid>,
-        page: u32,
-        page_size: u32,
+        filters: ProjectListFilters,
     ) -> Result<Vec<Project>, DomainError> {
-        self.read_repo
-            .list_with_filters(
-                owner_type,
-                owner_id,
-                status,
-                search,
-                viewer_user_id,
-                page,
-                page_size,
-            )
-            .await
+        self.read_repo.list_with_filters(filters).await
     }
 
     async fn count(&self) -> Result<i64, DomainError> {

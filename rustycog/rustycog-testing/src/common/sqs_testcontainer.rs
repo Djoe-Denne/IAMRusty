@@ -502,25 +502,8 @@ impl TestSqs {
                 .receive_messages_from_queue_url(queue_url, 10, 2)
                 .await?;
 
-            for message in messages {
-                if let Some(body) = message.body() {
-                    all_messages.push(body.to_string());
-                }
-
-                // Delete the message to avoid reprocessing
-                if let Some(receipt_handle) = message.receipt_handle() {
-                    if let Err(e) = self
-                        .delete_message_from_queue_url(queue_url, receipt_handle)
-                        .await
-                    {
-                        warn!("Failed to delete message: {}", e);
-                    }
-                }
-
-                if all_messages.len() >= expected_count {
-                    break;
-                }
-            }
+            self.collect_received_messages(queue_url, messages, expected_count, &mut all_messages)
+                .await;
 
             if all_messages.len() < expected_count {
                 tokio::time::sleep(Duration::from_millis(500)).await;
@@ -539,6 +522,38 @@ impl TestSqs {
 
         debug!("Successfully received {} messages", all_messages.len());
         Ok(all_messages)
+    }
+
+    async fn collect_received_messages(
+        &self,
+        queue_url: &str,
+        messages: Vec<Message>,
+        expected_count: usize,
+        all_messages: &mut Vec<String>,
+    ) {
+        for message in messages {
+            if let Some(body) = message.body() {
+                all_messages.push(body.to_string());
+            }
+
+            if let Some(receipt_handle) = message.receipt_handle() {
+                self.delete_received_message(queue_url, receipt_handle)
+                    .await;
+            }
+
+            if all_messages.len() >= expected_count {
+                break;
+            }
+        }
+    }
+
+    async fn delete_received_message(&self, queue_url: &str, receipt_handle: &str) {
+        if let Err(e) = self
+            .delete_message_from_queue_url(queue_url, receipt_handle)
+            .await
+        {
+            warn!("Failed to delete message: {}", e);
+        }
     }
 
     /// Purge all messages from the queue

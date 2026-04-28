@@ -12,7 +12,9 @@ use std::sync::{Arc, Mutex};
 use async_trait::async_trait;
 use manifesto_domain::{
     entity::{Project, ProjectComponent},
-    port::{ComponentReadRepository, ProjectReadRepository, ProjectWriteRepository},
+    port::{
+        ComponentReadRepository, ProjectListFilters, ProjectReadRepository, ProjectWriteRepository,
+    },
     service::{ProjectService, ProjectServiceImpl},
     value_objects::{OwnerType, ProjectStatus, Visibility},
 };
@@ -97,22 +99,16 @@ impl ProjectReadRepository for RecordingProjectRepository {
 
     async fn list_with_filters(
         &self,
-        _owner_type: Option<OwnerType>,
-        _owner_id: Option<Uuid>,
-        _status: Option<ProjectStatus>,
-        search: Option<String>,
-        viewer_user_id: Option<Uuid>,
-        page: u32,
-        page_size: u32,
+        filters: ProjectListFilters,
     ) -> Result<Vec<Project>, DomainError> {
         *self
             .last_list_args
             .lock()
             .expect("list args mutex should not be poisoned") = Some(RecordedListArgs {
-            search,
-            viewer_user_id,
-            page,
-            page_size,
+            search: filters.search,
+            viewer_user_id: filters.viewer_user_id,
+            page: filters.page,
+            page_size: filters.page_size,
         });
 
         Ok(vec![self.project.clone()])
@@ -196,15 +192,15 @@ async fn project_service_forwards_search_and_viewer_filters_to_the_repository() 
     let viewer_user_id = Uuid::new_v4();
 
     let listed_projects = service
-        .list_projects(
-            None,
-            None,
-            None,
-            Some("roadmap".to_string()),
-            Some(viewer_user_id),
-            2,
-            25,
-        )
+        .list_projects(ProjectListFilters {
+            owner_type: None,
+            owner_id: None,
+            status: None,
+            search: Some("roadmap".to_string()),
+            viewer_user_id: Some(viewer_user_id),
+            page: 2,
+            page_size: 25,
+        })
         .await
         .expect("list_projects should succeed");
     let total = service

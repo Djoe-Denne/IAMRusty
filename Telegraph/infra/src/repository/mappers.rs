@@ -1,7 +1,7 @@
 //! Mappers for converting between domain and infrastructure entities
 
-use chrono::{DateTime, Utc};
-use sea_orm::*;
+use chrono::Utc;
+use sea_orm::ActiveValue;
 use std::collections::HashMap;
 use uuid::Uuid;
 

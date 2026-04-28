@@ -267,7 +267,7 @@ impl OrganizationUseCase for OrganizationUseCaseImpl {
     async fn get_organization(
         &self,
         organization_id: Uuid,
-        user_id: Option<Uuid>,
+        _user_id: Option<Uuid>,
     ) -> Result<OrganizationResponse, ApplicationError> {
         let organization = self
             .organization_service
@@ -397,12 +397,12 @@ impl OrganizationUseCase for OrganizationUseCaseImpl {
             has_next: total_pages > request.page.unwrap_or(1),
             has_previous: request.page.unwrap_or(1) > 1,
             next_cursor: if total_pages > request.page.unwrap_or(1) {
-                Some(((request.page.unwrap_or(1) + 1) as i64).to_string())
+                Some((request.page.unwrap_or(1) + 1).to_string())
             } else {
                 None
             },
             previous_cursor: if request.page.unwrap_or(1) > 1 {
-                Some(((request.page.unwrap_or(1) - 1) as i64).to_string())
+                Some((request.page.unwrap_or(1) - 1).to_string())
             } else {
                 None
             },
