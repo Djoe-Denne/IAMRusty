@@ -11,7 +11,9 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   RUST_BACKTRACE: 1
+  RUN_ENV: test
 
 jobs:
   fmt:
@@ -162,6 +164,11 @@ jobs:
           cache-on-failure: true
 
       - uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Check Docker
+        run: |
+          docker version
+          docker info
 
       - name: Run integration tests with coverage
         run: cargo llvm-cov ${{ matrix.package_args }} --locked --lcov --output-path ${{ matrix.output_path }}
