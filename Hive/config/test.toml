@@ -57,6 +57,7 @@ member_removed = ["test-sentinel-sync-events"]
 
 [logging]
 level = "debug"
+filter = "debug"
 
 # Centralized authorization (OpenFGA). Tests run against a real
 # `openfga/openfga` testcontainer provisioned by
@@ -83,4 +84,3 @@ store_id = ""
 # inside a single process actually observe the second decision instead of
 # the cached one from the first call.
 cache_ttl_seconds = 0
-

@@ -50,7 +50,8 @@ value = "rustycog-test-hs256-secret"
 
 # Enable maximum logging for tests
 [logging]
-level = ""
+level = "debug"
+filter = "debug"
 
 # Command configuration for testing
 [command.retry]

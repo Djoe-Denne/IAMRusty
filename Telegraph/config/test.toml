@@ -10,6 +10,7 @@ hs256_secret = "rustycog-test-hs256-secret"
 
 [logging]
 level = "debug"
+filter = "debug"
 
 [database]
 # Database connection details for Telegraph notifications (test environment)
