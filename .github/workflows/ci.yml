@@ -171,21 +171,32 @@ jobs:
           docker info
 
       - name: Run integration tests with coverage
-        run: cargo llvm-cov ${{ matrix.package_args }} --locked --lcov --output-path ${{ matrix.output_path }}
+        run: |
+          set +e
+          cargo llvm-cov ${{ matrix.package_args }} --locked --no-report --no-fail-fast
+          test_status=$?
+          set -e
+
+          cargo llvm-cov report --lcov --output-path ${{ matrix.output_path }}
+          exit "$test_status"
 
       - name: Upload coverage artifact
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
           path: ${{ matrix.output_path }}
+          if-no-files-found: warn
 
   merge-coverage:
     name: Merge coverage
     runs-on: ubuntu-latest
     needs: [coverage]
+    if: ${{ always() && !cancelled() }}
     steps:
       - name: Download coverage artifacts
         uses: actions/download-artifact@v4
+        continue-on-error: true
         with:
           pattern: lcov-*
           path: coverage-artifacts
@@ -198,6 +209,7 @@ jobs:
 
       - name: Merge LCOV reports
         run: |
+          shopt -s nullglob
           lcov_args=()
           for report in coverage-artifacts/*.info; do
             if [ -f "$report" ]; then
@@ -206,8 +218,9 @@ jobs:
           done
 
           if [ "${#lcov_args[@]}" -eq 0 ]; then
-            echo "No LCOV reports were downloaded."
-            exit 1
+            echo "No LCOV reports were downloaded; creating an empty report so Sonar can still run."
+            : > lcov.info
+            exit 0
           fi
 
           lcov "${lcov_args[@]}" --output-file lcov.info
@@ -222,6 +235,7 @@ jobs:
     name: SonarCloud
     runs-on: ubuntu-latest
     needs: [merge-coverage]
+    if: ${{ always() && !cancelled() }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -229,9 +243,17 @@ jobs:
 
       - name: Download coverage artifact
         uses: actions/download-artifact@v4
+        continue-on-error: true
         with:
           name: lcov
           path: .
+
+      - name: Ensure coverage report exists
+        run: |
+          if [ ! -f lcov.info ]; then
+            echo "No merged coverage artifact found; creating an empty report so Sonar can still run."
+            : > lcov.info
+          fi
 
       - name: SonarCloud scan
         uses: SonarSource/sonarqube-scan-action@v7
