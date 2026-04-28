@@ -46,6 +46,42 @@ impl Default for ServerConfig {
     }
 }
 
+impl ServerConfig {
+    /// Resolve the configured HTTP port. When `port == 0`, pick one free host
+    /// port and cache it so the server and test client agree.
+    pub fn actual_port(&self) -> u16 {
+        if self.port == 0 {
+            let cache_key = format!("server:{}", self.host);
+            let cache = PORT_CACHE.get_or_init(|| Arc::new(Mutex::new(HashMap::new())));
+            let mut port_cache = cache.lock().unwrap();
+
+            if let Some(&cached_port) = port_cache.get(&cache_key) {
+                return cached_port;
+            }
+
+            let random_port = Self::get_random_port();
+            port_cache.insert(cache_key, random_port);
+            debug!("Generated random server port: {}", random_port);
+            random_port
+        } else {
+            self.port
+        }
+    }
+
+    fn get_random_port() -> u16 {
+        use std::net::{SocketAddr, TcpListener};
+
+        match TcpListener::bind("127.0.0.1:0") {
+            Ok(listener) => match listener.local_addr() {
+                Ok(SocketAddr::V4(addr)) => addr.port(),
+                Ok(SocketAddr::V6(addr)) => addr.port(),
+                Err(_) => 8080,
+            },
+            Err(_) => 8080,
+        }
+    }
+}
+
 fn default_cert_path() -> String {
     "./certs/cert.pem".to_string()
 }
@@ -283,12 +319,22 @@ impl Default for ScalewayConfig {
 
 /// Logging configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ConsoleLoggingOutput;
+pub struct ConsoleLoggingOutput {
+    /// Whether console logging output is enabled.
+    #[serde(default = "default_console_logging_enabled")]
+    pub enabled: bool,
+}
 
 impl Default for ConsoleLoggingOutput {
     fn default() -> Self {
-        Self {}
+        Self {
+            enabled: default_console_logging_enabled(),
+        }
     }
+}
+
+fn default_console_logging_enabled() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

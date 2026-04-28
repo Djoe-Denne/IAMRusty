@@ -2,11 +2,14 @@ use crate::common::{build_test_app, spawn_test_server, ServiceTestDescriptor};
 use reqwest::Client;
 use rustycog_config::{load_config_part, ServerConfig};
 use std::any::TypeId;
+use std::io;
 use std::sync::Arc;
 use std::sync::OnceLock;
+use std::time::Duration;
+use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
-use tracing::debug;
+use tracing::{debug, warn};
 
 /// Global test server instance that starts only once
 static TEST_SERVER: OnceLock<Arc<Mutex<Option<JoinHandle<()>>>>> = OnceLock::new();
@@ -46,7 +49,8 @@ where
 
     let server_config =
         load_config_part::<ServerConfig>("server").expect("failed to load server config");
-    let base_url = format!("http://{}:{}", server_config.host, server_config.port);
+    let server_port = server_config.actual_port();
+    let base_url = format!("http://{}:{}", server_config.host, server_port);
 
     if needs_new_server {
         // If the old handle is finished, clear it
@@ -67,6 +71,8 @@ where
 
         *server_guard = Some(server_handle);
         *descriptor_type_guard = Some(descriptor_type);
+
+        wait_for_server_ready(&server_config.host, server_port, server_guard.as_ref()).await?;
     } else {
         debug!("♻️  Reusing existing server instance");
     }
@@ -94,4 +100,46 @@ pub fn create_test_client() -> Client {
         .redirect(reqwest::redirect::Policy::none())
         .build()
         .expect("Failed to create HTTP client")
+}
+
+async fn wait_for_server_ready(
+    host: &str,
+    port: u16,
+    handle: Option<&JoinHandle<()>>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let address = format!("{host}:{port}");
+    let max_attempts = 50;
+
+    for attempt in 1..=max_attempts {
+        if let Some(handle) = handle {
+            if handle.is_finished() {
+                return Err(io::Error::new(
+                    io::ErrorKind::ConnectionRefused,
+                    format!("test server task exited before {address} became ready"),
+                )
+                .into());
+            }
+        }
+
+        match TcpStream::connect(&address).await {
+            Ok(_) => {
+                debug!("✅ Test server is ready at {}", address);
+                return Ok(());
+            }
+            Err(error) => {
+                debug!(
+                    "Waiting for test server at {} ({}/{}): {}",
+                    address, attempt, max_attempts, error
+                );
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+        }
+    }
+
+    warn!("Test server did not become ready at {}", address);
+    Err(io::Error::new(
+        io::ErrorKind::TimedOut,
+        format!("test server at {address} did not become ready"),
+    )
+    .into())
 }

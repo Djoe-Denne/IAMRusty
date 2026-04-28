@@ -17,7 +17,7 @@ impl TemplateEnvironmentService {
     /// Returns a map with lowercase keys and '__' replaced with '.'
     ///
     /// Example:
-    /// - TELEGRAPH__TEMPLATE__BASE_URL=https://example.com becomes base.url=https://example.com
+    /// - TELEGRAPH__TEMPLATE__BASE__URL=https://example.com becomes base.url=https://example.com
     /// - TELEGRAPH__TEMPLATE__VERIFY__URL=https://example.com/verify becomes verify.url=https://example.com/verify
     pub fn get_template_variables(&self) -> HashMap<String, String> {
         let mut variables = HashMap::new();
@@ -104,22 +104,19 @@ impl Default for TemplateEnvironmentService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::env;
 
     #[test]
     fn test_get_template_variables_empty() {
         let service = TemplateEnvironmentService::new();
-        let variables = service.get_template_variables();
-
-        // May or may not be empty depending on environment, just check it returns a map
-        assert!(variables.len() >= 0);
+        let _variables = service.get_template_variables();
     }
 
     #[test]
     fn test_normalize_key() {
         // This test verifies the key normalization logic
         let test_cases = vec![
-            ("BASE_URL", "base.url"),
+            ("BASE__URL", "base.url"),
+            ("BASE_URL", "base_url"),
             ("VERIFY__URL", "verify.url"),
             ("RESET__PASSWORD__URL", "reset.password.url"),
             ("SIMPLE", "simple"),
@@ -133,8 +130,6 @@ mod tests {
 
     #[test]
     fn test_env_key_construction() {
-        let service = TemplateEnvironmentService::new();
-
         // Test the reverse transformation for get_template_variable
         let test_cases = vec![
             ("base.url", "TELEGRAPH__TEMPLATE__BASE__URL"),

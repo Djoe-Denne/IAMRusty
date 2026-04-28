@@ -220,8 +220,9 @@ pub async fn serve_router(app: Router, config: ServerConfig) -> anyhow::Result<(
             .serve(app.into_make_service())
             .await?;
     } else {
-        tracing::info!("Starting HTTP server on {}:{}", config.host, config.port);
-        let addr: SocketAddr = format!("{}:{}", config.host, config.port).parse()?;
+        let port = config.actual_port();
+        tracing::info!("Starting HTTP server on {}:{}", config.host, port);
+        let addr: SocketAddr = format!("{}:{}", config.host, port).parse()?;
         let listener = tokio::net::TcpListener::bind(addr).await?;
         axum::serve(listener, app).await?;
     }
