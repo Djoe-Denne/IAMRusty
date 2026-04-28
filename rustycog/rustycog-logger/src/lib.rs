@@ -4,6 +4,8 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[cfg(feature = "scaleway-loki")]
 use rustycog_config::HasScalewayConfig;
+#[cfg(feature = "scaleway-loki")]
+use std::env;
 
 #[cfg(feature = "scaleway-loki")]
 pub trait ServiceLoggerConfig: HasLoggingConfig + HasScalewayConfig {}
