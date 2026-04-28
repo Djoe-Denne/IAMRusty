@@ -10,7 +10,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use common::setup_test_server;
-use fixtures::DbFixtures;
+use fixtures::db::DbFixtures;
 use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
 use reqwest::Client;
 use serial_test::serial;

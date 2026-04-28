@@ -25,6 +25,8 @@ use telegraphmigration::{Migrator, MigratorTrait};
 pub use rustycog_testing::common::openfga_testcontainer::TestOpenFga;
 
 // Re-export the permission domain types tests need to express tuples.
+#[allow(unused_imports)]
+pub use rustycog_permission::{Permission, ResourceRef, Subject};
 
 #[path = "fixtures/mod.rs"]
 mod fixtures;
