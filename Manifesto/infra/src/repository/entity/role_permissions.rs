@@ -69,4 +69,3 @@ impl Related<super::project_member_role_permissions::Entity> for Entity {
 }
 
 impl ActiveModelBehavior for ActiveModel {}
-

@@ -49,7 +49,11 @@ async fn test_add_member_returns_201_with_valid_permissions() {
     let new_member_id = Uuid::new_v4();
 
     let response = client
-        .post(&format!("{}/api/projects/{}/members", base_url, project.id()))
+        .post(&format!(
+            "{}/api/projects/{}/members",
+            base_url,
+            project.id()
+        ))
         .header("Authorization", format!("Bearer {}", jwt_token))
         .header("Content-Type", "application/json")
         .json(&json!({
@@ -110,7 +114,11 @@ async fn test_add_member_returns_403_without_admin_permission() {
     let new_member_id = Uuid::new_v4();
 
     let response = client
-        .post(&format!("{}/api/projects/{}/members", base_url, project.id()))
+        .post(&format!(
+            "{}/api/projects/{}/members",
+            base_url,
+            project.id()
+        ))
         .header("Authorization", format!("Bearer {}", jwt_token))
         .header("Content-Type", "application/json")
         .json(&json!({
@@ -226,7 +234,11 @@ async fn test_list_members_returns_paginated_results() {
     let jwt_token = create_test_jwt_token(owner_id);
 
     let response = client
-        .get(&format!("{}/api/projects/{}/members", base_url, project.id()))
+        .get(&format!(
+            "{}/api/projects/{}/members",
+            base_url,
+            project.id()
+        ))
         .header("Authorization", format!("Bearer {}", jwt_token))
         .send()
         .await
@@ -242,7 +254,10 @@ async fn test_list_members_returns_paginated_results() {
 
     assert!(response_json["data"].is_array(), "Should return data array");
     let members = response_json["data"].as_array().unwrap();
-    assert!(members.len() >= 4, "Should return all members including owner");
+    assert!(
+        members.len() >= 4,
+        "Should return all members including owner"
+    );
     assert!(
         response_json["pagination"].is_object(),
         "Should return pagination info"
@@ -764,5 +779,3 @@ async fn test_revoke_permission_on_specific_component_returns_204() {
         "Should return 204 No Content for revoking permission on specific component"
     );
 }
-
-

@@ -11,23 +11,32 @@ use crate::value_objects::ComponentStatus;
 #[async_trait]
 pub trait ComponentService: Send + Sync {
     async fn get_component(&self, id: &Uuid) -> Result<ProjectComponent, DomainError>;
-    
+
     async fn get_component_by_type(
         &self,
         project_id: &Uuid,
         component_type: &str,
     ) -> Result<ProjectComponent, DomainError>;
-    
-    async fn add_component(&self, component: ProjectComponent) -> Result<ProjectComponent, DomainError>;
-    
-    async fn update_component(&self, component: ProjectComponent) -> Result<ProjectComponent, DomainError>;
-    
+
+    async fn add_component(
+        &self,
+        component: ProjectComponent,
+    ) -> Result<ProjectComponent, DomainError>;
+
+    async fn update_component(
+        &self,
+        component: ProjectComponent,
+    ) -> Result<ProjectComponent, DomainError>;
+
     async fn remove_component(&self, id: &Uuid) -> Result<(), DomainError>;
-    
-    async fn list_components(&self, project_id: &Uuid) -> Result<Vec<ProjectComponent>, DomainError>;
-    
+
+    async fn list_components(
+        &self,
+        project_id: &Uuid,
+    ) -> Result<Vec<ProjectComponent>, DomainError>;
+
     async fn validate_component_type(&self, component_type: &str) -> Result<(), DomainError>;
-    
+
     async fn validate_unique_component(
         &self,
         project_id: &Uuid,
@@ -92,27 +101,35 @@ where
             })
     }
 
-    async fn add_component(&self, component: ProjectComponent) -> Result<ProjectComponent, DomainError> {
+    async fn add_component(
+        &self,
+        component: ProjectComponent,
+    ) -> Result<ProjectComponent, DomainError> {
         // Validate component
         component.validate()?;
-        
+
         // Check uniqueness
-        self.validate_unique_component(&component.project_id, &component.component_type).await?;
-        
+        self.validate_unique_component(&component.project_id, &component.component_type)
+            .await?;
+
         // Create resource for this component type (e.g., "taskboard", "wiki")
         // Note: This may fail if the resource already exists, which is fine
-        let _ = self.permission_service
+        let _ = self
+            .permission_service
             .create_component_type_resource(&component.component_type)
             .await;
-        
+
         // Save to repository
         self.component_repo.save(&component).await
     }
 
-    async fn update_component(&self, component: ProjectComponent) -> Result<ProjectComponent, DomainError> {
+    async fn update_component(
+        &self,
+        component: ProjectComponent,
+    ) -> Result<ProjectComponent, DomainError> {
         // Validate component
         component.validate()?;
-        
+
         // Save to repository
         self.component_repo.save(&component).await
     }
@@ -120,19 +137,22 @@ where
     async fn remove_component(&self, id: &Uuid) -> Result<(), DomainError> {
         // Get component to retrieve its type
         let component = self.get_component(id).await?;
-        
+
         // Delete the component
         self.component_repo.delete(id).await?;
-        
+
         // Delete resource for this component type (cascade deletes role_permissions)
         self.permission_service
             .delete_resource(&component.component_type)
             .await?;
-        
+
         Ok(())
     }
 
-    async fn list_components(&self, project_id: &Uuid) -> Result<Vec<ProjectComponent>, DomainError> {
+    async fn list_components(
+        &self,
+        project_id: &Uuid,
+    ) -> Result<Vec<ProjectComponent>, DomainError> {
         self.component_repo.find_by_project(project_id).await
     }
 
@@ -172,4 +192,3 @@ where
         Ok(())
     }
 }
-

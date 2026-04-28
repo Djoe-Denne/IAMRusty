@@ -45,4 +45,3 @@ impl Related<super::role_permissions::Entity> for Entity {
 }
 
 impl ActiveModelBehavior for ActiveModel {}
-

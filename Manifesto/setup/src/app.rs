@@ -10,7 +10,6 @@ use manifesto_configuration::AppConfig;
 use manifesto_domain::service::{ComponentServiceImpl, MemberServiceImpl, ProjectServiceImpl};
 use manifesto_http_server::{create_app_routes, create_router};
 use manifesto_infra::{
-    ApparatusEventConsumer, ManifestoErrorMapper, ProjectCreationUnitOfWorkImpl,
     adapters::ComponentServiceClient,
     processors::ComponentStatusProcessor,
     repository::{
@@ -23,6 +22,7 @@ use manifesto_infra::{
         RolePermissionReadRepositoryImpl, RolePermissionRepositoryImpl,
         RolePermissionWriteRepositoryImpl,
     },
+    ApparatusEventConsumer, ManifestoErrorMapper, ProjectCreationUnitOfWorkImpl,
 };
 
 // Rustycog
@@ -30,7 +30,7 @@ use rustycog_command::GenericCommandService;
 use rustycog_config::ServerConfig;
 use rustycog_core::error::DomainError;
 use rustycog_db::DbConnectionPool;
-use rustycog_events::{EventPublisher, create_multi_queue_event_publisher};
+use rustycog_events::{create_multi_queue_event_publisher, EventPublisher};
 use rustycog_http::{AppState, UserIdExtractor};
 use rustycog_outbox::{OutboxConfig, OutboxDispatcher, OutboxRecorder};
 use rustycog_permission::{

@@ -1,8 +1,6 @@
 use crate::common::ServiceTestDescriptor;
-use rustycog_config::{
-    load_config_fresh, HasLoggingConfig, HasServerConfig, ServerConfig,
-};
-use rustycog_logger::{setup_logging};
+use rustycog_config::{load_config_fresh, HasLoggingConfig, HasServerConfig, ServerConfig};
+use rustycog_logger::setup_logging;
 use std::sync::Arc;
 use tracing::debug;
 

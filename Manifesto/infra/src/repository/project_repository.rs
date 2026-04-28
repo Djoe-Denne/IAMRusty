@@ -1,15 +1,11 @@
 use async_trait::async_trait;
 use manifesto_domain::entity::Project;
-use manifesto_domain::port::{
-    ProjectReadRepository, ProjectRepository, ProjectWriteRepository,
-};
-use manifesto_domain::value_objects::{
-    DataClassification, OwnerType, ProjectStatus, Visibility,
-};
+use manifesto_domain::port::{ProjectReadRepository, ProjectRepository, ProjectWriteRepository};
+use manifesto_domain::value_objects::{DataClassification, OwnerType, ProjectStatus, Visibility};
 use rustycog_core::error::DomainError;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, Order,
-    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Condition,
+    ActiveModelTrait, ActiveValue, ColumnTrait, Condition, ConnectionTrait, DatabaseConnection,
+    EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect,
 };
 use std::sync::Arc;
 use tracing::debug;
@@ -48,7 +44,9 @@ impl ProjectMapper {
             owner_id: ActiveValue::Set(project.owner_id),
             created_by: ActiveValue::Set(project.created_by),
             visibility: ActiveValue::Set(project.visibility.as_str().to_string()),
-            external_collaboration_enabled: ActiveValue::Set(project.external_collaboration_enabled),
+            external_collaboration_enabled: ActiveValue::Set(
+                project.external_collaboration_enabled,
+            ),
             data_classification: ActiveValue::Set(project.data_classification.as_str().to_string()),
             created_at: ActiveValue::Set(project.created_at.into()),
             updated_at: ActiveValue::Set(project.updated_at.into()),
@@ -99,10 +97,7 @@ impl ProjectReadRepository for ProjectReadRepositoryImpl {
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
-        projects
-            .into_iter()
-            .map(ProjectMapper::to_domain)
-            .collect()
+        projects.into_iter().map(ProjectMapper::to_domain).collect()
     }
 
     async fn list_with_filters(
@@ -160,10 +155,7 @@ impl ProjectReadRepository for ProjectReadRepositoryImpl {
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
-        projects
-            .into_iter()
-            .map(ProjectMapper::to_domain)
-            .collect()
+        projects.into_iter().map(ProjectMapper::to_domain).collect()
     }
 
     async fn count(&self) -> Result<i64, DomainError> {
@@ -242,10 +234,7 @@ impl ProjectWriteRepositoryImpl {
         Self { db }
     }
 
-    pub async fn save_with_connection<C>(
-        db: &C,
-        project: &Project,
-    ) -> Result<Project, DomainError>
+    pub async fn save_with_connection<C>(db: &C, project: &Project) -> Result<Project, DomainError>
     where
         C: ConnectionTrait,
     {
@@ -353,7 +342,15 @@ impl ProjectReadRepository for ProjectRepositoryImpl {
         page_size: u32,
     ) -> Result<Vec<Project>, DomainError> {
         self.read_repo
-            .list_with_filters(owner_type, owner_id, status, search, viewer_user_id, page, page_size)
+            .list_with_filters(
+                owner_type,
+                owner_id,
+                status,
+                search,
+                viewer_user_id,
+                page,
+                page_size,
+            )
             .await
     }
 
@@ -391,4 +388,3 @@ impl ProjectWriteRepository for ProjectRepositoryImpl {
 }
 
 impl ProjectRepository for ProjectRepositoryImpl {}
-

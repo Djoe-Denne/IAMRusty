@@ -3,7 +3,7 @@ use axum::{
     response::Json,
 };
 use hive_application::{
-    GetRoleCommand, ListRolesCommand, PaginationRequest, MemberRole, MemberRoleListResponse
+    GetRoleCommand, ListRolesCommand, MemberRole, MemberRoleListResponse, PaginationRequest,
 };
 use rustycog_command::CommandContext;
 use rustycog_http::{AppState, AuthUser, ValidatedJson};

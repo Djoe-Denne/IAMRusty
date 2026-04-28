@@ -16,13 +16,11 @@ pub struct CreateOrganizationRequest {
     ))]
     pub name: String,
 
-    #[validate(
-        length(
-            min = 1,
-            max = 100,
-            message = "Slug must be between 1 and 100 characters"
-        ),
-    )]
+    #[validate(length(
+        min = 1,
+        max = 100,
+        message = "Slug must be between 1 and 100 characters"
+    ))]
     pub slug: String,
 
     #[validate(length(max = 1000, message = "Description cannot exceed 1000 characters"))]

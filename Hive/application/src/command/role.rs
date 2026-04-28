@@ -5,9 +5,11 @@ use uuid::Uuid;
 
 use crate::{
     dto::{
-    role::{CreateMemberRoleRequest, MemberRole, UpdateMemberRoleRequest},
-    PaginationRequest,
-}, ApplicationError};
+        role::{CreateMemberRoleRequest, MemberRole, UpdateMemberRoleRequest},
+        PaginationRequest,
+    },
+    ApplicationError,
+};
 
 // Placeholder role use case trait
 #[async_trait]

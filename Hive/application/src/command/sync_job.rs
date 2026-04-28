@@ -8,8 +8,8 @@ use crate::{
         StartSyncJobRequest, SyncJobListResponse, SyncJobLogsResponse, SyncJobResponse,
         SyncJobStatusResponse,
     },
-    ApplicationError,
     usecase::SyncJobUseCase,
+    ApplicationError,
 };
 
 #[derive(Debug, Clone)]

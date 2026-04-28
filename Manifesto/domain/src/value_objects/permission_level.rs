@@ -93,4 +93,3 @@ mod tests {
         assert!(PermissionLevel::from_str("invalid").is_err());
     }
 }
-

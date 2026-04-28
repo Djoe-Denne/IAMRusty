@@ -9,19 +9,23 @@ use crate::value_objects::MemberSource;
 
 #[async_trait]
 pub trait MemberService: Send + Sync {
-    async fn get_member(&self, project_id: Uuid, user_id: Uuid) -> Result<ProjectMember, DomainError>;
-    
+    async fn get_member(
+        &self,
+        project_id: Uuid,
+        user_id: Uuid,
+    ) -> Result<ProjectMember, DomainError>;
+
     async fn add_member(&self, member: ProjectMember) -> Result<ProjectMember, DomainError>;
-    
+
     async fn update_member(&self, member: ProjectMember) -> Result<ProjectMember, DomainError>;
-    
+
     async fn remove_member(
         &self,
         project_id: &Uuid,
         user_id: &Uuid,
         grace_period_days: Option<i64>,
     ) -> Result<(), DomainError>;
-    
+
     async fn list_members(
         &self,
         project_id: &Uuid,
@@ -30,9 +34,9 @@ pub trait MemberService: Send + Sync {
         page: u32,
         page_size: u32,
     ) -> Result<Vec<ProjectMember>, DomainError>;
-    
+
     async fn count_active_members(&self, project_id: &Uuid) -> Result<i64, DomainError>;
-    
+
     async fn check_member_exists(
         &self,
         project_id: &Uuid,
@@ -61,27 +65,37 @@ impl<MR> MemberService for MemberServiceImpl<MR>
 where
     MR: MemberRepository,
 {
-    async fn get_member(&self, project_id: Uuid, user_id: Uuid) -> Result<ProjectMember, DomainError> {
+    async fn get_member(
+        &self,
+        project_id: Uuid,
+        user_id: Uuid,
+    ) -> Result<ProjectMember, DomainError> {
         self.member_repo
             .find_by_project_and_user(&project_id, &user_id)
             .await?
             .ok_or_else(|| {
-                DomainError::entity_not_found("ProjectMember", &format!("{}/{}", project_id, user_id))
+                DomainError::entity_not_found(
+                    "ProjectMember",
+                    &format!("{}/{}", project_id, user_id),
+                )
             })
     }
 
     async fn add_member(&self, member: ProjectMember) -> Result<ProjectMember, DomainError> {
         // Validate member
         member.validate()?;
-        
+
         // Check if member already exists
-        if self.check_member_exists(&member.project_id, &member.user_id).await? {
+        if self
+            .check_member_exists(&member.project_id, &member.user_id)
+            .await?
+        {
             return Err(DomainError::resource_already_exists(
                 "ProjectMember",
                 &member.user_id.to_string(),
             ));
         }
-        
+
         // Save member
         self.member_repo.save(&member).await
     }
@@ -89,7 +103,7 @@ where
     async fn update_member(&self, member: ProjectMember) -> Result<ProjectMember, DomainError> {
         // Validate member
         member.validate()?;
-        
+
         // Save member
         self.member_repo.save(&member).await
     }
@@ -133,4 +147,3 @@ where
             .await
     }
 }
-

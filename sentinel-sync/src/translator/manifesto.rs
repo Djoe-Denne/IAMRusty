@@ -8,7 +8,7 @@
 use anyhow::Result;
 use manifesto_events::ManifestoDomainEvent;
 
-use super::{TupleDelta, Translator};
+use super::{Translator, TupleDelta};
 use crate::fga_client::Tuple;
 
 #[derive(Default)]
@@ -76,25 +76,25 @@ impl Translator for ManifestoTranslator {
                 d
             }
 
-            ManifestoDomainEvent::ComponentAdded(evt) => TupleDelta::default().write(
-                Tuple::object(
+            ManifestoDomainEvent::ComponentAdded(evt) => {
+                TupleDelta::default().write(Tuple::object(
                     "component",
                     evt.component_id,
                     "project",
                     "project",
                     evt.project_id,
-                ),
-            ),
+                ))
+            }
 
-            ManifestoDomainEvent::ComponentRemoved(evt) => TupleDelta::default().delete(
-                Tuple::object(
+            ManifestoDomainEvent::ComponentRemoved(evt) => {
+                TupleDelta::default().delete(Tuple::object(
                     "component",
                     evt.component_id,
                     "project",
                     "project",
                     evt.project_id,
-                ),
-            ),
+                ))
+            }
 
             ManifestoDomainEvent::MemberAdded(evt) => {
                 // Every member gets the base `project#member` tuple. The

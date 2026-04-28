@@ -261,7 +261,10 @@ mod subject_tests {
     fn user_subject_renders_as_user_uuid() {
         let id = Uuid::parse_str("01010101-0101-0101-0101-010101010101").unwrap();
         let subject = Subject::new(id);
-        assert_eq!(subject.to_string(), "user:01010101-0101-0101-0101-010101010101");
+        assert_eq!(
+            subject.to_string(),
+            "user:01010101-0101-0101-0101-010101010101"
+        );
         assert!(!subject.is_wildcard());
     }
 
@@ -279,6 +282,9 @@ mod subject_tests {
         let json = r#"{"user_id":"01010101-0101-0101-0101-010101010101"}"#;
         let subject: Subject = serde_json::from_str(json).expect("legacy payload should parse");
         assert!(matches!(subject.kind, SubjectKind::User));
-        assert_eq!(subject.to_string(), "user:01010101-0101-0101-0101-010101010101");
+        assert_eq!(
+            subject.to_string(),
+            "user:01010101-0101-0101-0101-010101010101"
+        );
     }
 }

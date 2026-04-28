@@ -1,8 +1,12 @@
 use serde_json::Value;
-use uuid::Uuid;
 use std::sync::Arc;
+use uuid::Uuid;
 
-use crate::{entity::*, port::*, service::{member_service::MemberService, role_service::RoleService}};
+use crate::{
+    entity::*,
+    port::*,
+    service::{member_service::MemberService, role_service::RoleService},
+};
 use rustycog_core::error::DomainError;
 
 /// Domain service for organization management
@@ -21,7 +25,7 @@ where
 pub trait OrganizationService: Send + Sync {
     /**
      * Create a new organization with default roles
-     * 
+     *
      * @param organization - The organization to create
      */
     async fn create_organization(
@@ -31,7 +35,7 @@ pub trait OrganizationService: Send + Sync {
 
     /**
      * Update an organization
-     * 
+     *
      * @param id - The ID of the organization to update
      */
     async fn update_organization(
@@ -45,31 +49,28 @@ pub trait OrganizationService: Send + Sync {
 
     /**
      * Delete an organization
-     * 
+     *
      * @param id - The ID of the organization to delete
      */
-    async fn delete_organization(
-        &self,
-        id: Uuid,
-    ) -> Result<(), DomainError>;
+    async fn delete_organization(&self, id: Uuid) -> Result<(), DomainError>;
 
     /**
      * Get an organization by ID
-     * 
+     *
      * @param id - The ID of the organization to get
      */
     async fn get_organization(&self, id: &Uuid) -> Result<Organization, DomainError>;
 
     /**
      * Get an organization by slug
-     * 
+     *
      * @param slug - The slug of the organization to get
      */
     async fn get_organization_by_slug(&self, slug: &str) -> Result<Organization, DomainError>;
 
     /**
      * List organizations for a user
-     * 
+     *
      * @param user_id - The ID of the user to list the organizations for
      */
     async fn list_user_organizations(
@@ -81,7 +82,7 @@ pub trait OrganizationService: Send + Sync {
 
     /**
      * Search organizations by name
-     * 
+     *
      * @param name_pattern - The pattern to search for
      */
     async fn search_organizations(
@@ -136,12 +137,24 @@ where
         let saved_org = self.organization_repo.save(&organization).await?;
 
         // Create default system roles for the organization
-        let default_roles = self.role_service.create_default_roles(&saved_org.id).await?;
+        let default_roles = self
+            .role_service
+            .create_default_roles(&saved_org.id)
+            .await?;
 
-        let owner_role_permission = self.role_service.find_role_permissions("organization", "owner", default_roles).await?;
+        let owner_role_permission = self
+            .role_service
+            .find_role_permissions("organization", "owner", default_roles)
+            .await?;
 
         // Add owner as the first member with Owner role
-        self.member_service.add_member(saved_org.id, organization.owner_user_id, vec![owner_role_permission], None)
+        self.member_service
+            .add_member(
+                saved_org.id,
+                organization.owner_user_id,
+                vec![owner_role_permission],
+                None,
+            )
             .await?;
 
         Ok(saved_org)
@@ -187,10 +200,7 @@ where
     }
 
     /// Delete organization
-    async fn delete_organization(
-        &self,
-        id: Uuid,
-    ) -> Result<(), DomainError> {
+    async fn delete_organization(&self, id: Uuid) -> Result<(), DomainError> {
         // Find the organization
         let organization = self
             .organization_repo
@@ -199,7 +209,9 @@ where
             .ok_or_else(|| DomainError::entity_not_found("Organization", &id.to_string()))?;
 
         // Delete all members
-        self.member_service.remove_organization_members(organization.id).await?;
+        self.member_service
+            .remove_organization_members(organization.id)
+            .await?;
 
         // Delete all roles
         self.role_service.delete_organization_roles(&id).await?;
@@ -212,7 +224,8 @@ where
 
     /// Get organization by ID
     async fn get_organization(&self, id: &Uuid) -> Result<Organization, DomainError> {
-        let organization = self.organization_repo
+        let organization = self
+            .organization_repo
             .find_by_id(&id)
             .await?
             .ok_or_else(|| DomainError::entity_not_found("Organization", &id.to_string()))?;

@@ -83,7 +83,8 @@ pub struct RemoveMemberCommand {
 }
 
 impl RemoveMemberCommand {
-    pub fn new(organization_id: Uuid, user_id: Uuid, removed_by_user_id: Uuid) -> Self { // TODO: Get removed_by_user_id from context
+    pub fn new(organization_id: Uuid, user_id: Uuid, removed_by_user_id: Uuid) -> Self {
+        // TODO: Get removed_by_user_id from context
         Self {
             command_id: Uuid::new_v4(),
             organization_id,
@@ -124,10 +125,7 @@ impl RemoveMemberCommandHandler {
 impl CommandHandler<RemoveMemberCommand> for RemoveMemberCommandHandler {
     async fn handle(&self, command: RemoveMemberCommand) -> Result<(), CommandError> {
         self.member_usecase
-            .remove_member(
-                command.organization_id,
-                command.user_id,
-            )
+            .remove_member(command.organization_id, command.user_id)
             .await
             .map_err(|e| CommandError::business("remove_member_failed", &e.to_string()))
     }
@@ -144,7 +142,11 @@ pub struct ListMembersCommand {
 }
 
 impl ListMembersCommand {
-    pub fn new(organization_id: Uuid, pagination: PaginationRequest, user_id: Option<Uuid>) -> Self {
+    pub fn new(
+        organization_id: Uuid,
+        pagination: PaginationRequest,
+        user_id: Option<Uuid>,
+    ) -> Self {
         Self {
             command_id: Uuid::new_v4(),
             organization_id,
@@ -262,7 +264,12 @@ pub struct UpdateMemberCommand {
 }
 
 impl UpdateMemberCommand {
-    pub fn new(organization_id: Uuid, user_id: Uuid, request: &UpdateMemberRolesRequest, requesting_user_id: Uuid) -> Self {
+    pub fn new(
+        organization_id: Uuid,
+        user_id: Uuid,
+        request: &UpdateMemberRolesRequest,
+        requesting_user_id: Uuid,
+    ) -> Self {
         Self {
             command_id: Uuid::new_v4(),
             organization_id,

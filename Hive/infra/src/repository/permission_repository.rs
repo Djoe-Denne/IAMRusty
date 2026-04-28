@@ -2,25 +2,18 @@
 
 use async_trait::async_trait;
 use hive_domain::entity::{Permission, PermissionLevel};
-use rustycog_core::error::DomainError;
 use hive_domain::port::repository::{PermissionReadRepository, PermissionRepository};
-use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait,
-    QueryFilter
-};
+use rustycog_core::error::DomainError;
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 use std::sync::Arc;
 use tracing::debug;
 use uuid::Uuid;
 
-use super::entity::{
-    prelude::Permissions,
-    permissions,
-};
+use super::entity::{permissions, prelude::Permissions};
 
 pub struct PermissionMapper;
 
 impl PermissionMapper {
-    
     pub fn to_domain(model: permissions::Model) -> Result<Permission, DomainError> {
         Ok(Permission::new(
             PermissionLevel::from_str(&model.level)?,
@@ -37,15 +30,16 @@ pub struct PermissionReadRepositoryImpl {
 }
 
 impl PermissionReadRepositoryImpl {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self { Self { db } }
-
+    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+        Self { db }
+    }
 }
 
 #[async_trait]
 impl PermissionReadRepository for PermissionReadRepositoryImpl {
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<Permission>, DomainError> {
         debug!("Finding permission by ID: {}", id);
-        
+
         let permission = Permissions::find_by_id(*id)
             .one(self.db.as_ref())
             .await
@@ -57,9 +51,12 @@ impl PermissionReadRepository for PermissionReadRepositoryImpl {
         }
     }
 
-    async fn find_by_level(&self, level: &PermissionLevel) -> Result<Option<Permission>, DomainError> {
+    async fn find_by_level(
+        &self,
+        level: &PermissionLevel,
+    ) -> Result<Option<Permission>, DomainError> {
         debug!("Finding permission by level: {}", level.to_str());
-        
+
         let permission = Permissions::find()
             .filter(permissions::Column::Level.eq(level.to_str()))
             .one(self.db.as_ref())
@@ -74,7 +71,7 @@ impl PermissionReadRepository for PermissionReadRepositoryImpl {
 
     async fn find_all(&self) -> Result<Vec<Permission>, DomainError> {
         debug!("Finding all permissions");
-        
+
         let permissions = Permissions::find()
             .all(self.db.as_ref())
             .await
@@ -86,8 +83,7 @@ impl PermissionReadRepository for PermissionReadRepositoryImpl {
         }
         Ok(result)
     }
-
-} 
+}
 
 #[derive(Clone)]
 pub struct PermissionRepositoryImpl {
@@ -95,7 +91,9 @@ pub struct PermissionRepositoryImpl {
 }
 
 impl PermissionRepositoryImpl {
-    pub fn new(read_repo: Arc<dyn PermissionReadRepository>) -> Self { Self { read_repo } }
+    pub fn new(read_repo: Arc<dyn PermissionReadRepository>) -> Self {
+        Self { read_repo }
+    }
 }
 
 #[async_trait]
@@ -104,7 +102,10 @@ impl PermissionReadRepository for PermissionRepositoryImpl {
         self.read_repo.find_by_id(id).await
     }
 
-    async fn find_by_level(&self, level: &PermissionLevel) -> Result<Option<Permission>, DomainError> {
+    async fn find_by_level(
+        &self,
+        level: &PermissionLevel,
+    ) -> Result<Option<Permission>, DomainError> {
         self.read_repo.find_by_level(level).await
     }
 

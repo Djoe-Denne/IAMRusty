@@ -36,7 +36,11 @@ pub trait NotificationReadRepository: Send + Sync {
     async fn count_unread_notifications(&self, user_id: Uuid) -> Result<u64, DomainError>;
 
     /// Check if a user has a notification
-    async fn user_has_notification(&self, user_id: Uuid, notification_id: Uuid) -> Result<bool, DomainError>;
+    async fn user_has_notification(
+        &self,
+        user_id: Uuid,
+        notification_id: Uuid,
+    ) -> Result<bool, DomainError>;
 }
 
 #[async_trait::async_trait]

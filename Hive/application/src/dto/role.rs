@@ -18,7 +18,6 @@ pub enum MemberRolePermission {
 }
 
 impl From<MemberRolePermission> for &str {
-
     fn from(permission: MemberRolePermission) -> Self {
         match permission {
             MemberRolePermission::Read => "read",
@@ -29,7 +28,6 @@ impl From<MemberRolePermission> for &str {
     }
 }
 impl From<MemberRolePermission> for String {
-
     fn from(permission: MemberRolePermission) -> Self {
         match permission {
             MemberRolePermission::Read => String::from("read"),
@@ -89,7 +87,14 @@ pub struct UpdateMemberRoleRequest {
 impl From<&MemberRole> for RolePermission {
     fn from(member_role: &MemberRole) -> Self {
         let permission = Permission::new(member_role.permissions.into(), None, None);
-        RolePermission::new(None, None, member_role.organization_id, &permission, &member_role.resource.clone().into(), Some(Utc::now()))
+        RolePermission::new(
+            None,
+            None,
+            member_role.organization_id,
+            &permission,
+            &member_role.resource.clone().into(),
+            Some(Utc::now()),
+        )
     }
 }
 

@@ -29,9 +29,7 @@ impl CommandErrorMapper for ProjectErrorMapper {
                 ApplicationError::Validation(msg) => {
                     CommandError::validation("validation_failed", msg)
                 }
-                ApplicationError::NotFound(msg) => {
-                    CommandError::business("not_found", msg)
-                }
+                ApplicationError::NotFound(msg) => CommandError::business("not_found", msg),
                 ApplicationError::AlreadyExists(msg) => {
                     CommandError::business("already_exists", msg)
                 }
@@ -502,7 +500,10 @@ impl PublishProjectCommandHandler {
 
 #[async_trait]
 impl CommandHandler<PublishProjectCommand> for PublishProjectCommandHandler {
-    async fn handle(&self, command: PublishProjectCommand) -> Result<ProjectResponse, CommandError> {
+    async fn handle(
+        &self,
+        command: PublishProjectCommand,
+    ) -> Result<ProjectResponse, CommandError> {
         self.project_usecase
             .publish_project(command.project_id, command.user_id)
             .await
@@ -560,7 +561,10 @@ impl ArchiveProjectCommandHandler {
 
 #[async_trait]
 impl CommandHandler<ArchiveProjectCommand> for ArchiveProjectCommandHandler {
-    async fn handle(&self, command: ArchiveProjectCommand) -> Result<ProjectResponse, CommandError> {
+    async fn handle(
+        &self,
+        command: ArchiveProjectCommand,
+    ) -> Result<ProjectResponse, CommandError> {
         self.project_usecase
             .archive_project(command.project_id, command.user_id)
             .await

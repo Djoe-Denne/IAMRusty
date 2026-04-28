@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use uuid::Uuid;
 
-use crate::{entity::{permission::PermissionLevel, *}};
+use crate::entity::{permission::PermissionLevel, *};
 use rustycog_core::error::DomainError;
 
 /// Read operations for Organization entities
@@ -140,10 +140,7 @@ pub trait PermissionRepository: Send + Sync + PermissionReadRepository {}
 #[async_trait]
 pub trait ResourceReadRepository: Send + Sync {
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<Resource>, DomainError>;
-    async fn find_by_type(
-        &self,
-        resource_type: &String,
-    ) -> Result<Option<Resource>, DomainError>;
+    async fn find_by_type(&self, resource_type: &String) -> Result<Option<Resource>, DomainError>;
     async fn find_all(&self) -> Result<Vec<Resource>, DomainError>;
 }
 
@@ -171,7 +168,11 @@ pub trait RolePermissionReadRepository: Send + Sync {
 /// Write operations for RolePermission entities
 #[async_trait]
 pub trait RolePermissionWriteRepository: Send + Sync {
-    async fn save(&self, organization_id: &Uuid, role_permission: &RolePermission) -> Result<RolePermission, DomainError>;
+    async fn save(
+        &self,
+        organization_id: &Uuid,
+        role_permission: &RolePermission,
+    ) -> Result<RolePermission, DomainError>;
     async fn delete_by_organization(&self, organization_id: &Uuid) -> Result<(), DomainError>;
 }
 
@@ -198,10 +199,7 @@ pub trait MemberRoleWriteRepository: Send + Sync {
         &self,
         member_role: &OrganizationMemberRolePermission,
     ) -> Result<OrganizationMemberRolePermission, DomainError>;
-    async fn delete_by_organization_member(
-        &self,
-        member_id: &Uuid,
-    ) -> Result<(), DomainError>;
+    async fn delete_by_organization_member(&self, member_id: &Uuid) -> Result<(), DomainError>;
     async fn delete_by_organization(&self, organization_id: &Uuid) -> Result<(), DomainError>;
 }
 
@@ -231,7 +229,10 @@ pub trait OrganizationInvitationReadRepository: Send + Sync {
     ) -> Result<Vec<OrganizationInvitation>, DomainError>;
 
     /// Find invitations by aggregate id
-    async fn find_by_aggregate_id(&self, aggregate_id: &str) -> Result<Vec<OrganizationInvitation>, DomainError>;
+    async fn find_by_aggregate_id(
+        &self,
+        aggregate_id: &str,
+    ) -> Result<Vec<OrganizationInvitation>, DomainError>;
 
     /// Find pending invitations by organization and aggregate id
     async fn find_by_organization_and_aggregate_id_status(
@@ -412,7 +413,4 @@ pub trait SyncJobWriteRepository: Send + Sync {
 
 /// Combined SyncJob repository
 #[async_trait]
-pub trait SyncJobRepository:
-    Send + Sync + SyncJobReadRepository + SyncJobWriteRepository
-{
-}
+pub trait SyncJobRepository: Send + Sync + SyncJobReadRepository + SyncJobWriteRepository {}

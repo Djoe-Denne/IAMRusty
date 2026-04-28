@@ -5,10 +5,10 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use manifesto_domain::{
-    ProjectMember,
     entity::Project,
     service::{ComponentService, MemberService, PermissionService, ProjectService},
     value_objects::{DataClassification, MemberSource, OwnerType, ProjectStatus, Visibility},
+    ProjectMember,
 };
 use manifesto_events::{
     ManifestoDomainEvent, ProjectArchivedEvent, ProjectCreatedEvent, ProjectDeletedEvent,
@@ -18,11 +18,11 @@ use rustycog_core::error::DomainError;
 use rustycog_events::{DomainEvent, EventPublisher};
 
 use crate::{
-    ApplicationError,
     dto::{
         ComponentResponse, CreateProjectRequest, PaginationRequest, PaginationResponse,
         ProjectDetailResponse, ProjectListResponse, ProjectResponse, UpdateProjectRequest,
     },
+    ApplicationError,
 };
 
 #[async_trait]
@@ -64,7 +64,7 @@ pub trait ProjectUseCase: Send + Sync {
     ) -> Result<ProjectResponse, ApplicationError>;
 
     async fn delete_project(&self, project_id: Uuid, user_id: Uuid)
-    -> Result<(), ApplicationError>;
+        -> Result<(), ApplicationError>;
 
     async fn list_projects(
         &self,

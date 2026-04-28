@@ -10,7 +10,9 @@ use std::sync::Mutex;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use sea_orm::{ConnectionTrait, Database, DatabaseConnection, DbBackend, Statement, TransactionTrait};
+use sea_orm::{
+    ConnectionTrait, Database, DatabaseConnection, DbBackend, Statement, TransactionTrait,
+};
 use uuid::Uuid;
 
 use crate::config::IdempotencyConfig;

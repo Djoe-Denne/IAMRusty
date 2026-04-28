@@ -6,8 +6,8 @@ use validator::Validate;
 /// Resource-permission combination
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct ResourcePermissionRequest {
-    pub resource: String,  // e.g., "project", "member", or component type
-    pub permission: String,  // read, write, admin, owner
+    pub resource: String,   // e.g., "project", "member", or component type
+    pub permission: String, // read, write, admin, owner
 }
 
 /// Resource-permission response
@@ -22,9 +22,9 @@ pub struct ResourcePermissionResponse {
 pub struct AddMemberRequest {
     pub user_id: Uuid,
     #[validate(length(min = 1, message = "Resource cannot be empty"))]
-    pub resource: Option<String>,  // Defaults to "project" if not provided
+    pub resource: Option<String>, // Defaults to "project" if not provided
     #[validate(length(min = 1, message = "Permission cannot be empty"))]
-    pub permission: String,  // read, write, admin, owner
+    pub permission: String, // read, write, admin, owner
 }
 
 /// Request to update a member's permissions
@@ -63,4 +63,3 @@ pub struct MemberListResponse {
     pub data: Vec<MemberResponse>,
     pub pagination: crate::dto::PaginationResponse,
 }
-

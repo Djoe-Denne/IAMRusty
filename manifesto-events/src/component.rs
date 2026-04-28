@@ -108,5 +108,3 @@ impl ComponentRemovedEvent {
         }
     }
 }
-
-

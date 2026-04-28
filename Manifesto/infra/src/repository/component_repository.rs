@@ -69,7 +69,10 @@ impl ComponentReadRepository for ComponentReadRepositoryImpl {
         }
     }
 
-    async fn find_by_project(&self, project_id: &Uuid) -> Result<Vec<ProjectComponent>, DomainError> {
+    async fn find_by_project(
+        &self,
+        project_id: &Uuid,
+    ) -> Result<Vec<ProjectComponent>, DomainError> {
         let components = ProjectComponents::find()
             .filter(project_components::Column::ProjectId.eq(*project_id))
             .all(self.db.as_ref())
@@ -205,7 +208,10 @@ impl ComponentReadRepository for ComponentRepositoryImpl {
         self.read_repo.find_by_id(id).await
     }
 
-    async fn find_by_project(&self, project_id: &Uuid) -> Result<Vec<ProjectComponent>, DomainError> {
+    async fn find_by_project(
+        &self,
+        project_id: &Uuid,
+    ) -> Result<Vec<ProjectComponent>, DomainError> {
         self.read_repo.find_by_project(project_id).await
     }
 
@@ -246,4 +252,3 @@ impl ComponentWriteRepository for ComponentRepositoryImpl {
 }
 
 impl ComponentRepository for ComponentRepositoryImpl {}
-

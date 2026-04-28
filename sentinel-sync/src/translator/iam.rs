@@ -7,7 +7,7 @@
 use anyhow::Result;
 use iam_events::IamDomainEvent;
 
-use super::{TupleDelta, Translator};
+use super::{Translator, TupleDelta};
 
 #[derive(Default)]
 pub struct IamTranslator;

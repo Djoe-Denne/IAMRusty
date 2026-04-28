@@ -75,8 +75,15 @@ impl ProjectMember {
 
         // Use case-insensitive comparison since resource names in DB may be capitalized
         self.role_permissions.iter().any(|rp| {
-            rp.role_permission.resource.name.eq_ignore_ascii_case(resource_name)
-                && rp.role_permission.permission.level.has_permission(required_permission)
+            rp.role_permission
+                .resource
+                .name
+                .eq_ignore_ascii_case(resource_name)
+                && rp
+                    .role_permission
+                    .permission
+                    .level
+                    .has_permission(required_permission)
         })
     }
 
@@ -89,7 +96,12 @@ impl ProjectMember {
         // Use case-insensitive comparison since resource names in DB may be capitalized
         self.role_permissions
             .iter()
-            .find(|rp| rp.role_permission.resource.name.eq_ignore_ascii_case(resource_name))
+            .find(|rp| {
+                rp.role_permission
+                    .resource
+                    .name
+                    .eq_ignore_ascii_case(resource_name)
+            })
             .map(|rp| rp.role_permission.permission.level)
     }
 
@@ -109,8 +121,7 @@ impl ProjectMember {
         self.removal_reason = reason;
 
         if let Some(days) = grace_period_days {
-            self.grace_period_ends_at =
-                Some(Utc::now() + chrono::Duration::days(days));
+            self.grace_period_ends_at = Some(Utc::now() + chrono::Duration::days(days));
         }
     }
 
@@ -118,7 +129,6 @@ impl ProjectMember {
     pub fn update_last_access(&mut self) {
         self.last_access_at = Some(Utc::now());
     }
-
 
     /// Validate the member
     pub fn validate(&self) -> Result<(), DomainError> {
@@ -133,4 +143,3 @@ impl ProjectMember {
         Ok(())
     }
 }
-

@@ -16,4 +16,3 @@ pub use value_objects::*;
 
 // Re-export DomainError from rustycog-core
 pub use rustycog_core::error::DomainError;
-

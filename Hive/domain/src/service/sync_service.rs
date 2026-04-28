@@ -3,12 +3,9 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::{
-    entity::*, 
+    entity::*,
     port::{repository::*, service::*},
-    service::{
-        organization_service::OrganizationService,
-        invitation_service::InvitationService,
-    },
+    service::{invitation_service::InvitationService, organization_service::OrganizationService},
 };
 use rustycog_core::error::DomainError;
 
@@ -50,17 +47,14 @@ pub trait SyncService: Send + Sync {
 
     /**
      * Execute sync for organization info
-     * 
+     *
      * @param sync_job_id - The ID of the sync job
      */
-    async fn sync_organization_info(
-        &self,
-        sync_job_id: Uuid, 
-    ) -> Result<Organization, DomainError>;
+    async fn sync_organization_info(&self, sync_job_id: Uuid) -> Result<Organization, DomainError>;
 
     /**
      * Execute sync for members
-     * 
+     *
      * @param sync_job_id - The ID of the sync job
      * @param auto_invite - Whether to automatically invite new members found
      */
@@ -82,14 +76,21 @@ where
 {
     /// Create a new sync service
     pub fn new(
-        sync_job_repo: Arc<SR>, 
-        external_link_repo: Arc<LR>, 
+        sync_job_repo: Arc<SR>,
+        external_link_repo: Arc<LR>,
         organization_repo: Arc<OR>,
         organization_service: Arc<OS>,
         invitation_service: Arc<IS>,
         provider_client: Arc<PC>,
     ) -> Self {
-        Self { sync_job_repo, external_link_repo, organization_repo, organization_service, invitation_service, provider_client }
+        Self {
+            sync_job_repo,
+            external_link_repo,
+            organization_repo,
+            organization_service,
+            invitation_service,
+            provider_client,
+        }
     }
 
     /// Update organization info from external provider data
@@ -104,7 +105,12 @@ where
             .organization_service
             .update_organization(
                 organization_id.clone(),
-                Some(external_org_info.display_name.clone().unwrap_or(external_org_info.name.clone())),
+                Some(
+                    external_org_info
+                        .display_name
+                        .clone()
+                        .unwrap_or(external_org_info.name.clone()),
+                ),
                 external_org_info.description.clone(),
                 external_org_info.avatar_url.clone(),
                 None, // Don't override settings
@@ -114,7 +120,6 @@ where
         Ok(updated_org)
     }
 }
-
 
 #[async_trait::async_trait]
 impl<SR, LR, OR, OS, IS, PC> SyncService for SyncServiceImpl<SR, LR, OR, OS, IS, PC>
@@ -169,10 +174,7 @@ where
     }
 
     /// Execute sync for organization info
-    async fn sync_organization_info(
-        &self,
-        sync_job_id: Uuid,
-    ) -> Result<Organization, DomainError> {
+    async fn sync_organization_info(&self, sync_job_id: Uuid) -> Result<Organization, DomainError> {
         // Find the sync job
         let sync_job = self
             .sync_job_repo
@@ -185,11 +187,20 @@ where
             .external_link_repo
             .find_by_id(&sync_job.organization_external_link_id)
             .await?
-            .ok_or_else(|| DomainError::entity_not_found("ExternalLink", &sync_job.organization_external_link_id.to_string()))?;
+            .ok_or_else(|| {
+                DomainError::entity_not_found(
+                    "ExternalLink",
+                    &sync_job.organization_external_link_id.to_string(),
+                )
+            })?;
 
         // Get organization info from external provider
-        let external_org_info = self.provider_client
-            .get_organization_info(&external_link.provider_source.clone().unwrap(), &external_link.provider_config)
+        let external_org_info = self
+            .provider_client
+            .get_organization_info(
+                &external_link.provider_source.clone().unwrap(),
+                &external_link.provider_config,
+            )
             .await?;
 
         // Update organization with external info
@@ -198,7 +209,12 @@ where
             .organization_repo
             .find_by_id(&external_link.organization_id)
             .await?
-            .ok_or_else(|| DomainError::entity_not_found("Organization", &external_link.organization_id.to_string()))?;
+            .ok_or_else(|| {
+                DomainError::entity_not_found(
+                    "Organization",
+                    &external_link.organization_id.to_string(),
+                )
+            })?;
 
         let updated_org = self
             .update_organization_from_external(
@@ -229,12 +245,20 @@ where
             .external_link_repo
             .find_by_id(&sync_job.organization_external_link_id)
             .await?
-            .ok_or_else(|| DomainError::entity_not_found("ExternalLink", &sync_job.organization_external_link_id.to_string()))?;
-        
+            .ok_or_else(|| {
+                DomainError::entity_not_found(
+                    "ExternalLink",
+                    &sync_job.organization_external_link_id.to_string(),
+                )
+            })?;
 
         // Get members from external provider
-        let external_members = self.provider_client
-            .get_members(&external_link.provider_source.clone().unwrap(), &external_link.provider_config)
+        let external_members = self
+            .provider_client
+            .get_members(
+                &external_link.provider_source.clone().unwrap(),
+                &external_link.provider_config,
+            )
             .await?;
 
         let mut result = SyncResult {
@@ -249,7 +273,12 @@ where
             .organization_repo
             .find_by_id(&external_link.organization_id)
             .await?
-            .ok_or_else(|| DomainError::entity_not_found("Organization", &external_link.organization_id.to_string()))?;
+            .ok_or_else(|| {
+                DomainError::entity_not_found(
+                    "Organization",
+                    &external_link.organization_id.to_string(),
+                )
+            })?;
 
         // Create invitation
         let invitation_message = Some(format!(

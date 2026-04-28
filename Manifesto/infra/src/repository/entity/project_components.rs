@@ -33,4 +33,3 @@ impl Related<super::projects::Entity> for Entity {
 }
 
 impl ActiveModelBehavior for ActiveModel {}
-

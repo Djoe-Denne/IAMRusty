@@ -948,6 +948,5 @@ async fn test_oauth_callback_case_insensitive_providers() {
             response_json["operation"],
             "registration_required".to_string()
         );
-
     }
 }

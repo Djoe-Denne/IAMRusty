@@ -152,7 +152,11 @@ impl MigrationTrait for Migration {
                     ])
                     .values_panic(["github".into(), "GitHub".into(), github_json.into()])
                     .values_panic(["gitlab".into(), "GitLab".into(), gitlab_json.into()])
-                    .values_panic(["confluence".into(), "Confluence".into(), confluence_json.into()])
+                    .values_panic([
+                        "confluence".into(),
+                        "Confluence".into(),
+                        confluence_json.into(),
+                    ])
                     .to_owned(),
             )
             .await?;

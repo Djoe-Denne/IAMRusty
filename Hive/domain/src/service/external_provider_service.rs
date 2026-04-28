@@ -1,5 +1,5 @@
-use uuid::Uuid;
 use std::sync::Arc;
+use uuid::Uuid;
 
 use crate::{
     entity::*,
@@ -25,7 +25,7 @@ where
 pub trait ExternalProviderService: Send + Sync {
     /**
      * Link an organization to an external provider
-     * 
+     *
      * @param organization_id - The ID of the organization to link
      * @param provider_id - The ID of the external provider
      * @param provider_config - Configuration for the external provider connection
@@ -39,7 +39,7 @@ pub trait ExternalProviderService: Send + Sync {
 
     /**
      * Unlink an organization from an external provider
-     * 
+     *
      * @param organization_id - The ID of the organization to unlink
      * @param provider_id - The ID of the external provider to unlink
      */
@@ -51,7 +51,7 @@ pub trait ExternalProviderService: Send + Sync {
 
     /**
      * Test connection to external provider
-     * 
+     *
      * @param provider_id - The ID of the external provider
      * @param provider_config - Configuration for the connection
      */
@@ -63,7 +63,7 @@ pub trait ExternalProviderService: Send + Sync {
 
     /**
      * Get external link by organization and provider
-     * 
+     *
      * @param organization_id - The ID of the organization
      * @param provider_id - The ID of the provider
      */
@@ -75,7 +75,7 @@ pub trait ExternalProviderService: Send + Sync {
 
     /**
      * List external links for an organization
-     * 
+     *
      * @param organization_id - The ID of the organization
      */
     async fn list_organization_links(
@@ -127,14 +127,18 @@ where
             .organization_repo
             .find_by_id(&organization_id)
             .await?
-            .ok_or_else(|| DomainError::entity_not_found("Organization", &organization_id.to_string()))?;
+            .ok_or_else(|| {
+                DomainError::entity_not_found("Organization", &organization_id.to_string())
+            })?;
 
         // Validate provider exists
         let provider = self
             .external_provider_repo
             .find_by_id(&provider_id)
             .await?
-            .ok_or_else(|| DomainError::entity_not_found("ExternalProvider", &provider_id.to_string()))?;
+            .ok_or_else(|| {
+                DomainError::entity_not_found("ExternalProvider", &provider_id.to_string())
+            })?;
 
         // Check if link already exists
         if let Some(_existing_link) = self
@@ -144,7 +148,10 @@ where
         {
             return Err(DomainError::resource_already_exists(
                 "ExternalLink",
-                &format!("organization_id={}, provider_id={}", organization_id, provider_id),
+                &format!(
+                    "organization_id={}, provider_id={}",
+                    organization_id, provider_id
+                ),
             ));
         }
 
@@ -170,7 +177,6 @@ where
         organization_id: Uuid,
         provider_id: Uuid,
     ) -> Result<(), DomainError> {
-
         // Find the external link
         let external_link = self
             .external_link_repo
@@ -179,12 +185,17 @@ where
             .ok_or_else(|| {
                 DomainError::entity_not_found(
                     "ExternalLink",
-                    &format!("organization_id={}, provider_id={}", organization_id, provider_id),
+                    &format!(
+                        "organization_id={}, provider_id={}",
+                        organization_id, provider_id
+                    ),
                 )
             })?;
 
         // Delete the link
-        self.external_link_repo.delete_by_id(&external_link.id).await?;
+        self.external_link_repo
+            .delete_by_id(&external_link.id)
+            .await?;
 
         Ok(())
     }
@@ -200,13 +211,20 @@ where
             .external_provider_repo
             .find_by_id(&provider_id)
             .await?
-            .ok_or_else(|| DomainError::entity_not_found("ExternalProvider", &provider_id.to_string()))?;
+            .ok_or_else(|| {
+                DomainError::entity_not_found("ExternalProvider", &provider_id.to_string())
+            })?;
 
         // Validate configuration
-        self.provider_client.validate_config(&provider.provider_source, provider_config).await?;
+        self.provider_client
+            .validate_config(&provider.provider_source, provider_config)
+            .await?;
 
         // Test connection
-        let connection_ok = self.provider_client.test_connection(&provider.provider_source, provider_config).await?;
+        let connection_ok = self
+            .provider_client
+            .test_connection(&provider.provider_source, provider_config)
+            .await?;
 
         Ok(connection_ok)
     }
@@ -223,7 +241,10 @@ where
             .ok_or_else(|| {
                 DomainError::entity_not_found(
                     "ExternalLink",
-                    &format!("organization_id={}, provider_id={}", organization_id, provider_id),
+                    &format!(
+                        "organization_id={}, provider_id={}",
+                        organization_id, provider_id
+                    ),
                 )
             })
     }
@@ -233,20 +254,34 @@ where
         &self,
         organization_id: Uuid,
     ) -> Result<Vec<ExternalLink>, DomainError> {
-        let organization = self.organization_repo.find_by_id(&organization_id).await?
-            .ok_or_else(|| DomainError::entity_not_found("Organization", &organization_id.to_string()))?;
+        let organization = self
+            .organization_repo
+            .find_by_id(&organization_id)
+            .await?
+            .ok_or_else(|| {
+                DomainError::entity_not_found("Organization", &organization_id.to_string())
+            })?;
 
-        let mut links = self.external_link_repo
+        let mut links = self
+            .external_link_repo
             .find_by_organization(&organization_id)
             .await?;
 
         for link in links.iter_mut() {
             link.set_organization_name(organization.name.clone());
-            let provider = self.external_provider_repo.find_by_source(&link.provider_source.clone().unwrap()).await?
-                .ok_or_else(|| DomainError::entity_not_found("ExternalProvider", &link.provider_source.clone().unwrap().to_string()))?;
+            let provider = self
+                .external_provider_repo
+                .find_by_source(&link.provider_source.clone().unwrap())
+                .await?
+                .ok_or_else(|| {
+                    DomainError::entity_not_found(
+                        "ExternalProvider",
+                        &link.provider_source.clone().unwrap().to_string(),
+                    )
+                })?;
             link.set_provider_source(provider.provider_source.clone());
         }
 
         Ok(links)
     }
-} 
+}

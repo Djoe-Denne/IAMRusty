@@ -7,15 +7,16 @@
 pub use rustycog_config::{
     clear_all_caches, generate_default_config_toml, load_config_fresh, load_config_part,
     load_config_with_cache, AuthConfig, CommandConfig, CommandRetryConfig, ConfigError,
-    DatabaseConfig, DatabaseCredentials, KafkaConfig, LoggingConfig, QueueConfig, ServerConfig,
-    SqsConfig, ScalewayConfig,
+    DatabaseConfig, DatabaseCredentials, KafkaConfig, LoggingConfig, QueueConfig, ScalewayConfig,
+    ServerConfig, SqsConfig,
 };
 
 use rustycog_config::{
-    ConfigCache, ConfigLoader, HasDbConfig, HasLoggingConfig, HasQueueConfig, HasServerConfig, HasScalewayConfig,
+    ConfigCache, ConfigLoader, HasDbConfig, HasLoggingConfig, HasQueueConfig, HasScalewayConfig,
+    HasServerConfig,
 };
 
-pub use rustycog_logger::{setup_logging};
+pub use rustycog_logger::setup_logging;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::sync::{Arc, Mutex, OnceLock};

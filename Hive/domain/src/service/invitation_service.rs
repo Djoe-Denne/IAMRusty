@@ -1,8 +1,8 @@
 use chrono::{DateTime, Duration, Utc};
-use uuid::Uuid;
 use std::sync::Arc;
+use uuid::Uuid;
 
-use crate::{entity::*, port::*, service::{member_service::MemberService}, OrganizationService};
+use crate::{entity::*, port::*, service::member_service::MemberService, OrganizationService};
 use rustycog_core::error::DomainError;
 
 /// Domain service for organization invitation management
@@ -10,7 +10,7 @@ pub struct InvitationServiceImpl<IR, OS, MS>
 where
     IR: OrganizationInvitationRepository,
     OS: OrganizationService,
-    MS: MemberService,  
+    MS: MemberService,
 {
     invitation_repo: Arc<IR>,
     organization_service: Arc<OS>,
@@ -21,7 +21,7 @@ where
 pub trait InvitationService: Send + Sync {
     /**
      * Create an invitation to join an organization by email. used for non existing users
-     * 
+     *
      * @param organization_id - The ID of the organization to invite the user to
      * @param email - The email of the user to invite
      * @param role_permissions - The roles to assign to the user
@@ -41,7 +41,7 @@ pub trait InvitationService: Send + Sync {
 
     /**
      * Create an invitation to join an organization by user. used for existing users
-     * 
+     *
      * @param organization_id - The ID of the organization to invite the user to
      * @param user_id - The ID of the user to invite
      * @param role_permissions - The roles to assign to the user
@@ -61,7 +61,7 @@ pub trait InvitationService: Send + Sync {
 
     /**
      * Accept an invitation
-     * 
+     *
      * @param token - The token of the invitation
      * @param user_id - The ID of the user accepting the invitation
      */
@@ -73,17 +73,14 @@ pub trait InvitationService: Send + Sync {
 
     /**
      * Cancel an invitation
-     * 
+     *
      * @param invitation_id - The ID of the invitation to cancel
      */
-    async fn cancel_invitation(
-        &self,
-        invitation_id: Uuid,
-    ) -> Result<(), DomainError>;
+    async fn cancel_invitation(&self, invitation_id: Uuid) -> Result<(), DomainError>;
 
     /**
      * Get an invitation by ID
-     * 
+     *
      * @param invitation_id - The ID of the invitation to get
      */
     async fn get_invitation(
@@ -93,7 +90,7 @@ pub trait InvitationService: Send + Sync {
 
     /**
      * Get an invitation by organization and invited user
-     * 
+     *
      * @param organization_id - The ID of the organization the invitation belongs to
      * @param invited_aggregate_id - The ID of the user the invitation is for
      */
@@ -105,7 +102,7 @@ pub trait InvitationService: Send + Sync {
 
     /**
      * List invitations for an organization
-     * 
+     *
      * @param organization_id - The ID of the organization to list the invitations for
      */
     async fn list_invitations(
@@ -126,7 +123,11 @@ where
     MS: MemberService,
 {
     /// Create a new invitation service
-    pub fn new(invitation_repo: Arc<IR>, organization_service: Arc<OS>, member_service: Arc<MS>) -> Self {
+    pub fn new(
+        invitation_repo: Arc<IR>,
+        organization_service: Arc<OS>,
+        member_service: Arc<MS>,
+    ) -> Self {
         Self {
             invitation_repo,
             organization_service,
@@ -151,10 +152,28 @@ where
         invited_by_user_id: Uuid,
         message: Option<String>,
         _expires_in_days: Option<i64>,
-    ) -> Result<OrganizationInvitation, DomainError> {    
-        let organization = self.organization_service.get_organization(&organization_id).await.map_err(|e| DomainError::Internal { message: e.to_string() })?;
-        let invitation = OrganizationInvitation::new(organization_id, email, role_permissions, invited_by_user_id, message)?;
-        let mut saved_invitation = self.invitation_repo.save(&invitation).await.map_err(|e| DomainError::Internal { message: e.to_string() })?;
+    ) -> Result<OrganizationInvitation, DomainError> {
+        let organization = self
+            .organization_service
+            .get_organization(&organization_id)
+            .await
+            .map_err(|e| DomainError::Internal {
+                message: e.to_string(),
+            })?;
+        let invitation = OrganizationInvitation::new(
+            organization_id,
+            email,
+            role_permissions,
+            invited_by_user_id,
+            message,
+        )?;
+        let mut saved_invitation =
+            self.invitation_repo
+                .save(&invitation)
+                .await
+                .map_err(|e| DomainError::Internal {
+                    message: e.to_string(),
+                })?;
         saved_invitation.update_organization_name(&organization.name);
         Ok(saved_invitation)
     }
@@ -169,9 +188,27 @@ where
         message: Option<String>,
         _expires_in_days: Option<i64>,
     ) -> Result<OrganizationInvitation, DomainError> {
-        let organization = self.organization_service.get_organization(&organization_id).await.map_err(|e| DomainError::Internal { message: e.to_string() })?;
-        let invitation = OrganizationInvitation::new(organization_id, user_id.to_string(), role_permissions, invited_by_user_id, message)?;
-        let mut saved_invitation = self.invitation_repo.save(&invitation).await.map_err(|e| DomainError::Internal { message: e.to_string() })?;
+        let organization = self
+            .organization_service
+            .get_organization(&organization_id)
+            .await
+            .map_err(|e| DomainError::Internal {
+                message: e.to_string(),
+            })?;
+        let invitation = OrganizationInvitation::new(
+            organization_id,
+            user_id.to_string(),
+            role_permissions,
+            invited_by_user_id,
+            message,
+        )?;
+        let mut saved_invitation =
+            self.invitation_repo
+                .save(&invitation)
+                .await
+                .map_err(|e| DomainError::Internal {
+                    message: e.to_string(),
+                })?;
         saved_invitation.update_organization_name(&organization.name);
         Ok(saved_invitation)
     }
@@ -182,59 +219,99 @@ where
         token: String,
         user_id: Uuid,
     ) -> Result<OrganizationMember, DomainError> {
-        let invitation = self.invitation_repo
-        .find_by_token(&token)
-        .await
-        .map_err(|e| DomainError::Internal { message: e.to_string() })?;
+        let invitation = self
+            .invitation_repo
+            .find_by_token(&token)
+            .await
+            .map_err(|e| DomainError::Internal {
+                message: e.to_string(),
+            })?;
 
         if invitation.is_none() {
-            return Err(DomainError::entity_not_found("organization_invitation", &token));
+            return Err(DomainError::entity_not_found(
+                "organization_invitation",
+                &token,
+            ));
         }
 
         let mut invitation = invitation.unwrap();
 
         if invitation.status != InvitationStatus::Pending {
-            return Err(DomainError::business_rule_violation(format!("Invitation is not pending, but {:?}", invitation.status).as_str()));
+            return Err(DomainError::business_rule_violation(
+                format!("Invitation is not pending, but {:?}", invitation.status).as_str(),
+            ));
         }
 
         if invitation.expires_at < Utc::now() {
-            return Err(DomainError::business_rule_violation(format!("Invitation has expired at {}", invitation.expires_at).as_str()));
+            return Err(DomainError::business_rule_violation(
+                format!("Invitation has expired at {}", invitation.expires_at).as_str(),
+            ));
         }
 
         if invitation.accepted_at.is_some() {
-            return Err(DomainError::business_rule_violation(format!("Invitation has already been accepted at {}", invitation.accepted_at.unwrap()).as_str()));
+            return Err(DomainError::business_rule_violation(
+                format!(
+                    "Invitation has already been accepted at {}",
+                    invitation.accepted_at.unwrap()
+                )
+                .as_str(),
+            ));
         }
 
         invitation.accept()?;
-        
-        self.invitation_repo.save(&invitation).await.map_err(|e| DomainError::Internal { message: e.to_string() })?;
-        Ok(self.member_service
-        .add_member(invitation.organization_id, user_id, invitation.role_permissions, Some(invitation.invited_by_user_id))
-        .await.map_err(|e| DomainError::Internal { message: e.to_string() })?)
+
+        self.invitation_repo
+            .save(&invitation)
+            .await
+            .map_err(|e| DomainError::Internal {
+                message: e.to_string(),
+            })?;
+        Ok(self
+            .member_service
+            .add_member(
+                invitation.organization_id,
+                user_id,
+                invitation.role_permissions,
+                Some(invitation.invited_by_user_id),
+            )
+            .await
+            .map_err(|e| DomainError::Internal {
+                message: e.to_string(),
+            })?)
     }
 
     /// Cancel an invitation
-    async fn cancel_invitation(
-        &self,
-        invitation_id: Uuid
-    ) -> Result<(), DomainError> {
-        let invitation = self.invitation_repo
-        .find_by_id(&invitation_id)
-        .await
-        .map_err(|e| DomainError::Internal { message: e.to_string() })?;
+    async fn cancel_invitation(&self, invitation_id: Uuid) -> Result<(), DomainError> {
+        let invitation = self
+            .invitation_repo
+            .find_by_id(&invitation_id)
+            .await
+            .map_err(|e| DomainError::Internal {
+                message: e.to_string(),
+            })?;
 
         if invitation.is_none() {
-            return Err(DomainError::entity_not_found("organization_invitation", &invitation_id.to_string()));
+            return Err(DomainError::entity_not_found(
+                "organization_invitation",
+                &invitation_id.to_string(),
+            ));
         }
 
         let mut invitation = invitation.unwrap();
 
         if invitation.status != InvitationStatus::Pending {
-            return Err(DomainError::business_rule_violation(format!("Invitation is not pending, but {:?}", invitation.status).as_str()));
+            return Err(DomainError::business_rule_violation(
+                format!("Invitation is not pending, but {:?}", invitation.status).as_str(),
+            ));
         }
 
         invitation.cancel()?;
-        self.invitation_repo.save(&invitation).await.map_err(|e| DomainError::Internal { message: e.to_string() })?;
+        self.invitation_repo
+            .save(&invitation)
+            .await
+            .map_err(|e| DomainError::Internal {
+                message: e.to_string(),
+            })?;
         Ok(())
     }
 
@@ -243,17 +320,32 @@ where
         &self,
         invitation_id: Uuid,
     ) -> Result<OrganizationInvitation, DomainError> {
-        let mut invitation = self.invitation_repo
-        .find_by_id(&invitation_id)
-        .await
-        .map_err(|e| DomainError::Internal { message: e.to_string() })?;
+        let mut invitation = self
+            .invitation_repo
+            .find_by_id(&invitation_id)
+            .await
+            .map_err(|e| DomainError::Internal {
+                message: e.to_string(),
+            })?;
 
         if invitation.is_none() {
-            return Err(DomainError::entity_not_found("organization_invitation", &invitation_id.to_string()));
+            return Err(DomainError::entity_not_found(
+                "organization_invitation",
+                &invitation_id.to_string(),
+            ));
         }
 
-        let organization = self.organization_service.get_organization(&invitation.as_ref().unwrap().organization_id).await.map_err(|e| DomainError::Internal { message: e.to_string() })?;
-        invitation.as_mut().unwrap().update_organization_name(&organization.name);
+        let organization = self
+            .organization_service
+            .get_organization(&invitation.as_ref().unwrap().organization_id)
+            .await
+            .map_err(|e| DomainError::Internal {
+                message: e.to_string(),
+            })?;
+        invitation
+            .as_mut()
+            .unwrap()
+            .update_organization_name(&organization.name);
         Ok(invitation.unwrap())
     }
 
@@ -263,13 +355,23 @@ where
         organization_id: Uuid,
         invited_aggregate_id: &str,
     ) -> Result<OrganizationInvitation, DomainError> {
-        let invitation = self.invitation_repo
-        .find_by_organization_and_aggregate_id_status(&organization_id, &invited_aggregate_id, &InvitationStatus::Pending)
-        .await
-        .map_err(|e| DomainError::Internal { message: e.to_string() })?;
+        let invitation = self
+            .invitation_repo
+            .find_by_organization_and_aggregate_id_status(
+                &organization_id,
+                &invited_aggregate_id,
+                &InvitationStatus::Pending,
+            )
+            .await
+            .map_err(|e| DomainError::Internal {
+                message: e.to_string(),
+            })?;
 
         if invitation.is_none() {
-            return Err(DomainError::entity_not_found("organization_invitation", &organization_id.to_string()));
+            return Err(DomainError::entity_not_found(
+                "organization_invitation",
+                &organization_id.to_string(),
+            ));
         }
 
         Ok(invitation.unwrap())
@@ -280,20 +382,26 @@ where
         &self,
         organization_id: Uuid,
     ) -> Result<Vec<OrganizationInvitation>, DomainError> {
-        let invitations = self.invitation_repo
-        .find_by_organization(&organization_id)
-        .await
-        .map_err(|e| DomainError::Internal { message: e.to_string() })?;
+        let invitations = self
+            .invitation_repo
+            .find_by_organization(&organization_id)
+            .await
+            .map_err(|e| DomainError::Internal {
+                message: e.to_string(),
+            })?;
 
         Ok(invitations)
     }
 
     /// Clean up expired invitations
     async fn cleanup_expired_invitations(&self) -> Result<u32, DomainError> {
-        let expired_invitations = self.invitation_repo
-        .find_expired()
-        .await
-        .map_err(|e| DomainError::Internal { message: e.to_string() })?;
+        let expired_invitations =
+            self.invitation_repo
+                .find_expired()
+                .await
+                .map_err(|e| DomainError::Internal {
+                    message: e.to_string(),
+                })?;
 
         let count = expired_invitations.len();
         Ok(count as u32)

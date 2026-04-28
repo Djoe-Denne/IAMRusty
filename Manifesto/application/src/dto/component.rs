@@ -13,7 +13,7 @@ pub struct AddComponentRequest {
 /// Request to update a component's status
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct UpdateComponentRequest {
-    pub status: String,  // pending, configured, active, disabled
+    pub status: String, // pending, configured, active, disabled
 }
 
 /// Component response
@@ -22,8 +22,8 @@ pub struct ComponentResponse {
     pub id: Uuid,
     pub component_type: String,
     pub status: String,
-    pub endpoint: Option<String>,  // From component service
-    pub access_token: Option<String>,  // Component-scoped JWT (not implemented yet)
+    pub endpoint: Option<String>,     // From component service
+    pub access_token: Option<String>, // Component-scoped JWT (not implemented yet)
     pub added_at: DateTime<Utc>,
     pub configured_at: Option<DateTime<Utc>>,
     pub activated_at: Option<DateTime<Utc>>,
@@ -35,4 +35,3 @@ pub struct ComponentResponse {
 pub struct ComponentListResponse {
     pub data: Vec<ComponentResponse>,
 }
-

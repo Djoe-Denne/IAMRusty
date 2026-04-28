@@ -26,4 +26,3 @@ impl From<&str> for Resource {
         Self::new(name.to_string(), None)
     }
 }
-

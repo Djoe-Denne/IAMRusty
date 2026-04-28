@@ -74,4 +74,3 @@ mod tests {
         assert!(!ResourceType::Component.is_internal());
     }
 }
-

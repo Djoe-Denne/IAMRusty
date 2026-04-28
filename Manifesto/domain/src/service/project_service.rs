@@ -10,13 +10,13 @@ use crate::value_objects::{OwnerType, ProjectStatus};
 #[async_trait]
 pub trait ProjectService: Send + Sync {
     async fn get_project(&self, id: &Uuid) -> Result<Project, DomainError>;
-    
+
     async fn create_project(&self, project: Project) -> Result<Project, DomainError>;
-    
+
     async fn update_project(&self, project: Project) -> Result<Project, DomainError>;
-    
+
     async fn delete_project(&self, id: &Uuid) -> Result<(), DomainError>;
-    
+
     async fn list_projects(
         &self,
         owner_type: Option<OwnerType>,
@@ -27,7 +27,7 @@ pub trait ProjectService: Send + Sync {
         page: u32,
         page_size: u32,
     ) -> Result<Vec<Project>, DomainError>;
-    
+
     async fn count_projects(
         &self,
         owner_type: Option<OwnerType>,
@@ -42,7 +42,7 @@ pub trait ProjectService: Send + Sync {
         owner_type: OwnerType,
         owner_id: Uuid,
     ) -> Result<i64, DomainError>;
-    
+
     async fn validate_publish(&self, project_id: &Uuid) -> Result<(), DomainError>;
 }
 
@@ -84,7 +84,7 @@ where
     async fn create_project(&self, project: Project) -> Result<Project, DomainError> {
         // Validate project
         project.validate()?;
-        
+
         // Save to repository
         self.project_repo.save(&project).await
     }
@@ -92,12 +92,15 @@ where
     async fn update_project(&self, project: Project) -> Result<Project, DomainError> {
         // Validate project
         project.validate()?;
-        
+
         // Ensure project exists
         if !self.project_repo.exists_by_id(&project.id).await? {
-            return Err(DomainError::entity_not_found("Project", &project.id.to_string()));
+            return Err(DomainError::entity_not_found(
+                "Project",
+                &project.id.to_string(),
+            ));
         }
-        
+
         // Save to repository
         self.project_repo.save(&project).await
     }
@@ -107,7 +110,7 @@ where
         if !self.project_repo.exists_by_id(id).await? {
             return Err(DomainError::entity_not_found("Project", &id.to_string()));
         }
-        
+
         self.project_repo.delete_by_id(id).await
     }
 
@@ -122,7 +125,15 @@ where
         page_size: u32,
     ) -> Result<Vec<Project>, DomainError> {
         self.project_repo
-            .list_with_filters(owner_type, owner_id, status, search, viewer_user_id, page, page_size)
+            .list_with_filters(
+                owner_type,
+                owner_id,
+                status,
+                search,
+                viewer_user_id,
+                page,
+                page_size,
+            )
             .await
     }
 
@@ -162,7 +173,10 @@ where
         }
 
         // Check if project has at least one active component
-        let active_count = self.component_repo.count_active_by_project(project_id).await?;
+        let active_count = self
+            .component_repo
+            .count_active_by_project(project_id)
+            .await?;
         if active_count == 0 {
             return Err(DomainError::invalid_input(
                 "Project must have at least one active component to be published",
@@ -172,4 +186,3 @@ where
         Ok(())
     }
 }
-

@@ -167,7 +167,10 @@ impl ComponentReadRepository for NoopComponentReadRepository {
         Ok(None)
     }
 
-    async fn find_by_project(&self, _project_id: &Uuid) -> Result<Vec<ProjectComponent>, DomainError> {
+    async fn find_by_project(
+        &self,
+        _project_id: &Uuid,
+    ) -> Result<Vec<ProjectComponent>, DomainError> {
         Ok(vec![])
     }
 

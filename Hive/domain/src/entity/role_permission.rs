@@ -2,12 +2,12 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{entity::{permission::Permission, resource::Resource}};
+use crate::entity::{permission::Permission, resource::Resource};
 
 /// Role permission entity representing a named permission-resource combination
 /// This acts like a permission group/template that can be assigned to users
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct RolePermission { 
+pub struct RolePermission {
     pub id: Option<Uuid>,
     pub name: Option<String>,
     pub organization_id: Uuid,
@@ -34,13 +34,12 @@ impl RolePermission {
             resource: resource.clone(),
             created_at,
         }
-    }    
+    }
 
     /// Update role permission name
     pub fn update_name(&mut self, new_name: String) {
         self.name = Some(new_name);
     }
-
 }
 
 /// Helper struct to represent permission-resource combinations for easier handling

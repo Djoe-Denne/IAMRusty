@@ -21,7 +21,7 @@ where
 pub trait MemberService: Send + Sync {
     /**
      * Add a member to an organization
-     * 
+     *
      * @param organization_id - The ID of the organization to add the member to
      * @param user_id - The ID of the user to add as a member
      * @param roles - The roles to assign to the member
@@ -37,27 +37,23 @@ pub trait MemberService: Send + Sync {
 
     /**
      * Remove a member from an organization
-     * 
+     *
      * @param organization_id - The ID of the organization to remove the member from
      * @param user_id - The ID of the user to remove as a member
      * @param removed_by_user_id - The ID of the user who removed the member. If Option empty, bypass permission check, used for system operations such as owner removal
      */
-    async fn remove_member(
-        &self,
-        organization_id: Uuid,
-        user_id: Uuid,
-    ) -> Result<(), DomainError>;
+    async fn remove_member(&self, organization_id: Uuid, user_id: Uuid) -> Result<(), DomainError>;
 
     /**
      * Remove all members from an organization
-     * 
+     *
      * @param organization_id - The ID of the organization to remove the members from
      */
     async fn remove_organization_members(&self, organization_id: Uuid) -> Result<(), DomainError>;
 
     /**
      * Get a member by organization and user ID
-     * 
+     *
      * @param organization_id - The ID of the organization to get the member from
      * @param user_id - The ID of the user to get as a member
      */
@@ -69,7 +65,7 @@ pub trait MemberService: Send + Sync {
 
     /**
      * List all members of an organization
-     * 
+     *
      * @param organization_id - The ID of the organization to list the members of
      */
     async fn list_members(
@@ -81,7 +77,7 @@ pub trait MemberService: Send + Sync {
 
     /**
      * List active members of an organization
-     * 
+     *
      * @param organization_id - The ID of the organization to list the active members of
      */
     async fn list_active_members(
@@ -91,7 +87,7 @@ pub trait MemberService: Send + Sync {
 
     /**
      * Update a member's role
-     * 
+     *
      * @param organization_id - The ID of the organization to update the member's role in
      * @param member_id - The ID of the member to update the role of
      * @param roles - The roles to assign to the member
@@ -119,7 +115,6 @@ where
         }
     }
 
-    
     async fn update_member_roles(
         &self,
         member: &mut OrganizationMember,
@@ -129,7 +124,10 @@ where
             return Err(DomainError::invalid_input("Member ID is required"));
         }
 
-        let new_roles = self.role_service.add_roles(&member.organization_id, &member.id.unwrap(), roles).await?;
+        let new_roles = self
+            .role_service
+            .add_roles(&member.organization_id, &member.id.unwrap(), roles)
+            .await?;
         member.update_roles(new_roles);
         self.member_repo.save(member).await
     }
@@ -150,7 +148,10 @@ where
         roles: Vec<RolePermission>,
         added_by_user_id: Option<Uuid>,
     ) -> Result<OrganizationMember, DomainError> {
-        debug!("Adding user {} as member to organization: {:?}", user_id, organization_id);
+        debug!(
+            "Adding user {} as member to organization: {:?}",
+            user_id, organization_id
+        );
         // Validate organization exists
         let _ = self
             .organization_repo
@@ -176,7 +177,10 @@ where
         let member = OrganizationMember::new(organization_id, user_id, added_by_user_id);
         let mut saved_member = self.member_repo.save(&member).await?;
 
-        let roles = self.role_service.find_role_permissions_by_organization(&organization_id, &roles).await?;
+        let roles = self
+            .role_service
+            .find_role_permissions_by_organization(&organization_id, &roles)
+            .await?;
 
         // Add roles to member
         let updated_member = self.update_member_roles(&mut saved_member, roles).await?;
@@ -185,11 +189,7 @@ where
     }
 
     /// Remove a member from an organization
-    async fn remove_member(
-        &self,
-        organization_id: Uuid,
-        user_id: Uuid,
-    ) -> Result<(), DomainError> {
+    async fn remove_member(&self, organization_id: Uuid, user_id: Uuid) -> Result<(), DomainError> {
         // Validate organization exists
         let organization = self
             .organization_repo
@@ -220,7 +220,9 @@ where
     /// Remove all members from an organization
 
     async fn remove_organization_members(&self, organization_id: Uuid) -> Result<(), DomainError> {
-        self.member_repo.delete_by_organization(&organization_id).await?;
+        self.member_repo
+            .delete_by_organization(&organization_id)
+            .await?;
         Ok(())
     }
 
@@ -229,7 +231,7 @@ where
         &self,
         organization_id: Uuid,
         user_id: Uuid,
-        roles: Vec<RolePermission>
+        roles: Vec<RolePermission>,
     ) -> Result<OrganizationMember, DomainError> {
         let mut member = self.get_member(organization_id, user_id).await?;
         self.update_member_roles(&mut member, roles).await

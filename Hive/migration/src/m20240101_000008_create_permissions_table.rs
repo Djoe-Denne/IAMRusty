@@ -47,7 +47,11 @@ impl MigrationTrait for Migration {
             .exec_stmt(
                 Query::insert()
                     .into_table(Permissions::Table)
-                    .columns([Permissions::Id, Permissions::Level, Permissions::Description])
+                    .columns([
+                        Permissions::Id,
+                        Permissions::Level,
+                        Permissions::Description,
+                    ])
                     .values_panic([
                         "read".into(),
                         "read".into(),

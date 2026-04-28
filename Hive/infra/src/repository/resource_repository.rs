@@ -1,26 +1,19 @@
 //! ResourceRepository SeaORM implementation
 
 use async_trait::async_trait;
-use hive_domain::entity::{Resource};
-use rustycog_core::error::DomainError;
+use hive_domain::entity::Resource;
 use hive_domain::port::repository::{ResourceReadRepository, ResourceRepository};
-use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, 
-    QueryFilter
-};
+use rustycog_core::error::DomainError;
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 use std::sync::Arc;
 use tracing::debug;
 use uuid::Uuid;
 
-use super::entity::{
-    prelude::Resources,
-    resources,
-};
+use super::entity::{prelude::Resources, resources};
 
 pub struct ResourceMapper;
 
 impl ResourceMapper {
-    
     pub fn to_domain(model: resources::Model) -> Result<Resource, DomainError> {
         Ok(Resource {
             name: model.name,
@@ -37,16 +30,16 @@ pub struct ResourceReadRepositoryImpl {
 }
 
 impl ResourceReadRepositoryImpl {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self { Self { db } }
-
-
+    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+        Self { db }
+    }
 }
 
 #[async_trait]
 impl ResourceReadRepository for ResourceReadRepositoryImpl {
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<Resource>, DomainError> {
         debug!("Finding resource by ID: {}", id);
-        
+
         let resource = Resources::find_by_id(*id)
             .one(self.db.as_ref())
             .await
@@ -60,7 +53,7 @@ impl ResourceReadRepository for ResourceReadRepositoryImpl {
 
     async fn find_by_type(&self, resource_type: &String) -> Result<Option<Resource>, DomainError> {
         debug!("Finding resource by type: {}", resource_type.as_str());
-        
+
         let resource = Resources::find()
             .filter(resources::Column::ResourceType.eq(resource_type.as_str()))
             .one(self.db.as_ref())
@@ -75,7 +68,7 @@ impl ResourceReadRepository for ResourceReadRepositoryImpl {
 
     async fn find_all(&self) -> Result<Vec<Resource>, DomainError> {
         debug!("Finding all resources");
-        
+
         let resources = Resources::find()
             .all(self.db.as_ref())
             .await
@@ -87,7 +80,7 @@ impl ResourceReadRepository for ResourceReadRepositoryImpl {
         }
         Ok(result)
     }
-} 
+}
 
 #[derive(Clone)]
 pub struct ResourceRepositoryImpl {
@@ -95,7 +88,9 @@ pub struct ResourceRepositoryImpl {
 }
 
 impl ResourceRepositoryImpl {
-    pub fn new(read_repo: Arc<dyn ResourceReadRepository>) -> Self { Self { read_repo } }
+    pub fn new(read_repo: Arc<dyn ResourceReadRepository>) -> Self {
+        Self { read_repo }
+    }
 }
 
 #[async_trait]

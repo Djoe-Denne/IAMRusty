@@ -34,7 +34,7 @@ impl ExternalProvider {
             created_at: Utc::now(),
         })
     }
-    
+
     /// Update provider name
     pub fn update_name(&mut self, new_name: String) -> Result<(), DomainError> {
         Self::validate_name(&new_name)?;

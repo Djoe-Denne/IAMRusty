@@ -4,52 +4,52 @@ use rustycog_command::{CommandRegistry, CommandRegistryBuilder, RegistryConfig};
 use rustycog_config::CommandConfig;
 
 use super::{
+    // Component commands
+    AddComponentCommand,
+    AddComponentCommandHandler,
+    // Member commands
+    AddMemberCommand,
+    AddMemberCommandHandler,
     // Project commands
     ArchiveProjectCommand,
     ArchiveProjectCommandHandler,
+    ComponentErrorMapper,
     CreateProjectCommand,
     CreateProjectCommandHandler,
     DeleteProjectCommand,
     DeleteProjectCommandHandler,
+    GetComponentCommand,
+    GetComponentCommandHandler,
+    GetMemberCommand,
+    GetMemberCommandHandler,
     GetProjectCommand,
     GetProjectCommandHandler,
     GetProjectDetailCommand,
     GetProjectDetailCommandHandler,
-    ListProjectsCommand,
-    ListProjectsCommandHandler,
-    PublishProjectCommand,
-    PublishProjectCommandHandler,
-    UpdateProjectCommand,
-    UpdateProjectCommandHandler,
-    ProjectErrorMapper,
-    // Component commands
-    AddComponentCommand,
-    AddComponentCommandHandler,
-    GetComponentCommand,
-    GetComponentCommandHandler,
-    ListComponentsCommand,
-    ListComponentsCommandHandler,
-    RemoveComponentCommand,
-    RemoveComponentCommandHandler,
-    UpdateComponentStatusCommand,
-    UpdateComponentStatusCommandHandler,
-    ComponentErrorMapper,
-    // Member commands
-    AddMemberCommand,
-    AddMemberCommandHandler,
-    GetMemberCommand,
-    GetMemberCommandHandler,
     GrantPermissionCommand,
     GrantPermissionCommandHandler,
+    ListComponentsCommand,
+    ListComponentsCommandHandler,
     ListMembersCommand,
     ListMembersCommandHandler,
+    ListProjectsCommand,
+    ListProjectsCommandHandler,
+    MemberErrorMapper,
+    ProjectErrorMapper,
+    PublishProjectCommand,
+    PublishProjectCommandHandler,
+    RemoveComponentCommand,
+    RemoveComponentCommandHandler,
     RemoveMemberCommand,
     RemoveMemberCommandHandler,
     RevokePermissionCommand,
     RevokePermissionCommandHandler,
+    UpdateComponentStatusCommand,
+    UpdateComponentStatusCommandHandler,
     UpdateMemberCommand,
     UpdateMemberCommandHandler,
-    MemberErrorMapper,
+    UpdateProjectCommand,
+    UpdateProjectCommandHandler,
 };
 use crate::usecase::{ComponentUseCase, MemberUseCase, ProjectUseCase};
 
@@ -63,8 +63,9 @@ impl ManifestoCommandRegistryFactory {
         member_usecase: Arc<dyn MemberUseCase>,
         command_config: CommandConfig,
     ) -> CommandRegistry {
-        let mut builder =
-            CommandRegistryBuilder::with_config(RegistryConfig::from_retry_config(&command_config.retry));
+        let mut builder = CommandRegistryBuilder::with_config(RegistryConfig::from_retry_config(
+            &command_config.retry,
+        ));
 
         // Register project command handlers
         builder = Self::register_project_handlers(builder, project_usecase);
@@ -84,7 +85,8 @@ impl ManifestoCommandRegistryFactory {
     ) -> CommandRegistryBuilder {
         let create_handler = Arc::new(CreateProjectCommandHandler::new(project_usecase.clone()));
         let get_handler = Arc::new(GetProjectCommandHandler::new(project_usecase.clone()));
-        let get_detail_handler = Arc::new(GetProjectDetailCommandHandler::new(project_usecase.clone()));
+        let get_detail_handler =
+            Arc::new(GetProjectDetailCommandHandler::new(project_usecase.clone()));
         let update_handler = Arc::new(UpdateProjectCommandHandler::new(project_usecase.clone()));
         let delete_handler = Arc::new(DeleteProjectCommandHandler::new(project_usecase.clone()));
         let list_handler = Arc::new(ListProjectsCommandHandler::new(project_usecase.clone()));
@@ -142,7 +144,9 @@ impl ManifestoCommandRegistryFactory {
         let add_handler = Arc::new(AddComponentCommandHandler::new(component_usecase.clone()));
         let get_handler = Arc::new(GetComponentCommandHandler::new(component_usecase.clone()));
         let list_handler = Arc::new(ListComponentsCommandHandler::new(component_usecase.clone()));
-        let update_status_handler = Arc::new(UpdateComponentStatusCommandHandler::new(component_usecase.clone()));
+        let update_status_handler = Arc::new(UpdateComponentStatusCommandHandler::new(
+            component_usecase.clone(),
+        ));
         let remove_handler = Arc::new(RemoveComponentCommandHandler::new(component_usecase));
         let error_mapper = Arc::new(ComponentErrorMapper);
 
@@ -183,8 +187,10 @@ impl ManifestoCommandRegistryFactory {
         let list_handler = Arc::new(ListMembersCommandHandler::new(member_usecase.clone()));
         let update_handler = Arc::new(UpdateMemberCommandHandler::new(member_usecase.clone()));
         let remove_handler = Arc::new(RemoveMemberCommandHandler::new(member_usecase.clone()));
-        let grant_permission_handler = Arc::new(GrantPermissionCommandHandler::new(member_usecase.clone()));
-        let revoke_permission_handler = Arc::new(RevokePermissionCommandHandler::new(member_usecase));
+        let grant_permission_handler =
+            Arc::new(GrantPermissionCommandHandler::new(member_usecase.clone()));
+        let revoke_permission_handler =
+            Arc::new(RevokePermissionCommandHandler::new(member_usecase));
         let error_mapper = Arc::new(MemberErrorMapper);
 
         builder

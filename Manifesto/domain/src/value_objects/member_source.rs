@@ -39,4 +39,3 @@ impl std::fmt::Display for MemberSource {
         write!(f, "{}", self.as_str())
     }
 }
-

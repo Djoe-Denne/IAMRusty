@@ -33,4 +33,3 @@ impl std::fmt::Display for OwnerType {
         write!(f, "{}", self.as_str())
     }
 }
-

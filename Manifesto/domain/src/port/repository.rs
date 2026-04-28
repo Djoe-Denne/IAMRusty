@@ -15,13 +15,13 @@ use crate::value_objects::{MemberSource, OwnerType, ProjectStatus};
 #[async_trait]
 pub trait ProjectReadRepository: Send + Sync {
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<Project>, DomainError>;
-    
+
     async fn find_by_owner(
         &self,
         owner_type: OwnerType,
         owner_id: &Uuid,
     ) -> Result<Vec<Project>, DomainError>;
-    
+
     async fn list_with_filters(
         &self,
         owner_type: Option<OwnerType>,
@@ -32,9 +32,9 @@ pub trait ProjectReadRepository: Send + Sync {
         page: u32,
         page_size: u32,
     ) -> Result<Vec<Project>, DomainError>;
-    
+
     async fn count(&self) -> Result<i64, DomainError>;
-    
+
     async fn count_with_filters(
         &self,
         owner_type: Option<OwnerType>,
@@ -48,9 +48,9 @@ pub trait ProjectReadRepository: Send + Sync {
 #[async_trait]
 pub trait ProjectWriteRepository: Send + Sync {
     async fn save(&self, project: &Project) -> Result<Project, DomainError>;
-    
+
     async fn delete_by_id(&self, id: &Uuid) -> Result<(), DomainError>;
-    
+
     async fn exists_by_id(&self, id: &Uuid) -> Result<bool, DomainError>;
 }
 
@@ -63,24 +63,27 @@ pub trait ProjectRepository: ProjectReadRepository + ProjectWriteRepository + Se
 #[async_trait]
 pub trait ComponentReadRepository: Send + Sync {
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<ProjectComponent>, DomainError>;
-    
-    async fn find_by_project(&self, project_id: &Uuid) -> Result<Vec<ProjectComponent>, DomainError>;
-    
+
+    async fn find_by_project(
+        &self,
+        project_id: &Uuid,
+    ) -> Result<Vec<ProjectComponent>, DomainError>;
+
     async fn find_by_project_and_type(
         &self,
         project_id: &Uuid,
         component_type: &str,
     ) -> Result<Option<ProjectComponent>, DomainError>;
-    
+
     async fn count_active_by_project(&self, project_id: &Uuid) -> Result<i64, DomainError>;
 }
 
 #[async_trait]
 pub trait ComponentWriteRepository: Send + Sync {
     async fn save(&self, component: &ProjectComponent) -> Result<ProjectComponent, DomainError>;
-    
+
     async fn delete(&self, id: &Uuid) -> Result<(), DomainError>;
-    
+
     async fn exists_by_project_and_type(
         &self,
         project_id: &Uuid,
@@ -88,7 +91,10 @@ pub trait ComponentWriteRepository: Send + Sync {
     ) -> Result<bool, DomainError>;
 }
 
-pub trait ComponentRepository: ComponentReadRepository + ComponentWriteRepository + Send + Sync {}
+pub trait ComponentRepository:
+    ComponentReadRepository + ComponentWriteRepository + Send + Sync
+{
+}
 
 // =============================================================================
 // Member Repository Ports
@@ -97,15 +103,15 @@ pub trait ComponentRepository: ComponentReadRepository + ComponentWriteRepositor
 #[async_trait]
 pub trait MemberReadRepository: Send + Sync {
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<ProjectMember>, DomainError>;
-    
+
     async fn find_by_project(&self, project_id: &Uuid) -> Result<Vec<ProjectMember>, DomainError>;
-    
+
     async fn find_by_project_and_user(
         &self,
         project_id: &Uuid,
         user_id: &Uuid,
     ) -> Result<Option<ProjectMember>, DomainError>;
-    
+
     async fn list_with_filters(
         &self,
         project_id: &Uuid,
@@ -114,16 +120,16 @@ pub trait MemberReadRepository: Send + Sync {
         page: u32,
         page_size: u32,
     ) -> Result<Vec<ProjectMember>, DomainError>;
-    
+
     async fn count_active(&self, project_id: &Uuid) -> Result<i64, DomainError>;
 }
 
 #[async_trait]
 pub trait MemberWriteRepository: Send + Sync {
     async fn save(&self, member: &ProjectMember) -> Result<ProjectMember, DomainError>;
-    
+
     async fn delete(&self, id: &Uuid) -> Result<(), DomainError>;
-    
+
     async fn exists_by_project_and_user(
         &self,
         project_id: &Uuid,
@@ -152,7 +158,10 @@ pub trait ResourceReadRepository: Send + Sync {
     async fn find_by_id(&self, id: &str) -> Result<Option<Resource>, DomainError>;
     async fn find_all(&self) -> Result<Vec<Resource>, DomainError>;
     /// Find a resource for a specific component instance by its UUID
-    async fn find_by_component_id(&self, component_id: &Uuid) -> Result<Option<Resource>, DomainError>;
+    async fn find_by_component_id(
+        &self,
+        component_id: &Uuid,
+    ) -> Result<Option<Resource>, DomainError>;
 }
 
 #[async_trait]
@@ -160,10 +169,16 @@ pub trait ResourceWriteRepository: Send + Sync {
     async fn create_for_component(&self, component_type: &str) -> Result<Resource, DomainError>;
     async fn delete_by_id(&self, id: &str) -> Result<(), DomainError>;
     /// Create a resource for a specific component instance (format: "component:{uuid}")
-    async fn create_for_component_instance(&self, component_id: &Uuid) -> Result<Resource, DomainError>;
+    async fn create_for_component_instance(
+        &self,
+        component_id: &Uuid,
+    ) -> Result<Resource, DomainError>;
 }
 
-pub trait ResourceRepository: ResourceReadRepository + ResourceWriteRepository + Send + Sync {}
+pub trait ResourceRepository:
+    ResourceReadRepository + ResourceWriteRepository + Send + Sync
+{
+}
 
 // =============================================================================
 // RolePermission Repository Ports
@@ -172,8 +187,7 @@ pub trait ResourceRepository: ResourceReadRepository + ResourceWriteRepository +
 #[async_trait]
 pub trait RolePermissionReadRepository: Send + Sync {
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<RolePermission>, DomainError>;
-    async fn find_by_project(&self, project_id: &Uuid)
-        -> Result<Vec<RolePermission>, DomainError>;
+    async fn find_by_project(&self, project_id: &Uuid) -> Result<Vec<RolePermission>, DomainError>;
     async fn find_by_project_resource_permission(
         &self,
         project_id: &Uuid,
@@ -213,16 +227,11 @@ pub trait ProjectMemberRolePermissionWriteRepository: Send + Sync {
         member_id: &Uuid,
         role_permission_id: &Uuid,
     ) -> Result<ProjectMemberRolePermission, DomainError>;
-    async fn revoke(&self, member_id: &Uuid, role_permission_id: &Uuid)
-        -> Result<(), DomainError>;
+    async fn revoke(&self, member_id: &Uuid, role_permission_id: &Uuid) -> Result<(), DomainError>;
     async fn revoke_all_for_member(&self, member_id: &Uuid) -> Result<(), DomainError>;
 }
 
 pub trait ProjectMemberRolePermissionRepository:
-    ProjectMemberRolePermissionReadRepository
-    + ProjectMemberRolePermissionWriteRepository
-    + Send
-    + Sync
+    ProjectMemberRolePermissionReadRepository + ProjectMemberRolePermissionWriteRepository + Send + Sync
 {
 }
-

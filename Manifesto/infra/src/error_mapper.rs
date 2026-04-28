@@ -18,9 +18,10 @@ impl ErrorMapper<DomainError> for ManifestoErrorMapper {
                 resource_type,
                 identifier: _,
             } => ServiceError::conflict(resource_type),
-            DomainError::ExternalServiceError { service: _, message } => {
-                ServiceError::infrastructure(message)
-            }
+            DomainError::ExternalServiceError {
+                service: _,
+                message,
+            } => ServiceError::infrastructure(message),
             DomainError::PermissionDenied { message } => ServiceError::authorization(message),
             DomainError::Internal { message } => ServiceError::internal(message),
         }
@@ -37,10 +38,14 @@ impl ErrorMapper<DomainError> for ManifestoErrorMapper {
             ServiceError::Conflict { message, .. } => {
                 DomainError::resource_already_exists(&message, "")
             }
-            ServiceError::Business { message, .. } => DomainError::business_rule_violation(&message),
+            ServiceError::Business { message, .. } => {
+                DomainError::business_rule_violation(&message)
+            }
             ServiceError::Infrastructure { message, .. } => DomainError::internal_error(&message),
             ServiceError::RateLimit { message, .. } => DomainError::internal_error(&message),
-            ServiceError::ServiceUnavailable { message, .. } => DomainError::internal_error(&message),
+            ServiceError::ServiceUnavailable { message, .. } => {
+                DomainError::internal_error(&message)
+            }
             ServiceError::Timeout { message, .. } => DomainError::internal_error(&message),
             ServiceError::Internal { message, .. } => DomainError::internal_error(&message),
         }

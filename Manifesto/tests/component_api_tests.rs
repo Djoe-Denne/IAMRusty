@@ -48,7 +48,11 @@ async fn test_add_component_returns_201_with_valid_data() {
     let jwt_token = create_test_jwt_token(owner_id);
 
     let response = client
-        .post(&format!("{}/api/projects/{}/components", base_url, project.id()))
+        .post(&format!(
+            "{}/api/projects/{}/components",
+            base_url,
+            project.id()
+        ))
         .header("Authorization", format!("Bearer {}", jwt_token))
         .header("Content-Type", "application/json")
         .json(&json!({
@@ -66,7 +70,10 @@ async fn test_add_component_returns_201_with_valid_data() {
 
     let response_json: Value = response.json().await.expect("Should return JSON response");
 
-    assert!(response_json["id"].is_string(), "Should return component ID");
+    assert!(
+        response_json["id"].is_string(),
+        "Should return component ID"
+    );
     assert_eq!(
         response_json["component_type"], "taskboard",
         "Should return correct component type"
@@ -105,7 +112,11 @@ async fn test_add_component_returns_409_for_duplicate() {
 
     // Try to add the same component type again
     let response = client
-        .post(&format!("{}/api/projects/{}/components", base_url, project.id()))
+        .post(&format!(
+            "{}/api/projects/{}/components",
+            base_url,
+            project.id()
+        ))
         .header("Authorization", format!("Bearer {}", jwt_token))
         .header("Content-Type", "application/json")
         .json(&json!({
@@ -164,7 +175,7 @@ async fn test_get_component_returns_200_for_existing() {
         .send()
         .await
         .expect("Failed to send request");
-    
+
     assert_eq!(
         response.status(),
         200,
@@ -222,7 +233,11 @@ async fn test_list_components_returns_all_project_components() {
     let jwt_token = create_test_jwt_token(owner_id);
 
     let response = client
-        .get(&format!("{}/api/projects/{}/components", base_url, project.id()))
+        .get(&format!(
+            "{}/api/projects/{}/components",
+            base_url,
+            project.id()
+        ))
         .header("Authorization", format!("Bearer {}", jwt_token))
         .send()
         .await
@@ -502,7 +517,11 @@ async fn test_user_with_generic_component_permission_can_list_all_components() {
 
     // Should be able to list all components
     let response = client
-        .get(&format!("{}/api/projects/{}/components", base_url, project.id()))
+        .get(&format!(
+            "{}/api/projects/{}/components",
+            base_url,
+            project.id()
+        ))
         .header("Authorization", format!("Bearer {}", jwt_token))
         .send()
         .await
@@ -516,7 +535,11 @@ async fn test_user_with_generic_component_permission_can_list_all_components() {
 
     let response_json: Value = response.json().await.expect("Should return JSON response");
     let components = response_json["data"].as_array().unwrap();
-    assert_eq!(components.len(), 2, "Should see all components in the project");
+    assert_eq!(
+        components.len(),
+        2,
+        "Should see all components in the project"
+    );
 }
 
 #[tokio::test]
@@ -1234,5 +1257,3 @@ async fn test_generic_permission_grants_access_to_all_components() {
         "Member with generic admin permission should update component2"
     );
 }
-
-

@@ -6,15 +6,14 @@ use manifesto_domain::port::{
 use manifesto_domain::value_objects::PermissionLevel;
 use rustycog_core::error::DomainError;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter, ColumnTrait,
+    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait,
+    QueryFilter,
 };
 use std::sync::Arc;
 use tracing::debug;
 use uuid::Uuid;
 
-use super::entity::{
-    permissions, prelude::*, resources, role_permissions,
-};
+use super::entity::{permissions, prelude::*, resources, role_permissions};
 
 pub struct RolePermissionMapper;
 
@@ -125,7 +124,9 @@ impl RolePermissionReadRepositoryImpl {
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         match role {
-            Some(r) => Ok(Some(Self::load_with_relations_with_connection(db, r).await?)),
+            Some(r) => Ok(Some(
+                Self::load_with_relations_with_connection(db, r).await?,
+            )),
             None => Ok(None),
         }
     }
@@ -183,7 +184,6 @@ impl RolePermissionReadRepository for RolePermissionReadRepositoryImpl {
         )
         .await
     }
-
 }
 
 #[derive(Clone)]
@@ -216,7 +216,10 @@ impl RolePermissionWriteRepositoryImpl {
 
 #[async_trait]
 impl RolePermissionWriteRepository for RolePermissionWriteRepositoryImpl {
-    async fn create(&self, role_permission: &RolePermission) -> Result<RolePermission, DomainError> {
+    async fn create(
+        &self,
+        role_permission: &RolePermission,
+    ) -> Result<RolePermission, DomainError> {
         debug!("Creating role permission");
 
         Self::create_with_connection(self.db.as_ref(), role_permission).await
@@ -276,7 +279,10 @@ impl RolePermissionReadRepository for RolePermissionRepositoryImpl {
 
 #[async_trait]
 impl RolePermissionWriteRepository for RolePermissionRepositoryImpl {
-    async fn create(&self, role_permission: &RolePermission) -> Result<RolePermission, DomainError> {
+    async fn create(
+        &self,
+        role_permission: &RolePermission,
+    ) -> Result<RolePermission, DomainError> {
         self.write_repo.create(role_permission).await
     }
 
@@ -286,4 +292,3 @@ impl RolePermissionWriteRepository for RolePermissionRepositoryImpl {
 }
 
 impl RolePermissionRepository for RolePermissionRepositoryImpl {}
-

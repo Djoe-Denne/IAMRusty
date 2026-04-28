@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
 use rustycog_core::error::DomainError;
+use serde::{Deserialize, Serialize};
 
 /// Permission entity representing a specific permission level
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -18,7 +18,9 @@ impl PermissionLevel {
             "write" => Ok(PermissionLevel::Write),
             "admin" => Ok(PermissionLevel::Admin),
             "owner" => Ok(PermissionLevel::Owner),
-            _ => Err(DomainError::InvalidInput { message: format!("Invalid permission level: {}", s) }),
+            _ => Err(DomainError::InvalidInput {
+                message: format!("Invalid permission level: {}", s),
+            }),
         }
     }
 
@@ -64,7 +66,11 @@ pub struct Permission {
 
 impl Permission {
     /// Create a new permission
-    pub fn new(level: PermissionLevel, description: Option<String>, created_at: Option<DateTime<Utc>>) -> Self {
+    pub fn new(
+        level: PermissionLevel,
+        description: Option<String>,
+        created_at: Option<DateTime<Utc>>,
+    ) -> Self {
         Self {
             level,
             description,

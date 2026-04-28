@@ -4,14 +4,14 @@ use serde_json::Value;
 use std::time::Duration;
 use tracing::{debug, error, info, warn};
 
-use rustycog_core::error::DomainError;
+use hive_configuration::ExternalProviderServiceConfig;
 use hive_domain::{
     port::service::{
-        ExternalProviderClient, ExternalMember, ExternalOrganizationInfo, ExternalProviderInfo,
+        ExternalMember, ExternalOrganizationInfo, ExternalProviderClient, ExternalProviderInfo,
     },
     RolePermission,
 };
-use hive_configuration::ExternalProviderServiceConfig;
+use rustycog_core::error::DomainError;
 
 /// HTTP client implementation for External Provider Service
 #[derive(Debug, Clone)]
@@ -45,9 +45,7 @@ impl HttpExternalProviderClient {
     }
 
     /// Create a new HTTP client from configuration
-    pub fn from_config(
-        config: &ExternalProviderServiceConfig,
-    ) -> Result<Self, DomainError> {
+    pub fn from_config(config: &ExternalProviderServiceConfig) -> Result<Self, DomainError> {
         Self::new(
             config.base_url.clone(),
             config.api_key.clone(),
@@ -65,7 +63,9 @@ impl HttpExternalProviderClient {
         );
 
         if let Some(ref api_key) = self.api_key {
-            if let Ok(auth_value) = reqwest::header::HeaderValue::from_str(&format!("Bearer {}", api_key)) {
+            if let Ok(auth_value) =
+                reqwest::header::HeaderValue::from_str(&format!("Bearer {}", api_key))
+            {
                 headers.insert(reqwest::header::AUTHORIZATION, auth_value);
             }
         }
@@ -74,8 +74,8 @@ impl HttpExternalProviderClient {
     }
 
     /// Handle HTTP response and extract JSON
-    async fn handle_response<T>(&self, response: Response) -> Result<T, DomainError> 
-    where 
+    async fn handle_response<T>(&self, response: Response) -> Result<T, DomainError>
+    where
         T: serde::de::DeserializeOwned,
     {
         let status = response.status();
@@ -83,10 +83,16 @@ impl HttpExternalProviderClient {
             DomainError::external_service_error("external_provider_service", &e.to_string())
         })?;
 
-        debug!("External provider service response: status={}, body={}", status, response_text);
+        debug!(
+            "External provider service response: status={}, body={}",
+            status, response_text
+        );
 
         if !status.is_success() {
-            error!("External provider service error: status={}, body={}", status, response_text);
+            error!(
+                "External provider service error: status={}, body={}",
+                status, response_text
+            );
             return Err(DomainError::external_service_error(
                 "external_provider_service",
                 &format!("HTTP {}: {}", status, response_text),
@@ -150,9 +156,13 @@ impl HttpExternalProviderClient {
 
 #[async_trait]
 impl ExternalProviderClient for HttpExternalProviderClient {
-    async fn validate_config(&self, provider_source: &String, config: &Value) -> Result<(), DomainError> {
+    async fn validate_config(
+        &self,
+        provider_source: &String,
+        config: &Value,
+    ) -> Result<(), DomainError> {
         info!("Validating config for provider: {:?}", provider_source);
-        
+
         let request_body = serde_json::json!({
             "provider_source": provider_source.as_str(),
             "config": config
@@ -162,34 +172,50 @@ impl ExternalProviderClient for HttpExternalProviderClient {
         Ok(())
     }
 
-    async fn test_connection(&self, provider_source: &String, config: &Value) -> Result<bool, DomainError> {
+    async fn test_connection(
+        &self,
+        provider_source: &String,
+        config: &Value,
+    ) -> Result<bool, DomainError> {
         info!("Testing connection for provider: {:?}", provider_source);
-        
+
         let request_body = serde_json::json!({
             "provider_source": provider_source.as_str(),
             "config": config
         });
 
         let response: Value = self.post("/connection/test", &request_body).await?;
-        
-        response.get("connected")
+
+        response
+            .get("connected")
             .and_then(|v| v.as_bool())
             .ok_or_else(|| {
                 DomainError::external_service_error(
                     "external_provider_service",
-                    "Invalid response format for connection test"
+                    "Invalid response format for connection test",
                 )
             })
     }
 
-    async fn sync_members(&self, provider_source: &String, config: &Value) -> Result<Vec<ExternalMember>, DomainError> {
+    async fn sync_members(
+        &self,
+        provider_source: &String,
+        config: &Value,
+    ) -> Result<Vec<ExternalMember>, DomainError> {
         info!("Syncing members for provider: {:?}", provider_source);
         self.get_members(provider_source, config).await
     }
 
-    async fn get_organization_info(&self, provider_source: &String, config: &Value) -> Result<ExternalOrganizationInfo, DomainError> {
-        info!("Getting organization info for provider: {:?}", provider_source);
-        
+    async fn get_organization_info(
+        &self,
+        provider_source: &String,
+        config: &Value,
+    ) -> Result<ExternalOrganizationInfo, DomainError> {
+        info!(
+            "Getting organization info for provider: {:?}",
+            provider_source
+        );
+
         let request_body = serde_json::json!({
             "provider_source": provider_source.as_str(),
             "config": config
@@ -198,22 +224,27 @@ impl ExternalProviderClient for HttpExternalProviderClient {
         self.post("/organization/info", &request_body).await
     }
 
-    async fn get_members(&self, provider_source: &String, config: &Value) -> Result<Vec<ExternalMember>, DomainError> {
+    async fn get_members(
+        &self,
+        provider_source: &String,
+        config: &Value,
+    ) -> Result<Vec<ExternalMember>, DomainError> {
         info!("Getting members for provider: {:?}", provider_source);
-        
+
         let request_body = serde_json::json!({
             "provider_source": provider_source.as_str(),
             "config": config
         });
 
         let response: Value = self.post("/members", &request_body).await?;
-        
-        response.get("members")
+
+        response
+            .get("members")
             .and_then(|v| v.as_array())
             .ok_or_else(|| {
                 DomainError::external_service_error(
                     "external_provider_service",
-                    "Invalid response format for members list"
+                    "Invalid response format for members list",
                 )
             })?
             .iter()
@@ -222,16 +253,24 @@ impl ExternalProviderClient for HttpExternalProviderClient {
                     error!("Failed to deserialize member: {}", e);
                     DomainError::external_service_error(
                         "external_provider_service",
-                        &format!("Invalid member format: {}", e)
+                        &format!("Invalid member format: {}", e),
                     )
                 })
             })
             .collect()
     }
 
-    async fn is_member(&self, provider_source: &String, config: &Value, username: &str) -> Result<bool, DomainError> {
-        info!("Checking membership for user '{}' with provider: {:?}", username, provider_source);
-        
+    async fn is_member(
+        &self,
+        provider_source: &String,
+        config: &Value,
+        username: &str,
+    ) -> Result<bool, DomainError> {
+        info!(
+            "Checking membership for user '{}' with provider: {:?}",
+            username, provider_source
+        );
+
         let request_body = serde_json::json!({
             "provider_source": provider_source.as_str(),
             "config": config,
@@ -239,13 +278,14 @@ impl ExternalProviderClient for HttpExternalProviderClient {
         });
 
         let response: Value = self.post("/members/check", &request_body).await?;
-        
-        response.get("is_member")
+
+        response
+            .get("is_member")
             .and_then(|v| v.as_bool())
             .ok_or_else(|| {
                 DomainError::external_service_error(
                     "external_provider_service",
-                    "Invalid response format for membership check"
+                    "Invalid response format for membership check",
                 )
             })
     }

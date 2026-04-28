@@ -31,9 +31,7 @@ impl CommandErrorMapper for MemberErrorMapper {
                 ApplicationError::Validation(msg) => {
                     CommandError::validation("validation_failed", msg)
                 }
-                ApplicationError::NotFound(msg) => {
-                    CommandError::business("not_found", msg)
-                }
+                ApplicationError::NotFound(msg) => CommandError::business("not_found", msg),
                 ApplicationError::AlreadyExists(msg) => {
                     CommandError::business("already_exists", msg)
                 }
@@ -89,7 +87,7 @@ impl Command for AddMemberCommand {
                 "Member permission cannot be empty",
             ));
         }
-        
+
         // Validate permission level
         let valid_permissions = ["read", "write", "admin", "owner"];
         if !valid_permissions.contains(&self.request.permission.to_lowercase().as_str()) {
@@ -98,7 +96,7 @@ impl Command for AddMemberCommand {
                 "Permission must be one of: read, write, admin, owner",
             ));
         }
-        
+
         Ok(())
     }
 }
@@ -231,7 +229,10 @@ impl ListMembersCommandHandler {
 
 #[async_trait]
 impl CommandHandler<ListMembersCommand> for ListMembersCommandHandler {
-    async fn handle(&self, command: ListMembersCommand) -> Result<MemberListResponse, CommandError> {
+    async fn handle(
+        &self,
+        command: ListMembersCommand,
+    ) -> Result<MemberListResponse, CommandError> {
         self.member_usecase
             .list_members(command.project_id, &command.pagination)
             .await
@@ -288,7 +289,7 @@ impl Command for UpdateMemberCommand {
                 "At least one permission must be specified",
             ));
         }
-        
+
         // Validate each permission
         let valid_permissions = ["read", "write", "admin", "owner"];
         for perm in &self.request.permissions {
@@ -311,7 +312,7 @@ impl Command for UpdateMemberCommand {
                 ));
             }
         }
-        
+
         Ok(())
     }
 }
@@ -450,14 +451,14 @@ impl Command for GrantPermissionCommand {
                 "Resource name cannot be empty",
             ));
         }
-        
+
         if self.request.permission.trim().is_empty() {
             return Err(CommandError::validation(
                 "empty_permission",
                 "Permission level cannot be empty",
             ));
         }
-        
+
         let valid_permissions = ["read", "write", "admin", "owner"];
         if !valid_permissions.contains(&self.request.permission.to_lowercase().as_str()) {
             return Err(CommandError::validation(
@@ -465,7 +466,7 @@ impl Command for GrantPermissionCommand {
                 "Permission must be one of: read, write, admin, owner",
             ));
         }
-        
+
         Ok(())
     }
 }
@@ -482,7 +483,10 @@ impl GrantPermissionCommandHandler {
 
 #[async_trait]
 impl CommandHandler<GrantPermissionCommand> for GrantPermissionCommandHandler {
-    async fn handle(&self, command: GrantPermissionCommand) -> Result<MemberResponse, CommandError> {
+    async fn handle(
+        &self,
+        command: GrantPermissionCommand,
+    ) -> Result<MemberResponse, CommandError> {
         self.member_usecase
             .grant_permission(
                 command.project_id,
@@ -509,12 +513,7 @@ pub struct RevokePermissionCommand {
 }
 
 impl RevokePermissionCommand {
-    pub fn new(
-        project_id: Uuid,
-        user_id: Uuid,
-        resource: String,
-        requester_id: Uuid,
-    ) -> Self {
+    pub fn new(project_id: Uuid, user_id: Uuid, resource: String, requester_id: Uuid) -> Self {
         Self {
             command_id: Uuid::new_v4(),
             project_id,
@@ -572,4 +571,3 @@ impl CommandHandler<RevokePermissionCommand> for RevokePermissionCommandHandler 
             .map_err(CommandError::from)
     }
 }
-

@@ -49,13 +49,15 @@ async fn test_component_service_client_sends_api_key_and_parses_success_response
     Mock::given(method("GET"))
         .and(path("/api/components"))
         .and(header("authorization", "Bearer test-api-key"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(vec![ComponentInfo {
-            component_type: "taskboard".to_string(),
-            name: "Taskboard".to_string(),
-            description: Some("Collaborative kanban board".to_string()),
-            version: "1.2.3".to_string(),
-            endpoint: "https://components.example/taskboard".to_string(),
-        }]))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(vec![ComponentInfo {
+                component_type: "taskboard".to_string(),
+                name: "Taskboard".to_string(),
+                description: Some("Collaborative kanban board".to_string()),
+                version: "1.2.3".to_string(),
+                endpoint: "https://components.example/taskboard".to_string(),
+            }]),
+        )
         .mount(&server)
         .await;
 

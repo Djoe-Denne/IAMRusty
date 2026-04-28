@@ -114,9 +114,7 @@ impl RefreshTokenWriteRepository for RefreshTokenWriteRepositoryImpl {
         let model = Self::to_model(&new_token);
         let inserted = model.insert(&txn).await?;
 
-        let delete_result = RefreshTokens::delete_by_id(old_token_id)
-            .exec(&txn)
-            .await?;
+        let delete_result = RefreshTokens::delete_by_id(old_token_id).exec(&txn).await?;
 
         if delete_result.rows_affected == 0 {
             txn.rollback().await?;

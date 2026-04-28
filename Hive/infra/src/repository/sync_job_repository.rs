@@ -1,23 +1,20 @@
 //! SyncJobRepository SeaORM implementation
 
 use async_trait::async_trait;
-use hive_domain::entity::{SyncJob, SyncJobType, SyncJobStatus};
-use rustycog_core::error::DomainError;
+use hive_domain::entity::{SyncJob, SyncJobStatus, SyncJobType};
 use hive_domain::port::repository::{
     SyncJobReadRepository, SyncJobRepository, SyncJobWriteRepository,
 };
+use rustycog_core::error::DomainError;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait,
-    QueryFilter, PaginatorTrait
+    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait,
+    QueryFilter,
 };
 use std::sync::Arc;
 use tracing::debug;
 use uuid::Uuid;
 
-use super::entity::{
-    prelude::SyncJobs,
-    sync_jobs,
-};
+use super::entity::{prelude::SyncJobs, sync_jobs};
 
 struct SyncJobMapper;
 
@@ -69,14 +66,16 @@ pub struct SyncJobReadRepositoryImpl {
 }
 
 impl SyncJobReadRepositoryImpl {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self { Self { db } }
+    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+        Self { db }
+    }
 }
 
 #[async_trait]
 impl SyncJobReadRepository for SyncJobReadRepositoryImpl {
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<SyncJob>, DomainError> {
         debug!("Finding sync job by ID: {}", id);
-        
+
         let job = SyncJobs::find_by_id(*id)
             .one(self.db.as_ref())
             .await
@@ -90,7 +89,7 @@ impl SyncJobReadRepository for SyncJobReadRepositoryImpl {
 
     async fn find_by_external_link(&self, link_id: &Uuid) -> Result<Vec<SyncJob>, DomainError> {
         debug!("Finding sync jobs by external link: {}", link_id);
-        
+
         let jobs = SyncJobs::find()
             .filter(sync_jobs::Column::OrganizationExternalLinkId.eq(*link_id))
             .all(self.db.as_ref())
@@ -104,9 +103,12 @@ impl SyncJobReadRepository for SyncJobReadRepositoryImpl {
         Ok(result)
     }
 
-    async fn find_by_organization(&self, organization_id: &Uuid) -> Result<Vec<SyncJob>, DomainError> {
+    async fn find_by_organization(
+        &self,
+        organization_id: &Uuid,
+    ) -> Result<Vec<SyncJob>, DomainError> {
         debug!("Finding sync jobs by organization: {}", organization_id);
-        
+
         // This would require a join with external_links table to filter by organization
         // For now, implementing a simplified version
         let jobs = SyncJobs::find()
@@ -123,7 +125,7 @@ impl SyncJobReadRepository for SyncJobReadRepositoryImpl {
 
     async fn find_by_status(&self, status: &SyncJobStatus) -> Result<Vec<SyncJob>, DomainError> {
         debug!("Finding sync jobs by status: {:?}", status);
-        
+
         let jobs = SyncJobs::find()
             .filter(sync_jobs::Column::Status.eq(status.as_str()))
             .all(self.db.as_ref())
@@ -139,7 +141,7 @@ impl SyncJobReadRepository for SyncJobReadRepositoryImpl {
 
     async fn find_running(&self) -> Result<Vec<SyncJob>, DomainError> {
         debug!("Finding running sync jobs");
-        
+
         let jobs = SyncJobs::find()
             .filter(sync_jobs::Column::Status.eq("running"))
             .all(self.db.as_ref())
@@ -153,9 +155,12 @@ impl SyncJobReadRepository for SyncJobReadRepositoryImpl {
         Ok(result)
     }
 
-    async fn find_running_by_external_link(&self, link_id: &Uuid) -> Result<Vec<SyncJob>, DomainError> {
+    async fn find_running_by_external_link(
+        &self,
+        link_id: &Uuid,
+    ) -> Result<Vec<SyncJob>, DomainError> {
         debug!("Finding running sync jobs by external link: {}", link_id);
-        
+
         let jobs = SyncJobs::find()
             .filter(sync_jobs::Column::OrganizationExternalLinkId.eq(*link_id))
             .filter(sync_jobs::Column::Status.eq("running"))
@@ -172,7 +177,7 @@ impl SyncJobReadRepository for SyncJobReadRepositoryImpl {
 
     async fn find_recent(&self, days: i64) -> Result<Vec<SyncJob>, DomainError> {
         debug!("Finding recent sync jobs (last {} days)", days);
-        
+
         let cutoff = chrono::Utc::now() - chrono::Duration::days(days);
         let jobs = SyncJobs::find()
             .filter(sync_jobs::Column::CreatedAt.gte(cutoff))
@@ -189,7 +194,7 @@ impl SyncJobReadRepository for SyncJobReadRepositoryImpl {
 
     async fn count_by_external_link(&self, link_id: &Uuid) -> Result<i64, DomainError> {
         debug!("Counting sync jobs by external link: {}", link_id);
-        
+
         let count = SyncJobs::find()
             .filter(sync_jobs::Column::OrganizationExternalLinkId.eq(*link_id))
             .count(self.db.as_ref())
@@ -201,7 +206,7 @@ impl SyncJobReadRepository for SyncJobReadRepositoryImpl {
 
     async fn count_running(&self) -> Result<i64, DomainError> {
         debug!("Counting running sync jobs");
-        
+
         let count = SyncJobs::find()
             .filter(sync_jobs::Column::Status.eq("running"))
             .count(self.db.as_ref())
@@ -219,21 +224,24 @@ pub struct SyncJobWriteRepositoryImpl {
 }
 
 impl SyncJobWriteRepositoryImpl {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self { Self { db } }
+    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+        Self { db }
+    }
 }
 
 #[async_trait]
 impl SyncJobWriteRepository for SyncJobWriteRepositoryImpl {
     async fn save(&self, job: &SyncJob) -> Result<SyncJob, DomainError> {
         debug!("Saving sync job with ID: {}", job.id);
-        
+
         let exists = SyncJobs::find_by_id(job.id)
             .one(self.db.as_ref())
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?
             .is_some();
 
-        if exists { // Update
+        if exists {
+            // Update
             let active_model = SyncJobMapper::to_active_model(job);
             let result = active_model
                 .save(self.db.as_ref())
@@ -257,7 +265,7 @@ impl SyncJobWriteRepository for SyncJobWriteRepositoryImpl {
             };
             return Ok(SyncJobMapper::to_domain(saved_model)?);
         }
-        
+
         // Insert
         let active_model = SyncJobMapper::to_active_model(job);
         let result = active_model
@@ -286,7 +294,7 @@ impl SyncJobWriteRepository for SyncJobWriteRepositoryImpl {
 
     async fn delete_by_id(&self, id: &Uuid) -> Result<(), DomainError> {
         debug!("Deleting sync job by ID: {}", id);
-        
+
         let result = SyncJobs::delete_by_id(*id)
             .exec(self.db.as_ref())
             .await
@@ -312,7 +320,10 @@ impl SyncJobRepositoryImpl {
         read_repo: Arc<dyn SyncJobReadRepository>,
         write_repo: Arc<dyn SyncJobWriteRepository>,
     ) -> Self {
-        Self { read_repo, write_repo }
+        Self {
+            read_repo,
+            write_repo,
+        }
     }
 }
 
@@ -326,7 +337,10 @@ impl SyncJobReadRepository for SyncJobRepositoryImpl {
         self.read_repo.find_by_external_link(link_id).await
     }
 
-    async fn find_by_organization(&self, organization_id: &Uuid) -> Result<Vec<SyncJob>, DomainError> {
+    async fn find_by_organization(
+        &self,
+        organization_id: &Uuid,
+    ) -> Result<Vec<SyncJob>, DomainError> {
         self.read_repo.find_by_organization(organization_id).await
     }
 
@@ -338,7 +352,10 @@ impl SyncJobReadRepository for SyncJobRepositoryImpl {
         self.read_repo.find_running().await
     }
 
-    async fn find_running_by_external_link(&self, link_id: &Uuid) -> Result<Vec<SyncJob>, DomainError> {
+    async fn find_running_by_external_link(
+        &self,
+        link_id: &Uuid,
+    ) -> Result<Vec<SyncJob>, DomainError> {
         self.read_repo.find_running_by_external_link(link_id).await
     }
 

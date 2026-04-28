@@ -109,7 +109,11 @@ impl MigrationTrait for Migration {
                     )
                     .col(ColumnDef::new(ProviderTokens::UserId).uuid().not_null())
                     .col(ColumnDef::new(ProviderTokens::Provider).string().not_null())
-                    .col(ColumnDef::new(ProviderTokens::ProviderUserId).string().not_null()) // moved from users table
+                    .col(
+                        ColumnDef::new(ProviderTokens::ProviderUserId)
+                            .string()
+                            .not_null(),
+                    ) // moved from users table
                     .col(
                         ColumnDef::new(ProviderTokens::AccessToken)
                             .string()

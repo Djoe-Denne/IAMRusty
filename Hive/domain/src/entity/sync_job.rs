@@ -1,8 +1,8 @@
 use chrono::{DateTime, Utc};
+use rustycog_core::error::DomainError;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
-use rustycog_core::error::DomainError;
 
 /// Sync job entity for tracking synchronization operations
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

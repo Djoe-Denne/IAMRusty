@@ -7,7 +7,7 @@ use std::sync::Arc;
 use tracing::debug;
 use uuid::Uuid;
 
-use super::entity::{resources, prelude::Resources};
+use super::entity::{prelude::Resources, resources};
 
 /// Generate the resource ID for a specific component instance
 /// Uses just the UUID since resource_type identifies it as a component_instance
@@ -77,9 +77,15 @@ impl ResourceReadRepository for ResourceReadRepositoryImpl {
             .collect()
     }
 
-    async fn find_by_component_id(&self, component_id: &Uuid) -> Result<Option<Resource>, DomainError> {
+    async fn find_by_component_id(
+        &self,
+        component_id: &Uuid,
+    ) -> Result<Option<Resource>, DomainError> {
         let resource_id = component_resource_id(component_id);
-        debug!("Finding resource by component id: {} (resource_id: {})", component_id, resource_id);
+        debug!(
+            "Finding resource by component id: {} (resource_id: {})",
+            component_id, resource_id
+        );
         self.find_by_id(&resource_id).await
     }
 }
@@ -126,9 +132,15 @@ impl ResourceWriteRepository for ResourceWriteRepositoryImpl {
         Ok(())
     }
 
-    async fn create_for_component_instance(&self, component_id: &Uuid) -> Result<Resource, DomainError> {
+    async fn create_for_component_instance(
+        &self,
+        component_id: &Uuid,
+    ) -> Result<Resource, DomainError> {
         let resource_id = component_resource_id(component_id);
-        debug!("Creating resource for component instance: {} (resource_id: {})", component_id, resource_id);
+        debug!(
+            "Creating resource for component instance: {} (resource_id: {})",
+            component_id, resource_id
+        );
 
         let active_model = resources::ActiveModel {
             id: ActiveValue::Set(resource_id.clone()),
@@ -174,7 +186,10 @@ impl ResourceReadRepository for ResourceRepositoryImpl {
         self.read_repo.find_all().await
     }
 
-    async fn find_by_component_id(&self, component_id: &Uuid) -> Result<Option<Resource>, DomainError> {
+    async fn find_by_component_id(
+        &self,
+        component_id: &Uuid,
+    ) -> Result<Option<Resource>, DomainError> {
         self.read_repo.find_by_component_id(component_id).await
     }
 }
@@ -189,10 +204,14 @@ impl ResourceWriteRepository for ResourceRepositoryImpl {
         self.write_repo.delete_by_id(id).await
     }
 
-    async fn create_for_component_instance(&self, component_id: &Uuid) -> Result<Resource, DomainError> {
-        self.write_repo.create_for_component_instance(component_id).await
+    async fn create_for_component_instance(
+        &self,
+        component_id: &Uuid,
+    ) -> Result<Resource, DomainError> {
+        self.write_repo
+            .create_for_component_instance(component_id)
+            .await
     }
 }
 
 impl ResourceRepository for ResourceRepositoryImpl {}
-

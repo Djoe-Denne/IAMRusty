@@ -6,7 +6,8 @@ use manifesto_domain::port::{
 };
 use rustycog_core::error::DomainError;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter,
+    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait,
+    QueryFilter,
 };
 use std::sync::Arc;
 use tracing::debug;
@@ -207,7 +208,9 @@ impl ProjectMemberRolePermissionWriteRepository for ProjectMemberRolePermissionW
 
         ProjectMemberRolePermissions::delete_many()
             .filter(project_member_role_permissions::Column::MemberId.eq(*member_id))
-            .filter(project_member_role_permissions::Column::RolePermissionId.eq(*role_permission_id))
+            .filter(
+                project_member_role_permissions::Column::RolePermissionId.eq(*role_permission_id),
+            )
             .exec(self.db.as_ref())
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
@@ -276,4 +279,3 @@ impl ProjectMemberRolePermissionWriteRepository for ProjectMemberRolePermissionR
 }
 
 impl ProjectMemberRolePermissionRepository for ProjectMemberRolePermissionRepositoryImpl {}
-

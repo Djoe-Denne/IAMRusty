@@ -32,9 +32,10 @@ impl ComponentStatus {
         if self.can_transition_to(&target) {
             Ok(target)
         } else {
-            Err(DomainError::business_rule_violation(
-                &format!("Cannot transition component from {:?} to {:?}", self, target),
-            ))
+            Err(DomainError::business_rule_violation(&format!(
+                "Cannot transition component from {:?} to {:?}",
+                self, target
+            )))
         }
     }
 
@@ -85,4 +86,3 @@ mod tests {
         assert!(!ComponentStatus::Disabled.can_transition_to(&ComponentStatus::Active));
     }
 }
-

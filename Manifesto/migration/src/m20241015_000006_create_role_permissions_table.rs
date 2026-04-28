@@ -20,16 +20,8 @@ impl MigrationTrait for Migration {
                             .primary_key()
                             .extra("DEFAULT gen_random_uuid()"),
                     )
-                    .col(
-                        ColumnDef::new(RolePermissions::Name)
-                            .string_len(100)
-                            .null(),
-                    )
-                    .col(
-                        ColumnDef::new(RolePermissions::ProjectId)
-                            .uuid()
-                            .not_null(),
-                    )
+                    .col(ColumnDef::new(RolePermissions::Name).string_len(100).null())
+                    .col(ColumnDef::new(RolePermissions::ProjectId).uuid().not_null())
                     .col(
                         ColumnDef::new(RolePermissions::PermissionId)
                             .string_len(36)
@@ -154,4 +146,3 @@ enum Resources {
     Table,
     Id,
 }
-

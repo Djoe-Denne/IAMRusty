@@ -75,4 +75,3 @@ impl From<ApparatusDomainEvent> for Box<dyn DomainEvent + 'static> {
         Box::new(event)
     }
 }
-

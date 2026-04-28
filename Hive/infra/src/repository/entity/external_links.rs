@@ -60,4 +60,4 @@ impl Related<super::sync_jobs::Entity> for Entity {
     }
 }
 
-impl ActiveModelBehavior for ActiveModel {} 
+impl ActiveModelBehavior for ActiveModel {}

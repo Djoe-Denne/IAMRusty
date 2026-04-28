@@ -108,9 +108,10 @@ impl PermissionChecker for OpenFgaPermissionChecker {
             });
         }
 
-        let decoded: CheckResponseBody = response.json().await.map_err(|e| DomainError::Internal {
-            message: format!("Failed to decode OpenFGA Check response: {e}"),
-        })?;
+        let decoded: CheckResponseBody =
+            response.json().await.map_err(|e| DomainError::Internal {
+                message: format!("Failed to decode OpenFGA Check response: {e}"),
+            })?;
 
         debug!(
             subject = %subject,
@@ -301,13 +302,22 @@ mod tests {
         let subject = Subject::new(uuid::Uuid::new_v4());
         let resource = ResourceRef::new("organization", uuid::Uuid::new_v4());
 
-        assert!(!checker.check(subject, Permission::Read, resource).await.unwrap());
+        assert!(!checker
+            .check(subject, Permission::Read, resource)
+            .await
+            .unwrap());
 
         checker.allow(subject, Permission::Read, resource);
-        assert!(checker.check(subject, Permission::Read, resource).await.unwrap());
+        assert!(checker
+            .check(subject, Permission::Read, resource)
+            .await
+            .unwrap());
 
         checker.deny(subject, Permission::Read, resource);
-        assert!(!checker.check(subject, Permission::Read, resource).await.unwrap());
+        assert!(!checker
+            .check(subject, Permission::Read, resource)
+            .await
+            .unwrap());
     }
 
     #[tokio::test]
@@ -323,9 +333,15 @@ mod tests {
             128,
         );
 
-        assert!(cached.check(subject, Permission::Write, resource).await.unwrap());
+        assert!(cached
+            .check(subject, Permission::Write, resource)
+            .await
+            .unwrap());
         inner.deny(subject, Permission::Write, resource);
-        assert!(cached.check(subject, Permission::Write, resource).await.unwrap());
+        assert!(cached
+            .check(subject, Permission::Write, resource)
+            .await
+            .unwrap());
     }
 
     #[tokio::test]
@@ -342,21 +358,33 @@ mod tests {
         );
 
         // First wildcard check -> allow (inner has the tuple).
-        assert!(cached.check(wildcard, Permission::Read, resource).await.unwrap());
+        assert!(cached
+            .check(wildcard, Permission::Read, resource)
+            .await
+            .unwrap());
 
         // Flip the inner decision. With the cache bypassed, the next
         // wildcard call must observe the new state immediately. If the
         // wildcard were cached, this assertion would fail because the
         // cached `true` would be returned instead.
         inner.deny(wildcard, Permission::Read, resource);
-        assert!(!cached.check(wildcard, Permission::Read, resource).await.unwrap());
+        assert!(!cached
+            .check(wildcard, Permission::Read, resource)
+            .await
+            .unwrap());
 
         // Sanity: a concrete user-id subject with the same key shape is
         // still cached (regression guard for the rest of the cache logic).
         let user_subject = Subject::new(uuid::Uuid::new_v4());
         inner.allow(user_subject, Permission::Read, resource);
-        assert!(cached.check(user_subject, Permission::Read, resource).await.unwrap());
+        assert!(cached
+            .check(user_subject, Permission::Read, resource)
+            .await
+            .unwrap());
         inner.deny(user_subject, Permission::Read, resource);
-        assert!(cached.check(user_subject, Permission::Read, resource).await.unwrap()); // cached
+        assert!(cached
+            .check(user_subject, Permission::Read, resource)
+            .await
+            .unwrap()); // cached
     }
 }

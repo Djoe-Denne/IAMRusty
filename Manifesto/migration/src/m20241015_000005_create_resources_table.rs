@@ -51,26 +51,10 @@ impl MigrationTrait for Migration {
             .exec_stmt(
                 Query::insert()
                     .into_table(Resources::Table)
-                    .columns([
-                        Resources::Id,
-                        Resources::ResourceType,
-                        Resources::Name,
-                    ])
-                    .values_panic([
-                        "project".into(),
-                        "project".into(),
-                        "project".into(),
-                    ])
-                    .values_panic([
-                        "component".into(),
-                        "component".into(),
-                        "component".into(),
-                    ])
-                    .values_panic([
-                        "member".into(),
-                        "member".into(),
-                        "member".into(),
-                    ])
+                    .columns([Resources::Id, Resources::ResourceType, Resources::Name])
+                    .values_panic(["project".into(), "project".into(), "project".into()])
+                    .values_panic(["component".into(), "component".into(), "component".into()])
+                    .values_panic(["member".into(), "member".into(), "member".into()])
                     .to_owned(),
             )
             .await?;
@@ -93,4 +77,3 @@ enum Resources {
     Name,
     CreatedAt,
 }
-

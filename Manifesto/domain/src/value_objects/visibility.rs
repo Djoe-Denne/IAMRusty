@@ -41,4 +41,3 @@ impl std::fmt::Display for Visibility {
         write!(f, "{}", self.as_str())
     }
 }
-

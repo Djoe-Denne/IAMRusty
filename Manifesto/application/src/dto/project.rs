@@ -10,18 +10,18 @@ use crate::dto::ComponentResponse;
 pub struct CreateProjectRequest {
     #[validate(length(min = 1))]
     pub name: String,
-    
+
     pub description: Option<String>,
-    
-    pub owner_type: String,  // personal or organization
-    
-    pub owner_id: Option<Uuid>,  // Required for organization projects
-    
-    pub visibility: Option<String>,  // private, internal, public
-    
+
+    pub owner_type: String, // personal or organization
+
+    pub owner_id: Option<Uuid>, // Required for organization projects
+
+    pub visibility: Option<String>, // private, internal, public
+
     pub external_collaboration_enabled: Option<bool>,
-    
-    pub data_classification: Option<String>,  // public, internal, confidential, restricted
+
+    pub data_classification: Option<String>, // public, internal, confidential, restricted
 }
 
 /// Request to update a project
@@ -29,13 +29,13 @@ pub struct CreateProjectRequest {
 pub struct UpdateProjectRequest {
     #[validate(length(min = 1))]
     pub name: Option<String>,
-    
+
     pub description: Option<String>,
-    
+
     pub visibility: Option<String>,
-    
+
     pub external_collaboration_enabled: Option<bool>,
-    
+
     pub data_classification: Option<String>,
 }
 
@@ -72,4 +72,3 @@ pub struct ProjectListResponse {
     pub data: Vec<ProjectResponse>,
     pub pagination: crate::dto::PaginationResponse,
 }
-

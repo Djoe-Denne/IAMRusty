@@ -179,5 +179,3 @@ impl From<ManifestoDomainEvent> for Box<dyn DomainEvent + 'static> {
         Box::new(event)
     }
 }
-
-

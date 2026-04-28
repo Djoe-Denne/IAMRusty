@@ -18,45 +18,30 @@ impl MigrationTrait for Migration {
                             .primary_key()
                             .extra("DEFAULT gen_random_uuid()"),
                     )
-                    .col(
-                        ColumnDef::new(Projects::Name)
-                            .string_len(255)
-                            .not_null(),
-                    )
-                    .col(
-                        ColumnDef::new(Projects::Description)
-                            .text()
-                            .null(),
-                    )
+                    .col(ColumnDef::new(Projects::Name).string_len(255).not_null())
+                    .col(ColumnDef::new(Projects::Description).text().null())
                     .col(
                         ColumnDef::new(Projects::Status)
                             .string_len(50)
                             .not_null()
                             .default("draft")
-                            .check(
-                                Expr::col(Projects::Status)
-                                    .is_in(["draft", "active", "archived", "suspended"])
-                            ),
+                            .check(Expr::col(Projects::Status).is_in([
+                                "draft",
+                                "active",
+                                "archived",
+                                "suspended",
+                            ])),
                     )
                     .col(
                         ColumnDef::new(Projects::OwnerType)
                             .string_len(50)
                             .not_null()
                             .check(
-                                Expr::col(Projects::OwnerType)
-                                    .is_in(["personal", "organization"])
+                                Expr::col(Projects::OwnerType).is_in(["personal", "organization"]),
                             ),
                     )
-                    .col(
-                        ColumnDef::new(Projects::OwnerId)
-                            .uuid()
-                            .not_null(),
-                    )
-                    .col(
-                        ColumnDef::new(Projects::CreatedBy)
-                            .uuid()
-                            .not_null(),
-                    )
+                    .col(ColumnDef::new(Projects::OwnerId).uuid().not_null())
+                    .col(ColumnDef::new(Projects::CreatedBy).uuid().not_null())
                     .col(
                         ColumnDef::new(Projects::Visibility)
                             .string_len(50)
@@ -64,7 +49,7 @@ impl MigrationTrait for Migration {
                             .default("private")
                             .check(
                                 Expr::col(Projects::Visibility)
-                                    .is_in(["private", "internal", "public"])
+                                    .is_in(["private", "internal", "public"]),
                             ),
                     )
                     .col(
@@ -160,5 +145,3 @@ pub enum Projects {
     UpdatedAt,
     PublishedAt,
 }
-
-

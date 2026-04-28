@@ -15,11 +15,7 @@ impl MigrationTrait for Migration {
             .values_panic(["write".into(), "write".into()])
             .values_panic(["admin".into(), "admin".into()])
             .values_panic(["owner".into(), "owner".into()])
-            .on_conflict(
-                OnConflict::column(Permissions::Id)
-                    .do_nothing()
-                    .to_owned(),
-            )
+            .on_conflict(OnConflict::column(Permissions::Id).do_nothing().to_owned())
             .to_owned();
 
         manager.exec_stmt(insert_permissions).await?;
@@ -31,11 +27,7 @@ impl MigrationTrait for Migration {
             .columns([Resources::Id, Resources::ResourceType, Resources::Name])
             .values_panic(["project".into(), "internal".into(), "Project".into()])
             .values_panic(["member".into(), "internal".into(), "Member".into()])
-            .on_conflict(
-                OnConflict::column(Resources::Id)
-                    .do_nothing()
-                    .to_owned(),
-            )
+            .on_conflict(OnConflict::column(Resources::Id).do_nothing().to_owned())
             .to_owned();
 
         manager.exec_stmt(insert_resources).await?;
@@ -78,4 +70,3 @@ enum Resources {
     ResourceType,
     Name,
 }
-

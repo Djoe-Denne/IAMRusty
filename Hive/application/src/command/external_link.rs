@@ -4,9 +4,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::{
-    dto::{
-        CreateExternalLinkRequest, ExternalLinkResponse,
-    },
+    dto::{CreateExternalLinkRequest, ExternalLinkResponse},
     usecase::ExternalLinkUseCase,
     ApplicationError,
 };

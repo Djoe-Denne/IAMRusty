@@ -1,7 +1,8 @@
 use anyhow::Result;
 use std::sync::Arc;
 use telegraph_domain::entity::{
-    communication::{CommunicationMode, NotificationCommunication}, delivery::MessageDelivery,
+    communication::{CommunicationMode, NotificationCommunication},
+    delivery::MessageDelivery,
 };
 use telegraph_domain::error::DomainError;
 use telegraph_domain::port::repository::{
@@ -67,8 +68,14 @@ impl NotificationReadRepository for CombinedNotificationRepositoryImpl {
         self.read_repo.count_unread_notifications(user_id).await
     }
 
-    async fn user_has_notification(&self, user_id: Uuid, notification_id: Uuid) -> Result<bool, DomainError> {
-        self.read_repo.user_has_notification(user_id, notification_id).await
+    async fn user_has_notification(
+        &self,
+        user_id: Uuid,
+        notification_id: Uuid,
+    ) -> Result<bool, DomainError> {
+        self.read_repo
+            .user_has_notification(user_id, notification_id)
+            .await
     }
 }
 

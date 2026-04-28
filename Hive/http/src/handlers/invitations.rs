@@ -3,7 +3,9 @@ use axum::{
     response::Json,
 };
 use hive_application::{
-    AcceptInvitationCommand, CreateInvitationCommand, CreateInvitationRequest, GetInvitationByTokenCommand, InvitationDetailsResponse, InvitationListResponse, InvitationResponse, ListInvitationsCommand, PaginationRequest
+    AcceptInvitationCommand, CreateInvitationCommand, CreateInvitationRequest,
+    GetInvitationByTokenCommand, InvitationDetailsResponse, InvitationListResponse,
+    InvitationResponse, ListInvitationsCommand, PaginationRequest,
 };
 use rustycog_command::CommandContext;
 use rustycog_http::{AppState, AuthUser, OptionalAuthUser, ValidatedJson};
@@ -23,7 +25,9 @@ pub async fn create_invitation(
     tracing::info!("Creating invitation for organization: {}", organization_id);
 
     let command = CreateInvitationCommand::new(organization_id.id(), request, auth_user.user_id);
-    let context = CommandContext::new().with_user_id(auth_user.user_id).with_metadata("operation".to_string(), "create_invitation".to_string());
+    let context = CommandContext::new()
+        .with_user_id(auth_user.user_id)
+        .with_metadata("operation".to_string(), "create_invitation".to_string());
 
     let result = state
         .command_service
@@ -46,8 +50,10 @@ pub async fn list_invitations(
 ) -> Result<Json<InvitationListResponse>, HttpError> {
     tracing::info!("Listing invitations for organization: {}", organization_id);
 
-    let command = ListInvitationsCommand::new(organization_id.id(), pagination, auth_user.user_id());
-    let mut context = CommandContext::new().with_metadata("operation".to_string(), "list_invitations".to_string());
+    let command =
+        ListInvitationsCommand::new(organization_id.id(), pagination, auth_user.user_id());
+    let mut context = CommandContext::new()
+        .with_metadata("operation".to_string(), "list_invitations".to_string());
 
     if let Some(user_id) = auth_user.user_id() {
         context = context.with_user_id(user_id);
@@ -78,7 +84,9 @@ pub async fn get_invitation(
     );
 
     let command = GetInvitationByTokenCommand::new(invitation_id);
-    let context = CommandContext::new().with_metadata("operation".to_string(), "get_invitation".to_string()).with_user_id(auth_user.user_id);
+    let context = CommandContext::new()
+        .with_metadata("operation".to_string(), "get_invitation".to_string())
+        .with_user_id(auth_user.user_id);
 
     let result = state
         .command_service
@@ -101,7 +109,9 @@ pub async fn accept_invitation(
     tracing::info!("Accepting invitation with token: {}", token);
 
     let command = AcceptInvitationCommand::new(token, auth_user.user_id);
-    let context = CommandContext::new().with_user_id(auth_user.user_id).with_metadata("operation".to_string(), "accept_invitation".to_string());
+    let context = CommandContext::new()
+        .with_user_id(auth_user.user_id)
+        .with_metadata("operation".to_string(), "accept_invitation".to_string());
 
     let result = state
         .command_service
@@ -124,7 +134,12 @@ pub async fn get_invitation_by_token(
     tracing::info!("Getting invitation details for token: {}", token);
 
     let command = GetInvitationByTokenCommand::new(token);
-    let context = CommandContext::new().with_user_id(auth_user.user_id).with_metadata("operation".to_string(), "get_invitation_by_token".to_string());
+    let context = CommandContext::new()
+        .with_user_id(auth_user.user_id)
+        .with_metadata(
+            "operation".to_string(),
+            "get_invitation_by_token".to_string(),
+        );
 
     let result = state
         .command_service

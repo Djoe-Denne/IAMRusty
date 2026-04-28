@@ -13,9 +13,9 @@ use rustycog_config::{
     LoggingConfig, OpenFgaClientConfig, QueueConfig, ScalewayConfig,
 };
 
-pub use rustycog_config::{ServerConfig};
+pub use rustycog_config::ServerConfig;
 
-pub use rustycog_logger::{setup_logging};
+pub use rustycog_logger::setup_logging;
 
 /// Main Telegraph service configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -157,7 +157,6 @@ pub struct NotificationConfig {
     /// Notification service provider (dummy, fcm, apns, etc.)
     #[serde(default = "default_notification_provider")]
     pub provider: String,
-
 }
 
 /// Template service configuration

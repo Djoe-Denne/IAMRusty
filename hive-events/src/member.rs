@@ -122,7 +122,6 @@ impl MemberJoinedEvent {
 }
 
 impl MemberRolesUpdatedEvent {
-
     pub fn new(
         organization_id: Uuid,
         organization_name: String,

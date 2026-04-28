@@ -364,14 +364,15 @@ impl From<DomainError> for ServiceError {
     fn from(domain_error: DomainError) -> Self {
         match domain_error {
             DomainError::EntityNotFound { entity_type, id } => {
-                ServiceError::not_found_resource("",entity_type, id)
+                ServiceError::not_found_resource("", entity_type, id)
             }
             DomainError::InvalidInput { message } => ServiceError::validation(message),
             DomainError::BusinessRuleViolation { rule } => ServiceError::business(rule),
             DomainError::Unauthorized { operation } => ServiceError::authorization(operation),
-            DomainError::ResourceAlreadyExists { resource_type, identifier } => {
-                ServiceError::conflict(resource_type)
-            }
+            DomainError::ResourceAlreadyExists {
+                resource_type,
+                identifier,
+            } => ServiceError::conflict(resource_type),
             DomainError::Internal { message } => ServiceError::internal(message),
             DomainError::ExternalServiceError { service, message } => {
                 ServiceError::infrastructure(message)

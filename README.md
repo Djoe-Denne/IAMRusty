@@ -126,6 +126,17 @@ cd Telegraph
 cargo test
 ```
 
+### Formatting
+
+Run Rust formatting from the workspace root:
+
+```bash
+cargo fmt
+```
+
+To check formatting before every commit, see
+[`docs/CARGO_FMT_PRE_COMMIT.md`](docs/CARGO_FMT_PRE_COMMIT.md).
+
 ### Configuration
 
 - **IAMRusty**: See `IAMRusty/README.md` for detailed configuration

@@ -20,31 +20,21 @@ impl MigrationTrait for Migration {
                             .primary_key()
                             .extra("DEFAULT gen_random_uuid()"),
                     )
-                    .col(
-                        ColumnDef::new(ProjectMembers::ProjectId)
-                            .uuid()
-                            .not_null(),
-                    )
-                    .col(
-                        ColumnDef::new(ProjectMembers::UserId)
-                            .uuid()
-                            .not_null(),
-                    )
+                    .col(ColumnDef::new(ProjectMembers::ProjectId).uuid().not_null())
+                    .col(ColumnDef::new(ProjectMembers::UserId).uuid().not_null())
                     .col(
                         ColumnDef::new(ProjectMembers::Source)
                             .string_len(50)
                             .not_null()
                             .default("direct")
-                            .check(
-                                Expr::col(ProjectMembers::Source)
-                                    .is_in(["direct", "org_cascade", "invitation", "third_party_sync"])
-                            ),
+                            .check(Expr::col(ProjectMembers::Source).is_in([
+                                "direct",
+                                "org_cascade",
+                                "invitation",
+                                "third_party_sync",
+                            ])),
                     )
-                    .col(
-                        ColumnDef::new(ProjectMembers::AddedBy)
-                            .uuid()
-                            .null(),
-                    )
+                    .col(ColumnDef::new(ProjectMembers::AddedBy).uuid().null())
                     .col(
                         ColumnDef::new(ProjectMembers::AddedAt)
                             .timestamp_with_time_zone()
@@ -156,5 +146,3 @@ pub enum ProjectMembers {
     GracePeriodEndsAt,
     LastAccessAt,
 }
-
-

@@ -189,5 +189,3 @@ impl PermissionRevokedEvent {
         }
     }
 }
-
-

@@ -67,4 +67,3 @@ enum Resources {
     Table,
     ResourceType,
 }
-

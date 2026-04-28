@@ -1,12 +1,14 @@
 use reqwest::StatusCode;
-use serial_test::serial;
 use rustycog_testing::http::jwt::create_jwt_token;
+use sea_orm::{ActiveModelTrait, EntityTrait, Set};
+use serial_test::serial;
 use uuid::Uuid;
-use sea_orm::{EntityTrait, ActiveModelTrait, Set};
 
 use hive_application::dto::member::{AddMemberRequest, MemberResponse};
 use hive_application::dto::role::{MemberRole, MemberRolePermission};
-use hive_infra::repository::entity::{organization_members, role_permissions, organization_member_role_permissions};
+use hive_infra::repository::entity::{
+    organization_member_role_permissions, organization_members, role_permissions,
+};
 
 mod common;
 use common::{fixtures::db::DbFixtures, setup_test_server, Permission, ResourceRef, Subject};
@@ -23,11 +25,18 @@ async fn add_member_requires_auth() {
     let new_user = Uuid::new_v4();
     let body = AddMemberRequest {
         user_id: new_user,
-        roles: vec![MemberRole { organization_id: org.id, resource: "organization".to_string(), permissions: MemberRolePermission::Read }],
+        roles: vec![MemberRole {
+            organization_id: org.id,
+            resource: "organization".to_string(),
+            permissions: MemberRolePermission::Read,
+        }],
     };
 
     let res = client
-        .post(format!("{}/api/organizations/{}/members", server_url, org.id))
+        .post(format!(
+            "{}/api/organizations/{}/members",
+            server_url, org.id
+        ))
         .json(&body)
         .send()
         .await
@@ -64,11 +73,18 @@ async fn add_member_forbidden_for_read_only_member() {
     let new_user = Uuid::new_v4();
     let body = AddMemberRequest {
         user_id: new_user,
-        roles: vec![MemberRole { organization_id: org.id, resource: "organization".to_string(), permissions: MemberRolePermission::Read }],
+        roles: vec![MemberRole {
+            organization_id: org.id,
+            resource: "organization".to_string(),
+            permissions: MemberRolePermission::Read,
+        }],
     };
 
     let res = client
-        .post(format!("{}/api/organizations/{}/members", server_url, org.id))
+        .post(format!(
+            "{}/api/organizations/{}/members",
+            server_url, org.id
+        ))
         .header("Authorization", format!("Bearer {}", token))
         .json(&body)
         .send()
@@ -101,11 +117,18 @@ async fn add_member_happy_path_by_owner() {
     let new_user = Uuid::new_v4();
     let body = AddMemberRequest {
         user_id: new_user,
-        roles: vec![MemberRole { organization_id: org.id, resource: "organization".to_string(), permissions: MemberRolePermission::Read }],
+        roles: vec![MemberRole {
+            organization_id: org.id,
+            resource: "organization".to_string(),
+            permissions: MemberRolePermission::Read,
+        }],
     };
 
     let res = client
-        .post(format!("{}/api/organizations/{}/members", server_url, org.id))
+        .post(format!(
+            "{}/api/organizations/{}/members",
+            server_url, org.id
+        ))
         .header("Authorization", format!("Bearer {}", token))
         .json(&body)
         .send()
@@ -144,16 +167,26 @@ async fn list_members_requires_auth_and_forbids_non_member() {
 
     // No auth — the strict 401 path doesn't touch the checker.
     let res = client
-        .get(format!("{}/api/organizations/{}/members?page=0&page_size=10", server_url, org.id))
-        .send().await.unwrap();
+        .get(format!(
+            "{}/api/organizations/{}/members?page=0&page_size=10",
+            server_url, org.id
+        ))
+        .send()
+        .await
+        .unwrap();
     assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
 
     // Random user (non member) — Check returns deny per the stub above.
     let token = create_jwt_token(random_user);
     let res = client
-        .get(format!("{}/api/organizations/{}/members?page=0&page_size=10", server_url, org.id))
+        .get(format!(
+            "{}/api/organizations/{}/members?page=0&page_size=10",
+            server_url, org.id
+        ))
         .header("Authorization", format!("Bearer {}", token))
-        .send().await.unwrap();
+        .send()
+        .await
+        .unwrap();
     assert_eq!(res.status(), StatusCode::FORBIDDEN);
 }
 
@@ -179,9 +212,14 @@ async fn list_members_happy_path_for_owner() {
         .expect("Failed to grant organization read");
 
     let res = client
-        .get(format!("{}/api/organizations/{}/members?page=0&page_size=10", server_url, org.id))
+        .get(format!(
+            "{}/api/organizations/{}/members?page=0&page_size=10",
+            server_url, org.id
+        ))
         .header("Authorization", format!("Bearer {}", token))
-        .send().await.unwrap();
+        .send()
+        .await
+        .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let body: serde_json::Value = res.json().await.unwrap();
     assert!(body["members"].as_array().unwrap().len() >= 1);
@@ -206,15 +244,25 @@ async fn get_member_requires_auth_and_forbids_non_member() {
     let random_user = Uuid::new_v4();
 
     let res = client
-        .get(format!("{}/api/organizations/{}/members/{}", server_url, org.id, owner_id))
-        .send().await.unwrap();
+        .get(format!(
+            "{}/api/organizations/{}/members/{}",
+            server_url, org.id, owner_id
+        ))
+        .send()
+        .await
+        .unwrap();
     assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
 
     let token = create_jwt_token(random_user);
     let res = client
-        .get(format!("{}/api/organizations/{}/members/{}", server_url, org.id, owner_id))
+        .get(format!(
+            "{}/api/organizations/{}/members/{}",
+            server_url, org.id, owner_id
+        ))
         .header("Authorization", format!("Bearer {}", token))
-        .send().await.unwrap();
+        .send()
+        .await
+        .unwrap();
     assert_eq!(res.status(), StatusCode::FORBIDDEN);
 }
 
@@ -240,9 +288,14 @@ async fn get_member_happy_path_for_owner() {
         .expect("Failed to grant organization read");
 
     let res = client
-        .get(format!("{}/api/organizations/{}/members/{}", server_url, org.id, owner_id))
+        .get(format!(
+            "{}/api/organizations/{}/members/{}",
+            server_url, org.id, owner_id
+        ))
         .header("Authorization", format!("Bearer {}", token))
-        .send().await.unwrap();
+        .send()
+        .await
+        .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let got: serde_json::Value = res.json().await.unwrap();
     assert_eq!(got["organization_id"].as_str().unwrap(), org.id.to_string());
@@ -276,16 +329,26 @@ async fn remove_member_requires_auth_and_forbids_read_only() {
 
     // No auth — strict 401 path.
     let res = client
-        .delete(format!("{}/api/organizations/{}/members/{}", server_url, org.id, read_user_id))
-        .send().await.unwrap();
+        .delete(format!(
+            "{}/api/organizations/{}/members/{}",
+            server_url, org.id, read_user_id
+        ))
+        .send()
+        .await
+        .unwrap();
     assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
 
     // Read-only cannot remove — Check returns deny per the stub above.
     let token = create_jwt_token(read_user_id);
     let res = client
-        .delete(format!("{}/api/organizations/{}/members/{}", server_url, org.id, read_user_id))
+        .delete(format!(
+            "{}/api/organizations/{}/members/{}",
+            server_url, org.id, read_user_id
+        ))
         .header("Authorization", format!("Bearer {}", token))
-        .send().await.unwrap();
+        .send()
+        .await
+        .unwrap();
     assert_eq!(res.status(), StatusCode::FORBIDDEN);
 }
 
@@ -296,12 +359,16 @@ async fn remove_member_happy_path_by_owner() {
     let owner_id = Uuid::new_v4();
     let read_user_id = Uuid::new_v4();
     let token = create_jwt_token(owner_id);
-    let org = DbFixtures::create_org(fixture.db().as_ref(), owner_id, std::collections::HashMap::from([
-        (owner_id.to_string(), "owner".to_string()),
-        (read_user_id.to_string(), "read".to_string()),
-    ]))
-        .await
-        .unwrap();
+    let org = DbFixtures::create_org(
+        fixture.db().as_ref(),
+        owner_id,
+        std::collections::HashMap::from([
+            (owner_id.to_string(), "owner".to_string()),
+            (read_user_id.to_string(), "read".to_string()),
+        ]),
+    )
+    .await
+    .unwrap();
 
     // Route guard: `with_permission_on(Permission::Write, "organization")`.
     // DELETE /members/{user_id} trailing UUID = read_user_id.
@@ -315,10 +382,13 @@ async fn remove_member_happy_path_by_owner() {
         .expect("Failed to grant organization write");
 
     let res = client
-        .delete(format!("{}/api/organizations/{}/members/{}", server_url, org.id, read_user_id))
+        .delete(format!(
+            "{}/api/organizations/{}/members/{}",
+            server_url, org.id, read_user_id
+        ))
         .header("Authorization", format!("Bearer {}", token))
-        .send().await.unwrap();
+        .send()
+        .await
+        .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
 }
-
-

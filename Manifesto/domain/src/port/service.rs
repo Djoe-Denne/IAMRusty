@@ -17,7 +17,7 @@ pub struct ComponentInfo {
 pub trait ComponentServicePort: Send + Sync {
     /// List all available component types
     async fn list_available_components(&self) -> Result<Vec<ComponentInfo>, DomainError>;
-    
+
     /// Check if a component type exists
     async fn component_exists(&self, component_type: &str) -> Result<bool, DomainError> {
         let components = self.list_available_components().await?;
@@ -26,4 +26,3 @@ pub trait ComponentServicePort: Send + Sync {
             .any(|c| c.component_type == component_type))
     }
 }
-

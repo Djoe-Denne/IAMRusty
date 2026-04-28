@@ -49,7 +49,8 @@ pub async fn list_members(
     tracing::info!("Listing members for organization: {}", organization_id);
 
     let command = ListMembersCommand::new(organization_id.id(), pagination, auth_user.user_id());
-    let mut context = CommandContext::new().with_metadata("operation".to_string(), "list_members".to_string());
+    let mut context =
+        CommandContext::new().with_metadata("operation".to_string(), "list_members".to_string());
 
     let result = state
         .command_service
@@ -76,7 +77,8 @@ pub async fn get_member(
     );
 
     let command = GetMemberCommand::new(organization_id.id(), user_id.id(), auth_user.user_id());
-    let mut context = CommandContext::new().with_metadata("operation".to_string(), "get_member".to_string());
+    let mut context =
+        CommandContext::new().with_metadata("operation".to_string(), "get_member".to_string());
 
     let result = state
         .command_service
@@ -103,7 +105,8 @@ pub async fn remove_member(
     );
 
     let command = RemoveMemberCommand::new(organization_id.id(), user_id.id(), auth_user.user_id);
-    let context = CommandContext::new().with_metadata("operation".to_string(), "remove_member".to_string());
+    let context =
+        CommandContext::new().with_metadata("operation".to_string(), "remove_member".to_string());
 
     let result = state
         .command_service
@@ -130,8 +133,14 @@ pub async fn update_member(
         organization_id
     );
 
-    let command = UpdateMemberCommand::new(organization_id.id(), user_id.id(), &request, auth_user.user_id);
-    let context = CommandContext::new().with_metadata("operation".to_string(), "update_member".to_string());
+    let command = UpdateMemberCommand::new(
+        organization_id.id(),
+        user_id.id(),
+        &request,
+        auth_user.user_id,
+    );
+    let context =
+        CommandContext::new().with_metadata("operation".to_string(), "update_member".to_string());
 
     let result = state
         .command_service

@@ -39,4 +39,3 @@ impl std::fmt::Display for DataClassification {
         write!(f, "{}", self.as_str())
     }
 }
-

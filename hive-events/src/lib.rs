@@ -15,8 +15,8 @@ pub use external_link::*;
 pub use invitation::*;
 pub use member::*;
 pub use organization::*;
-pub use sync::*;
 pub use role::*;
+pub use sync::*;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};

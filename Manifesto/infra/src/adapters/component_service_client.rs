@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use manifesto_domain::port::{ComponentInfo, ComponentServicePort};
-use rustycog_core::error::DomainError;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
+use rustycog_core::error::DomainError;
 use std::time::Duration;
 use tracing::{debug, error};
 
@@ -50,7 +50,10 @@ impl ComponentServiceClient {
 #[async_trait]
 impl ComponentServicePort for ComponentServiceClient {
     async fn list_available_components(&self) -> Result<Vec<ComponentInfo>, DomainError> {
-        debug!("Fetching available components from {}/api/components", self.base_url);
+        debug!(
+            "Fetching available components from {}/api/components",
+            self.base_url
+        );
         let response = self
             .client
             .get(format!("{}/api/components", self.base_url))
@@ -75,15 +78,12 @@ impl ComponentServicePort for ComponentServiceClient {
             ));
         }
 
-        let components: Vec<ComponentInfo> = response
-            .json()
-            .await
-            .map_err(|e| {
-                DomainError::external_service_error(
-                    "component_service",
-                    &format!("Failed to parse component list: {}", e),
-                )
-            })?;
+        let components: Vec<ComponentInfo> = response.json().await.map_err(|e| {
+            DomainError::external_service_error(
+                "component_service",
+                &format!("Failed to parse component list: {}", e),
+            )
+        })?;
 
         debug!("Successfully fetched {} components", components.len());
         Ok(components)

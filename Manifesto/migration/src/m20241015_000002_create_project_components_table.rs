@@ -35,10 +35,12 @@ impl MigrationTrait for Migration {
                             .string_len(50)
                             .not_null()
                             .default("pending")
-                            .check(
-                                Expr::col(ProjectComponents::Status)
-                                    .is_in(["pending", "configured", "active", "disabled"])
-                            ),
+                            .check(Expr::col(ProjectComponents::Status).is_in([
+                                "pending",
+                                "configured",
+                                "active",
+                                "disabled",
+                            ])),
                     )
                     .col(
                         ColumnDef::new(ProjectComponents::AddedAt)
@@ -132,5 +134,3 @@ enum ProjectComponents {
     ActivatedAt,
     DisabledAt,
 }
-
-

@@ -17,13 +17,12 @@ pub trait NotificationService: Send + Sync {
         notification: NotificationCommunication,
         delivery_mode: CommunicationMode,
     ) -> Result<(NotificationCommunication, MessageDelivery), DomainError>;
-    
+
     async fn create_delivery(
         &self,
         delivery: MessageDelivery,
     ) -> Result<MessageDelivery, DomainError>;
-    
-    
+
     async fn get_user_notifications(
         &self,
         user_id: Uuid,
@@ -31,10 +30,9 @@ pub trait NotificationService: Send + Sync {
         per_page: u8,
         unread_only: bool,
     ) -> Result<(Vec<NotificationCommunication>, u64), DomainError>;
-    
-    
+
     async fn count_unread_notifications(&self, user_id: Uuid) -> Result<u64, DomainError>;
-    
+
     async fn mark_notification_as_read(
         &self,
         notification_id: Uuid,
@@ -42,7 +40,6 @@ pub trait NotificationService: Send + Sync {
     ) -> Result<NotificationCommunication, DomainError>;
 
     async fn user_has_notification(&self, user_id: Uuid, notification_id: Uuid) -> bool;
-    
 }
 
 pub struct NotificationServiceImpl<NR> {
@@ -60,7 +57,6 @@ impl<NR> NotificationService for NotificationServiceImpl<NR>
 where
     NR: NotificationRepository,
 {
-
     async fn create_notification(
         &self,
         notification: NotificationCommunication,
@@ -135,7 +131,10 @@ where
         }
     }
 
-    async fn user_has_notification(&self, user_id: Uuid, notification_id: Uuid) -> bool  {
-        self.notification_repo.user_has_notification(user_id, notification_id).await.unwrap_or(false)
+    async fn user_has_notification(&self, user_id: Uuid, notification_id: Uuid) -> bool {
+        self.notification_repo
+            .user_has_notification(user_id, notification_id)
+            .await
+            .unwrap_or(false)
     }
 }

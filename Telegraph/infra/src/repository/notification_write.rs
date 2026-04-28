@@ -10,7 +10,8 @@ use tracing::debug;
 use crate::repository::entity::{notification_deliveries, notifications};
 use crate::repository::mappers;
 use telegraph_domain::entity::{
-    communication::{CommunicationMode, NotificationCommunication}, delivery::MessageDelivery,
+    communication::{CommunicationMode, NotificationCommunication},
+    delivery::MessageDelivery,
 };
 use telegraph_domain::error::DomainError;
 use telegraph_domain::port::repository::NotificationWriteRepository;

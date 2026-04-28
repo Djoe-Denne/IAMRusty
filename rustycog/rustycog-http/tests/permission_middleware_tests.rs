@@ -70,10 +70,7 @@ async fn ok_handler_one_level_optional_auth(
 
 async fn make_server(
     checker: Arc<InMemoryPermissionChecker>,
-) -> (
-    SocketAddr,
-    tokio::task::JoinHandle<Result<(), DomainError>>,
-) {
+) -> (SocketAddr, tokio::task::JoinHandle<Result<(), DomainError>>) {
     let registry = Arc::new(rustycog_command::CommandRegistry::default());
     let extractor = UserIdExtractor::from_resolved_secret(TEST_JWT_SECRET).unwrap();
     let state = AppState::new(
@@ -92,10 +89,7 @@ async fn make_server(
             .get("/orgs/{org_id}", ok_handler_one_level)
             .authenticated()
             .with_permission_on(Permission::Read, "organization")
-            .get(
-                "/orgs/{org_id}/members/{member_id}",
-                ok_handler_two_level,
-            )
+            .get("/orgs/{org_id}/members/{member_id}", ok_handler_two_level)
             .authenticated()
             .with_permission_on(Permission::Write, "organization")
             .get(
@@ -125,9 +119,7 @@ async fn make_server(
                 tls_key_path: Default::default(),
             })
             .await
-            .map_err(|e| {
-                DomainError::internal_error(&format!("Server startup failed: {}", e))
-            })?;
+            .map_err(|e| DomainError::internal_error(&format!("Server startup failed: {}", e)))?;
         Ok(())
     });
 
@@ -169,11 +161,7 @@ async fn http_get(addr: SocketAddr, path: &str, user: Option<Uuid>) -> reqwest::
     req.send().await.unwrap()
 }
 
-async fn http_get_with_token(
-    addr: SocketAddr,
-    path: &str,
-    token: &str,
-) -> reqwest::Response {
+async fn http_get_with_token(addr: SocketAddr, path: &str, token: &str) -> reqwest::Response {
     let url = format!("http://{}{}", addr, path);
     reqwest::Client::new()
         .get(&url)
@@ -199,7 +187,12 @@ mod one_level {
         let checker = Arc::new(InMemoryPermissionChecker::new());
         let (addr, _h) = make_server(checker).await;
         let user = Uuid::new_v4();
-        let res = http_get(addr, "/orgs/11111111-1111-1111-1111-111111111111", Some(user)).await;
+        let res = http_get(
+            addr,
+            "/orgs/11111111-1111-1111-1111-111111111111",
+            Some(user),
+        )
+        .await;
         assert_eq!(res.status(), reqwest::StatusCode::FORBIDDEN);
     }
 
@@ -302,11 +295,7 @@ mod three_level {
         let (addr, _h) = make_server(checker).await;
         let res = http_get(
             addr,
-            format!(
-                "/orgs/{}/members/{}/permissions/component/{}",
-                a, b, c
-            )
-            .as_str(),
+            format!("/orgs/{}/members/{}/permissions/component/{}", a, b, c).as_str(),
             Some(user),
         )
         .await;

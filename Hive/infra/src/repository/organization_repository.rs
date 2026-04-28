@@ -7,22 +7,21 @@ use hive_domain::port::repository::{
 };
 use rustycog_core::error::DomainError;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, Order,
-    PaginatorTrait, QueryFilter, QueryOrder, Condition, prelude::Expr,
+    prelude::Expr, ActiveModelTrait, ActiveValue, ColumnTrait, Condition, DatabaseConnection,
+    EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder,
 };
 use std::sync::Arc;
 use tracing::debug;
 use uuid::Uuid;
 
 use super::entity::{
-    prelude::{OrganizationMembers, Organizations},
     organization_members, organizations,
+    prelude::{OrganizationMembers, Organizations},
 };
 
 pub struct OrganizationMapper;
 
 impl OrganizationMapper {
-    
     pub fn to_domain(model: organizations::Model) -> Organization {
         Organization {
             id: model.id,
@@ -62,14 +61,13 @@ impl OrganizationReadRepositoryImpl {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
-
 }
 
 #[async_trait]
 impl OrganizationReadRepository for OrganizationReadRepositoryImpl {
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<Organization>, DomainError> {
         debug!("Finding organization by ID: {}", id);
-        
+
         let organization = Organizations::find_by_id(*id)
             .one(self.db.as_ref())
             .await
@@ -80,7 +78,7 @@ impl OrganizationReadRepository for OrganizationReadRepositoryImpl {
 
     async fn find_by_slug(&self, slug: &str) -> Result<Option<Organization>, DomainError> {
         debug!("Finding organization by slug: {}", slug);
-        
+
         let organization = Organizations::find()
             .filter(organizations::Column::Slug.eq(slug))
             .one(self.db.as_ref())
@@ -92,7 +90,7 @@ impl OrganizationReadRepository for OrganizationReadRepositoryImpl {
 
     async fn find_by_owner(&self, owner_user_id: &Uuid) -> Result<Vec<Organization>, DomainError> {
         debug!("Finding organizations by owner: {}", owner_user_id);
-        
+
         let organizations = Organizations::find()
             .filter(organizations::Column::OwnerUserId.eq(*owner_user_id))
             .order_by(organizations::Column::CreatedAt, Order::Desc)
@@ -100,7 +98,10 @@ impl OrganizationReadRepository for OrganizationReadRepositoryImpl {
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
-        Ok(organizations.into_iter().map(OrganizationMapper::to_domain).collect())
+        Ok(organizations
+            .into_iter()
+            .map(OrganizationMapper::to_domain)
+            .collect())
     }
 
     async fn find_by_user_membership(
@@ -109,9 +110,11 @@ impl OrganizationReadRepository for OrganizationReadRepositoryImpl {
         page: u32,
         page_size: u32,
     ) -> Result<Vec<Organization>, DomainError> {
-        debug!("Finding organizations by user membership: {} (page: {}, size: {})", 
-               user_id, page, page_size);
-        
+        debug!(
+            "Finding organizations by user membership: {} (page: {}, size: {})",
+            user_id, page, page_size
+        );
+
         let organizations = Organizations::find()
             .inner_join(OrganizationMembers)
             .filter(organization_members::Column::UserId.eq(*user_id))
@@ -122,7 +125,10 @@ impl OrganizationReadRepository for OrganizationReadRepositoryImpl {
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
-        Ok(organizations.into_iter().map(OrganizationMapper::to_domain).collect())
+        Ok(organizations
+            .into_iter()
+            .map(OrganizationMapper::to_domain)
+            .collect())
     }
 
     async fn search_by_name(
@@ -132,30 +138,32 @@ impl OrganizationReadRepository for OrganizationReadRepositoryImpl {
         page: u32,
         page_size: u32,
     ) -> Result<Vec<Organization>, DomainError> {
-        debug!("Searching organizations by name pattern: {} (page: {}, size: {}) for user: {}", 
-               name_pattern, page, page_size, user_id.unwrap_or_default());
+        debug!(
+            "Searching organizations by name pattern: {} (page: {}, size: {}) for user: {}",
+            name_pattern,
+            page,
+            page_size,
+            user_id.unwrap_or_default()
+        );
 
         let mut query = Organizations::find();
-        
+
         let like_pattern = format!("%{}%", name_pattern);
-        
+
         // Filter public by default using settings JSON column
-        let mut access_condition: Condition = Condition::all().add(Expr::cust("settings->>'visibility' = 'Public'"));
-        
+        let mut access_condition: Condition =
+            Condition::all().add(Expr::cust("settings->>'visibility' = 'Public'"));
+
         if let Some(user_id) = user_id {
-            query = query
-            .left_join(organization_members::Entity);
+            query = query.left_join(organization_members::Entity);
             access_condition = Condition::any()
                 .add(access_condition)
                 .add(organization_members::Column::UserId.eq(user_id));
-        } 
+        }
 
         let name_condition = organizations::Column::Name.like(&like_pattern);
-        
-        let full_condition = Condition::all()
-            .add(access_condition)
-            .add(name_condition);
 
+        let full_condition = Condition::all().add(access_condition).add(name_condition);
 
         let organizations = query
             .filter(full_condition)
@@ -165,12 +173,15 @@ impl OrganizationReadRepository for OrganizationReadRepositoryImpl {
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
-        Ok(organizations.into_iter().map(OrganizationMapper::to_domain).collect())
+        Ok(organizations
+            .into_iter()
+            .map(OrganizationMapper::to_domain)
+            .collect())
     }
 
     async fn count(&self) -> Result<i64, DomainError> {
         debug!("Counting total organizations");
-        
+
         let count = Organizations::find()
             .count(self.db.as_ref())
             .await
@@ -196,7 +207,7 @@ impl OrganizationWriteRepositoryImpl {
 impl OrganizationWriteRepository for OrganizationWriteRepositoryImpl {
     async fn exists_by_slug(&self, slug: &str) -> Result<bool, DomainError> {
         debug!("Checking if organization exists by slug: {}", slug);
-        
+
         let count = Organizations::find()
             .filter(organizations::Column::Slug.eq(slug))
             .count(self.db.as_ref())
@@ -248,14 +259,17 @@ impl OrganizationWriteRepository for OrganizationWriteRepositoryImpl {
 
     async fn delete_by_id(&self, id: &Uuid) -> Result<(), DomainError> {
         debug!("Deleting organization by ID: {}", id);
-        
+
         let result = Organizations::delete_by_id(*id)
             .exec(self.db.as_ref())
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         if result.rows_affected == 0 {
-            return Err(DomainError::entity_not_found("Organization", &id.to_string()));
+            return Err(DomainError::entity_not_found(
+                "Organization",
+                &id.to_string(),
+            ));
         }
 
         Ok(())
@@ -274,7 +288,10 @@ impl OrganizationRepositoryImpl {
         read_repo: Arc<dyn OrganizationReadRepository>,
         write_repo: Arc<dyn OrganizationWriteRepository>,
     ) -> Self {
-        Self { read_repo, write_repo }
+        Self {
+            read_repo,
+            write_repo,
+        }
     }
 }
 

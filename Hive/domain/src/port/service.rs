@@ -8,8 +8,16 @@ use rustycog_core::error::DomainError;
 /// Generic external provider service trait
 #[async_trait]
 pub trait ExternalProviderClient: Send + Sync {
-    async fn validate_config(&self, provider_source: &String, config: &serde_json::Value) -> Result<(), DomainError>;
-    async fn test_connection(&self, provider_source: &String, config: &serde_json::Value) -> Result<bool, DomainError>;
+    async fn validate_config(
+        &self,
+        provider_source: &String,
+        config: &serde_json::Value,
+    ) -> Result<(), DomainError>;
+    async fn test_connection(
+        &self,
+        provider_source: &String,
+        config: &serde_json::Value,
+    ) -> Result<bool, DomainError>;
     async fn sync_members(
         &self,
         provider_source: &String,

@@ -126,4 +126,3 @@ enum RolePermissions {
     Table,
     Id,
 }
-

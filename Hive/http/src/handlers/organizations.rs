@@ -14,7 +14,6 @@ use rustycog_permission::ResourceId;
 
 use crate::error::HttpError;
 
-
 fn error_mapper(error: CommandError) -> HttpError {
     match error {
         CommandError::Validation { .. } => HttpError::Validation {

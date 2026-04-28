@@ -12,4 +12,3 @@ pub use command::*;
 pub use dto::*;
 pub use error::*;
 pub use usecase::*;
-

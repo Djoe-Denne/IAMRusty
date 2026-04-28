@@ -10,7 +10,7 @@ use tracing::{debug, info, warn};
 
 use crate::fga_client::OpenFgaWriteClient;
 use crate::idempotency::EventLedger;
-use crate::translator::{TupleDelta, Translator};
+use crate::translator::{Translator, TupleDelta};
 
 pub struct SyncEventHandler {
     translators: Vec<Arc<dyn Translator>>,
@@ -52,9 +52,11 @@ impl EventHandler for SyncEventHandler {
         let event_id = event.event_id();
         let event_type = event.event_type().to_string();
 
-        let should_process = self.ledger.begin(event_id).await.map_err(|e| {
-            ServiceError::internal(&format!("ledger.begin failed: {e}"))
-        })?;
+        let should_process = self
+            .ledger
+            .begin(event_id)
+            .await
+            .map_err(|e| ServiceError::internal(&format!("ledger.begin failed: {e}")))?;
         if !should_process {
             debug!(event_id = %event_id, event_type = %event_type, "completed duplicate event, skipping");
             return Ok(());
@@ -67,9 +69,10 @@ impl EventHandler for SyncEventHandler {
 
         let Some((delta, translator_name)) = self.translate(&raw) else {
             debug!(event_id = %event_id, event_type = %event_type, "no translator claimed event");
-            self.ledger.complete(event_id).await.map_err(|e| {
-                ServiceError::internal(&format!("ledger.complete failed: {e}"))
-            })?;
+            self.ledger
+                .complete(event_id)
+                .await
+                .map_err(|e| ServiceError::internal(&format!("ledger.complete failed: {e}")))?;
             return Ok(());
         };
 
@@ -80,17 +83,14 @@ impl EventHandler for SyncEventHandler {
                 translator = translator_name,
                 "translator produced empty delta"
             );
-            self.ledger.complete(event_id).await.map_err(|e| {
-                ServiceError::internal(&format!("ledger.complete failed: {e}"))
-            })?;
+            self.ledger
+                .complete(event_id)
+                .await
+                .map_err(|e| ServiceError::internal(&format!("ledger.complete failed: {e}")))?;
             return Ok(());
         }
 
-        if let Err(error) = self
-            .fga
-            .write(&delta.writes, &delta.deletes)
-            .await
-        {
+        if let Err(error) = self.fga.write(&delta.writes, &delta.deletes).await {
             let error_message = format!("OpenFGA write failed: {error}");
             if let Err(ledger_error) = self.ledger.fail(event_id, &error_message).await {
                 warn!(event_id = %event_id, error = %ledger_error, "failed to mark event delivery as failed");
@@ -98,9 +98,10 @@ impl EventHandler for SyncEventHandler {
             return Err(ServiceError::infrastructure(&error_message));
         }
 
-        self.ledger.complete(event_id).await.map_err(|e| {
-            ServiceError::internal(&format!("ledger.complete failed: {e}"))
-        })?;
+        self.ledger
+            .complete(event_id)
+            .await
+            .map_err(|e| ServiceError::internal(&format!("ledger.complete failed: {e}")))?;
 
         info!(
             event_id = %event_id,

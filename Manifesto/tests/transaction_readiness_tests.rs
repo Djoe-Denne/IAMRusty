@@ -6,21 +6,21 @@ use async_trait::async_trait;
 use common::{ManifestoTestDescriptor, TestFixture};
 use manifesto_application::ProjectCreationUnitOfWork;
 use manifesto_domain::{
-    Project, ProjectMember,
     value_objects::{MemberSource, OwnerType, Visibility},
+    Project, ProjectMember,
 };
 use manifesto_events::{ManifestoDomainEvent, ProjectCreatedEvent};
 use manifesto_infra::{
-    ProjectCreationUnitOfWorkImpl,
     repository::entity::{prelude::*, project_members, role_permissions},
+    ProjectCreationUnitOfWorkImpl,
 };
 use rustycog_core::error::DomainError;
 use rustycog_events::{DomainEvent, EventPublisher};
 use rustycog_outbox::{
-    OutboxConfig, OutboxDispatcher, OutboxRecorder,
     entity::{
         Column as OutboxColumn, OutboxEvents, STATUS_FAILED, STATUS_PENDING, STATUS_PUBLISHED,
     },
+    OutboxConfig, OutboxDispatcher, OutboxRecorder,
 };
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serial_test::serial;

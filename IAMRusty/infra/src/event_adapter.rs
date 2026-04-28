@@ -8,8 +8,7 @@ use iam_domain::error::DomainError;
 use rustycog_config::QueueConfig;
 use rustycog_core::error::ServiceError;
 use rustycog_events::{
-    adapter::{ErrorMapper},
-    create_event_publisher_from_queue_config, ConcreteEventPublisher,
+    adapter::ErrorMapper, create_event_publisher_from_queue_config, ConcreteEventPublisher,
 };
 use std::sync::Arc;
 

@@ -74,4 +74,3 @@ impl PermissionReadRepository for PermissionReadRepositoryImpl {
 }
 
 // Note: No Write repository for Permissions - they are seeded and read-only
-

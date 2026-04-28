@@ -1,0 +1,5 @@
+#!/bin/sh
+set -eu
+
+echo "Checking Rust formatting with cargo fmt..."
+cargo fmt --all -- --check

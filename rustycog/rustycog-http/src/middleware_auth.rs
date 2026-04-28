@@ -39,7 +39,6 @@ where
     }
 }
 
-
 impl OptionalAuthUser {
     /// Get the user ID if authenticated, None otherwise
     pub fn user_id(&self) -> Option<Uuid> {

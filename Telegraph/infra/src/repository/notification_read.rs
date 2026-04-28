@@ -130,9 +130,16 @@ impl NotificationReadRepository for NotificationReadRepositoryImpl {
     }
 
     /// Check if a user has a notification
-    async fn user_has_notification(&self, user_id: Uuid, notification_id: Uuid) -> Result<bool, DomainError> {
-        debug!("Checking if user: {} has notification: {}", user_id, notification_id);
-    
+    async fn user_has_notification(
+        &self,
+        user_id: Uuid,
+        notification_id: Uuid,
+    ) -> Result<bool, DomainError> {
+        debug!(
+            "Checking if user: {} has notification: {}",
+            user_id, notification_id
+        );
+
         let notification = notifications::Entity::find_by_id(notification_id)
             .one(self.db.as_ref())
             .await

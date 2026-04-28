@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use validator::Validate;
 
-use crate::dto::{PaginationResponse, MemberRole};
+use crate::dto::{MemberRole, PaginationResponse};
 
 // =============================================================================
 // Invitation Request DTOs

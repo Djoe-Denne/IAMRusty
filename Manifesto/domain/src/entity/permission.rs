@@ -30,4 +30,3 @@ impl From<PermissionLevel> for Permission {
         Self::from_level(level)
     }
 }
-

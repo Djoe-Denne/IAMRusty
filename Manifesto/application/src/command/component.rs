@@ -25,9 +25,7 @@ impl CommandErrorMapper for ComponentErrorMapper {
                 ApplicationError::Validation(msg) => {
                     CommandError::validation("validation_failed", msg)
                 }
-                ApplicationError::NotFound(msg) => {
-                    CommandError::business("not_found", msg)
-                }
+                ApplicationError::NotFound(msg) => CommandError::business("not_found", msg),
                 ApplicationError::AlreadyExists(msg) => {
                     CommandError::business("already_exists", msg)
                 }
@@ -99,7 +97,10 @@ impl AddComponentCommandHandler {
 
 #[async_trait]
 impl CommandHandler<AddComponentCommand> for AddComponentCommandHandler {
-    async fn handle(&self, command: AddComponentCommand) -> Result<ComponentResponse, CommandError> {
+    async fn handle(
+        &self,
+        command: AddComponentCommand,
+    ) -> Result<ComponentResponse, CommandError> {
         self.component_usecase
             .add_component(command.project_id, &command.request, command.user_id)
             .await
@@ -159,7 +160,10 @@ impl GetComponentCommandHandler {
 
 #[async_trait]
 impl CommandHandler<GetComponentCommand> for GetComponentCommandHandler {
-    async fn handle(&self, command: GetComponentCommand) -> Result<ComponentResponse, CommandError> {
+    async fn handle(
+        &self,
+        command: GetComponentCommand,
+    ) -> Result<ComponentResponse, CommandError> {
         self.component_usecase
             .get_component(command.project_id, command.component_id, command.user_id)
             .await
@@ -368,4 +372,3 @@ impl CommandHandler<RemoveComponentCommand> for RemoveComponentCommandHandler {
             .map_err(CommandError::from)
     }
 }
-

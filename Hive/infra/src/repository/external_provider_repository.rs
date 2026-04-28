@@ -2,28 +2,24 @@
 
 use async_trait::async_trait;
 use hive_domain::entity::ExternalProvider;
-use rustycog_core::error::DomainError;
 use hive_domain::port::repository::{
     ExternalProviderReadRepository, ExternalProviderRepository, ExternalProviderWriteRepository,
 };
+use rustycog_core::error::DomainError;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, 
-    QueryFilter, Set
+    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait,
+    QueryFilter, Set,
 };
 use std::sync::Arc;
 use tracing::debug;
 use uuid::Uuid;
 
-use super::entity::{
-    prelude::ExternalProviders,
-    external_providers,
-};
+use super::entity::{external_providers, prelude::ExternalProviders};
 
 pub struct ExternalProviderMapper;
 
 impl ExternalProviderMapper {
     pub fn to_domain(model: external_providers::Model) -> Result<ExternalProvider, DomainError> {
-
         Ok(ExternalProvider {
             id: model.id,
             provider_source: model.provider_type,
@@ -53,14 +49,16 @@ pub struct ExternalProviderReadRepositoryImpl {
 }
 
 impl ExternalProviderReadRepositoryImpl {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self { Self { db } }
+    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+        Self { db }
+    }
 }
 
 #[async_trait]
 impl ExternalProviderReadRepository for ExternalProviderReadRepositoryImpl {
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<ExternalProvider>, DomainError> {
         debug!("Finding external provider by ID: {}", id);
-        
+
         let provider = ExternalProviders::find_by_id(*id)
             .one(self.db.as_ref())
             .await
@@ -72,9 +70,12 @@ impl ExternalProviderReadRepository for ExternalProviderReadRepositoryImpl {
         }
     }
 
-    async fn find_by_source(&self, provider_source: &String) -> Result<Option<ExternalProvider>, DomainError> {
+    async fn find_by_source(
+        &self,
+        provider_source: &String,
+    ) -> Result<Option<ExternalProvider>, DomainError> {
         debug!("Finding external provider by source: {:?}", provider_source);
-        
+
         let provider = ExternalProviders::find()
             .filter(external_providers::Column::ProviderType.eq(provider_source.clone()))
             .one(self.db.as_ref())
@@ -89,7 +90,7 @@ impl ExternalProviderReadRepository for ExternalProviderReadRepositoryImpl {
 
     async fn find_all(&self) -> Result<Vec<ExternalProvider>, DomainError> {
         debug!("Finding all external providers");
-        
+
         let providers = ExternalProviders::find()
             .all(self.db.as_ref())
             .await
@@ -104,7 +105,7 @@ impl ExternalProviderReadRepository for ExternalProviderReadRepositoryImpl {
 
     async fn find_active(&self) -> Result<Vec<ExternalProvider>, DomainError> {
         debug!("Finding active external providers");
-        
+
         let providers = ExternalProviders::find()
             .filter(external_providers::Column::IsActive.eq(true))
             .all(self.db.as_ref())
@@ -117,7 +118,6 @@ impl ExternalProviderReadRepository for ExternalProviderReadRepositoryImpl {
         }
         Ok(result)
     }
-
 }
 
 /// Write repository
@@ -127,16 +127,18 @@ pub struct ExternalProviderWriteRepositoryImpl {
 }
 
 impl ExternalProviderWriteRepositoryImpl {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self { Self { db } }
+    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+        Self { db }
+    }
 }
 
 #[async_trait]
 impl ExternalProviderWriteRepository for ExternalProviderWriteRepositoryImpl {
     async fn save(&self, provider: &ExternalProvider) -> Result<ExternalProvider, DomainError> {
         debug!("Saving external provider with ID: {}", provider.id);
-        
+
         let active_model = ExternalProviderMapper::to_active_model(provider);
-        
+
         let result = active_model
             .save(self.db.as_ref())
             .await
@@ -156,14 +158,17 @@ impl ExternalProviderWriteRepository for ExternalProviderWriteRepositoryImpl {
 
     async fn delete_by_id(&self, id: &Uuid) -> Result<(), DomainError> {
         debug!("Deleting external provider by ID: {}", id);
-        
+
         let result = ExternalProviders::delete_by_id(*id)
             .exec(self.db.as_ref())
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         if result.rows_affected == 0 {
-            return Err(DomainError::entity_not_found("ExternalProvider", &id.to_string()));
+            return Err(DomainError::entity_not_found(
+                "ExternalProvider",
+                &id.to_string(),
+            ));
         }
 
         Ok(())
@@ -182,7 +187,10 @@ impl ExternalProviderRepositoryImpl {
         read_repo: Arc<dyn ExternalProviderReadRepository>,
         write_repo: Arc<dyn ExternalProviderWriteRepository>,
     ) -> Self {
-        Self { read_repo, write_repo }
+        Self {
+            read_repo,
+            write_repo,
+        }
     }
 }
 
@@ -192,7 +200,10 @@ impl ExternalProviderReadRepository for ExternalProviderRepositoryImpl {
         self.read_repo.find_by_id(id).await
     }
 
-    async fn find_by_source(&self, provider_source: &String) -> Result<Option<ExternalProvider>, DomainError> {
+    async fn find_by_source(
+        &self,
+        provider_source: &String,
+    ) -> Result<Option<ExternalProvider>, DomainError> {
         self.read_repo.find_by_source(provider_source).await
     }
 

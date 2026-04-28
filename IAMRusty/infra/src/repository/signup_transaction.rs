@@ -3,7 +3,7 @@ use iam_domain::entity::{
 };
 use iam_domain::error::DomainError;
 use iam_domain::service::auth_service::SignupTransaction;
-use sea_orm::{ActiveModelTrait, ActiveValue, DatabaseConnection, TransactionTrait, Set};
+use sea_orm::{ActiveModelTrait, ActiveValue, DatabaseConnection, Set, TransactionTrait};
 use std::sync::Arc;
 
 use super::entity::{user_email_verification, user_emails, users};
@@ -56,9 +56,7 @@ impl SignupTransaction for SignupTransactionImpl {
             let verification_model = user_email_verification::ActiveModel {
                 id: ActiveValue::Set(email_verification.id),
                 email: ActiveValue::Set(email_verification.email.clone()),
-                verification_token: ActiveValue::Set(
-                    email_verification.verification_token.clone(),
-                ),
+                verification_token: ActiveValue::Set(email_verification.verification_token.clone()),
                 expires_at: ActiveValue::Set(email_verification.expires_at.into()),
                 created_at: ActiveValue::Set(email_verification.created_at.into()),
             };

@@ -4,10 +4,12 @@ use rustycog_config::{
 };
 use serde::{Deserialize, Serialize};
 
+pub use rustycog_config::{
+    load_config_fresh, AuthConfig as SharedAuthConfig, CommandConfig, ConfigError, ConfigLoader,
+    DatabaseConfig, LoggingConfig, QueueConfig, ScalewayConfig, ServerConfig,
+};
 
-pub use rustycog_config::{AuthConfig as SharedAuthConfig, CommandConfig, ConfigError, ConfigLoader, DatabaseConfig, LoggingConfig, QueueConfig, ScalewayConfig, ServerConfig, load_config_fresh};
-
-pub use rustycog_logger::{setup_logging};
+pub use rustycog_logger::setup_logging;
 
 /// IAM service configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -25,7 +27,6 @@ pub struct ExternalProviderServiceConfig {
     pub timeout_seconds: u64,
     pub max_retries: u32,
 }
-
 
 /// Main application configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]

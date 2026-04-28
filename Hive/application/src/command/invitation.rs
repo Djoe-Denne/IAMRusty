@@ -89,7 +89,11 @@ pub struct ListInvitationsCommand {
 }
 
 impl ListInvitationsCommand {
-    pub fn new(organization_id: Uuid, pagination: PaginationRequest, user_id: Option<Uuid>) -> Self {
+    pub fn new(
+        organization_id: Uuid,
+        pagination: PaginationRequest,
+        user_id: Option<Uuid>,
+    ) -> Self {
         Self {
             command_id: Uuid::new_v4(),
             organization_id,

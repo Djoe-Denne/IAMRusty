@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{ApplicationError};
+use crate::ApplicationError;
 use rustycog_core::error::DomainError;
 
 /// Standard API error response
@@ -115,9 +115,7 @@ impl From<ApplicationError> for ApiErrorResponse {
                         "entity_not_found".to_string(),
                         format!("{} not found: {}", entity_type, id),
                     ),
-                    DomainError::InvalidInput { message } => {
-                        ("invalid_input".to_string(), message)
-                    }
+                    DomainError::InvalidInput { message } => ("invalid_input".to_string(), message),
                     DomainError::BusinessRuleViolation { rule } => {
                         ("business_rule_violation".to_string(), rule)
                     }
@@ -138,7 +136,7 @@ impl From<ApplicationError> for ApiErrorResponse {
                     ),
                     DomainError::PermissionDenied { message } => {
                         ("permission_denied".to_string(), message)
-                    },
+                    }
                     DomainError::Internal { message } => (
                         "internal_error".to_string(),
                         "An internal error occurred".to_string(),

@@ -1,6 +1,6 @@
 use reqwest::StatusCode;
-use serial_test::serial;
 use rustycog_testing::http::jwt::create_jwt_token;
+use serial_test::serial;
 use uuid::Uuid;
 
 mod common;
@@ -62,9 +62,21 @@ async fn create_external_link_happy_path() {
 
     assert_eq!(res.status(), StatusCode::OK);
     let response_json: serde_json::Value = res.json().await.unwrap();
-    assert_eq!(response_json["organization_id"].as_str().unwrap(), org.id.to_string());
-    assert_eq!(response_json["provider_id"].as_str().unwrap(), provider.id.to_string());
-    assert_eq!(response_json["provider_name"].as_str().unwrap().to_lowercase(), "github");
+    assert_eq!(
+        response_json["organization_id"].as_str().unwrap(),
+        org.id.to_string()
+    );
+    assert_eq!(
+        response_json["provider_id"].as_str().unwrap(),
+        provider.id.to_string()
+    );
+    assert_eq!(
+        response_json["provider_name"]
+            .as_str()
+            .unwrap()
+            .to_lowercase(),
+        "github"
+    );
 }
 
 #[tokio::test]
@@ -136,5 +148,3 @@ async fn create_external_link_forbidden_for_read_only_member() {
         .unwrap();
     assert_eq!(res.status(), StatusCode::FORBIDDEN);
 }
-
-

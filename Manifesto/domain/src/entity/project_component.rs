@@ -20,9 +20,7 @@ impl ProjectComponent {
     /// Create a new project component
     pub fn new(project_id: Uuid, component_type: String) -> Result<Self, DomainError> {
         if component_type.trim().is_empty() {
-            return Err(DomainError::invalid_input(
-                "Component type cannot be empty",
-            ));
+            return Err(DomainError::invalid_input("Component type cannot be empty"));
         }
 
         if component_type.len() > 100 {
@@ -81,9 +79,7 @@ impl ProjectComponent {
     /// Validate the component
     pub fn validate(&self) -> Result<(), DomainError> {
         if self.component_type.trim().is_empty() {
-            return Err(DomainError::invalid_input(
-                "Component type cannot be empty",
-            ));
+            return Err(DomainError::invalid_input("Component type cannot be empty"));
         }
 
         if self.component_type.len() > 100 {
@@ -95,4 +91,3 @@ impl ProjectComponent {
         Ok(())
     }
 }
-

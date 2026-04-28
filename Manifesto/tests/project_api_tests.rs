@@ -216,7 +216,10 @@ async fn test_create_project_grants_creator_immediate_owner_permissions() {
     );
 
     let add_component_response = client
-        .post(&format!("{}/api/projects/{}/components", base_url, project_id))
+        .post(&format!(
+            "{}/api/projects/{}/components",
+            base_url, project_id
+        ))
         .header("Authorization", format!("Bearer {}", jwt_token))
         .header("Content-Type", "application/json")
         .json(&json!({
@@ -368,7 +371,11 @@ async fn test_get_project_detail_returns_200_with_components() {
     let jwt_token = create_test_jwt_token(owner_id);
 
     let response = client
-        .get(&format!("{}/api/projects/{}/details", base_url, project.id()))
+        .get(&format!(
+            "{}/api/projects/{}/details",
+            base_url,
+            project.id()
+        ))
         .header("Authorization", format!("Bearer {}", jwt_token))
         .send()
         .await
@@ -586,7 +593,11 @@ async fn test_publish_project_returns_200_when_valid() {
     let jwt_token = create_test_jwt_token(owner_id);
 
     let response = client
-        .post(&format!("{}/api/projects/{}/publish", base_url, project.id()))
+        .post(&format!(
+            "{}/api/projects/{}/publish",
+            base_url,
+            project.id()
+        ))
         .header("Authorization", format!("Bearer {}", jwt_token))
         .send()
         .await
@@ -639,7 +650,11 @@ async fn test_archive_project_returns_200_on_success() {
     let jwt_token = create_test_jwt_token(owner_id);
 
     let response = client
-        .post(&format!("{}/api/projects/{}/archive", base_url, project.id()))
+        .post(&format!(
+            "{}/api/projects/{}/archive",
+            base_url,
+            project.id()
+        ))
         .header("Authorization", format!("Bearer {}", jwt_token))
         .send()
         .await
@@ -658,5 +673,3 @@ async fn test_archive_project_returns_200_on_success() {
         "Project should be in archived status"
     );
 }
-
-

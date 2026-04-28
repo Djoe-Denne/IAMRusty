@@ -1,8 +1,8 @@
 use std::{
     fmt::Debug,
     sync::{
-        Arc,
         atomic::{AtomicBool, Ordering},
+        Arc,
     },
 };
 
@@ -14,7 +14,7 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
     Set,
 };
-use tokio::time::{Duration, sleep};
+use tokio::time::{sleep, Duration};
 use tracing::{debug, error, info, warn};
 
 use crate::{

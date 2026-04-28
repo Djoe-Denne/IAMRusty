@@ -29,6 +29,10 @@ pub fn create_jwt_token_with_secret(user_id: Uuid, secret: &str) -> String {
     };
 
     let header = Header::new(Algorithm::HS256);
-    encode(&header, &claims, &EncodingKey::from_secret(secret.as_bytes()))
-        .expect("failed to encode test JWT")
+    encode(
+        &header,
+        &claims,
+        &EncodingKey::from_secret(secret.as_bytes()),
+    )
+    .expect("failed to encode test JWT")
 }

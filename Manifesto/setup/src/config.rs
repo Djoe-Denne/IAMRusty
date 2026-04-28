@@ -11,16 +11,11 @@ pub fn load_config() -> anyhow::Result<ManifestoConfig> {
 
 /// Setup logging based on configuration
 pub fn setup_logging(config: &ManifestoConfig) {
-    let env_filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new(&config.logging.level));
+    let env_filter =
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&config.logging.level));
 
     tracing_subscriber::registry()
         .with(env_filter)
         .with(tracing_subscriber::fmt::layer())
         .init();
 }
-
-
-
-
-

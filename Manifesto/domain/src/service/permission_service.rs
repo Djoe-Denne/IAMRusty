@@ -5,8 +5,8 @@ use uuid::Uuid;
 
 use crate::entity::{Permission, ProjectMemberRolePermission, Resource, RolePermission};
 use crate::port::{
-    PermissionReadRepository, ProjectMemberRolePermissionRepository,
-    ResourceRepository, RolePermissionRepository,
+    PermissionReadRepository, ProjectMemberRolePermissionRepository, ResourceRepository,
+    RolePermissionRepository,
 };
 
 #[async_trait]
@@ -25,15 +25,24 @@ pub trait PermissionService: Send + Sync {
 
     /// Create a resource for a generic component type (e.g., "taskboard", "wiki")
     /// This is called when a new component type is registered in the system
-    async fn create_component_type_resource(&self, component_type: &str) -> Result<Resource, DomainError>;
+    async fn create_component_type_resource(
+        &self,
+        component_type: &str,
+    ) -> Result<Resource, DomainError>;
 
     /// Create a resource for a specific component instance (e.g., "component:{uuid}")
     /// This should be called when a component is added to a project
-    async fn create_component_instance_resource(&self, component_id: &Uuid) -> Result<Resource, DomainError>;
+    async fn create_component_instance_resource(
+        &self,
+        component_id: &Uuid,
+    ) -> Result<Resource, DomainError>;
 
     /// Delete the resource for a specific component instance
     /// This should be called when a component is removed from a project
-    async fn delete_component_instance_resource(&self, component_id: &Uuid) -> Result<(), DomainError>;
+    async fn delete_component_instance_resource(
+        &self,
+        component_id: &Uuid,
+    ) -> Result<(), DomainError>;
 
     /// Delete a resource by id
     async fn delete_resource(&self, resource_id: &str) -> Result<(), DomainError>;
@@ -67,7 +76,8 @@ pub trait PermissionService: Send + Sync {
     ) -> Result<(), DomainError>;
 
     /// Revoke all permissions from a member
-    async fn revoke_all_permissions_from_member(&self, member_id: &Uuid) -> Result<(), DomainError>;
+    async fn revoke_all_permissions_from_member(&self, member_id: &Uuid)
+        -> Result<(), DomainError>;
 }
 
 pub struct PermissionServiceImpl<PR, RR, RPR, PMRPR>
@@ -135,15 +145,28 @@ where
         self.resource_repo.find_all().await
     }
 
-    async fn create_component_type_resource(&self, component_type: &str) -> Result<Resource, DomainError> {
-        self.resource_repo.create_for_component(component_type).await
+    async fn create_component_type_resource(
+        &self,
+        component_type: &str,
+    ) -> Result<Resource, DomainError> {
+        self.resource_repo
+            .create_for_component(component_type)
+            .await
     }
 
-    async fn create_component_instance_resource(&self, component_id: &Uuid) -> Result<Resource, DomainError> {
-        self.resource_repo.create_for_component_instance(component_id).await
+    async fn create_component_instance_resource(
+        &self,
+        component_id: &Uuid,
+    ) -> Result<Resource, DomainError> {
+        self.resource_repo
+            .create_for_component_instance(component_id)
+            .await
     }
 
-    async fn delete_component_instance_resource(&self, component_id: &Uuid) -> Result<(), DomainError> {
+    async fn delete_component_instance_resource(
+        &self,
+        component_id: &Uuid,
+    ) -> Result<(), DomainError> {
         // Resource ID is just the component UUID (resource_type identifies it as component_instance)
         let resource_id = component_id.to_string();
         self.resource_repo.delete_by_id(&resource_id).await
@@ -216,10 +239,12 @@ where
             .await
     }
 
-    async fn revoke_all_permissions_from_member(&self, member_id: &Uuid) -> Result<(), DomainError> {
+    async fn revoke_all_permissions_from_member(
+        &self,
+        member_id: &Uuid,
+    ) -> Result<(), DomainError> {
         self.member_role_permission_repo
             .revoke_all_for_member(member_id)
             .await
     }
 }
-

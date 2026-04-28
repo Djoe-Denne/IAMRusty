@@ -190,12 +190,8 @@ impl TestOpenFga {
         resource: ResourceRef,
     ) -> Result<&Self, Box<dyn std::error::Error>> {
         let relation = writable_relation_for(resource.object_type, action);
-        self.write_tuple(
-            &subject.to_string(),
-            relation,
-            &resource.as_object_string(),
-        )
-        .await?;
+        self.write_tuple(&subject.to_string(), relation, &resource.as_object_string())
+            .await?;
         Ok(self)
     }
 
@@ -210,12 +206,8 @@ impl TestOpenFga {
         resource: ResourceRef,
     ) -> Result<&Self, Box<dyn std::error::Error>> {
         let relation = writable_relation_for(resource.object_type, action);
-        self.delete_tuple(
-            &subject.to_string(),
-            relation,
-            &resource.as_object_string(),
-        )
-        .await?;
+        self.delete_tuple(&subject.to_string(), relation, &resource.as_object_string())
+            .await?;
         Ok(self)
     }
 
@@ -290,11 +282,11 @@ impl TestOpenFga {
             // so per-test arrange code can be re-run safely.
             if text.contains("cannot_write_tuple_which_already_exists")
                 || text.contains("write_failed_due_to_invalid_input")
-                && text.contains("already exists")
+                    && text.contains("already exists")
             {
                 debug!(
-                    user, relation, object,
-                    "OpenFGA write tolerated duplicate tuple"
+                    user,
+                    relation, object, "OpenFGA write tolerated duplicate tuple"
                 );
                 return Ok(());
             }
@@ -333,8 +325,8 @@ impl TestOpenFga {
                 || text.contains("write_failed_due_to_invalid_input")
             {
                 debug!(
-                    user, relation, object,
-                    "OpenFGA delete tolerated unknown tuple"
+                    user,
+                    relation, object, "OpenFGA delete tolerated unknown tuple"
                 );
                 return Ok(());
             }
@@ -474,7 +466,11 @@ async fn get_or_create_test_openfga_container(
     let mut container_guard = container_mutex.lock().await;
 
     if let Some(ref container) = *container_guard {
-        return Ok((container.clone(), container.base_url.clone(), container.port));
+        return Ok((
+            container.clone(),
+            container.base_url.clone(),
+            container.port,
+        ));
     }
 
     info!("Creating new OpenFGA test container");
@@ -535,7 +531,9 @@ async fn get_or_create_test_openfga_container(
 async fn cleanup_existing_openfga_container() {
     use std::process::Command;
     debug!("Checking for existing OpenFGA test container '{CONTAINER_NAME}'");
-    let _ = Command::new("docker").args(["stop", CONTAINER_NAME]).output();
+    let _ = Command::new("docker")
+        .args(["stop", CONTAINER_NAME])
+        .output();
     let _ = Command::new("docker")
         .args(["rm", "-f", CONTAINER_NAME])
         .output();
@@ -674,4 +672,3 @@ unsafe fn publish_env_for_prefix(
     );
     std::env::set_var(format!("{env_prefix}__CACHE_TTL_SECONDS"), "0");
 }
-

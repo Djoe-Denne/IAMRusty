@@ -7,8 +7,8 @@ use manifesto_domain::port::{
 use manifesto_domain::value_objects::MemberSource;
 use rustycog_core::error::DomainError;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, Condition, ConnectionTrait, DatabaseConnection, EntityTrait,
-    PaginatorTrait, QueryFilter,
+    ActiveModelTrait, ActiveValue, ColumnTrait, Condition, ConnectionTrait, DatabaseConnection,
+    EntityTrait, PaginatorTrait, QueryFilter,
 };
 use std::sync::Arc;
 use uuid::Uuid;
@@ -29,7 +29,9 @@ impl MemberMapper {
             added_at: model.added_at.naive_utc().and_utc(),
             removed_at: model.removed_at.map(|dt| dt.naive_utc().and_utc()),
             removal_reason: model.removal_reason,
-            grace_period_ends_at: model.grace_period_ends_at.map(|dt| dt.naive_utc().and_utc()),
+            grace_period_ends_at: model
+                .grace_period_ends_at
+                .map(|dt| dt.naive_utc().and_utc()),
             last_access_at: model.last_access_at.map(|dt| dt.naive_utc().and_utc()),
             role_permissions: Vec::new(), // Will be loaded separately
         })
@@ -65,12 +67,14 @@ impl MemberReadRepositoryImpl {
         Self { db, pmrp_repo }
     }
 
-    async fn load_with_permissions(&self, mut member: ProjectMember) -> Result<ProjectMember, DomainError> {
+    async fn load_with_permissions(
+        &self,
+        mut member: ProjectMember,
+    ) -> Result<ProjectMember, DomainError> {
         let role_permissions = self.pmrp_repo.find_by_member(&member.id).await?;
         member.role_permissions = role_permissions;
         Ok(member)
     }
-
 }
 
 #[async_trait]
@@ -135,8 +139,8 @@ impl MemberReadRepository for MemberReadRepositoryImpl {
         page_size: u32,
     ) -> Result<Vec<ProjectMember>, DomainError> {
         let query = ProjectMembers::find();
-        let mut conditions = Condition::all()
-            .add(project_members::Column::ProjectId.eq(*project_id));
+        let mut conditions =
+            Condition::all().add(project_members::Column::ProjectId.eq(*project_id));
 
         if let Some(src) = source {
             conditions = conditions.add(project_members::Column::Source.eq(src.as_str()));
@@ -187,7 +191,10 @@ impl MemberWriteRepositoryImpl {
         Self { db, pmrp_repo }
     }
 
-    async fn load_with_permissions(&self, mut member: ProjectMember) -> Result<ProjectMember, DomainError> {
+    async fn load_with_permissions(
+        &self,
+        mut member: ProjectMember,
+    ) -> Result<ProjectMember, DomainError> {
         let role_permissions = self.pmrp_repo.find_by_member(&member.id).await?;
         member.role_permissions = role_permissions;
         Ok(member)
@@ -341,4 +348,3 @@ impl MemberWriteRepository for MemberRepositoryImpl {
 }
 
 impl MemberRepository for MemberRepositoryImpl {}
-

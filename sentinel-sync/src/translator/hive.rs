@@ -12,7 +12,7 @@
 use anyhow::Result;
 use hive_events::{HiveDomainEvent, Role};
 
-use super::{TupleDelta, Translator};
+use super::{Translator, TupleDelta};
 use crate::fga_client::Tuple;
 
 #[derive(Default)]
@@ -58,7 +58,12 @@ fn role_tuples_for_member(
     }
     // Every member also gets the bare `member` relation so checks for
     // "is this user in the org?" work even without any explicit role.
-    out.push(Tuple::user("organization", organization_id, "member", user_id));
+    out.push(Tuple::user(
+        "organization",
+        organization_id,
+        "member",
+        user_id,
+    ));
     out
 }
 
@@ -74,9 +79,12 @@ impl Translator for HiveTranslator {
         };
 
         let delta = match event {
-            HiveDomainEvent::OrganizationCreated(evt) => TupleDelta::default().write(
-                Tuple::user("organization", evt.organization_id, "owner", evt.owner_user_id),
-            ),
+            HiveDomainEvent::OrganizationCreated(evt) => TupleDelta::default().write(Tuple::user(
+                "organization",
+                evt.organization_id,
+                "owner",
+                evt.owner_user_id,
+            )),
 
             HiveDomainEvent::MemberJoined(evt) => {
                 let mut d = TupleDelta::default();

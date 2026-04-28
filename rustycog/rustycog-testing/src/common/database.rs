@@ -189,9 +189,7 @@ async fn cleanup_existing_container() {
     debug!("Checking for existing test container 'test-db'");
 
     // Try to stop the container if it's running
-    let stop_result = Command::new("docker")
-        .args(&["stop", "test-db"])
-        .output();
+    let stop_result = Command::new("docker").args(&["stop", "test-db"]).output();
 
     match stop_result {
         Ok(output) if output.status.success() => {
@@ -285,9 +283,7 @@ async fn register_cleanup_handler() {
 
         // Use direct docker command to cleanup the specific container
         use std::process::Command;
-        let _ = Command::new("docker")
-            .args(&["stop", "test-db"])
-            .output();
+        let _ = Command::new("docker").args(&["stop", "test-db"]).output();
         let _ = Command::new("docker").args(&["rm", "test-db"]).output();
 
         std::process::exit(0);
@@ -394,7 +390,6 @@ impl TestFixture {
             .as_mut()
             .expect("OpenFGA fixture was not requested by the test descriptor")
     }
-
 
     /// Cleanup the global test container (stops and removes it)
     pub async fn cleanup_container() -> Result<(), DbErr> {

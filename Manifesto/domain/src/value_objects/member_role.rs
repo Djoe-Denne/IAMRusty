@@ -73,4 +73,3 @@ mod tests {
         assert!(!MemberRole::Read.has_permission_of(&MemberRole::Write));
     }
 }
-
