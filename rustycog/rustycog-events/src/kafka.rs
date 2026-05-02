@@ -111,7 +111,7 @@ impl KafkaEventPublisher {
 
 #[async_trait]
 impl EventPublisher<ServiceError> for KafkaEventPublisher {
-    async fn publish(&self, event: &Box<dyn DomainEvent>) -> Result<(), ServiceError> {
+    async fn publish(&self, event: &dyn DomainEvent) -> Result<(), ServiceError> {
         if !self.config.enabled {
             debug!(
                 event_id = %event.event_id(),
@@ -121,8 +121,8 @@ impl EventPublisher<ServiceError> for KafkaEventPublisher {
             return Ok(());
         }
 
-        let topic = self.get_topic_for_event(event.as_ref());
-        let payload = self.serialize_event(event.as_ref())?;
+        let topic = self.get_topic_for_event(event);
+        let payload = self.serialize_event(event)?;
         let event_id = event.event_id().to_string();
         let aggregate_id = event.aggregate_id().to_string();
 
@@ -184,7 +184,7 @@ impl EventPublisher<ServiceError> for KafkaEventPublisher {
         }
     }
 
-    async fn publish_batch(&self, events: &Vec<Box<dyn DomainEvent>>) -> Result<(), ServiceError> {
+    async fn publish_batch(&self, events: &[Box<dyn DomainEvent>]) -> Result<(), ServiceError> {
         if !self.config.enabled {
             debug!(
                 event_count = events.len(),
@@ -199,7 +199,10 @@ impl EventPublisher<ServiceError> for KafkaEventPublisher {
         );
 
         // Publish all events concurrently
-        let futures: Vec<_> = events.iter().map(|event| self.publish(event)).collect();
+        let futures: Vec<_> = events
+            .iter()
+            .map(|event| self.publish(event.as_ref()))
+            .collect();
 
         // Wait for all to complete
         let results: Vec<Result<(), ServiceError>> = futures::future::join_all(futures).await;
@@ -410,10 +413,13 @@ impl KafkaEventConsumer {
             .and_then(|v| v.as_str())
             .unwrap_or("1970-01-01T00:00:00Z");
 
-        let version = data
+        let raw_version = data
             .get("version")
             .and_then(serde_json::Value::as_i64)
-            .unwrap_or(1) as i32;
+            .unwrap_or(1);
+        let version = i32::try_from(raw_version).map_err(|_| {
+            ServiceError::infrastructure(format!("Kafka event version out of range: {raw_version}"))
+        })?;
 
         let event_data = data.get("data").unwrap_or(&data).clone();
 
@@ -608,7 +614,7 @@ impl DomainEvent for KafkaGenericDomainEvent {
     }
 
     fn version(&self) -> u32 {
-        self.version as u32
+        u32::try_from(self.version.max(0)).unwrap_or(0)
     }
 
     fn to_json(&self) -> Result<String, ServiceError> {

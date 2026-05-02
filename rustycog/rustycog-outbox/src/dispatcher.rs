@@ -178,7 +178,7 @@ where
         let outbox_id = event.id;
         let boxed_event: Box<dyn DomainEvent> = Box::new(event);
 
-        match self.publisher.publish(&boxed_event).await {
+        match self.publisher.publish(boxed_event.as_ref()).await {
             Ok(()) => {
                 self.mark_published(outbox_id).await?;
                 debug!(%event_id, %event_type, "Outbox event published");
@@ -247,7 +247,8 @@ where
 }
 
 fn retry_delay_for(base_delay: Duration, attempts: i32) -> Duration {
-    let exponent = attempts.saturating_sub(1).min(6) as u32;
+    let capped = attempts.saturating_sub(1).clamp(0, 6);
+    let exponent = u32::try_from(capped).unwrap_or(0);
     base_delay * 2_u32.pow(exponent)
 }
 

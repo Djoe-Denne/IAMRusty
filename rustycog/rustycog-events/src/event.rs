@@ -35,10 +35,10 @@ pub trait DomainEvent: Send + Sync + std::fmt::Debug {
 #[async_trait]
 pub trait EventPublisher<TError>: Send + Sync {
     /// Publish a single event
-    async fn publish(&self, event: &Box<dyn DomainEvent>) -> Result<(), TError>;
+    async fn publish(&self, event: &dyn DomainEvent) -> Result<(), TError>;
 
     /// Publish multiple events in a batch
-    async fn publish_batch(&self, events: &Vec<Box<dyn DomainEvent>>) -> Result<(), TError>;
+    async fn publish_batch(&self, events: &[Box<dyn DomainEvent>]) -> Result<(), TError>;
 
     /// Health check for the event publisher
     async fn health_check(&self) -> Result<(), TError>;

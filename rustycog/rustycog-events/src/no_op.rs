@@ -27,7 +27,7 @@ impl Default for NoOpEventPublisher {
 
 #[async_trait]
 impl EventPublisher<ServiceError> for NoOpEventPublisher {
-    async fn publish(&self, event: &Box<dyn DomainEvent>) -> Result<(), ServiceError> {
+    async fn publish(&self, event: &dyn DomainEvent) -> Result<(), ServiceError> {
         // Log the event but don't actually publish it
         tracing::debug!(
             event_id = %event.event_id(),
@@ -38,9 +38,9 @@ impl EventPublisher<ServiceError> for NoOpEventPublisher {
         Ok(())
     }
 
-    async fn publish_batch(&self, events: &Vec<Box<dyn DomainEvent>>) -> Result<(), ServiceError> {
+    async fn publish_batch(&self, events: &[Box<dyn DomainEvent>]) -> Result<(), ServiceError> {
         for event in events {
-            self.publish(event).await?;
+            self.publish(event.as_ref()).await?;
         }
         Ok(())
     }

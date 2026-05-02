@@ -435,7 +435,7 @@ impl RecordingEventPublisher {
 
 #[async_trait]
 impl EventPublisher<DomainError> for RecordingEventPublisher {
-    async fn publish(&self, _event: &Box<dyn DomainEvent>) -> Result<(), DomainError> {
+    async fn publish(&self, _event: &dyn DomainEvent) -> Result<(), DomainError> {
         let mut state = self
             .state
             .lock()
@@ -444,7 +444,7 @@ impl EventPublisher<DomainError> for RecordingEventPublisher {
         Ok(())
     }
 
-    async fn publish_batch(&self, events: &Vec<Box<dyn DomainEvent>>) -> Result<(), DomainError> {
+    async fn publish_batch(&self, events: &[Box<dyn DomainEvent>]) -> Result<(), DomainError> {
         let mut state = self
             .state
             .lock()

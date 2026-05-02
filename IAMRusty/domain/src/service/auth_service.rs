@@ -285,7 +285,7 @@ where
                 .map_err(|e| e.to_string())
         } else {
             self.event_publisher
-                .publish(&event)
+                .publish(event.as_ref())
                 .await
                 .map_err(|e| e.to_string())
         }
@@ -528,7 +528,7 @@ where
             ))
             .into();
 
-        if let Err(e) = self.event_publisher.publish(&event).await {
+        if let Err(e) = self.event_publisher.publish(event.as_ref()).await {
             tracing::warn!("Failed to publish UserLoggedIn event: {}", e);
             // Don't fail the login for event publishing errors
         }

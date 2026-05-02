@@ -59,11 +59,14 @@ impl ProjectCreationUnitOfWork for ProjectCreationUnitOfWorkImpl {
                 .await?;
             }
 
-            self.outbox.record(&txn, &event).await.map_err(|e| {
-                ApplicationError::Internal(format!(
-                    "failed to record ProjectCreated outbox event: {e}"
-                ))
-            })?;
+            self.outbox
+                .record(&txn, event.as_ref())
+                .await
+                .map_err(|e| {
+                    ApplicationError::Internal(format!(
+                        "failed to record ProjectCreated outbox event: {e}"
+                    ))
+                })?;
 
             Ok::<_, ApplicationError>((created_project, owner_member))
         }

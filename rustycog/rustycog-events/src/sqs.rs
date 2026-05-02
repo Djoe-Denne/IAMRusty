@@ -150,7 +150,7 @@ impl SqsEventPublisher {
 
     fn build_batch_entries(
         &self,
-        events: &Vec<Box<dyn DomainEvent>>,
+        events: &[Box<dyn DomainEvent>],
     ) -> (SqsBatchEntriesByQueue, Option<ServiceError>) {
         let mut entries_by_queue = HashMap::new();
         let mut first_error = None;
@@ -311,7 +311,7 @@ impl SqsEventPublisher {
 
 #[async_trait]
 impl EventPublisher<ServiceError> for SqsEventPublisher {
-    async fn publish(&self, event: &Box<dyn DomainEvent>) -> Result<(), ServiceError> {
+    async fn publish(&self, event: &dyn DomainEvent) -> Result<(), ServiceError> {
         if !self.config.enabled {
             debug!(
                 event_id = %event.event_id(),
@@ -321,9 +321,9 @@ impl EventPublisher<ServiceError> for SqsEventPublisher {
             return Ok(());
         }
 
-        let queue_names = self.get_queue_names_for_event(event.as_ref())?;
-        let message_body = self.serialize_event(event.as_ref())?;
-        let message_attributes = self.create_message_attributes(event.as_ref());
+        let queue_names = self.get_queue_names_for_event(event)?;
+        let message_body = self.serialize_event(event)?;
+        let message_attributes = self.create_message_attributes(event);
 
         let mut first_error = None;
         for queue_name in queue_names {
@@ -389,7 +389,7 @@ impl EventPublisher<ServiceError> for SqsEventPublisher {
         }
     }
 
-    async fn publish_batch(&self, events: &Vec<Box<dyn DomainEvent>>) -> Result<(), ServiceError> {
+    async fn publish_batch(&self, events: &[Box<dyn DomainEvent>]) -> Result<(), ServiceError> {
         if !self.config.enabled {
             debug!(
                 event_count = events.len(),

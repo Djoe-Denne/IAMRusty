@@ -19,7 +19,7 @@ impl OutboxRecorder {
     pub async fn record<C>(
         &self,
         connection: &C,
-        event: &Box<dyn DomainEvent>,
+        event: &dyn DomainEvent,
     ) -> Result<(), ServiceError>
     where
         C: ConnectionTrait,
@@ -37,7 +37,9 @@ impl OutboxRecorder {
             event_id: Set(event.event_id()),
             event_type: Set(event.event_type().to_string()),
             aggregate_id: Set(event.aggregate_id()),
-            version: Set(event.version() as i32),
+            version: Set(i32::try_from(event.version()).map_err(|_| {
+                ServiceError::infrastructure("Event version does not fit in i32".to_string())
+            })?),
             occurred_at: Set(event.occurred_at()),
             payload_json: Set(payload_json),
             metadata_json: Set(metadata_json),

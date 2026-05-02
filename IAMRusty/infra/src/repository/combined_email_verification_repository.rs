@@ -85,8 +85,6 @@ mod tests {
 
     #[test]
     fn test_combined_repository_structure() {
-        // Simple test to verify the combined repository structure
-        // In integration tests, we would use real database connections
-        assert!(true); // This test just verifies the module compiles
+        // Smoke check that this module links; integration tests cover behavior.
     }
 }

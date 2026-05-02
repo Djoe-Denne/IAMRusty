@@ -23,7 +23,7 @@ impl IamOutboxUnitOfWork for IamOutboxUnitOfWorkImpl {
             DomainError::RepositoryError(format!("failed to begin outbox transaction: {e}"))
         })?;
 
-        let result = self.outbox.record(&txn, &event).await.map_err(|e| {
+        let result = self.outbox.record(&txn, event.as_ref()).await.map_err(|e| {
             DomainError::RepositoryError(format!("failed to record IAMRusty outbox event: {e}"))
         });
 

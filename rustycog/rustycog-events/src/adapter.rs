@@ -40,7 +40,7 @@ impl<TError> GenericEventPublisherAdapter<TError> {
     }
 
     /// Publish a single event
-    pub async fn publish(&self, event: &Box<dyn DomainEvent>) -> Result<(), TError> {
+    pub async fn publish(&self, event: &dyn DomainEvent) -> Result<(), TError> {
         tracing::info!("Publishing event: {:?}", event);
 
         self.inner
@@ -50,7 +50,7 @@ impl<TError> GenericEventPublisherAdapter<TError> {
     }
 
     /// Publish multiple events in a batch
-    pub async fn publish_batch(&self, events: &Vec<Box<dyn DomainEvent>>) -> Result<(), TError> {
+    pub async fn publish_batch(&self, events: &[Box<dyn DomainEvent>]) -> Result<(), TError> {
         self.inner
             .publish_batch(events)
             .await
@@ -100,7 +100,7 @@ impl<TError> MultiQueueEventPublisher<TError> {
 
 #[async_trait]
 impl<TError> EventPublisher<TError> for MultiQueueEventPublisher<TError> {
-    async fn publish(&self, event: &Box<dyn DomainEvent>) -> Result<(), TError> {
+    async fn publish(&self, event: &dyn DomainEvent) -> Result<(), TError> {
         // Publish to all configured publishers
         for publisher in &self.publishers {
             publisher.publish(event).await?;
@@ -108,7 +108,7 @@ impl<TError> EventPublisher<TError> for MultiQueueEventPublisher<TError> {
         Ok(())
     }
 
-    async fn publish_batch(&self, events: &Vec<Box<dyn DomainEvent>>) -> Result<(), TError> {
+    async fn publish_batch(&self, events: &[Box<dyn DomainEvent>]) -> Result<(), TError> {
         for publisher in &self.publishers {
             publisher.publish_batch(events).await?;
         }

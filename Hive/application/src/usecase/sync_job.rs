@@ -60,7 +60,7 @@ impl SyncJobUseCaseImpl {
             outbox_unit_of_work.record_event(event).await
         } else {
             self.event_publisher
-                .publish(&event)
+                .publish(event.as_ref())
                 .await
                 .map_err(ApplicationError::Domain)
         }

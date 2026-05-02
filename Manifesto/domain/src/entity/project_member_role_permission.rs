@@ -6,7 +6,7 @@ use crate::entity::role_permission::RolePermission;
 
 /// Project member role permission entity representing the assignment of a role permission
 /// to a specific member in a project
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProjectMemberRolePermission {
     pub id: Option<Uuid>,
     pub member_id: Uuid,

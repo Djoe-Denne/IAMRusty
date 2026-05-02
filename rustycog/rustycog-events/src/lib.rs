@@ -55,7 +55,7 @@ impl ConcreteEventPublisher {
 
 #[async_trait]
 impl EventPublisher<ServiceError> for ConcreteEventPublisher {
-    async fn publish(&self, event: &Box<dyn DomainEvent>) -> Result<(), ServiceError> {
+    async fn publish(&self, event: &dyn DomainEvent) -> Result<(), ServiceError> {
         match self {
             Self::Kafka(kafka) => kafka.publish(event).await,
             Self::Sqs(sqs) => sqs.publish(event).await,
@@ -63,7 +63,7 @@ impl EventPublisher<ServiceError> for ConcreteEventPublisher {
         }
     }
 
-    async fn publish_batch(&self, events: &Vec<Box<dyn DomainEvent>>) -> Result<(), ServiceError> {
+    async fn publish_batch(&self, events: &[Box<dyn DomainEvent>]) -> Result<(), ServiceError> {
         match self {
             Self::Kafka(kafka) => kafka.publish_batch(events).await,
             Self::Sqs(sqs) => sqs.publish_batch(events).await,

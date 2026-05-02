@@ -184,7 +184,7 @@ where
                 .map_err(|e| e.to_string())
         } else {
             self.event_publisher
-                .publish(&event)
+                .publish(event.as_ref())
                 .await
                 .map_err(|e| e.to_string())
         }

@@ -106,7 +106,7 @@ impl MemberUseCaseImpl {
             outbox_unit_of_work.record_event(event).await
         } else {
             self.event_publisher
-                .publish(&event)
+                .publish(event.as_ref())
                 .await
                 .map_err(ApplicationError::Domain)
         }
@@ -264,8 +264,14 @@ impl MemberUseCase for MemberUseCaseImpl {
             .map(|member| self.member_to_response(member))
             .collect();
 
-        let total_count = members.len() as i64;
-        let total_pages = (total_count as f64 / f64::from(pagination.page_size())).ceil() as u32;
+        let total_count = i64::try_from(members.len()).unwrap_or(i64::MAX);
+        let page_size = u64::from(pagination.page_size());
+        let total_pages = if page_size == 0 {
+            0
+        } else {
+            let tc = u64::try_from(total_count).unwrap_or(u64::MAX);
+            u32::try_from(tc.div_ceil(page_size)).unwrap_or(u32::MAX)
+        };
         let has_next = pagination.page() < total_pages;
 
         Ok(MemberListResponse {

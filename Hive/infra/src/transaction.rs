@@ -26,7 +26,7 @@ impl HiveOutboxUnitOfWork for HiveOutboxUnitOfWorkImpl {
             ApplicationError::internal_error(&format!("failed to begin outbox transaction: {e}"))
         })?;
 
-        let result = self.outbox.record(&txn, &event).await.map_err(|e| {
+        let result = self.outbox.record(&txn, event.as_ref()).await.map_err(|e| {
             ApplicationError::internal_error(&format!("failed to record Hive outbox event: {e}"))
         });
 

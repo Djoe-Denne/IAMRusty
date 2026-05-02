@@ -164,7 +164,8 @@ impl ProjectReadRepository for ProjectReadRepositoryImpl {
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
-        Ok(count as i64)
+        i64::try_from(count)
+            .map_err(|_| DomainError::internal_error("project count does not fit in i64"))
     }
 
     async fn count_with_filters(
@@ -218,7 +219,8 @@ impl ProjectReadRepository for ProjectReadRepositoryImpl {
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
-        Ok(count as i64)
+        i64::try_from(count)
+            .map_err(|_| DomainError::internal_error("filtered project count does not fit in i64"))
     }
 }
 
@@ -243,8 +245,8 @@ impl ProjectWriteRepositoryImpl {
             .map_err(|e| DomainError::internal_error(&e.to_string()))?
             .is_some();
 
+        let active_model = ProjectMapper::to_active_model(project);
         if exists {
-            let active_model = ProjectMapper::to_active_model(project);
             let result = active_model
                 .update(db)
                 .await
@@ -252,7 +254,6 @@ impl ProjectWriteRepositoryImpl {
 
             ProjectMapper::to_domain(result)
         } else {
-            let active_model = ProjectMapper::to_active_model(project);
             let inserted = active_model
                 .insert(db)
                 .await

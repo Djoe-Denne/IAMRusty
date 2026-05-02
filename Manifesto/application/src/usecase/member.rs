@@ -14,7 +14,7 @@ use manifesto_events::{
     PermissionGrantedEvent, PermissionRevokedEvent, ResourcePermission,
 };
 use rustycog_core::error::DomainError;
-use rustycog_events::EventPublisher;
+use rustycog_events::{DomainEvent, EventPublisher};
 
 use crate::{
     dto::{
@@ -222,7 +222,8 @@ impl MemberUseCase for MemberUseCaseImpl {
             added_by,
             created.added_at,
         ));
-        if let Err(e) = self.event_publisher.publish(&event.into()).await {
+        let domain_ev: Box<dyn DomainEvent> = event.into();
+        if let Err(e) = self.event_publisher.publish(domain_ev.as_ref()).await {
             tracing::warn!("Failed to publish MemberAdded event: {:?}", e);
         }
 
@@ -259,7 +260,8 @@ impl MemberUseCase for MemberUseCaseImpl {
         let data: Vec<MemberResponse> =
             members.iter().map(|m| self.member_to_response(m)).collect();
 
-        let has_more = (page + 1) * page_size < total_count as u32;
+        let consumed = i64::from(page.saturating_add(1)).saturating_mul(i64::from(page_size));
+        let has_more = consumed < total_count;
         let next_cursor = if has_more {
             Some((page + 1).to_string())
         } else {
@@ -352,7 +354,8 @@ impl MemberUseCase for MemberUseCaseImpl {
                 requester_id,
                 Utc::now(),
             ));
-        if let Err(e) = self.event_publisher.publish(&event.into()).await {
+        let domain_ev: Box<dyn DomainEvent> = event.into();
+        if let Err(e) = self.event_publisher.publish(domain_ev.as_ref()).await {
             tracing::warn!("Failed to publish MemberPermissionsUpdated event: {:?}", e);
         }
 
@@ -389,7 +392,8 @@ impl MemberUseCase for MemberUseCaseImpl {
             requester_id,
             Utc::now(),
         ));
-        if let Err(e) = self.event_publisher.publish(&event.into()).await {
+        let domain_ev: Box<dyn DomainEvent> = event.into();
+        if let Err(e) = self.event_publisher.publish(domain_ev.as_ref()).await {
             tracing::warn!("Failed to publish MemberRemoved event: {:?}", e);
         }
 
@@ -476,7 +480,8 @@ impl MemberUseCase for MemberUseCaseImpl {
             requester_id,
             Utc::now(),
         ));
-        if let Err(e) = self.event_publisher.publish(&event.into()).await {
+        let domain_ev: Box<dyn DomainEvent> = event.into();
+        if let Err(e) = self.event_publisher.publish(domain_ev.as_ref()).await {
             tracing::warn!("Failed to publish PermissionGranted event: {:?}", e);
         }
 
@@ -531,7 +536,8 @@ impl MemberUseCase for MemberUseCaseImpl {
             requester_id,
             Utc::now(),
         ));
-        if let Err(e) = self.event_publisher.publish(&event.into()).await {
+        let domain_ev: Box<dyn DomainEvent> = event.into();
+        if let Err(e) = self.event_publisher.publish(domain_ev.as_ref()).await {
             tracing::warn!("Failed to publish PermissionRevoked event: {:?}", e);
         }
 

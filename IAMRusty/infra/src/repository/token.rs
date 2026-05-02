@@ -4,7 +4,8 @@ use iam_domain::entity::provider::{Provider, ProviderTokens};
 use iam_domain::entity::provider_link::ProviderLink;
 use iam_domain::port::repository::{TokenReadRepository, TokenWriteRepository};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, Set,
+    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait,
+    QueryFilter, Set,
 };
 use tracing::debug;
 use uuid::Uuid;
@@ -31,13 +32,13 @@ impl TokenRepositoryImpl {
         tokens: &ProviderTokens,
     ) -> provider_tokens::ActiveModel {
         provider_tokens::ActiveModel {
-            id: Default::default(), // Auto-generated
+            id: ActiveValue::default(), // Auto-generated
             user_id: Set(user_id),
             provider: Set(provider.as_str().to_string()),
             provider_user_id: Set(provider_user_id),
             access_token: Set(tokens.access_token.clone()),
             refresh_token: Set(tokens.refresh_token.clone()),
-            expires_in: Set(tokens.expires_in.map(|e| e as i32)),
+            expires_in: Set(tokens.expires_in.and_then(|e| i32::try_from(e).ok())),
             created_at: Set(Utc::now().naive_utc()),
             updated_at: Set(Utc::now().naive_utc()),
         }
@@ -48,7 +49,7 @@ impl TokenRepositoryImpl {
         ProviderTokens {
             access_token: model.access_token,
             refresh_token: model.refresh_token,
-            expires_in: model.expires_in.map(|e| e as u64),
+            expires_in: model.expires_in.and_then(|e| u64::try_from(e).ok()),
         }
     }
 
@@ -132,7 +133,7 @@ impl TokenWriteRepository for TokenRepositoryImpl {
             model.provider_user_id = Set(provider_user_id);
             model.access_token = Set(tokens.access_token.clone());
             model.refresh_token = Set(tokens.refresh_token.clone());
-            model.expires_in = Set(tokens.expires_in.map(|e| e as i32));
+            model.expires_in = Set(tokens.expires_in.and_then(|e| i32::try_from(e).ok()));
             model.updated_at = Set(Utc::now().naive_utc());
 
             model.update(&self.db).await?;

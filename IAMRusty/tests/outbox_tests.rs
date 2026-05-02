@@ -46,7 +46,7 @@ impl TestPublisher {
 
 #[async_trait]
 impl EventPublisher<DomainError> for TestPublisher {
-    async fn publish(&self, event: &Box<dyn DomainEvent>) -> Result<(), DomainError> {
+    async fn publish(&self, event: &dyn DomainEvent) -> Result<(), DomainError> {
         if self.should_fail {
             return Err(DomainError::EventError(
                 "forced publish failure".to_string(),
@@ -60,9 +60,9 @@ impl EventPublisher<DomainError> for TestPublisher {
         Ok(())
     }
 
-    async fn publish_batch(&self, events: &Vec<Box<dyn DomainEvent>>) -> Result<(), DomainError> {
+    async fn publish_batch(&self, events: &[Box<dyn DomainEvent>]) -> Result<(), DomainError> {
         for event in events {
-            self.publish(event).await?;
+            self.publish(event.as_ref()).await?;
         }
         Ok(())
     }

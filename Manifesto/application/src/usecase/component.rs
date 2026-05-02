@@ -13,7 +13,7 @@ use manifesto_events::{
     ComponentAddedEvent, ComponentRemovedEvent, ComponentStatusChangedEvent, ManifestoDomainEvent,
 };
 use rustycog_core::error::DomainError;
-use rustycog_events::EventPublisher;
+use rustycog_events::{DomainEvent, EventPublisher};
 
 use crate::{
     dto::{AddComponentRequest, ComponentListResponse, ComponentResponse, UpdateComponentRequest},
@@ -172,7 +172,8 @@ impl ComponentUseCase for ComponentUseCaseImpl {
             user_id,
             created.added_at,
         ));
-        if let Err(e) = self.event_publisher.publish(&event.into()).await {
+        let domain_ev: Box<dyn DomainEvent> = event.into();
+        if let Err(e) = self.event_publisher.publish(domain_ev.as_ref()).await {
             tracing::warn!("Failed to publish ComponentAdded event: {:?}", e);
         }
 
@@ -249,7 +250,8 @@ impl ComponentUseCase for ComponentUseCaseImpl {
             user_id,
             Utc::now(),
         ));
-        if let Err(e) = self.event_publisher.publish(&event.into()).await {
+        let domain_ev: Box<dyn DomainEvent> = event.into();
+        if let Err(e) = self.event_publisher.publish(domain_ev.as_ref()).await {
             tracing::warn!("Failed to publish ComponentStatusChanged event: {:?}", e);
         }
 
@@ -309,7 +311,8 @@ impl ComponentUseCase for ComponentUseCaseImpl {
             user_id,
             Utc::now(),
         ));
-        if let Err(e) = self.event_publisher.publish(&event.into()).await {
+        let domain_ev: Box<dyn DomainEvent> = event.into();
+        if let Err(e) = self.event_publisher.publish(domain_ev.as_ref()).await {
             tracing::warn!("Failed to publish ComponentRemoved event: {:?}", e);
         }
 

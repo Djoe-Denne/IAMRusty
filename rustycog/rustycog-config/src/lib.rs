@@ -521,7 +521,10 @@ impl SqsConfig {
     /// Check if a queue is a FIFO queue based on queue name
     #[must_use]
     pub fn is_fifo_queue(&self, queue_name: &str) -> bool {
-        queue_name.ends_with(".fifo")
+        std::path::Path::new(queue_name)
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("fifo"))
     }
 
     /// Get destination queue names for a specific event type, falling back to default queues.
