@@ -8,6 +8,7 @@ mod fixtures;
 
 use common::*;
 use fixtures::DbFixtures;
+use rustycog_permission::{Permission, ResourceRef, Subject};
 use serde_json::{json, Value};
 use serial_test::serial;
 use uuid::Uuid;
