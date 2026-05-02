@@ -32,14 +32,14 @@ struct TestPublisher {
 }
 
 impl TestPublisher {
-    fn success() -> Self {
+    const fn success() -> Self {
         Self {
             should_fail: false,
             published_event_ids: Mutex::new(Vec::new()),
         }
     }
 
-    fn failure() -> Self {
+    const fn failure() -> Self {
         Self {
             should_fail: true,
             published_event_ids: Mutex::new(Vec::new()),

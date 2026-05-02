@@ -7,9 +7,8 @@ mod utils;
 
 use chrono::{Duration, Utc};
 use common::{create_test_client, setup_test_server};
-use fixtures::{DbFixtures, GitHubFixtures, GitLabFixtures};
+use fixtures::DbFixtures;
 use iam_infra::auth::PasswordService;
-use reqwest::Client;
 use sea_orm::{ConnectionTrait, DatabaseBackend, Statement};
 use serde_json::{json, Value};
 use serial_test::serial;
@@ -45,10 +44,7 @@ async fn invalidate_refresh_token(
 ) -> Result<(), sea_orm::DbErr> {
     db.execute(Statement::from_string(
         DatabaseBackend::Postgres,
-        format!(
-            "UPDATE refresh_tokens SET is_valid = false WHERE id = '{}'",
-            token_id
-        ),
+        format!("UPDATE refresh_tokens SET is_valid = false WHERE id = '{token_id}'"),
     ))
     .await?;
 
@@ -63,10 +59,7 @@ async fn refresh_token_exists(
     let result = db
         .query_one(Statement::from_string(
             DatabaseBackend::Postgres,
-            format!(
-                "SELECT COUNT(*) as count FROM refresh_tokens WHERE token = '{}'",
-                token
-            ),
+            format!("SELECT COUNT(*) as count FROM refresh_tokens WHERE token = '{token}'"),
         ))
         .await?;
 
@@ -108,7 +101,7 @@ async fn test_refresh_token_success_with_valid_refresh_token() {
 
     // Make refresh request
     let response = client
-        .post(&format!("{}/api/token/refresh", base_url))
+        .post(format!("{base_url}/api/token/refresh"))
         .json(&json!({
             "refresh_token": refresh_token
         }))
@@ -199,10 +192,10 @@ async fn test_refresh_token_returns_401_for_invalid_refresh_token() {
     let (_fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let _db = _fixture.db();
     // Make refresh request with non-existent refresh token
     let response = client
-        .post(&format!("{}/api/token/refresh", base_url))
+        .post(format!("{base_url}/api/token/refresh"))
         .json(&json!({
             "refresh_token": "non_existent_refresh_token"
         }))
@@ -258,7 +251,7 @@ async fn test_refresh_token_returns_401_for_expired_refresh_token() {
 
     // Make refresh request with expired token
     let response = client
-        .post(&format!("{}/api/token/refresh", base_url))
+        .post(format!("{base_url}/api/token/refresh"))
         .json(&json!({
             "refresh_token": refresh_token
         }))
@@ -319,7 +312,7 @@ async fn test_refresh_token_returns_401_for_revoked_refresh_token() {
 
     // Make refresh request with revoked token
     let response = client
-        .post(&format!("{}/api/token/refresh", base_url))
+        .post(format!("{base_url}/api/token/refresh"))
         .json(&json!({
             "refresh_token": refresh_token
         }))
@@ -356,10 +349,10 @@ async fn test_refresh_token_returns_400_for_missing_refresh_token() {
     let (_fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let _db = _fixture.db();
     // Make refresh request without refresh_token field
     let response = client
-        .post(&format!("{}/api/token/refresh", base_url))
+        .post(format!("{base_url}/api/token/refresh"))
         .json(&json!({}))
         .send()
         .await
@@ -405,10 +398,10 @@ async fn test_refresh_token_returns_422_for_empty_refresh_token() {
     let (_fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let _db = _fixture.db();
     // Make refresh request with empty refresh token
     let response = client
-        .post(&format!("{}/api/token/refresh", base_url))
+        .post(format!("{base_url}/api/token/refresh"))
         .json(&json!({
             "refresh_token": ""
         }))
@@ -441,10 +434,10 @@ async fn test_refresh_token_returns_400_for_malformed_json() {
     let (_fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let _db = _fixture.db();
     // Make refresh request with malformed JSON
     let response = client
-        .post(&format!("{}/api/token/refresh", base_url))
+        .post(format!("{base_url}/api/token/refresh"))
         .header("Content-Type", "application/json")
         .body("{ invalid json")
         .send()
@@ -466,10 +459,10 @@ async fn test_refresh_token_returns_400_for_wrong_content_type() {
     let (_fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let _db = _fixture.db();
     // Make refresh request with wrong content type
     let response = client
-        .post(&format!("{}/api/token/refresh", base_url))
+        .post(format!("{base_url}/api/token/refresh"))
         .header("Content-Type", "text/plain")
         .body("refresh_token=some_token")
         .send()
@@ -515,7 +508,7 @@ async fn test_refresh_token_invalidates_expired_token_automatically() {
 
     // Make refresh request with expired token
     let response = client
-        .post(&format!("{}/api/token/refresh", base_url))
+        .post(format!("{base_url}/api/token/refresh"))
         .json(&json!({
             "refresh_token": refresh_token
         }))
@@ -534,10 +527,7 @@ async fn test_refresh_token_invalidates_expired_token_automatically() {
     let is_valid: bool = db
         .query_one(Statement::from_string(
             DatabaseBackend::Postgres,
-            format!(
-                "SELECT is_valid FROM refresh_tokens WHERE id = '{}'",
-                token_id
-            ),
+            format!("SELECT is_valid FROM refresh_tokens WHERE id = '{token_id}'"),
         ))
         .await
         .expect("Failed to query token validity")
@@ -577,7 +567,7 @@ async fn test_refresh_token_replay_attack_protection() {
 
     // First request should succeed
     let response1 = client
-        .post(&format!("{}/api/token/refresh", base_url))
+        .post(format!("{base_url}/api/token/refresh"))
         .json(&json!({
             "refresh_token": refresh_token
         }))
@@ -589,7 +579,7 @@ async fn test_refresh_token_replay_attack_protection() {
 
     // Make the same request again immediately (replay attack)
     let response2 = client
-        .post(&format!("{}/api/token/refresh", base_url))
+        .post(format!("{base_url}/api/token/refresh"))
         .json(&json!({
             "refresh_token": refresh_token
         }))
@@ -620,7 +610,7 @@ async fn test_refresh_token_replay_attack_protection() {
 #[serial]
 async fn test_refresh_token_concurrent_requests_with_same_token() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, _client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -650,7 +640,7 @@ async fn test_refresh_token_concurrent_requests_with_same_token() {
         let handle = tokio::spawn(async move {
             let client2 = create_test_client();
             let response = client2
-                .post(&format!("{}/api/token/refresh", base_url))
+                .post(format!("{base_url}/api/token/refresh"))
                 .json(&json!({
                     "refresh_token": token
                 }))
@@ -676,22 +666,17 @@ async fn test_refresh_token_concurrent_requests_with_same_token() {
             let response_json = response_result.expect("Should return JSON response");
             assert!(
                 response_json["access_token"].is_string(),
-                "Request {} should return valid access token",
-                request_id
+                "Request {request_id} should return valid access token"
             );
             assert!(
                 response_json["refresh_token"].is_string(),
-                "Request {} should return new refresh token",
-                request_id
+                "Request {request_id} should return new refresh token"
             );
         } else if status == 401 {
             failure_count += 1;
             // This is expected due to token rotation
         } else {
-            panic!(
-                "Unexpected status code {} for request {}",
-                status, request_id
-            );
+            panic!("Unexpected status code {status} for request {request_id}");
         }
     }
 
@@ -752,7 +737,7 @@ async fn test_refresh_token_generates_unique_access_tokens() {
 
     for i in 0..5 {
         let response = client
-            .post(&format!("{}/api/token/refresh", base_url))
+            .post(format!("{base_url}/api/token/refresh"))
             .json(&json!({
                 "refresh_token": current_refresh_token
             }))
@@ -760,7 +745,7 @@ async fn test_refresh_token_generates_unique_access_tokens() {
             .await
             .expect("Failed to send request");
 
-        assert_eq!(response.status(), 200, "Request {} should succeed", i);
+        assert_eq!(response.status(), 200, "Request {i} should succeed");
 
         let response_json: Value = response.json().await.expect("Should return JSON response");
 
@@ -770,16 +755,14 @@ async fn test_refresh_token_generates_unique_access_tokens() {
         // ✅ Each access token should be unique
         assert!(
             !access_tokens.contains(access_token),
-            "Access token {} should be unique",
-            i
+            "Access token {i} should be unique"
         );
         access_tokens.insert(access_token.to_string());
 
         // ✅ Each refresh token should be unique
         assert!(
             !refresh_tokens.contains(new_refresh_token),
-            "Refresh token {} should be unique",
-            i
+            "Refresh token {i} should be unique"
         );
         refresh_tokens.insert(new_refresh_token.to_string());
 
@@ -841,7 +824,7 @@ async fn test_refresh_token_performance_under_load() {
 
     for i in 0..num_requests {
         let response = client
-            .post(&format!("{}/api/token/refresh", base_url))
+            .post(format!("{base_url}/api/token/refresh"))
             .json(&json!({
                 "refresh_token": current_refresh_token
             }))
@@ -849,7 +832,7 @@ async fn test_refresh_token_performance_under_load() {
             .await
             .expect("Failed to send request");
 
-        assert_eq!(response.status(), 200, "Request {} should succeed", i);
+        assert_eq!(response.status(), 200, "Request {i} should succeed");
 
         let response_json: Value = response.json().await.expect("Should return JSON response");
 
@@ -862,16 +845,14 @@ async fn test_refresh_token_performance_under_load() {
     // ✅ Performance should be reasonable (less than 5 seconds for 10 requests)
     assert!(
         elapsed.as_secs() < 5,
-        "10 refresh token requests should complete in less than 5 seconds, took: {:?}",
-        elapsed
+        "10 refresh token requests should complete in less than 5 seconds, took: {elapsed:?}"
     );
 
     // ✅ Average response time should be reasonable (less than 500ms per request)
     let avg_time_per_request = elapsed.as_millis() / num_requests;
     assert!(
         avg_time_per_request < 500,
-        "Average response time should be less than 500ms, was: {}ms",
-        avg_time_per_request
+        "Average response time should be less than 500ms, was: {avg_time_per_request}ms"
     );
 }
 
@@ -903,7 +884,7 @@ async fn test_refresh_token_rotation_invalidates_old_token() {
 
     // First refresh request should succeed
     let response1 = client
-        .post(&format!("{}/api/token/refresh", base_url))
+        .post(format!("{base_url}/api/token/refresh"))
         .json(&json!({
             "refresh_token": refresh_token
         }))
@@ -919,7 +900,7 @@ async fn test_refresh_token_rotation_invalidates_old_token() {
 
     // Second request with old token should fail
     let response2 = client
-        .post(&format!("{}/api/token/refresh", base_url))
+        .post(format!("{base_url}/api/token/refresh"))
         .json(&json!({
             "refresh_token": refresh_token
         }))
@@ -936,7 +917,7 @@ async fn test_refresh_token_rotation_invalidates_old_token() {
 
     // Third request with new token should succeed
     let response3 = client
-        .post(&format!("{}/api/token/refresh", base_url))
+        .post(format!("{base_url}/api/token/refresh"))
         .json(&json!({
             "refresh_token": new_refresh_token
         }))
@@ -973,7 +954,7 @@ async fn test_refresh_token_expiration_times_match_configuration() {
 
     // Make refresh request
     let response = client
-        .post(&format!("{}/api/token/refresh", base_url))
+        .post(format!("{base_url}/api/token/refresh"))
         .json(&json!({
             "refresh_token": refresh_token
         }))
@@ -989,16 +970,14 @@ async fn test_refresh_token_expiration_times_match_configuration() {
     let expires_in = response_json["expires_in"].as_u64().unwrap();
     assert!(
         expires_in > 850 && expires_in <= 900,
-        "Access token expiration should be around 15 minutes (900 seconds), got: {}",
-        expires_in
+        "Access token expiration should be around 15 minutes (900 seconds), got: {expires_in}"
     );
 
     // ✅ Refresh token expiration should match configuration (30 days = 2592000 seconds)
     let refresh_expires_in = response_json["refresh_expires_in"].as_u64().unwrap();
     assert!(
         refresh_expires_in > 2_580_000 && refresh_expires_in <= 2_592_000,
-        "Refresh token expiration should be around 30 days (2592000 seconds), got: {}",
-        refresh_expires_in
+        "Refresh token expiration should be around 30 days (2592000 seconds), got: {refresh_expires_in}"
     );
 }
 
@@ -1028,7 +1007,7 @@ async fn test_refresh_token_response_format_matches_openapi_spec() {
 
     // Make refresh request
     let response = client
-        .post(&format!("{}/api/token/refresh", base_url))
+        .post(format!("{base_url}/api/token/refresh"))
         .json(&json!({
             "refresh_token": refresh_token
         }))
@@ -1125,7 +1104,7 @@ async fn test_refresh_token_database_cleanup_on_rotation() {
 
     // Use one token for refresh
     let response = client
-        .post(&format!("{}/api/token/refresh", base_url))
+        .post(format!("{base_url}/api/token/refresh"))
         .json(&json!({
             "refresh_token": tokens[0]
         }))
@@ -1167,7 +1146,7 @@ async fn test_refresh_token_database_cleanup_on_rotation() {
         let token_exists = refresh_token_exists(db.clone(), token)
             .await
             .expect("Failed to check token");
-        assert!(token_exists, "Other tokens should still exist: {}", token);
+        assert!(token_exists, "Other tokens should still exist: {token}");
     }
 }
 
@@ -1200,15 +1179,15 @@ async fn test_refresh_token_multiple_rotations_in_sequence() {
     // Perform multiple sequential rotations
     for i in 1..=5 {
         let response = client
-            .post(&format!("{}/api/token/refresh", base_url))
+            .post(format!("{base_url}/api/token/refresh"))
             .json(&json!({
                 "refresh_token": current_token
             }))
             .send()
             .await
-            .expect(&format!("Failed to send request {}", i));
+            .unwrap_or_else(|_| panic!("Failed to send request {i}"));
 
-        assert_eq!(response.status(), 200, "Refresh {} should succeed", i);
+        assert_eq!(response.status(), 200, "Refresh {i} should succeed");
 
         let response_json: Value = response.json().await.expect("Should return JSON response");
 
@@ -1217,8 +1196,7 @@ async fn test_refresh_token_multiple_rotations_in_sequence() {
         // ✅ Each new token should be unique
         assert!(
             !used_tokens.contains(&new_token),
-            "Token {} should be unique",
-            i
+            "Token {i} should be unique"
         );
 
         // ✅ Old token should be deleted
@@ -1227,8 +1205,7 @@ async fn test_refresh_token_multiple_rotations_in_sequence() {
             .expect("Failed to check old token");
         assert!(
             !old_token_exists,
-            "Old token should be deleted after rotation {}",
-            i
+            "Old token should be deleted after rotation {i}"
         );
 
         // ✅ New token should exist
@@ -1237,8 +1214,7 @@ async fn test_refresh_token_multiple_rotations_in_sequence() {
             .expect("Failed to check new token");
         assert!(
             new_token_exists,
-            "New token should exist after rotation {}",
-            i
+            "New token should exist after rotation {i}"
         );
 
         used_tokens.push(new_token.clone());
@@ -1259,7 +1235,7 @@ async fn test_refresh_token_multiple_rotations_in_sequence() {
         let token_exists = refresh_token_exists(db.clone(), token)
             .await
             .expect("Failed to check token");
-        assert!(!token_exists, "Previous token {} should not exist", i);
+        assert!(!token_exists, "Previous token {i} should not exist");
     }
 }
 
@@ -1276,7 +1252,7 @@ async fn test_jwks_returns_200_and_valid_json_structure() {
 
     // Make JWKS request
     let response = client
-        .get(&format!("{}/.well-known/jwks.json", base_url))
+        .get(format!("{base_url}/.well-known/jwks.json"))
         .send()
         .await
         .expect("Failed to send JWKS request");
@@ -1318,7 +1294,7 @@ async fn test_jwks_endpoint_requires_no_authentication() {
 
     // Make JWKS request WITHOUT authentication
     let response = client
-        .get(&format!("{}/.well-known/jwks.json", base_url))
+        .get(format!("{base_url}/.well-known/jwks.json"))
         .send()
         .await
         .expect("Failed to send JWKS request");
@@ -1348,7 +1324,7 @@ async fn test_jwks_endpoint_with_different_http_methods() {
 
     // ✅ GET should work (standard method)
     let get_response = client
-        .get(&format!("{}/.well-known/jwks.json", base_url))
+        .get(format!("{base_url}/.well-known/jwks.json"))
         .send()
         .await
         .expect("Failed to send GET request");
@@ -1361,7 +1337,7 @@ async fn test_jwks_endpoint_with_different_http_methods() {
 
     // ❌ POST should not be allowed
     let post_response = client
-        .post(&format!("{}/.well-known/jwks.json", base_url))
+        .post(format!("{base_url}/.well-known/jwks.json"))
         .send()
         .await
         .expect("Failed to send POST request");
@@ -1408,7 +1384,7 @@ async fn test_jwt_token_validation_using_jwks_endpoint() {
 
     // 2. Login to get a JWT token
     let login_response = client
-        .post(&format!("{}/api/auth/login", base_url))
+        .post(format!("{base_url}/api/auth/login"))
         .json(&json!({
             "email": user_email.email(),
             "password": "password123" // Password that matches the hashed one
@@ -1438,7 +1414,7 @@ async fn test_jwt_token_validation_using_jwks_endpoint() {
 
     // 3. Get JWKS from the endpoint
     let jwks_response = client
-        .get(&format!("{}/.well-known/jwks.json", base_url))
+        .get(format!("{base_url}/.well-known/jwks.json"))
         .send()
         .await
         .expect("Failed to get JWKS");
@@ -1527,7 +1503,18 @@ async fn test_jwt_token_validation_using_jwks_endpoint() {
     let jwt_algorithm = header_json["alg"].as_str().unwrap();
     let keys = jwks_json["keys"].as_array().unwrap();
 
-    if !keys.is_empty() {
+    if keys.is_empty() {
+        // If JWKS is empty (HMAC256 setup), we can't verify signature from JWKS
+        // HMAC keys should not be published in JWKS for security reasons
+        println!("⚠️  JWKS keys array is empty - this is expected for HMAC256 configuration");
+        println!("⚠️  Signature verification skipped (HMAC secret not in JWKS for security)");
+
+        // But we can still validate that JWT uses HMAC algorithm
+        assert!(
+            jwt_algorithm == "HS256" || jwt_algorithm == "HS384" || jwt_algorithm == "HS512",
+            "For empty JWKS, JWT should use HMAC algorithm, got: {jwt_algorithm}"
+        );
+    } else {
         // If we have RSA keys in JWKS, JWT should use RS256
         for key in keys {
             if key["kty"].as_str().unwrap_or("") == "RSA" {
@@ -1554,23 +1541,11 @@ async fn test_jwt_token_validation_using_jwks_endpoint() {
                         println!("✅ JWT signature verification: PASSED");
                     }
                     Err(e) => {
-                        panic!("Failed to verify JWT signature with JWKS key: {}", e);
+                        panic!("Failed to verify JWT signature with JWKS key: {e}");
                     }
                 }
             }
         }
-    } else {
-        // If JWKS is empty (HMAC256 setup), we can't verify signature from JWKS
-        // HMAC keys should not be published in JWKS for security reasons
-        println!("⚠️  JWKS keys array is empty - this is expected for HMAC256 configuration");
-        println!("⚠️  Signature verification skipped (HMAC secret not in JWKS for security)");
-
-        // But we can still validate that JWT uses HMAC algorithm
-        assert!(
-            jwt_algorithm == "HS256" || jwt_algorithm == "HS384" || jwt_algorithm == "HS512",
-            "For empty JWKS, JWT should use HMAC algorithm, got: {}",
-            jwt_algorithm
-        );
     }
 
     println!("✅ JWT token validation using JWKS endpoint completed successfully!");
@@ -1582,8 +1557,8 @@ async fn test_jwt_token_validation_using_jwks_endpoint() {
         println!("   - Cryptographic signature: VERIFIED ✅");
     }
 
-    println!("for manual testing, the jwt token is: {}", jwt_token);
-    println!("for manual testing, the jwks is: {}", jwks_json);
+    println!("for manual testing, the jwt token is: {jwt_token}");
+    println!("for manual testing, the jwks is: {jwks_json}");
 }
 
 // 🔐 JWT Signature Verification Helper Functions
@@ -1687,7 +1662,7 @@ fn verify_jwt_signature_with_hmac_secret(
     }
 
     println!("📝 HMAC verification placeholder:");
-    println!("   - Algorithm: {}", algorithm);
+    println!("   - Algorithm: {algorithm}");
     println!("   - Secret length: {} chars", secret.len());
     println!("   - JWT parts: {}", jwt_parts.len());
 

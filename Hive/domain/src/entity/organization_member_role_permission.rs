@@ -6,7 +6,7 @@ use crate::entity::role_permission::RolePermission;
 
 /// Organization member role permission entity representing the assignment of a role permission group
 /// to a specific member in an organization
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OrganizationMemberRolePermission {
     pub id: Option<Uuid>,
     pub organization_id: Uuid,

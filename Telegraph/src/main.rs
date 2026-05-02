@@ -21,12 +21,12 @@ async fn main() -> Result<(), anyhow::Error> {
         tls_cert_path: if config.server.tls_enabled {
             config.server.tls_cert_path.clone()
         } else {
-            "".to_string()
+            String::new()
         },
         tls_key_path: if config.server.tls_enabled {
             config.server.tls_key_path.clone()
         } else {
-            "".to_string()
+            String::new()
         },
         tls_port: if config.server.tls_enabled {
             config.server.tls_port

@@ -33,8 +33,8 @@ async fn test_create_project_returns_201_with_valid_data() {
     let jwt_token = create_test_jwt_token(user_id);
 
     let response = client
-        .post(&format!("{}/api/projects", base_url))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .post(format!("{base_url}/api/projects"))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "name": "Test Project",
@@ -76,8 +76,8 @@ async fn test_create_project_returns_400_for_invalid_owner_type() {
     let jwt_token = create_test_jwt_token(user_id);
 
     let response = client
-        .post(&format!("{}/api/projects", base_url))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .post(format!("{base_url}/api/projects"))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "name": "Test Project",
@@ -107,7 +107,7 @@ async fn test_create_project_returns_401_without_auth_token() {
         .expect("Failed to setup test server");
 
     let response = client
-        .post(&format!("{}/api/projects", base_url))
+        .post(format!("{base_url}/api/projects"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "name": "Test Project",
@@ -135,8 +135,8 @@ async fn test_create_project_grants_creator_immediate_owner_permissions() {
     let jwt_token = create_test_jwt_token(creator_id);
 
     let create_response = client
-        .post(&format!("{}/api/projects", base_url))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .post(format!("{base_url}/api/projects"))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "name": "Project With Creator ACL Bootstrap",
@@ -180,8 +180,8 @@ async fn test_create_project_grants_creator_immediate_owner_permissions() {
         .expect("Failed to bootstrap creator permissions");
 
     let update_response = client
-        .put(&format!("{}/api/projects/{}", base_url, project_id))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .put(format!("{base_url}/api/projects/{project_id}"))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "name": "Updated By Creator Immediately"
@@ -197,8 +197,8 @@ async fn test_create_project_grants_creator_immediate_owner_permissions() {
     );
 
     let add_member_response = client
-        .post(&format!("{}/api/projects/{}/members", base_url, project_id))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .post(format!("{base_url}/api/projects/{project_id}/members"))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "user_id": Uuid::new_v4(),
@@ -216,11 +216,8 @@ async fn test_create_project_grants_creator_immediate_owner_permissions() {
     );
 
     let add_component_response = client
-        .post(&format!(
-            "{}/api/projects/{}/components",
-            base_url, project_id
-        ))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .post(format!("{base_url}/api/projects/{project_id}/components"))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "component_type": "taskboard"
@@ -275,8 +272,8 @@ async fn test_get_project_returns_200_for_existing_project() {
     let jwt_token = create_test_jwt_token(owner_id);
 
     let response = client
-        .get(&format!("{}/api/projects/{}", base_url, project.id()))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .get(format!("{}/api/projects/{}", base_url, project.id()))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -327,8 +324,8 @@ async fn test_get_project_returns_404_for_nonexistent_project() {
     let jwt_token = create_test_jwt_token(caller_id);
 
     let response = client
-        .get(&format!("{}/api/projects/{}", base_url, non_existent_id))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .get(format!("{base_url}/api/projects/{non_existent_id}"))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -371,12 +368,12 @@ async fn test_get_project_detail_returns_200_with_components() {
     let jwt_token = create_test_jwt_token(owner_id);
 
     let response = client
-        .get(&format!(
+        .get(format!(
             "{}/api/projects/{}/details",
             base_url,
             project.id()
         ))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -428,14 +425,14 @@ async fn test_list_projects_returns_paginated_results() {
     for i in 0..3 {
         DbFixtures::project()
             .personal(owner_id)
-            .name(format!("Project {}", i))
+            .name(format!("Project {i}"))
             .commit(db.clone())
             .await
             .expect("Failed to create project");
     }
 
     let response = client
-        .get(&format!("{}/api/projects", base_url))
+        .get(format!("{base_url}/api/projects"))
         .send()
         .await
         .expect("Failed to send request");
@@ -485,8 +482,8 @@ async fn test_update_project_returns_200_with_valid_data() {
     let jwt_token = create_test_jwt_token(owner_id);
 
     let response = client
-        .put(&format!("{}/api/projects/{}", base_url, project.id()))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .put(format!("{}/api/projects/{}", base_url, project.id()))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "name": "Updated Project Name",
@@ -540,8 +537,8 @@ async fn test_delete_project_returns_204_on_success() {
     let jwt_token = create_test_jwt_token(owner_id);
 
     let response = client
-        .delete(&format!("{}/api/projects/{}", base_url, project.id()))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .delete(format!("{}/api/projects/{}", base_url, project.id()))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -593,12 +590,12 @@ async fn test_publish_project_returns_200_when_valid() {
     let jwt_token = create_test_jwt_token(owner_id);
 
     let response = client
-        .post(&format!(
+        .post(format!(
             "{}/api/projects/{}/publish",
             base_url,
             project.id()
         ))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -650,12 +647,12 @@ async fn test_archive_project_returns_200_on_success() {
     let jwt_token = create_test_jwt_token(owner_id);
 
     let response = client
-        .post(&format!(
+        .post(format!(
             "{}/api/projects/{}/archive",
             base_url,
             project.id()
         ))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send request");

@@ -73,7 +73,7 @@ impl Project {
 
     /// Check if the project is public
     #[must_use]
-    pub fn is_public(&self) -> bool {
+    pub const fn is_public(&self) -> bool {
         self.visibility.is_public()
     }
 

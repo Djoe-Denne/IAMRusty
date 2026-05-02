@@ -6,7 +6,7 @@ use crate::entity::{permission::Permission, resource::Resource};
 
 /// Role permission entity representing a named permission-resource combination
 /// This acts like a permission group/template scoped to a project
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RolePermission {
     pub id: Option<Uuid>,
     pub name: Option<String>,

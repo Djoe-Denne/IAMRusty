@@ -1,7 +1,7 @@
 //! Integration tests for user signup event processing in Telegraph
 //!
-//! Tests the happy path for user_signed_up event processing where:
-//! 1. Telegraph receives a UserSignedUp event
+//! Tests the happy path for `user_signed_up` event processing where:
+//! 1. Telegraph receives a `UserSignedUp` event
 //! 2. Telegraph processes the event and sends a welcome email
 //! 3. We verify the email was sent correctly
 
@@ -12,17 +12,12 @@ use common::*;
 #[path = "fixtures/mod.rs"]
 mod fixtures;
 
-use fixtures::SmtpFixtures;
 use iam_events::{IamDomainEvent, UserSignedUpEvent};
-use rustycog_events::{
-    event::{BaseEvent, DomainEvent},
-    EventPublisher,
-};
+use rustycog_events::event::BaseEvent;
 use serial_test::serial;
 use uuid::Uuid;
-use wiremock::matchers::body_string_contains;
 
-/// Test that Telegraph correctly processes UserSignedUp events and sends welcome emails
+/// Test that Telegraph correctly processes `UserSignedUp` events and sends welcome emails
 #[tokio::test]
 #[serial]
 async fn test_user_signed_up_event_happy_path() {
@@ -57,23 +52,19 @@ async fn test_user_signed_up_event_happy_path() {
     // Publish the event using the test event publisher (routes directly to consumer)
     let result = test_event_publisher.send_event(&iam_event).await;
 
-    println!("Event published successfully: {:?}", result);
+    println!("Event published successfully: {result:?}");
 
     // Verify event was published successfully
     assert!(
         result.is_ok(),
-        "Event should be published successfully: {:?}",
-        result
+        "Event should be published successfully: {result:?}"
     );
 
     let mut has_email = false;
     for i in 0..25 {
-        println!(
-            "Waiting for event to be processed and email to be sent: {}",
-            i
-        );
+        println!("Waiting for event to be processed and email to be sent: {i}");
         // Wait for the event to be processed and email to be sent
-        tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         if smtp_container
             .has_email("Welcome ! Please validate your email", test_email)
             .await
@@ -117,7 +108,7 @@ async fn test_user_signed_up_event_happy_path() {
     );
 }
 
-/// Test that Telegraph email processor handles UserSignedUp events with proper email content
+/// Test that Telegraph email processor handles `UserSignedUp` events with proper email content
 #[tokio::test]
 #[serial]
 async fn test_user_signed_up_email_content_verification() {
@@ -151,12 +142,9 @@ async fn test_user_signed_up_email_content_verification() {
     assert!(result.is_ok(), "Event should be published successfully");
 
     for i in 0..10 {
-        println!(
-            "Waiting for event to be processed and email to be sent: {}",
-            i
-        );
+        println!("Waiting for event to be processed and email to be sent: {i}");
         // Wait for the event to be processed and email to be sent
-        tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         if smtp_container.email_count().await > 0 {
             break;
         }
@@ -228,7 +216,7 @@ async fn test_event_processing_error_handling() {
     );
 
     // Wait for potential processing
-    tokio::time::sleep(tokio::time::Duration::from_millis(5000)).await;
+    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
 
     // Verify no email was sent for UserLoggedIn event
     assert_eq!(
@@ -276,12 +264,9 @@ async fn test_event_type_support_verification() {
 
     // Wait for processing
     for i in 0..10 {
-        println!(
-            "Waiting for event to be processed and email to be sent: {}",
-            i
-        );
+        println!("Waiting for event to be processed and email to be sent: {i}");
         // Wait for the event to be processed and email to be sent
-        tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         if smtp_container.email_count().await > 0 {
             break;
         }
@@ -316,7 +301,7 @@ async fn test_event_type_support_verification() {
     );
 
     // Wait for processing
-    tokio::time::sleep(tokio::time::Duration::from_millis(5000)).await;
+    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
 
     // Verify no email was sent for UserLoggedIn event
     assert_eq!(

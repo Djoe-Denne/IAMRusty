@@ -1,7 +1,7 @@
 //! Common test utilities for Manifesto
 //!
 //! Provides test infrastructure following rustycog-testing patterns
-//! and Manifesto-specific test setup, including the real OpenFGA
+//! and Manifesto-specific test setup, including the real `OpenFGA`
 //! testcontainer every permission-touching test routes through.
 
 // Test utilities from rustycog-testing
@@ -14,16 +14,13 @@ pub use rustycog_testing::*;
 pub use rustycog_testing::common::openfga_testcontainer::TestOpenFga;
 
 // Re-export the permission domain types tests need to express tuples.
-pub use rustycog_permission::{Permission, ResourceRef, Subject};
 
 // Re-export the component-catalog fixture so tests that arrange a custom
 // catalog (or an error scenario) don't have to reach into
 // `tests/fixtures/component_service/`.
 #[path = "fixtures/component_service/mod.rs"]
 mod component_service_fixture;
-pub use component_service_fixture::{
-    ComponentInfoBody, ComponentServiceFixtures, ComponentServiceMockService,
-};
+pub use component_service_fixture::{ComponentServiceFixtures, ComponentServiceMockService};
 
 // Migration crate import
 use manifesto_migration::{Migrator, MigratorTrait};
@@ -88,7 +85,7 @@ impl ServiceTestDescriptor<TestFixture> for ManifestoTestDescriptor {
     }
 }
 
-/// Bootstrap the Manifesto test server plus the real OpenFGA
+/// Bootstrap the Manifesto test server plus the real `OpenFGA`
 /// testcontainer and the wiremock-backed component-catalog fake every
 /// component-gated route depends on.
 ///
@@ -98,7 +95,7 @@ impl ServiceTestDescriptor<TestFixture> for ManifestoTestDescriptor {
 /// 2. `String` — base URL of the live HTTP server.
 /// 3. `Client` — `reqwest` client preconfigured for the test server.
 /// 4. `TestOpenFga` (clone) — typed handle exposing `allow` / `deny` /
-///    `read_tuples` against the real OpenFGA Check pipeline. The harness
+///    `read_tuples` against the real `OpenFGA` Check pipeline. The harness
 ///    writes **no** permissive default — each test must explicitly grant
 ///    every tuple the route guard will check by calling
 ///    `openfga.allow(subject, action, resource)`. Denial tests simply
@@ -107,13 +104,13 @@ impl ServiceTestDescriptor<TestFixture> for ManifestoTestDescriptor {
 ///    component-catalog HTTP service, pre-arranged with the default
 ///    catalog (`taskboard` + `wiki`).
 ///
-/// The OpenFGA fixture is process-global, so tests must remain
+/// The `OpenFGA` fixture is process-global, so tests must remain
 /// `#[serial]` to avoid tuple-state collisions. The component-catalog
 /// fake shares the singleton wiremock listener at `127.0.0.1:3000` —
 /// `reset()` on it wipes every wiremock stub, including any other
 /// fixture mounted on the same singleton.
 ///
-/// Bring-up order: the OpenFGA testcontainer publishes
+/// Bring-up order: the `OpenFGA` testcontainer publishes
 /// `MANIFESTO_OPENFGA__*` env vars during `TestFixture::new`; the app
 /// boots **after** that so its `OpenFgaPermissionChecker` resolves the
 /// fixture's URL / store id / model id instead of the `test.toml`

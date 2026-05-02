@@ -2,7 +2,7 @@ use anyhow::Result;
 use base64;
 use base64::{engine::general_purpose, Engine as _};
 use chrono::{Duration, Utc};
-use iam_configuration::{AppConfig, JwtAlgorithm, JwtConfig};
+use iam_configuration::{JwtAlgorithm, JwtConfig};
 use iam_domain::entity::registration_token::{RegistrationFlow, RegistrationTokenClaims};
 use iam_domain::entity::token::{JwtKeyPair, TokenClaims};
 use iam_domain::port::service::{JwtTokenEncoder, RegistrationTokenService};
@@ -205,7 +205,7 @@ impl JwtTestUtils {
         parts.len() == 3 && !parts[0].is_empty() && !parts[1].is_empty() && !parts[2].is_empty()
     }
 
-    /// Alias for verify_structure to match existing code
+    /// Alias for `verify_structure` to match existing code
     pub fn verify_jwt_structure(token: &str) -> bool {
         Self::verify_structure(token)
     }
@@ -231,8 +231,7 @@ impl JwtTestUtils {
     pub fn assert_valid_structure(token: &str, context: &str) {
         assert!(
             Self::verify_structure(token),
-            "JWT should have valid structure for {}",
-            context
+            "JWT should have valid structure for {context}"
         );
     }
 
@@ -243,8 +242,7 @@ impl JwtTestUtils {
         for claim in expected_claims {
             assert!(
                 payload.get(claim).is_some(),
-                "JWT payload should contain '{}' claim",
-                claim
+                "JWT payload should contain '{claim}' claim"
             );
         }
     }
@@ -269,12 +267,9 @@ impl JwtTestUtils {
 
     /// Create a simple test JWT token (not cryptographically valid, just for structure testing)
     pub fn create_test_token(user_id: Uuid) -> String {
-        let payload = format!(r#"{{"sub":"{}"}}"#, user_id);
+        let payload = format!(r#"{{"sub":"{user_id}"}}"#);
         let encoded_payload = general_purpose::URL_SAFE_NO_PAD.encode(payload.as_bytes());
-        format!(
-            "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.{}.signature",
-            encoded_payload
-        )
+        format!("eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.{encoded_payload}.signature")
     }
 
     /// Extract payload from JWT token for testing (basic base64 decode)

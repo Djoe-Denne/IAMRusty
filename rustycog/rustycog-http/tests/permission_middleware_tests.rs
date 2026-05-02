@@ -119,7 +119,7 @@ async fn make_server(
                 tls_key_path: Default::default(),
             })
             .await
-            .map_err(|e| DomainError::internal_error(&format!("Server startup failed: {}", e)))?;
+            .map_err(|e| DomainError::internal_error(&format!("Server startup failed: {e}")))?;
         Ok(())
     });
 
@@ -151,21 +151,21 @@ fn make_tampered_token_for_user(user: Uuid) -> String {
 }
 
 async fn http_get(addr: SocketAddr, path: &str, user: Option<Uuid>) -> reqwest::Response {
-    let url = format!("http://{}{}", addr, path);
+    let url = format!("http://{addr}{path}");
     let client = reqwest::Client::new();
     let mut req = client.get(&url);
     if let Some(u) = user {
         let token = make_token_for_user(u);
-        req = req.header("Authorization", format!("Bearer {}", token));
+        req = req.header("Authorization", format!("Bearer {token}"));
     }
     req.send().await.unwrap()
 }
 
 async fn http_get_with_token(addr: SocketAddr, path: &str, token: &str) -> reqwest::Response {
-    let url = format!("http://{}{}", addr, path);
+    let url = format!("http://{addr}{path}");
     reqwest::Client::new()
         .get(&url)
-        .header("Authorization", format!("Bearer {}", token))
+        .header("Authorization", format!("Bearer {token}"))
         .send()
         .await
         .unwrap()
@@ -207,7 +207,7 @@ mod one_level {
             ResourceRef::new("organization", org),
         );
         let (addr, _h) = make_server(checker).await;
-        let res = http_get(addr, format!("/orgs/{}", org).as_str(), Some(user)).await;
+        let res = http_get(addr, format!("/orgs/{org}").as_str(), Some(user)).await;
         assert_eq!(res.status(), reqwest::StatusCode::OK);
     }
 
@@ -247,7 +247,7 @@ mod two_level {
         let (addr, _h) = make_server(checker).await;
         let res = http_get(
             addr,
-            format!("/orgs/{}/members/{}", org, member).as_str(),
+            format!("/orgs/{org}/members/{member}").as_str(),
             Some(user),
         )
         .await;
@@ -273,7 +273,7 @@ mod three_level {
         let (addr, _h) = make_server(checker).await;
         let res = http_get(
             addr,
-            format!("/orgs/{}/members/{}/roles/{}", a, b, c).as_str(),
+            format!("/orgs/{a}/members/{b}/roles/{c}").as_str(),
             Some(user),
         )
         .await;
@@ -295,7 +295,7 @@ mod three_level {
         let (addr, _h) = make_server(checker).await;
         let res = http_get(
             addr,
-            format!("/orgs/{}/members/{}/permissions/component/{}", a, b, c).as_str(),
+            format!("/orgs/{a}/members/{b}/permissions/component/{c}").as_str(),
             Some(user),
         )
         .await;
@@ -306,7 +306,7 @@ mod three_level {
 /// Cover `optional_permission_middleware`'s wildcard fallback for
 /// anonymous callers. The middleware now consults the
 /// `PermissionChecker` with `Subject::wildcard()` instead of
-/// short-circuiting with 403, so a `viewer@user:*` tuple in the OpenFGA
+/// short-circuiting with 403, so a `viewer@user:*` tuple in the `OpenFGA`
 /// store (modeled here via `InMemoryPermissionChecker.allow(wildcard, ..)`)
 /// makes anonymous reads succeed.
 mod optional_auth_wildcard {
@@ -326,7 +326,7 @@ mod optional_auth_wildcard {
         );
         let (addr, _h) = make_server(checker).await;
 
-        let res = http_get(addr, format!("/optional/orgs/{}", org).as_str(), None).await;
+        let res = http_get(addr, format!("/optional/orgs/{org}").as_str(), None).await;
         assert_eq!(
             res.status(),
             reqwest::StatusCode::OK,
@@ -341,7 +341,7 @@ mod optional_auth_wildcard {
         // No wildcard tuple mounted -> default deny.
         let (addr, _h) = make_server(checker).await;
 
-        let res = http_get(addr, format!("/optional/orgs/{}", org).as_str(), None).await;
+        let res = http_get(addr, format!("/optional/orgs/{org}").as_str(), None).await;
         assert_eq!(
             res.status(),
             reqwest::StatusCode::FORBIDDEN,
@@ -363,7 +363,7 @@ mod optional_auth_wildcard {
         );
         let (addr, _h) = make_server(checker).await;
 
-        let res = http_get(addr, format!("/optional/orgs/{}", org).as_str(), Some(user)).await;
+        let res = http_get(addr, format!("/optional/orgs/{org}").as_str(), Some(user)).await;
         assert_eq!(res.status(), reqwest::StatusCode::OK);
     }
 }

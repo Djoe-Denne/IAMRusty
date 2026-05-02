@@ -7,7 +7,6 @@ use common::*;
 use serde_json::{json, Value};
 use serial_test::serial;
 
-use iam_configuration;
 use iam_configuration::{clear_config_cache, load_config, QueueConfig};
 use rustycog_testing::TestSqsFixture;
 use std::sync::Arc;
@@ -49,7 +48,7 @@ async fn test_signup_sqs_integration() {
         .expect("Failed to setup test server");
 
     // Wait a moment for server to be fully ready
-    tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
 
     // Verify SQS configuration
     match &config.queue {
@@ -79,7 +78,7 @@ async fn test_signup_sqs_integration() {
 
     // Make signup request
     let response = client
-        .post(&format!("{}/api/auth/signup", base_url))
+        .post(format!("{base_url}/api/auth/signup"))
         .header("Content-Type", "application/json")
         .json(&signup_data)
         .send()
@@ -173,7 +172,7 @@ fn print_sqs_environment() {
         "IAM_QUEUE__SQS__DEFAULT_QUEUES",
     ] {
         if let Ok(val) = std::env::var(key) {
-            println!("   {}: {}", key, val);
+            println!("   {key}: {val}");
         }
     }
 }
@@ -201,7 +200,7 @@ fn verify_sqs_signup_event(event: &Value, test_email: &str, test_username: &str)
         return false;
     }
 
-    println!("🔍 Event: {:?}", event);
+    println!("🔍 Event: {event:?}");
     assert!(event.get("event_id").is_some(), "Should have event_id");
     assert!(
         event.get("aggregate_id").is_some(),
@@ -229,14 +228,14 @@ fn event_user_id(event: &Value) -> Option<String> {
             data_json
                 .get("user_id")
                 .and_then(|u| u.as_str())
-                .map(|s| s.to_string())
+                .map(std::string::ToString::to_string)
         });
 
     user_id.or_else(|| {
         event
             .get("aggregate_id")
             .and_then(|a| a.as_str())
-            .map(|s| s.to_string())
+            .map(std::string::ToString::to_string)
     })
 }
 

@@ -69,7 +69,7 @@ async fn test_new_user_signup_returns_201_with_registration_token() {
 
     // Execute signup
     let response = client
-        .post(&format!("{}/api/auth/signup", base_url))
+        .post(format!("{base_url}/api/auth/signup"))
         .header("Content-Type", "application/json")
         .json(&signup_data)
         .send()
@@ -98,7 +98,7 @@ async fn test_new_user_signup_returns_201_with_registration_token() {
         response_body["registration_token"].is_string(),
         "Should return registration token"
     );
-    assert_eq!(response_body["requires_username"].as_bool().unwrap(), true);
+    assert!(response_body["requires_username"].as_bool().unwrap());
     assert!(
         response_body["message"].is_string(),
         "Should return message"
@@ -127,7 +127,7 @@ async fn test_registration_token_is_valid_rsa_signed_jwt() {
 
     // Execute signup
     let response = client
-        .post(&format!("{}/api/auth/signup", base_url))
+        .post(format!("{base_url}/api/auth/signup"))
         .header("Content-Type", "application/json")
         .json(&signup_data)
         .send()
@@ -171,7 +171,7 @@ async fn test_no_user_signed_up_event_triggered_at_signup() {
 
     // Execute signup
     let response = client
-        .post(&format!("{}/api/auth/signup", base_url))
+        .post(format!("{base_url}/api/auth/signup"))
         .header("Content-Type", "application/json")
         .json(&signup_data)
         .send()
@@ -204,7 +204,7 @@ async fn test_user_record_created_with_null_username_pending_status() {
 
     // Execute signup
     let response = client
-        .post(&format!("{}/api/auth/signup", base_url))
+        .post(format!("{base_url}/api/auth/signup"))
         .header("Content-Type", "application/json")
         .json(&signup_data)
         .send()
@@ -221,7 +221,7 @@ async fn test_user_record_created_with_null_username_pending_status() {
     let user_record = db
         .query_one(sea_orm::Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
-            format!("SELECT username FROM users WHERE id = '{}'", user_id),
+            format!("SELECT username FROM users WHERE id = '{user_id}'"),
         ))
         .await
         .expect("Failed to query user")
@@ -271,7 +271,7 @@ async fn test_existing_user_signup_returns_200_with_tokens() {
 
     // Execute signup
     let response = client
-        .post(&format!("{}/api/auth/signup", base_url))
+        .post(format!("{base_url}/api/auth/signup"))
         .header("Content-Type", "application/json")
         .json(&signup_data)
         .send()
@@ -347,7 +347,7 @@ async fn test_password_auth_method_added_to_existing_user() {
     });
 
     let response = client
-        .post(&format!("{}/api/auth/signup", base_url))
+        .post(format!("{base_url}/api/auth/signup"))
         .header("Content-Type", "application/json")
         .json(&signup_data)
         .send()
@@ -420,7 +420,7 @@ async fn test_login_completed_user_returns_200_with_tokens() {
     });
 
     let response = client
-        .post(&format!("{}/api/auth/login", base_url))
+        .post(format!("{base_url}/api/auth/login"))
         .header("Content-Type", "application/json")
         .json(&login_data)
         .send()
@@ -502,7 +502,7 @@ async fn test_login_incomplete_user_returns_423_with_registration_token() {
     });
 
     let response = client
-        .post(&format!("{}/api/auth/login", base_url))
+        .post(format!("{base_url}/api/auth/login"))
         .header("Content-Type", "application/json")
         .json(&login_data)
         .send()
@@ -571,7 +571,7 @@ async fn test_login_invalid_credentials_returns_401() {
     });
 
     let response = client
-        .post(&format!("{}/api/auth/login", base_url))
+        .post(format!("{base_url}/api/auth/login"))
         .header("Content-Type", "application/json")
         .json(&login_data)
         .send()
@@ -601,7 +601,7 @@ async fn test_login_nonexistent_email_returns_401() {
     });
 
     let response = client
-        .post(&format!("{}/api/auth/login", base_url))
+        .post(format!("{base_url}/api/auth/login"))
         .header("Content-Type", "application/json")
         .json(&login_data)
         .send()
@@ -635,7 +635,7 @@ async fn test_oauth_callback_new_user_returns_202_with_registration_token() {
 
     // Start OAuth flow
     let start_response = client
-        .get(&format!("{}/api/auth/github/login", base_url))
+        .get(format!("{base_url}/api/auth/github/login"))
         .send()
         .await
         .expect("Failed to start OAuth flow");
@@ -653,7 +653,7 @@ async fn test_oauth_callback_new_user_returns_202_with_registration_token() {
 
     // Simulate OAuth callback for new user
     let callback_response = client
-        .get(&format!("{}/api/auth/github/callback", base_url))
+        .get(format!("{base_url}/api/auth/github/callback"))
         .query(&[("code", "test_auth_code"), ("state", state)])
         .send()
         .await
@@ -684,7 +684,7 @@ async fn test_oauth_callback_new_user_returns_202_with_registration_token() {
         response_body["provider_info"]["email"].is_string(),
         "Should return provider email"
     );
-    assert_eq!(response_body["requires_username"].as_bool().unwrap(), true);
+    assert!(response_body["requires_username"].as_bool().unwrap());
 }
 
 #[tokio::test]
@@ -702,7 +702,7 @@ async fn test_registration_token_contains_oauth_provider_info() {
 
     // Start OAuth flow
     let start_response = client
-        .get(&format!("{}/api/auth/github/login", base_url))
+        .get(format!("{base_url}/api/auth/github/login"))
         .send()
         .await
         .expect("Failed to start OAuth flow");
@@ -720,7 +720,7 @@ async fn test_registration_token_contains_oauth_provider_info() {
 
     // Complete OAuth callback
     let callback_response = client
-        .get(&format!("{}/api/auth/github/callback", base_url))
+        .get(format!("{base_url}/api/auth/github/callback"))
         .query(&[("code", "test_auth_code"), ("state", state)])
         .send()
         .await
@@ -794,7 +794,7 @@ async fn test_complete_registration_valid_token_available_username_returns_200()
     });
 
     let signup_response = client
-        .post(&format!("{}/api/auth/signup", base_url))
+        .post(format!("{base_url}/api/auth/signup"))
         .header("Content-Type", "application/json")
         .json(&signup_data)
         .send()
@@ -816,7 +816,7 @@ async fn test_complete_registration_valid_token_available_username_returns_200()
     });
 
     let completion_response = client
-        .post(&format!("{}/api/auth/complete-registration", base_url))
+        .post(format!("{base_url}/api/auth/complete-registration"))
         .header("Content-Type", "application/json")
         .json(&completion_data)
         .send()
@@ -873,7 +873,7 @@ async fn test_complete_registration_triggers_user_signed_up_event() {
     });
 
     let signup_response = client
-        .post(&format!("{}/api/auth/signup", base_url))
+        .post(format!("{base_url}/api/auth/signup"))
         .header("Content-Type", "application/json")
         .json(&signup_data)
         .send()
@@ -895,7 +895,7 @@ async fn test_complete_registration_triggers_user_signed_up_event() {
     });
 
     let completion_response = client
-        .post(&format!("{}/api/auth/complete-registration", base_url))
+        .post(format!("{base_url}/api/auth/complete-registration"))
         .header("Content-Type", "application/json")
         .json(&completion_data)
         .send()
@@ -924,7 +924,7 @@ async fn test_complete_registration_invalidates_token_after_use() {
     });
 
     let signup_response = client
-        .post(&format!("{}/api/auth/signup", base_url))
+        .post(format!("{base_url}/api/auth/signup"))
         .header("Content-Type", "application/json")
         .json(&signup_data)
         .send()
@@ -946,7 +946,7 @@ async fn test_complete_registration_invalidates_token_after_use() {
     });
 
     let first_completion = client
-        .post(&format!("{}/api/auth/complete-registration", base_url))
+        .post(format!("{base_url}/api/auth/complete-registration"))
         .header("Content-Type", "application/json")
         .json(&completion_data)
         .send()
@@ -962,7 +962,7 @@ async fn test_complete_registration_invalidates_token_after_use() {
     });
 
     let second_completion = client
-        .post(&format!("{}/api/auth/complete-registration", base_url))
+        .post(format!("{base_url}/api/auth/complete-registration"))
         .header("Content-Type", "application/json")
         .json(&second_completion_data)
         .send()
@@ -1009,7 +1009,7 @@ async fn test_complete_registration_taken_username_returns_409() {
     });
 
     let signup_response = client
-        .post(&format!("{}/api/auth/signup", base_url))
+        .post(format!("{base_url}/api/auth/signup"))
         .header("Content-Type", "application/json")
         .json(&signup_data)
         .send()
@@ -1031,7 +1031,7 @@ async fn test_complete_registration_taken_username_returns_409() {
     });
 
     let completion_response = client
-        .post(&format!("{}/api/auth/complete-registration", base_url))
+        .post(format!("{base_url}/api/auth/complete-registration"))
         .header("Content-Type", "application/json")
         .json(&completion_data)
         .send()
@@ -1061,7 +1061,7 @@ async fn test_complete_registration_invalid_username_format_returns_422() {
     });
 
     let signup_response = client
-        .post(&format!("{}/api/auth/signup", base_url))
+        .post(format!("{base_url}/api/auth/signup"))
         .header("Content-Type", "application/json")
         .json(&signup_data)
         .send()
@@ -1095,7 +1095,7 @@ async fn test_complete_registration_invalid_username_format_returns_422() {
         });
 
         let completion_response = client
-            .post(&format!("{}/api/auth/complete-registration", base_url))
+            .post(format!("{base_url}/api/auth/complete-registration"))
             .header("Content-Type", "application/json")
             .json(&completion_data)
             .send()
@@ -1105,8 +1105,7 @@ async fn test_complete_registration_invalid_username_format_returns_422() {
         assert_eq!(
             completion_response.status(),
             422,
-            "Should return 422 for invalid username format: '{}'",
-            invalid_username
+            "Should return 422 for invalid username format: '{invalid_username}'"
         );
     }
 }
@@ -1125,7 +1124,7 @@ async fn test_username_check_available_username_returns_true() {
 
     // Check available username
     let response = client
-        .get(&format!("{}/api/auth/username/check", base_url))
+        .get(format!("{base_url}/api/auth/username/check"))
         .query(&[("username", "availableuser")])
         .send()
         .await
@@ -1135,7 +1134,7 @@ async fn test_username_check_available_username_returns_true() {
 
     let response_body: Value = response.json().await.expect("Should return JSON response");
 
-    assert_eq!(response_body["available"].as_bool().unwrap(), true);
+    assert!(response_body["available"].as_bool().unwrap());
     // For available usernames, suggestions array should be empty
     assert_eq!(response_body["suggestions"].as_array().unwrap().len(), 0);
 }
@@ -1158,7 +1157,7 @@ async fn test_username_check_taken_username_returns_false_with_suggestions() {
 
     // Check taken username
     let response = client
-        .get(&format!("{}/api/auth/username/check", base_url))
+        .get(format!("{base_url}/api/auth/username/check"))
         .query(&[("username", "johndoe")])
         .send()
         .await
@@ -1168,11 +1167,14 @@ async fn test_username_check_taken_username_returns_false_with_suggestions() {
 
     let response_body: Value = response.json().await.expect("Should return JSON response");
 
-    assert_eq!(response_body["available"].as_bool().unwrap(), false);
+    assert!(!response_body["available"].as_bool().unwrap());
 
     // Should provide suggestions
     let suggestions = response_body["suggestions"].as_array().unwrap();
-    assert!(suggestions.len() > 0, "Should provide username suggestions");
+    assert!(
+        !suggestions.is_empty(),
+        "Should provide username suggestions"
+    );
 
     // Verify suggestions are reasonable
     for suggestion in suggestions {
@@ -1202,7 +1204,7 @@ async fn test_username_validation_rules() {
 
     // Test minimum length
     let response = client
-        .get(&format!("{}/api/auth/username/check", base_url))
+        .get(format!("{base_url}/api/auth/username/check"))
         .query(&[("username", "ab")])
         .send()
         .await
@@ -1217,7 +1219,7 @@ async fn test_username_validation_rules() {
     // Test maximum length
     let long_username = "a".repeat(51);
     let response = client
-        .get(&format!("{}/api/auth/username/check", base_url))
+        .get(format!("{base_url}/api/auth/username/check"))
         .query(&[("username", &long_username)])
         .send()
         .await
@@ -1242,7 +1244,7 @@ async fn test_username_validation_rules() {
 
     for valid_username in valid_usernames {
         let response = client
-            .get(&format!("{}/api/auth/username/check", base_url))
+            .get(format!("{base_url}/api/auth/username/check"))
             .query(&[("username", valid_username)])
             .send()
             .await
@@ -1251,8 +1253,7 @@ async fn test_username_validation_rules() {
         assert_eq!(
             response.status(),
             200,
-            "Should accept valid username format: '{}'",
-            valid_username
+            "Should accept valid username format: '{valid_username}'"
         );
     }
 }
@@ -1277,7 +1278,7 @@ async fn test_complete_email_first_flow() {
     });
 
     let signup_response = client
-        .post(&format!("{}/api/auth/signup", base_url))
+        .post(format!("{base_url}/api/auth/signup"))
         .header("Content-Type", "application/json")
         .json(&signup_data)
         .send()
@@ -1299,7 +1300,7 @@ async fn test_complete_email_first_flow() {
     });
 
     let completion_response = client
-        .post(&format!("{}/api/auth/complete-registration", base_url))
+        .post(format!("{base_url}/api/auth/complete-registration"))
         .header("Content-Type", "application/json")
         .json(&completion_data)
         .send()
@@ -1321,7 +1322,7 @@ async fn test_complete_email_first_flow() {
     });
 
     let login_response = client
-        .post(&format!("{}/api/auth/login", base_url))
+        .post(format!("{base_url}/api/auth/login"))
         .header("Content-Type", "application/json")
         .json(&login_data)
         .send()
@@ -1336,7 +1337,6 @@ async fn test_complete_email_first_flow() {
     );
 
     // Step 4: Mock email verification using db fixture
-    use fixtures::DbFixtures;
 
     // Get the verification token from the database (simulating user clicking email link)
     let verification_record = db
@@ -1354,7 +1354,7 @@ async fn test_complete_email_first_flow() {
 
     // Verify the email
     let verify_response = client
-        .get(&format!("{}/api/auth/verify", base_url))
+        .get(format!("{base_url}/api/auth/verify"))
         .query(&[
             ("email", "flowtest@example.com"),
             ("token", &verification_token),
@@ -1371,7 +1371,7 @@ async fn test_complete_email_first_flow() {
 
     // Step 5: Now login should work
     let login_response = client
-        .post(&format!("{}/api/auth/login", base_url))
+        .post(format!("{base_url}/api/auth/login"))
         .header("Content-Type", "application/json")
         .json(&login_data)
         .send()
@@ -1392,8 +1392,8 @@ async fn test_complete_email_first_flow() {
 
     // Start OAuth linking flow with authentication
     let oauth_start_response = client
-        .get(&format!("{}/api/auth/github/link", base_url))
-        .header("Authorization", format!("Bearer {}", access_token))
+        .get(format!("{base_url}/api/auth/github/link"))
+        .header("Authorization", format!("Bearer {access_token}"))
         .send()
         .await
         .expect("Failed to start OAuth linking");
@@ -1422,7 +1422,7 @@ async fn test_complete_oauth_first_flow() {
 
     // Step 1: OAuth signup
     let start_response = client
-        .get(&format!("{}/api/auth/github/login", base_url))
+        .get(format!("{base_url}/api/auth/github/login"))
         .send()
         .await
         .expect("Failed to start OAuth flow");
@@ -1440,7 +1440,7 @@ async fn test_complete_oauth_first_flow() {
 
     // Complete OAuth callback
     let callback_response = client
-        .get(&format!("{}/api/auth/github/callback", base_url))
+        .get(format!("{base_url}/api/auth/github/callback"))
         .query(&[("code", "test_auth_code"), ("state", state)])
         .send()
         .await
@@ -1461,7 +1461,7 @@ async fn test_complete_oauth_first_flow() {
     });
 
     let completion_response = client
-        .post(&format!("{}/api/auth/complete-registration", base_url))
+        .post(format!("{base_url}/api/auth/complete-registration"))
         .header("Content-Type", "application/json")
         .json(&completion_data)
         .send()
@@ -1474,7 +1474,7 @@ async fn test_complete_oauth_first_flow() {
         .json()
         .await
         .expect("Should return JSON response");
-    let access_token = completion_body["access_token"].as_str().unwrap();
+    let _access_token = completion_body["access_token"].as_str().unwrap();
 
     // Step 3: Add password authentication
     let user_email = completion_body["user"]["email"].as_str().unwrap();
@@ -1485,7 +1485,7 @@ async fn test_complete_oauth_first_flow() {
     });
 
     let password_signup_response = client
-        .post(&format!("{}/api/auth/signup", base_url))
+        .post(format!("{base_url}/api/auth/signup"))
         .header("Content-Type", "application/json")
         .json(&password_signup_data)
         .send()
@@ -1504,7 +1504,7 @@ async fn test_complete_oauth_first_flow() {
         .expect("Failed to create verification token");
 
     let verify_response = client
-        .get(&format!("{}/api/auth/verify", base_url))
+        .get(format!("{base_url}/api/auth/verify"))
         .query(&[
             ("email", user_email),
             ("token", verification_token.verification_token()),
@@ -1526,7 +1526,7 @@ async fn test_complete_oauth_first_flow() {
     });
 
     let login_response = client
-        .post(&format!("{}/api/auth/login", base_url))
+        .post(format!("{base_url}/api/auth/login"))
         .header("Content-Type", "application/json")
         .json(&login_data)
         .send()

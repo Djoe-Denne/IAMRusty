@@ -1,7 +1,7 @@
 //! Integration tests for user email verified event processing in Telegraph
 //!
-//! Tests the complete flow for user_email_verified event processing where:
-//! 1. Telegraph receives a UserEmailVerified event
+//! Tests the complete flow for `user_email_verified` event processing where:
+//! 1. Telegraph receives a `UserEmailVerified` event
 //! 2. Telegraph processes the event and creates a database notification
 //! 3. We verify the notification was stored correctly in the database
 
@@ -12,10 +12,9 @@ use iam_events::{IamDomainEvent, UserEmailVerifiedEvent};
 use rustycog_events::event::BaseEvent;
 use sea_orm::{ConnectionTrait, EntityTrait};
 use serial_test::serial;
-use telegraph_infra::repository::entity::notifications;
 use uuid::Uuid;
 
-/// Test that Telegraph correctly processes UserEmailVerified events and creates database notifications
+/// Test that Telegraph correctly processes `UserEmailVerified` events and creates database notifications
 #[tokio::test]
 #[serial]
 async fn test_user_email_verified_event_creates_database_notification() {
@@ -52,26 +51,23 @@ async fn test_user_email_verified_event_creates_database_notification() {
     // Wait for the event to be processed and notification to be created
     for i in 0..5 {
         if i > 0 {
-            println!(
-                "Waiting for event to be processed and notification to be created: {}",
-                i
-            );
+            println!("Waiting for event to be processed and notification to be created: {i}");
         }
-        tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         notifications_after = db
             .query_all(sea_orm::Statement::from_string(
                 sea_orm::DatabaseBackend::Postgres,
-                format!("SELECT * FROM notifications WHERE user_id = '{}'", user_id),
+                format!("SELECT * FROM notifications WHERE user_id = '{user_id}'"),
             ))
             .await
             .expect("Failed to get notifications after event processing");
-        if notifications_after.len() > 0 {
+        if !notifications_after.is_empty() {
             break;
         }
     }
 
     assert!(
-        notifications_after.len() > 0,
+        !notifications_after.is_empty(),
         "A new notification should have been created. Before: {}, After: {}",
         0,
         notifications_after.len()
@@ -156,7 +152,7 @@ async fn test_user_email_verified_event_creates_database_notification() {
     );
 }
 
-/// Test that multiple UserEmailVerified events create separate notifications
+/// Test that multiple `UserEmailVerified` events create separate notifications
 #[tokio::test]
 #[serial]
 async fn test_multiple_email_verified_events_create_separate_notifications() {
@@ -187,23 +183,19 @@ async fn test_multiple_email_verified_events_create_separate_notifications() {
         let result = test_event_publisher.send_event(&iam_event).await;
         assert!(
             result.is_ok(),
-            "Event publishing should succeed for {}",
-            email
+            "Event publishing should succeed for {email}"
         );
     }
     let mut notifications = vec![];
     for i in 0..5 {
         if i > 0 {
-            println!(
-                "Waiting for event to be processed and notification to be created: {}",
-                i
-            );
+            println!("Waiting for event to be processed and notification to be created: {i}");
         }
-        tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         notifications = db
             .query_all(sea_orm::Statement::from_string(
                 sea_orm::DatabaseBackend::Postgres,
-                format!("SELECT * FROM notifications WHERE user_id = '{}'", user_id),
+                format!("SELECT * FROM notifications WHERE user_id = '{user_id}'"),
             ))
             .await
             .expect("Failed to get notifications after event processing");
@@ -257,7 +249,7 @@ async fn test_multiple_email_verified_events_create_separate_notifications() {
     }
 }
 
-/// Test that UserEmailVerified events for different users create separate notifications
+/// Test that `UserEmailVerified` events for different users create separate notifications
 #[tokio::test]
 #[serial]
 async fn test_different_users_email_verified_events() {
@@ -287,19 +279,15 @@ async fn test_different_users_email_verified_events() {
         let result = test_event_publisher.send_event(&iam_event).await;
         assert!(
             result.is_ok(),
-            "Event publishing should succeed for user {}",
-            user_id
+            "Event publishing should succeed for user {user_id}"
         );
     }
 
     for i in 0..5 {
         if i > 0 {
-            println!(
-                "Waiting for event to be processed and notification to be created: {}",
-                i
-            );
+            println!("Waiting for event to be processed and notification to be created: {i}");
         }
-        tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         let notifications = db
             .query_all(sea_orm::Statement::from_string(
                 sea_orm::DatabaseBackend::Postgres,
@@ -317,7 +305,7 @@ async fn test_different_users_email_verified_events() {
         let user_notifications = db
             .query_all(sea_orm::Statement::from_string(
                 sea_orm::DatabaseBackend::Postgres,
-                format!("SELECT * FROM notifications WHERE user_id = '{}'", user_id),
+                format!("SELECT * FROM notifications WHERE user_id = '{user_id}'"),
             ))
             .await
             .expect("Failed to get user notifications");
@@ -325,8 +313,7 @@ async fn test_different_users_email_verified_events() {
         assert_eq!(
             user_notifications.len(),
             1,
-            "User {} should have exactly 1 notification",
-            user_id
+            "User {user_id} should have exactly 1 notification"
         );
 
         let notification = &user_notifications[0];
@@ -338,6 +325,6 @@ async fn test_different_users_email_verified_events() {
 
         let content_bytes: Vec<u8> = notification.try_get::<Vec<u8>>("", "content").unwrap();
         let content = String::from_utf8(content_bytes).unwrap();
-        assert_eq!(content, format!("Email Verified Successfully\n\nYour email address {} has been successfully verified.\n\nYou can now access all features of your Telegraph account.\n\nThank you!", email));
+        assert_eq!(content, format!("Email Verified Successfully\n\nYour email address {email} has been successfully verified.\n\nYou can now access all features of your Telegraph account.\n\nThank you!"));
     }
 }

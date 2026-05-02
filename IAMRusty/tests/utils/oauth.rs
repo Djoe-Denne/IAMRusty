@@ -65,8 +65,7 @@ impl OAuthTestUtils {
 
         assert_eq!(
             decoded_state["operation"]["type"], expected_operation,
-            "State should contain {} operation type",
-            expected_operation
+            "State should contain {expected_operation} operation type"
         );
         assert!(
             decoded_state["nonce"].is_string(),
@@ -107,15 +106,11 @@ impl OAuthTestUtils {
         for param in required_params {
             assert!(
                 params.contains_key(param),
-                "Should have required OAuth2 parameter '{}' for provider '{}'",
-                param,
-                provider
+                "Should have required OAuth2 parameter '{param}' for provider '{provider}'"
             );
             assert!(
                 !params.get(param).unwrap().is_empty(),
-                "OAuth2 parameter '{}' should not be empty for provider '{}'",
-                param,
-                provider
+                "OAuth2 parameter '{param}' should not be empty for provider '{provider}'"
             );
         }
 
@@ -129,9 +124,8 @@ impl OAuthTestUtils {
         // Verify redirect_uri contains correct callback path
         let redirect_uri = params.get("redirect_uri").unwrap();
         assert!(
-            redirect_uri.contains(&format!("/oauth/{}/callback", provider)),
-            "redirect_uri should point to correct callback endpoint for provider '{}'",
-            provider
+            redirect_uri.contains(&format!("/oauth/{provider}/callback")),
+            "redirect_uri should point to correct callback endpoint for provider '{provider}'"
         );
     }
 

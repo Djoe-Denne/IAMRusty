@@ -15,7 +15,7 @@ impl AuthTestUtils {
         let count: i64 = db
             .query_one(Statement::from_string(
                 DatabaseBackend::Postgres,
-                format!("SELECT COUNT(*) as count FROM {}", table),
+                format!("SELECT COUNT(*) as count FROM {table}"),
             ))
             .await?
             .unwrap()

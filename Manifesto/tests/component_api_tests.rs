@@ -48,12 +48,12 @@ async fn test_add_component_returns_201_with_valid_data() {
     let jwt_token = create_test_jwt_token(owner_id);
 
     let response = client
-        .post(&format!(
+        .post(format!(
             "{}/api/projects/{}/components",
             base_url,
             project.id()
         ))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "component_type": "taskboard"
@@ -112,12 +112,12 @@ async fn test_add_component_returns_409_for_duplicate() {
 
     // Try to add the same component type again
     let response = client
-        .post(&format!(
+        .post(format!(
             "{}/api/projects/{}/components",
             base_url,
             project.id()
         ))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "component_type": "taskboard"
@@ -165,13 +165,13 @@ async fn test_get_component_returns_200_for_existing() {
     let jwt_token = create_test_jwt_token(owner_id);
 
     let response = client
-        .get(&format!(
+        .get(format!(
             "{}/api/projects/{}/components/{}",
             base_url,
             project.id(),
             component.id()
         ))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -233,12 +233,12 @@ async fn test_list_components_returns_all_project_components() {
     let jwt_token = create_test_jwt_token(owner_id);
 
     let response = client
-        .get(&format!(
+        .get(format!(
             "{}/api/projects/{}/components",
             base_url,
             project.id()
         ))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -288,13 +288,13 @@ async fn test_update_component_status_returns_200() {
     let jwt_token = create_test_jwt_token(owner_id);
 
     let response = client
-        .patch(&format!(
+        .patch(format!(
             "{}/api/projects/{}/components/{}",
             base_url,
             project.id(),
             component.id()
         ))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "status": "configured"
@@ -348,13 +348,13 @@ async fn test_remove_component_returns_204() {
     let jwt_token = create_test_jwt_token(owner_id);
 
     let response = client
-        .delete(&format!(
+        .delete(format!(
             "{}/api/projects/{}/components/{}",
             base_url,
             project.id(),
             component.id(),
         ))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -429,13 +429,13 @@ async fn test_user_with_generic_component_read_can_access_any_component() {
 
     // Should be able to read component1
     let response1 = client
-        .get(&format!(
+        .get(format!(
             "{}/api/projects/{}/components/{}",
             base_url,
             project.id(),
             component1.id()
         ))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -448,13 +448,13 @@ async fn test_user_with_generic_component_read_can_access_any_component() {
 
     // Should also be able to read component2
     let response2 = client
-        .get(&format!(
+        .get(format!(
             "{}/api/projects/{}/components/{}",
             base_url,
             project.id(),
             component2.id()
         ))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -517,12 +517,12 @@ async fn test_user_with_generic_component_permission_can_list_all_components() {
 
     // Should be able to list all components
     let response = client
-        .get(&format!(
+        .get(format!(
             "{}/api/projects/{}/components",
             base_url,
             project.id()
         ))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -578,13 +578,13 @@ async fn test_owner_can_modify_any_component() {
 
     // Owner should be able to update component status
     let response = client
-        .patch(&format!(
+        .patch(format!(
             "{}/api/projects/{}/components/{}",
             base_url,
             project.id(),
             component.id()
         ))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "status": "configured"
@@ -631,13 +631,13 @@ async fn test_member_without_component_permission_cannot_modify_component() {
 
     // Member with read permission should not be able to update component status
     let response = client
-        .patch(&format!(
+        .patch(format!(
             "{}/api/projects/{}/components/{}",
             base_url,
             project.id(),
             component.id()
         ))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "status": "configured"
@@ -684,13 +684,13 @@ async fn test_member_without_component_permission_cannot_delete_component() {
 
     // Member with read permission should not be able to delete component
     let response = client
-        .delete(&format!(
+        .delete(format!(
             "{}/api/projects/{}/components/{}",
             base_url,
             project.id(),
             component.id()
         ))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -781,14 +781,14 @@ async fn test_granted_specific_component_permission_allows_access() {
 
     // Grant the member specific write permission on component1 only (not component2)
     let grant_response = client
-        .post(&format!(
+        .post(format!(
             "{}/api/projects/{}/members/{}/permissions/component/{}",
             base_url,
             project.id(),
             member_id,
             component1.id()
         ))
-        .header("Authorization", format!("Bearer {}", owner_token))
+        .header("Authorization", format!("Bearer {owner_token}"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "permission": "write"
@@ -805,13 +805,13 @@ async fn test_granted_specific_component_permission_allows_access() {
 
     // Member should be able to read component1 (has specific permission)
     let response1 = client
-        .get(&format!(
+        .get(format!(
             "{}/api/projects/{}/components/{}",
             base_url,
             project.id(),
             component1.id()
         ))
-        .header("Authorization", format!("Bearer {}", member_token))
+        .header("Authorization", format!("Bearer {member_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -824,13 +824,13 @@ async fn test_granted_specific_component_permission_allows_access() {
 
     // Member should also be able to read component2 (has generic component read from membership)
     let response2 = client
-        .get(&format!(
+        .get(format!(
             "{}/api/projects/{}/components/{}",
             base_url,
             project.id(),
             component2.id()
         ))
-        .header("Authorization", format!("Bearer {}", member_token))
+        .header("Authorization", format!("Bearer {member_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -906,14 +906,14 @@ async fn test_specific_component_admin_does_not_apply_to_other_components() {
 
     // Grant elevated access only on component1.
     let grant_response = client
-        .post(&format!(
+        .post(format!(
             "{}/api/projects/{}/members/{}/permissions/component/{}",
             base_url,
             project.id(),
             member_id,
             component1.id()
         ))
-        .header("Authorization", format!("Bearer {}", owner_token))
+        .header("Authorization", format!("Bearer {owner_token}"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "permission": "admin"
@@ -925,13 +925,13 @@ async fn test_specific_component_admin_does_not_apply_to_other_components() {
     assert_eq!(grant_response.status(), 200, "Grant should succeed");
 
     let update_component1 = client
-        .patch(&format!(
+        .patch(format!(
             "{}/api/projects/{}/components/{}",
             base_url,
             project.id(),
             component1.id()
         ))
-        .header("Authorization", format!("Bearer {}", member_token))
+        .header("Authorization", format!("Bearer {member_token}"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "status": "configured"
@@ -947,13 +947,13 @@ async fn test_specific_component_admin_does_not_apply_to_other_components() {
     );
 
     let update_component2 = client
-        .patch(&format!(
+        .patch(format!(
             "{}/api/projects/{}/components/{}",
             base_url,
             project.id(),
             component2.id()
         ))
-        .header("Authorization", format!("Bearer {}", member_token))
+        .header("Authorization", format!("Bearer {member_token}"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "status": "configured"
@@ -1015,14 +1015,14 @@ async fn test_revoked_specific_component_permission_denies_elevated_access() {
 
     // Grant specific admin permission on component
     client
-        .post(&format!(
+        .post(format!(
             "{}/api/projects/{}/members/{}/permissions/component/{}",
             base_url,
             project.id(),
             member_id,
             component.id()
         ))
-        .header("Authorization", format!("Bearer {}", owner_token))
+        .header("Authorization", format!("Bearer {owner_token}"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "permission": "admin"
@@ -1033,13 +1033,13 @@ async fn test_revoked_specific_component_permission_denies_elevated_access() {
 
     // Member should be able to update component (has admin permission)
     let update_response1 = client
-        .patch(&format!(
+        .patch(format!(
             "{}/api/projects/{}/components/{}",
             base_url,
             project.id(),
             component.id()
         ))
-        .header("Authorization", format!("Bearer {}", member_token))
+        .header("Authorization", format!("Bearer {member_token}"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "status": "configured"
@@ -1056,14 +1056,14 @@ async fn test_revoked_specific_component_permission_denies_elevated_access() {
 
     // Now revoke the specific permission
     let revoke_response = client
-        .delete(&format!(
+        .delete(format!(
             "{}/api/projects/{}/members/{}/permissions/component/{}",
             base_url,
             project.id(),
             member_id,
             component.id()
         ))
-        .header("Authorization", format!("Bearer {}", owner_token))
+        .header("Authorization", format!("Bearer {owner_token}"))
         .send()
         .await
         .expect("Failed to revoke permission");
@@ -1096,13 +1096,13 @@ async fn test_revoked_specific_component_permission_denies_elevated_access() {
 
     // Member should no longer be able to update component (only has generic read)
     let update_response2 = client
-        .patch(&format!(
+        .patch(format!(
             "{}/api/projects/{}/components/{}",
             base_url,
             project.id(),
             component.id()
         ))
-        .header("Authorization", format!("Bearer {}", member_token))
+        .header("Authorization", format!("Bearer {member_token}"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "status": "active"
@@ -1190,13 +1190,13 @@ async fn test_generic_permission_grants_access_to_all_components() {
 
     // Grant generic admin permission on "component" (not specific to any component)
     let grant_response = client
-        .post(&format!(
+        .post(format!(
             "{}/api/projects/{}/members/{}/permissions/component",
             base_url,
             project.id(),
             member_id
         ))
-        .header("Authorization", format!("Bearer {}", owner_token))
+        .header("Authorization", format!("Bearer {owner_token}"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "permission": "admin"
@@ -1213,13 +1213,13 @@ async fn test_generic_permission_grants_access_to_all_components() {
 
     // Member should be able to update component1
     let update_response1 = client
-        .patch(&format!(
+        .patch(format!(
             "{}/api/projects/{}/components/{}",
             base_url,
             project.id(),
             component1.id()
         ))
-        .header("Authorization", format!("Bearer {}", member_token))
+        .header("Authorization", format!("Bearer {member_token}"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "status": "configured"
@@ -1236,13 +1236,13 @@ async fn test_generic_permission_grants_access_to_all_components() {
 
     // Member should also be able to update component2
     let update_response2 = client
-        .patch(&format!(
+        .patch(format!(
             "{}/api/projects/{}/components/{}",
             base_url,
             project.id(),
             component2.id()
         ))
-        .header("Authorization", format!("Bearer {}", member_token))
+        .header("Authorization", format!("Bearer {member_token}"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "status": "configured"

@@ -8,11 +8,9 @@ mod utils;
 use common::setup_test_server;
 use fixtures::DbFixtures;
 use iam_infra::auth::PasswordService;
-use reqwest::Client;
 use sea_orm::ConnectionTrait;
 use serde_json::{json, Value};
 use serial_test::serial;
-use utils::auth::AuthTestUtils;
 use uuid::Uuid;
 
 // 🔐 Email/Password Authentication Tests
@@ -33,7 +31,7 @@ async fn test_signup_duplicate_email_fails() {
     });
 
     let response1 = client
-        .post(&format!("{}/api/auth/signup", base_url))
+        .post(format!("{base_url}/api/auth/signup"))
         .header("Content-Type", "application/json")
         .json(&signup_data)
         .send()
@@ -50,8 +48,8 @@ async fn test_signup_duplicate_email_fails() {
         "username": "testuser"
     });
 
-    let response = client
-        .post(&format!("{}/api/auth/complete-registration", base_url))
+    let _response = client
+        .post(format!("{base_url}/api/auth/complete-registration"))
         .header("Content-Type", "application/json")
         .json(&completion_data)
         .send()
@@ -65,7 +63,7 @@ async fn test_signup_duplicate_email_fails() {
     });
 
     let response2 = client
-        .post(&format!("{}/api/auth/signup", base_url))
+        .post(format!("{base_url}/api/auth/signup"))
         .header("Content-Type", "application/json")
         .json(&signup_data2)
         .send()
@@ -114,7 +112,7 @@ async fn test_signup_invalid_email_format() {
         });
 
         let response = client
-            .post(&format!("{}/api/auth/signup", base_url))
+            .post(format!("{base_url}/api/auth/signup"))
             .header("Content-Type", "application/json")
             .json(&signup_data)
             .send()
@@ -125,8 +123,7 @@ async fn test_signup_invalid_email_format() {
         assert_eq!(
             response.status(),
             422,
-            "Should return 422 for invalid email: {}",
-            invalid_email
+            "Should return 422 for invalid email: {invalid_email}"
         );
     }
 }
@@ -153,7 +150,7 @@ async fn test_signup_weak_password_validation() {
         });
 
         let response = client
-            .post(&format!("{}/api/auth/signup", base_url))
+            .post(format!("{base_url}/api/auth/signup"))
             .header("Content-Type", "application/json")
             .json(&signup_data)
             .send()
@@ -164,8 +161,7 @@ async fn test_signup_weak_password_validation() {
         assert_eq!(
             response.status(),
             422,
-            "Should return 422 for weak password: '{}'",
-            weak_password
+            "Should return 422 for weak password: '{weak_password}'"
         );
     }
 }
@@ -196,7 +192,7 @@ async fn test_signup_missing_required_fields() {
 
     for (signup_data, description) in test_cases {
         let response = client
-            .post(&format!("{}/api/auth/signup", base_url))
+            .post(format!("{base_url}/api/auth/signup"))
             .header("Content-Type", "application/json")
             .json(&signup_data)
             .send()
@@ -207,8 +203,7 @@ async fn test_signup_missing_required_fields() {
         assert_eq!(
             response.status(),
             422,
-            "Should return 422 for {}",
-            description
+            "Should return 422 for {description}"
         );
     }
 }
@@ -252,7 +247,7 @@ async fn test_login_unverified_email_fails() {
     });
 
     let response = client
-        .post(&format!("{}/api/auth/login", base_url))
+        .post(format!("{base_url}/api/auth/login"))
         .header("Content-Type", "application/json")
         .json(&login_data)
         .send()
@@ -328,7 +323,7 @@ async fn test_login_invalid_credentials() {
 
     for (login_data, description, expected_status) in invalid_cases {
         let response = client
-            .post(&format!("{}/api/auth/login", base_url))
+            .post(format!("{base_url}/api/auth/login"))
             .header("Content-Type", "application/json")
             .json(&login_data)
             .send()
@@ -339,9 +334,7 @@ async fn test_login_invalid_credentials() {
         assert_eq!(
             response.status(),
             expected_status,
-            "Should return {} for {}",
-            expected_status,
-            description
+            "Should return {expected_status} for {description}"
         );
 
         let error_response: Value = response
@@ -358,8 +351,7 @@ async fn test_login_invalid_credentials() {
 
         assert!(
             has_error_info,
-            "Should contain error information for {}: {}",
-            description, error_response
+            "Should contain error information for {description}: {error_response}"
         );
     }
 }
@@ -380,7 +372,7 @@ async fn test_login_missing_required_fields() {
 
     for (login_data, description) in test_cases {
         let response = client
-            .post(&format!("{}/api/auth/login", base_url))
+            .post(format!("{base_url}/api/auth/login"))
             .header("Content-Type", "application/json")
             .json(&login_data)
             .send()
@@ -391,8 +383,7 @@ async fn test_login_missing_required_fields() {
         assert_eq!(
             response.status(),
             422,
-            "Should return 422 for {}",
-            description
+            "Should return 422 for {description}"
         );
     }
 }
@@ -441,7 +432,7 @@ async fn test_verify_email_success() {
 
     // Make verify request
     let response = client
-        .get(&format!("{}/api/auth/verify", base_url))
+        .get(format!("{base_url}/api/auth/verify"))
         .query(&[
             ("email", "unverified@example.com"),
             ("token", verification_token),
@@ -546,7 +537,7 @@ async fn test_verify_email_invalid_token() {
 
     // Test with wrong token
     let response = client
-        .get(&format!("{}/api/auth/verify", base_url))
+        .get(format!("{base_url}/api/auth/verify"))
         .query(&[
             ("email", "unverified@example.com"),
             ("token", "wrong_token_456"),
@@ -615,7 +606,7 @@ async fn test_verify_email_expired_token() {
 
     // Make verify request with expired token
     let response = client
-        .get(&format!("{}/api/auth/verify", base_url))
+        .get(format!("{base_url}/api/auth/verify"))
         .query(&[
             ("email", "unverified@example.com"),
             ("token", verification_token),
@@ -652,7 +643,7 @@ async fn test_verify_email_nonexistent_email() {
 
     // Make verify request for nonexistent email
     let response = client
-        .get(&format!("{}/api/auth/verify", base_url))
+        .get(format!("{base_url}/api/auth/verify"))
         .query(&[
             ("email", "nonexistent@example.com"),
             ("token", "any_token_123"),
@@ -695,7 +686,7 @@ async fn test_verify_email_already_verified() {
         .await
         .expect("Failed to create user");
 
-    let user_email = DbFixtures::user_email()
+    let _user_email = DbFixtures::user_email()
         .user_id(user.id())
         .email("already_verified@example.com")
         .is_primary(true)
@@ -706,7 +697,7 @@ async fn test_verify_email_already_verified() {
 
     // Make verify request for already verified email
     let response = client
-        .get(&format!("{}/api/auth/verify", base_url))
+        .get(format!("{base_url}/api/auth/verify"))
         .query(&[
             ("email", "already_verified@example.com"),
             ("token", "any_token_123"),
@@ -749,7 +740,7 @@ async fn test_verify_email_missing_required_fields() {
 
     for (query_params, description) in test_cases {
         let response = client
-            .get(&format!("{}/api/auth/verify", base_url))
+            .get(format!("{base_url}/api/auth/verify"))
             .query(&query_params)
             .send()
             .await
@@ -759,8 +750,7 @@ async fn test_verify_email_missing_required_fields() {
         assert_eq!(
             response.status(),
             400,
-            "Should return 400 for {}",
-            description
+            "Should return 400 for {description}"
         );
     }
 }

@@ -5,7 +5,7 @@ use std::sync::Arc;
 pub struct EventTestUtils;
 
 impl EventTestUtils {
-    /// Assert that a PasswordResetRequested event was published
+    /// Assert that a `PasswordResetRequested` event was published
     pub fn assert_password_reset_requested_event_published(
         mock_publisher: &Arc<MockEventPublisher>,
         expected_email: &str,
@@ -37,7 +37,7 @@ impl EventTestUtils {
         );
     }
 
-    /// Assert that NO PasswordResetRequested event was published
+    /// Assert that NO `PasswordResetRequested` event was published
     pub fn assert_no_password_reset_requested_event_published(
         mock_publisher: &Arc<MockEventPublisher>,
     ) {
@@ -52,7 +52,7 @@ impl EventTestUtils {
         );
     }
 
-    /// Assert that a UserSignedUp event was published
+    /// Assert that a `UserSignedUp` event was published
     pub fn assert_user_signed_up_event_published(
         mock_publisher: &Arc<MockEventPublisher>,
         expected_user_id: &str,
@@ -93,7 +93,7 @@ impl EventTestUtils {
         );
     }
 
-    /// Assert that NO UserSignedUp event was published
+    /// Assert that NO `UserSignedUp` event was published
     pub fn assert_no_user_signed_up_event_published(mock_publisher: &Arc<MockEventPublisher>) {
         assert!(
             !mock_publisher.has_user_signed_up_event(),
@@ -106,8 +106,7 @@ impl EventTestUtils {
         assert_eq!(
             mock_publisher.get_event_count(),
             expected_count,
-            "Should publish exactly {} events",
-            expected_count
+            "Should publish exactly {expected_count} events"
         );
     }
 
@@ -134,8 +133,7 @@ impl EventTestUtils {
 
         assert!(
             !matching_events.is_empty(),
-            "{} should be published",
-            event_description
+            "{event_description} should be published"
         );
     }
 
@@ -152,8 +150,7 @@ impl EventTestUtils {
 
         assert!(
             matching_events.is_empty(),
-            "{} should NOT be published",
-            event_description
+            "{event_description} should NOT be published"
         );
     }
 }

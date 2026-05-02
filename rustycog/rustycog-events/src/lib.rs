@@ -87,9 +87,7 @@ fn is_test_kafka_container_running() -> bool {
     // We check for these specific test environment variables to detect if a test container is active
     std::env::var("RUSTYCOG_KAFKA__HOST").is_ok()
         && std::env::var("RUSTYCOG_KAFKA__PORT").is_ok()
-        && std::env::var("RUSTYCOG_KAFKA__ENABLED")
-            .map(|v| v == "true")
-            .unwrap_or(false)
+        && std::env::var("RUSTYCOG_KAFKA__ENABLED").is_ok_and(|v| v == "true")
 }
 
 /// Check if we're running in test mode

@@ -6,7 +6,7 @@ use crate::entity::organization_member_role_permission::OrganizationMemberRolePe
 use rustycog_core::error::DomainError;
 
 /// Organization member entity representing a user's membership in an organization
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OrganizationMember {
     pub id: Option<Uuid>,
     pub organization_id: Uuid,

@@ -36,7 +36,7 @@ struct StaticProjectService {
 }
 
 impl StaticProjectService {
-    fn new(project: Project) -> Self {
+    const fn new(project: Project) -> Self {
         Self { project }
     }
 }

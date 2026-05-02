@@ -6,9 +6,7 @@ mod fixtures;
 
 use common::setup_test_server;
 use fixtures::DbFixtures;
-use reqwest::Client;
-use sea_orm::ConnectionTrait;
-use serde_json::{json, Value};
+use serde_json::Value;
 use serial_test::serial;
 
 // =============================================================================
@@ -23,7 +21,7 @@ async fn test_username_check_available_returns_true() {
         .expect("Failed to setup test server");
 
     let response = client
-        .get(&format!("{}/api/auth/username/check", base_url))
+        .get(format!("{base_url}/api/auth/username/check"))
         .query(&[("username", "availableuser")])
         .send()
         .await
@@ -33,7 +31,7 @@ async fn test_username_check_available_returns_true() {
 
     let response_body: Value = response.json().await.expect("Should return JSON response");
 
-    assert_eq!(response_body["available"].as_bool().unwrap(), true);
+    assert!(response_body["available"].as_bool().unwrap());
     assert_eq!(
         response_body["suggestions"].as_array().unwrap().len(),
         0,
@@ -57,7 +55,7 @@ async fn test_username_check_taken_returns_false_with_suggestions() {
         .expect("Failed to create existing user");
 
     let response = client
-        .get(&format!("{}/api/auth/username/check", base_url))
+        .get(format!("{base_url}/api/auth/username/check"))
         .query(&[("username", "johndoe")])
         .send()
         .await
@@ -67,10 +65,13 @@ async fn test_username_check_taken_returns_false_with_suggestions() {
 
     let response_body: Value = response.json().await.expect("Should return JSON response");
 
-    assert_eq!(response_body["available"].as_bool().unwrap(), false);
+    assert!(!response_body["available"].as_bool().unwrap());
 
     let suggestions = response_body["suggestions"].as_array().unwrap();
-    assert!(suggestions.len() > 0, "Should provide username suggestions");
+    assert!(
+        !suggestions.is_empty(),
+        "Should provide username suggestions"
+    );
 
     // Verify suggestions are reasonable
     for suggestion in suggestions {
@@ -115,7 +116,7 @@ async fn test_username_check_case_sensitivity() {
 
     for variation in case_variations {
         let response = client
-            .get(&format!("{}/api/auth/username/check", base_url))
+            .get(format!("{base_url}/api/auth/username/check"))
             .query(&[("username", variation)])
             .send()
             .await
@@ -127,9 +128,8 @@ async fn test_username_check_case_sensitivity() {
 
         if variation == "testuser" {
             // Exact match should always be taken
-            assert_eq!(
-                response_body["available"].as_bool().unwrap(),
-                false,
+            assert!(
+                !response_body["available"].as_bool().unwrap(),
                 "Exact match should be taken"
             );
         }
@@ -155,7 +155,7 @@ async fn test_username_minimum_length_validation() {
 
     for short_username in short_usernames {
         let response = client
-            .get(&format!("{}/api/auth/username/check", base_url))
+            .get(format!("{base_url}/api/auth/username/check"))
             .query(&[("username", short_username)])
             .send()
             .await
@@ -163,14 +163,13 @@ async fn test_username_minimum_length_validation() {
 
         assert!(
             response.status() == 400 || response.status() == 422,
-            "Should return validation error for username '{}' (too short)",
-            short_username
+            "Should return validation error for username '{short_username}' (too short)"
         );
     }
 
     // Test minimum valid length
     let response = client
-        .get(&format!("{}/api/auth/username/check", base_url))
+        .get(format!("{base_url}/api/auth/username/check"))
         .query(&[("username", "abc")])
         .send()
         .await
@@ -193,7 +192,7 @@ async fn test_username_maximum_length_validation() {
     // Test username at maximum length (50 characters)
     let max_length_username = "a".repeat(50);
     let response = client
-        .get(&format!("{}/api/auth/username/check", base_url))
+        .get(format!("{base_url}/api/auth/username/check"))
         .query(&[("username", &max_length_username)])
         .send()
         .await
@@ -208,7 +207,7 @@ async fn test_username_maximum_length_validation() {
     // Test username over maximum length
     let too_long_username = "a".repeat(51);
     let response = client
-        .get(&format!("{}/api/auth/username/check", base_url))
+        .get(format!("{base_url}/api/auth/username/check"))
         .query(&[("username", &too_long_username)])
         .send()
         .await
@@ -241,7 +240,7 @@ async fn test_username_character_pattern_validation() {
 
     for valid_username in valid_usernames {
         let response = client
-            .get(&format!("{}/api/auth/username/check", base_url))
+            .get(format!("{base_url}/api/auth/username/check"))
             .query(&[("username", valid_username)])
             .send()
             .await
@@ -250,8 +249,7 @@ async fn test_username_character_pattern_validation() {
         assert_eq!(
             response.status(),
             200,
-            "Should accept valid username pattern: '{}'",
-            valid_username
+            "Should accept valid username pattern: '{valid_username}'"
         );
     }
 
@@ -284,7 +282,7 @@ async fn test_username_character_pattern_validation() {
 
     for invalid_username in invalid_usernames {
         let response = client
-            .get(&format!("{}/api/auth/username/check", base_url))
+            .get(format!("{base_url}/api/auth/username/check"))
             .query(&[("username", invalid_username)])
             .send()
             .await
@@ -292,8 +290,7 @@ async fn test_username_character_pattern_validation() {
 
         assert!(
             response.status() == 400 || response.status() == 422,
-            "Should reject invalid username pattern: '{}'",
-            invalid_username
+            "Should reject invalid username pattern: '{invalid_username}'"
         );
     }
 }
@@ -317,7 +314,7 @@ async fn test_username_unicode_and_special_characters() {
 
     for unicode_username in unicode_usernames {
         let response = client
-            .get(&format!("{}/api/auth/username/check", base_url))
+            .get(format!("{base_url}/api/auth/username/check"))
             .query(&[("username", unicode_username)])
             .send()
             .await
@@ -325,8 +322,7 @@ async fn test_username_unicode_and_special_characters() {
 
         assert!(
             response.status() == 400 || response.status() == 422,
-            "Should reject Unicode username: '{}'",
-            unicode_username
+            "Should reject Unicode username: '{unicode_username}'"
         );
     }
 
@@ -341,7 +337,7 @@ async fn test_username_unicode_and_special_characters() {
 
     for control_username in control_usernames {
         let response = client
-            .get(&format!("{}/api/auth/username/check", base_url))
+            .get(format!("{base_url}/api/auth/username/check"))
             .query(&[("username", control_username)])
             .send()
             .await
@@ -349,8 +345,7 @@ async fn test_username_unicode_and_special_characters() {
 
         assert!(
             response.status() == 400 || response.status() == 422,
-            "Should reject control character username: '{:?}'",
-            control_username
+            "Should reject control character username: '{control_username:?}'"
         );
     }
 }
@@ -380,7 +375,7 @@ async fn test_username_suggestions_reasonable_alternatives() {
 
     // Check username that conflicts with existing ones
     let response = client
-        .get(&format!("{}/api/auth/username/check", base_url))
+        .get(format!("{base_url}/api/auth/username/check"))
         .query(&[("username", "johndoe")])
         .send()
         .await
@@ -389,11 +384,11 @@ async fn test_username_suggestions_reasonable_alternatives() {
     assert_eq!(response.status(), 200);
 
     let response_body: Value = response.json().await.expect("Should return JSON response");
-    assert_eq!(response_body["available"].as_bool().unwrap(), false);
+    assert!(!response_body["available"].as_bool().unwrap());
 
     let suggestions = response_body["suggestions"].as_array().unwrap();
 
-    assert!(suggestions.len() > 0, "Should provide suggestions");
+    assert!(!suggestions.is_empty(), "Should provide suggestions");
     assert!(
         suggestions.len() <= 5,
         "Should not provide too many suggestions"
@@ -406,8 +401,7 @@ async fn test_username_suggestions_reasonable_alternatives() {
         // Should be based on original username
         assert!(
             suggestion_str.contains("johndoe"),
-            "Suggestion '{}' should contain original username",
-            suggestion_str
+            "Suggestion '{suggestion_str}' should contain original username"
         );
 
         // Should meet all validation rules
@@ -435,8 +429,7 @@ async fn test_username_suggestions_reasonable_alternatives() {
         // Should not conflict with existing taken usernames
         assert!(
             !taken_usernames.contains(&suggestion_str),
-            "Suggestion '{}' should not conflict with existing users",
-            suggestion_str
+            "Suggestion '{suggestion_str}' should not conflict with existing users"
         );
     }
 }
@@ -457,7 +450,7 @@ async fn test_username_suggestions_different_strategies() {
         .expect("Failed to create user");
 
     let response = client
-        .get(&format!("{}/api/auth/username/check", base_url))
+        .get(format!("{base_url}/api/auth/username/check"))
         .query(&[("username", "alice")])
         .send()
         .await
@@ -481,9 +474,9 @@ async fn test_username_suggestions_different_strategies() {
 
     let has_numeric = suggestion_strings
         .iter()
-        .any(|s| s.chars().any(|c| c.is_numeric()));
-    let has_underscore = suggestion_strings.iter().any(|s| s.contains('_'));
-    let has_dash = suggestion_strings.iter().any(|s| s.contains('-'));
+        .any(|s| s.chars().any(char::is_numeric));
+    let _has_underscore = suggestion_strings.iter().any(|s| s.contains('_'));
+    let _has_dash = suggestion_strings.iter().any(|s| s.contains('-'));
 
     assert!(has_numeric, "Should include numeric suffix suggestions");
     // Note: underscore and dash presence depends on algorithm implementation
@@ -502,7 +495,7 @@ async fn test_username_check_missing_parameter() {
 
     // Request without username parameter
     let response = client
-        .get(&format!("{}/api/auth/username/check", base_url))
+        .get(format!("{base_url}/api/auth/username/check"))
         .send()
         .await
         .expect("Failed to send username check request");
@@ -523,7 +516,7 @@ async fn test_username_check_empty_parameter() {
 
     // Request with empty username parameter
     let response = client
-        .get(&format!("{}/api/auth/username/check", base_url))
+        .get(format!("{base_url}/api/auth/username/check"))
         .query(&[("username", "")])
         .send()
         .await
@@ -544,9 +537,8 @@ async fn test_username_check_multiple_parameters() {
 
     // Request with multiple username parameters
     let response = client
-        .get(&format!(
-            "{}/api/auth/username/check?username=first&username=second",
-            base_url
+        .get(format!(
+            "{base_url}/api/auth/username/check?username=first&username=second"
         ))
         .send()
         .await
@@ -577,7 +569,7 @@ async fn test_username_check_whitespace_handling() {
 
     for whitespace_username in whitespace_usernames {
         let response = client
-            .get(&format!("{}/api/auth/username/check", base_url))
+            .get(format!("{base_url}/api/auth/username/check"))
             .query(&[("username", whitespace_username)])
             .send()
             .await
@@ -586,8 +578,7 @@ async fn test_username_check_whitespace_handling() {
         // Should either trim and validate or reject
         assert!(
             response.status() == 200 || response.status() == 400 || response.status() == 422,
-            "Should handle whitespace in username: '{:?}'",
-            whitespace_username
+            "Should handle whitespace in username: '{whitespace_username:?}'"
         );
     }
 }
@@ -614,7 +605,7 @@ async fn test_username_uniqueness_across_database() {
 
     // Verify username is now taken
     let response = client
-        .get(&format!("{}/api/auth/username/check", base_url))
+        .get(format!("{base_url}/api/auth/username/check"))
         .query(&[("username", unique_username)])
         .send()
         .await
@@ -623,16 +614,15 @@ async fn test_username_uniqueness_across_database() {
     assert_eq!(response.status(), 200);
 
     let response_body: Value = response.json().await.expect("Should return JSON response");
-    assert_eq!(
-        response_body["available"].as_bool().unwrap(),
-        false,
+    assert!(
+        !response_body["available"].as_bool().unwrap(),
         "Username should be taken after creating user"
     );
 
     // Verify another similar but different username is available
     let similar_username = "uniqueuser124";
     let response = client
-        .get(&format!("{}/api/auth/username/check", base_url))
+        .get(format!("{base_url}/api/auth/username/check"))
         .query(&[("username", similar_username)])
         .send()
         .await
@@ -641,9 +631,8 @@ async fn test_username_uniqueness_across_database() {
     assert_eq!(response.status(), 200);
 
     let response_body: Value = response.json().await.expect("Should return JSON response");
-    assert_eq!(
+    assert!(
         response_body["available"].as_bool().unwrap(),
-        true,
         "Similar but different username should be available"
     );
 }
@@ -658,7 +647,7 @@ async fn test_username_check_performance_with_many_users() {
 
     // Create multiple users to test performance
     for i in 0..10 {
-        let username = format!("perftest{}", i);
+        let username = format!("perftest{i}");
         let _user = DbFixtures::user()
             .username(&username)
             .commit(db.clone())
@@ -670,7 +659,7 @@ async fn test_username_check_performance_with_many_users() {
     let start_time = std::time::Instant::now();
 
     let response = client
-        .get(&format!("{}/api/auth/username/check", base_url))
+        .get(format!("{base_url}/api/auth/username/check"))
         .query(&[("username", "availableusername")])
         .send()
         .await

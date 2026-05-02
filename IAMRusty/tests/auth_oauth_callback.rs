@@ -8,7 +8,6 @@ mod utils;
 use base64::{engine::general_purpose, Engine as _};
 use common::setup_test_server;
 use fixtures::{DbFixtures, GitHubFixtures, GitLabFixtures};
-use reqwest::Client;
 use sea_orm::{ConnectionTrait, DatabaseBackend, Statement};
 use serde_json::Value;
 use serial_test::serial;
@@ -24,7 +23,7 @@ async fn test_oauth_callback_gitlab_successful_flow_creates_jwt_for_new_user() {
     let (_fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let _db = _fixture.db();
 
     // Setup GitLab mock server for successful flow
     let gitlab = GitLabFixtures::service().await;
@@ -36,7 +35,7 @@ async fn test_oauth_callback_gitlab_successful_flow_creates_jwt_for_new_user() {
 
     // Make callback request with authorization code
     let response = client
-        .get(&format!("{}/api/auth/gitlab/callback", base_url))
+        .get(format!("{base_url}/api/auth/gitlab/callback"))
         .query(&[("code", "test_auth_code"), ("state", &state)])
         .send()
         .await
@@ -109,7 +108,7 @@ async fn test_oauth_callback_links_external_account_with_valid_link_state() {
 
     // Make callback request for linking
     let response = client
-        .get(&format!("{}/api/auth/github/callback", base_url))
+        .get(format!("{base_url}/api/auth/github/callback"))
         .query(&[("code", "test_auth_code"), ("state", &state)])
         .send()
         .await
@@ -222,7 +221,7 @@ async fn test_oauth_callback_associates_new_provider_for_same_user() {
 
     // Make callback request to associate GitLab with existing user
     let response = client
-        .get(&format!("{}/api/auth/gitlab/callback", base_url))
+        .get(format!("{base_url}/api/auth/gitlab/callback"))
         .query(&[("code", "test_auth_code"), ("state", &state)])
         .send()
         .await
@@ -352,7 +351,7 @@ async fn test_oauth_callback_prevents_linking_provider_already_bound_to_another_
 
     // Attempt to link Arthur's GitHub account to second user (should fail)
     let response = client
-        .get(&format!("{}/api/auth/github/callback", base_url))
+        .get(format!("{base_url}/api/auth/github/callback"))
         .query(&[("code", "test_auth_code"), ("state", &state)])
         .send()
         .await
@@ -438,7 +437,7 @@ async fn test_oauth_callback_fails_on_invalid_authorization_code() {
 
     // Make callback request with invalid authorization code
     let response = client
-        .get(&format!("{}/api/auth/github/callback", base_url))
+        .get(format!("{base_url}/api/auth/github/callback"))
         .query(&[("code", "invalid_auth_code_123"), ("state", &state)])
         .send()
         .await
@@ -505,7 +504,7 @@ async fn test_oauth_callback_fails_on_expired_authorization_code() {
 
     // Make callback request with expired authorization code
     let response = client
-        .get(&format!("{}/api/auth/github/callback", base_url))
+        .get(format!("{base_url}/api/auth/github/callback"))
         .query(&[("code", "expired_auth_code_456"), ("state", &state)])
         .send()
         .await
@@ -564,7 +563,7 @@ async fn test_oauth_callback_returns_400_on_missing_state_parameter() {
 
     // Make callback request without state parameter
     let response = client
-        .get(&format!("{}/api/auth/github/callback", base_url))
+        .get(format!("{base_url}/api/auth/github/callback"))
         .query(&[("code", "valid_auth_code")])
         .send()
         .await
@@ -605,7 +604,7 @@ async fn test_oauth_callback_returns_400_on_missing_code_parameter() {
 
     // Make callback request without code parameter
     let response = client
-        .get(&format!("{}/api/auth/github/callback", base_url))
+        .get(format!("{base_url}/api/auth/github/callback"))
         .query(&[("state", &state)])
         .send()
         .await
@@ -639,7 +638,7 @@ async fn test_oauth_callback_returns_400_on_invalid_state_format() {
 
     // Make callback request with invalid state format
     let response = client
-        .get(&format!("{}/api/auth/github/callback", base_url))
+        .get(format!("{base_url}/api/auth/github/callback"))
         .query(&[("code", "valid_auth_code"), ("state", &invalid_state)])
         .send()
         .await
@@ -686,7 +685,7 @@ async fn test_oauth_callback_returns_400_on_invalid_state_purpose() {
 
     // Make callback request with invalid state purpose
     let response = client
-        .get(&format!("{}/api/auth/github/callback", base_url))
+        .get(format!("{base_url}/api/auth/github/callback"))
         .query(&[("code", "valid_auth_code"), ("state", &invalid_state)])
         .send()
         .await
@@ -726,7 +725,7 @@ async fn test_oauth_callback_returns_401_when_provider_refuses_user() {
 
     // Make callback request where provider refuses user access
     let response = client
-        .get(&format!("{}/api/auth/github/callback", base_url))
+        .get(format!("{base_url}/api/auth/github/callback"))
         .query(&[("code", "valid_code_but_user_refused"), ("state", &state)])
         .send()
         .await
@@ -794,7 +793,7 @@ async fn test_oauth_callback_returns_401_when_provider_rejects_user() {
 
     // Make callback request where provider rejects user
     let response = client
-        .get(&format!("{}/api/auth/github/callback", base_url))
+        .get(format!("{base_url}/api/auth/github/callback"))
         .query(&[("code", "valid_code_but_user_rejected"), ("state", &state)])
         .send()
         .await
@@ -859,7 +858,7 @@ async fn test_oauth_callback_unsupported_provider_returns_422() {
 
     for provider in unsupported_providers {
         let response = client
-            .get(&format!("{}/api/auth/{}/callback", base_url, provider))
+            .get(format!("{base_url}/api/auth/{provider}/callback"))
             .query(&[("code", "valid_auth_code"), ("state", &state)])
             .send()
             .await
@@ -869,8 +868,7 @@ async fn test_oauth_callback_unsupported_provider_returns_422() {
         assert_eq!(
             response.status(),
             422,
-            "Should return 422 Unprocessable Entity for unsupported provider: {}",
-            provider
+            "Should return 422 Unprocessable Entity for unsupported provider: {provider}"
         );
 
         let error_response: Value = response
@@ -882,8 +880,7 @@ async fn test_oauth_callback_unsupported_provider_returns_422() {
         // Check for validation error structure
         assert!(
             error_response.get("provider_name").is_some(),
-            "Response should contain validation errors for provider: {}",
-            provider
+            "Response should contain validation errors for provider: {provider}"
         );
     }
 }
@@ -925,10 +922,7 @@ async fn test_oauth_callback_case_insensitive_providers() {
         let state = OAuthTestUtils::create_login_state();
 
         let response = client
-            .get(&format!(
-                "{}/api/auth/{}/callback",
-                base_url, provider_input
-            ))
+            .get(format!("{base_url}/api/auth/{provider_input}/callback"))
             .query(&[("code", auth_code), ("state", &state)])
             .send()
             .await
@@ -938,8 +932,7 @@ async fn test_oauth_callback_case_insensitive_providers() {
         assert_eq!(
             response.status(),
             202,
-            "Should handle case-insensitive provider: {}",
-            provider_input
+            "Should handle case-insensitive provider: {provider_input}"
         );
 
         let response_json: Value = response.json().await.expect("Should return JSON response");

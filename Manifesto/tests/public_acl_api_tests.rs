@@ -2,7 +2,7 @@
 //!
 //! The old anonymous/public-visibility permission tests that lived here used
 //! the removed `ProjectPermissionFetcher` / `ComponentPermissionFetcher`.
-//! Public-read semantics are now enforced in the centralized OpenFGA store
+//! Public-read semantics are now enforced in the centralized `OpenFGA` store
 //! (public projects get an explicit `project:{id}#viewer@user:*` tuple from
 //! the sentinel-sync worker — covered by the worker's translator tests),
 //! so this file only keeps the repository-filter-forwarding assertion.
@@ -54,7 +54,7 @@ struct RecordingProjectRepository {
 }
 
 impl RecordingProjectRepository {
-    fn new(project: Project) -> Self {
+    const fn new(project: Project) -> Self {
         Self {
             project,
             last_list_args: Mutex::new(None),

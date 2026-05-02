@@ -7,11 +7,9 @@ mod fixtures;
 use base64::{engine::general_purpose, Engine as _};
 use common::setup_test_server;
 use fixtures::{GitHubFixtures, GitLabFixtures};
-use reqwest::Client;
 use serde_json::Value;
 use serial_test::serial;
 use url::Url;
-use uuid;
 
 /// Helper function to decode and verify OAuth state parameter
 fn decode_oauth_state(state: &str) -> Result<Value, Box<dyn std::error::Error>> {
@@ -51,7 +49,7 @@ async fn test_oauth_start_github_redirect_success() {
 
     // Make request to GitHub OAuth login endpoint (updated endpoint)
     let response = client
-        .get(&format!("{}/api/auth/github/login", base_url))
+        .get(format!("{base_url}/api/auth/github/login"))
         .send()
         .await
         .expect("Failed to send request");
@@ -135,7 +133,7 @@ async fn test_oauth_start_gitlab_redirect_success() {
 
     // Make request to GitLab OAuth login endpoint (updated endpoint)
     let response = client
-        .get(&format!("{}/api/auth/gitlab/login", base_url))
+        .get(format!("{base_url}/api/auth/gitlab/login"))
         .send()
         .await
         .expect("Failed to send request");
@@ -219,7 +217,7 @@ async fn test_oauth_start_unsupported_provider_returns_422() {
 
     for provider in unsupported_providers {
         let response = client
-            .get(&format!("{}/api/auth/{}/login", base_url, provider))
+            .get(format!("{base_url}/api/auth/{provider}/login"))
             .send()
             .await
             .expect("Failed to send request");
@@ -228,8 +226,7 @@ async fn test_oauth_start_unsupported_provider_returns_422() {
         assert_eq!(
             response.status(),
             422,
-            "Should return 422 Unprocessable Entity for unsupported provider: {}",
-            provider
+            "Should return 422 Unprocessable Entity for unsupported provider: {provider}"
         );
 
         // Should return JSON error response
@@ -269,7 +266,7 @@ async fn test_oauth_start_case_insensitive_providers() {
 
     for (provider_input, expected_provider) in valid_cases {
         let response = client
-            .get(&format!("{}/api/auth/{}/login", base_url, provider_input))
+            .get(format!("{base_url}/api/auth/{provider_input}/login"))
             .send()
             .await
             .expect("Failed to send request");
@@ -278,8 +275,7 @@ async fn test_oauth_start_case_insensitive_providers() {
         assert_eq!(
             response.status(),
             303,
-            "Should handle case-insensitive provider: {}",
-            provider_input
+            "Should handle case-insensitive provider: {provider_input}"
         );
 
         let location = response
@@ -314,7 +310,7 @@ async fn test_oauth_start_state_security_and_uniqueness() {
 
     for i in 0..5 {
         let response = client
-            .get(&format!("{}/api/auth/github/login", base_url))
+            .get(format!("{base_url}/api/auth/github/login"))
             .send()
             .await
             .expect("Failed to send request");
@@ -336,8 +332,7 @@ async fn test_oauth_start_state_security_and_uniqueness() {
         // ✅ Each state should be unique
         assert!(
             !states.contains(state),
-            "State parameter should be unique across requests (iteration {})",
-            i
+            "State parameter should be unique across requests (iteration {i})"
         );
         states.insert(state.clone());
 
@@ -379,7 +374,7 @@ async fn test_oauth_start_with_auth_header_link_operation() {
 
     // Make request to the link endpoint with Authorization header for provider linking
     let response = client
-        .get(&format!("{}/api/auth/github/link", base_url))
+        .get(format!("{base_url}/api/auth/github/link"))
         .header("Authorization", mock_jwt_token)
         .send()
         .await
@@ -399,7 +394,7 @@ async fn test_oauth_start_with_auth_header_link_operation() {
 
     // Just verify we got an unauthorized response - the exact format may vary
     // based on the auth middleware implementation
-    println!("Response for invalid token: {}", response_text);
+    println!("Response for invalid token: {response_text}");
 }
 
 #[tokio::test]
@@ -421,7 +416,7 @@ async fn test_oauth_start_invalid_auth_header_formats() {
 
     for invalid_header in invalid_headers {
         let response = client
-            .get(&format!("{}/api/auth/github/link", base_url))
+            .get(format!("{base_url}/api/auth/github/link"))
             .header("Authorization", invalid_header)
             .send()
             .await
@@ -432,8 +427,7 @@ async fn test_oauth_start_invalid_auth_header_formats() {
         assert_eq!(
             response.status(),
             401,
-            "Should return 401 Unauthorized for invalid Authorization header: '{}'",
-            invalid_header
+            "Should return 401 Unauthorized for invalid Authorization header: '{invalid_header}'"
         );
 
         // The response might be empty or contain error details
@@ -441,10 +435,7 @@ async fn test_oauth_start_invalid_auth_header_formats() {
         let response_text = response.text().await.unwrap_or_default();
 
         // Just verify we got an unauthorized response - the exact format may vary
-        println!(
-            "Response for invalid header '{}': {}",
-            invalid_header, response_text
-        );
+        println!("Response for invalid header '{invalid_header}': {response_text}");
     }
 }
 
@@ -464,7 +455,7 @@ async fn test_oauth_start_query_parameter_structure() {
 
     for provider in providers {
         let response = client
-            .get(&format!("{}/api/auth/{}/login", base_url, provider))
+            .get(format!("{base_url}/api/auth/{provider}/login"))
             .send()
             .await
             .expect("Failed to send request");
@@ -492,15 +483,11 @@ async fn test_oauth_start_query_parameter_structure() {
         for param in required_params {
             assert!(
                 params.contains_key(param),
-                "Should have required OAuth2 parameter '{}' for provider '{}'",
-                param,
-                provider
+                "Should have required OAuth2 parameter '{param}' for provider '{provider}'"
             );
             assert!(
                 !params.get(param).unwrap().is_empty(),
-                "OAuth2 parameter '{}' should not be empty for provider '{}'",
-                param,
-                provider
+                "OAuth2 parameter '{param}' should not be empty for provider '{provider}'"
             );
         }
 
@@ -529,8 +516,7 @@ async fn test_oauth_start_query_parameter_structure() {
         let redirect_uri = params.get("redirect_uri").unwrap();
         assert!(
             redirect_uri.contains(provider),
-            "redirect_uri should point to correct callback endpoint for provider '{}'",
-            provider
+            "redirect_uri should point to correct callback endpoint for provider '{provider}'"
         );
     }
 }

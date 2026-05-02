@@ -23,7 +23,7 @@ use tokio::time::Duration;
 /// Tests password reset request for an existing user with email/password authentication.
 /// Verifies that the endpoint returns a success message (without revealing user existence for security).
 /// This ensures the happy path works for legitimate reset requests.
-/// ALSO VERIFIES: That a PasswordResetRequested event IS published for valid requests.
+/// ALSO VERIFIES: That a `PasswordResetRequested` event IS published for valid requests.
 #[tokio::test]
 #[serial]
 async fn test_password_reset_request_existing_user_success() {
@@ -46,7 +46,7 @@ async fn test_password_reset_request_existing_user_success() {
 
     // Request password reset
     let response = client
-        .post(&format!("{}/api/auth/password/reset-request", base_url))
+        .post(format!("{base_url}/api/auth/password/reset-request"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "email": user_email
@@ -109,7 +109,7 @@ async fn test_password_reset_request_nonexistent_email_security() {
 
     // Request password reset for non-existent email
     let response = client
-        .post(&format!("{}/api/auth/password/reset-request", base_url))
+        .post(format!("{base_url}/api/auth/password/reset-request"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "email": "nonexistent@example.com"
@@ -159,7 +159,7 @@ async fn test_password_reset_request_oauth_only_user_security() {
 
     // Request password reset for OAuth-only user
     let response = client
-        .post(&format!("{}/api/auth/password/reset-request", base_url))
+        .post(format!("{base_url}/api/auth/password/reset-request"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "email": "oauth-only@example.com"
@@ -207,7 +207,7 @@ async fn test_password_reset_request_invalid_email_format() {
 
     for invalid_email in invalid_emails {
         let response = client
-            .post(&format!("{}/api/auth/password/reset-request", base_url))
+            .post(format!("{base_url}/api/auth/password/reset-request"))
             .header("Content-Type", "application/json")
             .json(&json!({
                 "email": invalid_email
@@ -220,8 +220,7 @@ async fn test_password_reset_request_invalid_email_format() {
         assert_eq!(
             response.status(),
             StatusCode::UNPROCESSABLE_ENTITY,
-            "Should return 422 for invalid email: {}",
-            invalid_email
+            "Should return 422 for invalid email: {invalid_email}"
         );
 
         let body: Value = response.json().await.expect("Failed to parse response");
@@ -245,7 +244,7 @@ async fn test_password_reset_request_missing_email() {
 
     // Request password reset without email field
     let response = client
-        .post(&format!("{}/api/auth/password/reset-request", base_url))
+        .post(format!("{base_url}/api/auth/password/reset-request"))
         .header("Content-Type", "application/json")
         .json(&json!({}))
         .send()
@@ -268,7 +267,7 @@ async fn test_password_reset_request_malformed_json() {
 
     // Send malformed JSON
     let response = client
-        .post(&format!("{}/api/auth/password/reset-request", base_url))
+        .post(format!("{base_url}/api/auth/password/reset-request"))
         .header("Content-Type", "application/json")
         .body("{ invalid json")
         .send()
@@ -315,7 +314,7 @@ async fn test_password_reset_validate_valid_token() {
 
     // Validate the token
     let response = client
-        .post(&format!("{}/api/auth/password/reset-validate", base_url))
+        .post(format!("{base_url}/api/auth/password/reset-validate"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "token": reset_token
@@ -332,7 +331,7 @@ async fn test_password_reset_validate_valid_token() {
 
     // Email should be masked for privacy
     let masked_email = body["email"].as_str().unwrap();
-    assert!(masked_email.contains("*"));
+    assert!(masked_email.contains('*'));
     assert!(!masked_email.contains("validate-test"));
 }
 
@@ -368,7 +367,7 @@ async fn test_password_reset_validate_expired_token() {
 
     // Validate the expired token
     let response = client
-        .post(&format!("{}/api/auth/password/reset-validate", base_url))
+        .post(format!("{base_url}/api/auth/password/reset-validate"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "token": expired_token
@@ -419,7 +418,7 @@ async fn test_password_reset_validate_used_token() {
 
     // Validate the used token
     let response = client
-        .post(&format!("{}/api/auth/password/reset-validate", base_url))
+        .post(format!("{base_url}/api/auth/password/reset-validate"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "token": used_token
@@ -450,7 +449,7 @@ async fn test_password_reset_validate_invalid_token() {
 
     // Validate completely invalid token
     let response = client
-        .post(&format!("{}/api/auth/password/reset-validate", base_url))
+        .post(format!("{base_url}/api/auth/password/reset-validate"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "token": "invalid-token-that-does-not-exist"
@@ -481,7 +480,7 @@ async fn test_password_reset_validate_missing_token() {
 
     // Validate without token field
     let response = client
-        .post(&format!("{}/api/auth/password/reset-validate", base_url))
+        .post(format!("{base_url}/api/auth/password/reset-validate"))
         .header("Content-Type", "application/json")
         .json(&json!({}))
         .send()
@@ -529,7 +528,7 @@ async fn test_password_reset_confirm_unauthenticated_success() {
 
     // Reset password using token
     let response = client
-        .post(&format!("{}/api/auth/password/reset-confirm", base_url))
+        .post(format!("{base_url}/api/auth/password/reset-confirm"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "token": reset_token,
@@ -560,7 +559,7 @@ async fn test_password_reset_confirm_unauthenticated_success() {
 
     // Verify old password no longer works
     let login_response = client
-        .post(&format!("{}/api/auth/login", base_url))
+        .post(format!("{base_url}/api/auth/login"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "email": user_email,
@@ -574,7 +573,7 @@ async fn test_password_reset_confirm_unauthenticated_success() {
 
     // Verify new password works
     let login_response = client
-        .post(&format!("{}/api/auth/login", base_url))
+        .post(format!("{base_url}/api/auth/login"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "email": user_email,
@@ -619,7 +618,7 @@ async fn test_password_reset_confirm_token_reuse_prevention() {
 
     // Use the token once
     let response = client
-        .post(&format!("{}/api/auth/password/reset-confirm", base_url))
+        .post(format!("{base_url}/api/auth/password/reset-confirm"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "token": reset_token,
@@ -633,7 +632,7 @@ async fn test_password_reset_confirm_token_reuse_prevention() {
 
     // Try to use the same token again
     let response = client
-        .post(&format!("{}/api/auth/password/reset-confirm", base_url))
+        .post(format!("{base_url}/api/auth/password/reset-confirm"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "token": reset_token,
@@ -691,7 +690,7 @@ async fn test_password_reset_confirm_weak_password() {
 
     for weak_password in weak_passwords {
         let response = client
-            .post(&format!("{}/api/auth/password/reset-confirm", base_url))
+            .post(format!("{base_url}/api/auth/password/reset-confirm"))
             .header("Content-Type", "application/json")
             .json(&json!({
                 "token": reset_token,
@@ -705,8 +704,7 @@ async fn test_password_reset_confirm_weak_password() {
         assert_eq!(
             response.status(),
             StatusCode::UNPROCESSABLE_ENTITY,
-            "Should reject weak password: '{}'",
-            weak_password
+            "Should reject weak password: '{weak_password}'"
         );
     }
 }
@@ -723,7 +721,7 @@ async fn test_password_reset_confirm_invalid_token() {
 
     // Reset password with invalid token
     let response = client
-        .post(&format!("{}/api/auth/password/reset-confirm", base_url))
+        .post(format!("{base_url}/api/auth/password/reset-confirm"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "token": "completely-invalid-token",
@@ -743,7 +741,7 @@ async fn test_password_reset_confirm_invalid_token() {
         .contains("Invalid or expired"));
 }
 
-/// Tests password reset with missing required fields (token or new_password).
+/// Tests password reset with missing required fields (token or `new_password`).
 /// Verifies that incomplete requests are rejected with proper validation errors.
 /// This ensures all required parameters are provided for password reset.
 #[tokio::test]
@@ -761,7 +759,7 @@ async fn test_password_reset_confirm_missing_fields() {
 
     for (request_data, description) in test_cases {
         let response = client
-            .post(&format!("{}/api/auth/password/reset-confirm", base_url))
+            .post(format!("{base_url}/api/auth/password/reset-confirm"))
             .header("Content-Type", "application/json")
             .json(&request_data)
             .send()
@@ -772,8 +770,7 @@ async fn test_password_reset_confirm_missing_fields() {
         assert_eq!(
             response.status(),
             StatusCode::UNPROCESSABLE_ENTITY,
-            "Should return 422 for: {}",
-            description
+            "Should return 422 for: {description}"
         );
     }
 }
@@ -797,7 +794,7 @@ async fn test_password_reset_authenticated_success() {
     let current_password = "currentpassword123";
     let new_password = "newpassword456";
 
-    let user = DbFixtures::create_user_with_email_password(
+    let _user = DbFixtures::create_user_with_email_password(
         &fixture.db(),
         user_email,
         current_password,
@@ -808,7 +805,7 @@ async fn test_password_reset_authenticated_success() {
 
     // Login to get access token
     let login_response = client
-        .post(&format!("{}/api/auth/login", base_url))
+        .post(format!("{base_url}/api/auth/login"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "email": user_email,
@@ -827,12 +824,9 @@ async fn test_password_reset_authenticated_success() {
 
     // Reset password with authentication
     let response = client
-        .post(&format!(
-            "{}/api/auth/password/reset-authenticated",
-            base_url
-        ))
+        .post(format!("{base_url}/api/auth/password/reset-authenticated"))
         .header("Content-Type", "application/json")
-        .header("Authorization", format!("Bearer {}", access_token))
+        .header("Authorization", format!("Bearer {access_token}"))
         .json(&json!({
             "current_password": current_password,
             "new_password": new_password
@@ -862,7 +856,7 @@ async fn test_password_reset_authenticated_success() {
 
     // Verify old password no longer works
     let login_response = client
-        .post(&format!("{}/api/auth/login", base_url))
+        .post(format!("{base_url}/api/auth/login"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "email": user_email,
@@ -876,7 +870,7 @@ async fn test_password_reset_authenticated_success() {
 
     // Verify new password works
     let login_response = client
-        .post(&format!("{}/api/auth/login", base_url))
+        .post(format!("{base_url}/api/auth/login"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "email": user_email,
@@ -914,7 +908,7 @@ async fn test_password_reset_authenticated_wrong_current_password() {
 
     // Login to get access token
     let login_response = client
-        .post(&format!("{}/api/auth/login", base_url))
+        .post(format!("{base_url}/api/auth/login"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "email": user_email,
@@ -932,12 +926,9 @@ async fn test_password_reset_authenticated_wrong_current_password() {
 
     // Try to reset password with wrong current password
     let response = client
-        .post(&format!(
-            "{}/api/auth/password/reset-authenticated",
-            base_url
-        ))
+        .post(format!("{base_url}/api/auth/password/reset-authenticated"))
         .header("Content-Type", "application/json")
-        .header("Authorization", format!("Bearer {}", access_token))
+        .header("Authorization", format!("Bearer {access_token}"))
         .json(&json!({
             "current_password": "wrongpassword",
             "new_password": "newpassword456"
@@ -968,10 +959,7 @@ async fn test_password_reset_authenticated_no_auth_header() {
 
     // Try to reset password without authentication
     let response = client
-        .post(&format!(
-            "{}/api/auth/password/reset-authenticated",
-            base_url
-        ))
+        .post(format!("{base_url}/api/auth/password/reset-authenticated"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "current_password": "currentpassword123",
@@ -997,10 +985,7 @@ async fn test_password_reset_authenticated_invalid_token() {
 
     // Try to reset password with invalid token
     let response = client
-        .post(&format!(
-            "{}/api/auth/password/reset-authenticated",
-            base_url
-        ))
+        .post(format!("{base_url}/api/auth/password/reset-authenticated"))
         .header("Content-Type", "application/json")
         .header("Authorization", "Bearer invalid-jwt-token")
         .json(&json!({
@@ -1040,7 +1025,7 @@ async fn test_password_reset_authenticated_weak_password() {
 
     // Login to get access token
     let login_response = client
-        .post(&format!("{}/api/auth/login", base_url))
+        .post(format!("{base_url}/api/auth/login"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "email": user_email,
@@ -1060,12 +1045,9 @@ async fn test_password_reset_authenticated_weak_password() {
 
     for weak_password in weak_passwords {
         let response = client
-            .post(&format!(
-                "{}/api/auth/password/reset-authenticated",
-                base_url
-            ))
+            .post(format!("{base_url}/api/auth/password/reset-authenticated"))
             .header("Content-Type", "application/json")
-            .header("Authorization", format!("Bearer {}", access_token))
+            .header("Authorization", format!("Bearer {access_token}"))
             .json(&json!({
                 "current_password": current_password,
                 "new_password": weak_password
@@ -1078,8 +1060,7 @@ async fn test_password_reset_authenticated_weak_password() {
         assert_eq!(
             response.status(),
             StatusCode::UNPROCESSABLE_ENTITY,
-            "Should reject weak password: '{}'",
-            weak_password
+            "Should reject weak password: '{weak_password}'"
         );
     }
 }
@@ -1129,7 +1110,7 @@ async fn test_password_reset_workflow_multiple_tokens() {
     // Both tokens should be valid initially
     for token in [&token1, &token2] {
         let response = client
-            .post(&format!("{}/api/auth/password/reset-validate", base_url))
+            .post(format!("{base_url}/api/auth/password/reset-validate"))
             .header("Content-Type", "application/json")
             .json(&json!({
                 "token": token
@@ -1143,7 +1124,7 @@ async fn test_password_reset_workflow_multiple_tokens() {
 
     // Use the first token to reset password
     let response = client
-        .post(&format!("{}/api/auth/password/reset-confirm", base_url))
+        .post(format!("{base_url}/api/auth/password/reset-confirm"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "token": token1,
@@ -1158,7 +1139,7 @@ async fn test_password_reset_workflow_multiple_tokens() {
     // The second token should still be usable (depending on business logic)
     // This test documents the current behavior - modify if business rules change
     let response = client
-        .post(&format!("{}/api/auth/password/reset-confirm", base_url))
+        .post(format!("{base_url}/api/auth/password/reset-confirm"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "token": token2,
@@ -1198,7 +1179,7 @@ async fn test_password_reset_case_insensitive_email() {
 
     // Request password reset with uppercase email
     let response = client
-        .post(&format!("{}/api/auth/password/reset-request", base_url))
+        .post(format!("{base_url}/api/auth/password/reset-request"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "email": "CASE-TEST@EXAMPLE.COM"
@@ -1217,7 +1198,7 @@ async fn test_password_reset_case_insensitive_email() {
         .contains("reset link has been sent"));
 }
 
-/// VERIFIES: Password reset request for existing user with email/password SHOULD publish PasswordResetRequested event
+/// VERIFIES: Password reset request for existing user with email/password SHOULD publish `PasswordResetRequested` event
 #[tokio::test]
 #[serial]
 async fn test_password_reset_request_event_published_for_valid_user() {
@@ -1243,7 +1224,7 @@ async fn test_password_reset_request_event_published_for_valid_user() {
 
     // Request password reset
     let response = client
-        .post(&format!("{}/api/auth/password/reset-request", base_url))
+        .post(format!("{base_url}/api/auth/password/reset-request"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "email": user_email
@@ -1276,7 +1257,7 @@ async fn test_password_reset_request_event_published_for_valid_user() {
     );
 }
 
-/// VERIFIES: Password reset request for non-existent email should NOT publish PasswordResetRequested event
+/// VERIFIES: Password reset request for non-existent email should NOT publish `PasswordResetRequested` event
 #[tokio::test]
 #[serial]
 async fn test_password_reset_request_no_event_for_nonexistent_email() {
@@ -1289,7 +1270,7 @@ async fn test_password_reset_request_no_event_for_nonexistent_email() {
 
     // Request password reset for non-existent email
     let response = client
-        .post(&format!("{}/api/auth/password/reset-request", base_url))
+        .post(format!("{base_url}/api/auth/password/reset-request"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "email": "nonexistent@example.com"
@@ -1320,7 +1301,7 @@ async fn test_password_reset_request_no_event_for_nonexistent_email() {
     );
 }
 
-/// VERIFIES: Password reset request for OAuth-only user should NOT publish PasswordResetRequested event
+/// VERIFIES: Password reset request for OAuth-only user should NOT publish `PasswordResetRequested` event
 #[tokio::test]
 #[serial]
 async fn test_password_reset_request_no_event_for_oauth_only_user() {
@@ -1343,7 +1324,7 @@ async fn test_password_reset_request_no_event_for_oauth_only_user() {
 
     // Request password reset for OAuth-only user
     let response = client
-        .post(&format!("{}/api/auth/password/reset-request", base_url))
+        .post(format!("{base_url}/api/auth/password/reset-request"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "email": "oauth-only-event@example.com"

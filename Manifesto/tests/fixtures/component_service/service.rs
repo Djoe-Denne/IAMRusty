@@ -49,6 +49,7 @@ impl ComponentServiceMockService {
     ///
     /// Use as `service.component_service.base_url` when wiring the fake into
     /// a service-under-test by hand.
+    #[must_use]
     pub fn base_url(&self) -> String {
         self.server.uri()
     }
@@ -66,7 +67,7 @@ impl ComponentServiceMockService {
                     .set_body_json(components)
                     .insert_header("content-type", "application/json"),
             )
-            .mount(&*self.server)
+            .mount(&self.server)
             .await;
         self
     }
@@ -95,7 +96,7 @@ impl ComponentServiceMockService {
                     .set_body_json(body)
                     .insert_header("content-type", "application/json"),
             )
-            .mount(&*self.server)
+            .mount(&self.server)
             .await;
         self
     }

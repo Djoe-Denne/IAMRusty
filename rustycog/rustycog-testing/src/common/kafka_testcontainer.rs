@@ -411,7 +411,7 @@ impl TestKafkaConsumer {
         const MAX_CONSECUTIVE_TIMEOUTS: u32 = 3;
 
         while start_time.elapsed() < timeout && consecutive_timeouts < MAX_CONSECUTIVE_TIMEOUTS {
-            match tokio::time::timeout(Duration::from_millis(1000), self.consumer.recv()).await {
+            match tokio::time::timeout(Duration::from_secs(1), self.consumer.recv()).await {
                 Ok(Ok(m)) => {
                     consecutive_timeouts = 0; // Reset timeout counter
 

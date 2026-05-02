@@ -2,9 +2,9 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::{
-    entity::{Organization, SyncJob, SyncJobType},
+    entity::{ExternalLink, Organization, SyncJob, SyncJobType},
     port::{
-        service::{ExternalOrganizationInfo, ExternalProviderClient},
+        service::{ExternalMember, ExternalOrganizationInfo, ExternalProviderClient},
         ExternalLinkRepository, OrganizationRepository, SyncJobRepository,
     },
     service::{invitation_service::InvitationService, organization_service::OrganizationService},
@@ -120,6 +120,73 @@ where
             .await?;
 
         Ok(updated_org)
+    }
+
+    async fn process_external_member_for_sync(
+        &self,
+        external_member: ExternalMember,
+        external_link: &ExternalLink,
+        organization: &Organization,
+        auto_invite: bool,
+        invitation_message: &Option<String>,
+        result: &mut SyncResult,
+    ) {
+        if !external_member.is_active {
+            return;
+        }
+
+        let invite_identifier = if let Some(email) = &external_member.email {
+            email.clone()
+        } else {
+            result.errors.push(format!(
+                "External member {} has no email address, skipping",
+                external_member.username
+            ));
+            return;
+        };
+
+        let existing_invitation = self
+            .invitation_service
+            .get_invitation_by_organization_invited_aggregate_id(
+                external_link.organization_id,
+                &invite_identifier,
+            )
+            .await;
+
+        if existing_invitation.is_ok() {
+            return;
+        }
+
+        if auto_invite {
+            let role_permissions = external_member.roles.clone();
+
+            if role_permissions.is_empty() {
+                result.errors.push(format!(
+                    "External member {} has no role permissions, skipping",
+                    external_member.username
+                ));
+                return;
+            }
+
+            match self
+                .invitation_service
+                .create_invitation_by_email(
+                    external_link.organization_id,
+                    invite_identifier,
+                    role_permissions,
+                    organization.owner_user_id,
+                    invitation_message.clone(),
+                    None,
+                )
+                .await
+            {
+                Ok(_) => result.members_invited += 1,
+                Err(e) => result.errors.push(format!(
+                    "Failed to invite {}: {}",
+                    external_member.username, e
+                )),
+            }
+        }
     }
 }
 
@@ -289,70 +356,16 @@ where
             external_link.provider_source.clone().unwrap()
         ));
 
-        // Process each external member
         for external_member in external_members {
-            if !external_member.is_active {
-                continue; // Skip inactive members
-            }
-
-            // For now, we'll invite by email if available, otherwise skip
-            let invite_identifier = if let Some(email) = &external_member.email {
-                email.clone()
-            } else {
-                result.errors.push(format!(
-                    "External member {} has no email address, skipping",
-                    external_member.username
-                ));
-                continue;
-            };
-
-            // Check if user is already a member
-            // Note: This is a simplified check. In a real implementation, you might want to
-            // maintain a mapping of external IDs to internal user IDs
-            let existing_invitation = self
-                .invitation_service
-                .get_invitation_by_organization_invited_aggregate_id(
-                    external_link.organization_id,
-                    &invite_identifier,
-                )
-                .await;
-
-            if existing_invitation.is_ok() {
-                continue; // Already invited
-            }
-
-            if auto_invite {
-                // Get role permissions for this external member
-                let role_permissions = external_member.roles.clone();
-
-                // Skip if no role permissions are available
-                if role_permissions.is_empty() {
-                    result.errors.push(format!(
-                        "External member {} has no role permissions, skipping",
-                        external_member.username
-                    ));
-                    continue;
-                }
-
-                match self
-                    .invitation_service
-                    .create_invitation_by_email(
-                        external_link.organization_id,
-                        invite_identifier,
-                        role_permissions,
-                        organization.owner_user_id, // Invitations are sent by the organization owner
-                        invitation_message.clone(),
-                        None, // Use default expiry
-                    )
-                    .await
-                {
-                    Ok(_) => result.members_invited += 1,
-                    Err(e) => result.errors.push(format!(
-                        "Failed to invite {}: {}",
-                        external_member.username, e
-                    )),
-                }
-            }
+            Box::pin(self.process_external_member_for_sync(
+                external_member,
+                &external_link,
+                &organization,
+                auto_invite,
+                &invitation_message,
+                &mut result,
+            ))
+            .await;
         }
 
         Ok(result)

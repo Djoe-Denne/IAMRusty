@@ -7,16 +7,10 @@ use uuid::Uuid;
 
 use hive_application::dto::organization::{CreateOrganizationRequest, OrganizationResponse};
 use hive_infra::repository::entity::organizations;
-use hive_infra::repository::entity::{
-    external_links, external_providers, organization_member_role_permissions, organization_members,
-    role_permissions,
-};
+use hive_infra::repository::entity::{external_links, external_providers};
 
 mod common;
-use common::{
-    fixtures::db::{seed_org_with_owner, DbFixtures},
-    setup_test_server, Permission, ResourceRef, Subject,
-};
+use common::{fixtures::db::DbFixtures, setup_test_server, Permission, ResourceRef, Subject};
 
 #[tokio::test]
 #[serial]
@@ -33,8 +27,8 @@ async fn create_organization_happy_path() {
     };
 
     let res = client
-        .post(format!("{}/api/organizations", server_url))
-        .header("Authorization", format!("Bearer {}", token))
+        .post(format!("{server_url}/api/organizations"))
+        .header("Authorization", format!("Bearer {token}"))
         .json(&create_body)
         .send()
         .await
@@ -81,7 +75,7 @@ async fn list_requires_auth_and_returns_empty_initially() {
     let (_fixture, server_url, client, _openfga) = setup_test_server().await.unwrap();
 
     let res = client
-        .get(format!("{}/api/organizations", server_url))
+        .get(format!("{server_url}/api/organizations"))
         .send()
         .await
         .unwrap();
@@ -90,8 +84,8 @@ async fn list_requires_auth_and_returns_empty_initially() {
     let user_id = Uuid::new_v4();
     let token = create_jwt_token(user_id);
     let res = client
-        .get(format!("{}/api/organizations", server_url))
-        .header("Authorization", format!("Bearer {}", token))
+        .get(format!("{server_url}/api/organizations"))
+        .header("Authorization", format!("Bearer {token}"))
         .send()
         .await
         .unwrap();
@@ -141,7 +135,7 @@ async fn update_and_delete_organization_with_permissions() {
     });
     let res = client
         .put(format!("{}/api/organizations/{}", server_url, org.id))
-        .header("Authorization", format!("Bearer {}", token))
+        .header("Authorization", format!("Bearer {token}"))
         .json(&update_body)
         .send()
         .await
@@ -153,7 +147,7 @@ async fn update_and_delete_organization_with_permissions() {
     // Delete
     let res = client
         .delete(format!("{}/api/organizations/{}", server_url, org.id))
-        .header("Authorization", format!("Bearer {}", token))
+        .header("Authorization", format!("Bearer {token}"))
         .send()
         .await
         .unwrap();
@@ -178,15 +172,14 @@ async fn search_organizations_is_public_and_returns_results() {
 
     let res = client
         .get(format!(
-            "{}/api/organizations/search?query=Org&page=0&page_size=10",
-            server_url
+            "{server_url}/api/organizations/search?query=Org&page=0&page_size=10"
         ))
         .send()
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let body: serde_json::Value = res.json().await.unwrap();
-    assert!(body["organizations"].as_array().unwrap().len() >= 1);
+    assert!(!body["organizations"].as_array().unwrap().is_empty());
 }
 
 async fn update_and_delete_require_auth() {
@@ -303,7 +296,7 @@ async fn update_delete_forbidden_for_read_only_member() {
 
     let res = client
         .put(format!("{}/api/organizations/{}", server_url, org.id))
-        .header("Authorization", format!("Bearer {}", token))
+        .header("Authorization", format!("Bearer {token}"))
         .json(&serde_json::json!({"name":"New"}))
         .send()
         .await
@@ -312,7 +305,7 @@ async fn update_delete_forbidden_for_read_only_member() {
 
     let res = client
         .delete(format!("{}/api/organizations/{}", server_url, org.id))
-        .header("Authorization", format!("Bearer {}", token))
+        .header("Authorization", format!("Bearer {token}"))
         .send()
         .await
         .unwrap();
@@ -353,7 +346,7 @@ async fn sync_jobs_forbidden_for_read_only_member() {
             "{}/api/organizations/{}/sync-jobs",
             server_url, org.id
         ))
-        .header("Authorization", format!("Bearer {}", token))
+        .header("Authorization", format!("Bearer {token}"))
         .json(&body)
         .send()
         .await
@@ -408,7 +401,7 @@ async fn sync_jobs_nonexistent_external_link_returns_404() {
             "{}/api/organizations/{}/sync-jobs",
             server_url, org.id
         ))
-        .header("Authorization", format!("Bearer {}", token))
+        .header("Authorization", format!("Bearer {token}"))
         .json(&body)
         .send()
         .await
@@ -419,7 +412,7 @@ async fn sync_jobs_nonexistent_external_link_returns_404() {
 #[tokio::test]
 #[serial]
 async fn create_validation_errors() {
-    let (fixture, server_url, client, _openfga) = setup_test_server().await.unwrap();
+    let (_fixture, server_url, client, _openfga) = setup_test_server().await.unwrap();
     let user_id = Uuid::new_v4();
     let token = create_jwt_token(user_id);
 
@@ -431,8 +424,8 @@ async fn create_validation_errors() {
         "avatar_url": null
     });
     let res = client
-        .post(format!("{}/api/organizations", server_url))
-        .header("Authorization", format!("Bearer {}", token))
+        .post(format!("{server_url}/api/organizations"))
+        .header("Authorization", format!("Bearer {token}"))
         .json(&bad_create)
         .send()
         .await
@@ -502,7 +495,7 @@ async fn start_sync_job_happy_path() {
             "{}/api/organizations/{}/sync-jobs",
             server_url, org.id
         ))
-        .header("Authorization", format!("Bearer {}", token))
+        .header("Authorization", format!("Bearer {token}"))
         .json(&body)
         .send()
         .await

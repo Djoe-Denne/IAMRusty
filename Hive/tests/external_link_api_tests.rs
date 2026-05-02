@@ -4,10 +4,7 @@ use serial_test::serial;
 use uuid::Uuid;
 
 mod common;
-use common::{
-    fixtures::{db::DbFixtures, ExternalProviderFixtures},
-    setup_test_server, Permission, ResourceRef, Subject,
-};
+use common::{fixtures::db::DbFixtures, setup_test_server, Permission, ResourceRef, Subject};
 
 #[tokio::test]
 #[serial]
@@ -54,7 +51,7 @@ async fn create_external_link_happy_path() {
             "{}/api/organizations/{}/external-links",
             server_url, org.id
         ))
-        .header("Authorization", format!("Bearer {}", token))
+        .header("Authorization", format!("Bearer {token}"))
         .json(&body)
         .send()
         .await
@@ -141,7 +138,7 @@ async fn create_external_link_forbidden_for_read_only_member() {
             "{}/api/organizations/{}/external-links",
             server_url, org.id
         ))
-        .header("Authorization", format!("Bearer {}", token))
+        .header("Authorization", format!("Bearer {token}"))
         .json(&body)
         .send()
         .await
