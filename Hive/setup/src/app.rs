@@ -156,7 +156,7 @@ impl Application {
         let mut background_tasks = self.start_background_tasks();
         let mut outbox_handle = background_tasks
             .pop()
-            .expect("Hive outbox dispatcher should always be configured");
+            .ok_or_else(|| anyhow::anyhow!("Hive outbox dispatcher should always be configured"))?;
 
         let result: Result<(), Error> = tokio::select! {
             _ = tokio::signal::ctrl_c() => {

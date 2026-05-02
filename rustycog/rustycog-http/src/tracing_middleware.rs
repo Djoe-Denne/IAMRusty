@@ -1,4 +1,9 @@
-use axum::{extract::Request, http::HeaderMap, middleware::Next, response::Response};
+use axum::{
+    extract::Request,
+    http::{HeaderMap, HeaderValue},
+    middleware::Next,
+    response::Response,
+};
 use std::time::Instant;
 use tracing::{info_span, Instrument};
 use uuid::Uuid;
@@ -23,12 +28,10 @@ pub async fn tracing_middleware(mut request: Request, next: Next) -> Response {
         id.to_string()
     } else {
         let id = Uuid::new_v4().to_string();
-        // Insert the generated correlation ID into the request headers
-        request.headers_mut().insert(
-            X_CORRELATION_ID,
-            id.parse()
-                .expect("Generated UUID should be valid header value"),
-        );
+        // UUID string is ASCII and valid as an HTTP header value
+        if let Ok(header_value) = HeaderValue::try_from(id.as_str()) {
+            request.headers_mut().insert(X_CORRELATION_ID, header_value);
+        }
         id
     };
 

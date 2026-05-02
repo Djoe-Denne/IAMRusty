@@ -482,7 +482,7 @@ pub async fn run_server(app: IAMRustyApp, app_config: ServerConfig) -> Result<()
     let mut background_tasks = app.start_background_tasks();
     let mut outbox_handle = background_tasks
         .pop()
-        .expect("IAMRusty outbox dispatcher should always be configured");
+        .ok_or_else(|| anyhow::anyhow!("IAMRusty outbox dispatcher should always be configured"))?;
 
     let result: Result<()> = tokio::select! {
         _ = tokio::signal::ctrl_c() => {

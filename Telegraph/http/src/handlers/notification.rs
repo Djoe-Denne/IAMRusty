@@ -120,7 +120,7 @@ pub async fn mark_notification_read(
     let uuid: Uuid = notification_id
         .id
         .parse()
-        .expect("UUID should be valid after validation");
+        .map_err(|_| StatusCode::BAD_REQUEST)?;
     let command = MarkNotificationReadCommand::new(uuid, auth_user.user_id);
 
     let context = CommandContext::new().with_user_id(auth_user.user_id);

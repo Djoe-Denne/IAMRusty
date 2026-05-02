@@ -3,9 +3,45 @@ use tracing_subscriber::EnvFilter;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[cfg(feature = "scaleway-loki")]
-use rustycog_config::HasScalewayConfig;
+use anyhow::Context;
+#[cfg(feature = "scaleway-loki")]
+use rustycog_config::{HasScalewayConfig, ScalewayLokiLoggingOutput};
 #[cfg(feature = "scaleway-loki")]
 use std::env;
+
+#[cfg(feature = "scaleway-loki")]
+fn build_scaleway_loki_stack<C: ServiceLoggerConfig>(
+    config: &C,
+    scaleway_loki: ScalewayLokiLoggingOutput,
+) -> anyhow::Result<(tracing_loki::Layer, tracing_loki::BackgroundTask)> {
+    let loki_endpoint = format!(
+        "https://{}.logs.cockpit.{}.scw.cloud",
+        scaleway_loki.datasource_uuid,
+        config.scaleway_config().region
+    );
+
+    let url = tracing_loki::url::Url::parse(&loki_endpoint)
+        .context("parse Scaleway Loki endpoint URL")?;
+
+    tracing_loki::builder()
+        .label(
+            "job",
+            env::var("JOB").unwrap_or_else(|_| "unknown".to_string()),
+        )
+        .map_err(anyhow::Error::from)?
+        .label(
+            "service",
+            env::var("SERVICE").unwrap_or_else(|_| "unknown".to_string()),
+        )
+        .map_err(anyhow::Error::from)?
+        .http_header(
+            "Authorization",
+            format!("Bearer {}", scaleway_loki.cockpit_token),
+        )
+        .map_err(anyhow::Error::from)?
+        .build_url(url)
+        .map_err(anyhow::Error::from)
+}
 
 #[cfg(feature = "scaleway-loki")]
 pub trait ServiceLoggerConfig: HasLoggingConfig + HasScalewayConfig {}
@@ -45,35 +81,16 @@ pub fn setup_logging<C: ServiceLoggerConfig>(config: &C) {
     #[cfg(feature = "scaleway-loki")]
     let (loki_layer, loki_task) =
         if let Some(scaleway_loki) = config.logging_config().scaleway_loki.clone() {
-            let loki_endpoint = format!(
-                "https://{}.logs.cockpit.{}.scw.cloud",
-                scaleway_loki.datasource_uuid,
-                config.scaleway_config().region
-            );
-            let (loki_layer, loki_task) = tracing_loki::builder()
-                .label(
-                    "job",
-                    env::var("JOB").unwrap_or_else(|_| "unknown".to_string()),
-                ) // TODO: add job label from environnement variable
-                .expect("Failed to set job label")
-                .label(
-                    "service",
-                    env::var("SERVICE").unwrap_or_else(|_| "unknown".to_string()),
-                ) // TODO: add service label from envvar
-                .expect("Failed to set service label")
-                .http_header(
-                    "Authorization",
-                    format!("Bearer {}", scaleway_loki.cockpit_token),
-                )
-                .expect("Failed to set Authorization header")
-                .build_url(
-                    loki_endpoint
-                        .parse()
-                        .expect("Failed to parse Loki endpoint"),
-                )
-                .expect("Failed to build Loki layer");
-
-            (Some(loki_layer), Some(loki_task))
+            match build_scaleway_loki_stack(config, scaleway_loki) {
+                Ok((layer, task)) => (Some(layer), Some(task)),
+                Err(err) => {
+                    tracing::warn!(
+                        error = %err,
+                        "failed to initialize Scaleway Loki exporter; continuing without Loki"
+                    );
+                    (None, None)
+                }
+            }
         } else {
             (None, None)
         };
