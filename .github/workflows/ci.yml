@@ -95,8 +95,8 @@ jobs:
       - name: Build service
         run: cargo build --locked --all-targets ${{ matrix.package_args }}
 
-  coverage:
-    name: Coverage (${{ matrix.service }})
+  coverage-integration:
+    name: Coverage - integration (${{ matrix.service }})
     runs-on: ubuntu-latest
     needs: [build]
     strategy:
@@ -105,8 +105,8 @@ jobs:
         include:
           - service: IAMRusty
             cache_key: iam
-            artifact_name: lcov-iam
-            output_path: lcov-iam.info
+            artifact_name: lcov-integration-iam
+            output_path: lcov-integration-iam.info
             package_args: >-
               --package iam-service
               --package iam-domain
@@ -117,8 +117,8 @@ jobs:
               --package iam-configuration
           - service: Telegraph
             cache_key: telegraph
-            artifact_name: lcov-telegraph
-            output_path: lcov-telegraph.info
+            artifact_name: lcov-integration-telegraph
+            output_path: lcov-integration-telegraph.info
             package_args: >-
               --package telegraph-service
               --package telegraph-domain
@@ -129,8 +129,8 @@ jobs:
               --package telegraph-configuration
           - service: Hive
             cache_key: hive
-            artifact_name: lcov-hive
-            output_path: lcov-hive.info
+            artifact_name: lcov-integration-hive
+            output_path: lcov-integration-hive.info
             package_args: >-
               --package hive-service
               --package hive-domain
@@ -141,8 +141,8 @@ jobs:
               --package hive-configuration
           - service: Manifesto
             cache_key: manifesto
-            artifact_name: lcov-manifesto
-            output_path: lcov-manifesto.info
+            artifact_name: lcov-integration-manifesto
+            output_path: lcov-integration-manifesto.info
             package_args: >-
               --package manifesto-service
               --package manifesto-domain
@@ -170,17 +170,105 @@ jobs:
           docker version
           docker info
 
-      - name: Run integration tests with coverage
+      - name: Run integration tests (tests/) with coverage
         run: |
           set +e
-          cargo llvm-cov ${{ matrix.package_args }} --locked --no-report --no-fail-fast
+          cargo llvm-cov ${{ matrix.package_args }} --locked --no-report --no-fail-fast --tests
           test_status=$?
           set -e
 
           cargo llvm-cov report --lcov --output-path ${{ matrix.output_path }}
           exit "$test_status"
 
-      - name: Upload coverage artifact
+      - name: Upload integration coverage artifact
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.output_path }}
+          if-no-files-found: warn
+
+  coverage-unit:
+    name: Coverage - unit (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    needs: [build]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: IAMRusty
+            cache_key: iam-unit
+            artifact_name: lcov-unit-iam
+            output_path: lcov-unit-iam.info
+            package_args: >-
+              --package iam-service
+              --package iam-domain
+              --package iam-application
+              --package iam-infra
+              --package iam-http_server
+              --package iam-setup
+              --package iam-configuration
+          - service: Telegraph
+            cache_key: telegraph-unit
+            artifact_name: lcov-unit-telegraph
+            output_path: lcov-unit-telegraph.info
+            package_args: >-
+              --package telegraph-service
+              --package telegraph-domain
+              --package telegraph-application
+              --package telegraph-infra
+              --package telegraph-http_server
+              --package telegraph-setup
+              --package telegraph-configuration
+          - service: Hive
+            cache_key: hive-unit
+            artifact_name: lcov-unit-hive
+            output_path: lcov-unit-hive.info
+            package_args: >-
+              --package hive-service
+              --package hive-domain
+              --package hive-application
+              --package hive-infra
+              --package hive-http
+              --package hive-setup
+              --package hive-configuration
+          - service: Manifesto
+            cache_key: manifesto-unit
+            artifact_name: lcov-unit-manifesto
+            output_path: lcov-unit-manifesto.info
+            package_args: >-
+              --package manifesto-service
+              --package manifesto-domain
+              --package manifesto-application
+              --package manifesto-infra
+              --package manifesto-http_server
+              --package manifesto-setup
+              --package manifesto-configuration
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ${{ matrix.cache_key }}
+          cache-on-failure: true
+
+      - uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Run unit tests (lib + bins) with coverage
+        run: |
+          set +e
+          cargo llvm-cov ${{ matrix.package_args }} --locked --no-report --no-fail-fast --lib --bins
+          test_status=$?
+          set -e
+
+          cargo llvm-cov report --lcov --output-path ${{ matrix.output_path }}
+          exit "$test_status"
+
+      - name: Upload unit coverage artifact
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
@@ -191,7 +279,7 @@ jobs:
   merge-coverage:
     name: Merge coverage
     runs-on: ubuntu-latest
-    needs: [coverage]
+    needs: [coverage-integration, coverage-unit]
     if: ${{ always() && !cancelled() }}
     steps:
       - name: Download coverage artifacts
