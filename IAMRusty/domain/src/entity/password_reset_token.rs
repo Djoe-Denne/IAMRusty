@@ -153,7 +153,7 @@ mod tests {
         assert_ne!(token1, token2); // Should be different
 
         // Should only contain alphanumeric characters
-        assert!(token1.chars().all(|c| c.is_alphanumeric()));
-        assert!(token2.chars().all(|c| c.is_alphanumeric()));
+        assert!(token1.chars().all(char::is_alphanumeric));
+        assert!(token2.chars().all(char::is_alphanumeric));
     }
 }

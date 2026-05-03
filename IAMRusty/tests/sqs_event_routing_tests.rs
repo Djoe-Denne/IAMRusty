@@ -126,7 +126,7 @@ async fn routes_iam_events_to_telegraph_queue() {
 
     let email = format!("sqs-user-{}@example.com", &Uuid::new_v4().to_string()[..8]);
     let signup_response = client
-        .post(&format!("{}/api/auth/signup", base_url))
+        .post(format!("{base_url}/api/auth/signup"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "email": email,
@@ -147,7 +147,7 @@ async fn routes_iam_events_to_telegraph_queue() {
 
     let username = format!("sqsuser{}", &Uuid::new_v4().to_string()[..8]);
     let completion_response = client
-        .post(&format!("{}/api/auth/complete-registration", base_url))
+        .post(format!("{base_url}/api/auth/complete-registration"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "registration_token": registration_token,
@@ -180,7 +180,7 @@ async fn routes_iam_events_to_telegraph_queue() {
     .expect("failed to create test user");
 
     let response = client
-        .post(&format!("{}/api/auth/password/reset-request", base_url))
+        .post(format!("{base_url}/api/auth/password/reset-request"))
         .header("Content-Type", "application/json")
         .json(&json!({ "email": email }))
         .send()

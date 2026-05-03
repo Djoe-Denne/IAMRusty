@@ -78,7 +78,7 @@ struct BadEvent {
 }
 
 impl DomainEvent for BadEvent {
-    fn event_type(&self) -> &str {
+    fn event_type(&self) -> &'static str {
         "bad_iam_test_event"
     }
 

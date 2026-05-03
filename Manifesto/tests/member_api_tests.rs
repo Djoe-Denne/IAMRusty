@@ -50,12 +50,12 @@ async fn test_add_member_returns_201_with_valid_permissions() {
     let new_member_id = Uuid::new_v4();
 
     let response = client
-        .post(&format!(
+        .post(format!(
             "{}/api/projects/{}/members",
             base_url,
             project.id()
         ))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "user_id": new_member_id.to_string(),
@@ -115,12 +115,12 @@ async fn test_add_member_returns_403_without_admin_permission() {
     let new_member_id = Uuid::new_v4();
 
     let response = client
-        .post(&format!(
+        .post(format!(
             "{}/api/projects/{}/members",
             base_url,
             project.id()
         ))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "user_id": new_member_id.to_string(),
@@ -150,7 +150,7 @@ async fn test_get_member_returns_200_with_permissions() {
     let db = _fixture.db();
 
     let owner_id = Uuid::new_v4();
-    let (project, owner_member) = DbFixtures::create_project_with_owner(&db, owner_id)
+    let (project, _owner_member) = DbFixtures::create_project_with_owner(&db, owner_id)
         .await
         .expect("Failed to create project with owner");
 
@@ -168,13 +168,13 @@ async fn test_get_member_returns_200_with_permissions() {
     let jwt_token = create_test_jwt_token(owner_id);
 
     let response = client
-        .get(&format!(
+        .get(format!(
             "{}/api/projects/{}/members/{}",
             base_url,
             project.id(),
             owner_id
         ))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -235,12 +235,12 @@ async fn test_list_members_returns_paginated_results() {
     let jwt_token = create_test_jwt_token(owner_id);
 
     let response = client
-        .get(&format!(
+        .get(format!(
             "{}/api/projects/{}/members",
             base_url,
             project.id()
         ))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -304,13 +304,13 @@ async fn test_update_member_permissions_returns_200() {
     let jwt_token = create_test_jwt_token(owner_id);
 
     let response = client
-        .put(&format!(
+        .put(format!(
             "{}/api/projects/{}/members/{}",
             base_url,
             project.id(),
             regular_member_id
         ))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "permissions": [
@@ -368,13 +368,13 @@ async fn test_remove_member_returns_204() {
     let jwt_token = create_test_jwt_token(owner_id);
 
     let response = client
-        .delete(&format!(
+        .delete(format!(
             "{}/api/projects/{}/members/{}",
             base_url,
             project.id(),
             member_to_remove_id
         ))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -426,13 +426,13 @@ async fn test_grant_permission_returns_200() {
 
     // Grant permission using path-based resource: /permissions/{resource}
     let response = client
-        .post(&format!(
+        .post(format!(
             "{}/api/projects/{}/members/{}/permissions/component",
             base_url,
             project.id(),
             regular_member_id
         ))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "permission": "write"
@@ -485,13 +485,13 @@ async fn test_revoke_permission_returns_204() {
 
     // First grant a permission using path-based resource
     client
-        .post(&format!(
+        .post(format!(
             "{}/api/projects/{}/members/{}/permissions/component",
             base_url,
             project.id(),
             regular_member_id
         ))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "permission": "write"
@@ -502,13 +502,13 @@ async fn test_revoke_permission_returns_204() {
 
     // Now revoke it using path-based resource
     let response = client
-        .delete(&format!(
+        .delete(format!(
             "{}/api/projects/{}/members/{}/permissions/component",
             base_url,
             project.id(),
             regular_member_id
         ))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -561,14 +561,14 @@ async fn test_grant_permission_on_specific_component_returns_200() {
 
     // Grant write permission on specific component using path: /permissions/component/{component_id}
     let response = client
-        .post(&format!(
+        .post(format!(
             "{}/api/projects/{}/members/{}/permissions/component/{}",
             base_url,
             project.id(),
             regular_member_id,
             component.id()
         ))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "permission": "write"
@@ -624,14 +624,14 @@ async fn test_non_admin_cannot_grant_permission_on_specific_component() {
     let acting_token = create_test_jwt_token(acting_member_id);
 
     let response = client
-        .post(&format!(
+        .post(format!(
             "{}/api/projects/{}/members/{}/permissions/component/{}",
             base_url,
             project.id(),
             target_member_id,
             component.id()
         ))
-        .header("Authorization", format!("Bearer {}", acting_token))
+        .header("Authorization", format!("Bearer {acting_token}"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "permission": "write"
@@ -684,14 +684,14 @@ async fn test_grant_admin_permission_on_specific_component_returns_200() {
 
     // Grant admin permission on specific component using path: /permissions/component/{component_id}
     let response = client
-        .post(&format!(
+        .post(format!(
             "{}/api/projects/{}/members/{}/permissions/component/{}",
             base_url,
             project.id(),
             regular_member_id,
             component.id()
         ))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "permission": "admin"
@@ -744,14 +744,14 @@ async fn test_revoke_permission_on_specific_component_returns_204() {
 
     // First grant a permission on specific component using path
     client
-        .post(&format!(
+        .post(format!(
             "{}/api/projects/{}/members/{}/permissions/component/{}",
             base_url,
             project.id(),
             regular_member_id,
             component.id()
         ))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .header("Content-Type", "application/json")
         .json(&json!({
             "permission": "write"
@@ -762,14 +762,14 @@ async fn test_revoke_permission_on_specific_component_returns_204() {
 
     // Now revoke it using path: /permissions/component/{component_id}
     let response = client
-        .delete(&format!(
+        .delete(format!(
             "{}/api/projects/{}/members/{}/permissions/component/{}",
             base_url,
             project.id(),
             regular_member_id,
             component.id()
         ))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send request");

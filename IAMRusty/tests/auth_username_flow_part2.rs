@@ -73,13 +73,13 @@ async fn test_oauth_provider_already_linked_to_same_user() {
         .await
         .expect("Failed to create existing user");
 
-    let primary_email = DbFixtures::user_email()
+    let _primary_email = DbFixtures::user_email()
         .arthur_primary(existing_user.id())
         .commit(db.clone())
         .await
         .expect("Failed to create primary email");
 
-    let github_token = DbFixtures::provider_token()
+    let _github_token = DbFixtures::provider_token()
         .arthur_github(existing_user.id())
         .commit(db.clone())
         .await
@@ -92,7 +92,7 @@ async fn test_oauth_provider_already_linked_to_same_user() {
 
     // Try to link GitHub again with authentication
     let oauth_start_response = client
-        .get(&format!("{}/api/auth/github/login", base_url))
+        .get(format!("{base_url}/api/auth/github/login"))
         .send()
         .await
         .expect("Failed to start OAuth linking");
@@ -124,13 +124,13 @@ async fn test_oauth_provider_linked_to_different_user_returns_409() {
         .await
         .expect("Failed to create first user");
 
-    let first_email = DbFixtures::user_email()
+    let _first_email = DbFixtures::user_email()
         .arthur_primary(first_user.id())
         .commit(db.clone())
         .await
         .expect("Failed to create first user email");
 
-    let github_token_first = DbFixtures::provider_token()
+    let _github_token_first = DbFixtures::provider_token()
         .arthur_github(first_user.id())
         .commit(db.clone())
         .await
@@ -143,7 +143,7 @@ async fn test_oauth_provider_linked_to_different_user_returns_409() {
         .await
         .expect("Failed to create second user");
 
-    let second_email = DbFixtures::user_email()
+    let _second_email = DbFixtures::user_email()
         .bob_primary(second_user.id())
         .commit(db.clone())
         .await
@@ -163,8 +163,8 @@ async fn test_oauth_provider_linked_to_different_user_returns_409() {
 
     // Try to link GitHub from second user (should conflict)
     let oauth_start_response = client
-        .get(&format!("{}/api/auth/github/link", base_url))
-        .header("Authorization", format!("Bearer {}", mock_jwt_second_user))
+        .get(format!("{base_url}/api/auth/github/link"))
+        .header("Authorization", format!("Bearer {mock_jwt_second_user}"))
         .send()
         .await
         .expect("Failed to start OAuth linking");
@@ -182,7 +182,7 @@ async fn test_oauth_provider_linked_to_different_user_returns_409() {
 
         // Complete OAuth callback (this should detect the conflict)
         let callback_response = client
-            .get(&format!("{}/api/auth/github/callback", base_url))
+            .get(format!("{base_url}/api/auth/github/callback"))
             .query(&[("code", "test_auth_code"), ("state", state)])
             .send()
             .await
@@ -230,7 +230,7 @@ async fn test_registration_token_has_correct_rsa_signature() {
     });
 
     let signup_response = client
-        .post(&format!("{}/api/auth/signup", base_url))
+        .post(format!("{base_url}/api/auth/signup"))
         .header("Content-Type", "application/json")
         .json(&signup_data)
         .send()
@@ -293,7 +293,7 @@ async fn test_registration_token_contains_required_claims() {
     });
 
     let signup_response = client
-        .post(&format!("{}/api/auth/signup", base_url))
+        .post(format!("{base_url}/api/auth/signup"))
         .header("Content-Type", "application/json")
         .json(&signup_data)
         .send()
@@ -353,7 +353,7 @@ async fn test_registration_token_expires_after_configured_duration() {
     });
 
     let signup_response = client
-        .post(&format!("{}/api/auth/signup", base_url))
+        .post(format!("{base_url}/api/auth/signup"))
         .header("Content-Type", "application/json")
         .json(&signup_data)
         .send()
@@ -378,8 +378,7 @@ async fn test_registration_token_expires_after_configured_duration() {
     let expected_duration = 24 * 60 * 60; // 24 hours
     assert!(
         (duration - expected_duration).abs() <= 60,
-        "Token should have approximately 24 hour duration, got {} seconds",
-        duration
+        "Token should have approximately 24 hour duration, got {duration} seconds"
     );
 }
 
@@ -396,7 +395,7 @@ async fn test_expired_registration_token_returns_400() {
     let expired_token = create_expired_registration_token_with_encoder(
         Uuid::new_v4(),
         "test@example.com".to_string(),
-        &config,
+        config,
     )
     .expect("Failed to create expired token");
 
@@ -407,7 +406,7 @@ async fn test_expired_registration_token_returns_400() {
     });
 
     let completion_response = client
-        .post(&format!("{}/api/auth/complete-registration", base_url))
+        .post(format!("{base_url}/api/auth/complete-registration"))
         .header("Content-Type", "application/json")
         .json(&completion_data)
         .send()
@@ -453,7 +452,7 @@ async fn test_same_email_signup_after_incomplete_registration() {
     });
 
     let first_signup = client
-        .post(&format!("{}/api/auth/signup", base_url))
+        .post(format!("{base_url}/api/auth/signup"))
         .header("Content-Type", "application/json")
         .json(&signup_data)
         .send()
@@ -470,7 +469,7 @@ async fn test_same_email_signup_after_incomplete_registration() {
 
     // Second signup with same email (without completing first registration)
     let second_signup = client
-        .post(&format!("{}/api/auth/signup", base_url))
+        .post(format!("{base_url}/api/auth/signup"))
         .header("Content-Type", "application/json")
         .json(&signup_data)
         .send()
@@ -513,7 +512,7 @@ async fn test_no_duplicate_user_records_created_on_retry() {
 
     for _ in 0..3 {
         let signup_response = client
-            .post(&format!("{}/api/auth/signup", base_url))
+            .post(format!("{base_url}/api/auth/signup"))
             .header("Content-Type", "application/json")
             .json(&signup_data)
             .send()
@@ -559,7 +558,7 @@ async fn test_user_id_remains_consistent_across_retries() {
     });
 
     let first_signup = client
-        .post(&format!("{}/api/auth/signup", base_url))
+        .post(format!("{base_url}/api/auth/signup"))
         .header("Content-Type", "application/json")
         .json(&signup_data)
         .send()
@@ -576,7 +575,7 @@ async fn test_user_id_remains_consistent_across_retries() {
 
     // Second signup (retry)
     let second_signup = client
-        .post(&format!("{}/api/auth/signup", base_url))
+        .post(format!("{base_url}/api/auth/signup"))
         .header("Content-Type", "application/json")
         .json(&signup_data)
         .send()
@@ -617,7 +616,7 @@ async fn test_user_signed_up_triggered_only_at_registration_completion() {
     });
 
     let signup_response = client
-        .post(&format!("{}/api/auth/signup", base_url))
+        .post(format!("{base_url}/api/auth/signup"))
         .header("Content-Type", "application/json")
         .json(&signup_data)
         .send()
@@ -642,7 +641,7 @@ async fn test_user_signed_up_triggered_only_at_registration_completion() {
     });
 
     let completion_response = client
-        .post(&format!("{}/api/auth/complete-registration", base_url))
+        .post(format!("{base_url}/api/auth/complete-registration"))
         .header("Content-Type", "application/json")
         .json(&completion_data)
         .send()
@@ -690,7 +689,7 @@ async fn test_user_signed_up_triggered_when_existing_user_adds_password() {
     });
 
     let signup_response = client
-        .post(&format!("{}/api/auth/signup", base_url))
+        .post(format!("{base_url}/api/auth/signup"))
         .header("Content-Type", "application/json")
         .json(&signup_data)
         .send()
@@ -721,7 +720,7 @@ async fn test_event_fired_after_successful_database_transaction() {
     });
 
     let signup_response = client
-        .post(&format!("{}/api/auth/signup", base_url))
+        .post(format!("{base_url}/api/auth/signup"))
         .header("Content-Type", "application/json")
         .json(&signup_data)
         .send()
@@ -742,7 +741,7 @@ async fn test_event_fired_after_successful_database_transaction() {
     });
 
     let completion_response = client
-        .post(&format!("{}/api/auth/complete-registration", base_url))
+        .post(format!("{base_url}/api/auth/complete-registration"))
         .header("Content-Type", "application/json")
         .json(&completion_data)
         .send()
@@ -793,7 +792,7 @@ async fn test_email_addresses_properly_validated_and_sanitized() {
         });
 
         let response = client
-            .post(&format!("{}/api/auth/signup", base_url))
+            .post(format!("{base_url}/api/auth/signup"))
             .header("Content-Type", "application/json")
             .json(&signup_data)
             .send()
@@ -803,14 +802,12 @@ async fn test_email_addresses_properly_validated_and_sanitized() {
         if should_succeed {
             assert!(
                 response.status() == 202 || response.status() == 409,
-                "Valid email '{}' should succeed or conflict",
-                email
+                "Valid email '{email}' should succeed or conflict"
             );
         } else {
             assert!(
                 response.status() == 400 || response.status() == 422,
-                "Invalid email '{}' should return validation error",
-                email
+                "Invalid email '{email}' should return validation error"
             );
         }
     }
@@ -831,7 +828,7 @@ async fn test_username_input_sanitization_prevents_injection() {
     });
 
     let signup_response = client
-        .post(&format!("{}/api/auth/signup", base_url))
+        .post(format!("{base_url}/api/auth/signup"))
         .header("Content-Type", "application/json")
         .json(&signup_data)
         .send()
@@ -865,7 +862,7 @@ async fn test_username_input_sanitization_prevents_injection() {
         });
 
         let completion_response = client
-            .post(&format!("{}/api/auth/complete-registration", base_url))
+            .post(format!("{base_url}/api/auth/complete-registration"))
             .header("Content-Type", "application/json")
             .json(&completion_data)
             .send()
@@ -875,8 +872,7 @@ async fn test_username_input_sanitization_prevents_injection() {
         // Should return validation error for malicious input
         assert!(
             completion_response.status() == 400 || completion_response.status() == 422,
-            "Malicious username '{}' should be rejected",
-            malicious_username
+            "Malicious username '{malicious_username}' should be rejected"
         );
     }
 }
@@ -896,7 +892,7 @@ async fn test_no_sensitive_data_exposed_in_error_messages() {
     });
 
     let login_response = client
-        .post(&format!("{}/api/auth/login", base_url))
+        .post(format!("{base_url}/api/auth/login"))
         .header("Content-Type", "application/json")
         .json(&login_data)
         .send()

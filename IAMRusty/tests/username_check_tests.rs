@@ -7,7 +7,7 @@ mod fixtures;
 use common::setup_test_server;
 use fixtures::DbFixtures;
 use reqwest::Client;
-use serde_json::{json, Value};
+use serde_json::Value;
 use serial_test::serial;
 
 fn create_test_client() -> Client {
@@ -25,7 +25,7 @@ async fn test_username_available() {
         .expect("Failed to setup test server");
 
     let response = client
-        .get(&format!("{}/api/auth/username/check", base_url))
+        .get(format!("{base_url}/api/auth/username/check"))
         .query(&[("username", "available")])
         .send()
         .await
@@ -34,7 +34,7 @@ async fn test_username_available() {
     assert_eq!(response.status(), 200);
 
     let body: Value = response.json().await.expect("Should return JSON");
-    assert_eq!(body["available"].as_bool().unwrap(), true);
+    assert!(body["available"].as_bool().unwrap());
 }
 
 #[tokio::test]
@@ -53,7 +53,7 @@ async fn test_username_taken() {
         .expect("Failed to create user");
 
     let response = client
-        .get(&format!("{}/api/auth/username/check", base_url))
+        .get(format!("{base_url}/api/auth/username/check"))
         .query(&[("username", "taken")])
         .send()
         .await
@@ -62,7 +62,7 @@ async fn test_username_taken() {
     assert_eq!(response.status(), 200);
 
     let body: Value = response.json().await.expect("Should return JSON");
-    assert_eq!(body["available"].as_bool().unwrap(), false);
+    assert!(!body["available"].as_bool().unwrap());
 }
 
 #[tokio::test]
@@ -74,7 +74,7 @@ async fn test_username_validation() {
 
     // Too short
     let response = client
-        .get(&format!("{}/api/auth/username/check", base_url))
+        .get(format!("{base_url}/api/auth/username/check"))
         .query(&[("username", "ab")])
         .send()
         .await
@@ -84,7 +84,7 @@ async fn test_username_validation() {
 
     // Valid length
     let response = client
-        .get(&format!("{}/api/auth/username/check", base_url))
+        .get(format!("{base_url}/api/auth/username/check"))
         .query(&[("username", "validuser")])
         .send()
         .await

@@ -59,8 +59,8 @@ async fn test_revoke_provider_token_github_success() {
 
     // Make request to revoke provider token endpoint
     let response = client
-        .delete(&format!("{}/internal/github/revoke", base_url))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .delete(format!("{base_url}/internal/github/revoke"))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -136,8 +136,8 @@ async fn test_revoke_provider_token_gitlab_success() {
 
     // Make request to revoke GitLab provider token
     let response = client
-        .delete(&format!("{}/internal/gitlab/revoke", base_url))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .delete(format!("{base_url}/internal/gitlab/revoke"))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -178,7 +178,7 @@ async fn test_revoke_provider_token_returns_401_when_no_authorization_header() {
 
     // Make request without Authorization header
     let response = client
-        .delete(&format!("{}/internal/github/revoke", base_url))
+        .delete(format!("{base_url}/internal/github/revoke"))
         .send()
         .await
         .expect("Failed to send request");
@@ -209,8 +209,8 @@ async fn test_revoke_provider_token_returns_401_when_token_is_expired() {
 
     // Make request with expired token
     let response = client
-        .delete(&format!("{}/internal/github/revoke", base_url))
-        .header("Authorization", format!("Bearer {}", expired_token))
+        .delete(format!("{base_url}/internal/github/revoke"))
+        .header("Authorization", format!("Bearer {expired_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -241,8 +241,8 @@ async fn test_revoke_provider_token_returns_401_when_token_has_invalid_signature
 
     // Make request with invalid signature token
     let response = client
-        .delete(&format!("{}/internal/github/revoke", base_url))
-        .header("Authorization", format!("Bearer {}", invalid_token))
+        .delete(format!("{base_url}/internal/github/revoke"))
+        .header("Authorization", format!("Bearer {invalid_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -276,8 +276,8 @@ async fn test_revoke_provider_token_returns_422_when_provider_is_unsupported() {
 
     for provider in unsupported_providers {
         let response = client
-            .delete(&format!("{}/internal/{}/revoke", base_url, provider))
-            .header("Authorization", format!("Bearer {}", jwt_token))
+            .delete(format!("{base_url}/internal/{provider}/revoke"))
+            .header("Authorization", format!("Bearer {jwt_token}"))
             .send()
             .await
             .expect("Failed to send request");
@@ -286,8 +286,7 @@ async fn test_revoke_provider_token_returns_422_when_provider_is_unsupported() {
         assert_eq!(
             response.status(),
             422,
-            "Should return 422 for unsupported provider: '{}'",
-            provider
+            "Should return 422 for unsupported provider: '{provider}'"
         );
     }
 }
@@ -317,8 +316,8 @@ async fn test_revoke_provider_token_returns_404_when_no_token_for_provider() {
 
     // Make request to revoke GitHub token when user has no GitHub token
     let response = client
-        .delete(&format!("{}/internal/github/revoke", base_url))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .delete(format!("{base_url}/internal/github/revoke"))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -363,8 +362,8 @@ async fn test_revoke_provider_token_returns_401_when_user_not_found() {
 
     // Make request to revoke token for non-existent user
     let response = client
-        .delete(&format!("{}/internal/github/revoke", base_url))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .delete(format!("{base_url}/internal/github/revoke"))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -420,8 +419,8 @@ async fn test_revoke_provider_token_idempotent_on_already_revoked() {
 
     // First revoke - should succeed
     let response1 = client
-        .delete(&format!("{}/internal/github/revoke", base_url))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .delete(format!("{base_url}/internal/github/revoke"))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send first request");
@@ -439,8 +438,8 @@ async fn test_revoke_provider_token_idempotent_on_already_revoked() {
 
     // Second revoke - should return 404 (no token to revoke)
     let response2 = client
-        .delete(&format!("{}/internal/github/revoke", base_url))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .delete(format!("{base_url}/internal/github/revoke"))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send second request");
@@ -503,8 +502,8 @@ async fn test_revoke_provider_token_different_users_different_tokens() {
     )
     .expect("Failed to create JWT token for user1");
     let response1 = client
-        .delete(&format!("{}/internal/github/revoke", base_url))
-        .header("Authorization", format!("Bearer {}", jwt_token1))
+        .delete(format!("{base_url}/internal/github/revoke"))
+        .header("Authorization", format!("Bearer {jwt_token1}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -536,8 +535,8 @@ async fn test_revoke_provider_token_different_users_different_tokens() {
     )
     .expect("Failed to create JWT token for user2");
     let response2 = client
-        .delete(&format!("{}/internal/github/revoke", base_url))
-        .header("Authorization", format!("Bearer {}", jwt_token2))
+        .delete(format!("{base_url}/internal/github/revoke"))
+        .header("Authorization", format!("Bearer {jwt_token2}"))
         .send()
         .await
         .expect("Failed to send request");

@@ -7,7 +7,6 @@ mod fixtures;
 use base64::{engine::general_purpose, Engine as _};
 use common::setup_test_server;
 use fixtures::{DbFixtures, GitHubFixtures};
-use iam_configuration::{load_config_part, JwtConfig};
 use serde_json::{json, Value};
 use serial_test::serial;
 
@@ -47,7 +46,7 @@ async fn test_registration_token_has_correct_structure() {
     });
 
     let response = client
-        .post(&format!("{}/api/auth/signup", base_url))
+        .post(format!("{base_url}/api/auth/signup"))
         .header("Content-Type", "application/json")
         .json(&signup_data)
         .send()
@@ -86,7 +85,7 @@ async fn test_expired_token_returns_400() {
     });
 
     let response = client
-        .post(&format!("{}/api/auth/complete-registration", base_url))
+        .post(format!("{base_url}/api/auth/complete-registration"))
         .header("Content-Type", "application/json")
         .json(&completion_data)
         .send()
@@ -108,7 +107,7 @@ async fn test_jwks_endpoint_accessible() {
         .expect("Failed to setup test server");
 
     let response = client
-        .get(&format!("{}/.well-known/jwks.json", base_url))
+        .get(format!("{base_url}/.well-known/jwks.json"))
         .send()
         .await
         .expect("Failed to get JWKS");
@@ -137,7 +136,7 @@ async fn test_same_email_retry_returns_new_token() {
 
     // First signup
     let first_response = client
-        .post(&format!("{}/api/auth/signup", base_url))
+        .post(format!("{base_url}/api/auth/signup"))
         .header("Content-Type", "application/json")
         .json(&signup_data)
         .send()
@@ -150,7 +149,7 @@ async fn test_same_email_retry_returns_new_token() {
 
     // Second signup with same email
     let second_response = client
-        .post(&format!("{}/api/auth/signup", base_url))
+        .post(format!("{base_url}/api/auth/signup"))
         .header("Content-Type", "application/json")
         .json(&signup_data)
         .send()
@@ -182,7 +181,7 @@ async fn test_user_id_consistent_across_retries() {
 
     // First signup
     let first_response = client
-        .post(&format!("{}/api/auth/signup", base_url))
+        .post(format!("{base_url}/api/auth/signup"))
         .header("Content-Type", "application/json")
         .json(&signup_data)
         .send()
@@ -195,7 +194,7 @@ async fn test_user_id_consistent_across_retries() {
 
     // Second signup (retry)
     let second_response = client
-        .post(&format!("{}/api/auth/signup", base_url))
+        .post(format!("{base_url}/api/auth/signup"))
         .header("Content-Type", "application/json")
         .json(&signup_data)
         .send()
@@ -225,7 +224,7 @@ async fn test_username_availability_check() {
 
     // Check available username
     let response = client
-        .get(&format!("{}/api/auth/username/check", base_url))
+        .get(format!("{base_url}/api/auth/username/check"))
         .query(&[("username", "availableuser")])
         .send()
         .await
@@ -234,7 +233,7 @@ async fn test_username_availability_check() {
     assert_eq!(response.status(), 200);
 
     let response_body: Value = response.json().await.expect("Should return JSON");
-    assert_eq!(response_body["available"].as_bool().unwrap(), true);
+    assert!(response_body["available"].as_bool().unwrap());
 }
 
 #[tokio::test]
@@ -254,7 +253,7 @@ async fn test_taken_username_with_suggestions() {
 
     // Check taken username
     let response = client
-        .get(&format!("{}/api/auth/username/check", base_url))
+        .get(format!("{base_url}/api/auth/username/check"))
         .query(&[("username", "johndoe")])
         .send()
         .await
@@ -263,10 +262,10 @@ async fn test_taken_username_with_suggestions() {
     assert_eq!(response.status(), 200);
 
     let response_body: Value = response.json().await.expect("Should return JSON");
-    assert_eq!(response_body["available"].as_bool().unwrap(), false);
+    assert!(!response_body["available"].as_bool().unwrap());
 
     let suggestions = response_body["suggestions"].as_array().unwrap();
-    assert!(suggestions.len() > 0, "Should provide suggestions");
+    assert!(!suggestions.is_empty(), "Should provide suggestions");
 }
 
 #[tokio::test]
@@ -278,7 +277,7 @@ async fn test_username_format_validation() {
 
     // Test too short username
     let response = client
-        .get(&format!("{}/api/auth/username/check", base_url))
+        .get(format!("{base_url}/api/auth/username/check"))
         .query(&[("username", "ab")])
         .send()
         .await
@@ -291,7 +290,7 @@ async fn test_username_format_validation() {
 
     // Test valid username
     let response = client
-        .get(&format!("{}/api/auth/username/check", base_url))
+        .get(format!("{base_url}/api/auth/username/check"))
         .query(&[("username", "validuser123")])
         .send()
         .await
@@ -327,7 +326,7 @@ async fn test_email_validation_and_sanitization() {
         });
 
         let response = client
-            .post(&format!("{}/api/auth/signup", base_url))
+            .post(format!("{base_url}/api/auth/signup"))
             .header("Content-Type", "application/json")
             .json(&signup_data)
             .send()
@@ -337,14 +336,12 @@ async fn test_email_validation_and_sanitization() {
         if should_succeed {
             assert!(
                 response.status() == 202 || response.status() == 409,
-                "Valid email '{}' should succeed",
-                email
+                "Valid email '{email}' should succeed"
             );
         } else {
             assert!(
                 response.status() == 400 || response.status() == 422,
-                "Invalid email '{}' should fail",
-                email
+                "Invalid email '{email}' should fail"
             );
         }
     }
@@ -364,7 +361,7 @@ async fn test_username_injection_prevention() {
     });
 
     let signup_response = client
-        .post(&format!("{}/api/auth/signup", base_url))
+        .post(format!("{base_url}/api/auth/signup"))
         .header("Content-Type", "application/json")
         .json(&signup_data)
         .send()
@@ -391,7 +388,7 @@ async fn test_username_injection_prevention() {
         });
 
         let response = client
-            .post(&format!("{}/api/auth/complete-registration", base_url))
+            .post(format!("{base_url}/api/auth/complete-registration"))
             .header("Content-Type", "application/json")
             .json(&completion_data)
             .send()
@@ -400,8 +397,7 @@ async fn test_username_injection_prevention() {
 
         assert!(
             response.status() == 400 || response.status() == 422,
-            "Should reject malicious username: '{}'",
-            malicious_username
+            "Should reject malicious username: '{malicious_username}'"
         );
     }
 }
@@ -420,7 +416,7 @@ async fn test_no_user_enumeration_in_errors() {
     });
 
     let response = client
-        .post(&format!("{}/api/auth/login", base_url))
+        .post(format!("{base_url}/api/auth/login"))
         .header("Content-Type", "application/json")
         .json(&login_data)
         .send()
@@ -458,7 +454,7 @@ async fn test_oauth_first_flow_with_github() {
 
     // Step 1: Start OAuth flow
     let start_response = client
-        .get(&format!("{}/api/auth/github/login", base_url))
+        .get(format!("{base_url}/api/auth/github/login"))
         .send()
         .await
         .expect("Failed to start OAuth");

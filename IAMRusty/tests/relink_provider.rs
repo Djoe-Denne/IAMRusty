@@ -10,10 +10,7 @@ use uuid::Uuid;
 use common::setup_test_server;
 use fixtures::{DbFixtures, GitHubFixtures, GitLabFixtures};
 use iam_configuration::{load_config_part, JwtConfig};
-use utils::jwt::{
-    create_expired_jwt_token_with_encoder, create_invalid_jwt_token_with_encoder,
-    create_valid_jwt_token_with_encoder,
-};
+use utils::jwt::{create_expired_jwt_token_with_encoder, create_valid_jwt_token_with_encoder};
 
 // 🔗 Relink Provider Endpoint Tests
 // 📍 GET /api/auth/{provider}/relink-start
@@ -29,7 +26,7 @@ async fn test_generate_relink_provider_start_url_github_success() {
 
     // Make request to generate GitHub relink start URL
     let response = client
-        .get(&format!("{}/api/auth/github/relink-start", base_url))
+        .get(format!("{base_url}/api/auth/github/relink-start"))
         .send()
         .await
         .expect("Failed to send request");
@@ -53,7 +50,7 @@ async fn test_generate_relink_provider_start_url_github_success() {
         .as_str()
         .expect("auth_url should be a string");
 
-    println!("auth_url: {}", auth_url);
+    println!("auth_url: {auth_url}");
     // ✅ Should be a valid GitHub OAuth URL
     assert!(
         auth_url.starts_with("http://localhost:3000/login/oauth/authorize"),
@@ -84,7 +81,7 @@ async fn test_generate_relink_provider_start_url_gitlab_success() {
 
     // Make request to generate GitLab relink start URL
     let response = client
-        .get(&format!("{}/api/auth/gitlab/relink-start", base_url))
+        .get(format!("{base_url}/api/auth/gitlab/relink-start"))
         .send()
         .await
         .expect("Failed to send request");
@@ -126,7 +123,7 @@ async fn test_generate_relink_provider_start_url_unsupported_provider() {
 
     for provider in unsupported_providers {
         let response = client
-            .get(&format!("{}/api/auth/{}/relink-start", base_url, provider))
+            .get(format!("{base_url}/api/auth/{provider}/relink-start"))
             .send()
             .await
             .expect("Failed to send request");
@@ -135,8 +132,7 @@ async fn test_generate_relink_provider_start_url_unsupported_provider() {
         assert_eq!(
             response.status(),
             422,
-            "Should return 422 for unsupported provider: '{}'",
-            provider
+            "Should return 422 for unsupported provider: '{provider}'"
         );
     }
 }
@@ -157,13 +153,13 @@ async fn test_relink_provider_callback_github_success() {
         .await
         .expect("Failed to create user");
 
-    let primary_email = DbFixtures::user_email()
+    let _primary_email = DbFixtures::user_email()
         .arthur_primary(user.id())
         .commit(db.clone())
         .await
         .expect("Failed to create primary email");
 
-    let existing_token = DbFixtures::provider_token()
+    let _existing_token = DbFixtures::provider_token()
         .arthur_github(user.id())
         .access_token("old_github_token_123")
         .commit(db.clone())
@@ -184,8 +180,8 @@ async fn test_relink_provider_callback_github_success() {
 
     // Make callback request to relink GitHub provider
     let response = client
-        .get(&format!("{}/api/auth/github/relink-callback", base_url))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .get(format!("{base_url}/api/auth/github/relink-callback"))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .query(&[("code", "test_auth_code")])
         .send()
         .await
@@ -242,7 +238,7 @@ async fn test_relink_provider_callback_returns_401_when_no_authorization_header(
 
     // Make request without Authorization header
     let response = client
-        .get(&format!("{}/api/auth/github/relink-callback", base_url))
+        .get(format!("{base_url}/api/auth/github/relink-callback"))
         .query(&[("code", "test_auth_code")])
         .send()
         .await
@@ -274,8 +270,8 @@ async fn test_relink_provider_callback_returns_401_when_token_is_expired() {
 
     // Make request with expired token
     let response = client
-        .get(&format!("{}/api/auth/github/relink-callback", base_url))
-        .header("Authorization", format!("Bearer {}", expired_token))
+        .get(format!("{base_url}/api/auth/github/relink-callback"))
+        .header("Authorization", format!("Bearer {expired_token}"))
         .query(&[("code", "test_auth_code")])
         .send()
         .await
@@ -310,11 +306,8 @@ async fn test_relink_provider_callback_returns_422_when_provider_is_unsupported(
 
     for provider in unsupported_providers {
         let response = client
-            .get(&format!(
-                "{}/api/auth/{}/relink-callback",
-                base_url, provider
-            ))
-            .header("Authorization", format!("Bearer {}", jwt_token))
+            .get(format!("{base_url}/api/auth/{provider}/relink-callback"))
+            .header("Authorization", format!("Bearer {jwt_token}"))
             .query(&[("code", "test_auth_code")])
             .send()
             .await
@@ -324,8 +317,7 @@ async fn test_relink_provider_callback_returns_422_when_provider_is_unsupported(
         assert_eq!(
             response.status(),
             422,
-            "Should return 422 for unsupported provider: '{}'",
-            provider
+            "Should return 422 for unsupported provider: '{provider}'"
         );
     }
 }
@@ -348,8 +340,8 @@ async fn test_relink_provider_callback_returns_422_when_missing_code_parameter()
 
     // Make request without code parameter
     let response = client
-        .get(&format!("{}/api/auth/github/relink-callback", base_url))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .get(format!("{base_url}/api/auth/github/relink-callback"))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -378,7 +370,7 @@ async fn test_relink_provider_callback_returns_422_when_provider_not_currently_l
         .await
         .expect("Failed to create user");
 
-    let primary_email = DbFixtures::user_email()
+    let _primary_email = DbFixtures::user_email()
         .arthur_primary(user.id())
         .commit(db.clone())
         .await
@@ -398,8 +390,8 @@ async fn test_relink_provider_callback_returns_422_when_provider_not_currently_l
 
     // Make callback request to relink GitHub provider (should fail - no existing link)
     let response = client
-        .get(&format!("{}/api/auth/github/relink-callback", base_url))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .get(format!("{base_url}/api/auth/github/relink-callback"))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .query(&[("code", "test_auth_code")])
         .send()
         .await
@@ -448,13 +440,13 @@ async fn test_relink_provider_callback_gitlab_success() {
         .await
         .expect("Failed to create user");
 
-    let primary_email = DbFixtures::user_email()
+    let _primary_email = DbFixtures::user_email()
         .bob_primary(user.id())
         .commit(db.clone())
         .await
         .expect("Failed to create primary email");
 
-    let existing_token = DbFixtures::provider_token()
+    let _existing_token = DbFixtures::provider_token()
         .gitlab(user.id())
         .access_token("old_gitlab_token_456")
         .commit(db.clone())
@@ -475,8 +467,8 @@ async fn test_relink_provider_callback_gitlab_success() {
 
     // Make callback request to relink GitLab provider
     let response = client
-        .get(&format!("{}/api/auth/gitlab/relink-callback", base_url))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .get(format!("{base_url}/api/auth/gitlab/relink-callback"))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .query(&[("code", "test_auth_code")])
         .send()
         .await
@@ -517,13 +509,13 @@ async fn test_relink_provider_callback_user_with_multiple_providers() {
         .await
         .expect("Failed to create user");
 
-    let primary_email = DbFixtures::user_email()
+    let _primary_email = DbFixtures::user_email()
         .arthur_primary(user.id())
         .commit(db.clone())
         .await
         .expect("Failed to create primary email");
 
-    let github_token = DbFixtures::provider_token()
+    let _github_token = DbFixtures::provider_token()
         .arthur_github(user.id())
         .access_token("old_github_token_123")
         .commit(db.clone())
@@ -551,8 +543,8 @@ async fn test_relink_provider_callback_user_with_multiple_providers() {
 
     // Make callback request to relink only GitHub provider
     let response = client
-        .get(&format!("{}/api/auth/github/relink-callback", base_url))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .get(format!("{base_url}/api/auth/github/relink-callback"))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .query(&[("code", "test_auth_code")])
         .send()
         .await

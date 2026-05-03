@@ -79,7 +79,14 @@ pub async fn setup_test_server() -> Result<(TestFixture, String, Client), Box<dy
     Ok((fixture, prefixed_url(server_url), client))
 }
 
+impl Default for IAMRustyTestDescriptorWithMockEvents {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl IAMRustyTestDescriptorWithMockEvents {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             mock_event_publisher: Arc::new(MockEventPublisher::new()),

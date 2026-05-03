@@ -11,7 +11,6 @@ use iam_configuration::{load_config_part, JwtConfig};
 use sea_orm::ConnectionTrait;
 use serde_json::{json, Value};
 use serial_test::serial;
-use uuid;
 
 // =============================================================================
 // ✅ COMPLETE REGISTRATION ENDPOINT TESTS
@@ -31,7 +30,7 @@ async fn test_complete_registration_success() {
     });
 
     let signup_response = client
-        .post(&format!("{}/api/auth/signup", base_url))
+        .post(format!("{base_url}/api/auth/signup"))
         .header("Content-Type", "application/json")
         .json(&signup_data)
         .send()
@@ -53,7 +52,7 @@ async fn test_complete_registration_success() {
     });
 
     let completion_response = client
-        .post(&format!("{}/api/auth/complete-registration", base_url))
+        .post(format!("{base_url}/api/auth/complete-registration"))
         .header("Content-Type", "application/json")
         .json(&completion_data)
         .send()
@@ -122,7 +121,7 @@ async fn test_complete_registration_invalid_token_signature() {
     });
 
     let completion_response = client
-        .post(&format!("{}/api/auth/complete-registration", base_url))
+        .post(format!("{base_url}/api/auth/complete-registration"))
         .header("Content-Type", "application/json")
         .json(&completion_data)
         .send()
@@ -172,7 +171,7 @@ async fn test_complete_registration_expired_token() {
     });
 
     let completion_response = client
-        .post(&format!("{}/api/auth/complete-registration", base_url))
+        .post(format!("{base_url}/api/auth/complete-registration"))
         .header("Content-Type", "application/json")
         .json(&completion_data)
         .send()
@@ -222,7 +221,7 @@ async fn test_complete_registration_username_already_taken() {
     });
 
     let signup_response = client
-        .post(&format!("{}/api/auth/signup", base_url))
+        .post(format!("{base_url}/api/auth/signup"))
         .header("Content-Type", "application/json")
         .json(&signup_data)
         .send()
@@ -244,7 +243,7 @@ async fn test_complete_registration_username_already_taken() {
     });
 
     let completion_response = client
-        .post(&format!("{}/api/auth/complete-registration", base_url))
+        .post(format!("{base_url}/api/auth/complete-registration"))
         .header("Content-Type", "application/json")
         .json(&completion_data)
         .send()
@@ -273,7 +272,7 @@ async fn test_complete_registration_invalid_username_format() {
     });
 
     let signup_response = client
-        .post(&format!("{}/api/auth/signup", base_url))
+        .post(format!("{base_url}/api/auth/signup"))
         .header("Content-Type", "application/json")
         .json(&signup_data)
         .send()
@@ -308,7 +307,7 @@ async fn test_complete_registration_invalid_username_format() {
         });
 
         let completion_response = client
-            .post(&format!("{}/api/auth/complete-registration", base_url))
+            .post(format!("{base_url}/api/auth/complete-registration"))
             .header("Content-Type", "application/json")
             .json(&completion_data)
             .send()
@@ -319,8 +318,7 @@ async fn test_complete_registration_invalid_username_format() {
         assert_eq!(
             completion_response.status(),
             422,
-            "Should return 422 for invalid username format: '{}'",
-            invalid_username
+            "Should return 422 for invalid username format: '{invalid_username}'"
         );
     }
 }
@@ -352,7 +350,7 @@ async fn test_complete_registration_valid_username_formats() {
         });
 
         let signup_response = client
-            .post(&format!("{}/api/auth/signup", base_url))
+            .post(format!("{base_url}/api/auth/signup"))
             .header("Content-Type", "application/json")
             .json(&signup_data)
             .send()
@@ -374,7 +372,7 @@ async fn test_complete_registration_valid_username_formats() {
         });
 
         let completion_response = client
-            .post(&format!("{}/api/auth/complete-registration", base_url))
+            .post(format!("{base_url}/api/auth/complete-registration"))
             .header("Content-Type", "application/json")
             .json(&completion_data)
             .send()
@@ -385,8 +383,7 @@ async fn test_complete_registration_valid_username_formats() {
         assert_eq!(
             completion_response.status(),
             200,
-            "Should accept valid username format: '{}'",
-            valid_username
+            "Should accept valid username format: '{valid_username}'"
         );
 
         let response_body: Value = completion_response
@@ -413,7 +410,7 @@ async fn test_complete_registration_malformed_request() {
     });
 
     let response = client
-        .post(&format!("{}/api/auth/complete-registration", base_url))
+        .post(format!("{base_url}/api/auth/complete-registration"))
         .header("Content-Type", "application/json")
         .json(&missing_token_data)
         .send()
@@ -432,7 +429,7 @@ async fn test_complete_registration_malformed_request() {
     });
 
     let response = client
-        .post(&format!("{}/api/auth/complete-registration", base_url))
+        .post(format!("{base_url}/api/auth/complete-registration"))
         .header("Content-Type", "application/json")
         .json(&missing_username_data)
         .send()
@@ -447,7 +444,7 @@ async fn test_complete_registration_malformed_request() {
 
     // Test empty request body
     let response = client
-        .post(&format!("{}/api/auth/complete-registration", base_url))
+        .post(format!("{base_url}/api/auth/complete-registration"))
         .header("Content-Type", "application/json")
         .json(&json!({}))
         .send()
@@ -462,7 +459,7 @@ async fn test_complete_registration_malformed_request() {
 
     // Test invalid JSON
     let response = client
-        .post(&format!("{}/api/auth/complete-registration", base_url))
+        .post(format!("{base_url}/api/auth/complete-registration"))
         .header("Content-Type", "application/json")
         .body("invalid json")
         .send()
@@ -486,7 +483,7 @@ async fn test_registration_token_single_use() {
     });
 
     let signup_response = client
-        .post(&format!("{}/api/auth/signup", base_url))
+        .post(format!("{base_url}/api/auth/signup"))
         .header("Content-Type", "application/json")
         .json(&signup_data)
         .send()
@@ -508,7 +505,7 @@ async fn test_registration_token_single_use() {
     });
 
     let first_completion = client
-        .post(&format!("{}/api/auth/complete-registration", base_url))
+        .post(format!("{base_url}/api/auth/complete-registration"))
         .header("Content-Type", "application/json")
         .json(&completion_data)
         .send()
@@ -524,7 +521,7 @@ async fn test_registration_token_single_use() {
     });
 
     let second_completion = client
-        .post(&format!("{}/api/auth/complete-registration", base_url))
+        .post(format!("{base_url}/api/auth/complete-registration"))
         .header("Content-Type", "application/json")
         .json(&second_completion_data)
         .send()
@@ -558,7 +555,7 @@ async fn test_complete_registration_updates_user_record() {
     });
 
     let signup_response = client
-        .post(&format!("{}/api/auth/signup", base_url))
+        .post(format!("{base_url}/api/auth/signup"))
         .header("Content-Type", "application/json")
         .json(&signup_data)
         .send()
@@ -581,7 +578,7 @@ async fn test_complete_registration_updates_user_record() {
     });
 
     let completion_response = client
-        .post(&format!("{}/api/auth/complete-registration", base_url))
+        .post(format!("{base_url}/api/auth/complete-registration"))
         .header("Content-Type", "application/json")
         .json(&completion_data)
         .send()
@@ -595,7 +592,7 @@ async fn test_complete_registration_updates_user_record() {
     let user_record = db
         .query_one(sea_orm::Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
-            format!("SELECT username FROM users WHERE id = '{}'", user_id),
+            format!("SELECT username FROM users WHERE id = '{user_id}'"),
         ))
         .await
         .expect("Failed to query user")
@@ -625,7 +622,7 @@ async fn test_complete_registration_user_can_login_afterward() {
     });
 
     let signup_response = client
-        .post(&format!("{}/api/auth/signup", base_url))
+        .post(format!("{base_url}/api/auth/signup"))
         .header("Content-Type", "application/json")
         .json(&signup_data)
         .send()
@@ -647,7 +644,7 @@ async fn test_complete_registration_user_can_login_afterward() {
     });
 
     let completion_response = client
-        .post(&format!("{}/api/auth/complete-registration", base_url))
+        .post(format!("{base_url}/api/auth/complete-registration"))
         .header("Content-Type", "application/json")
         .json(&completion_data)
         .send()
@@ -671,7 +668,7 @@ async fn test_complete_registration_user_can_login_afterward() {
         .expect("Failed to get verification token");
 
     let verify_response = client
-        .get(&format!("{}/api/auth/verify", base_url))
+        .get(format!("{base_url}/api/auth/verify"))
         .query(&[
             ("email", "loginafter@example.com"),
             ("token", &verification_token),
@@ -693,7 +690,7 @@ async fn test_complete_registration_user_can_login_afterward() {
     });
 
     let login_response = client
-        .post(&format!("{}/api/auth/login", base_url))
+        .post(format!("{base_url}/api/auth/login"))
         .header("Content-Type", "application/json")
         .json(&login_data)
         .send()

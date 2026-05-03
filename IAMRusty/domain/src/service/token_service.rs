@@ -174,7 +174,7 @@ mod tests {
                 .withf(move |claims: &TokenClaims| {
                     claims.sub == user_id_clone
                         && claims.username == username_clone
-                        && claims.exp > Utc::now().timestamp() as i64 // Token should expire in the future
+                        && claims.exp > Utc::now().timestamp() // Token should expire in the future
                 })
                 .returning(|_| Ok("token".to_string()));
 

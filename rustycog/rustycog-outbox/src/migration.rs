@@ -162,8 +162,6 @@ impl Iden for OutboxEvents {
             Self::UpdatedAt => "updated_at",
         };
 
-        if s.write_str(ident).is_err() {
-            return;
-        }
+        if s.write_str(ident).is_err() {}
     }
 }

@@ -4,14 +4,11 @@ mod common;
 #[path = "fixtures/mod.rs"]
 mod fixtures;
 
-use chrono;
 use common::setup_test_server;
 use fixtures::DbFixtures;
-use reqwest::Client;
 use sea_orm::ConnectionTrait;
 use serde_json::{json, Value};
 use serial_test::serial;
-use uuid::Uuid;
 
 // 🔄 Resend Verification Email Tests
 // 📝 POST /api/auth/resend-verification
@@ -48,7 +45,7 @@ async fn test_resend_verification_success() {
 
     // Make resend verification request
     let response = client
-        .post(&format!("{}/api/auth/resend-verification", base_url))
+        .post(format!("{base_url}/api/auth/resend-verification"))
         .header("Content-Type", "application/json")
         .json(&resend_data)
         .send()
@@ -148,7 +145,7 @@ async fn test_resend_verification_email_already_verified() {
 
     // Make resend verification request
     let response = client
-        .post(&format!("{}/api/auth/resend-verification", base_url))
+        .post(format!("{base_url}/api/auth/resend-verification"))
         .header("Content-Type", "application/json")
         .json(&resend_data)
         .send()
@@ -212,7 +209,7 @@ async fn test_resend_verification_email_not_found() {
     });
 
     let response = client
-        .post(&format!("{}/api/auth/resend-verification", base_url))
+        .post(format!("{base_url}/api/auth/resend-verification"))
         .header("Content-Type", "application/json")
         .json(&resend_data)
         .send()
@@ -264,7 +261,7 @@ async fn test_resend_verification_invalid_email_format() {
         });
 
         let response = client
-            .post(&format!("{}/api/auth/resend-verification", base_url))
+            .post(format!("{base_url}/api/auth/resend-verification"))
             .header("Content-Type", "application/json")
             .json(&resend_data)
             .send()
@@ -275,8 +272,7 @@ async fn test_resend_verification_invalid_email_format() {
         assert_eq!(
             response.status(),
             422,
-            "Should return 422 for invalid email format at framework level: {}",
-            invalid_email
+            "Should return 422 for invalid email format at framework level: {invalid_email}"
         );
 
         let response_body: Value = response
@@ -287,8 +283,7 @@ async fn test_resend_verification_invalid_email_format() {
         // Framework validation errors are acceptable for invalid email formats
         assert!(
             response_body.get("error").is_some(),
-            "Should contain validation error for: {}",
-            invalid_email
+            "Should contain validation error for: {invalid_email}"
         );
     }
 }
@@ -305,7 +300,7 @@ async fn test_resend_verification_missing_email_field() {
     let resend_data = json!({});
 
     let response = client
-        .post(&format!("{}/api/auth/resend-verification", base_url))
+        .post(format!("{base_url}/api/auth/resend-verification"))
         .header("Content-Type", "application/json")
         .json(&resend_data)
         .send()
@@ -343,7 +338,7 @@ async fn test_resend_verification_malformed_json() {
     let malformed_json = r#"{"email": "test@example.com""#; // Missing closing brace
 
     let response = client
-        .post(&format!("{}/api/auth/resend-verification", base_url))
+        .post(format!("{base_url}/api/auth/resend-verification"))
         .header("Content-Type", "application/json")
         .body(malformed_json)
         .send()
@@ -379,7 +374,7 @@ async fn test_resend_verification_wrong_content_type() {
 
     // Test wrong content type
     let response = client
-        .post(&format!("{}/api/auth/resend-verification", base_url))
+        .post(format!("{base_url}/api/auth/resend-verification"))
         .header("Content-Type", "text/plain")
         .body(r#"{"email": "test@example.com"}"#)
         .send()
@@ -436,7 +431,7 @@ async fn test_resend_verification_multiple_times_same_email() {
 
     // ✅ First resend should succeed
     let response1 = client
-        .post(&format!("{}/api/auth/resend-verification", base_url))
+        .post(format!("{base_url}/api/auth/resend-verification"))
         .header("Content-Type", "application/json")
         .json(&resend_data)
         .send()
@@ -447,7 +442,7 @@ async fn test_resend_verification_multiple_times_same_email() {
 
     // ✅ Second resend should also succeed (no rate limiting in this test)
     let response2 = client
-        .post(&format!("{}/api/auth/resend-verification", base_url))
+        .post(format!("{base_url}/api/auth/resend-verification"))
         .header("Content-Type", "application/json")
         .json(&resend_data)
         .send()
@@ -497,7 +492,7 @@ async fn test_resend_verification_case_insensitive_email() {
         .await
         .expect("Failed to create user");
 
-    let user_email = DbFixtures::user_email()
+    let _user_email = DbFixtures::user_email()
         .user_id(user.id())
         .email("casetest@example.com") // Lowercase email
         .is_primary(true)
@@ -520,7 +515,7 @@ async fn test_resend_verification_case_insensitive_email() {
         });
 
         let response = client
-            .post(&format!("{}/api/auth/resend-verification", base_url))
+            .post(format!("{base_url}/api/auth/resend-verification"))
             .header("Content-Type", "application/json")
             .json(&resend_data)
             .send()
@@ -531,16 +526,14 @@ async fn test_resend_verification_case_insensitive_email() {
         assert_eq!(
             response.status(),
             200,
-            "Should always return 200 to prevent information leakage for email: {}",
-            email_variant
+            "Should always return 200 to prevent information leakage for email: {email_variant}"
         );
 
         let response_body: Value = response.json().await.expect("Should return JSON response");
 
         assert!(
             response_body.get("message").is_some(),
-            "Should contain message for: {}",
-            email_variant
+            "Should contain message for: {email_variant}"
         );
         let message = response_body["message"].as_str().unwrap();
         assert!(
@@ -598,7 +591,7 @@ async fn test_resend_verification_database_consistency() {
     });
 
     let response = client
-        .post(&format!("{}/api/auth/resend-verification", base_url))
+        .post(format!("{base_url}/api/auth/resend-verification"))
         .header("Content-Type", "application/json")
         .json(&resend_data)
         .send()
@@ -627,9 +620,7 @@ async fn test_resend_verification_database_consistency() {
     // ✅ Should have at least one verification token after resend
     assert!(
         final_count_val > initial_count_val,
-        "Should have more verification tokens after resend: initial={}, final={}",
-        initial_count_val,
-        final_count_val
+        "Should have more verification tokens after resend: initial={initial_count_val}, final={final_count_val}"
     );
 
     // ✅ Verify user email record is unchanged (still unverified)
@@ -732,7 +723,7 @@ async fn test_resend_verification_invalidates_old_tokens() {
     });
 
     let response = client
-        .post(&format!("{}/api/auth/resend-verification", base_url))
+        .post(format!("{base_url}/api/auth/resend-verification"))
         .header("Content-Type", "application/json")
         .json(&resend_data)
         .send()

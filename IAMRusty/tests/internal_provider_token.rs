@@ -14,7 +14,6 @@ use fixtures::db::DbFixtures;
 use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
 use reqwest::Client;
 use serial_test::serial;
-use tokio;
 use utils::jwt::{
     create_expired_jwt_token_with_encoder, create_invalid_jwt_token_with_encoder,
     create_valid_jwt_token_with_encoder,
@@ -37,7 +36,7 @@ struct TestClaims {
     jti: String, // JWT ID (unique identifier for the token)
 }
 
-/// Create a valid JWT token for testing (deprecated - use create_valid_jwt_token_with_encoder)
+/// Create a valid JWT token for testing (deprecated - use `create_valid_jwt_token_with_encoder`)
 #[deprecated(note = "Use create_valid_jwt_token_with_encoder from jwt_test_utils instead")]
 fn create_valid_jwt_token(user_id: Uuid, secret: &str) -> String {
     let now = Utc::now();
@@ -56,7 +55,7 @@ fn create_valid_jwt_token(user_id: Uuid, secret: &str) -> String {
     encode(&header, &claims, &encoding_key).expect("Failed to encode JWT token")
 }
 
-/// Create an expired JWT token for testing (deprecated - use create_expired_jwt_token_with_encoder)
+/// Create an expired JWT token for testing (deprecated - use `create_expired_jwt_token_with_encoder`)
 #[deprecated(note = "Use create_expired_jwt_token_with_encoder from jwt_test_utils instead")]
 fn create_expired_jwt_token(user_id: Uuid, secret: &str) -> String {
     let now = Utc::now();
@@ -75,7 +74,7 @@ fn create_expired_jwt_token(user_id: Uuid, secret: &str) -> String {
     encode(&header, &claims, &encoding_key).expect("Failed to encode JWT token")
 }
 
-/// Create a JWT token with invalid signature for testing (deprecated - use create_invalid_signature_jwt_token_with_encoder)
+/// Create a JWT token with invalid signature for testing (deprecated - use `create_invalid_signature_jwt_token_with_encoder`)
 #[deprecated(
     note = "Use create_invalid_signature_jwt_token_with_encoder from jwt_test_utils instead"
 )]
@@ -132,8 +131,8 @@ async fn test_internal_provider_token_github_success_returns_access_token() {
 
     // Make request to internal provider token endpoint
     let response = client
-        .post(&format!("{}/internal/github/token", base_url))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .post(format!("{base_url}/internal/github/token"))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -195,8 +194,8 @@ async fn test_internal_provider_token_gitlab_success_returns_access_token() {
 
     // Make request to internal provider token endpoint
     let response = client
-        .post(&format!("{}/internal/gitlab/token", base_url))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .post(format!("{base_url}/internal/gitlab/token"))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -231,7 +230,7 @@ async fn test_internal_provider_token_returns_401_when_no_authorization_header()
 
     // Make request without Authorization header
     let response = client
-        .post(&format!("{}/internal/github/token", base_url))
+        .post(format!("{base_url}/internal/github/token"))
         .send()
         .await
         .expect("Failed to send request");
@@ -251,7 +250,7 @@ async fn test_internal_provider_token_returns_401_when_token_is_expired() {
     let (_fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let _db = _fixture.db();
 
     // Create expired JWT token using the new encoder-based method
     let user_id = Uuid::new_v4();
@@ -263,8 +262,8 @@ async fn test_internal_provider_token_returns_401_when_token_is_expired() {
 
     // Make request with expired token
     let response = client
-        .post(&format!("{}/internal/github/token", base_url))
-        .header("Authorization", format!("Bearer {}", expired_token))
+        .post(format!("{base_url}/internal/github/token"))
+        .header("Authorization", format!("Bearer {expired_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -284,7 +283,7 @@ async fn test_internal_provider_token_returns_401_when_token_has_invalid_signatu
     let (_fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let _db = _fixture.db();
 
     // Create JWT token with invalid signature using the new encoder-based method
     let user_id = Uuid::new_v4();
@@ -296,8 +295,8 @@ async fn test_internal_provider_token_returns_401_when_token_has_invalid_signatu
 
     // Make request with invalid signature token
     let response = client
-        .post(&format!("{}/internal/github/token", base_url))
-        .header("Authorization", format!("Bearer {}", invalid_token))
+        .post(format!("{base_url}/internal/github/token"))
+        .header("Authorization", format!("Bearer {invalid_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -317,7 +316,7 @@ async fn test_internal_provider_token_returns_422_when_provider_is_unsupported()
     let (_fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let _db = _fixture.db();
 
     // Create valid JWT token using the new encoder-based method
     let user_id = Uuid::new_v4();
@@ -332,8 +331,8 @@ async fn test_internal_provider_token_returns_422_when_provider_is_unsupported()
 
     for provider in unsupported_providers {
         let response = client
-            .post(&format!("{}/internal/{}/token", base_url, provider))
-            .header("Authorization", format!("Bearer {}", jwt_token))
+            .post(format!("{base_url}/internal/{provider}/token"))
+            .header("Authorization", format!("Bearer {jwt_token}"))
             .send()
             .await
             .expect("Failed to send request");
@@ -342,8 +341,7 @@ async fn test_internal_provider_token_returns_422_when_provider_is_unsupported()
         assert_eq!(
             response.status(),
             422,
-            "Should return 422 for unsupported provider: '{}'",
-            provider
+            "Should return 422 for unsupported provider: '{provider}'"
         );
     }
 }
@@ -373,8 +371,8 @@ async fn test_internal_provider_token_returns_404_when_no_token_for_provider() {
 
     // Make request for GitHub token when user has no GitHub token
     let response = client
-        .post(&format!("{}/internal/github/token", base_url))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .post(format!("{base_url}/internal/github/token"))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -408,7 +406,7 @@ async fn test_internal_provider_token_returns_401_when_user_not_found() {
     let (_fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let _db = _fixture.db();
 
     // Create valid JWT token for a user that doesn't exist in database using the new encoder-based method
     let non_existent_user_id = Uuid::new_v4();
@@ -420,8 +418,8 @@ async fn test_internal_provider_token_returns_401_when_user_not_found() {
 
     // Make request with token for non-existent user
     let response = client
-        .post(&format!("{}/internal/github/token", base_url))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .post(format!("{base_url}/internal/github/token"))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -441,7 +439,7 @@ async fn test_internal_provider_token_returns_401_when_malformed_token() {
     let (_fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let _db = _fixture.db();
 
     let malformed_tokens = vec![
         "invalid.jwt.token",
@@ -453,8 +451,8 @@ async fn test_internal_provider_token_returns_401_when_malformed_token() {
 
     for malformed_token in malformed_tokens {
         let response = client
-            .post(&format!("{}/internal/github/token", base_url))
-            .header("Authorization", format!("Bearer {}", malformed_token))
+            .post(format!("{base_url}/internal/github/token"))
+            .header("Authorization", format!("Bearer {malformed_token}"))
             .send()
             .await
             .expect("Failed to send request");
@@ -463,8 +461,7 @@ async fn test_internal_provider_token_returns_401_when_malformed_token() {
         assert_eq!(
             response.status(),
             401,
-            "Should return 401 for malformed token: '{}'",
-            malformed_token
+            "Should return 401 for malformed token: '{malformed_token}'"
         );
     }
 }
@@ -503,8 +500,8 @@ async fn test_internal_provider_token_case_insensitive_providers() {
 
     for provider in provider_variations {
         let response = client
-            .post(&format!("{}/internal/{}/token", base_url, provider))
-            .header("Authorization", format!("Bearer {}", jwt_token))
+            .post(format!("{base_url}/internal/{provider}/token"))
+            .header("Authorization", format!("Bearer {jwt_token}"))
             .send()
             .await
             .expect("Failed to send request");
@@ -513,8 +510,7 @@ async fn test_internal_provider_token_case_insensitive_providers() {
         assert_eq!(
             response.status(),
             200,
-            "Should return 200 for provider case variation: '{}'",
-            provider
+            "Should return 200 for provider case variation: '{provider}'"
         );
     }
 }
@@ -562,8 +558,8 @@ async fn test_internal_provider_token_different_users_different_tokens() {
     )
     .expect("Failed to create JWT token for user1");
     let response1 = client
-        .post(&format!("{}/internal/github/token", base_url))
-        .header("Authorization", format!("Bearer {}", jwt_token1))
+        .post(format!("{base_url}/internal/github/token"))
+        .header("Authorization", format!("Bearer {jwt_token1}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -581,8 +577,8 @@ async fn test_internal_provider_token_different_users_different_tokens() {
     )
     .expect("Failed to create JWT token for user2");
     let response2 = client
-        .post(&format!("{}/internal/github/token", base_url))
-        .header("Authorization", format!("Bearer {}", jwt_token2))
+        .post(format!("{base_url}/internal/github/token"))
+        .header("Authorization", format!("Bearer {jwt_token2}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -647,8 +643,8 @@ async fn test_internal_provider_token_user_with_multiple_providers() {
 
     // Test GitHub token retrieval
     let github_response = client
-        .post(&format!("{}/internal/github/token", base_url))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .post(format!("{base_url}/internal/github/token"))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send GitHub request");
@@ -659,8 +655,8 @@ async fn test_internal_provider_token_user_with_multiple_providers() {
 
     // Test GitLab token retrieval
     let gitlab_response = client
-        .post(&format!("{}/internal/gitlab/token", base_url))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .post(format!("{base_url}/internal/gitlab/token"))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send GitLab request");
@@ -711,11 +707,11 @@ async fn test_internal_provider_token_concurrent_requests_same_user() {
 
         let handle = tokio::spawn(async move {
             let response = client_clone
-                .post(&format!("{}/internal/github/token", base_url_clone))
-                .header("Authorization", format!("Bearer {}", jwt_token_clone))
+                .post(format!("{base_url_clone}/internal/github/token"))
+                .header("Authorization", format!("Bearer {jwt_token_clone}"))
                 .send()
                 .await
-                .expect(&format!("Failed to send concurrent request {}", i));
+                .unwrap_or_else(|_| panic!("Failed to send concurrent request {i}"));
 
             (i, response)
         });
@@ -729,18 +725,16 @@ async fn test_internal_provider_token_concurrent_requests_same_user() {
         assert_eq!(
             response.status(),
             200,
-            "Concurrent request {} should return 200",
-            request_id
+            "Concurrent request {request_id} should return 200"
         );
 
-        let response_json: Value = response.json().await.expect(&format!(
-            "Concurrent request {} should return JSON",
-            request_id
-        ));
+        let response_json: Value = response
+            .json()
+            .await
+            .unwrap_or_else(|_| panic!("Concurrent request {request_id} should return JSON"));
         assert_eq!(
             response_json["access_token"], "diana_github_concurrent_token",
-            "Concurrent request {} should return correct token",
-            request_id
+            "Concurrent request {request_id} should return correct token"
         );
     }
 }

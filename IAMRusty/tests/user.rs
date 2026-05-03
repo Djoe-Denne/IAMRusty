@@ -8,11 +8,8 @@ mod utils;
 use chrono::{Duration, Utc};
 use common::*;
 use fixtures::DbFixtures;
-use jsonwebtoken;
-use reqwest::Client;
-use serde_json::{json, Value};
+use serde_json::Value;
 use serial_test::serial;
-use std::sync::Arc;
 use uuid::Uuid;
 
 use iam_configuration::{load_config_part, JwtAlgorithm};
@@ -57,7 +54,7 @@ async fn test_get_user_returns_correct_info_when_token_is_valid() {
         .await
         .expect("Failed to create user");
 
-    let primary_email = DbFixtures::user_email()
+    let _primary_email = DbFixtures::user_email()
         .arthur_primary(user.id())
         .commit(db.clone())
         .await
@@ -72,8 +69,8 @@ async fn test_get_user_returns_correct_info_when_token_is_valid() {
 
     // Make request to /me endpoint
     let response = client
-        .get(&format!("{}/api/me", base_url))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .get(format!("{base_url}/api/me"))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -125,8 +122,8 @@ async fn test_get_user_returns_401_when_token_is_expired() {
 
     // Make request with expired token
     let response = client
-        .get(&format!("{}/api/me", base_url))
-        .header("Authorization", format!("Bearer {}", expired_token))
+        .get(format!("{base_url}/api/me"))
+        .header("Authorization", format!("Bearer {expired_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -172,8 +169,8 @@ async fn test_get_user_returns_401_when_token_is_malformed() {
 
     for (malformed_token, expected_status) in malformed_tokens {
         let response = client
-            .get(&format!("{}/api/me", base_url))
-            .header("Authorization", format!("Bearer {}", malformed_token))
+            .get(format!("{base_url}/api/me"))
+            .header("Authorization", format!("Bearer {malformed_token}"))
             .send()
             .await
             .expect("Failed to send request");
@@ -182,9 +179,7 @@ async fn test_get_user_returns_401_when_token_is_malformed() {
         assert_eq!(
             response.status(),
             expected_status,
-            "Should return {} for malformed token: '{}'",
-            expected_status,
-            malformed_token
+            "Should return {expected_status} for malformed token: '{malformed_token}'"
         );
 
         if expected_status == 401 {
@@ -195,8 +190,7 @@ async fn test_get_user_returns_401_when_token_is_malformed() {
                 .expect("Should be able to read response text");
             assert!(
                 response_text.is_empty() || response_text.len() <= 50,
-                "Should return minimal response body for malformed token: '{}'",
-                malformed_token
+                "Should return minimal response body for malformed token: '{malformed_token}'"
             );
         } else {
             // Service returns JSON error (this branch shouldn't be used anymore)
@@ -207,8 +201,7 @@ async fn test_get_user_returns_401_when_token_is_malformed() {
 
             assert!(
                 response_json["error"].is_object(),
-                "Should return error object for malformed token: '{}'",
-                malformed_token
+                "Should return error object for malformed token: '{malformed_token}'"
             );
         }
     }
@@ -224,7 +217,7 @@ async fn test_get_user_returns_401_when_no_authorization_header() {
 
     // Make request without Authorization header
     let response = client
-        .get(&format!("{}/api/me", base_url))
+        .get(format!("{base_url}/api/me"))
         .send()
         .await
         .expect("Failed to send request");
@@ -265,7 +258,7 @@ async fn test_get_user_returns_401_when_authorization_header_format_is_invalid()
 
     for invalid_header in invalid_headers {
         let response = client
-            .get(&format!("{}/api/me", base_url))
+            .get(format!("{base_url}/api/me"))
             .header("Authorization", invalid_header)
             .send()
             .await
@@ -275,8 +268,7 @@ async fn test_get_user_returns_401_when_authorization_header_format_is_invalid()
         assert_eq!(
             response.status(),
             401,
-            "Should return 401 for invalid header format: '{}'",
-            invalid_header
+            "Should return 401 for invalid header format: '{invalid_header}'"
         );
 
         // The middleware returns plain StatusCode without JSON body
@@ -286,8 +278,7 @@ async fn test_get_user_returns_401_when_authorization_header_format_is_invalid()
             .expect("Should be able to read response text");
         assert!(
             response_text.is_empty() || response_text.len() <= 50,
-            "Should return minimal response body for invalid header: '{}'",
-            invalid_header
+            "Should return minimal response body for invalid header: '{invalid_header}'"
         );
     }
 }
@@ -309,17 +300,17 @@ async fn test_get_user_returns_401_when_user_not_found_in_database() {
     );
 
     // Make request with token for non-existent user
-    let response = client
-        .get(&format!("{}/api/me", base_url))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+    let _response = client
+        .get(format!("{base_url}/api/me"))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send request");
 
     // Re-make the request to get the JSON response
     let response = client
-        .get(&format!("{}/api/me", base_url))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .get(format!("{base_url}/api/me"))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -382,14 +373,14 @@ async fn test_get_user_returns_correct_primary_email_when_user_has_multiple_emai
     // Create valid JWT token
     let jwt_token = create_valid_jwt_token(
         user.id(),
-        &&load_config_part::<iam_configuration::JwtConfig>("jwt")
+        &load_config_part::<iam_configuration::JwtConfig>("jwt")
             .expect("Failed to load JWT config"),
     );
 
     // Make request to /me endpoint
     let response = client
-        .get(&format!("{}/api/me", base_url))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .get(format!("{base_url}/api/me"))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -429,14 +420,14 @@ async fn test_get_user_handles_user_with_no_primary_email() {
     // Create valid JWT token
     let jwt_token = create_valid_jwt_token(
         user.id(),
-        &&load_config_part::<iam_configuration::JwtConfig>("jwt")
+        &load_config_part::<iam_configuration::JwtConfig>("jwt")
             .expect("Failed to load JWT config"),
     );
 
     // Make request to /me endpoint
     let response = client
-        .get(&format!("{}/api/me", base_url))
-        .header("Authorization", format!("Bearer {}", jwt_token))
+        .get(format!("{base_url}/api/me"))
+        .header("Authorization", format!("Bearer {jwt_token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -465,7 +456,7 @@ async fn test_get_user_handles_user_with_no_primary_email() {
 #[serial]
 async fn test_get_user_concurrent_requests_with_same_token() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, _client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
     let db = _fixture.db();
@@ -486,7 +477,7 @@ async fn test_get_user_concurrent_requests_with_same_token() {
     // Create valid JWT token
     let jwt_token = create_valid_jwt_token(
         user.id(),
-        &&load_config_part::<iam_configuration::JwtConfig>("jwt")
+        &load_config_part::<iam_configuration::JwtConfig>("jwt")
             .expect("Failed to load JWT config"),
     );
 
@@ -500,8 +491,8 @@ async fn test_get_user_concurrent_requests_with_same_token() {
         let handle = tokio::spawn(async move {
             let client2 = create_test_client();
             let response = client2
-                .get(&format!("{}/api/me", base_url))
-                .header("Authorization", format!("Bearer {}", token))
+                .get(format!("{base_url}/api/me"))
+                .header("Authorization", format!("Bearer {token}"))
                 .send()
                 .await
                 .expect("Failed to send request");
@@ -517,13 +508,12 @@ async fn test_get_user_concurrent_requests_with_same_token() {
         let (request_id, status, response_result) = handle.await.expect("Request failed");
 
         // ✅ All requests should succeed
-        assert_eq!(status, 200, "Request {} should return 200 OK", request_id);
+        assert_eq!(status, 200, "Request {request_id} should return 200 OK");
 
         let response_json = response_result.expect("Should return JSON response");
         assert_eq!(
             response_json["username"], "arthur",
-            "Request {} should return correct username",
-            request_id
+            "Request {request_id} should return correct username"
         );
     }
 }
@@ -618,8 +608,8 @@ async fn test_get_user_security_jwt_claims_validation() {
             jsonwebtoken::encode(&header, &claims, &encoding_key).expect("Failed to encode token");
 
         let response = client
-            .get(&format!("{}/api/me", base_url))
-            .header("Authorization", format!("Bearer {}", invalid_token))
+            .get(format!("{base_url}/api/me"))
+            .header("Authorization", format!("Bearer {invalid_token}"))
             .send()
             .await
             .expect("Failed to send request");
@@ -628,8 +618,7 @@ async fn test_get_user_security_jwt_claims_validation() {
         assert_eq!(
             response.status(),
             401,
-            "Should return 401 for {}",
-            description
+            "Should return 401 for {description}"
         );
     }
 }
