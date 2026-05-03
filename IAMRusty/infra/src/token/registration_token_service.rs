@@ -25,7 +25,7 @@ impl RegistrationTokenServiceImpl {
     /// via its dev-dependency on `iam-infra`, which compiles the check
     /// out so the in-tree HS256 `test.toml` boots end-to-end without
     /// requiring committed RSA PEM material.
-    pub fn new(algorithm_config: JwtAlgorithm) -> Result<Self, DomainError> {
+    pub const fn new(algorithm_config: JwtAlgorithm) -> Result<Self, DomainError> {
         #[cfg(not(feature = "test-relaxed-jwt"))]
         if !matches!(algorithm_config, JwtAlgorithm::RS256(_)) {
             return Err(DomainError::AuthorizationError(

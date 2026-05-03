@@ -413,7 +413,7 @@ mod tests {
         ) {
             let mut mock_encoder = MockTokenEnc::new();
             let expected_token = "test_jwt_token".to_string();
-            let expected_token_clone = expected_token.clone();
+            let expected_token_clone = expected_token;
             let expected_claims =
                 TokenClaims::new(&sample_user_id, &sample_username, token_duration);
             let expected_claims_clone = expected_claims.clone();
