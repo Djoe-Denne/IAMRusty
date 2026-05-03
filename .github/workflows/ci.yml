@@ -352,23 +352,41 @@ jobs:
           shared-key: sonar
           cache-on-failure: true
 
-      - name: Run strict Clippy report
+      - name: Run Clippy report (production vs tests)
         run: |
           mkdir -p target/sonar
 
-          cargo clippy --workspace --all-targets --all-features --message-format=json -- \
-            -W clippy::all \
-            -W clippy::pedantic \
-            -W clippy::nursery \
-            -W clippy::cargo \
+          # Shared Clippy groups (stricter than workspace Cargo.toml defaults).
+          common_clippy=(
+            -W clippy::all
+            -W clippy::pedantic
+            -W clippy::nursery
+            -W clippy::cargo
+            -W clippy::todo
+            -W clippy::unimplemented
+            -A clippy::cargo_common_metadata
+            -A clippy::multiple_crate_versions
+          )
+
+          # Production: lib, binaries, examples (not tests/, not #[cfg(test)] in lib).
+          cargo clippy --workspace --locked --all-features --lib --bins --examples --message-format=json -- \
+            "${common_clippy[@]}" \
             -W clippy::unwrap_used \
             -W clippy::expect_used \
             -W clippy::panic \
-            -W clippy::todo \
-            -W clippy::unimplemented \
-            -A clippy::cargo_common_metadata \
-            -A clippy::multiple_crate_versions \
-            > target/sonar/clippy.json
+            > target/sonar/clippy-production.jsonl
+
+          # Tests and benches: same groups, but allow unwrap/expect/panic where typical for tests.
+          cargo clippy --workspace --locked --all-features --tests --benches --message-format=json -- \
+            "${common_clippy[@]}" \
+            -A clippy::unwrap_used \
+            -A clippy::expect_used \
+            -A clippy::panic \
+            > target/sonar/clippy-tests.jsonl
+
+          # One report for Sonar (newline-delimited JSON). Possible duplicate lines for lib if
+          # the tests pass also type-checks the same crate; Sonar usually dedupes by rule + location.
+          cat target/sonar/clippy-production.jsonl target/sonar/clippy-tests.jsonl > target/sonar/clippy.json
 
       - name: SonarCloud scan
         uses: SonarSource/sonarqube-scan-action@v7
