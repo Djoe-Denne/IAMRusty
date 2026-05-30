@@ -92,6 +92,13 @@ jobs:
           shared-key: ${{ matrix.cache_key }}
           cache-on-failure: true
 
+      - name: Install native dependencies
+        if: ${{ matrix.service == 'IAMRusty' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libcurl4-openssl-dev
+
       - name: Build service
         run: cargo build --locked --all-targets ${{ matrix.package_args }}
 
