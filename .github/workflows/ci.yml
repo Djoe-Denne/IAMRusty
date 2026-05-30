@@ -373,6 +373,12 @@ jobs:
           shared-key: sonar
           cache-on-failure: true
 
+      - name: Install native dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libcurl4-openssl-dev
+
       - name: Run Clippy report (production vs tests)
         run: |
           mkdir -p target/sonar
