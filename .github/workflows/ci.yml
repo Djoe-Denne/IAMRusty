@@ -170,6 +170,13 @@ jobs:
           shared-key: ${{ matrix.cache_key }}
           cache-on-failure: true
 
+      - name: Install native dependencies
+        if: ${{ matrix.service == 'IAMRusty' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libcurl4-openssl-dev
+
       - uses: taiki-e/install-action@cargo-llvm-cov
 
       - name: Check Docker
@@ -262,6 +269,13 @@ jobs:
         with:
           shared-key: ${{ matrix.cache_key }}
           cache-on-failure: true
+
+      - name: Install native dependencies
+        if: ${{ matrix.service == 'IAMRusty' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libcurl4-openssl-dev
 
       - uses: taiki-e/install-action@cargo-llvm-cov
 
