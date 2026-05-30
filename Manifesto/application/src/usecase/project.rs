@@ -15,8 +15,8 @@ use manifesto_events::{
     ManifestoDomainEvent, ProjectArchivedEvent, ProjectCreatedEvent, ProjectDeletedEvent,
     ProjectPublishedEvent, ProjectUpdatedEvent,
 };
-use rustycog_core::error::DomainError;
-use rustycog_events::{DomainEvent, EventPublisher};
+use rustycog::core::error::DomainError;
+use rustycog::events::{DomainEvent, EventPublisher};
 
 use crate::{
     dto::{

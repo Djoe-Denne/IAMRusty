@@ -13,7 +13,7 @@ use common::*;
 mod fixtures;
 
 use iam_events::{IamDomainEvent, UserSignedUpEvent};
-use rustycog_events::event::BaseEvent;
+use rustycog::events::event::BaseEvent;
 use serial_test::serial;
 use uuid::Uuid;
 

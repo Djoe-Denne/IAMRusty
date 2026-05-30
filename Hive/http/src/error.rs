@@ -4,7 +4,7 @@ use axum::{
 };
 use chrono;
 use hive_application::{ApiErrorResponse, ApplicationError};
-use rustycog_core::error::DomainError;
+use rustycog::core::error::DomainError;
 use thiserror::Error;
 
 /// HTTP-specific errors

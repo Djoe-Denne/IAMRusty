@@ -9,7 +9,7 @@ mod common;
 
 use common::*;
 use iam_events::{IamDomainEvent, UserEmailVerifiedEvent};
-use rustycog_events::event::BaseEvent;
+use rustycog::events::event::BaseEvent;
 use sea_orm::{ConnectionTrait, EntityTrait};
 use serial_test::serial;
 use uuid::Uuid;

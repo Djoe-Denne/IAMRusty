@@ -8,10 +8,10 @@ use manifesto_infra::ManifestoErrorMapper;
 use manifesto_migration::{Migrator, MigratorTrait};
 use manifesto_setup::build_and_run;
 use reqwest::{Client, StatusCode};
-use rustycog_config::{QueueConfig, ServerConfig};
-use rustycog_events::create_multi_queue_event_publisher;
-use rustycog_permission::{Permission, ResourceRef, Subject};
-use rustycog_testing::{ServiceTestDescriptor, TestFixture};
+use rustycog::config::{QueueConfig, ServerConfig};
+use rustycog::events::create_multi_queue_event_publisher;
+use rustycog::permission::{Permission, ResourceRef, Subject};
+use rustycog::testing::{ServiceTestDescriptor, TestFixture};
 use serde_json::{json, Value};
 use serial_test::serial;
 use std::sync::Arc;
@@ -89,6 +89,10 @@ impl ServiceTestDescriptor<TestFixture> for ManifestoSqsTestDescriptor {
     fn has_openfga(&self) -> bool {
         true
     }
+
+    fn openfga_authorization_model_json(&self) -> Option<&'static str> {
+        Some(include_str!("../../openfga/model.json"))
+    }
 }
 
 async fn setup_sqs_test_server() -> Result<(TestFixture, String, Client), Box<dyn std::error::Error>>
@@ -98,14 +102,14 @@ async fn setup_sqs_test_server() -> Result<(TestFixture, String, Client), Box<dy
     let descriptor = Arc::new(ManifestoSqsTestDescriptor);
     let fixture = TestFixture::new(descriptor.clone()).await?;
     let (server_url, client) =
-        rustycog_testing::setup_test_server::<ManifestoSqsTestDescriptor, TestFixture>(descriptor)
+        rustycog::testing::setup_test_server::<ManifestoSqsTestDescriptor, TestFixture>(descriptor)
             .await?;
 
     Ok((fixture, format!("{server_url}{SERVICE_PREFIX}"), client))
 }
 
 fn create_test_jwt_token(user_id: Uuid) -> String {
-    rustycog_testing::http::jwt::create_jwt_token(user_id)
+    rustycog::testing::http::jwt::create_jwt_token(user_id)
 }
 
 async fn clear_routing_queues(fixture: &TestFixture) {

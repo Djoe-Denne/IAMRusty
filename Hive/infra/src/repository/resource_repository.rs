@@ -3,7 +3,7 @@
 use async_trait::async_trait;
 use hive_domain::entity::Resource;
 use hive_domain::port::repository::{ResourceReadRepository, ResourceRepository};
-use rustycog_core::error::DomainError;
+use rustycog::core::error::DomainError;
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 use std::sync::Arc;
 use tracing::debug;

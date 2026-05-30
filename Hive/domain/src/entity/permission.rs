@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use rustycog_core::error::DomainError;
+use rustycog::core::error::DomainError;
 use serde::{Deserialize, Serialize};
 
 /// Permission entity representing a specific permission level
@@ -35,18 +35,18 @@ impl PermissionLevel {
     }
 }
 
-impl From<rustycog_permission::Permission> for PermissionLevel {
-    fn from(permission: rustycog_permission::Permission) -> Self {
+impl From<rustycog::permission::Permission> for PermissionLevel {
+    fn from(permission: rustycog::permission::Permission) -> Self {
         match permission {
-            rustycog_permission::Permission::Read => Self::Read,
-            rustycog_permission::Permission::Write => Self::Write,
-            rustycog_permission::Permission::Admin => Self::Admin,
-            rustycog_permission::Permission::Owner => Self::Owner,
+            rustycog::permission::Permission::Read => Self::Read,
+            rustycog::permission::Permission::Write => Self::Write,
+            rustycog::permission::Permission::Admin => Self::Admin,
+            rustycog::permission::Permission::Owner => Self::Owner,
         }
     }
 }
 
-impl From<PermissionLevel> for rustycog_permission::Permission {
+impl From<PermissionLevel> for rustycog::permission::Permission {
     fn from(permission: PermissionLevel) -> Self {
         match permission {
             PermissionLevel::Read => Self::Read,

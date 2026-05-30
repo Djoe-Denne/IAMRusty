@@ -9,7 +9,7 @@ use crate::{
         MemberRoleRepository, PermissionRepository, ResourceRepository, RolePermissionRepository,
     },
 };
-use rustycog_core::error::DomainError;
+use rustycog::core::error::DomainError;
 
 /// Domain service for organization member management
 pub struct RoleServiceImpl<MOR, RR, PR, RPR>

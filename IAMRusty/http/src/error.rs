@@ -6,7 +6,7 @@ use axum::{
 use iam_application::command::CommandError;
 use iam_application::usecase::{token::TokenError, user::UserError};
 use iam_domain::error::DomainError;
-use rustycog_http::error::{ErrorDetails, UniformErrorResponse};
+use rustycog::http::error::{ErrorDetails, UniformErrorResponse};
 use thiserror::Error;
 
 /// API errors

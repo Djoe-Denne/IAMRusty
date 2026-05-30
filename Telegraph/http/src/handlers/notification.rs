@@ -5,8 +5,8 @@ use axum::{
     response::Json,
 };
 use axum_valid::Valid;
-use rustycog_command::CommandContext;
-use rustycog_http::{AppState, AuthUser};
+use rustycog::command::CommandContext;
+use rustycog::http::{AppState, AuthUser};
 use serde::Deserialize;
 use telegraph_application::command::{
     GetNotificationsCommand, GetUnreadCountCommand, MarkNotificationReadCommand,
@@ -63,8 +63,8 @@ pub async fn get_notifications(
         Err(error) => {
             tracing::error!("Failed to get notifications: {:?}", error);
             match &error {
-                rustycog_command::CommandError::Validation { .. } => Err(StatusCode::BAD_REQUEST),
-                rustycog_command::CommandError::Business { message, .. } => {
+                rustycog::command::CommandError::Validation { .. } => Err(StatusCode::BAD_REQUEST),
+                rustycog::command::CommandError::Business { message, .. } => {
                     // Check if it's an unauthorized error
                     if message.contains("Unauthorized") {
                         Err(StatusCode::FORBIDDEN)
@@ -98,8 +98,8 @@ pub async fn get_unread_count(
         Err(error) => {
             tracing::error!("Failed to get unread count: {:?}", error);
             match &error {
-                rustycog_command::CommandError::Validation { .. } => Err(StatusCode::BAD_REQUEST),
-                rustycog_command::CommandError::Business { .. } => {
+                rustycog::command::CommandError::Validation { .. } => Err(StatusCode::BAD_REQUEST),
+                rustycog::command::CommandError::Business { .. } => {
                     Err(StatusCode::UNPROCESSABLE_ENTITY)
                 }
                 _ => Err(StatusCode::INTERNAL_SERVER_ERROR),
@@ -133,8 +133,8 @@ pub async fn mark_notification_read(
         Err(error) => {
             tracing::error!("Failed to mark notification as read: {:?}", error);
             match &error {
-                rustycog_command::CommandError::Validation { .. } => Err(StatusCode::BAD_REQUEST),
-                rustycog_command::CommandError::Business { message, .. } => {
+                rustycog::command::CommandError::Validation { .. } => Err(StatusCode::BAD_REQUEST),
+                rustycog::command::CommandError::Business { message, .. } => {
                     // Check if it's an unauthorized error
                     if message.contains("Unauthorized") {
                         Err(StatusCode::FORBIDDEN)

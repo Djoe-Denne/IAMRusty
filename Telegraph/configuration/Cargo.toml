@@ -8,8 +8,7 @@ license.workspace = true
 
 [dependencies]
 # Configuration framework
-rustycog-config = { path = "../../rustycog/rustycog-config" }
-rustycog-logger = { path = "../../rustycog/rustycog-logger"}
+rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full"] }
 
 # Serialization
 serde = { workspace = true }

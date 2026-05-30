@@ -12,21 +12,14 @@ telegraph-domain = { path = "../domain" }
 telegraph-application = { path = "../application" }
 telegraph-configuration = { path = "../configuration" }
 
-# Command pattern
-rustycog-command = { path = "../../rustycog/rustycog-command" }
-
-# Configuration
-rustycog-config = { path = "../../rustycog/rustycog-config" }
+# RustyCog framework
+rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full"] }
 
 # ORM & PostgreSQL
 sea-orm = { workspace = true }
 
 # Events
-rustycog-events = { path = "../../rustycog/rustycog-events" }
 iam-events = { path = "../../iam-events" }
-
-# Core error handling
-rustycog-core = { path = "../../rustycog/rustycog-core" }
 
 # HTTP client
 reqwest = { workspace = true }
@@ -74,4 +67,4 @@ tokio-test = { workspace = true }
 
 [features]
 default = []
-test-utils = ["rustycog-events/test-utils"] 
+test-utils = ["rustycog/test-utils"]

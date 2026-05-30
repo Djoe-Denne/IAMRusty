@@ -8,7 +8,7 @@ use crate::{
         OrganizationRepository,
     },
 };
-use rustycog_core::error::DomainError;
+use rustycog::core::error::DomainError;
 
 /// Domain service for external provider integration
 pub struct ExternalProviderServiceImpl<OR, ELR, EPR, PC>

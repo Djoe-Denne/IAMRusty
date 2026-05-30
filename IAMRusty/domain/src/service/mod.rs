@@ -7,7 +7,7 @@ pub mod token_service;
 pub mod user_service;
 
 use crate::error::DomainError;
-use rustycog_events::event::DomainEvent;
+use rustycog::events::event::DomainEvent;
 
 #[async_trait::async_trait]
 pub trait IamOutboxUnitOfWork: Send + Sync {

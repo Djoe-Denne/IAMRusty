@@ -8,7 +8,7 @@ use crate::{
     service::member_service::MemberService,
     OrganizationService,
 };
-use rustycog_core::error::DomainError;
+use rustycog::core::error::DomainError;
 
 /// Domain service for organization invitation management
 pub struct InvitationServiceImpl<IR, OS, MS>

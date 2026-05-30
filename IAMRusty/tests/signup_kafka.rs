@@ -8,7 +8,7 @@ use serde_json::{json, Value};
 use serial_test::serial;
 
 use iam_configuration::{clear_config_cache, load_config};
-use rustycog_testing::TestKafkaFixture;
+use rustycog::testing::TestKafkaFixture;
 use std::sync::Arc;
 
 // 🔥 Kafka Integration Test

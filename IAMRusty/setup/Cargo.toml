@@ -10,10 +10,7 @@ iam-application = { path = "../application" }
 iam-infra = { path = "../infra" }
 iam-http_server = { path = "../http" }
 iam-configuration = { path = "../configuration" }
-rustycog-http = { path = "../../rustycog/rustycog-http" }
-rustycog-events = { path = "../../rustycog/rustycog-events" }
-rustycog-outbox = { path = "../../rustycog/rustycog-outbox" }
-rustycog-permission = { path = "../../rustycog/rustycog-permission" }
+rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full"] }
 
 # External dependencies
 anyhow = "1.0.82"

@@ -8,7 +8,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use rustycog_events::BaseEvent;
+use rustycog::events::BaseEvent;
 
 use crate::Role;
 

@@ -17,8 +17,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
 
-use rustycog_core::error::ServiceError;
-use rustycog_events::DomainEvent;
+use rustycog::core::error::ServiceError;
+use rustycog::events::DomainEvent;
 
 /// Main enum containing all Manifesto domain events
 #[derive(Debug, Clone, Serialize, Deserialize)]

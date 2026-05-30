@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 use iam_domain::{error::DomainError, service::IamOutboxUnitOfWork};
-use rustycog_db::DbConnectionPool;
-use rustycog_events::event::DomainEvent;
-use rustycog_outbox::OutboxRecorder;
+use rustycog::db::DbConnectionPool;
+use rustycog::events::event::DomainEvent;
+use rustycog::outbox::OutboxRecorder;
 
 #[derive(Clone)]
 pub struct IamOutboxUnitOfWorkImpl {

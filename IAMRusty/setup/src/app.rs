@@ -36,14 +36,14 @@ use iam_infra::{
     token::JwtTokenService,
     transaction::IamOutboxUnitOfWorkImpl,
 };
-use rustycog_http::{AppState, UserIdExtractor};
-use rustycog_permission::{InMemoryPermissionChecker, PermissionChecker};
+use rustycog::http::{AppState, UserIdExtractor};
+use rustycog::permission::{InMemoryPermissionChecker, PermissionChecker};
 
 use iam_configuration::AppConfig;
 use iam_domain::error::DomainError;
-use rustycog_events::create_multi_queue_event_publisher;
-use rustycog_events::{adapter::MultiQueueEventPublisher, event::EventPublisher};
-use rustycog_outbox::{OutboxConfig, OutboxDispatcher, OutboxRecorder};
+use rustycog::events::create_multi_queue_event_publisher;
+use rustycog::events::{adapter::MultiQueueEventPublisher, event::EventPublisher};
+use rustycog::outbox::{OutboxConfig, OutboxDispatcher, OutboxRecorder};
 
 use iam_application::{
     command::{CommandRegistryFactory, GenericCommandService, IamRegistryUseCases},

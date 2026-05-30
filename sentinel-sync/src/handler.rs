@@ -4,8 +4,8 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use rustycog_core::error::ServiceError;
-use rustycog_events::{DomainEvent, EventHandler};
+use rustycog::core::error::ServiceError;
+use rustycog::events::{DomainEvent, EventHandler};
 use tracing::{debug, info, warn};
 
 use crate::fga_client::OpenFgaWriteClient;

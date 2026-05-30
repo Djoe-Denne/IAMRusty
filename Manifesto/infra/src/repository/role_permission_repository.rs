@@ -4,7 +4,7 @@ use manifesto_domain::port::{
     RolePermissionReadRepository, RolePermissionRepository, RolePermissionWriteRepository,
 };
 use manifesto_domain::value_objects::PermissionLevel;
-use rustycog_core::error::DomainError;
+use rustycog::core::error::DomainError;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait,
     QueryFilter,

@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use crate::value_objects::ComponentStatus;
-use rustycog_core::error::DomainError;
+use rustycog::core::error::DomainError;
 
 #[derive(Debug, Clone)]
 pub struct ProjectComponent {

@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use apparatus_events::ComponentStatusChangedEvent;
 use manifesto_domain::{service::ComponentService, value_objects::ComponentStatus};
-use rustycog_core::error::ServiceError;
+use rustycog::core::error::ServiceError;
 use tracing::{info, warn};
 
 /// Processor for component status changed events

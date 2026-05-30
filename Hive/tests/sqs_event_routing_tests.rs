@@ -5,9 +5,9 @@ use hive_migration::{Migrator, MigratorTrait};
 use hive_setup::app::AppBuilder;
 use reqwest::Client;
 use reqwest::StatusCode;
-use rustycog_config::ServerConfig;
-use rustycog_testing::http::jwt::create_jwt_token;
-use rustycog_testing::{ServiceTestDescriptor, TestFixture};
+use rustycog::config::ServerConfig;
+use rustycog::testing::http::jwt::create_jwt_token;
+use rustycog::testing::{ServiceTestDescriptor, TestFixture};
 use serial_test::serial;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -75,6 +75,10 @@ impl ServiceTestDescriptor<TestFixture> for HiveSqsTestDescriptor {
     fn has_openfga(&self) -> bool {
         true
     }
+
+    fn openfga_authorization_model_json(&self) -> Option<&'static str> {
+        Some(include_str!("../../openfga/model.json"))
+    }
 }
 
 async fn setup_sqs_test_server(
@@ -85,7 +89,7 @@ async fn setup_sqs_test_server(
     let fixture = TestFixture::new(descriptor.clone()).await?;
     let openfga = fixture.openfga().clone();
     let (server_url, client) =
-        rustycog_testing::setup_test_server::<HiveSqsTestDescriptor, TestFixture>(descriptor)
+        rustycog::testing::setup_test_server::<HiveSqsTestDescriptor, TestFixture>(descriptor)
             .await?;
 
     Ok((

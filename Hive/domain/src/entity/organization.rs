@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
-use rustycog_core::error::DomainError;
+use rustycog::core::error::DomainError;
 
 /// Organization entity representing a business organization
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

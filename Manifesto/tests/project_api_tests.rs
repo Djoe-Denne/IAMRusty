@@ -8,7 +8,7 @@ mod fixtures;
 
 use common::*;
 use fixtures::DbFixtures;
-use rustycog_permission::{Permission, ResourceRef, Subject};
+use rustycog::permission::{Permission, ResourceRef, Subject};
 use serde_json::{json, Value};
 use serial_test::serial;
 use uuid::Uuid;
@@ -16,7 +16,7 @@ use uuid::Uuid;
 // Helper function to create a JWT token for testing
 // In production tests, this would use proper JWT configuration
 fn create_test_jwt_token(user_id: Uuid) -> String {
-    rustycog_testing::http::jwt::create_jwt_token(user_id)
+    rustycog::testing::http::jwt::create_jwt_token(user_id)
 }
 
 // =============================================================================

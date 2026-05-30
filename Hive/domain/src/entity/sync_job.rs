@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use rustycog_core::error::DomainError;
+use rustycog::core::error::DomainError;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;

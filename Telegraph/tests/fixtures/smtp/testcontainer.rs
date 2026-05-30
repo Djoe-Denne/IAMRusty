@@ -4,7 +4,7 @@
 //! to verify email sending functionality.
 
 use reqwest::Client;
-use rustycog_config::load_config_part;
+use rustycog::config::load_config_part;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::sync::OnceLock;

@@ -5,9 +5,9 @@ use axum::{
 use hive_application::{
     GetRoleCommand, ListRolesCommand, MemberRole, MemberRoleListResponse, PaginationRequest,
 };
-use rustycog_command::CommandContext;
-use rustycog_http::{AppState, AuthUser};
-use rustycog_permission::ResourceId;
+use rustycog::command::CommandContext;
+use rustycog::http::{AppState, AuthUser};
+use rustycog::permission::ResourceId;
 
 use crate::error::HttpError;
 

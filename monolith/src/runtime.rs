@@ -36,7 +36,7 @@ pub async fn run() -> anyhow::Result<()> {
     });
 
     let server = tokio::spawn(async move {
-        rustycog_http::serve_router(router, server)
+        rustycog::http::serve_router(router, server)
             .await
             .map_err(|e| anyhow::anyhow!("Monolith HTTP server failed: {}", e))
     });

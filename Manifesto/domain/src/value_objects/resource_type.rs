@@ -1,4 +1,4 @@
-use rustycog_core::error::DomainError;
+use rustycog::core::error::DomainError;
 use serde::{Deserialize, Serialize};
 
 /// Resource type indicating whether a resource is internal or a component

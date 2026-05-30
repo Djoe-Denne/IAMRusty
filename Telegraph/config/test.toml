@@ -72,7 +72,7 @@ template_dir = "resources/templates"
 
 # Centralized authorization (OpenFGA). Tests run against a real
 # `openfga/openfga` testcontainer provisioned by
-# `rustycog_testing::common::openfga_testcontainer::TestOpenFga`.
+# `rustycog::testing::common::openfga_testcontainer::TestOpenFga`.
 # `port = 0` asks `OpenFgaClientConfig::actual_port()` to bind a free
 # random host port at startup; the testcontainer fixture maps the
 # container's `:8080` to that resolved port and then publishes

@@ -3,8 +3,8 @@ use axum::{
     response::Json,
 };
 use hive_application::{StartSyncJobCommand, StartSyncJobRequest, SyncJobResponse};
-use rustycog_command::{CommandContext, CommandError};
-use rustycog_http::{AppState, AuthUser, ValidatedJson};
+use rustycog::command::{CommandContext, CommandError};
+use rustycog::http::{AppState, AuthUser, ValidatedJson};
 use uuid::Uuid;
 
 use crate::error::HttpError;

@@ -34,7 +34,7 @@ pub struct TokenResponse {
 
 /// Handler for refreshing a token
 pub async fn refresh_token(
-    State(state): State<rustycog_http::AppState>,
+    State(state): State<rustycog::http::AppState>,
     Valid(Json(request)): Valid<Json<RefreshTokenRequest>>,
 ) -> Result<Json<TokenResponse>, ApiError> {
     debug!("Refreshing token");

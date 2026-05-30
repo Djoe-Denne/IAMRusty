@@ -6,7 +6,7 @@ use crate::entity::{
     Organization, OrganizationInvitation, OrganizationMember, OrganizationMemberRolePermission,
     Permission, Resource, RolePermission, SyncJob, SyncJobStatus,
 };
-use rustycog_core::error::DomainError;
+use rustycog::core::error::DomainError;
 
 /// Read operations for Organization entities
 #[async_trait]

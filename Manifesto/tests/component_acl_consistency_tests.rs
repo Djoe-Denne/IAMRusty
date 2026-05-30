@@ -14,8 +14,8 @@ use manifesto_domain::{
     service::{ComponentService, PermissionService, ProjectService},
     value_objects::{OwnerType, ProjectStatus, Visibility},
 };
-use rustycog_core::error::DomainError;
-use rustycog_events::{DomainEvent, EventPublisher};
+use rustycog::core::error::DomainError;
+use rustycog::events::{DomainEvent, EventPublisher};
 use uuid::Uuid;
 
 fn build_project() -> Project {

@@ -9,9 +9,9 @@ use manifesto_application::{
     ProjectDetailResponse, ProjectListResponse, ProjectResponse, PublishProjectCommand,
     UpdateProjectCommand, UpdateProjectRequest,
 };
-use rustycog_command::CommandContext;
-use rustycog_http::{AppState, AuthUser, OptionalAuthUser, ValidatedJson};
-use rustycog_permission::ResourceId;
+use rustycog::command::CommandContext;
+use rustycog::http::{AppState, AuthUser, OptionalAuthUser, ValidatedJson};
+use rustycog::permission::ResourceId;
 use serde::Deserialize;
 use uuid::Uuid;
 

@@ -3,8 +3,8 @@
 //! The worker reuses `rustycog-config`'s shared building blocks (logging,
 //! queue, `OpenFGA`).
 
-pub use rustycog_config::OpenFgaClientConfig as OpenFgaConfig;
-use rustycog_config::{LoggingConfig, QueueConfig};
+pub use rustycog::config::OpenFgaClientConfig as OpenFgaConfig;
+use rustycog::config::{LoggingConfig, QueueConfig};
 use serde::{Deserialize, Serialize};
 
 /// Top-level configuration for the sentinel-sync worker.
@@ -50,10 +50,10 @@ fn default_backend() -> String {
 impl SentinelSyncConfig {
     /// Load config from `config/sentinel-sync.toml` and `SENTINEL_SYNC__*`
     /// env vars. Mirrors the convention used by every other `RustyCog` service.
-    pub fn load() -> Result<Self, rustycog_config::ConfigError> {
-        use rustycog_config::{Config, Environment, File, FileFormat};
+    pub fn load() -> Result<Self, rustycog::config::ConfigError> {
+        use rustycog::config::{Config, Environment, File, FileFormat};
 
-        let _ = rustycog_config::dotenv();
+        let _ = rustycog::config::dotenv();
 
         let builder = Config::builder()
             .add_source(

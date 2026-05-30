@@ -10,7 +10,7 @@
 
 use std::sync::Arc;
 
-use rustycog_testing::wiremock::MockServerFixture;
+use rustycog::testing::wiremock::MockServerFixture;
 use serde_json::Value;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, Request, ResponseTemplate};

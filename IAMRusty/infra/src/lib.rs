@@ -10,7 +10,7 @@ pub mod token;
 pub mod transaction;
 
 // Re-export database functionality from rustycog-db
-pub use rustycog_db as db;
+pub use rustycog::db;
 
 // Re-export event functionality from rustycog-events for internal use
-pub use rustycog_events as rustycog_event;
+pub use rustycog::events as rustycog_event;

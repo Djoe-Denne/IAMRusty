@@ -3,7 +3,7 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
-use rustycog_command::CommandError;
+use rustycog::command::CommandError;
 use serde_json::json;
 
 #[derive(Debug)]

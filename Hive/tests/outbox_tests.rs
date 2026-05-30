@@ -8,9 +8,9 @@ use common::{HiveTestDescriptor, HiveTestFixture};
 use hive_application::HiveOutboxUnitOfWork;
 use hive_events::{HiveDomainEvent, OrganizationCreatedEvent};
 use hive_infra::HiveOutboxUnitOfWorkImpl;
-use rustycog_core::error::{DomainError, ServiceError};
-use rustycog_events::{DomainEvent, EventPublisher};
-use rustycog_outbox::{
+use rustycog::core::error::{DomainError, ServiceError};
+use rustycog::events::{DomainEvent, EventPublisher};
+use rustycog::outbox::{
     entity::{
         Column as OutboxColumn, OutboxEvents, STATUS_FAILED, STATUS_PENDING, STATUS_PUBLISHED,
     },

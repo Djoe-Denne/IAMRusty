@@ -5,9 +5,9 @@
 //! for the Telegraph API endpoints.
 
 use axum::Router;
-use rustycog_config::ServerConfig;
-use rustycog_http::{AppState, RouteBuilder};
-use rustycog_permission::Permission;
+use rustycog::config::ServerConfig;
+use rustycog::http::{AppState, RouteBuilder};
+use rustycog::permission::Permission;
 
 pub mod error;
 pub mod handlers;
@@ -54,5 +54,5 @@ pub fn create_prefixed_router(state: AppState) -> Router {
 
 /// Create and start the Telegraph HTTP server.
 pub async fn create_app_routes(state: AppState, config: ServerConfig) -> anyhow::Result<()> {
-    rustycog_http::serve_router(create_prefixed_router(state), config).await
+    rustycog::http::serve_router(create_prefixed_router(state), config).await
 }

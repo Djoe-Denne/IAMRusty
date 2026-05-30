@@ -4,7 +4,7 @@ use sea_orm::*;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use rustycog_testing::db::{CommittedFixture, DbFixture, TestData};
+use rustycog::testing::db::{CommittedFixture, DbFixture, TestData};
 use telegraph_infra::repository::entity::notification_deliveries;
 
 /// Builder for notification delivery fixtures

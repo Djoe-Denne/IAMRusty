@@ -9,9 +9,7 @@ iam-domain = { path = "../domain" }
 iam-configuration = { path = "../configuration" }
 
 # RustyCog command framework
-rustycog-command = { path = "../../rustycog/rustycog-command" }
-# todo: not sure it  should be here, kinda break hexagonal architecture
-rustycog-events = { path = "../../rustycog/rustycog-events" } 
+rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full"] }
 
 # Utility
 serde = { workspace = true }

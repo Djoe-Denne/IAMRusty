@@ -15,15 +15,7 @@ manifesto-http_server = { path = "../http" }
 manifesto-configuration = { path = "../configuration" }
 
 # Shared crates
-rustycog-server = { path = "../../rustycog/rustycog-server" }
-rustycog-command = { path = "../../rustycog/rustycog-command" }
-rustycog-http = { path = "../../rustycog/rustycog-http" }
-rustycog-db = { path = "../../rustycog/rustycog-db" }
-rustycog-events = { path = "../../rustycog/rustycog-events" }
-rustycog-outbox = { path = "../../rustycog/rustycog-outbox" }
-rustycog-permission = { path = "../../rustycog/rustycog-permission" }
-rustycog-config = { path = "../../rustycog/rustycog-config" }
-rustycog-core = { path = "../../rustycog/rustycog-core" }
+rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full"] }
 
 # Database
 sea-orm = { workspace = true }

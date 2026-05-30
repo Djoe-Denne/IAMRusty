@@ -11,9 +11,9 @@ use iam_domain::{
     service::IamOutboxUnitOfWork,
 };
 use iam_infra::transaction::IamOutboxUnitOfWorkImpl;
-use rustycog_core::error::ServiceError;
-use rustycog_events::event::{DomainEvent, EventPublisher};
-use rustycog_outbox::{
+use rustycog::core::error::ServiceError;
+use rustycog::events::event::{DomainEvent, EventPublisher};
+use rustycog::outbox::{
     entity::{
         Column as OutboxColumn, OutboxEvents, STATUS_FAILED, STATUS_PENDING, STATUS_PUBLISHED,
     },

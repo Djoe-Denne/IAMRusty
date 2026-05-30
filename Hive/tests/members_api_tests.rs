@@ -1,5 +1,5 @@
 use reqwest::StatusCode;
-use rustycog_testing::http::jwt::create_jwt_token;
+use rustycog::testing::http::jwt::create_jwt_token;
 use sea_orm::{ActiveModelTrait, EntityTrait};
 use serial_test::serial;
 use uuid::Uuid;

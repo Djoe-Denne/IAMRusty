@@ -8,7 +8,7 @@ edition = "2021"
 iam-domain = { path = "../domain" }
 iam-application = { path = "../application" }
 iam-configuration = { path = "../configuration" }
-rustycog-http = { path = "../../rustycog/rustycog-http" }
+rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full"] }
 
 # Web & HTTP
 axum = { version = "0.8.4", features = ["macros", "json"] }

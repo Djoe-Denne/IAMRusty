@@ -3,8 +3,8 @@ use crate::usecase::login::{
     LoginUseCase, ResendVerificationEmailRequest, ResendVerificationEmailResponse,
 };
 use async_trait::async_trait;
-use rustycog_command::CommandErrorMapper;
-use rustycog_command::{Command, CommandError, CommandHandler};
+use rustycog::command::CommandErrorMapper;
+use rustycog::command::{Command, CommandError, CommandHandler};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 

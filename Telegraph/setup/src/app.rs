@@ -1,11 +1,11 @@
 //! Application setup for Telegraph
 
 use axum::Router;
-use rustycog_command::GenericCommandService;
-use rustycog_config::ServerConfig;
-use rustycog_db::DbConnectionPool;
-use rustycog_http::{AppState, UserIdExtractor};
-use rustycog_permission::{
+use rustycog::command::GenericCommandService;
+use rustycog::config::ServerConfig;
+use rustycog::db::DbConnectionPool;
+use rustycog::http::{AppState, UserIdExtractor};
+use rustycog::permission::{
     CachedPermissionChecker, MetricsPermissionChecker, OpenFgaPermissionChecker, PermissionChecker,
 };
 use std::collections::HashMap;

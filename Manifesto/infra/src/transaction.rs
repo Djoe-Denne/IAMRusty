@@ -2,10 +2,10 @@ use async_trait::async_trait;
 use manifesto_application::{ApplicationError, ProjectCreationUnitOfWork};
 use manifesto_domain::entity::{Permission, Project, ProjectMember, Resource, RolePermission};
 use manifesto_domain::value_objects::PermissionLevel;
-use rustycog_core::error::DomainError;
-use rustycog_db::DbConnectionPool;
-use rustycog_events::DomainEvent;
-use rustycog_outbox::OutboxRecorder;
+use rustycog::core::error::DomainError;
+use rustycog::db::DbConnectionPool;
+use rustycog::events::DomainEvent;
+use rustycog::outbox::OutboxRecorder;
 
 use crate::repository::{
     MemberWriteRepositoryImpl, PermissionReadRepositoryImpl,

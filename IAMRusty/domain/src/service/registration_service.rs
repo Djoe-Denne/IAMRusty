@@ -15,7 +15,7 @@ use crate::port::{
     service::{AuthTokenService, RegistrationTokenService},
 };
 use crate::utils;
-use rustycog_events::event::EventPublisher;
+use rustycog::events::event::EventPublisher;
 
 /// Registration completion result
 #[derive(Debug)]
@@ -175,7 +175,7 @@ where
 
     async fn record_or_publish_event(
         &self,
-        event: Box<dyn rustycog_events::event::DomainEvent + 'static>,
+        event: Box<dyn rustycog::events::event::DomainEvent + 'static>,
     ) -> Result<(), String> {
         if let Some(outbox_unit_of_work) = &self.outbox_unit_of_work {
             outbox_unit_of_work

@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use rustycog_core::error::DomainError;
+use rustycog::core::error::DomainError;
 use serde::{Deserialize, Serialize};
 
 /// Component information from the component register service

@@ -3,7 +3,7 @@ use uuid::Uuid;
 
 use crate::entity::project_member_role_permission::ProjectMemberRolePermission;
 use crate::value_objects::{MemberSource, PermissionLevel};
-use rustycog_core::error::DomainError;
+use rustycog::core::error::DomainError;
 
 #[derive(Debug, Clone)]
 pub struct ProjectMember {

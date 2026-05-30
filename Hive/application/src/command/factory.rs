@@ -26,7 +26,7 @@ use super::{
 use crate::usecase::{
     ExternalLinkUseCase, InvitationUseCase, MemberUseCase, OrganizationUseCase, SyncJobUseCase,
 };
-use rustycog_command::{CommandRegistry, CommandRegistryBuilder};
+use rustycog::command::{CommandRegistry, CommandRegistryBuilder};
 use std::sync::Arc;
 
 /// Factory for creating a command registry with all Hive commands registered

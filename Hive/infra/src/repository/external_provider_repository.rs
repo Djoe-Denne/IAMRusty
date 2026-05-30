@@ -5,7 +5,7 @@ use hive_domain::entity::ExternalProvider;
 use hive_domain::port::repository::{
     ExternalProviderReadRepository, ExternalProviderRepository, ExternalProviderWriteRepository,
 };
-use rustycog_core::error::DomainError;
+use rustycog::core::error::DomainError;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
 };

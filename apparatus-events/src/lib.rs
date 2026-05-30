@@ -10,15 +10,15 @@ pub mod component;
 pub use component::*;
 
 // Re-export rustycog-events for consumers
-pub use rustycog_events::*;
+pub use rustycog::events::*;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
 
-use rustycog_core::error::ServiceError;
-use rustycog_events::DomainEvent;
+use rustycog::core::error::ServiceError;
+use rustycog::events::DomainEvent;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "event_type", content = "data")]

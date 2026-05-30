@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use manifesto_domain::entity::Resource;
 use manifesto_domain::port::{ResourceReadRepository, ResourceRepository, ResourceWriteRepository};
-use rustycog_core::error::DomainError;
+use rustycog::core::error::DomainError;
 use sea_orm::{ActiveModelTrait, ActiveValue, ConnectionTrait, DatabaseConnection, EntityTrait};
 use std::sync::Arc;
 use tracing::debug;

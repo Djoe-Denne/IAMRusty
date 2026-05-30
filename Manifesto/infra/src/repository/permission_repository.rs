@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use manifesto_domain::entity::Permission;
 use manifesto_domain::port::PermissionReadRepository;
 use manifesto_domain::value_objects::PermissionLevel;
-use rustycog_core::error::DomainError;
+use rustycog::core::error::DomainError;
 use sea_orm::{ConnectionTrait, DatabaseConnection, EntityTrait};
 use std::sync::Arc;
 use tracing::debug;

@@ -5,7 +5,7 @@ use hive_domain::entity::{SyncJob, SyncJobStatus, SyncJobType};
 use hive_domain::port::repository::{
     SyncJobReadRepository, SyncJobRepository, SyncJobWriteRepository,
 };
-use rustycog_core::error::DomainError;
+use rustycog::core::error::DomainError;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait,
     QueryFilter,

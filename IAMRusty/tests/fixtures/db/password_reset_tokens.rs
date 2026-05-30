@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use iam_domain::entity::password_reset_token::PasswordResetToken;
-use rustycog_testing::db::{CommittedFixture, DbFixture, TestData};
+use rustycog::testing::db::{CommittedFixture, DbFixture, TestData};
 use sea_orm::{ActiveModelTrait, ActiveValue, DatabaseConnection, DbErr};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -290,4 +290,4 @@ impl PasswordResetTokenFixture {
     }
 }
 
-// TestData methods are now available through rustycog_testing
+// TestData methods are now available through rustycog::testing

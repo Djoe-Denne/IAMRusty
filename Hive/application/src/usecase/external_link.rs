@@ -4,8 +4,8 @@ use uuid::Uuid;
 
 use hive_domain::ExternalProviderService;
 use hive_events::{ExternalLinkCreatedEvent, HiveDomainEvent};
-use rustycog_core::error::DomainError;
-use rustycog_events::{DomainEvent, EventPublisher};
+use rustycog::core::error::DomainError;
+use rustycog::events::{DomainEvent, EventPublisher};
 
 use crate::{
     dto::{ConnectionTestResponse, CreateExternalLinkRequest, ExternalLinkResponse},

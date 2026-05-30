@@ -5,9 +5,9 @@ use axum::{
 use hive_application::{
     CreateExternalLinkCommand, CreateExternalLinkRequest, ExternalLinkResponse,
 };
-use rustycog_command::CommandContext;
-use rustycog_http::{AppState, AuthUser, ValidatedJson};
-use rustycog_permission::ResourceId;
+use rustycog::command::CommandContext;
+use rustycog::http::{AppState, AuthUser, ValidatedJson};
+use rustycog::permission::ResourceId;
 
 use crate::error::HttpError;
 

@@ -3,6 +3,8 @@
 # See: https://doc.rust-lang.org/cargo/guide/cargo-toml-vs-cargo-lock.html
 target/
 docker-build-stage/
+.tools/
+
 
 # Cargo.lock (comment the next line if you want to commit the lock file)
 # For libraries, typically you want to commit Cargo.lock
@@ -11,7 +13,6 @@ docker-build-stage/
 
 # Rust documentation
 doc/
-
 # Node.js / Frontend
 node_modules
 dist
@@ -138,6 +139,7 @@ temp/
 
 # Project specific
 # Add any project-specific patterns here
+rustycog/
 
 # TLS/SSL Certificates and Keys
 certs/

@@ -13,8 +13,8 @@ use manifesto_events::{
     ManifestoDomainEvent, MemberAddedEvent, MemberPermissionsUpdatedEvent, MemberRemovedEvent,
     PermissionGrantedEvent, PermissionRevokedEvent, ResourcePermission,
 };
-use rustycog_core::error::DomainError;
-use rustycog_events::{DomainEvent, EventPublisher};
+use rustycog::core::error::DomainError;
+use rustycog::events::{DomainEvent, EventPublisher};
 
 use crate::{
     dto::{

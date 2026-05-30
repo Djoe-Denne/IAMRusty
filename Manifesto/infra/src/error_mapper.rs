@@ -1,6 +1,6 @@
 use manifesto_domain::DomainError;
-use rustycog_core::error::ServiceError;
-use rustycog_events::ErrorMapper;
+use rustycog::core::error::ServiceError;
+use rustycog::events::ErrorMapper;
 
 /// Error mapper for Manifesto domain errors
 pub struct ManifestoErrorMapper;

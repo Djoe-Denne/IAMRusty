@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use manifesto_domain::port::{ComponentInfo, ComponentServicePort};
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
-use rustycog_core::error::DomainError;
+use rustycog::core::error::DomainError;
 use std::time::Duration;
 use tracing::{debug, error};
 

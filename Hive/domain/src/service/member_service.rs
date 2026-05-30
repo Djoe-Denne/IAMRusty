@@ -5,7 +5,7 @@ use crate::{
     port::{OrganizationMemberRepository, OrganizationRepository},
     service::role_service::RoleService,
 };
-use rustycog_core::error::DomainError;
+use rustycog::core::error::DomainError;
 use std::sync::Arc;
 use tracing::debug;
 

@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::entity::role_permission::RolePermission;
-use rustycog_core::error::DomainError;
+use rustycog::core::error::DomainError;
 
 /// Organization invitation entity for inviting users to join an organization
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

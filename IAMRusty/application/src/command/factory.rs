@@ -43,7 +43,7 @@ use crate::usecase::{
     registration::RegistrationUseCase, token::TokenUseCase, user::UserUseCase,
 };
 use iam_configuration::CommandConfig;
-use rustycog_command::{CommandRegistry, CommandRegistryBuilder};
+use rustycog::command::{CommandRegistry, CommandRegistryBuilder};
 use std::sync::Arc;
 
 /// Factory for creating a command registry with all standard commands registered
@@ -69,7 +69,7 @@ impl CommandRegistryFactory {
     ) -> CommandRegistry {
         // Create registry config from the loaded configuration
         let registry_config =
-            rustycog_command::registry::RegistryConfig::from_retry_config(&command_config.retry);
+            rustycog::command::registry::RegistryConfig::from_retry_config(&command_config.retry);
 
         let mut builder = CommandRegistryBuilder::with_config(registry_config);
 

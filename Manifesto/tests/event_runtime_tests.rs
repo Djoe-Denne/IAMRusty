@@ -9,8 +9,8 @@ use manifesto_domain::{
     entity::ProjectComponent, service::ComponentService, value_objects::ComponentStatus,
 };
 use manifesto_infra::{ApparatusEventConsumer, ComponentStatusProcessor};
-use rustycog_config::{KafkaConfig, QueueConfig};
-use rustycog_core::error::DomainError;
+use rustycog::config::{KafkaConfig, QueueConfig};
+use rustycog::core::error::DomainError;
 use uuid::Uuid;
 
 #[derive(Clone)]

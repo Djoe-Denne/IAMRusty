@@ -9,7 +9,7 @@ use crate::{
     },
     service::{invitation_service::InvitationService, organization_service::OrganizationService},
 };
-use rustycog_core::error::DomainError;
+use rustycog::core::error::DomainError;
 
 /// Domain service for sync job management
 pub struct SyncServiceImpl<SR, LR, OR, OS, IS, PC>

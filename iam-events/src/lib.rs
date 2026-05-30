@@ -10,4 +10,4 @@ pub mod events;
 pub use events::*;
 
 // Re-export rustycog-events for consumers
-pub use rustycog_events::*;
+pub use rustycog::events::*;

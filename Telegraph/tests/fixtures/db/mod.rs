@@ -2,7 +2,7 @@ pub mod common;
 pub mod notification_deliveries;
 pub mod notifications;
 
-use rustycog_testing::db::TestData;
+use rustycog::testing::db::TestData;
 use sea_orm::DatabaseConnection;
 
 pub use common::*;

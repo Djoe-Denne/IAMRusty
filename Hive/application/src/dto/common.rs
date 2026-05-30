@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::ApplicationError;
-use rustycog_core::error::DomainError;
+use rustycog::core::error::DomainError;
 
 /// Standard API error response
 #[derive(Debug, Clone, Serialize, Deserialize)]

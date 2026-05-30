@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 use hive_application::{ApplicationError, HiveOutboxUnitOfWork};
-use rustycog_db::DbConnectionPool;
-use rustycog_events::DomainEvent;
-use rustycog_outbox::OutboxRecorder;
+use rustycog::db::DbConnectionPool;
+use rustycog::events::DomainEvent;
+use rustycog::outbox::OutboxRecorder;
 
 #[derive(Clone)]
 pub struct HiveOutboxUnitOfWorkImpl {

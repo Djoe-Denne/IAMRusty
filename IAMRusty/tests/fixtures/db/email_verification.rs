@@ -1,5 +1,5 @@
 use chrono::Utc;
-use rustycog_testing::db::{CommittedFixture, DbFixture, TestData};
+use rustycog::testing::db::{CommittedFixture, DbFixture, TestData};
 use sea_orm::prelude::DateTimeWithTimeZone;
 use sea_orm::{ActiveModelTrait, ActiveValue, DatabaseConnection, DbErr};
 use std::sync::Arc;
@@ -259,4 +259,4 @@ impl EmailVerificationFixture {
     }
 }
 
-// TestData methods are now available through rustycog_testing
+// TestData methods are now available through rustycog::testing

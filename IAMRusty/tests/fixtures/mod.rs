@@ -1,4 +1,4 @@
-// Common fixtures are now in rustycog-testing
+// Common fixtures are now in rustycog::testing
 // pub mod common;
 pub mod db;
 pub mod github;

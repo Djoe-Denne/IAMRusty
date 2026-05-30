@@ -8,9 +8,9 @@ use manifesto_application::{
     GetComponentCommand, ListComponentsCommand, RemoveComponentCommand, UpdateComponentRequest,
     UpdateComponentStatusCommand,
 };
-use rustycog_command::CommandContext;
-use rustycog_http::{AppState, AuthUser, OptionalAuthUser, ValidatedJson};
-use rustycog_permission::ResourceId;
+use rustycog::command::CommandContext;
+use rustycog::http::{AppState, AuthUser, OptionalAuthUser, ValidatedJson};
+use rustycog::permission::ResourceId;
 
 use crate::error::{error_mapper, HttpError};
 

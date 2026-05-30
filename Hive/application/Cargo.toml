@@ -14,12 +14,7 @@ hive-domain = { path = "../domain" }
 hive-events = { path = "../../hive-events" }
 
 # Command pattern support
-rustycog-command = { path = "../../rustycog/rustycog-command" }
-
-rustycog-events = { path = "../../rustycog/rustycog-events" }
-rustycog-core = { path = "../../rustycog/rustycog-core" }
-rustycog-config = { path = "../../rustycog/rustycog-config" }
-rustycog-permission = { path = "../../rustycog/rustycog-permission" }
+rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full"] }
 
 # Async traits
 async-trait = { workspace = true }

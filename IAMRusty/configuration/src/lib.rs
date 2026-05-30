@@ -4,19 +4,19 @@
 //! configuration, while re-exporting core configuration utilities from rustycog-config.
 
 // Re-export core configuration from rustycog-config
-pub use rustycog_config::{
+pub use rustycog::config::{
     clear_all_caches, generate_default_config_toml, load_config_fresh, load_config_part,
     load_config_with_cache, AuthConfig, CommandConfig, CommandRetryConfig, ConfigError,
     DatabaseConfig, DatabaseCredentials, KafkaConfig, LoggingConfig, QueueConfig, ScalewayConfig,
     ServerConfig, SqsConfig,
 };
 
-use rustycog_config::{
+use rustycog::config::{
     ConfigCache, ConfigLoader, HasDbConfig, HasLoggingConfig, HasQueueConfig, HasScalewayConfig,
     HasServerConfig,
 };
 
-pub use rustycog_logger::setup_logging;
+pub use rustycog::logger::setup_logging;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::sync::{Arc, Mutex, OnceLock};

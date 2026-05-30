@@ -14,8 +14,7 @@ tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 
-rustycog-config = { path = "../rustycog/rustycog-config" }
-rustycog-http = { path = "../rustycog/rustycog-http" }
+rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full"] }
 
 iam-configuration = { path = "../IAMRusty/configuration" }
 iam-http_server = { path = "../IAMRusty/http" }

@@ -4,7 +4,7 @@ use manifesto_domain::port::{
     ProjectListFilters, ProjectReadRepository, ProjectRepository, ProjectWriteRepository,
 };
 use manifesto_domain::value_objects::{DataClassification, OwnerType, ProjectStatus, Visibility};
-use rustycog_core::error::DomainError;
+use rustycog::core::error::DomainError;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, Condition, ConnectionTrait, DatabaseConnection,
     EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect,

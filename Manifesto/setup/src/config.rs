@@ -3,7 +3,7 @@
 use manifesto_configuration::ManifestoConfig;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
-pub use rustycog_config::ServerConfig;
+pub use rustycog::config::ServerConfig;
 
 pub fn load_config() -> anyhow::Result<ManifestoConfig> {
     manifesto_configuration::load_config().map_err(Into::into)

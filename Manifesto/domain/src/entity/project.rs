@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use crate::value_objects::{DataClassification, OwnerType, ProjectStatus, Visibility};
-use rustycog_core::error::DomainError;
+use rustycog::core::error::DomainError;
 
 #[derive(Debug, Clone)]
 pub struct Project {

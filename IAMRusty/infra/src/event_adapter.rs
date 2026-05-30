@@ -5,9 +5,9 @@
 //! separation.
 
 use iam_domain::error::DomainError;
-use rustycog_config::QueueConfig;
-use rustycog_core::error::ServiceError;
-use rustycog_events::{
+use rustycog::config::QueueConfig;
+use rustycog::core::error::ServiceError;
+use rustycog::events::{
     adapter::ErrorMapper, create_event_publisher_from_queue_config, ConcreteEventPublisher,
 };
 use std::sync::Arc;

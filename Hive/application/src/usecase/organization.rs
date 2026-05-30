@@ -6,8 +6,8 @@ use hive_domain::{service::OrganizationService, Organization};
 use hive_events::{
     HiveDomainEvent, OrganizationCreatedEvent, OrganizationDeletedEvent, OrganizationUpdatedEvent,
 };
-use rustycog_core::error::DomainError;
-use rustycog_events::{DomainEvent, EventPublisher};
+use rustycog::core::error::DomainError;
+use rustycog::events::{DomainEvent, EventPublisher};
 
 use crate::{
     dto::{

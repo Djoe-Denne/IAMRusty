@@ -1,4 +1,4 @@
-use rustycog_config::ServerConfig;
+use rustycog::config::ServerConfig;
 
 pub struct MonolithConfig {
     pub server: ServerConfig,

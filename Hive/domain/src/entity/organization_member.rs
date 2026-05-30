@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::entity::organization_member_role_permission::OrganizationMemberRolePermission;
-use rustycog_core::error::DomainError;
+use rustycog::core::error::DomainError;
 
 /// Organization member entity representing a user's membership in an organization
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

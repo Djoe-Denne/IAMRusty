@@ -11,7 +11,7 @@ pub mod user;
 pub mod verify_email;
 
 // Re-export everything from rustycog-command
-pub use rustycog_command::*;
+pub use rustycog::command::*;
 
 // Re-export our factory for building the command registry
 pub use factory::{CommandRegistryFactory, IamRegistryUseCases};

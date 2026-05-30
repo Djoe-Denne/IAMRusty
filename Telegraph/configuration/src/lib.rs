@@ -7,15 +7,15 @@ use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use rustycog_config::{
+use rustycog::config::{
     load_config_fresh, AuthConfig, ConfigError, ConfigLoader, DatabaseConfig, HasDbConfig,
     HasLoggingConfig, HasOpenFgaConfig, HasQueueConfig, HasScalewayConfig, HasServerConfig,
     LoggingConfig, OpenFgaClientConfig, QueueConfig, ScalewayConfig,
 };
 
-pub use rustycog_config::ServerConfig;
+pub use rustycog::config::ServerConfig;
 
-pub use rustycog_logger::setup_logging;
+pub use rustycog::logger::setup_logging;
 
 /// Main Telegraph service configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]

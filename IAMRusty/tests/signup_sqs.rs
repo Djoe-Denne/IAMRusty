@@ -8,7 +8,7 @@ use serde_json::{json, Value};
 use serial_test::serial;
 
 use iam_configuration::{clear_config_cache, load_config, QueueConfig};
-use rustycog_testing::TestSqsFixture;
+use rustycog::testing::TestSqsFixture;
 use std::sync::Arc;
 
 // 🔥 SQS Integration Test

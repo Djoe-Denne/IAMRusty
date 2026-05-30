@@ -1,5 +1,5 @@
 use chrono::NaiveDateTime;
-use rustycog_testing::db::{CommittedFixture, DbFixture, TestData};
+use rustycog::testing::db::{CommittedFixture, DbFixture, TestData};
 use sea_orm::{ActiveModelTrait, ActiveValue, DatabaseConnection, DbErr};
 use std::sync::Arc;
 use uuid::Uuid;

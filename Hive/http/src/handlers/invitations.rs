@@ -7,9 +7,9 @@ use hive_application::{
     GetInvitationByTokenCommand, InvitationDetailsResponse, InvitationListResponse,
     InvitationResponse, ListInvitationsCommand, PaginationRequest,
 };
-use rustycog_command::CommandContext;
-use rustycog_http::{AppState, AuthUser, OptionalAuthUser, ValidatedJson};
-use rustycog_permission::ResourceId;
+use rustycog::command::CommandContext;
+use rustycog::http::{AppState, AuthUser, OptionalAuthUser, ValidatedJson};
+use rustycog::permission::ResourceId;
 
 use crate::error::HttpError;
 

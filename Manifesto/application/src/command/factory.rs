@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use rustycog_command::{CommandRegistry, CommandRegistryBuilder, RegistryConfig};
-use rustycog_config::CommandConfig;
+use rustycog::command::{CommandRegistry, CommandRegistryBuilder, RegistryConfig};
+use rustycog::config::CommandConfig;
 
 use super::{
     // Component commands

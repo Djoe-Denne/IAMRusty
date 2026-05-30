@@ -2,9 +2,9 @@
 
 use async_trait::async_trait;
 use iam_events::DomainEvent;
-use rustycog_command::{CommandContext, GenericCommandService};
-use rustycog_core::error::ServiceError;
-use rustycog_events::{
+use rustycog::command::{CommandContext, GenericCommandService};
+use rustycog::core::error::ServiceError;
+use rustycog::events::{
     create_event_consumer_from_queue_config, ConcreteEventConsumer,
     EventConsumer as RustycogEventConsumer, EventHandler,
 };
@@ -110,7 +110,7 @@ impl TelegraphEventHandler {
 impl EventHandler for TelegraphEventHandler {
     async fn handle_event(
         &self,
-        event: Box<dyn rustycog_events::DomainEvent>,
+        event: Box<dyn rustycog::events::DomainEvent>,
     ) -> Result<(), ServiceError> {
         let event_id = event.event_id();
 

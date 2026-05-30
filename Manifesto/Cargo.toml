@@ -24,7 +24,7 @@ manifesto-migration = { path = "migration" }
 # Shared crates
 iam-events = { path = "../iam-events" }
 manifesto-events = { path = "../manifesto-events" }
-rustycog-config = { path = "../rustycog/rustycog-config" }
+rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full", "test-utils"] }
 
 # Web & HTTP
 axum = { workspace = true }
@@ -81,12 +81,7 @@ manifesto-infra = { path = "infra", features = ["test-utils"] }
 manifesto-migration = { path = "migration" }
 manifesto-configuration = { path = "configuration" }
 manifesto-setup = { path = "setup" }
-rustycog-events = { path = "../rustycog/rustycog-events", features = ["test-utils"] }
-rustycog-outbox = { path = "../rustycog/rustycog-outbox" }
-rustycog-testing = { path = "../rustycog/rustycog-testing" }
-rustycog-config = { path = "../rustycog/rustycog-config" }
-rustycog-core = { path = "../rustycog/rustycog-core" }
-rustycog-permission = { path = "../rustycog/rustycog-permission" }
+rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full", "test-utils"] }
 apparatus-events = { path = "../apparatus-events" }
 
 

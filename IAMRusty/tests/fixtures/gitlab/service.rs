@@ -1,5 +1,5 @@
 use super::resources::*;
-use rustycog_testing::wiremock::MockServerFixture;
+use rustycog::testing::wiremock::MockServerFixture;
 use serde::Serialize;
 use std::sync::Arc;
 use wiremock::{

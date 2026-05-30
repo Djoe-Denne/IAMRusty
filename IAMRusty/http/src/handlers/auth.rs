@@ -26,8 +26,8 @@ use iam_application::command::{
     CommandContext,
 };
 use iam_domain::entity::provider::Provider;
-use rustycog_http::AppState;
-use rustycog_http::{AuthUser, ValidatedJson};
+use rustycog::http::AppState;
+use rustycog::http::{AuthUser, ValidatedJson};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error};
 use url;

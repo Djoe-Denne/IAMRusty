@@ -6,7 +6,7 @@ use hive_domain::entity::{ExternalLink, SyncStatus};
 use hive_domain::port::repository::{
     ExternalLinkReadRepository, ExternalLinkRepository, ExternalLinkWriteRepository,
 };
-use rustycog_core::error::DomainError;
+use rustycog::core::error::DomainError;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait,
     QueryFilter,

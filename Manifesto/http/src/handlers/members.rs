@@ -9,9 +9,9 @@ use manifesto_application::{
     PaginationRequest, RemoveMemberCommand, RevokePermissionCommand, UpdateMemberCommand,
     UpdateMemberPermissionsRequest,
 };
-use rustycog_command::CommandContext;
-use rustycog_http::{AppState, AuthUser, ValidatedJson};
-use rustycog_permission::ResourceId;
+use rustycog::command::CommandContext;
+use rustycog::http::{AppState, AuthUser, ValidatedJson};
+use rustycog::permission::ResourceId;
 use uuid::Uuid;
 
 use crate::error::{error_mapper, HttpError};

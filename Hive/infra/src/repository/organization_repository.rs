@@ -5,7 +5,7 @@ use hive_domain::entity::Organization;
 use hive_domain::port::repository::{
     OrganizationReadRepository, OrganizationRepository, OrganizationWriteRepository,
 };
-use rustycog_core::error::DomainError;
+use rustycog::core::error::DomainError;
 use sea_orm::{
     prelude::Expr, ActiveModelTrait, ActiveValue, ColumnTrait, Condition, DatabaseConnection,
     EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder,

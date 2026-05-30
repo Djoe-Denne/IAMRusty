@@ -5,7 +5,7 @@ pub mod organization;
 pub mod sync_job;
 
 use crate::ApplicationError;
-use rustycog_events::DomainEvent;
+use rustycog::events::DomainEvent;
 
 #[async_trait::async_trait]
 pub trait HiveOutboxUnitOfWork: Send + Sync {

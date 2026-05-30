@@ -2,7 +2,7 @@
 
 use manifesto_domain::port::{ComponentInfo, ComponentServicePort};
 use manifesto_infra::adapters::ComponentServiceClient;
-use rustycog_core::error::DomainError;
+use rustycog::core::error::DomainError;
 use wiremock::{
     matchers::{header, method, path},
     Mock, MockServer, ResponseTemplate,

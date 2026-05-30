@@ -35,14 +35,14 @@ use hive_infra::{
 };
 
 // Rustycog
-use rustycog_command::GenericCommandService;
-use rustycog_config::ServerConfig;
-use rustycog_core::error::DomainError;
-use rustycog_db::DbConnectionPool;
-use rustycog_events::{create_multi_queue_event_publisher, EventPublisher};
-use rustycog_http::{AppState, UserIdExtractor};
-use rustycog_outbox::{OutboxConfig, OutboxDispatcher, OutboxRecorder};
-use rustycog_permission::{
+use rustycog::command::GenericCommandService;
+use rustycog::config::ServerConfig;
+use rustycog::core::error::DomainError;
+use rustycog::db::DbConnectionPool;
+use rustycog::events::{create_multi_queue_event_publisher, EventPublisher};
+use rustycog::http::{AppState, UserIdExtractor};
+use rustycog::outbox::{OutboxConfig, OutboxDispatcher, OutboxRecorder};
+use rustycog::permission::{
     CachedPermissionChecker, MetricsPermissionChecker, OpenFgaPermissionChecker, PermissionChecker,
 };
 use std::time::Duration;

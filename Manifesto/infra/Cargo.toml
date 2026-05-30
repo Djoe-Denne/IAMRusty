@@ -18,12 +18,7 @@ manifesto-application = { path = "../application" }
 apparatus-events = { path = "../../apparatus-events" }
 
 # Shared crates
-rustycog-core = { path = "../../rustycog/rustycog-core" }
-rustycog-config = { path = "../../rustycog/rustycog-config" }
-rustycog-db = { path = "../../rustycog/rustycog-db" }
-rustycog-events = { path = "../../rustycog/rustycog-events" }
-rustycog-outbox = { path = "../../rustycog/rustycog-outbox" }
-rustycog-permission = { path = "../../rustycog/rustycog-permission" }
+rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full"] }
 
 # Database
 sea-orm = { workspace = true }

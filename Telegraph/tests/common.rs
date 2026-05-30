@@ -1,15 +1,15 @@
 //! Common test utilities for Telegraph
 //!
-//! Provides test infrastructure following rustycog-testing patterns
+//! Provides test infrastructure following rustycog::testing patterns
 //! and Telegraph-specific test setup, including the real `OpenFGA`
 //! testcontainer every permission-gated route is routed through
 //! (mirrors `Manifesto/tests/common.rs`).
 
 use async_trait::async_trait;
 use reqwest::Client;
-use rustycog_config::ServerConfig;
-use rustycog_testing::sqs_testcontainer::TestSqs;
-use rustycog_testing::*;
+use rustycog::config::ServerConfig;
+use rustycog::testing::sqs_testcontainer::TestSqs;
+use rustycog::testing::*;
 use std::sync::Arc;
 use telegraph_configuration::TelegraphConfig;
 use telegraph_http_server::SERVICE_PREFIX;
@@ -18,15 +18,15 @@ use telegraphmigration::{Migrator, MigratorTrait};
 
 // Re-export the real OpenFGA testcontainer fixture so tests can arrange
 // `Check` decisions by writing real relationship tuples without pulling
-// `rustycog_testing::common::openfga_testcontainer` paths into every file.
+// `rustycog::testing::common::openfga_testcontainer` paths into every file.
 // The harness writes **no** permissive default; each test must
 // explicitly call `openfga.allow(subject, action, resource)` for every
 // tuple the route guard will check (default = deny).
-pub use rustycog_testing::common::openfga_testcontainer::TestOpenFga;
+pub use rustycog::testing::common::openfga_testcontainer::TestOpenFga;
 
 // Re-export the permission domain types tests need to express tuples.
 #[allow(unused_imports)]
-pub use rustycog_permission::{Permission, ResourceRef, Subject};
+pub use rustycog::permission::{Permission, ResourceRef, Subject};
 
 #[path = "fixtures/mod.rs"]
 mod fixtures;
@@ -34,7 +34,7 @@ mod fixtures;
 use fixtures::smtp::testcontainer::TestSmtp;
 
 static mut APP: Option<TelegraphApp> = None;
-/// Telegraph test descriptor following rustycog-testing patterns
+/// Telegraph test descriptor following rustycog::testing patterns
 pub struct TelegraphTestDescriptor;
 
 #[async_trait]
@@ -90,6 +90,10 @@ impl ServiceTestDescriptor<TelegraphTestFixture> for TelegraphTestDescriptor {
 
     fn has_openfga(&self) -> bool {
         true
+    }
+
+    fn openfga_authorization_model_json(&self) -> Option<&'static str> {
+        Some(include_str!("../../openfga/model.json"))
     }
 }
 
@@ -172,7 +176,7 @@ pub async fn setup_test_server(
         .await
         .expect("Failed to clear emails");
     // Start the Telegraph server
-    let (server_url, client) = rustycog_testing::setup_test_server::<
+    let (server_url, client) = rustycog::testing::setup_test_server::<
         TelegraphTestDescriptor,
         TelegraphTestFixture,
     >(descriptor)

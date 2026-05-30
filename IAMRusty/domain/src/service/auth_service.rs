@@ -13,7 +13,7 @@ use crate::port::{
 };
 use async_trait::async_trait;
 use chrono::Utc;
-use rustycog_events::event::EventPublisher;
+use rustycog::events::event::EventPublisher;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use thiserror::Error;
@@ -276,7 +276,7 @@ where
 
     async fn record_or_publish_event(
         &self,
-        event: Box<dyn rustycog_events::event::DomainEvent + 'static>,
+        event: Box<dyn rustycog::events::event::DomainEvent + 'static>,
     ) -> Result<(), String> {
         if let Some(outbox_unit_of_work) = &self.outbox_unit_of_work {
             outbox_unit_of_work
@@ -520,7 +520,7 @@ where
             .map_err(|e| AuthError::TokenServiceError(Box::new(e)))?;
 
         // Publish UserLoggedIn event
-        let event: Box<dyn rustycog_events::event::DomainEvent + 'static> =
+        let event: Box<dyn rustycog::events::event::DomainEvent + 'static> =
             DomainEvent::UserLoggedIn(UserLoggedInEvent::new(
                 user.id,
                 request.email.clone(),
@@ -729,7 +729,7 @@ where
             return;
         };
 
-        let event: Box<dyn rustycog_events::event::DomainEvent + 'static> =
+        let event: Box<dyn rustycog::events::event::DomainEvent + 'static> =
             DomainEvent::UserSignedUp(UserSignedUpEvent::new(
                 user_id,
                 email.to_string(),

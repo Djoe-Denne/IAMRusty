@@ -1,15 +1,15 @@
-use rustycog_config::{
+use rustycog::config::{
     AuthConfig, HasDbConfig, HasLoggingConfig, HasOpenFgaConfig, HasQueueConfig, HasScalewayConfig,
     HasServerConfig, OpenFgaClientConfig,
 };
 use serde::{Deserialize, Serialize};
 
-pub use rustycog_config::{
+pub use rustycog::config::{
     load_config_fresh, AuthConfig as SharedAuthConfig, CommandConfig, ConfigError, ConfigLoader,
     DatabaseConfig, LoggingConfig, QueueConfig, ScalewayConfig, ServerConfig,
 };
 
-pub use rustycog_logger::setup_logging;
+pub use rustycog::logger::setup_logging;
 
 /// IAM service configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]

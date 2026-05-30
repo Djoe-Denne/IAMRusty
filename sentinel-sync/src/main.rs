@@ -7,7 +7,7 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use rustycog_events::{create_event_consumer_from_queue_config, EventConsumer};
+use rustycog::events::{create_event_consumer_from_queue_config, EventConsumer};
 use tracing::{error, info};
 
 mod config;

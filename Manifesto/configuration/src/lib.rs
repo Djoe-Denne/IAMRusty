@@ -5,13 +5,13 @@
 
 use serde::{Deserialize, Serialize};
 
-use rustycog_config::{
+use rustycog::config::{
     load_config_fresh, AuthConfig, CommandConfig, ConfigError, ConfigLoader, DatabaseConfig,
     HasDbConfig, HasLoggingConfig, HasOpenFgaConfig, HasQueueConfig, HasScalewayConfig,
     HasServerConfig, LoggingConfig, OpenFgaClientConfig, QueueConfig, ScalewayConfig, ServerConfig,
 };
 
-pub use rustycog_logger::setup_logging;
+pub use rustycog::logger::setup_logging;
 
 /// Type alias for backward compatibility
 pub type AppConfig = ManifestoConfig;

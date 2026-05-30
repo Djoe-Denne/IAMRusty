@@ -1,17 +1,17 @@
 //! Common test utilities for Manifesto
 //!
-//! Provides test infrastructure following rustycog-testing patterns
+//! Provides test infrastructure following rustycog::testing patterns
 //! and Manifesto-specific test setup, including the real `OpenFGA`
 //! testcontainer every permission-touching test routes through.
 
-// Test utilities from rustycog-testing
-pub use rustycog_testing::TestFixture;
-pub use rustycog_testing::*;
+// Test utilities from rustycog::testing
+pub use rustycog::testing::TestFixture;
+pub use rustycog::testing::*;
 
 // Re-export the real OpenFGA testcontainer fixture so tests can arrange
 // `Check` decisions by writing real relationship tuples without pulling
-// `rustycog_testing::common::openfga_testcontainer` paths into every file.
-pub use rustycog_testing::common::openfga_testcontainer::TestOpenFga;
+// `rustycog::testing::common::openfga_testcontainer` paths into every file.
+pub use rustycog::testing::common::openfga_testcontainer::TestOpenFga;
 
 // Re-export the permission domain types tests need to express tuples.
 
@@ -31,7 +31,7 @@ use manifesto_configuration::ManifestoConfig;
 use manifesto_http_server::SERVICE_PREFIX;
 use manifesto_setup::build_and_run;
 use reqwest::Client;
-use rustycog_config::ServerConfig;
+use rustycog::config::ServerConfig;
 use std::sync::Arc;
 
 pub struct ManifestoTestDescriptor;
@@ -82,6 +82,10 @@ impl ServiceTestDescriptor<TestFixture> for ManifestoTestDescriptor {
 
     fn has_openfga(&self) -> bool {
         true
+    }
+
+    fn openfga_authorization_model_json(&self) -> Option<&'static str> {
+        Some(include_str!("../../openfga/model.json"))
     }
 }
 
@@ -138,7 +142,7 @@ pub async fn setup_test_server() -> Result<
     components.mock_default_catalog().await;
 
     let (server_url, client) =
-        rustycog_testing::setup_test_server::<ManifestoTestDescriptor, TestFixture>(descriptor)
+        rustycog::testing::setup_test_server::<ManifestoTestDescriptor, TestFixture>(descriptor)
             .await?;
     Ok((
         fixture,

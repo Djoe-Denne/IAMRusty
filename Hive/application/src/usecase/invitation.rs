@@ -7,8 +7,8 @@ use hive_domain::{
     service::invitation_service::InvitationService,
 };
 use hive_events::{HiveDomainEvent, InvitationCreatedEvent, InvitationCreatedEventData, Role};
-use rustycog_core::error::DomainError;
-use rustycog_events::{DomainEvent, EventPublisher};
+use rustycog::core::error::DomainError;
+use rustycog::events::{DomainEvent, EventPublisher};
 
 use crate::{
     dto::{CreateInvitationRequest, InvitationResponse},

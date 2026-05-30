@@ -5,7 +5,7 @@
 
 use axum::Router;
 use iam_configuration::ServerConfig;
-use rustycog_http::{AppState, RouteBuilder};
+use rustycog::http::{AppState, RouteBuilder};
 
 pub mod error;
 pub mod handlers;
@@ -84,5 +84,5 @@ pub fn create_prefixed_router(state: AppState) -> Router {
 
 /// Create and start the application routes using the fluent builder API.
 pub async fn create_app_routes(state: AppState, config: ServerConfig) -> anyhow::Result<()> {
-    rustycog_http::serve_router(create_prefixed_router(state), config).await
+    rustycog::http::serve_router(create_prefixed_router(state), config).await
 }

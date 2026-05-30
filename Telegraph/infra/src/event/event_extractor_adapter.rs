@@ -2,7 +2,7 @@
 
 use crate::event::json_utils::json_to_string_map;
 use async_trait::async_trait;
-use rustycog_events::DomainEvent;
+use rustycog::events::DomainEvent;
 use serde_json;
 use std::collections::HashMap;
 use telegraph_domain::{DomainError, EventExtractor};

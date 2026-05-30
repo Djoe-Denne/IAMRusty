@@ -5,7 +5,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::error::DomainError;
-use rustycog_events::DomainEvent;
+use rustycog::events::DomainEvent;
 
 /// Port for handling IAM domain events
 #[async_trait]

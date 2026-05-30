@@ -1,5 +1,5 @@
 use super::resources::*;
-use rustycog_testing::wiremock::MockServerFixture;
+use rustycog::testing::wiremock::MockServerFixture;
 use std::sync::Arc;
 use wiremock::{
     matchers::{body_string_contains, method, path},

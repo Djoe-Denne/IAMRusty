@@ -7,7 +7,7 @@ use crate::{
     port::OrganizationRepository,
     service::{member_service::MemberService, role_service::RoleService},
 };
-use rustycog_core::error::DomainError;
+use rustycog::core::error::DomainError;
 
 /// Domain service for organization management
 pub struct OrganizationServiceImpl<OR, MS, RS>

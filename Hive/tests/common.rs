@@ -1,13 +1,13 @@
 //! Common test utilities for Hive
 //!
-//! Mirrors rustycog-testing patterns and Telegraph tests structure, plus
+//! Mirrors rustycog::testing patterns and Telegraph tests structure, plus
 //! the real `OpenFGA` testcontainer every permission-touching Hive test
 //! routes through (mirrors `Manifesto/tests/common.rs`).
 
 use async_trait::async_trait;
 use reqwest::Client;
-use rustycog_config::ServerConfig;
-use rustycog_testing::*;
+use rustycog::config::ServerConfig;
+use rustycog::testing::*;
 use std::sync::Arc;
 
 use anyhow::anyhow;
@@ -18,15 +18,15 @@ use hive_setup::app::AppBuilder;
 
 // Re-export the real OpenFGA testcontainer fixture so tests can arrange
 // `Check` decisions by writing real relationship tuples without pulling
-// `rustycog_testing::common::openfga_testcontainer` paths into every file.
+// `rustycog::testing::common::openfga_testcontainer` paths into every file.
 // The harness writes **no** permissive default; each test must
 // explicitly call `openfga.allow(subject, action, resource)` for every
 // tuple the route guard will check (default = deny).
-pub use rustycog_testing::common::openfga_testcontainer::TestOpenFga;
+pub use rustycog::testing::common::openfga_testcontainer::TestOpenFga;
 
 // Re-export the permission domain types tests need to express tuples.
 #[allow(unused_imports)]
-pub use rustycog_permission::{Permission, ResourceRef, Subject};
+pub use rustycog::permission::{Permission, ResourceRef, Subject};
 
 // Re-export fixtures
 #[path = "fixtures/mod.rs"]
@@ -34,7 +34,7 @@ pub mod fixtures;
 
 static mut APP: Option<hive_setup::app::Application> = None;
 
-/// Hive test descriptor following rustycog-testing patterns
+/// Hive test descriptor following rustycog::testing patterns
 pub struct HiveTestDescriptor;
 
 #[async_trait]
@@ -89,18 +89,22 @@ impl ServiceTestDescriptor<HiveTestFixture> for HiveTestDescriptor {
     fn has_openfga(&self) -> bool {
         true
     }
+
+    fn openfga_authorization_model_json(&self) -> Option<&'static str> {
+        Some(include_str!("../../openfga/model.json"))
+    }
 }
 
 /// Hive-specific test fixture
 pub struct HiveTestFixture {
-    pub fixture: rustycog_testing::common::TestFixture,
+    pub fixture: rustycog::testing::common::TestFixture,
 }
 
 impl HiveTestFixture {
     pub async fn new(
         descriptor: Arc<HiveTestDescriptor>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
-        let fixture = rustycog_testing::common::TestFixture::new(descriptor).await?;
+        let fixture = rustycog::testing::common::TestFixture::new(descriptor).await?;
         Ok(Self { fixture })
     }
 
@@ -139,7 +143,7 @@ pub async fn setup_test_server(
     let openfga = fixture.openfga().clone();
 
     let (server_url, client) =
-        rustycog_testing::setup_test_server::<HiveTestDescriptor, HiveTestFixture>(descriptor)
+        rustycog::testing::setup_test_server::<HiveTestDescriptor, HiveTestFixture>(descriptor)
             .await?;
 
     Ok((fixture, prefixed_url(server_url), client, openfga))

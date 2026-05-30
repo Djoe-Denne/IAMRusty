@@ -1,6 +1,6 @@
-// Test utilities from rustycog-testing
-pub use rustycog_testing::TestFixture;
-pub use rustycog_testing::*;
+// Test utilities from rustycog::testing
+pub use rustycog::testing::TestFixture;
+pub use rustycog::testing::*;
 
 // Migration crate import - use the correct crate name
 use iammigration::{Migrator, MigratorTrait};
@@ -13,7 +13,7 @@ use iam_http_server::SERVICE_PREFIX;
 use iam_infra::event_adapter::IAMErrorMapper;
 use iam_setup::app::build_and_run;
 use reqwest::Client;
-use rustycog_events::adapter::{GenericEventPublisherAdapter, MultiQueueEventPublisher};
+use rustycog::events::adapter::{GenericEventPublisherAdapter, MultiQueueEventPublisher};
 use std::collections::HashSet;
 use std::sync::{Arc, OnceLock};
 
@@ -74,7 +74,7 @@ pub async fn setup_test_server() -> Result<(TestFixture, String, Client), Box<dy
     let descriptor = Arc::new(IAMRustyTestDescriptor);
     let fixture = TestFixture::new(descriptor.clone()).await?;
     let (server_url, client) =
-        rustycog_testing::setup_test_server::<IAMRustyTestDescriptor, TestFixture>(descriptor)
+        rustycog::testing::setup_test_server::<IAMRustyTestDescriptor, TestFixture>(descriptor)
             .await?;
     Ok((fixture, prefixed_url(server_url), client))
 }
@@ -107,7 +107,7 @@ impl ServiceTestDescriptor<TestFixture> for IAMRustyTestDescriptorWithMockEvents
     }
 
     async fn run_app(&self, _config: AppConfig, server_config: ServerConfig) -> anyhow::Result<()> {
-        let no_op_event_publisher = Arc::new(rustycog_events::ConcreteEventPublisher::NoOp(
+        let no_op_event_publisher = Arc::new(rustycog::events::ConcreteEventPublisher::NoOp(
             self.mock_event_publisher.clone(),
         ));
         let error_mapper = Arc::new(IAMErrorMapper);
@@ -167,7 +167,7 @@ pub async fn setup_test_server_with_mock_events(
     descriptor.mock_event_publisher.clear_events();
     let fixture = TestFixture::new(descriptor.clone()).await?;
     let mock_event_publisher = descriptor.mock_event_publisher.clone();
-    let (base_url, client) = rustycog_testing::setup_test_server::<
+    let (base_url, client) = rustycog::testing::setup_test_server::<
         IAMRustyTestDescriptorWithMockEvents,
         TestFixture,
     >(descriptor)

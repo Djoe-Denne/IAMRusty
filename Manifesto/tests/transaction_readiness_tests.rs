@@ -14,9 +14,9 @@ use manifesto_infra::{
     repository::entity::{prelude::*, project_members, role_permissions},
     ProjectCreationUnitOfWorkImpl,
 };
-use rustycog_core::error::DomainError;
-use rustycog_events::{DomainEvent, EventPublisher};
-use rustycog_outbox::{
+use rustycog::core::error::DomainError;
+use rustycog::events::{DomainEvent, EventPublisher};
+use rustycog::outbox::{
     entity::{
         Column as OutboxColumn, OutboxEvents, STATUS_FAILED, STATUS_PENDING, STATUS_PUBLISHED,
     },

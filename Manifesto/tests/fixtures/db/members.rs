@@ -1,7 +1,7 @@
 //! Member fixtures for testing
 
 use chrono::Utc;
-use rustycog_testing::db::CommittedFixture;
+use rustycog::testing::db::CommittedFixture;
 use sea_orm::prelude::DateTimeWithTimeZone;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter,

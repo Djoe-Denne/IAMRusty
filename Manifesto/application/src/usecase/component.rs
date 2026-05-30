@@ -12,8 +12,8 @@ use manifesto_domain::{
 use manifesto_events::{
     ComponentAddedEvent, ComponentRemovedEvent, ComponentStatusChangedEvent, ManifestoDomainEvent,
 };
-use rustycog_core::error::DomainError;
-use rustycog_events::{DomainEvent, EventPublisher};
+use rustycog::core::error::DomainError;
+use rustycog::events::{DomainEvent, EventPublisher};
 
 use crate::{
     dto::{AddComponentRequest, ComponentListResponse, ComponentResponse, UpdateComponentRequest},

@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use crate::usecase::EventProcessingUseCaseTrait;
 use iam_events::DomainEvent;
-use rustycog_command::{Command, CommandError, CommandErrorMapper, CommandHandler};
+use rustycog::command::{Command, CommandError, CommandErrorMapper, CommandHandler};
 use telegraph_domain::DomainError;
 
 /// Command to process an IAM domain event

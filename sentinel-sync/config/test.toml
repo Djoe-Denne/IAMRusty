@@ -8,7 +8,7 @@ level = "debug"
 [openfga]
 # `port = 0` asks `OpenFgaConfig::actual_port()` to bind a free random
 # host port at startup. The `TestOpenFga` testcontainer fixture
-# (`rustycog_testing::common::openfga_testcontainer`) maps the
+# (`rustycog::testing::common::openfga_testcontainer`) maps the
 # container's `:8080` to that port and publishes
 # `SENTINEL_SYNC_OPENFGA__SCHEME`/`HOST`/`PORT`/`STORE_ID`/
 # `AUTHORIZATION_MODEL_ID` env vars before the worker boots, so these

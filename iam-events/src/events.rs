@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
 
-use rustycog_core::error::ServiceError;
-use rustycog_events::event::{BaseEvent, DomainEvent};
+use rustycog::core::error::ServiceError;
+use rustycog::events::event::{BaseEvent, DomainEvent};
 
 /// IAM domain events that can be published to external systems
 #[derive(Debug, Clone, Serialize, Deserialize)]

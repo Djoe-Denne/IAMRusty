@@ -18,7 +18,7 @@ use manifesto_domain::{
     service::{ProjectService, ProjectServiceImpl},
     value_objects::{OwnerType, ProjectStatus, Visibility},
 };
-use rustycog_core::error::DomainError;
+use rustycog::core::error::DomainError;
 use uuid::Uuid;
 
 fn build_project(visibility: Visibility) -> Project {

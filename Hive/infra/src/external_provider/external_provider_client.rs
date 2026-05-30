@@ -8,7 +8,7 @@ use hive_configuration::ExternalProviderServiceConfig;
 use hive_domain::port::service::{
     ExternalMember, ExternalOrganizationInfo, ExternalProviderClient,
 };
-use rustycog_core::error::DomainError;
+use rustycog::core::error::DomainError;
 
 /// HTTP client implementation for External Provider Service
 #[derive(Debug, Clone)]

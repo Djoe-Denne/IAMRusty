@@ -3,9 +3,9 @@
 use apparatus_events::ApparatusDomainEvent;
 use async_trait::async_trait;
 use manifesto_domain::DomainError;
-use rustycog_config::QueueConfig;
-use rustycog_core::error::ServiceError;
-use rustycog_events::{
+use rustycog::config::QueueConfig;
+use rustycog::core::error::ServiceError;
+use rustycog::events::{
     create_event_consumer_from_queue_config, ConcreteEventConsumer, DomainEvent,
     EventConsumer as RustycogEventConsumer, EventHandler,
 };
@@ -114,7 +114,7 @@ impl ApparatusEventHandler {
 impl EventHandler for ApparatusEventHandler {
     async fn handle_event(
         &self,
-        event: Box<dyn rustycog_events::DomainEvent>,
+        event: Box<dyn rustycog::events::DomainEvent>,
     ) -> Result<(), ServiceError> {
         let event_id = event.event_id();
         let event_type = event.event_type().to_string();

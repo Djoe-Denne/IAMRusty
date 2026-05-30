@@ -19,7 +19,7 @@ use serial_test::serial;
 use uuid::Uuid;
 
 use fixtures::db::NotificationFixtureBuilder;
-use rustycog_testing::http::jwt::create_jwt_token;
+use rustycog::testing::http::jwt::create_jwt_token;
 
 /// Test parameter validation - negative page numbers
 #[tokio::test]

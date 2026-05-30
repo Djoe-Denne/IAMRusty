@@ -1,7 +1,7 @@
 use crate::error::ApiError;
 use axum::{extract::State, Json};
 use iam_application::command::{user::GetUserCommand, CommandContext};
-use rustycog_http::AuthUser;
+use rustycog::http::AuthUser;
 use serde::Serialize;
 use uuid::Uuid;
 
@@ -22,7 +22,7 @@ pub struct UserResponse {
 
 /// Get the current user's profile
 pub async fn get_user(
-    State(state): State<rustycog_http::AppState>,
+    State(state): State<rustycog::http::AppState>,
     auth_user: AuthUser,
 ) -> Result<Json<UserResponse>, ApiError> {
     debug!("Getting user profile for ID: {}", auth_user.user_id);

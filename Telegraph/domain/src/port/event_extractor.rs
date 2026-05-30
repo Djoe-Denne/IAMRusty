@@ -2,7 +2,7 @@
 
 use crate::error::DomainError;
 use async_trait::async_trait;
-use rustycog_events::DomainEvent;
+use rustycog::events::DomainEvent;
 use std::collections::HashMap;
 
 /// Port for extracting template variables from domain events

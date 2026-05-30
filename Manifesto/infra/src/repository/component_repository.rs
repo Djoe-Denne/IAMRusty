@@ -4,7 +4,7 @@ use manifesto_domain::port::{
     ComponentReadRepository, ComponentRepository, ComponentWriteRepository,
 };
 use manifesto_domain::value_objects::ComponentStatus;
-use rustycog_core::error::DomainError;
+use rustycog::core::error::DomainError;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait,
     QueryFilter,

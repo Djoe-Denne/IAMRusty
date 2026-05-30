@@ -12,7 +12,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use fixtures::DbFixtures;
-use rustycog_testing::{ServiceTestDescriptor, TestFixture};
+use rustycog::testing::{ServiceTestDescriptor, TestFixture};
 
 const TELEGRAPH_QUEUE: &str = "test-telegraph-events";
 const DEFAULT_QUEUE: &str = "test-iam-default-events";
@@ -77,7 +77,7 @@ async fn setup_sqs_test_server() -> Result<(TestFixture, String, Client), Box<dy
     let descriptor = Arc::new(IamSqsTestDescriptor);
     let fixture = TestFixture::new(descriptor.clone()).await?;
     let (server_url, client) =
-        rustycog_testing::setup_test_server::<IamSqsTestDescriptor, TestFixture>(descriptor)
+        rustycog::testing::setup_test_server::<IamSqsTestDescriptor, TestFixture>(descriptor)
             .await?;
 
     Ok((fixture, format!("{server_url}{SERVICE_PREFIX}"), client))

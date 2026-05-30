@@ -4,10 +4,10 @@
 //! traits from rustycog-events, allowing seamless integration while maintaining architectural
 //! separation.
 
-use rustycog_config::QueueConfig;
-use rustycog_core::error::DomainError;
-use rustycog_core::error::ServiceError;
-use rustycog_events::{
+use rustycog::config::QueueConfig;
+use rustycog::core::error::DomainError;
+use rustycog::core::error::ServiceError;
+use rustycog::events::{
     adapter::{ErrorMapper, GenericEventPublisherAdapter, MultiQueueEventPublisher},
     create_event_publisher_from_queue_config, ConcreteEventPublisher,
 };
@@ -101,7 +101,7 @@ pub async fn create_event_publisher_with_queue_config(
 ///
 /// ```rust
 /// use std::collections::HashSet;
-/// use rustycog_config::QueueConfig;
+/// use rustycog::config::QueueConfig;
 ///
 /// // Create a publisher that handles all queues
 /// let publisher = create_multi_queue_event_publisher_async(&config, None).await?;

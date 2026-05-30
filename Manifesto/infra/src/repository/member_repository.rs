@@ -5,7 +5,7 @@ use manifesto_domain::port::{
     ProjectMemberRolePermissionReadRepository,
 };
 use manifesto_domain::value_objects::MemberSource;
-use rustycog_core::error::DomainError;
+use rustycog::core::error::DomainError;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, Condition, ConnectionTrait, DatabaseConnection,
     EntityTrait, PaginatorTrait, QueryFilter,

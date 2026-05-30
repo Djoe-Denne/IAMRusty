@@ -1,4 +1,4 @@
-use rustycog_core::error::DomainError;
+use rustycog::core::error::DomainError;
 use thiserror::Error;
 
 /// Application-specific errors

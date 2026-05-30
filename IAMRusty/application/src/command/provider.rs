@@ -5,7 +5,7 @@ use crate::usecase::{
 use async_trait::async_trait;
 use iam_domain::entity::provider::Provider;
 use iam_domain::error::DomainError;
-use rustycog_command::{Command, CommandError, CommandErrorMapper, CommandHandler};
+use rustycog::command::{Command, CommandError, CommandErrorMapper, CommandHandler};
 use std::sync::Arc;
 use uuid::Uuid;
 

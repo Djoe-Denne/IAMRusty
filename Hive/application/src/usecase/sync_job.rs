@@ -4,8 +4,8 @@ use uuid::Uuid;
 
 use hive_domain::service::SyncService;
 use hive_events::{HiveDomainEvent, SyncJobStartedEvent};
-use rustycog_core::error::DomainError;
-use rustycog_events::{DomainEvent, EventPublisher};
+use rustycog::core::error::DomainError;
+use rustycog::events::{DomainEvent, EventPublisher};
 
 use crate::{
     dto::{StartSyncJobRequest, SyncJobResponse},

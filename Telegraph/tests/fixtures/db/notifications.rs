@@ -6,7 +6,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use super::common::FixtureFactory;
-use rustycog_testing::db::{CommittedFixture, DbFixture, TestData};
+use rustycog::testing::db::{CommittedFixture, DbFixture, TestData};
 use telegraph_infra::repository::entity::notifications;
 
 /// Builder for notification fixtures

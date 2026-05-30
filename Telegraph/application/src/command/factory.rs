@@ -11,7 +11,7 @@ use super::{
     ProcessEventErrorMapper,
 };
 use crate::usecase::{EventProcessingUseCaseTrait, NotificationUseCaseTrait};
-use rustycog_command::{CommandRegistry, CommandRegistryBuilder};
+use rustycog::command::{CommandRegistry, CommandRegistryBuilder};
 use std::sync::Arc;
 
 /// Factory for creating a command registry with Telegraph commands registered

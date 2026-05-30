@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
 use crate::RolePermission;
-use rustycog_core::error::DomainError;
+use rustycog::core::error::DomainError;
 
 /// Generic external provider service trait
 #[async_trait]

@@ -7,7 +7,7 @@ use iam_domain::port::{
     service::{AuthTokenService, RegistrationTokenService},
 };
 use iam_domain::service::auth_service::{AuthError, AuthService};
-use rustycog_events::event::EventPublisher;
+use rustycog::events::event::EventPublisher;
 use std::sync::Arc;
 use thiserror::Error;
 

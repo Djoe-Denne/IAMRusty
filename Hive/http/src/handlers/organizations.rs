@@ -8,9 +8,9 @@ use hive_application::{
     OrganizationResponse, OrganizationSearchRequest, PaginationRequest, SearchOrganizationsCommand,
     UpdateOrganizationCommand, UpdateOrganizationRequest,
 };
-use rustycog_command::{CommandContext, CommandError};
-use rustycog_http::{AppState, AuthUser, OptionalAuthUser, ValidatedJson};
-use rustycog_permission::ResourceId;
+use rustycog::command::{CommandContext, CommandError};
+use rustycog::http::{AppState, AuthUser, OptionalAuthUser, ValidatedJson};
+use rustycog::permission::ResourceId;
 
 use crate::error::HttpError;
 
