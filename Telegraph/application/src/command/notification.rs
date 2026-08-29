@@ -1,7 +1,7 @@
+use crate::error::{command_error_from_boxed, command_error_from_usecase};
 use crate::usecase::{
     GetNotificationsInput, GetNotificationsResponse, GetUnreadCountInput, GetUnreadCountResponse,
-    MarkNotificationReadInput, MarkNotificationReadResponse, NotificationUseCaseError,
-    NotificationUseCaseTrait,
+    MarkNotificationReadInput, MarkNotificationReadResponse, NotificationUseCaseTrait,
 };
 use async_trait::async_trait;
 use rustycog::command::{Command, CommandError, CommandErrorMapper, CommandHandler};
@@ -87,14 +87,7 @@ impl CommandHandler<GetNotificationsCommand> for GetNotificationsCommandHandler 
         self.notification_usecase
             .get_notifications(input)
             .await
-            .map_err(|e| match e {
-                NotificationUseCaseError::ValidationError(msg) => {
-                    CommandError::validation("VALIDATION_ERROR", msg)
-                }
-                NotificationUseCaseError::Domain(domain_error) => {
-                    CommandError::business("DOMAIN_ERROR", domain_error.to_string())
-                }
-            })
+            .map_err(|e| command_error_from_usecase(&e))
     }
 }
 
@@ -103,7 +96,7 @@ pub struct GetNotificationsErrorMapper;
 
 impl CommandErrorMapper for GetNotificationsErrorMapper {
     fn map_error(&self, error: Box<dyn std::error::Error + Send + Sync>) -> CommandError {
-        CommandError::infrastructure("INFRASTRUCTURE_ERROR", error.to_string())
+        command_error_from_boxed(error)
     }
 }
 
@@ -168,14 +161,7 @@ impl CommandHandler<GetUnreadCountCommand> for GetUnreadCountCommandHandler {
         self.notification_usecase
             .get_unread_count(input)
             .await
-            .map_err(|e| match e {
-                NotificationUseCaseError::ValidationError(msg) => {
-                    CommandError::validation("VALIDATION_ERROR", msg)
-                }
-                NotificationUseCaseError::Domain(domain_error) => {
-                    CommandError::business("DOMAIN_ERROR", domain_error.to_string())
-                }
-            })
+            .map_err(|e| command_error_from_usecase(&e))
     }
 }
 
@@ -184,7 +170,7 @@ pub struct GetUnreadCountErrorMapper;
 
 impl CommandErrorMapper for GetUnreadCountErrorMapper {
     fn map_error(&self, error: Box<dyn std::error::Error + Send + Sync>) -> CommandError {
-        CommandError::infrastructure("INFRASTRUCTURE_ERROR", error.to_string())
+        command_error_from_boxed(error)
     }
 }
 
@@ -264,14 +250,7 @@ impl CommandHandler<MarkNotificationReadCommand> for MarkNotificationReadCommand
         self.notification_usecase
             .mark_notification_read(input)
             .await
-            .map_err(|e| match e {
-                NotificationUseCaseError::ValidationError(msg) => {
-                    CommandError::validation("VALIDATION_ERROR", msg)
-                }
-                NotificationUseCaseError::Domain(domain_error) => {
-                    CommandError::business("DOMAIN_ERROR", domain_error.to_string())
-                }
-            })
+            .map_err(|e| command_error_from_usecase(&e))
     }
 }
 
@@ -280,6 +259,6 @@ pub struct MarkNotificationReadErrorMapper;
 
 impl CommandErrorMapper for MarkNotificationReadErrorMapper {
     fn map_error(&self, error: Box<dyn std::error::Error + Send + Sync>) -> CommandError {
-        CommandError::infrastructure("INFRASTRUCTURE_ERROR", error.to_string())
+        command_error_from_boxed(error)
     }
 }

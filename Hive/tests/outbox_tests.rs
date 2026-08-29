@@ -6,7 +6,9 @@ use std::sync::{Arc, Mutex};
 use async_trait::async_trait;
 use common::{HiveTestDescriptor, HiveTestFixture};
 use hive_application::HiveOutboxUnitOfWork;
+use hive_domain::Organization;
 use hive_events::{HiveDomainEvent, OrganizationCreatedEvent};
+use hive_infra::repository::entity::prelude::Organizations;
 use hive_infra::HiveOutboxUnitOfWorkImpl;
 use rustycog::core::error::{DomainError, ServiceError};
 use rustycog::events::{DomainEvent, EventPublisher};
@@ -246,4 +248,103 @@ async fn hive_outbox_dispatcher_marks_failure_retryable() {
     assert_eq!(outbox_row.status, STATUS_FAILED);
     assert_eq!(outbox_row.attempts, 1);
     assert!(outbox_row.last_error.is_some());
+}
+
+#[tokio::test]
+#[serial]
+async fn hive_create_organization_rolls_back_when_outbox_fails() {
+    let descriptor = Arc::new(HiveTestDescriptor);
+    let fixture = HiveTestFixture::new(descriptor)
+        .await
+        .expect("failed to create test fixture");
+    let db = fixture.db();
+    let db_pool = fixture.fixture.database.as_ref().unwrap().pool.clone();
+
+    let organization = Organization::new(
+        "Atomic Rollback Org".to_string(),
+        format!("atomic-rollback-{}", &Uuid::new_v4().to_string()[..8]),
+        None,
+        Uuid::new_v4(),
+    )
+    .expect("valid organization");
+    let organization_id = organization.id;
+    let event_id = Uuid::new_v4();
+
+    let error = HiveOutboxUnitOfWorkImpl::new(db_pool, OutboxRecorder::new())
+        .create_organization(organization, Box::new(BadEvent { event_id }))
+        .await
+        .expect_err("bad event should fail the whole transaction");
+    assert!(
+        error.to_string().contains("forced serialization failure"),
+        "unexpected error: {error}"
+    );
+
+    let persisted_org = Organizations::find_by_id(organization_id)
+        .one(db.as_ref())
+        .await
+        .expect("organization lookup should succeed");
+    assert!(
+        persisted_org.is_none(),
+        "organization row should roll back with the outbox"
+    );
+
+    let persisted_outbox = OutboxEvents::find()
+        .filter(OutboxColumn::EventId.eq(event_id))
+        .one(db.as_ref())
+        .await
+        .expect("outbox lookup should succeed");
+    assert!(
+        persisted_outbox.is_none(),
+        "outbox row should roll back with the organization"
+    );
+}
+
+#[tokio::test]
+#[serial]
+async fn hive_create_organization_records_domain_and_outbox_together() {
+    let descriptor = Arc::new(HiveTestDescriptor);
+    let fixture = HiveTestFixture::new(descriptor)
+        .await
+        .expect("failed to create test fixture");
+    let db = fixture.db();
+    let db_pool = fixture.fixture.database.as_ref().unwrap().pool.clone();
+
+    let organization = Organization::new(
+        "Atomic Success Org".to_string(),
+        format!("atomic-success-{}", &Uuid::new_v4().to_string()[..8]),
+        None,
+        Uuid::new_v4(),
+    )
+    .expect("valid organization");
+    let organization_id = organization.id;
+    let event = HiveDomainEvent::OrganizationCreated(OrganizationCreatedEvent::new(
+        organization.id,
+        organization.name.clone(),
+        organization.slug.clone(),
+        organization.owner_user_id,
+        organization.created_at,
+    ));
+    let event_id = event.event_id();
+
+    HiveOutboxUnitOfWorkImpl::new(db_pool, OutboxRecorder::new())
+        .create_organization(organization, event.into())
+        .await
+        .expect("organization and outbox should commit together");
+
+    let persisted_org = Organizations::find_by_id(organization_id)
+        .one(db.as_ref())
+        .await
+        .expect("organization lookup should succeed")
+        .expect("organization row should exist");
+    assert_eq!(persisted_org.id, organization_id);
+
+    let outbox_row = OutboxEvents::find()
+        .filter(OutboxColumn::EventId.eq(event_id))
+        .one(db.as_ref())
+        .await
+        .expect("outbox lookup should succeed")
+        .expect("outbox row should exist");
+    assert_eq!(outbox_row.status, STATUS_PENDING);
+    assert_eq!(outbox_row.aggregate_id, organization_id);
+    assert_eq!(outbox_row.event_type, "organization_created");
 }

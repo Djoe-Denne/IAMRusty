@@ -17,6 +17,7 @@ rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["ful
 hive-events = { path = "../hive-events" }
 manifesto-events = { path = "../manifesto-events" }
 iam-events = { path = "../iam-events" }
+telegraph-events = { path = "../telegraph-events" }
 
 async-trait.workspace = true
 serde.workspace = true

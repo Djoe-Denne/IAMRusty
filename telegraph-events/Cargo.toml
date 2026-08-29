@@ -1,0 +1,14 @@
+[package]
+name = "telegraph-events"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Domain events for Telegraph communication service"
+license.workspace = true
+
+[dependencies]
+rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }

@@ -5,6 +5,8 @@ members = [
     "iam-events",
     "hive-events",
     "manifesto-events",
+    "telegraph-events",
+    "readiness",
     
     # IAMRusty service crates
     "IAMRusty",
@@ -89,8 +91,10 @@ jsonwebtoken = "9.0.2"
 # Password hashing
 argon2 = "0.5.3"
 
-# Events/Kafka
-rdkafka = { version = "0.36.2", features = ["cmake-build", "tokio"] }
+# Events/Kafka — disabled on Windows: rdkafka-sys clones librdkafka and needs Unix `cp`/`configure`.
+# rustycog-framework 0.1.1 tied Kafka to feature `events`. Local path patch `rustycog/` splits it
+# behind `kafka` (not part of `full`). Re-enable with rustycog features += "kafka" plus:
+# rdkafka = { version = "0.36.2", features = ["cmake-build", "tokio"] }
 
 # AWS Dependencies
 aws-config = { version = "1.5.8", features = ["behavior-version-latest"] }
@@ -153,3 +157,7 @@ cargo_common_metadata = "allow"
 multiple_crate_versions = "allow"
 module_name_repetitions = "allow"
 must_use_candidate = "allow"
+
+# Temporary Windows bypass: crates.io rustycog-framework 0.1.1 always enables rdkafka via `events`/`full`.
+[patch.crates-io]
+rustycog-framework = { path = "rustycog" }

@@ -7,8 +7,8 @@ use hive_domain::port::repository::{
 };
 use rustycog::core::error::DomainError;
 use sea_orm::{
-    prelude::Expr, ActiveModelTrait, ActiveValue, ColumnTrait, Condition, DatabaseConnection,
-    EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder,
+    prelude::Expr, ActiveModelTrait, ActiveValue, ColumnTrait, Condition, ConnectionTrait,
+    DatabaseConnection, EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder,
 };
 use std::sync::Arc;
 use tracing::debug;
@@ -64,19 +64,28 @@ impl OrganizationReadRepositoryImpl {
     pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
+
+    pub async fn find_by_id_with_connection<C>(
+        db: &C,
+        id: &Uuid,
+    ) -> Result<Option<Organization>, DomainError>
+    where
+        C: ConnectionTrait,
+    {
+        let organization = Organizations::find_by_id(*id)
+            .one(db)
+            .await
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
+
+        Ok(organization.map(OrganizationMapper::to_domain))
+    }
 }
 
 #[async_trait]
 impl OrganizationReadRepository for OrganizationReadRepositoryImpl {
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<Organization>, DomainError> {
         debug!("Finding organization by ID: {}", id);
-
-        let organization = Organizations::find_by_id(*id)
-            .one(self.db.as_ref())
-            .await
-            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
-
-        Ok(organization.map(OrganizationMapper::to_domain))
+        Self::find_by_id_with_connection(self.db.as_ref(), id).await
     }
 
     async fn find_by_slug(&self, slug: &str) -> Result<Option<Organization>, DomainError> {
@@ -205,36 +214,37 @@ impl OrganizationWriteRepositoryImpl {
     pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
-}
 
-#[async_trait]
-impl OrganizationWriteRepository for OrganizationWriteRepositoryImpl {
-    async fn exists_by_slug(&self, slug: &str) -> Result<bool, DomainError> {
-        debug!("Checking if organization exists by slug: {}", slug);
-
+    pub async fn exists_by_slug_with_connection<C>(db: &C, slug: &str) -> Result<bool, DomainError>
+    where
+        C: ConnectionTrait,
+    {
         let count = Organizations::find()
             .filter(organizations::Column::Slug.eq(slug))
-            .count(self.db.as_ref())
+            .count(db)
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         Ok(count > 0)
     }
 
-    async fn save(&self, organization: &Organization) -> Result<Organization, DomainError> {
-        debug!("Saving organization with ID: {}", organization.id);
-        // Decide whether to insert or update based on existence
+    pub async fn save_with_connection<C>(
+        db: &C,
+        organization: &Organization,
+    ) -> Result<Organization, DomainError>
+    where
+        C: ConnectionTrait,
+    {
         let exists = Organizations::find_by_id(organization.id)
-            .one(self.db.as_ref())
+            .one(db)
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?
             .is_some();
 
         if exists {
-            // Update
             let active_model = OrganizationMapper::to_active_model(organization);
             let result = active_model
-                .save(self.db.as_ref())
+                .save(db)
                 .await
                 .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
@@ -251,21 +261,21 @@ impl OrganizationWriteRepository for OrganizationWriteRepositoryImpl {
             };
             Ok(OrganizationMapper::to_domain(saved_model))
         } else {
-            // Insert
             let active_model = OrganizationMapper::to_active_model(organization);
             let inserted = active_model
-                .insert(self.db.as_ref())
+                .insert(db)
                 .await
                 .map_err(|e| DomainError::internal_error(&e.to_string()))?;
             Ok(OrganizationMapper::to_domain(inserted))
         }
     }
 
-    async fn delete_by_id(&self, id: &Uuid) -> Result<(), DomainError> {
-        debug!("Deleting organization by ID: {}", id);
-
+    pub async fn delete_by_id_with_connection<C>(db: &C, id: &Uuid) -> Result<(), DomainError>
+    where
+        C: ConnectionTrait,
+    {
         let result = Organizations::delete_by_id(*id)
-            .exec(self.db.as_ref())
+            .exec(db)
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
@@ -277,6 +287,24 @@ impl OrganizationWriteRepository for OrganizationWriteRepositoryImpl {
         }
 
         Ok(())
+    }
+}
+
+#[async_trait]
+impl OrganizationWriteRepository for OrganizationWriteRepositoryImpl {
+    async fn exists_by_slug(&self, slug: &str) -> Result<bool, DomainError> {
+        debug!("Checking if organization exists by slug: {}", slug);
+        Self::exists_by_slug_with_connection(self.db.as_ref(), slug).await
+    }
+
+    async fn save(&self, organization: &Organization) -> Result<Organization, DomainError> {
+        debug!("Saving organization with ID: {}", organization.id);
+        Self::save_with_connection(self.db.as_ref(), organization).await
+    }
+
+    async fn delete_by_id(&self, id: &Uuid) -> Result<(), DomainError> {
+        debug!("Deleting organization by ID: {}", id);
+        Self::delete_by_id_with_connection(self.db.as_ref(), id).await
     }
 }
 

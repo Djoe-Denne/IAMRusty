@@ -196,12 +196,11 @@ impl CancelInvitationCommandHandler {
 
 #[async_trait]
 impl CommandHandler<CancelInvitationCommand> for CancelInvitationCommandHandler {
-    async fn handle(&self, _command: CancelInvitationCommand) -> Result<(), CommandError> {
-        // TODO: Implement cancel_invitation in InvitationUseCase
-        Err(CommandError::business(
-            "cancel_invitation_not_implemented",
-            "Cancel invitation functionality not yet implemented",
-        ))
+    async fn handle(&self, command: CancelInvitationCommand) -> Result<(), CommandError> {
+        self.invitation_usecase
+            .cancel_invitation(command.invitation_id)
+            .await
+            .map_err(|e| CommandError::business("cancel_invitation_failed", e.to_string()))
     }
 }
 

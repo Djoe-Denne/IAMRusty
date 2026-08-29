@@ -5,9 +5,11 @@ use super::{
     invitation::{
         AcceptInvitationCommand, AcceptInvitationCommandHandler, CancelInvitationCommand,
         CancelInvitationCommandHandler, CreateInvitationCommand, CreateInvitationCommandHandler,
-        GetInvitationByTokenCommand, GetInvitationByTokenCommandHandler, InvitationErrorMapper,
-        ListInvitationsCommand, ListInvitationsCommandHandler, ResendInvitationCommand,
-        ResendInvitationCommandHandler,
+        InvitationErrorMapper,
+    },
+    role::{
+        GetRoleCommand, GetRoleCommandHandler, ListRolesCommand, ListRolesCommandHandler,
+        RoleErrorMapper,
     },
     member::{
         AddMemberCommand, AddMemberCommandHandler, GetMemberCommand, GetMemberCommandHandler,
@@ -24,9 +26,11 @@ use super::{
     sync_job::{StartSyncJobCommand, StartSyncJobCommandHandler, SyncJobErrorMapper},
 };
 use crate::usecase::{
-    ExternalLinkUseCase, InvitationUseCase, MemberUseCase, OrganizationUseCase, SyncJobUseCase,
+    ExternalLinkUseCase, InvitationUseCase, MemberUseCase, OrganizationUseCase, RoleUseCase,
+    SyncJobUseCase,
 };
-use rustycog::command::{CommandRegistry, CommandRegistryBuilder};
+use rustycog::command::{CommandRegistry, CommandRegistryBuilder, RegistryConfig};
+use rustycog::config::CommandConfig;
 use std::sync::Arc;
 
 /// Factory for creating a command registry with all Hive commands registered
@@ -40,8 +44,12 @@ impl HiveCommandRegistryFactory {
         invitation_usecase: Arc<dyn InvitationUseCase>,
         external_link_usecase: Arc<dyn ExternalLinkUseCase>,
         sync_job_usecase: Arc<dyn SyncJobUseCase>,
+        role_usecase: Arc<dyn RoleUseCase>,
+        command_config: CommandConfig,
     ) -> CommandRegistry {
-        let mut builder = CommandRegistryBuilder::new();
+        let mut builder = CommandRegistryBuilder::with_config(RegistryConfig::from_retry_config(
+            &command_config.retry,
+        ));
 
         // Register organization commands
         let create_org_handler = Arc::new(CreateOrganizationCommandHandler::new(
@@ -131,35 +139,38 @@ impl HiveCommandRegistryFactory {
                 member_error_mapper,
             );
 
-        // Register invitation commands
+        // Live GET /roles surfaces — create/update/delete stay unregistered.
+        let list_roles_handler = Arc::new(ListRolesCommandHandler::new(role_usecase.clone()));
+        let get_role_handler = Arc::new(GetRoleCommandHandler::new(role_usecase));
+        let role_error_mapper = Arc::new(RoleErrorMapper);
+
+        builder = builder
+            .register::<ListRolesCommand, _>(
+                "list_roles".to_string(),
+                list_roles_handler,
+                role_error_mapper.clone(),
+            )
+            .register::<GetRoleCommand, _>(
+                "get_role".to_string(),
+                get_role_handler,
+                role_error_mapper,
+            );
+
+        // Register invitation commands that have a working use-case path.
         let create_invitation_handler = Arc::new(CreateInvitationCommandHandler::new(
-            invitation_usecase.clone(),
-        ));
-        let list_invitations_handler = Arc::new(ListInvitationsCommandHandler::new(
             invitation_usecase.clone(),
         ));
         let cancel_invitation_handler = Arc::new(CancelInvitationCommandHandler::new(
             invitation_usecase.clone(),
         ));
-        let accept_invitation_handler = Arc::new(AcceptInvitationCommandHandler::new(
-            invitation_usecase.clone(),
-        ));
-        let get_invitation_by_token_handler = Arc::new(GetInvitationByTokenCommandHandler::new(
-            invitation_usecase.clone(),
-        ));
-        let resend_invitation_handler =
-            Arc::new(ResendInvitationCommandHandler::new(invitation_usecase));
+        let accept_invitation_handler =
+            Arc::new(AcceptInvitationCommandHandler::new(invitation_usecase));
         let invitation_error_mapper = Arc::new(InvitationErrorMapper);
 
         builder = builder
             .register::<CreateInvitationCommand, _>(
                 "create_invitation".to_string(),
                 create_invitation_handler,
-                invitation_error_mapper.clone(),
-            )
-            .register::<ListInvitationsCommand, _>(
-                "list_invitations".to_string(),
-                list_invitations_handler,
                 invitation_error_mapper.clone(),
             )
             .register::<CancelInvitationCommand, _>(
@@ -170,16 +181,6 @@ impl HiveCommandRegistryFactory {
             .register::<AcceptInvitationCommand, _>(
                 "accept_invitation".to_string(),
                 accept_invitation_handler,
-                invitation_error_mapper.clone(),
-            )
-            .register::<GetInvitationByTokenCommand, _>(
-                "get_invitation_by_token".to_string(),
-                get_invitation_by_token_handler,
-                invitation_error_mapper.clone(),
-            )
-            .register::<ResendInvitationCommand, _>(
-                "resend_invitation".to_string(),
-                resend_invitation_handler,
                 invitation_error_mapper,
             );
 

@@ -47,6 +47,13 @@ pub trait SyncService: Send + Sync {
         requested_by_user_id: Uuid,
     ) -> Result<SyncJob, DomainError>;
 
+    async fn prepare_sync_job(
+        &self,
+        external_link_id: Uuid,
+        job_type: SyncJobType,
+        requested_by_user_id: Uuid,
+    ) -> Result<SyncJob, DomainError>;
+
     /**
      * Execute sync for organization info
      *
@@ -200,14 +207,12 @@ where
     IS: InvitationService,
     PC: ExternalProviderClient,
 {
-    /// Start a new sync job
-    async fn start_sync_job(
+    async fn prepare_sync_job(
         &self,
         external_link_id: Uuid,
         job_type: SyncJobType,
         _requested_by_user_id: Uuid,
     ) -> Result<SyncJob, DomainError> {
-        // Validate external link exists
         let external_link = self
             .external_link_repo
             .find_by_id(&external_link_id)
@@ -216,14 +221,12 @@ where
                 DomainError::entity_not_found("ExternalLink", &external_link_id.to_string())
             })?;
 
-        // Business rule: Sync must be enabled for the external link
         if !external_link.is_sync_enabled() {
             return Err(DomainError::business_rule_violation(
                 "Sync is not enabled for this external link",
             ));
         }
 
-        // Business rule: Check if there's already a running job for this external link
         let running_jobs = self
             .sync_job_repo
             .find_running_by_external_link(&external_link_id)
@@ -235,11 +238,19 @@ where
             ));
         }
 
-        // Create new sync job
-        let sync_job = SyncJob::new(external_link_id, job_type, None);
-        let saved_job = self.sync_job_repo.save(&sync_job).await?;
+        Ok(SyncJob::new(external_link_id, job_type, None))
+    }
 
-        Ok(saved_job)
+    async fn start_sync_job(
+        &self,
+        external_link_id: Uuid,
+        job_type: SyncJobType,
+        requested_by_user_id: Uuid,
+    ) -> Result<SyncJob, DomainError> {
+        let sync_job = self
+            .prepare_sync_job(external_link_id, job_type, requested_by_user_id)
+            .await?;
+        self.sync_job_repo.save(&sync_job).await
     }
 
     /// Execute sync for organization info

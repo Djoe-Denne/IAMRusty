@@ -151,3 +151,4 @@ certs/
 *.cer
 certificates/
 ssl/ 
+.grepai/

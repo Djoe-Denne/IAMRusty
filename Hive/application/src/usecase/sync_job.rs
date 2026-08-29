@@ -95,26 +95,41 @@ impl SyncJobUseCase for SyncJobUseCaseImpl {
         request: StartSyncJobRequest,
         requested_by_user_id: Uuid,
     ) -> Result<SyncJobResponse, ApplicationError> {
-        let job = self
-            .sync_service
-            .start_sync_job(
+        let job_type = hive_domain::SyncJobType::from_str(&request.job_type)
+            .map_err(ApplicationError::Domain)?;
+        let job = if let Some(outbox_unit_of_work) = &self.outbox_unit_of_work {
+            let job = self
+                .sync_service
+                .prepare_sync_job(request.external_link_id, job_type, requested_by_user_id)
+                .await?;
+            let started_at = chrono::Utc::now();
+            let event = HiveDomainEvent::SyncJobStarted(SyncJobStartedEvent::new(
+                organization_id,
                 request.external_link_id,
-                hive_domain::SyncJobType::from_str(&request.job_type)
-                    .map_err(ApplicationError::Domain)?,
-                requested_by_user_id,
+                job.id,
+                request.job_type.clone(),
+                started_at,
+            ));
+            outbox_unit_of_work
+                .save_sync_job(job, event.into())
+                .await?
+        } else {
+            let job = self
+                .sync_service
+                .start_sync_job(request.external_link_id, job_type, requested_by_user_id)
+                .await?;
+            let started_at = chrono::Utc::now();
+            self.publish_sync_job_started_event(
+                organization_id,
+                request.external_link_id,
+                job.id,
+                request.job_type.clone(),
+                started_at,
             )
             .await?;
+            job
+        };
         let started_at = chrono::Utc::now();
-
-        // Publish started event
-        self.publish_sync_job_started_event(
-            organization_id,
-            request.external_link_id,
-            job.id,
-            request.job_type.clone(),
-            started_at,
-        )
-        .await?;
 
         Ok(SyncJobResponse {
             id: job.id,

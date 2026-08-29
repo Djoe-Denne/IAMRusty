@@ -5,10 +5,12 @@
 //! and application services that coordinate domain operations.
 
 pub mod command;
+pub mod error;
 pub mod usecase;
 
 // Re-export commonly used types
 pub use command::*;
+pub use error::*;
 pub use usecase::*;
 
 // Re-export domain types for convenience

@@ -8,9 +8,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use rustycog::config::{
-    load_config_fresh, AuthConfig, ConfigError, ConfigLoader, DatabaseConfig, HasDbConfig,
-    HasLoggingConfig, HasOpenFgaConfig, HasQueueConfig, HasScalewayConfig, HasServerConfig,
-    LoggingConfig, OpenFgaClientConfig, QueueConfig, ScalewayConfig,
+    load_config_fresh, AuthConfig, CommandConfig, ConfigError, ConfigLoader, DatabaseConfig,
+    HasDbConfig, HasLoggingConfig, HasOpenFgaConfig, HasQueueConfig, HasScalewayConfig,
+    HasServerConfig, LoggingConfig, OpenFgaClientConfig, QueueConfig, ScalewayConfig,
 };
 
 pub use rustycog::config::ServerConfig;
@@ -51,6 +51,10 @@ pub struct TelegraphConfig {
     /// Database configuration
     #[serde(default)]
     pub database: DatabaseConfig,
+
+    /// Command retry policy (`[command.retry]`)
+    #[serde(default)]
+    pub command: CommandConfig,
 
     /// `OpenFGA` authorization checker configuration.
     #[serde(default)]
@@ -170,6 +174,10 @@ pub struct TemplateConfig {
     #[serde(default = "default_template_dir")]
     pub template_dir: String,
 
+    /// Per-event TOML communication descriptor directory
+    #[serde(default = "default_descriptor_dir")]
+    pub descriptor_dir: String,
+
     /// Template file extensions for different formats
     #[serde(default)]
     pub extensions: TemplateExtensions,
@@ -218,6 +226,9 @@ fn default_mailjet_version() -> String {
 fn default_template_dir() -> String {
     "templates".to_string()
 }
+fn default_descriptor_dir() -> String {
+    "resources/communication_descriptor".to_string()
+}
 fn default_html_extension() -> String {
     "html".to_string()
 }
@@ -237,6 +248,7 @@ impl Default for TelegraphConfig {
             queues: IndexMap::new(),
             communication: CommunicationConfig::default(),
             database: DatabaseConfig::default(),
+            command: CommandConfig::default(),
             openfga: OpenFgaClientConfig::default(),
         }
     }
@@ -290,6 +302,7 @@ impl Default for TemplateConfig {
         Self {
             enabled: default_true(),
             template_dir: default_template_dir(),
+            descriptor_dir: default_descriptor_dir(),
             extensions: TemplateExtensions::default(),
         }
     }

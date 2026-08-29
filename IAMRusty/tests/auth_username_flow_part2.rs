@@ -260,14 +260,9 @@ async fn test_registration_token_has_correct_rsa_signature() {
     let header_str = String::from_utf8(header_decoded).expect("Header should be UTF-8");
     let header: Value = serde_json::from_str(&header_str).expect("Header should be JSON");
 
-    // The test suite runs under the `test-relaxed-jwt` feature (enabled
-    // by `IAMRusty/Cargo.toml`'s dev-dep on `iam-infra`), which lets the
-    // registration service accept the HS256 secret from `test.toml`
-    // instead of requiring committed RSA PEM keys. In production the
-    // strict RS256 guard in `RegistrationTokenServiceImpl::new` is
-    // active, so the header would always be `RS256` there — here we
-    // accept either `RS*` or `HS*` so the test reflects whichever
-    // algorithm the active config wired in.
+    // In-tree configs (including production) emit HS256 so rustycog-http
+    // can verify tokens. Accept RS* or HS* so a PEM-based config still
+    // passes this header check.
     let alg = header["alg"].as_str().expect("Header alg should be string");
     assert!(
         alg.starts_with("RS") || alg.starts_with("HS"),

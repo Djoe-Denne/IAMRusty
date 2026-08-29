@@ -41,6 +41,8 @@ pub enum HiveDomainEvent {
     MemberJoined(MemberJoinedEvent),
     #[serde(rename = "member_removed")]
     MemberRemoved(MemberRemovedEvent),
+    #[serde(rename = "member_roles_updated")]
+    MemberRolesUpdated(MemberRolesUpdatedEvent),
     #[serde(rename = "invitation_created")]
     InvitationCreated(InvitationCreatedEvent),
     #[serde(rename = "invitation_accepted")]
@@ -64,6 +66,7 @@ impl DomainEvent for HiveDomainEvent {
             Self::MemberInvited(event) => event.base.event_type.as_str(),
             Self::MemberJoined(event) => event.base.event_type.as_str(),
             Self::MemberRemoved(event) => event.base.event_type.as_str(),
+            Self::MemberRolesUpdated(event) => event.base.event_type.as_str(),
             Self::InvitationCreated(event) => event.base.event_type.as_str(),
             Self::InvitationAccepted(event) => event.base.event_type.as_str(),
             Self::InvitationExpired(event) => event.base.event_type.as_str(),
@@ -81,6 +84,7 @@ impl DomainEvent for HiveDomainEvent {
             Self::MemberInvited(event) => event.base.event_id,
             Self::MemberJoined(event) => event.base.event_id,
             Self::MemberRemoved(event) => event.base.event_id,
+            Self::MemberRolesUpdated(event) => event.base.event_id,
             Self::InvitationCreated(event) => event.base.event_id,
             Self::InvitationAccepted(event) => event.base.event_id,
             Self::InvitationExpired(event) => event.base.event_id,
@@ -98,6 +102,7 @@ impl DomainEvent for HiveDomainEvent {
             Self::MemberInvited(event) => event.base.aggregate_id,
             Self::MemberJoined(event) => event.base.aggregate_id,
             Self::MemberRemoved(event) => event.base.aggregate_id,
+            Self::MemberRolesUpdated(event) => event.base.aggregate_id,
             Self::InvitationCreated(event) => event.base.aggregate_id,
             Self::InvitationAccepted(event) => event.base.aggregate_id,
             Self::InvitationExpired(event) => event.base.aggregate_id,
@@ -115,6 +120,7 @@ impl DomainEvent for HiveDomainEvent {
             Self::MemberInvited(event) => event.base.occurred_at,
             Self::MemberJoined(event) => event.base.occurred_at,
             Self::MemberRemoved(event) => event.base.occurred_at,
+            Self::MemberRolesUpdated(event) => event.base.occurred_at,
             Self::InvitationCreated(event) => event.base.occurred_at,
             Self::InvitationAccepted(event) => event.base.occurred_at,
             Self::InvitationExpired(event) => event.base.occurred_at,
@@ -132,6 +138,7 @@ impl DomainEvent for HiveDomainEvent {
             Self::MemberInvited(event) => event.base.version,
             Self::MemberJoined(event) => event.base.version,
             Self::MemberRemoved(event) => event.base.version,
+            Self::MemberRolesUpdated(event) => event.base.version,
             Self::InvitationCreated(event) => event.base.version,
             Self::InvitationAccepted(event) => event.base.version,
             Self::InvitationExpired(event) => event.base.version,
@@ -154,6 +161,7 @@ impl DomainEvent for HiveDomainEvent {
             Self::MemberInvited(event) => event.base.metadata.clone(),
             Self::MemberJoined(event) => event.base.metadata.clone(),
             Self::MemberRemoved(event) => event.base.metadata.clone(),
+            Self::MemberRolesUpdated(event) => event.base.metadata.clone(),
             Self::InvitationCreated(event) => event.base.metadata.clone(),
             Self::InvitationAccepted(event) => event.base.metadata.clone(),
             Self::InvitationExpired(event) => event.base.metadata.clone(),

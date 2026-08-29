@@ -124,27 +124,48 @@ impl ExternalLinkUseCase for ExternalLinkUseCaseImpl {
         organization_id: Uuid,
         request: &CreateExternalLinkRequest,
     ) -> Result<ExternalLinkResponse, ApplicationError> {
-        let external_link = self
-            .external_provider_service
-            .link_organization(
+        let external_link = if let Some(outbox_unit_of_work) = &self.outbox_unit_of_work {
+            let external_link = self
+                .external_provider_service
+                .prepare_organization_link(
+                    organization_id,
+                    request.provider_id,
+                    &request.provider_config,
+                )
+                .await
+                .map_err(ApplicationError::Domain)?;
+            let event = HiveDomainEvent::ExternalLinkCreated(ExternalLinkCreatedEvent::new(
                 organization_id,
-                request.provider_id,
-                &request.provider_config,
+                external_link.organization_name.clone().unwrap_or_default(),
+                external_link.id,
+                external_link.provider_source.clone().unwrap_or_default(),
+                external_link.created_at,
+            ));
+            outbox_unit_of_work
+                .save_external_link(external_link, event.into())
+                .await?
+        } else {
+            let external_link = self
+                .external_provider_service
+                .link_organization(
+                    organization_id,
+                    request.provider_id,
+                    &request.provider_config,
+                )
+                .await
+                .map_err(ApplicationError::Domain)?;
+            self.publish_external_link_created_event(
+                organization_id,
+                external_link.organization_name.clone().unwrap_or_default(),
+                external_link.id,
+                external_link.provider_source.clone().unwrap_or_default(),
+                external_link.created_at,
             )
-            .await
-            .map_err(ApplicationError::Domain)?;
+            .await?;
+            external_link
+        };
 
         let provider_source = external_link.provider_source.clone().unwrap();
-
-        // Publish external link created event
-        self.publish_external_link_created_event(
-            organization_id,
-            external_link.organization_name.unwrap_or_default(),
-            external_link.id,
-            provider_source.clone(),
-            external_link.created_at,
-        )
-        .await?;
 
         Ok(ExternalLinkResponse {
             id: external_link.id,

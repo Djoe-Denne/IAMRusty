@@ -10,6 +10,8 @@ license.workspace = true
 # Feature flags for testing and QA environments
 test-mode = []
 qa-mode = []
+# Off while rdkafka-sys is disabled on Windows; re-enable with rustycog feature kafka.
+kafka = []
 
 [dependencies]
 # Internal workspace crates
@@ -78,7 +80,6 @@ rand = { workspace = true }
 async-trait = { workspace = true }
 reqwest = { workspace = true }
 base64 = { workspace = true }
-rdkafka = { workspace = true }
 aws-sdk-sqs = { workspace = true }
 aws-config = { workspace = true }
 aws-credential-types = { workspace = true }

@@ -28,12 +28,25 @@ pub async fn run() -> anyhow::Result<()> {
     background_tasks.extend(hive_app.start_background_tasks());
     background_tasks.extend(manifesto_app.start_background_tasks());
 
-    let router = compose_routes(MonolithRouters {
-        iam: iam_app.router(),
-        telegraph: telegraph_app.router(),
-        hive: hive_app.router(),
-        manifesto: manifesto_app.router(),
-    });
+    let readiness = std::sync::Arc::new(readiness::ReadinessProbe::aggregate(
+        "monolith",
+        vec![
+            ("iam", iam_app.readiness()),
+            ("telegraph", telegraph_app.readiness()),
+            ("hive", hive_app.readiness()),
+            ("manifesto", manifesto_app.readiness()),
+        ],
+    ));
+
+    let router = compose_routes(
+        MonolithRouters {
+            iam: iam_app.router(),
+            telegraph: telegraph_app.router(),
+            hive: hive_app.router(),
+            manifesto: manifesto_app.router(),
+        },
+        readiness,
+    );
 
     let server = tokio::spawn(async move {
         rustycog::http::serve_router(router, server)

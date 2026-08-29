@@ -1,8 +1,8 @@
 //! sentinel-sync worker entry point.
 //!
 //! Boots a single event consumer that receives domain events from Hive,
-//! Manifesto, and IAM, feeds each event through the per-service translator,
-//! and writes the resulting tuple deltas into `OpenFGA`.
+//! Manifesto, IAM, and Telegraph, feeds each event through the per-service
+//! translator, and writes the resulting tuple deltas into `OpenFGA`.
 
 use std::sync::Arc;
 
@@ -20,7 +20,10 @@ use crate::config::SentinelSyncConfig;
 use crate::fga_client::OpenFgaWriteClient;
 use crate::handler::SyncEventHandler;
 use crate::idempotency::build_ledger;
-use crate::translator::{hive::HiveTranslator, iam::IamTranslator, manifesto::ManifestoTranslator};
+use crate::translator::{
+    hive::HiveTranslator, iam::IamTranslator, manifesto::ManifestoTranslator,
+    telegraph::TelegraphTranslator,
+};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -46,6 +49,7 @@ async fn main() -> Result<()> {
         Arc::new(HiveTranslator::new()),
         Arc::new(ManifestoTranslator::new()),
         Arc::new(IamTranslator::new()),
+        Arc::new(TelegraphTranslator::new()),
     ];
 
     let handler = SyncEventHandler::new(translators, ledger, fga);

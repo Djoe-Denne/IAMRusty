@@ -18,6 +18,7 @@ manifesto-application = { path = "../application" }
 apparatus-events = { path = "../../apparatus-events" }
 
 # Shared crates
+readiness = { path = "../../readiness" }
 rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full"] }
 
 # Database

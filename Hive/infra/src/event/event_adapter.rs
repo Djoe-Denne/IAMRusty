@@ -8,8 +8,11 @@ use rustycog::config::QueueConfig;
 use rustycog::core::error::DomainError;
 use rustycog::core::error::ServiceError;
 use rustycog::events::{
-    adapter::{ErrorMapper, GenericEventPublisherAdapter, MultiQueueEventPublisher},
+    adapter::{ErrorMapper, MultiQueueEventPublisher},
     create_event_publisher_from_queue_config, ConcreteEventPublisher,
+};
+use readiness::{
+    classify_publisher, create_signaled_multi_queue_event_publisher, signal_queue_status, QueueRole,
 };
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -89,9 +92,15 @@ impl ErrorMapper<DomainError> for HiveErrorMapper {
 pub async fn create_event_publisher_with_queue_config(
     config: &QueueConfig,
 ) -> Result<Arc<ConcreteEventPublisher>, DomainError> {
-    create_event_publisher_from_queue_config(config)
+    let publisher = create_event_publisher_from_queue_config(config)
         .await
-        .map_err(|service_error| HiveErrorMapper.from_service_error(service_error))
+        .map_err(|service_error| HiveErrorMapper.from_service_error(service_error))?;
+    signal_queue_status(
+        "hive",
+        QueueRole::Publisher,
+        &classify_publisher(config, publisher.as_ref()),
+    );
+    Ok(publisher)
 }
 
 /// Factory function to create a multi-queue event publisher with specific queue names
@@ -116,28 +125,12 @@ pub async fn create_multi_queue_event_publisher_async(
     config: &QueueConfig,
     queue_names: Option<HashSet<String>>,
 ) -> Result<Arc<MultiQueueEventPublisher<DomainError>>, DomainError> {
-    let error_mapper = Arc::new(HiveErrorMapper);
-
-    let queue_names = queue_names.unwrap_or_else(|| {
-        // If no specific queue names provided, use all configured queues
-        match config {
-            QueueConfig::Disabled => HashSet::new(),
-            QueueConfig::Sqs(sqs_config) => sqs_config.all_queue_names(),
-            QueueConfig::Kafka(kafka_config) => {
-                let mut all_queues = HashSet::new();
-                all_queues.insert(kafka_config.user_events_topic.clone());
-                all_queues
-            }
-        }
-    });
-
-    // Create a single publisher (can be extended for multiple publishers for different queues)
-    let adapted_publisher = create_event_publisher_with_queue_config(config).await?;
-    let publisher =
-        GenericEventPublisherAdapter::<DomainError>::new(adapted_publisher, error_mapper);
-
-    Ok(Arc::new(MultiQueueEventPublisher::new(
-        vec![publisher],
+    let signaled = create_signaled_multi_queue_event_publisher(
+        "hive",
+        config,
         queue_names,
-    )))
+        Arc::new(HiveErrorMapper),
+    )
+    .await?;
+    Ok(signaled.publisher)
 }

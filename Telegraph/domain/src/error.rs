@@ -1,5 +1,6 @@
 //! Domain error types for Telegraph service
 
+use rustycog::core::error::ServiceError;
 use thiserror::Error;
 
 /// Domain-specific errors for Telegraph communication service
@@ -174,7 +175,11 @@ impl DomainError {
     pub const fn is_recoverable(&self) -> bool {
         matches!(
             self,
-            Self::ServiceUnavailable(_) | Self::DeliveryFailed(_) | Self::InfrastructureError(_)
+            Self::ServiceUnavailable(_)
+                | Self::DeliveryFailed(_)
+                | Self::InfrastructureError(_)
+                | Self::RateLimitExceeded(_)
+                | Self::TemplateLoadError(_)
         )
     }
 
@@ -194,5 +199,43 @@ impl DomainError {
                 | Self::InvalidEmail(_)
                 | Self::InvalidPhoneNumber(_)
         )
+    }
+}
+
+impl From<&DomainError> for ServiceError {
+    fn from(error: &DomainError) -> Self {
+        match error {
+            DomainError::InvalidMessage(msg)
+            | DomainError::InvalidRecipient(msg)
+            | DomainError::InvalidEmail(msg)
+            | DomainError::InvalidPhoneNumber(msg) => Self::validation(msg.as_str()),
+            DomainError::TemplateNotFound(msg) | DomainError::NotificationNotFound(msg) => {
+                Self::not_found(msg.as_str())
+            }
+            DomainError::Unauthorized(msg) => Self::authorization(msg.as_str()),
+            DomainError::TemplateRenderError(msg)
+            | DomainError::OperationNotSupported(msg)
+            | DomainError::UnsupportedMode(msg)
+            | DomainError::ConfigurationError(msg)
+            | DomainError::EventProcessingError(msg) => Self::business(msg.as_str()),
+            DomainError::InternalError(msg) => Self::internal(msg.as_str()),
+            DomainError::TemplateLoadError(msg)
+            | DomainError::DeliveryFailed(msg)
+            | DomainError::InfrastructureError(msg) => Self::infrastructure(msg.as_str()),
+            DomainError::RateLimitExceeded(msg) => Self::RateLimit {
+                message: msg.clone(),
+                retry_after: None,
+            },
+            DomainError::ServiceUnavailable(msg) => Self::ServiceUnavailable {
+                message: msg.clone(),
+                retry_after: None,
+            },
+        }
+    }
+}
+
+impl From<DomainError> for ServiceError {
+    fn from(error: DomainError) -> Self {
+        Self::from(&error)
     }
 }

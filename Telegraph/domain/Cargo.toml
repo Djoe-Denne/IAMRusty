@@ -10,6 +10,7 @@ license.workspace = true
 # Events abstraction
 rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full"] }
 iam-events = { path = "../../iam-events" }
+telegraph-events = { path = "../../telegraph-events" }
 
 # Utility
 serde = { workspace = true }

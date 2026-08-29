@@ -83,6 +83,19 @@ pub trait RoleService: Send + Sync {
         member_id: &Uuid,
         roles: Vec<RolePermission>,
     ) -> Result<Vec<OrganizationMemberRolePermission>, DomainError>;
+
+    /// List all role-permission templates for an organization.
+    async fn list_organization_roles(
+        &self,
+        organization_id: &Uuid,
+    ) -> Result<Vec<RolePermission>, DomainError>;
+
+    /// Get one role-permission template scoped to an organization.
+    async fn get_organization_role(
+        &self,
+        organization_id: &Uuid,
+        role_id: &Uuid,
+    ) -> Result<RolePermission, DomainError>;
 }
 
 impl<MOR, RR, PR, RPR> RoleServiceImpl<MOR, RR, PR, RPR>
@@ -233,5 +246,41 @@ where
             })?;
 
         Ok(roles)
+    }
+
+    async fn list_organization_roles(
+        &self,
+        organization_id: &Uuid,
+    ) -> Result<Vec<RolePermission>, DomainError> {
+        self.role_permission_repo
+            .find_by_organization(organization_id)
+            .await
+            .map_err(|e| DomainError::Internal {
+                message: e.to_string(),
+            })
+    }
+
+    async fn get_organization_role(
+        &self,
+        organization_id: &Uuid,
+        role_id: &Uuid,
+    ) -> Result<RolePermission, DomainError> {
+        let role = self
+            .role_permission_repo
+            .find_by_id(role_id)
+            .await
+            .map_err(|e| DomainError::Internal {
+                message: e.to_string(),
+            })?
+            .ok_or_else(|| DomainError::entity_not_found("RolePermission", &role_id.to_string()))?;
+
+        if role.organization_id != *organization_id {
+            return Err(DomainError::entity_not_found(
+                "RolePermission",
+                &role_id.to_string(),
+            ));
+        }
+
+        Ok(role)
     }
 }

@@ -3,11 +3,9 @@
 //! Maps organization lifecycle and membership events from `hive-events`
 //! onto tuples for the `organization` `OpenFGA` type.
 //!
-//! `OrganizationDeleted` intentionally emits no per-tuple deletes here: the
-//! store-level clean-up of every dangling `organization:{id}` tuple is best
-//! done by a periodic garbage-collect job because it requires an
-//! `ListObjects`/`ReadTuples` sweep that the event payload cannot enumerate
-//! on its own. A TODO tracks that job.
+//! `OrganizationDeleted` deletes every known organization relation for the
+//! owner and each member listed on the event. The payload must carry those
+//! IDs — translators never read domain state.
 
 use anyhow::Result;
 use hive_events::{HiveDomainEvent, Role};
@@ -67,6 +65,23 @@ fn role_tuples_for_member(
     out
 }
 
+/// Delete every known organization relation for one user.
+fn delete_all_org_relations(
+    mut delta: TupleDelta,
+    organization_id: uuid::Uuid,
+    user_id: uuid::Uuid,
+) -> TupleDelta {
+    for relation in ["owner", "admin", "member", "viewer"] {
+        delta = delta.delete(Tuple::user(
+            "organization",
+            organization_id,
+            relation,
+            user_id,
+        ));
+    }
+    delta
+}
+
 impl Translator for HiveTranslator {
     fn name(&self) -> &'static str {
         "hive"
@@ -98,14 +113,33 @@ impl Translator for HiveTranslator {
                 // Remove both the base membership and any role tuples. We
                 // cannot know the exact role set at removal time, so we
                 // delete every known organization relation for this user.
+                delete_all_org_relations(TupleDelta::default(), evt.organization_id, evt.user_id)
+            }
+
+            HiveDomainEvent::MemberRolesUpdated(evt) => {
+                // Previous roles are not on the event. Drop every known
+                // organization relation, then write the new role set.
+                let mut d = delete_all_org_relations(
+                    TupleDelta::default(),
+                    evt.organization_id,
+                    evt.user_id,
+                );
+                for t in role_tuples_for_member(evt.organization_id, evt.user_id, &evt.roles) {
+                    d = d.write(t);
+                }
+                d
+            }
+
+            HiveDomainEvent::OrganizationDeleted(evt) => {
                 let mut d = TupleDelta::default();
-                for relation in ["owner", "admin", "member", "viewer"] {
-                    d = d.delete(Tuple::user(
-                        "organization",
-                        evt.organization_id,
-                        relation,
-                        evt.user_id,
-                    ));
+                let mut user_ids = evt.member_user_ids;
+                if !evt.owner_user_id.is_nil() {
+                    user_ids.push(evt.owner_user_id);
+                }
+                user_ids.sort_unstable();
+                user_ids.dedup();
+                for user_id in user_ids {
+                    d = delete_all_org_relations(d, evt.organization_id, user_id);
                 }
                 d
             }
@@ -113,7 +147,6 @@ impl Translator for HiveTranslator {
             // Lifecycle and sync events that do not move any authorization
             // fact in OpenFGA.
             HiveDomainEvent::OrganizationUpdated(_)
-            | HiveDomainEvent::OrganizationDeleted(_)
             | HiveDomainEvent::MemberInvited(_)
             | HiveDomainEvent::InvitationCreated(_)
             | HiveDomainEvent::InvitationAccepted(_)
@@ -131,7 +164,10 @@ impl Translator for HiveTranslator {
 mod tests {
     use super::*;
     use chrono::Utc;
-    use hive_events::{MemberJoinedEvent, OrganizationCreatedEvent, Role};
+    use hive_events::{
+        MemberJoinedEvent, MemberRolesUpdatedEvent, OrganizationCreatedEvent,
+        OrganizationDeletedEvent, Role,
+    };
     use uuid::Uuid;
 
     fn to_json<T: serde::Serialize>(value: T) -> serde_json::Value {
@@ -174,5 +210,59 @@ mod tests {
         let relations: Vec<_> = delta.writes.iter().map(|t| t.relation.as_str()).collect();
         assert!(relations.contains(&"admin"));
         assert!(relations.contains(&"member"));
+    }
+
+    #[test]
+    fn organization_deleted_deletes_owner_and_member_tuples() {
+        let org_id = Uuid::new_v4();
+        let owner_id = Uuid::new_v4();
+        let member_id = Uuid::new_v4();
+        let evt = HiveDomainEvent::OrganizationDeleted(OrganizationDeletedEvent::new(
+            org_id,
+            "ACME".to_string(),
+            owner_id,
+            vec![owner_id, member_id],
+            owner_id,
+            Utc::now(),
+        ));
+        let delta = HiveTranslator::new()
+            .translate(&to_json(evt))
+            .unwrap()
+            .unwrap();
+        assert!(delta.writes.is_empty());
+        let owner = owner_id.to_string();
+        let member = member_id.to_string();
+        let deleted_users: Vec<_> = delta.deletes.iter().map(|t| t.user_id.as_str()).collect();
+        assert!(deleted_users.contains(&owner.as_str()));
+        assert!(deleted_users.contains(&member.as_str()));
+        assert!(delta
+            .deletes
+            .iter()
+            .all(|t| t.object_type == "organization"));
+    }
+
+    #[test]
+    fn member_roles_updated_replaces_role_tuples() {
+        let org_id = Uuid::new_v4();
+        let user_id = Uuid::new_v4();
+        let evt = HiveDomainEvent::MemberRolesUpdated(MemberRolesUpdatedEvent::new(
+            org_id,
+            "ACME".to_string(),
+            user_id,
+            vec![Role::new("read".to_string(), "organization".to_string())],
+            Utc::now(),
+        ));
+        let delta = HiveTranslator::new()
+            .translate(&to_json(evt))
+            .unwrap()
+            .unwrap();
+        let deleted: Vec<_> = delta.deletes.iter().map(|t| t.relation.as_str()).collect();
+        let written: Vec<_> = delta.writes.iter().map(|t| t.relation.as_str()).collect();
+        assert!(deleted.contains(&"owner"));
+        assert!(deleted.contains(&"admin"));
+        assert!(deleted.contains(&"member"));
+        assert!(deleted.contains(&"viewer"));
+        assert!(written.contains(&"viewer"));
+        assert!(written.contains(&"member"));
     }
 }

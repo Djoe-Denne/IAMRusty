@@ -48,6 +48,7 @@ pub struct AppConfig {
     #[serde(default)]
     pub scaleway: ScalewayConfig,
     /// Command configuration
+    #[serde(default)]
     pub command: CommandConfig,
     /// Queue configuration (Kafka, SQS, or Disabled)
     pub queue: QueueConfig,

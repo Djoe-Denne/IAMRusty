@@ -20,11 +20,12 @@ use telegraph_domain::{
     service::NotificationServiceImpl, CommunicationFactory, EmailService, EventExtractor,
     EventProcessor, TemplateService,
 };
+use readiness::{attach_ready, create_signaled_multi_queue_event_publisher, ReadinessProbe};
 use telegraph_http_server::{create_app_routes, create_router};
 use telegraph_infra::{
     communication::EmailAdapter,
     event::processors::{CompositeEventProcessor, EventHandlerConfig},
-    event::{EventConsumer, JsonEventExtractor},
+    event::{EventConsumer, JsonEventExtractor, TelegraphErrorMapper},
     repository::{
         CombinedNotificationRepositoryImpl, NotificationReadRepositoryImpl,
         NotificationWriteRepositoryImpl,
@@ -38,6 +39,7 @@ pub struct TelegraphApp {
     config: TelegraphConfig,
     state: AppState,
     event_consumer: Arc<EventConsumer>,
+    readiness: Arc<ReadinessProbe>,
 }
 
 impl TelegraphApp {
@@ -76,6 +78,7 @@ impl TelegraphApp {
 
         // Setup database connection pool
         let db_pool = DbConnectionPool::new(&config.database).await?;
+        let db_write = db_pool.get_write_connection();
         info!(
             "Database connection pool initialized with {} read replicas",
             if config.database.read_replicas.is_empty() {
@@ -93,8 +96,21 @@ impl TelegraphApp {
             Arc::new(notification_read_repo),
             Arc::new(notification_write_repo),
         );
-        let notification_service =
-            Arc::new(NotificationServiceImpl::new(Arc::new(notification_repo)));
+        let signaled_publisher = create_signaled_multi_queue_event_publisher(
+            "telegraph",
+            &config.queue,
+            None,
+            Arc::new(TelegraphErrorMapper),
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to create event publisher: {e}"))?;
+        let event_publisher = signaled_publisher.publisher;
+        let publisher_status = signaled_publisher.status;
+        let publisher_transport = signaled_publisher.transport;
+        let notification_service = Arc::new(NotificationServiceImpl::new(
+            Arc::new(notification_repo),
+            event_publisher,
+        ));
 
         // Create template service
         let template_service: Arc<dyn TemplateService> = Arc::new(
@@ -105,8 +121,8 @@ impl TelegraphApp {
         // Create event extractor for JSON processing
         let event_extractor: Arc<dyn EventExtractor> = Arc::new(JsonEventExtractor::new());
 
-        // Create communication factory (using hardcoded path for now - should be configurable)
-        let descriptor_dir = std::path::PathBuf::from("resources/communication_descriptor");
+        let descriptor_dir =
+            std::path::PathBuf::from(&config.communication.template.descriptor_dir);
         let communication_factory = Arc::new(CommunicationFactory::new(
             template_service.clone(),
             event_extractor,
@@ -156,6 +172,7 @@ impl TelegraphApp {
             Arc::new(TelegraphCommandRegistryFactory::create_telegraph_registry(
                 event_processing_usecase.clone(),
                 notification_usecase,
+                config.command.clone(),
             ));
 
         let command_service = Arc::new(GenericCommandService::new(command_registry));
@@ -164,9 +181,13 @@ impl TelegraphApp {
         let event_consumer = EventConsumer::new(config.clone(), command_service.clone())
             .await
             .map_err(|e| anyhow::anyhow!("Failed to create event consumer: {}", e))?;
+        let consumer_status = event_consumer.transport_status().clone();
+        let consumer_transport = event_consumer.inner();
 
         info!("Telegraph application initialized successfully");
 
+        // Same HS256 secret as IAM `[jwt.secret]` — rustycog-http cannot
+        // verify IAM JWKS/RS256 (rustycog-framework 0.1.1).
         let user_id_extractor = UserIdExtractor::new(config.auth.clone())
             .map_err(|e| anyhow::anyhow!("Invalid auth configuration: {}", e))?;
 
@@ -194,11 +215,18 @@ impl TelegraphApp {
             Arc::new(MetricsPermissionChecker::new(metered_inner));
 
         let state = AppState::new(command_service, user_id_extractor, permission_checker);
+        let readiness = Arc::new(
+            ReadinessProbe::new("telegraph")
+                .with_database(db_write)
+                .with_publisher(publisher_status, Some(publisher_transport))
+                .with_consumer(consumer_status, Some(consumer_transport)),
+        );
 
         Ok(Self {
             config,
             event_consumer: Arc::new(event_consumer),
             state,
+            readiness,
         })
     }
 
@@ -215,9 +243,10 @@ impl TelegraphApp {
         info!("Starting HTTP server in parallel task");
         let mut server_handle = {
             let state = self.state.clone();
+            let probe = self.readiness.clone();
             let config = config.clone();
             tokio::spawn(async move {
-                if let Err(e) = create_app_routes(state, config).await {
+                if let Err(e) = create_app_routes(state, config, probe).await {
                     error!("HTTP server failed: {}", e);
                     return Err(e);
                 }
@@ -283,7 +312,12 @@ impl TelegraphApp {
     }
 
     pub fn router(&self) -> Router {
-        create_router(self.state.clone())
+        attach_ready(create_router(self.state.clone()), self.readiness.clone())
+    }
+
+    #[must_use]
+    pub fn readiness(&self) -> Arc<ReadinessProbe> {
+        self.readiness.clone()
     }
 
     pub fn start_background_tasks(&self) -> Vec<tokio::task::JoinHandle<anyhow::Result<()>>> {

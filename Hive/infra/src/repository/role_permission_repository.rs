@@ -11,7 +11,8 @@ use hive_domain::port::repository::{
 };
 use rustycog::core::error::DomainError;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
+    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait,
+    QueryFilter,
 };
 use std::sync::Arc;
 use tracing::debug;
@@ -63,6 +64,40 @@ impl RolePermissionReadRepositoryImpl {
     pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
+
+    pub async fn find_by_organization_roles_with_connection<C>(
+        db: &C,
+        organization_id: &Uuid,
+        role_permissions: &Vec<RolePermission>,
+    ) -> Result<Vec<RolePermission>, DomainError>
+    where
+        C: ConnectionTrait,
+    {
+        let role_permissions = OrganizationRolePermissions::find()
+            .filter(role_permissions::Column::OrganizationId.eq(*organization_id))
+            .filter(
+                role_permissions::Column::ResourceId.is_in(
+                    role_permissions
+                        .iter()
+                        .map(|role| role.resource.name.clone()),
+                ),
+            )
+            .filter(
+                role_permissions::Column::PermissionId.is_in(
+                    role_permissions
+                        .iter()
+                        .map(|role| role.permission.level.to_str().to_string()),
+                ),
+            )
+            .all(db)
+            .await
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
+
+        Ok(role_permissions
+            .into_iter()
+            .map(RolePermissionMapper::to_domain)
+            .collect())
+    }
 }
 
 #[async_trait]
@@ -101,6 +136,27 @@ impl RolePermissionReadRepository for RolePermissionReadRepositoryImpl {
             .next())
     }
 
+    async fn find_by_organization(
+        &self,
+        organization_id: &Uuid,
+    ) -> Result<Vec<RolePermission>, DomainError> {
+        debug!(
+            "Finding role permissions by organization ID: {}",
+            organization_id
+        );
+
+        let role_permissions = OrganizationRolePermissions::find()
+            .filter(role_permissions::Column::OrganizationId.eq(*organization_id))
+            .all(self.db.as_ref())
+            .await
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
+
+        Ok(role_permissions
+            .into_iter()
+            .map(RolePermissionMapper::to_domain)
+            .collect())
+    }
+
     async fn find_by_organization_roles(
         &self,
         organization_id: &Uuid,
@@ -111,30 +167,8 @@ impl RolePermissionReadRepository for RolePermissionReadRepositoryImpl {
             organization_id, role_permissions
         );
 
-        let role_permissions = OrganizationRolePermissions::find()
-            .filter(role_permissions::Column::OrganizationId.eq(*organization_id))
-            .filter(
-                role_permissions::Column::ResourceId.is_in(
-                    role_permissions
-                        .iter()
-                        .map(|role| role.resource.name.clone()),
-                ),
-            )
-            .filter(
-                role_permissions::Column::PermissionId.is_in(
-                    role_permissions
-                        .iter()
-                        .map(|role| role.permission.level.to_str().to_string()),
-                ),
-            )
-            .all(self.db.as_ref())
+        Self::find_by_organization_roles_with_connection(self.db.as_ref(), organization_id, role_permissions)
             .await
-            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
-
-        Ok(role_permissions
-            .into_iter()
-            .map(RolePermissionMapper::to_domain)
-            .collect())
     }
 }
 
@@ -149,33 +183,26 @@ impl RolePermissionWriteRepositoryImpl {
     pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
-}
 
-#[async_trait]
-impl RolePermissionWriteRepository for RolePermissionWriteRepositoryImpl {
-    async fn save(
-        &self,
-        organization_id: &Uuid,
+    pub async fn save_with_connection<C>(
+        db: &C,
+        _organization_id: &Uuid,
         role_permission: &RolePermission,
-    ) -> Result<RolePermission, DomainError> {
-        debug!(
-            "Saving role permission with {} for organization {}",
-            role_permission.name.as_deref().unwrap_or("Unknown"),
-            organization_id
-        );
-
+    ) -> Result<RolePermission, DomainError>
+    where
+        C: ConnectionTrait,
+    {
         let exists = role_permission.id.is_some()
             && OrganizationRolePermissions::find_by_id(role_permission.id.unwrap())
-                .one(self.db.as_ref())
+                .one(db)
                 .await
                 .map_err(|e| DomainError::internal_error(&e.to_string()))?
                 .is_some();
 
         if exists {
-            // Update
             let active_model = RolePermissionMapper::to_active_model(role_permission);
             let result = active_model
-                .save(self.db.as_ref())
+                .save(db)
                 .await
                 .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
@@ -191,10 +218,9 @@ impl RolePermissionWriteRepository for RolePermissionWriteRepositoryImpl {
 
             Ok(RolePermissionMapper::to_domain(saved_model))
         } else {
-            // Insert
             let active_model = RolePermissionMapper::to_active_model(role_permission);
             let result = active_model
-                .insert(self.db.as_ref())
+                .insert(db)
                 .await
                 .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
@@ -202,19 +228,44 @@ impl RolePermissionWriteRepository for RolePermissionWriteRepositoryImpl {
         }
     }
 
+    pub async fn delete_by_organization_with_connection<C>(
+        db: &C,
+        organization_id: &Uuid,
+    ) -> Result<(), DomainError>
+    where
+        C: ConnectionTrait,
+    {
+        OrganizationRolePermissions::delete_many()
+            .filter(role_permissions::Column::OrganizationId.eq(*organization_id))
+            .exec(db)
+            .await
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
+
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl RolePermissionWriteRepository for RolePermissionWriteRepositoryImpl {
+    async fn save(
+        &self,
+        organization_id: &Uuid,
+        role_permission: &RolePermission,
+    ) -> Result<RolePermission, DomainError> {
+        debug!(
+            "Saving role permission with {} for organization {}",
+            role_permission.name.as_deref().unwrap_or("Unknown"),
+            organization_id
+        );
+        Self::save_with_connection(self.db.as_ref(), organization_id, role_permission).await
+    }
+
     async fn delete_by_organization(&self, organization_id: &Uuid) -> Result<(), DomainError> {
         debug!(
             "Deleting role permissions by organization ID: {}",
             organization_id
         );
-
-        let _result = OrganizationRolePermissions::delete_many()
-            .filter(role_permissions::Column::OrganizationId.eq(*organization_id))
-            .exec(self.db.as_ref())
-            .await
-            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
-
-        Ok(())
+        Self::delete_by_organization_with_connection(self.db.as_ref(), organization_id).await
     }
 }
 
@@ -262,6 +313,13 @@ impl RolePermissionReadRepository for RolePermissionRepositoryImpl {
         self.read_repo
             .find_by_organization_roles(organization_id, role_permissions)
             .await
+    }
+
+    async fn find_by_organization(
+        &self,
+        organization_id: &Uuid,
+    ) -> Result<Vec<RolePermission>, DomainError> {
+        self.read_repo.find_by_organization(organization_id).await
     }
 }
 

@@ -39,6 +39,10 @@ pub struct OrganizationDeletedEvent {
     pub base: BaseEvent,
     pub organization_id: Uuid,
     pub organization_name: String,
+    #[serde(default)]
+    pub owner_user_id: Uuid,
+    #[serde(default)]
+    pub member_user_ids: Vec<Uuid>,
     pub deleted_by_user_id: Uuid,
     pub deleted_at: DateTime<Utc>,
 }
@@ -92,6 +96,8 @@ impl OrganizationDeletedEvent {
     pub fn new(
         organization_id: Uuid,
         organization_name: String,
+        owner_user_id: Uuid,
+        member_user_ids: Vec<Uuid>,
         deleted_by_user_id: Uuid,
         deleted_at: DateTime<Utc>,
     ) -> Self {
@@ -99,6 +105,8 @@ impl OrganizationDeletedEvent {
             base: BaseEvent::new("organization_deleted".to_string(), organization_id),
             organization_id,
             organization_name,
+            owner_user_id,
+            member_user_ids,
             deleted_by_user_id,
             deleted_at,
         }

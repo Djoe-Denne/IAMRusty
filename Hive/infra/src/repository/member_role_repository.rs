@@ -14,8 +14,8 @@ use hive_domain::{
 };
 use rustycog::core::error::DomainError;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
-    QuerySelect, QueryTrait,
+    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait,
+    QueryFilter, QuerySelect, QueryTrait,
 };
 use std::sync::Arc;
 use tracing::debug;
@@ -123,38 +123,32 @@ impl MemberRoleWriteRepositoryImpl {
     pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
-}
 
-#[async_trait]
-impl MemberRoleWriteRepository for MemberRoleWriteRepositoryImpl {
-    async fn save(
-        &self,
+    pub async fn save_with_connection<C>(
+        db: &C,
         member_role: &OrganizationMemberRolePermission,
-    ) -> Result<OrganizationMemberRolePermission, DomainError> {
-        debug!(
-            "Saving member role for member id: {:?} and org id: {:?}",
-            member_role.member_id, member_role.organization_id
-        );
-
+    ) -> Result<OrganizationMemberRolePermission, DomainError>
+    where
+        C: ConnectionTrait,
+    {
         let exists = member_role.id.is_some()
             && OrganizationMemberRolePermissions::find_by_id(member_role.id.unwrap())
-                .one(self.db.as_ref())
+                .one(db)
                 .await
                 .map_err(|e| DomainError::internal_error(&e.to_string()))?
                 .is_some();
 
         let role_permission =
             OrganizationRolePermissions::find_by_id(member_role.role_permission.id.unwrap())
-                .one(self.db.as_ref())
+                .one(db)
                 .await
                 .map_err(|e| DomainError::internal_error(&e.to_string()))?
                 .unwrap();
 
         if exists {
-            // Update
             let active_model = MemberRoleMapper::to_active_model(member_role);
             let result = active_model
-                .save(self.db.as_ref())
+                .save(db)
                 .await
                 .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
@@ -167,15 +161,51 @@ impl MemberRoleWriteRepository for MemberRoleWriteRepositoryImpl {
 
             Ok(MemberRoleMapper::to_domain(saved_model, role_permission))
         } else {
-            // Insert
             let active_model = MemberRoleMapper::to_active_model(member_role);
             let result = active_model
-                .insert(self.db.as_ref())
+                .insert(db)
                 .await
                 .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
             Ok(MemberRoleMapper::to_domain(result, role_permission))
         }
+    }
+
+    pub async fn delete_by_organization_with_connection<C>(
+        db: &C,
+        organization_id: &Uuid,
+    ) -> Result<(), DomainError>
+    where
+        C: ConnectionTrait,
+    {
+        OrganizationMemberRolePermissions::delete_many()
+            .filter(
+                organization_member_role_permissions::Column::MemberId.in_subquery(
+                    organization_members::Entity::find()
+                        .filter(organization_members::Column::OrganizationId.eq(*organization_id))
+                        .select_only()
+                        .column(organization_members::Column::Id)
+                        .into_query(),
+                ),
+            )
+            .exec(db)
+            .await
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl MemberRoleWriteRepository for MemberRoleWriteRepositoryImpl {
+    async fn save(
+        &self,
+        member_role: &OrganizationMemberRolePermission,
+    ) -> Result<OrganizationMemberRolePermission, DomainError> {
+        debug!(
+            "Saving member role for member id: {:?} and org id: {:?}",
+            member_role.member_id, member_role.organization_id
+        );
+        Self::save_with_connection(self.db.as_ref(), member_role).await
     }
 
     async fn delete_by_organization_member(&self, member_id: &Uuid) -> Result<(), DomainError> {
@@ -196,23 +226,7 @@ impl MemberRoleWriteRepository for MemberRoleWriteRepositoryImpl {
             "Deleting member roles by organization ID: {}",
             organization_id
         );
-
-        let result = OrganizationMemberRolePermissions::delete_many()
-            .filter(
-                organization_member_role_permissions::Column::MemberId.in_subquery(
-                    organization_members::Entity::find()
-                        .filter(organization_members::Column::OrganizationId.eq(*organization_id))
-                        .select_only()
-                        .column(organization_members::Column::Id)
-                        .into_query(),
-                ),
-            )
-            .exec(self.db.as_ref())
-            .await
-            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
-
-        debug!("Deleted {} member roles", result.rows_affected);
-        Ok(())
+        Self::delete_by_organization_with_connection(self.db.as_ref(), organization_id).await
     }
 }
 

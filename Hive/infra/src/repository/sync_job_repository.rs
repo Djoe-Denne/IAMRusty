@@ -7,8 +7,8 @@ use hive_domain::port::repository::{
 };
 use rustycog::core::error::DomainError;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait,
-    QueryFilter,
+    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait,
+    PaginatorTrait, QueryFilter,
 };
 use std::sync::Arc;
 use tracing::debug;
@@ -229,24 +229,21 @@ impl SyncJobWriteRepositoryImpl {
     pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
-}
 
-#[async_trait]
-impl SyncJobWriteRepository for SyncJobWriteRepositoryImpl {
-    async fn save(&self, job: &SyncJob) -> Result<SyncJob, DomainError> {
-        debug!("Saving sync job with ID: {}", job.id);
-
+    pub async fn save_with_connection<C>(db: &C, job: &SyncJob) -> Result<SyncJob, DomainError>
+    where
+        C: ConnectionTrait,
+    {
         let exists = SyncJobs::find_by_id(job.id)
-            .one(self.db.as_ref())
+            .one(db)
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?
             .is_some();
 
         if exists {
-            // Update
             let active_model = SyncJobMapper::to_active_model(job);
             let result = active_model
-                .save(self.db.as_ref())
+                .save(db)
                 .await
                 .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
@@ -268,16 +265,21 @@ impl SyncJobWriteRepository for SyncJobWriteRepositoryImpl {
             return SyncJobMapper::to_domain(saved_model);
         }
 
-        // Insert
         let active_model = SyncJobMapper::to_active_model(job);
         let result = active_model
-            .insert(self.db.as_ref())
+            .insert(db)
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
-        let saved_model = result;
+        SyncJobMapper::to_domain(result)
+    }
+}
 
-        SyncJobMapper::to_domain(saved_model)
+#[async_trait]
+impl SyncJobWriteRepository for SyncJobWriteRepositoryImpl {
+    async fn save(&self, job: &SyncJob) -> Result<SyncJob, DomainError> {
+        debug!("Saving sync job with ID: {}", job.id);
+        Self::save_with_connection(self.db.as_ref(), job).await
     }
 
     async fn delete_by_id(&self, id: &Uuid) -> Result<(), DomainError> {

@@ -9,8 +9,8 @@ use hive_domain::port::repository::{
 };
 use rustycog::core::error::DomainError;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, Order,
-    PaginatorTrait, QueryFilter, QueryOrder,
+    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait,
+    Order, PaginatorTrait, QueryFilter, QueryOrder,
 };
 use std::sync::Arc;
 use tracing::debug;
@@ -290,24 +290,21 @@ impl OrganizationInvitationWriteRepositoryImpl {
     pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
-}
 
-#[async_trait]
-impl OrganizationInvitationWriteRepository for OrganizationInvitationWriteRepositoryImpl {
-    async fn save(
-        &self,
+    pub async fn save_with_connection<C>(
+        db: &C,
         invitation: &OrganizationInvitation,
-    ) -> Result<OrganizationInvitation, DomainError> {
-        debug!("Saving organization invitation with ID: {}", invitation.id);
-
+    ) -> Result<OrganizationInvitation, DomainError>
+    where
+        C: ConnectionTrait,
+    {
         let active_model = OrganizationInvitationMapper::to_active_model(invitation);
 
         let result = active_model
-            .save(self.db.as_ref())
+            .save(db)
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
-        // Convert the saved active model back to domain model
         let saved_model = organization_invitations::Model {
             id: result.id.unwrap(),
             organization_id: result.organization_id.unwrap(),
@@ -323,6 +320,17 @@ impl OrganizationInvitationWriteRepository for OrganizationInvitationWriteReposi
         };
 
         OrganizationInvitationMapper::to_domain(saved_model)
+    }
+}
+
+#[async_trait]
+impl OrganizationInvitationWriteRepository for OrganizationInvitationWriteRepositoryImpl {
+    async fn save(
+        &self,
+        invitation: &OrganizationInvitation,
+    ) -> Result<OrganizationInvitation, DomainError> {
+        debug!("Saving organization invitation with ID: {}", invitation.id);
+        Self::save_with_connection(self.db.as_ref(), invitation).await
     }
 
     async fn delete_by_id(&self, id: &Uuid) -> Result<(), DomainError> {

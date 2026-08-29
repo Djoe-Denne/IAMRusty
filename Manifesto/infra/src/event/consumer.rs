@@ -5,9 +5,9 @@ use async_trait::async_trait;
 use manifesto_domain::DomainError;
 use rustycog::config::QueueConfig;
 use rustycog::core::error::ServiceError;
+use readiness::{create_signaled_event_consumer, ComponentStatus};
 use rustycog::events::{
-    create_event_consumer_from_queue_config, ConcreteEventConsumer, DomainEvent,
-    EventConsumer as RustycogEventConsumer, EventHandler,
+    ConcreteEventConsumer, DomainEvent, EventConsumer as RustycogEventConsumer, EventHandler,
 };
 use std::sync::Arc;
 use tracing::{debug, error, info};
@@ -18,6 +18,7 @@ use super::processors::ComponentStatusProcessor;
 pub struct ApparatusEventConsumer {
     inner_consumer: Arc<ConcreteEventConsumer>,
     component_processor: Arc<ComponentStatusProcessor>,
+    transport_status: ComponentStatus,
 }
 
 impl ApparatusEventConsumer {
@@ -26,16 +27,29 @@ impl ApparatusEventConsumer {
         queue_config: &QueueConfig,
         component_processor: Arc<ComponentStatusProcessor>,
     ) -> Result<Self, DomainError> {
-        let inner_consumer = create_event_consumer_from_queue_config(queue_config)
+        let signaled = create_signaled_event_consumer("manifesto", queue_config)
             .await
             .map_err(|e| {
                 DomainError::internal_error(&format!("Failed to create event consumer: {e}"))
             })?;
 
         Ok(Self {
-            inner_consumer,
+            inner_consumer: signaled.consumer,
             component_processor,
+            transport_status: signaled.status,
         })
+    }
+
+    /// Factory outcome for `/ready` (disabled / live / degraded no-op).
+    #[must_use]
+    pub const fn transport_status(&self) -> &ComponentStatus {
+        &self.transport_status
+    }
+
+    /// Underlying rustycog consumer, used by `/ready` transport pings.
+    #[must_use]
+    pub fn inner(&self) -> Arc<ConcreteEventConsumer> {
+        self.inner_consumer.clone()
     }
 
     /// Whether the underlying queue consumer is a no-op placeholder.

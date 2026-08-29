@@ -314,9 +314,7 @@ impl ProjectUseCase for ProjectUseCaseImpl {
             }
 
             let domain_ev: Box<dyn DomainEvent> = project_created_event.into();
-            if let Err(e) = self.event_publisher.publish(domain_ev.as_ref()).await {
-                tracing::warn!("Failed to publish ProjectCreated event: {:?}", e);
-            }
+            self.event_publisher.publish(domain_ev.as_ref()).await?;
 
             created_project
         };
@@ -433,9 +431,7 @@ impl ProjectUseCase for ProjectUseCaseImpl {
             Utc::now(),
         ));
         let domain_ev: Box<dyn DomainEvent> = event.into();
-        if let Err(e) = self.event_publisher.publish(domain_ev.as_ref()).await {
-            tracing::warn!("Failed to publish ProjectUpdated event: {:?}", e);
-        }
+        self.event_publisher.publish(domain_ev.as_ref()).await?;
 
         Ok(self.project_to_response(&updated_project))
     }
@@ -459,9 +455,7 @@ impl ProjectUseCase for ProjectUseCaseImpl {
             Utc::now(),
         ));
         let domain_ev: Box<dyn DomainEvent> = event.into();
-        if let Err(e) = self.event_publisher.publish(domain_ev.as_ref()).await {
-            tracing::warn!("Failed to publish ProjectDeleted event: {:?}", e);
-        }
+        self.event_publisher.publish(domain_ev.as_ref()).await?;
 
         Ok(())
     }
@@ -541,9 +535,7 @@ impl ProjectUseCase for ProjectUseCaseImpl {
             published_project.published_at.unwrap_or_else(Utc::now),
         ));
         let domain_ev: Box<dyn DomainEvent> = event.into();
-        if let Err(e) = self.event_publisher.publish(domain_ev.as_ref()).await {
-            tracing::warn!("Failed to publish ProjectPublished event: {:?}", e);
-        }
+        self.event_publisher.publish(domain_ev.as_ref()).await?;
 
         Ok(self.project_to_response(&published_project))
     }
@@ -569,9 +561,7 @@ impl ProjectUseCase for ProjectUseCaseImpl {
             Utc::now(),
         ));
         let domain_ev: Box<dyn DomainEvent> = event.into();
-        if let Err(e) = self.event_publisher.publish(domain_ev.as_ref()).await {
-            tracing::warn!("Failed to publish ProjectArchived event: {:?}", e);
-        }
+        self.event_publisher.publish(domain_ev.as_ref()).await?;
 
         Ok(self.project_to_response(&archived_project))
     }

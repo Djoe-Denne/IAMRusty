@@ -15,6 +15,14 @@ hs256_secret = "rustycog-dev-hs256-secret"
 [logging]
 level = "debug"
 
+[command]
+[command.retry]
+max_attempts = 0
+base_delay_ms = 50
+max_delay_ms = 5000
+backoff_multiplier = 2.0
+use_jitter = false
+
 [database]
 host = "postgres"
 port = 5432
@@ -35,6 +43,9 @@ access_key_id = "test"
 secret_access_key = "test"
 max_retries = 3
 timeout_seconds = 30
+
+[queue.queues]
+notification_created = ["sentinel-sync-events"]
 
 # Telegraph-specific queue → event routing
 [queues.telegraph-events]
@@ -66,6 +77,7 @@ use_tls = true
 [communication.template]
 enabled = true
 template_dir = "resources/templates"
+descriptor_dir = "resources/communication_descriptor"
 
 # Centralized authorization (OpenFGA). Override store_id /
 # authorization_model_id via TELEGRAPH_OPENFGA__* env vars after

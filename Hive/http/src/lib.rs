@@ -1,7 +1,9 @@
 use axum::Router;
 use hive_configuration::ServerConfig;
+use readiness::{attach_ready, ReadinessProbe};
 use rustycog::http::{AppState, RouteBuilder};
 use rustycog::permission::Permission;
+use std::sync::Arc;
 
 pub mod error;
 pub mod handlers;
@@ -18,8 +20,10 @@ pub const SERVICE_PREFIX: &str = "/hive";
 /// All authorization goes through `AppState.permission_checker` (set up in
 /// `hive_setup`) which talks to the centralized `OpenFGA` store. Each guarded
 /// route declares the `OpenFGA` object type the deepest UUID path segment maps
-/// onto (`"organization"` for every current Hive route — members and external
-/// links are modeled as derived relations on the parent organization).
+/// onto (`"organization"` for org-scoped routes — members, roles, invitations,
+/// and external links are modeled as derived relations on the parent
+/// organization). `POST /api/invitations/{token}/accept` is authenticated but
+/// not org-scoped: the path has no organization UUID.
 pub fn create_router(state: AppState) -> Router {
     RouteBuilder::new(state)
         .health_check()
@@ -75,6 +79,12 @@ pub fn create_router(state: AppState) -> Router {
         )
         .authenticated()
         .with_permission_on(Permission::Read, "organization")
+        .patch(
+            "/api/organizations/{organization_id}/members/{user_id}",
+            update_member,
+        )
+        .authenticated()
+        .with_permission_on(Permission::Write, "organization")
         // Invitation routes
         .post(
             "/api/organizations/{organization_id}/invitations",
@@ -82,6 +92,14 @@ pub fn create_router(state: AppState) -> Router {
         )
         .authenticated()
         .with_permission_on(Permission::Write, "organization")
+        .delete(
+            "/api/organizations/{organization_id}/invitations/{invitation_id}",
+            cancel_invitation,
+        )
+        .authenticated()
+        .with_permission_on(Permission::Write, "organization")
+        .post("/api/invitations/{token}/accept", accept_invitation)
+        .authenticated()
         // External link routes (admin-only action on the parent organization)
         .post(
             "/api/organizations/{organization_id}/external-links",
@@ -93,11 +111,15 @@ pub fn create_router(state: AppState) -> Router {
 }
 
 /// Create the Hive router under its bounded-context prefix.
-pub fn create_prefixed_router(state: AppState) -> Router {
-    Router::new().nest(SERVICE_PREFIX, create_router(state))
+pub fn create_prefixed_router(state: AppState, probe: Arc<ReadinessProbe>) -> Router {
+    Router::new().nest(SERVICE_PREFIX, attach_ready(create_router(state), probe))
 }
 
 /// Create and start the application routes using the fluent builder API.
-pub async fn create_app_routes(state: AppState, config: ServerConfig) -> anyhow::Result<()> {
-    rustycog::http::serve_router(create_prefixed_router(state), config).await
+pub async fn create_app_routes(
+    state: AppState,
+    config: ServerConfig,
+    probe: Arc<ReadinessProbe>,
+) -> anyhow::Result<()> {
+    rustycog::http::serve_router(create_prefixed_router(state, probe), config).await
 }

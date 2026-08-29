@@ -8,8 +8,8 @@ use hive_domain::port::repository::{
 };
 use rustycog::core::error::DomainError;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, Order,
-    PaginatorTrait, QueryFilter, QueryOrder,
+    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait,
+    Order, PaginatorTrait, QueryFilter, QueryOrder,
 };
 use std::sync::Arc;
 use tracing::debug;
@@ -82,6 +82,27 @@ impl OrganizationMemberReadRepositoryImpl {
     pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
+
+    pub async fn find_by_organization_and_user_with_connection<C>(
+        db: &C,
+        organization_id: &Uuid,
+        user_id: &Uuid,
+    ) -> Result<Option<OrganizationMember>, DomainError>
+    where
+        C: ConnectionTrait,
+    {
+        let member = OrganizationMembers::find()
+            .filter(organization_members::Column::OrganizationId.eq(*organization_id))
+            .filter(organization_members::Column::UserId.eq(*user_id))
+            .one(db)
+            .await
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
+
+        match member {
+            Some(model) => Ok(Some(OrganizationMemberMapper::to_domain(model)?)),
+            None => Ok(None),
+        }
+    }
 }
 
 #[async_trait]
@@ -110,17 +131,8 @@ impl OrganizationMemberReadRepository for OrganizationMemberReadRepositoryImpl {
             organization_id, user_id
         );
 
-        let member = OrganizationMembers::find()
-            .filter(organization_members::Column::OrganizationId.eq(*organization_id))
-            .filter(organization_members::Column::UserId.eq(*user_id))
-            .one(self.db.as_ref())
+        Self::find_by_organization_and_user_with_connection(self.db.as_ref(), organization_id, user_id)
             .await
-            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
-
-        match member {
-            Some(model) => Ok(Some(OrganizationMemberMapper::to_domain(model)?)),
-            None => Ok(None),
-        }
     }
 
     async fn find_by_organization(
@@ -240,6 +252,85 @@ impl OrganizationMemberWriteRepositoryImpl {
     pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
+
+    pub async fn save_with_connection<C>(
+        db: &C,
+        member: &OrganizationMember,
+    ) -> Result<OrganizationMember, DomainError>
+    where
+        C: ConnectionTrait,
+    {
+        let exists = member.id.is_some()
+            && OrganizationMembers::find_by_id(member.id.unwrap())
+                .one(db)
+                .await
+                .map_err(|e| DomainError::internal_error(&e.to_string()))?
+                .is_some();
+
+        if exists {
+            let active_model = OrganizationMemberMapper::to_active_model(member);
+            let result = active_model
+                .save(db)
+                .await
+                .map_err(|e| DomainError::internal_error(&e.to_string()))?;
+
+            let saved_model = organization_members::Model {
+                id: result.id.unwrap(),
+                organization_id: result.organization_id.unwrap(),
+                user_id: result.user_id.unwrap(),
+                status: result.status.unwrap(),
+                invited_by_user_id: result.invited_by_user_id.unwrap(),
+                invited_at: result.invited_at.unwrap(),
+                joined_at: result.joined_at.unwrap(),
+                created_at: result.created_at.unwrap(),
+                updated_at: result.updated_at.unwrap(),
+            };
+
+            OrganizationMemberMapper::to_domain(saved_model)
+        } else {
+            let active_model = OrganizationMemberMapper::to_active_model(member);
+            let result = active_model
+                .insert(db)
+                .await
+                .map_err(|e| DomainError::internal_error(&e.to_string()))?;
+
+            OrganizationMemberMapper::to_domain(result)
+        }
+    }
+
+    pub async fn delete_by_id_with_connection<C>(db: &C, id: &Uuid) -> Result<(), DomainError>
+    where
+        C: ConnectionTrait,
+    {
+        let result = OrganizationMembers::delete_by_id(*id)
+            .exec(db)
+            .await
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
+
+        if result.rows_affected == 0 {
+            return Err(DomainError::entity_not_found(
+                "OrganizationMember",
+                &id.to_string(),
+            ));
+        }
+
+        Ok(())
+    }
+
+    pub async fn delete_by_organization_with_connection<C>(
+        db: &C,
+        organization_id: &Uuid,
+    ) -> Result<(), DomainError>
+    where
+        C: ConnectionTrait,
+    {
+        OrganizationMembers::delete_many()
+            .filter(organization_members::Column::OrganizationId.eq(*organization_id))
+            .exec(db)
+            .await
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -265,63 +356,12 @@ impl OrganizationMemberWriteRepository for OrganizationMemberWriteRepositoryImpl
             "Saving organization member with user id: {:?} for org {}",
             member.user_id, member.organization_id
         );
-
-        let exists = member.id.is_some()
-            && OrganizationMembers::find_by_id(member.id.unwrap())
-                .one(self.db.as_ref())
-                .await
-                .map_err(|e| DomainError::internal_error(&e.to_string()))?
-                .is_some();
-
-        if exists {
-            // Update
-            let active_model = OrganizationMemberMapper::to_active_model(member);
-            let result = active_model
-                .save(self.db.as_ref())
-                .await
-                .map_err(|e| DomainError::internal_error(&e.to_string()))?;
-
-            let saved_model = organization_members::Model {
-                id: result.id.unwrap(),
-                organization_id: result.organization_id.unwrap(),
-                user_id: result.user_id.unwrap(),
-                status: result.status.unwrap(),
-                invited_by_user_id: result.invited_by_user_id.unwrap(),
-                invited_at: result.invited_at.unwrap(),
-                joined_at: result.joined_at.unwrap(),
-                created_at: result.created_at.unwrap(),
-                updated_at: result.updated_at.unwrap(),
-            };
-
-            Ok(OrganizationMemberMapper::to_domain(saved_model)?)
-        } else {
-            // Insert
-            let active_model = OrganizationMemberMapper::to_active_model(member);
-            let result = active_model
-                .insert(self.db.as_ref())
-                .await
-                .map_err(|e| DomainError::internal_error(&e.to_string()))?;
-
-            Ok(OrganizationMemberMapper::to_domain(result)?)
-        }
+        Self::save_with_connection(self.db.as_ref(), member).await
     }
 
     async fn delete_by_id(&self, id: &Uuid) -> Result<(), DomainError> {
         debug!("Deleting organization member by ID: {}", id);
-
-        let result = OrganizationMembers::delete_by_id(*id)
-            .exec(self.db.as_ref())
-            .await
-            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
-
-        if result.rows_affected == 0 {
-            return Err(DomainError::entity_not_found(
-                "OrganizationMember",
-                &id.to_string(),
-            ));
-        }
-
-        Ok(())
+        Self::delete_by_id_with_connection(self.db.as_ref(), id).await
     }
 
     async fn delete_by_organization(&self, organization_id: &Uuid) -> Result<(), DomainError> {
@@ -329,13 +369,7 @@ impl OrganizationMemberWriteRepository for OrganizationMemberWriteRepositoryImpl
             "Deleting organization members by organization: {}",
             organization_id
         );
-
-        let _result = OrganizationMembers::delete_many()
-            .filter(organization_members::Column::OrganizationId.eq(*organization_id))
-            .exec(self.db.as_ref())
-            .await
-            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
-        Ok(())
+        Self::delete_by_organization_with_connection(self.db.as_ref(), organization_id).await
     }
 }
 

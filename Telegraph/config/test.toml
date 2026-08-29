@@ -12,6 +12,14 @@ hs256_secret = "rustycog-test-hs256-secret"
 level = "debug"
 filter = "debug"
 
+[command]
+[command.retry]
+max_attempts = 0
+base_delay_ms = 50
+max_delay_ms = 5000
+backoff_multiplier = 2.0
+use_jitter = false
+
 [database]
 # Database connection details for Telegraph notifications (test environment)
 host = "localhost"
@@ -39,6 +47,9 @@ access_key_id = "test"
 secret_access_key = "test"
 max_retries = 3
 timeout_seconds = 30
+
+[queue.queues]
+notification_created = ["telegraph-events"]
 
 # Telegraph-specific queue configurations
 [queues.telegraph-events]
@@ -69,6 +80,7 @@ use_tls = false
 [communication.template]
 enabled = true
 template_dir = "resources/templates"
+descriptor_dir = "resources/communication_descriptor"
 
 # Centralized authorization (OpenFGA). Tests run against a real
 # `openfga/openfga` testcontainer provisioned by

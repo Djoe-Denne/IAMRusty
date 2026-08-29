@@ -173,9 +173,7 @@ impl ComponentUseCase for ComponentUseCaseImpl {
             created.added_at,
         ));
         let domain_ev: Box<dyn DomainEvent> = event.into();
-        if let Err(e) = self.event_publisher.publish(domain_ev.as_ref()).await {
-            tracing::warn!("Failed to publish ComponentAdded event: {:?}", e);
-        }
+        self.event_publisher.publish(domain_ev.as_ref()).await?;
 
         Ok(self.component_to_response(&created))
     }
@@ -251,9 +249,7 @@ impl ComponentUseCase for ComponentUseCaseImpl {
             Utc::now(),
         ));
         let domain_ev: Box<dyn DomainEvent> = event.into();
-        if let Err(e) = self.event_publisher.publish(domain_ev.as_ref()).await {
-            tracing::warn!("Failed to publish ComponentStatusChanged event: {:?}", e);
-        }
+        self.event_publisher.publish(domain_ev.as_ref()).await?;
 
         Ok(self.component_to_response(&updated))
     }
@@ -312,9 +308,7 @@ impl ComponentUseCase for ComponentUseCaseImpl {
             Utc::now(),
         ));
         let domain_ev: Box<dyn DomainEvent> = event.into();
-        if let Err(e) = self.event_publisher.publish(domain_ev.as_ref()).await {
-            tracing::warn!("Failed to publish ComponentRemoved event: {:?}", e);
-        }
+        self.event_publisher.publish(domain_ev.as_ref()).await?;
 
         Ok(())
     }

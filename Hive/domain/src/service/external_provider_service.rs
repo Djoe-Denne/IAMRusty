@@ -40,6 +40,13 @@ pub trait ExternalProviderService: Send + Sync {
         provider_config: &serde_json::Value,
     ) -> Result<ExternalLink, DomainError>;
 
+    async fn prepare_organization_link(
+        &self,
+        organization_id: Uuid,
+        provider_id: Uuid,
+        provider_config: &serde_json::Value,
+    ) -> Result<ExternalLink, DomainError>;
+
     /**
      * Unlink an organization from an external provider
      *
@@ -118,14 +125,12 @@ where
     EPR: ExternalProviderRepository,
     PC: ExternalProviderClient,
 {
-    /// Link an organization to an external provider
-    async fn link_organization(
+    async fn prepare_organization_link(
         &self,
         organization_id: Uuid,
         provider_id: Uuid,
         provider_config: &serde_json::Value,
     ) -> Result<ExternalLink, DomainError> {
-        // Validate organization exists
         let organization = self
             .organization_repo
             .find_by_id(&organization_id)
@@ -134,7 +139,6 @@ where
                 DomainError::entity_not_found("Organization", &organization_id.to_string())
             })?;
 
-        // Validate provider exists
         let provider = self
             .external_provider_repo
             .find_by_id(&provider_id)
@@ -143,7 +147,6 @@ where
                 DomainError::entity_not_found("ExternalProvider", &provider_id.to_string())
             })?;
 
-        // Check if link already exists
         if let Some(_existing_link) = self
             .external_link_repo
             .find_by_organization_and_provider(&organization_id, &provider_id)
@@ -155,20 +158,26 @@ where
             ));
         }
 
-        // Create new external link
-        let external_link = ExternalLink::new(
+        ExternalLink::new(
             organization_id,
             Some(organization.name),
             provider_id,
             Some(provider.provider_source),
             provider_config.clone(),
-            Some(serde_json::json!({})), // TODO: Default sync settings
-        )?;
+            Some(serde_json::json!({})),
+        )
+    }
 
-        // Save the link
-        let saved_link = self.external_link_repo.save(&external_link).await?;
-
-        Ok(saved_link)
+    async fn link_organization(
+        &self,
+        organization_id: Uuid,
+        provider_id: Uuid,
+        provider_config: &serde_json::Value,
+    ) -> Result<ExternalLink, DomainError> {
+        let external_link = self
+            .prepare_organization_link(organization_id, provider_id, provider_config)
+            .await?;
+        self.external_link_repo.save(&external_link).await
     }
 
     /// Unlink an organization from an external provider

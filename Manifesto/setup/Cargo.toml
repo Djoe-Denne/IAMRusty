@@ -15,6 +15,7 @@ manifesto-http_server = { path = "../http" }
 manifesto-configuration = { path = "../configuration" }
 
 # Shared crates
+readiness = { path = "../../readiness" }
 rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full"] }
 
 # Database
@@ -37,7 +38,6 @@ anyhow = { workspace = true }
 
 # Logging
 tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
 
 
 

@@ -32,12 +32,9 @@ fn create_jwt_service_from_config(config: &JwtConfig) -> Result<JwtTokenService,
 
 /// Create a registration token service from configuration for testing.
 ///
-/// The `test-relaxed-jwt` feature on `iam-infra` (enabled by
-/// `IAMRusty/Cargo.toml`'s dev-dep entry) lets `RegistrationTokenServiceImpl`
-/// accept either algorithm in this crate's tests, so we hand whatever
-/// the test config produced straight through instead of duplicating an
-/// RS256-only guard here. Production builds keep the strict check inside
-/// the constructor itself.
+/// Both HS256 and RS256 are first-class on `RegistrationTokenServiceImpl`.
+/// In-tree `test.toml` is HS256 so rustycog-http `UserIdExtractor` can
+/// verify the tokens.
 fn create_registration_token_service_from_config(
     config: &JwtConfig,
 ) -> Result<RegistrationTokenServiceImpl, anyhow::Error> {
@@ -157,13 +154,9 @@ impl JwtTestUtils {
             jti: Uuid::new_v4().to_string(),
         };
 
-        // Get the algorithm config to encode manually. The
-        // `test-relaxed-jwt` feature on `iam-infra` lets the
-        // registration service accept either algorithm in tests, so
-        // build the encoding key from whatever the test config
-        // produced. The header's `alg` field then has to match the key
-        // material — RS256 from PEM, HS256 from a shared secret —
-        // otherwise `jsonwebtoken::encode` rejects the combination.
+        // Build the encoding key from the test config. Header `alg`
+        // must match the key material (RS256 from PEM, HS256 from a
+        // shared secret) or `jsonwebtoken::encode` rejects the pair.
         let jwt_algorithm_config = config.create_jwt_algorithm()?;
 
         let (encoding_key, kid, algorithm) = match jwt_algorithm_config {

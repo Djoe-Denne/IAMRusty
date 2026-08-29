@@ -1,0 +1,23 @@
+[package]
+name = "readiness"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Shared /ready probe and queue-transport signaling for AIForAll services"
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+async-trait = { workspace = true }
+axum = { workspace = true }
+rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full"] }
+sea-orm = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+axum-test = { workspace = true }
+tokio = { workspace = true }

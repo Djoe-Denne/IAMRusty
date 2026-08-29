@@ -8,46 +8,9 @@ use crate::{
         role::{CreateMemberRoleRequest, MemberRole, UpdateMemberRoleRequest},
         PaginationRequest,
     },
+    usecase::RoleUseCase,
     ApplicationError,
 };
-
-// Placeholder role use case trait
-#[async_trait]
-pub trait RoleUseCase: Send + Sync {
-    async fn create_role(
-        &self,
-        organization_id: Uuid,
-        request: &CreateMemberRoleRequest,
-        user_id: Uuid,
-    ) -> Result<MemberRole, crate::ApplicationError>;
-
-    async fn list_roles(
-        &self,
-        organization_id: Uuid,
-        pagination: &PaginationRequest,
-    ) -> Result<Vec<MemberRole>, crate::ApplicationError>;
-
-    async fn get_role(
-        &self,
-        organization_id: Uuid,
-        role_id: Uuid,
-    ) -> Result<MemberRole, crate::ApplicationError>;
-
-    async fn update_role(
-        &self,
-        organization_id: Uuid,
-        role_id: Uuid,
-        request: &UpdateMemberRoleRequest,
-        user_id: Uuid,
-    ) -> Result<MemberRole, crate::ApplicationError>;
-
-    async fn delete_role(
-        &self,
-        organization_id: Uuid,
-        role_id: Uuid,
-        user_id: Uuid,
-    ) -> Result<(), crate::ApplicationError>;
-}
 
 // Create Role Command
 #[derive(Debug, Clone)]

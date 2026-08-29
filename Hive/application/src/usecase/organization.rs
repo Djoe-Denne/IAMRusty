@@ -2,7 +2,10 @@ use chrono::Utc;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use hive_domain::{service::OrganizationService, Organization};
+use hive_domain::{
+    service::{MemberService, OrganizationService},
+    Organization,
+};
 use hive_events::{
     HiveDomainEvent, OrganizationCreatedEvent, OrganizationDeletedEvent, OrganizationUpdatedEvent,
 };
@@ -97,6 +100,7 @@ pub trait OrganizationUseCase: Send + Sync {
 
 pub struct OrganizationUseCaseImpl {
     organization_service: Arc<dyn OrganizationService>,
+    member_service: Arc<dyn MemberService>,
     event_publisher: Arc<dyn EventPublisher<DomainError>>,
     outbox_unit_of_work: Option<Arc<dyn HiveOutboxUnitOfWork>>,
 }
@@ -105,10 +109,12 @@ impl OrganizationUseCaseImpl {
     /// Create a new organization use case instance
     pub fn new(
         organization_service: Arc<dyn OrganizationService>,
+        member_service: Arc<dyn MemberService>,
         event_publisher: Arc<dyn EventPublisher<DomainError>>,
     ) -> Self {
         Self {
             organization_service,
+            member_service,
             event_publisher,
             outbox_unit_of_work: None,
         }
@@ -116,11 +122,13 @@ impl OrganizationUseCaseImpl {
 
     pub fn new_with_outbox_unit_of_work(
         organization_service: Arc<dyn OrganizationService>,
+        member_service: Arc<dyn MemberService>,
         event_publisher: Arc<dyn EventPublisher<DomainError>>,
         outbox_unit_of_work: Arc<dyn HiveOutboxUnitOfWork>,
     ) -> Self {
         Self {
             organization_service,
+            member_service,
             event_publisher,
             outbox_unit_of_work: Some(outbox_unit_of_work),
         }
@@ -175,13 +183,12 @@ impl OrganizationUseCaseImpl {
         self.record_or_publish_event(event.into()).await
     }
 
-    /// Publish organization updated event
-    async fn publish_organization_updated_event(
+    fn organization_updated_event(
         &self,
         organization: &Organization,
         request: &UpdateOrganizationRequest,
         user_id: Uuid,
-    ) -> Result<(), ApplicationError> {
+    ) -> HiveDomainEvent {
         let updated_fields = vec![
             if request.name.is_some() {
                 "name".to_string()
@@ -208,26 +215,38 @@ impl OrganizationUseCaseImpl {
         .filter(|field| *field != String::new())
         .collect::<Vec<String>>();
 
-        let event = HiveDomainEvent::OrganizationUpdated(OrganizationUpdatedEvent::new(
+        HiveDomainEvent::OrganizationUpdated(OrganizationUpdatedEvent::new(
             organization.id,
             organization.name.clone(),
             updated_fields,
             user_id,
             Utc::now(),
-        ));
+        ))
+    }
 
-        self.record_or_publish_event(event.into()).await
+    /// Publish organization updated event
+    async fn publish_organization_updated_event(
+        &self,
+        organization: &Organization,
+        request: &UpdateOrganizationRequest,
+        user_id: Uuid,
+    ) -> Result<(), ApplicationError> {
+        self.record_or_publish_event(self.organization_updated_event(organization, request, user_id).into())
+            .await
     }
 
     /// Publish organization deleted event
     async fn publish_organization_deleted_event(
         &self,
         organization: &Organization,
+        member_user_ids: Vec<Uuid>,
         user_id: Uuid,
     ) -> Result<(), ApplicationError> {
         let event = HiveDomainEvent::OrganizationDeleted(OrganizationDeletedEvent::new(
             organization.id,
             organization.name.clone(),
+            organization.owner_user_id,
+            member_user_ids,
             user_id,
             Utc::now(),
         ));
@@ -252,14 +271,26 @@ impl OrganizationUseCase for OrganizationUseCaseImpl {
         )
         .map_err(ApplicationError::Domain)?;
 
-        let saved_org = self
-            .organization_service
-            .create_organization(&organization)
-            .await
-            .map_err(ApplicationError::Domain)?;
-
-        // Publish domain event
-        self.publish_organization_created_event(&saved_org).await?;
+        let saved_org = if let Some(outbox_unit_of_work) = &self.outbox_unit_of_work {
+            let event = HiveDomainEvent::OrganizationCreated(OrganizationCreatedEvent::new(
+                organization.id,
+                organization.name.clone(),
+                organization.slug.clone(),
+                organization.owner_user_id,
+                organization.created_at,
+            ));
+            outbox_unit_of_work
+                .create_organization(organization, event.into())
+                .await?
+        } else {
+            let saved_org = self
+                .organization_service
+                .create_organization(&organization)
+                .await
+                .map_err(ApplicationError::Domain)?;
+            self.publish_organization_created_event(&saved_org).await?;
+            saved_org
+        };
 
         Ok(self.organization_to_response(&saved_org))
     }
@@ -284,22 +315,44 @@ impl OrganizationUseCase for OrganizationUseCaseImpl {
         request: &UpdateOrganizationRequest,
         user_id: Uuid,
     ) -> Result<OrganizationResponse, ApplicationError> {
-        // Save the updated organization
-        let updated_organization = self
-            .organization_service
-            .update_organization(
-                organization_id,
-                request.name.clone(),
-                request.description.clone(),
-                request.avatar_url.clone(),
-                request.settings.clone(),
-            )
-            .await
-            .map_err(ApplicationError::Domain)?;
-
-        // Publish domain event
-        self.publish_organization_updated_event(&updated_organization, request, user_id)
-            .await?;
+        let updated_organization = if let Some(outbox_unit_of_work) = &self.outbox_unit_of_work {
+            let mut organization = self
+                .organization_service
+                .get_organization(&organization_id)
+                .await
+                .map_err(ApplicationError::Domain)?;
+            if let Some(new_name) = request.name.clone() {
+                organization.update_name(new_name)?;
+            }
+            if let Some(new_description) = request.description.clone() {
+                organization.update_description(Some(new_description));
+            }
+            if let Some(new_avatar_url) = request.avatar_url.clone() {
+                organization.update_avatar_url(Some(new_avatar_url));
+            }
+            if let Some(new_settings) = request.settings.clone() {
+                organization.update_settings(new_settings);
+            }
+            let event = self.organization_updated_event(&organization, request, user_id);
+            outbox_unit_of_work
+                .update_organization(organization, event.into())
+                .await?
+        } else {
+            let updated_organization = self
+                .organization_service
+                .update_organization(
+                    organization_id,
+                    request.name.clone(),
+                    request.description.clone(),
+                    request.avatar_url.clone(),
+                    request.settings.clone(),
+                )
+                .await
+                .map_err(ApplicationError::Domain)?;
+            self.publish_organization_updated_event(&updated_organization, request, user_id)
+                .await?;
+            updated_organization
+        };
 
         Ok(self.organization_to_response(&updated_organization))
     }
@@ -316,15 +369,33 @@ impl OrganizationUseCase for OrganizationUseCaseImpl {
             .await
             .map_err(ApplicationError::Domain)?;
 
-        // Use domain service to delete organization
-        self.organization_service
-            .delete_organization(organization_id)
+        let members = self
+            .member_service
+            .list_active_members(organization_id)
             .await
             .map_err(ApplicationError::Domain)?;
+        let member_user_ids = members.iter().map(|member| member.user_id).collect();
 
-        // Publish domain event
-        self.publish_organization_deleted_event(&organization, user_id)
-            .await?;
+        if let Some(outbox_unit_of_work) = &self.outbox_unit_of_work {
+            let event = HiveDomainEvent::OrganizationDeleted(OrganizationDeletedEvent::new(
+                organization.id,
+                organization.name.clone(),
+                organization.owner_user_id,
+                member_user_ids,
+                user_id,
+                Utc::now(),
+            ));
+            outbox_unit_of_work
+                .delete_organization(organization_id, event.into())
+                .await?;
+        } else {
+            self.organization_service
+                .delete_organization(organization_id)
+                .await
+                .map_err(ApplicationError::Domain)?;
+            self.publish_organization_deleted_event(&organization, member_user_ids, user_id)
+                .await?;
+        }
 
         Ok(())
     }

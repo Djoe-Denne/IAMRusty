@@ -1,3 +1,4 @@
+use crate::error::status_code_for_command_error;
 use crate::validation::validate_uuid_v4;
 use axum::{
     extract::{Path, Query, State},
@@ -62,20 +63,7 @@ pub async fn get_notifications(
         }
         Err(error) => {
             tracing::error!("Failed to get notifications: {:?}", error);
-            match &error {
-                rustycog::command::CommandError::Validation { .. } => Err(StatusCode::BAD_REQUEST),
-                rustycog::command::CommandError::Business { message, .. } => {
-                    // Check if it's an unauthorized error
-                    if message.contains("Unauthorized") {
-                        Err(StatusCode::FORBIDDEN)
-                    } else if message.contains("not found") {
-                        Err(StatusCode::NOT_FOUND)
-                    } else {
-                        Err(StatusCode::UNPROCESSABLE_ENTITY)
-                    }
-                }
-                _ => Err(StatusCode::INTERNAL_SERVER_ERROR),
-            }
+            Err(status_code_for_command_error(&error))
         }
     }
 }
@@ -97,13 +85,7 @@ pub async fn get_unread_count(
         }
         Err(error) => {
             tracing::error!("Failed to get unread count: {:?}", error);
-            match &error {
-                rustycog::command::CommandError::Validation { .. } => Err(StatusCode::BAD_REQUEST),
-                rustycog::command::CommandError::Business { .. } => {
-                    Err(StatusCode::UNPROCESSABLE_ENTITY)
-                }
-                _ => Err(StatusCode::INTERNAL_SERVER_ERROR),
-            }
+            Err(status_code_for_command_error(&error))
         }
     }
 }
@@ -132,20 +114,7 @@ pub async fn mark_notification_read(
         }
         Err(error) => {
             tracing::error!("Failed to mark notification as read: {:?}", error);
-            match &error {
-                rustycog::command::CommandError::Validation { .. } => Err(StatusCode::BAD_REQUEST),
-                rustycog::command::CommandError::Business { message, .. } => {
-                    // Check if it's an unauthorized error
-                    if message.contains("Unauthorized") {
-                        Err(StatusCode::FORBIDDEN)
-                    } else if message.contains("not found") {
-                        Err(StatusCode::NOT_FOUND)
-                    } else {
-                        Err(StatusCode::UNPROCESSABLE_ENTITY)
-                    }
-                }
-                _ => Err(StatusCode::INTERNAL_SERVER_ERROR),
-            }
+            Err(status_code_for_command_error(&error))
         }
     }
 }

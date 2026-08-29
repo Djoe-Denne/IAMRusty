@@ -6,10 +6,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use crate::error::{command_error_from_boxed, command_error_from_domain};
 use crate::usecase::EventProcessingUseCaseTrait;
 use iam_events::DomainEvent;
 use rustycog::command::{Command, CommandError, CommandErrorMapper, CommandHandler};
-use telegraph_domain::DomainError;
 
 /// Command to process an IAM domain event
 #[derive(Debug, Clone)]
@@ -203,7 +203,7 @@ where
         self.event_processing_usecase
             .process_event(command)
             .await
-            .map_err(|e| CommandError::infrastructure("event_processing_failed", e.to_string()))
+            .map_err(|e| command_error_from_domain(&e))
     }
 }
 
@@ -212,36 +212,6 @@ pub struct ProcessEventErrorMapper;
 
 impl CommandErrorMapper for ProcessEventErrorMapper {
     fn map_error(&self, error: Box<dyn std::error::Error + Send + Sync>) -> CommandError {
-        if let Some(domain_error) = error.downcast_ref::<DomainError>() {
-            match domain_error {
-                DomainError::InvalidMessage(msg) => {
-                    CommandError::validation("invalid_message", msg.clone())
-                }
-                DomainError::InvalidRecipient(msg) => {
-                    CommandError::validation("invalid_recipient", msg.clone())
-                }
-                DomainError::InvalidEmail(msg) => {
-                    CommandError::validation("invalid_email", msg.clone())
-                }
-                DomainError::ConfigurationError(msg) => {
-                    CommandError::business("configuration_error", msg.clone())
-                }
-                DomainError::TemplateNotFound(msg) => {
-                    CommandError::business("template_not_found", msg.clone())
-                }
-                DomainError::EventProcessingError(msg) => {
-                    CommandError::business("event_processing_error", msg.clone())
-                }
-                DomainError::InfrastructureError(msg) => {
-                    CommandError::infrastructure("infrastructure_error", msg.clone())
-                }
-                DomainError::ServiceUnavailable(msg) => {
-                    CommandError::infrastructure("service_unavailable", msg.clone())
-                }
-                _ => CommandError::infrastructure("unknown_domain_error", domain_error.to_string()),
-            }
-        } else {
-            CommandError::infrastructure("unknown_error", error.to_string())
-        }
+        command_error_from_boxed(error)
     }
 }

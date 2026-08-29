@@ -3,9 +3,9 @@ use axum::{
     response::Json,
 };
 use hive_application::{
-    AcceptInvitationCommand, CreateInvitationCommand, CreateInvitationRequest,
-    GetInvitationByTokenCommand, InvitationDetailsResponse, InvitationListResponse,
-    InvitationResponse, ListInvitationsCommand, PaginationRequest,
+    AcceptInvitationCommand, CancelInvitationCommand, CreateInvitationCommand,
+    CreateInvitationRequest, GetInvitationByTokenCommand, InvitationDetailsResponse,
+    InvitationListResponse, InvitationResponse, ListInvitationsCommand, PaginationRequest,
 };
 use rustycog::command::CommandContext;
 use rustycog::http::{AppState, AuthUser, OptionalAuthUser, ValidatedJson};
@@ -37,6 +37,39 @@ pub async fn create_invitation(
         })?;
 
     Ok(Json(result))
+}
+
+/// Cancel an invitation
+/// DELETE /`api/organizations/{organization_id}/invitations/{invitation_id}`
+pub async fn cancel_invitation(
+    State(state): State<AppState>,
+    Path((organization_id, invitation_id)): Path<(ResourceId, ResourceId)>,
+    auth_user: AuthUser,
+) -> Result<Json<()>, HttpError> {
+    tracing::info!(
+        "Canceling invitation {} for organization: {}",
+        invitation_id,
+        organization_id
+    );
+
+    let command = CancelInvitationCommand::new(
+        organization_id.id(),
+        invitation_id.id(),
+        Some(auth_user.user_id),
+    );
+    let context = CommandContext::new()
+        .with_user_id(auth_user.user_id)
+        .with_metadata("operation".to_string(), "cancel_invitation".to_string());
+
+    state
+        .command_service
+        .execute(command, context)
+        .await
+        .map_err(|e| HttpError::Internal {
+            message: format!("Command execution failed: {e}"),
+        })?;
+
+    Ok(Json(()))
 }
 
 /// List organization invitations

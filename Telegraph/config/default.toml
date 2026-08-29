@@ -11,6 +11,14 @@ hs256_secret = "rustycog-dev-hs256-secret"
 [logging]
 level = "info"
 
+[command]
+[command.retry]
+max_attempts = 3
+base_delay_ms = 100
+max_delay_ms = 30000
+backoff_multiplier = 2.0
+use_jitter = true
+
 [database]
 # Database connection details for Telegraph notifications
 host = "localhost"
@@ -39,6 +47,9 @@ secret_access_key = "test"
 max_retries = 3
 timeout_seconds = 30
 
+[queue.queues]
+notification_created = ["sentinel-sync-events"]
+
 # Telegraph-specific queue configurations
 # Telegraph consumes IAM communication events from its dedicated physical queue.
 [queues.telegraph-events]
@@ -66,6 +77,11 @@ use_tls = false
 [communication.notification]
 enabled = true
 provider = "dummy"  # "dummy", "fcm", "apns"
+
+[communication.template]
+enabled = true
+template_dir = "resources/templates"
+descriptor_dir = "resources/communication_descriptor"
 
 [communication.sms]
 enabled = false

@@ -58,8 +58,10 @@ timeout_seconds = 30
 [queue.queues]
 organization_created = ["sentinel-sync-events"]
 organization_updated = ["sentinel-sync-events"]
+organization_deleted = ["sentinel-sync-events"]
 member_joined = ["sentinel-sync-events"]
 member_removed = ["sentinel-sync-events"]
+member_roles_updated = ["sentinel-sync-events"]
 
 # Centralized authorization (OpenFGA). store_id and authorization_model_id are
 # environment-specific and must be supplied via env vars (HIVE_OPENFGA__STORE_ID,

@@ -263,6 +263,36 @@ impl JwtConfig {
             })),
         }
     }
+
+    /// Auth config for rustycog-http `UserIdExtractor` (HS256 only).
+    ///
+    /// `[jwt.secret]` is the issuer source of truth. HMAC material is copied
+    /// into `AuthConfig` so IAM, Manifesto, Telegraph and Hive share one
+    /// secret. RSA is rejected: rustycog-http 0.1.1 cannot verify JWKS/RS256,
+    /// so an RS256 issuer would 401 every `.authenticated()` route.
+    pub fn http_verifier_auth(&self) -> Result<AuthConfig, SecretError> {
+        if self.uses_rsa() {
+            return Err(SecretError::InvalidFormat(
+                "IAM issuer is RS256 but rustycog-http UserIdExtractor only verifies HS256. \
+                 Configure [jwt.secret] type=\"plain\" with the same value as \
+                 Manifesto/Telegraph/Hive [auth.jwt].hs256_secret. JWKS/RS256 verification \
+                 is not available in rustycog-framework 0.1.1."
+                    .to_string(),
+            ));
+        }
+
+        match self.resolve_secret()? {
+            JwtSecret::Hmac(secret) => {
+                let mut auth = AuthConfig::default();
+                auth.jwt.hs256_secret = Some(secret);
+                Ok(auth)
+            }
+            JwtSecret::Rsa { .. } => Err(SecretError::InvalidFormat(
+                "IAM issuer is RS256 but rustycog-http UserIdExtractor only verifies HS256."
+                    .to_string(),
+            )),
+        }
+    }
 }
 
 impl Default for JwtConfig {
@@ -320,6 +350,7 @@ pub struct AppConfig {
     #[serde(default)]
     pub scaleway: ScalewayConfig,
     /// Command configuration
+    #[serde(default)]
     pub command: CommandConfig,
     /// Queue configuration (Kafka, SQS, or Disabled)
     pub queue: QueueConfig,
@@ -583,6 +614,43 @@ mod tests {
         assert!(toml_config.contains("[database]"));
         assert!(toml_config.contains("[oauth.github]"));
         assert!(toml_config.contains("[jwt]"));
+    }
+
+    #[test]
+    fn http_verifier_auth_copies_hmac_issuer_secret() {
+        let jwt = JwtConfig {
+            secret: SecretStorage::PlainText {
+                value: "rustycog-dev-hs256-secret".to_string(),
+            },
+            ..JwtConfig::default()
+        };
+
+        let auth = jwt
+            .http_verifier_auth()
+            .expect("HMAC issuer must map to AuthConfig");
+        assert_eq!(
+            auth.jwt.hs256_secret.as_deref(),
+            Some("rustycog-dev-hs256-secret")
+        );
+    }
+
+    #[test]
+    fn http_verifier_auth_rejects_rsa_issuer() {
+        let jwt = JwtConfig {
+            secret: SecretStorage::PemFile {
+                private_key_path: "unused-private.pem".to_string(),
+                public_key_path: "unused-public.pem".to_string(),
+                key_id: Some("kid".to_string()),
+            },
+            ..JwtConfig::default()
+        };
+
+        let err = jwt
+            .http_verifier_auth()
+            .expect_err("RSA issuer is incompatible with rustycog-http 0.1.1");
+        let message = err.to_string();
+        assert!(message.contains("RS256"), "{message}");
+        assert!(message.contains("HS256"), "{message}");
     }
 
     #[test]

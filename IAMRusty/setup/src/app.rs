@@ -41,8 +41,11 @@ use rustycog::permission::{InMemoryPermissionChecker, PermissionChecker};
 
 use iam_configuration::AppConfig;
 use iam_domain::error::DomainError;
-use rustycog::events::create_multi_queue_event_publisher;
 use rustycog::events::{adapter::MultiQueueEventPublisher, event::EventPublisher};
+use readiness::{
+    attach_ready, create_signaled_multi_queue_event_publisher, signal_queue_status,
+    ComponentStatus, QueueRole, ReadinessProbe,
+};
 use rustycog::outbox::{OutboxConfig, OutboxDispatcher, OutboxRecorder};
 
 use iam_application::{
@@ -59,21 +62,29 @@ use crate::config::ServerConfig;
 pub struct IAMRustyApp {
     app_state: AppState,
     outbox_dispatcher: Arc<OutboxDispatcher<DomainError>>,
+    readiness: Arc<ReadinessProbe>,
 }
 
 impl IAMRustyApp {
     pub const fn new(
         app_state: AppState,
         outbox_dispatcher: Arc<OutboxDispatcher<DomainError>>,
+        readiness: Arc<ReadinessProbe>,
     ) -> Self {
         Self {
             app_state,
             outbox_dispatcher,
+            readiness,
         }
     }
 
     pub fn router(&self) -> Router {
-        create_router(self.app_state.clone())
+        attach_ready(create_router(self.app_state.clone()), self.readiness.clone())
+    }
+
+    #[must_use]
+    pub fn readiness(&self) -> Arc<ReadinessProbe> {
+        self.readiness.clone()
     }
 
     #[must_use]
@@ -112,52 +123,36 @@ pub async fn build_app_state(
     config: AppConfig,
     maybe_event_publisher: Option<Arc<MultiQueueEventPublisher<DomainError>>>,
 ) -> Result<IAMRustyApp> {
-    let event_publisher: Arc<MultiQueueEventPublisher<DomainError>>;
-    if maybe_event_publisher.is_some() {
-        event_publisher = maybe_event_publisher.unwrap();
+    let (event_publisher, queue_status, queue_transport) = if let Some(publisher) =
+        maybe_event_publisher
+    {
+        signal_queue_status("iam", QueueRole::Publisher, &ComponentStatus::Injected);
+        (publisher, ComponentStatus::Injected, None)
     } else {
-        event_publisher = create_event_publisher_from_config(&config).await?;
-    }
+        let signaled = create_signaled_multi_queue_event_publisher(
+            "iam",
+            &config.queue,
+            None,
+            Arc::new(IAMErrorMapper),
+        )
+        .await?;
+        (
+            signaled.publisher,
+            signaled.status,
+            Some(signaled.transport),
+        )
+    };
 
-    build_app_state_with_event_publisher(config, event_publisher).await
-}
-
-/// Create the default event publisher from configuration
-async fn create_event_publisher_from_config(
-    config: &AppConfig,
-) -> Result<Arc<MultiQueueEventPublisher<DomainError>>> {
-    // Create event publisher using configuration
-    // For now, create a multi-queue publisher that handles all configured queues
-    // You can modify this to handle specific queues by passing Some(queue_names_set)
-    //
-    // Examples:
-    //
-    // 1. Handle all queues (current behavior):
-    // let event_publisher = create_multi_queue_event_publisher_async(&config.queue, None).await?;
-    //
-    // 2. Handle only specific queues:
-    // let mut specific_queues = HashSet::new();
-    // specific_queues.insert("test-user-events".to_string());
-    // let event_publisher = create_multi_queue_event_publisher_async(&config.queue, Some(specific_queues)).await?;
-    //
-    // 3. Handle queues based on environment:
-    // let queue_names = if config.is_test_environment() {
-    //     let mut test_queues = HashSet::new();
-    //     test_queues.insert("test-user-events".to_string());
-    //     Some(test_queues)
-    // } else {
-    //     None // Handle all queues in production
-    // };
-    // let event_publisher = create_multi_queue_event_publisher_async(&config.queue, queue_names).await?;
-    let event_publisher =
-        create_multi_queue_event_publisher(&config.queue, None, Arc::new(IAMErrorMapper)).await?;
-    Ok(event_publisher)
+    build_app_state_with_event_publisher(config, event_publisher, queue_status, queue_transport)
+        .await
 }
 
 /// Build app state with a custom event publisher (useful for testing)
 pub async fn build_app_state_with_event_publisher<EP>(
     config: AppConfig,
     event_publisher: Arc<EP>,
+    queue_status: ComponentStatus,
+    queue_transport: Option<Arc<rustycog::events::ConcreteEventPublisher>>,
 ) -> Result<IAMRustyApp>
 where
     EP: EventPublisher<DomainError> + Send + Sync + 'static,
@@ -166,6 +161,7 @@ where
 
     // Setup database connection pool
     let db_pool = DbConnectionPool::new(&config.database).await?;
+    let db_write = db_pool.get_write_connection();
     let dispatcher_publisher: Arc<dyn EventPublisher<DomainError>> = event_publisher.clone();
     let outbox_dispatcher = Arc::new(OutboxDispatcher::new(
         db_pool.clone(),
@@ -237,6 +233,17 @@ where
     let password_service = Arc::new(PasswordService::new());
     let password_service_adapter = Arc::new(PasswordServiceAdapter::new(password_service.clone()));
 
+    // Issuer (`[jwt.secret]`) is the source of truth. rustycog-http only
+    // verifies HS256, so RSA issuance is rejected here — before we build
+    // token services that consumers could not verify.
+    let http_verifier_auth = config.jwt.http_verifier_auth().map_err(|e| {
+        tracing::error!(
+            "JWT issuer is incompatible with rustycog-http verifier: {}",
+            e
+        );
+        anyhow::anyhow!("JWT issuer is incompatible with rustycog-http verifier: {e}")
+    })?;
+
     // Create token service with secret resolved from configuration
     tracing::info!("Setting up JWT token service");
     let jwt_algorithm_config = config.jwt.create_jwt_algorithm().map_err(|e| {
@@ -278,8 +285,10 @@ where
 
     // Create registration token service
     tracing::info!("Creating registration token service");
-    let registration_token_service =
-        Arc::new(iam_infra::token::RegistrationTokenServiceImpl::new(jwt_algorithm).unwrap());
+    let registration_token_service = Arc::new(
+        iam_infra::token::RegistrationTokenServiceImpl::new(jwt_algorithm)
+            .map_err(|e| anyhow::anyhow!("Failed to create registration token service: {e}"))?,
+    );
 
     // Create OAuth service for OAuth flows
     let mut oauth_service = iam_domain::service::oauth_service::OAuthService::new(
@@ -440,8 +449,9 @@ where
     );
     let command_service = Arc::new(GenericCommandService::new(Arc::new(registry)));
 
-    // Create user ID extractor for authentication
-    let user_id_extractor = UserIdExtractor::new(config.auth.clone())
+    // Verifier secret comes from the issuer (`[jwt.secret]`), not a
+    // second `[auth.jwt]` copy that can drift.
+    let user_id_extractor = UserIdExtractor::new(http_verifier_auth)
         .map_err(|e| anyhow::anyhow!("Invalid auth configuration: {}", e))?;
 
     // IAM routes are never guarded by `with_permission_on` — IAM is the
@@ -452,7 +462,13 @@ where
     // Create app state
     let app_state = AppState::new(command_service, user_id_extractor, permission_checker);
 
-    Ok(IAMRustyApp::new(app_state, outbox_dispatcher))
+    let readiness = Arc::new(
+        ReadinessProbe::new("iam")
+            .with_database(db_write)
+            .with_publisher(queue_status, queue_transport),
+    );
+
+    Ok(IAMRustyApp::new(app_state, outbox_dispatcher, readiness))
 }
 
 pub async fn run_server(app: IAMRustyApp, app_config: ServerConfig) -> Result<()> {
@@ -476,7 +492,8 @@ pub async fn run_server(app: IAMRustyApp, app_config: ServerConfig) -> Result<()
 
     let mut server_handle = {
         let app_state = app.app_state.clone();
-        tokio::spawn(async move { create_app_routes(app_state, server_config).await })
+        let probe = app.readiness.clone();
+        tokio::spawn(async move { create_app_routes(app_state, server_config, probe).await })
     };
 
     let mut background_tasks = app.start_background_tasks();

@@ -10,6 +10,7 @@ iam-application = { path = "../application" }
 iam-infra = { path = "../infra" }
 iam-http_server = { path = "../http" }
 iam-configuration = { path = "../configuration" }
+readiness = { path = "../../readiness" }
 rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full"] }
 
 # External dependencies

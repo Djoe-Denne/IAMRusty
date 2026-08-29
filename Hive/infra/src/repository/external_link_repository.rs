@@ -8,8 +8,8 @@ use hive_domain::port::repository::{
 };
 use rustycog::core::error::DomainError;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait,
-    QueryFilter,
+    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait,
+    PaginatorTrait, QueryFilter,
 };
 use std::sync::Arc;
 use tracing::debug;
@@ -241,15 +241,16 @@ impl ExternalLinkWriteRepositoryImpl {
     pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
-}
 
-#[async_trait]
-impl ExternalLinkWriteRepository for ExternalLinkWriteRepositoryImpl {
-    async fn save(&self, link: &ExternalLink) -> Result<ExternalLink, DomainError> {
-        debug!("Saving external link with ID: {}", link.id);
-
+    pub async fn save_with_connection<C>(
+        db: &C,
+        link: &ExternalLink,
+    ) -> Result<ExternalLink, DomainError>
+    where
+        C: ConnectionTrait,
+    {
         let exists = ExternalLinks::find_by_id(link.id)
-            .one(self.db.as_ref())
+            .one(db)
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?
             .is_some();
@@ -257,7 +258,7 @@ impl ExternalLinkWriteRepository for ExternalLinkWriteRepositoryImpl {
         if exists {
             let active_model = ExternalLinkMapper::to_active_model(link);
             let result = active_model
-                .save(self.db.as_ref())
+                .save(db)
                 .await
                 .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
@@ -274,17 +275,24 @@ impl ExternalLinkWriteRepository for ExternalLinkWriteRepositoryImpl {
                 created_at: result.created_at.unwrap(),
                 updated_at: result.updated_at.unwrap(),
             };
-            return ExternalLinkMapper::to_domain(saved_model, link.provider_source.clone());
+            ExternalLinkMapper::to_domain(saved_model, link.provider_source.clone())
         } else {
             let active_model = ExternalLinkMapper::to_active_model(link);
             let result = active_model
-                .insert(self.db.as_ref())
+                .insert(db)
                 .await
                 .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
-            let saved_model = result;
-            return ExternalLinkMapper::to_domain(saved_model, link.provider_source.clone());
+            ExternalLinkMapper::to_domain(result, link.provider_source.clone())
         }
+    }
+}
+
+#[async_trait]
+impl ExternalLinkWriteRepository for ExternalLinkWriteRepositoryImpl {
+    async fn save(&self, link: &ExternalLink) -> Result<ExternalLink, DomainError> {
+        debug!("Saving external link with ID: {}", link.id);
+        Self::save_with_connection(self.db.as_ref(), link).await
     }
 
     async fn delete_by_id(&self, id: &Uuid) -> Result<(), DomainError> {

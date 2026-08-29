@@ -97,7 +97,13 @@ impl ErrorMapper<DomainError> for IAMErrorMapper {
 pub async fn create_event_publisher_with_queue_config(
     config: &QueueConfig,
 ) -> Result<Arc<ConcreteEventPublisher>, DomainError> {
-    create_event_publisher_from_queue_config(config)
+    let publisher = create_event_publisher_from_queue_config(config)
         .await
-        .map_err(|service_error| IAMErrorMapper.from_service_error(service_error))
+        .map_err(|service_error| IAMErrorMapper.from_service_error(service_error))?;
+    readiness::signal_queue_status(
+        "iam",
+        readiness::QueueRole::Publisher,
+        &readiness::classify_publisher(config, publisher.as_ref()),
+    );
+    Ok(publisher)
 }

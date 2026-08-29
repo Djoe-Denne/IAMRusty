@@ -8,7 +8,9 @@ use hive_domain::{
     service::{MemberService, OrganizationService},
     OrganizationMember,
 };
-use hive_events::{HiveDomainEvent, MemberJoinedEvent, MemberRemovedEvent, Role};
+use hive_events::{
+    HiveDomainEvent, MemberJoinedEvent, MemberRemovedEvent, MemberRolesUpdatedEvent, Role,
+};
 use rustycog::core::error::DomainError;
 use rustycog::events::{DomainEvent, EventPublisher};
 
@@ -174,6 +176,32 @@ impl MemberUseCaseImpl {
 
         self.record_or_publish_event(event.into()).await
     }
+
+    async fn publish_member_roles_updated_event(
+        &self,
+        member: &OrganizationMember,
+        organization_name: &str,
+        roles: &[RolePermission],
+    ) -> Result<(), ApplicationError> {
+        let roles = roles
+            .iter()
+            .map(|role| {
+                Role::new(
+                    role.permission.level.to_str().to_string(),
+                    role.resource.name.clone(),
+                )
+            })
+            .collect();
+        let event = HiveDomainEvent::MemberRolesUpdated(MemberRolesUpdatedEvent::new(
+            member.organization_id,
+            organization_name.to_string(),
+            member.user_id,
+            roles,
+            Utc::now(),
+        ));
+
+        self.record_or_publish_event(event.into()).await
+    }
 }
 
 #[async_trait]
@@ -194,22 +222,47 @@ impl MemberUseCase for MemberUseCaseImpl {
         let role_permissions: Vec<RolePermission> =
             request.roles.iter().map(std::convert::Into::into).collect();
 
-        // Use domain service to add member
-        let member = self
-            .member_service
-            .add_member(
+        let member = if let Some(outbox_unit_of_work) = &self.outbox_unit_of_work {
+            let roles = role_permissions
+                .iter()
+                .map(|role| {
+                    Role::new(
+                        role.permission.level.to_str().to_string(),
+                        role.resource.name.clone(),
+                    )
+                })
+                .collect();
+            let event = HiveDomainEvent::MemberJoined(MemberJoinedEvent::new(
                 organization_id,
+                organization.name.clone(),
                 request.user_id,
-                role_permissions.clone(),
-                Some(user_id),
-            )
-            .await
-            .map_err(ApplicationError::Domain)?;
-
-        // Publish domain event
-        // TODO: Get role name from role repository
-        self.publish_member_joined_event(&member, &organization.name, &role_permissions)
-            .await?;
+                roles,
+                Utc::now(),
+            ));
+            outbox_unit_of_work
+                .add_member(
+                    organization_id,
+                    request.user_id,
+                    role_permissions.clone(),
+                    Some(user_id),
+                    event.into(),
+                )
+                .await?
+        } else {
+            let member = self
+                .member_service
+                .add_member(
+                    organization_id,
+                    request.user_id,
+                    role_permissions.clone(),
+                    Some(user_id),
+                )
+                .await
+                .map_err(ApplicationError::Domain)?;
+            self.publish_member_joined_event(&member, &organization.name, &role_permissions)
+                .await?;
+            member
+        };
 
         Ok(self.member_to_response(&member))
     }
@@ -226,22 +279,32 @@ impl MemberUseCase for MemberUseCaseImpl {
             .await
             .map_err(ApplicationError::Domain)?;
 
-        // Use domain service to remove member
-        self.member_service
-            .remove_member(organization_id, user_id)
-            .await
-            .map_err(ApplicationError::Domain)?;
-
-        // Publish domain event
-        // TODO: Get user email from IAM service
-        self.publish_member_removed_event(
-            organization_id,
-            &organization.name,
-            user_id,
-            "user@example.com", // Placeholder
-            user_id,
-        )
-        .await?;
+        if let Some(outbox_unit_of_work) = &self.outbox_unit_of_work {
+            let event = HiveDomainEvent::MemberRemoved(MemberRemovedEvent::new(
+                organization_id,
+                organization.name.clone(),
+                user_id,
+                "user@example.com".to_string(),
+                user_id,
+                Utc::now(),
+            ));
+            outbox_unit_of_work
+                .remove_member(organization_id, user_id, event.into())
+                .await?;
+        } else {
+            self.member_service
+                .remove_member(organization_id, user_id)
+                .await
+                .map_err(ApplicationError::Domain)?;
+            self.publish_member_removed_event(
+                organization_id,
+                &organization.name,
+                user_id,
+                "user@example.com",
+                user_id,
+            )
+            .await?;
+        }
 
         Ok(())
     }
@@ -319,14 +382,23 @@ impl MemberUseCase for MemberUseCaseImpl {
         user_id: Uuid,
         request: &UpdateMemberRolesRequest,
     ) -> Result<MemberResponse, ApplicationError> {
+        let organization = self
+            .organization_service
+            .get_organization(&organization_id)
+            .await
+            .map_err(ApplicationError::Domain)?;
+
         let role_permissions: Vec<RolePermission> =
             request.roles.iter().map(std::convert::Into::into).collect();
 
         let member = self
             .member_service
-            .update_member_roles(organization_id, user_id, role_permissions)
+            .update_member_roles(organization_id, user_id, role_permissions.clone())
             .await
             .map_err(ApplicationError::Domain)?;
+
+        self.publish_member_roles_updated_event(&member, &organization.name, &role_permissions)
+            .await?;
 
         Ok(self.member_to_response(&member))
     }

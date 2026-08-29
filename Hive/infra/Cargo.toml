@@ -14,6 +14,7 @@ hive-configuration = { path = "../configuration" }
 
 # Shared crates
 iam-events = { path = "../../iam-events" }
+readiness = { path = "../../readiness" }
 rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full"] }
 
 # Async traits

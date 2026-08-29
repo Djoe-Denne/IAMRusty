@@ -1,3 +1,5 @@
+#![cfg(feature = "kafka")]
+
 // Include common test utilities and fixtures
 mod common;
 #[path = "fixtures/mod.rs"]

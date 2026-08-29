@@ -12,7 +12,8 @@ telegraph-domain = { path = "../domain" }
 telegraph-application = { path = "../application" }
 telegraph-configuration = { path = "../configuration" }
 
-# RustyCog framework
+# Shared crates
+readiness = { path = "../../readiness" }
 rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full"] }
 
 # ORM & PostgreSQL

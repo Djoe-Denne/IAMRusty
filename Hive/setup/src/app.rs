@@ -5,7 +5,7 @@ use axum::Router;
 // Hive
 use hive_application::{
     ExternalLinkUseCaseImpl, HiveCommandRegistryFactory, InvitationUseCaseImpl, MemberUseCaseImpl,
-    OrganizationUseCaseImpl, SyncJobUseCaseImpl,
+    OrganizationUseCaseImpl, RoleUseCaseImpl, SyncJobUseCaseImpl,
 };
 use hive_configuration::AppConfig;
 use hive_domain::service::{
@@ -39,11 +39,14 @@ use rustycog::command::GenericCommandService;
 use rustycog::config::ServerConfig;
 use rustycog::core::error::DomainError;
 use rustycog::db::DbConnectionPool;
-use rustycog::events::{create_multi_queue_event_publisher, EventPublisher};
+use rustycog::events::EventPublisher;
 use rustycog::http::{AppState, UserIdExtractor};
 use rustycog::outbox::{OutboxConfig, OutboxDispatcher, OutboxRecorder};
 use rustycog::permission::{
     CachedPermissionChecker, MetricsPermissionChecker, OpenFgaPermissionChecker, PermissionChecker,
+};
+use readiness::{
+    attach_ready, create_signaled_multi_queue_event_publisher, ReadinessProbe,
 };
 use std::time::Duration;
 
@@ -55,6 +58,7 @@ pub struct Application {
     pub config: AppConfig,
     pub state: AppState,
     pub outbox_dispatcher: Arc<OutboxDispatcher<DomainError>>,
+    pub readiness: Arc<ReadinessProbe>,
 }
 
 impl Application {
@@ -64,11 +68,19 @@ impl Application {
 
         // Setup database connection
         let db = setup_database(&config).await?;
+        let db_write = db.get_write_connection();
 
         // Setup event publisher for Telegraph + sentinel-sync communication
-        let event_publisher =
-            create_multi_queue_event_publisher(&config.queue, None, Arc::new(HiveErrorMapper))
-                .await?;
+        let signaled = create_signaled_multi_queue_event_publisher(
+            "hive",
+            &config.queue,
+            None,
+            Arc::new(HiveErrorMapper),
+        )
+        .await?;
+        let event_publisher = signaled.publisher;
+        let publisher_status = signaled.status;
+        let publisher_transport = signaled.transport;
         let outbox_dispatcher = Arc::new(OutboxDispatcher::new(
             db.clone(),
             event_publisher.clone(),
@@ -82,6 +94,7 @@ impl Application {
             invitation_usecase,
             external_link_usecase,
             sync_job_usecase,
+            role_usecase,
         ) = setup_application(db, &config, event_publisher).await?;
 
         // Setup command registry
@@ -91,12 +104,15 @@ impl Application {
             invitation_usecase,
             external_link_usecase,
             sync_job_usecase,
+            role_usecase,
+            config.command.clone(),
         );
 
         // Create command service
         let command_service = Arc::new(GenericCommandService::new(Arc::new(command_registry)));
 
-        // Setup user ID extractor (for authentication)
+        // Same HS256 secret as IAM `[jwt.secret]` — rustycog-http cannot
+        // verify IAM JWKS/RS256 (rustycog-framework 0.1.1).
         let user_id_extractor = UserIdExtractor::new(config.auth.clone())
             .map_err(|e| anyhow::anyhow!("Invalid auth configuration: {}", e))?;
 
@@ -130,6 +146,11 @@ impl Application {
 
         // Create application state
         let state = AppState::new(command_service, user_id_extractor, permission_checker);
+        let readiness = Arc::new(
+            ReadinessProbe::new("hive")
+                .with_database(db_write)
+                .with_publisher(publisher_status, Some(publisher_transport)),
+        );
 
         tracing::info!("Hive application initialized successfully");
 
@@ -137,6 +158,7 @@ impl Application {
             config,
             state,
             outbox_dispatcher,
+            readiness,
         })
     }
 
@@ -146,8 +168,9 @@ impl Application {
 
         let mut server_handle = {
             let state = self.state.clone();
+            let probe = self.readiness.clone();
             tokio::spawn(async move {
-                create_app_routes(state, server_config)
+                create_app_routes(state, server_config, probe)
                     .await
                     .map_err(|e| anyhow::anyhow!("Server startup failed: {}", e))
             })
@@ -193,7 +216,12 @@ impl Application {
     }
 
     pub fn router(&self) -> Router {
-        create_router(self.state.clone())
+        attach_ready(create_router(self.state.clone()), self.readiness.clone())
+    }
+
+    #[must_use]
+    pub fn readiness(&self) -> Arc<ReadinessProbe> {
+        self.readiness.clone()
     }
 
     #[must_use]
@@ -244,6 +272,7 @@ async fn setup_application(
         Arc<dyn hive_application::InvitationUseCase>,
         Arc<dyn hive_application::ExternalLinkUseCase>,
         Arc<dyn hive_application::SyncJobUseCase>,
+        Arc<dyn hive_application::RoleUseCase>,
     ),
     Error,
 > {
@@ -252,7 +281,7 @@ async fn setup_application(
         member_service,
         invitation_service,
         external_provider_service,
-        _role_service,
+        role_service,
         sync_service,
     ) = setup_domain(db.clone(), config).await?;
 
@@ -261,6 +290,7 @@ async fn setup_application(
     // Create organization use case
     let organization_usecase = Arc::new(OrganizationUseCaseImpl::new_with_outbox_unit_of_work(
         organization_service.clone(),
+        member_service.clone(),
         event_publisher.clone(),
         outbox_unit_of_work.clone(),
     ));
@@ -294,12 +324,15 @@ async fn setup_application(
         outbox_unit_of_work,
     ));
 
+    let role_usecase = Arc::new(RoleUseCaseImpl::new(role_service));
+
     Ok((
         organization_usecase,
         member_usecase,
         invitation_usecase,
         external_link_usecase,
         sync_job_usecase,
+        role_usecase,
     ))
 }
 

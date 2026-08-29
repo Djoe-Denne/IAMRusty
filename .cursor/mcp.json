@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "context-mode": {
+      "command": "C:\\Program Files\\nodejs\\node.exe",
+      "args": [
+        "C:\\Users\\djden\\AppData\\Roaming\\npm\\node_modules\\context-mode\\start.mjs"
+      ],
+      "env": {
+        "CONTEXT_MODE_PLATFORM": "cursor",
+        "CONTEXT_MODE_PROJECT_DIR": "C:\\Users\\djden\\source\\repos\\AIForAll",
+        "PATH": "C:\\Program Files\\nodejs;C:\\Users\\djden\\AppData\\Roaming\\npm;${env:PATH}"
+      }
+    },
+    "grepai": {
+      "command": "C:\\Users\\djden\\AppData\\Local\\Programs\\grepai\\grepai.exe",
+      "args": [
+        "mcp-serve",
+        "C:\\Users\\djden\\source\\repos\\AIForAll"
+      ]
+    }
+  }
+}

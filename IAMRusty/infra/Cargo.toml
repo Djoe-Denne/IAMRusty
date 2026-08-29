@@ -9,7 +9,8 @@ iam-domain = { path = "../domain" }
 iam-application = { path = "../application" }
 iam-configuration = { path = "../configuration" }
 
-# RustyCog framework
+# Shared crates
+readiness = { path = "../../readiness" }
 rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full"] }
 
 # ORM & PostgreSQL
@@ -59,8 +60,6 @@ reqwest = { version = "0.11", features = ["json"] }
 [features]
 default = []
 test-utils = ["rustycog/test-utils"]
-# Lifts the "must use RSA256" guards on RegistrationTokenServiceImpl
-# and JwtTokenService at compile time. Enabled only by iam-service's
-# dev-dependency entry on iam-infra, so production builds (which never
-# load dev-deps) keep the strict checks intact.
+# Kept so existing `features = ["test-relaxed-jwt"]` wires still resolve.
+# HS256 is first-class: rustycog-http UserIdExtractor cannot verify RS256.
 test-relaxed-jwt = []

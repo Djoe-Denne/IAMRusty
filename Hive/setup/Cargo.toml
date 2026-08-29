@@ -14,6 +14,7 @@ hive-infra = { path = "../infra" }
 hive-http = { path = "../http" }
 hive-configuration = { path = "../configuration" }
 hive-migration = { path = "../migration" }
+readiness = { path = "../../readiness" }
 rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full"] }
 
 # HTTP framework

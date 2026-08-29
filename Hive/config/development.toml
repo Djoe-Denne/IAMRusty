@@ -55,8 +55,10 @@ timeout_seconds = 30
 [queue.queues]
 organization_created = ["sentinel-sync-events"]
 organization_updated = ["sentinel-sync-events"]
+organization_deleted = ["sentinel-sync-events"]
 member_joined = ["sentinel-sync-events"]
 member_removed = ["sentinel-sync-events"]
+member_roles_updated = ["sentinel-sync-events"]
 
 [logging]
 level = "debug"

@@ -223,9 +223,7 @@ impl MemberUseCase for MemberUseCaseImpl {
             created.added_at,
         ));
         let domain_ev: Box<dyn DomainEvent> = event.into();
-        if let Err(e) = self.event_publisher.publish(domain_ev.as_ref()).await {
-            tracing::warn!("Failed to publish MemberAdded event: {:?}", e);
-        }
+        self.event_publisher.publish(domain_ev.as_ref()).await?;
 
         Ok(self.member_to_response(&created))
     }
@@ -355,9 +353,7 @@ impl MemberUseCase for MemberUseCaseImpl {
                 Utc::now(),
             ));
         let domain_ev: Box<dyn DomainEvent> = event.into();
-        if let Err(e) = self.event_publisher.publish(domain_ev.as_ref()).await {
-            tracing::warn!("Failed to publish MemberPermissionsUpdated event: {:?}", e);
-        }
+        self.event_publisher.publish(domain_ev.as_ref()).await?;
 
         Ok(self.member_to_response(&updated))
     }
@@ -393,9 +389,7 @@ impl MemberUseCase for MemberUseCaseImpl {
             Utc::now(),
         ));
         let domain_ev: Box<dyn DomainEvent> = event.into();
-        if let Err(e) = self.event_publisher.publish(domain_ev.as_ref()).await {
-            tracing::warn!("Failed to publish MemberRemoved event: {:?}", e);
-        }
+        self.event_publisher.publish(domain_ev.as_ref()).await?;
 
         Ok(())
     }
@@ -481,9 +475,7 @@ impl MemberUseCase for MemberUseCaseImpl {
             Utc::now(),
         ));
         let domain_ev: Box<dyn DomainEvent> = event.into();
-        if let Err(e) = self.event_publisher.publish(domain_ev.as_ref()).await {
-            tracing::warn!("Failed to publish PermissionGranted event: {:?}", e);
-        }
+        self.event_publisher.publish(domain_ev.as_ref()).await?;
 
         Ok(self.member_to_response(&updated))
     }
@@ -537,9 +529,7 @@ impl MemberUseCase for MemberUseCaseImpl {
             Utc::now(),
         ));
         let domain_ev: Box<dyn DomainEvent> = event.into();
-        if let Err(e) = self.event_publisher.publish(domain_ev.as_ref()).await {
-            tracing::warn!("Failed to publish PermissionRevoked event: {:?}", e);
-        }
+        self.event_publisher.publish(domain_ev.as_ref()).await?;
 
         Ok(())
     }

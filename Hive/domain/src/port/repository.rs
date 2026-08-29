@@ -167,6 +167,10 @@ pub trait RolePermissionReadRepository: Send + Sync {
         organization_id: &Uuid,
         role_permissions: &Vec<RolePermission>,
     ) -> Result<Vec<RolePermission>, DomainError>;
+    async fn find_by_organization(
+        &self,
+        organization_id: &Uuid,
+    ) -> Result<Vec<RolePermission>, DomainError>;
 }
 
 /// Write operations for `RolePermission` entities

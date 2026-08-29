@@ -2,13 +2,14 @@
 //!
 //! Each producer service contributes a `Translator` implementation that knows
 //! how to turn one of its domain events (`HiveDomainEvent`,
-//! `ManifestoDomainEvent`, `IamDomainEvent`) into a set of tuple writes and
-//! deletes. The dispatcher picks a translator by the event envelope's
-//! `event_type` prefix.
+//! `ManifestoDomainEvent`, `IamDomainEvent`, `TelegraphDomainEvent`) into a
+//! set of tuple writes and deletes. The dispatcher picks a translator by the
+//! event envelope's `event_type` prefix.
 
 pub mod hive;
 pub mod iam;
 pub mod manifesto;
+pub mod telegraph;
 
 use anyhow::Result;
 

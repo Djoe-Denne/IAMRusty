@@ -11,7 +11,8 @@ use super::{
     ProcessEventErrorMapper,
 };
 use crate::usecase::{EventProcessingUseCaseTrait, NotificationUseCaseTrait};
-use rustycog::command::{CommandRegistry, CommandRegistryBuilder};
+use rustycog::command::{CommandRegistry, CommandRegistryBuilder, RegistryConfig};
+use rustycog::config::CommandConfig;
 use std::sync::Arc;
 
 /// Factory for creating a command registry with Telegraph commands registered
@@ -22,8 +23,11 @@ impl TelegraphCommandRegistryFactory {
     pub fn create_telegraph_registry(
         event_processing_usecase: Arc<dyn EventProcessingUseCaseTrait>,
         notification_usecase: Arc<dyn NotificationUseCaseTrait>,
+        command_config: CommandConfig,
     ) -> CommandRegistry {
-        let mut builder = CommandRegistryBuilder::new();
+        let mut builder = CommandRegistryBuilder::with_config(RegistryConfig::from_retry_config(
+            &command_config.retry,
+        ));
 
         // Register process event command
         let process_event_handler =

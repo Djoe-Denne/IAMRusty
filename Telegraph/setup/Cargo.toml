@@ -14,7 +14,8 @@ telegraph-infra = { path = "../infra" }
 telegraph-http_server = { path = "../http" }
 telegraph-configuration = { path = "../configuration" }
 
-# RustyCog framework
+# Shared crates
+readiness = { path = "../../readiness" }
 rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full"] }
 
 # HTTP and server

@@ -145,30 +145,69 @@ impl InvitationUseCase for InvitationUseCaseImpl {
         invited_by_user_id: Uuid,
     ) -> Result<InvitationResponse, ApplicationError> {
         let role_permissions = request.roles.iter().map(std::convert::Into::into).collect();
-        let invitation = self
-            .invitation_service
-            .create_invitation_by_email(
+        let invitation = if let Some(outbox_unit_of_work) = &self.outbox_unit_of_work {
+            let invitation = self
+                .invitation_service
+                .prepare_invitation_by_email(
+                    organization_id,
+                    request.email.clone(),
+                    role_permissions,
+                    invited_by_user_id,
+                    request.message.clone(),
+                    None,
+                )
+                .await
+                .map_err(ApplicationError::Domain)?;
+            let event = HiveDomainEvent::InvitationCreated(InvitationCreatedEvent::new(
+                InvitationCreatedEventData {
+                    organization_id,
+                    organization_name: invitation.organization_name.clone().unwrap_or_default(),
+                    invitation_id: invitation.id,
+                    email: invitation.aggregate_id.clone(),
+                    roles: invitation
+                        .role_permissions
+                        .iter()
+                        .map(|role| {
+                            Role::new(
+                                role.permission.level.to_str().to_string(),
+                                role.resource.name.clone(),
+                            )
+                        })
+                        .collect(),
+                    invited_by_user_id,
+                    invitation_token: invitation.token.clone(),
+                    expires_at: invitation.expires_at,
+                },
+            ));
+            outbox_unit_of_work
+                .save_invitation(invitation, event.into())
+                .await?
+        } else {
+            let invitation = self
+                .invitation_service
+                .create_invitation_by_email(
+                    organization_id,
+                    request.email.clone(),
+                    role_permissions,
+                    invited_by_user_id,
+                    request.message.clone(),
+                    None,
+                )
+                .await
+                .map_err(ApplicationError::Domain)?;
+            self.publish_invitation_created_event(
                 organization_id,
-                request.email.clone(),
-                role_permissions,
+                &invitation.organization_name.clone().unwrap_or_default(),
+                invitation.id,
+                &invitation.aggregate_id,
+                &invitation.role_permissions,
                 invited_by_user_id,
-                request.message.clone(),
-                None,
+                &invitation.token,
+                invitation.expires_at,
             )
-            .await
-            .map_err(ApplicationError::Domain)?;
-
-        self.publish_invitation_created_event(
-            organization_id,
-            &invitation.organization_name.clone().unwrap_or_default(),
-            invitation.id,
-            &invitation.aggregate_id,
-            &invitation.role_permissions,
-            invited_by_user_id,
-            &invitation.token,
-            invitation.expires_at,
-        )
-        .await?;
+            .await?;
+            invitation
+        };
 
         Ok(self.invitation_to_response(&invitation))
     }

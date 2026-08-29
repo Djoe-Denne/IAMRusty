@@ -3,13 +3,15 @@
 use async_trait::async_trait;
 use iam_events::DomainEvent;
 use rustycog::command::{CommandContext, GenericCommandService};
+use rustycog::config::QueueConfig;
 use rustycog::core::error::ServiceError;
+use readiness::{create_signaled_event_consumer, ComponentStatus};
 use rustycog::events::{
-    create_event_consumer_from_queue_config, ConcreteEventConsumer,
-    EventConsumer as RustycogEventConsumer, EventHandler,
+    ConcreteEventConsumer, EventConsumer as RustycogEventConsumer, EventHandler,
 };
 use std::sync::Arc;
 use telegraph_application::command::ProcessEventCommand;
+use telegraph_application::service_error_from_command_error;
 use telegraph_configuration::TelegraphConfig;
 use tracing::{debug, error, info};
 
@@ -18,6 +20,7 @@ pub struct EventConsumer {
     inner_consumer: Arc<ConcreteEventConsumer>,
     config: TelegraphConfig,
     command_service: Arc<GenericCommandService>,
+    transport_status: ComponentStatus,
 }
 
 impl EventConsumer {
@@ -26,7 +29,11 @@ impl EventConsumer {
         config: TelegraphConfig,
         command_service: Arc<GenericCommandService>,
     ) -> Result<Self, telegraph_domain::DomainError> {
-        let inner_consumer = create_event_consumer_from_queue_config(&config.queue)
+        // Consume only inbound IAM queues. `[queue.queues]` may also list
+        // outbound AuthZ destinations (`sentinel-sync-events`); those must
+        // not be polled here.
+        let inbound_queue = inbound_queue_config(&config.queue);
+        let signaled = create_signaled_event_consumer("telegraph", &inbound_queue)
             .await
             .map_err(|e| {
                 telegraph_domain::DomainError::InfrastructureError(format!(
@@ -35,10 +42,32 @@ impl EventConsumer {
             })?;
 
         Ok(Self {
-            inner_consumer,
+            inner_consumer: signaled.consumer,
             config,
             command_service,
+            transport_status: signaled.status,
         })
+    }
+
+    /// Factory outcome for `/ready` (disabled / live / degraded no-op).
+    #[must_use]
+    pub const fn transport_status(&self) -> &ComponentStatus {
+        &self.transport_status
+    }
+
+    /// Whether the rustycog factory returned a no-op consumer.
+    #[must_use]
+    pub fn is_noop(&self) -> bool {
+        matches!(
+            self.inner_consumer.as_ref(),
+            ConcreteEventConsumer::NoOp(_)
+        )
+    }
+
+    /// Underlying rustycog consumer, used by `/ready` transport pings.
+    #[must_use]
+    pub fn inner(&self) -> Arc<ConcreteEventConsumer> {
+        self.inner_consumer.clone()
     }
 
     /// Start consuming events from queues
@@ -133,14 +162,21 @@ impl EventHandler for TelegraphEventHandler {
                 Ok(())
             }
             Err(e) => {
+                let service_error = service_error_from_command_error(&e);
                 error!(
                     event_id = %event_id,
-                    error = %e,
+                    error = %service_error,
+                    category = service_error.category(),
+                    retryable = service_error.is_retryable(),
                     "Failed to process event via command service"
                 );
-                Err(ServiceError::infrastructure(format!(
-                    "Command execution failed: {e}"
-                )))
+                // rustycog-events nacks on any Err (SQS leave / Kafka no-commit).
+                // Ack non-retryable failures so validation/business do not poison the queue.
+                if service_error.is_retryable() {
+                    Err(service_error)
+                } else {
+                    Ok(())
+                }
             }
         }
     }
@@ -180,5 +216,17 @@ impl EventHandler for TelegraphEventHandler {
         }
 
         supports
+    }
+}
+
+/// Drop outbound event-type routing so the consumer only polls inbound queues.
+fn inbound_queue_config(queue: &QueueConfig) -> QueueConfig {
+    match queue {
+        QueueConfig::Sqs(sqs) => {
+            let mut inbound = sqs.clone();
+            inbound.queues.clear();
+            QueueConfig::Sqs(inbound)
+        }
+        other => other.clone(),
     }
 }

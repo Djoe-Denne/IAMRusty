@@ -49,6 +49,14 @@ refresh_token_expiration_seconds = 2592000  # 30 days
 type = "plain"
 value = "rustycog-dev-hs256-secret"
 
+[command]
+[command.retry]
+max_attempts = 3
+base_delay_ms = 100
+max_delay_ms = 30000
+backoff_multiplier = 2.0
+use_jitter = true
+
 # Queue configuration for testing - using SQS
 [queue]
 type = "sqs"

@@ -44,6 +44,16 @@ pub trait InvitationService: Send + Sync {
         expires_in_days: Option<i64>,
     ) -> Result<OrganizationInvitation, DomainError>;
 
+    async fn prepare_invitation_by_email(
+        &self,
+        organization_id: Uuid,
+        email: String,
+        role_permissions: Vec<RolePermission>,
+        invited_by_user_id: Uuid,
+        message: Option<String>,
+        expires_in_days: Option<i64>,
+    ) -> Result<OrganizationInvitation, DomainError>;
+
     /**
      * Create an invitation to join an organization by user. used for existing users
      *
@@ -149,7 +159,7 @@ where
     MS: MemberService,
 {
     /// Create an invitation to join an organization
-    async fn create_invitation_by_email(
+    async fn prepare_invitation_by_email(
         &self,
         organization_id: Uuid,
         email: String,
@@ -165,22 +175,42 @@ where
             .map_err(|e| DomainError::Internal {
                 message: e.to_string(),
             })?;
-        let invitation = OrganizationInvitation::new(
+        let mut invitation = OrganizationInvitation::new(
             organization_id,
             email,
             role_permissions,
             invited_by_user_id,
             message,
         )?;
-        let mut saved_invitation =
-            self.invitation_repo
-                .save(&invitation)
-                .await
-                .map_err(|e| DomainError::Internal {
-                    message: e.to_string(),
-                })?;
-        saved_invitation.update_organization_name(&organization.name);
-        Ok(saved_invitation)
+        invitation.update_organization_name(&organization.name);
+        Ok(invitation)
+    }
+
+    async fn create_invitation_by_email(
+        &self,
+        organization_id: Uuid,
+        email: String,
+        role_permissions: Vec<RolePermission>,
+        invited_by_user_id: Uuid,
+        message: Option<String>,
+        expires_in_days: Option<i64>,
+    ) -> Result<OrganizationInvitation, DomainError> {
+        let invitation = self
+            .prepare_invitation_by_email(
+                organization_id,
+                email,
+                role_permissions,
+                invited_by_user_id,
+                message,
+                expires_in_days,
+            )
+            .await?;
+        self.invitation_repo
+            .save(&invitation)
+            .await
+            .map_err(|e| DomainError::Internal {
+                message: e.to_string(),
+            })
     }
 
     /// Create an invitation to join an organization

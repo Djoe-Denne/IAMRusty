@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use hive_domain::entity::Resource;
 use hive_domain::port::repository::{ResourceReadRepository, ResourceRepository};
 use rustycog::core::error::DomainError;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter};
 use std::sync::Arc;
 use tracing::debug;
 use uuid::Uuid;
@@ -33,6 +33,22 @@ impl ResourceReadRepositoryImpl {
     #[must_use]
     pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
+    }
+
+    pub async fn find_all_with_connection<C>(db: &C) -> Result<Vec<Resource>, DomainError>
+    where
+        C: ConnectionTrait,
+    {
+        let resources = Resources::find()
+            .all(db)
+            .await
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
+
+        let mut result = Vec::new();
+        for model in resources {
+            result.push(ResourceMapper::to_domain(model)?);
+        }
+        Ok(result)
     }
 }
 
@@ -69,17 +85,7 @@ impl ResourceReadRepository for ResourceReadRepositoryImpl {
 
     async fn find_all(&self) -> Result<Vec<Resource>, DomainError> {
         debug!("Finding all resources");
-
-        let resources = Resources::find()
-            .all(self.db.as_ref())
-            .await
-            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
-
-        let mut result = Vec::new();
-        for model in resources {
-            result.push(ResourceMapper::to_domain(model)?);
-        }
-        Ok(result)
+        Self::find_all_with_connection(self.db.as_ref()).await
     }
 }
 

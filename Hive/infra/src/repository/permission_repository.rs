@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use hive_domain::entity::{Permission, PermissionLevel};
 use hive_domain::port::repository::{PermissionReadRepository, PermissionRepository};
 use rustycog::core::error::DomainError;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter};
 use std::sync::Arc;
 use tracing::debug;
 use uuid::Uuid;
@@ -33,6 +33,22 @@ impl PermissionReadRepositoryImpl {
     #[must_use]
     pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
+    }
+
+    pub async fn find_all_with_connection<C>(db: &C) -> Result<Vec<Permission>, DomainError>
+    where
+        C: ConnectionTrait,
+    {
+        let permissions = Permissions::find()
+            .all(db)
+            .await
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
+
+        let mut result = Vec::new();
+        for model in permissions {
+            result.push(PermissionMapper::to_domain(model)?);
+        }
+        Ok(result)
     }
 }
 
@@ -72,17 +88,7 @@ impl PermissionReadRepository for PermissionReadRepositoryImpl {
 
     async fn find_all(&self) -> Result<Vec<Permission>, DomainError> {
         debug!("Finding all permissions");
-
-        let permissions = Permissions::find()
-            .all(self.db.as_ref())
-            .await
-            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
-
-        let mut result = Vec::new();
-        for model in permissions {
-            result.push(PermissionMapper::to_domain(model)?);
-        }
-        Ok(result)
+        Self::find_all_with_connection(self.db.as_ref()).await
     }
 }
 

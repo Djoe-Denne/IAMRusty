@@ -62,12 +62,10 @@ impl JwtTokenService {
 
     /// Create a new `JwtTokenService` with HMAC256 secret.
     ///
-    /// Only available when the `test-relaxed-jwt` Cargo feature is on
-    /// (enabled by `iam-service`'s dev-dependency on `iam-infra`). The
-    /// production build does not expose this constructor at all, so any
-    /// release-mode caller would fail to compile rather than slip an
-    /// HS256 service into the runtime.
-    #[cfg(feature = "test-relaxed-jwt")]
+    /// HS256 is the platform contract: rustycog-http `UserIdExtractor`
+    /// verifies bearer tokens with `auth.jwt.hs256_secret` only. IAM must
+    /// emit the same algorithm so Manifesto / Telegraph / Hive (and IAM's
+    /// own `.authenticated()` routes) can verify the token.
     #[must_use]
     pub const fn with_hmac(secret: String, access_token_expiration: u64) -> Self {
         Self {
@@ -77,26 +75,19 @@ impl JwtTokenService {
         }
     }
 
-    /// Create a new `JwtTokenService` with custom refresh token expiration.
+    /// Create a new `JwtTokenService` from the configured algorithm.
     ///
-    /// In production builds (no `test-relaxed-jwt` feature) the
-    /// `algorithm_config` must be RS256 — passing HS256 trips the
-    /// `assert!` and panics at app boot, the same fail-fast posture
-    /// `RegistrationTokenServiceImpl::new` enforces. The `test-relaxed-jwt`
-    /// build (test harness only) compiles the assertion out, so the
-    /// in-tree HS256 `test.toml` boots without committing RSA PEM keys.
+    /// Both HS256 and RS256 are accepted. Production TOMLs use HS256 so
+    /// rustycog-http can verify tokens. RS256 remains available for a
+    /// future JWKS verifier; the composition root refuses it today
+    /// (`JwtConfig::http_verifier_auth`) because an RS256 issuer would
+    /// 401 every consumer.
     #[must_use]
     pub const fn with_refresh_expiration(
         algorithm_config: JwtAlgorithm,
         access_token_expiration: u64,
         refresh_token_expiration: u64,
     ) -> Self {
-        #[cfg(not(feature = "test-relaxed-jwt"))]
-        assert!(
-            matches!(algorithm_config, JwtAlgorithm::RS256(_)),
-            "JwtTokenService must use RSA256 algorithm for security"
-        );
-
         Self {
             algorithm_config,
             access_token_expiration,
@@ -327,5 +318,31 @@ impl AuthTokenService for JwtTokenService {
         Err(TokenError::GenericError(
             "Not implemented directly in the token service".to_string(),
         ))
+    }
+}
+
+#[cfg(test)]
+mod platform_hs256 {
+    use super::*;
+    use iam_domain::port::service::JwtTokenEncoder;
+
+    #[test]
+    fn hs256_roundtrip_and_empty_jwks() {
+        let service = JwtTokenService::with_hmac("rustycog-test-hs256-secret".into(), 900);
+        let claims = TokenClaims {
+            sub: Uuid::new_v4().to_string(),
+            username: "tester".into(),
+            exp: Utc::now().timestamp() + 60,
+            iat: Utc::now().timestamp(),
+            jti: Uuid::new_v4().to_string(),
+        };
+
+        let token = service.encode(&claims).expect("HS256 encode");
+        let decoded = service.decode(&token).expect("HS256 decode");
+        assert_eq!(decoded.sub, claims.sub);
+        assert!(
+            service.jwks().keys.is_empty(),
+            "HMAC secrets must not be published in JWKS"
+        );
     }
 }
