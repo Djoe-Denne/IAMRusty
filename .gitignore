@@ -139,7 +139,6 @@ temp/
 
 # Project specific
 # Add any project-specific patterns here
-rustycog/
 
 # TLS/SSL Certificates and Keys
 certs/

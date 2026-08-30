@@ -4,7 +4,7 @@ This repository contains multiple microservices for the AIForAll platform:
 
 - **IAMRusty**: Identity and Access Management service
 - **Telegraph**: Communication service for emails, notifications, and SMS
-- **rustycog**: Shared Rust crates for common functionality
+- **rustycog**: Shared Rust crates ([git submodule](https://github.com/Djoe-Denne/rustycog))
 - **iam-events**: Event definitions shared between services
 
 ## Quick Start
@@ -20,7 +20,7 @@ The global docker-compose setup runs both IAMRusty and Telegraph services with s
 
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone --recurse-submodules <repository-url>
 cd AIForAll
 
 # Start all services

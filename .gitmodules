@@ -1,0 +1,3 @@
+[submodule "rustycog"]
+	path = rustycog
+	url = https://github.com/Djoe-Denne/rustycog.git

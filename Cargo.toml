@@ -158,6 +158,6 @@ multiple_crate_versions = "allow"
 module_name_repetitions = "allow"
 must_use_candidate = "allow"
 
-# Temporary Windows bypass: crates.io rustycog-framework 0.1.1 always enables rdkafka via `events`/`full`.
+# rustycog/ is the Djoe-Denne/rustycog git submodule. crates.io 0.1.1 still pulls rdkafka via events/full.
 [patch.crates-io]
 rustycog-framework = { path = "rustycog" }
