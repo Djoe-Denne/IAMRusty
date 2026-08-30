@@ -15,10 +15,8 @@ impl ProjectStatus {
     #[must_use]
     pub fn can_transition_to(&self, target: &Self) -> bool {
         match (self, target) {
-            // From Draft
-            (Self::Draft, Self::Active) => true,
-            // From Active
-            (Self::Active, Self::Archived | Self::Suspended) => true,
+            // Draft→Active, Active→Archived|Suspended
+            (Self::Draft, Self::Active) | (Self::Active, Self::Archived | Self::Suspended) => true,
             // Same status is always allowed (no-op)
             (current, target) if current == target => true,
             // All other transitions are invalid
@@ -26,7 +24,11 @@ impl ProjectStatus {
         }
     }
 
-    /// Attempt to transition to the target status
+    /// Attempt to transition to the target status.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the transition from the current status to `target` is not allowed.
     pub fn transition_to(&self, target: Self) -> Result<Self, DomainError> {
         if self.can_transition_to(&target) {
             Ok(target)
@@ -47,6 +49,11 @@ impl ProjectStatus {
         }
     }
 
+    /// Parse a project status from a string.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if `s` is not a recognized project status.
     pub fn from_str(s: &str) -> Result<Self, DomainError> {
         match s.to_lowercase().as_str() {
             "draft" => Ok(Self::Draft),

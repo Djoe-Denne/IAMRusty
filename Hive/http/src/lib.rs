@@ -116,6 +116,10 @@ pub fn create_prefixed_router(state: AppState, probe: Arc<ReadinessProbe>) -> Ro
 }
 
 /// Create and start the application routes using the fluent builder API.
+///
+/// # Errors
+///
+/// Returns an error when the HTTP server cannot bind or serve the router.
 pub async fn create_app_routes(
     state: AppState,
     config: ServerConfig,

@@ -9,7 +9,7 @@ use wiremock::{
 /// SMTP service for mocking SMTP server endpoints
 pub struct SmtpService {
     server: Arc<MockServer>,
-    _fixture: MockServerFixture, // Keeps the fixture alive for automatic cleanup
+    fixture: MockServerFixture, // Keeps the fixture alive for automatic cleanup
 }
 
 impl SmtpService {
@@ -18,10 +18,7 @@ impl SmtpService {
         let fixture = MockServerFixture::new().await;
         let server = fixture.server();
 
-        Self {
-            server,
-            _fixture: fixture,
-        }
+        Self { server, fixture }
     }
 
     /// Get the base URL for SMTP mocking (used as SMTP host)
@@ -43,7 +40,7 @@ impl SmtpService {
 
     /// Manual reset of all mocks (also happens automatically when service is dropped)
     pub async fn reset(&self) {
-        self._fixture.reset().await;
+        self.fixture.reset().await;
     }
 
     /// Mock SMTP connection handshake (220 response)
@@ -192,10 +189,10 @@ impl SmtpService {
         self.mock_data(
             expected_email,
             SmtpResponse::message_accepted(
-                &expected_email
+                expected_email
                     .message_id
-                    .clone()
-                    .unwrap_or("test-msg-123".to_string()),
+                    .as_deref()
+                    .unwrap_or("test-msg-123"),
             ),
         )
         .await
@@ -226,10 +223,10 @@ impl SmtpService {
         self.mock_data(
             expected_email,
             SmtpResponse::message_accepted(
-                &expected_email
+                expected_email
                     .message_id
-                    .clone()
-                    .unwrap_or("test-msg-123".to_string()),
+                    .as_deref()
+                    .unwrap_or("test-msg-123"),
             ),
         )
         .await
@@ -293,7 +290,7 @@ impl SmtpService {
     }
 
     /// Advanced mock for testing specific SMTP scenarios
-    pub async fn mock_custom_scenario(&self) -> SmtpScenarioBuilder<'_> {
+    pub fn mock_custom_scenario(&self) -> SmtpScenarioBuilder<'_> {
         SmtpScenarioBuilder::new(self)
     }
 }
@@ -351,7 +348,7 @@ impl<'a> SmtpScenarioBuilder<'a> {
     }
 
     /// Finish building the scenario
-    pub async fn build(self) -> &'a SmtpService {
+    pub const fn build(self) -> &'a SmtpService {
         self.service
     }
 }

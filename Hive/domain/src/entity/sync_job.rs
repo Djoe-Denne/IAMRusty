@@ -65,6 +65,10 @@ impl SyncJob {
     }
 
     /// Mark job as completed successfully
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the job is already completed or failed.
     pub fn complete_successfully(&mut self) -> Result<(), DomainError> {
         match self.status {
             SyncJobStatus::Running => {
@@ -83,6 +87,10 @@ impl SyncJob {
     }
 
     /// Mark job as failed
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the job is already completed or failed.
     pub fn fail(&mut self, error_message: String) -> Result<(), DomainError> {
         match self.status {
             SyncJobStatus::Running => {
@@ -101,6 +109,10 @@ impl SyncJob {
     }
 
     /// Update job progress
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the job is not running.
     pub fn update_progress(
         &mut self,
         items_processed: i32,
@@ -122,6 +134,10 @@ impl SyncJob {
     }
 
     /// Add to item counts
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the job is not running.
     pub fn add_progress(
         &mut self,
         processed: i32,
@@ -143,6 +159,10 @@ impl SyncJob {
     }
 
     /// Update job details
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the job is not running.
     pub fn update_details(&mut self, new_details: Value) -> Result<(), DomainError> {
         if !self.is_running() {
             return Err(DomainError::business_rule_violation(
@@ -230,6 +250,10 @@ impl SyncJobType {
     }
 
     /// Parse from string
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if `s` is not a recognized sync job type.
     pub fn from_str(s: &str) -> Result<Self, DomainError> {
         match s.to_lowercase().as_str() {
             "full_sync" => Ok(Self::FullSync),
@@ -254,6 +278,10 @@ impl SyncJobStatus {
     }
 
     /// Parse from string
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if `s` is not a recognized sync job status.
     pub fn from_str(s: &str) -> Result<Self, DomainError> {
         match s.to_lowercase().as_str() {
             "running" => Ok(Self::Running),

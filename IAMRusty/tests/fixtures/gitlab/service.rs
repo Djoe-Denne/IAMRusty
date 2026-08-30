@@ -10,7 +10,7 @@ use wiremock::{
 /// GitLab service for mocking GitLab OAuth endpoints
 pub struct GitLabService {
     server: Arc<MockServer>,
-    _fixture: MockServerFixture, // Keeps the fixture alive for automatic cleanup
+    fixture: MockServerFixture, // Keeps the fixture alive for automatic cleanup
 }
 
 impl GitLabService {
@@ -21,7 +21,7 @@ impl GitLabService {
 
         Self {
             server,
-            _fixture: fixture,
+            fixture,
         }
     }
 
@@ -32,7 +32,7 @@ impl GitLabService {
 
     /// Manual reset of all mocks (also happens automatically when service is dropped)
     pub async fn reset(&self) {
-        self._fixture.reset().await;
+        self.fixture.reset().await;
     }
 
     /// Mock OAuth token exchange endpoint

@@ -22,7 +22,11 @@ pub struct ApparatusEventConsumer {
 }
 
 impl ApparatusEventConsumer {
-    /// Create a new event consumer from queue configuration
+    /// Create a new event consumer from queue configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the queue consumer cannot be created.
     pub async fn new(
         queue_config: &QueueConfig,
         component_processor: Arc<ComponentStatusProcessor>,
@@ -58,7 +62,11 @@ impl ApparatusEventConsumer {
         matches!(self.inner_consumer.as_ref(), ConcreteEventConsumer::NoOp(_))
     }
 
-    /// Start consuming events from queues
+    /// Start consuming events from queues.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the underlying consumer fails to start.
     pub async fn start(&self) -> Result<(), DomainError> {
         info!("Starting Apparatus event consumer");
 
@@ -72,7 +80,11 @@ impl ApparatusEventConsumer {
         Ok(())
     }
 
-    /// Stop the event consumer
+    /// Stop the event consumer.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the underlying consumer fails to stop.
     pub async fn stop(&self) -> Result<(), DomainError> {
         info!("Stopping Apparatus event consumer");
 
@@ -83,7 +95,11 @@ impl ApparatusEventConsumer {
         Ok(())
     }
 
-    /// Health check for the event consumer
+    /// Health check for the event consumer.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the underlying consumer health check fails.
     pub async fn health_check(&self) -> Result<(), DomainError> {
         self.inner_consumer.health_check().await.map_err(|e| {
             DomainError::internal_error(&format!("Event consumer health check failed: {e}"))

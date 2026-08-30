@@ -21,6 +21,10 @@ impl PasswordService {
     }
 
     /// Hash a password using Argon2
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] when Argon2 hashing fails.
     pub fn hash_password(&self, password: &str) -> Result<String, DomainError> {
         let salt = SaltString::generate(&mut OsRng);
         match self.argon2.hash_password(password.as_bytes(), &salt) {
@@ -35,6 +39,11 @@ impl PasswordService {
     }
 
     /// Verify a password against its hash
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] when the stored hash is invalid or verification fails
+    /// for a reason other than a password mismatch.
     pub fn verify_password(&self, password: &str, hash: &str) -> Result<bool, DomainError> {
         let parsed_hash = PasswordHash::new(hash).map_err(|e| {
             error!("Invalid password hash format: {}", e);

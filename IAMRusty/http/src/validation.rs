@@ -73,7 +73,12 @@ const COMMON_WEAK_PASSWORDS: &[&str] = &[
     "1234567890",
 ];
 
-/// Custom validation function for provider names
+/// Custom validation function for provider names.
+///
+/// # Errors
+///
+/// Returns a [`ValidationError`] with code `invalid_provider` when the name is not
+/// `github` or `gitlab` (comparison is case-insensitive).
 pub fn validate_provider_name(provider: &str) -> Result<(), ValidationError> {
     debug!("Validating provider name: '{provider}'");
 
@@ -92,7 +97,12 @@ pub fn validate_provider_name(provider: &str) -> Result<(), ValidationError> {
     Ok(())
 }
 
-/// Custom validation function for non-empty strings
+/// Custom validation function for non-empty strings.
+///
+/// # Errors
+///
+/// Returns a [`ValidationError`] with code `empty_string` when the value is empty
+/// or whitespace-only.
 pub fn validate_non_empty_string(value: &str) -> Result<(), ValidationError> {
     debug!("Validating non-empty string: '{value}'");
 
@@ -105,7 +115,13 @@ pub fn validate_non_empty_string(value: &str) -> Result<(), ValidationError> {
     Ok(())
 }
 
-/// Custom validation function for usernames
+/// Custom validation function for usernames.
+///
+/// # Errors
+///
+/// Returns a [`ValidationError`] when the username is empty (`empty_username`), does
+/// not match [`USERNAME_REGEX`] (`invalid_username_format`), or contains no letter
+/// (`username_needs_letter`).
 pub fn validate_username(username: &str) -> Result<(), ValidationError> {
     debug!("Validating username: '{username}'");
 
@@ -129,7 +145,13 @@ pub fn validate_username(username: &str) -> Result<(), ValidationError> {
     Ok(())
 }
 
-/// Custom validation function for email addresses
+/// Custom validation function for email addresses.
+///
+/// # Errors
+///
+/// Returns a [`ValidationError`] when the email is empty (`empty_email`), does not
+/// match [`EMAIL_REGEX`] (`invalid_email_format`), or exceeds 254 characters
+/// (`email_too_long`).
 pub fn validate_email_format(email: &str) -> Result<(), ValidationError> {
     debug!("Validating email: '{email}'");
 
@@ -155,7 +177,15 @@ pub fn validate_email_format(email: &str) -> Result<(), ValidationError> {
     Ok(())
 }
 
-/// Custom validation function for strong passwords
+/// Custom validation function for strong passwords.
+///
+/// # Errors
+///
+/// Returns a [`ValidationError`] when the password is empty, shorter than 8 characters,
+/// longer than 128 characters, lacks a letter or a digit, or is in the common weak
+/// passwords list (`empty_password`, `password_too_short`, `password_too_long`,
+/// `password_invalid_length`, `password_needs_letter`, `password_needs_digit`,
+/// `password_too_common`).
 pub fn validate_strong_password(password: &str) -> Result<(), ValidationError> {
     debug!("Validating password strength (length: {})", password.len());
 
@@ -203,7 +233,12 @@ pub fn validate_strong_password(password: &str) -> Result<(), ValidationError> {
     Ok(())
 }
 
-/// Custom validation function for verification tokens
+/// Custom validation function for verification tokens.
+///
+/// # Errors
+///
+/// Returns a [`ValidationError`] when the token is empty (`empty_verification_token`)
+/// or does not match [`VERIFICATION_TOKEN_REGEX`] (`invalid_verification_token_format`).
 pub fn validate_verification_token(token: &str) -> Result<(), ValidationError> {
     debug!("Validating verification token: '{token}'");
 
@@ -221,8 +256,14 @@ pub fn validate_verification_token(token: &str) -> Result<(), ValidationError> {
     Ok(())
 }
 
-/// Custom validation function for password reset tokens
-/// Only validates the basic format, not business logic (expiry, usage, etc.)
+/// Custom validation function for password reset tokens.
+///
+/// Only validates the basic format, not business logic (expiry, usage, etc.).
+///
+/// # Errors
+///
+/// Returns a [`ValidationError`] when the token is empty (`empty_reset_token`) or
+/// its length is not in `1..=100` (`invalid_reset_token_length`).
 pub fn validate_reset_token_format(token: &str) -> Result<(), ValidationError> {
     debug!("Validating reset token format: '{token}'");
 
@@ -292,7 +333,12 @@ pub fn mask_email(email: &str) -> String {
     format!("{masked_local}@{masked_domain}")
 }
 
-/// Custom validation function for OAuth codes
+/// Custom validation function for OAuth codes.
+///
+/// # Errors
+///
+/// Returns a [`ValidationError`] when the code is empty or whitespace-only
+/// (`empty_oauth_code`) or longer than 1000 characters (`oauth_code_too_long`).
 pub fn validate_oauth_code(code: &str) -> Result<(), ValidationError> {
     debug!("Validating OAuth code: '{}' (length: {})", code, code.len());
 
@@ -311,7 +357,13 @@ pub fn validate_oauth_code(code: &str) -> Result<(), ValidationError> {
     Ok(())
 }
 
-/// Custom validation function for refresh tokens
+/// Custom validation function for refresh tokens.
+///
+/// # Errors
+///
+/// Returns a [`ValidationError`] when the token is empty or whitespace-only
+/// (`empty_refresh_token`) or its length is outside `10..=1000`
+/// (`invalid_refresh_token_length`).
 pub fn validate_refresh_token(token: &str) -> Result<(), ValidationError> {
     debug!(
         "Validating refresh token: '{}' (length: {})",

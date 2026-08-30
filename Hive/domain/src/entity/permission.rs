@@ -12,6 +12,11 @@ pub enum PermissionLevel {
 }
 
 impl PermissionLevel {
+    /// Parse a permission level from its canonical lowercase name.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if `s` is not a recognized permission level.
     pub fn from_str(s: &str) -> Result<Self, DomainError> {
         match s {
             "read" => Ok(Self::Read),

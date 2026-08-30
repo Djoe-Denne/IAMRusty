@@ -15,6 +15,10 @@ use crate::error::HttpError;
 
 /// Add a member to an organization
 /// POST /`api/organizations/{organization_id}/members`
+///
+/// # Errors
+///
+/// Returns [`HttpError`] if command execution fails.
 pub async fn add_member(
     State(state): State<AppState>,
     Path(organization_id): Path<ResourceId>,
@@ -39,6 +43,10 @@ pub async fn add_member(
 
 /// List organization members
 /// GET /`api/organizations/{organization_id}/members`
+///
+/// # Errors
+///
+/// Returns [`HttpError`] if command execution fails.
 pub async fn list_members(
     State(state): State<AppState>,
     Path(organization_id): Path<ResourceId>,
@@ -64,6 +72,10 @@ pub async fn list_members(
 
 /// Get a specific member
 /// GET /`api/organizations/{organization_id}/members/{user_id`}
+///
+/// # Errors
+///
+/// Returns [`HttpError`] if command execution fails.
 pub async fn get_member(
     State(state): State<AppState>,
     Path((organization_id, user_id)): Path<(ResourceId, ResourceId)>,
@@ -92,6 +104,10 @@ pub async fn get_member(
 
 /// Remove a member from an organization
 /// DELETE /`api/organizations/{organization_id}/members/{user_id`}
+///
+/// # Errors
+///
+/// Returns [`HttpError`] if command execution fails.
 pub async fn remove_member(
     State(state): State<AppState>,
     Path((organization_id, user_id)): Path<(ResourceId, ResourceId)>,
@@ -120,6 +136,10 @@ pub async fn remove_member(
 
 /// Update a member's role
 /// PATCH /`organizations/{organization_id}/members/{user_id`}
+///
+/// # Errors
+///
+/// Returns [`HttpError`] if command execution fails.
 pub async fn update_member(
     State(state): State<AppState>,
     Path((organization_id, user_id)): Path<(ResourceId, ResourceId)>,

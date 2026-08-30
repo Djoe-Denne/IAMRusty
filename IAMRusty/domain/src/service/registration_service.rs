@@ -38,7 +38,12 @@ pub struct UsernameCheckResult {
 pub struct UsernameValidator;
 
 impl UsernameValidator {
-    /// Validate username format
+    /// Validate username format.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the username is shorter than 3 characters, longer than 50,
+    /// contains characters other than alphanumeric, `_` or `-`, or has no letter.
     pub fn validate(username: &str) -> Result<(), DomainError> {
         if username.len() < 3 {
             return Err(DomainError::InvalidUsername);
@@ -312,7 +317,8 @@ where
 
         // Calculate expires_in from the actual token expiration
         let now = chrono::Utc::now();
-        let expires_in = (access_token.expires_at - now).num_seconds().max(0) as u64;
+        let expires_in =
+            u64::try_from((access_token.expires_at - now).num_seconds()).unwrap_or(0);
 
         Ok(RegistrationCompletionResult {
             user: updated_user,

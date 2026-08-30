@@ -17,6 +17,11 @@ use super::entity::{prelude::ProjectComponents, project_components};
 pub struct ComponentMapper;
 
 impl ComponentMapper {
+    /// Map a SeaORM component row to the domain entity.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if `model.status` is not a recognized component status.
     pub fn to_domain(model: project_components::Model) -> Result<ProjectComponent, DomainError> {
         Ok(ProjectComponent {
             id: model.id,
@@ -113,7 +118,8 @@ impl ComponentReadRepository for ComponentReadRepositoryImpl {
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
-        Ok(count as i64)
+        i64::try_from(count)
+            .map_err(|_| DomainError::internal_error("active component count does not fit in i64"))
     }
 }
 
@@ -138,21 +144,19 @@ impl ComponentWriteRepository for ComponentWriteRepositoryImpl {
             .map_err(|e| DomainError::internal_error(&e.to_string()))?
             .is_some();
 
-        if exists {
-            let active_model = ComponentMapper::to_active_model(component);
-            let result = active_model
+        let active_model = ComponentMapper::to_active_model(component);
+        let model = if exists {
+            active_model
                 .update(self.db.as_ref())
                 .await
-                .map_err(|e| DomainError::internal_error(&e.to_string()))?;
-            ComponentMapper::to_domain(result)
+                .map_err(|e| DomainError::internal_error(&e.to_string()))?
         } else {
-            let active_model = ComponentMapper::to_active_model(component);
-            let inserted = active_model
+            active_model
                 .insert(self.db.as_ref())
                 .await
-                .map_err(|e| DomainError::internal_error(&e.to_string()))?;
-            ComponentMapper::to_domain(inserted)
-        }
+                .map_err(|e| DomainError::internal_error(&e.to_string()))?
+        };
+        ComponentMapper::to_domain(model)
     }
 
     async fn delete(&self, id: &Uuid) -> Result<(), DomainError> {

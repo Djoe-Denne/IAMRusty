@@ -141,10 +141,10 @@ async fn test_generate_relink_provider_start_url_unsupported_provider() {
 #[serial]
 async fn test_relink_provider_callback_github_success() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Create user with existing GitHub provider token
     let user = DbFixtures::user()
@@ -358,10 +358,10 @@ async fn test_relink_provider_callback_returns_422_when_missing_code_parameter()
 #[serial]
 async fn test_relink_provider_callback_returns_422_when_provider_not_currently_linked() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Create user WITHOUT any GitHub provider token
     let user = DbFixtures::user()
@@ -428,10 +428,10 @@ async fn test_relink_provider_callback_returns_422_when_provider_not_currently_l
 #[serial]
 async fn test_relink_provider_callback_gitlab_success() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Create user with existing GitLab provider token
     let user = DbFixtures::user()
@@ -497,10 +497,10 @@ async fn test_relink_provider_callback_gitlab_success() {
 #[serial]
 async fn test_relink_provider_callback_user_with_multiple_providers() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Create user with both GitHub and GitLab provider tokens
     let user = DbFixtures::user()

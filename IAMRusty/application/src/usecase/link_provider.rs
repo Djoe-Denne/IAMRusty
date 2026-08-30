@@ -43,9 +43,17 @@ pub struct LinkProviderResponse {
 #[async_trait]
 pub trait LinkProviderUseCase: Send + Sync {
     /// Generate OAuth authorization URL for link provider flow
+    ///
+    /// # Errors
+    ///
+    /// Returns [`LinkProviderError`] if the provider is not configured or the URL cannot be generated.
     fn generate_start_url(&self, provider: Provider) -> Result<String, LinkProviderError>;
 
     /// Generate OAuth authorization URL for relink provider flow
+    ///
+    /// # Errors
+    ///
+    /// Returns [`LinkProviderError`] if the provider is not configured or the URL cannot be generated.
     fn generate_relink_start_url(&self, provider: Provider) -> Result<String, LinkProviderError>;
 
     /// Link a new OAuth provider to an existing authenticated user

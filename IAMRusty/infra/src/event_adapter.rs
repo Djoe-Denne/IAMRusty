@@ -94,6 +94,10 @@ impl ErrorMapper<DomainError> for IAMErrorMapper {
 }
 
 /// Factory function to create an event publisher with queue config for `IAMRusty` domain layer
+///
+/// # Errors
+///
+/// Returns [`DomainError`] when the queue publisher cannot be created from `config`.
 pub async fn create_event_publisher_with_queue_config(
     config: &QueueConfig,
 ) -> Result<Arc<ConcreteEventPublisher>, DomainError> {

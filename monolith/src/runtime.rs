@@ -51,7 +51,7 @@ pub async fn run() -> anyhow::Result<()> {
     let server = tokio::spawn(async move {
         rustycog::http::serve_router(router, server)
             .await
-            .map_err(|e| anyhow::anyhow!("Monolith HTTP server failed: {}", e))
+            .map_err(|e| anyhow::anyhow!("Monolith HTTP server failed: {e}"))
     });
 
     let result = wait_for_shutdown_or_failure(server, background_tasks).await;
@@ -113,7 +113,7 @@ fn flatten_join_result(
 ) -> anyhow::Result<()> {
     match result {
         Ok(Ok(())) => Ok(()),
-        Ok(Err(error)) => Err(anyhow::anyhow!("{} failed: {}", task_name, error)),
-        Err(error) => Err(anyhow::anyhow!("{} panicked: {}", task_name, error)),
+        Ok(Err(error)) => Err(anyhow::anyhow!("{task_name} failed: {error}")),
+        Err(error) => Err(anyhow::anyhow!("{task_name} panicked: {error}")),
     }
 }

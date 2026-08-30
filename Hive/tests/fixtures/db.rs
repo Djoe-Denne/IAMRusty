@@ -49,6 +49,10 @@ impl DbFixtures {
     }
 
     /// Convenience method to create minimal RBAC data for an organization and attach the owner as a member with all permissions.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if organization, member, or role-permission rows cannot be inserted.
     pub async fn create_org_with_owner(
         db: &DatabaseConnection,
         owner_user_id: Uuid,
@@ -62,6 +66,14 @@ impl DbFixtures {
     }
 
     /// Convenience method to create minimal RBAC data for an organization and attach the owner as a member with all permissions.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if organization, member, or role-permission rows cannot be inserted.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a key in `user_rights` is not a valid UUID, or if a member has no matching rights entry.
     pub async fn create_org(
         db: &DatabaseConnection,
         owner_user_id: Uuid,
@@ -120,6 +132,10 @@ impl DbFixtures {
 }
 
 /// Backward-compat free function delegating to the new builder-style API.
+///
+/// # Errors
+///
+/// Returns an error if organization, member, or role-permission rows cannot be inserted.
 pub async fn seed_org_with_owner(
     db: &DatabaseConnection,
     owner_user_id: Uuid,
@@ -153,26 +169,35 @@ impl ResourceFixtureBuilder {
         }
     }
 
+    #[must_use]
     pub fn id(mut self, id: impl Into<String>) -> Self {
         self.id = id.into();
         self
     }
 
+    #[must_use]
     pub fn resource_type(mut self, resource_type: impl Into<String>) -> Self {
         self.resource_type = resource_type.into();
         self
     }
 
+    #[must_use]
     pub fn name(mut self, name: impl Into<String>) -> Self {
         self.name = name.into();
         self
     }
 
+    #[must_use]
     pub fn description(mut self, description: Option<impl Into<String>>) -> Self {
         self.description = description.map(std::convert::Into::into);
         self
     }
 
+    /// Persist the resource fixture.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the row cannot be inserted.
     pub async fn commit(self, db: Arc<DatabaseConnection>) -> anyhow::Result<resources::Model> {
         let model = resources::ActiveModel {
             id: Set(self.id),
@@ -209,21 +234,29 @@ impl PermissionFixtureBuilder {
         }
     }
 
+    #[must_use]
     pub fn id(mut self, id: impl Into<String>) -> Self {
         self.id = id.into();
         self
     }
 
+    #[must_use]
     pub fn level(mut self, level: impl Into<String>) -> Self {
         self.level = level.into();
         self
     }
 
+    #[must_use]
     pub fn description(mut self, description: Option<impl Into<String>>) -> Self {
         self.description = description.map(std::convert::Into::into);
         self
     }
 
+    /// Persist the permission fixture.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the row cannot be inserted.
     pub async fn commit(self, db: Arc<DatabaseConnection>) -> anyhow::Result<permissions::Model> {
         let model = permissions::ActiveModel {
             id: Set(self.id),
@@ -275,21 +308,25 @@ impl OrganizationFixtureBuilder {
         self
     }
 
+    #[must_use]
     pub fn name(mut self, name: impl Into<String>) -> Self {
         self.name = name.into();
         self
     }
 
+    #[must_use]
     pub fn slug(mut self, slug: impl Into<String>) -> Self {
         self.slug = slug.into();
         self
     }
 
+    #[must_use]
     pub fn description(mut self, description: Option<impl Into<String>>) -> Self {
         self.description = description.map(std::convert::Into::into);
         self
     }
 
+    #[must_use]
     pub fn avatar_url(mut self, avatar_url: Option<impl Into<String>>) -> Self {
         self.avatar_url = avatar_url.map(std::convert::Into::into);
         self
@@ -307,6 +344,11 @@ impl OrganizationFixtureBuilder {
         self
     }
 
+    /// Persist the organization fixture.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the row cannot be inserted.
     pub async fn commit(self, db: Arc<DatabaseConnection>) -> anyhow::Result<organizations::Model> {
         let now = Utc::now();
         let model = organizations::ActiveModel {
@@ -374,6 +416,7 @@ impl OrganizationMemberFixtureBuilder {
         self
     }
 
+    #[must_use]
     pub fn status(mut self, status: impl Into<String>) -> Self {
         self.status = status.into();
         self
@@ -397,6 +440,15 @@ impl OrganizationMemberFixtureBuilder {
         self
     }
 
+    /// Persist the organization member fixture.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the row cannot be inserted.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `organization_id` or `user_id` was not set.
     pub async fn commit(
         self,
         db: Arc<DatabaseConnection>,
@@ -453,11 +505,13 @@ impl RolePermissionFixtureBuilder {
         self
     }
 
+    #[must_use]
     pub fn name(mut self, name: impl Into<String>) -> Self {
         self.name = name.into();
         self
     }
 
+    #[must_use]
     pub fn description(mut self, description: Option<impl Into<String>>) -> Self {
         self.description = description.map(std::convert::Into::into);
         self
@@ -469,16 +523,27 @@ impl RolePermissionFixtureBuilder {
         self
     }
 
+    #[must_use]
     pub fn permission_id(mut self, permission_id: impl Into<String>) -> Self {
         self.permission_id = Some(permission_id.into());
         self
     }
 
+    #[must_use]
     pub fn resource_id(mut self, resource_id: impl Into<String>) -> Self {
         self.resource_id = Some(resource_id.into());
         self
     }
 
+    /// Persist the role-permission fixture.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the row cannot be inserted.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `organization_id`, `permission_id`, or `resource_id` was not set.
     pub async fn commit(
         self,
         db: Arc<DatabaseConnection>,
@@ -538,6 +603,15 @@ impl MemberRolePermissionLinkBuilder {
         self
     }
 
+    /// Persist the member-role-permission link.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the row cannot be inserted.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `member_id` or `role_permission_id` was not set.
     pub async fn commit(
         self,
         db: Arc<DatabaseConnection>,
@@ -588,11 +662,13 @@ impl ExternalProviderFixtureBuilder {
         self
     }
 
+    #[must_use]
     pub fn provider_source(mut self, source: impl Into<String>) -> Self {
         self.provider_source = source.into();
         self
     }
 
+    #[must_use]
     pub fn name(mut self, name: impl Into<String>) -> Self {
         self.name = name.into();
         self
@@ -605,11 +681,16 @@ impl ExternalProviderFixtureBuilder {
     }
 
     #[must_use]
-    pub const fn is_active(mut self, is_active: bool) -> Self {
+    pub const fn active(mut self, is_active: bool) -> Self {
         self.is_active = is_active;
         self
     }
 
+    /// Persist the external-provider fixture.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the row cannot be inserted.
     pub async fn commit(
         self,
         db: Arc<DatabaseConnection>,

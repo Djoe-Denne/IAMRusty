@@ -23,7 +23,12 @@ impl ComponentStatusProcessor {
         })
     }
 
-    /// Process a component status changed event
+    /// Process a component status changed event.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ServiceError`] if a status cannot be parsed, the component cannot be
+    /// loaded or updated, or the status transition is rejected.
     pub async fn process(&self, event: ComponentStatusChangedEvent) -> Result<(), ServiceError> {
         let expected_old_status = Self::parse_status(&event.old_status, "old_status")?;
         let target_status = Self::parse_status(&event.new_status, "new_status")?;

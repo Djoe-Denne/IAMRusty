@@ -41,6 +41,17 @@ pub enum HttpError {
     Internal { message: String },
 }
 
+fn error_body(error_type: &str, message: impl Into<String>) -> ApiErrorResponse {
+    ApiErrorResponse {
+        error_type: error_type.to_string(),
+        message: message.into(),
+        timestamp: chrono::Utc::now(),
+        request_id: None,
+        details: None,
+        validation_errors: None,
+    }
+}
+
 impl IntoResponse for HttpError {
     fn into_response(self) -> Response {
         let (status, error_response) = match self {
@@ -91,104 +102,34 @@ impl IntoResponse for HttpError {
                     ),
                 }
             }
-            Self::BadRequest { message } => (
-                StatusCode::BAD_REQUEST,
-                ApiErrorResponse {
-                    error_type: "bad_request".to_string(),
-                    message,
-                    timestamp: chrono::Utc::now(),
-                    request_id: None,
-                    details: None,
-                    validation_errors: None,
-                },
-            ),
+            Self::BadRequest { message } => {
+                (StatusCode::BAD_REQUEST, error_body("bad_request", message))
+            }
             Self::Validation { message } => (
                 StatusCode::BAD_REQUEST,
-                ApiErrorResponse {
-                    error_type: "validation_error".to_string(),
-                    message,
-                    timestamp: chrono::Utc::now(),
-                    request_id: None,
-                    details: None,
-                    validation_errors: None,
-                },
+                error_body("validation_error", message),
             ),
             Self::Unauthorized => (
                 StatusCode::UNAUTHORIZED,
-                ApiErrorResponse {
-                    error_type: "unauthorized".to_string(),
-                    message: "Authentication required".to_string(),
-                    timestamp: chrono::Utc::now(),
-                    request_id: None,
-                    details: None,
-                    validation_errors: None,
-                },
+                error_body("unauthorized", "Authentication required"),
             ),
-            Self::Forbidden => (
-                StatusCode::FORBIDDEN,
-                ApiErrorResponse {
-                    error_type: "forbidden".to_string(),
-                    message: "Access forbidden".to_string(),
-                    timestamp: chrono::Utc::now(),
-                    request_id: None,
-                    details: None,
-                    validation_errors: None,
-                },
-            ),
+            Self::Forbidden => (StatusCode::FORBIDDEN, error_body("forbidden", "Access forbidden")),
             Self::NotFound => (
                 StatusCode::NOT_FOUND,
-                ApiErrorResponse {
-                    error_type: "not_found".to_string(),
-                    message: "Resource not found".to_string(),
-                    timestamp: chrono::Utc::now(),
-                    request_id: None,
-                    details: None,
-                    validation_errors: None,
-                },
+                error_body("not_found", "Resource not found"),
             ),
-            Self::Conflict { message } => (
-                StatusCode::CONFLICT,
-                ApiErrorResponse {
-                    error_type: "conflict".to_string(),
-                    message,
-                    timestamp: chrono::Utc::now(),
-                    request_id: None,
-                    details: None,
-                    validation_errors: None,
-                },
-            ),
+            Self::Conflict { message } => (StatusCode::CONFLICT, error_body("conflict", message)),
             Self::PayloadTooLarge => (
                 StatusCode::PAYLOAD_TOO_LARGE,
-                ApiErrorResponse {
-                    error_type: "payload_too_large".to_string(),
-                    message: "Request entity too large".to_string(),
-                    timestamp: chrono::Utc::now(),
-                    request_id: None,
-                    details: None,
-                    validation_errors: None,
-                },
+                error_body("payload_too_large", "Request entity too large"),
             ),
             Self::RateLimit => (
                 StatusCode::TOO_MANY_REQUESTS,
-                ApiErrorResponse {
-                    error_type: "rate_limit_exceeded".to_string(),
-                    message: "Rate limit exceeded".to_string(),
-                    timestamp: chrono::Utc::now(),
-                    request_id: None,
-                    details: None,
-                    validation_errors: None,
-                },
+                error_body("rate_limit_exceeded", "Rate limit exceeded"),
             ),
             Self::Internal { message } => (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                ApiErrorResponse {
-                    error_type: "internal_error".to_string(),
-                    message,
-                    timestamp: chrono::Utc::now(),
-                    request_id: None,
-                    details: None,
-                    validation_errors: None,
-                },
+                error_body("internal_error", message),
             ),
         };
 

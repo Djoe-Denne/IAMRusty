@@ -17,10 +17,10 @@ use serial_test::serial;
 #[serial]
 async fn test_resend_verification_success() {
     // Setup test server and database
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Create user with unverified email
     let user = DbFixtures::user()
@@ -117,10 +117,10 @@ async fn test_resend_verification_success() {
 #[serial]
 async fn test_resend_verification_email_already_verified() {
     // Setup test server and database
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Create user with verified email
     let user = DbFixtures::user()
@@ -404,10 +404,10 @@ async fn test_resend_verification_wrong_content_type() {
 #[serial]
 async fn test_resend_verification_multiple_times_same_email() {
     // Setup test server and database
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Create user with unverified email
     let user = DbFixtures::user()
@@ -480,10 +480,10 @@ async fn test_resend_verification_multiple_times_same_email() {
 #[serial]
 async fn test_resend_verification_case_insensitive_email() {
     // Setup test server and database
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Create user with lowercase email
     let user = DbFixtures::user()
@@ -547,10 +547,10 @@ async fn test_resend_verification_case_insensitive_email() {
 #[serial]
 async fn test_resend_verification_database_consistency() {
     // Setup test server and database
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Create user with unverified email
     let user = DbFixtures::user()
@@ -664,10 +664,10 @@ async fn test_resend_verification_database_consistency() {
 #[serial]
 async fn test_resend_verification_invalidates_old_tokens() {
     // Setup test server and database
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Create user with unverified email
     let user = DbFixtures::user()

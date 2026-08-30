@@ -50,7 +50,7 @@ fn create_registration_token_service_from_config(
     };
 
     RegistrationTokenServiceImpl::new(jwt_algorithm)
-        .map_err(|e| anyhow::anyhow!("Failed to create registration token service: {}", e))
+        .map_err(|e| anyhow::anyhow!("Failed to create registration token service: {e}"))
 }
 
 /// JWT Test Utilities for creating and validating tokens in tests
@@ -71,7 +71,7 @@ impl JwtTestUtils {
 
         let token = jwt_service
             .encode(&claims)
-            .map_err(|e| anyhow::anyhow!("Failed to encode JWT token: {}", e))?;
+            .map_err(|e| anyhow::anyhow!("Failed to encode JWT token: {e}"))?;
 
         Ok(token)
     }
@@ -93,7 +93,7 @@ impl JwtTestUtils {
 
         let token = jwt_service
             .encode(&claims)
-            .map_err(|e| anyhow::anyhow!("Failed to encode JWT token: {}", e))?;
+            .map_err(|e| anyhow::anyhow!("Failed to encode JWT token: {e}"))?;
 
         Ok(token)
     }
@@ -115,7 +115,7 @@ impl JwtTestUtils {
 
         let mut token = jwt_service
             .encode(&claims)
-            .map_err(|e| anyhow::anyhow!("Failed to encode JWT token: {}", e))?;
+            .map_err(|e| anyhow::anyhow!("Failed to encode JWT token: {e}"))?;
 
         // Corrupt the token to make it invalid
         token.push_str("invalid");
@@ -133,7 +133,7 @@ impl JwtTestUtils {
 
         service
             .generate_registration_token(user_id, email)
-            .map_err(|e| anyhow::anyhow!("Failed to generate registration token: {}", e))
+            .map_err(|e| anyhow::anyhow!("Failed to generate registration token: {e}"))
     }
 
     /// Create an expired registration token for testing
@@ -162,7 +162,7 @@ impl JwtTestUtils {
         let (encoding_key, kid, algorithm) = match jwt_algorithm_config {
             JwtAlgorithm::RS256(key_pair) => {
                 let encoding_key = EncodingKey::from_rsa_pem(key_pair.private_key.as_bytes())
-                    .map_err(|e| anyhow::anyhow!("Failed to create encoding key: {}", e))?;
+                    .map_err(|e| anyhow::anyhow!("Failed to create encoding key: {e}"))?;
                 (encoding_key, Some(key_pair.kid), Algorithm::RS256)
             }
             JwtAlgorithm::HS256(secret) => {
@@ -176,7 +176,7 @@ impl JwtTestUtils {
         header.kid = kid;
 
         encode(&header, &expired_claims, &encoding_key)
-            .map_err(|e| anyhow::anyhow!("Failed to encode expired registration token: {}", e))
+            .map_err(|e| anyhow::anyhow!("Failed to encode expired registration token: {e}"))
     }
 
     /// Create a JWT token with custom expiration

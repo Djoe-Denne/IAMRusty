@@ -20,10 +20,10 @@ use uuid::Uuid;
 #[serial]
 async fn test_oauth_callback_gitlab_successful_flow_creates_jwt_for_new_user() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let _db = _fixture.db();
+    let _db = fixture.db();
 
     // Setup GitLab mock server for successful flow
     let gitlab = GitLabFixtures::service().await;
@@ -80,10 +80,10 @@ async fn test_oauth_callback_gitlab_successful_flow_creates_jwt_for_new_user() {
 #[serial]
 async fn test_oauth_callback_links_external_account_with_valid_link_state() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Pre-create existing user with database fixtures
     let existing_user = DbFixtures::user()
@@ -186,10 +186,10 @@ async fn test_oauth_callback_links_external_account_with_valid_link_state() {
 #[serial]
 async fn test_oauth_callback_associates_new_provider_for_same_user() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Pre-create user with existing GitHub provider
     let existing_user = DbFixtures::user()
@@ -304,10 +304,10 @@ async fn test_oauth_callback_associates_new_provider_for_same_user() {
 #[serial]
 async fn test_oauth_callback_prevents_linking_provider_already_bound_to_another_user() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Pre-create first user with GitHub provider
     let first_user = DbFixtures::user()
@@ -423,10 +423,10 @@ async fn test_oauth_callback_prevents_linking_provider_already_bound_to_another_
 #[serial]
 async fn test_oauth_callback_fails_on_invalid_authorization_code() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Setup GitHub mock server to return error for invalid code
     let github = GitHubFixtures::service().await;
@@ -490,10 +490,10 @@ async fn test_oauth_callback_fails_on_invalid_authorization_code() {
 #[serial]
 async fn test_oauth_callback_fails_on_expired_authorization_code() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Setup GitHub mock server to return error for expired code
     let github = GitHubFixtures::service().await;
@@ -710,10 +710,10 @@ async fn test_oauth_callback_returns_400_on_invalid_state_purpose() {
 #[serial]
 async fn test_oauth_callback_returns_401_when_provider_refuses_user() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Setup GitHub mock server to return successful token exchange but unauthorized user profile
     let github = GitHubFixtures::service().await;
@@ -778,10 +778,10 @@ async fn test_oauth_callback_returns_401_when_provider_refuses_user() {
 #[serial]
 async fn test_oauth_callback_returns_401_when_provider_rejects_user() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Setup GitHub mock server to simulate provider rejection (e.g., account suspended)
     let github = GitHubFixtures::service().await;
@@ -889,10 +889,10 @@ async fn test_oauth_callback_unsupported_provider_returns_422() {
 #[serial]
 async fn test_oauth_callback_case_insensitive_providers() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let _db = _fixture.db();
+    let _db = fixture.db();
 
     // Setup fixtures
     let github = GitHubFixtures::service().await;

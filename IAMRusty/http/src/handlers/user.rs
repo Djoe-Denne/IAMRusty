@@ -21,6 +21,10 @@ pub struct UserResponse {
 }
 
 /// Get the current user's profile
+///
+/// # Errors
+///
+/// Returns [`ApiError`] when the user cannot be loaded.
 pub async fn get_user(
     State(state): State<rustycog::http::AppState>,
     auth_user: AuthUser,

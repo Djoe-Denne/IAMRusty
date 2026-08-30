@@ -19,6 +19,11 @@ use super::project_member_role_permission_repository::ProjectMemberRolePermissio
 pub struct MemberMapper;
 
 impl MemberMapper {
+    /// Map a SeaORM member row to the domain entity.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if `model.source` is not a recognized member source.
     pub fn to_domain(model: project_members::Model) -> Result<ProjectMember, DomainError> {
         Ok(ProjectMember {
             id: model.id,
@@ -177,7 +182,9 @@ impl MemberReadRepository for MemberReadRepositoryImpl {
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
-        Ok(count as i64)
+        i64::try_from(count).map_err(|_| {
+            DomainError::internal_error("active member count does not fit in i64")
+        })
     }
 }
 
@@ -205,6 +212,11 @@ impl MemberWriteRepositoryImpl {
         Ok(member)
     }
 
+    /// Persist a member using an existing connection.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the query, insert, or update fails, or if mapping the row fails.
     pub async fn save_with_connection<C>(
         db: &C,
         member: &ProjectMember,
@@ -218,21 +230,19 @@ impl MemberWriteRepositoryImpl {
             .map_err(|e| DomainError::internal_error(&e.to_string()))?
             .is_some();
 
-        if exists {
-            let active_model = MemberMapper::to_active_model(member);
-            let result = active_model
+        let active_model = MemberMapper::to_active_model(member);
+        let model = if exists {
+            active_model
                 .update(db)
                 .await
-                .map_err(|e| DomainError::internal_error(&e.to_string()))?;
-            MemberMapper::to_domain(result)
+                .map_err(|e| DomainError::internal_error(&e.to_string()))?
         } else {
-            let active_model = MemberMapper::to_active_model(member);
-            let inserted = active_model
+            active_model
                 .insert(db)
                 .await
-                .map_err(|e| DomainError::internal_error(&e.to_string()))?;
-            MemberMapper::to_domain(inserted)
-        }
+                .map_err(|e| DomainError::internal_error(&e.to_string()))?
+        };
+        MemberMapper::to_domain(model)
     }
 }
 

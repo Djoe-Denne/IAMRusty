@@ -79,7 +79,7 @@ impl InvitationUseCaseImpl {
         }
     }
 
-    fn invitation_to_response(&self, invitation: &OrganizationInvitation) -> InvitationResponse {
+    fn invitation_to_response(invitation: &OrganizationInvitation) -> InvitationResponse {
         InvitationResponse {
             id: invitation.id,
             organization_id: invitation.organization_id,
@@ -102,22 +102,16 @@ impl InvitationUseCaseImpl {
     /// Publish invitation created event
     async fn publish_invitation_created_event(
         &self,
-        organization_id: Uuid,
-        organization_name: &str,
-        invitation_id: Uuid,
-        email: &str,
-        role_permissions: &Vec<RolePermission>,
-        invited_by_user_id: Uuid,
-        invitation_token: &str,
-        expires_at: chrono::DateTime<chrono::Utc>,
+        params: InvitationCreatedParams<'_>,
     ) -> Result<(), ApplicationError> {
         let event = HiveDomainEvent::InvitationCreated(InvitationCreatedEvent::new(
             InvitationCreatedEventData {
-                organization_id,
-                organization_name: organization_name.to_string(),
-                invitation_id,
-                email: email.to_string(),
-                roles: role_permissions
+                organization_id: params.organization_id,
+                organization_name: params.organization_name.to_string(),
+                invitation_id: params.invitation_id,
+                email: params.email.to_string(),
+                roles: params
+                    .role_permissions
                     .iter()
                     .map(|role| {
                         Role::new(
@@ -126,14 +120,25 @@ impl InvitationUseCaseImpl {
                         )
                     })
                     .collect(),
-                invited_by_user_id,
-                invitation_token: invitation_token.to_string(),
-                expires_at,
+                invited_by_user_id: params.invited_by_user_id,
+                invitation_token: params.invitation_token.to_string(),
+                expires_at: params.expires_at,
             },
         ));
 
         self.record_or_publish_event(event.into()).await
     }
+}
+
+struct InvitationCreatedParams<'a> {
+    organization_id: Uuid,
+    organization_name: &'a str,
+    invitation_id: Uuid,
+    email: &'a str,
+    role_permissions: &'a [RolePermission],
+    invited_by_user_id: Uuid,
+    invitation_token: &'a str,
+    expires_at: chrono::DateTime<chrono::Utc>,
 }
 
 #[async_trait]
@@ -195,21 +200,22 @@ impl InvitationUseCase for InvitationUseCaseImpl {
                 )
                 .await
                 .map_err(ApplicationError::Domain)?;
-            self.publish_invitation_created_event(
+            let organization_name = invitation.organization_name.clone().unwrap_or_default();
+            self.publish_invitation_created_event(InvitationCreatedParams {
                 organization_id,
-                &invitation.organization_name.clone().unwrap_or_default(),
-                invitation.id,
-                &invitation.aggregate_id,
-                &invitation.role_permissions,
+                organization_name: &organization_name,
+                invitation_id: invitation.id,
+                email: &invitation.aggregate_id,
+                role_permissions: &invitation.role_permissions,
                 invited_by_user_id,
-                &invitation.token,
-                invitation.expires_at,
-            )
+                invitation_token: &invitation.token,
+                expires_at: invitation.expires_at,
+            })
             .await?;
             invitation
         };
 
-        Ok(self.invitation_to_response(&invitation))
+        Ok(Self::invitation_to_response(&invitation))
     }
 
     async fn accept_invitation(
@@ -244,6 +250,6 @@ impl InvitationUseCase for InvitationUseCaseImpl {
             .await
             .map_err(ApplicationError::Domain)?;
 
-        Ok(self.invitation_to_response(&invitation))
+        Ok(Self::invitation_to_response(&invitation))
     }
 }

@@ -15,12 +15,10 @@ impl ComponentStatus {
     #[must_use]
     pub fn can_transition_to(&self, target: &Self) -> bool {
         match (self, target) {
-            // From Pending
-            (Self::Pending, Self::Configured) => true,
-            // From Configured
-            (Self::Configured, Self::Active) => true,
-            // From Active
-            (Self::Active, Self::Disabled) => true,
+            // Pending→Configured, Configured→Active, Active→Disabled
+            (Self::Pending, Self::Configured)
+            | (Self::Configured, Self::Active)
+            | (Self::Active, Self::Disabled) => true,
             // Same status is always allowed (no-op)
             (current, target) if current == target => true,
             // All other transitions are invalid
@@ -28,7 +26,11 @@ impl ComponentStatus {
         }
     }
 
-    /// Attempt to transition to the target status
+    /// Attempt to transition to the target status.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the transition from the current status to `target` is not allowed.
     pub fn transition_to(&self, target: Self) -> Result<Self, DomainError> {
         if self.can_transition_to(&target) {
             Ok(target)
@@ -49,6 +51,11 @@ impl ComponentStatus {
         }
     }
 
+    /// Parse a component status from a string.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if `s` is not a recognized component status.
     pub fn from_str(s: &str) -> Result<Self, DomainError> {
         match s.to_lowercase().as_str() {
             "pending" => Ok(Self::Pending),

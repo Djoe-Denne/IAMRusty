@@ -22,7 +22,11 @@ impl RegistrationTokenServiceImpl {
     /// Accepts the same algorithm as `JwtTokenService` (HS256 or RS256).
     /// In-tree configs emit HS256 so rustycog-http `UserIdExtractor` can
     /// verify the resulting tokens.
-    pub fn new(algorithm_config: JwtAlgorithm) -> Result<Self, DomainError> {
+    ///
+    /// # Errors
+    ///
+    /// Currently always returns `Ok`; the `Result` is kept for API compatibility.
+    pub const fn new(algorithm_config: JwtAlgorithm) -> Result<Self, DomainError> {
         Ok(Self { algorithm_config })
     }
 
@@ -76,7 +80,7 @@ impl RegistrationTokenServiceImpl {
     }
 
     /// Decode JWT payload without signature verification (for expiration pre-check)
-    fn decode_payload_without_verification(&self, token: &str) -> Result<String, DomainError> {
+    fn decode_payload_without_verification(token: &str) -> Result<String, DomainError> {
         let parts: Vec<&str> = token.split('.').collect();
         if parts.len() != 3 {
             return Err(DomainError::InvalidToken);
@@ -165,7 +169,7 @@ impl RegistrationTokenService for RegistrationTokenServiceImpl {
 
         // First, try to decode the payload without signature verification to check expiration
         // This allows us to prioritize expiration errors over signature errors
-        if let Ok(payload_str) = self.decode_payload_without_verification(token) {
+        if let Ok(payload_str) = Self::decode_payload_without_verification(token) {
             if let Ok(claims) = serde_json::from_str::<RegistrationTokenClaims>(&payload_str) {
                 if claims.is_expired() {
                     debug!("Registration token expired (pre-check)");

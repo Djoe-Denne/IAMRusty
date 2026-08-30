@@ -186,11 +186,7 @@ impl DbFixture<ProviderTokensEntity, ProviderTokenModel, ProviderTokenActiveMode
         let now = TestData::now_naive();
 
         ProviderTokenActiveModel {
-            id: if let Some(id) = self.id {
-                ActiveValue::Set(id)
-            } else {
-                ActiveValue::NotSet
-            },
+            id: self.id.map_or(ActiveValue::NotSet, ActiveValue::Set),
             user_id: ActiveValue::Set(self.user_id.expect("user_id is required")),
             provider: ActiveValue::Set(
                 self.provider
@@ -205,7 +201,7 @@ impl DbFixture<ProviderTokensEntity, ProviderTokenModel, ProviderTokenActiveMode
             refresh_token: ActiveValue::Set(
                 self.refresh_token
                     .clone()
-                    .unwrap_or(Some(TestData::refresh_token())),
+                    .unwrap_or_else(|| Some(TestData::refresh_token())),
             ),
             expires_in: ActiveValue::Set(self.expires_in.unwrap_or(Some(3600))),
             created_at: ActiveValue::Set(self.created_at.unwrap_or(now)),

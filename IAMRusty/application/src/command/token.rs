@@ -37,10 +37,23 @@ pub struct TokenErrorMapper;
 
 impl CommandErrorMapper for TokenErrorMapper {
     fn map_error(&self, error: Box<dyn std::error::Error + Send + Sync>) -> CommandError {
-        if let Some(token_error) = error.downcast_ref::<TokenError>() {
-            match token_error {
+        error.downcast_ref::<TokenError>().map_or_else(
+            || {
+                let error_msg = error.to_string();
+                if Self::is_authentication_related_error(&error_msg) {
+                    CommandError::validation(
+                        TokenErrorCode::AuthenticationFailed.as_str(),
+                        format!("Authentication failed: {error_msg}"),
+                    )
+                } else {
+                    CommandError::infrastructure(
+                        TokenErrorCode::RepositoryError.as_str(),
+                        error.to_string(),
+                    )
+                }
+            },
+            |token_error| match token_error {
                 TokenError::DomainError(domain_error) => {
-                    // Map domain errors to appropriate command errors
                     use iam_domain::error::DomainError;
                     match domain_error {
                         DomainError::TokenNotFound => CommandError::authentication(
@@ -87,7 +100,6 @@ impl CommandErrorMapper for TokenErrorMapper {
                         )
                     }
                 }
-                // Authentication-related token errors should return 401
                 TokenError::TokenNotFound => CommandError::authentication(
                     TokenErrorCode::TokenNotFound.as_str(),
                     "Authentication failed: Invalid refresh token",
@@ -100,21 +112,8 @@ impl CommandErrorMapper for TokenErrorMapper {
                     TokenErrorCode::TokenExpired.as_str(),
                     "Authentication failed: Expired refresh token",
                 ),
-            }
-        } else {
-            let error_msg = error.to_string();
-            if Self::is_authentication_related_error(&error_msg) {
-                CommandError::validation(
-                    TokenErrorCode::AuthenticationFailed.as_str(),
-                    format!("Authentication failed: {error_msg}"),
-                )
-            } else {
-                CommandError::infrastructure(
-                    TokenErrorCode::RepositoryError.as_str(),
-                    error.to_string(),
-                )
-            }
-        }
+            },
+        )
     }
 }
 
@@ -265,6 +264,12 @@ impl GetJwksCommand {
         Self {
             command_id: Uuid::new_v4(),
         }
+    }
+}
+
+impl Default for GetJwksCommand {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

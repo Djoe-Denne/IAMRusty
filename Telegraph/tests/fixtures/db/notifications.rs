@@ -59,7 +59,7 @@ impl NotificationFixtureBuilder {
     }
 
     /// Set the content as JSON
-    pub fn content_json(mut self, content: serde_json::Value) -> Self {
+    pub fn content_json(mut self, content: &serde_json::Value) -> Self {
         self.content = content.to_string().into_bytes();
         self.content_type = "application/json".to_string();
         self

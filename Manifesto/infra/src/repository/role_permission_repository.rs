@@ -18,9 +18,14 @@ use super::entity::{permissions, prelude::*, resources, role_permissions};
 pub struct RolePermissionMapper;
 
 impl RolePermissionMapper {
+    /// Map SeaORM role-permission rows to the domain entity.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if `permission_model.level` is not a recognized permission level.
     pub fn to_domain(
         role_model: role_permissions::Model,
-        permission_model: permissions::Model,
+        permission_model: &permissions::Model,
         resource_model: resources::Model,
     ) -> Result<RolePermission, DomainError> {
         let permission_level = PermissionLevel::from_str(&permission_model.level)?;
@@ -76,6 +81,11 @@ impl RolePermissionReadRepositoryImpl {
         Self { db }
     }
 
+    /// Load a role permission and its relations using an existing connection.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the query fails, a related row is missing, or mapping fails.
     pub async fn load_with_relations_with_connection<C>(
         db: &C,
         role_model: role_permissions::Model,
@@ -97,7 +107,7 @@ impl RolePermissionReadRepositoryImpl {
             .map_err(|e| DomainError::internal_error(&e.to_string()))?
             .ok_or_else(|| DomainError::entity_not_found("Resource", "unknown"))?;
 
-        RolePermissionMapper::to_domain(role_model, permission, resource)
+        RolePermissionMapper::to_domain(role_model, &permission, resource)
     }
 
     async fn load_with_relations(
@@ -107,6 +117,11 @@ impl RolePermissionReadRepositoryImpl {
         Self::load_with_relations_with_connection(self.db.as_ref(), role_model).await
     }
 
+    /// Find a role permission by project, resource and level using an existing connection.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the query fails or the row cannot be mapped.
     pub async fn find_by_project_resource_permission_with_connection<C>(
         db: &C,
         project_id: &Uuid,
@@ -198,6 +213,11 @@ impl RolePermissionWriteRepositoryImpl {
         Self { db }
     }
 
+    /// Insert a role permission using an existing connection.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the insert fails or the inserted row cannot be reloaded.
     pub async fn create_with_connection<C>(
         db: &C,
         role_permission: &RolePermission,

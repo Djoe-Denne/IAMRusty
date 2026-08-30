@@ -71,7 +71,12 @@ pub fn to_domain_delivery(
         message_id: model.notification_id,
         mode,
         status,
-        attempts: model.attempt_count as u32,
+        attempts: u32::try_from(model.attempt_count).map_err(|_| {
+            DomainError::infrastructure_error(format!(
+                "attempt_count {} does not fit in u32",
+                model.attempt_count
+            ))
+        })?,
         provider_message_id: None, // Could be stored in metadata if needed
         metadata: HashMap::new(),
         created_at: model.created_at,
@@ -121,7 +126,7 @@ pub fn to_infra_delivery(delivery: MessageDelivery) -> notification_deliveries::
         notification_id: ActiveValue::Set(delivery.message_id),
         delivery_method: ActiveValue::Set("notification".to_string()),
         status: ActiveValue::Set(status),
-        attempt_count: ActiveValue::Set(delivery.attempts as i16),
+        attempt_count: ActiveValue::Set(i16::try_from(delivery.attempts).unwrap_or(i16::MAX)),
         last_attempt_at: ActiveValue::NotSet,
         delivered_at: ActiveValue::Set(delivery.delivered_at),
         error_message: ActiveValue::Set(delivery.error_details),

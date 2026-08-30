@@ -3,7 +3,8 @@ use chrono::Utc;
 use iam_domain::entity::provider::{Provider, ProviderTokens};
 use iam_domain::port::repository::TokenWriteRepository;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, Set,
+    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait,
+    QueryFilter, Set,
 };
 use std::sync::Arc;
 use tracing::debug;
@@ -32,13 +33,13 @@ impl TokenWriteRepositoryImpl {
         tokens: &ProviderTokens,
     ) -> provider_tokens::ActiveModel {
         provider_tokens::ActiveModel {
-            id: Default::default(), // Auto-generated
+            id: ActiveValue::default(), // Auto-generated
             user_id: Set(user_id),
             provider: Set(provider.as_str().to_string()),
             provider_user_id: Set(provider_user_id),
             access_token: Set(tokens.access_token.clone()),
             refresh_token: Set(tokens.refresh_token.clone()),
-            expires_in: Set(tokens.expires_in.map(|e| e as i32)),
+            expires_in: Set(tokens.expires_in.map(|e| i32::try_from(e).unwrap_or(i32::MAX))),
             created_at: Set(Utc::now().naive_utc()),
             updated_at: Set(Utc::now().naive_utc()),
         }
@@ -71,7 +72,7 @@ impl TokenWriteRepository for TokenWriteRepositoryImpl {
             model.provider_user_id = Set(provider_user_id);
             model.access_token = Set(tokens.access_token.clone());
             model.refresh_token = Set(tokens.refresh_token.clone());
-            model.expires_in = Set(tokens.expires_in.map(|e| e as i32));
+            model.expires_in = Set(tokens.expires_in.map(|e| i32::try_from(e).unwrap_or(i32::MAX)));
             model.updated_at = Set(Utc::now().naive_utc());
 
             model.update(self.db.as_ref()).await?;

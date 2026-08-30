@@ -49,8 +49,15 @@ impl PaginationResponse {
     /// Create a new pagination response
     #[must_use]
     pub fn new(current_page: u32, page_size: u32, total_items: Option<i64>) -> Self {
-        let total_pages =
-            total_items.map(|total| ((total as f64) / f64::from(page_size)).ceil() as u32);
+        let total_pages = total_items.map(|total| {
+            if page_size == 0 || total <= 0 {
+                0
+            } else {
+                let page_size_i64 = i64::from(page_size);
+                let pages = total / page_size_i64 + i64::from(total % page_size_i64 != 0);
+                u32::try_from(pages).unwrap_or(u32::MAX)
+            }
+        });
 
         let has_next = total_pages.is_some_and(|total| current_page < total);
         let has_previous = current_page > 1;

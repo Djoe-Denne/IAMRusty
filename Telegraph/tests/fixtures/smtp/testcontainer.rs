@@ -102,22 +102,21 @@ impl TestSmtp {
         smtp_config: &SmtpConfig,
     ) -> Result<(), Box<dyn std::error::Error>> {
         Self::cleanup_container().await?;
-        let container_mutex = TEST_SMTP_CONTAINER.get_or_init(|| Arc::new(Mutex::new(None)));
 
-        let mut container_guard = container_mutex.lock().await;
-
-        // MailHog image with mapped ports
         let image = GenericImage::new("mailhog/mailhog", "latest")
             .with_container_name("telegraph_test-smtp")
             .with_mapped_port(
                 smtp_config.port,
                 testcontainers::core::ContainerPort::Tcp(1025),
-            ) // Map test.toml port to MailHog SMTP
-            .with_mapped_port(8025, testcontainers::core::ContainerPort::Tcp(8025)); // TODO: fetch it from config
+            )
+            .with_mapped_port(8025, testcontainers::core::ContainerPort::Tcp(8025));
 
-        let container = image.start().await?;
-
-        *container_guard = Some(Arc::new(TestSmtpContainer { container }));
+        {
+            let container_mutex = TEST_SMTP_CONTAINER.get_or_init(|| Arc::new(Mutex::new(None)));
+            let mut container_guard = container_mutex.lock().await;
+            let container = image.start().await?;
+            *container_guard = Some(Arc::new(TestSmtpContainer { container }));
+        }
 
         Ok(())
     }
@@ -143,12 +142,12 @@ impl TestSmtp {
         }
 
         // Fallback cleanup using Docker commands
-        Self::cleanup_existing_smtp_container().await;
+        Self::cleanup_existing_smtp_container();
         Ok(())
     }
 
     /// Clean up any existing SMTP containers
-    async fn cleanup_existing_smtp_container() {
+    fn cleanup_existing_smtp_container() {
         use std::process::Command;
 
         debug!("Checking for existing SMTP LocalStack test containers");
@@ -203,56 +202,13 @@ impl TestSmtp {
 
         if let Some(items) = emails.as_array() {
             for item in items {
-                if let Ok(email) = self.parse_mailhog_message(item) {
+                if let Ok(email) = parse_mailhog_message(item) {
                     test_emails.push(email);
                 }
             }
         }
 
         Ok(test_emails)
-    }
-
-    /// Parse a `MailHog` message into `TestEmail`
-    fn parse_mailhog_message(
-        &self,
-        message: &serde_json::Value,
-    ) -> Result<TestEmail, Box<dyn std::error::Error>> {
-        let id = message
-            .get("ID")
-            .and_then(|v| v.as_str())
-            .unwrap_or("unknown")
-            .to_string();
-
-        let from_obj = message
-            .get("From")
-            .and_then(|v| v.as_object())
-            .ok_or("Missing From field")?;
-
-        let to_addresses = parse_mailhog_recipients(message);
-        let content = message
-            .get("Content")
-            .and_then(|v| v.as_object())
-            .ok_or("Missing Content field")?;
-        let headers = content
-            .get("Headers")
-            .and_then(|v| v.as_object())
-            .ok_or("Missing Headers field")?;
-        let subject = mailhog_header(headers, "Subject");
-        let (text_content, html_content) = parse_mailhog_bodies(message);
-
-        let from = EmailAddress {
-            name: String::new(),
-            address: mailhog_address(from_obj),
-        };
-
-        Ok(TestEmail {
-            id,
-            from,
-            to: to_addresses,
-            subject,
-            text: text_content,
-            html: html_content,
-        })
     }
 
     /// Get count of emails sent
@@ -299,6 +255,47 @@ impl TestSmtp {
     pub const fn smtp_port(&self) -> u16 {
         self.smtp_port
     }
+}
+
+fn parse_mailhog_message(
+    message: &serde_json::Value,
+) -> Result<TestEmail, Box<dyn std::error::Error>> {
+    let id = message
+        .get("ID")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown")
+        .to_string();
+
+    let from_obj = message
+        .get("From")
+        .and_then(|v| v.as_object())
+        .ok_or("Missing From field")?;
+
+    let to_addresses = parse_mailhog_recipients(message);
+    let content = message
+        .get("Content")
+        .and_then(|v| v.as_object())
+        .ok_or("Missing Content field")?;
+    let headers = content
+        .get("Headers")
+        .and_then(|v| v.as_object())
+        .ok_or("Missing Headers field")?;
+    let subject = mailhog_header(headers, "Subject");
+    let (text_content, html_content) = parse_mailhog_bodies(message);
+
+    let from = EmailAddress {
+        name: String::new(),
+        address: mailhog_address(from_obj),
+    };
+
+    Ok(TestEmail {
+        id,
+        from,
+        to: to_addresses,
+        subject,
+        text: text_content,
+        html: html_content,
+    })
 }
 
 fn parse_mailhog_recipients(message: &serde_json::Value) -> Vec<EmailAddress> {

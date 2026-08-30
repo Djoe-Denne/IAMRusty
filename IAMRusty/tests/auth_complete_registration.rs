@@ -202,10 +202,10 @@ async fn test_complete_registration_expired_token() {
 #[tokio::test]
 #[serial]
 async fn test_complete_registration_username_already_taken() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Pre-create user with taken username
     let _existing_user = DbFixtures::user()
@@ -544,7 +544,7 @@ async fn test_registration_token_single_use() {
 #[tokio::test]
 #[serial]
 async fn test_complete_registration_updates_user_record() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
 
@@ -588,7 +588,7 @@ async fn test_complete_registration_updates_user_record() {
     assert_eq!(completion_response.status(), 200);
 
     // Verify user record was updated in database
-    let db = _fixture.db();
+    let db = fixture.db();
     let user_record = db
         .query_one(sea_orm::Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
@@ -610,10 +610,10 @@ async fn test_complete_registration_updates_user_record() {
 #[tokio::test]
 #[serial]
 async fn test_complete_registration_user_can_login_afterward() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Complete full registration flow
     let signup_data = json!({

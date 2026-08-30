@@ -29,7 +29,7 @@ impl SeaOrmEmailVerificationReadRepository {
     }
 
     /// Convert `SeaORM` Model to domain `EmailVerification`
-    fn to_domain_entity(&self, model: user_email_verification::Model) -> EmailVerification {
+    fn to_domain_entity(model: user_email_verification::Model) -> EmailVerification {
         EmailVerification {
             id: model.id,
             email: model.email,
@@ -59,7 +59,7 @@ impl EmailVerificationReadRepository for SeaOrmEmailVerificationReadRepository {
                 DomainError::RepositoryError(format!("Failed to find email verification: {e}"))
             })?;
 
-        Ok(model.map(|m| self.to_domain_entity(m)))
+        Ok(model.map(Self::to_domain_entity))
     }
 
     async fn find_by_email(&self, email: &str) -> Result<Option<EmailVerification>, DomainError> {
@@ -76,7 +76,7 @@ impl EmailVerificationReadRepository for SeaOrmEmailVerificationReadRepository {
                 ))
             })?;
 
-        Ok(model.map(|m| self.to_domain_entity(m)))
+        Ok(model.map(Self::to_domain_entity))
     }
 }
 

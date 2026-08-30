@@ -27,12 +27,12 @@ const CATALOG_PATH: &str = "/api/components";
 /// the wrapper shape stays consistent with the other in-repo fakes.
 ///
 /// Holds both the [`Arc<MockServer>`] (for mounting stubs) and the
-/// [`MockServerFixture`] (kept in `_fixture` so its `Drop` impl runs the
+/// [`MockServerFixture`] (kept in `fixture` so its `Drop` impl runs the
 /// post-test reset). Tests that run with `#[serial]` automatically share
 /// the singleton wiremock listener at `127.0.0.1:3000`.
 pub struct ComponentServiceMockService {
     server: Arc<MockServer>,
-    _fixture: MockServerFixture,
+    fixture: MockServerFixture,
 }
 
 impl ComponentServiceMockService {
@@ -41,7 +41,7 @@ impl ComponentServiceMockService {
         let server = fixture.server();
         Self {
             server,
-            _fixture: fixture,
+            fixture,
         }
     }
 
@@ -109,7 +109,7 @@ impl ComponentServiceMockService {
     /// process. Tests that need to keep both alive must remount everything
     /// after the reset.
     pub async fn reset(&self) {
-        self._fixture.reset().await;
+        self.fixture.reset().await;
     }
 
     // ---------------------------------------------------------------------

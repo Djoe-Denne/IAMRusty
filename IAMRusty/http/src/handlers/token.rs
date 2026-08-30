@@ -33,6 +33,10 @@ pub struct TokenResponse {
 }
 
 /// Handler for refreshing a token
+///
+/// # Errors
+///
+/// Returns [`ApiError`] when the refresh token is invalid or the refresh command fails.
 pub async fn refresh_token(
     State(state): State<rustycog::http::AppState>,
     Valid(Json(request)): Valid<Json<RefreshTokenRequest>>,

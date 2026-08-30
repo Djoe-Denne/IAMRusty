@@ -37,11 +37,23 @@ pub struct OAuthLoginErrorMapper;
 
 impl CommandErrorMapper for OAuthLoginErrorMapper {
     fn map_error(&self, error: Box<dyn std::error::Error + Send + Sync>) -> CommandError {
-        // Try to downcast to known error types
-        if let Some(oauth_error) = error.downcast_ref::<OAuthError>() {
-            match oauth_error {
+        error.downcast_ref::<OAuthError>().map_or_else(
+            || {
+                let error_msg = error.to_string();
+                if Self::is_authentication_related_error(&error_msg) {
+                    CommandError::business(
+                        OAuthLoginErrorCode::AuthenticationFailed.as_str(),
+                        format!("OAuth authentication failed: {error_msg}"),
+                    )
+                } else {
+                    CommandError::infrastructure(
+                        OAuthLoginErrorCode::ProviderError.as_str(),
+                        error.to_string(),
+                    )
+                }
+            },
+            |oauth_error| match oauth_error {
                 OAuthError::DomainError(domain_error) => {
-                    // Map domain errors to appropriate command errors
                     use iam_domain::error::DomainError;
                     match domain_error {
                         DomainError::UserNotFound => CommandError::business(
@@ -66,22 +78,8 @@ impl CommandErrorMapper for OAuthLoginErrorMapper {
                         ),
                     }
                 }
-            }
-        } else {
-            // Check if it's an authentication-related error by message
-            let error_msg = error.to_string();
-            if Self::is_authentication_related_error(&error_msg) {
-                CommandError::business(
-                    OAuthLoginErrorCode::AuthenticationFailed.as_str(),
-                    format!("OAuth authentication failed: {error_msg}"),
-                )
-            } else {
-                CommandError::infrastructure(
-                    OAuthLoginErrorCode::ProviderError.as_str(),
-                    error.to_string(),
-                )
-            }
-        }
+            },
+        )
     }
 }
 

@@ -24,17 +24,17 @@ async fn create_test_refresh_token(
     is_valid: bool,
     expires_at: chrono::DateTime<Utc>,
 ) -> Result<Uuid, sea_orm::DbErr> {
-    let _token_id = Uuid::new_v4();
+    let token_id = Uuid::new_v4();
 
     db.execute(Statement::from_string(
         DatabaseBackend::Postgres,
         format!(
             "INSERT INTO refresh_tokens (id, user_id, token, is_valid, created_at, expires_at) VALUES ('{}', '{}', '{}', {}, NOW(), '{}')",
-            _token_id, user_id, token, is_valid, expires_at.format("%Y-%m-%d %H:%M:%S")
+            token_id, user_id, token, is_valid, expires_at.format("%Y-%m-%d %H:%M:%S")
         )
     )).await?;
 
-    Ok(_token_id)
+    Ok(token_id)
 }
 
 /// Helper function to invalidate a refresh token in the database
@@ -78,10 +78,10 @@ async fn refresh_token_exists(
 #[serial]
 async fn test_refresh_token_success_with_valid_refresh_token() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Pre-create user
     let user = DbFixtures::user()
@@ -189,10 +189,10 @@ async fn test_refresh_token_success_with_valid_refresh_token() {
 #[serial]
 async fn test_refresh_token_returns_401_for_invalid_refresh_token() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let _db = _fixture.db();
+    let _db = fixture.db();
     // Make refresh request with non-existent refresh token
     let response = client
         .post(format!("{base_url}/api/token/refresh"))
@@ -229,10 +229,10 @@ async fn test_refresh_token_returns_401_for_invalid_refresh_token() {
 #[serial]
 async fn test_refresh_token_returns_401_for_expired_refresh_token() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
     // Pre-create user
     let user = DbFixtures::user()
         .arthur()
@@ -285,10 +285,10 @@ async fn test_refresh_token_returns_401_for_expired_refresh_token() {
 #[serial]
 async fn test_refresh_token_returns_401_for_revoked_refresh_token() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
     // Pre-create user
     let user = DbFixtures::user()
         .arthur()
@@ -346,10 +346,10 @@ async fn test_refresh_token_returns_401_for_revoked_refresh_token() {
 #[serial]
 async fn test_refresh_token_returns_400_for_missing_refresh_token() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let _db = _fixture.db();
+    let _db = fixture.db();
     // Make refresh request without refresh_token field
     let response = client
         .post(format!("{base_url}/api/token/refresh"))
@@ -395,10 +395,10 @@ async fn test_refresh_token_returns_400_for_missing_refresh_token() {
 #[serial]
 async fn test_refresh_token_returns_422_for_empty_refresh_token() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let _db = _fixture.db();
+    let _db = fixture.db();
     // Make refresh request with empty refresh token
     let response = client
         .post(format!("{base_url}/api/token/refresh"))
@@ -431,10 +431,10 @@ async fn test_refresh_token_returns_422_for_empty_refresh_token() {
 #[serial]
 async fn test_refresh_token_returns_400_for_malformed_json() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let _db = _fixture.db();
+    let _db = fixture.db();
     // Make refresh request with malformed JSON
     let response = client
         .post(format!("{base_url}/api/token/refresh"))
@@ -456,10 +456,10 @@ async fn test_refresh_token_returns_400_for_malformed_json() {
 #[serial]
 async fn test_refresh_token_returns_400_for_wrong_content_type() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let _db = _fixture.db();
+    let _db = fixture.db();
     // Make refresh request with wrong content type
     let response = client
         .post(format!("{base_url}/api/token/refresh"))
@@ -481,10 +481,10 @@ async fn test_refresh_token_returns_400_for_wrong_content_type() {
 #[serial]
 async fn test_refresh_token_invalidates_expired_token_automatically() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
     // Pre-create user
     let user = DbFixtures::user()
         .arthur()
@@ -545,10 +545,10 @@ async fn test_refresh_token_invalidates_expired_token_automatically() {
 #[serial]
 async fn test_refresh_token_replay_attack_protection() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
     // Pre-create user
     let user = DbFixtures::user()
         .arthur()
@@ -610,10 +610,10 @@ async fn test_refresh_token_replay_attack_protection() {
 #[serial]
 async fn test_refresh_token_concurrent_requests_with_same_token() {
     // Setup test environment
-    let (_fixture, base_url, _client) = setup_test_server()
+    let (fixture, base_url, _client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
     // Pre-create user
     let user = DbFixtures::user()
         .arthur()
@@ -706,10 +706,10 @@ async fn test_refresh_token_concurrent_requests_with_same_token() {
 #[serial]
 async fn test_refresh_token_generates_unique_access_tokens() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
     // Pre-create user
     let user = DbFixtures::user()
         .arthur()
@@ -793,10 +793,10 @@ async fn test_refresh_token_generates_unique_access_tokens() {
 #[serial]
 async fn test_refresh_token_performance_under_load() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
     // Pre-create user
     let user = DbFixtures::user()
         .arthur()
@@ -862,10 +862,10 @@ async fn test_refresh_token_performance_under_load() {
 #[serial]
 async fn test_refresh_token_rotation_invalidates_old_token() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Pre-create user
     let user = DbFixtures::user()
@@ -933,10 +933,10 @@ async fn test_refresh_token_rotation_invalidates_old_token() {
 #[serial]
 async fn test_refresh_token_expiration_times_match_configuration() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
     // Pre-create user
     let user = DbFixtures::user()
         .arthur()
@@ -985,10 +985,10 @@ async fn test_refresh_token_expiration_times_match_configuration() {
 #[serial]
 async fn test_refresh_token_response_format_matches_openapi_spec() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Pre-create user
     let user = DbFixtures::user()
@@ -1075,10 +1075,10 @@ async fn test_refresh_token_response_format_matches_openapi_spec() {
 #[serial]
 async fn test_refresh_token_database_cleanup_on_rotation() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Pre-create user
     let user = DbFixtures::user()
@@ -1154,10 +1154,10 @@ async fn test_refresh_token_database_cleanup_on_rotation() {
 #[serial]
 async fn test_refresh_token_multiple_rotations_in_sequence() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Pre-create user
     let user = DbFixtures::user()
@@ -1356,10 +1356,10 @@ async fn test_jwks_endpoint_with_different_http_methods() {
 #[serial]
 async fn test_jwt_token_validation_using_jwks_endpoint() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // 1. Create a user and verify email (required for login)
     let password_service = PasswordService::new();

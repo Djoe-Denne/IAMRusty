@@ -37,10 +37,15 @@ pub struct UserErrorMapper;
 
 impl CommandErrorMapper for UserErrorMapper {
     fn map_error(&self, error: Box<dyn std::error::Error + Send + Sync>) -> CommandError {
-        if let Some(user_error) = error.downcast_ref::<UserError>() {
-            match user_error {
+        error.downcast_ref::<UserError>().map_or_else(
+            || {
+                CommandError::authentication(
+                    UserErrorCode::AuthenticationFailed.as_str(),
+                    "Authentication failed",
+                )
+            },
+            |user_error| match user_error {
                 UserError::DomainError(domain_error) => {
-                    // Map domain errors to appropriate command errors
                     use iam_domain::error::DomainError;
                     match domain_error {
                         DomainError::UserNotFound => CommandError::authentication(
@@ -99,13 +104,8 @@ impl CommandErrorMapper for UserErrorMapper {
                     UserErrorCode::TokenExpired.as_str(),
                     "Authentication failed",
                 ),
-            }
-        } else {
-            CommandError::authentication(
-                UserErrorCode::AuthenticationFailed.as_str(),
-                "Authentication failed",
-            )
-        }
+            },
+        )
     }
 }
 

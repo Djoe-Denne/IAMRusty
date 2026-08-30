@@ -202,7 +202,7 @@ impl SyncJobReadRepository for SyncJobReadRepositoryImpl {
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
-        Ok(count as i64)
+        i64::try_from(count).map_err(|e| DomainError::internal_error(&e.to_string()))
     }
 
     async fn count_running(&self) -> Result<i64, DomainError> {
@@ -214,7 +214,7 @@ impl SyncJobReadRepository for SyncJobReadRepositoryImpl {
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
-        Ok(count as i64)
+        i64::try_from(count).map_err(|e| DomainError::internal_error(&e.to_string()))
     }
 }
 

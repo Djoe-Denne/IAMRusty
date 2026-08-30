@@ -23,6 +23,11 @@ use super::entity::{prelude::RolePermissions as OrganizationRolePermissions, rol
 pub struct RolePermissionMapper;
 
 impl RolePermissionMapper {
+    /// Maps a persisted role-permission row to the domain entity.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `model.permission_id` is not a valid [`PermissionLevel`].
     #[must_use]
     pub fn to_domain(model: role_permissions::Model) -> RolePermission {
         RolePermission::new(
@@ -39,10 +44,15 @@ impl RolePermissionMapper {
         )
     }
 
+    /// Builds a `SeaORM` active model from a domain role-permission.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `role_permission.created_at` is [`None`].
     #[must_use]
     pub fn to_active_model(role_permission: &RolePermission) -> role_permissions::ActiveModel {
         role_permissions::ActiveModel {
-            id: ActiveValue::Set(role_permission.id.unwrap_or(Uuid::new_v4())),
+            id: ActiveValue::Set(role_permission.id.unwrap_or_else(Uuid::new_v4)),
             organization_id: ActiveValue::Set(role_permission.organization_id),
             permission_id: ActiveValue::Set(role_permission.permission.level.to_str().to_string()),
             resource_id: ActiveValue::Set(role_permission.resource.name.clone()),
@@ -167,8 +177,12 @@ impl RolePermissionReadRepository for RolePermissionReadRepositoryImpl {
             organization_id, role_permissions
         );
 
-        Self::find_by_organization_roles_with_connection(self.db.as_ref(), organization_id, role_permissions)
-            .await
+        Self::find_by_organization_roles_with_connection(
+            self.db.as_ref(),
+            organization_id,
+            role_permissions,
+        )
+        .await
     }
 }
 
@@ -199,8 +213,8 @@ impl RolePermissionWriteRepositoryImpl {
                 .map_err(|e| DomainError::internal_error(&e.to_string()))?
                 .is_some();
 
+        let active_model = RolePermissionMapper::to_active_model(role_permission);
         if exists {
-            let active_model = RolePermissionMapper::to_active_model(role_permission);
             let result = active_model
                 .save(db)
                 .await
@@ -218,7 +232,6 @@ impl RolePermissionWriteRepositoryImpl {
 
             Ok(RolePermissionMapper::to_domain(saved_model))
         } else {
-            let active_model = RolePermissionMapper::to_active_model(role_permission);
             let result = active_model
                 .insert(db)
                 .await

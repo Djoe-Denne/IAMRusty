@@ -50,7 +50,11 @@ impl ProjectMember {
         self.removed_at.is_none()
     }
 
-    /// Update the member's role permissions
+    /// Update the member's role permissions.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the member has been removed.
     pub fn update_role_permissions(
         &mut self,
         role_permissions: Vec<ProjectMemberRolePermission>,
@@ -135,7 +139,11 @@ impl ProjectMember {
         self.last_access_at = Some(Utc::now());
     }
 
-    /// Validate the member
+    /// Validate the member.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if `removal_reason` exceeds 100 characters.
     pub fn validate(&self) -> Result<(), DomainError> {
         if let Some(reason) = &self.removal_reason {
             if reason.len() > 100 {

@@ -13,6 +13,10 @@ use crate::error::HttpError;
 
 /// Create an external link
 /// POST /api/organizations/{organization_id}/external-links
+///
+/// # Errors
+///
+/// Returns [`HttpError`] if command execution fails.
 pub async fn create_external_link(
     State(state): State<AppState>,
     Path(organization_id): Path<ResourceId>,

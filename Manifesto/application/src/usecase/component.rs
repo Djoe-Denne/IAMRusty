@@ -20,8 +20,14 @@ use crate::{
     ApplicationError,
 };
 
+/// Application use cases for project components.
 #[async_trait]
 pub trait ComponentUseCase: Send + Sync {
+    /// Add a component to a project.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ApplicationError`] if the quota is exceeded or persistence fails.
     async fn add_component(
         &self,
         project_id: Uuid,
@@ -29,6 +35,11 @@ pub trait ComponentUseCase: Send + Sync {
         user_id: Uuid,
     ) -> Result<ComponentResponse, ApplicationError>;
 
+    /// Get one project component.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ApplicationError`] if the component is missing.
     async fn get_component(
         &self,
         project_id: Uuid,
@@ -36,12 +47,22 @@ pub trait ComponentUseCase: Send + Sync {
         user_id: Option<Uuid>,
     ) -> Result<ComponentResponse, ApplicationError>;
 
+    /// List components of a project.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ApplicationError`] if the listing fails.
     async fn list_components(
         &self,
         project_id: Uuid,
         user_id: Option<Uuid>,
     ) -> Result<ComponentListResponse, ApplicationError>;
 
+    /// Update a component status.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ApplicationError`] if the transition is forbidden or persistence fails.
     async fn update_component_status(
         &self,
         project_id: Uuid,
@@ -50,6 +71,11 @@ pub trait ComponentUseCase: Send + Sync {
         user_id: Uuid,
     ) -> Result<ComponentResponse, ApplicationError>;
 
+    /// Remove a component from a project.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ApplicationError`] if the removal is forbidden or persistence fails.
     async fn remove_component(
         &self,
         project_id: Uuid,
@@ -58,6 +84,7 @@ pub trait ComponentUseCase: Send + Sync {
     ) -> Result<(), ApplicationError>;
 }
 
+/// Default [`ComponentUseCase`] implementation.
 pub struct ComponentUseCaseImpl {
     component_service: Arc<dyn ComponentService>,
     project_service: Arc<dyn ProjectService>,
@@ -67,6 +94,7 @@ pub struct ComponentUseCaseImpl {
 }
 
 impl ComponentUseCaseImpl {
+    /// Create a component use case with its domain collaborators.
     pub fn new(
         component_service: Arc<dyn ComponentService>,
         project_service: Arc<dyn ProjectService>,
@@ -83,7 +111,7 @@ impl ComponentUseCaseImpl {
         }
     }
 
-    fn component_to_response(&self, component: &ProjectComponent) -> ComponentResponse {
+    fn component_to_response(component: &ProjectComponent) -> ComponentResponse {
         ComponentResponse {
             id: component.id,
             component_type: component.component_type.clone(),
@@ -175,7 +203,7 @@ impl ComponentUseCase for ComponentUseCaseImpl {
         let domain_ev: Box<dyn DomainEvent> = event.into();
         self.event_publisher.publish(domain_ev.as_ref()).await?;
 
-        Ok(self.component_to_response(&created))
+        Ok(Self::component_to_response(&created))
     }
 
     async fn get_component(
@@ -192,7 +220,7 @@ impl ComponentUseCase for ComponentUseCaseImpl {
             )));
         }
 
-        Ok(self.component_to_response(&component))
+        Ok(Self::component_to_response(&component))
     }
 
     async fn list_components(
@@ -204,7 +232,7 @@ impl ComponentUseCase for ComponentUseCaseImpl {
 
         let data: Vec<ComponentResponse> = components
             .iter()
-            .map(|c| self.component_to_response(c))
+            .map(Self::component_to_response)
             .collect();
 
         Ok(ComponentListResponse { data })
@@ -251,7 +279,7 @@ impl ComponentUseCase for ComponentUseCaseImpl {
         let domain_ev: Box<dyn DomainEvent> = event.into();
         self.event_publisher.publish(domain_ev.as_ref()).await?;
 
-        Ok(self.component_to_response(&updated))
+        Ok(Self::component_to_response(&updated))
     }
 
     async fn remove_component(

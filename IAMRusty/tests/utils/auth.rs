@@ -24,7 +24,7 @@ impl AuthTestUtils {
     }
 
     /// Create a test user with email and password (placeholder implementation)
-    pub async fn create_user_with_email_password(
+    pub fn create_user_with_email_password(
         _db: Arc<DatabaseConnection>,
         _email: &str,
         _password: &str,
@@ -35,7 +35,7 @@ impl AuthTestUtils {
     }
 
     /// Create a test user via OAuth provider (placeholder implementation)
-    pub async fn create_user_with_oauth(
+    pub fn create_user_with_oauth(
         _db: Arc<DatabaseConnection>,
         _provider: &str,
         _provider_user_id: &str,

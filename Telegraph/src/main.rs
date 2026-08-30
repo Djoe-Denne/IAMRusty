@@ -39,8 +39,8 @@ async fn main() -> Result<(), anyhow::Error> {
     app::AppBuilder::new(config)
         .build()
         .await
-        .map_err(|e| anyhow::anyhow!("Failed to build application: {}", e))?
+        .map_err(|e| anyhow::anyhow!("Failed to build application: {e}"))?
         .run(server_config)
         .await
-        .map_err(|e| anyhow::anyhow!("Failed to run application: {}", e))
+        .map_err(|e| anyhow::anyhow!("Failed to run application: {e}"))
 }

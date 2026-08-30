@@ -27,30 +27,28 @@ where
 
 #[async_trait::async_trait]
 pub trait RoleService: Send + Sync {
-    /**
-     * Create default system roles for a new organization
-     *
-     * @param `organization_id` - The ID of the organization to create the default roles for
-     */
+    /// Create default system roles for a new organization.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if persistence fails.
     async fn create_default_roles(
         &self,
         organization_id: &Uuid,
     ) -> Result<Vec<RolePermission>, DomainError>;
 
-    /**
-     * Delete all roles for an organization
-     *
-     * @param `organization_id` - The ID of the organization to delete the roles for
-     */
+    /// Delete all roles for an organization.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if persistence fails.
     async fn delete_organization_roles(&self, organization_id: &Uuid) -> Result<(), DomainError>;
 
-    /**
-     * Find a role permission by resource type and permission
-     *
-     * @param `resource_type` - The type of the resource to find the role permission for
-     * @param permission - The permission to find the role permission for
-     * @param `role_permissions` - The list of role permissions to search in
-     */
+    /// Find a role permission by resource type and permission.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if no matching role permission is found.
     async fn find_role_permissions(
         &self,
         resource_type: &str,
@@ -58,25 +56,22 @@ pub trait RoleService: Send + Sync {
         role_permissions: Vec<RolePermission>,
     ) -> Result<RolePermission, DomainError>;
 
-    /**
-     * Find role permissions by organization ID
-     *
-     * @param `organization_id` - The ID of the organization to find the role permissions for
-     * @param `role_permissions` - The list of role permissions to search in
-     */
+    /// Find role permissions by organization ID.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if persistence fails.
     async fn find_role_permissions_by_organization(
         &self,
         organization_id: &Uuid,
         role_permissions: &Vec<RolePermission>,
     ) -> Result<Vec<RolePermission>, DomainError>;
 
-    /**
-     * Add roles to a member
-     *
-     * @param `organization_id` - The ID of the organization to add the roles to
-     * @param `member_id` - The ID of the member to add the roles to
-     * @param roles - The roles to add to the member
-     */
+    /// Add roles to a member.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the member is missing or persistence fails.
     async fn add_roles(
         &self,
         organization_id: &Uuid,
@@ -85,12 +80,20 @@ pub trait RoleService: Send + Sync {
     ) -> Result<Vec<OrganizationMemberRolePermission>, DomainError>;
 
     /// List all role-permission templates for an organization.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if persistence fails.
     async fn list_organization_roles(
         &self,
         organization_id: &Uuid,
     ) -> Result<Vec<RolePermission>, DomainError>;
 
     /// Get one role-permission template scoped to an organization.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the role is missing, belongs to another organization, or persistence fails.
     async fn get_organization_role(
         &self,
         organization_id: &Uuid,
@@ -129,6 +132,11 @@ where
     PR: PermissionRepository,
     RPR: RolePermissionRepository,
 {
+    /// Create default system roles for a new organization.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if persistence fails.
     async fn create_default_roles(
         &self,
         organization_id: &Uuid,
@@ -179,6 +187,11 @@ where
         Ok(roles)
     }
 
+    /// Delete all roles for an organization.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if persistence fails.
     async fn delete_organization_roles(&self, organization_id: &Uuid) -> Result<(), DomainError> {
         self.member_role_repo
             .delete_by_organization(organization_id)
@@ -189,6 +202,11 @@ where
         Ok(())
     }
 
+    /// Find a role permission by resource type and permission.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if no matching role permission is found.
     async fn find_role_permissions(
         &self,
         resource_type: &str,
@@ -201,13 +219,20 @@ where
                 role_permission.resource.name == resource_type
                     && role_permission.permission.level.to_str() == permission
             })
-            .ok_or(DomainError::entity_not_found(
-                "RolePermission",
-                &format!("resource_type={resource_type}, permission={permission}"),
-            ))
+            .ok_or_else(|| {
+                DomainError::entity_not_found(
+                    "RolePermission",
+                    &format!("resource_type={resource_type}, permission={permission}"),
+                )
+            })
             .cloned()
     }
 
+    /// Add roles to a member.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the member is missing or persistence fails.
     async fn add_roles(
         &self,
         organization_id: &Uuid,
@@ -232,6 +257,11 @@ where
         Ok(new_roles)
     }
 
+    /// Find role permissions by organization ID.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if persistence fails.
     async fn find_role_permissions_by_organization(
         &self,
         organization_id: &Uuid,
@@ -248,6 +278,11 @@ where
         Ok(roles)
     }
 
+    /// List all role-permission templates for an organization.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if persistence fails.
     async fn list_organization_roles(
         &self,
         organization_id: &Uuid,
@@ -260,6 +295,11 @@ where
             })
     }
 
+    /// Get one role-permission template scoped to an organization.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the role is missing, belongs to another organization, or persistence fails.
     async fn get_organization_role(
         &self,
         organization_id: &Uuid,

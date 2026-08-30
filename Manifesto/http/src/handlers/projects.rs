@@ -29,6 +29,10 @@ pub struct ProjectQueryParams {
 
 /// Create a new project
 /// POST /api/projects
+///
+/// # Errors
+///
+/// Returns [`HttpError`] if the command fails (authorization, validation, or persistence).
 pub async fn create_project(
     State(state): State<AppState>,
     auth_user: AuthUser,
@@ -50,6 +54,10 @@ pub async fn create_project(
 
 /// Get a project by ID
 /// GET /`api/projects/{project_id`}
+///
+/// # Errors
+///
+/// Returns [`HttpError`] if the command fails (authorization, validation, or persistence).
 pub async fn get_project(
     State(state): State<AppState>,
     Path(project_id): Path<ResourceId>,
@@ -76,6 +84,10 @@ pub async fn get_project(
 
 /// Get project details (with components and member count)
 /// GET /`api/projects/{project_id}/details`
+///
+/// # Errors
+///
+/// Returns [`HttpError`] if the command fails (authorization, validation, or persistence).
 pub async fn get_project_detail(
     State(state): State<AppState>,
     Path(project_id): Path<ResourceId>,
@@ -102,6 +114,10 @@ pub async fn get_project_detail(
 
 /// Update a project
 /// PUT /`api/projects/{project_id`}
+///
+/// # Errors
+///
+/// Returns [`HttpError`] if the command fails (authorization, validation, or persistence).
 pub async fn update_project(
     State(state): State<AppState>,
     Path(project_id): Path<ResourceId>,
@@ -124,6 +140,10 @@ pub async fn update_project(
 
 /// Delete a project
 /// DELETE /`api/projects/{project_id`}
+///
+/// # Errors
+///
+/// Returns [`HttpError`] if the command fails (authorization, validation, or persistence).
 pub async fn delete_project(
     State(state): State<AppState>,
     Path(project_id): Path<ResourceId>,
@@ -145,6 +165,10 @@ pub async fn delete_project(
 
 /// List projects
 /// GET /api/projects
+///
+/// # Errors
+///
+/// Returns [`HttpError`] if the command fails (authorization, validation, or persistence).
 pub async fn list_projects(
     State(state): State<AppState>,
     auth_user: OptionalAuthUser,
@@ -184,6 +208,10 @@ pub async fn list_projects(
 
 /// Publish a project (transition from draft to active)
 /// POST /`api/projects/{project_id}/publish`
+///
+/// # Errors
+///
+/// Returns [`HttpError`] if the command fails (authorization, validation, or persistence).
 pub async fn publish_project(
     State(state): State<AppState>,
     Path(project_id): Path<ResourceId>,
@@ -205,6 +233,10 @@ pub async fn publish_project(
 
 /// Archive a project
 /// POST /`api/projects/{project_id}/archive`
+///
+/// # Errors
+///
+/// Returns [`HttpError`] if the command fails (authorization, validation, or persistence).
 pub async fn archive_project(
     State(state): State<AppState>,
     Path(project_id): Path<ResourceId>,

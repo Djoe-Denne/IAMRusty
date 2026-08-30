@@ -115,7 +115,7 @@ impl MemberUseCaseImpl {
     }
 
     /// Convert domain `OrganizationMember` to response DTO
-    fn member_to_response(&self, member: &OrganizationMember) -> MemberResponse {
+    fn member_to_response(member: &OrganizationMember) -> MemberResponse {
         MemberResponse {
             id: member.id.unwrap(),
             organization_id: member.organization_id,
@@ -134,7 +134,7 @@ impl MemberUseCaseImpl {
         &self,
         member: &OrganizationMember,
         organization_name: &str,
-        roles: &Vec<RolePermission>,
+        roles: &[RolePermission],
     ) -> Result<(), ApplicationError> {
         let roles = roles
             .iter()
@@ -264,7 +264,7 @@ impl MemberUseCase for MemberUseCaseImpl {
             member
         };
 
-        Ok(self.member_to_response(&member))
+        Ok(Self::member_to_response(&member))
     }
 
     async fn remove_member(
@@ -324,7 +324,7 @@ impl MemberUseCase for MemberUseCaseImpl {
 
         let members: Vec<MemberResponse> = members
             .iter()
-            .map(|member| self.member_to_response(member))
+            .map(|member| Self::member_to_response(member))
             .collect();
 
         let total_count = i64::try_from(members.len()).unwrap_or(i64::MAX);
@@ -373,7 +373,7 @@ impl MemberUseCase for MemberUseCaseImpl {
             .await
             .map_err(ApplicationError::Domain)?;
 
-        Ok(self.member_to_response(&member))
+        Ok(Self::member_to_response(&member))
     }
 
     async fn update_member(
@@ -400,6 +400,6 @@ impl MemberUseCase for MemberUseCaseImpl {
         self.publish_member_roles_updated_event(&member, &organization.name, &role_permissions)
             .await?;
 
-        Ok(self.member_to_response(&member))
+        Ok(Self::member_to_response(&member))
     }
 }

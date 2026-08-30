@@ -59,6 +59,10 @@ impl OrganizationMember {
     }
 
     /// Activate a pending member (when they accept invitation)
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the member is not pending.
     pub fn activate(&mut self) -> Result<(), DomainError> {
         match self.status {
             MemberStatus::Pending => {
@@ -77,6 +81,10 @@ impl OrganizationMember {
     }
 
     /// Suspend a member
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the member is not active.
     pub fn suspend(&mut self) -> Result<(), DomainError> {
         match self.status {
             MemberStatus::Active => {
@@ -94,6 +102,10 @@ impl OrganizationMember {
     }
 
     /// Reactivate a suspended member
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the member is not suspended.
     pub fn reactivate(&mut self) -> Result<(), DomainError> {
         match self.status {
             MemberStatus::Suspended => {

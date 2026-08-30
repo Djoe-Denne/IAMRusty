@@ -40,10 +40,10 @@ async fn test_username_available() {
 #[tokio::test]
 #[serial]
 async fn test_username_taken() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Create user
     let _user = DbFixtures::user()

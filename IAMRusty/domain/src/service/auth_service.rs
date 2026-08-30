@@ -12,7 +12,7 @@ use crate::port::{
     service::{AuthTokenService, RegistrationTokenService},
 };
 use async_trait::async_trait;
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use rustycog::events::event::EventPublisher;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -294,7 +294,7 @@ where
     /// Generate a verification token using UUID v4
     /// Simple, secure, and doesn't require crypto dependencies
     /// In test/QA mode, returns a static token for predictable testing
-    fn generate_verification_token(&self) -> String {
+    fn generate_verification_token() -> String {
         #[cfg(any(test, feature = "test-mode"))]
         {
             debug!("Generating test/QA verification token");
@@ -304,6 +304,16 @@ where
         Uuid::new_v4().to_string()
     }
 
+    fn expires_in_secs(expires_at: DateTime<Utc>) -> u64 {
+        u64::try_from((expires_at - Utc::now()).num_seconds()).unwrap_or(0)
+    }
+
+    /// Register a new email/password account or attach a password to an existing one.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AuthError`] if the email is already fully registered, the user cannot be
+    /// loaded or persisted, password hashing fails, or token generation fails.
     pub async fn signup(&self, request: SignupRequest) -> Result<SignupResponse, AuthError> {
         // Check if user already exists by email
         if let Ok(Some(existing_email)) = self
@@ -363,8 +373,7 @@ where
                         avatar: updated_user.avatar_url,
                     },
                     access_token: access_token.token,
-                    expires_in: (access_token.expires_at.timestamp() - Utc::now().timestamp())
-                        as u64,
+                    expires_in: Self::expires_in_secs(access_token.expires_at),
                     refresh_token: refresh_token.token,
                     message: "Password authentication added to existing account".to_string(),
                 });
@@ -404,7 +413,7 @@ where
         );
 
         // Generate verification token
-        let verification_token = self.generate_verification_token();
+        let verification_token = Self::generate_verification_token();
         let email_verification = EmailVerification::new(
             request.email.clone(),
             verification_token,
@@ -456,6 +465,12 @@ where
         })
     }
 
+    /// Authenticate an email/password account.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AuthError`] if credentials are invalid, the email is not verified,
+    /// the user cannot be loaded, password verification fails, or token generation fails.
     pub async fn login(&self, request: LoginRequest) -> Result<LoginResponse, AuthError> {
         // Find user by email
         let user_email = self
@@ -541,11 +556,17 @@ where
                 avatar: user.avatar_url,
             },
             access_token: access_token.token,
-            expires_in: (access_token.expires_at.timestamp() - Utc::now().timestamp()) as u64,
+            expires_in: Self::expires_in_secs(access_token.expires_at),
             refresh_token: refresh_token.token,
         })
     }
 
+    /// Confirm an email address with a verification token.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AuthError`] if the email or token is missing or invalid, the token
+    /// is expired, the email is already verified, or persistence fails.
     pub async fn verify_email(
         &self,
         request: VerifyEmailRequest,
@@ -558,9 +579,7 @@ where
             .await
             .map_err(|e| AuthError::RepositoryError(DomainError::RepositoryError(e.to_string())))?;
 
-        let verification = if let Some(v) = verification {
-            v
-        } else {
+        let Some(verification) = verification else {
             // Check if the email exists in user_emails to distinguish between
             // nonexistent email (404) vs invalid token (400)
             let user_email_exists = self
@@ -644,6 +663,11 @@ where
         })
     }
 
+    /// Request another verification email for an unverified address.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AuthError`] if the email lookup fails at the repository.
     pub async fn resend_verification_email(
         &self,
         request: ResendVerificationEmailRequest,
@@ -700,7 +724,7 @@ where
         }
 
         let email_verification =
-            EmailVerification::new(email.to_string(), self.generate_verification_token(), 24);
+            EmailVerification::new(email.to_string(), Self::generate_verification_token(), 24);
 
         if let Err(e) = self
             .email_verification_repository

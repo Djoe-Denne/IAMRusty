@@ -91,7 +91,11 @@ impl RegistrationTokenClaims {
         Utc::now().timestamp() > self.exp
     }
 
-    /// Get the user ID as UUID
+    /// Get the user ID as UUID.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`uuid::Error`] if `user_id` is not a valid UUID.
     pub fn get_user_id(&self) -> Result<Uuid, uuid::Error> {
         Uuid::parse_str(&self.user_id)
     }

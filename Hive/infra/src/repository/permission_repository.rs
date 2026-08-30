@@ -14,6 +14,11 @@ use super::entity::{permissions, prelude::Permissions};
 pub struct PermissionMapper;
 
 impl PermissionMapper {
+    /// Maps a persisted permission row to the domain entity.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if `model.level` is not a recognized [`PermissionLevel`].
     pub fn to_domain(model: permissions::Model) -> Result<Permission, DomainError> {
         Ok(Permission::new(
             PermissionLevel::from_str(&model.level)?,

@@ -30,9 +30,14 @@ use super::entity::{
 pub struct MemberRoleMapper;
 
 impl MemberRoleMapper {
+    /// Maps persisted member-role and role-permission rows to the domain entity.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `role_permission.permission_id` is not a valid [`PermissionLevel`].
     #[must_use]
     pub fn to_domain(
-        model: organization_member_role_permissions::Model,
+        model: &organization_member_role_permissions::Model,
         role_permission: role_permissions::Model,
     ) -> OrganizationMemberRolePermission {
         OrganizationMemberRolePermission {
@@ -62,12 +67,17 @@ impl MemberRoleMapper {
         }
     }
 
+    /// Builds a `SeaORM` active model from a domain member-role.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `member_role.role_permission.id` is [`None`].
     #[must_use]
     pub fn to_active_model(
         member_role: &OrganizationMemberRolePermission,
     ) -> organization_member_role_permissions::ActiveModel {
         organization_member_role_permissions::ActiveModel {
-            id: ActiveValue::Set(member_role.id.unwrap_or(Uuid::new_v4())),
+            id: ActiveValue::Set(member_role.id.unwrap_or_else(Uuid::new_v4)),
             member_id: ActiveValue::Set(member_role.member_id),
             role_permission_id: ActiveValue::Set(member_role.role_permission.id.unwrap()),
             created_at: ActiveValue::Set(member_role.created_at),
@@ -106,7 +116,7 @@ impl MemberRoleReadRepository for MemberRoleReadRepositoryImpl {
         Ok(member_roles
             .into_iter()
             .map(|(member_role, role_permission)| {
-                MemberRoleMapper::to_domain(member_role, role_permission.unwrap())
+                MemberRoleMapper::to_domain(&member_role, role_permission.unwrap())
             })
             .collect())
     }
@@ -145,8 +155,8 @@ impl MemberRoleWriteRepositoryImpl {
                 .map_err(|e| DomainError::internal_error(&e.to_string()))?
                 .unwrap();
 
+        let active_model = MemberRoleMapper::to_active_model(member_role);
         if exists {
-            let active_model = MemberRoleMapper::to_active_model(member_role);
             let result = active_model
                 .save(db)
                 .await
@@ -159,15 +169,14 @@ impl MemberRoleWriteRepositoryImpl {
                 created_at: result.created_at.unwrap(),
             };
 
-            Ok(MemberRoleMapper::to_domain(saved_model, role_permission))
+            Ok(MemberRoleMapper::to_domain(&saved_model, role_permission))
         } else {
-            let active_model = MemberRoleMapper::to_active_model(member_role);
             let result = active_model
                 .insert(db)
                 .await
                 .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
-            Ok(MemberRoleMapper::to_domain(result, role_permission))
+            Ok(MemberRoleMapper::to_domain(&result, role_permission))
         }
     }
 

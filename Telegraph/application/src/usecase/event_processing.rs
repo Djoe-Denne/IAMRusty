@@ -18,7 +18,11 @@ impl EventProcessingUseCase {
         Self { event_processor }
     }
 
-    /// Process an IAM domain event
+    /// Process an IAM domain event.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the domain event processor fails.
     pub async fn process_event(&self, command: ProcessEventCommand) -> Result<(), DomainError> {
         // Extract values for logging before converting the command
         let event_id = command.event_id();
@@ -54,7 +58,11 @@ impl EventProcessingUseCase {
 /// Trait for event processing use case
 #[async_trait]
 pub trait EventProcessingUseCaseTrait: Send + Sync {
-    /// Process an event
+    /// Process an event.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the domain event processor fails.
     async fn process_event(&self, command: ProcessEventCommand) -> Result<(), DomainError>;
 }
 

@@ -25,10 +25,10 @@ fn create_test_jwt_token(user_id: Uuid) -> String {
 #[tokio::test]
 #[serial]
 async fn test_add_member_returns_201_with_valid_permissions() {
-    let (_fixture, base_url, client, openfga, _components) = setup_test_server()
+    let (fixture, base_url, client, openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     let owner_id = Uuid::new_v4();
     let (project, _owner_member) = DbFixtures::create_project_with_owner(&db, owner_id)
@@ -85,10 +85,10 @@ async fn test_add_member_returns_201_with_valid_permissions() {
 #[tokio::test]
 #[serial]
 async fn test_add_member_returns_403_without_admin_permission() {
-    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
+    let (fixture, base_url, client, _openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     let owner_id = Uuid::new_v4();
     let (project, _owner_member) = DbFixtures::create_project_with_owner(&db, owner_id)
@@ -144,10 +144,10 @@ async fn test_add_member_returns_403_without_admin_permission() {
 #[tokio::test]
 #[serial]
 async fn test_get_member_returns_200_with_permissions() {
-    let (_fixture, base_url, client, openfga, _components) = setup_test_server()
+    let (fixture, base_url, client, openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     let owner_id = Uuid::new_v4();
     let (project, _owner_member) = DbFixtures::create_project_with_owner(&db, owner_id)
@@ -201,10 +201,10 @@ async fn test_get_member_returns_200_with_permissions() {
 #[tokio::test]
 #[serial]
 async fn test_list_members_returns_paginated_results() {
-    let (_fixture, base_url, client, openfga, _components) = setup_test_server()
+    let (fixture, base_url, client, openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     let owner_id = Uuid::new_v4();
     let (project, _owner_member) = DbFixtures::create_project_with_owner(&db, owner_id)
@@ -272,10 +272,10 @@ async fn test_list_members_returns_paginated_results() {
 #[tokio::test]
 #[serial]
 async fn test_update_member_permissions_returns_200() {
-    let (_fixture, base_url, client, openfga, _components) = setup_test_server()
+    let (fixture, base_url, client, openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     let owner_id = Uuid::new_v4();
     let (project, _owner_member) = DbFixtures::create_project_with_owner(&db, owner_id)
@@ -336,10 +336,10 @@ async fn test_update_member_permissions_returns_200() {
 #[tokio::test]
 #[serial]
 async fn test_remove_member_returns_204() {
-    let (_fixture, base_url, client, openfga, _components) = setup_test_server()
+    let (fixture, base_url, client, openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     let owner_id = Uuid::new_v4();
     let (project, _owner_member) = DbFixtures::create_project_with_owner(&db, owner_id)
@@ -393,10 +393,10 @@ async fn test_remove_member_returns_204() {
 #[tokio::test]
 #[serial]
 async fn test_grant_permission_returns_200() {
-    let (_fixture, base_url, client, openfga, _components) = setup_test_server()
+    let (fixture, base_url, client, openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     let owner_id = Uuid::new_v4();
     let (project, _owner_member) = DbFixtures::create_project_with_owner(&db, owner_id)
@@ -451,10 +451,10 @@ async fn test_grant_permission_returns_200() {
 #[tokio::test]
 #[serial]
 async fn test_revoke_permission_returns_204() {
-    let (_fixture, base_url, client, openfga, _components) = setup_test_server()
+    let (fixture, base_url, client, openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     let owner_id = Uuid::new_v4();
     let (project, _owner_member) = DbFixtures::create_project_with_owner(&db, owner_id)
@@ -527,10 +527,10 @@ async fn test_revoke_permission_returns_204() {
 #[tokio::test]
 #[serial]
 async fn test_grant_permission_on_specific_component_returns_200() {
-    let (_fixture, base_url, client, openfga, _components) = setup_test_server()
+    let (fixture, base_url, client, openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     let owner_id = Uuid::new_v4();
     let (project, _owner_member, component) =
@@ -587,10 +587,10 @@ async fn test_grant_permission_on_specific_component_returns_200() {
 #[tokio::test]
 #[serial]
 async fn test_non_admin_cannot_grant_permission_on_specific_component() {
-    let (_fixture, base_url, client, _openfga, _components) = setup_test_server()
+    let (fixture, base_url, client, _openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     let owner_id = Uuid::new_v4();
     let (project, _owner_member, component) =
@@ -650,10 +650,10 @@ async fn test_non_admin_cannot_grant_permission_on_specific_component() {
 #[tokio::test]
 #[serial]
 async fn test_grant_admin_permission_on_specific_component_returns_200() {
-    let (_fixture, base_url, client, openfga, _components) = setup_test_server()
+    let (fixture, base_url, client, openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     let owner_id = Uuid::new_v4();
     let (project, _owner_member, component) =
@@ -710,10 +710,10 @@ async fn test_grant_admin_permission_on_specific_component_returns_200() {
 #[tokio::test]
 #[serial]
 async fn test_revoke_permission_on_specific_component_returns_204() {
-    let (_fixture, base_url, client, openfga, _components) = setup_test_server()
+    let (fixture, base_url, client, openfga, _components) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     let owner_id = Uuid::new_v4();
     let (project, _owner_member, component) =

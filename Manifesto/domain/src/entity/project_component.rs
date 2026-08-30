@@ -17,7 +17,11 @@ pub struct ProjectComponent {
 }
 
 impl ProjectComponent {
-    /// Create a new project component
+    /// Create a new project component.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if `component_type` is empty or exceeds 100 characters.
     pub fn new(project_id: Uuid, component_type: String) -> Result<Self, DomainError> {
         if component_type.trim().is_empty() {
             return Err(DomainError::invalid_input("Component type cannot be empty"));
@@ -41,7 +45,12 @@ impl ProjectComponent {
         })
     }
 
-    /// Transition the component to a new status
+    /// Transition the component to a new status.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the transition from the current status to `new_status`
+    /// is not allowed.
     pub fn transition_status(&mut self, new_status: ComponentStatus) -> Result<(), DomainError> {
         let old_status = self.status;
         let transitioned = old_status.transition_to(new_status)?;
@@ -77,7 +86,11 @@ impl ProjectComponent {
         self.status == ComponentStatus::Active
     }
 
-    /// Validate the component
+    /// Validate the component.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if `component_type` is empty or exceeds 100 characters.
     pub fn validate(&self) -> Result<(), DomainError> {
         if self.component_type.trim().is_empty() {
             return Err(DomainError::invalid_input("Component type cannot be empty"));

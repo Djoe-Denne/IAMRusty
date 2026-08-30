@@ -21,6 +21,11 @@ impl DataClassification {
         }
     }
 
+    /// Parse a data classification from a string.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if `s` is not a recognized data classification.
     pub fn from_str(s: &str) -> Result<Self, DomainError> {
         match s.to_lowercase().as_str() {
             "public" => Ok(Self::Public),

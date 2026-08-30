@@ -21,7 +21,7 @@ pub struct ProjectMemberRolePermissionMapper;
 impl ProjectMemberRolePermissionMapper {
     #[must_use]
     pub const fn to_domain(
-        model: project_member_role_permissions::Model,
+        model: &project_member_role_permissions::Model,
         role_permission: RolePermission,
     ) -> ProjectMemberRolePermission {
         ProjectMemberRolePermission {
@@ -32,22 +32,32 @@ impl ProjectMemberRolePermissionMapper {
         }
     }
 
+    /// Convert a domain grant into a SeaORM active model.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the nested role permission has no id.
     pub fn to_active_model(
         pmrp: &ProjectMemberRolePermission,
         insert: bool,
-    ) -> project_member_role_permissions::ActiveModel {
+    ) -> Result<project_member_role_permissions::ActiveModel, DomainError> {
         let id = if insert {
             ActiveValue::NotSet
         } else {
             ActiveValue::Set(pmrp.id.unwrap_or_else(Uuid::new_v4))
         };
 
-        project_member_role_permissions::ActiveModel {
+        let role_permission_id = pmrp
+            .role_permission
+            .id
+            .ok_or_else(|| DomainError::internal_error("role permission must have an id"))?;
+
+        Ok(project_member_role_permissions::ActiveModel {
             id,
             member_id: ActiveValue::Set(pmrp.member_id),
-            role_permission_id: ActiveValue::Set(pmrp.role_permission.id.unwrap()),
+            role_permission_id: ActiveValue::Set(role_permission_id),
             created_at: ActiveValue::NotSet,
-        }
+        })
     }
 }
 
@@ -81,7 +91,7 @@ impl ProjectMemberRolePermissionReadRepositoryImpl {
             .ok_or_else(|| DomainError::entity_not_found("RolePermission", "unknown"))?;
 
         Ok(ProjectMemberRolePermissionMapper::to_domain(
-            model,
+            &model,
             role_permission,
         ))
     }
@@ -140,11 +150,16 @@ impl ProjectMemberRolePermissionWriteRepositoryImpl {
             .ok_or_else(|| DomainError::entity_not_found("RolePermission", "unknown"))?;
 
         Ok(ProjectMemberRolePermissionMapper::to_domain(
-            model,
+            &model,
             role_permission,
         ))
     }
 
+    /// Insert a grant using an existing connection (for example a transaction).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the role permission has no id, or if the insert fails.
     pub async fn grant_known_with_connection<C>(
         db: &C,
         member_id: &Uuid,
@@ -170,7 +185,7 @@ impl ProjectMemberRolePermissionWriteRepositoryImpl {
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         Ok(ProjectMemberRolePermissionMapper::to_domain(
-            model,
+            &model,
             role_permission.clone(),
         ))
     }

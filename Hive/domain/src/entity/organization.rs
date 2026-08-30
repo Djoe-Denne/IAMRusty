@@ -21,6 +21,10 @@ pub struct Organization {
 
 impl Organization {
     /// Create a new organization
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if `name` or `slug` fails validation.
     pub fn new(
         name: String,
         slug: String,
@@ -47,6 +51,10 @@ impl Organization {
     }
 
     /// Update organization name
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if `new_name` fails validation.
     pub fn update_name(&mut self, new_name: String) -> Result<(), DomainError> {
         Self::validate_name(&new_name)?;
         self.name = new_name;

@@ -42,10 +42,10 @@ fn create_invalid_signature_jwt_token(
 #[serial]
 async fn test_get_user_returns_correct_info_when_token_is_valid() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Pre-create user and email
     let user = DbFixtures::user()
@@ -345,10 +345,10 @@ async fn test_get_user_returns_401_when_user_not_found_in_database() {
 #[serial]
 async fn test_get_user_returns_correct_primary_email_when_user_has_multiple_emails() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Pre-create user with multiple emails
     let user = DbFixtures::user()
@@ -405,10 +405,10 @@ async fn test_get_user_returns_correct_primary_email_when_user_has_multiple_emai
 #[serial]
 async fn test_get_user_handles_user_with_no_primary_email() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Pre-create user without any emails
     let user = DbFixtures::user()
@@ -456,10 +456,10 @@ async fn test_get_user_handles_user_with_no_primary_email() {
 #[serial]
 async fn test_get_user_concurrent_requests_with_same_token() {
     // Setup test environment
-    let (_fixture, base_url, _client) = setup_test_server()
+    let (fixture, base_url, _client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Pre-create user and email
     let user = DbFixtures::user()
@@ -522,10 +522,10 @@ async fn test_get_user_concurrent_requests_with_same_token() {
 #[serial]
 async fn test_get_user_security_jwt_claims_validation() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Pre-create user
     let user = DbFixtures::user()

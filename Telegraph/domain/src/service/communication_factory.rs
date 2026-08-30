@@ -33,6 +33,11 @@ impl CommunicationFactory {
     }
 
     /// Build email communication from event context
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] when the descriptor is missing, email is not configured,
+    /// variables cannot be extracted, or template rendering fails.
     pub async fn build_email_communication(
         &self,
         event: &EventContext,
@@ -70,7 +75,7 @@ impl CommunicationFactory {
                 let final_subject = if email_desc.subject.is_empty() {
                     subject
                 } else {
-                    self.interpolate_string(&email_desc.subject, &variables)
+                    Self::interpolate_string(&email_desc.subject, &variables)
                 };
                 (final_subject, html_body, text_body)
             }
@@ -96,6 +101,11 @@ impl CommunicationFactory {
     }
 
     /// Build notification communication from event context
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] when the descriptor is missing, notification is not
+    /// configured, variables cannot be extracted, or template rendering fails.
     pub async fn build_notification_communication(
         &self,
         event: &EventContext,
@@ -133,7 +143,7 @@ impl CommunicationFactory {
                 let final_title = if notification_desc.title.is_empty() {
                     title
                 } else {
-                    self.interpolate_string(&notification_desc.title, &variables)
+                    Self::interpolate_string(&notification_desc.title, &variables)
                 };
                 (final_title, body, data)
             }
@@ -164,6 +174,10 @@ impl CommunicationFactory {
     }
 
     /// Build any communication based on the available descriptors
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] when the communication descriptor cannot be loaded.
     pub async fn build_communication(
         &self,
         event: &EventContext,
@@ -260,11 +274,7 @@ impl CommunicationFactory {
     }
 
     /// Simple string interpolation for descriptor fields
-    fn interpolate_string(
-        &self,
-        template_str: &str,
-        variables: &HashMap<String, String>,
-    ) -> String {
+    fn interpolate_string(template_str: &str, variables: &HashMap<String, String>) -> String {
         let mut result = template_str.to_string();
         for (key, value) in variables {
             let placeholder = format!("{{{key}}}");

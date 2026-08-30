@@ -62,6 +62,10 @@ pub enum TemplateContent {
 
 impl MessageTemplate {
     /// Create a new message template
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] when `mode` does not match `content`.
     pub fn new(
         name: String,
         mode: CommunicationMode,
@@ -112,6 +116,11 @@ impl MessageTemplate {
     }
 
     /// Render template with provided variables
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] when the template is inactive or placeholders remain
+    /// after interpolation.
     pub fn render(
         &self,
         variables: &HashMap<String, String>,
@@ -193,8 +202,8 @@ impl MessageTemplate {
         content: &TemplateContent,
     ) -> Result<(), DomainError> {
         match (mode, content) {
-            (CommunicationMode::Email, TemplateContent::Email { .. }) => Ok(()),
-            (CommunicationMode::Notification, TemplateContent::Notification { .. }) => Ok(()),
+            (CommunicationMode::Email, TemplateContent::Email { .. })
+            | (CommunicationMode::Notification, TemplateContent::Notification { .. }) => Ok(()),
             _ => Err(DomainError::invalid_message(format!(
                 "Communication mode {mode:?} does not match template content type"
             ))),

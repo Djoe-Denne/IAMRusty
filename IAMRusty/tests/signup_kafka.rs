@@ -16,7 +16,7 @@ use std::sync::Arc;
 // 🔥 Kafka Integration Test
 #[tokio::test]
 #[serial]
-#[ignore]
+#[ignore = "requires Kafka testcontainer"]
 async fn test_signup_kafka_integration() {
     // Setup Kafka testcontainer first (this sets environment variables)
     let kafka_fixture = TestKafkaFixture::new()
@@ -50,7 +50,7 @@ async fn test_signup_kafka_integration() {
         .expect("Failed to setup test server");
 
     // Wait a moment for server to be fully ready
-    tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
 
     // Verify Kafka configuration
     println!(

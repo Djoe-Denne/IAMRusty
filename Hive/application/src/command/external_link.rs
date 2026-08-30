@@ -75,8 +75,9 @@ pub struct ExternalLinkErrorMapper;
 
 impl CommandErrorMapper for ExternalLinkErrorMapper {
     fn map_error(&self, error: Box<dyn std::error::Error + Send + Sync>) -> CommandError {
-        if let Some(error) = error.downcast_ref::<ApplicationError>() {
-            match error {
+        error.downcast_ref::<ApplicationError>().map_or_else(
+            || CommandError::infrastructure("unknown_error", error.to_string()),
+            |error| match error {
                 ApplicationError::Domain(domain_error) => {
                     CommandError::business("domain_error", domain_error.to_string())
                 }
@@ -92,9 +93,7 @@ impl CommandErrorMapper for ExternalLinkErrorMapper {
                 ApplicationError::Internal { .. } => {
                     CommandError::infrastructure("internal_error", error.to_string())
                 }
-            }
-        } else {
-            CommandError::infrastructure("unknown_error", error.to_string())
-        }
+            },
+        )
     }
 }

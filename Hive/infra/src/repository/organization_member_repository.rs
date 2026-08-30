@@ -20,8 +20,13 @@ use super::entity::{organization_members, prelude::OrganizationMembers};
 pub struct OrganizationMemberMapper;
 
 impl OrganizationMemberMapper {
+    /// Maps a persisted organization-member row to the domain entity.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if `model.status` is not a recognized [`MemberStatus`].
     pub fn to_domain(
-        model: organization_members::Model,
+        model: &organization_members::Model,
     ) -> Result<OrganizationMember, DomainError> {
         let status = match model.status.to_lowercase().as_str() {
             "pending" => MemberStatus::Pending,
@@ -58,7 +63,7 @@ impl OrganizationMemberMapper {
         };
 
         organization_members::ActiveModel {
-            id: ActiveValue::Set(member.id.unwrap_or(Uuid::new_v4())),
+            id: ActiveValue::Set(member.id.unwrap_or_else(Uuid::new_v4)),
             organization_id: ActiveValue::Set(member.organization_id),
             user_id: ActiveValue::Set(member.user_id),
             status: ActiveValue::Set(status_str.to_string()),
@@ -99,7 +104,7 @@ impl OrganizationMemberReadRepositoryImpl {
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         match member {
-            Some(model) => Ok(Some(OrganizationMemberMapper::to_domain(model)?)),
+            Some(model) => Ok(Some(OrganizationMemberMapper::to_domain(&model)?)),
             None => Ok(None),
         }
     }
@@ -116,7 +121,7 @@ impl OrganizationMemberReadRepository for OrganizationMemberReadRepositoryImpl {
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         match member {
-            Some(model) => Ok(Some(OrganizationMemberMapper::to_domain(model)?)),
+            Some(model) => Ok(Some(OrganizationMemberMapper::to_domain(&model)?)),
             None => Ok(None),
         }
     }
@@ -131,8 +136,12 @@ impl OrganizationMemberReadRepository for OrganizationMemberReadRepositoryImpl {
             organization_id, user_id
         );
 
-        Self::find_by_organization_and_user_with_connection(self.db.as_ref(), organization_id, user_id)
-            .await
+        Self::find_by_organization_and_user_with_connection(
+            self.db.as_ref(),
+            organization_id,
+            user_id,
+        )
+        .await
     }
 
     async fn find_by_organization(
@@ -156,7 +165,7 @@ impl OrganizationMemberReadRepository for OrganizationMemberReadRepositoryImpl {
 
         let mut result = Vec::new();
         for model in members {
-            result.push(OrganizationMemberMapper::to_domain(model)?);
+            result.push(OrganizationMemberMapper::to_domain(&model)?);
         }
         Ok(result)
     }
@@ -173,7 +182,7 @@ impl OrganizationMemberReadRepository for OrganizationMemberReadRepositoryImpl {
 
         let mut result = Vec::new();
         for model in members {
-            result.push(OrganizationMemberMapper::to_domain(model)?);
+            result.push(OrganizationMemberMapper::to_domain(&model)?);
         }
         Ok(result)
     }
@@ -204,7 +213,7 @@ impl OrganizationMemberReadRepository for OrganizationMemberReadRepositoryImpl {
 
         let mut result = Vec::new();
         for model in members {
-            result.push(OrganizationMemberMapper::to_domain(model)?);
+            result.push(OrganizationMemberMapper::to_domain(&model)?);
         }
         Ok(result)
     }
@@ -218,7 +227,7 @@ impl OrganizationMemberReadRepository for OrganizationMemberReadRepositoryImpl {
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
-        Ok(count as i64)
+        i64::try_from(count).map_err(|e| DomainError::internal_error(&e.to_string()))
     }
 
     async fn count_active_by_organization(
@@ -237,7 +246,7 @@ impl OrganizationMemberReadRepository for OrganizationMemberReadRepositoryImpl {
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
-        Ok(count as i64)
+        i64::try_from(count).map_err(|e| DomainError::internal_error(&e.to_string()))
     }
 }
 
@@ -267,8 +276,8 @@ impl OrganizationMemberWriteRepositoryImpl {
                 .map_err(|e| DomainError::internal_error(&e.to_string()))?
                 .is_some();
 
+        let active_model = OrganizationMemberMapper::to_active_model(member);
         if exists {
-            let active_model = OrganizationMemberMapper::to_active_model(member);
             let result = active_model
                 .save(db)
                 .await
@@ -286,15 +295,14 @@ impl OrganizationMemberWriteRepositoryImpl {
                 updated_at: result.updated_at.unwrap(),
             };
 
-            OrganizationMemberMapper::to_domain(saved_model)
+            OrganizationMemberMapper::to_domain(&saved_model)
         } else {
-            let active_model = OrganizationMemberMapper::to_active_model(member);
             let result = active_model
                 .insert(db)
                 .await
                 .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
-            OrganizationMemberMapper::to_domain(result)
+            OrganizationMemberMapper::to_domain(&result)
         }
     }
 

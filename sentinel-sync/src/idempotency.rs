@@ -52,8 +52,7 @@ impl EventLedger for InMemoryEventLedger {
     }
 
     async fn complete(&self, event_id: Uuid) -> Result<()> {
-        let mut guard = self.completed.lock().unwrap();
-        guard.insert(event_id);
+        self.completed.lock().unwrap().insert(event_id);
         Ok(())
     }
 

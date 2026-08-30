@@ -1,6 +1,6 @@
 //! Common test utilities for Telegraph
 //!
-//! Provides test infrastructure following rustycog::testing patterns
+//! Provides test infrastructure following `rustycog::testing` patterns
 //! and Telegraph-specific test setup, including the real `OpenFGA`
 //! testcontainer every permission-gated route is routed through
 //! (mirrors `Manifesto/tests/common.rs`).
@@ -34,7 +34,7 @@ mod fixtures;
 use fixtures::smtp::testcontainer::TestSmtp;
 
 static mut APP: Option<TelegraphApp> = None;
-/// Telegraph test descriptor following rustycog::testing patterns
+/// Telegraph test descriptor following `rustycog::testing` patterns
 pub struct TelegraphTestDescriptor;
 
 #[async_trait]
@@ -46,7 +46,7 @@ impl ServiceTestDescriptor<TelegraphTestFixture> for TelegraphTestDescriptor {
         config: TelegraphConfig,
         _server_config: ServerConfig,
     ) -> anyhow::Result<()> {
-        let app = AppBuilder::new(config).build().await?;
+        let app = Box::pin(AppBuilder::new(config).build()).await?;
         unsafe {
             APP.replace(app);
         }
@@ -98,7 +98,7 @@ impl ServiceTestDescriptor<TelegraphTestFixture> for TelegraphTestDescriptor {
 }
 
 impl TelegraphTestDescriptor {
-    const fn has_smtp(&self) -> bool {
+    const fn has_smtp() -> bool {
         true
     }
 }
@@ -111,13 +111,17 @@ pub struct TelegraphTestFixture {
 
 impl TelegraphTestFixture {
     /// Create a new Telegraph test fixture with optional SMTP
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the shared test fixture or SMTP container fails to start.
     pub async fn new(
         descriptor: Arc<TelegraphTestDescriptor>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let fixture = TestFixture::new(descriptor).await?;
 
         // Initialize SMTP container if needed
-        let smtp = if TelegraphTestDescriptor.has_smtp() {
+        let smtp = if TelegraphTestDescriptor::has_smtp() {
             Some(TestSmtp::new().await?)
         } else {
             None
@@ -137,6 +141,10 @@ impl TelegraphTestFixture {
     }
 
     /// Get the SMTP container
+    ///
+    /// # Panics
+    ///
+    /// Panics if the SMTP container was not initialized.
     pub const fn smtp(&self) -> &std::sync::Arc<TestSmtp> {
         self.smtp.as_ref().expect("SMTP container not initialized")
     }
@@ -163,6 +171,14 @@ impl TelegraphTestFixture {
 ///
 /// The `OpenFGA` fixture is process-global, so tests must remain
 /// `#[serial]` to avoid tuple-state collisions.
+///
+/// # Errors
+///
+/// Returns an error if the test fixture, SMTP container, or HTTP server fails to start.
+///
+/// # Panics
+///
+/// Panics if clearing `MailHog` emails fails.
 pub async fn setup_test_server(
 ) -> Result<(TelegraphTestFixture, String, Client, TestOpenFga), Box<dyn std::error::Error>> {
     // Bring up the OpenFGA testcontainer + database first so the env
@@ -182,9 +198,9 @@ pub async fn setup_test_server(
     >(descriptor)
     .await?;
 
-    Ok((fixture, prefixed_url(server_url), client, openfga))
+    Ok((fixture, prefixed_url(&server_url), client, openfga))
 }
 
-fn prefixed_url(server_url: String) -> String {
+fn prefixed_url(server_url: &str) -> String {
     format!("{server_url}{SERVICE_PREFIX}")
 }

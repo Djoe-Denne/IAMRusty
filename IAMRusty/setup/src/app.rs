@@ -99,17 +99,22 @@ impl IAMRustyApp {
             dispatcher
                 .start()
                 .await
-                .map_err(|e| anyhow::anyhow!("IAMRusty outbox dispatcher failed: {}", e))
+                .map_err(|e| anyhow::anyhow!("IAMRusty outbox dispatcher failed: {e}"))
         })]
     }
 
     pub async fn stop_background_tasks(&self) {
         if let Err(e) = self.outbox_dispatcher.stop().await {
-            tracing::error!("Failed to stop IAMRusty outbox dispatcher: {}", e);
+            tracing::error!("Failed to stop IAMRusty outbox dispatcher: {e}");
         }
     }
 }
 
+/// Build IAM app state and serve HTTP until shutdown.
+///
+/// # Errors
+///
+/// Returns an error if app state cannot be built or the server fails.
 pub async fn build_and_run(
     config: AppConfig,
     server_config: ServerConfig,
@@ -119,6 +124,11 @@ pub async fn build_and_run(
     run_server(app_state, server_config).await
 }
 
+/// Build IAM app state, creating a queue publisher when none is injected.
+///
+/// # Errors
+///
+/// Returns an error if the queue publisher or downstream app state cannot be created.
 pub async fn build_app_state(
     config: AppConfig,
     maybe_event_publisher: Option<Arc<MultiQueueEventPublisher<DomainError>>>,
@@ -147,7 +157,11 @@ pub async fn build_app_state(
         .await
 }
 
-/// Build app state with a custom event publisher (useful for testing)
+/// Build app state with a custom event publisher (useful for testing).
+///
+/// # Errors
+///
+/// Returns an error if the database, JWT, command registry, or readiness wiring fails.
 pub async fn build_app_state_with_event_publisher<EP>(
     config: AppConfig,
     event_publisher: Arc<EP>,
@@ -237,18 +251,15 @@ where
     // verifies HS256, so RSA issuance is rejected here — before we build
     // token services that consumers could not verify.
     let http_verifier_auth = config.jwt.http_verifier_auth().map_err(|e| {
-        tracing::error!(
-            "JWT issuer is incompatible with rustycog-http verifier: {}",
-            e
-        );
+        tracing::error!("JWT issuer is incompatible with rustycog-http verifier: {e}");
         anyhow::anyhow!("JWT issuer is incompatible with rustycog-http verifier: {e}")
     })?;
 
     // Create token service with secret resolved from configuration
     tracing::info!("Setting up JWT token service");
     let jwt_algorithm_config = config.jwt.create_jwt_algorithm().map_err(|e| {
-        tracing::error!("Failed to create JWT algorithm from configuration: {}", e);
-        anyhow::anyhow!("Failed to create JWT algorithm from configuration: {}", e)
+        tracing::error!("Failed to create JWT algorithm from configuration: {e}");
+        anyhow::anyhow!("Failed to create JWT algorithm from configuration: {e}")
     })?;
     tracing::debug!("Successfully created JWT algorithm config");
 
@@ -452,7 +463,7 @@ where
     // Verifier secret comes from the issuer (`[jwt.secret]`), not a
     // second `[auth.jwt]` copy that can drift.
     let user_id_extractor = UserIdExtractor::new(http_verifier_auth)
-        .map_err(|e| anyhow::anyhow!("Invalid auth configuration: {}", e))?;
+        .map_err(|e| anyhow::anyhow!("Invalid auth configuration: {e}"))?;
 
     // IAM routes are never guarded by `with_permission_on` — IAM is the
     // identity provider, not a resource service — so we plug in an empty
@@ -471,6 +482,11 @@ where
     Ok(IAMRustyApp::new(app_state, outbox_dispatcher, readiness))
 }
 
+/// Serve IAM HTTP/HTTPS until a shutdown signal or a background task fails.
+///
+/// # Errors
+///
+/// Returns an error if the HTTP server or outbox dispatcher fails.
 pub async fn run_server(app: IAMRustyApp, app_config: ServerConfig) -> Result<()> {
     info!("Starting IAM service...");
 
@@ -510,14 +526,14 @@ pub async fn run_server(app: IAMRustyApp, app_config: ServerConfig) -> Result<()
             match result {
                 Ok(Ok(())) => Ok(()),
                 Ok(Err(error)) => Err(error),
-                Err(error) => Err(anyhow::anyhow!("IAMRusty outbox dispatcher task panicked: {}", error)),
+                Err(error) => Err(anyhow::anyhow!("IAMRusty outbox dispatcher task panicked: {error}")),
             }
         }
         result = &mut server_handle => {
             match result {
                 Ok(Ok(())) => Ok(()),
                 Ok(Err(error)) => Err(error),
-                Err(error) => Err(anyhow::anyhow!("IAMRusty HTTP server task panicked: {}", error)),
+                Err(error) => Err(anyhow::anyhow!("IAMRusty HTTP server task panicked: {error}")),
             }
         }
     };

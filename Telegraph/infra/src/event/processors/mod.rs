@@ -43,6 +43,7 @@ mod processor {
         }
 
         /// Add an event handler to the composite
+        #[must_use]
         pub fn add_handler(mut self, name: String, handler: Arc<dyn EventHandler>) -> Self {
             self.event_handlers.insert(name, handler);
             self
@@ -115,7 +116,9 @@ mod processor {
                 );
 
                 // Return the first error, but log all of them
-                return Err(errors.into_iter().next().unwrap());
+                if let Some(first) = errors.into_iter().next() {
+                    return Err(first);
+                }
             }
 
             if processed_count == 0 {
@@ -151,14 +154,15 @@ mod processor {
         }
 
         fn get_handlers_for_event(&self, event_type: &str) -> Vec<&dyn EventHandler> {
-            if let Some(handlers) = self.config.event_mapping.get(event_type) {
-                handlers
-                    .iter()
-                    .map(|handler| self.event_handlers.get(handler).unwrap().as_ref())
-                    .collect()
-            } else {
-                Vec::new()
-            }
+            self.config.event_mapping.get(event_type).map_or_else(
+                Vec::new,
+                |handlers| {
+                    handlers
+                        .iter()
+                        .map(|handler| self.event_handlers.get(handler).unwrap().as_ref())
+                        .collect()
+                },
+            )
         }
     }
 }

@@ -272,6 +272,10 @@ impl HasOpenFgaConfig for ManifestoConfig {
 }
 
 /// Load configuration from environment and config files
+///
+/// # Errors
+///
+/// Returns [`ConfigError`] when required files or environment values cannot be loaded.
 pub fn load_config() -> Result<ManifestoConfig, ConfigError> {
     load_config_fresh::<ManifestoConfig>()
 }

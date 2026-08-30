@@ -85,7 +85,12 @@ pub struct ResetPasswordResponse {
 }
 
 /// Request password reset - POST /auth/password/reset-request
-/// Always returns 200 to prevent user enumeration
+///
+/// Always returns 200 to prevent user enumeration.
+///
+/// # Errors
+///
+/// Returns [`AuthError`] when the reset-request command fails.
 pub async fn request_password_reset(
     State(state): State<AppState>,
     ValidatedJson(request): ValidatedJson<RequestPasswordResetRequest>,
@@ -119,6 +124,10 @@ pub async fn request_password_reset(
 }
 
 /// Validate reset token - POST /auth/password/reset-validate
+///
+/// # Errors
+///
+/// Returns [`AuthError`] when the token is invalid or the validate command fails.
 pub async fn validate_reset_token(
     State(state): State<AppState>,
     ValidatedJson(request): ValidatedJson<ValidateResetTokenRequest>,
@@ -149,6 +158,10 @@ pub async fn validate_reset_token(
 }
 
 /// Reset password unauthenticated - POST /auth/password/reset-confirm
+///
+/// # Errors
+///
+/// Returns [`AuthError`] when the token is invalid or the confirm command fails.
 pub async fn reset_password_unauthenticated(
     State(state): State<AppState>,
     ValidatedJson(request): ValidatedJson<ResetPasswordUnauthenticatedRequest>,
@@ -176,6 +189,11 @@ pub async fn reset_password_unauthenticated(
 }
 
 /// Reset password authenticated - POST /auth/password/reset-confirm (with JWT)
+///
+/// # Errors
+///
+/// Returns [`AuthError`] when the JWT is invalid, the current password is rejected,
+/// or the authenticated reset command fails.
 pub async fn reset_password_authenticated(
     State(state): State<AppState>,
     auth_user: AuthUser,

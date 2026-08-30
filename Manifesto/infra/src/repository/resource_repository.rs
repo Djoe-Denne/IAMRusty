@@ -19,6 +19,11 @@ pub fn component_resource_id(component_id: &Uuid) -> String {
 pub struct ResourceMapper;
 
 impl ResourceMapper {
+    /// Map a SeaORM resource row to the domain entity.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the persisted row cannot be mapped.
     pub fn to_domain(model: resources::Model) -> Result<Resource, DomainError> {
         Ok(Resource {
             name: model.name,
@@ -38,6 +43,11 @@ impl ResourceReadRepositoryImpl {
         Self { db }
     }
 
+    /// Load a resource by id using an existing connection.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the query fails or the row cannot be mapped.
     pub async fn find_by_id_with_connection<C>(
         db: &C,
         id: &str,

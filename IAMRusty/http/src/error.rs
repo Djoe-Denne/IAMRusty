@@ -456,13 +456,11 @@ impl IntoResponse for ApiError {
                 CommandError::Business { code, message } => {
                     (StatusCode::BAD_REQUEST, code, message)
                 }
-                CommandError::Infrastructure { code, message } => {
-                    (StatusCode::INTERNAL_SERVER_ERROR, code, message)
-                }
                 CommandError::Timeout { code, message } => {
                     (StatusCode::REQUEST_TIMEOUT, code, message)
                 }
-                CommandError::RetryExhausted { code, message } => {
+                CommandError::Infrastructure { code, message }
+                | CommandError::RetryExhausted { code, message } => {
                     (StatusCode::INTERNAL_SERVER_ERROR, code, message)
                 }
             },
@@ -895,19 +893,14 @@ impl AuthError {
     #[must_use]
     pub fn signup_failed(command_error: &CommandError) -> Self {
         match command_error {
-            CommandError::Validation { code, message } => Self::OAuth {
-                operation: "signup".to_string(),
-                error_code: code.clone(),
-                message: message.clone(),
-                status: StatusCode::BAD_REQUEST,
-            },
             CommandError::Business { code, .. } if code == "user_already_exists" => Self::OAuth {
                 operation: "signup".to_string(),
                 error_code: code.clone(),
                 message: "User with this email already exists".to_string(),
                 status: StatusCode::CONFLICT,
             },
-            CommandError::Business { code, message } => Self::OAuth {
+            CommandError::Validation { code, message }
+            | CommandError::Business { code, message } => Self::OAuth {
                 operation: "signup".to_string(),
                 error_code: code.clone(),
                 message: message.clone(),
@@ -997,13 +990,8 @@ impl AuthError {
                     status: StatusCode::BAD_REQUEST,
                 }
             }
-            CommandError::Validation { code, message } => Self::OAuth {
-                operation: "verify".to_string(),
-                error_code: code.clone(),
-                message: message.clone(),
-                status: StatusCode::BAD_REQUEST,
-            },
-            CommandError::Business { code, message } => Self::OAuth {
+            CommandError::Validation { code, message }
+            | CommandError::Business { code, message } => Self::OAuth {
                 operation: "verify".to_string(),
                 error_code: code.clone(),
                 message: message.clone(),
@@ -1111,13 +1099,8 @@ impl AuthError {
                 message: "Invalid username format".to_string(),
                 status: StatusCode::UNPROCESSABLE_ENTITY,
             },
-            CommandError::Validation { code, message } => Self::OAuth {
-                operation: "complete_registration".to_string(),
-                error_code: code.clone(),
-                message: message.clone(),
-                status: StatusCode::BAD_REQUEST,
-            },
-            CommandError::Business { code, message } => Self::OAuth {
+            CommandError::Validation { code, message }
+            | CommandError::Business { code, message } => Self::OAuth {
                 operation: "complete_registration".to_string(),
                 error_code: code.clone(),
                 message: message.clone(),

@@ -149,7 +149,7 @@ impl OrganizationUseCaseImpl {
     }
 
     /// Convert domain Organization to response DTO
-    fn organization_to_response(&self, org: &Organization) -> OrganizationResponse {
+    fn organization_to_response(org: &Organization) -> OrganizationResponse {
         OrganizationResponse {
             id: org.id,
             name: org.name.clone(),
@@ -292,7 +292,7 @@ impl OrganizationUseCase for OrganizationUseCaseImpl {
             saved_org
         };
 
-        Ok(self.organization_to_response(&saved_org))
+        Ok(Self::organization_to_response(&saved_org))
     }
 
     async fn get_organization(
@@ -306,7 +306,7 @@ impl OrganizationUseCase for OrganizationUseCaseImpl {
             .await
             .map_err(ApplicationError::Domain)?;
 
-        Ok(self.organization_to_response(&organization))
+        Ok(Self::organization_to_response(&organization))
     }
 
     async fn update_organization(
@@ -354,7 +354,7 @@ impl OrganizationUseCase for OrganizationUseCaseImpl {
             updated_organization
         };
 
-        Ok(self.organization_to_response(&updated_organization))
+        Ok(Self::organization_to_response(&updated_organization))
     }
 
     async fn delete_organization(
@@ -411,30 +411,19 @@ impl OrganizationUseCase for OrganizationUseCaseImpl {
             .await
             .map_err(ApplicationError::Domain)?;
 
-        let total_count = organizations.len() as i64;
-        let total_pages = (total_count as f64 / f64::from(pagination.page_size())).ceil() as u32;
-        let pagination_response = PaginationResponse {
-            current_page: pagination.page(),
-            total_items: Some(total_count),
-            has_next: total_pages > pagination.page(),
-            has_previous: pagination.page() > 1,
-            next_cursor: if total_pages > pagination.page() {
-                Some((pagination.page() + 1).to_string())
-            } else {
-                None
-            },
-            previous_cursor: if pagination.page() > 1 {
-                Some((pagination.page() - 1).to_string())
-            } else {
-                None
-            },
-            page_size: pagination.page_size(),
-            total_pages: Some(total_pages),
-        };
+        let total_count = i64::try_from(organizations.len()).unwrap_or(i64::MAX);
+        let page = pagination.page();
+        let mut pagination_response = PaginationResponse::new(page, pagination.page_size(), Some(total_count));
+        if pagination_response.has_next {
+            pagination_response.next_cursor = Some((page + 1).to_string());
+        }
+        if pagination_response.has_previous {
+            pagination_response.previous_cursor = Some((page - 1).to_string());
+        }
 
         let organizations: Vec<OrganizationResponse> = organizations
             .iter()
-            .map(|org| self.organization_to_response(org))
+            .map(|org| Self::organization_to_response(org))
             .collect();
 
         Ok(OrganizationListResponse {
@@ -459,30 +448,19 @@ impl OrganizationUseCase for OrganizationUseCaseImpl {
             .await
             .map_err(ApplicationError::Domain)?;
 
-        let total_count = organizations.len() as i64;
-        let total_pages =
-            (total_count as f64 / f64::from(request.page_size.unwrap_or(10))).ceil() as u32;
-        let pagination_response = PaginationResponse {
-            current_page: request.page.unwrap_or(1),
-            total_items: Some(total_count),
-            has_next: total_pages > request.page.unwrap_or(1),
-            has_previous: request.page.unwrap_or(1) > 1,
-            next_cursor: if total_pages > request.page.unwrap_or(1) {
-                Some((request.page.unwrap_or(1) + 1).to_string())
-            } else {
-                None
-            },
-            previous_cursor: if request.page.unwrap_or(1) > 1 {
-                Some((request.page.unwrap_or(1) - 1).to_string())
-            } else {
-                None
-            },
-            page_size: request.page_size.unwrap_or(10),
-            total_pages: Some(total_pages),
-        };
+        let total_count = i64::try_from(organizations.len()).unwrap_or(i64::MAX);
+        let page = request.page.unwrap_or(1);
+        let mut pagination_response =
+            PaginationResponse::new(page, request.page_size.unwrap_or(10), Some(total_count));
+        if pagination_response.has_next {
+            pagination_response.next_cursor = Some((page + 1).to_string());
+        }
+        if pagination_response.has_previous {
+            pagination_response.previous_cursor = Some((page - 1).to_string());
+        }
         let organizations: Vec<OrganizationResponse> = organizations
             .iter()
-            .map(|org| self.organization_to_response(org))
+            .map(|org| Self::organization_to_response(org))
             .collect();
 
         Ok(OrganizationListResponse {

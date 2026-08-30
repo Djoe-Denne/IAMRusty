@@ -24,7 +24,11 @@ pub struct EventConsumer {
 }
 
 impl EventConsumer {
-    /// Create a new event consumer from configuration with command service
+    /// Create a new event consumer from configuration with command service.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`telegraph_domain::DomainError`] if the queue consumer cannot be created.
     pub async fn new(
         config: TelegraphConfig,
         command_service: Arc<GenericCommandService>,
@@ -70,7 +74,11 @@ impl EventConsumer {
         self.inner_consumer.clone()
     }
 
-    /// Start consuming events from queues
+    /// Start consuming events from queues.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`telegraph_domain::DomainError`] if the underlying consumer fails to start.
     pub async fn start(&self) -> Result<(), telegraph_domain::DomainError> {
         info!("Starting Telegraph event consumer with command service");
 
@@ -93,7 +101,11 @@ impl EventConsumer {
         Ok(())
     }
 
-    /// Stop the event consumer
+    /// Stop the event consumer.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`telegraph_domain::DomainError`] if the underlying consumer fails to stop.
     pub async fn stop(&self) -> Result<(), telegraph_domain::DomainError> {
         info!("Stopping Telegraph event consumer");
 
@@ -106,7 +118,11 @@ impl EventConsumer {
         Ok(())
     }
 
-    /// Health check for the event consumer
+    /// Health check for the event consumer.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`telegraph_domain::DomainError`] if the underlying consumer health check fails.
     pub async fn health_check(&self) -> Result<(), telegraph_domain::DomainError> {
         self.inner_consumer.health_check().await.map_err(|e| {
             telegraph_domain::DomainError::InfrastructureError(format!(

@@ -38,7 +38,7 @@ impl SyncEventHandler {
         for translator in &self.translators {
             match translator.translate(raw_event) {
                 Ok(Some(delta)) => return Some((delta, translator.name())),
-                Ok(None) => continue,
+                Ok(None) => {}
                 Err(e) => warn!(translator = translator.name(), error = %e, "translator error"),
             }
         }

@@ -61,10 +61,10 @@ fn parse_redirect_url(
 #[serial]
 async fn test_oauth_provider_already_linked_to_same_user() {
     // Setup
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Pre-create user with GitHub provider already linked
     let existing_user = DbFixtures::user()
@@ -112,10 +112,10 @@ async fn test_oauth_provider_already_linked_to_same_user() {
 #[serial]
 async fn test_oauth_provider_linked_to_different_user_returns_409() {
     // Setup
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Pre-create first user with GitHub linked
     let first_user = DbFixtures::user()
@@ -495,7 +495,7 @@ async fn test_same_email_signup_after_incomplete_registration() {
 #[serial]
 async fn test_no_duplicate_user_records_created_on_retry() {
     // Setup
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
 
@@ -518,7 +518,7 @@ async fn test_no_duplicate_user_records_created_on_retry() {
     }
 
     // Verify only one user record exists
-    let db = _fixture.db();
+    let db = fixture.db();
     let user_count = db
         .query_one(sea_orm::Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
@@ -659,10 +659,10 @@ async fn test_user_signed_up_triggered_only_at_registration_completion() {
 #[serial]
 async fn test_user_signed_up_triggered_when_existing_user_adds_password() {
     // Setup
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Pre-create user with OAuth (completed registration)
     let existing_user = DbFixtures::user()

@@ -214,7 +214,7 @@ async fn test_signup_missing_required_fields() {
 #[serial]
 async fn test_login_unverified_email_fails() {
     // Setup test server and database
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
 
@@ -227,7 +227,7 @@ async fn test_login_unverified_email_fails() {
     let user = DbFixtures::user()
         .username("unverifieduser")
         .password_hash(hashed_password)
-        .commit(_fixture.db())
+        .commit(fixture.db())
         .await
         .expect("Failed to create user");
 
@@ -236,7 +236,7 @@ async fn test_login_unverified_email_fails() {
         .email("unverified@example.com")
         .is_primary(true)
         .is_verified(false) // Not verified
-        .commit(_fixture.db())
+        .commit(fixture.db())
         .await
         .expect("Failed to create user email");
 
@@ -276,7 +276,7 @@ async fn test_login_unverified_email_fails() {
 #[serial]
 async fn test_login_invalid_credentials() {
     // Setup test server and database
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
 
@@ -289,7 +289,7 @@ async fn test_login_invalid_credentials() {
     let user = DbFixtures::user()
         .username("testuser")
         .password_hash(hashed_password)
-        .commit(_fixture.db())
+        .commit(fixture.db())
         .await
         .expect("Failed to create user");
 
@@ -298,7 +298,7 @@ async fn test_login_invalid_credentials() {
         .email("test@example.com")
         .is_primary(true)
         .is_verified(true)
-        .commit(_fixture.db())
+        .commit(fixture.db())
         .await
         .expect("Failed to create user email");
 
@@ -394,10 +394,10 @@ async fn test_login_missing_required_fields() {
 #[serial]
 async fn test_verify_email_success() {
     // Setup test server and database
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Create user with unverified email
     let user = DbFixtures::user()
@@ -499,10 +499,10 @@ async fn test_verify_email_success() {
 #[serial]
 async fn test_verify_email_invalid_token() {
     // Setup test server and database
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Create user with unverified email
     let user = DbFixtures::user()
@@ -568,10 +568,10 @@ async fn test_verify_email_invalid_token() {
 #[serial]
 async fn test_verify_email_expired_token() {
     // Setup test server and database
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Create user with unverified email
     let user = DbFixtures::user()
@@ -674,10 +674,10 @@ async fn test_verify_email_nonexistent_email() {
 #[serial]
 async fn test_verify_email_already_verified() {
     // Setup test server and database
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Create user with already verified email
     let user = DbFixtures::user()

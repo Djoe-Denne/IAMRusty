@@ -14,7 +14,7 @@ use rustycog::permission::ResourceId;
 
 use crate::error::HttpError;
 
-fn error_mapper(error: CommandError) -> HttpError {
+fn error_mapper(error: &CommandError) -> HttpError {
     match error {
         CommandError::Validation { .. } => HttpError::Validation {
             message: error.to_string(),
@@ -28,13 +28,9 @@ fn error_mapper(error: CommandError) -> HttpError {
                 }
             }
         }
-        CommandError::Infrastructure { .. } => HttpError::Internal {
-            message: error.to_string(),
-        },
-        CommandError::RetryExhausted { .. } => HttpError::Internal {
-            message: error.to_string(),
-        },
-        _ => HttpError::Internal {
+        CommandError::Infrastructure { .. }
+        | CommandError::RetryExhausted { .. }
+        | _ => HttpError::Internal {
             message: error.to_string(),
         },
     }
@@ -42,6 +38,10 @@ fn error_mapper(error: CommandError) -> HttpError {
 
 /// Create a new organization
 /// POST /api/organizations
+///
+/// # Errors
+///
+/// Returns [`HttpError`] if the organization cannot be created.
 pub async fn create_organization(
     State(state): State<AppState>,
     auth_user: AuthUser,
@@ -56,13 +56,17 @@ pub async fn create_organization(
         .command_service
         .execute(command, context)
         .await
-        .map_err(error_mapper)?;
+        .map_err(|e| error_mapper(&e))?;
 
     Ok(Json(result))
 }
 
 /// Get an organization by ID
 /// GET /`api/organizations/{organization_id`}
+///
+/// # Errors
+///
+/// Returns [`HttpError`] if the organization cannot be loaded.
 pub async fn get_organization(
     State(state): State<AppState>,
     Path(organization_id): Path<ResourceId>,
@@ -82,13 +86,17 @@ pub async fn get_organization(
         .command_service
         .execute(command, context)
         .await
-        .map_err(error_mapper)?;
+        .map_err(|e| error_mapper(&e))?;
 
     Ok(Json(result))
 }
 
 /// Update an organization
 /// PUT /`api/organizations/{organization_id`}
+///
+/// # Errors
+///
+/// Returns [`HttpError`] if the organization cannot be updated.
 pub async fn update_organization(
     State(state): State<AppState>,
     Path(organization_id): Path<ResourceId>,
@@ -104,13 +112,17 @@ pub async fn update_organization(
         .command_service
         .execute(command, context)
         .await
-        .map_err(error_mapper)?;
+        .map_err(|e| error_mapper(&e))?;
 
     Ok(Json(result))
 }
 
 /// Delete an organization
 /// DELETE /`api/organizations/{organization_id`}
+///
+/// # Errors
+///
+/// Returns [`HttpError`] if the organization cannot be deleted.
 pub async fn delete_organization(
     State(state): State<AppState>,
     Path(organization_id): Path<ResourceId>,
@@ -125,13 +137,17 @@ pub async fn delete_organization(
         .command_service
         .execute(command, context)
         .await
-        .map_err(error_mapper)?;
+        .map_err(|e| error_mapper(&e))?;
 
     Ok(Json(()))
 }
 
 /// List organizations for the current user
 /// GET /api/organizations
+///
+/// # Errors
+///
+/// Returns [`HttpError`] if the organizations cannot be listed.
 pub async fn list_organizations(
     State(state): State<AppState>,
     auth_user: AuthUser,
@@ -150,13 +166,17 @@ pub async fn list_organizations(
         .command_service
         .execute(command, context)
         .await
-        .map_err(error_mapper)?;
+        .map_err(|e| error_mapper(&e))?;
 
     Ok(Json(result))
 }
 
 /// Search organizations
 /// GET /api/organizations/search
+///
+/// # Errors
+///
+/// Returns [`HttpError`] if the search fails.
 pub async fn search_organizations(
     State(state): State<AppState>,
     auth_user: OptionalAuthUser,
@@ -176,7 +196,7 @@ pub async fn search_organizations(
         .command_service
         .execute(command, context)
         .await
-        .map_err(error_mapper)?;
+        .map_err(|e| error_mapper(&e))?;
 
     Ok(Json(result))
 }

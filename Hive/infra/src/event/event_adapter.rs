@@ -15,6 +15,7 @@ use readiness::{
     classify_publisher, create_signaled_multi_queue_event_publisher, signal_queue_status, QueueRole,
 };
 use std::collections::HashSet;
+use std::hash::BuildHasher;
 use std::sync::Arc;
 
 /// Hive-specific error mapper implementation
@@ -89,6 +90,10 @@ impl ErrorMapper<DomainError> for HiveErrorMapper {
 }
 
 /// Factory function to create an event publisher with queue config for Hive domain layer
+///
+/// # Errors
+///
+/// Returns [`DomainError`] if the publisher cannot be created from the queue config.
 pub async fn create_event_publisher_with_queue_config(
     config: &QueueConfig,
 ) -> Result<Arc<ConcreteEventPublisher>, DomainError> {
@@ -121,10 +126,15 @@ pub async fn create_event_publisher_with_queue_config(
 /// specific_queues.insert("invitation-events".to_string());
 /// let publisher = create_multi_queue_event_publisher_async(&config, Some(specific_queues)).await?;
 /// ```
-pub async fn create_multi_queue_event_publisher_async(
+///
+/// # Errors
+///
+/// Returns [`DomainError`] if the multi-queue publisher cannot be created.
+pub async fn create_multi_queue_event_publisher_async<S: BuildHasher>(
     config: &QueueConfig,
-    queue_names: Option<HashSet<String>>,
+    queue_names: Option<HashSet<String, S>>,
 ) -> Result<Arc<MultiQueueEventPublisher<DomainError>>, DomainError> {
+    let queue_names = queue_names.map(|names| names.into_iter().collect());
     let signaled = create_signaled_multi_queue_event_publisher(
         "hive",
         config,

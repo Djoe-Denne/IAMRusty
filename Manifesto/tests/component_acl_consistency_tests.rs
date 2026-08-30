@@ -185,12 +185,14 @@ impl ComponentService for MockComponentService {
         &self,
         component: ProjectComponent,
     ) -> Result<ProjectComponent, DomainError> {
-        let mut state = self
-            .state
-            .lock()
-            .expect("component state mutex should not be poisoned");
-        state.add_calls += 1;
-        state.current = Some(component.clone());
+        {
+            let mut state = self
+                .state
+                .lock()
+                .expect("component state mutex should not be poisoned");
+            state.add_calls += 1;
+            state.current = Some(component.clone());
+        }
         Ok(component)
     }
 
@@ -198,29 +200,37 @@ impl ComponentService for MockComponentService {
         &self,
         component: ProjectComponent,
     ) -> Result<ProjectComponent, DomainError> {
-        let mut state = self
-            .state
-            .lock()
-            .expect("component state mutex should not be poisoned");
-        state.current = Some(component.clone());
+        {
+            let mut state = self
+                .state
+                .lock()
+                .expect("component state mutex should not be poisoned");
+            state.current = Some(component.clone());
+        }
         Ok(component)
     }
 
     async fn remove_component(&self, id: &Uuid) -> Result<(), DomainError> {
-        let mut state = self
-            .state
-            .lock()
-            .expect("component state mutex should not be poisoned");
-        state.remove_calls += 1;
-        match &state.current {
-            Some(component) if &component.id == id => {
+        let removed = {
+            let mut state = self
+                .state
+                .lock()
+                .expect("component state mutex should not be poisoned");
+            state.remove_calls += 1;
+            if state.current.as_ref().is_some_and(|c| &c.id == id) {
                 state.current = None;
-                Ok(())
+                true
+            } else {
+                false
             }
-            _ => Err(DomainError::entity_not_found(
+        };
+        if removed {
+            Ok(())
+        } else {
+            Err(DomainError::entity_not_found(
                 "ProjectComponent",
                 &id.to_string(),
-            )),
+            ))
         }
     }
 
@@ -265,7 +275,7 @@ struct MockPermissionService {
 }
 
 impl MockPermissionService {
-    fn with_create_instance_error(error: DomainError) -> Self {
+    fn with_create_instance_error(error: &DomainError) -> Self {
         Self {
             state: Arc::new(Mutex::new(PermissionState::default())),
             create_instance_error: Some(error.to_string()),
@@ -273,7 +283,7 @@ impl MockPermissionService {
         }
     }
 
-    fn with_delete_instance_error(error: DomainError) -> Self {
+    fn with_delete_instance_error(error: &DomainError) -> Self {
         Self {
             state: Arc::new(Mutex::new(PermissionState::default())),
             create_instance_error: None,
@@ -332,30 +342,33 @@ impl PermissionService for MockPermissionService {
         &self,
         component_id: &Uuid,
     ) -> Result<Resource, DomainError> {
-        let mut state = self
-            .state
-            .lock()
-            .expect("permission state mutex should not be poisoned");
-        state.create_instance_calls += 1;
-        match &self.create_instance_error {
-            Some(message) => Err(DomainError::internal_error(message)),
-            None => Ok(Resource::from(component_id.to_string())),
+        {
+            let mut state = self
+                .state
+                .lock()
+                .expect("permission state mutex should not be poisoned");
+            state.create_instance_calls += 1;
         }
+        self.create_instance_error.as_ref().map_or_else(
+            || Ok(Resource::from(component_id.to_string())),
+            |message| Err(DomainError::internal_error(message)),
+        )
     }
 
     async fn delete_component_instance_resource(
         &self,
         _component_id: &Uuid,
     ) -> Result<(), DomainError> {
-        let mut state = self
-            .state
-            .lock()
-            .expect("permission state mutex should not be poisoned");
-        state.delete_instance_calls += 1;
-        match &self.delete_instance_error {
-            Some(message) => Err(DomainError::internal_error(message)),
-            None => Ok(()),
+        {
+            let mut state = self
+                .state
+                .lock()
+                .expect("permission state mutex should not be poisoned");
+            state.delete_instance_calls += 1;
         }
+        self.delete_instance_error
+            .as_ref()
+            .map_or(Ok(()), |message| Err(DomainError::internal_error(message)))
     }
 
     async fn delete_resource(&self, _resource_id: &str) -> Result<(), DomainError> {
@@ -436,20 +449,24 @@ impl RecordingEventPublisher {
 #[async_trait]
 impl EventPublisher<DomainError> for RecordingEventPublisher {
     async fn publish(&self, _event: &dyn DomainEvent) -> Result<(), DomainError> {
-        let mut state = self
-            .state
-            .lock()
-            .expect("publisher state mutex should not be poisoned");
-        state.publish_calls += 1;
+        {
+            let mut state = self
+                .state
+                .lock()
+                .expect("publisher state mutex should not be poisoned");
+            state.publish_calls += 1;
+        }
         Ok(())
     }
 
     async fn publish_batch(&self, events: &[Box<dyn DomainEvent>]) -> Result<(), DomainError> {
-        let mut state = self
-            .state
-            .lock()
-            .expect("publisher state mutex should not be poisoned");
-        state.publish_calls += events.len();
+        {
+            let mut state = self
+                .state
+                .lock()
+                .expect("publisher state mutex should not be poisoned");
+            state.publish_calls += events.len();
+        }
         Ok(())
     }
 
@@ -463,7 +480,7 @@ async fn add_component_fails_before_persisting_when_instance_acl_creation_fails(
     let project = build_project();
     let component_service = Arc::new(MockComponentService::empty());
     let permission_service = Arc::new(MockPermissionService::with_create_instance_error(
-        DomainError::internal_error("acl create failed"),
+        &DomainError::internal_error("acl create failed"),
     ));
     let event_publisher = Arc::new(RecordingEventPublisher::default());
     let usecase = ComponentUseCaseImpl::new(
@@ -513,7 +530,7 @@ async fn remove_component_restores_component_when_instance_acl_deletion_fails() 
         existing_component.clone(),
     ));
     let permission_service = Arc::new(MockPermissionService::with_delete_instance_error(
-        DomainError::internal_error("acl delete failed"),
+        &DomainError::internal_error("acl delete failed"),
     ));
     let event_publisher = Arc::new(RecordingEventPublisher::default());
     let usecase = ComponentUseCaseImpl::new(

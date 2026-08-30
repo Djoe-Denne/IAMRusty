@@ -1,6 +1,6 @@
 //! Common test utilities for Manifesto
 //!
-//! Provides test infrastructure following rustycog::testing patterns
+//! Provides test infrastructure following `rustycog::testing` patterns
 //! and Manifesto-specific test setup, including the real `OpenFGA`
 //! testcontainer every permission-touching test routes through.
 
@@ -119,6 +119,10 @@ impl ServiceTestDescriptor<TestFixture> for ManifestoTestDescriptor {
 /// boots **after** that so its `OpenFgaPermissionChecker` resolves the
 /// fixture's URL / store id / model id instead of the `test.toml`
 /// placeholders.
+///
+/// # Errors
+///
+/// Returns an error if the test fixture, component-catalog fake, or HTTP server fails to start.
 pub async fn setup_test_server() -> Result<
     (
         TestFixture,
@@ -146,13 +150,13 @@ pub async fn setup_test_server() -> Result<
             .await?;
     Ok((
         fixture,
-        prefixed_url(server_url),
+        prefixed_url(&server_url),
         client,
         openfga,
         components,
     ))
 }
 
-fn prefixed_url(server_url: String) -> String {
+fn prefixed_url(server_url: &str) -> String {
     format!("{server_url}{SERVICE_PREFIX}")
 }

@@ -144,8 +144,11 @@ async fn test_registration_token_is_valid_rsa_signed_jwt() {
         registration_token.starts_with("eyJ"),
         "Should be a valid JWT"
     );
-    let parts: Vec<&str> = registration_token.split('.').collect();
-    assert_eq!(parts.len(), 3, "JWT should have 3 parts");
+    assert_eq!(
+        registration_token.split('.').count(),
+        3,
+        "JWT should have 3 parts"
+    );
 
     // Decode and verify payload
     let payload = decode_jwt_payload(registration_token).expect("Should decode JWT payload");
@@ -192,7 +195,7 @@ async fn test_no_user_signed_up_event_triggered_at_signup() {
 #[serial]
 async fn test_user_record_created_with_null_username_pending_status() {
     // Setup
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
 
@@ -217,7 +220,7 @@ async fn test_user_record_created_with_null_username_pending_status() {
     let user_id = response_body["user"]["id"].as_str().unwrap();
 
     // Verify database state
-    let db = _fixture.db();
+    let db = fixture.db();
     let user_record = db
         .query_one(sea_orm::Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
@@ -245,10 +248,10 @@ async fn test_user_record_created_with_null_username_pending_status() {
 #[serial]
 async fn test_existing_user_signup_returns_200_with_tokens() {
     // Setup
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Pre-create user with OAuth (completed registration)
     let existing_user = DbFixtures::user()
@@ -322,10 +325,10 @@ async fn test_existing_user_signup_returns_200_with_tokens() {
 #[serial]
 async fn test_password_auth_method_added_to_existing_user() {
     // Setup
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Pre-create user with OAuth (no password auth)
     let existing_user = DbFixtures::user()
@@ -386,10 +389,10 @@ async fn test_password_auth_method_added_to_existing_user() {
 #[serial]
 async fn test_login_completed_user_returns_200_with_tokens() {
     // Setup
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Hash the password using the password service
     let password_service = Arc::new(iam_infra::auth::PasswordService::new());
@@ -467,10 +470,10 @@ async fn test_login_completed_user_returns_200_with_tokens() {
 #[serial]
 async fn test_login_incomplete_user_returns_423_with_registration_token() {
     // Setup
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Hash the password using the password service
     let password_service = Arc::new(iam_infra::auth::PasswordService::new());
@@ -537,10 +540,10 @@ async fn test_login_incomplete_user_returns_423_with_registration_token() {
 #[serial]
 async fn test_login_invalid_credentials_returns_401() {
     // Setup
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Hash the password using the password service
     let password_service = Arc::new(iam_infra::auth::PasswordService::new());
@@ -990,10 +993,10 @@ async fn test_complete_registration_invalidates_token_after_use() {
 #[serial]
 async fn test_complete_registration_taken_username_returns_409() {
     // Setup
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Pre-create user with taken username
     let _existing_user = DbFixtures::user()
@@ -1143,10 +1146,10 @@ async fn test_username_check_available_username_returns_true() {
 #[serial]
 async fn test_username_check_taken_username_returns_false_with_suggestions() {
     // Setup
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Pre-create user with taken username
     let _existing_user = DbFixtures::user()
@@ -1266,10 +1269,10 @@ async fn test_username_validation_rules() {
 #[serial]
 async fn test_complete_email_first_flow() {
     // Setup
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Step 1: Email signup
     let signup_data = json!({
@@ -1410,10 +1413,10 @@ async fn test_complete_email_first_flow() {
 #[serial]
 async fn test_complete_oauth_first_flow() {
     // Setup
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Setup GitHub mock
     let github = GitHubFixtures::service().await;

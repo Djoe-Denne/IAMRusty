@@ -28,7 +28,12 @@ impl Project {
         ProjectBuilder::default()
     }
 
-    /// Validate the project
+    /// Validate the project.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the name is empty, the name exceeds 255 characters,
+    /// or the description exceeds 1000 characters.
     pub fn validate(&self) -> Result<(), DomainError> {
         if self.name.trim().is_empty() {
             return Err(DomainError::invalid_input("Project name cannot be empty"));
@@ -51,7 +56,12 @@ impl Project {
         Ok(())
     }
 
-    /// Transition the project to a new status
+    /// Transition the project to a new status.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the transition from the current status to `new_status`
+    /// is not allowed.
     pub fn transition_status(&mut self, new_status: ProjectStatus) -> Result<(), DomainError> {
         let transitioned = self.status.transition_to(new_status)?;
         self.status = transitioned;
@@ -77,7 +87,12 @@ impl Project {
         self.visibility.is_public()
     }
 
-    /// Update project metadata
+    /// Update project metadata.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the new name is empty, the new name exceeds 255 characters,
+    /// or the new description exceeds 1000 characters.
     pub fn update_metadata(
         &mut self,
         name: Option<String>,
@@ -202,6 +217,12 @@ impl ProjectBuilder {
         self
     }
 
+    /// Build a [`Project`] from the configured fields.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if `name`, `owner_type`, `owner_id`, or `created_by` is missing,
+    /// or if the built project fails validation.
     pub fn build(self) -> Result<Project, DomainError> {
         let now = Utc::now();
 

@@ -20,8 +20,12 @@ pub struct HttpExternalProviderClient {
 
 impl HttpExternalProviderClient {
     /// Create a new HTTP client for external provider service
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the HTTP client cannot be built.
     pub fn new(
-        base_url: String,
+        base_url: impl AsRef<str>,
         api_key: Option<String>,
         timeout_seconds: u64,
         _max_retries: u32,
@@ -35,13 +39,17 @@ impl HttpExternalProviderClient {
             })?;
 
         Ok(Self {
-            base_url: base_url.trim_end_matches('/').to_string(),
+            base_url: base_url.as_ref().trim_end_matches('/').to_string(),
             api_key,
             client,
         })
     }
 
     /// Create a new HTTP client from configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the HTTP client cannot be built from `config`.
     pub fn from_config(config: &ExternalProviderServiceConfig) -> Result<Self, DomainError> {
         Self::new(
             config.base_url.clone(),

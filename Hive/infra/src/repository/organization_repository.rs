@@ -199,7 +199,7 @@ impl OrganizationReadRepository for OrganizationReadRepositoryImpl {
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
-        Ok(count as i64)
+        i64::try_from(count).map_err(|e| DomainError::internal_error(&e.to_string()))
     }
 }
 
@@ -241,8 +241,8 @@ impl OrganizationWriteRepositoryImpl {
             .map_err(|e| DomainError::internal_error(&e.to_string()))?
             .is_some();
 
+        let active_model = OrganizationMapper::to_active_model(organization);
         if exists {
-            let active_model = OrganizationMapper::to_active_model(organization);
             let result = active_model
                 .save(db)
                 .await
@@ -259,15 +259,14 @@ impl OrganizationWriteRepositoryImpl {
                 created_at: result.created_at.unwrap(),
                 updated_at: result.updated_at.unwrap(),
             };
-            Ok(OrganizationMapper::to_domain(saved_model))
-        } else {
-            let active_model = OrganizationMapper::to_active_model(organization);
-            let inserted = active_model
-                .insert(db)
-                .await
-                .map_err(|e| DomainError::internal_error(&e.to_string()))?;
-            Ok(OrganizationMapper::to_domain(inserted))
+            return Ok(OrganizationMapper::to_domain(saved_model));
         }
+
+        let inserted = active_model
+            .insert(db)
+            .await
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
+        Ok(OrganizationMapper::to_domain(inserted))
     }
 
     pub async fn delete_by_id_with_connection<C>(db: &C, id: &Uuid) -> Result<(), DomainError>

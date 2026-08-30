@@ -428,17 +428,28 @@ pub struct PasswordResetErrorMapper;
 
 impl CommandErrorMapper for PasswordResetErrorMapper {
     fn map_error(&self, error: Box<dyn std::error::Error + Send + Sync>) -> CommandError {
-        if let Some(error) = error.downcast_ref::<PasswordResetError>() {
-            match error {
-                PasswordResetError::UserNotFound => {
-                    // Anti-enumeration: Don't reveal user existence
-                    CommandError::business(
-                        PasswordResetErrorCode::AntiEnumerationSecurity.as_str(),
-                        "Password reset request processed",
+        error.downcast_ref::<PasswordResetError>().map_or_else(
+            || {
+                let error_msg = error.to_string();
+                if Self::is_authentication_related_error(&error_msg) {
+                    CommandError::authentication(
+                        PasswordResetErrorCode::AuthenticationFailed.as_str(),
+                        format!("Authentication failed: {error_msg}"),
+                    )
+                } else if Self::is_validation_related_error(&error_msg) {
+                    CommandError::validation(
+                        PasswordResetErrorCode::ValidationFailed.as_str(),
+                        format!("Validation failed: {error_msg}"),
+                    )
+                } else {
+                    CommandError::infrastructure(
+                        PasswordResetErrorCode::RepositoryError.as_str(),
+                        error.to_string(),
                     )
                 }
-                PasswordResetError::NoPasswordAuth => {
-                    // Anti-enumeration: Don't reveal auth method details
+            },
+            |reset_error| match reset_error {
+                PasswordResetError::UserNotFound | PasswordResetError::NoPasswordAuth => {
                     CommandError::business(
                         PasswordResetErrorCode::AntiEnumerationSecurity.as_str(),
                         "Password reset request processed",
@@ -476,27 +487,8 @@ impl CommandErrorMapper for PasswordResetErrorMapper {
                     PasswordResetErrorCode::TokenServiceError.as_str(),
                     format!("Service error: {msg}"),
                 ),
-            }
-        } else {
-            // Handle unknown errors
-            let error_msg = error.to_string();
-            if Self::is_authentication_related_error(&error_msg) {
-                CommandError::authentication(
-                    PasswordResetErrorCode::AuthenticationFailed.as_str(),
-                    format!("Authentication failed: {error_msg}"),
-                )
-            } else if Self::is_validation_related_error(&error_msg) {
-                CommandError::validation(
-                    PasswordResetErrorCode::ValidationFailed.as_str(),
-                    format!("Validation failed: {error_msg}"),
-                )
-            } else {
-                CommandError::infrastructure(
-                    PasswordResetErrorCode::RepositoryError.as_str(),
-                    error.to_string(),
-                )
-            }
-        }
+            },
+        )
     }
 }
 

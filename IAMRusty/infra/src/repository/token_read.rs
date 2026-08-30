@@ -28,7 +28,7 @@ impl TokenReadRepositoryImpl {
         ProviderTokens {
             access_token: model.access_token,
             refresh_token: model.refresh_token,
-            expires_in: model.expires_in.map(|e| e as u64),
+            expires_in: model.expires_in.and_then(|e| u64::try_from(e).ok()),
         }
     }
 

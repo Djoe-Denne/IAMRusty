@@ -21,6 +21,12 @@ use super::entity::{organization_invitations, prelude::OrganizationInvitations};
 pub struct OrganizationInvitationMapper;
 
 impl OrganizationInvitationMapper {
+    /// Maps a persisted invitation row to the domain entity.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if `model.status` is not a recognized [`InvitationStatus`]
+    /// or if `role_permissions` is not valid JSON for the domain type.
     pub fn to_domain(
         model: organization_invitations::Model,
     ) -> Result<OrganizationInvitation, DomainError> {
@@ -55,6 +61,11 @@ impl OrganizationInvitationMapper {
         })
     }
 
+    /// Builds a `SeaORM` active model from a domain invitation.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `invitation.role_permissions` cannot be serialized to JSON.
     #[must_use]
     pub fn to_active_model(
         invitation: &OrganizationInvitation,
@@ -256,7 +267,7 @@ impl OrganizationInvitationReadRepository for OrganizationInvitationReadReposito
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
-        Ok(count as i64)
+        i64::try_from(count).map_err(|e| DomainError::internal_error(&e.to_string()))
     }
 
     async fn count_pending_by_organization(
@@ -275,7 +286,7 @@ impl OrganizationInvitationReadRepository for OrganizationInvitationReadReposito
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
-        Ok(count as i64)
+        i64::try_from(count).map_err(|e| DomainError::internal_error(&e.to_string()))
     }
 }
 

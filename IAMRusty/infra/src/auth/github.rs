@@ -88,6 +88,10 @@ pub struct GitHubOAuth2Client {
 
 impl GitHubOAuth2Client {
     /// Create a new GitHub `OAuth2` client
+    ///
+    /// # Panics
+    ///
+    /// Panics if `auth_url`, `token_url`, or `redirect_url` is not a valid URL.
     #[must_use]
     pub fn new(
         client_id: String,

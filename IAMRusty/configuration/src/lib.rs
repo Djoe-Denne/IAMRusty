@@ -92,6 +92,10 @@ pub enum JwtSecret {
 
 impl SecretStorage {
     /// Resolve the secret from the configured storage
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SecretError`] if a PEM file cannot be read or the secret format is invalid.
     pub fn resolve(&self) -> Result<JwtSecret, SecretError> {
         match self {
             Self::PlainText { value } => {
@@ -220,12 +224,20 @@ pub struct JwtConfig {
 
 impl JwtConfig {
     /// Resolve the JWT secret from the configured storage
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SecretError`] if the configured storage cannot be resolved.
     pub fn resolve_secret(&self) -> Result<JwtSecret, SecretError> {
         self.secret.resolve()
     }
 
     /// Get the resolved secret as a string (for HMAC compatibility)
     /// This method provides backward compatibility for HMAC-based JWT services
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SecretError`] if the secret cannot be resolved or is an RSA key pair.
     pub fn get_secret_string(&self) -> Result<String, SecretError> {
         match self.resolve_secret()? {
             JwtSecret::Hmac(secret) => Ok(secret),
@@ -249,6 +261,10 @@ impl JwtConfig {
 
     /// Create a `JwtAlgorithm` from this configuration
     /// This method bridges the configuration with the JWT encoder implementation
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SecretError`] if the JWT secret cannot be resolved.
     pub fn create_jwt_algorithm(&self) -> Result<JwtAlgorithm, SecretError> {
         match self.resolve_secret()? {
             JwtSecret::Hmac(secret) => Ok(JwtAlgorithm::HS256(secret)),
@@ -436,20 +452,17 @@ pub struct AppConfigCache;
 impl ConfigCache<AppConfig> for AppConfigCache {
     fn get_cached() -> Option<AppConfig> {
         let cache = CONFIG_CACHE.get_or_init(|| Arc::new(Mutex::new(None)));
-        let cached_config = cache.lock().unwrap();
-        cached_config.clone()
+        cache.lock().unwrap().clone()
     }
 
     fn set_cached(config: AppConfig) {
         let cache = CONFIG_CACHE.get_or_init(|| Arc::new(Mutex::new(None)));
-        let mut cached_config = cache.lock().unwrap();
-        *cached_config = Some(config);
+        *cache.lock().unwrap() = Some(config);
     }
 
     fn clear_cached() {
         let cache = CONFIG_CACHE.get_or_init(|| Arc::new(Mutex::new(None)));
-        let mut cached_config = cache.lock().unwrap();
-        *cached_config = None;
+        *cache.lock().unwrap() = None;
         debug!("AppConfig cache cleared");
     }
 }
@@ -558,6 +571,10 @@ impl Default for AppConfig {
 /// Load configuration from environment and config files
 /// This function caches the configuration to ensure consistent behavior,
 /// especially for random port generation in database configuration.
+///
+/// # Errors
+///
+/// Returns [`ConfigError`] if configuration files or environment cannot be loaded.
 pub fn load_config() -> Result<AppConfig, ConfigError> {
     load_config_with_cache::<AppConfig, AppConfigCache>()
 }
@@ -568,6 +585,10 @@ pub fn clear_config_cache() {
 }
 
 /// Generate a default configuration file in TOML format
+///
+/// # Errors
+///
+/// Returns [`ConfigError`] if the default configuration cannot be serialized to TOML.
 pub fn generate_default_config() -> Result<String, ConfigError> {
     generate_default_config_toml::<AppConfig>()
 }

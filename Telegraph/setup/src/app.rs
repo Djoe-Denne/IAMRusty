@@ -44,6 +44,15 @@ pub struct TelegraphApp {
 
 impl TelegraphApp {
     /// Create a new Telegraph application
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the email adapter, database pool, template service,
+    /// event consumer, auth extractor, or OpenFGA checker cannot be initialized.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a configured event name is missing from `event_configs`.
     pub async fn new(config: TelegraphConfig) -> Result<Self, anyhow::Error> {
         info!("Starting Telegraph service and initializing components");
 
@@ -70,7 +79,7 @@ impl TelegraphApp {
             use_tls: config.communication.email.smtp.use_tls,
         };
         let email_adapter = EmailAdapter::new(email_config)
-            .map_err(|e| anyhow::anyhow!("Failed to create email adapter: {}", e))?;
+            .map_err(|e| anyhow::anyhow!("Failed to create email adapter: {e}"))?;
 
         info!("Email adapter created");
         let email_service: Arc<EmailService> = Arc::new(EmailService::new(Arc::new(email_adapter)));
@@ -115,7 +124,7 @@ impl TelegraphApp {
         // Create template service
         let template_service: Arc<dyn TemplateService> = Arc::new(
             TeraTemplateService::new(config.communication.template.clone())
-                .map_err(|e| anyhow::anyhow!("Failed to create template service: {}", e))?,
+                .map_err(|e| anyhow::anyhow!("Failed to create template service: {e}"))?,
         );
 
         // Create event extractor for JSON processing
@@ -134,8 +143,7 @@ impl TelegraphApp {
         for (_, event_config) in queues_config {
             for event_name in event_config.events {
                 info!(
-                    "Adding event mapping for event: {} with modes: {:?}",
-                    event_name,
+                    "Adding event mapping for event: {event_name} with modes: {:?}",
                     event_config.event_configs.get(&event_name).unwrap().modes
                 );
                 event_mapping.insert(
@@ -180,7 +188,7 @@ impl TelegraphApp {
         // Create event consumer with command service
         let event_consumer = EventConsumer::new(config.clone(), command_service.clone())
             .await
-            .map_err(|e| anyhow::anyhow!("Failed to create event consumer: {}", e))?;
+            .map_err(|e| anyhow::anyhow!("Failed to create event consumer: {e}"))?;
         let consumer_status = event_consumer.transport_status().clone();
         let consumer_transport = event_consumer.inner();
 
@@ -189,7 +197,7 @@ impl TelegraphApp {
         // Same HS256 secret as IAM `[jwt.secret]` — rustycog-http cannot
         // verify IAM JWKS/RS256 (rustycog-framework 0.1.1).
         let user_id_extractor = UserIdExtractor::new(config.auth.clone())
-            .map_err(|e| anyhow::anyhow!("Invalid auth configuration: {}", e))?;
+            .map_err(|e| anyhow::anyhow!("Invalid auth configuration: {e}"))?;
 
         // Centralized permission checker (OpenFGA) with structured metrics
         // in front and an optional short-TTL cache. The cache is the
@@ -199,7 +207,7 @@ impl TelegraphApp {
         // a stale cached entry.
         let raw_checker: Arc<dyn PermissionChecker> = Arc::new(
             OpenFgaPermissionChecker::new(config.openfga.clone())
-                .map_err(|e| anyhow::anyhow!("Invalid OpenFGA configuration: {}", e))?,
+                .map_err(|e| anyhow::anyhow!("Invalid OpenFGA configuration: {e}"))?,
         );
         let cache_ttl_seconds = config.openfga.cache_ttl_seconds.unwrap_or(15);
         let metered_inner: Arc<dyn PermissionChecker> = if cache_ttl_seconds == 0 {
@@ -231,6 +239,11 @@ impl TelegraphApp {
     }
 
     /// Start the Telegraph service
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the event consumer task is missing, the HTTP server
+    /// fails, or a background task panics.
     pub async fn run(&self, config: ServerConfig) -> Result<(), anyhow::Error> {
         let mut background_tasks = self.start_background_tasks();
         let Some(mut consumer_handle) = background_tasks.pop() else {
@@ -247,7 +260,7 @@ impl TelegraphApp {
             let config = config.clone();
             tokio::spawn(async move {
                 if let Err(e) = create_app_routes(state, config, probe).await {
-                    error!("HTTP server failed: {}", e);
+                    error!("HTTP server failed: {e}");
                     return Err(e);
                 }
                 Ok(())
@@ -271,12 +284,12 @@ impl TelegraphApp {
                         Ok(())
                     }
                     Ok(Err(e)) => {
-                        error!("Event consumer failed: {}", e);
-                        Err(anyhow::anyhow!("Event consumer failed: {}", e))
+                        error!("Event consumer failed: {e}");
+                        Err(anyhow::anyhow!("Event consumer failed: {e}"))
                     }
                     Err(e) => {
-                        error!("Event consumer task panicked: {}", e);
-                        Err(anyhow::anyhow!("Event consumer task panicked: {}", e))
+                        error!("Event consumer task panicked: {e}");
+                        Err(anyhow::anyhow!("Event consumer task panicked: {e}"))
                     }
                 }
             }
@@ -287,12 +300,12 @@ impl TelegraphApp {
                         Ok(())
                     }
                     Ok(Err(e)) => {
-                        error!("HTTP server failed: {}", e);
-                        Err(anyhow::anyhow!("HTTP server failed: {}", e))
+                        error!("HTTP server failed: {e}");
+                        Err(anyhow::anyhow!("HTTP server failed: {e}"))
                     }
                     Err(e) => {
-                        error!("HTTP server task panicked: {}", e);
-                        Err(anyhow::anyhow!("HTTP server task panicked: {}", e))
+                        error!("HTTP server task panicked: {e}");
+                        Err(anyhow::anyhow!("HTTP server task panicked: {e}"))
                     }
                 }
             }
@@ -328,13 +341,13 @@ impl TelegraphApp {
             event_consumer
                 .start()
                 .await
-                .map_err(|e| anyhow::anyhow!("Telegraph event consumer failed: {}", e))
+                .map_err(|e| anyhow::anyhow!("Telegraph event consumer failed: {e}"))
         })]
     }
 
     pub async fn stop_background_tasks(&self) {
         if let Err(e) = self.event_consumer.stop().await {
-            error!("Failed to stop event consumer: {}", e);
+            error!("Failed to stop event consumer: {e}");
         }
     }
 }
@@ -352,6 +365,10 @@ impl AppBuilder {
     }
 
     /// Build the Telegraph application
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when [`TelegraphApp::new`] fails.
     pub async fn build(self) -> Result<TelegraphApp, anyhow::Error> {
         TelegraphApp::new(self.config).await
     }

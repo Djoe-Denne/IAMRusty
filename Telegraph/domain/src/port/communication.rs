@@ -9,6 +9,10 @@ use crate::error::DomainError;
 #[async_trait]
 pub trait EmailProvider: Send + Sync {
     /// Send an email message
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] when the provider cannot send the email.
     async fn send_email(&self, email: &EmailCommunication) -> Result<String, DomainError>; // Returns provider message ID
 
     /// Verify email address format

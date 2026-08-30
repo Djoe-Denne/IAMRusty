@@ -2,10 +2,15 @@
 
 use serde_json::Value;
 use std::collections::HashMap;
+use std::hash::BuildHasher;
 use telegraph_domain::DomainError;
 
 /// Convert a `serde_json::Value` to `HashMap`<String, String>
 /// Flattens nested objects using dot notation (e.g., "user.email")
+///
+/// # Errors
+///
+/// Returns [`DomainError`] if a nested value cannot be flattened.
 pub fn json_to_string_map(value: &Value) -> Result<HashMap<String, String>, DomainError> {
     let mut map = HashMap::new();
 
@@ -22,11 +27,15 @@ pub fn json_to_string_map(value: &Value) -> Result<HashMap<String, String>, Doma
     Ok(map)
 }
 
-/// Recursively flatten a JSON value into dot-notation string keys
-pub fn flatten_json_value(
+/// Recursively flatten a JSON value into dot-notation string keys.
+///
+/// # Errors
+///
+/// Returns [`DomainError`] if a nested value cannot be flattened.
+pub fn flatten_json_value<S: BuildHasher>(
     value: &Value,
     prefix: &str,
-    map: &mut HashMap<String, String>,
+    map: &mut HashMap<String, String, S>,
 ) -> Result<(), DomainError> {
     match value {
         Value::Object(obj) => flatten_object(obj, prefix, map)?,
@@ -39,10 +48,10 @@ pub fn flatten_json_value(
     Ok(())
 }
 
-fn flatten_object(
+fn flatten_object<S: BuildHasher>(
     obj: &serde_json::Map<String, Value>,
     prefix: &str,
-    map: &mut HashMap<String, String>,
+    map: &mut HashMap<String, String, S>,
 ) -> Result<(), DomainError> {
     for (key, val) in obj {
         flatten_json_value(val, &join_path(prefix, key), map)?;
@@ -50,10 +59,10 @@ fn flatten_object(
     Ok(())
 }
 
-fn flatten_array(
+fn flatten_array<S: BuildHasher>(
     arr: &[Value],
     prefix: &str,
-    map: &mut HashMap<String, String>,
+    map: &mut HashMap<String, String, S>,
 ) -> Result<(), DomainError> {
     for (index, val) in arr.iter().enumerate() {
         flatten_json_value(val, &join_path(prefix, &index.to_string()), map)?;
@@ -69,7 +78,11 @@ fn join_path(prefix: &str, key: &str) -> String {
     }
 }
 
-fn insert_prefixed(map: &mut HashMap<String, String>, prefix: &str, value: String) {
+fn insert_prefixed<S: BuildHasher>(
+    map: &mut HashMap<String, String, S>,
+    prefix: &str,
+    value: String,
+) {
     if !prefix.is_empty() {
         map.insert(prefix.to_string(), value);
     }

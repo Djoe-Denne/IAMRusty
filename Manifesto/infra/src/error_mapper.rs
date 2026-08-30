@@ -33,21 +33,19 @@ impl ErrorMapper<DomainError> for ManifestoErrorMapper {
             ServiceError::NotFound { message, .. } => {
                 DomainError::entity_not_found("Unknown", &message)
             }
-            ServiceError::Authentication { message, .. } => DomainError::unauthorized(&message),
-            ServiceError::Authorization { message, .. } => DomainError::unauthorized(&message),
+            ServiceError::Authentication { message, .. }
+            | ServiceError::Authorization { message, .. } => DomainError::unauthorized(&message),
             ServiceError::Conflict { message, .. } => {
                 DomainError::resource_already_exists(&message, "")
             }
             ServiceError::Business { message, .. } => {
                 DomainError::business_rule_violation(&message)
             }
-            ServiceError::Infrastructure { message, .. } => DomainError::internal_error(&message),
-            ServiceError::RateLimit { message, .. } => DomainError::internal_error(&message),
-            ServiceError::ServiceUnavailable { message, .. } => {
-                DomainError::internal_error(&message)
-            }
-            ServiceError::Timeout { message, .. } => DomainError::internal_error(&message),
-            ServiceError::Internal { message, .. } => DomainError::internal_error(&message),
+            ServiceError::Infrastructure { message, .. }
+            | ServiceError::RateLimit { message, .. }
+            | ServiceError::ServiceUnavailable { message, .. }
+            | ServiceError::Timeout { message, .. }
+            | ServiceError::Internal { message, .. } => DomainError::internal_error(&message),
         }
     }
 }

@@ -69,6 +69,10 @@ pub struct ProviderInfo {
 #[async_trait]
 pub trait OAuthUseCase: Send + Sync {
     /// Generate OAuth authorization URL for login flow
+    ///
+    /// # Errors
+    ///
+    /// Returns [`OAuthError`] if the authorization URL cannot be generated.
     fn generate_start_url(&self, provider: Provider) -> Result<String, OAuthError>;
 
     /// Exchange authorization code for tokens and login user
@@ -193,7 +197,8 @@ where
 
         // Calculate expires_in from the actual token expiration
         let now = chrono::Utc::now();
-        let expires_in = (access_token.expires_at - now).num_seconds().max(0) as u64;
+        let expires_in = u64::try_from((access_token.expires_at - now).num_seconds().max(0))
+            .unwrap_or(0);
 
         Ok(OAuthResponse::Login(OAuthLoginResponse {
             user,

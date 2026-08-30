@@ -46,6 +46,10 @@ use std::time::Duration;
 use anyhow::Error;
 
 /// Build and run the Manifesto application - used for tests
+///
+/// # Errors
+///
+/// Returns an error if initialization or the HTTP server fails.
 pub async fn build_and_run(
     config: AppConfig,
     server_config: ServerConfig,
@@ -66,11 +70,19 @@ pub struct Application {
 
 impl Application {
     /// Create a new application instance with all dependencies
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database, queues, auth, or `OpenFGA` wiring fails.
     pub async fn new(config: AppConfig) -> Result<Self, Error> {
         Self::new_with_maybe_event_publisher(config, None).await
     }
 
     /// Create a new application instance with an optional event publisher (for testing)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database, queues, auth, or `OpenFGA` wiring fails.
     pub async fn new_with_maybe_event_publisher(
         config: AppConfig,
         maybe_event_publisher: Option<Arc<dyn EventPublisher<DomainError>>>,
@@ -132,7 +144,7 @@ impl Application {
         // Same HS256 secret as IAM `[jwt.secret]` — rustycog-http cannot
         // verify IAM JWKS/RS256 (rustycog-framework 0.1.1).
         let user_id_extractor = UserIdExtractor::new(config.auth.clone())
-            .map_err(|e| anyhow::anyhow!("Invalid auth configuration: {}", e))?;
+            .map_err(|e| anyhow::anyhow!("Invalid auth configuration: {e}"))?;
 
         // Centralized permission checker (OpenFGA) with structured metrics in
         // front and an optional short-TTL cache. The cache is the production
@@ -141,7 +153,7 @@ impl Application {
         // mid-request observe the new decision instead of the cached one.
         let raw_checker: Arc<dyn PermissionChecker> = Arc::new(
             OpenFgaPermissionChecker::new(config.openfga.clone())
-                .map_err(|e| anyhow::anyhow!("Invalid OpenFGA configuration: {}", e))?,
+                .map_err(|e| anyhow::anyhow!("Invalid OpenFGA configuration: {e}"))?,
         );
         let cache_ttl_seconds = config.openfga.cache_ttl_seconds.unwrap_or(15);
         let metered_inner: Arc<dyn PermissionChecker> = if cache_ttl_seconds == 0 {
@@ -181,6 +193,10 @@ impl Application {
     }
 
     /// Start the HTTP server
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the HTTP server or a background task fails.
     pub async fn run(self, server_config: ServerConfig) -> Result<(), Error> {
         let mut server_handle = {
             let state = self.state.clone();
@@ -190,7 +206,7 @@ impl Application {
             tokio::spawn(async move {
                 create_app_routes(state, server_config, probe)
                     .await
-                    .map_err(|e| anyhow::anyhow!("HTTP server failed: {}", e))
+                    .map_err(|e| anyhow::anyhow!("HTTP server failed: {e}"))
             })
         };
 
@@ -202,14 +218,14 @@ impl Application {
                 for task in background_tasks {
                     join_set.spawn(async move {
                         task.await.map_err(|error| {
-                            anyhow::anyhow!("Manifesto background task panicked: {}", error)
+                            anyhow::anyhow!("Manifesto background task panicked: {error}")
                         })?
                     });
                 }
 
                 while let Some(result) = join_set.join_next().await {
                     result.map_err(|error| {
-                        anyhow::anyhow!("Manifesto background task monitor panicked: {}", error)
+                        anyhow::anyhow!("Manifesto background task monitor panicked: {error}")
                     })??;
                 }
 
@@ -229,7 +245,7 @@ impl Application {
                             Ok(())
                         }
                         Ok(Err(error)) => Err(error),
-                        Err(error) => Err(anyhow::anyhow!("Manifesto background supervisor task panicked: {}", error)),
+                        Err(error) => Err(anyhow::anyhow!("Manifesto background supervisor task panicked: {error}")),
                     }
                 }
                 result = &mut server_handle => {
@@ -239,7 +255,7 @@ impl Application {
                             Ok(())
                         }
                         Ok(Err(error)) => Err(error),
-                        Err(error) => Err(anyhow::anyhow!("HTTP server task panicked: {}", error)),
+                        Err(error) => Err(anyhow::anyhow!("HTTP server task panicked: {error}")),
                     }
                 }
             };
@@ -272,7 +288,7 @@ impl Application {
                         Ok(())
                     }
                     Ok(Err(error)) => Err(error),
-                    Err(error) => Err(anyhow::anyhow!("HTTP server task panicked: {}", error)),
+                    Err(error) => Err(anyhow::anyhow!("HTTP server task panicked: {error}")),
                 }
             }
         };
@@ -303,7 +319,7 @@ impl Application {
                 consumer
                     .start()
                     .await
-                    .map_err(|e| anyhow::anyhow!("Manifesto apparatus consumer failed: {}", e))
+                    .map_err(|e| anyhow::anyhow!("Manifesto apparatus consumer failed: {e}"))
             }));
         }
 
@@ -312,7 +328,7 @@ impl Application {
             dispatcher
                 .start()
                 .await
-                .map_err(|e| anyhow::anyhow!("Manifesto outbox dispatcher failed: {}", e))
+                .map_err(|e| anyhow::anyhow!("Manifesto outbox dispatcher failed: {e}"))
         }));
 
         tasks
@@ -364,7 +380,7 @@ async fn setup_application(
     Error,
 > {
     let (project_service, component_service, member_service, permission_service) =
-        setup_domain(db.clone(), config).await?;
+        setup_domain(&db, config)?;
     let project_creation_uow = Arc::new(ProjectCreationUnitOfWorkImpl::new(
         db,
         OutboxRecorder::new(),
@@ -402,7 +418,7 @@ async fn setup_application(
         let consumer = ApparatusEventConsumer::new(&config.queue, component_status_processor)
             .await
             .map_err(|error| {
-                anyhow::anyhow!("Failed to create apparatus event consumer: {}", error)
+                anyhow::anyhow!("Failed to create apparatus event consumer: {error}")
             })?;
 
         let consumer_status = consumer.transport_status().clone();
@@ -425,8 +441,8 @@ async fn setup_application(
     ))
 }
 
-async fn setup_domain(
-    db: DbConnectionPool,
+fn setup_domain(
+    db: &DbConnectionPool,
     config: &AppConfig,
 ) -> Result<
     (
@@ -445,7 +461,7 @@ async fn setup_domain(
         resource_repo,
         role_permission_repo,
         member_role_permission_repo,
-    ) = setup_repositories(db.clone()).await?;
+    ) = setup_repositories(db);
 
     let component_service_adapter = Arc::new(ComponentServiceClient::new(
         config.service.component_service.base_url.clone(),
@@ -482,20 +498,17 @@ async fn setup_domain(
     ))
 }
 
-async fn setup_repositories(
-    db: DbConnectionPool,
-) -> Result<
-    (
-        Arc<ProjectRepositoryImpl>,
-        Arc<ComponentRepositoryImpl>,
-        Arc<MemberRepositoryImpl>,
-        Arc<PermissionReadRepositoryImpl>,
-        Arc<ResourceRepositoryImpl>,
-        Arc<RolePermissionRepositoryImpl>,
-        Arc<ProjectMemberRolePermissionRepositoryImpl>,
-    ),
-    Error,
-> {
+fn setup_repositories(
+    db: &DbConnectionPool,
+) -> (
+    Arc<ProjectRepositoryImpl>,
+    Arc<ComponentRepositoryImpl>,
+    Arc<MemberRepositoryImpl>,
+    Arc<PermissionReadRepositoryImpl>,
+    Arc<ResourceRepositoryImpl>,
+    Arc<RolePermissionRepositoryImpl>,
+    Arc<ProjectMemberRolePermissionRepositoryImpl>,
+) {
     let project_read_repo = Arc::new(ProjectReadRepositoryImpl::new(db.get_read_connection()));
     let project_write_repo = Arc::new(ProjectWriteRepositoryImpl::new(db.get_write_connection()));
     let project_repo = Arc::new(ProjectRepositoryImpl::new(
@@ -557,7 +570,7 @@ async fn setup_repositories(
         member_write_repo,
     ));
 
-    Ok((
+    (
         project_repo,
         component_repo,
         member_repo,
@@ -565,5 +578,5 @@ async fn setup_repositories(
         resource_repo,
         role_permission_repo,
         pmrp_repo,
-    ))
+    )
 }

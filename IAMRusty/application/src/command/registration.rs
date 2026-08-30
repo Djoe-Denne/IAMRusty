@@ -49,8 +49,14 @@ pub struct RegistrationErrorMapper;
 
 impl CommandErrorMapper for RegistrationErrorMapper {
     fn map_error(&self, error: Box<dyn std::error::Error + Send + Sync>) -> CommandError {
-        if let Some(reg_error) = error.downcast_ref::<RegistrationError>() {
-            match reg_error {
+        error.downcast_ref::<RegistrationError>().map_or_else(
+            || {
+                CommandError::infrastructure(
+                    RegistrationErrorCode::RepositoryError.as_str(),
+                    error.to_string(),
+                )
+            },
+            |reg_error| match reg_error {
                 RegistrationError::DomainError(domain_error) => match domain_error {
                     DomainError::RepositoryError(_) => CommandError::infrastructure(
                         RegistrationErrorCode::RepositoryError.as_str(),
@@ -93,13 +99,8 @@ impl CommandErrorMapper for RegistrationErrorMapper {
                         "Registration failed",
                     ),
                 },
-            }
-        } else {
-            CommandError::infrastructure(
-                RegistrationErrorCode::RepositoryError.as_str(),
-                error.to_string(),
-            )
-        }
+            },
+        )
     }
 }
 

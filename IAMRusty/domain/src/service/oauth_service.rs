@@ -76,7 +76,11 @@ where
             })
     }
 
-    /// Generate an authorization URL for the provider's `OAuth2` flow
+    /// Generate an authorization URL for the provider's `OAuth2` flow.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the provider is unsupported or its client is not configured.
     pub fn generate_authorize_url(&self, provider: &str) -> Result<String, DomainError> {
         let provider = Provider::from_str(provider)
             .ok_or_else(|| DomainError::ProviderNotSupported(provider.to_string()))?;
@@ -86,7 +90,12 @@ where
         Ok(client.generate_authorize_url())
     }
 
-    /// Process `OAuth2` callback and return user and JWT token
+    /// Process `OAuth2` callback and return user and JWT token.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the provider is unsupported, code exchange or profile
+    /// lookup fails, the profile has no email, persistence fails, or JWT generation fails.
     pub async fn process_callback(
         &self,
         provider_name: &str,
@@ -140,7 +149,12 @@ where
         }
     }
 
-    /// Find a user by their ID
+    /// Find a user by their ID.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if `user_id` is not a valid UUID, the user does not exist,
+    /// or the repository lookup fails.
     pub async fn find_user_by_id(&self, user_id: &str) -> Result<User, DomainError> {
         let uuid = uuid::Uuid::parse_str(user_id).map_err(|_| DomainError::UserNotFound)?;
 
@@ -206,7 +220,12 @@ where
         Ok(created_user)
     }
 
-    /// Get provider tokens for a user
+    /// Get provider tokens for a user.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the user does not exist, no tokens are stored for the
+    /// provider, or the repository lookup fails.
     pub async fn get_provider_token(
         &self,
         user_id: Uuid,
@@ -232,7 +251,12 @@ where
         Ok(tokens)
     }
 
-    /// Revoke provider tokens for a user
+    /// Revoke provider tokens for a user.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the user does not exist, no tokens are stored for the
+    /// provider, or the repository operation fails.
     pub async fn revoke_provider_token(
         &self,
         user_id: Uuid,

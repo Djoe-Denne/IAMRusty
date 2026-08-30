@@ -421,9 +421,13 @@ impl TelegraphConfig {
     }
 }
 
-/// Load configuration from environment and config files
+/// Load configuration from environment and config files.
 /// This function caches the configuration to ensure consistent behavior,
 /// especially for random port generation in database configuration.
+///
+/// # Errors
+///
+/// Returns [`ConfigError`] if files or environment variables cannot be loaded or parsed.
 pub fn load_config() -> Result<TelegraphConfig, ConfigError> {
     load_config_fresh::<TelegraphConfig>()
 }

@@ -2,6 +2,11 @@ use hive_configuration::load_config;
 use hive_setup::{app, config};
 use tracing::info;
 
+/// Start the Hive organization-management service.
+///
+/// # Errors
+///
+/// Returns an error if configuration cannot be loaded or the application fails to build or run.
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     let config = load_config()?;
@@ -39,8 +44,8 @@ async fn main() -> Result<(), anyhow::Error> {
     app::AppBuilder::new(config)
         .build()
         .await
-        .map_err(|e| anyhow::anyhow!("Failed to build application: {}", e))?
+        .map_err(|e| anyhow::anyhow!("Failed to build application: {e}"))?
         .run(server_config)
         .await
-        .map_err(|e| anyhow::anyhow!("Failed to run application: {}", e))
+        .map_err(|e| anyhow::anyhow!("Failed to run application: {e}"))
 }

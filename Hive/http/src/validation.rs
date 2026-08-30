@@ -65,6 +65,10 @@ where
 }
 
 /// Validate query parameters
+///
+/// # Errors
+///
+/// Returns [`HttpError::Validation`] if the parameters fail validation.
 pub fn validate_query_params<T>(params: &T) -> Result<(), HttpError>
 where
     T: Validate,
@@ -78,6 +82,10 @@ where
 }
 
 /// Validate pagination parameters
+///
+/// # Errors
+///
+/// Returns [`HttpError::Validation`] if `page` is 0 or `page_size` is out of range.
 pub fn validate_pagination(
     page: Option<u32>,
     page_size: Option<u32>,

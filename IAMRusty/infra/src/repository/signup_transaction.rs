@@ -28,7 +28,7 @@ impl SignupTransaction for SignupTransactionImpl {
         user_email: UserEmail,
         email_verification: EmailVerification,
     ) -> Result<User, DomainError> {
-        let txn = self.db.begin().await.map_err(to_domain_error)?;
+        let txn = self.db.begin().await.map_err(|e| to_domain_error(&e))?;
 
         let result = async {
             let user_model = users::ActiveModel {
@@ -40,7 +40,7 @@ impl SignupTransaction for SignupTransactionImpl {
                 updated_at: Set(user.updated_at.naive_utc()),
             };
 
-            user_model.insert(&txn).await.map_err(to_domain_error)?;
+            user_model.insert(&txn).await.map_err(|e| to_domain_error(&e))?;
 
             let email_model = user_emails::ActiveModel {
                 id: Set(user_email.id),
@@ -52,7 +52,7 @@ impl SignupTransaction for SignupTransactionImpl {
                 updated_at: Set(user_email.updated_at.naive_utc()),
             };
 
-            email_model.insert(&txn).await.map_err(to_domain_error)?;
+            email_model.insert(&txn).await.map_err(|e| to_domain_error(&e))?;
 
             let verification_model = user_email_verification::ActiveModel {
                 id: ActiveValue::Set(email_verification.id),
@@ -65,7 +65,7 @@ impl SignupTransaction for SignupTransactionImpl {
             verification_model
                 .insert(&txn)
                 .await
-                .map_err(to_domain_error)?;
+                .map_err(|e| to_domain_error(&e))?;
 
             Ok::<_, DomainError>(user)
         }
@@ -73,7 +73,7 @@ impl SignupTransaction for SignupTransactionImpl {
 
         match result {
             Ok(user) => {
-                txn.commit().await.map_err(to_domain_error)?;
+                txn.commit().await.map_err(|e| to_domain_error(&e))?;
                 Ok(user)
             }
             Err(error) => {
@@ -89,6 +89,6 @@ impl SignupTransaction for SignupTransactionImpl {
     }
 }
 
-fn to_domain_error(error: sea_orm::DbErr) -> DomainError {
+fn to_domain_error(error: &sea_orm::DbErr) -> DomainError {
     DomainError::RepositoryError(error.to_string())
 }

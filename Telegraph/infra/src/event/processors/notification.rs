@@ -35,11 +35,14 @@ impl DatabaseNotificationProcessor {
             .build_notification_communication(event)
             .await?;
 
-        let user_id = notification_communication.recipient.user_id.ok_or(
-            DomainError::EventProcessingError(
-                "No user ID found in notification communication".to_string(),
-            ),
-        )?;
+        let user_id = notification_communication
+            .recipient
+            .user_id
+            .ok_or_else(|| {
+                DomainError::EventProcessingError(
+                    "No user ID found in notification communication".to_string(),
+                )
+            })?;
 
         info!(
             event_id = %event.event_id,

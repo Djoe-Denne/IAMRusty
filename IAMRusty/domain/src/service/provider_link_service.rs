@@ -49,7 +49,12 @@ where
         }
     }
 
-    /// Link a provider to an existing user
+    /// Link a provider to an existing user.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the user does not exist, the provider is already linked,
+    /// email uniqueness is violated, or a repository operation fails.
     pub async fn link_provider_to_user(
         &self,
         user_id: Uuid,
@@ -90,7 +95,12 @@ where
         })
     }
 
-    /// Relink a provider for an existing user (replace existing tokens)
+    /// Relink a provider for an existing user (replace existing tokens).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the user does not exist, the provider is not currently
+    /// linked, or a repository operation fails.
     pub async fn relink_provider_for_user(
         &self,
         user_id: Uuid,
@@ -149,7 +159,7 @@ where
             .find_by_id(user_id)
             .await
             .map_err(|e| DomainError::RepositoryError(e.to_string()))?
-            .ok_or({
+            .ok_or_else(|| {
                 tracing::error!("User not found for id: {}", user_id);
                 DomainError::UserNotFound
             })

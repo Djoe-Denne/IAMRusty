@@ -149,9 +149,11 @@ where
             })?;
 
         // Calculate expiration times in seconds
-        let access_expires_in = (new_access_token.expires_at - now).num_seconds().max(0) as u64;
+        let access_expires_in =
+            u64::try_from((new_access_token.expires_at - now).num_seconds()).unwrap_or(0);
 
-        let refresh_expires_in = (new_refresh_token.expires_at - now).num_seconds().max(0) as u64;
+        let refresh_expires_in =
+            u64::try_from((new_refresh_token.expires_at - now).num_seconds()).unwrap_or(0);
 
         Ok(RefreshTokenResponse {
             access_token: new_access_token.token,

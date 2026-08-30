@@ -13,6 +13,11 @@ pub struct ComponentServiceClient {
 }
 
 impl ComponentServiceClient {
+    /// Build an HTTP client for the component register service.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the HTTP client cannot be constructed.
     pub fn new(
         base_url: String,
         api_key: Option<String>,
@@ -26,8 +31,12 @@ impl ComponentServiceClient {
                 DomainError::external_service_error("component_service", &e.to_string())
             })?;
 
+        let trimmed_len = base_url.trim_end_matches('/').len();
+        let mut base_url = base_url;
+        base_url.truncate(trimmed_len);
+
         Ok(Self {
-            base_url: base_url.trim_end_matches('/').to_string(),
+            base_url,
             api_key,
             client,
         })

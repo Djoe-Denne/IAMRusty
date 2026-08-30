@@ -14,7 +14,7 @@ use std::sync::Arc;
 // 🔥 SQS Integration Test
 #[tokio::test]
 #[serial]
-#[ignore]
+#[ignore = "requires SQS LocalStack testcontainer"]
 async fn test_signup_sqs_integration() {
     // Setup SQS testcontainer first (this sets environment variables)
     let sqs_fixture = TestSqsFixture::new()
@@ -56,7 +56,7 @@ async fn test_signup_sqs_integration() {
             println!(
                 "🔧 SQS config - enabled: {}, endpoint: {}, region: {}",
                 sqs_config.enabled,
-                sqs_config.endpoint_url().unwrap_or("none".to_string()),
+                sqs_config.endpoint_url().unwrap_or_else(|| "none".to_string()),
                 sqs_config.region
             );
         }

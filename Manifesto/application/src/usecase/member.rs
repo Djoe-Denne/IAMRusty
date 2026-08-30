@@ -25,8 +25,14 @@ use crate::{
     ApplicationError,
 };
 
+/// Application use cases for project membership.
 #[async_trait]
 pub trait MemberUseCase: Send + Sync {
+    /// Add a member to a project.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ApplicationError`] if the member cannot be added.
     async fn add_member(
         &self,
         project_id: Uuid,
@@ -34,18 +40,33 @@ pub trait MemberUseCase: Send + Sync {
         added_by: Uuid,
     ) -> Result<MemberResponse, ApplicationError>;
 
+    /// Get one project member.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ApplicationError`] if the member is missing.
     async fn get_member(
         &self,
         project_id: Uuid,
         user_id: Uuid,
     ) -> Result<MemberResponse, ApplicationError>;
 
+    /// List members of a project.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ApplicationError`] if the listing fails.
     async fn list_members(
         &self,
         project_id: Uuid,
         pagination: &PaginationRequest,
     ) -> Result<MemberListResponse, ApplicationError>;
 
+    /// Replace a member's permissions.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ApplicationError`] if the update is forbidden or persistence fails.
     async fn update_member(
         &self,
         project_id: Uuid,
@@ -54,6 +75,11 @@ pub trait MemberUseCase: Send + Sync {
         requester_id: Uuid,
     ) -> Result<MemberResponse, ApplicationError>;
 
+    /// Remove a member from a project.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ApplicationError`] if the removal is forbidden or persistence fails.
     async fn remove_member(
         &self,
         project_id: Uuid,
@@ -61,6 +87,11 @@ pub trait MemberUseCase: Send + Sync {
         requester_id: Uuid,
     ) -> Result<(), ApplicationError>;
 
+    /// Grant one permission to a member.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ApplicationError`] if the grant is forbidden or persistence fails.
     async fn grant_permission(
         &self,
         project_id: Uuid,
@@ -69,6 +100,11 @@ pub trait MemberUseCase: Send + Sync {
         requester_id: Uuid,
     ) -> Result<MemberResponse, ApplicationError>;
 
+    /// Revoke one permission from a member.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ApplicationError`] if the revoke is forbidden or persistence fails.
     async fn revoke_permission(
         &self,
         project_id: Uuid,
@@ -78,6 +114,7 @@ pub trait MemberUseCase: Send + Sync {
     ) -> Result<(), ApplicationError>;
 }
 
+/// Default [`MemberUseCase`] implementation.
 pub struct MemberUseCaseImpl {
     member_service: Arc<dyn MemberService>,
     project_service: Arc<dyn ProjectService>,
@@ -87,6 +124,7 @@ pub struct MemberUseCaseImpl {
 }
 
 impl MemberUseCaseImpl {
+    /// Create a member use case with its domain collaborators.
     pub fn new(
         member_service: Arc<dyn MemberService>,
         project_service: Arc<dyn ProjectService>,
@@ -103,7 +141,7 @@ impl MemberUseCaseImpl {
         }
     }
 
-    fn member_to_response(&self, member: &ProjectMember) -> MemberResponse {
+    fn member_to_response(member: &ProjectMember) -> MemberResponse {
         let permissions: Vec<ResourcePermissionResponse> = member
             .role_permissions
             .iter()
@@ -225,7 +263,7 @@ impl MemberUseCase for MemberUseCaseImpl {
         let domain_ev: Box<dyn DomainEvent> = event.into();
         self.event_publisher.publish(domain_ev.as_ref()).await?;
 
-        Ok(self.member_to_response(&created))
+        Ok(Self::member_to_response(&created))
     }
 
     async fn get_member(
@@ -234,7 +272,7 @@ impl MemberUseCase for MemberUseCaseImpl {
         user_id: Uuid,
     ) -> Result<MemberResponse, ApplicationError> {
         let member = self.member_service.get_member(project_id, user_id).await?;
-        Ok(self.member_to_response(&member))
+        Ok(Self::member_to_response(&member))
     }
 
     async fn list_members(
@@ -256,7 +294,7 @@ impl MemberUseCase for MemberUseCaseImpl {
             .await?;
 
         let data: Vec<MemberResponse> =
-            members.iter().map(|m| self.member_to_response(m)).collect();
+            members.iter().map(Self::member_to_response).collect();
 
         let consumed = i64::from(page.saturating_add(1)).saturating_mul(i64::from(page_size));
         let has_more = consumed < total_count;
@@ -355,7 +393,7 @@ impl MemberUseCase for MemberUseCaseImpl {
         let domain_ev: Box<dyn DomainEvent> = event.into();
         self.event_publisher.publish(domain_ev.as_ref()).await?;
 
-        Ok(self.member_to_response(&updated))
+        Ok(Self::member_to_response(&updated))
     }
 
     async fn remove_member(
@@ -416,15 +454,13 @@ impl MemberUseCase for MemberUseCaseImpl {
 
         // Requester needs to have the permission they're trying to grant
         // For specific resources (UUIDs like component instances), also check generic "component" permission
-        let has_permission =
-            if let Some(resource_scope) = Self::specific_resource_scope(&request.resource) {
-                // Specific resource - check both the exact resource and its generic scope.
+        let has_permission = Self::specific_resource_scope(&request.resource).map_or_else(
+            || requester.has_permission(&request.resource, &permission_level),
+            |resource_scope| {
                 requester.has_permission(&request.resource, &permission_level)
                     || requester.has_permission(resource_scope, &permission_level)
-            } else {
-                // Generic resource - check direct permission
-                requester.has_permission(&request.resource, &permission_level)
-            };
+            },
+        );
 
         if !has_permission {
             return Err(ApplicationError::Validation(format!(
@@ -477,7 +513,7 @@ impl MemberUseCase for MemberUseCaseImpl {
         let domain_ev: Box<dyn DomainEvent> = event.into();
         self.event_publisher.publish(domain_ev.as_ref()).await?;
 
-        Ok(self.member_to_response(&updated))
+        Ok(Self::member_to_response(&updated))
     }
 
     async fn revoke_permission(

@@ -170,10 +170,11 @@ where
             })?;
 
         // Business rule: Check if user is already a member
-        if let Some(_) = self
+        if self
             .member_repo
             .find_by_organization_and_user(&organization_id, &user_id)
             .await?
+            .is_some()
         {
             return Err(DomainError::resource_already_exists(
                 "OrganizationMember",
@@ -225,7 +226,6 @@ where
     }
 
     /// Remove all members from an organization
-
     async fn remove_organization_members(&self, organization_id: Uuid) -> Result<(), DomainError> {
         self.member_repo
             .delete_by_organization(&organization_id)

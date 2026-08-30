@@ -24,16 +24,11 @@ where
 
 #[async_trait::async_trait]
 pub trait InvitationService: Send + Sync {
-    /**
-     * Create an invitation to join an organization by email. used for non existing users
-     *
-     * @param `organization_id` - The ID of the organization to invite the user to
-     * @param email - The email of the user to invite
-     * @param `role_permissions` - The roles to assign to the user
-     * @param `invited_by_user_id` - The ID of the user who invited the user
-     * @param message - The message to send to the user
-     * @param `expires_in_days` - The number of days the invitation will expire
-     */
+    /// Create an invitation to join an organization by email for a user that does not exist yet.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the organization is missing, the invitation is invalid, or persistence fails.
     async fn create_invitation_by_email(
         &self,
         organization_id: Uuid,
@@ -44,6 +39,11 @@ pub trait InvitationService: Send + Sync {
         expires_in_days: Option<i64>,
     ) -> Result<OrganizationInvitation, DomainError>;
 
+    /// Build an invitation by email without persisting it.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the organization is missing or the invitation data is invalid.
     async fn prepare_invitation_by_email(
         &self,
         organization_id: Uuid,
@@ -54,16 +54,11 @@ pub trait InvitationService: Send + Sync {
         expires_in_days: Option<i64>,
     ) -> Result<OrganizationInvitation, DomainError>;
 
-    /**
-     * Create an invitation to join an organization by user. used for existing users
-     *
-     * @param `organization_id` - The ID of the organization to invite the user to
-     * @param `user_id` - The ID of the user to invite
-     * @param `role_permissions` - The roles to assign to the user
-     * @param `invited_by_user_id` - The ID of the user who invited the user
-     * @param message - The message to send to the user
-     * @param `expires_in_days` - The number of days the invitation will expire
-     */
+    /// Create an invitation to join an organization for an existing user.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the organization is missing, the invitation is invalid, or persistence fails.
     async fn create_invitation_by_user(
         &self,
         organization_id: Uuid,
@@ -74,60 +69,60 @@ pub trait InvitationService: Send + Sync {
         expires_in_days: Option<i64>,
     ) -> Result<OrganizationInvitation, DomainError>;
 
-    /**
-     * Accept an invitation
-     *
-     * @param token - The token of the invitation
-     * @param `user_id` - The ID of the user accepting the invitation
-     */
+    /// Accept an invitation.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the invitation is missing, not pending, expired, already accepted, or persistence fails.
     async fn accept_invitation(
         &self,
         token: String,
         user_id: Uuid,
     ) -> Result<OrganizationMember, DomainError>;
 
-    /**
-     * Cancel an invitation
-     *
-     * @param `invitation_id` - The ID of the invitation to cancel
-     */
+    /// Cancel an invitation.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the invitation is missing, not pending, or persistence fails.
     async fn cancel_invitation(&self, invitation_id: Uuid) -> Result<(), DomainError>;
 
-    /**
-     * Get an invitation by ID
-     *
-     * @param `invitation_id` - The ID of the invitation to get
-     */
+    /// Get an invitation by ID.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the invitation is missing or persistence fails.
     async fn get_invitation(
         &self,
         invitation_id: Uuid,
     ) -> Result<OrganizationInvitation, DomainError>;
 
-    /**
-     * Get an invitation by organization and invited user
-     *
-     * @param `organization_id` - The ID of the organization the invitation belongs to
-     * @param `invited_aggregate_id` - The ID of the user the invitation is for
-     */
+    /// Get a pending invitation by organization and invited aggregate id.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the invitation is missing or persistence fails.
     async fn get_invitation_by_organization_invited_aggregate_id(
         &self,
         organization_id: Uuid,
         invited_aggregate_id: &str,
     ) -> Result<OrganizationInvitation, DomainError>;
 
-    /**
-     * List invitations for an organization
-     *
-     * @param `organization_id` - The ID of the organization to list the invitations for
-     */
+    /// List invitations for an organization.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if persistence fails.
     async fn list_invitations(
         &self,
         organization_id: Uuid,
     ) -> Result<Vec<OrganizationInvitation>, DomainError>;
 
-    /**
-     * Clean up expired invitations
-     */
+    /// Count expired invitations that can be cleaned up.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if persistence fails.
     async fn cleanup_expired_invitations(&self) -> Result<u32, DomainError>;
 }
 
@@ -159,6 +154,10 @@ where
     MS: MemberService,
 {
     /// Create an invitation to join an organization
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the organization is missing or the invitation data is invalid.
     async fn prepare_invitation_by_email(
         &self,
         organization_id: Uuid,
@@ -186,6 +185,11 @@ where
         Ok(invitation)
     }
 
+    /// Persist an invitation created from an email address.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the organization is missing, the invitation is invalid, or persistence fails.
     async fn create_invitation_by_email(
         &self,
         organization_id: Uuid,
@@ -214,6 +218,10 @@ where
     }
 
     /// Create an invitation to join an organization
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the organization is missing, the invitation is invalid, or persistence fails.
     async fn create_invitation_by_user(
         &self,
         organization_id: Uuid,
@@ -249,6 +257,10 @@ where
     }
 
     /// Accept an invitation
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the invitation is missing, not pending, expired, already accepted, or persistence fails.
     async fn accept_invitation(
         &self,
         token: String,
@@ -316,6 +328,10 @@ where
     }
 
     /// Cancel an invitation
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the invitation is missing, not pending, or persistence fails.
     async fn cancel_invitation(&self, invitation_id: Uuid) -> Result<(), DomainError> {
         let invitation = self
             .invitation_repo
@@ -351,6 +367,10 @@ where
     }
 
     /// Get invitation by ID
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the invitation is missing or persistence fails.
     async fn get_invitation(
         &self,
         invitation_id: Uuid,
@@ -385,6 +405,10 @@ where
     }
 
     /// Get invitation by organization and invited aggregate id
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the invitation is missing or persistence fails.
     async fn get_invitation_by_organization_invited_aggregate_id(
         &self,
         organization_id: Uuid,
@@ -413,6 +437,10 @@ where
     }
 
     /// List invitations for an organization
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if persistence fails.
     async fn list_invitations(
         &self,
         organization_id: Uuid,
@@ -429,6 +457,10 @@ where
     }
 
     /// Clean up expired invitations
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if persistence fails.
     async fn cleanup_expired_invitations(&self) -> Result<u32, DomainError> {
         let expired_invitations =
             self.invitation_repo
@@ -438,7 +470,7 @@ where
                     message: e.to_string(),
                 })?;
 
-        let count = expired_invitations.len();
-        Ok(count as u32)
+        let count = u32::try_from(expired_invitations.len()).unwrap_or(u32::MAX);
+        Ok(count)
     }
 }

@@ -19,6 +19,12 @@ impl JsonEventExtractor {
     }
 }
 
+impl Default for JsonEventExtractor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[async_trait]
 impl EventExtractor for JsonEventExtractor {
     /// Extract template variables from a domain event
@@ -35,11 +41,9 @@ impl EventExtractor for JsonEventExtractor {
         })?;
 
         debug!("Event JSON: {}", event_json);
-        let data = event_json
-            .get("data")
-            .ok_or(DomainError::EventProcessingError(
-                "Event data not found".to_string(),
-            ))?;
+        let data = event_json.get("data").ok_or_else(|| {
+            DomainError::EventProcessingError("Event data not found".to_string())
+        })?;
         // Convert JSON to HashMap<String, String> for template variables
         json_to_string_map(data)
     }

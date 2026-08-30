@@ -96,7 +96,7 @@ impl JwtTokenService {
     }
 
     /// Generate a secure random token string for refresh tokens
-    fn generate_random_token(&self) -> String {
+    fn generate_random_token() -> String {
         let mut rng = rand::thread_rng();
         let random_bytes: Vec<u8> = (0..64).map(|_| rng.gen::<u8>()).collect();
         base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(&random_bytes)
@@ -145,7 +145,7 @@ impl JwtTokenService {
     }
 
     /// Extract RSA modulus (n) and exponent (e) from a PEM public key PKCS#8 format
-    fn extract_rsa_components(&self, public_key_pem: &str) -> Result<(String, String), String> {
+    fn extract_rsa_components(public_key_pem: &str) -> Result<(String, String), String> {
         // 1. Parser le PEM (PKCS#8 ou PKCS#1) en RsaPublicKey
         let rsa_pub = RsaPublicKey::from_public_key_pem(public_key_pem)
             .map_err(|e| format!("Failed to parse RSA public key PEM: {e}"))?;
@@ -222,7 +222,7 @@ impl JwtTokenEncoder for JwtTokenService {
         match &self.algorithm_config {
             JwtAlgorithm::RS256(key_pair) => {
                 // Parse the RSA public key to extract modulus and exponent
-                match self.extract_rsa_components(&key_pair.public_key) {
+                match Self::extract_rsa_components(&key_pair.public_key) {
                     Ok((n, e)) => {
                         let jwk = Jwk {
                             kty: "RSA".to_string(),
@@ -260,7 +260,8 @@ impl AuthTokenService for JwtTokenService {
 
     async fn generate_access_token(&self, user_id: Uuid) -> Result<JwtToken, Self::Error> {
         let now = Utc::now();
-        let expires_at = now + Duration::seconds(self.access_token_expiration as i64);
+        let expires_at = now
+            + Duration::seconds(i64::try_from(self.access_token_expiration).unwrap_or(i64::MAX));
 
         let claims = TokenClaims {
             sub: user_id.to_string(),
@@ -286,8 +287,9 @@ impl AuthTokenService for JwtTokenService {
 
     async fn generate_refresh_token(&self, user_id: Uuid) -> Result<RefreshToken, Self::Error> {
         let now = Utc::now();
-        let expires_at = now + Duration::seconds(self.refresh_token_expiration as i64);
-        let token = self.generate_random_token();
+        let expires_at = now
+            + Duration::seconds(i64::try_from(self.refresh_token_expiration).unwrap_or(i64::MAX));
+        let token = Self::generate_random_token();
 
         Ok(RefreshToken {
             id: Uuid::new_v4(),

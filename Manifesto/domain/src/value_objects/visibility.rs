@@ -19,6 +19,11 @@ impl Visibility {
         }
     }
 
+    /// Parse a visibility from a string.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if `s` is not a recognized visibility.
     pub fn from_str(s: &str) -> Result<Self, DomainError> {
         match s.to_lowercase().as_str() {
             "private" => Ok(Self::Private),

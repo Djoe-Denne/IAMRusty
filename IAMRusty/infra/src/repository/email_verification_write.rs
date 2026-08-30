@@ -29,10 +29,7 @@ impl SeaOrmEmailVerificationWriteRepository {
     }
 
     /// Convert domain `EmailVerification` to `SeaORM` `ActiveModel`
-    fn to_active_model(
-        &self,
-        verification: &EmailVerification,
-    ) -> user_email_verification::ActiveModel {
+    fn to_active_model(verification: &EmailVerification) -> user_email_verification::ActiveModel {
         user_email_verification::ActiveModel {
             id: ActiveValue::Set(verification.id),
             email: ActiveValue::Set(verification.email.clone()),
@@ -46,7 +43,7 @@ impl SeaOrmEmailVerificationWriteRepository {
 #[async_trait]
 impl EmailVerificationWriteRepository for SeaOrmEmailVerificationWriteRepository {
     async fn create(&self, verification: &EmailVerification) -> Result<(), DomainError> {
-        let active_model = self.to_active_model(verification);
+        let active_model = Self::to_active_model(verification);
 
         active_model.insert(self.db.as_ref()).await.map_err(|e| {
             DomainError::RepositoryError(format!("Failed to create email verification: {e}"))

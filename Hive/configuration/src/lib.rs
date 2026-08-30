@@ -156,9 +156,15 @@ impl HasOpenFgaConfig for AppConfig {
     }
 }
 
-/// Load configuration from environment and config files
+/// Load configuration from environment and config files.
+///
 /// This function caches the configuration to ensure consistent behavior,
 /// especially for random port generation in database configuration.
+///
+/// # Errors
+///
+/// Returns [`ConfigError`] if the configuration cannot be loaded from the
+/// environment or config files.
 pub fn load_config() -> Result<AppConfig, ConfigError> {
     load_config_fresh::<AppConfig>()
 }

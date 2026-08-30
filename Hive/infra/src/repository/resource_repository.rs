@@ -14,6 +14,11 @@ use super::entity::{prelude::Resources, resources};
 pub struct ResourceMapper;
 
 impl ResourceMapper {
+    /// Maps a persisted resource row to the domain entity.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the row cannot be mapped to [`Resource`].
     pub fn to_domain(model: resources::Model) -> Result<Resource, DomainError> {
         Ok(Resource {
             name: model.name,

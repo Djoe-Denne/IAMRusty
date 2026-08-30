@@ -17,6 +17,11 @@ impl OwnerType {
         }
     }
 
+    /// Parse an owner type from a string.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if `s` is not a recognized owner type.
     pub fn from_str(s: &str) -> Result<Self, DomainError> {
         match s.to_lowercase().as_str() {
             "personal" => Ok(Self::Personal),

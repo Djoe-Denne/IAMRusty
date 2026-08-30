@@ -1,0 +1,130 @@
+{
+  "wave": 1,
+  "rule": "Têtes des 8 plus grandes lanes — 0 fichier partagé, 0 lane partagée",
+  "totalIssues": 463,
+  "lockedLanes": [
+    "IAMRusty#tests",
+    "IAMRusty/domain#src",
+    "Hive/domain#src",
+    "IAMRusty/http#src",
+    "Telegraph#tests",
+    "Hive/infra#src",
+    "Manifesto/infra#src",
+    "Manifesto/domain#src"
+  ],
+  "agents": [
+    {
+      "agent": 1,
+      "batch": "B008",
+      "lane": "IAMRusty#tests",
+      "crate": "IAMRusty",
+      "issues": 120,
+      "risk": { "mechanical": 70, "semi": 50, "judgment": 0 },
+      "files": ["IAMRusty/tests/utils/jwt.rs"]
+    },
+    {
+      "agent": 2,
+      "batch": "B030",
+      "lane": "IAMRusty/domain#src",
+      "crate": "IAMRusty/domain",
+      "issues": 42,
+      "risk": { "mechanical": 12, "semi": 12, "judgment": 18 },
+      "files": ["IAMRusty/domain/src/service/auth_service.rs"]
+    },
+    {
+      "agent": 3,
+      "batch": "B022",
+      "lane": "Hive/domain#src",
+      "crate": "Hive/domain",
+      "issues": 55,
+      "risk": { "mechanical": 42, "semi": 6, "judgment": 7 },
+      "files": [
+        "Hive/domain/src/port/repository.rs",
+        "Hive/domain/src/entity/organization_invitation.rs",
+        "Hive/domain/src/entity/organization_member.rs",
+        "Hive/domain/src/service/member_service.rs",
+        "Hive/domain/src/entity/permission.rs",
+        "Hive/domain/src/entity/external_provider.rs",
+        "Hive/domain/src/entity/organization.rs",
+        "Hive/domain/src/service/external_provider_service.rs"
+      ]
+    },
+    {
+      "agent": 4,
+      "batch": "B034",
+      "lane": "IAMRusty/http#src",
+      "crate": "IAMRusty/http",
+      "issues": 40,
+      "risk": { "mechanical": 27, "semi": 3, "judgment": 10 },
+      "files": ["IAMRusty/http/src/validation.rs"]
+    },
+    {
+      "agent": 5,
+      "batch": "B006",
+      "lane": "Telegraph#tests",
+      "crate": "Telegraph",
+      "issues": 48,
+      "risk": { "mechanical": 18, "semi": 30, "judgment": 0 },
+      "files": [
+        "Telegraph/tests/fixtures/smtp/service.rs",
+        "Telegraph/tests/fixtures/smtp/testcontainer.rs"
+      ]
+    },
+    {
+      "agent": 6,
+      "batch": "B025",
+      "lane": "Hive/infra#src",
+      "crate": "Hive/infra",
+      "issues": 55,
+      "risk": { "mechanical": 24, "semi": 21, "judgment": 10 },
+      "files": [
+        "Hive/infra/src/repository/member_role_repository.rs",
+        "Hive/infra/src/repository/organization_member_repository.rs",
+        "Hive/infra/src/repository/role_permission_repository.rs"
+      ]
+    },
+    {
+      "agent": 7,
+      "batch": "B045",
+      "lane": "Manifesto/infra#src",
+      "crate": "Manifesto/infra",
+      "issues": 52,
+      "risk": { "mechanical": 27, "semi": 24, "judgment": 1 },
+      "files": [
+        "Manifesto/infra/src/repository/project_member_role_permission_repository.rs",
+        "Manifesto/infra/src/repository/permission_repository.rs",
+        "Manifesto/infra/src/repository/component_repository.rs",
+        "Manifesto/infra/src/repository/resource_repository.rs",
+        "Manifesto/infra/src/adapters/component_service_client.rs",
+        "Manifesto/infra/src/error_mapper.rs",
+        "Manifesto/infra/src/transaction.rs",
+        "Manifesto/infra/src/event/processors/component_processor.rs"
+      ]
+    },
+    {
+      "agent": 8,
+      "batch": "B039",
+      "lane": "Manifesto/domain#src",
+      "crate": "Manifesto/domain",
+      "issues": 51,
+      "risk": { "mechanical": 36, "semi": 6, "judgment": 9 },
+      "files": [
+        "Manifesto/domain/src/value_objects/component_status.rs",
+        "Manifesto/domain/src/value_objects/project_status.rs",
+        "Manifesto/domain/src/entity/project.rs",
+        "Manifesto/domain/src/entity/project_component.rs",
+        "Manifesto/domain/src/value_objects/data_classification.rs"
+      ]
+    }
+  ],
+  "nextOnFinish": {
+    "1": "B009 IAMRusty/tests/fixtures/db/provider_tokens.rs (76) — même lane",
+    "2": "B032 IAMRusty/domain oauth_service+port+token (53)",
+    "3": "B021 Hive/domain (47)",
+    "4": "B035 IAMRusty/http/src/handlers/auth.rs (39)",
+    "5": "B007 Telegraph/tests/fixtures/db (40)",
+    "6": "B026 Hive/infra (55)",
+    "7": "B044 Manifesto/infra (51)",
+    "8": "B040 Manifesto/domain (48)"
+  }
+}

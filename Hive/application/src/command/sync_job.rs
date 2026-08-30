@@ -70,10 +70,9 @@ pub struct SyncJobErrorMapper;
 
 impl CommandErrorMapper for SyncJobErrorMapper {
     fn map_error(&self, error: Box<dyn std::error::Error + Send + Sync>) -> CommandError {
-        if let Some(error) = error.downcast_ref::<ApplicationError>() {
-            CommandError::infrastructure("sync_job_operation_failed", error.to_string())
-        } else {
-            CommandError::business("unknown_error", error.to_string())
-        }
+        error.downcast_ref::<ApplicationError>().map_or_else(
+            || CommandError::business("unknown_error", error.to_string()),
+            |error| CommandError::infrastructure("sync_job_operation_failed", error.to_string()),
+        )
     }
 }

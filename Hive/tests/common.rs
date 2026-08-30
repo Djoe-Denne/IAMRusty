@@ -1,6 +1,6 @@
 //! Common test utilities for Hive
 //!
-//! Mirrors rustycog::testing patterns and Telegraph tests structure, plus
+//! Mirrors [`rustycog::testing`] patterns and `Telegraph` tests structure, plus
 //! the real `OpenFGA` testcontainer every permission-touching Hive test
 //! routes through (mirrors `Manifesto/tests/common.rs`).
 
@@ -34,7 +34,7 @@ pub mod fixtures;
 
 static mut APP: Option<hive_setup::app::Application> = None;
 
-/// Hive test descriptor following rustycog::testing patterns
+/// `Hive` test descriptor following [`rustycog::testing`] patterns
 pub struct HiveTestDescriptor;
 
 #[async_trait]
@@ -101,6 +101,11 @@ pub struct HiveTestFixture {
 }
 
 impl HiveTestFixture {
+    /// Build the fixture (DB + `OpenFGA` testcontainer + migrations).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the shared test fixture cannot start.
     pub async fn new(
         descriptor: Arc<HiveTestDescriptor>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
@@ -134,6 +139,10 @@ impl HiveTestFixture {
 ///
 /// The `OpenFGA` fixture is process-global, so tests must remain
 /// `#[serial]` to avoid tuple-state collisions.
+///
+/// # Errors
+///
+/// Returns an error if the fixture, `OpenFGA` container, or HTTP server cannot start.
 pub async fn setup_test_server(
 ) -> Result<(HiveTestFixture, String, Client, TestOpenFga), Box<dyn std::error::Error>> {
     // Bring up the OpenFGA testcontainer + database first so the env
@@ -146,9 +155,9 @@ pub async fn setup_test_server(
         rustycog::testing::setup_test_server::<HiveTestDescriptor, HiveTestFixture>(descriptor)
             .await?;
 
-    Ok((fixture, prefixed_url(server_url), client, openfga))
+    Ok((fixture, prefixed_url(&server_url), client, openfga))
 }
 
-fn prefixed_url(server_url: String) -> String {
+fn prefixed_url(server_url: &str) -> String {
     format!("{server_url}{SERVICE_PREFIX}")
 }

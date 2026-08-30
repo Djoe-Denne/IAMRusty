@@ -26,7 +26,11 @@ pub struct TeraTemplateService {
 }
 
 impl TeraTemplateService {
-    /// Create a new Tera template service
+    /// Create a new Tera template service.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the template directory cannot be created or Tera fails to initialize.
     pub fn new(config: TemplateConfig) -> Result<Self, DomainError> {
         let template_dir = PathBuf::from(&config.template_dir);
 
@@ -87,11 +91,16 @@ impl TeraTemplateService {
         }
     }
 
-    /// Reload templates from disk
+    /// Reload templates from disk.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if Tera fails to re-initialize from the template directory.
     pub async fn reload_templates(&self) -> Result<(), DomainError> {
         let new_tera = Self::initialize_tera(&self.template_dir)?;
         let mut tera = self.tera.write().await;
         *tera = new_tera;
+        drop(tera);
 
         info!("Reloaded templates from disk");
         Ok(())
@@ -99,7 +108,6 @@ impl TeraTemplateService {
 
     /// Build template filename for a given template name and mode
     fn build_template_filename(
-        &self,
         template_name: &str,
         mode: &CommunicationMode,
         extension: &str,
@@ -115,13 +123,13 @@ impl TeraTemplateService {
     ) -> (String, Option<String>) {
         if mode == &CommunicationMode::Email {
             let html_template =
-                self.build_template_filename(template_name, mode, &self.config.extensions.html);
+                Self::build_template_filename(template_name, mode, &self.config.extensions.html);
             let text_template =
-                self.build_template_filename(template_name, mode, &self.config.extensions.text);
+                Self::build_template_filename(template_name, mode, &self.config.extensions.text);
             (text_template, Some(html_template))
         } else {
             let template =
-                self.build_template_filename(template_name, mode, &self.config.extensions.text);
+                Self::build_template_filename(template_name, mode, &self.config.extensions.text);
             (template, None)
         }
     }
@@ -131,15 +139,7 @@ impl TeraTemplateService {
         let tera = self.tera.read().await;
         let (text_template, _html_template) = self.get_template_paths(template_name, mode);
 
-        let text_exists = tera.get_template(&text_template).is_ok();
-
-        match mode {
-            CommunicationMode::Email => {
-                // For email, we require at least the text template
-                text_exists
-            }
-            _ => text_exists,
-        }
+        tera.get_template(&text_template).is_ok()
     }
 
     /// Render template with Tera
@@ -268,8 +268,8 @@ impl TemplateService for TeraTemplateService {
                 // For now, we'll use a simple approach
                 let subject = merged_variables
                     .get("subject")
-                    .unwrap_or(&format!("{template_name} Email"))
-                    .clone();
+                    .cloned()
+                    .unwrap_or_else(|| format!("{template_name} Email"));
 
                 Ok(RenderedTemplate::Email {
                     subject,
@@ -283,8 +283,8 @@ impl TemplateService for TeraTemplateService {
                     .await?;
                 let title = merged_variables
                     .get("title")
-                    .unwrap_or(&format!("{template_name} Notification"))
-                    .clone();
+                    .cloned()
+                    .unwrap_or_else(|| format!("{template_name} Notification"));
 
                 Ok(RenderedTemplate::Notification {
                     title,

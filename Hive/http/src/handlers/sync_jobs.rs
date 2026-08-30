@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use crate::error::HttpError;
 
-fn error_mapper(error: CommandError) -> HttpError {
+fn error_mapper(error: &CommandError) -> HttpError {
     match error {
         CommandError::Validation { .. } => HttpError::Validation {
             message: error.to_string(),
@@ -23,13 +23,9 @@ fn error_mapper(error: CommandError) -> HttpError {
                 }
             }
         }
-        CommandError::Infrastructure { .. } => HttpError::Internal {
-            message: error.to_string(),
-        },
-        CommandError::RetryExhausted { .. } => HttpError::Internal {
-            message: error.to_string(),
-        },
-        _ => HttpError::Internal {
+        CommandError::Infrastructure { .. }
+        | CommandError::RetryExhausted { .. }
+        | _ => HttpError::Internal {
             message: error.to_string(),
         },
     }
@@ -37,6 +33,10 @@ fn error_mapper(error: CommandError) -> HttpError {
 
 /// Start a sync job
 /// POST /api/organizations/{organization_id}/sync-jobs
+///
+/// # Errors
+///
+/// Returns [`HttpError`] if the sync job command fails validation or execution.
 pub async fn start_sync_job(
     State(state): State<AppState>,
     Path(organization_id): Path<Uuid>,
@@ -52,7 +52,7 @@ pub async fn start_sync_job(
         .command_service
         .execute(command, context)
         .await
-        .map_err(error_mapper)?;
+        .map_err(|e| error_mapper(&e))?;
 
     Ok(Json(result))
 }

@@ -68,58 +68,56 @@ pub struct LinkProviderErrorMapper;
 
 impl CommandErrorMapper for LinkProviderErrorMapper {
     fn map_error(&self, error: Box<dyn std::error::Error + Send + Sync>) -> CommandError {
-        if let Some(link_error) = error.downcast_ref::<LinkProviderError>() {
-            match link_error {
+        error.downcast_ref::<LinkProviderError>().map_or_else(
+            || {
+                CommandError::infrastructure(
+                    LinkProviderErrorCode::RepositoryError.as_str(),
+                    error.to_string(),
+                )
+            },
+            |link_error| match link_error {
                 LinkProviderError::AuthError(_msg) => CommandError::authentication(
                     LinkProviderErrorCode::AuthenticationFailed.as_str(),
                     "Authentication failed",
                 ),
-                LinkProviderError::DomainError(domain_error) => {
-                    match domain_error {
-                        DomainError::UserNotFound => CommandError::authentication(
-                            LinkProviderErrorCode::UserNotFound.as_str(),
-                            "Authentication failed",
-                        ),
-                        DomainError::BusinessRuleViolation(msg) => {
-                            //already linked to another user
-                            if msg.contains("already associated with another user") {
-                                CommandError::business(
-                                    LinkProviderErrorCode::ProviderAlreadyLinked.as_str(),
-                                    msg.clone(),
-                                )
-                            } else if msg.contains("already linked to your account") {
-                                CommandError::business(
-                                    LinkProviderErrorCode::ProviderAlreadyLinkedSameUser.as_str(),
-                                    msg.clone(),
-                                )
-                            } else {
-                                CommandError::business(
-                                    LinkProviderErrorCode::BusinessRuleViolation.as_str(),
-                                    msg.clone(),
-                                )
-                            }
+                LinkProviderError::DomainError(domain_error) => match domain_error {
+                    DomainError::UserNotFound => CommandError::authentication(
+                        LinkProviderErrorCode::UserNotFound.as_str(),
+                        "Authentication failed",
+                    ),
+                    DomainError::BusinessRuleViolation(msg) => {
+                        if msg.contains("already associated with another user") {
+                            CommandError::business(
+                                LinkProviderErrorCode::ProviderAlreadyLinked.as_str(),
+                                msg.clone(),
+                            )
+                        } else if msg.contains("already linked to your account") {
+                            CommandError::business(
+                                LinkProviderErrorCode::ProviderAlreadyLinkedSameUser.as_str(),
+                                msg.clone(),
+                            )
+                        } else {
+                            CommandError::business(
+                                LinkProviderErrorCode::BusinessRuleViolation.as_str(),
+                                msg.clone(),
+                            )
                         }
-                        DomainError::RepositoryError(msg) => CommandError::infrastructure(
-                            LinkProviderErrorCode::RepositoryError.as_str(),
-                            format!("Database error: {msg}"),
-                        ),
-                        _ => CommandError::infrastructure(
-                            LinkProviderErrorCode::RepositoryError.as_str(),
-                            domain_error.to_string(),
-                        ),
                     }
-                }
+                    DomainError::RepositoryError(msg) => CommandError::infrastructure(
+                        LinkProviderErrorCode::RepositoryError.as_str(),
+                        format!("Database error: {msg}"),
+                    ),
+                    _ => CommandError::infrastructure(
+                        LinkProviderErrorCode::RepositoryError.as_str(),
+                        domain_error.to_string(),
+                    ),
+                },
                 LinkProviderError::ProviderNotConfigured(provider) => CommandError::infrastructure(
                     LinkProviderErrorCode::ProviderNotConfigured.as_str(),
                     format!("Provider {provider} not configured"),
                 ),
-            }
-        } else {
-            CommandError::infrastructure(
-                LinkProviderErrorCode::RepositoryError.as_str(),
-                error.to_string(),
-            )
-        }
+            },
+        )
     }
 }
 
@@ -128,8 +126,14 @@ pub struct ProviderErrorMapper;
 
 impl CommandErrorMapper for ProviderErrorMapper {
     fn map_error(&self, error: Box<dyn std::error::Error + Send + Sync>) -> CommandError {
-        if let Some(provider_error) = error.downcast_ref::<ProviderError>() {
-            match provider_error {
+        error.downcast_ref::<ProviderError>().map_or_else(
+            || {
+                CommandError::infrastructure(
+                    ProviderErrorCode::DatabaseError.as_str(),
+                    error.to_string(),
+                )
+            },
+            |provider_error| match provider_error {
                 ProviderError::UserNotFound => CommandError::authentication(
                     ProviderErrorCode::UserNotFound.as_str(),
                     "Authentication failed",
@@ -150,13 +154,8 @@ impl CommandErrorMapper for ProviderErrorMapper {
                     ProviderErrorCode::DatabaseError.as_str(),
                     format!("Database error: {e}"),
                 ),
-            }
-        } else {
-            CommandError::infrastructure(
-                ProviderErrorCode::DatabaseError.as_str(),
-                error.to_string(),
-            )
-        }
+            },
+        )
     }
 }
 

@@ -13,14 +13,28 @@ pub struct AuthErrorMapper;
 
 impl CommandErrorMapper for AuthErrorMapper {
     fn map_error(&self, error: Box<dyn std::error::Error + Send + Sync>) -> CommandError {
-        if let Some(error) = error.downcast_ref::<LoginError>() {
-            match error {
+        error.downcast_ref::<LoginError>().map_or_else(
+            || {
+                let error_msg = error.to_string();
+                if Self::is_authentication_related_error(&error_msg) {
+                    CommandError::validation(
+                        AuthErrorCode::AuthenticationFailed.as_str(),
+                        format!("Authentication failed: {error_msg}"),
+                    )
+                } else {
+                    CommandError::infrastructure(
+                        AuthErrorCode::RepositoryError.as_str(),
+                        error.to_string(),
+                    )
+                }
+            },
+            |login_error| match login_error {
                 LoginError::UserNotFound => {
                     CommandError::business(AuthErrorCode::UserNotFound.as_str(), "User not found")
                 }
                 LoginError::InvalidCredentials => CommandError::business(
                     AuthErrorCode::InvalidCredentials.as_str(),
-                    "Invalid credentials", // Don't leak user existence
+                    "Invalid credentials",
                 ),
                 LoginError::EmailNotVerified => CommandError::business(
                     AuthErrorCode::EmailNotVerified.as_str(),
@@ -40,7 +54,7 @@ impl CommandErrorMapper for AuthErrorMapper {
                 ),
                 LoginError::EmailNotFound => CommandError::business(
                     AuthErrorCode::EmailNotFound.as_str(),
-                    "Invalid verification request", // Don't leak email existence
+                    "Invalid verification request",
                 ),
                 LoginError::EmailAlreadyVerified => CommandError::business(
                     AuthErrorCode::EmailAlreadyVerified.as_str(),
@@ -67,21 +81,8 @@ impl CommandErrorMapper for AuthErrorMapper {
                         )
                     }
                 }
-            }
-        } else {
-            let error_msg = error.to_string();
-            if Self::is_authentication_related_error(&error_msg) {
-                CommandError::validation(
-                    AuthErrorCode::AuthenticationFailed.as_str(),
-                    format!("Authentication failed: {error_msg}"),
-                )
-            } else {
-                CommandError::infrastructure(
-                    AuthErrorCode::RepositoryError.as_str(),
-                    error.to_string(),
-                )
-            }
-        }
+            },
+        )
     }
 }
 

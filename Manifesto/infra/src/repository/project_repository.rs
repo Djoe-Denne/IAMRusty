@@ -18,6 +18,11 @@ use super::entity::{prelude::Projects, project_members, projects};
 pub struct ProjectMapper;
 
 impl ProjectMapper {
+    /// Map a SeaORM project row to the domain entity.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if a persisted enum field is not a recognized value.
     pub fn to_domain(model: projects::Model) -> Result<Project, DomainError> {
         Ok(Project {
             id: model.id,
@@ -113,18 +118,21 @@ impl ProjectReadRepository for ProjectReadRepositoryImpl {
         let mut query = Projects::find();
         let mut conditions = Condition::all();
 
-        let access_condition = if let Some(user_id) = filters.viewer_user_id {
+        if filters.viewer_user_id.is_some() {
             query = query.left_join(project_members::Entity).distinct();
-            Condition::any()
-                .add(projects::Column::Visibility.eq(Visibility::Public.as_str()))
-                .add(
-                    Condition::all()
-                        .add(project_members::Column::UserId.eq(user_id))
-                        .add(project_members::Column::RemovedAt.is_null()),
-                )
-        } else {
-            Condition::all().add(projects::Column::Visibility.eq(Visibility::Public.as_str()))
-        };
+        }
+        let access_condition = filters.viewer_user_id.map_or_else(
+            || Condition::all().add(projects::Column::Visibility.eq(Visibility::Public.as_str())),
+            |user_id| {
+                Condition::any()
+                    .add(projects::Column::Visibility.eq(Visibility::Public.as_str()))
+                    .add(
+                        Condition::all()
+                            .add(project_members::Column::UserId.eq(user_id))
+                            .add(project_members::Column::RemovedAt.is_null()),
+                    )
+            },
+        );
 
         conditions = conditions.add(access_condition);
 
@@ -181,18 +189,21 @@ impl ProjectReadRepository for ProjectReadRepositoryImpl {
         let mut query = Projects::find();
         let mut conditions = Condition::all();
 
-        let access_condition = if let Some(user_id) = viewer_user_id {
+        if viewer_user_id.is_some() {
             query = query.left_join(project_members::Entity).distinct();
-            Condition::any()
-                .add(projects::Column::Visibility.eq(Visibility::Public.as_str()))
-                .add(
-                    Condition::all()
-                        .add(project_members::Column::UserId.eq(user_id))
-                        .add(project_members::Column::RemovedAt.is_null()),
-                )
-        } else {
-            Condition::all().add(projects::Column::Visibility.eq(Visibility::Public.as_str()))
-        };
+        }
+        let access_condition = viewer_user_id.map_or_else(
+            || Condition::all().add(projects::Column::Visibility.eq(Visibility::Public.as_str())),
+            |user_id| {
+                Condition::any()
+                    .add(projects::Column::Visibility.eq(Visibility::Public.as_str()))
+                    .add(
+                        Condition::all()
+                            .add(project_members::Column::UserId.eq(user_id))
+                            .add(project_members::Column::RemovedAt.is_null()),
+                    )
+            },
+        );
 
         conditions = conditions.add(access_condition);
 
@@ -235,6 +246,11 @@ impl ProjectWriteRepositoryImpl {
         Self { db }
     }
 
+    /// Persist a project using an existing connection.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the query, insert, or update fails, or if mapping the row fails.
     pub async fn save_with_connection<C>(db: &C, project: &Project) -> Result<Project, DomainError>
     where
         C: ConnectionTrait,

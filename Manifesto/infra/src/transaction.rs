@@ -125,7 +125,7 @@ where
         id: None,
         name: None,
         project_id,
-        permission: normalize_permission(permission)?,
+        permission: normalize_permission(&permission)?,
         resource: normalize_resource(resource),
         created_at: None,
     };
@@ -133,7 +133,7 @@ where
     RolePermissionWriteRepositoryImpl::create_with_connection(db, &role_permission).await
 }
 
-fn normalize_permission(permission: Permission) -> Result<Permission, DomainError> {
+fn normalize_permission(permission: &Permission) -> Result<Permission, DomainError> {
     // Keep construction explicit so malformed seeded data fails before write.
     let level = PermissionLevel::from_str(permission.level.to_str())?;
     Ok(Permission {

@@ -34,6 +34,10 @@ pub struct GitLabOAuth2Client {
 
 impl GitLabOAuth2Client {
     /// Create a new GitLab `OAuth2` client
+    ///
+    /// # Panics
+    ///
+    /// Panics if `auth_url`, `token_url`, or `redirect_url` is not a valid URL.
     #[must_use]
     pub fn new(
         client_id: String,

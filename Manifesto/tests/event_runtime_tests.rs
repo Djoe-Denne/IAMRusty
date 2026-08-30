@@ -67,11 +67,13 @@ impl ComponentService for InMemoryComponentService {
         &self,
         component: ProjectComponent,
     ) -> Result<ProjectComponent, DomainError> {
-        let mut current = self
-            .component
-            .lock()
-            .expect("component state mutex should not be poisoned");
-        *current = component.clone();
+        {
+            let mut current = self
+                .component
+                .lock()
+                .expect("component state mutex should not be poisoned");
+            *current = component.clone();
+        }
         Ok(component)
     }
 
@@ -79,11 +81,13 @@ impl ComponentService for InMemoryComponentService {
         &self,
         component: ProjectComponent,
     ) -> Result<ProjectComponent, DomainError> {
-        let mut current = self
-            .component
-            .lock()
-            .expect("component state mutex should not be poisoned");
-        *current = component.clone();
+        {
+            let mut current = self
+                .component
+                .lock()
+                .expect("component state mutex should not be poisoned");
+            *current = component.clone();
+        }
         Ok(component)
     }
 
@@ -148,8 +152,10 @@ async fn test_apparatus_consumer_bootstraps_safely_with_enabled_kafka_config() {
     )));
     let processor = Arc::new(ComponentStatusProcessor::new(component_service));
 
-    let mut kafka_config = KafkaConfig::default();
-    kafka_config.enabled = true;
+    let kafka_config = KafkaConfig {
+        enabled: true,
+        ..KafkaConfig::default()
+    };
 
     let consumer = ApparatusEventConsumer::new(&QueueConfig::Kafka(kafka_config), processor)
         .await

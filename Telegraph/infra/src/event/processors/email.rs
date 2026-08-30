@@ -25,7 +25,11 @@ impl EmailEventProcessor {
         }
     }
 
-    /// Process an IAM domain event with the communication factory
+    /// Process an IAM domain event with the communication factory.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the email cannot be built, has no recipient, or fails to send.
     pub async fn process(&self, event: &EventContext) -> Result<(), DomainError> {
         info!(
             event_id = %event.event_id,
@@ -41,11 +45,11 @@ impl EmailEventProcessor {
             .await?;
 
         // Validate recipient has email
-        let email = email_communication.recipient.email.as_ref().ok_or(
+        let email = email_communication.recipient.email.as_ref().ok_or_else(|| {
             DomainError::EventProcessingError(
                 "No email address found in communication".to_string(),
-            ),
-        )?;
+            )
+        })?;
 
         // Send the email using the communication content
         self.email_service.send_email(&email_communication).await?;

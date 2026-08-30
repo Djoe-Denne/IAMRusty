@@ -28,10 +28,18 @@ pub trait ProviderOAuth2Client {
 
 /// JWT token encoder/decoder
 pub trait JwtTokenEncoder: Send + Sync {
-    /// Encode a token with the given claims
+    /// Encode a token with the given claims.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if encoding or signing the token fails.
     fn encode(&self, claims: &TokenClaims) -> Result<String, DomainError>;
 
-    /// Decode a token and validate its signature
+    /// Decode a token and validate its signature.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the token is invalid, expired, or signature verification fails.
     fn decode(&self, token: &str) -> Result<TokenClaims, DomainError>;
 
     /// Get the JSON Web Key Set (JWKS) for token verification
@@ -40,14 +48,22 @@ pub trait JwtTokenEncoder: Send + Sync {
 
 /// Registration token service for managing RSA-signed registration tokens
 pub trait RegistrationTokenService: Send + Sync {
-    /// Generate a registration token for email/password flow
+    /// Generate a registration token for email/password flow.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the token cannot be signed.
     fn generate_registration_token(
         &self,
         user_id: Uuid,
         email: String,
     ) -> Result<String, DomainError>;
 
-    /// Generate a registration token for OAuth flow
+    /// Generate a registration token for OAuth flow.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the token cannot be signed.
     fn generate_oauth_registration_token(
         &self,
         user_id: Uuid,
@@ -55,7 +71,11 @@ pub trait RegistrationTokenService: Send + Sync {
         provider_info: crate::entity::registration_token::ProviderInfo,
     ) -> Result<String, DomainError>;
 
-    /// Validate and decode a registration token
+    /// Validate and decode a registration token.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the token is invalid, expired, or cannot be decoded.
     fn validate_registration_token(
         &self,
         token: &str,

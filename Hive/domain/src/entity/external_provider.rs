@@ -18,6 +18,10 @@ pub struct ExternalProvider {
 
 impl ExternalProvider {
     /// Create a new external provider
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if `name` fails validation.
     pub fn new(
         provider_source: String,
         name: String,
@@ -36,6 +40,10 @@ impl ExternalProvider {
     }
 
     /// Update provider name
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if `new_name` fails validation.
     pub fn update_name(&mut self, new_name: String) -> Result<(), DomainError> {
         Self::validate_name(&new_name)?;
         self.name = new_name;

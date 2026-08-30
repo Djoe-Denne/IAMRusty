@@ -62,7 +62,11 @@ pub struct Application {
 }
 
 impl Application {
-    /// Create a new application instance with all dependencies
+    /// Create a new application instance with all dependencies.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database, event publisher, auth, or OpenFGA setup fails.
     pub async fn new(config: AppConfig) -> Result<Self, Error> {
         tracing::info!("Initializing Hive application...");
 
@@ -114,7 +118,7 @@ impl Application {
         // Same HS256 secret as IAM `[jwt.secret]` — rustycog-http cannot
         // verify IAM JWKS/RS256 (rustycog-framework 0.1.1).
         let user_id_extractor = UserIdExtractor::new(config.auth.clone())
-            .map_err(|e| anyhow::anyhow!("Invalid auth configuration: {}", e))?;
+            .map_err(|e| anyhow::anyhow!("Invalid auth configuration: {e}"))?;
 
         // Centralized permission checker (OpenFGA). Built once and shared
         // across every request through `AppState`. The checker chain is:
@@ -129,7 +133,7 @@ impl Application {
         // masked by a stale cached entry.
         let raw_checker: Arc<dyn PermissionChecker> = Arc::new(
             OpenFgaPermissionChecker::new(config.openfga.clone())
-                .map_err(|e| anyhow::anyhow!("Invalid OpenFGA configuration: {}", e))?,
+                .map_err(|e| anyhow::anyhow!("Invalid OpenFGA configuration: {e}"))?,
         );
         let cache_ttl_seconds = config.openfga.cache_ttl_seconds.unwrap_or(15);
         let metered_inner: Arc<dyn PermissionChecker> = if cache_ttl_seconds == 0 {
@@ -162,7 +166,12 @@ impl Application {
         })
     }
 
-    /// Start the HTTP server
+    /// Start the HTTP server.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the HTTP server or outbox dispatcher fails, or if a
+    /// background task panics.
     pub async fn run(self, server_config: ServerConfig) -> Result<(), Error> {
         tracing::info!("Starting Hive HTTP server...");
 
@@ -172,7 +181,7 @@ impl Application {
             tokio::spawn(async move {
                 create_app_routes(state, server_config, probe)
                     .await
-                    .map_err(|e| anyhow::anyhow!("Server startup failed: {}", e))
+                    .map_err(|e| anyhow::anyhow!("Server startup failed: {e}"))
             })
         };
 
@@ -190,14 +199,14 @@ impl Application {
                 match result {
                     Ok(Ok(())) => Ok(()),
                     Ok(Err(error)) => Err(error),
-                    Err(error) => Err(anyhow::anyhow!("Hive outbox dispatcher task panicked: {}", error)),
+                    Err(error) => Err(anyhow::anyhow!("Hive outbox dispatcher task panicked: {error}")),
                 }
             }
             result = &mut server_handle => {
                 match result {
                     Ok(Ok(())) => Ok(()),
                     Ok(Err(error)) => Err(error),
-                    Err(error) => Err(anyhow::anyhow!("Hive HTTP server task panicked: {}", error)),
+                    Err(error) => Err(anyhow::anyhow!("Hive HTTP server task panicked: {error}")),
                 }
             }
         };
@@ -231,13 +240,13 @@ impl Application {
             dispatcher
                 .start()
                 .await
-                .map_err(|e| anyhow::anyhow!("Hive outbox dispatcher failed: {}", e))
+                .map_err(|e| anyhow::anyhow!("Hive outbox dispatcher failed: {e}"))
         })]
     }
 
     pub async fn stop_background_tasks(&self) {
         if let Err(e) = self.outbox_dispatcher.stop().await {
-            tracing::error!("Failed to stop Hive outbox dispatcher: {}", e);
+            tracing::error!("Failed to stop Hive outbox dispatcher: {e}");
         }
     }
 }
@@ -538,7 +547,11 @@ impl AppBuilder {
         Self { config }
     }
 
-    /// Build the Hive application
+    /// Build the Hive application.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if application initialization fails.
     pub async fn build(self) -> Result<Application, anyhow::Error> {
         Application::new(self.config).await
     }

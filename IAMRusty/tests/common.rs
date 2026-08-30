@@ -69,6 +69,11 @@ impl ServiceTestDescriptor<TestFixture> for IAMRustyTestDescriptor {
     }
 }
 
+/// Start the IAM test server with the default descriptor.
+///
+/// # Errors
+///
+/// Returns an error if the test fixture or HTTP server fails to start.
 pub async fn setup_test_server() -> Result<(TestFixture, String, Client), Box<dyn std::error::Error>>
 {
     let descriptor = Arc::new(IAMRustyTestDescriptor);
@@ -76,7 +81,7 @@ pub async fn setup_test_server() -> Result<(TestFixture, String, Client), Box<dy
     let (server_url, client) =
         rustycog::testing::setup_test_server::<IAMRustyTestDescriptor, TestFixture>(descriptor)
             .await?;
-    Ok((fixture, prefixed_url(server_url), client))
+    Ok((fixture, prefixed_url(&server_url), client))
 }
 
 impl Default for IAMRustyTestDescriptorWithMockEvents {
@@ -156,6 +161,11 @@ impl ServiceTestDescriptor<TestFixture> for IAMRustyTestDescriptorWithMockEvents
     }
 }
 
+/// Start the IAM test server with a shared mock event publisher.
+///
+/// # Errors
+///
+/// Returns an error if the test fixture or HTTP server fails to start.
 pub async fn setup_test_server_with_mock_events(
 ) -> Result<(TestFixture, String, Client, Arc<MockEventPublisher>), Box<dyn std::error::Error>> {
     static MOCK_EVENTS_DESCRIPTOR: OnceLock<Arc<IAMRustyTestDescriptorWithMockEvents>> =
@@ -174,12 +184,12 @@ pub async fn setup_test_server_with_mock_events(
     .await?;
     Ok((
         fixture,
-        prefixed_url(base_url),
+        prefixed_url(&base_url),
         client,
         mock_event_publisher,
     ))
 }
 
-fn prefixed_url(server_url: String) -> String {
+fn prefixed_url(server_url: &str) -> String {
     format!("{server_url}{SERVICE_PREFIX}")
 }

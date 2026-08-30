@@ -131,11 +131,12 @@ where
         owner_type: OwnerType,
         owner_id: Uuid,
     ) -> Result<i64, DomainError> {
-        Ok(self
+        let count = self
             .project_repo
             .find_by_owner(owner_type, &owner_id)
             .await?
-            .len() as i64)
+            .len();
+        Ok(i64::try_from(count).unwrap_or(i64::MAX))
     }
 
     async fn validate_publish(&self, project_id: &Uuid) -> Result<(), DomainError> {

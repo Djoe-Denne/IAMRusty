@@ -87,10 +87,10 @@ where
     RPR: RolePermissionRepository,
     PMRPR: ProjectMemberRolePermissionRepository,
 {
-    permission_repo: Arc<PR>,
-    resource_repo: Arc<RR>,
-    role_permission_repo: Arc<RPR>,
-    member_role_permission_repo: Arc<PMRPR>,
+    permission: Arc<PR>,
+    resource: Arc<RR>,
+    role_permission: Arc<RPR>,
+    member_role_permission: Arc<PMRPR>,
 }
 
 impl<PR, RR, RPR, PMRPR> PermissionServiceImpl<PR, RR, RPR, PMRPR>
@@ -101,16 +101,16 @@ where
     PMRPR: ProjectMemberRolePermissionRepository,
 {
     pub const fn new(
-        permission_repo: Arc<PR>,
-        resource_repo: Arc<RR>,
-        role_permission_repo: Arc<RPR>,
-        member_role_permission_repo: Arc<PMRPR>,
+        permission: Arc<PR>,
+        resource: Arc<RR>,
+        role_permission: Arc<RPR>,
+        member_role_permission: Arc<PMRPR>,
     ) -> Self {
         Self {
-            permission_repo,
-            resource_repo,
-            role_permission_repo,
-            member_role_permission_repo,
+            permission,
+            resource,
+            role_permission,
+            member_role_permission,
         }
     }
 }
@@ -124,32 +124,32 @@ where
     PMRPR: ProjectMemberRolePermissionRepository,
 {
     async fn get_permission_by_level(&self, level: &str) -> Result<Permission, DomainError> {
-        self.permission_repo
+        self.permission
             .find_by_level(level)
             .await?
             .ok_or_else(|| DomainError::entity_not_found("Permission", level))
     }
 
     async fn get_all_permissions(&self) -> Result<Vec<Permission>, DomainError> {
-        self.permission_repo.find_all().await
+        self.permission.find_all().await
     }
 
     async fn get_resource(&self, resource_id: &str) -> Result<Resource, DomainError> {
-        self.resource_repo
+        self.resource
             .find_by_id(resource_id)
             .await?
             .ok_or_else(|| DomainError::entity_not_found("Resource", resource_id))
     }
 
     async fn get_all_resources(&self) -> Result<Vec<Resource>, DomainError> {
-        self.resource_repo.find_all().await
+        self.resource.find_all().await
     }
 
     async fn create_component_type_resource(
         &self,
         component_type: &str,
     ) -> Result<Resource, DomainError> {
-        self.resource_repo
+        self.resource
             .create_for_component(component_type)
             .await
     }
@@ -158,7 +158,7 @@ where
         &self,
         component_id: &Uuid,
     ) -> Result<Resource, DomainError> {
-        self.resource_repo
+        self.resource
             .create_for_component_instance(component_id)
             .await
     }
@@ -169,11 +169,11 @@ where
     ) -> Result<(), DomainError> {
         // Resource ID is just the component UUID (resource_type identifies it as component_instance)
         let resource_id = component_id.to_string();
-        self.resource_repo.delete_by_id(&resource_id).await
+        self.resource.delete_by_id(&resource_id).await
     }
 
     async fn delete_resource(&self, resource_id: &str) -> Result<(), DomainError> {
-        self.resource_repo.delete_by_id(resource_id).await
+        self.resource.delete_by_id(resource_id).await
     }
 
     async fn get_or_create_role_permission(
@@ -184,7 +184,7 @@ where
     ) -> Result<RolePermission, DomainError> {
         // Try to find existing
         if let Some(existing) = self
-            .role_permission_repo
+            .role_permission
             .find_by_project_resource_permission(&project_id, resource_name, permission_level)
             .await?
         {
@@ -209,14 +209,14 @@ where
             created_at: None,
         };
 
-        self.role_permission_repo.create(&role_perm).await
+        self.role_permission.create(&role_perm).await
     }
 
     async fn get_role_permissions_for_project(
         &self,
         project_id: &Uuid,
     ) -> Result<Vec<RolePermission>, DomainError> {
-        self.role_permission_repo.find_by_project(project_id).await
+        self.role_permission.find_by_project(project_id).await
     }
 
     async fn grant_permission_to_member(
@@ -224,7 +224,7 @@ where
         member_id: &Uuid,
         role_permission_id: &Uuid,
     ) -> Result<ProjectMemberRolePermission, DomainError> {
-        self.member_role_permission_repo
+        self.member_role_permission
             .grant(member_id, role_permission_id)
             .await
     }
@@ -234,7 +234,7 @@ where
         member_id: &Uuid,
         role_permission_id: &Uuid,
     ) -> Result<(), DomainError> {
-        self.member_role_permission_repo
+        self.member_role_permission
             .revoke(member_id, role_permission_id)
             .await
     }
@@ -243,7 +243,7 @@ where
         &self,
         member_id: &Uuid,
     ) -> Result<(), DomainError> {
-        self.member_role_permission_repo
+        self.member_role_permission
             .revoke_all_for_member(member_id)
             .await
     }

@@ -1,0 +1,75 @@
+{
+  "projectKey": "Djoe-Denne_IAMRusty",
+  "organization": "djoe-denne06",
+  "source": "sonar-project.properties + SonarCloud MCP",
+  "fetched": "2026-08-29",
+  "inventory": {
+    "violations": 2453,
+    "bugs": 0,
+    "vulnerabilities": 0,
+    "securityHotspots": 0,
+    "coverage": 61.4,
+    "ncloc": 67276,
+    "severity": { "MAJOR": 2453 },
+    "files": 221,
+    "crates": 34,
+    "lanes": 37,
+    "rules": 51
+  },
+  "families": {
+    "clippy-style": 1416,
+    "docs": 721,
+    "reliability": 124,
+    "unused": 101,
+    "complexity": 59,
+    "duplication": 32
+  },
+  "fixRisk": {
+    "mechanical": 1230,
+    "semi": 661,
+    "judgment": 562
+  },
+  "isolation": {
+    "atomicUnit": "file",
+    "mutex": "lane = cargo-package × {src|tests}",
+    "why": "Deux agents sur le même fichier = conflit git garanti. Deux agents sur le même crate (src ou tests) = rustfmt, lib.rs, re-exports. Packages d'un même service (IAMRusty/domain vs IAMRusty/http) restent parallélisables."
+  },
+  "batch": {
+    "targetIssues": 55,
+    "batches": 69,
+    "sizeHist": { "le20": 18, "le40": 22, "le55": 26, "gt55": 3 },
+    "hotFilesSolo": [
+      { "file": "IAMRusty/tests/utils/jwt.rs", "n": 120 },
+      { "file": "IAMRusty/tests/fixtures/db/provider_tokens.rs", "n": 76 },
+      { "file": "IAMRusty/tests/common.rs", "n": 62 }
+    ]
+  },
+  "simulation8Agents": {
+    "note": "Modèle discret: 1 lot = 1 vague. Dernier 0 ignoré.",
+    "laneLock": {
+      "T25": { "waves": 16, "fullParallelWaves": 12, "idleSlots": 34 },
+      "T40": { "waves": 13, "fullParallelWaves": 9, "idleSlots": 33 },
+      "T55": { "waves": 11, "fullParallelWaves": 8, "idleSlots": 29 },
+      "T80": { "waves": 8, "fullParallelWaves": 6, "idleSlots": 18 },
+      "T120": { "waves": 6, "fullParallelWaves": 5, "idleSlots": 10 }
+    },
+    "fileOnlyNoCrateLock": {
+      "T55": { "waves": 9, "fullParallelWaves": 8, "idleSlots": 13, "rejected": "2 vagues gagnées, mais jusqu'à 8 agents dans IAMRusty/tests (620 issues, 29 fichiers)" }
+    }
+  },
+  "decision": {
+    "chosen": "T55 + lane-lock",
+    "why": [
+      "T25: 69→102 lots, 5 vagues de coordination en plus pour ~20 issues/lot",
+      "T80: moins de vagues mais un échec agent gaspille 80+ issues; jwt.rs dépasse déjà 55",
+      "crate-lock sans lane src/tests: IAMRusty 622 issues sérialise 1 worker (presque tout est #tests)",
+      "file-only: gain 2 vagues, risque croisement rustfmt/mod.rs inacceptable sur IAMRusty#tests",
+      "T55: 8 agents occupés 8 vagues, ~7-12 fichiers/lot, médiane fichier=6, retry borné"
+    ]
+  },
+  "dispatch": {
+    "workers": 8,
+    "onFinish": "Assigner le prochain lot de la plus grande lane encore déverrouillée. Si la lane de l'agent a encore des lots, la lui redonner (affinité).",
+    "never": "Deux agents actifs sur la même lane, ni le même fichier."
+  }
+}

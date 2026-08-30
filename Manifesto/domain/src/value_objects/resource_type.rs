@@ -12,7 +12,11 @@ pub enum ResourceType {
 }
 
 impl ResourceType {
-    /// Convert from string representation
+    /// Parse a resource type from a string.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if `s` is not a recognized resource type.
     pub fn from_str(s: &str) -> Result<Self, DomainError> {
         match s.to_lowercase().as_str() {
             "internal" => Ok(Self::Internal),

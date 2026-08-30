@@ -44,7 +44,11 @@ pub struct EmailAdapter {
 }
 
 impl EmailAdapter {
-    /// Create a new email adapter with configuration
+    /// Create a new email adapter with configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the SMTP relay or TLS parameters cannot be created.
     pub fn new(config: EmailConfig) -> Result<Self, DomainError> {
         let mailer = Self::create_mailer(&config)?;
 

@@ -12,6 +12,11 @@ impl EmailService {
         Self { email_provider }
     }
 
+    /// Send an email through the configured provider.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] when the email provider fails to send the message.
     pub async fn send_email(&self, email: &EmailCommunication) -> Result<String, DomainError> {
         self.email_provider.send_email(email).await
     }

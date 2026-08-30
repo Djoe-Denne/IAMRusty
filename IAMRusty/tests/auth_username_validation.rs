@@ -42,10 +42,10 @@ async fn test_username_check_available_returns_true() {
 #[tokio::test]
 #[serial]
 async fn test_username_check_taken_returns_false_with_suggestions() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Pre-create user with taken username
     let _existing_user = DbFixtures::user()
@@ -94,10 +94,10 @@ async fn test_username_check_taken_returns_false_with_suggestions() {
 #[tokio::test]
 #[serial]
 async fn test_username_check_case_sensitivity() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Create user with lowercase username
     let _existing_user = DbFixtures::user()
@@ -357,10 +357,10 @@ async fn test_username_unicode_and_special_characters() {
 #[tokio::test]
 #[serial]
 async fn test_username_suggestions_reasonable_alternatives() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Create multiple users with similar usernames
     let taken_usernames = vec!["johndoe", "johndoe123", "johndoe_"];
@@ -437,10 +437,10 @@ async fn test_username_suggestions_reasonable_alternatives() {
 #[tokio::test]
 #[serial]
 async fn test_username_suggestions_different_strategies() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Create user with a simple username
     let _user = DbFixtures::user()
@@ -590,10 +590,10 @@ async fn test_username_check_whitespace_handling() {
 #[tokio::test]
 #[serial]
 async fn test_username_uniqueness_across_database() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Create user with specific username
     let unique_username = "uniqueuser123";
@@ -640,10 +640,10 @@ async fn test_username_uniqueness_across_database() {
 #[tokio::test]
 #[serial]
 async fn test_username_check_performance_with_many_users() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Create multiple users to test performance
     for i in 0..10 {

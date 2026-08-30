@@ -26,8 +26,14 @@ use crate::{
     ApplicationError,
 };
 
+/// Persists a project and its owner membership in one unit of work.
 #[async_trait]
 pub trait ProjectCreationUnitOfWork: Send + Sync {
+    /// Create a project together with owner permissions.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ApplicationError`] if persistence or event recording fails.
     async fn create_project_with_owner_permissions(
         &self,
         project: Project,
@@ -37,26 +43,47 @@ pub trait ProjectCreationUnitOfWork: Send + Sync {
     ) -> Result<(Project, ProjectMember), ApplicationError>;
 }
 
+/// Application use cases for projects.
 #[async_trait]
 pub trait ProjectUseCase: Send + Sync {
+    /// Create a project.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ApplicationError`] if validation or persistence fails.
     async fn create_project(
         &self,
         request: &CreateProjectRequest,
         user_id: Uuid,
     ) -> Result<ProjectResponse, ApplicationError>;
 
+    /// Get a project summary.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ApplicationError`] if the project is missing.
     async fn get_project(
         &self,
         project_id: Uuid,
         user_id: Option<Uuid>,
     ) -> Result<ProjectResponse, ApplicationError>;
 
+    /// Get a project with components.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ApplicationError`] if the project is missing.
     async fn get_project_detail(
         &self,
         project_id: Uuid,
         user_id: Option<Uuid>,
     ) -> Result<ProjectDetailResponse, ApplicationError>;
 
+    /// Update project metadata.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ApplicationError`] if the update is forbidden or persistence fails.
     async fn update_project(
         &self,
         project_id: Uuid,
@@ -64,9 +91,19 @@ pub trait ProjectUseCase: Send + Sync {
         user_id: Uuid,
     ) -> Result<ProjectResponse, ApplicationError>;
 
+    /// Delete a project.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ApplicationError`] if the delete is forbidden or persistence fails.
     async fn delete_project(&self, project_id: Uuid, user_id: Uuid)
         -> Result<(), ApplicationError>;
 
+    /// List projects matching the given filters.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ApplicationError`] if the listing fails.
     async fn list_projects(
         &self,
         owner_type: Option<OwnerType>,
@@ -77,12 +114,22 @@ pub trait ProjectUseCase: Send + Sync {
         pagination: &PaginationRequest,
     ) -> Result<ProjectListResponse, ApplicationError>;
 
+    /// Publish a project.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ApplicationError`] if the transition is forbidden or persistence fails.
     async fn publish_project(
         &self,
         project_id: Uuid,
         user_id: Uuid,
     ) -> Result<ProjectResponse, ApplicationError>;
 
+    /// Archive a project.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ApplicationError`] if the transition is forbidden or persistence fails.
     async fn archive_project(
         &self,
         project_id: Uuid,
@@ -90,6 +137,7 @@ pub trait ProjectUseCase: Send + Sync {
     ) -> Result<ProjectResponse, ApplicationError>;
 }
 
+/// Default [`ProjectUseCase`] implementation.
 pub struct ProjectUseCaseImpl {
     project_service: Arc<dyn ProjectService>,
     component_service: Arc<dyn ComponentService>,
@@ -101,6 +149,7 @@ pub struct ProjectUseCaseImpl {
 }
 
 impl ProjectUseCaseImpl {
+    /// Create a project use case without a dedicated creation unit of work.
     pub fn new(
         project_service: Arc<dyn ProjectService>,
         component_service: Arc<dyn ComponentService>,
@@ -120,6 +169,7 @@ impl ProjectUseCaseImpl {
         }
     }
 
+    /// Create a project use case that persists creation through a unit of work.
     pub fn new_with_project_creation_uow(
         project_service: Arc<dyn ProjectService>,
         component_service: Arc<dyn ComponentService>,
@@ -140,7 +190,7 @@ impl ProjectUseCaseImpl {
         }
     }
 
-    fn project_to_response(&self, project: &Project) -> ProjectResponse {
+    fn project_to_response(project: &Project) -> ProjectResponse {
         ProjectResponse {
             id: project.id,
             name: project.name.clone(),
@@ -319,7 +369,7 @@ impl ProjectUseCase for ProjectUseCaseImpl {
             created_project
         };
 
-        Ok(self.project_to_response(&created_project))
+        Ok(Self::project_to_response(&created_project))
     }
 
     async fn get_project(
@@ -328,7 +378,7 @@ impl ProjectUseCase for ProjectUseCaseImpl {
         _user_id: Option<Uuid>,
     ) -> Result<ProjectResponse, ApplicationError> {
         let project = self.project_service.get_project(&project_id).await?;
-        Ok(self.project_to_response(&project))
+        Ok(Self::project_to_response(&project))
     }
 
     async fn get_project_detail(
@@ -362,7 +412,7 @@ impl ProjectUseCase for ProjectUseCaseImpl {
             .await?;
 
         Ok(ProjectDetailResponse {
-            project: self.project_to_response(&project),
+            project: Self::project_to_response(&project),
             components,
             member_count,
         })
@@ -433,7 +483,7 @@ impl ProjectUseCase for ProjectUseCaseImpl {
         let domain_ev: Box<dyn DomainEvent> = event.into();
         self.event_publisher.publish(domain_ev.as_ref()).await?;
 
-        Ok(self.project_to_response(&updated_project))
+        Ok(Self::project_to_response(&updated_project))
     }
 
     async fn delete_project(
@@ -492,10 +542,11 @@ impl ProjectUseCase for ProjectUseCaseImpl {
 
         let data: Vec<ProjectResponse> = projects
             .iter()
-            .map(|p| self.project_to_response(p))
+            .map(Self::project_to_response)
             .collect();
 
-        let has_more = (page + 1) * page_size < total_count as u32;
+        let consumed = i64::from(page.saturating_add(1).saturating_mul(page_size));
+        let has_more = consumed < total_count;
         let next_cursor = if has_more {
             Some((page + 1).to_string())
         } else {
@@ -537,7 +588,7 @@ impl ProjectUseCase for ProjectUseCaseImpl {
         let domain_ev: Box<dyn DomainEvent> = event.into();
         self.event_publisher.publish(domain_ev.as_ref()).await?;
 
-        Ok(self.project_to_response(&published_project))
+        Ok(Self::project_to_response(&published_project))
     }
 
     async fn archive_project(
@@ -563,6 +614,6 @@ impl ProjectUseCase for ProjectUseCaseImpl {
         let domain_ev: Box<dyn DomainEvent> = event.into();
         self.event_publisher.publish(domain_ev.as_ref()).await?;
 
-        Ok(self.project_to_response(&archived_project))
+        Ok(Self::project_to_response(&archived_project))
     }
 }

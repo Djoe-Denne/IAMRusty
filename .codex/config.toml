@@ -1,0 +1,6 @@
+[mcp_servers.grepai]
+command = 'C:\Users\djden\AppData\Local\Programs\grepai\grepai.exe'
+args = [
+    "mcp-serve",
+    'C:\Users\djden\source\repos\AIForAll',
+]

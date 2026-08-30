@@ -15,6 +15,10 @@ use crate::error::HttpError;
 
 /// Create an invitation
 /// POST /`api/organizations/{organization_id}/invitations`
+///
+/// # Errors
+///
+/// Returns [`HttpError`] if command execution fails.
 pub async fn create_invitation(
     State(state): State<AppState>,
     Path(organization_id): Path<ResourceId>,
@@ -41,6 +45,10 @@ pub async fn create_invitation(
 
 /// Cancel an invitation
 /// DELETE /`api/organizations/{organization_id}/invitations/{invitation_id}`
+///
+/// # Errors
+///
+/// Returns [`HttpError`] if command execution fails.
 pub async fn cancel_invitation(
     State(state): State<AppState>,
     Path((organization_id, invitation_id)): Path<(ResourceId, ResourceId)>,
@@ -74,6 +82,10 @@ pub async fn cancel_invitation(
 
 /// List organization invitations
 /// GET /`organizations/{organization_id}/invitations`
+///
+/// # Errors
+///
+/// Returns [`HttpError`] if command execution fails.
 pub async fn list_invitations(
     State(state): State<AppState>,
     Path(organization_id): Path<ResourceId>,
@@ -104,15 +116,19 @@ pub async fn list_invitations(
 
 /// Get a specific invitation
 /// GET /`organizations/{organization_id}/invitations/{invitation_id`}
+///
+/// # Errors
+///
+/// Returns [`HttpError`] if command execution fails.
 pub async fn get_invitation(
     State(state): State<AppState>,
-    Path((_organization_id, invitation_id)): Path<(ResourceId, String)>,
+    Path((organization_id, invitation_id)): Path<(ResourceId, String)>,
     auth_user: AuthUser,
 ) -> Result<Json<InvitationDetailsResponse>, HttpError> {
     tracing::info!(
         "Getting invitation {} from organization: {}",
         invitation_id,
-        _organization_id
+        organization_id
     );
 
     let command = GetInvitationByTokenCommand::new(invitation_id);
@@ -133,6 +149,10 @@ pub async fn get_invitation(
 
 /// Accept an invitation (public endpoint using token)
 /// POST /invitations/{token}/accept
+///
+/// # Errors
+///
+/// Returns [`HttpError`] if command execution fails.
 pub async fn accept_invitation(
     State(state): State<AppState>,
     Path(token): Path<String>,
@@ -158,6 +178,10 @@ pub async fn accept_invitation(
 
 /// Get invitation details by token (public endpoint)
 /// GET /invitations/{token}
+///
+/// # Errors
+///
+/// Returns [`HttpError`] if command execution fails.
 pub async fn get_invitation_by_token(
     State(state): State<AppState>,
     Path(token): Path<String>,

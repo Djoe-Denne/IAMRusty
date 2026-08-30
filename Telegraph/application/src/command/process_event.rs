@@ -65,13 +65,11 @@ impl ProcessEventCommand {
         let user_id = Some(event.aggregate_id());
 
         // Convert event to JSON and look for email field
-        let email = match event.to_json() {
-            Ok(json_str) => match serde_json::from_str::<serde_json::Value>(&json_str) {
-                Ok(json_value) => Self::extract_email_from_json(&json_value),
-                Err(_) => None,
-            },
-            Err(_) => None,
-        };
+        let email = event
+            .to_json()
+            .ok()
+            .and_then(|json_str| serde_json::from_str(&json_str).ok())
+            .and_then(|json_value| Self::extract_email_from_json(&json_value));
 
         SendMessageRecipient { user_id, email }
     }

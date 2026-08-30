@@ -67,22 +67,25 @@ impl TemplateEnvironmentService {
             key.to_uppercase().replace('.', "__")
         );
 
-        if let Ok(value) = env::var(&env_key) {
-            debug!(
-                key = %key,
-                env_key = %env_key,
-                value = %value,
-                "Found template environment variable"
-            );
-            Some(value)
-        } else {
-            debug!(
-                key = %key,
-                env_key = %env_key,
-                "Template environment variable not found"
-            );
-            None
-        }
+        env::var(&env_key).map_or_else(
+            |_| {
+                debug!(
+                    key = %key,
+                    env_key = %env_key,
+                    "Template environment variable not found"
+                );
+                None
+            },
+            |value| {
+                debug!(
+                    key = %key,
+                    env_key = %env_key,
+                    value = %value,
+                    "Found template environment variable"
+                );
+                Some(value)
+            },
+        )
     }
 
     /// Check if a template variable exists

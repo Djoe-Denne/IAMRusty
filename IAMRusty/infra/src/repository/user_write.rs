@@ -21,7 +21,7 @@ impl UserWriteRepositoryImpl {
     }
 
     /// Convert a domain user to a database model
-    fn to_active_model(&self, user: &DomainUser) -> users::ActiveModel {
+    fn to_active_model(user: &DomainUser) -> users::ActiveModel {
         users::ActiveModel {
             id: ActiveValue::Set(user.id),
             username: ActiveValue::Set(user.username.clone()),
@@ -51,7 +51,7 @@ impl UserWriteRepository for UserWriteRepositoryImpl {
 
     async fn create(&self, user: DomainUser) -> Result<DomainUser, Self::Error> {
         debug!("Creating new user with ID: {}", user.id);
-        let model = self.to_active_model(&user);
+        let model = Self::to_active_model(&user);
 
         let res = model.insert(self.db.as_ref()).await?;
 

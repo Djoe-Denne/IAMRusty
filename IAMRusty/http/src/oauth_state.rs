@@ -62,12 +62,20 @@ impl OAuthState {
     }
 
     /// Encode the state to a base64 string for use in OAuth flow
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StateError`] when JSON serialization fails.
     pub fn encode(&self) -> Result<String, StateError> {
         let json = serde_json::to_string(self)?;
         Ok(general_purpose::URL_SAFE_NO_PAD.encode(json))
     }
 
     /// Decode a base64 string back to OAuth state
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StateError`] when the value is not valid URL-safe base64, UTF-8, or JSON.
     pub fn decode(encoded: &str) -> Result<Self, StateError> {
         let json_bytes = general_purpose::URL_SAFE_NO_PAD.decode(encoded)?;
         let json = String::from_utf8(json_bytes).map_err(|_| StateError::InvalidFormat)?;
@@ -86,7 +94,7 @@ impl OAuthState {
     pub const fn get_link_user_id(&self) -> Option<Uuid> {
         match &self.operation {
             OAuthOperation::Link { user_id } => Some(*user_id),
-            _ => None,
+            OAuthOperation::Login => None,
         }
     }
 }

@@ -35,7 +35,11 @@ impl Related<super::notification_deliveries::Entity> for Entity {
 impl ActiveModelBehavior for ActiveModel {}
 
 impl Model {
-    /// Get the content as a JSON string if `content_type` is application/json
+    /// Get the content as a JSON string if `content_type` is application/json.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`serde_json::Error`] if `content` is not valid JSON.
     pub fn content_as_json(&self) -> Result<Option<String>, serde_json::Error> {
         if self.content_type == "application/json" {
             let json_str = String::from_utf8_lossy(&self.content);
@@ -55,11 +59,8 @@ impl Model {
     /// Check if the notification is expired
     #[must_use]
     pub fn is_expired(&self) -> bool {
-        if let Some(expires_at) = self.expires_at {
-            Utc::now() > expires_at
-        } else {
-            false
-        }
+        self.expires_at
+            .is_some_and(|expires_at| Utc::now() > expires_at)
     }
 
     /// Mark as read

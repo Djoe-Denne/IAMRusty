@@ -16,6 +16,10 @@ use crate::error::{error_mapper, HttpError};
 
 /// Add a component to a project
 /// POST /`api/projects/{project_id}/components`
+///
+/// # Errors
+///
+/// Returns [`HttpError`] if the command fails (authorization, validation, or persistence).
 pub async fn add_component(
     State(state): State<AppState>,
     Path(project_id): Path<ResourceId>,
@@ -42,6 +46,10 @@ pub async fn add_component(
 
 /// Get a component by type
 /// GET /`api/projects/{project_id}/components/{component_id`}
+///
+/// # Errors
+///
+/// Returns [`HttpError`] if the command fails (authorization, validation, or persistence).
 pub async fn get_component(
     State(state): State<AppState>,
     Path((project_id, component_id)): Path<(ResourceId, ResourceId)>,
@@ -72,6 +80,10 @@ pub async fn get_component(
 
 /// List all components for a project
 /// GET /`api/projects/{project_id}/components`
+///
+/// # Errors
+///
+/// Returns [`HttpError`] if the command fails (authorization, validation, or persistence).
 pub async fn list_components(
     State(state): State<AppState>,
     Path(project_id): Path<ResourceId>,
@@ -98,6 +110,10 @@ pub async fn list_components(
 
 /// Update component status
 /// PATCH /`api/projects/{project_id}/components/{component_type`}
+///
+/// # Errors
+///
+/// Returns [`HttpError`] if the command fails (authorization, validation, or persistence).
 pub async fn update_component_status(
     State(state): State<AppState>,
     Path((project_id, component_id)): Path<(ResourceId, ResourceId)>,
@@ -129,6 +145,10 @@ pub async fn update_component_status(
 
 /// Remove a component from a project
 /// DELETE /`api/projects/{project_id}/components/{component_type`}
+///
+/// # Errors
+///
+/// Returns [`HttpError`] if the command fails (authorization, validation, or persistence).
 pub async fn remove_component(
     State(state): State<AppState>,
     Path((project_id, component_id)): Path<(ResourceId, ResourceId)>,

@@ -13,12 +13,14 @@ use crate::{
 // Error Mapper
 // =============================================================================
 
+/// Maps [`ApplicationError`] values produced by component commands.
 pub struct ComponentErrorMapper;
 
 impl CommandErrorMapper for ComponentErrorMapper {
     fn map_error(&self, error: Box<dyn std::error::Error + Send + Sync>) -> CommandError {
-        if let Some(error) = error.downcast_ref::<ApplicationError>() {
-            match error {
+        error.downcast_ref::<ApplicationError>().map_or_else(
+            || CommandError::business("unknown_error", error.to_string()),
+            |app_error| match app_error {
                 ApplicationError::Domain(domain_error) => {
                     CommandError::business("domain_error", domain_error.to_string())
                 }
@@ -32,10 +34,8 @@ impl CommandErrorMapper for ComponentErrorMapper {
                 ApplicationError::Internal(msg) => {
                     CommandError::infrastructure("internal_error", msg)
                 }
-            }
-        } else {
-            CommandError::business("unknown_error", error.to_string())
-        }
+            },
+        )
     }
 }
 

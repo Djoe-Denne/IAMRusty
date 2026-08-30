@@ -23,6 +23,11 @@ use super::entity::{
 pub struct ExternalLinkMapper;
 
 impl ExternalLinkMapper {
+    /// Maps a persisted external-link row to the domain entity.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if `last_sync_status` is not a recognized [`SyncStatus`].
     pub fn to_domain(
         model: external_links::Model,
         provider_source: Option<String>,
@@ -226,7 +231,7 @@ impl ExternalLinkReadRepository for ExternalLinkReadRepositoryImpl {
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
-        Ok(count as i64)
+        i64::try_from(count).map_err(|e| DomainError::internal_error(&e.to_string()))
     }
 }
 
@@ -255,8 +260,8 @@ impl ExternalLinkWriteRepositoryImpl {
             .map_err(|e| DomainError::internal_error(&e.to_string()))?
             .is_some();
 
+        let active_model = ExternalLinkMapper::to_active_model(link);
         if exists {
-            let active_model = ExternalLinkMapper::to_active_model(link);
             let result = active_model
                 .save(db)
                 .await
@@ -275,16 +280,15 @@ impl ExternalLinkWriteRepositoryImpl {
                 created_at: result.created_at.unwrap(),
                 updated_at: result.updated_at.unwrap(),
             };
-            ExternalLinkMapper::to_domain(saved_model, link.provider_source.clone())
-        } else {
-            let active_model = ExternalLinkMapper::to_active_model(link);
-            let result = active_model
-                .insert(db)
-                .await
-                .map_err(|e| DomainError::internal_error(&e.to_string()))?;
-
-            ExternalLinkMapper::to_domain(result, link.provider_source.clone())
+            return ExternalLinkMapper::to_domain(saved_model, link.provider_source.clone());
         }
+
+        let result = active_model
+            .insert(db)
+            .await
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
+
+        ExternalLinkMapper::to_domain(result, link.provider_source.clone())
     }
 }
 

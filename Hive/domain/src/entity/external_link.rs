@@ -33,6 +33,10 @@ pub enum SyncStatus {
 
 impl ExternalLink {
     /// Create a new external link
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if `provider_config` is not a non-empty JSON object.
     pub fn new(
         organization_id: Uuid,
         organization_name: Option<String>,
@@ -62,6 +66,10 @@ impl ExternalLink {
     }
 
     /// Update provider configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if `new_config` is not a non-empty JSON object.
     pub fn update_provider_config(&mut self, new_config: Value) -> Result<(), DomainError> {
         Self::validate_provider_config(&new_config)?;
         self.provider_config = new_config;
@@ -158,10 +166,12 @@ impl ExternalLink {
         Ok(())
     }
 
+    /// Set the denormalized organization display name.
     pub fn set_organization_name(&mut self, organization_name: String) {
         self.organization_name = Some(organization_name);
     }
 
+    /// Set the denormalized external provider source identifier.
     pub fn set_provider_source(&mut self, provider_source: String) {
         self.provider_source = Some(provider_source);
     }
@@ -188,6 +198,10 @@ impl SyncStatus {
     }
 
     /// Parse from string
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if `s` is not a recognized sync status.
     pub fn from_str(s: &str) -> Result<Self, DomainError> {
         match s.to_lowercase().as_str() {
             "success" => Ok(Self::Success),

@@ -12,7 +12,12 @@ use super::entity::{permissions, prelude::Permissions};
 pub struct PermissionMapper;
 
 impl PermissionMapper {
-    pub fn to_domain(model: permissions::Model) -> Result<Permission, DomainError> {
+    /// Map a SeaORM permission row to the domain entity.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if `model.level` is not a recognized permission level.
+    pub fn to_domain(model: &permissions::Model) -> Result<Permission, DomainError> {
         let level = PermissionLevel::from_str(&model.level)?;
         Ok(Permission {
             level,
@@ -32,6 +37,11 @@ impl PermissionReadRepositoryImpl {
         Self { db }
     }
 
+    /// Load a permission by level using an existing connection.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the query fails or the row cannot be mapped.
     pub async fn find_by_level_with_connection<C>(
         db: &C,
         level: &str,
@@ -45,7 +55,7 @@ impl PermissionReadRepositoryImpl {
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         match permission {
-            Some(p) => Ok(Some(PermissionMapper::to_domain(p)?)),
+            Some(p) => Ok(Some(PermissionMapper::to_domain(&p)?)),
             None => Ok(None),
         }
     }
@@ -68,7 +78,7 @@ impl PermissionReadRepository for PermissionReadRepositoryImpl {
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         permissions
-            .into_iter()
+            .iter()
             .map(PermissionMapper::to_domain)
             .collect()
     }

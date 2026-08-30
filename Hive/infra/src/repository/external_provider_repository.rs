@@ -18,6 +18,11 @@ use super::entity::{external_providers, prelude::ExternalProviders};
 pub struct ExternalProviderMapper;
 
 impl ExternalProviderMapper {
+    /// Maps a persisted external-provider row to the domain entity.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the row cannot be mapped to [`ExternalProvider`].
     pub fn to_domain(model: external_providers::Model) -> Result<ExternalProvider, DomainError> {
         Ok(ExternalProvider {
             id: model.id,

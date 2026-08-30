@@ -13,6 +13,10 @@ use crate::error::HttpError;
 
 /// List roles for an organization
 /// GET /`api/organizations/{organization_id}/roles`
+///
+/// # Errors
+///
+/// Returns [`HttpError`] if command execution fails.
 pub async fn list_roles(
     State(state): State<AppState>,
     Path(organization_id): Path<ResourceId>,
@@ -37,6 +41,10 @@ pub async fn list_roles(
 
 /// Get a specific role
 /// GET /`api/organizations/{organization_id}/roles/{role_id`}
+///
+/// # Errors
+///
+/// Returns [`HttpError`] if command execution fails.
 pub async fn get_role(
     State(state): State<AppState>,
     Path((organization_id, role_id)): Path<(ResourceId, ResourceId)>,

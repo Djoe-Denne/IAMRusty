@@ -36,6 +36,6 @@ async fn main() -> anyhow::Result<()> {
         },
     };
 
-    // Build and run the application
-    app::build_and_run(config, server_config, None).await
+    // Heap-allocate the boot future: `build_and_run` exceeds clippy's large_futures limit.
+    Box::pin(app::build_and_run(config, server_config, None)).await
 }

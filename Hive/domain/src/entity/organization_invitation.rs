@@ -36,6 +36,10 @@ impl OrganizationInvitation {
     pub const DEFAULT_EXPIRY_DAYS: i64 = 7;
 
     /// Create a new organization invitation
+    ///
+    /// # Errors
+    ///
+    /// Reserved for future validation; currently always returns `Ok`.
     pub fn new(
         organization_id: Uuid,
         aggregate_id: String,
@@ -64,6 +68,10 @@ impl OrganizationInvitation {
     }
 
     /// Accept the invitation
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the invitation is not pending or is expired.
     pub fn accept(&mut self) -> Result<(), DomainError> {
         match self.status {
             InvitationStatus::Pending => {
@@ -91,6 +99,10 @@ impl OrganizationInvitation {
     }
 
     /// Cancel the invitation
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the invitation is not pending.
     pub fn cancel(&mut self) -> Result<(), DomainError> {
         match self.status {
             InvitationStatus::Pending => {

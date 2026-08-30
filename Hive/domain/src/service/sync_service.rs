@@ -40,6 +40,11 @@ pub struct SyncResult {
 
 #[async_trait::async_trait]
 pub trait SyncService: Send + Sync {
+    /// Start a persisted sync job for an external link.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the link is missing, sync is disabled, a job is already running, or persistence fails.
     async fn start_sync_job(
         &self,
         external_link_id: Uuid,
@@ -47,6 +52,11 @@ pub trait SyncService: Send + Sync {
         requested_by_user_id: Uuid,
     ) -> Result<SyncJob, DomainError>;
 
+    /// Build a sync job without persisting it.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the link is missing, sync is disabled, or a job is already running.
     async fn prepare_sync_job(
         &self,
         external_link_id: Uuid,
@@ -54,19 +64,18 @@ pub trait SyncService: Send + Sync {
         requested_by_user_id: Uuid,
     ) -> Result<SyncJob, DomainError>;
 
-    /**
-     * Execute sync for organization info
-     *
-     * @param `sync_job_id` - The ID of the sync job
-     */
+    /// Execute sync for organization info.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the job, link, or organization is missing, or the provider call fails.
     async fn sync_organization_info(&self, sync_job_id: Uuid) -> Result<Organization, DomainError>;
 
-    /**
-     * Execute sync for members
-     *
-     * @param `sync_job_id` - The ID of the sync job
-     * @param `auto_invite` - Whether to automatically invite new members found
-     */
+    /// Execute sync for members.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the job, link, or organization is missing, or the provider call fails.
     async fn sync_members(
         &self,
         sync_job_id: Uuid,
@@ -103,6 +112,10 @@ where
     }
 
     /// Update organization info from external provider data
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the organization update fails.
     async fn update_organization_from_external(
         &self,
         organization_id: Uuid,
@@ -118,7 +131,7 @@ where
                     external_org_info
                         .display_name
                         .clone()
-                        .unwrap_or(external_org_info.name.clone()),
+                        .unwrap_or_else(|| external_org_info.name.clone()),
                 ),
                 external_org_info.description.clone(),
                 external_org_info.avatar_url.clone(),
@@ -135,7 +148,7 @@ where
         external_link: &ExternalLink,
         organization: &Organization,
         auto_invite: bool,
-        invitation_message: &Option<String>,
+        invitation_message: Option<&str>,
         result: &mut SyncResult,
     ) {
         if !external_member.is_active {
@@ -182,7 +195,7 @@ where
                     invite_identifier,
                     role_permissions,
                     organization.owner_user_id,
-                    invitation_message.clone(),
+                    invitation_message.map(str::to_owned),
                     None,
                 )
                 .await
@@ -207,6 +220,11 @@ where
     IS: InvitationService,
     PC: ExternalProviderClient,
 {
+    /// Build a sync job without persisting it.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the link is missing, sync is disabled, or a job is already running.
     async fn prepare_sync_job(
         &self,
         external_link_id: Uuid,
@@ -241,6 +259,11 @@ where
         Ok(SyncJob::new(external_link_id, job_type, None))
     }
 
+    /// Start a persisted sync job for an external link.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the link is missing, sync is disabled, a job is already running, or persistence fails.
     async fn start_sync_job(
         &self,
         external_link_id: Uuid,
@@ -254,6 +277,10 @@ where
     }
 
     /// Execute sync for organization info
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the job, link, or organization is missing, or the provider call fails.
     async fn sync_organization_info(&self, sync_job_id: Uuid) -> Result<Organization, DomainError> {
         // Find the sync job
         let sync_job = self
@@ -308,6 +335,10 @@ where
     }
 
     /// Execute sync for members
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the job, link, or organization is missing, or the provider call fails.
     async fn sync_members(
         &self,
         sync_job_id: Uuid,
@@ -342,7 +373,7 @@ where
             .await?;
 
         let mut result = SyncResult {
-            members_found: external_members.len() as u32,
+            members_found: u32::try_from(external_members.len()).unwrap_or(u32::MAX),
             members_added: 0,
             members_invited: 0,
             errors: Vec::new(),
@@ -373,7 +404,7 @@ where
                 &external_link,
                 &organization,
                 auto_invite,
-                &invitation_message,
+                invitation_message.as_deref(),
                 &mut result,
             ))
             .await;

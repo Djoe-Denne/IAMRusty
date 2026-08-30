@@ -53,10 +53,11 @@ use super::{
 };
 use crate::usecase::{ComponentUseCase, MemberUseCase, ProjectUseCase};
 
+/// Builds the Manifesto command registry from application use cases.
 pub struct ManifestoCommandRegistryFactory;
 
 impl ManifestoCommandRegistryFactory {
-    /// Create a complete command registry with all Manifesto command handlers
+    /// Create a complete command registry with all Manifesto command handlers.
     pub fn create_manifesto_registry(
         project_usecase: Arc<dyn ProjectUseCase>,
         component_usecase: Arc<dyn ComponentUseCase>,

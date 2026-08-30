@@ -41,7 +41,12 @@ pub struct NotificationPathParams {
 }
 
 /// Get user notifications with pagination and filtering
-/// GET /api/notifications
+///
+/// `GET /api/notifications`
+///
+/// # Errors
+///
+/// Returns a status code when the command fails or the response cannot be serialized.
 pub async fn get_notifications(
     auth_user: AuthUser,
     Valid(Query(query)): Valid<Query<GetNotificationsQuery>>,
@@ -69,7 +74,12 @@ pub async fn get_notifications(
 }
 
 /// Get unread notification count for the authenticated user
-/// GET /api/notifications/unread-count
+///
+/// `GET /api/notifications/unread-count`
+///
+/// # Errors
+///
+/// Returns a status code when the command fails or the response cannot be serialized.
 pub async fn get_unread_count(
     auth_user: AuthUser,
     State(app_state): State<AppState>,
@@ -91,7 +101,13 @@ pub async fn get_unread_count(
 }
 
 /// Mark a notification as read
-/// PUT /api/notifications/{id}/read
+///
+/// `PUT /api/notifications/{id}/read`
+///
+/// # Errors
+///
+/// Returns a status code when the id is not a UUID, the command fails, or the
+/// response cannot be serialized.
 #[axum::debug_handler]
 pub async fn mark_notification_read(
     auth_user: AuthUser,

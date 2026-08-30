@@ -19,7 +19,11 @@ impl TokenService {
         }
     }
 
-    /// Generate a JWT token for a user
+    /// Generate a JWT token for a user.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the encoder cannot sign the token.
     pub fn generate_token(&self, user_id: &str, username: &str) -> Result<String, DomainError> {
         let claims = TokenClaims::new(user_id, username, self.token_duration);
 
@@ -28,7 +32,11 @@ impl TokenService {
             .map_err(|e| DomainError::TokenGenerationFailed(e.to_string()))
     }
 
-    /// Validate a JWT token
+    /// Validate a JWT token.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the token is expired, invalid, or signature verification fails.
     pub fn validate_token(&self, token: &str) -> Result<TokenClaims, DomainError> {
         self.token_encoder.decode(token).map_err(|e| match e {
             DomainError::TokenExpired => DomainError::TokenExpired,
@@ -223,7 +231,7 @@ mod tests {
         fn handles_edge_case_inputs(
             #[case] user_id: &str,
             #[case] username: &str,
-            #[case] _description: &str,
+            #[case] description: &str,
             token_duration: Duration,
         ) {
             let mut mock_encoder = MockTokenEnc::new();
@@ -237,6 +245,7 @@ mod tests {
             let result = service.generate_token(user_id, username);
 
             assert_ok!(&result);
+            assert!(!description.is_empty());
         }
     }
 
@@ -345,7 +354,7 @@ mod tests {
         #[test]
         fn handles_various_invalid_token_formats(
             #[case] invalid_token: &str,
-            #[case] _description: &str,
+            #[case] description: &str,
             token_duration: Duration,
         ) {
             let mut mock_encoder = MockTokenEnc::new();
@@ -359,6 +368,7 @@ mod tests {
             let result = service.validate_token(invalid_token);
 
             assert_err!(&result);
+            assert!(!description.is_empty());
         }
     }
 

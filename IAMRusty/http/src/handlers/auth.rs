@@ -262,6 +262,11 @@ pub enum LoginResponse {
 }
 
 /// Handle OAuth login start - redirects to provider for login (unauthenticated users)
+///
+/// # Errors
+///
+/// Returns [`AuthError`] when the provider is unknown, OAuth state encoding fails,
+/// the authorization URL cannot be generated, or the generated URL is invalid.
 pub async fn oauth_login_start(
     State(state): State<AppState>,
     Valid(Path(provider_path)): Valid<Path<ProviderPath>>,
@@ -330,6 +335,11 @@ pub async fn oauth_login_start(
 }
 
 /// Handle OAuth link start - redirects to provider for linking (authenticated users)
+///
+/// # Errors
+///
+/// Returns [`AuthError`] when the provider is unknown, OAuth state encoding fails,
+/// the authorization URL cannot be generated, or the generated URL is invalid.
 pub async fn oauth_link_start(
     State(state): State<AppState>,
     Valid(Path(provider_path)): Valid<Path<ProviderPath>>,
@@ -413,6 +423,12 @@ pub async fn oauth_link_start(
 }
 
 /// Handle OAuth callback - processes both login and link operations
+///
+/// # Errors
+///
+/// Returns [`AuthError`] when the provider reports an error, the authorization code
+/// or state is missing or invalid, the provider is unknown, or login/link command
+/// execution fails.
 pub async fn oauth_callback(
     State(state): State<AppState>,
     Valid(Path(provider_path)): Valid<Path<ProviderPath>>,
@@ -605,6 +621,11 @@ async fn handle_link_callback(
 }
 
 /// Handle email/password signup
+///
+/// # Errors
+///
+/// Returns [`AuthError`] when the signup command fails (duplicate email, persistence,
+/// hashing, or token generation).
 #[axum::debug_handler]
 pub async fn signup(
     State(state): State<AppState>,
@@ -673,6 +694,11 @@ pub async fn signup(
 }
 
 /// Handle email/password login
+///
+/// # Errors
+///
+/// Returns [`AuthError`] when credentials are rejected, the account is not fully
+/// registered ([`AuthError::RegistrationIncomplete`]), or the login command fails.
 pub async fn login(
     State(state): State<AppState>,
     ValidatedJson(request): ValidatedJson<LoginRequest>,
@@ -721,6 +747,11 @@ pub async fn login(
 }
 
 /// Handle email verification
+///
+/// # Errors
+///
+/// Returns [`AuthError`] when the verification token is invalid or the verify-email
+/// command fails.
 pub async fn verify_email(
     State(state): State<AppState>,
     Valid(Query(request)): Valid<Query<VerifyEmailQuery>>,
@@ -789,6 +820,11 @@ pub struct InternalProviderTokenResponse {
 }
 
 /// Handle internal provider token request
+///
+/// # Errors
+///
+/// Returns [`AuthError`] when the provider is unknown or the stored provider token
+/// cannot be retrieved.
 pub async fn internal_provider_token(
     State(state): State<AppState>,
     Valid(Path(provider_path)): Valid<Path<ProviderPath>>,
@@ -832,7 +868,12 @@ pub async fn internal_provider_token(
 }
 
 /// Handle JWKS endpoint - returns public keys for JWT verification
-/// This endpoint is used by reverse proxies and services like Istio to validate JWT tokens
+///
+/// This endpoint is used by reverse proxies and services like Istio to validate JWT tokens.
+///
+/// # Errors
+///
+/// Returns [`AuthError`] when the JWKS command fails to load the public keys.
 pub async fn jwks(
     State(state): State<AppState>,
 ) -> Result<Json<iam_domain::entity::token::JwkSet>, AuthError> {
@@ -913,6 +954,11 @@ pub struct CheckUsernameResponse {
 }
 
 /// Handle complete registration endpoint
+///
+/// # Errors
+///
+/// Returns [`AuthError`] when the registration token is invalid or completing
+/// registration fails.
 pub async fn complete_registration(
     State(state): State<AppState>,
     ValidatedJson(request): ValidatedJson<CompleteRegistrationRequest>,
@@ -948,6 +994,10 @@ pub async fn complete_registration(
 }
 
 /// Handle username availability check endpoint
+///
+/// # Errors
+///
+/// Returns [`AuthError`] when the username check command fails.
 pub async fn check_username(
     State(state): State<AppState>,
     Valid(Query(query)): Valid<Query<CheckUsernameQuery>>,
@@ -983,6 +1033,11 @@ pub struct RevokeProviderTokenResponse {
 }
 
 /// Handle revoke provider token request
+///
+/// # Errors
+///
+/// Returns [`AuthError`] when the provider is unknown or revoking the provider token
+/// fails.
 pub async fn revoke_provider_token(
     State(state): State<AppState>,
     Valid(Path(provider_path)): Valid<Path<ProviderPath>>,
@@ -1042,6 +1097,11 @@ pub struct RelinkProviderCallbackResponse {
 }
 
 /// Handle relink provider callback
+///
+/// # Errors
+///
+/// Returns [`AuthError`] when the provider is unknown, the OAuth callback is invalid,
+/// or the relink command fails.
 pub async fn relink_provider_callback(
     State(state): State<AppState>,
     Valid(Path(provider_path)): Valid<Path<ProviderPath>>,
@@ -1119,6 +1179,11 @@ pub async fn relink_provider_callback(
 }
 
 /// Handle generate relink provider start URL
+///
+/// # Errors
+///
+/// Returns [`AuthError`] when the provider is unknown or the authorization URL cannot
+/// be generated.
 pub async fn generate_relink_provider_start_url(
     State(state): State<AppState>,
     Valid(Path(provider_path)): Valid<Path<ProviderPath>>,

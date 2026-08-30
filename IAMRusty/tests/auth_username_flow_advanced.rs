@@ -59,8 +59,11 @@ async fn test_registration_token_has_correct_structure() {
     let registration_token = response_body["registration_token"].as_str().unwrap();
 
     // Verify JWT structure
-    let parts: Vec<&str> = registration_token.split('.').collect();
-    assert_eq!(parts.len(), 3, "JWT should have 3 parts");
+    assert_eq!(
+        registration_token.split('.').count(),
+        3,
+        "JWT should have 3 parts"
+    );
 
     // Decode and verify payload
     let payload = decode_jwt_payload(registration_token).expect("Should decode JWT payload");
@@ -239,10 +242,10 @@ async fn test_username_availability_check() {
 #[tokio::test]
 #[serial]
 async fn test_taken_username_with_suggestions() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = _fixture.db();
+    let db = fixture.db();
 
     // Pre-create user with taken username
     let _existing_user = DbFixtures::user()
