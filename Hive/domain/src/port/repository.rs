@@ -144,7 +144,7 @@ pub trait PermissionRepository: Send + Sync + PermissionReadRepository {}
 #[async_trait]
 pub trait ResourceReadRepository: Send + Sync {
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<Resource>, DomainError>;
-    async fn find_by_type(&self, resource_type: &String) -> Result<Option<Resource>, DomainError>;
+    async fn find_by_type(&self, resource_type: &str) -> Result<Option<Resource>, DomainError>;
     async fn find_all(&self) -> Result<Vec<Resource>, DomainError>;
 }
 
@@ -165,7 +165,7 @@ pub trait RolePermissionReadRepository: Send + Sync {
     async fn find_by_organization_roles(
         &self,
         organization_id: &Uuid,
-        role_permissions: &Vec<RolePermission>,
+        role_permissions: &[RolePermission],
     ) -> Result<Vec<RolePermission>, DomainError>;
     async fn find_by_organization(
         &self,
@@ -298,7 +298,7 @@ pub trait ExternalProviderReadRepository: Send + Sync {
     /// Find provider by source
     async fn find_by_source(
         &self,
-        provider_source: &String,
+        provider_source: &str,
     ) -> Result<Option<ExternalProvider>, DomainError>;
 
     /// Find all providers

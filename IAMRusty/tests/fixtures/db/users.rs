@@ -14,8 +14,8 @@ use iam_infra::repository::entity::users::{
 pub struct UserFixtureBuilder {
     id: Option<Uuid>,
     username: Option<String>,
-    password_hash: Option<Option<String>>,
-    avatar_url: Option<Option<String>>,
+    password_hash: Option<String>,
+    avatar_url: Option<String>,
     created_at: Option<NaiveDateTime>,
     updated_at: Option<NaiveDateTime>,
 }
@@ -47,13 +47,13 @@ impl UserFixtureBuilder {
 
     /// Set the password hash
     pub fn password_hash(mut self, password_hash: impl Into<String>) -> Self {
-        self.password_hash = Some(Some(password_hash.into()));
+        self.password_hash = Some(password_hash.into());
         self
     }
 
     /// Set the avatar URL
     pub fn avatar_url(mut self, avatar_url: Option<String>) -> Self {
-        self.avatar_url = Some(avatar_url);
+        self.avatar_url = avatar_url;
         self
     }
 
@@ -149,8 +149,8 @@ impl DbFixture<UsersEntity, UserModel, UserActiveModel> for UserFixtureBuilder {
         UserActiveModel {
             id: ActiveValue::Set(self.id.unwrap_or_else(TestData::uuid)),
             username: ActiveValue::Set(self.username.clone()),
-            password_hash: ActiveValue::Set(self.password_hash.clone().unwrap_or(None)),
-            avatar_url: ActiveValue::Set(self.avatar_url.clone().unwrap_or(None)),
+            password_hash: ActiveValue::Set(self.password_hash.clone()),
+            avatar_url: ActiveValue::Set(self.avatar_url.clone()),
             created_at: ActiveValue::Set(self.created_at.unwrap_or(now)),
             updated_at: ActiveValue::Set(self.updated_at.unwrap_or(now)),
         }

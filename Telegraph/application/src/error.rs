@@ -128,8 +128,8 @@ fn command_error_from_service_error(error: &ServiceError) -> CommandError {
 mod tests {
     use super::*;
 
-    fn assert_round_trip(domain: DomainError, retryable: bool, category: &str, status: u16) {
-        let direct = ServiceError::from(&domain);
+    fn assert_round_trip(domain: &DomainError, retryable: bool, category: &str, status: u16) {
+        let direct = ServiceError::from(domain);
         assert_eq!(direct.is_retryable(), retryable, "{domain}");
         assert_eq!(direct.category(), category, "{domain}");
         assert_eq!(direct.http_status_code(), status, "{domain}");
@@ -139,7 +139,7 @@ mod tests {
             "is_recoverable must match ServiceError::is_retryable for {domain}"
         );
 
-        let via_command = service_error_from_command_error(&command_error_from_domain(&domain));
+        let via_command = service_error_from_command_error(&command_error_from_domain(domain));
         assert_eq!(via_command.is_retryable(), retryable, "{domain}");
         assert_eq!(via_command.category(), category, "{domain}");
         assert_eq!(via_command.http_status_code(), status, "{domain}");
@@ -148,48 +148,48 @@ mod tests {
     #[test]
     fn domain_errors_keep_rustycog_categories_through_command_layer() {
         assert_round_trip(
-            DomainError::invalid_message("bad"),
+            &DomainError::invalid_message("bad"),
             false,
             "validation",
             400,
         );
         assert_round_trip(
-            DomainError::notification_not_found("missing"),
+            &DomainError::notification_not_found("missing"),
             false,
             "not_found",
             404,
         );
         assert_round_trip(
-            DomainError::unauthorized("nope"),
+            &DomainError::unauthorized("nope"),
             false,
             "authorization",
             403,
         );
         assert_round_trip(
-            DomainError::event_processing_error("unknown processor"),
+            &DomainError::event_processing_error("unknown processor"),
             false,
             "business",
             422,
         );
         assert_round_trip(
-            DomainError::infrastructure_error("db down"),
+            &DomainError::infrastructure_error("db down"),
             true,
             "infrastructure",
             500,
         );
         assert_round_trip(
-            DomainError::service_unavailable("smtp"),
+            &DomainError::service_unavailable("smtp"),
             true,
             "service_unavailable",
             503,
         );
         assert_round_trip(
-            DomainError::rate_limit_exceeded("user-1"),
+            &DomainError::rate_limit_exceeded("user-1"),
             true,
             "rate_limit",
             429,
         );
-        assert_round_trip(DomainError::internal_error("bug"), false, "internal", 500);
+        assert_round_trip(&DomainError::internal_error("bug"), false, "internal", 500);
     }
 
     #[test]

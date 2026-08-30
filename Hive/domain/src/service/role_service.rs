@@ -64,7 +64,7 @@ pub trait RoleService: Send + Sync {
     async fn find_role_permissions_by_organization(
         &self,
         organization_id: &Uuid,
-        role_permissions: &Vec<RolePermission>,
+        role_permissions: &[RolePermission],
     ) -> Result<Vec<RolePermission>, DomainError>;
 
     /// Add roles to a member.
@@ -265,7 +265,7 @@ where
     async fn find_role_permissions_by_organization(
         &self,
         organization_id: &Uuid,
-        role_permissions: &Vec<RolePermission>,
+        role_permissions: &[RolePermission],
     ) -> Result<Vec<RolePermission>, DomainError> {
         let roles = self
             .role_permission_repo

@@ -295,13 +295,9 @@ where
             ));
         }
 
-        if invitation.accepted_at.is_some() {
+        if let Some(accepted_at) = invitation.accepted_at {
             return Err(DomainError::business_rule_violation(
-                format!(
-                    "Invitation has already been accepted at {}",
-                    invitation.accepted_at.unwrap()
-                )
-                .as_str(),
+                format!("Invitation has already been accepted at {accepted_at}").as_str(),
             ));
         }
 

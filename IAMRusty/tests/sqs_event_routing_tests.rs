@@ -38,7 +38,7 @@ impl ServiceTestDescriptor<TestFixture> for IamSqsTestDescriptor {
     }
 
     async fn run_app(&self, config: AppConfig, server_config: ServerConfig) -> anyhow::Result<()> {
-        build_and_run(config, server_config, None).await
+        Box::pin(build_and_run(config, server_config, None)).await
     }
 
     async fn run_migrations_up(

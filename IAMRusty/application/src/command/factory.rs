@@ -68,7 +68,7 @@ impl CommandRegistryFactory {
     #[must_use]
     pub fn create_iam_registry(
         usecases: IamRegistryUseCases,
-        command_config: CommandConfig,
+        command_config: &CommandConfig,
     ) -> CommandRegistry {
         // Create registry config from the loaded configuration
         let registry_config =
@@ -346,7 +346,7 @@ impl CommandRegistryFactory {
 
     /// Create a registry builder with only auth commands
     pub fn create_builder_with_auth(
-        login_auth_usecase: Arc<dyn LoginUseCase>,
+        login_auth_usecase: &Arc<dyn LoginUseCase>,
     ) -> CommandRegistryBuilder {
         let signup_handler = Arc::new(SignupCommandHandler::new(login_auth_usecase.clone()));
         let password_login_handler =
@@ -404,7 +404,7 @@ impl CommandRegistryFactory {
     }
 
     /// Create a registry builder with only user commands
-    pub fn create_builder_with_user(user_usecase: Arc<dyn UserUseCase>) -> CommandRegistryBuilder {
+    pub fn create_builder_with_user(user_usecase: &Arc<dyn UserUseCase>) -> CommandRegistryBuilder {
         let get_user_handler = Arc::new(GetUserCommandHandler::new(user_usecase.clone()));
         let user_error_mapper = Arc::new(UserErrorMapper);
 

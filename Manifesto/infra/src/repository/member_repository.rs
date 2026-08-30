@@ -19,7 +19,7 @@ use super::project_member_role_permission_repository::ProjectMemberRolePermissio
 pub struct MemberMapper;
 
 impl MemberMapper {
-    /// Map a SeaORM member row to the domain entity.
+    /// Map a `SeaORM` member row to the domain entity.
     ///
     /// # Errors
     ///

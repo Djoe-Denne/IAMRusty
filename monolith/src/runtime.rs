@@ -17,10 +17,10 @@ pub async fn run() -> anyhow::Result<()> {
 
     setup_logging_once();
 
-    let iam_app = iam_setup::app::build_app_state(iam, None).await?;
-    let telegraph_app = telegraph_setup::AppBuilder::new(telegraph).build().await?;
-    let hive_app = hive_setup::AppBuilder::new(hive).build().await?;
-    let manifesto_app = manifesto_setup::Application::new(manifesto).await?;
+    let iam_app = Box::pin(iam_setup::app::build_app_state(iam, None)).await?;
+    let telegraph_app = Box::pin(telegraph_setup::AppBuilder::new(telegraph).build()).await?;
+    let hive_app = Box::pin(hive_setup::AppBuilder::new(hive).build()).await?;
+    let manifesto_app = Box::pin(manifesto_setup::Application::new(manifesto)).await?;
 
     let mut background_tasks = Vec::new();
     background_tasks.extend(iam_app.start_background_tasks());

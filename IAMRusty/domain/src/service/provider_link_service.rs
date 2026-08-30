@@ -16,9 +16,9 @@ where
     UER: UserEmailRepository,
     TR: TokenRepository,
 {
-    user_repo: Arc<UR>,
-    user_email_repo: Arc<UER>,
-    token_repo: Arc<TR>,
+    users: Arc<UR>,
+    user_emails: Arc<UER>,
+    tokens: Arc<TR>,
 }
 
 /// Result of provider linking operation
@@ -41,11 +41,11 @@ where
     TR: TokenRepository,
 {
     /// Create a new `ProviderLinkService`
-    pub const fn new(user_repo: Arc<UR>, user_email_repo: Arc<UER>, token_repo: Arc<TR>) -> Self {
+    pub const fn new(users: Arc<UR>, user_emails: Arc<UER>, tokens: Arc<TR>) -> Self {
         Self {
-            user_repo,
-            user_email_repo,
-            token_repo,
+            users,
+            user_emails,
+            tokens,
         }
     }
 
@@ -119,7 +119,7 @@ where
 
         // Step 2: Verify user already has this provider linked
         let existing_tokens = self
-            .token_repo
+            .tokens
             .get_provider_tokens(user_id, provider)
             .await
             .map_err(|e| DomainError::RepositoryError(e.to_string()))?;
@@ -155,7 +155,7 @@ where
     where
         <UR as UserRepository>::Error: std::error::Error + Send + Sync + 'static,
     {
-        self.user_repo
+        self.users
             .find_by_id(user_id)
             .await
             .map_err(|e| DomainError::RepositoryError(e.to_string()))?
@@ -176,7 +176,7 @@ where
         <UR as UserRepository>::Error: std::error::Error + Send + Sync + 'static,
     {
         let existing_user = self
-            .user_repo
+            .users
             .find_by_provider_user_id(provider, provider_user_id)
             .await
             .map_err(|e| DomainError::RepositoryError(e.to_string()))?;
@@ -207,7 +207,7 @@ where
         };
 
         let existing_email = self
-            .user_email_repo
+            .user_emails
             .find_by_email(&email)
             .await
             .map_err(|e| DomainError::RepositoryError(e.to_string()))?;
@@ -229,7 +229,7 @@ where
             None => {
                 // Create new secondary email
                 let user_email = UserEmail::new_secondary(user_id, email.clone(), false);
-                self.user_email_repo
+                self.user_emails
                     .create(user_email)
                     .await
                     .map_err(|e| DomainError::RepositoryError(e.to_string()))?;
@@ -253,7 +253,7 @@ where
         };
 
         let existing_email = self
-            .user_email_repo
+            .user_emails
             .find_by_email(&email)
             .await
             .map_err(|e| DomainError::RepositoryError(e.to_string()))?;
@@ -274,7 +274,7 @@ where
             None => {
                 // Create new secondary email
                 let user_email = UserEmail::new_secondary(user_id, email.clone(), false);
-                self.user_email_repo
+                self.user_emails
                     .create(user_email)
                     .await
                     .map_err(|e| DomainError::RepositoryError(e.to_string()))?;
@@ -294,7 +294,7 @@ where
     where
         <TR as TokenRepository>::Error: std::error::Error + Send + Sync + 'static,
     {
-        self.token_repo
+        self.tokens
             .save_provider_tokens(user_id, provider, provider_user_id, tokens)
             .await
             .map_err(|e| DomainError::RepositoryError(e.to_string()))
@@ -305,7 +305,7 @@ where
     where
         <UER as UserEmailRepository>::Error: std::error::Error + Send + Sync + 'static,
     {
-        self.user_email_repo
+        self.user_emails
             .find_by_user_id(user_id)
             .await
             .map_err(|e| DomainError::RepositoryError(e.to_string()))

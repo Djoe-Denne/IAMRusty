@@ -134,6 +134,16 @@ impl MemberRoleWriteRepositoryImpl {
         Self { db }
     }
 
+    /// Inserts or updates a member-role assignment on `db`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the lookup, insert, or update fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a required identifier or column is [`None`], or if the related role-permission
+    /// row is missing.
     pub async fn save_with_connection<C>(
         db: &C,
         member_role: &OrganizationMemberRolePermission,
@@ -180,6 +190,11 @@ impl MemberRoleWriteRepositoryImpl {
         }
     }
 
+    /// Deletes member-role assignments for all members of `organization_id`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the delete fails.
     pub async fn delete_by_organization_with_connection<C>(
         db: &C,
         organization_id: &Uuid,

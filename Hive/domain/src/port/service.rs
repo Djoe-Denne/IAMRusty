@@ -14,7 +14,7 @@ pub trait ExternalProviderClient: Send + Sync {
     /// Returns [`DomainError`] if the configuration is invalid.
     async fn validate_config(
         &self,
-        provider_source: &String,
+        provider_source: &str,
         config: &serde_json::Value,
     ) -> Result<(), DomainError>;
 
@@ -25,7 +25,7 @@ pub trait ExternalProviderClient: Send + Sync {
     /// Returns [`DomainError`] if the provider cannot be reached or rejects the request.
     async fn test_connection(
         &self,
-        provider_source: &String,
+        provider_source: &str,
         config: &serde_json::Value,
     ) -> Result<bool, DomainError>;
 
@@ -36,7 +36,7 @@ pub trait ExternalProviderClient: Send + Sync {
     /// Returns [`DomainError`] if the provider call fails.
     async fn sync_members(
         &self,
-        provider_source: &String,
+        provider_source: &str,
         config: &serde_json::Value,
     ) -> Result<Vec<ExternalMember>, DomainError>;
 
@@ -47,7 +47,7 @@ pub trait ExternalProviderClient: Send + Sync {
     /// Returns [`DomainError`] if the provider call fails.
     async fn get_organization_info(
         &self,
-        provider_source: &String,
+        provider_source: &str,
         config: &serde_json::Value,
     ) -> Result<ExternalOrganizationInfo, DomainError>;
 
@@ -58,7 +58,7 @@ pub trait ExternalProviderClient: Send + Sync {
     /// Returns [`DomainError`] if the provider call fails.
     async fn get_members(
         &self,
-        provider_source: &String,
+        provider_source: &str,
         config: &serde_json::Value,
     ) -> Result<Vec<ExternalMember>, DomainError>;
 
@@ -69,7 +69,7 @@ pub trait ExternalProviderClient: Send + Sync {
     /// Returns [`DomainError`] if the provider call fails.
     async fn is_member(
         &self,
-        provider_source: &String,
+        provider_source: &str,
         config: &serde_json::Value,
         username: &str,
     ) -> Result<bool, DomainError>;

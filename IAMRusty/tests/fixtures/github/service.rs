@@ -44,7 +44,7 @@ impl GitHubService {
             .and(path("/login/oauth/access_token"))
             .and(header("accept", "application/json"))
             .and(header("content-type", "application/x-www-form-urlencoded"))
-            .and(body_string_contains(format!("code={}", &request.code)))
+            .and(body_string_contains(format!("code={}", request.code)))
             .respond_with(
                 ResponseTemplate::new(status_code)
                     .set_body_json(response)

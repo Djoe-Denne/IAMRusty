@@ -10,17 +10,10 @@ use axum::{Json, Router};
 use crate::probe::ReadinessProbe;
 
 /// Merge `GET /ready` onto an already-built router (typically after `into_router()`).
-#[must_use]
 pub fn attach_ready(router: Router, probe: Arc<ReadinessProbe>) -> Router {
     router.route(
         "/ready",
-        get({
-            let probe = Arc::clone(&probe);
-            move || {
-                let probe = Arc::clone(&probe);
-                async move { ready_response(probe).await }
-            }
-        }),
+        get(move || ready_response(Arc::clone(&probe))),
     )
 }
 

@@ -18,7 +18,7 @@ use super::entity::{prelude::Projects, project_members, projects};
 pub struct ProjectMapper;
 
 impl ProjectMapper {
-    /// Map a SeaORM project row to the domain entity.
+    /// Map a `SeaORM` project row to the domain entity.
     ///
     /// # Errors
     ///

@@ -1,130 +1,172 @@
 {
   "wave": 1,
-  "rule": "Têtes des 8 plus grandes lanes — 0 fichier partagé, 0 lane partagée",
-  "totalIssues": 463,
+  "rule": "Têtes actionables des 8 plus grandes lanes — 0 fichier partagé, 0 lane partagée",
+  "totalIssues": 287,
   "lockedLanes": [
     "IAMRusty#tests",
-    "IAMRusty/domain#src",
-    "Hive/domain#src",
-    "IAMRusty/http#src",
-    "Telegraph#tests",
     "Hive/infra#src",
-    "Manifesto/infra#src",
+    "Hive/domain#src",
+    "IAMRusty/domain#src",
+    "Telegraph#tests",
+    "readiness#src",
+    "Hive/application#src",
     "Manifesto/domain#src"
   ],
   "agents": [
     {
       "agent": 1,
-      "batch": "B008",
+      "batch": "B001",
       "lane": "IAMRusty#tests",
       "crate": "IAMRusty",
-      "issues": 120,
-      "risk": { "mechanical": 70, "semi": 50, "judgment": 0 },
-      "files": ["IAMRusty/tests/utils/jwt.rs"]
+      "cargo": "iam-service",
+      "issues": 51,
+      "risk": { "mechanical": 30, "semi": 21, "judgment": 0 },
+      "topRules": ["option_if_let_else:30", "needless_pass_by_value:20", "large_futures:1"],
+      "do": "mechanical+semi (option_if_let_else, needless_pass_by_value)",
+      "skipJudgment": [],
+      "files": [
+        "IAMRusty/tests/utils/jwt.rs",
+        "IAMRusty/tests/sqs_event_routing_tests.rs"
+      ]
     },
     {
       "agent": 2,
-      "batch": "B030",
-      "lane": "IAMRusty/domain#src",
-      "crate": "IAMRusty/domain",
-      "issues": 42,
-      "risk": { "mechanical": 12, "semi": 12, "judgment": 18 },
-      "files": ["IAMRusty/domain/src/service/auth_service.rs"]
+      "batch": "B009",
+      "lane": "Hive/infra#src",
+      "crate": "Hive/infra",
+      "cargo": "hive-infra",
+      "issues": 53,
+      "risk": { "mechanical": 3, "semi": 39, "judgment": 11 },
+      "topRules": ["missing_errors_doc:30", "unwrap_used:11", "missing_panics_doc:9", "ptr_arg:3"],
+      "do": "docs + ptr_arg",
+      "skipJudgment": ["unwrap_used"],
+      "files": [
+        "Hive/infra/src/repository/role_permission_repository.rs",
+        "Hive/infra/src/repository/organization_member_repository.rs",
+        "Hive/infra/src/repository/member_role_repository.rs",
+        "Hive/infra/src/repository/organization_invitation_repository.rs"
+      ]
     },
     {
       "agent": 3,
-      "batch": "B022",
+      "batch": "B011",
       "lane": "Hive/domain#src",
       "crate": "Hive/domain",
-      "issues": 55,
-      "risk": { "mechanical": 42, "semi": 6, "judgment": 7 },
+      "cargo": "hive-domain",
+      "issues": 53,
+      "risk": { "mechanical": 33, "semi": 12, "judgment": 8 },
+      "topRules": ["ptr_arg:30", "should_implement_trait:9", "unwrap_used:8", "unnecessary_unwrap:3"],
+      "do": "ptr_arg, should_implement_trait, unnecessary_unwrap",
+      "skipJudgment": ["unwrap_used"],
       "files": [
+        "Hive/domain/src/port/service.rs",
+        "Hive/domain/src/service/invitation_service.rs",
         "Hive/domain/src/port/repository.rs",
-        "Hive/domain/src/entity/organization_invitation.rs",
-        "Hive/domain/src/entity/organization_member.rs",
-        "Hive/domain/src/service/member_service.rs",
-        "Hive/domain/src/entity/permission.rs",
-        "Hive/domain/src/entity/external_provider.rs",
-        "Hive/domain/src/entity/organization.rs",
-        "Hive/domain/src/service/external_provider_service.rs"
+        "Hive/domain/src/entity/sync_job.rs",
+        "Hive/domain/src/service/role_service.rs",
+        "Hive/domain/src/entity/external_link.rs"
       ]
     },
     {
       "agent": 4,
-      "batch": "B034",
-      "lane": "IAMRusty/http#src",
-      "crate": "IAMRusty/http",
-      "issues": 40,
-      "risk": { "mechanical": 27, "semi": 3, "judgment": 10 },
-      "files": ["IAMRusty/http/src/validation.rs"]
+      "batch": "B014",
+      "lane": "IAMRusty/domain#src",
+      "crate": "IAMRusty/domain",
+      "cargo": "iam-domain",
+      "issues": 30,
+      "risk": { "mechanical": 0, "semi": 6, "judgment": 24 },
+      "topRules": ["future_not_send:24", "struct_field_names:3", "should_implement_trait:3"],
+      "do": "struct_field_names + should_implement_trait only (6)",
+      "skipJudgment": ["future_not_send"],
+      "files": [
+        "IAMRusty/domain/src/service/provider_link_service.rs",
+        "IAMRusty/domain/src/entity/provider.rs"
+      ]
     },
     {
       "agent": 5,
-      "batch": "B006",
+      "batch": "B016",
       "lane": "Telegraph#tests",
       "crate": "Telegraph",
-      "issues": 48,
-      "risk": { "mechanical": 18, "semi": 30, "judgment": 0 },
+      "cargo": "telegraph-service",
+      "issues": 12,
+      "risk": { "mechanical": 6, "semi": 6, "judgment": 0 },
+      "topRules": ["wrong_self_convention:6", "missing_const_for_fn:6"],
+      "do": "mechanical+semi",
+      "skipJudgment": [],
       "files": [
-        "Telegraph/tests/fixtures/smtp/service.rs",
-        "Telegraph/tests/fixtures/smtp/testcontainer.rs"
+        "Telegraph/tests/fixtures/db/notifications.rs",
+        "Telegraph/tests/fixtures/smtp/service.rs"
       ]
     },
     {
       "agent": 6,
-      "batch": "B025",
-      "lane": "Hive/infra#src",
-      "crate": "Hive/infra",
-      "issues": 55,
-      "risk": { "mechanical": 24, "semi": 21, "judgment": 10 },
+      "batch": "B018",
+      "lane": "readiness#src",
+      "crate": "readiness",
+      "cargo": "readiness",
+      "issues": 42,
+      "risk": { "mechanical": 33, "semi": 9, "judgment": 0 },
+      "topRules": ["doc_markdown:9", "ignored_unit_patterns:6", "missing_errors_doc:6", "missing_const_for_fn:6"],
+      "do": "mechanical+semi (crate neuf)",
+      "skipJudgment": [],
       "files": [
-        "Hive/infra/src/repository/member_role_repository.rs",
-        "Hive/infra/src/repository/organization_member_repository.rs",
-        "Hive/infra/src/repository/role_permission_repository.rs"
+        "readiness/src/classify.rs",
+        "readiness/src/factory.rs",
+        "readiness/src/probe.rs",
+        "readiness/src/http.rs",
+        "readiness/src/lib.rs"
       ]
     },
     {
       "agent": 7,
-      "batch": "B045",
-      "lane": "Manifesto/infra#src",
-      "crate": "Manifesto/infra",
-      "issues": 52,
-      "risk": { "mechanical": 27, "semi": 24, "judgment": 1 },
+      "batch": "B019",
+      "lane": "Hive/application#src",
+      "crate": "Hive/application",
+      "cargo": "hive-application",
+      "issues": 19,
+      "risk": { "mechanical": 12, "semi": 3, "judgment": 4 },
+      "topRules": ["redundant_closure:9", "unused_self:3", "needless_pass_by_value:3", "too_many_lines:3"],
+      "do": "redundant_closure, unused_self, needless_pass_by_value",
+      "skipJudgment": ["too_many_lines"],
       "files": [
-        "Manifesto/infra/src/repository/project_member_role_permission_repository.rs",
-        "Manifesto/infra/src/repository/permission_repository.rs",
-        "Manifesto/infra/src/repository/component_repository.rs",
-        "Manifesto/infra/src/repository/resource_repository.rs",
-        "Manifesto/infra/src/adapters/component_service_client.rs",
-        "Manifesto/infra/src/error_mapper.rs",
-        "Manifesto/infra/src/transaction.rs",
-        "Manifesto/infra/src/event/processors/component_processor.rs"
+        "Hive/application/src/usecase/organization.rs",
+        "Hive/application/src/command/factory.rs",
+        "Hive/application/src/usecase/member.rs"
       ]
     },
     {
       "agent": 8,
-      "batch": "B039",
+      "batch": "B021",
       "lane": "Manifesto/domain#src",
       "crate": "Manifesto/domain",
-      "issues": 51,
-      "risk": { "mechanical": 36, "semi": 6, "judgment": 9 },
+      "cargo": "manifesto-domain",
+      "issues": 27,
+      "risk": { "mechanical": 0, "semi": 27, "judgment": 0 },
+      "topRules": ["should_implement_trait:27"],
+      "do": "should_implement_trait sur les 9 value_objects",
+      "skipJudgment": [],
       "files": [
         "Manifesto/domain/src/value_objects/component_status.rs",
+        "Manifesto/domain/src/value_objects/data_classification.rs",
+        "Manifesto/domain/src/value_objects/member_role.rs",
+        "Manifesto/domain/src/value_objects/member_source.rs",
+        "Manifesto/domain/src/value_objects/owner_type.rs",
+        "Manifesto/domain/src/value_objects/permission_level.rs",
         "Manifesto/domain/src/value_objects/project_status.rs",
-        "Manifesto/domain/src/entity/project.rs",
-        "Manifesto/domain/src/entity/project_component.rs",
-        "Manifesto/domain/src/value_objects/data_classification.rs"
+        "Manifesto/domain/src/value_objects/resource_type.rs",
+        "Manifesto/domain/src/value_objects/visibility.rs"
       ]
     }
   ],
   "nextOnFinish": {
-    "1": "B009 IAMRusty/tests/fixtures/db/provider_tokens.rs (76) — même lane",
-    "2": "B032 IAMRusty/domain oauth_service+port+token (53)",
-    "3": "B021 Hive/domain (47)",
-    "4": "B035 IAMRusty/http/src/handlers/auth.rs (39)",
-    "5": "B007 Telegraph/tests/fixtures/db (40)",
-    "6": "B026 Hive/infra (55)",
-    "7": "B044 Manifesto/infra (51)",
-    "8": "B040 Manifesto/domain (48)"
+    "1": "B002 IAMRusty/tests/common.rs (38 large_futures) — même lane",
+    "2": "B010 Hive/infra remaining repos (24 missing_errors_doc)",
+    "3": "B012 Hive/domain/entity/permission.rs (3) puis B013 judgment unwrap (7) — skip B013",
+    "4": "B015 auth_service+oauth_service (33 future_not_send) — skip-judgment",
+    "5": "B017 Telegraph tests duplicate_mod (32) — skip-judgment",
+    "6": "lane vide → plus grande lane déverrouillée (ex. Manifesto/infra B023 doc_markdown 21)",
+    "7": "B020 dto/role+external_link (9) — skip-judgment",
+    "8": "lane vide → plus grande lane déverrouillée"
   }
 }

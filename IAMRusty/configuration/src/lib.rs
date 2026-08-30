@@ -286,6 +286,11 @@ impl JwtConfig {
     /// into `AuthConfig` so IAM, Manifesto, Telegraph and Hive share one
     /// secret. RSA is rejected: rustycog-http 0.1.1 cannot verify JWKS/RS256,
     /// so an RS256 issuer would 401 every `.authenticated()` route.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SecretError`] if the issuer is RS256/RSA (HS256-only verifier)
+    /// or if the HMAC secret cannot be resolved.
     pub fn http_verifier_auth(&self) -> Result<AuthConfig, SecretError> {
         if self.uses_rsa() {
             return Err(SecretError::InvalidFormat(

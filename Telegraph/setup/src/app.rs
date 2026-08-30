@@ -48,7 +48,7 @@ impl TelegraphApp {
     /// # Errors
     ///
     /// Returns an error when the email adapter, database pool, template service,
-    /// event consumer, auth extractor, or OpenFGA checker cannot be initialized.
+    /// event consumer, auth extractor, or `OpenFGA` checker cannot be initialized.
     ///
     /// # Panics
     ///
@@ -180,7 +180,7 @@ impl TelegraphApp {
             Arc::new(TelegraphCommandRegistryFactory::create_telegraph_registry(
                 event_processing_usecase.clone(),
                 notification_usecase,
-                config.command.clone(),
+                &config.command,
             ));
 
         let command_service = Arc::new(GenericCommandService::new(command_registry));

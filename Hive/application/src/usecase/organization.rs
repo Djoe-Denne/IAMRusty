@@ -184,7 +184,6 @@ impl OrganizationUseCaseImpl {
     }
 
     fn organization_updated_event(
-        &self,
         organization: &Organization,
         request: &UpdateOrganizationRequest,
         user_id: Uuid,
@@ -232,7 +231,7 @@ impl OrganizationUseCaseImpl {
         user_id: Uuid,
     ) -> Result<(), ApplicationError> {
         self.record_or_publish_event(
-            self.organization_updated_event(organization, request, user_id)
+            Self::organization_updated_event(organization, request, user_id)
                 .into(),
         )
         .await
@@ -336,7 +335,7 @@ impl OrganizationUseCase for OrganizationUseCaseImpl {
             if let Some(new_settings) = request.settings.clone() {
                 organization.update_settings(new_settings);
             }
-            let event = self.organization_updated_event(&organization, request, user_id);
+            let event = Self::organization_updated_event(&organization, request, user_id);
             outbox_unit_of_work
                 .update_organization(organization, event.into())
                 .await?
@@ -427,7 +426,7 @@ impl OrganizationUseCase for OrganizationUseCaseImpl {
 
         let organizations: Vec<OrganizationResponse> = organizations
             .iter()
-            .map(|org| Self::organization_to_response(org))
+            .map(Self::organization_to_response)
             .collect();
 
         Ok(OrganizationListResponse {
@@ -464,7 +463,7 @@ impl OrganizationUseCase for OrganizationUseCaseImpl {
         }
         let organizations: Vec<OrganizationResponse> = organizations
             .iter()
-            .map(|org| Self::organization_to_response(org))
+            .map(Self::organization_to_response)
             .collect();
 
         Ok(OrganizationListResponse {

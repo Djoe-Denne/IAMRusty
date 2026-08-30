@@ -19,7 +19,7 @@ pub fn component_resource_id(component_id: &Uuid) -> String {
 pub struct ResourceMapper;
 
 impl ResourceMapper {
-    /// Map a SeaORM resource row to the domain entity.
+    /// Map a `SeaORM` resource row to the domain entity.
     ///
     /// # Errors
     ///

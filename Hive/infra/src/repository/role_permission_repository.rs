@@ -75,10 +75,15 @@ impl RolePermissionReadRepositoryImpl {
         Self { db }
     }
 
+    /// Loads persisted role-permissions for `organization_id` that match `role_permissions`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the database query fails.
     pub async fn find_by_organization_roles_with_connection<C>(
         db: &C,
         organization_id: &Uuid,
-        role_permissions: &Vec<RolePermission>,
+        role_permissions: &[RolePermission],
     ) -> Result<Vec<RolePermission>, DomainError>
     where
         C: ConnectionTrait,
@@ -170,7 +175,7 @@ impl RolePermissionReadRepository for RolePermissionReadRepositoryImpl {
     async fn find_by_organization_roles(
         &self,
         organization_id: &Uuid,
-        role_permissions: &Vec<RolePermission>,
+        role_permissions: &[RolePermission],
     ) -> Result<Vec<RolePermission>, DomainError> {
         debug!(
             "Finding role permissions by organization ID: {} and role permissions: {:?}",
@@ -198,6 +203,15 @@ impl RolePermissionWriteRepositoryImpl {
         Self { db }
     }
 
+    /// Inserts or updates a role-permission on `db`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the lookup, insert, or update fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a required column is [`None`] after a successful `save`.
     pub async fn save_with_connection<C>(
         db: &C,
         _organization_id: &Uuid,
@@ -241,6 +255,11 @@ impl RolePermissionWriteRepositoryImpl {
         }
     }
 
+    /// Deletes all role-permissions for `organization_id`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the delete fails.
     pub async fn delete_by_organization_with_connection<C>(
         db: &C,
         organization_id: &Uuid,
@@ -321,7 +340,7 @@ impl RolePermissionReadRepository for RolePermissionRepositoryImpl {
     async fn find_by_organization_roles(
         &self,
         organization_id: &Uuid,
-        role_permissions: &Vec<RolePermission>,
+        role_permissions: &[RolePermission],
     ) -> Result<Vec<RolePermission>, DomainError> {
         self.read_repo
             .find_by_organization_roles(organization_id, role_permissions)

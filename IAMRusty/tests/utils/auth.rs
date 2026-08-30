@@ -28,10 +28,10 @@ impl AuthTestUtils {
         _db: Arc<DatabaseConnection>,
         _email: &str,
         _password: &str,
-    ) -> Result<Uuid, sea_orm::DbErr> {
+    ) -> Uuid {
         // This would typically use the fixtures or direct database operations
         // For now, returning a dummy UUID
-        Ok(Uuid::new_v4())
+        Uuid::new_v4()
     }
 
     /// Create a test user via OAuth provider (placeholder implementation)
@@ -40,10 +40,10 @@ impl AuthTestUtils {
         _provider: &str,
         _provider_user_id: &str,
         _email: &str,
-    ) -> Result<Uuid, sea_orm::DbErr> {
+    ) -> Uuid {
         // This would typically use the fixtures or direct database operations
         // For now, returning a dummy UUID
-        Ok(Uuid::new_v4())
+        Uuid::new_v4()
     }
 
     /// Helper to create login request payload

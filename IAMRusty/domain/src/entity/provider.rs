@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use serde::{Deserialize, Serialize};
 
 /// Supported `OAuth2` Providers
@@ -10,14 +12,13 @@ pub enum Provider {
 }
 
 impl Provider {
-    /// Converts a string to a Provider enum
+    /// Converts a string to a Provider enum.
+    ///
+    /// Prefer [`str::parse`] / [`FromStr`] when a `Result` is acceptable.
     #[must_use]
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(provider: &str) -> Option<Self> {
-        match provider.to_lowercase().as_str() {
-            "github" => Some(Self::GitHub),
-            "gitlab" => Some(Self::GitLab),
-            _ => None,
-        }
+        provider.parse().ok()
     }
 
     /// Converts a Provider enum to a string
@@ -26,6 +27,18 @@ impl Provider {
         match self {
             Self::GitHub => "github",
             Self::GitLab => "gitlab",
+        }
+    }
+}
+
+impl FromStr for Provider {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "github" => Ok(Self::GitHub),
+            "gitlab" => Ok(Self::GitLab),
+            _ => Err("unknown OAuth2 provider"),
         }
     }
 }

@@ -324,7 +324,7 @@ impl MemberUseCase for MemberUseCaseImpl {
 
         let members: Vec<MemberResponse> = members
             .iter()
-            .map(|member| Self::member_to_response(member))
+            .map(Self::member_to_response)
             .collect();
 
         let total_count = i64::try_from(members.len()).unwrap_or(i64::MAX);

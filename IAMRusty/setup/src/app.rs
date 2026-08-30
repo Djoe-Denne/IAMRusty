@@ -458,7 +458,7 @@ where
             registration: registration_usecase,
             password_reset: password_reset_usecase,
         },
-        config.command.clone(),
+        &config.command,
     );
     let command_service = Arc::new(GenericCommandService::new(Arc::new(registry)));
 

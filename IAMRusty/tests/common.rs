@@ -37,7 +37,7 @@ impl ServiceTestDescriptor<TestFixture> for IAMRustyTestDescriptor {
     }
 
     async fn run_app(&self, config: AppConfig, server_config: ServerConfig) -> anyhow::Result<()> {
-        build_and_run(config, server_config, None).await
+        Box::pin(build_and_run(config, server_config, None)).await
     }
 
     async fn run_migrations_up(
@@ -123,11 +123,11 @@ impl ServiceTestDescriptor<TestFixture> for IAMRustyTestDescriptorWithMockEvents
             )],
             HashSet::new(),
         );
-        build_and_run(
+        Box::pin(build_and_run(
             _config,
             server_config,
             Some(Arc::new(multi_queue_event_publisher)),
-        )
+        ))
         .await?;
         Ok(())
     }

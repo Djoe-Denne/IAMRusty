@@ -18,7 +18,7 @@ use super::entity::{permissions, prelude::*, resources, role_permissions};
 pub struct RolePermissionMapper;
 
 impl RolePermissionMapper {
-    /// Map SeaORM role-permission rows to the domain entity.
+    /// Map `SeaORM` role-permission rows to the domain entity.
     ///
     /// # Errors
     ///

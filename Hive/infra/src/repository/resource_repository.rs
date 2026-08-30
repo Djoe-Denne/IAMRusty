@@ -40,6 +40,11 @@ impl ResourceReadRepositoryImpl {
         Self { db }
     }
 
+    /// Loads every resource row.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the query fails or a row cannot be mapped to [`Resource`].
     pub async fn find_all_with_connection<C>(db: &C) -> Result<Vec<Resource>, DomainError>
     where
         C: ConnectionTrait,
@@ -73,11 +78,11 @@ impl ResourceReadRepository for ResourceReadRepositoryImpl {
         }
     }
 
-    async fn find_by_type(&self, resource_type: &String) -> Result<Option<Resource>, DomainError> {
-        debug!("Finding resource by type: {}", resource_type.as_str());
+    async fn find_by_type(&self, resource_type: &str) -> Result<Option<Resource>, DomainError> {
+        debug!("Finding resource by type: {}", resource_type);
 
         let resource = Resources::find()
-            .filter(resources::Column::ResourceType.eq(resource_type.as_str()))
+            .filter(resources::Column::ResourceType.eq(resource_type))
             .one(self.db.as_ref())
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
@@ -111,7 +116,7 @@ impl ResourceReadRepository for ResourceRepositoryImpl {
         self.read_repo.find_by_id(id).await
     }
 
-    async fn find_by_type(&self, resource_type: &String) -> Result<Option<Resource>, DomainError> {
+    async fn find_by_type(&self, resource_type: &str) -> Result<Option<Resource>, DomainError> {
         self.read_repo.find_by_type(resource_type).await
     }
 

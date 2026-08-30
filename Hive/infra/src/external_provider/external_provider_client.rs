@@ -163,13 +163,13 @@ impl HttpExternalProviderClient {
 impl ExternalProviderClient for HttpExternalProviderClient {
     async fn validate_config(
         &self,
-        provider_source: &String,
+        provider_source: &str,
         config: &Value,
     ) -> Result<(), DomainError> {
         info!("Validating config for provider: {:?}", provider_source);
 
         let request_body = serde_json::json!({
-            "provider_source": provider_source.as_str(),
+            "provider_source": provider_source,
             "config": config
         });
 
@@ -179,13 +179,13 @@ impl ExternalProviderClient for HttpExternalProviderClient {
 
     async fn test_connection(
         &self,
-        provider_source: &String,
+        provider_source: &str,
         config: &Value,
     ) -> Result<bool, DomainError> {
         info!("Testing connection for provider: {:?}", provider_source);
 
         let request_body = serde_json::json!({
-            "provider_source": provider_source.as_str(),
+            "provider_source": provider_source,
             "config": config
         });
 
@@ -204,7 +204,7 @@ impl ExternalProviderClient for HttpExternalProviderClient {
 
     async fn sync_members(
         &self,
-        provider_source: &String,
+        provider_source: &str,
         config: &Value,
     ) -> Result<Vec<ExternalMember>, DomainError> {
         info!("Syncing members for provider: {:?}", provider_source);
@@ -213,7 +213,7 @@ impl ExternalProviderClient for HttpExternalProviderClient {
 
     async fn get_organization_info(
         &self,
-        provider_source: &String,
+        provider_source: &str,
         config: &Value,
     ) -> Result<ExternalOrganizationInfo, DomainError> {
         info!(
@@ -222,7 +222,7 @@ impl ExternalProviderClient for HttpExternalProviderClient {
         );
 
         let request_body = serde_json::json!({
-            "provider_source": provider_source.as_str(),
+            "provider_source": provider_source,
             "config": config
         });
 
@@ -231,13 +231,13 @@ impl ExternalProviderClient for HttpExternalProviderClient {
 
     async fn get_members(
         &self,
-        provider_source: &String,
+        provider_source: &str,
         config: &Value,
     ) -> Result<Vec<ExternalMember>, DomainError> {
         info!("Getting members for provider: {:?}", provider_source);
 
         let request_body = serde_json::json!({
-            "provider_source": provider_source.as_str(),
+            "provider_source": provider_source,
             "config": config
         });
 
@@ -267,7 +267,7 @@ impl ExternalProviderClient for HttpExternalProviderClient {
 
     async fn is_member(
         &self,
-        provider_source: &String,
+        provider_source: &str,
         config: &Value,
         username: &str,
     ) -> Result<bool, DomainError> {
@@ -277,7 +277,7 @@ impl ExternalProviderClient for HttpExternalProviderClient {
         );
 
         let request_body = serde_json::json!({
-            "provider_source": provider_source.as_str(),
+            "provider_source": provider_source,
             "config": config,
             "username": username
         });

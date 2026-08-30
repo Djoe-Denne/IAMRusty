@@ -19,7 +19,7 @@ pub struct PasswordResetTokenFixtureBuilder {
     raw_token: Option<String>,
     expires_at: Option<DateTime<Utc>>,
     created_at: Option<DateTime<Utc>>,
-    used_at: Option<Option<DateTime<Utc>>>,
+    used_at: Option<DateTime<Utc>>,
 }
 
 impl PasswordResetTokenFixtureBuilder {
@@ -65,21 +65,21 @@ impl PasswordResetTokenFixtureBuilder {
         self
     }
 
-    /// Set the `used_at` timestamp (None means not used)
+    /// Set the `used_at` timestamp (`None` means not used)
     pub const fn used_at(mut self, used_at: Option<DateTime<Utc>>) -> Self {
-        self.used_at = Some(used_at);
+        self.used_at = used_at;
         self
     }
 
     /// Mark as used now
     pub fn mark_as_used(mut self) -> Self {
-        self.used_at = Some(Some(Utc::now()));
+        self.used_at = Some(Utc::now());
         self
     }
 
     /// Mark as not used
     pub const fn mark_as_not_used(mut self) -> Self {
-        self.used_at = Some(None);
+        self.used_at = None;
         self
     }
 
@@ -200,7 +200,7 @@ impl DbFixture<PasswordResetTokensEntity, PasswordResetTokenModel, PasswordReset
             token_hash: ActiveValue::Set(PasswordResetToken::hash_token(&raw_token)),
             expires_at: ActiveValue::Set(self.expires_at.unwrap_or_else(Self::default_expiry)),
             created_at: ActiveValue::Set(self.created_at.unwrap_or(now)),
-            used_at: ActiveValue::Set(self.used_at.unwrap_or(None)),
+            used_at: ActiveValue::Set(self.used_at),
         }
     }
 }

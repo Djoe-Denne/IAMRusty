@@ -54,7 +54,7 @@ impl RefreshTokenFixtureBuilder {
     }
 
     /// Set whether the token is valid
-    pub const fn is_valid(mut self, is_valid: bool) -> Self {
+    pub const fn with_valid(mut self, is_valid: bool) -> Self {
         self.is_valid = Some(is_valid);
         self
     }
@@ -83,7 +83,7 @@ impl RefreshTokenFixtureBuilder {
     pub fn valid(self, user_id: Uuid) -> Self {
         self.user_id(user_id)
             .token(TestData::jwt_token())
-            .is_valid(true)
+            .with_valid(true)
             .expires_at(TestData::future())
     }
 
@@ -92,7 +92,7 @@ impl RefreshTokenFixtureBuilder {
         let past = (Utc::now() - chrono::Duration::hours(1)).into();
         self.user_id(user_id)
             .token(TestData::jwt_token())
-            .is_valid(true)
+            .with_valid(true)
             .expires_at(past)
     }
 
@@ -100,7 +100,7 @@ impl RefreshTokenFixtureBuilder {
     pub fn invalid(self, user_id: Uuid) -> Self {
         self.user_id(user_id)
             .token(TestData::jwt_token())
-            .is_valid(false)
+            .with_valid(false)
             .expires_at(TestData::future())
     }
 
@@ -129,7 +129,7 @@ impl RefreshTokenFixtureBuilder {
         let soon = (Utc::now() + chrono::Duration::minutes(5)).into();
         self.user_id(user_id)
             .token(TestData::jwt_token())
-            .is_valid(true)
+            .with_valid(true)
             .expires_at(soon)
     }
 }

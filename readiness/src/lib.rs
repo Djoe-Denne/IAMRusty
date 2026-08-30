@@ -1,6 +1,6 @@
-//! Shared `/ready` contract and queue-factory signaling for AIForAll services.
+//! Shared `/ready` contract and queue-factory signaling for `AIForAll` services.
 //!
-//! RustyCog queue factories can degrade to a no-op without failing startup.
+//! `RustyCog` queue factories can degrade to a no-op without failing startup.
 //! Composition roots must classify that outcome, log it, and expose it on
 //! `GET /ready` so liveness (`/health`) is not mistaken for a live broker.
 

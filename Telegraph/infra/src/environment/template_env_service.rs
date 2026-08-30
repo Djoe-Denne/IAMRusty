@@ -20,6 +20,7 @@ impl TemplateEnvironmentService {
     /// Example:
     /// - `TELEGRAPH__TEMPLATE__BASE__URL=https://example.com` becomes base.url=https://example.com
     /// - `TELEGRAPH__TEMPLATE__VERIFY__URL=https://example.com/verify` becomes verify.url=https://example.com/verify
+    #[must_use]
     pub fn get_template_variables(&self) -> HashMap<String, String> {
         let mut variables = HashMap::new();
         let prefix = "TELEGRAPH__TEMPLATE__";
@@ -61,6 +62,7 @@ impl TemplateEnvironmentService {
     /// Get a specific template variable by key
     /// The key should be in the format that would result after normalization
     /// (lowercase, with '.' as separators)
+    #[must_use]
     pub fn get_template_variable(&self, key: &str) -> Option<String> {
         let env_key = format!(
             "TELEGRAPH__TEMPLATE__{}",

@@ -98,9 +98,9 @@ where
     RTS: RegistrationTokenService,
     TS: AuthTokenService,
 {
-    oauth_service: Arc<OAuthService<UR, TR, UER>>,
-    registration_token_service: Arc<RTS>,
-    token_service: Arc<TS>,
+    oauth: Arc<OAuthService<UR, TR, UER>>,
+    registration_token: Arc<RTS>,
+    token: Arc<TS>,
 }
 
 impl<UR, TR, UER, RTS, TS> OAuthUseCaseImpl<UR, TR, UER, RTS, TS>
@@ -113,14 +113,14 @@ where
 {
     /// Create a new `OAuthUseCaseImpl`
     pub const fn new(
-        oauth_service: Arc<OAuthService<UR, TR, UER>>,
-        registration_token_service: Arc<RTS>,
-        token_service: Arc<TS>,
+        oauth: Arc<OAuthService<UR, TR, UER>>,
+        registration_token: Arc<RTS>,
+        token: Arc<TS>,
     ) -> Self {
         Self {
-            oauth_service,
-            registration_token_service,
-            token_service,
+            oauth,
+            registration_token,
+            token,
         }
     }
 }
@@ -140,7 +140,7 @@ where
 {
     fn generate_start_url(&self, provider: Provider) -> Result<String, OAuthError> {
         // Delegate to domain service
-        self.oauth_service
+        self.oauth
             .generate_authorize_url(provider.as_str())
             .map_err(Into::into)
     }
@@ -152,7 +152,7 @@ where
     ) -> Result<OAuthResponse, OAuthError> {
         // Delegate to domain service - note: we ignore the JWT token since we'll generate proper tokens
         let (user, _jwt_token, email) = self
-            .oauth_service
+            .oauth
             .process_callback(provider.as_str(), &code)
             .await?;
 
@@ -160,7 +160,7 @@ where
         if user.username.is_none() {
             // User needs to complete registration - generate proper registration token
             let registration_token = self
-                .registration_token_service
+                .registration_token
                 .generate_oauth_registration_token(
                     user.id,
                     email.clone(),
@@ -184,13 +184,13 @@ where
 
         // User is complete - generate proper access and refresh tokens
         let access_token = self
-            .token_service
+            .token
             .generate_access_token(user.id)
             .await
             .map_err(|e| OAuthError::DomainError(DomainError::TokenServiceError(e.to_string())))?;
 
         let refresh_token = self
-            .token_service
+            .token
             .generate_refresh_token(user.id)
             .await
             .map_err(|e| OAuthError::DomainError(DomainError::TokenServiceError(e.to_string())))?;

@@ -32,7 +32,7 @@ impl ProjectMemberRolePermissionMapper {
         }
     }
 
-    /// Convert a domain grant into a SeaORM active model.
+    /// Convert a domain grant into a `SeaORM` active model.
     ///
     /// # Errors
     ///

@@ -65,6 +65,11 @@ impl OrganizationReadRepositoryImpl {
         Self { db }
     }
 
+    /// Loads the organization identified by `id`, if any.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the query fails.
     pub async fn find_by_id_with_connection<C>(
         db: &C,
         id: &Uuid,
@@ -215,6 +220,11 @@ impl OrganizationWriteRepositoryImpl {
         Self { db }
     }
 
+    /// Returns whether an organization with `slug` exists.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the query fails.
     pub async fn exists_by_slug_with_connection<C>(db: &C, slug: &str) -> Result<bool, DomainError>
     where
         C: ConnectionTrait,
@@ -228,6 +238,11 @@ impl OrganizationWriteRepositoryImpl {
         Ok(count > 0)
     }
 
+    /// Inserts or updates `organization`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the lookup, insert, or update fails.
     pub async fn save_with_connection<C>(
         db: &C,
         organization: &Organization,
@@ -269,6 +284,11 @@ impl OrganizationWriteRepositoryImpl {
         Ok(OrganizationMapper::to_domain(inserted))
     }
 
+    /// Deletes the organization identified by `id`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the delete fails or no row was affected.
     pub async fn delete_by_id_with_connection<C>(db: &C, id: &Uuid) -> Result<(), DomainError>
     where
         C: ConnectionTrait,

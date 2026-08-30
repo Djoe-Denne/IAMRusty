@@ -62,7 +62,7 @@ impl ManifestoCommandRegistryFactory {
         project_usecase: Arc<dyn ProjectUseCase>,
         component_usecase: Arc<dyn ComponentUseCase>,
         member_usecase: Arc<dyn MemberUseCase>,
-        command_config: CommandConfig,
+        command_config: &CommandConfig,
     ) -> CommandRegistry {
         let mut builder = CommandRegistryBuilder::with_config(RegistryConfig::from_retry_config(
             &command_config.retry,

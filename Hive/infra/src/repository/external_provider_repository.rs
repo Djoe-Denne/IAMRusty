@@ -78,7 +78,7 @@ impl ExternalProviderReadRepository for ExternalProviderReadRepositoryImpl {
 
     async fn find_by_source(
         &self,
-        provider_source: &String,
+        provider_source: &str,
     ) -> Result<Option<ExternalProvider>, DomainError> {
         debug!("Finding external provider by source: {:?}", provider_source);
 
@@ -209,7 +209,7 @@ impl ExternalProviderReadRepository for ExternalProviderRepositoryImpl {
 
     async fn find_by_source(
         &self,
-        provider_source: &String,
+        provider_source: &str,
     ) -> Result<Option<ExternalProvider>, DomainError> {
         self.read_repo.find_by_source(provider_source).await
     }

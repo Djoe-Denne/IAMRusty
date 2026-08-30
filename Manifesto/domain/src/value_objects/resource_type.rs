@@ -1,5 +1,6 @@
 use rustycog::core::error::DomainError;
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 
 /// Resource type indicating whether a resource is internal or a component
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -11,13 +12,15 @@ pub enum ResourceType {
     Component,
 }
 
-impl ResourceType {
+impl FromStr for ResourceType {
+    type Err = DomainError;
+
     /// Parse a resource type from a string.
     ///
     /// # Errors
     ///
     /// Returns [`DomainError`] if `s` is not a recognized resource type.
-    pub fn from_str(s: &str) -> Result<Self, DomainError> {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             "internal" => Ok(Self::Internal),
             "component" => Ok(Self::Component),
@@ -26,7 +29,9 @@ impl ResourceType {
             ))),
         }
     }
+}
 
+impl ResourceType {
     /// Convert to string representation
     #[must_use]
     pub const fn to_str(&self) -> &'static str {
@@ -58,6 +63,7 @@ impl std::fmt::Display for ResourceType {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::str::FromStr;
 
     #[test]
     fn test_from_str() {

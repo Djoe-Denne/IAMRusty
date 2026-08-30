@@ -247,6 +247,12 @@ impl ExternalLinkWriteRepositoryImpl {
         Self { db }
     }
 
+    /// Inserts or updates `link`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the lookup, insert, or update fails, or if
+    /// `last_sync_status` is not a recognized [`SyncStatus`].
     pub async fn save_with_connection<C>(
         db: &C,
         link: &ExternalLink,

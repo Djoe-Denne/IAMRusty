@@ -6,9 +6,9 @@ use rustycog::events::{ConcreteEventConsumer, ConcreteEventPublisher};
 /// Configured queue transport.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum QueueKind {
-    /// Amazon SQS / LocalStack.
+    /// Amazon `SQS` / `LocalStack`.
     Sqs,
-    /// Apache Kafka.
+    /// Apache `Kafka`.
     Kafka,
 }
 
@@ -93,7 +93,7 @@ pub fn classify_publisher(
         ConcreteEventPublisher::Sqs(_) => ComponentStatus::Live {
             kind: QueueKind::Sqs,
         },
-        ConcreteEventPublisher::Kafka(_) => ComponentStatus::Live {
+        ConcreteEventPublisher::Kafka(()) => ComponentStatus::Live {
             kind: QueueKind::Kafka,
         },
     }
@@ -110,7 +110,7 @@ pub fn classify_consumer(
         ConcreteEventConsumer::Sqs(_) => ComponentStatus::Live {
             kind: QueueKind::Sqs,
         },
-        ConcreteEventConsumer::Kafka(_) => ComponentStatus::Live {
+        ConcreteEventConsumer::Kafka(()) => ComponentStatus::Live {
             kind: QueueKind::Kafka,
         },
     }
@@ -184,15 +184,17 @@ mod tests {
     use std::sync::Arc;
 
     fn enabled_sqs() -> QueueConfig {
-        let mut config = SqsConfig::default();
-        config.enabled = true;
-        QueueConfig::Sqs(config)
+        QueueConfig::Sqs(SqsConfig {
+            enabled: true,
+            ..SqsConfig::default()
+        })
     }
 
     fn disabled_sqs() -> QueueConfig {
-        let mut config = SqsConfig::default();
-        config.enabled = false;
-        QueueConfig::Sqs(config)
+        QueueConfig::Sqs(SqsConfig {
+            enabled: false,
+            ..SqsConfig::default()
+        })
     }
 
     #[test]
@@ -233,8 +235,10 @@ mod tests {
 
     #[test]
     fn enabled_kafka_noop_names_kafka() {
-        let mut kafka = KafkaConfig::default();
-        kafka.enabled = true;
+        let kafka = KafkaConfig {
+            enabled: true,
+            ..KafkaConfig::default()
+        };
         assert_eq!(
             classify_transport(&QueueConfig::Kafka(kafka), true),
             ComponentStatus::Degraded {

@@ -40,6 +40,11 @@ impl PermissionReadRepositoryImpl {
         Self { db }
     }
 
+    /// Loads every permission row.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the query fails or `level` is not a recognized [`PermissionLevel`].
     pub async fn find_all_with_connection<C>(db: &C) -> Result<Vec<Permission>, DomainError>
     where
         C: ConnectionTrait,

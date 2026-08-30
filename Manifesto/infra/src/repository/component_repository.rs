@@ -17,7 +17,7 @@ use super::entity::{prelude::ProjectComponents, project_components};
 pub struct ComponentMapper;
 
 impl ComponentMapper {
-    /// Map a SeaORM component row to the domain entity.
+    /// Map a `SeaORM` component row to the domain entity.
     ///
     /// # Errors
     ///

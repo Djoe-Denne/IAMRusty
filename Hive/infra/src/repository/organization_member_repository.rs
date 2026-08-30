@@ -88,6 +88,11 @@ impl OrganizationMemberReadRepositoryImpl {
         Self { db }
     }
 
+    /// Loads the membership for `organization_id` and `user_id`, if any.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the query fails or `status` is not a recognized [`MemberStatus`].
     pub async fn find_by_organization_and_user_with_connection<C>(
         db: &C,
         organization_id: &Uuid,
@@ -262,6 +267,16 @@ impl OrganizationMemberWriteRepositoryImpl {
         Self { db }
     }
 
+    /// Inserts or updates an organization member on `db`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the lookup, insert, or update fails, or if `status` is not a
+    /// recognized [`MemberStatus`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if a required column is [`None`] after a successful `save`.
     pub async fn save_with_connection<C>(
         db: &C,
         member: &OrganizationMember,
@@ -306,6 +321,11 @@ impl OrganizationMemberWriteRepositoryImpl {
         }
     }
 
+    /// Deletes the organization member identified by `id`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the delete fails or no row was affected.
     pub async fn delete_by_id_with_connection<C>(db: &C, id: &Uuid) -> Result<(), DomainError>
     where
         C: ConnectionTrait,
@@ -325,6 +345,11 @@ impl OrganizationMemberWriteRepositoryImpl {
         Ok(())
     }
 
+    /// Deletes all members of `organization_id`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the delete fails.
     pub async fn delete_by_organization_with_connection<C>(
         db: &C,
         organization_id: &Uuid,

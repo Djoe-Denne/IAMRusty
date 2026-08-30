@@ -1,0 +1,267 @@
+{
+  "updated": "2026-08-30",
+  "analysis": {
+    "ready": true,
+    "violations": 867,
+    "announcedTarget": 864,
+    "qualityGate": "ERROR",
+    "qualityGateReason": "new_coverage 55.7 < 80"
+  },
+  "batches": {
+    "total": 47,
+    "actionable": 31,
+    "judgment": 16,
+    "pending": 39,
+    "assigned": 0,
+    "done": 8
+  },
+  "wave01Ready": ["B011", "B016", "B018"],
+  "B014": {
+    "status": "done",
+    "files": [
+      "IAMRusty/domain/src/entity/provider.rs",
+      "IAMRusty/domain/src/service/provider_link_service.rs"
+    ],
+    "fixed": 6,
+    "unique": 2,
+    "skipped": 24,
+    "skipReason": "future_not_send / Send (judgment) — pas de Box::pin / refactor async",
+    "rules": {
+      "should_implement_trait": 3,
+      "struct_field_names": 3
+    },
+    "cargo": "cargo check -p iam-domain OK (Finished, 2 warnings cfg test-mode préexistants)"
+  },
+  "B021": {
+    "status": "done",
+    "files": [
+      "Manifesto/domain/src/value_objects/member_role.rs",
+      "Manifesto/domain/src/value_objects/resource_type.rs"
+    ],
+    "fixed": 2,
+    "unique": 9,
+    "skipped": 7,
+    "skipReason": "FromStr VO skip si call sites hors lot: Type::from_str dans Manifesto/application + Manifesto/infra, aucun `use std::str::FromStr` (casse API). SKIP: ComponentStatus, DataClassification, MemberSource, OwnerType, PermissionLevel, ProjectStatus, Visibility. OK: MemberRole (0 call site), ResourceType (tests in-lot).",
+    "rules": {
+      "should_implement_trait": 27
+    },
+    "cargo": "cargo check -p manifesto-domain OK"
+  },
+  "B001": {
+    "status": "done",
+    "files": [
+      "IAMRusty/tests/utils/jwt.rs",
+      "IAMRusty/tests/sqs_event_routing_tests.rs"
+    ],
+    "fixed": 51,
+    "unique": 6,
+    "skipped": 0,
+    "skipReason": null,
+    "rules": {
+      "option_if_let_else": 30,
+      "needless_pass_by_value": 20,
+      "large_futures": 1
+    },
+    "cargo": "cargo check -p iam-service --tests OK (pas de bin --test jwt)"
+  },
+  "B002": {
+    "status": "done",
+    "files": ["IAMRusty/tests/common.rs"],
+    "fixed": 38,
+    "unique": 2,
+    "skipped": 0,
+    "skipReason": null,
+    "rules": {
+      "large_futures": 38
+    },
+    "cargo": "cargo check -p iam-service --tests OK (Finished 4.08s, 0 errors)"
+  },
+  "B003": {
+    "status": "done",
+    "files": [
+      "IAMRusty/tests/fixtures/db/provider_tokens.rs",
+      "IAMRusty/tests/fixtures/db/password_reset_tokens.rs"
+    ],
+    "fixed": 18,
+    "unique": 3,
+    "skipped": 36,
+    "skipReason": "option_option builders fluents: SKIP refresh_token + expires_in (tri-état unset=défaut vs Some(None)=NULL ; github_no_refresh + DbFixtures hors lot). FIX used_at (unset≡None dans model(), API publique inchangée). Compte 54/3 types.",
+    "rules": {
+      "option_option": 54
+    },
+    "skippedRules": {
+      "option_option": 36
+    },
+    "cargo": "fichiers B003 sans erreur ; crate iam-service --tests KO hors lot (iam-application E0609 oauth_service, agents parallèles). Check antérieur EXIT 0 avant casse."
+  },
+  "B004": {
+    "status": "done",
+    "files": [
+      "IAMRusty/tests/fixtures/db/user_emails.rs",
+      "IAMRusty/tests/fixtures/db/refresh_tokens.rs"
+    ],
+    "fixed": 18,
+    "unique": 3,
+    "skipped": 36,
+    "skipReason": "wrong_self_convention fluents mut self->Self: SKIP is_primary + is_verified (auth_email_password, auth_resend_verification, auth_username_flow, fixtures/db/mod.rs, token.rs hors lot). FIX is_valid -> with_valid (4 call sites in-lot). Getters &self->bool inchangés. Compte 54/3 types.",
+    "rules": {
+      "wrong_self_convention": 54
+    },
+    "skippedRules": {
+      "wrong_self_convention": 36
+    },
+    "cargo": "cargo check -p iam-service --tests OK (0 errors, 163 warnings préexistants)"
+  },
+  "B005": {
+    "status": "done",
+    "files": [
+      "IAMRusty/tests/fixtures/db/users.rs",
+      "IAMRusty/tests/fixtures/github/service.rs"
+    ],
+    "fixed": 54,
+    "unique": 3,
+    "skipped": 0,
+    "skipReason": "option_option: FIX password_hash + avatar_url (unset≡None dans model(), setters publics inchangés — impl Into<String> / Option<String> ; call sites hors lot OK). Pas de tri-état. useless_borrows: FIX format!(code={}, request.code).",
+    "rules": {
+      "option_option": 36,
+      "useless_borrows_in_formatting": 18
+    },
+    "cargo": "cargo check -p iam-service --tests OK (0 errors, 163 warnings préexistants)"
+  },
+  "B006": {
+    "status": "done",
+    "files": [
+      "IAMRusty/tests/fixtures/github/resources.rs"
+    ],
+    "fixed": 0,
+    "unique": 2,
+    "skipped": 36,
+    "skipReason": "option_option builders fluents: SKIP email + avatar_url (tri-état unset=défaut test@example.com / avatar GitHub vs Some(None)=null ; setters publics Option<impl Into<String>>, call sites hors lot). Pas de champ unset≡None (contraire B005 password_hash). gitlab/resources.rs = B007.",
+    "rules": {
+      "option_option": 36
+    },
+    "skippedRules": {
+      "option_option": 36
+    },
+    "cargo": "cargo check -p iam-service --tests OK (0 errors, 163 warnings préexistants) — aucun changement code"
+  },
+  "B007": {
+    "status": "done",
+    "files": [
+      "IAMRusty/tests/fixtures/gitlab/resources.rs"
+    ],
+    "fixed": 0,
+    "unique": 2,
+    "skipped": 36,
+    "skipReason": "option_option builders fluents: SKIP email + avatar_url (tri-état unset=défaut test@gitlab.example.com / avatar GitLab vs Some(None)=null ; setters publics Option<impl Into<String>>, call sites hors lot). Même critère B006 ; aucun champ unset≡None (contraire B005). Aucun changement code.",
+    "rules": {
+      "option_option": 36
+    },
+    "skippedRules": {
+      "option_option": 36
+    },
+    "cargo": "cargo check -p iam-service --tests OK (0 errors, 163 warnings préexistants) — aucun changement code"
+  },
+  "B008": {
+    "status": "done",
+    "files": ["IAMRusty/tests/utils/auth.rs"],
+    "fixed": 20,
+    "unique": 2,
+    "skipped": 0,
+    "skipReason": null,
+    "rules": {
+      "unnecessary_wraps": 20
+    },
+    "cargo": "cargo check -p iam-service --tests OK (0 errors, 163 warnings préexistants)"
+  },
+  "B009": {
+    "status": "done",
+    "files": [
+      "Hive/infra/src/repository/role_permission_repository.rs",
+      "Hive/infra/src/repository/organization_member_repository.rs",
+      "Hive/infra/src/repository/member_role_repository.rs",
+      "Hive/infra/src/repository/organization_invitation_repository.rs"
+    ],
+    "fixed": 42,
+    "unique": 14,
+    "skipped": 11,
+    "skipReason": "unwrap_used (judgment)",
+    "rules": {
+      "missing_errors_doc": 30,
+      "missing_panics_doc": 9,
+      "ptr_arg": 3
+    },
+    "cargo": "cargo check -p hive-infra: 0 erreur sur les 4 fichiers B009 ; crate KO (E0053 hors lot — traits B011 vs external_provider/resource)"
+  },
+  "B019": {
+    "status": "done",
+    "files": [
+      "Hive/application/src/usecase/organization.rs",
+      "Hive/application/src/command/factory.rs",
+      "Hive/application/src/usecase/member.rs"
+    ],
+    "fixed": 15,
+    "unique": 5,
+    "skipped": 3,
+    "skipReason": "too_many_lines (create_hive_registry)",
+    "rules": {
+      "redundant_closure": 9,
+      "unused_self": 3,
+      "needless_pass_by_value": 3
+    },
+    "skippedRules": {
+      "too_many_lines": 3
+    },
+    "absent": ["uninlined_format_args", "docs", "future_not_send", "unwrap"],
+    "cargo": "cargo check -p hive-application OK (Finished 36.33s, warnings préexistants hors lot)"
+  },
+  "B010": "done",
+  "B011": "done",
+  "hive-infra-e0053": {
+    "status": "done",
+    "files": [
+      "Hive/infra/src/external_provider/external_provider_client.rs",
+      "Hive/infra/src/repository/external_provider_repository.rs"
+    ],
+    "cargo": "cargo check -p hive-infra OK (Finished 9.87s, exit 0)"
+  },
+  "B012": "done",
+  "B016": "done",
+  "B018": "done",
+  "B024": "done",
+  "B023": "done",
+  "B036": "done",
+  "B035": "done",
+  "B037": "done",
+  "B031": "done",
+  "B032": "done",
+  "B029": "done",
+  "B026": "done",
+  "iam-setup-command-ref": "done",
+  "hive-setup-command-ref": "done",
+  "B040": "done",
+  "B039": "done",
+  "B034": {
+    "status": "done",
+    "files": [
+      "Telegraph/application/src/error.rs",
+      "Telegraph/application/src/command/factory.rs"
+    ],
+    "fixed": 4,
+    "unique": 3,
+    "skipped": 3,
+    "skipReason": "command_error_from_boxed: Box by value — call sites hors lot (notification.rs, process_event.rs). &(dyn Error) / &Box cassent E0308 sans & aux call sites. Arcs factory: move, gardés by value.",
+    "rules": {
+      "needless_pass_by_value": 7
+    },
+    "cargo": "cargo check -p telegraph-application OK (3 warnings préexistants: async_fn_in_trait rustycog, ambiguous_glob_reexports, dead_code process_event)"
+  },
+  "telegraph-setup-command-ref": "done",
+  "manifesto-setup-command-ref": "done",
+  "B042": "done",
+  "B047": "done",
+  "doNotAutoAssign": [
+    "B013", "B015", "B017", "B020", "B022", "B025", "B027", "B028",
+    "B030", "B033", "B038", "B041", "B043", "B044", "B045", "B046"
+  ]
+}

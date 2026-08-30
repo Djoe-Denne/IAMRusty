@@ -12,7 +12,7 @@ use super::entity::{permissions, prelude::Permissions};
 pub struct PermissionMapper;
 
 impl PermissionMapper {
-    /// Map a SeaORM permission row to the domain entity.
+    /// Map a `SeaORM` permission row to the domain entity.
     ///
     /// # Errors
     ///

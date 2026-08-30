@@ -6,7 +6,7 @@ use std::sync::Arc;
 use rustycog::events::{
     ConcreteEventConsumer, ConcreteEventPublisher, EventConsumer, EventPublisher,
 };
-use sea_orm::{ConnectionTrait, DatabaseConnection};
+use sea_orm::DatabaseConnection;
 use serde::Serialize;
 
 use crate::classify::{ComponentStatus, QueueKind};
@@ -61,7 +61,7 @@ pub struct CheckReport {
 impl ReadinessProbe {
     /// Single-service probe. Add database / queue attachments with builders.
     #[must_use]
-    pub fn new(service: &'static str) -> Self {
+    pub const fn new(service: &'static str) -> Self {
         Self {
             service,
             kind: ProbeKind::Service {
@@ -74,7 +74,7 @@ impl ReadinessProbe {
 
     /// Monolith-style probe that ANDs child service reports.
     #[must_use]
-    pub fn aggregate(service: &'static str, children: Vec<(&'static str, Arc<Self>)>) -> Self {
+    pub const fn aggregate(service: &'static str, children: Vec<(&'static str, Arc<Self>)>) -> Self {
         Self {
             service,
             kind: ProbeKind::Aggregate { children },
@@ -259,19 +259,18 @@ async fn ping_live(kind: QueueKind, attachment: &QueueAttachment) -> CheckReport
         None
     };
 
-    if let Some(detail) = ping_error {
-        CheckReport {
-            status: "error",
-            transport: Some(kind.as_str()),
-            detail: Some(detail),
-        }
-    } else {
-        CheckReport {
+    ping_error.map_or_else(
+        || CheckReport {
             status: "ok",
             transport: Some(kind.as_str()),
             detail: None,
-        }
-    }
+        },
+        |detail| CheckReport {
+            status: "error",
+            transport: Some(kind.as_str()),
+            detail: Some(detail),
+        },
+    )
 }
 
 #[cfg(test)]

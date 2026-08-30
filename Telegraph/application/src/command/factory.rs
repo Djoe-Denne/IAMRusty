@@ -23,7 +23,7 @@ impl TelegraphCommandRegistryFactory {
     pub fn create_telegraph_registry(
         event_processing_usecase: Arc<dyn EventProcessingUseCaseTrait>,
         notification_usecase: Arc<dyn NotificationUseCaseTrait>,
-        command_config: CommandConfig,
+        command_config: &CommandConfig,
     ) -> CommandRegistry {
         let mut builder = CommandRegistryBuilder::with_config(RegistryConfig::from_retry_config(
             &command_config.retry,

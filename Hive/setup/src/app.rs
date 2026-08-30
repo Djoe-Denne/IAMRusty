@@ -64,7 +64,7 @@ impl Application {
     ///
     /// # Errors
     ///
-    /// Returns an error if database, event publisher, auth, or OpenFGA setup fails.
+    /// Returns an error if database, event publisher, auth, or `OpenFGA` setup fails.
     pub async fn new(config: AppConfig) -> Result<Self, Error> {
         tracing::info!("Initializing Hive application...");
 
@@ -97,7 +97,7 @@ impl Application {
             external_link_usecase,
             sync_job_usecase,
             role_usecase,
-        ) = setup_application(db, &config, event_publisher).await?;
+        ) = setup_application(db, &config, event_publisher)?;
 
         // Setup command registry
         let command_registry = HiveCommandRegistryFactory::create_hive_registry(
@@ -107,7 +107,7 @@ impl Application {
             external_link_usecase,
             sync_job_usecase,
             role_usecase,
-            config.command.clone(),
+            &config.command,
         );
 
         // Create command service
@@ -268,7 +268,7 @@ async fn setup_database(config: &AppConfig) -> Result<DbConnectionPool, Error> {
 }
 
 /// Setup use cases with their dependencies
-async fn setup_application(
+fn setup_application(
     db: DbConnectionPool,
     config: &AppConfig,
     event_publisher: Arc<dyn EventPublisher<DomainError>>,
@@ -290,7 +290,7 @@ async fn setup_application(
         external_provider_service,
         role_service,
         sync_service,
-    ) = setup_domain(db.clone(), config).await?;
+    ) = setup_domain(db.clone(), config)?;
 
     let outbox_unit_of_work = Arc::new(HiveOutboxUnitOfWorkImpl::new(db, OutboxRecorder));
 
@@ -343,7 +343,7 @@ async fn setup_application(
     ))
 }
 
-async fn setup_domain(
+fn setup_domain(
     db: DbConnectionPool,
     config: &AppConfig,
 ) -> Result<
@@ -369,7 +369,7 @@ async fn setup_domain(
         role_permission_repo,
         member_role_repo,
         provider_client,
-    ) = setup_infra(db, config).await?;
+    ) = setup_infra(db, config)?;
 
     let role_service = Arc::new(RoleServiceImpl::new(
         member_role_repo,
@@ -423,7 +423,7 @@ async fn setup_domain(
 }
 
 /// Setup repositories
-async fn setup_infra(
+fn setup_infra(
     db: DbConnectionPool,
     config: &AppConfig,
 ) -> Result<

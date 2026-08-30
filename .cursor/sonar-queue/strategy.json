@@ -2,74 +2,136 @@
   "projectKey": "Djoe-Denne_IAMRusty",
   "organization": "djoe-denne06",
   "source": "sonar-project.properties + SonarCloud MCP",
-  "fetched": "2026-08-29",
+  "fetched": "2026-08-30",
+  "analysis": {
+    "ready": true,
+    "qualityGate": "ERROR",
+    "qualityGateReason": "new_coverage 55.7 < 80 (not pending)",
+    "openIssues": 867,
+    "announcedTarget": 864,
+    "delta": 3
+  },
   "inventory": {
-    "violations": 2453,
+    "violations": 867,
     "bugs": 0,
     "vulnerabilities": 0,
     "securityHotspots": 0,
-    "coverage": 61.4,
-    "ncloc": 67276,
-    "severity": { "MAJOR": 2453 },
-    "files": 221,
-    "crates": 34,
-    "lanes": 37,
-    "rules": 51
+    "coverage": 61.0,
+    "ncloc": 79250,
+    "severity": { "MAJOR": 867 },
+    "files": 108,
+    "crates": 29,
+    "lanes": 29,
+    "rules": 32
   },
   "families": {
-    "clippy-style": 1416,
-    "docs": 721,
-    "reliability": 124,
-    "unused": 101,
-    "complexity": 59,
-    "duplication": 32
+    "clippy-style": 470,
+    "reliability": 192,
+    "docs": 111,
+    "complexity": 56,
+    "duplication": 32,
+    "unused": 6
   },
   "fixRisk": {
-    "mechanical": 1230,
-    "semi": 661,
-    "judgment": 562
+    "mechanical": 177,
+    "semi": 464,
+    "judgment": 226
+  },
+  "ruleRisk": {
+    "mechanical": [
+      "useless_borrows_in_formatting", "missing_const_for_fn", "redundant_closure",
+      "wildcard_in_or_patterns", "ignored_unit_patterns", "field_reassign_with_default",
+      "unused_async", "unused_self", "implicit_hasher", "double_must_use",
+      "must_use_candidate", "doc_markdown", "ptr_arg", "option_if_let_else",
+      "non_std_lazy_statics", "unnecessary_unwrap"
+    ],
+    "semi": [
+      "option_option", "needless_pass_by_value", "wrong_self_convention",
+      "unnecessary_wraps", "missing_errors_doc", "missing_panics_doc",
+      "struct_field_names", "should_implement_trait", "large_futures", "type_complexity"
+    ],
+    "judgment": [
+      "unwrap_used", "future_not_send", "too_many_lines", "duplicate_mod",
+      "fallible_impl_from", "panic"
+    ]
   },
   "isolation": {
     "atomicUnit": "file",
     "mutex": "lane = cargo-package × {src|tests}",
     "why": "Deux agents sur le même fichier = conflit git garanti. Deux agents sur le même crate (src ou tests) = rustfmt, lib.rs, re-exports. Packages d'un même service (IAMRusty/domain vs IAMRusty/http) restent parallélisables."
   },
+  "crates": {
+    "IAMRusty": "iam-service",
+    "IAMRusty/domain": "iam-domain",
+    "IAMRusty/http": "iam-http_server",
+    "IAMRusty/infra": "iam-infra",
+    "IAMRusty/application": "iam-application",
+    "IAMRusty/setup": "iam-setup",
+    "IAMRusty/configuration": "iam-configuration",
+    "IAMRusty/migration": "iam-migration",
+    "Hive": "hive-service",
+    "Hive/domain": "hive-domain",
+    "Hive/http": "hive-http",
+    "Hive/infra": "hive-infra",
+    "Hive/application": "hive-application",
+    "Hive/setup": "hive-setup",
+    "Hive/configuration": "hive-configuration",
+    "Hive/migration": "hive-migration",
+    "Telegraph": "telegraph-service",
+    "Telegraph/http": "telegraph-http_server",
+    "Telegraph/infra": "telegraph-infra",
+    "Telegraph/application": "telegraph-application",
+    "Telegraph/domain": "telegraph-domain",
+    "Telegraph/setup": "telegraph-setup",
+    "Telegraph/configuration": "telegraph-configuration",
+    "Telegraph/migration": "telegraph-migration",
+    "Manifesto": "manifesto-service",
+    "Manifesto/http": "manifesto-http_server",
+    "Manifesto/infra": "manifesto-infra",
+    "Manifesto/application": "manifesto-application",
+    "Manifesto/domain": "manifesto-domain",
+    "Manifesto/setup": "manifesto-setup",
+    "Manifesto/configuration": "manifesto-configuration",
+    "Manifesto/migration": "manifesto-migration",
+    "monolith": "oodhive-monolith",
+    "sentinel-sync": "sentinel-sync",
+    "readiness": "readiness"
+  },
   "batch": {
     "targetIssues": 55,
-    "batches": 69,
-    "sizeHist": { "le20": 18, "le40": 22, "le55": 26, "gt55": 3 },
-    "hotFilesSolo": [
-      { "file": "IAMRusty/tests/utils/jwt.rs", "n": 120 },
-      { "file": "IAMRusty/tests/fixtures/db/provider_tokens.rs", "n": 76 },
-      { "file": "IAMRusty/tests/common.rs", "n": 62 }
-    ]
+    "algorithm": "FFD per lane, capacity 55; actionable files first, then judgment-only bins",
+    "batches": 47,
+    "actionable": 31,
+    "judgmentOnly": 16,
+    "sizeHist": { "le20": 30, "le40": 10, "le55": 7, "gt55": 0 },
+    "hotFilesSolo": []
+  },
+  "judgmentOnly": {
+    "files": 35,
+    "issues": 161,
+    "batches": 16,
+    "note": "Lots kind=judgment dans batches.tsv — hors auto-dispatch. unwrap/Send/too_many_lines/duplicate_mod/From/panic."
   },
   "simulation8Agents": {
-    "note": "Modèle discret: 1 lot = 1 vague. Dernier 0 ignoré.",
+    "note": "Modèle discret: 1 lot = 1 slot/vague. Affinité same-lane puis plus grande lane déverrouillée.",
     "laneLock": {
-      "T25": { "waves": 16, "fullParallelWaves": 12, "idleSlots": 34 },
-      "T40": { "waves": 13, "fullParallelWaves": 9, "idleSlots": 33 },
-      "T55": { "waves": 11, "fullParallelWaves": 8, "idleSlots": 29 },
-      "T80": { "waves": 8, "fullParallelWaves": 6, "idleSlots": 18 },
-      "T120": { "waves": 6, "fullParallelWaves": 5, "idleSlots": 10 }
-    },
-    "fileOnlyNoCrateLock": {
-      "T55": { "waves": 9, "fullParallelWaves": 8, "idleSlots": 13, "rejected": "2 vagues gagnées, mais jusqu'à 8 agents dans IAMRusty/tests (620 issues, 29 fichiers)" }
+      "T55_all47": { "waves": 8, "fullParallelWaves": 5, "idleSlots": 17 },
+      "T55_actionable31": { "waves": 8, "fullParallelWaves": 3, "idleSlots": 33 }
     }
   },
   "decision": {
-    "chosen": "T55 + lane-lock",
+    "chosen": "T55 + lane-lock + actionable-first",
     "why": [
-      "T25: 69→102 lots, 5 vagues de coordination en plus pour ~20 issues/lot",
-      "T80: moins de vagues mais un échec agent gaspille 80+ issues; jwt.rs dépasse déjà 55",
-      "crate-lock sans lane src/tests: IAMRusty 622 issues sérialise 1 worker (presque tout est #tests)",
-      "file-only: gain 2 vagues, risque croisement rustfmt/mod.rs inacceptable sur IAMRusty#tests",
-      "T55: 8 agents occupés 8 vagues, ~7-12 fichiers/lot, médiane fichier=6, retry borné"
+      "Même unité/mutex/cible que la vague précédente",
+      "Plus aucun fichier ≥55 (max jwt.rs=50) — FFD ne produit plus de solo forcé hors taille",
+      "IAMRusty#tests=343 sérialise ~8 lots : affinité obligatoire",
+      "Têtes wave-01 = 1er lot actionable des 8 plus grandes lanes",
+      "Lots judgment-only trackés mais skip auto-dispatch"
     ]
   },
   "dispatch": {
     "workers": 8,
-    "onFinish": "Assigner le prochain lot de la plus grande lane encore déverrouillée. Si la lane de l'agent a encore des lots, la lui redonner (affinité).",
+    "onFinish": "Assigner le prochain lot actionable de la même lane (affinité). Sinon plus grande lane déverrouillée. Ne pas assigner kind=judgment sans brief.",
     "never": "Deux agents actifs sur la même lane, ni le même fichier."
   }
 }

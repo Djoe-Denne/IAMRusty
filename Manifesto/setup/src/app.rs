@@ -45,6 +45,37 @@ use std::time::Duration;
 // External
 use anyhow::Error;
 
+type EventPublisherSetup = (
+    Arc<dyn EventPublisher<DomainError>>,
+    ComponentStatus,
+    Option<Arc<rustycog::events::ConcreteEventPublisher>>,
+);
+
+type ApplicationUseCases = (
+    Arc<dyn manifesto_application::ProjectUseCase>,
+    Arc<dyn manifesto_application::ComponentUseCase>,
+    Arc<dyn manifesto_application::MemberUseCase>,
+    Option<Arc<ApparatusEventConsumer>>,
+    ComponentStatus,
+);
+
+type DomainServices = (
+    Arc<dyn manifesto_domain::service::ProjectService>,
+    Arc<dyn manifesto_domain::service::ComponentService>,
+    Arc<dyn manifesto_domain::service::MemberService>,
+    Arc<dyn manifesto_domain::service::PermissionService>,
+);
+
+type RepositoryBundle = (
+    Arc<ProjectRepositoryImpl>,
+    Arc<ComponentRepositoryImpl>,
+    Arc<MemberRepositoryImpl>,
+    Arc<PermissionReadRepositoryImpl>,
+    Arc<ResourceRepositoryImpl>,
+    Arc<RolePermissionRepositoryImpl>,
+    Arc<ProjectMemberRolePermissionRepositoryImpl>,
+);
+
 /// Build and run the Manifesto application - used for tests
 ///
 /// # Errors
@@ -94,11 +125,8 @@ impl Application {
         let db_write = db.get_write_connection();
 
         // Setup event publisher for Telegraph + sentinel-sync communication
-        let (event_publisher, publisher_status, publisher_transport): (
-            Arc<dyn EventPublisher<DomainError>>,
-            ComponentStatus,
-            Option<Arc<rustycog::events::ConcreteEventPublisher>>,
-        ) = if let Some(ep) = maybe_event_publisher {
+        let (event_publisher, publisher_status, publisher_transport): EventPublisherSetup =
+            if let Some(ep) = maybe_event_publisher {
             signal_queue_status(
                 "manifesto",
                 QueueRole::Publisher,
@@ -139,7 +167,7 @@ impl Application {
             project_usecase,
             component_usecase,
             member_usecase,
-            config.command.clone(),
+            &config.command,
         );
 
         // Create command service
@@ -375,16 +403,7 @@ async fn setup_application(
     db: DbConnectionPool,
     config: &AppConfig,
     event_publisher: Arc<dyn EventPublisher<DomainError>>,
-) -> Result<
-    (
-        Arc<dyn manifesto_application::ProjectUseCase>,
-        Arc<dyn manifesto_application::ComponentUseCase>,
-        Arc<dyn manifesto_application::MemberUseCase>,
-        Option<Arc<ApparatusEventConsumer>>,
-        ComponentStatus,
-    ),
-    Error,
-> {
+) -> Result<ApplicationUseCases, Error> {
     let (project_service, component_service, member_service, permission_service) =
         setup_domain(&db, config)?;
     let project_creation_uow = Arc::new(ProjectCreationUnitOfWorkImpl::new(
@@ -450,15 +469,7 @@ async fn setup_application(
 fn setup_domain(
     db: &DbConnectionPool,
     config: &AppConfig,
-) -> Result<
-    (
-        Arc<dyn manifesto_domain::service::ProjectService>,
-        Arc<dyn manifesto_domain::service::ComponentService>,
-        Arc<dyn manifesto_domain::service::MemberService>,
-        Arc<dyn manifesto_domain::service::PermissionService>,
-    ),
-    Error,
-> {
+) -> Result<DomainServices, Error> {
     let (
         project_repo,
         component_repo,
@@ -506,15 +517,7 @@ fn setup_domain(
 
 fn setup_repositories(
     db: &DbConnectionPool,
-) -> (
-    Arc<ProjectRepositoryImpl>,
-    Arc<ComponentRepositoryImpl>,
-    Arc<MemberRepositoryImpl>,
-    Arc<PermissionReadRepositoryImpl>,
-    Arc<ResourceRepositoryImpl>,
-    Arc<RolePermissionRepositoryImpl>,
-    Arc<ProjectMemberRolePermissionRepositoryImpl>,
-) {
+) -> RepositoryBundle {
     let project_read_repo = Arc::new(ProjectReadRepositoryImpl::new(db.get_read_connection()));
     let project_write_repo = Arc::new(ProjectWriteRepositoryImpl::new(db.get_write_connection()));
     let project_repo = Arc::new(ProjectRepositoryImpl::new(

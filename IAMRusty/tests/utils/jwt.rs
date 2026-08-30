@@ -211,13 +211,11 @@ impl JwtTestUtils {
         }
 
         // Decode the payload (second part)
-        match general_purpose::URL_SAFE_NO_PAD.decode(parts[1]) {
-            Ok(decoded) => match String::from_utf8(decoded) {
-                Ok(json_str) => serde_json::from_str(&json_str).ok(),
-                Err(_) => None,
-            },
-            Err(_) => None,
-        }
+        general_purpose::URL_SAFE_NO_PAD
+            .decode(parts[1])
+            .ok()
+            .and_then(|decoded| String::from_utf8(decoded).ok())
+            .and_then(|json_str| serde_json::from_str(&json_str).ok())
     }
 
     /// Assert JWT has valid structure
@@ -273,10 +271,10 @@ impl JwtTestUtils {
         }
 
         // This is a basic implementation for testing - in real scenarios you'd want proper JWT decoding
-        match general_purpose::URL_SAFE_NO_PAD.decode(parts[1]) {
-            Ok(decoded) => String::from_utf8(decoded).ok(),
-            Err(_) => None,
-        }
+        general_purpose::URL_SAFE_NO_PAD
+            .decode(parts[1])
+            .ok()
+            .and_then(|decoded| String::from_utf8(decoded).ok())
     }
 }
 
@@ -310,15 +308,15 @@ pub fn create_invalid_jwt_token_with_encoder(
 /// Create a JWT token with custom expiration
 pub fn create_jwt_token_with_expiration(
     user_id: Uuid,
-    config: JwtConfig,
+    config: &JwtConfig,
     expiration_hours: i64,
 ) -> Result<String, anyhow::Error> {
-    JwtTestUtils::create_token_with_expiration(user_id, &config, expiration_hours)
+    JwtTestUtils::create_token_with_expiration(user_id, config, expiration_hours)
 }
 
 /// Create an invalid JWT token
-pub fn create_invalid_jwt_token(user_id: Uuid, config: JwtConfig) -> Result<String, anyhow::Error> {
-    JwtTestUtils::create_invalid_token(user_id, &config)
+pub fn create_invalid_jwt_token(user_id: Uuid, config: &JwtConfig) -> Result<String, anyhow::Error> {
+    JwtTestUtils::create_invalid_token(user_id, config)
 }
 
 /// Create a valid registration token for testing

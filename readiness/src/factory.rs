@@ -34,6 +34,10 @@ pub struct SignaledConsumer {
 }
 
 /// Create a multi-queue publisher and emit an explicit signal if rustycog no-op'd.
+///
+/// # Errors
+///
+/// Returns the mapped error if the rustycog publisher factory fails.
 pub async fn create_signaled_multi_queue_event_publisher<TError>(
     service: &'static str,
     config: &QueueConfig,
@@ -58,6 +62,10 @@ pub async fn create_signaled_multi_queue_event_publisher<TError>(
 }
 
 /// Create a consumer and emit an explicit signal if rustycog no-op'd.
+///
+/// # Errors
+///
+/// Returns a [`ServiceError`] if the rustycog consumer factory fails.
 pub async fn create_signaled_event_consumer(
     service: &'static str,
     config: &QueueConfig,

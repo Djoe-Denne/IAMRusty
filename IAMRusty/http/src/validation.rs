@@ -1,43 +1,52 @@
 //! Validation utilities and common patterns for HTTP handlers
 
-use lazy_static::lazy_static;
+use std::sync::LazyLock;
+
 use regex::Regex;
 use tracing::log::{debug, warn};
 use validator::ValidationError;
 
-lazy_static! {
-    /// Regex for validating provider names (letters only, case-insensitive)
-    pub static ref PROVIDER_REGEX: Regex = Regex::new(r"^[a-zA-Z]+$").unwrap();
+/// Regex for validating provider names (letters only, case-insensitive)
+pub static PROVIDER_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[a-zA-Z]+$").unwrap());
 
-    /// Regex for validating JWT tokens (base64url format)
-    pub static ref JWT_TOKEN_REGEX: Regex = Regex::new(r"^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$").unwrap();
+/// Regex for validating JWT tokens (base64url format)
+pub static JWT_TOKEN_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$").unwrap());
 
-    /// Regex for validating UUIDs
-    pub static ref UUID_REGEX: Regex = Regex::new(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$").unwrap();
+/// Regex for validating UUIDs
+pub static UUID_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$").unwrap()
+});
 
-    /// Regex for validating email addresses (more comprehensive than basic email validation)
-    pub static ref EMAIL_REGEX: Regex = Regex::new(
-        r"^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$"
-    ).unwrap();
+/// Regex for validating email addresses (more comprehensive than basic email validation)
+pub static EMAIL_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$",
+    )
+    .unwrap()
+});
 
-    /// Regex for validating usernames (alphanumeric, underscores, hyphens, 3-50 chars)
-    pub static ref USERNAME_REGEX: Regex = Regex::new(r"^[a-zA-Z0-9_-]{3,50}$").unwrap();
+/// Regex for validating usernames (alphanumeric, underscores, hyphens, 3-50 chars)
+pub static USERNAME_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^[a-zA-Z0-9_-]{3,50}$").unwrap());
 
-    /// Regex for strong password validation (at least 8 chars, contains letter and number)
-    pub static ref STRONG_PASSWORD_REGEX: Regex = Regex::new(r"^.{8,128}$").unwrap();
+/// Regex for strong password validation (at least 8 chars, contains letter and number)
+pub static STRONG_PASSWORD_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^.{8,128}$").unwrap());
 
-    /// Regex to check if password contains at least one letter
-    pub static ref HAS_LETTER_REGEX: Regex = Regex::new(r"[a-zA-Z]").unwrap();
+/// Regex to check if password contains at least one letter
+pub static HAS_LETTER_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[a-zA-Z]").unwrap());
 
-    /// Regex to check if password contains at least one digit
-    pub static ref HAS_DIGIT_REGEX: Regex = Regex::new(r"\d").unwrap();
+/// Regex to check if password contains at least one digit
+pub static HAS_DIGIT_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\d").unwrap());
 
-    /// Regex for verification tokens (alphanumeric and common safe characters)
-    pub static ref VERIFICATION_TOKEN_REGEX: Regex = Regex::new(r"^[a-zA-Z0-9_-]{10,100}$").unwrap();
+/// Regex for verification tokens (alphanumeric and common safe characters)
+pub static VERIFICATION_TOKEN_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^[a-zA-Z0-9_-]{10,100}$").unwrap());
 
-    /// Regex for password reset tokens (same format as generated tokens)
-    pub static ref RESET_TOKEN_REGEX: Regex = Regex::new(r"^[a-zA-Z0-9]{32}$").unwrap();
-}
+/// Regex for password reset tokens (same format as generated tokens)
+pub static RESET_TOKEN_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^[a-zA-Z0-9]{32}$").unwrap());
 
 // Common weak passwords to reject
 const COMMON_WEAK_PASSWORDS: &[&str] = &[

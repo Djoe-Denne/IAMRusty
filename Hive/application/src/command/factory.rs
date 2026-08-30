@@ -45,7 +45,7 @@ impl HiveCommandRegistryFactory {
         external_link_usecase: Arc<dyn ExternalLinkUseCase>,
         sync_job_usecase: Arc<dyn SyncJobUseCase>,
         role_usecase: Arc<dyn RoleUseCase>,
-        command_config: CommandConfig,
+        command_config: &CommandConfig,
     ) -> CommandRegistry {
         let mut builder = CommandRegistryBuilder::with_config(RegistryConfig::from_retry_config(
             &command_config.retry,

@@ -16,8 +16,16 @@ pub trait EmailProvider: Send + Sync {
     async fn send_email(&self, email: &EmailCommunication) -> Result<String, DomainError>; // Returns provider message ID
 
     /// Verify email address format
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] when the address format is invalid.
     fn validate_email(&self, email: &str) -> Result<(), DomainError>;
 
     /// Check service health
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] when the email service is unreachable or unhealthy.
     async fn health_check(&self) -> Result<(), DomainError>;
 }

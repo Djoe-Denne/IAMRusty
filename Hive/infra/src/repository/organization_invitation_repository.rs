@@ -302,6 +302,16 @@ impl OrganizationInvitationWriteRepositoryImpl {
         Self { db }
     }
 
+    /// Inserts or updates an invitation on `db`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the save fails, `status` is not a recognized [`InvitationStatus`],
+    /// or `role_permissions` is not valid JSON for the domain type.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a required column is [`None`] after a successful `save`.
     pub async fn save_with_connection<C>(
         db: &C,
         invitation: &OrganizationInvitation,

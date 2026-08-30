@@ -35,12 +35,12 @@ async fn main() -> Result<(), anyhow::Error> {
         },
     };
 
-    // Build and run the application
-    app::AppBuilder::new(config)
-        .build()
+    // Heap-allocate boot futures: `build`/`run` exceed clippy's large_futures limit.
+    let app = Box::pin(app::AppBuilder::new(config).build())
         .await
-        .map_err(|e| anyhow::anyhow!("Failed to build application: {e}"))?
-        .run(server_config)
+        .map_err(|e| anyhow::anyhow!("Failed to build application: {e}"))?;
+
+    Box::pin(app.run(server_config))
         .await
         .map_err(|e| anyhow::anyhow!("Failed to run application: {e}"))
 }

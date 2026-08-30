@@ -19,6 +19,12 @@ use super::entity::{prelude::SyncJobs, sync_jobs};
 struct SyncJobMapper;
 
 impl SyncJobMapper {
+    /// Maps a persisted sync-job row to the domain entity.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if `job_type` is not a recognized [`SyncJobType`]
+    /// or `status` is not a recognized [`SyncJobStatus`].
     pub fn to_domain(model: sync_jobs::Model) -> Result<SyncJob, DomainError> {
         let job_type = SyncJobType::from_str(&model.job_type)?;
         let status = SyncJobStatus::from_str(&model.status)?;
@@ -230,6 +236,12 @@ impl SyncJobWriteRepositoryImpl {
         Self { db }
     }
 
+    /// Inserts or updates `job`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the lookup, insert, or update fails, or if
+    /// `job_type` / `status` cannot be mapped to the domain types.
     pub async fn save_with_connection<C>(db: &C, job: &SyncJob) -> Result<SyncJob, DomainError>
     where
         C: ConnectionTrait,

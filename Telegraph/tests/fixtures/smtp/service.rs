@@ -290,7 +290,7 @@ impl SmtpService {
     }
 
     /// Advanced mock for testing specific SMTP scenarios
-    pub fn mock_custom_scenario(&self) -> SmtpScenarioBuilder<'_> {
+    pub const fn mock_custom_scenario(&self) -> SmtpScenarioBuilder<'_> {
         SmtpScenarioBuilder::new(self)
     }
 }
