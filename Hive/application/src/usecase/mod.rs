@@ -7,8 +7,7 @@ pub mod sync_job;
 
 use crate::ApplicationError;
 use hive_domain::{
-    ExternalLink, Organization, OrganizationInvitation, OrganizationMember, RolePermission,
-    SyncJob,
+    ExternalLink, Organization, OrganizationInvitation, OrganizationMember, RolePermission, SyncJob,
 };
 use rustycog::events::DomainEvent;
 use uuid::Uuid;

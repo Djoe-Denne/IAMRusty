@@ -1,6 +1,7 @@
 //! Application setup for Telegraph
 
 use axum::Router;
+use readiness::{attach_ready, create_signaled_multi_queue_event_publisher, ReadinessProbe};
 use rustycog::command::GenericCommandService;
 use rustycog::config::ServerConfig;
 use rustycog::db::DbConnectionPool;
@@ -20,7 +21,6 @@ use telegraph_domain::{
     service::NotificationServiceImpl, CommunicationFactory, EmailService, EventExtractor,
     EventProcessor, TemplateService,
 };
-use readiness::{attach_ready, create_signaled_multi_queue_event_publisher, ReadinessProbe};
 use telegraph_http_server::{create_app_routes, create_router};
 use telegraph_infra::{
     communication::EmailAdapter,

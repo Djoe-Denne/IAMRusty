@@ -3,9 +3,9 @@
 use apparatus_events::ApparatusDomainEvent;
 use async_trait::async_trait;
 use manifesto_domain::DomainError;
+use readiness::{create_signaled_event_consumer, ComponentStatus};
 use rustycog::config::QueueConfig;
 use rustycog::core::error::ServiceError;
-use readiness::{create_signaled_event_consumer, ComponentStatus};
 use rustycog::events::{
     ConcreteEventConsumer, DomainEvent, EventConsumer as RustycogEventConsumer, EventHandler,
 };

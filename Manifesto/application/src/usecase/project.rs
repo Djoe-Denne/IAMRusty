@@ -540,10 +540,7 @@ impl ProjectUseCase for ProjectUseCaseImpl {
             .count_projects(owner_type, owner_id, status, search, user_id)
             .await?;
 
-        let data: Vec<ProjectResponse> = projects
-            .iter()
-            .map(Self::project_to_response)
-            .collect();
+        let data: Vec<ProjectResponse> = projects.iter().map(Self::project_to_response).collect();
 
         let consumed = i64::from(page.saturating_add(1).saturating_mul(page_size));
         let has_more = consumed < total_count;

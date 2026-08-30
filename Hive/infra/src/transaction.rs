@@ -80,10 +80,12 @@ impl HiveOutboxUnitOfWorkImpl {
         if OrganizationWriteRepositoryImpl::exists_by_slug_with_connection(txn, &organization.slug)
             .await?
         {
-            return Err(ApplicationError::Domain(DomainError::resource_already_exists(
-                "Organization",
-                &format!("slug={}", organization.slug),
-            )));
+            return Err(ApplicationError::Domain(
+                DomainError::resource_already_exists(
+                    "Organization",
+                    &format!("slug={}", organization.slug),
+                ),
+            ));
         }
 
         let saved_org =
@@ -169,10 +171,12 @@ impl HiveOutboxUnitOfWorkImpl {
         .await?
         .is_some()
         {
-            return Err(ApplicationError::Domain(DomainError::resource_already_exists(
-                "OrganizationMember",
-                &format!("user_id={user_id}, organization_id={organization_id}"),
-            )));
+            return Err(ApplicationError::Domain(
+                DomainError::resource_already_exists(
+                    "OrganizationMember",
+                    &format!("user_id={user_id}, organization_id={organization_id}"),
+                ),
+            ));
         }
 
         let member = OrganizationMember::new(organization_id, user_id, added_by_user_id);
@@ -284,14 +288,9 @@ impl HiveOutboxUnitOfWork for HiveOutboxUnitOfWorkImpl {
     ) -> Result<OrganizationMember, ApplicationError> {
         let txn = self.begin().await?;
         let result = async {
-            let saved = Self::persist_new_member(
-                &txn,
-                organization_id,
-                user_id,
-                roles,
-                added_by_user_id,
-            )
-            .await?;
+            let saved =
+                Self::persist_new_member(&txn, organization_id, user_id, roles, added_by_user_id)
+                    .await?;
             self.record(&txn, event.as_ref()).await?;
             Ok(saved)
         }

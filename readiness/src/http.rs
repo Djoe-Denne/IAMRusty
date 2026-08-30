@@ -42,7 +42,8 @@ mod tests {
 
     #[tokio::test]
     async fn ready_endpoint_is_ok_when_queue_disabled() {
-        let probe = Arc::new(ReadinessProbe::new("test").with_publisher(ComponentStatus::Disabled, None));
+        let probe =
+            Arc::new(ReadinessProbe::new("test").with_publisher(ComponentStatus::Disabled, None));
         let server = axum_test::TestServer::new(attach_ready(Router::new(), probe)).unwrap();
         let response = server.get("/ready").await;
         response.assert_status_ok();

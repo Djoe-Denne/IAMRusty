@@ -28,11 +28,11 @@ fn error_mapper(error: &CommandError) -> HttpError {
                 }
             }
         }
-        CommandError::Infrastructure { .. }
-        | CommandError::RetryExhausted { .. }
-        | _ => HttpError::Internal {
-            message: error.to_string(),
-        },
+        CommandError::Infrastructure { .. } | CommandError::RetryExhausted { .. } | _ => {
+            HttpError::Internal {
+                message: error.to_string(),
+            }
+        }
     }
 }
 

@@ -56,7 +56,9 @@ async fn test_signup_sqs_integration() {
             println!(
                 "🔧 SQS config - enabled: {}, endpoint: {}, region: {}",
                 sqs_config.enabled,
-                sqs_config.endpoint_url().unwrap_or_else(|| "none".to_string()),
+                sqs_config
+                    .endpoint_url()
+                    .unwrap_or_else(|| "none".to_string()),
                 sqs_config.region
             );
         }

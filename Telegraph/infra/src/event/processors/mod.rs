@@ -154,15 +154,15 @@ mod processor {
         }
 
         fn get_handlers_for_event(&self, event_type: &str) -> Vec<&dyn EventHandler> {
-            self.config.event_mapping.get(event_type).map_or_else(
-                Vec::new,
-                |handlers| {
+            self.config
+                .event_mapping
+                .get(event_type)
+                .map_or_else(Vec::new, |handlers| {
                     handlers
                         .iter()
                         .map(|handler| self.event_handlers.get(handler).unwrap().as_ref())
                         .collect()
-                },
-            )
+                })
         }
     }
 }

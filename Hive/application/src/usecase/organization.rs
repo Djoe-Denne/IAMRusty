@@ -231,8 +231,11 @@ impl OrganizationUseCaseImpl {
         request: &UpdateOrganizationRequest,
         user_id: Uuid,
     ) -> Result<(), ApplicationError> {
-        self.record_or_publish_event(self.organization_updated_event(organization, request, user_id).into())
-            .await
+        self.record_or_publish_event(
+            self.organization_updated_event(organization, request, user_id)
+                .into(),
+        )
+        .await
     }
 
     /// Publish organization deleted event
@@ -413,7 +416,8 @@ impl OrganizationUseCase for OrganizationUseCaseImpl {
 
         let total_count = i64::try_from(organizations.len()).unwrap_or(i64::MAX);
         let page = pagination.page();
-        let mut pagination_response = PaginationResponse::new(page, pagination.page_size(), Some(total_count));
+        let mut pagination_response =
+            PaginationResponse::new(page, pagination.page_size(), Some(total_count));
         if pagination_response.has_next {
             pagination_response.next_cursor = Some((page + 1).to_string());
         }

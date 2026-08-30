@@ -41,9 +41,9 @@ impl EventExtractor for JsonEventExtractor {
         })?;
 
         debug!("Event JSON: {}", event_json);
-        let data = event_json.get("data").ok_or_else(|| {
-            DomainError::EventProcessingError("Event data not found".to_string())
-        })?;
+        let data = event_json
+            .get("data")
+            .ok_or_else(|| DomainError::EventProcessingError("Event data not found".to_string()))?;
         // Convert JSON to HashMap<String, String> for template variables
         json_to_string_map(data)
     }

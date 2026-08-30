@@ -113,7 +113,10 @@ impl IntoResponse for HttpError {
                 StatusCode::UNAUTHORIZED,
                 error_body("unauthorized", "Authentication required"),
             ),
-            Self::Forbidden => (StatusCode::FORBIDDEN, error_body("forbidden", "Access forbidden")),
+            Self::Forbidden => (
+                StatusCode::FORBIDDEN,
+                error_body("forbidden", "Access forbidden"),
+            ),
             Self::NotFound => (
                 StatusCode::NOT_FOUND,
                 error_body("not_found", "Resource not found"),

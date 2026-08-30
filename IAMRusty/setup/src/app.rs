@@ -41,11 +41,11 @@ use rustycog::permission::{InMemoryPermissionChecker, PermissionChecker};
 
 use iam_configuration::AppConfig;
 use iam_domain::error::DomainError;
-use rustycog::events::{adapter::MultiQueueEventPublisher, event::EventPublisher};
 use readiness::{
-    attach_ready, create_signaled_multi_queue_event_publisher, signal_queue_status,
-    ComponentStatus, QueueRole, ReadinessProbe,
+    ComponentStatus, QueueRole, ReadinessProbe, attach_ready,
+    create_signaled_multi_queue_event_publisher, signal_queue_status,
 };
+use rustycog::events::{adapter::MultiQueueEventPublisher, event::EventPublisher};
 use rustycog::outbox::{OutboxConfig, OutboxDispatcher, OutboxRecorder};
 
 use iam_application::{
@@ -79,7 +79,10 @@ impl IAMRustyApp {
     }
 
     pub fn router(&self) -> Router {
-        attach_ready(create_router(self.app_state.clone()), self.readiness.clone())
+        attach_ready(
+            create_router(self.app_state.clone()),
+            self.readiness.clone(),
+        )
     }
 
     #[must_use]
@@ -133,25 +136,24 @@ pub async fn build_app_state(
     config: AppConfig,
     maybe_event_publisher: Option<Arc<MultiQueueEventPublisher<DomainError>>>,
 ) -> Result<IAMRustyApp> {
-    let (event_publisher, queue_status, queue_transport) = if let Some(publisher) =
-        maybe_event_publisher
-    {
-        signal_queue_status("iam", QueueRole::Publisher, &ComponentStatus::Injected);
-        (publisher, ComponentStatus::Injected, None)
-    } else {
-        let signaled = create_signaled_multi_queue_event_publisher(
-            "iam",
-            &config.queue,
-            None,
-            Arc::new(IAMErrorMapper),
-        )
-        .await?;
-        (
-            signaled.publisher,
-            signaled.status,
-            Some(signaled.transport),
-        )
-    };
+    let (event_publisher, queue_status, queue_transport) =
+        if let Some(publisher) = maybe_event_publisher {
+            signal_queue_status("iam", QueueRole::Publisher, &ComponentStatus::Injected);
+            (publisher, ComponentStatus::Injected, None)
+        } else {
+            let signaled = create_signaled_multi_queue_event_publisher(
+                "iam",
+                &config.queue,
+                None,
+                Arc::new(IAMErrorMapper),
+            )
+            .await?;
+            (
+                signaled.publisher,
+                signaled.status,
+                Some(signaled.transport),
+            )
+        };
 
     build_app_state_with_event_publisher(config, event_publisher, queue_status, queue_transport)
         .await

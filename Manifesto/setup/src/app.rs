@@ -26,6 +26,10 @@ use manifesto_infra::{
 };
 
 // Rustycog
+use readiness::{
+    attach_ready, create_signaled_multi_queue_event_publisher, signal_queue_status,
+    ComponentStatus, QueueRole, ReadinessProbe,
+};
 use rustycog::command::GenericCommandService;
 use rustycog::config::ServerConfig;
 use rustycog::core::error::DomainError;
@@ -35,10 +39,6 @@ use rustycog::http::{AppState, UserIdExtractor};
 use rustycog::outbox::{OutboxConfig, OutboxDispatcher, OutboxRecorder};
 use rustycog::permission::{
     CachedPermissionChecker, MetricsPermissionChecker, OpenFgaPermissionChecker, PermissionChecker,
-};
-use readiness::{
-    attach_ready, create_signaled_multi_queue_event_publisher, signal_queue_status, ComponentStatus,
-    QueueRole, ReadinessProbe,
 };
 use std::time::Duration;
 
@@ -99,7 +99,11 @@ impl Application {
             ComponentStatus,
             Option<Arc<rustycog::events::ConcreteEventPublisher>>,
         ) = if let Some(ep) = maybe_event_publisher {
-            signal_queue_status("manifesto", QueueRole::Publisher, &ComponentStatus::Injected);
+            signal_queue_status(
+                "manifesto",
+                QueueRole::Publisher,
+                &ComponentStatus::Injected,
+            );
             (ep, ComponentStatus::Injected, None)
         } else {
             let signaled = create_signaled_multi_queue_event_publisher(
@@ -177,7 +181,9 @@ impl Application {
                 .with_publisher(publisher_status, publisher_transport)
                 .with_consumer(
                     consumer_status,
-                    apparatus_event_consumer.as_ref().map(|consumer| consumer.inner()),
+                    apparatus_event_consumer
+                        .as_ref()
+                        .map(|consumer| consumer.inner()),
                 ),
         );
 

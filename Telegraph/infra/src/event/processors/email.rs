@@ -45,11 +45,15 @@ impl EmailEventProcessor {
             .await?;
 
         // Validate recipient has email
-        let email = email_communication.recipient.email.as_ref().ok_or_else(|| {
-            DomainError::EventProcessingError(
-                "No email address found in communication".to_string(),
-            )
-        })?;
+        let email = email_communication
+            .recipient
+            .email
+            .as_ref()
+            .ok_or_else(|| {
+                DomainError::EventProcessingError(
+                    "No email address found in communication".to_string(),
+                )
+            })?;
 
         // Send the email using the communication content
         self.email_service.send_email(&email_communication).await?;

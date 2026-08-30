@@ -19,10 +19,7 @@ impl GitHubService {
         let fixture = MockServerFixture::new().await;
         let server = fixture.server();
 
-        Self {
-            server,
-            fixture,
-        }
+        Self { server, fixture }
     }
 
     /// Get the base URL for GitHub API mocking

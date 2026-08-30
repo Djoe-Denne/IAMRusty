@@ -317,8 +317,7 @@ where
 
         // Calculate expires_in from the actual token expiration
         let now = chrono::Utc::now();
-        let expires_in =
-            u64::try_from((access_token.expires_at - now).num_seconds()).unwrap_or(0);
+        let expires_in = u64::try_from((access_token.expires_at - now).num_seconds()).unwrap_or(0);
 
         Ok(RegistrationCompletionResult {
             user: updated_user,

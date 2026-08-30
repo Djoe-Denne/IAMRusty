@@ -76,7 +76,8 @@ impl CommandRegistryFactory {
 
         let builder = CommandRegistryBuilder::with_config(registry_config);
         let builder = Self::register_oauth_commands(builder, usecases.oauth);
-        let builder = Self::register_link_provider_commands(builder, usecases.link_provider.clone());
+        let builder =
+            Self::register_link_provider_commands(builder, usecases.link_provider.clone());
         let builder = Self::register_provider_commands(builder, usecases.provider);
         let builder = Self::register_relink_commands(builder, usecases.link_provider);
         let builder = Self::register_token_commands(builder, usecases.token);
@@ -110,7 +111,8 @@ impl CommandRegistryFactory {
         builder: CommandRegistryBuilder,
         link_provider: Arc<dyn LinkProviderUseCase>,
     ) -> CommandRegistryBuilder {
-        let link_provider_handler = Arc::new(LinkProviderCommandHandler::new(link_provider.clone()));
+        let link_provider_handler =
+            Arc::new(LinkProviderCommandHandler::new(link_provider.clone()));
         let link_provider_start_url_handler = Arc::new(
             GenerateLinkProviderStartUrlCommandHandler::new(link_provider),
         );
@@ -256,8 +258,9 @@ impl CommandRegistryFactory {
         builder: CommandRegistryBuilder,
         registration: Arc<dyn RegistrationUseCase>,
     ) -> CommandRegistryBuilder {
-        let complete_registration_handler =
-            Arc::new(CompleteRegistrationCommandHandler::new(registration.clone()));
+        let complete_registration_handler = Arc::new(CompleteRegistrationCommandHandler::new(
+            registration.clone(),
+        ));
         let check_username_handler = Arc::new(CheckUsernameCommandHandler::new(registration));
         let registration_error_mapper = Arc::new(RegistrationErrorMapper);
         builder
@@ -277,15 +280,18 @@ impl CommandRegistryFactory {
         builder: CommandRegistryBuilder,
         password_reset: Arc<dyn PasswordResetUseCase>,
     ) -> CommandRegistryBuilder {
-        let request_password_reset_handler =
-            Arc::new(RequestPasswordResetCommandHandler::new(password_reset.clone()));
-        let validate_reset_token_handler =
-            Arc::new(ValidateResetTokenCommandHandler::new(password_reset.clone()));
+        let request_password_reset_handler = Arc::new(RequestPasswordResetCommandHandler::new(
+            password_reset.clone(),
+        ));
+        let validate_reset_token_handler = Arc::new(ValidateResetTokenCommandHandler::new(
+            password_reset.clone(),
+        ));
         let reset_password_unauthenticated_handler = Arc::new(
             ResetPasswordUnauthenticatedCommandHandler::new(password_reset.clone()),
         );
-        let reset_password_authenticated_handler =
-            Arc::new(ResetPasswordAuthenticatedCommandHandler::new(password_reset));
+        let reset_password_authenticated_handler = Arc::new(
+            ResetPasswordAuthenticatedCommandHandler::new(password_reset),
+        );
         let password_reset_error_mapper = Arc::new(PasswordResetErrorMapper);
         builder
             .register::<RequestPasswordResetCommand, _>(

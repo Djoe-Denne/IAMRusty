@@ -197,8 +197,8 @@ where
 
         // Calculate expires_in from the actual token expiration
         let now = chrono::Utc::now();
-        let expires_in = u64::try_from((access_token.expires_at - now).num_seconds().max(0))
-            .unwrap_or(0);
+        let expires_in =
+            u64::try_from((access_token.expires_at - now).num_seconds().max(0)).unwrap_or(0);
 
         Ok(OAuthResponse::Login(OAuthLoginResponse {
             user,

@@ -7,10 +7,6 @@ use super::{
         CancelInvitationCommandHandler, CreateInvitationCommand, CreateInvitationCommandHandler,
         InvitationErrorMapper,
     },
-    role::{
-        GetRoleCommand, GetRoleCommandHandler, ListRolesCommand, ListRolesCommandHandler,
-        RoleErrorMapper,
-    },
     member::{
         AddMemberCommand, AddMemberCommandHandler, GetMemberCommand, GetMemberCommandHandler,
         ListMembersCommand, ListMembersCommandHandler, MemberErrorMapper, RemoveMemberCommand,
@@ -22,6 +18,10 @@ use super::{
         ListOrganizationsCommand, ListOrganizationsCommandHandler, OrganizationErrorMapper,
         SearchOrganizationsCommand, SearchOrganizationsCommandHandler, UpdateOrganizationCommand,
         UpdateOrganizationCommandHandler,
+    },
+    role::{
+        GetRoleCommand, GetRoleCommandHandler, ListRolesCommand, ListRolesCommandHandler,
+        RoleErrorMapper,
     },
     sync_job::{StartSyncJobCommand, StartSyncJobCommandHandler, SyncJobErrorMapper},
 };

@@ -110,9 +110,7 @@ impl SyncJobUseCase for SyncJobUseCaseImpl {
                 request.job_type.clone(),
                 started_at,
             ));
-            outbox_unit_of_work
-                .save_sync_job(job, event.into())
-                .await?
+            outbox_unit_of_work.save_sync_job(job, event.into()).await?
         } else {
             let job = self
                 .sync_service

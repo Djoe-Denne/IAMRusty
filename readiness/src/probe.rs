@@ -3,7 +3,9 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use rustycog::events::{ConcreteEventConsumer, ConcreteEventPublisher, EventConsumer, EventPublisher};
+use rustycog::events::{
+    ConcreteEventConsumer, ConcreteEventPublisher, EventConsumer, EventPublisher,
+};
 use sea_orm::{ConnectionTrait, DatabaseConnection};
 use serde::Serialize;
 
@@ -82,10 +84,7 @@ impl ReadinessProbe {
     /// Ping the write connection on every `/ready` call.
     #[must_use]
     pub fn with_database(mut self, database: Arc<DatabaseConnection>) -> Self {
-        if let ProbeKind::Service {
-            database: slot, ..
-        } = &mut self.kind
-        {
+        if let ProbeKind::Service { database: slot, .. } = &mut self.kind {
             *slot = Some(database);
         }
         self
@@ -132,7 +131,10 @@ impl ReadinessProbe {
                 database,
                 publisher,
                 consumer,
-            } => self.service_report(database.as_ref(), publisher.as_ref(), consumer.as_ref()).await,
+            } => {
+                self.service_report(database.as_ref(), publisher.as_ref(), consumer.as_ref())
+                    .await
+            }
             ProbeKind::Aggregate { children } => self.aggregate_report(children).await,
         }
     }
@@ -150,13 +152,13 @@ impl ReadinessProbe {
     ) -> ReadinessReport {
         let mut checks = BTreeMap::new();
         if let Some(database) = database {
-            checks.insert("database".to_owned(), database_check(database.as_ref()).await);
+            checks.insert(
+                "database".to_owned(),
+                database_check(database.as_ref()).await,
+            );
         }
         if let Some(publisher) = publisher {
-            checks.insert(
-                "queue_publisher".to_owned(),
-                queue_check(publisher).await,
-            );
+            checks.insert("queue_publisher".to_owned(), queue_check(publisher).await);
         }
         if let Some(consumer) = consumer {
             checks.insert("queue_consumer".to_owned(), queue_check(consumer).await);
@@ -307,7 +309,8 @@ mod tests {
 
     #[tokio::test]
     async fn aggregate_fails_when_a_child_fails() {
-        let ok = Arc::new(ReadinessProbe::new("iam").with_publisher(ComponentStatus::Disabled, None));
+        let ok =
+            Arc::new(ReadinessProbe::new("iam").with_publisher(ComponentStatus::Disabled, None));
         let bad = Arc::new(ReadinessProbe::new("hive").with_publisher(
             ComponentStatus::Degraded {
                 expected: QueueKind::Sqs,
@@ -324,8 +327,7 @@ mod tests {
 
     #[tokio::test]
     async fn injected_publisher_is_ready() {
-        let probe =
-            ReadinessProbe::new("iam").with_publisher(ComponentStatus::Injected, None);
+        let probe = ReadinessProbe::new("iam").with_publisher(ComponentStatus::Injected, None);
         let report = probe.report().await;
         assert_eq!(report.status, "ready");
         assert_eq!(

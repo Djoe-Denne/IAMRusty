@@ -4,15 +4,15 @@
 //! traits from rustycog-events, allowing seamless integration while maintaining architectural
 //! separation.
 
+use readiness::{
+    classify_publisher, create_signaled_multi_queue_event_publisher, signal_queue_status, QueueRole,
+};
 use rustycog::config::QueueConfig;
 use rustycog::core::error::DomainError;
 use rustycog::core::error::ServiceError;
 use rustycog::events::{
     adapter::{ErrorMapper, MultiQueueEventPublisher},
     create_event_publisher_from_queue_config, ConcreteEventPublisher,
-};
-use readiness::{
-    classify_publisher, create_signaled_multi_queue_event_publisher, signal_queue_status, QueueRole,
 };
 use std::collections::HashSet;
 use std::hash::BuildHasher;

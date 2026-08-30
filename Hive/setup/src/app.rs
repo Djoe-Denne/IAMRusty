@@ -35,6 +35,7 @@ use hive_infra::{
 };
 
 // Rustycog
+use readiness::{attach_ready, create_signaled_multi_queue_event_publisher, ReadinessProbe};
 use rustycog::command::GenericCommandService;
 use rustycog::config::ServerConfig;
 use rustycog::core::error::DomainError;
@@ -44,9 +45,6 @@ use rustycog::http::{AppState, UserIdExtractor};
 use rustycog::outbox::{OutboxConfig, OutboxDispatcher, OutboxRecorder};
 use rustycog::permission::{
     CachedPermissionChecker, MetricsPermissionChecker, OpenFgaPermissionChecker, PermissionChecker,
-};
-use readiness::{
-    attach_ready, create_signaled_multi_queue_event_publisher, ReadinessProbe,
 };
 use std::time::Duration;
 

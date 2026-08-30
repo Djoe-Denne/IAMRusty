@@ -230,10 +230,8 @@ impl ComponentUseCase for ComponentUseCaseImpl {
     ) -> Result<ComponentListResponse, ApplicationError> {
         let components = self.component_service.list_components(&project_id).await?;
 
-        let data: Vec<ComponentResponse> = components
-            .iter()
-            .map(Self::component_to_response)
-            .collect();
+        let data: Vec<ComponentResponse> =
+            components.iter().map(Self::component_to_response).collect();
 
         Ok(ComponentListResponse { data })
     }

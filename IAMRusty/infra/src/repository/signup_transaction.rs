@@ -40,7 +40,10 @@ impl SignupTransaction for SignupTransactionImpl {
                 updated_at: Set(user.updated_at.naive_utc()),
             };
 
-            user_model.insert(&txn).await.map_err(|e| to_domain_error(&e))?;
+            user_model
+                .insert(&txn)
+                .await
+                .map_err(|e| to_domain_error(&e))?;
 
             let email_model = user_emails::ActiveModel {
                 id: Set(user_email.id),
@@ -52,7 +55,10 @@ impl SignupTransaction for SignupTransactionImpl {
                 updated_at: Set(user_email.updated_at.naive_utc()),
             };
 
-            email_model.insert(&txn).await.map_err(|e| to_domain_error(&e))?;
+            email_model
+                .insert(&txn)
+                .await
+                .map_err(|e| to_domain_error(&e))?;
 
             let verification_model = user_email_verification::ActiveModel {
                 id: ActiveValue::Set(email_verification.id),

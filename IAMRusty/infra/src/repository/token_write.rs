@@ -39,7 +39,9 @@ impl TokenWriteRepositoryImpl {
             provider_user_id: Set(provider_user_id),
             access_token: Set(tokens.access_token.clone()),
             refresh_token: Set(tokens.refresh_token.clone()),
-            expires_in: Set(tokens.expires_in.map(|e| i32::try_from(e).unwrap_or(i32::MAX))),
+            expires_in: Set(tokens
+                .expires_in
+                .map(|e| i32::try_from(e).unwrap_or(i32::MAX))),
             created_at: Set(Utc::now().naive_utc()),
             updated_at: Set(Utc::now().naive_utc()),
         }
@@ -72,7 +74,9 @@ impl TokenWriteRepository for TokenWriteRepositoryImpl {
             model.provider_user_id = Set(provider_user_id);
             model.access_token = Set(tokens.access_token.clone());
             model.refresh_token = Set(tokens.refresh_token.clone());
-            model.expires_in = Set(tokens.expires_in.map(|e| i32::try_from(e).unwrap_or(i32::MAX)));
+            model.expires_in = Set(tokens
+                .expires_in
+                .map(|e| i32::try_from(e).unwrap_or(i32::MAX)));
             model.updated_at = Set(Utc::now().naive_utc());
 
             model.update(self.db.as_ref()).await?;

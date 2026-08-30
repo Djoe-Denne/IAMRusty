@@ -2,10 +2,10 @@
 
 use async_trait::async_trait;
 use iam_events::DomainEvent;
+use readiness::{create_signaled_event_consumer, ComponentStatus};
 use rustycog::command::{CommandContext, GenericCommandService};
 use rustycog::config::QueueConfig;
 use rustycog::core::error::ServiceError;
-use readiness::{create_signaled_event_consumer, ComponentStatus};
 use rustycog::events::{
     ConcreteEventConsumer, EventConsumer as RustycogEventConsumer, EventHandler,
 };
@@ -62,10 +62,7 @@ impl EventConsumer {
     /// Whether the rustycog factory returned a no-op consumer.
     #[must_use]
     pub fn is_noop(&self) -> bool {
-        matches!(
-            self.inner_consumer.as_ref(),
-            ConcreteEventConsumer::NoOp(_)
-        )
+        matches!(self.inner_consumer.as_ref(), ConcreteEventConsumer::NoOp(_))
     }
 
     /// Underlying rustycog consumer, used by `/ready` transport pings.

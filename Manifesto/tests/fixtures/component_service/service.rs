@@ -39,10 +39,7 @@ impl ComponentServiceMockService {
     pub async fn new() -> Self {
         let fixture = MockServerFixture::new().await;
         let server = fixture.server();
-        Self {
-            server,
-            fixture,
-        }
+        Self { server, fixture }
     }
 
     /// Base URL of the underlying wiremock server.

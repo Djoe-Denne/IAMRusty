@@ -12,8 +12,8 @@ pub mod http;
 pub mod probe;
 
 pub use classify::{
-    classify_consumer, classify_publisher, classify_transport, signal_queue_status, ComponentStatus,
-    QueueKind, QueueRole,
+    classify_consumer, classify_publisher, classify_transport, signal_queue_status,
+    ComponentStatus, QueueKind, QueueRole,
 };
 pub use factory::{
     create_signaled_event_consumer, create_signaled_multi_queue_event_publisher, SignaledConsumer,

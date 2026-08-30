@@ -293,8 +293,7 @@ impl MemberUseCase for MemberUseCaseImpl {
             .count_active_members(&project_id)
             .await?;
 
-        let data: Vec<MemberResponse> =
-            members.iter().map(Self::member_to_response).collect();
+        let data: Vec<MemberResponse> = members.iter().map(Self::member_to_response).collect();
 
         let consumed = i64::from(page.saturating_add(1)).saturating_mul(i64::from(page_size));
         let has_more = consumed < total_count;

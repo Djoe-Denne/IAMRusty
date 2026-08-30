@@ -149,9 +149,7 @@ where
         &self,
         component_type: &str,
     ) -> Result<Resource, DomainError> {
-        self.resource
-            .create_for_component(component_type)
-            .await
+        self.resource.create_for_component(component_type).await
     }
 
     async fn create_component_instance_resource(

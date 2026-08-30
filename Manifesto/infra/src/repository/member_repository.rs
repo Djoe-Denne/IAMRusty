@@ -182,9 +182,8 @@ impl MemberReadRepository for MemberReadRepositoryImpl {
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
-        i64::try_from(count).map_err(|_| {
-            DomainError::internal_error("active member count does not fit in i64")
-        })
+        i64::try_from(count)
+            .map_err(|_| DomainError::internal_error("active member count does not fit in i64"))
     }
 }
 
