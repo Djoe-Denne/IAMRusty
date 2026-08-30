@@ -1,4 +1,7 @@
-#![cfg(feature = "kafka")]
+// `kafka` is a marker so `cargo test --features kafka` can opt in. Clippy CI uses
+// `--all-features`, which would compile this file without rustycog's `kafka`
+// feature (TestKafkaFixture is cfg'd off). Skip under clippy so we do not pull rdkafka.
+#![cfg(all(feature = "kafka", not(clippy)))]
 
 // Include common test utilities and fixtures
 mod common;

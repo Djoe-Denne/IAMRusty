@@ -10,7 +10,8 @@ license.workspace = true
 # Feature flags for testing and QA environments
 test-mode = []
 qa-mode = []
-# Off while rdkafka-sys is disabled on Windows; re-enable with rustycog feature kafka.
+# Marker for IAMRusty/tests/signup_kafka.rs. Does not enable rustycog/kafka
+# (rdkafka stays off `full`). Run that test with rustycog's kafka feature on.
 kafka = []
 
 [dependencies]
