@@ -117,9 +117,9 @@ impl MemberUseCaseImpl {
     /// Convert domain `OrganizationMember` to response DTO
     fn member_to_response(member: &OrganizationMember) -> Result<MemberResponse, ApplicationError> {
         Ok(MemberResponse {
-            id: member.id.ok_or_else(|| {
-                DomainError::internal_error("member missing id after persist")
-            })?,
+            id: member
+                .id
+                .ok_or_else(|| DomainError::internal_error("member missing id after persist"))?,
             organization_id: member.organization_id,
             user_id: member.user_id,
             status: member.status.clone().into(),

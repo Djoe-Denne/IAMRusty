@@ -59,7 +59,8 @@ async fn create_projects_table(manager: &SchemaManager<'_>) -> Result<(), DbErr>
                         .not_null()
                         .default("private")
                         .check(
-                            Expr::col(Projects::Visibility).is_in(["private", "internal", "public"]),
+                            Expr::col(Projects::Visibility)
+                                .is_in(["private", "internal", "public"]),
                         ),
                 )
                 .col(

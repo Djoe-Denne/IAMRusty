@@ -231,8 +231,7 @@ impl OrganizationUseCaseImpl {
         user_id: Uuid,
     ) -> Result<(), ApplicationError> {
         self.record_or_publish_event(
-            Self::organization_updated_event(organization, request, user_id)
-                .into(),
+            Self::organization_updated_event(organization, request, user_id).into(),
         )
         .await
     }

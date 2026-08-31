@@ -24,10 +24,7 @@ async fn async_http_client(request: HttpRequest) -> Result<HttpResponse, Error<r
     };
 
     debug!("request: {:?}", request);
-    debug!(
-        "string body: {:?}",
-        String::from_utf8_lossy(&request.body)
-    );
+    debug!("string body: {:?}", String::from_utf8_lossy(&request.body));
 
     let mut request_builder = client
         .request(request.method, request.url.as_str())
@@ -42,10 +39,7 @@ async fn async_http_client(request: HttpRequest) -> Result<HttpResponse, Error<r
     let status_code = response.status();
     let headers = response.headers().to_owned();
     let chunks = response.bytes().await.map_err(Error::Reqwest)?;
-    debug!(
-        "response body: {:?}",
-        String::from_utf8_lossy(&chunks)
-    );
+    debug!("response body: {:?}", String::from_utf8_lossy(&chunks));
     Ok(HttpResponse {
         status_code,
         headers,
@@ -296,8 +290,7 @@ impl OAuthService for GitHubOAuth2Client {
             self.client.token_url().cloned(),
         )
         .set_redirect_uri(
-            RedirectUrl::new(redirect_uri)
-                .expect("redirect URI remains valid after path replace"),
+            RedirectUrl::new(redirect_uri).expect("redirect URI remains valid after path replace"),
         );
 
         // Generate the authorization URL with relink redirect URI
@@ -324,9 +317,8 @@ impl OAuthService for GitHubOAuth2Client {
             self.client.token_url().cloned(),
         )
         .set_redirect_uri(
-            RedirectUrl::new(redirect_uri).map_err(|e| {
-                AuthError::InvalidResponse(format!("invalid redirect URI: {e}"))
-            })?,
+            RedirectUrl::new(redirect_uri)
+                .map_err(|e| AuthError::InvalidResponse(format!("invalid redirect URI: {e}")))?,
         );
 
         // Exchange code for tokens using the temporary client

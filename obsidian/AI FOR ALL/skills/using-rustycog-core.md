@@ -10,7 +10,7 @@ provenance:
   inferred: 0.05
   ambiguous: 0.06
 created: 2026-04-15T17:15:56.0808743Z
-updated: 2026-04-15T17:15:56.0808743Z
+updated: 2026-08-31T09:45:00Z
 ---
 
 # Using RustyCog Core
@@ -21,6 +21,8 @@ Use this guide when adopting `<!-- [[projects/rustycog/references/rustycog-core]
 
 - Define domain-layer failures with `DomainError` constructors so use-case code stays explicit.
 - Convert domain errors at application boundaries into `ServiceError` (directly or via `From<DomainError>`).
+- After persist, missing `id` is `ok_or_else` + `DomainError::internal_error` — not `unwrap` / `expect` on the business id. See [[projects/aiforall/skills/fixing-sonar-clippy-in-services]].
+- Fallible string/enum mappings use `FromStr` / `TryFrom`. Keep infallible `From<Enum> for &str`.
 - Use `ServiceError` constructors consistently in handlers and adapters instead of handwritten status/message pairs.
 - Rely on `http_status_code()` and `is_retryable()` semantics in upper layers rather than duplicating category logic.
 

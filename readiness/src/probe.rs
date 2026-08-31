@@ -74,7 +74,10 @@ impl ReadinessProbe {
 
     /// Monolith-style probe that ANDs child service reports.
     #[must_use]
-    pub const fn aggregate(service: &'static str, children: Vec<(&'static str, Arc<Self>)>) -> Self {
+    pub const fn aggregate(
+        service: &'static str,
+        children: Vec<(&'static str, Arc<Self>)>,
+    ) -> Self {
         Self {
             service,
             kind: ProbeKind::Aggregate { children },

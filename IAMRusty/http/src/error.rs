@@ -160,17 +160,21 @@ impl IntoResponse for AuthError {
                 status,
                 ..
             } => uniform_error(status, error_code, message),
-            Self::InvalidProvider => {
-                uniform_error(StatusCode::BAD_REQUEST, "invalid_provider", "Invalid provider")
-            }
+            Self::InvalidProvider => uniform_error(
+                StatusCode::BAD_REQUEST,
+                "invalid_provider",
+                "Invalid provider",
+            ),
             Self::InvalidAuthorizationHeader(_) => uniform_error(
                 StatusCode::BAD_REQUEST,
                 "invalid_authorization_header",
                 "Invalid Authorization header",
             ),
-            Self::InvalidToken(_) => {
-                uniform_error(StatusCode::UNAUTHORIZED, "invalid_token", "Invalid or expired token")
-            }
+            Self::InvalidToken(_) => uniform_error(
+                StatusCode::UNAUTHORIZED,
+                "invalid_token",
+                "Invalid or expired token",
+            ),
             Self::StateEncodingFailed(_) => uniform_error(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "state_encoding_failed",
@@ -181,17 +185,21 @@ impl IntoResponse for AuthError {
                 "url_generation_failed",
                 "Failed to generate authorization URL",
             ),
-            Self::InvalidUrl(_) => {
-                uniform_error(StatusCode::BAD_REQUEST, "invalid_url", "Invalid URL in OAuth callback")
-            }
+            Self::InvalidUrl(_) => uniform_error(
+                StatusCode::BAD_REQUEST,
+                "invalid_url",
+                "Invalid URL in OAuth callback",
+            ),
             Self::OAuthError(error, description) => uniform_error(
                 StatusCode::BAD_REQUEST,
                 "oauth_provider_error",
                 format!("OAuth provider error: {error} - {description}"),
             ),
-            Self::MissingCode => {
-                uniform_error(StatusCode::BAD_REQUEST, "missing_code", "Missing authorization code")
-            }
+            Self::MissingCode => uniform_error(
+                StatusCode::BAD_REQUEST,
+                "missing_code",
+                "Missing authorization code",
+            ),
             Self::InvalidState(_) => uniform_error(
                 StatusCode::BAD_REQUEST,
                 "invalid_state",
@@ -207,9 +215,11 @@ impl IntoResponse for AuthError {
                 "invalid_state_operation",
                 "Invalid OAuth state operation",
             ),
-            Self::AuthenticationFailed(_) => {
-                uniform_error(StatusCode::UNAUTHORIZED, "authentication_failed", "Authentication failed")
-            }
+            Self::AuthenticationFailed(_) => uniform_error(
+                StatusCode::UNAUTHORIZED,
+                "authentication_failed",
+                "Authentication failed",
+            ),
             Self::ValidationFailed(msg) => {
                 uniform_error(StatusCode::UNPROCESSABLE_ENTITY, "validation_failed", msg)
             }
@@ -226,9 +236,11 @@ impl IntoResponse for AuthError {
                 "provider_already_linked",
                 format!("Provider {provider} is already linked to another user"),
             ),
-            Self::UserNotFound(user_id) => {
-                uniform_error(StatusCode::NOT_FOUND, "user_not_found", format!("User not found: {user_id}"))
-            }
+            Self::UserNotFound(user_id) => uniform_error(
+                StatusCode::NOT_FOUND,
+                "user_not_found",
+                format!("User not found: {user_id}"),
+            ),
             Self::LinkFailed => uniform_error(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "link_failed",
@@ -252,45 +264,65 @@ impl IntoResponse for AuthError {
 
 fn map_domain_error(domain_error: DomainError) -> (StatusCode, String, String) {
     match domain_error {
-        DomainError::UserNotFound => {
-            (StatusCode::NOT_FOUND, "user_not_found".into(), "User not found".into())
-        }
-        DomainError::ProviderNotSupported(msg) => {
-            (StatusCode::BAD_REQUEST, "provider_not_supported".into(), msg)
-        }
-        DomainError::BusinessRuleViolation(msg) => {
-            (StatusCode::BAD_REQUEST, "business_rule_violation".into(), msg)
-        }
-        DomainError::InvalidToken => {
-            (StatusCode::UNAUTHORIZED, "invalid_token".into(), "Invalid token".into())
-        }
-        DomainError::TokenExpired => {
-            (StatusCode::UNAUTHORIZED, "token_expired".into(), "Token expired".into())
-        }
+        DomainError::UserNotFound => (
+            StatusCode::NOT_FOUND,
+            "user_not_found".into(),
+            "User not found".into(),
+        ),
+        DomainError::ProviderNotSupported(msg) => (
+            StatusCode::BAD_REQUEST,
+            "provider_not_supported".into(),
+            msg,
+        ),
+        DomainError::BusinessRuleViolation(msg) => (
+            StatusCode::BAD_REQUEST,
+            "business_rule_violation".into(),
+            msg,
+        ),
+        DomainError::InvalidToken => (
+            StatusCode::UNAUTHORIZED,
+            "invalid_token".into(),
+            "Invalid token".into(),
+        ),
+        DomainError::TokenExpired => (
+            StatusCode::UNAUTHORIZED,
+            "token_expired".into(),
+            "Token expired".into(),
+        ),
         DomainError::AuthorizationError(msg) => {
             (StatusCode::UNAUTHORIZED, "authorization_error".into(), msg)
         }
         DomainError::OAuth2Error(msg) => (StatusCode::BAD_REQUEST, "oauth2_error".into(), msg),
-        DomainError::UserProfileError(msg) => {
-            (StatusCode::INTERNAL_SERVER_ERROR, "user_profile_error".into(), msg)
-        }
+        DomainError::UserProfileError(msg) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "user_profile_error".into(),
+            msg,
+        ),
         DomainError::NoTokenForProvider => (
             StatusCode::NOT_FOUND,
             "no_token_for_provider".into(),
             "No token found for provider and user".into(),
         ),
-        DomainError::TokenGenerationFailed(msg) => {
-            (StatusCode::INTERNAL_SERVER_ERROR, "token_generation_failed".into(), msg)
-        }
-        DomainError::TokenValidationFailed(msg) => {
-            (StatusCode::UNAUTHORIZED, "token_validation_failed".into(), msg)
-        }
-        DomainError::RepositoryError(msg) => {
-            (StatusCode::INTERNAL_SERVER_ERROR, "repository_error".into(), msg)
-        }
-        DomainError::UsernameTaken => {
-            (StatusCode::CONFLICT, "username_taken".into(), "Username already taken".into())
-        }
+        DomainError::TokenGenerationFailed(msg) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "token_generation_failed".into(),
+            msg,
+        ),
+        DomainError::TokenValidationFailed(msg) => (
+            StatusCode::UNAUTHORIZED,
+            "token_validation_failed".into(),
+            msg,
+        ),
+        DomainError::RepositoryError(msg) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "repository_error".into(),
+            msg,
+        ),
+        DomainError::UsernameTaken => (
+            StatusCode::CONFLICT,
+            "username_taken".into(),
+            "Username already taken".into(),
+        ),
         DomainError::InvalidUsername => (
             StatusCode::UNPROCESSABLE_ENTITY,
             "invalid_username".into(),
@@ -301,15 +333,19 @@ fn map_domain_error(domain_error: DomainError) -> (StatusCode, String, String) {
             "registration_already_complete".into(),
             "Registration already completed".into(),
         ),
-        DomainError::TokenServiceError(msg) => {
-            (StatusCode::INTERNAL_SERVER_ERROR, "token_service_error".into(), msg)
-        }
+        DomainError::TokenServiceError(msg) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "token_service_error".into(),
+            msg,
+        ),
         DomainError::EventError(msg) => {
             (StatusCode::INTERNAL_SERVER_ERROR, "event_error".into(), msg)
         }
-        DomainError::TokenNotFound => {
-            (StatusCode::UNAUTHORIZED, "token_not_found".into(), "Token not found".into())
-        }
+        DomainError::TokenNotFound => (
+            StatusCode::UNAUTHORIZED,
+            "token_not_found".into(),
+            "Token not found".into(),
+        ),
     }
 }
 
@@ -318,9 +354,7 @@ fn map_command_error(cmd_error: CommandError) -> (StatusCode, String, String) {
         CommandError::Validation { code, message } => {
             (StatusCode::UNPROCESSABLE_ENTITY, code, message)
         }
-        CommandError::Authentication { code, message } => {
-            (StatusCode::UNAUTHORIZED, code, message)
-        }
+        CommandError::Authentication { code, message } => (StatusCode::UNAUTHORIZED, code, message),
         CommandError::Business { code, message } => (StatusCode::BAD_REQUEST, code, message),
         CommandError::Timeout { code, message } => (StatusCode::REQUEST_TIMEOUT, code, message),
         CommandError::Infrastructure { code, message }
@@ -350,15 +384,21 @@ impl IntoResponse for ApiError {
                     "token_service_error".into(),
                     "Token service error".into(),
                 ),
-                UserError::UserNotFound => {
-                    (StatusCode::NOT_FOUND, "user_not_found".into(), "User not found".into())
-                }
-                UserError::InvalidToken => {
-                    (StatusCode::UNAUTHORIZED, "invalid_token".into(), "Invalid token".into())
-                }
-                UserError::TokenExpired => {
-                    (StatusCode::UNAUTHORIZED, "token_expired".into(), "Token expired".into())
-                }
+                UserError::UserNotFound => (
+                    StatusCode::NOT_FOUND,
+                    "user_not_found".into(),
+                    "User not found".into(),
+                ),
+                UserError::InvalidToken => (
+                    StatusCode::UNAUTHORIZED,
+                    "invalid_token".into(),
+                    "Invalid token".into(),
+                ),
+                UserError::TokenExpired => (
+                    StatusCode::UNAUTHORIZED,
+                    "token_expired".into(),
+                    "Token expired".into(),
+                ),
                 UserError::DomainError(_) => unreachable!(),
             },
             Self::Token(token_error) => match token_error {
@@ -395,9 +435,11 @@ impl IntoResponse for ApiError {
                 "Authentication required".into(),
             ),
             Self::InvalidRequest(msg) => (StatusCode::BAD_REQUEST, "invalid_request".into(), msg),
-            Self::InternalServerError(msg) => {
-                (StatusCode::INTERNAL_SERVER_ERROR, "internal_server_error".into(), msg)
-            }
+            Self::InternalServerError(msg) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "internal_server_error".into(),
+                msg,
+            ),
         };
         uniform_error(status, error_code, message)
     }

@@ -77,7 +77,11 @@ async fn create_organization_invitations_table(manager: &SchemaManager<'_>) -> R
                         .timestamp_with_time_zone()
                         .null(),
                 )
-                .col(ColumnDef::new(OrganizationInvitations::Message).text().null())
+                .col(
+                    ColumnDef::new(OrganizationInvitations::Message)
+                        .text()
+                        .null(),
+                )
                 .col(
                     ColumnDef::new(OrganizationInvitations::CreatedAt)
                         .timestamp_with_time_zone()
@@ -99,9 +103,7 @@ async fn create_organization_invitations_table(manager: &SchemaManager<'_>) -> R
         .await
 }
 
-async fn create_organization_invitations_indexes(
-    manager: &SchemaManager<'_>,
-) -> Result<(), DbErr> {
+async fn create_organization_invitations_indexes(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
     manager
         .create_index(
             Index::create()

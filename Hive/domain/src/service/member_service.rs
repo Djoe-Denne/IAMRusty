@@ -128,9 +128,9 @@ where
         member: &mut OrganizationMember,
         roles: Vec<RolePermission>,
     ) -> Result<OrganizationMember, DomainError> {
-        let member_id = member.id.ok_or_else(|| {
-            DomainError::internal_error("member missing id after persist")
-        })?;
+        let member_id = member
+            .id
+            .ok_or_else(|| DomainError::internal_error("member missing id after persist"))?;
 
         let new_roles = self
             .role_service
@@ -220,9 +220,9 @@ where
             })?;
 
         // Remove the member
-        let member_id = member.id.ok_or_else(|| {
-            DomainError::internal_error("member missing id after persist")
-        })?;
+        let member_id = member
+            .id
+            .ok_or_else(|| DomainError::internal_error("member missing id after persist"))?;
         self.member_repo.delete_by_id(&member_id).await?;
 
         Ok(())

@@ -303,7 +303,11 @@ async fn create_password_reset_tokens_table(manager: &SchemaManager<'_>) -> Resu
                         .not_null()
                         .primary_key(),
                 )
-                .col(ColumnDef::new(PasswordResetTokens::UserId).uuid().not_null())
+                .col(
+                    ColumnDef::new(PasswordResetTokens::UserId)
+                        .uuid()
+                        .not_null(),
+                )
                 .col(
                     ColumnDef::new(PasswordResetTokens::TokenHash)
                         .string()

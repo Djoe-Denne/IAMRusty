@@ -107,9 +107,11 @@ impl EmailAdapter {
 #[async_trait]
 impl EmailProvider for EmailAdapter {
     async fn send_email(&self, email: &EmailCommunication) -> Result<String, DomainError> {
-        let recipient_email = email.recipient.email.as_ref().ok_or_else(|| {
-            DomainError::invalid_email("recipient email missing")
-        })?;
+        let recipient_email = email
+            .recipient
+            .email
+            .as_ref()
+            .ok_or_else(|| DomainError::invalid_email("recipient email missing"))?;
         info!(
             to = recipient_email,
             subject = email.subject,

@@ -368,7 +368,8 @@ where
         ),
     );
     let registration = Arc::new(RegistrationUseCaseImpl::new(registration_service));
-    let password_reset_service_adapter = Arc::new(PasswordResetServiceAdapter::new(password_service));
+    let password_reset_service_adapter =
+        Arc::new(PasswordResetServiceAdapter::new(password_service));
     let password_reset = Arc::new(PasswordResetUseCaseImpl::new_with_outbox_unit_of_work(
         Arc::new(user_repo),
         Arc::new(user_email_repo),
@@ -387,7 +388,11 @@ fn setup_provider_user_token(
     user_email_repo: UserEmailRepo,
     refresh_token_repo: RefreshRepo,
     token_service: Arc<JwtTokenService>,
-) -> (Arc<dyn ProviderUseCase>, Arc<dyn UserUseCase>, Arc<dyn TokenUseCase>) {
+) -> (
+    Arc<dyn ProviderUseCase>,
+    Arc<dyn UserUseCase>,
+    Arc<dyn TokenUseCase>,
+) {
     let token_repo_provider = CombinedTokenRepository::new(
         TokenReadRepositoryImpl::new(db_pool.get_read_connection()),
         TokenWriteRepositoryImpl::new(db_pool.get_write_connection()),

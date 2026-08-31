@@ -11,10 +11,7 @@ use crate::probe::ReadinessProbe;
 
 /// Merge `GET /ready` onto an already-built router (typically after `into_router()`).
 pub fn attach_ready(router: Router, probe: Arc<ReadinessProbe>) -> Router {
-    router.route(
-        "/ready",
-        get(move || ready_response(Arc::clone(&probe))),
-    )
+    router.route("/ready", get(move || ready_response(Arc::clone(&probe))))
 }
 
 async fn ready_response(probe: Arc<ReadinessProbe>) -> impl IntoResponse {

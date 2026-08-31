@@ -21,6 +21,8 @@ updated: 2026-04-22T17:30:00Z
 
 Use this recipe when a service test needs to fake an external HTTP collaborator. The shared `MockServerFixture` from `[[projects/rustycog/references/wiremock-mock-server-fixture]]` already handles the listener, lifecycle, and reset semantics — your job is to wrap it in a typed helper that exposes one method per scenario you care about.
 
+Do **not** use wiremock for OpenFGA **Check** in Hive / Telegraph / Manifesto HTTP ITs. Those suites use [[projects/rustycog/references/openfga-real-testcontainer-fixture|`TestOpenFga`]] (`allow` / `deny`, default deny). `OpenFgaMockService` stays crate-level only.
+
 ## Workflow
 
 1. **Add a fixture module** under `<service>/tests/fixtures/<collaborator>/` with `mod.rs`, `service.rs`, and (optionally) `resources.rs` for the request/response DTOs. Hive's `external_provider` and Telegraph's `smtp` are the canonical examples.

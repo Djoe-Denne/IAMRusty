@@ -315,7 +315,10 @@ pub fn create_jwt_token_with_expiration(
 }
 
 /// Create an invalid JWT token
-pub fn create_invalid_jwt_token(user_id: Uuid, config: &JwtConfig) -> Result<String, anyhow::Error> {
+pub fn create_invalid_jwt_token(
+    user_id: Uuid,
+    config: &JwtConfig,
+) -> Result<String, anyhow::Error> {
     JwtTestUtils::create_invalid_token(user_id, config)
 }
 

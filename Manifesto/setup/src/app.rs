@@ -127,26 +127,26 @@ impl Application {
         // Setup event publisher for Telegraph + sentinel-sync communication
         let (event_publisher, publisher_status, publisher_transport): EventPublisherSetup =
             if let Some(ep) = maybe_event_publisher {
-            signal_queue_status(
-                "manifesto",
-                QueueRole::Publisher,
-                &ComponentStatus::Injected,
-            );
-            (ep, ComponentStatus::Injected, None)
-        } else {
-            let signaled = create_signaled_multi_queue_event_publisher(
-                "manifesto",
-                &config.queue,
-                None,
-                Arc::new(ManifestoErrorMapper),
-            )
-            .await?;
-            (
-                signaled.publisher,
-                signaled.status,
-                Some(signaled.transport),
-            )
-        };
+                signal_queue_status(
+                    "manifesto",
+                    QueueRole::Publisher,
+                    &ComponentStatus::Injected,
+                );
+                (ep, ComponentStatus::Injected, None)
+            } else {
+                let signaled = create_signaled_multi_queue_event_publisher(
+                    "manifesto",
+                    &config.queue,
+                    None,
+                    Arc::new(ManifestoErrorMapper),
+                )
+                .await?;
+                (
+                    signaled.publisher,
+                    signaled.status,
+                    Some(signaled.transport),
+                )
+            };
 
         // Setup use cases
         let outbox_dispatcher = Arc::new(OutboxDispatcher::new(
@@ -466,10 +466,7 @@ async fn setup_application(
     ))
 }
 
-fn setup_domain(
-    db: &DbConnectionPool,
-    config: &AppConfig,
-) -> Result<DomainServices, Error> {
+fn setup_domain(db: &DbConnectionPool, config: &AppConfig) -> Result<DomainServices, Error> {
     let (
         project_repo,
         component_repo,
@@ -515,9 +512,7 @@ fn setup_domain(
     ))
 }
 
-fn setup_repositories(
-    db: &DbConnectionPool,
-) -> RepositoryBundle {
+fn setup_repositories(db: &DbConnectionPool) -> RepositoryBundle {
     let project_read_repo = Arc::new(ProjectReadRepositoryImpl::new(db.get_read_connection()));
     let project_write_repo = Arc::new(ProjectWriteRepositoryImpl::new(db.get_write_connection()));
     let project_repo = Arc::new(ProjectRepositoryImpl::new(

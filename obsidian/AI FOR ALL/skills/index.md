@@ -39,7 +39,7 @@ Server and meta packaging guidance now live directly in:
 
 ## Project Skills
 
-- AIForAll: [[projects/aiforall/skills/index]]
+- AIForAll: [[projects/aiforall/skills/index]] (incl. [[projects/aiforall/skills/fixing-sonar-clippy-in-services]])
 - IAMRusty: <!-- [[projects/iamrusty/skills/index]] -->
 - Hive: <!-- [[projects/hive/skills/index]] -->
 - Telegraph: <!-- [[projects/telegraph/skills/index]] -->

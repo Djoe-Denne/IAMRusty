@@ -28,11 +28,9 @@ fn error_mapper(error: &CommandError) -> HttpError {
                 }
             }
         }
-        _ => {
-            HttpError::Internal {
-                message: error.to_string(),
-            }
-        }
+        _ => HttpError::Internal {
+            message: error.to_string(),
+        },
     }
 }
 

@@ -12,12 +12,12 @@ mod common;
 use axum::http::{header, StatusCode};
 use common::fixtures::db::NotificationFixtureBuilder;
 use common::*;
+use rustycog::testing::http::jwt::create_jwt_token;
 use sea_orm::EntityTrait;
 use serde_json::Value;
 use serial_test::serial;
-use uuid::Uuid;
-use rustycog::testing::http::jwt::create_jwt_token;
 use telegraph_infra::repository::entity::notifications;
+use uuid::Uuid;
 
 /// Test successful retrieval of user notifications with default pagination
 #[tokio::test]

@@ -160,7 +160,9 @@ mod processor {
                     handlers
                         .iter()
                         .filter_map(|handler| {
-                            self.event_handlers.get(handler).map(std::convert::AsRef::as_ref)
+                            self.event_handlers
+                                .get(handler)
+                                .map(std::convert::AsRef::as_ref)
                         })
                         .collect()
                 })

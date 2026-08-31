@@ -565,12 +565,9 @@ impl MemberUseCase for MemberUseCaseImpl {
         self.permission_service
             .revoke_permission_from_member(
                 &member.id,
-                &role_perm_to_revoke
-                    .role_permission
-                    .id
-                    .ok_or_else(|| {
-                        DomainError::internal_error("role permission missing id after persist")
-                    })?,
+                &role_perm_to_revoke.role_permission.id.ok_or_else(|| {
+                    DomainError::internal_error("role permission missing id after persist")
+                })?,
             )
             .await?;
 

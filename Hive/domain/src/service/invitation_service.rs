@@ -274,9 +274,8 @@ where
                 message: e.to_string(),
             })?;
 
-        let mut invitation = invitation.ok_or_else(|| {
-            DomainError::entity_not_found("organization_invitation", &token)
-        })?;
+        let mut invitation = invitation
+            .ok_or_else(|| DomainError::entity_not_found("organization_invitation", &token))?;
 
         if invitation.status != InvitationStatus::Pending {
             return Err(DomainError::business_rule_violation(
@@ -333,10 +332,7 @@ where
             })?;
 
         let mut invitation = invitation.ok_or_else(|| {
-            DomainError::entity_not_found(
-                "organization_invitation",
-                &invitation_id.to_string(),
-            )
+            DomainError::entity_not_found("organization_invitation", &invitation_id.to_string())
         })?;
 
         if invitation.status != InvitationStatus::Pending {
@@ -373,10 +369,7 @@ where
             })?;
 
         let mut invitation = invitation.ok_or_else(|| {
-            DomainError::entity_not_found(
-                "organization_invitation",
-                &invitation_id.to_string(),
-            )
+            DomainError::entity_not_found("organization_invitation", &invitation_id.to_string())
         })?;
 
         let organization = self
@@ -413,10 +406,7 @@ where
             })?;
 
         invitation.ok_or_else(|| {
-            DomainError::entity_not_found(
-                "organization_invitation",
-                &organization_id.to_string(),
-            )
+            DomainError::entity_not_found("organization_invitation", &organization_id.to_string())
         })
     }
 

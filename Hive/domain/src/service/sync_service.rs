@@ -302,9 +302,10 @@ where
             })?;
 
         // Get organization info from external provider
-        let provider_source = external_link.provider_source.clone().ok_or_else(|| {
-            DomainError::internal_error("external link missing provider_source")
-        })?;
+        let provider_source = external_link
+            .provider_source
+            .clone()
+            .ok_or_else(|| DomainError::internal_error("external link missing provider_source"))?;
         let external_org_info = self
             .provider_client
             .get_organization_info(&provider_source, &external_link.provider_config)
@@ -364,9 +365,10 @@ where
             })?;
 
         // Get members from external provider
-        let provider_source = external_link.provider_source.clone().ok_or_else(|| {
-            DomainError::internal_error("external link missing provider_source")
-        })?;
+        let provider_source = external_link
+            .provider_source
+            .clone()
+            .ok_or_else(|| DomainError::internal_error("external link missing provider_source"))?;
         let external_members = self
             .provider_client
             .get_members(&provider_source, &external_link.provider_config)

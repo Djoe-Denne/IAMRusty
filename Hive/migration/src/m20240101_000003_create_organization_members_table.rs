@@ -36,14 +36,22 @@ async fn create_organization_members_table(manager: &SchemaManager<'_>) -> Resul
                         .uuid()
                         .not_null(),
                 )
-                .col(ColumnDef::new(OrganizationMembers::UserId).uuid().not_null())
+                .col(
+                    ColumnDef::new(OrganizationMembers::UserId)
+                        .uuid()
+                        .not_null(),
+                )
                 .col(
                     ColumnDef::new(OrganizationMembers::Status)
                         .string_len(20)
                         .not_null()
                         .default("active"),
                 )
-                .col(ColumnDef::new(OrganizationMembers::InvitedByUserId).uuid().null())
+                .col(
+                    ColumnDef::new(OrganizationMembers::InvitedByUserId)
+                        .uuid()
+                        .null(),
+                )
                 .col(
                     ColumnDef::new(OrganizationMembers::InvitedAt)
                         .timestamp_with_time_zone()

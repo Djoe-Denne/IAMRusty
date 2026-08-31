@@ -213,8 +213,7 @@ impl OAuthService for GitLabOAuth2Client {
             self.client.token_url().cloned(),
         )
         .set_redirect_uri(
-            RedirectUrl::new(redirect_uri)
-                .expect("redirect URI remains valid after path replace"),
+            RedirectUrl::new(redirect_uri).expect("redirect URI remains valid after path replace"),
         );
 
         // Generate the authorization URL with relink redirect URI

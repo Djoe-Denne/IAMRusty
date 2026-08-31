@@ -25,16 +25,17 @@ Do **not** use this skill when:
 
 ## Background: the existing fixtures
 
-`rustycog-testing` already ships two shared testcontainer fixtures under `rustycog/rustycog-testing/src/common/`:
+`rustycog-testing` already ships shared testcontainer fixtures under `rustycog/rustycog-testing/src/common/`:
 
 - `sqs_testcontainer.rs` — LocalStack 3.0.2 with `SERVICES=sqs`, container name `iam_test-localstack-sqs`, port published into the test config via env-var mutation (`IAM_QUEUE__SQS__PORT`, etc.).
 - `kafka_testcontainer.rs` — same scaffold, different image and env-var prefix.
+- `openfga_testcontainer.rs` — real `openfga/openfga`. Hive, Telegraph, and Manifesto set `has_openfga() == true` and return `openfga_authorization_model_json()`. Tests arrange Check via `TestOpenFga::allow` / `deny` / `allow_all` (default = deny, no harness tuples). IAM keeps `has_openfga() == false`.
 
 Telegraph adds a service-local one at `Telegraph/tests/fixtures/smtp/testcontainer.rs`:
 
 - `TestSmtp` runs MailHog (`mailhog/mailhog:latest`), container name `telegraph_test-smtp`, with two pinned mapped ports (1025 for SMTP, 8025 for the admin REST API).
 
-All three follow the same singleton + defensive-Docker-cleanup pattern. **Read at least one of them** before authoring a new fixture — they encode several non-obvious lifecycle decisions that the type signatures alone don't make clear.
+These fixtures follow the same singleton + defensive-Docker-cleanup pattern. **Read at least one of them** before authoring a new fixture — they encode several non-obvious lifecycle decisions that the type signatures alone don't make clear.
 
 For SQS producer-routing tests, do not stop at "a message exists somewhere". Configure every physical queue through `SqsConfig`, keep shared `test.toml` queue settings `enabled = false`, then opt in from the routing test binary with a descriptor that returns `has_sqs() == true` plus a service env override like `HIVE_QUEUE__ENABLED=true`. Let the LocalStack fixture create queues from `all_queue_names()`, drain each relevant queue before the action, then assert the mapped destination with `wait_for_messages_from_queue(...)` and the non-target fallback with `get_all_messages_from_queue(...)`. Current references: `Hive/tests/sqs_event_routing_tests.rs`, `IAMRusty/tests/sqs_event_routing_tests.rs`, and `Manifesto/tests/sqs_event_routing_tests.rs`.
 
@@ -69,7 +70,9 @@ pub trait ServiceTestDescriptor<T>: Send + Sync + 'static {
     async fn run_migrations_down(&self, ...) -> anyhow::Result<()>;
     fn has_db(&self) -> bool;
     fn has_sqs(&self) -> bool;
-    fn has_redis(&self) -> bool;  // ← new flag
+    fn has_openfga(&self) -> bool; // already required — do not add a default
+    fn openfga_authorization_model_json(&self) -> Option<&'static str> { None }
+    fn has_redis(&self) -> bool;  // ← example of a *new* flag
 }
 ```
 
@@ -429,7 +432,7 @@ Read these only when the situation calls for it — not up-front.
 - **Shared Kafka fixture**: `rustycog/rustycog-testing/src/common/kafka_testcontainer.rs` — same scaffold, different image and env-var prefix.
 - **Shared OpenFGA fixture**: `rustycog/rustycog-testing/src/common/openfga_testcontainer.rs` — protocol-aware fixture that loads the consumer's `[openfga]` config via `load_config_part::<OpenFgaClientConfig>("openfga")`, calls `actual_port()` to materialize a `port = 0` config into a free random host port, and publishes per-service `_OPENFGA__SCHEME/HOST/PORT/STORE_ID/AUTHORIZATION_MODEL_ID` env vars. Demonstrates the host/port split documented in step 7a (the `OpenFgaClientConfig` was originally a single `api_url: String` and was refactored alongside the fixture so `port = 0` would Just Work).
 - **Service-local MailHog fixture**: `Telegraph/tests/fixtures/smtp/testcontainer.rs` — fixed-mapped-port pattern, REST-API client wrapping (`get_emails`, `email_count`, `has_email`), `cleanup_container()` and `cleanup_existing_smtp_container()` for orderly + defensive teardown.
-- **Descriptor trait**: `rustycog/rustycog-testing/src/common/service_test_descriptor.rs` — the non-defaulted capability flags (`has_db`, `has_sqs`).
+- **Descriptor trait**: `rustycog/rustycog-testing/src/common/service_test_descriptor.rs` — non-defaulted flags (`has_db`, `has_sqs`, `has_openfga`) plus optional `openfga_authorization_model_json`.
 - **Test-config wiring patterns**: `IAMRusty/config/test.toml` (port = 0), `Telegraph/config/test.toml` (fixed mapped port).
 - **`setup_test_server()` shape** when the harness needs to return a fixture handle alongside the server: `Manifesto/tests/common.rs` (mirrors the OpenFGA mock pattern).
 

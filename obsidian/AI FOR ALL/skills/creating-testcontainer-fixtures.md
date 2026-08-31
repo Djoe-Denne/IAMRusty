@@ -23,7 +23,7 @@ provenance:
   inferred: 0.22
   ambiguous: 0.04
 created: 2026-04-23T19:30:00Z
-updated: 2026-04-25T11:25:00Z
+updated: 2026-08-31T09:45:00Z
 ---
 
 # Creating Testcontainer Fixtures
@@ -54,7 +54,9 @@ pub trait ServiceTestDescriptor<T>: Send + Sync + 'static {
     async fn run_migrations_down(&self, ...) -> anyhow::Result<()>;
     fn has_db(&self) -> bool;
     fn has_sqs(&self) -> bool;
-    // Add for a new shared fixture:
+    fn has_openfga(&self) -> bool; // already required
+    fn openfga_authorization_model_json(&self) -> Option<&'static str> { None }
+    // Add for a *new* shared fixture:
     fn has_redis(&self) -> bool;
 }
 ```
