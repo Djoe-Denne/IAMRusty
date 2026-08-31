@@ -117,7 +117,7 @@ impl MemberUseCaseImpl {
         }
     }
 
-    fn role_is_privileged(level: &PermissionLevel) -> bool {
+    const fn role_is_privileged(level: &PermissionLevel) -> bool {
         matches!(level, PermissionLevel::Admin | PermissionLevel::Owner)
     }
 

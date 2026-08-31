@@ -3,6 +3,9 @@ name = "iam-domain"
 version.workspace = true
 edition.workspace = true
 
+[features]
+test-mode = []
+
 [dependencies]
 # Events abstraction
 rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full"] }

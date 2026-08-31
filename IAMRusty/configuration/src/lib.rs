@@ -107,8 +107,12 @@ impl SecretStorage {
                 public_key_path,
                 key_id,
             } => {
-                tracing::info!("Resolving PEM file-based JWT secret from private_key_path='{}', public_key_path='{}', key_id={:?}", 
-                    private_key_path, public_key_path, key_id);
+                tracing::info!(
+                    "Resolving PEM file-based JWT secret from private_key_path='{}', public_key_path='{}', key_id={:?}",
+                    private_key_path,
+                    public_key_path,
+                    key_id
+                );
 
                 tracing::debug!("Reading private key from: {}", private_key_path);
                 let private_key = fs::read_to_string(private_key_path).map_err(|e| {
@@ -392,7 +396,7 @@ pub struct AppConfig {
     /// Legacy Kafka configuration (for backward compatibility)
     #[serde(default)]
     pub kafka: KafkaConfig,
-    /// Shared secret for internal IdP token routes
+    /// Shared secret for internal `IdP` token routes
     #[serde(default)]
     pub internal_service_token: String,
 }

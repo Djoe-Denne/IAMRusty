@@ -8,7 +8,7 @@ license.workspace = true
 
 [features]
 # Feature flags for testing and QA environments
-test-mode = []
+test-mode = ["iam-domain/test-mode"]
 qa-mode = []
 # Marker for IAMRusty/tests/signup_kafka.rs. Does not enable rustycog/kafka
 # (rdkafka stays off `full`). Run that test with rustycog's kafka feature on.

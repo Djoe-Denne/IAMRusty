@@ -69,8 +69,9 @@ struct GitHubEmail {
     primary: bool,
     /// Whether the email is verified
     verified: bool,
-    /// Email visibility
-    visibility: Option<String>,
+    /// Email visibility (GitHub payload field; unused after deserialize)
+    #[serde(rename = "visibility")]
+    _visibility: Option<String>,
 }
 
 /// GitHub `OAuth2` client

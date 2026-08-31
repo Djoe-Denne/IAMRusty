@@ -176,27 +176,14 @@ impl ProjectUseCaseImpl {
         }
     }
 
-    /// Create a project use case that persists creation through a unit of work.
-    pub fn new_with_project_creation_uow(
-        project_service: Arc<dyn ProjectService>,
-        component_service: Arc<dyn ComponentService>,
-        member_service: Arc<dyn MemberService>,
-        permission_service: Arc<dyn PermissionService>,
-        event_publisher: Arc<dyn EventPublisher<DomainError>>,
-        business_config: BusinessConfig,
+    /// Persist project creation through a dedicated unit of work.
+    #[must_use]
+    pub fn with_project_creation_uow(
+        mut self,
         project_creation_uow: Arc<dyn ProjectCreationUnitOfWork>,
-        org_permission_checker: Arc<dyn PermissionChecker>,
     ) -> Self {
-        Self {
-            project_service,
-            component_service,
-            member_service,
-            permission_service,
-            event_publisher,
-            business_config,
-            project_creation_uow: Some(project_creation_uow),
-            org_permission_checker,
-        }
+        self.project_creation_uow = Some(project_creation_uow);
+        self
     }
 
     fn project_to_response(project: &Project) -> ProjectResponse {

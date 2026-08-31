@@ -359,10 +359,9 @@ where
             return Err(AuthError::UserAlreadyExists);
         }
 
-        let stored_hash = existing_user
-            .password_hash
-            .as_deref()
-            .expect("incomplete password signup has a hash");
+        let Some(stored_hash) = existing_user.password_hash.as_deref() else {
+            return Err(AuthError::UserAlreadyExists);
+        };
         let password_matches = self
             .password_service
             .verify_password(&request.password, stored_hash)

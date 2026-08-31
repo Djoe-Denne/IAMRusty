@@ -405,16 +405,18 @@ async fn setup_application(
         OutboxRecorder::new(),
     ));
 
-    let project_usecase = Arc::new(ProjectUseCaseImpl::new_with_project_creation_uow(
-        project_service.clone(),
-        component_service.clone(),
-        member_service.clone(),
-        permission_service.clone(),
-        event_publisher.clone(),
-        config.service.business.clone(),
-        project_creation_uow,
-        org_permission_checker,
-    ));
+    let project_usecase = Arc::new(
+        ProjectUseCaseImpl::new(
+            project_service.clone(),
+            component_service.clone(),
+            member_service.clone(),
+            permission_service.clone(),
+            event_publisher.clone(),
+            config.service.business.clone(),
+            org_permission_checker,
+        )
+        .with_project_creation_uow(project_creation_uow),
+    );
 
     let component_usecase = Arc::new(ComponentUseCaseImpl::new(
         component_service.clone(),

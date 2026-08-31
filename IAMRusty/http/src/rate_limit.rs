@@ -7,7 +7,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use std::collections::HashMap;
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Mutex, OnceLock, PoisonError};
 use std::time::{Duration, Instant};
 
 const WINDOW: Duration = Duration::from_secs(60);
@@ -16,14 +16,18 @@ const LIMIT: u32 = 30;
 static INTERNAL_TOKEN: OnceLock<String> = OnceLock::new();
 static BUCKETS: OnceLock<Mutex<HashMap<String, (Instant, u32)>>> = OnceLock::new();
 
-/// Configure the shared secret required by internal IdP token routes.
+/// Configure the shared secret required by internal `IdP` token routes.
 pub fn configure_internal_service_token(token: impl Into<String>) {
     let _ = INTERNAL_TOKEN.set(token.into());
 }
 
 /// Required header value for `/internal/{provider}/token`.
+///
+/// # Errors
+///
+/// Returns [`StatusCode::FORBIDDEN`] when the shared secret is unset or the header does not match.
 pub fn require_internal_service_token(headers: &HeaderMap) -> Result<(), StatusCode> {
-    let expected = INTERNAL_TOKEN.get().map(String::as_str).unwrap_or("");
+    let expected = INTERNAL_TOKEN.get().map_or("", String::as_str);
     if expected.is_empty() {
         return Err(StatusCode::FORBIDDEN);
     }
@@ -45,7 +49,7 @@ fn buckets() -> &'static Mutex<HashMap<String, (Instant, u32)>> {
 fn rate_limit_disabled() -> bool {
     matches!(
         std::env::var("IAM_RATE_LIMIT_DISABLED").ok().as_deref(),
-        Some("1") | Some("true")
+        Some("1" | "true")
     ) || std::env::var("APP_ENV").ok().as_deref() == Some("test")
 }
 
@@ -77,20 +81,24 @@ pub async fn rate_limit_auth(request: Request, next: Next) -> Response {
         .to_string();
     let key = format!("{key}:{}", request.uri().path());
 
-    let allowed = {
-        let mut store = buckets().lock().unwrap_or_else(|e| e.into_inner());
-        let now = Instant::now();
-        let entry = store.entry(key).or_insert((now, 0));
-        if now.duration_since(entry.0) > WINDOW {
-            *entry = (now, 0);
-        }
-        entry.1 += 1;
-        entry.1 <= LIMIT
-    };
+    let allowed = take_slot(key);
 
     if allowed {
         next.run(request).await
     } else {
         StatusCode::TOO_MANY_REQUESTS.into_response()
     }
+}
+
+fn take_slot(key: String) -> bool {
+    let mut store = buckets().lock().unwrap_or_else(PoisonError::into_inner);
+    let now = Instant::now();
+    let entry = store.entry(key).or_insert((now, 0));
+    if now.duration_since(entry.0) > WINDOW {
+        *entry = (now, 0);
+    }
+    entry.1 += 1;
+    let allowed = entry.1 <= LIMIT;
+    drop(store);
+    allowed
 }

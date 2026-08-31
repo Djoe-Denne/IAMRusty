@@ -6,7 +6,7 @@ use hmac::{Hmac, Mac};
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use std::collections::HashMap;
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Mutex, OnceLock, PoisonError};
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -26,8 +26,7 @@ pub fn configure_oauth_state_secret(secret: impl Into<String>) {
 fn state_secret() -> &'static [u8] {
     STATE_SECRET
         .get()
-        .map(Vec::as_slice)
-        .unwrap_or(b"iam-oauth-state-hmac-change-me")
+        .map_or(b"iam-oauth-state-hmac-change-me", Vec::as_slice)
 }
 
 fn used_nonces() -> &'static Mutex<HashMap<String, i64>> {
@@ -140,6 +139,10 @@ impl OAuthState {
     }
 
     /// Decode a signed state string and consume its nonce.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StateError`] when inspection fails or the nonce was already consumed.
     pub fn decode(encoded: &str) -> Result<Self, StateError> {
         let state = Self::inspect(encoded)?;
         consume_nonce(&state.nonce, state.exp)?;
@@ -171,12 +174,13 @@ fn sign(payload: &str) -> Result<String, StateError> {
 
 fn consume_nonce(nonce: &str, exp: i64) -> Result<(), StateError> {
     let now = Utc::now().timestamp();
-    let mut store = used_nonces().lock().unwrap_or_else(|e| e.into_inner());
+    let mut store = used_nonces().lock().unwrap_or_else(PoisonError::into_inner);
     store.retain(|_, until| *until > now);
     if store.contains_key(nonce) {
         return Err(StateError::Replay);
     }
     store.insert(nonce.to_string(), exp);
+    drop(store);
     Ok(())
 }
 

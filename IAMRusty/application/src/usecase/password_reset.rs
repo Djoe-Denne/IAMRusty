@@ -135,7 +135,7 @@ where
     user_repository: Arc<UR>,
     user_email_repository: Arc<UER>,
     password_reset_token_repository: Arc<PRTR>,
-    token_service: Arc<TS>,
+    _token_service: Arc<TS>,
     event_publisher: Arc<EP>,
     password_service: Arc<PS>,
     outbox_unit_of_work: Option<Arc<dyn IamOutboxUnitOfWork>>,
@@ -178,7 +178,7 @@ where
             user_repository,
             user_email_repository,
             password_reset_token_repository,
-            token_service,
+            _token_service: token_service,
             event_publisher,
             password_service,
             outbox_unit_of_work: None,
@@ -199,7 +199,7 @@ where
             user_repository,
             user_email_repository,
             password_reset_token_repository,
-            token_service,
+            _token_service: token_service,
             event_publisher,
             password_service,
             outbox_unit_of_work: Some(outbox_unit_of_work),
@@ -208,6 +208,7 @@ where
     }
 
     /// Revoke refresh tokens after a successful password reset or change.
+    #[must_use]
     pub fn with_session_revoker(mut self, session_revoker: Arc<dyn SessionRevoker>) -> Self {
         self.session_revoker = Some(session_revoker);
         self

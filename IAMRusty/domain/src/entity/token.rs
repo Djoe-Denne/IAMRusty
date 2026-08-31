@@ -3,9 +3,9 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
-/// Default JWT issuer for the AIForAll platform
+/// Default JWT issuer for the `AIForAll` platform
 pub const DEFAULT_JWT_ISSUER: &str = "iamrusty";
-/// Default JWT audience for the AIForAll platform
+/// Default JWT audience for the `AIForAll` platform
 pub const DEFAULT_JWT_AUDIENCE: &str = "aiforall";
 
 /// Claims for JWT tokens

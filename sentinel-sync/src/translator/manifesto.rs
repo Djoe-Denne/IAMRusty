@@ -58,7 +58,7 @@ impl Translator for ManifestoTranslator {
     }
 }
 
-fn is_public_visibility(visibility: &str) -> bool {
+const fn is_public_visibility(visibility: &str) -> bool {
     visibility.eq_ignore_ascii_case("public")
 }
 
@@ -177,18 +177,15 @@ fn member_removed_delta(evt: &manifesto_events::MemberRemovedEvent) -> TupleDelt
 }
 
 fn permission_granted_delta(evt: &manifesto_events::PermissionGrantedEvent) -> TupleDelta {
-    match permission_to_relation(&evt.permission) {
-        Some(relation) => {
-            let object_type = resource_to_object_type(&evt.resource);
-            TupleDelta::default().write(Tuple::user(
-                object_type,
-                evt.project_id,
-                relation,
-                evt.user_id,
-            ))
-        }
-        None => TupleDelta::default(),
-    }
+    permission_to_relation(&evt.permission).map_or_else(TupleDelta::default, |relation| {
+        let object_type = resource_to_object_type(&evt.resource);
+        TupleDelta::default().write(Tuple::user(
+            object_type,
+            evt.project_id,
+            relation,
+            evt.user_id,
+        ))
+    })
 }
 
 fn permission_revoked_delta(evt: &manifesto_events::PermissionRevokedEvent) -> TupleDelta {

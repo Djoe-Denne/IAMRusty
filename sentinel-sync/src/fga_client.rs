@@ -38,7 +38,7 @@ impl Tuple {
         }
     }
 
-    /// Public-read subject `user:*` (OpenFGA wildcard).
+    /// Public-read subject `user:*` (`OpenFGA` wildcard).
     pub fn wildcard_user(
         object_type: impl Into<String>,
         object_id: Uuid,
