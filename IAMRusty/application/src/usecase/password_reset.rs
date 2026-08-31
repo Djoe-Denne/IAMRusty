@@ -139,6 +139,13 @@ where
     event_publisher: Arc<EP>,
     password_service: Arc<PS>,
     outbox_unit_of_work: Option<Arc<dyn IamOutboxUnitOfWork>>,
+    session_revoker: Option<Arc<dyn SessionRevoker>>,
+}
+
+/// Revokes refresh sessions after a password change.
+#[async_trait]
+pub trait SessionRevoker: Send + Sync {
+    async fn revoke_all(&self, user_id: Uuid) -> Result<u64, String>;
 }
 
 /// Password service trait for dependency injection
@@ -175,6 +182,7 @@ where
             event_publisher,
             password_service,
             outbox_unit_of_work: None,
+            session_revoker: None,
         }
     }
 
@@ -195,6 +203,21 @@ where
             event_publisher,
             password_service,
             outbox_unit_of_work: Some(outbox_unit_of_work),
+            session_revoker: None,
+        }
+    }
+
+    /// Revoke refresh tokens after a successful password reset or change.
+    pub fn with_session_revoker(mut self, session_revoker: Arc<dyn SessionRevoker>) -> Self {
+        self.session_revoker = Some(session_revoker);
+        self
+    }
+
+    async fn revoke_sessions(&self, user_id: Uuid) {
+        if let Some(revoker) = &self.session_revoker {
+            if let Err(e) = revoker.revoke_all(user_id).await {
+                tracing::warn!("Failed to revoke sessions for user {user_id}: {e}");
+            }
         }
     }
 
@@ -367,6 +390,7 @@ where
         {
             tracing::warn!("Failed to delete reset tokens for user {}: {}", user_id, e);
         }
+        self.revoke_sessions(user_id).await;
 
         Ok(ResetPasswordResponse {
             message: "Password has been successfully changed".to_string(),
@@ -441,6 +465,7 @@ where
                 e
             );
         }
+        self.revoke_sessions(token.user_id).await;
 
         Ok(ResetPasswordResponse {
             message: "Password has been successfully reset".to_string(),

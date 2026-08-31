@@ -3,20 +3,18 @@
 mod common;
 #[path = "fixtures/mod.rs"]
 mod fixtures;
+mod utils;
 
-use base64::{engine::general_purpose, Engine as _};
 use common::setup_test_server;
 use fixtures::{GitHubFixtures, GitLabFixtures};
 use serde_json::Value;
 use serial_test::serial;
 use url::Url;
+use utils::oauth::OAuthTestUtils;
 
-/// Helper function to decode and verify OAuth state parameter
+/// Helper function to decode and verify a signed OAuth state parameter
 fn decode_oauth_state(state: &str) -> Result<Value, Box<dyn std::error::Error>> {
-    let decoded_bytes = general_purpose::URL_SAFE_NO_PAD.decode(state)?;
-    let decoded_str = String::from_utf8(decoded_bytes)?;
-    let state_json: Value = serde_json::from_str(&decoded_str)?;
-    Ok(state_json)
+    OAuthTestUtils::decode_state(state)
 }
 
 /// Helper function to verify redirect URL structure and extract query parameters

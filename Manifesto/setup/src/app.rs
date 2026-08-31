@@ -148,41 +148,9 @@ impl Application {
                 )
             };
 
-        // Setup use cases
-        let outbox_dispatcher = Arc::new(OutboxDispatcher::new(
-            db.clone(),
-            event_publisher.clone(),
-            OutboxConfig::default(),
-        ));
-        let (
-            project_usecase,
-            component_usecase,
-            member_usecase,
-            apparatus_event_consumer,
-            consumer_status,
-        ) = setup_application(db, &config, event_publisher).await?;
-
-        // Setup command registry
-        let command_registry = ManifestoCommandRegistryFactory::create_manifesto_registry(
-            project_usecase,
-            component_usecase,
-            member_usecase,
-            &config.command,
-        );
-
-        // Create command service
-        let command_service = Arc::new(GenericCommandService::new(Arc::new(command_registry)));
-
-        // Same HS256 secret as IAM `[jwt.secret]` — rustycog-http cannot
-        // verify IAM JWKS/RS256 (rustycog-framework 0.1.1).
         let user_id_extractor = UserIdExtractor::new(config.auth.clone())
             .map_err(|e| anyhow::anyhow!("Invalid auth configuration: {e}"))?;
 
-        // Centralized permission checker (OpenFGA) with structured metrics in
-        // front and an optional short-TTL cache. The cache is the production
-        // default (15s) but can be disabled at test time by setting
-        // `openfga.cache_ttl_seconds = 0` so flows that revoke a permission
-        // mid-request observe the new decision instead of the cached one.
         let raw_checker: Arc<dyn PermissionChecker> = Arc::new(
             OpenFgaPermissionChecker::new(config.openfga.clone())
                 .map_err(|e| anyhow::anyhow!("Invalid OpenFGA configuration: {e}"))?,
@@ -199,6 +167,31 @@ impl Application {
         };
         let permission_checker: Arc<dyn PermissionChecker> =
             Arc::new(MetricsPermissionChecker::new(metered_inner));
+
+        // Setup use cases
+        let outbox_dispatcher = Arc::new(OutboxDispatcher::new(
+            db.clone(),
+            event_publisher.clone(),
+            OutboxConfig::default(),
+        ));
+        let (
+            project_usecase,
+            component_usecase,
+            member_usecase,
+            apparatus_event_consumer,
+            consumer_status,
+        ) = setup_application(db, &config, event_publisher, permission_checker.clone()).await?;
+
+        // Setup command registry
+        let command_registry = ManifestoCommandRegistryFactory::create_manifesto_registry(
+            project_usecase,
+            component_usecase,
+            member_usecase,
+            &config.command,
+        );
+
+        // Create command service
+        let command_service = Arc::new(GenericCommandService::new(Arc::new(command_registry)));
 
         // Create application state
         let state = AppState::new(command_service, user_id_extractor, permission_checker);
@@ -403,6 +396,7 @@ async fn setup_application(
     db: DbConnectionPool,
     config: &AppConfig,
     event_publisher: Arc<dyn EventPublisher<DomainError>>,
+    org_permission_checker: Arc<dyn PermissionChecker>,
 ) -> Result<ApplicationUseCases, Error> {
     let (project_service, component_service, member_service, permission_service) =
         setup_domain(&db, config)?;
@@ -419,6 +413,7 @@ async fn setup_application(
         event_publisher.clone(),
         config.service.business.clone(),
         project_creation_uow,
+        org_permission_checker,
     ));
 
     let component_usecase = Arc::new(ComponentUseCaseImpl::new(

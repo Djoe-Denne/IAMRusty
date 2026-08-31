@@ -1,4 +1,4 @@
-use base64::{engine::general_purpose, Engine as _};
+use iam_http_server::OAuthState;
 use serde_json::Value;
 use std::collections::HashMap;
 use url::Url;
@@ -10,25 +10,16 @@ pub struct OAuthTestUtils;
 impl OAuthTestUtils {
     /// Create a valid OAuth state for login operation
     pub fn create_login_state() -> String {
-        let state_data = serde_json::json!({
-            "operation": {
-                "type": "login"
-            },
-            "nonce": Uuid::new_v4().to_string()
-        });
-        general_purpose::URL_SAFE_NO_PAD.encode(state_data.to_string())
+        OAuthState::new_login()
+            .encode()
+            .expect("signed login state")
     }
 
     /// Create a valid OAuth state for link operation
     pub fn create_link_state(user_id: Uuid) -> String {
-        let state_data = serde_json::json!({
-            "operation": {
-                "type": "link",
-                "user_id": user_id.to_string()
-            },
-            "nonce": Uuid::new_v4().to_string()
-        });
-        general_purpose::URL_SAFE_NO_PAD.encode(state_data.to_string())
+        OAuthState::new_link(user_id)
+            .encode()
+            .expect("signed link state")
     }
 
     /// Create an invalid OAuth state (for negative testing)
@@ -38,10 +29,8 @@ impl OAuthTestUtils {
 
     /// Decode and verify OAuth state parameter
     pub fn decode_state(state: &str) -> Result<Value, Box<dyn std::error::Error>> {
-        let decoded_bytes = general_purpose::URL_SAFE_NO_PAD.decode(state)?;
-        let decoded_str = String::from_utf8(decoded_bytes)?;
-        let state_json: Value = serde_json::from_str(&decoded_str)?;
-        Ok(state_json)
+        let decoded = OAuthState::inspect(state)?;
+        Ok(serde_json::to_value(decoded)?)
     }
 
     /// Parse redirect URL and extract query parameters
@@ -83,59 +72,9 @@ impl OAuthTestUtils {
             "State should contain link operation type"
         );
         assert_eq!(
-            decoded_state["operation"]["user_id"].as_str().unwrap(),
+            decoded_state["operation"]["user_id"],
             expected_user_id.to_string(),
-            "Link operation should contain correct user_id"
-        );
-    }
-
-    /// Assert redirect URL contains required OAuth parameters
-    pub fn assert_oauth_redirect_params(location: &str, provider: &str) {
-        let (_, params) =
-            Self::parse_redirect_url(location).expect("Should be able to parse redirect URL");
-
-        // Verify all required OAuth2 parameters are present
-        let required_params = vec![
-            "client_id",
-            "redirect_uri",
-            "scope",
-            "response_type",
-            "state",
-        ];
-
-        for param in required_params {
-            assert!(
-                params.contains_key(param),
-                "Should have required OAuth2 parameter '{param}' for provider '{provider}'"
-            );
-            assert!(
-                !params.get(param).unwrap().is_empty(),
-                "OAuth2 parameter '{param}' should not be empty for provider '{provider}'"
-            );
-        }
-
-        // Verify response_type is 'code'
-        assert_eq!(
-            params.get("response_type").unwrap(),
-            "code",
-            "response_type should be 'code' for authorization code flow"
-        );
-
-        // Verify redirect_uri contains correct callback path
-        let redirect_uri = params.get("redirect_uri").unwrap();
-        assert!(
-            redirect_uri.contains(&format!("/oauth/{provider}/callback")),
-            "redirect_uri should point to correct callback endpoint for provider '{provider}'"
-        );
-    }
-
-    /// Assert OAuth state is unique across multiple requests
-    pub fn assert_state_uniqueness(states: &[String]) {
-        let unique_states: std::collections::HashSet<_> = states.iter().collect();
-        assert_eq!(
-            unique_states.len(),
-            states.len(),
-            "All OAuth states should be unique"
+            "State should contain the expected user ID"
         );
     }
 }

@@ -412,6 +412,16 @@ impl MemberUseCase for MemberUseCaseImpl {
         user_id: Uuid,
         requester_id: Uuid,
     ) -> Result<(), ApplicationError> {
+        let requester = self
+            .member_service
+            .get_member(project_id, requester_id)
+            .await?;
+        if !requester.has_permission("member", &PermissionLevel::Admin) {
+            return Err(ApplicationError::Validation(
+                "Insufficient permissions to remove a member".into(),
+            ));
+        }
+
         // Get target member
         let target = self.member_service.get_member(project_id, user_id).await?;
 
@@ -541,11 +551,15 @@ impl MemberUseCase for MemberUseCaseImpl {
         // Get member
         let member = self.member_service.get_member(project_id, user_id).await?;
 
-        // Get requester
-        let _ = self
+        let requester = self
             .member_service
             .get_member(project_id, requester_id)
             .await?;
+        if !requester.has_permission("member", &PermissionLevel::Admin) {
+            return Err(ApplicationError::Validation(
+                "Insufficient permissions to revoke a permission".into(),
+            ));
+        }
 
         // Find the role_permission to revoke
         // Use case-insensitive comparison since resource names in DB may be capitalized

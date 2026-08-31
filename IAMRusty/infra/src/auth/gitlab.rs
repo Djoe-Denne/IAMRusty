@@ -23,6 +23,9 @@ struct GitLabUser {
     email: Option<String>,
     /// Avatar URL
     avatar_url: Option<String>,
+    /// When the email was confirmed (absent if unverified)
+    #[serde(default)]
+    confirmed_at: Option<String>,
 }
 
 /// GitLab `OAuth2` client
@@ -171,6 +174,10 @@ impl ProviderOAuth2Client for GitLabOAuth2Client {
             username: gitlab_user.username,
             email: gitlab_user.email,
             avatar_url: gitlab_user.avatar_url,
+            email_verified: gitlab_user
+                .confirmed_at
+                .as_ref()
+                .is_some_and(|value| !value.is_empty()),
         };
 
         debug!(

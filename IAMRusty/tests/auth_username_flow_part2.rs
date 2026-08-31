@@ -691,13 +691,11 @@ async fn test_user_signed_up_triggered_when_existing_user_adds_password() {
         .await
         .expect("Failed to send signup request");
 
-    assert_eq!(signup_response.status(), 200);
-
-    // Note: Here you would check your event store/message queue to verify
-    // that user_signed_up event was triggered because this represents
-    // adding a new authentication method to an existing completed user
-
-    // ✅ This test serves as a placeholder for event verification logic
+    assert_eq!(
+        signup_response.status(),
+        409,
+        "Public signup must not attach a password to an existing account"
+    );
 }
 
 #[tokio::test]

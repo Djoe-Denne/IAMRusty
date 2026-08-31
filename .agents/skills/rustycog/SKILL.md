@@ -46,8 +46,8 @@ These hold across every RustyCog crate and override anything that contradicts th
 - **One execution surface for commands.** All HTTP and queue adapters go through the same `GenericCommandService` so retry, validation, and tracing are consistent.
 - **Config sections are shared contracts.** `server`, `database`, `logging`, `queue`, and `command` sections must match the structs RustyCog expects; do not invent parallel shapes.
 - **`load_config_part("server")` reads `SERVER_*` env overrides**, not your service prefix. Use the full typed loader unless you specifically want a section's own prefix.
-- **Permission middleware takes one builder call:** `.with_permission_on(Permission, object_type)`. The shared `Arc<dyn PermissionChecker>` on `AppState` answers every decision — there is no per-route fetcher.
-- **Permission middleware extracts the deepest UUID-shaped path segment only.** Non-UUID path segments (e.g. `{component_type}`) are skipped.
+- **Permission middleware takes one builder call:** `.with_permission_on(Permission, object_type)` (deepest UUID) or `.with_permission_on_param(Permission, object_type, "organization_id")` (named path param). The shared `Arc<dyn PermissionChecker>` on `AppState` answers every decision — there is no per-route fetcher.
+- **Default extraction is the deepest UUID-shaped path segment.** Non-UUID path segments (e.g. `{component_type}`) are skipped. Nested routes whose last UUID is not the OpenFGA object (members, roles, invitations) **must** use `with_permission_on_param`.
 - **Object type must exist in `openfga/model.fga`.** Typos fail closed with 403 plus a logged OpenFGA error.
 - **Standalone and monolith paths share one prefix contract.** Each HTTP crate should expose `SERVICE_PREFIX`, `create_router(state)` for embedding, and `create_prefixed_router(state)` for standalone serving; integration test helpers should return base URLs already ending in the service prefix.
 - **The monolith composes setup outputs, not service `run()` methods.** Build each service through setup, extract routers, start only background tasks, and serve one composed top-level router.

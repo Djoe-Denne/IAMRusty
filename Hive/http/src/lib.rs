@@ -18,20 +18,20 @@ pub const SERVICE_PREFIX: &str = "/hive";
 /// Create the application routes using the fluent builder API
 ///
 /// All authorization goes through `AppState.permission_checker` (set up in
-/// `hive_setup`) which talks to the centralized `OpenFGA` store. Each guarded
-/// route declares the `OpenFGA` object type the deepest UUID path segment maps
-/// onto (`"organization"` for org-scoped routes — members, roles, invitations,
-/// and external links are modeled as derived relations on the parent
-/// organization). `POST /api/invitations/{token}/accept` is authenticated but
-/// not org-scoped: the path has no organization UUID.
+/// `hive_setup`) which talks to the centralized `OpenFGA` store. Org-scoped
+/// routes check `"organization"`. Nested member/role/invitation routes bind
+/// `{organization_id}` via `with_permission_on_param` so the last UUID
+/// (`user_id`, `role_id`, `invitation_id`) is not used as the object id.
+/// `POST /api/invitations/{token}/accept` is authenticated but not org-scoped.
 pub fn create_router(state: AppState) -> Router {
     RouteBuilder::new(state)
         .health_check()
-        // Public organization routes (with optional auth)
+        // Search remains public (Public orgs only). GET by id requires membership.
         .get("/api/organizations/search", search_organizations)
         .might_be_authenticated()
         .get("/api/organizations/{organization_id}", get_organization)
-        .might_be_authenticated()
+        .authenticated()
+        .with_permission_on(Permission::Read, "organization")
         // Authenticated organization routes
         .post("/api/organizations", create_organization)
         .authenticated()
@@ -59,7 +59,7 @@ pub fn create_router(state: AppState) -> Router {
             get_role,
         )
         .authenticated()
-        .with_permission_on(Permission::Read, "organization")
+        .with_permission_on_param(Permission::Read, "organization", "organization_id")
         // Member routes (scoped to the organization in OpenFGA)
         .post("/api/organizations/{organization_id}/members", add_member)
         .authenticated()
@@ -69,7 +69,7 @@ pub fn create_router(state: AppState) -> Router {
             remove_member,
         )
         .authenticated()
-        .with_permission_on(Permission::Write, "organization")
+        .with_permission_on_param(Permission::Write, "organization", "organization_id")
         .get("/api/organizations/{organization_id}/members", list_members)
         .authenticated()
         .with_permission_on(Permission::Read, "organization")
@@ -78,13 +78,13 @@ pub fn create_router(state: AppState) -> Router {
             get_member,
         )
         .authenticated()
-        .with_permission_on(Permission::Read, "organization")
+        .with_permission_on_param(Permission::Read, "organization", "organization_id")
         .patch(
             "/api/organizations/{organization_id}/members/{user_id}",
             update_member,
         )
         .authenticated()
-        .with_permission_on(Permission::Write, "organization")
+        .with_permission_on_param(Permission::Write, "organization", "organization_id")
         // Invitation routes
         .post(
             "/api/organizations/{organization_id}/invitations",
@@ -97,7 +97,7 @@ pub fn create_router(state: AppState) -> Router {
             cancel_invitation,
         )
         .authenticated()
-        .with_permission_on(Permission::Write, "organization")
+        .with_permission_on_param(Permission::Write, "organization", "organization_id")
         .post("/api/invitations/{token}/accept", accept_invitation)
         .authenticated()
         // External link routes (admin-only action on the parent organization)

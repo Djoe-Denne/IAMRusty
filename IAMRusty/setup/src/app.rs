@@ -54,7 +54,7 @@ use iam_application::{
         link_provider::{LinkProviderUseCase, LinkProviderUseCaseImpl},
         login::{LoginUseCase, LoginUseCaseImpl},
         oauth::{OAuthUseCase, OAuthUseCaseImpl},
-        password_reset::{PasswordResetUseCase, PasswordResetUseCaseImpl},
+        password_reset::{PasswordResetUseCase, PasswordResetUseCaseImpl, SessionRevoker},
         provider::{ProviderUseCase, ProviderUseCaseImpl},
         registration::{RegistrationUseCase, RegistrationUseCaseImpl},
         token::{TokenUseCase, TokenUseCaseImpl},
@@ -255,6 +255,21 @@ type UserEmailRepo =
 type TokenRepo = CombinedTokenRepository<TokenReadRepositoryImpl, TokenWriteRepositoryImpl>;
 type RefreshRepo =
     CombinedRefreshTokenRepository<RefreshTokenReadRepositoryImpl, RefreshTokenWriteRepositoryImpl>;
+
+struct RefreshSessionRevoker {
+    repo: RefreshRepo,
+}
+
+#[async_trait::async_trait]
+impl SessionRevoker for RefreshSessionRevoker {
+    async fn revoke_all(&self, user_id: uuid::Uuid) -> Result<u64, String> {
+        use iam_domain::port::repository::RefreshTokenWriteRepository;
+        self.repo
+            .delete_by_user_id(user_id)
+            .await
+            .map_err(|e| e.to_string())
+    }
+}
 type PasswordResetRepo = CombinedPasswordResetTokenRepository<
     PasswordResetTokenReadRepositoryImpl,
     PasswordResetTokenWriteRepositoryImpl,
@@ -298,6 +313,7 @@ struct AuthRegistrationDeps<EP> {
     token_service: Arc<JwtTokenService>,
     registration_token_service: Arc<iam_infra::token::RegistrationTokenServiceImpl>,
     outbox_unit_of_work: Arc<IamOutboxUnitOfWorkImpl>,
+    refresh_token_repo: RefreshRepo,
 }
 
 struct IamUsecasesDeps<EP> {
@@ -383,6 +399,7 @@ where
         token_service,
         registration_token_service,
         outbox_unit_of_work,
+        refresh_token_repo,
     } = deps;
     let signup_transaction = Arc::new(SignupTransactionImpl::new(db_pool.get_write_connection()));
     let auth_service = Arc::new(
@@ -418,15 +435,20 @@ where
     let registration = Arc::new(RegistrationUseCaseImpl::new(registration_service));
     let password_reset_service_adapter =
         Arc::new(PasswordResetServiceAdapter::new(password_service));
-    let password_reset = Arc::new(PasswordResetUseCaseImpl::new_with_outbox_unit_of_work(
-        Arc::new(user_repo),
-        Arc::new(user_email_repo),
-        Arc::new(password_reset_repo),
-        token_service,
-        event_publisher,
-        password_reset_service_adapter,
-        outbox_unit_of_work,
-    ));
+    let password_reset = Arc::new(
+        PasswordResetUseCaseImpl::new_with_outbox_unit_of_work(
+            Arc::new(user_repo),
+            Arc::new(user_email_repo),
+            Arc::new(password_reset_repo),
+            token_service,
+            event_publisher,
+            password_reset_service_adapter,
+            outbox_unit_of_work,
+        )
+        .with_session_revoker(Arc::new(RefreshSessionRevoker {
+            repo: refresh_token_repo,
+        })),
+    );
     (login_auth, registration, password_reset)
 }
 
@@ -519,6 +541,7 @@ where
             token_service: token_service.clone(),
             registration_token_service,
             outbox_unit_of_work,
+            refresh_token_repo: refresh_token_repo.clone(),
         },
     );
     let (provider, user, token) = setup_provider_user_token(
@@ -626,11 +649,18 @@ fn setup_jwt(
             })
         }
     };
-    let token_service = Arc::new(JwtTokenService::with_refresh_expiration(
-        jwt_algorithm.clone(),
-        config.jwt.expiration_seconds,
-        config.jwt.refresh_token_expiration_seconds,
-    ));
+    let token_service = Arc::new(
+        JwtTokenService::with_refresh_expiration(
+            jwt_algorithm.clone(),
+            config.jwt.expiration_seconds,
+            config.jwt.refresh_token_expiration_seconds,
+        )
+        .with_issuer_audience(config.jwt.issuer.clone(), config.jwt.audience.clone()),
+    );
+    iam_http_server::configure_oauth_state_secret(config.jwt.oauth_state_secret.clone());
+    if !config.internal_service_token.is_empty() {
+        iam_http_server::configure_internal_service_token(config.internal_service_token.clone());
+    }
     let registration_token_service = Arc::new(
         iam_infra::token::RegistrationTokenServiceImpl::new(jwt_algorithm)
             .map_err(|e| anyhow::anyhow!("Failed to create registration token service: {e}"))?,

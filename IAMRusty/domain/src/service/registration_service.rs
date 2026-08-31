@@ -266,18 +266,22 @@ where
             .find(|email| email.is_primary)
             .ok_or_else(|| DomainError::RepositoryError("Primary email not found".to_string()))?;
 
-        // Generate access and refresh tokens
-        let access_token = self
-            .token_service
-            .generate_access_token(user_id)
-            .await
-            .map_err(|e| DomainError::TokenServiceError(e.to_string()))?;
-
-        let refresh_token = self
-            .token_service
-            .generate_refresh_token(user_id)
-            .await
-            .map_err(|e| DomainError::TokenServiceError(e.to_string()))?;
+        // Access+refresh only after the email is verified.
+        let (access_token, refresh_token) = if user_email.is_verified {
+            let access_token = self
+                .token_service
+                .generate_access_token(user_id)
+                .await
+                .map_err(|e| DomainError::TokenServiceError(e.to_string()))?;
+            let refresh_token = self
+                .token_service
+                .generate_refresh_token(user_id)
+                .await
+                .map_err(|e| DomainError::TokenServiceError(e.to_string()))?;
+            (access_token.token, refresh_token.token)
+        } else {
+            (String::new(), String::new())
+        };
 
         // Publish UserSignedUp event only for email/password flows
         // OAuth flows don't need this event since the email is already verified by the provider
@@ -315,16 +319,14 @@ where
             }
         }
 
-        // Calculate expires_in from the actual token expiration
-        let now = chrono::Utc::now();
-        let expires_in = u64::try_from((access_token.expires_at - now).num_seconds()).unwrap_or(0);
+        let expires_in = if access_token.is_empty() { 0 } else { 900 };
 
         Ok(RegistrationCompletionResult {
             user: updated_user,
             user_email,
-            access_token: access_token.token,
-            refresh_token: refresh_token.token,
-            expires_in, // Now calculated from actual token expiration instead of hardcoded
+            access_token,
+            refresh_token,
+            expires_in,
         })
     }
 

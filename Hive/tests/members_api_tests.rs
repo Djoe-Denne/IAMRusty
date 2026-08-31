@@ -232,13 +232,8 @@ async fn get_member_requires_auth_and_forbids_non_member() {
         .await
         .unwrap();
 
-    // Default-deny: route
-    // `GET /organizations/{org_id}/members/{user_id}` with guard
-    // `with_permission_on(Permission::Read, "organization")` extracts the
-    // **trailing** UUID — `owner_id` from the URL — as the resource id.
-    // Real OpenFGA returns false for
-    // `Check(random_user, read, organization:<owner_id>)` because no
-    // tuple has been written for that subject, so the request 403s.
+    // Default-deny: GET member checks `organization:{org_id}`, not the
+    // trailing user id. No tuple for `random_user` → 403.
     let random_user = Uuid::new_v4();
 
     let res = client
@@ -274,13 +269,12 @@ async fn get_member_happy_path_for_owner() {
         .await
         .unwrap();
 
-    // Route guard: `with_permission_on(Permission::Read, "organization")`.
-    // GET /members/{user_id} trailing UUID = owner_id (the user id).
+    // Route guard: `with_permission_on_param(..., "organization_id")`.
     openfga
         .allow(
             Subject::new(owner_id),
             Permission::Read,
-            ResourceRef::new("organization", owner_id),
+            ResourceRef::new("organization", org.id),
         )
         .await
         .expect("Failed to grant organization read");
@@ -317,13 +311,8 @@ async fn remove_member_requires_auth_and_forbids_read_only() {
     .await
     .unwrap();
 
-    // Default-deny: route
-    // `DELETE /organizations/{org_id}/members/{user_id}` with guard
-    // `with_permission_on(Permission::Write, "organization")`. The
-    // trailing UUID in the URL `/members/{read_user_id}` is
-    // `read_user_id`, so the middleware Checks
-    // `(read_user, write, organization:<read_user_id>)`. Real OpenFGA
-    // returns false because no tuple was written.
+    // Default-deny: DELETE member checks `organization:{org_id}`.
+    // Read-only caller has no write tuple → 403.
 
     // No auth — strict 401 path.
     let res = client
@@ -368,13 +357,12 @@ async fn remove_member_happy_path_by_owner() {
     .await
     .unwrap();
 
-    // Route guard: `with_permission_on(Permission::Write, "organization")`.
-    // DELETE /members/{user_id} trailing UUID = read_user_id.
+    // Route guard: `with_permission_on_param(..., "organization_id")`.
     openfga
         .allow(
             Subject::new(owner_id),
             Permission::Write,
-            ResourceRef::new("organization", read_user_id),
+            ResourceRef::new("organization", org.id),
         )
         .await
         .expect("Failed to grant organization write");

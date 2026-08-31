@@ -220,6 +220,15 @@ pub struct JwtConfig {
     /// Refresh token expiration time in seconds (default: 30 days)
     #[serde(default = "default_refresh_token_expiration")]
     pub refresh_token_expiration_seconds: u64,
+    /// JWT issuer claim
+    #[serde(default = "default_jwt_issuer")]
+    pub issuer: String,
+    /// JWT audience claim
+    #[serde(default = "default_jwt_audience")]
+    pub audience: String,
+    /// HMAC secret for OAuth state (must not be the JWT secret)
+    #[serde(default = "default_oauth_state_secret")]
+    pub oauth_state_secret: String,
 }
 
 impl JwtConfig {
@@ -306,6 +315,8 @@ impl JwtConfig {
             JwtSecret::Hmac(secret) => {
                 let mut auth = AuthConfig::default();
                 auth.jwt.hs256_secret = Some(secret);
+                auth.jwt.issuer = Some(self.issuer.clone());
+                auth.jwt.audience = Some(self.audience.clone());
                 Ok(auth)
             }
             JwtSecret::Rsa { .. } => Err(SecretError::InvalidFormat(
@@ -324,6 +335,9 @@ impl Default for JwtConfig {
             },
             expiration_seconds: default_jwt_expiration(),
             refresh_token_expiration_seconds: default_refresh_token_expiration(),
+            issuer: default_jwt_issuer(),
+            audience: default_jwt_audience(),
+            oauth_state_secret: default_oauth_state_secret(),
         }
     }
 }
@@ -378,6 +392,9 @@ pub struct AppConfig {
     /// Legacy Kafka configuration (for backward compatibility)
     #[serde(default)]
     pub kafka: KafkaConfig,
+    /// Shared secret for internal IdP token routes
+    #[serde(default)]
+    pub internal_service_token: String,
 }
 
 // Default value functions
@@ -411,6 +428,18 @@ const fn default_jwt_expiration() -> u64 {
 
 const fn default_refresh_token_expiration() -> u64 {
     2_592_000 // 30 days (30 * 24 * 60 * 60)
+}
+
+fn default_jwt_issuer() -> String {
+    "iamrusty".to_string()
+}
+
+fn default_jwt_audience() -> String {
+    "aiforall".to_string()
+}
+
+fn default_oauth_state_secret() -> String {
+    "iam-oauth-state-hmac-change-me".to_string()
 }
 
 /// Generic provider configuration for conversion utilities
@@ -503,12 +532,16 @@ impl ConfigLoader<Self> for AppConfig {
                 },
                 expiration_seconds: default_jwt_expiration(),
                 refresh_token_expiration_seconds: default_refresh_token_expiration(),
+                issuer: default_jwt_issuer(),
+                audience: default_jwt_audience(),
+                oauth_state_secret: default_oauth_state_secret(),
             },
             logging: LoggingConfig::default(),
             scaleway: ScalewayConfig::default(),
             command: CommandConfig::default(),
             queue: QueueConfig::default(),
             kafka: KafkaConfig::default(),
+            internal_service_token: String::new(),
         }
     }
 

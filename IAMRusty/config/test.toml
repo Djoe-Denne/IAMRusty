@@ -1,7 +1,8 @@
 # IAM Service Test Configuration
 # This configuration is used by integration tests
 
-# Test environment configuration
+# Root-level AppConfig field (must sit above [server] or TOML nests it).
+internal_service_token = "iam-internal-test-token"
 
 [server]
 host = "127.0.0.1"
@@ -10,6 +11,8 @@ tls_enabled = false
 
 [auth.jwt]
 hs256_secret = "rustycog-test-hs256-secret"
+issuer = "iamrusty"
+audience = "aiforall"
 
 [database]
 # Database connection details
@@ -42,6 +45,9 @@ user_url = "http://localhost:3000/api/v4/user"
 [jwt]
 expiration_seconds = 900  # 15 minutes
 refresh_token_expiration_seconds = 2592000  # 30 days
+issuer = "iamrusty"
+audience = "aiforall"
+oauth_state_secret = "iam-oauth-state-hmac-test"
 
 # JWT secret configuration using HS256 shared secret
 [jwt.secret]

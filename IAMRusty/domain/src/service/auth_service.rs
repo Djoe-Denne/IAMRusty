@@ -348,55 +348,37 @@ where
             .map_err(|e| AuthError::RepositoryError(DomainError::RepositoryError(e.to_string())))?
             .ok_or(AuthError::UserNotFound)?;
 
-        if existing_user.password_hash.is_some() && existing_user.username.is_some() {
+        if existing_user.is_registration_complete() {
             return Err(AuthError::UserAlreadyExists);
         }
 
-        let password_hash = self
+        // Incomplete OAuth account (no password): do not attach a password
+        // from the public signup. Linking a password requires an authenticated
+        // session.
+        if !existing_user.has_password() {
+            return Err(AuthError::UserAlreadyExists);
+        }
+
+        let stored_hash = existing_user
+            .password_hash
+            .as_deref()
+            .expect("incomplete password signup has a hash");
+        let password_matches = self
             .password_service
-            .hash_password(&request.password)
-            .await?;
-        let mut updated_user = existing_user.clone();
-        updated_user.password_hash = Some(password_hash);
-
-        let updated_user = self
-            .user_repository
-            .update(updated_user)
+            .verify_password(&request.password, stored_hash)
             .await
-            .map_err(|e| AuthError::RepositoryError(DomainError::RepositoryError(e.to_string())))?;
-
-        if let Some(username) = &updated_user.username {
-            let access_token = self
-                .token_service
-                .generate_access_token(updated_user.id)
-                .await
-                .map_err(|e| AuthError::TokenServiceError(Box::new(e)))?;
-            let refresh_token = self
-                .token_service
-                .generate_refresh_token(updated_user.id)
-                .await
-                .map_err(|e| AuthError::TokenServiceError(Box::new(e)))?;
-            return Ok(SignupResponse::ExistingUser {
-                user: UserProfile {
-                    id: updated_user.id,
-                    username: Some(username.clone()),
-                    email: request.email,
-                    avatar: updated_user.avatar_url,
-                },
-                access_token: access_token.token,
-                expires_in: Self::expires_in_secs(access_token.expires_at),
-                refresh_token: refresh_token.token,
-                message: "Password authentication added to existing account".to_string(),
-            });
+            .unwrap_or(false);
+        if !password_matches {
+            return Err(AuthError::UserAlreadyExists);
         }
 
         let registration_token = self
             .registration_token_service
-            .generate_registration_token(updated_user.id, request.email.clone())
+            .generate_registration_token(existing_user.id, request.email.clone())
             .map_err(AuthError::RepositoryError)?;
         Ok(SignupResponse::RegistrationRequired {
             user: IncompleteUserProfile {
-                id: updated_user.id,
+                id: existing_user.id,
                 email: request.email,
             },
             registration_token,

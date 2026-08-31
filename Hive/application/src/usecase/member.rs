@@ -4,7 +4,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use hive_domain::{
-    entity::RolePermission,
+    entity::{PermissionLevel, RolePermission},
     service::{MemberService, OrganizationService},
     OrganizationMember,
 };
@@ -46,6 +46,7 @@ pub trait MemberUseCase: Send + Sync {
         organization_id: Uuid,
         user_id: Uuid,
         request: &UpdateMemberRolesRequest,
+        requester_id: Uuid,
     ) -> Result<MemberResponse, ApplicationError>;
 
     /// List organization members
@@ -53,6 +54,7 @@ pub trait MemberUseCase: Send + Sync {
         &self,
         organization_id: Uuid,
         pagination: &PaginationRequest,
+        requester_id: Uuid,
     ) -> Result<MemberListResponse, ApplicationError>;
 
     /// Get a specific member
@@ -60,6 +62,7 @@ pub trait MemberUseCase: Send + Sync {
         &self,
         organization_id: Uuid,
         user_id: Uuid,
+        requester_id: Uuid,
     ) -> Result<MemberResponse, ApplicationError>;
 }
 
@@ -111,6 +114,47 @@ impl MemberUseCaseImpl {
                 .publish(event.as_ref())
                 .await
                 .map_err(ApplicationError::Domain)
+        }
+    }
+
+    fn role_is_privileged(level: &PermissionLevel) -> bool {
+        matches!(level, PermissionLevel::Admin | PermissionLevel::Owner)
+    }
+
+    async fn require_org_member(
+        &self,
+        organization_id: Uuid,
+        user_id: Uuid,
+    ) -> Result<OrganizationMember, ApplicationError> {
+        self.member_service
+            .get_member(organization_id, user_id)
+            .await
+            .map_err(ApplicationError::Domain)
+    }
+
+    async fn require_can_assign_roles(
+        &self,
+        organization_id: Uuid,
+        actor_id: Uuid,
+        roles: &[RolePermission],
+    ) -> Result<(), ApplicationError> {
+        if !roles
+            .iter()
+            .any(|role| Self::role_is_privileged(&role.permission.level))
+        {
+            return Ok(());
+        }
+        let actor = self.require_org_member(organization_id, actor_id).await?;
+        let actor_privileged = actor
+            .roles
+            .iter()
+            .any(|role| Self::role_is_privileged(&role.role_permission.permission.level));
+        if actor_privileged {
+            Ok(())
+        } else {
+            Err(ApplicationError::Domain(DomainError::permission_denied(
+                "Only org admins can assign admin or owner roles",
+            )))
         }
     }
 
@@ -228,6 +272,9 @@ impl MemberUseCase for MemberUseCaseImpl {
             .collect::<Result<_, _>>()
             .map_err(ApplicationError::Domain)?;
 
+        self.require_can_assign_roles(organization_id, user_id, &role_permissions)
+            .await?;
+
         let member = if let Some(outbox_unit_of_work) = &self.outbox_unit_of_work {
             let roles = role_permissions
                 .iter()
@@ -319,8 +366,10 @@ impl MemberUseCase for MemberUseCaseImpl {
         &self,
         organization_id: Uuid,
         pagination: &PaginationRequest,
+        requester_id: Uuid,
     ) -> Result<MemberListResponse, ApplicationError> {
-        // TODO: Add permission check
+        self.require_org_member(organization_id, requester_id)
+            .await?;
 
         let members = self
             .member_service
@@ -370,8 +419,10 @@ impl MemberUseCase for MemberUseCaseImpl {
         &self,
         organization_id: Uuid,
         user_id: Uuid,
+        requester_id: Uuid,
     ) -> Result<MemberResponse, ApplicationError> {
-        // TODO: Add permission check
+        self.require_org_member(organization_id, requester_id)
+            .await?;
 
         let member = self
             .member_service
@@ -387,6 +438,7 @@ impl MemberUseCase for MemberUseCaseImpl {
         organization_id: Uuid,
         user_id: Uuid,
         request: &UpdateMemberRolesRequest,
+        requester_id: Uuid,
     ) -> Result<MemberResponse, ApplicationError> {
         let organization = self
             .organization_service
@@ -400,6 +452,9 @@ impl MemberUseCase for MemberUseCaseImpl {
             .map(RolePermission::try_from)
             .collect::<Result<_, _>>()
             .map_err(ApplicationError::Domain)?;
+
+        self.require_can_assign_roles(organization_id, requester_id, &role_permissions)
+            .await?;
 
         let member = self
             .member_service

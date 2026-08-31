@@ -10,6 +10,8 @@ tls_port = 8443
 
 [auth.jwt]
 hs256_secret = "rustycog-dev-hs256-secret"
+issuer = "iamrusty"
+audience = "aiforall"
 
 [database]
 # Database connection details
@@ -43,6 +45,9 @@ user_url = "https://gitlab.com/api/v4/user"
 [jwt]
 expiration_seconds = 900  # 15 minutes
 refresh_token_expiration_seconds = 2592000  # 30 days
+issuer = "iamrusty"
+audience = "aiforall"
+oauth_state_secret = "iam-oauth-state-hmac-change-me"
 
 # JWT secret configuration using HS256 shared secret
 [jwt.secret]

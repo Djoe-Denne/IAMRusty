@@ -133,6 +133,7 @@ async fn test_internal_provider_token_github_success_returns_access_token() {
     let response = client
         .post(format!("{base_url}/internal/github/token"))
         .header("Authorization", format!("Bearer {jwt_token}"))
+        .header("X-IAM-Internal-Token", "iam-internal-test-token")
         .send()
         .await
         .expect("Failed to send request");
@@ -196,6 +197,7 @@ async fn test_internal_provider_token_gitlab_success_returns_access_token() {
     let response = client
         .post(format!("{base_url}/internal/gitlab/token"))
         .header("Authorization", format!("Bearer {jwt_token}"))
+        .header("X-IAM-Internal-Token", "iam-internal-test-token")
         .send()
         .await
         .expect("Failed to send request");
@@ -333,6 +335,7 @@ async fn test_internal_provider_token_returns_422_when_provider_is_unsupported()
         let response = client
             .post(format!("{base_url}/internal/{provider}/token"))
             .header("Authorization", format!("Bearer {jwt_token}"))
+            .header("X-IAM-Internal-Token", "iam-internal-test-token")
             .send()
             .await
             .expect("Failed to send request");
@@ -373,6 +376,7 @@ async fn test_internal_provider_token_returns_404_when_no_token_for_provider() {
     let response = client
         .post(format!("{base_url}/internal/github/token"))
         .header("Authorization", format!("Bearer {jwt_token}"))
+        .header("X-IAM-Internal-Token", "iam-internal-test-token")
         .send()
         .await
         .expect("Failed to send request");
@@ -420,6 +424,7 @@ async fn test_internal_provider_token_returns_401_when_user_not_found() {
     let response = client
         .post(format!("{base_url}/internal/github/token"))
         .header("Authorization", format!("Bearer {jwt_token}"))
+        .header("X-IAM-Internal-Token", "iam-internal-test-token")
         .send()
         .await
         .expect("Failed to send request");
@@ -502,6 +507,7 @@ async fn test_internal_provider_token_case_insensitive_providers() {
         let response = client
             .post(format!("{base_url}/internal/{provider}/token"))
             .header("Authorization", format!("Bearer {jwt_token}"))
+            .header("X-IAM-Internal-Token", "iam-internal-test-token")
             .send()
             .await
             .expect("Failed to send request");
@@ -560,6 +566,7 @@ async fn test_internal_provider_token_different_users_different_tokens() {
     let response1 = client
         .post(format!("{base_url}/internal/github/token"))
         .header("Authorization", format!("Bearer {jwt_token1}"))
+        .header("X-IAM-Internal-Token", "iam-internal-test-token")
         .send()
         .await
         .expect("Failed to send request");
@@ -579,6 +586,7 @@ async fn test_internal_provider_token_different_users_different_tokens() {
     let response2 = client
         .post(format!("{base_url}/internal/github/token"))
         .header("Authorization", format!("Bearer {jwt_token2}"))
+        .header("X-IAM-Internal-Token", "iam-internal-test-token")
         .send()
         .await
         .expect("Failed to send request");
@@ -645,6 +653,7 @@ async fn test_internal_provider_token_user_with_multiple_providers() {
     let github_response = client
         .post(format!("{base_url}/internal/github/token"))
         .header("Authorization", format!("Bearer {jwt_token}"))
+        .header("X-IAM-Internal-Token", "iam-internal-test-token")
         .send()
         .await
         .expect("Failed to send GitHub request");
@@ -657,6 +666,7 @@ async fn test_internal_provider_token_user_with_multiple_providers() {
     let gitlab_response = client
         .post(format!("{base_url}/internal/gitlab/token"))
         .header("Authorization", format!("Bearer {jwt_token}"))
+        .header("X-IAM-Internal-Token", "iam-internal-test-token")
         .send()
         .await
         .expect("Failed to send GitLab request");
@@ -709,6 +719,7 @@ async fn test_internal_provider_token_concurrent_requests_same_user() {
             let response = client_clone
                 .post(format!("{base_url_clone}/internal/github/token"))
                 .header("Authorization", format!("Bearer {jwt_token_clone}"))
+                .header("X-IAM-Internal-Token", "iam-internal-test-token")
                 .send()
                 .await
                 .unwrap_or_else(|_| panic!("Failed to send concurrent request {i}"));

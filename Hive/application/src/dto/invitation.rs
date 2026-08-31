@@ -32,7 +32,9 @@ pub struct InvitationResponse {
     pub roles: Vec<MemberRole>,
     pub status: String,
     pub invited_by_user_id: Uuid,
-    pub token: String,
+    /// Present only on create. Omitted from list/get so tokens are not leaked.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token: Option<String>,
     pub expires_at: DateTime<Utc>,
     pub accepted_at: Option<DateTime<Utc>>,
     pub message: Option<String>,

@@ -9,7 +9,10 @@ tls_key_path = "/etc/ssl/private/iam.key"
 tls_port = 8443
 
 [auth.jwt]
-hs256_secret = "CHANGE-ME-IN-PRODUCTION-HS256-SECRET"
+# Set IAM_AUTH__JWT__HS256_SECRET — never commit a real secret.
+hs256_secret = ""
+issuer = "iamrusty"
+audience = "aiforall"
 
 [database]
 # Database connection details
@@ -18,11 +21,12 @@ port = 5432
 db = "iam_prod"
 # Database credentials
 [database.creds]
-username = "postgres"
-password = "postgres"
+# Set IAM_DATABASE__CREDS__USERNAME / IAM_DATABASE__CREDS__PASSWORD
+username = ""
+password = ""
 
-# Add read replicas for production
-read_replicas = ["postgres://postgres:postgres@db-read-1:5432/iam_prod", "postgres://postgres:postgres@db-read-2:5432/iam_prod"]
+# Add read replicas for production via env, not committed URLs
+read_replicas = []
 
 [oauth.github]
 # Production values should be set via environment variables
@@ -38,10 +42,14 @@ redirect_uri = "https://your-domain.com/api/auth/gitlab/callback"
 [jwt]
 expiration_seconds = 900  # 15 minutes
 refresh_token_expiration_seconds = 2592000  # 30 days
+issuer = "iamrusty"
+audience = "aiforall"
+oauth_state_secret = ""
 
 [jwt.secret]
 type = "plain"
-value = "CHANGE-ME-IN-PRODUCTION-HS256-SECRET"
+# Set IAM_JWT__SECRET__VALUE after rotating the leaked HMAC.
+value = ""
 
 # Command configuration for production
 [command.retry]

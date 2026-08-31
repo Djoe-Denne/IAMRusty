@@ -35,6 +35,8 @@ uuid = { version = "1.4.1", features = ["v4", "serde"] }
 chrono = { version = "0.4.31", features = ["serde"] }
 base64 = "0.22"
 url = "2.5.0"
+hmac = "0.12"
+sha2 = "0.10"
 
 # Error handling
 thiserror = "1.0.56"

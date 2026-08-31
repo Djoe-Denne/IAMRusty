@@ -7,6 +7,8 @@ tls_enabled = false
 
 [auth.jwt]
 hs256_secret = "rustycog-test-hs256-secret"
+issuer = "iamrusty"
+audience = "aiforall"
 
 [database]
 host = "localhost"

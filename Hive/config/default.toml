@@ -10,6 +10,8 @@ tls_port = 8443
 
 [auth.jwt]
 hs256_secret = "rustycog-dev-hs256-secret"
+issuer = "iamrusty"
+audience = "aiforall"
 
 [database]
 host = "localhost"

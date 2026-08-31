@@ -29,7 +29,7 @@ impl RefreshTokenWriteRepositoryImpl {
         refresh_tokens::ActiveModel {
             id: Set(token.id),
             user_id: Set(token.user_id),
-            token: Set(token.token.clone()),
+            token: Set(DomainRefreshToken::hash_token(&token.token)),
             is_valid: Set(token.is_valid),
             created_at: Set(token.created_at.into()),
             expires_at: Set(token.expires_at.into()),

@@ -70,4 +70,8 @@ pub struct ProviderUserProfile {
 
     /// URL to the user's avatar
     pub avatar_url: Option<String>,
+
+    /// Whether the provider asserts this email is verified
+    #[serde(default)]
+    pub email_verified: bool,
 }

@@ -38,6 +38,21 @@ impl Tuple {
         }
     }
 
+    /// Public-read subject `user:*` (OpenFGA wildcard).
+    pub fn wildcard_user(
+        object_type: impl Into<String>,
+        object_id: Uuid,
+        relation: impl Into<String>,
+    ) -> Self {
+        Self {
+            object_type: object_type.into(),
+            object_id: object_id.to_string(),
+            relation: relation.into(),
+            user_type: "user".to_string(),
+            user_id: "*".to_string(),
+        }
+    }
+
     /// Tuple pointing at another object (parent relation), e.g.
     /// `project:123#organization@organization:456`.
     pub fn object(

@@ -2,7 +2,10 @@ use async_trait::async_trait;
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use chrono::{Duration, Utc};
 
-use iam_domain::entity::token::{Jwk, JwkSet, JwtKeyPair, JwtToken, RefreshToken, TokenClaims};
+use iam_domain::entity::token::{
+    Jwk, JwkSet, JwtKeyPair, JwtToken, RefreshToken, TokenClaims, DEFAULT_JWT_AUDIENCE,
+    DEFAULT_JWT_ISSUER,
+};
 use iam_domain::error::DomainError;
 use iam_domain::port::service::{AuthTokenService, JwtTokenEncoder};
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation};
@@ -47,6 +50,8 @@ pub struct JwtTokenService {
     algorithm_config: JwtAlgorithm,
     access_token_expiration: u64,
     refresh_token_expiration: u64,
+    issuer: String,
+    audience: String,
 }
 
 impl JwtTokenService {
@@ -57,6 +62,8 @@ impl JwtTokenService {
             algorithm_config: JwtAlgorithm::RS256(key_pair),
             access_token_expiration,
             refresh_token_expiration: 2_592_000, // Default 30 days
+            issuer: String::new(),
+            audience: String::new(),
         }
     }
 
@@ -72,6 +79,8 @@ impl JwtTokenService {
             algorithm_config: JwtAlgorithm::HS256(secret),
             access_token_expiration,
             refresh_token_expiration: 2_592_000, // Default 30 days
+            issuer: String::new(),
+            audience: String::new(),
         }
     }
 
@@ -92,6 +101,36 @@ impl JwtTokenService {
             algorithm_config,
             access_token_expiration,
             refresh_token_expiration,
+            issuer: String::new(),
+            audience: String::new(),
+        }
+    }
+
+    /// Bind platform `iss` / `aud` claims used when minting access tokens.
+    #[must_use]
+    pub fn with_issuer_audience(
+        mut self,
+        issuer: impl Into<String>,
+        audience: impl Into<String>,
+    ) -> Self {
+        self.issuer = issuer.into();
+        self.audience = audience.into();
+        self
+    }
+
+    fn issuer(&self) -> &str {
+        if self.issuer.is_empty() {
+            DEFAULT_JWT_ISSUER
+        } else {
+            &self.issuer
+        }
+    }
+
+    fn audience(&self) -> &str {
+        if self.audience.is_empty() {
+            DEFAULT_JWT_AUDIENCE
+        } else {
+            &self.audience
         }
     }
 
@@ -195,7 +234,9 @@ impl JwtTokenEncoder for JwtTokenService {
         let decoding_key = self.get_decoding_key()?;
 
         let mut validation = Validation::new(self.get_algorithm());
-        validation.set_required_spec_claims(&["sub", "exp", "iat", "jti"]);
+        validation.set_required_spec_claims(&["sub", "exp", "iat", "jti", "iss", "aud"]);
+        validation.set_issuer(&[self.issuer()]);
+        validation.set_audience(&[self.audience()]);
 
         let token_data = jsonwebtoken::decode::<TokenClaims>(token, &decoding_key, &validation)
             .map_err(|e| match e.kind() {
@@ -266,6 +307,8 @@ impl AuthTokenService for JwtTokenService {
         let claims = TokenClaims {
             sub: user_id.to_string(),
             username: String::new(), // This could be enhanced to include username
+            iss: self.issuer().to_string(),
+            aud: self.audience().to_string(),
             exp: expires_at.timestamp(),
             iat: now.timestamp(),
             jti: Uuid::new_v4().to_string(),
@@ -334,6 +377,8 @@ mod platform_hs256 {
         let claims = TokenClaims {
             sub: Uuid::new_v4().to_string(),
             username: "tester".into(),
+            iss: DEFAULT_JWT_ISSUER.into(),
+            aud: DEFAULT_JWT_AUDIENCE.into(),
             exp: Utc::now().timestamp() + 60,
             iat: Utc::now().timestamp(),
             jti: Uuid::new_v4().to_string(),

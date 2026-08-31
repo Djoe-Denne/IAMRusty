@@ -27,7 +27,8 @@ fn create_jwt_service_from_config(config: &JwtConfig) -> Result<JwtTokenService,
         jwt_algorithm,
         config.expiration_seconds,
         config.refresh_token_expiration_seconds,
-    ))
+    )
+    .with_issuer_audience(config.issuer.clone(), config.audience.clone()))
 }
 
 /// Create a registration token service from configuration for testing.
@@ -64,6 +65,8 @@ impl JwtTestUtils {
         let claims = TokenClaims {
             sub: user_id.to_string(),
             username: "test_user".to_string(),
+            iss: iam_domain::entity::token::DEFAULT_JWT_ISSUER.to_string(),
+            aud: iam_domain::entity::token::DEFAULT_JWT_AUDIENCE.to_string(),
             exp: (Utc::now() + Duration::hours(1)).timestamp(),
             iat: Utc::now().timestamp(),
             jti: Uuid::new_v4().to_string(),
@@ -86,6 +89,8 @@ impl JwtTestUtils {
         let claims = TokenClaims {
             sub: user_id.to_string(),
             username: "test_user".to_string(),
+            iss: iam_domain::entity::token::DEFAULT_JWT_ISSUER.to_string(),
+            aud: iam_domain::entity::token::DEFAULT_JWT_AUDIENCE.to_string(),
             exp: (Utc::now() - Duration::hours(1)).timestamp(),
             iat: (Utc::now() - Duration::hours(2)).timestamp(),
             jti: Uuid::new_v4().to_string(),
@@ -108,6 +113,8 @@ impl JwtTestUtils {
         let claims = TokenClaims {
             sub: user_id.to_string(),
             username: "test_user".to_string(),
+            iss: iam_domain::entity::token::DEFAULT_JWT_ISSUER.to_string(),
+            aud: iam_domain::entity::token::DEFAULT_JWT_AUDIENCE.to_string(),
             exp: (Utc::now() + Duration::hours(1)).timestamp(),
             iat: Utc::now().timestamp(),
             jti: Uuid::new_v4().to_string(),

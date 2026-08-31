@@ -49,17 +49,28 @@ async fn create_organization_happy_path() {
 #[serial]
 async fn get_organization_happy_path() {
     // Arrange
-    let (fixture, server_url, client, _openfga) = setup_test_server().await.unwrap();
+    let (fixture, server_url, client, openfga) = setup_test_server().await.unwrap();
     let owner_id = Uuid::new_v4();
+    let token = create_jwt_token(owner_id);
     let org = DbFixtures::organization()
         .owner_user_id(owner_id)
         .commit(fixture.db())
         .await
         .unwrap();
 
+    openfga
+        .allow(
+            Subject::new(owner_id),
+            Permission::Read,
+            ResourceRef::new("organization", org.id),
+        )
+        .await
+        .expect("Failed to grant organization read");
+
     // Act - get
     let res = client
         .get(format!("{}/api/organizations/{}", server_url, org.id))
+        .header("Authorization", format!("Bearer {token}"))
         .send()
         .await
         .unwrap();
@@ -357,13 +368,25 @@ async fn sync_jobs_forbidden_for_read_only_member() {
 #[tokio::test]
 #[serial]
 async fn get_nonexistent_organization_returns_404() {
-    let (_fixture, server_url, client, _openfga) = setup_test_server().await.unwrap();
+    let (_fixture, server_url, client, openfga) = setup_test_server().await.unwrap();
+    let user_id = Uuid::new_v4();
+    let token = create_jwt_token(user_id);
+    let missing_id = Uuid::new_v4();
+
+    // GET is authenticated + `with_permission_on(Read, organization)`.
+    // Grant on the missing id so the request reaches the handler 404.
+    openfga
+        .allow(
+            Subject::new(user_id),
+            Permission::Read,
+            ResourceRef::new("organization", missing_id),
+        )
+        .await
+        .expect("Failed to grant organization read");
+
     let res = client
-        .get(format!(
-            "{}/api/organizations/{}",
-            server_url,
-            Uuid::new_v4()
-        ))
+        .get(format!("{server_url}/api/organizations/{missing_id}"))
+        .header("Authorization", format!("Bearer {token}"))
         .send()
         .await
         .unwrap();

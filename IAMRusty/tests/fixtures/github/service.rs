@@ -220,13 +220,35 @@ impl GitHubService {
             GitHubUserRequest::authenticated(),
             GitHubUser::arthur(),
         )
+        .await;
+        self.user_emails(
+            200,
+            GitHubUserRequest::authenticated(),
+            serde_json::json!([{
+                "email": "arthur@example.com",
+                "primary": true,
+                "verified": true,
+                "visibility": "public"
+            }]),
+        )
         .await
     }
 
     /// Setup successful user profile fetch for Bob
     pub async fn setup_successful_user_profile_bob(&self) -> &Self {
         self.user_profile(200, GitHubUserRequest::authenticated(), GitHubUser::bob())
-            .await
+            .await;
+        self.user_emails(
+            200,
+            GitHubUserRequest::authenticated(),
+            serde_json::json!([{
+                "email": "bob@example.com",
+                "primary": true,
+                "verified": true,
+                "visibility": "public"
+            }]),
+        )
+        .await
     }
 
     /// Setup failed user profile fetch (unauthorized)

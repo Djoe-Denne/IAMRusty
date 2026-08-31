@@ -277,6 +277,14 @@ where
         let mut invitation = invitation
             .ok_or_else(|| DomainError::entity_not_found("organization_invitation", &token))?;
 
+        if let Ok(expected_user) = Uuid::parse_str(&invitation.aggregate_id) {
+            if expected_user != user_id {
+                return Err(DomainError::business_rule_violation(
+                    "Invitation is bound to a different user",
+                ));
+            }
+        }
+
         if invitation.status != InvitationStatus::Pending {
             return Err(DomainError::business_rule_violation(
                 format!("Invitation is not pending, but {:?}", invitation.status).as_str(),

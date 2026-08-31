@@ -12,6 +12,15 @@ use fixtures::{DbFixtures, GitHubFixtures, GitLabFixtures};
 use iam_configuration::{load_config_part, JwtConfig};
 use utils::jwt::{create_expired_jwt_token_with_encoder, create_valid_jwt_token_with_encoder};
 
+async fn relink_bearer(db: std::sync::Arc<sea_orm::DatabaseConnection>) -> String {
+    let user = DbFixtures::user().arthur().commit(db).await.expect("user");
+    create_valid_jwt_token_with_encoder(
+        user.id(),
+        &load_config_part::<JwtConfig>("jwt").expect("jwt config"),
+    )
+    .expect("jwt")
+}
+
 // 🔗 Relink Provider Endpoint Tests
 // 📍 GET /api/auth/{provider}/relink-start
 // 📍 GET /api/auth/{provider}/relink-callback
@@ -20,13 +29,15 @@ use utils::jwt::{create_expired_jwt_token_with_encoder, create_valid_jwt_token_w
 #[serial]
 async fn test_generate_relink_provider_start_url_github_success() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
+    let token = relink_bearer(fixture.db()).await;
 
     // Make request to generate GitHub relink start URL
     let response = client
         .get(format!("{base_url}/api/auth/github/relink-start"))
+        .header("Authorization", format!("Bearer {token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -75,13 +86,15 @@ async fn test_generate_relink_provider_start_url_github_success() {
 #[serial]
 async fn test_generate_relink_provider_start_url_gitlab_success() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
+    let token = relink_bearer(fixture.db()).await;
 
     // Make request to generate GitLab relink start URL
     let response = client
         .get(format!("{base_url}/api/auth/gitlab/relink-start"))
+        .header("Authorization", format!("Bearer {token}"))
         .send()
         .await
         .expect("Failed to send request");
@@ -114,9 +127,10 @@ async fn test_generate_relink_provider_start_url_gitlab_success() {
 #[serial]
 async fn test_generate_relink_provider_start_url_unsupported_provider() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
+    let token = relink_bearer(fixture.db()).await;
 
     // Test unsupported providers
     let unsupported_providers = vec!["facebook", "twitter", "linkedin", "invalid"];
@@ -124,6 +138,7 @@ async fn test_generate_relink_provider_start_url_unsupported_provider() {
     for provider in unsupported_providers {
         let response = client
             .get(format!("{base_url}/api/auth/{provider}/relink-start"))
+            .header("Authorization", format!("Bearer {token}"))
             .send()
             .await
             .expect("Failed to send request");

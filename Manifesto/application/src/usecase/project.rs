@@ -20,6 +20,7 @@ use manifesto_events::{
 };
 use rustycog::core::error::DomainError;
 use rustycog::events::{DomainEvent, EventPublisher};
+use rustycog::permission::{Permission, PermissionChecker, ResourceRef, Subject};
 
 use crate::{
     dto::{
@@ -149,6 +150,7 @@ pub struct ProjectUseCaseImpl {
     event_publisher: Arc<dyn EventPublisher<DomainError>>,
     business_config: BusinessConfig,
     project_creation_uow: Option<Arc<dyn ProjectCreationUnitOfWork>>,
+    org_permission_checker: Arc<dyn PermissionChecker>,
 }
 
 impl ProjectUseCaseImpl {
@@ -160,6 +162,7 @@ impl ProjectUseCaseImpl {
         permission_service: Arc<dyn PermissionService>,
         event_publisher: Arc<dyn EventPublisher<DomainError>>,
         business_config: BusinessConfig,
+        org_permission_checker: Arc<dyn PermissionChecker>,
     ) -> Self {
         Self {
             project_service,
@@ -169,6 +172,7 @@ impl ProjectUseCaseImpl {
             event_publisher,
             business_config,
             project_creation_uow: None,
+            org_permission_checker,
         }
     }
 
@@ -181,6 +185,7 @@ impl ProjectUseCaseImpl {
         event_publisher: Arc<dyn EventPublisher<DomainError>>,
         business_config: BusinessConfig,
         project_creation_uow: Arc<dyn ProjectCreationUnitOfWork>,
+        org_permission_checker: Arc<dyn PermissionChecker>,
     ) -> Self {
         Self {
             project_service,
@@ -190,6 +195,7 @@ impl ProjectUseCaseImpl {
             event_publisher,
             business_config,
             project_creation_uow: Some(project_creation_uow),
+            org_permission_checker,
         }
     }
 
@@ -284,9 +290,28 @@ impl ProjectUseCase for ProjectUseCaseImpl {
 
         let owner_id = match owner_type {
             OwnerType::Personal => user_id,
-            OwnerType::Organization => request.owner_id.ok_or_else(|| {
-                ApplicationError::Validation("owner_id required for organization projects".into())
-            })?,
+            OwnerType::Organization => {
+                let owner_id = request.owner_id.ok_or_else(|| {
+                    ApplicationError::Validation(
+                        "owner_id required for organization projects".into(),
+                    )
+                })?;
+                let allowed = self
+                    .org_permission_checker
+                    .check(
+                        Subject::new(user_id),
+                        Permission::Write,
+                        ResourceRef::new("organization", owner_id),
+                    )
+                    .await
+                    .map_err(ApplicationError::from)?;
+                if !allowed {
+                    return Err(ApplicationError::from(DomainError::permission_denied(
+                        "Not a writer on the target organization",
+                    )));
+                }
+                owner_id
+            }
         };
 
         let visibility = request

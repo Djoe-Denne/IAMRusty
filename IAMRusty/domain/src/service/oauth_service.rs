@@ -180,7 +180,7 @@ where
     /// Find or create a user based on their provider profile
     async fn find_or_create_user(
         &self,
-        _provider: Provider,
+        provider: Provider,
         profile: ProviderUserProfile,
     ) -> Result<User, DomainError> {
         // Email is required for linking
@@ -188,18 +188,30 @@ where
             DomainError::UserProfileError("Email is required from OAuth provider".to_string())
         })?;
 
-        // Try to find the user by email (primary linking mechanism)
+        // Returning OAuth user: already linked to this provider identity.
+        if let Some(user) = self
+            .user_repository
+            .find_by_provider_user_id(provider, &profile.id)
+            .await
+            .map_err(|e| DomainError::RepositoryError(e.to_string()))?
+        {
+            debug!(user_id = %user.id, "Found existing user by provider identity");
+            return Ok(user);
+        }
+
+        // Merge onto an existing email account only when the IdP marked it verified.
         if let Some(user) = self
             .user_repository
             .find_by_email(&email)
             .await
             .map_err(|e| DomainError::RepositoryError(e.to_string()))?
         {
-            debug!(user_id = %user.id, "Found existing user by email");
-
-            // Update user if needed (e.g., new username, avatar)
-            // In a real implementation, we might check if any fields changed
-
+            if !profile.email_verified {
+                return Err(DomainError::BusinessRuleViolation(
+                    "OAuth email is not verified; sign in and link the provider".to_string(),
+                ));
+            }
+            debug!(user_id = %user.id, "Found existing user by verified email");
             return Ok(user);
         }
 
@@ -215,7 +227,8 @@ where
         info!(user_id = %created_user.id, "Created new user");
 
         // Create the user's primary email record
-        let user_email = UserEmail::new_primary(created_user.id, email.clone(), false); // false = not verified yet
+        let user_email =
+            UserEmail::new_primary(created_user.id, email.clone(), profile.email_verified);
 
         self.user_email_repository
             .create(user_email)

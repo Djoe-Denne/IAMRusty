@@ -297,7 +297,7 @@ async fn routes_member_removed_to_sentinel_sync_queue() {
         .allow(
             Subject::new(owner_id),
             Permission::Write,
-            ResourceRef::new("organization", removed_user_id),
+            ResourceRef::new("organization", org.id),
         )
         .await
         .expect("failed to grant organization write");

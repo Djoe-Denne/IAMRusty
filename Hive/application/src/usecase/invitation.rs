@@ -79,7 +79,10 @@ impl InvitationUseCaseImpl {
         }
     }
 
-    fn invitation_to_response(invitation: &OrganizationInvitation) -> InvitationResponse {
+    fn invitation_to_response(
+        invitation: &OrganizationInvitation,
+        include_token: bool,
+    ) -> InvitationResponse {
         InvitationResponse {
             id: invitation.id,
             organization_id: invitation.organization_id,
@@ -95,7 +98,7 @@ impl InvitationUseCaseImpl {
             status: invitation.status.as_str().to_string(),
             message: invitation.message.clone(),
             invited_by_user_id: invitation.invited_by_user_id,
-            token: invitation.token.clone(),
+            token: include_token.then(|| invitation.token.clone()),
             accepted_at: invitation.accepted_at,
         }
     }
@@ -220,7 +223,7 @@ impl InvitationUseCase for InvitationUseCaseImpl {
             invitation
         };
 
-        Ok(Self::invitation_to_response(&invitation))
+        Ok(Self::invitation_to_response(&invitation, true))
     }
 
     async fn accept_invitation(
@@ -255,6 +258,6 @@ impl InvitationUseCase for InvitationUseCaseImpl {
             .await
             .map_err(ApplicationError::Domain)?;
 
-        Ok(Self::invitation_to_response(&invitation))
+        Ok(Self::invitation_to_response(&invitation, false))
     }
 }

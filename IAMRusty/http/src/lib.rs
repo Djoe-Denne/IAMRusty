@@ -3,15 +3,18 @@
 //! This crate provides the HTTP interface for the application,
 //! implementing the `OpenAPI` specification.
 
-use axum::Router;
+use axum::{middleware, Router};
 use iam_configuration::ServerConfig;
 use readiness::{attach_ready, ReadinessProbe};
 use rustycog::http::{AppState, RouteBuilder};
 use std::sync::Arc;
 
+use crate::rate_limit::rate_limit_auth;
+
 pub mod error;
 pub mod handlers;
 pub mod oauth_state;
+pub mod rate_limit;
 pub mod validation;
 
 pub use error::{ApiError, AuthError};
@@ -29,6 +32,8 @@ pub use handlers::{
     token::refresh_token,
     user::get_user,
 };
+pub use oauth_state::{configure_oauth_state_secret, OAuthState};
+pub use rate_limit::configure_internal_service_token;
 
 pub const SERVICE_PREFIX: &str = "/iam";
 
@@ -53,12 +58,13 @@ pub fn create_router(state: AppState) -> Router {
         .get("/api/auth/{provider_name}/login", oauth_login_start)
         .get("/api/auth/{provider_name}/callback", oauth_callback)
         .post("/api/token/refresh", refresh_token)
+        // Authenticated routes
+        .get("/api/me", get_user)
+        .authenticated()
         .get(
             "/api/auth/{provider_name}/relink-start",
             generate_relink_provider_start_url,
         )
-        // Authenticated routes
-        .get("/api/me", get_user)
         .authenticated()
         .post(
             "/api/auth/password/reset-authenticated",
@@ -77,6 +83,7 @@ pub fn create_router(state: AppState) -> Router {
         )
         .authenticated()
         .into_router()
+        .layer(middleware::from_fn(rate_limit_auth))
 }
 
 /// Create the IAM router under its bounded-context prefix.

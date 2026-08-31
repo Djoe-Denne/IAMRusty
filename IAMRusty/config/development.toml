@@ -11,6 +11,8 @@ tls_enabled = false
 
 [auth.jwt]
 hs256_secret = "rustycog-dev-hs256-secret"
+issuer = "iamrusty"
+audience = "aiforall"
 
 [database]
 host = "postgres"
@@ -21,8 +23,8 @@ username = "postgres"
 password = "postgres"
 
 [oauth.github]
-client_id = "Iv23liMmfDciF6YoCdIb"
-client_secret = "dev_github_client_secret"
+client_id = "your-github-client-id"
+client_secret = "your-github-client-secret"
 redirect_uri = "http://localhost:5173/oauth/github/callback"
 auth_url = "https://github.com/login/oauth/authorize"
 token_url = "https://github.com/login/oauth/access_token"
@@ -39,6 +41,9 @@ user_url = "https://gitlab.com/api/v4/user"
 [jwt]
 expiration_seconds = 900
 refresh_token_expiration_seconds = 2592000
+issuer = "iamrusty"
+audience = "aiforall"
+oauth_state_secret = "iam-oauth-state-hmac-change-me"
 
 [jwt.secret]
 type = "plain"

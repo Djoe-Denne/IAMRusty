@@ -43,7 +43,7 @@ impl Organization {
             avatar_url: None,
             owner_user_id,
             settings: serde_json::json!({
-                "visibility": "Public",
+                "visibility": "Private",
             }),
             created_at: now,
             updated_at: now,

@@ -158,7 +158,7 @@ pub async fn accept_invitation(
     Path(token): Path<String>,
     auth_user: AuthUser,
 ) -> Result<Json<()>, HttpError> {
-    tracing::info!("Accepting invitation with token: {}", token);
+    tracing::info!("Accepting invitation");
 
     let command = AcceptInvitationCommand::new(token, auth_user.user_id);
     let context = CommandContext::new()
@@ -187,7 +187,7 @@ pub async fn get_invitation_by_token(
     Path(token): Path<String>,
     auth_user: AuthUser,
 ) -> Result<Json<InvitationDetailsResponse>, HttpError> {
-    tracing::info!("Getting invitation details for token: {}", token);
+    tracing::info!("Getting invitation details by token");
 
     let command = GetInvitationByTokenCommand::new(token);
     let context = CommandContext::new()

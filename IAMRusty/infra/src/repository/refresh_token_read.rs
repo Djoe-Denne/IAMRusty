@@ -42,7 +42,7 @@ impl RefreshTokenReadRepository for RefreshTokenReadRepositoryImpl {
         debug!("Looking up refresh token");
 
         let refresh_token = RefreshTokens::find()
-            .filter(refresh_tokens::Column::Token.eq(token))
+            .filter(refresh_tokens::Column::Token.eq(DomainRefreshToken::hash_token(token)))
             .one(self.db.as_ref())
             .await?;
 

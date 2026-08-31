@@ -61,7 +61,7 @@ struct GitHubUser {
 }
 
 /// GitHub email response from the emails API
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct GitHubEmail {
     /// Email address
     email: String,
@@ -205,41 +205,36 @@ impl ProviderOAuth2Client for GitHubOAuth2Client {
                 DomainError::UserProfileError(format!("Failed to parse GitHub user: {e}"))
             })?;
 
-        // If email is null or empty, fetch from emails API
-        let email = if github_user.email.is_none()
-            || github_user
-                .email
-                .as_ref()
-                .is_none_or(std::string::String::is_empty)
+        let emails_url = format!("{}/emails", self.user_url);
+        let github_emails = match client
+            .get(&emails_url)
+            .header("User-Agent", "IAM-Service")
+            .header("Accept", "application/vnd.github.v3+json")
+            .header("Authorization", format!("token {}", tokens.access_token))
+            .send()
+            .await
         {
-            debug!("User email is null or empty, fetching from emails API");
-
-            let emails_url = format!("{}/emails", self.user_url);
-            let github_emails = client
-                .get(&emails_url)
-                .header("User-Agent", "IAM-Service")
-                .header("Accept", "application/vnd.github.v3+json")
-                .header("Authorization", format!("token {}", tokens.access_token))
-                .send()
-                .await
-                .map_err(|e| {
-                    error!("Failed to fetch GitHub user emails: {}", e);
-                    DomainError::UserProfileError(format!("GitHub emails API request failed: {e}"))
-                })?
+            Ok(response) => response
                 .json::<Vec<GitHubEmail>>()
                 .await
-                .map_err(|e| {
-                    error!("Failed to parse GitHub emails response: {}", e);
-                    DomainError::UserProfileError(format!("Failed to parse GitHub emails: {e}"))
-                })?;
+                .unwrap_or_default(),
+            Err(e) => {
+                debug!("Failed to fetch GitHub emails: {e}");
+                Vec::new()
+            }
+        };
 
-            // Find the primary email
-            github_emails
-                .into_iter()
-                .find(|email| email.primary)
-                .map(|email| email.email)
+        let primary = github_emails.iter().find(|email| email.primary).cloned();
+        let (email, email_verified) = if let Some(primary) = primary {
+            (Some(primary.email), primary.verified)
+        } else if let Some(public_email) = github_user.email.filter(|e| !e.is_empty()) {
+            let verified = github_emails
+                .iter()
+                .find(|item| item.email == public_email)
+                .is_some_and(|item| item.verified);
+            (Some(public_email), verified)
         } else {
-            github_user.email
+            (None, false)
         };
 
         // Convert to domain ProviderUserProfile
@@ -248,6 +243,7 @@ impl ProviderOAuth2Client for GitHubOAuth2Client {
             username: github_user.login,
             email,
             avatar_url: github_user.avatar_url,
+            email_verified,
         };
 
         debug!(

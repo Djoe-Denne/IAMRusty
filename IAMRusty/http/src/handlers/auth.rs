@@ -5,7 +5,7 @@ use crate::{
 };
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::Redirect,
     Json,
 };
@@ -828,8 +828,15 @@ pub struct InternalProviderTokenResponse {
 pub async fn internal_provider_token(
     State(state): State<AppState>,
     Valid(Path(provider_path)): Valid<Path<ProviderPath>>,
+    headers: HeaderMap,
     auth_user: AuthUser,
 ) -> Result<Json<InternalProviderTokenResponse>, AuthError> {
+    crate::rate_limit::require_internal_service_token(&headers).map_err(|_| AuthError::OAuth {
+        operation: "internal_token".to_string(),
+        error_code: "forbidden".to_string(),
+        message: "internal service token required".to_string(),
+        status: StatusCode::FORBIDDEN,
+    })?;
     debug!(
         "Internal provider token request for provider: {} and user: {}",
         provider_path.provider_name, auth_user.user_id
@@ -1187,6 +1194,7 @@ pub async fn relink_provider_callback(
 pub async fn generate_relink_provider_start_url(
     State(state): State<AppState>,
     Valid(Path(provider_path)): Valid<Path<ProviderPath>>,
+    _auth_user: AuthUser,
 ) -> Result<Json<OAuthStartResponse>, AuthError> {
     debug!(
         "Generate relink provider start URL for provider: {}",

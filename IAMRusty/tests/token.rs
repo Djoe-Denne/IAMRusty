@@ -30,7 +30,7 @@ async fn create_test_refresh_token(
         DatabaseBackend::Postgres,
         format!(
             "INSERT INTO refresh_tokens (id, user_id, token, is_valid, created_at, expires_at) VALUES ('{}', '{}', '{}', {}, NOW(), '{}')",
-            token_id, user_id, token, is_valid, expires_at.format("%Y-%m-%d %H:%M:%S")
+            token_id, user_id, iam_domain::entity::token::RefreshToken::hash_token(token), is_valid, expires_at.format("%Y-%m-%d %H:%M:%S")
         )
     )).await?;
 
@@ -59,7 +59,10 @@ async fn refresh_token_exists(
     let result = db
         .query_one(Statement::from_string(
             DatabaseBackend::Postgres,
-            format!("SELECT COUNT(*) as count FROM refresh_tokens WHERE token = '{token}'"),
+            format!(
+                "SELECT COUNT(*) as count FROM refresh_tokens WHERE token = '{}'",
+                iam_domain::entity::token::RefreshToken::hash_token(token)
+            ),
         ))
         .await?;
 

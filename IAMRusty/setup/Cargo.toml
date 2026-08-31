@@ -19,7 +19,9 @@ axum = { workspace = true }
 chrono = "0.4"
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter", "fmt", "json"] }
-tokio = { version = "1.44", features = ["rt-multi-thread", "macros"] } 
+tokio = { version = "1.44", features = ["rt-multi-thread", "macros"] }
+async-trait = "0.1"
+uuid = { version = "1", features = ["v4"] } 
 
 # Cryptographic dependencies for secret derivation
 sha2 = "0.10"

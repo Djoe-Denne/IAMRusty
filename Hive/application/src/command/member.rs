@@ -192,8 +192,11 @@ impl CommandHandler<ListMembersCommand> for ListMembersCommandHandler {
         &self,
         command: ListMembersCommand,
     ) -> Result<MemberListResponse, CommandError> {
+        let requester_id = command.user_id.ok_or_else(|| {
+            CommandError::authentication("unauthenticated", "Requester required to list members")
+        })?;
         self.member_usecase
-            .list_members(command.organization_id, &command.pagination)
+            .list_members(command.organization_id, &command.pagination, requester_id)
             .await
             .map_err(|e| CommandError::business("list_members_failed", e.to_string()))
     }
@@ -250,8 +253,11 @@ impl GetMemberCommandHandler {
 #[async_trait]
 impl CommandHandler<GetMemberCommand> for GetMemberCommandHandler {
     async fn handle(&self, command: GetMemberCommand) -> Result<MemberResponse, CommandError> {
+        let requester_id = command.requesting_user_id.ok_or_else(|| {
+            CommandError::authentication("unauthenticated", "Requester required to get a member")
+        })?;
         self.member_usecase
-            .get_member(command.organization_id, command.user_id)
+            .get_member(command.organization_id, command.user_id, requester_id)
             .await
             .map_err(|e| CommandError::business("get_member_failed", e.to_string()))
     }
@@ -316,7 +322,12 @@ impl UpdateMemberCommandHandler {
 impl CommandHandler<UpdateMemberCommand> for UpdateMemberCommandHandler {
     async fn handle(&self, command: UpdateMemberCommand) -> Result<MemberResponse, CommandError> {
         self.member_usecase
-            .update_member(command.organization_id, command.user_id, &command.request)
+            .update_member(
+                command.organization_id,
+                command.user_id,
+                &command.request,
+                command.requesting_user_id,
+            )
             .await
             .map_err(|e| CommandError::business("update_member_failed", e.to_string()))
     }

@@ -159,7 +159,9 @@ impl DbFixture<RefreshTokensEntity, RefreshTokenModel, RefreshTokenActiveModel>
         RefreshTokenActiveModel {
             id: ActiveValue::Set(self.id.unwrap_or_else(TestData::uuid)),
             user_id: ActiveValue::Set(self.user_id.expect("user_id is required")),
-            token: ActiveValue::Set(self.token.clone().unwrap_or_else(TestData::jwt_token)),
+            token: ActiveValue::Set(iam_domain::entity::token::RefreshToken::hash_token(
+                &self.token.clone().unwrap_or_else(TestData::jwt_token),
+            )),
             is_valid: ActiveValue::Set(self.is_valid.unwrap_or(true)),
             created_at: ActiveValue::Set(self.created_at.unwrap_or(now)),
             expires_at: ActiveValue::Set(self.expires_at.unwrap_or_else(TestData::future)),

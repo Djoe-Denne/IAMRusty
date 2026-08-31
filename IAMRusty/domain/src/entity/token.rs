@@ -1,6 +1,12 @@
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use uuid::Uuid;
+
+/// Default JWT issuer for the AIForAll platform
+pub const DEFAULT_JWT_ISSUER: &str = "iamrusty";
+/// Default JWT audience for the AIForAll platform
+pub const DEFAULT_JWT_AUDIENCE: &str = "aiforall";
 
 /// Claims for JWT tokens
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -10,6 +16,12 @@ pub struct TokenClaims {
 
     /// Username
     pub username: String,
+
+    /// Issuer
+    pub iss: String,
+
+    /// Audience
+    pub aud: String,
 
     /// JWT expiration timestamp
     pub exp: i64,
@@ -25,10 +37,30 @@ impl TokenClaims {
     /// Creates new token claims for a user
     #[must_use]
     pub fn new(user_id: &str, username: &str, expires_in: Duration) -> Self {
+        Self::new_with_issuer_audience(
+            user_id,
+            username,
+            expires_in,
+            DEFAULT_JWT_ISSUER,
+            DEFAULT_JWT_AUDIENCE,
+        )
+    }
+
+    /// Creates new token claims with explicit issuer and audience
+    #[must_use]
+    pub fn new_with_issuer_audience(
+        user_id: &str,
+        username: &str,
+        expires_in: Duration,
+        issuer: &str,
+        audience: &str,
+    ) -> Self {
         let now = Utc::now();
         Self {
             sub: user_id.to_string(),
             username: username.to_string(),
+            iss: issuer.to_string(),
+            aud: audience.to_string(),
             exp: (now + expires_in).timestamp(),
             iat: now.timestamp(),
             jti: Uuid::new_v4().to_string(),
@@ -104,4 +136,14 @@ pub struct RefreshToken {
     pub created_at: DateTime<Utc>,
     /// When the token expires
     pub expires_at: DateTime<Utc>,
+}
+
+impl RefreshToken {
+    /// Hash a raw refresh token for at-rest storage (SHA-256 hex).
+    #[must_use]
+    pub fn hash_token(raw_token: &str) -> String {
+        let mut hasher = Sha256::new();
+        hasher.update(raw_token.as_bytes());
+        format!("{:x}", hasher.finalize())
+    }
 }

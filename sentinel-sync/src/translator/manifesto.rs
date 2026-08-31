@@ -58,6 +58,10 @@ impl Translator for ManifestoTranslator {
     }
 }
 
+fn is_public_visibility(visibility: &str) -> bool {
+    visibility.eq_ignore_ascii_case("public")
+}
+
 fn project_created_delta(evt: &manifesto_events::ProjectCreatedEvent) -> TupleDelta {
     let mut d = TupleDelta::default().write(Tuple::user(
         "project",
@@ -73,6 +77,49 @@ fn project_created_delta(evt: &manifesto_events::ProjectCreatedEvent) -> TupleDe
             "organization",
             evt.owner_id,
         ));
+    }
+    if is_public_visibility(&evt.visibility) {
+        d = d.write(Tuple::wildcard_user("project", evt.project_id, "viewer"));
+    }
+    d
+}
+
+fn project_deleted_delta(evt: &manifesto_events::ProjectDeletedEvent) -> TupleDelta {
+    let mut d =
+        TupleDelta::default().delete(Tuple::wildcard_user("project", evt.project_id, "viewer"));
+    for relation in ["owner", "admin", "member", "viewer"] {
+        d = d.delete(Tuple::user(
+            "project",
+            evt.project_id,
+            relation,
+            evt.deleted_by,
+        ));
+    }
+    d
+}
+
+fn member_permissions_updated_delta(
+    evt: &manifesto_events::MemberPermissionsUpdatedEvent,
+) -> TupleDelta {
+    let mut d = TupleDelta::default();
+    for relation in ["owner", "admin", "member", "viewer"] {
+        d = d.delete(Tuple::user(
+            "project",
+            evt.project_id,
+            relation,
+            evt.user_id,
+        ));
+    }
+    for perm in &evt.permissions {
+        if let Some(relation) = permission_to_relation(&perm.permission) {
+            let object_type = resource_to_object_type(&perm.resource);
+            d = d.write(Tuple::user(
+                object_type,
+                evt.project_id,
+                relation,
+                evt.user_id,
+            ));
+        }
     }
     d
 }
@@ -167,12 +214,18 @@ fn translate_event(event: &ManifestoDomainEvent) -> TupleDelta {
         ManifestoDomainEvent::MemberRemoved(evt) => member_removed_delta(evt),
         ManifestoDomainEvent::PermissionGranted(evt) => permission_granted_delta(evt),
         ManifestoDomainEvent::PermissionRevoked(evt) => permission_revoked_delta(evt),
+        ManifestoDomainEvent::ProjectDeleted(evt) => project_deleted_delta(evt),
+        ManifestoDomainEvent::MemberPermissionsUpdated(evt) => {
+            member_permissions_updated_delta(evt)
+        }
+        ManifestoDomainEvent::ProjectPublished(evt) => {
+            TupleDelta::default().write(Tuple::wildcard_user("project", evt.project_id, "viewer"))
+        }
+        ManifestoDomainEvent::ProjectArchived(evt) => {
+            TupleDelta::default().delete(Tuple::wildcard_user("project", evt.project_id, "viewer"))
+        }
         ManifestoDomainEvent::ProjectUpdated(_)
-        | ManifestoDomainEvent::ProjectDeleted(_)
-        | ManifestoDomainEvent::ProjectPublished(_)
-        | ManifestoDomainEvent::ProjectArchived(_)
-        | ManifestoDomainEvent::ComponentStatusChanged(_)
-        | ManifestoDomainEvent::MemberPermissionsUpdated(_) => TupleDelta::default(),
+        | ManifestoDomainEvent::ComponentStatusChanged(_) => TupleDelta::default(),
     }
 }
 
@@ -181,7 +234,8 @@ mod tests {
     use super::*;
     use chrono::Utc;
     use manifesto_events::{
-        ComponentAddedEvent, MemberAddedEvent, PermissionGrantedEvent, ProjectCreatedEvent,
+        ComponentAddedEvent, MemberAddedEvent, MemberPermissionsUpdatedEvent,
+        PermissionGrantedEvent, ProjectCreatedEvent, ProjectDeletedEvent, ResourcePermission,
     };
     use uuid::Uuid;
 
@@ -207,7 +261,7 @@ mod tests {
             .translate(&to_json(evt))
             .unwrap()
             .unwrap();
-        assert_eq!(delta.writes.len(), 2);
+        assert_eq!(delta.writes.len(), 3);
         assert!(delta
             .writes
             .iter()
@@ -216,6 +270,10 @@ mod tests {
             .writes
             .iter()
             .any(|t| t.relation == "owner" && t.user_id == creator.to_string()));
+        assert!(delta
+            .writes
+            .iter()
+            .any(|t| t.relation == "viewer" && t.user_id == "*"));
     }
 
     #[test]
@@ -281,5 +339,57 @@ mod tests {
         assert_eq!(delta.writes.len(), 1);
         assert_eq!(delta.writes[0].object_type, "component");
         assert_eq!(delta.writes[0].relation, "member");
+    }
+
+    #[test]
+    fn project_deleted_drops_wildcard_and_actor_tuples() {
+        let project_id = Uuid::new_v4();
+        let actor = Uuid::new_v4();
+        let evt = ManifestoDomainEvent::ProjectDeleted(ProjectDeletedEvent::new(
+            project_id,
+            "gone".into(),
+            actor,
+            Utc::now(),
+        ));
+        let delta = ManifestoTranslator::new()
+            .translate(&to_json(evt))
+            .unwrap()
+            .unwrap();
+        assert!(delta.writes.is_empty());
+        assert!(delta
+            .deletes
+            .iter()
+            .any(|t| t.user_id == "*" && t.relation == "viewer"));
+        assert!(delta
+            .deletes
+            .iter()
+            .any(|t| t.user_id == actor.to_string() && t.relation == "owner"));
+    }
+
+    #[test]
+    fn member_permissions_updated_replaces_project_roles() {
+        let project_id = Uuid::new_v4();
+        let user_id = Uuid::new_v4();
+        let evt =
+            ManifestoDomainEvent::MemberPermissionsUpdated(MemberPermissionsUpdatedEvent::new(
+                project_id,
+                Uuid::new_v4(),
+                user_id,
+                vec![ResourcePermission {
+                    resource: "project".into(),
+                    permission: "write".into(),
+                }],
+                Uuid::new_v4(),
+                Utc::now(),
+            ));
+        let delta = ManifestoTranslator::new()
+            .translate(&to_json(evt))
+            .unwrap()
+            .unwrap();
+        assert!(delta.deletes.iter().any(|t| t.relation == "admin"));
+        assert!(delta
+            .writes
+            .iter()
+            .any(|t| t.relation == "member" && t.user_id == user_id.to_string()));
     }
 }

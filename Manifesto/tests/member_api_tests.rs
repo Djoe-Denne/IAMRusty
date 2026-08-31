@@ -154,13 +154,12 @@ async fn test_get_member_returns_200_with_permissions() {
         .await
         .expect("Failed to create project with owner");
 
-    // Route guard: `with_permission_on(Permission::Read, "project")`.
-    // GET /members/{user_id} trailing UUID = owner_id (the user id).
+    // Route guard: `with_permission_on_param(..., "project_id")`.
     openfga
         .allow(
             Subject::new(owner_id),
             Permission::Read,
-            ResourceRef::new("project", owner_id),
+            ResourceRef::new("project", project.id()),
         )
         .await
         .expect("Failed to grant project read");
@@ -290,13 +289,12 @@ async fn test_update_member_permissions_returns_200() {
         .await
         .expect("Failed to create regular member");
 
-    // Route guard: `with_permission_on(Permission::Admin, "project")`.
-    // PUT /members/{user_id} trailing UUID = regular_member_id.
+    // Route guard: `with_permission_on_param(..., "project_id")`.
     openfga
         .allow(
             Subject::new(owner_id),
             Permission::Admin,
-            ResourceRef::new("project", regular_member_id),
+            ResourceRef::new("project", project.id()),
         )
         .await
         .expect("Failed to grant project admin");
@@ -354,13 +352,12 @@ async fn test_remove_member_returns_204() {
         .await
         .expect("Failed to create member to remove");
 
-    // Route guard: `with_permission_on(Permission::Admin, "project")`.
-    // DELETE /members/{user_id} trailing UUID = member_to_remove_id.
+    // Route guard: `with_permission_on_param(..., "project_id")`.
     openfga
         .allow(
             Subject::new(owner_id),
             Permission::Admin,
-            ResourceRef::new("project", member_to_remove_id),
+            ResourceRef::new("project", project.id()),
         )
         .await
         .expect("Failed to grant project admin");
@@ -411,13 +408,12 @@ async fn test_grant_permission_returns_200() {
         .await
         .expect("Failed to create regular member");
 
-    // Route guard: `with_permission_on(Permission::Admin, "project")`.
-    // POST /permissions/{resource} trailing UUID = regular_member_id.
+    // Route guard: `with_permission_on_param(..., "project_id")`.
     openfga
         .allow(
             Subject::new(owner_id),
             Permission::Admin,
-            ResourceRef::new("project", regular_member_id),
+            ResourceRef::new("project", project.id()),
         )
         .await
         .expect("Failed to grant project admin");
@@ -469,14 +465,12 @@ async fn test_revoke_permission_returns_204() {
         .await
         .expect("Failed to create regular member");
 
-    // Route guard: `with_permission_on(Permission::Admin, "project")`.
-    // POST + DELETE /permissions/{resource} both share the trailing UUID
-    // = regular_member_id, so a single tuple covers both calls.
+    // Route guard: `with_permission_on_param(..., "project_id")`.
     openfga
         .allow(
             Subject::new(owner_id),
             Permission::Admin,
-            ResourceRef::new("project", regular_member_id),
+            ResourceRef::new("project", project.id()),
         )
         .await
         .expect("Failed to grant project admin");
@@ -552,7 +546,7 @@ async fn test_grant_permission_on_specific_component_returns_200() {
         .allow(
             Subject::new(owner_id),
             Permission::Admin,
-            ResourceRef::new("project", component.id()),
+            ResourceRef::new("project", project.id()),
         )
         .await
         .expect("Failed to grant project admin");
@@ -675,7 +669,7 @@ async fn test_grant_admin_permission_on_specific_component_returns_200() {
         .allow(
             Subject::new(owner_id),
             Permission::Admin,
-            ResourceRef::new("project", component.id()),
+            ResourceRef::new("project", project.id()),
         )
         .await
         .expect("Failed to grant project admin");
@@ -735,7 +729,7 @@ async fn test_revoke_permission_on_specific_component_returns_204() {
         .allow(
             Subject::new(owner_id),
             Permission::Admin,
-            ResourceRef::new("project", component.id()),
+            ResourceRef::new("project", project.id()),
         )
         .await
         .expect("Failed to grant project admin");

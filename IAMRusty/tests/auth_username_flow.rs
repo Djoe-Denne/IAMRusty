@@ -246,7 +246,7 @@ async fn test_user_record_created_with_null_username_pending_status() {
 
 #[tokio::test]
 #[serial]
-async fn test_existing_user_signup_returns_200_with_tokens() {
+async fn test_existing_user_signup_is_rejected() {
     // Setup
     let (fixture, base_url, client) = setup_test_server()
         .await
@@ -281,43 +281,10 @@ async fn test_existing_user_signup_returns_200_with_tokens() {
         .await
         .expect("Failed to send signup request");
 
-    // Verify response
     assert_eq!(
         response.status(),
-        200,
-        "Should return 200 for existing user"
-    );
-
-    let response_body: Value = response.json().await.expect("Should return JSON response");
-
-    // Verify response structure
-    assert_eq!(
-        response_body["user"]["id"].as_str().unwrap(),
-        existing_user.id().to_string()
-    );
-    assert_eq!(
-        response_body["user"]["username"].as_str().unwrap(),
-        existing_user.username().unwrap()
-    );
-    assert_eq!(
-        response_body["user"]["email"].as_str().unwrap(),
-        primary_email.email()
-    );
-    assert!(
-        response_body["access_token"].is_string(),
-        "Should return access token"
-    );
-    assert!(
-        response_body["expires_in"].is_number(),
-        "Should return expires_in"
-    );
-    assert!(
-        response_body["refresh_token"].is_string(),
-        "Should return refresh token"
-    );
-    assert!(
-        response_body["message"].is_string(),
-        "Should return message"
+        409,
+        "Complete accounts must not be taken over via public signup"
     );
 }
 
@@ -357,27 +324,10 @@ async fn test_password_auth_method_added_to_existing_user() {
         .await
         .expect("Failed to send signup request");
 
-    assert_eq!(response.status(), 200);
-
-    // Verify password was added to user
-    let user_record = db
-        .query_one(sea_orm::Statement::from_string(
-            sea_orm::DatabaseBackend::Postgres,
-            format!(
-                "SELECT password_hash FROM users WHERE id = '{}'",
-                existing_user.id()
-            ),
-        ))
-        .await
-        .expect("Failed to query user")
-        .expect("User should exist");
-
-    let password_hash: Option<String> = user_record.try_get("", "password_hash").unwrap();
-    assert!(password_hash.is_some(), "Password hash should be set");
-    assert_ne!(
-        password_hash.unwrap(),
-        "newPassword123",
-        "Password should be hashed"
+    assert_eq!(
+        response.status(),
+        409,
+        "Public signup must not attach a password to an existing OAuth account"
     );
 }
 
@@ -1316,7 +1266,12 @@ async fn test_complete_email_first_flow() {
         .json()
         .await
         .expect("Should return JSON response");
-    let access_token = completion_body["access_token"].as_str().unwrap();
+    assert!(
+        completion_body["access_token"]
+            .as_str()
+            .is_some_and(str::is_empty),
+        "Complete-registration must not issue a session before email verification"
+    );
 
     // Step 3: Attempt login (should fail - email not verified)
     let login_data = json!({
@@ -1386,6 +1341,13 @@ async fn test_complete_email_first_flow() {
         200,
         "Login should succeed after email verification"
     );
+    let login_body: Value = login_response
+        .json()
+        .await
+        .expect("Should return JSON login response");
+    let access_token = login_body["access_token"]
+        .as_str()
+        .expect("Login should return an access token");
 
     // Step 6: Add OAuth provider (mock scenario)
     // Setup GitHub mock
@@ -1413,10 +1375,9 @@ async fn test_complete_email_first_flow() {
 #[serial]
 async fn test_complete_oauth_first_flow() {
     // Setup
-    let (fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = fixture.db();
 
     // Setup GitHub mock
     let github = GitHubFixtures::service().await;
@@ -1495,50 +1456,7 @@ async fn test_complete_oauth_first_flow() {
         .await
         .expect("Failed to add password auth");
 
-    // Should return 200 (existing user, adding password auth)
-    assert_eq!(password_signup_response.status(), 200);
-
-    // Create verification token fixture in db using @fixtures::DbFixtures::email_verification()
-    let verification_token = DbFixtures::email_verification()
-        .email(user_email)
-        .verification_token("test_verification_token_123")
-        .commit(db.clone())
-        .await
-        .expect("Failed to create verification token");
-
-    let verify_response = client
-        .get(format!("{base_url}/api/auth/verify"))
-        .query(&[
-            ("email", user_email),
-            ("token", verification_token.verification_token()),
-        ])
-        .send()
-        .await
-        .expect("Failed to send verify request");
-
-    assert_eq!(
-        verify_response.status(),
-        200,
-        "Email verification should succeed"
-    );
-
-    // Step 4: Login with password
-    let login_data = json!({
-        "email": user_email,
-        "password": "newPassword123"
-    });
-
-    let login_response = client
-        .post(format!("{base_url}/api/auth/login"))
-        .header("Content-Type", "application/json")
-        .json(&login_data)
-        .send()
-        .await
-        .expect("Failed to login with password");
-
-    assert_eq!(login_response.status(), 200);
-
-    // ✅ Verify provider linking works after registration completion
-    // ✅ Verify email verification triggered at right moment
-    // This would be verified through event store/message queue inspection
+    // Public signup must not attach a password to an existing OAuth account.
+    assert_eq!(password_signup_response.status(), 409);
+    assert!(!user_email.is_empty());
 }

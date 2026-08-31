@@ -10,6 +10,8 @@ pub struct GitLabUser {
     pub username: String,
     pub email: Option<String>,
     pub avatar_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub confirmed_at: Option<String>,
 }
 
 impl GitLabUser {
@@ -27,6 +29,7 @@ impl GitLabUser {
             avatar_url: Some(
                 "https://gitlab.com/uploads/-/system/user/avatar/54321/avatar.png".to_string(),
             ),
+            confirmed_at: Some("2020-01-01T00:00:00.000Z".to_string()),
         }
     }
 
@@ -39,6 +42,7 @@ impl GitLabUser {
             avatar_url: Some(
                 "https://gitlab.com/uploads/-/system/user/avatar/98765/avatar.png".to_string(),
             ),
+            confirmed_at: Some("2020-01-01T00:00:00.000Z".to_string()),
         }
     }
 
@@ -51,6 +55,7 @@ impl GitLabUser {
             avatar_url: Some(
                 "https://gitlab.com/uploads/-/system/user/avatar/11111/avatar.png".to_string(),
             ),
+            confirmed_at: None,
         }
     }
 }
@@ -107,6 +112,7 @@ impl GitLabUserBuilder {
             avatar_url: self.avatar_url.resolve(Some(
                 "https://gitlab.com/uploads/-/system/user/avatar/54321/avatar.png".to_string(),
             )),
+            confirmed_at: Some("2020-01-01T00:00:00.000Z".to_string()),
         }
     }
 }
