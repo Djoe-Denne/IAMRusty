@@ -7,6 +7,8 @@ tls_enabled = false
 
 [auth.jwt]
 hs256_secret = "rustycog-dev-hs256-secret"
+issuer = "iamrusty"
+audience = "aiforall"
 
 [logging]
 level = "info"
