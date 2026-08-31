@@ -10,6 +10,7 @@ use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, Condition, ConnectionTrait, DatabaseConnection,
     EntityTrait, PaginatorTrait, QueryFilter,
 };
+use std::str::FromStr;
 use std::sync::Arc;
 use uuid::Uuid;
 

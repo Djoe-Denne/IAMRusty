@@ -1,5 +1,6 @@
 use rustycog::core::error::DomainError;
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -16,13 +17,17 @@ impl OwnerType {
             Self::Organization => "organization",
         }
     }
+}
+
+impl FromStr for OwnerType {
+    type Err = DomainError;
 
     /// Parse an owner type from a string.
     ///
     /// # Errors
     ///
     /// Returns [`DomainError`] if `s` is not a recognized owner type.
-    pub fn from_str(s: &str) -> Result<Self, DomainError> {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             "personal" => Ok(Self::Personal),
             "organization" => Ok(Self::Organization),

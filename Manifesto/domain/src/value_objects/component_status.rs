@@ -1,5 +1,6 @@
 use rustycog::core::error::DomainError;
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -50,13 +51,17 @@ impl ComponentStatus {
             Self::Disabled => "disabled",
         }
     }
+}
+
+impl FromStr for ComponentStatus {
+    type Err = DomainError;
 
     /// Parse a component status from a string.
     ///
     /// # Errors
     ///
     /// Returns [`DomainError`] if `s` is not a recognized component status.
-    pub fn from_str(s: &str) -> Result<Self, DomainError> {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             "pending" => Ok(Self::Pending),
             "configured" => Ok(Self::Configured),

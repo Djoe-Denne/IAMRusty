@@ -260,21 +260,7 @@ impl SyncJobWriteRepositoryImpl {
                 .await
                 .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
-            let saved_model = sync_jobs::Model {
-                id: result.id.unwrap(),
-                organization_external_link_id: result.organization_external_link_id.unwrap(),
-                job_type: result.job_type.unwrap(),
-                status: result.status.unwrap(),
-                items_processed: result.items_processed.unwrap(),
-                items_created: result.items_created.unwrap(),
-                items_updated: result.items_updated.unwrap(),
-                items_failed: result.items_failed.unwrap(),
-                started_at: result.started_at.unwrap(),
-                completed_at: result.completed_at.unwrap(),
-                error_message: result.error_message.unwrap(),
-                details: result.details.unwrap(),
-                created_at: result.created_at.unwrap(),
-            };
+            let saved_model = super::model_after_persist(result)?;
             return SyncJobMapper::to_domain(saved_model);
         }
 

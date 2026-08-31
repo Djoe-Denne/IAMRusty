@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
+use super::super::OptionalField;
+
 /// GitHub user data structure matching the API response
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GitHubUser {
@@ -52,8 +54,8 @@ impl GitHubUser {
 pub struct GitHubUserBuilder {
     id: Option<i64>,
     login: Option<String>,
-    email: Option<Option<String>>,
-    avatar_url: Option<Option<String>>,
+    email: OptionalField<String>,
+    avatar_url: OptionalField<String>,
 }
 
 impl GitHubUserBuilder {
@@ -67,13 +69,23 @@ impl GitHubUserBuilder {
         self
     }
 
-    pub fn email(mut self, email: Option<impl Into<String>>) -> Self {
-        self.email = Some(email.map(std::convert::Into::into));
+    pub fn with_email(mut self, email: impl Into<String>) -> Self {
+        self.email = OptionalField::Set(Some(email.into()));
         self
     }
 
-    pub fn avatar_url(mut self, avatar_url: Option<impl Into<String>>) -> Self {
-        self.avatar_url = Some(avatar_url.map(std::convert::Into::into));
+    pub fn clear_email(mut self) -> Self {
+        self.email = OptionalField::Set(None);
+        self
+    }
+
+    pub fn with_avatar_url(mut self, avatar_url: impl Into<String>) -> Self {
+        self.avatar_url = OptionalField::Set(Some(avatar_url.into()));
+        self
+    }
+
+    pub fn clear_avatar_url(mut self) -> Self {
+        self.avatar_url = OptionalField::Set(None);
         self
     }
 
@@ -81,12 +93,10 @@ impl GitHubUserBuilder {
         GitHubUser {
             id: self.id.unwrap_or(12345),
             login: self.login.unwrap_or_else(|| "test_user".to_string()),
-            email: self
-                .email
-                .unwrap_or_else(|| Some("test@example.com".to_string())),
-            avatar_url: self.avatar_url.unwrap_or_else(|| {
-                Some("https://avatars.githubusercontent.com/u/12345?v=4".to_string())
-            }),
+            email: self.email.resolve(Some("test@example.com".to_string())),
+            avatar_url: self.avatar_url.resolve(Some(
+                "https://avatars.githubusercontent.com/u/12345?v=4".to_string(),
+            )),
         }
     }
 }

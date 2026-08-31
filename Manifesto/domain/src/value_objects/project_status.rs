@@ -1,5 +1,6 @@
 use rustycog::core::error::DomainError;
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -48,13 +49,17 @@ impl ProjectStatus {
             Self::Suspended => "suspended",
         }
     }
+}
+
+impl FromStr for ProjectStatus {
+    type Err = DomainError;
 
     /// Parse a project status from a string.
     ///
     /// # Errors
     ///
     /// Returns [`DomainError`] if `s` is not a recognized project status.
-    pub fn from_str(s: &str) -> Result<Self, DomainError> {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             "draft" => Ok(Self::Draft),
             "active" => Ok(Self::Active),

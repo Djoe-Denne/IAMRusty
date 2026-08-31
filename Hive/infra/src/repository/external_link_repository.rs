@@ -274,19 +274,7 @@ impl ExternalLinkWriteRepositoryImpl {
                 .await
                 .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
-            let saved_model = external_links::Model {
-                id: result.id.unwrap(),
-                organization_id: result.organization_id.unwrap(),
-                provider_id: result.provider_id.unwrap(),
-                provider_config: result.provider_config.unwrap(),
-                sync_enabled: result.sync_enabled.unwrap(),
-                sync_settings: result.sync_settings.unwrap(),
-                last_sync_at: result.last_sync_at.unwrap(),
-                last_sync_status: result.last_sync_status.unwrap(),
-                sync_error: result.sync_error.unwrap(),
-                created_at: result.created_at.unwrap(),
-                updated_at: result.updated_at.unwrap(),
-            };
+            let saved_model = super::model_after_persist(result)?;
             return ExternalLinkMapper::to_domain(saved_model, link.provider_source.clone());
         }
 

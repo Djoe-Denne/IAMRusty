@@ -37,7 +37,8 @@ pub static EMAIL_REGEX: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 /// Regex for validating usernames (alphanumeric, underscores, hyphens, 3-50 chars)
-pub static USERNAME_REGEX: LazyLock<Regex> = LazyLock::new(|| compile_regex(r"^[a-zA-Z0-9_-]{3,50}$"));
+pub static USERNAME_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| compile_regex(r"^[a-zA-Z0-9_-]{3,50}$"));
 
 /// Regex for strong password validation (at least 8 chars, contains letter and number)
 pub static STRONG_PASSWORD_REGEX: LazyLock<Regex> = LazyLock::new(|| compile_regex(r"^.{8,128}$"));
@@ -53,7 +54,8 @@ pub static VERIFICATION_TOKEN_REGEX: LazyLock<Regex> =
     LazyLock::new(|| compile_regex(r"^[a-zA-Z0-9_-]{10,100}$"));
 
 /// Regex for password reset tokens (same format as generated tokens)
-pub static RESET_TOKEN_REGEX: LazyLock<Regex> = LazyLock::new(|| compile_regex(r"^[a-zA-Z0-9]{32}$"));
+pub static RESET_TOKEN_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| compile_regex(r"^[a-zA-Z0-9]{32}$"));
 
 // Common weak passwords to reject
 const COMMON_WEAK_PASSWORDS: &[&str] = &[

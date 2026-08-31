@@ -493,7 +493,7 @@ async fn test_login_incomplete_user_returns_423_with_registration_token() {
     let _primary_email = DbFixtures::user_email()
         .email("incomplete@example.com")
         .user_id(incomplete_user.id())
-        .is_primary(true)
+        .with_primary(true)
         .commit(db.clone())
         .await
         .expect("Failed to create primary email");

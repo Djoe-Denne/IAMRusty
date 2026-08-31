@@ -19,7 +19,7 @@ use rustycog::config::{
 pub use rustycog::logger::setup_logging;
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use tracing::debug;
 
 use thiserror::Error;
@@ -457,17 +457,17 @@ pub struct AppConfigCache;
 impl ConfigCache<AppConfig> for AppConfigCache {
     fn get_cached() -> Option<AppConfig> {
         let cache = CONFIG_CACHE.get_or_init(|| Arc::new(Mutex::new(None)));
-        cache.lock().unwrap().clone()
+        cache.lock().unwrap_or_else(PoisonError::into_inner).clone()
     }
 
     fn set_cached(config: AppConfig) {
         let cache = CONFIG_CACHE.get_or_init(|| Arc::new(Mutex::new(None)));
-        *cache.lock().unwrap() = Some(config);
+        *cache.lock().unwrap_or_else(PoisonError::into_inner) = Some(config);
     }
 
     fn clear_cached() {
         let cache = CONFIG_CACHE.get_or_init(|| Arc::new(Mutex::new(None)));
-        *cache.lock().unwrap() = None;
+        *cache.lock().unwrap_or_else(PoisonError::into_inner) = None;
         debug!("AppConfig cache cleared");
     }
 }

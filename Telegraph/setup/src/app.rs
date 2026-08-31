@@ -88,8 +88,7 @@ impl TelegraphApp {
 
         let event_processing_usecase =
             Arc::new(EventProcessingUseCase::new(domain_event_processor));
-        let notification_usecase =
-            Arc::new(NotificationUseCaseImpl::new(notification_service));
+        let notification_usecase = Arc::new(NotificationUseCaseImpl::new(notification_service));
 
         let command_registry =
             Arc::new(TelegraphCommandRegistryFactory::create_telegraph_registry(
@@ -281,8 +280,7 @@ async fn setup_notification_service(
     db_pool: &DbConnectionPool,
     config: &TelegraphConfig,
 ) -> Result<(Arc<dyn NotificationService>, SignaledPublisher<DomainError>), anyhow::Error> {
-    let notification_read_repo =
-        NotificationReadRepositoryImpl::new(db_pool.get_read_connection());
+    let notification_read_repo = NotificationReadRepositoryImpl::new(db_pool.get_read_connection());
     let notification_write_repo =
         NotificationWriteRepositoryImpl::new(db_pool.get_write_connection());
     let notification_repo = CombinedNotificationRepositoryImpl::new(

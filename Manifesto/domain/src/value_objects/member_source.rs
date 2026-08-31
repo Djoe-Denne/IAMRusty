@@ -1,5 +1,6 @@
 use rustycog::core::error::DomainError;
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -20,13 +21,17 @@ impl MemberSource {
             Self::ThirdPartySync => "third_party_sync",
         }
     }
+}
+
+impl FromStr for MemberSource {
+    type Err = DomainError;
 
     /// Parse a member source from a string.
     ///
     /// # Errors
     ///
     /// Returns [`DomainError`] if `s` is not a recognized member source.
-    pub fn from_str(s: &str) -> Result<Self, DomainError> {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             "direct" => Ok(Self::Direct),
             "org_cascade" => Ok(Self::OrgCascade),

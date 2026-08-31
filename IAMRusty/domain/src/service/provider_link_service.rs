@@ -36,9 +36,9 @@ pub struct ProviderLinkResult {
 
 impl<UR, UER, TR> ProviderLinkService<UR, UER, TR>
 where
-    UR: UserRepository,
-    UER: UserEmailRepository,
-    TR: TokenRepository,
+    UR: UserRepository + Send + Sync,
+    UER: UserEmailRepository + Send + Sync,
+    TR: TokenRepository + Send + Sync,
 {
     /// Create a new `ProviderLinkService`
     pub const fn new(users: Arc<UR>, user_emails: Arc<UER>, tokens: Arc<TR>) -> Self {

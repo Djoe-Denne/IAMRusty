@@ -72,8 +72,8 @@ impl DbFixtures {
         Self::user_email()
             .user_id(user.id())
             .email(email)
-            .is_primary(true)
-            .is_verified(true)
+            .with_primary(true)
+            .with_verified(true)
             .commit(Arc::new(db.clone()))
             .await?;
 
@@ -92,8 +92,8 @@ impl DbFixtures {
         Self::user_email()
             .user_id(user.id())
             .email(email)
-            .is_primary(true)
-            .is_verified(false)
+            .with_primary(true)
+            .with_verified(false)
             .commit(Arc::new(db.clone()))
             .await?;
 
@@ -117,8 +117,8 @@ impl DbFixtures {
         Self::user_email()
             .user_id(user.id())
             .email(email)
-            .is_primary(true)
-            .is_verified(true)
+            .with_primary(true)
+            .with_verified(true)
             .commit(Arc::new(db.clone()))
             .await?;
 

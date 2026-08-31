@@ -95,8 +95,7 @@ fn ddl(raw: &str) -> serde_json::Value {
 }
 
 async fn seed_external_providers(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
-    let github_json = ddl(
-        r#"{
+    let github_json = ddl(r#"{
             "type": "object",
             "properties": {
                 "org_name": { "type": "string", "description": "GitHub organization name" },
@@ -108,10 +107,8 @@ async fn seed_external_providers(manager: &SchemaManager<'_>) -> Result<(), DbEr
                 }
             },
             "required": ["org_name", "access_token"]
-        }"#,
-    );
-    let gitlab_json = ddl(
-        r#"{
+        }"#);
+    let gitlab_json = ddl(r#"{
             "type": "object",
             "properties": {
                 "group_id": { "type": "string", "description": "GitLab group ID" },
@@ -123,10 +120,8 @@ async fn seed_external_providers(manager: &SchemaManager<'_>) -> Result<(), DbEr
                 }
             },
             "required": ["group_id", "access_token"]
-        }"#,
-    );
-    let confluence_json = ddl(
-        r#"{
+        }"#);
+    let confluence_json = ddl(r#"{
             "type": "object",
             "properties": {
                 "space_key": { "type": "string", "description": "Confluence space key" },
@@ -135,8 +130,7 @@ async fn seed_external_providers(manager: &SchemaManager<'_>) -> Result<(), DbEr
                 "base_url": { "type": "string", "description": "Confluence instance URL" }
             },
             "required": ["space_key", "api_token", "username", "base_url"]
-        }"#,
-    );
+        }"#);
 
     manager
         .exec_stmt(

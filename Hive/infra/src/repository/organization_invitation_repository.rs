@@ -308,10 +308,6 @@ impl OrganizationInvitationWriteRepositoryImpl {
     ///
     /// Returns [`DomainError`] if the save fails, `status` is not a recognized [`InvitationStatus`],
     /// or `role_permissions` is not valid JSON for the domain type.
-    ///
-    /// # Panics
-    ///
-    /// Panics if a required column is [`None`] after a successful `save`.
     pub async fn save_with_connection<C>(
         db: &C,
         invitation: &OrganizationInvitation,
@@ -326,19 +322,7 @@ impl OrganizationInvitationWriteRepositoryImpl {
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
-        let saved_model = organization_invitations::Model {
-            id: result.id.unwrap(),
-            organization_id: result.organization_id.unwrap(),
-            aggregate_id: result.aggregate_id.unwrap(),
-            role_permissions: result.role_permissions.unwrap(),
-            invited_by_user_id: result.invited_by_user_id.unwrap(),
-            token: result.token.unwrap(),
-            status: result.status.unwrap(),
-            expires_at: result.expires_at.unwrap(),
-            accepted_at: result.accepted_at.unwrap(),
-            message: result.message.unwrap(),
-            created_at: result.created_at.unwrap(),
-        };
+        let saved_model = super::model_after_persist(result)?;
 
         OrganizationInvitationMapper::to_domain(saved_model)
     }

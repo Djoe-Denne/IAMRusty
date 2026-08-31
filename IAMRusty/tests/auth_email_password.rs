@@ -234,8 +234,8 @@ async fn test_login_unverified_email_fails() {
     let _user_email = DbFixtures::user_email()
         .user_id(user.id())
         .email("unverified@example.com")
-        .is_primary(true)
-        .is_verified(false) // Not verified
+        .with_primary(true)
+        .with_verified(false) // Not verified
         .commit(fixture.db())
         .await
         .expect("Failed to create user email");
@@ -296,8 +296,8 @@ async fn test_login_invalid_credentials() {
     let _user_email = DbFixtures::user_email()
         .user_id(user.id())
         .email("test@example.com")
-        .is_primary(true)
-        .is_verified(true)
+        .with_primary(true)
+        .with_verified(true)
         .commit(fixture.db())
         .await
         .expect("Failed to create user email");
@@ -409,8 +409,8 @@ async fn test_verify_email_success() {
     let user_email = DbFixtures::user_email()
         .user_id(user.id())
         .email("unverified@example.com")
-        .is_primary(true)
-        .is_verified(false)
+        .with_primary(true)
+        .with_verified(false)
         .commit(db.clone())
         .await
         .expect("Failed to create user email");
@@ -514,8 +514,8 @@ async fn test_verify_email_invalid_token() {
     let user_email = DbFixtures::user_email()
         .user_id(user.id())
         .email("unverified@example.com")
-        .is_primary(true)
-        .is_verified(false)
+        .with_primary(true)
+        .with_verified(false)
         .commit(db.clone())
         .await
         .expect("Failed to create user email");
@@ -583,8 +583,8 @@ async fn test_verify_email_expired_token() {
     let user_email = DbFixtures::user_email()
         .user_id(user.id())
         .email("unverified@example.com")
-        .is_primary(true)
-        .is_verified(false)
+        .with_primary(true)
+        .with_verified(false)
         .commit(db.clone())
         .await
         .expect("Failed to create user email");
@@ -689,8 +689,8 @@ async fn test_verify_email_already_verified() {
     let _user_email = DbFixtures::user_email()
         .user_id(user.id())
         .email("already_verified@example.com")
-        .is_primary(true)
-        .is_verified(true) // Already verified
+        .with_primary(true)
+        .with_verified(true) // Already verified
         .commit(db.clone())
         .await
         .expect("Failed to create user email");

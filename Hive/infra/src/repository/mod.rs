@@ -14,6 +14,22 @@ pub mod resource_repository;
 pub mod role_permission_repository;
 pub mod sync_job_repository;
 
+use rustycog::core::error::DomainError;
+use sea_orm::TryIntoModel;
+
+/// Converts a persisted `ActiveModel` into its `Model`.
+///
+/// # Errors
+///
+/// Returns [`DomainError`] if a required column is unset after persist.
+pub(crate) fn model_after_persist<M: sea_orm::ModelTrait>(
+    active: impl TryIntoModel<M>,
+) -> Result<M, DomainError> {
+    active
+        .try_into_model()
+        .map_err(|e| DomainError::internal_error(&format!("incomplete row after persist: {e}")))
+}
+
 // Re-export implementations for convenience
 pub use external_link_repository::*;
 pub use external_provider_repository::*;

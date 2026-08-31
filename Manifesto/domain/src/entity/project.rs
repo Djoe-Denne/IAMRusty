@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
-use crate::value_objects::{DataClassification, OwnerType, ProjectStatus, Visibility};
+use crate::value_objects::{DataClassification, FieldUpdate, OwnerType, ProjectStatus, Visibility};
 use rustycog::core::error::DomainError;
 
 #[derive(Debug, Clone)]
@@ -96,7 +96,7 @@ impl Project {
     pub fn update_metadata(
         &mut self,
         name: Option<String>,
-        description: Option<Option<String>>,
+        description: FieldUpdate<Option<String>>,
         visibility: Option<Visibility>,
         external_collaboration_enabled: Option<bool>,
         data_classification: Option<DataClassification>,
@@ -113,7 +113,7 @@ impl Project {
             self.name = new_name;
         }
 
-        if let Some(new_desc) = description {
+        if let FieldUpdate::Set(new_desc) = description {
             if let Some(desc) = &new_desc {
                 if desc.len() > 1000 {
                     return Err(DomainError::invalid_input(

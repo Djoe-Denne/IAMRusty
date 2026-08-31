@@ -1377,7 +1377,7 @@ async fn test_jwt_token_validation_using_jwks_endpoint() {
     // Create verified email for the user
     let user_email = DbFixtures::user_email()
         .arthur_primary(user.id())
-        .is_verified(true)
+        .with_verified(true)
         .commit(db.clone())
         .await
         .expect("Failed to create verified email");

@@ -36,7 +36,7 @@ async fn test_mark_as_read_operation() {
     let notification = NotificationFixtureBuilder::new()
         .user_id(user_id)
         .title("Concurrent test notification".to_string())
-        .is_read(false)
+        .with_read(false)
         .commit(&db)
         .await
         .expect("Failed to create notification");
@@ -380,7 +380,7 @@ async fn test_complex_notification_filtering() {
         .user_id(user_id)
         .title("Unread high priority".to_string())
         .high_priority()
-        .is_read(false)
+        .with_read(false)
         .commit(&db)
         .await
         .expect("Failed to create unread high priority notification");
@@ -388,7 +388,7 @@ async fn test_complex_notification_filtering() {
     let _unread_normal = NotificationFixtureBuilder::new()
         .user_id(user_id)
         .title("Unread normal priority".to_string())
-        .is_read(false)
+        .with_read(false)
         .commit(&db)
         .await
         .expect("Failed to create unread normal notification");
@@ -414,7 +414,7 @@ async fn test_complex_notification_filtering() {
         .user_id(user_id)
         .title("Expired unread".to_string())
         .expired()
-        .is_read(false)
+        .with_read(false)
         .commit(&db)
         .await
         .expect("Failed to create expired unread notification");

@@ -1,6 +1,7 @@
 //! Queue factories that classify and log rustycog no-op fallbacks.
 
 use std::collections::HashSet;
+use std::hash::BuildHasher;
 use std::sync::Arc;
 
 use rustycog::config::QueueConfig;
@@ -50,9 +51,10 @@ pub async fn create_signaled_multi_queue_event_publisher<TError>(
     let status = classify_publisher(config, transport.as_ref());
     signal_queue_status(service, QueueRole::Publisher, &status);
 
-    let queue_names: HashSet<String> = queue_names
-        .map(|names| names.into_iter().collect())
-        .unwrap_or_else(|| default_queue_names(config));
+    let queue_names = queue_names.map_or_else(
+        || default_queue_names(config),
+        |names| names.into_iter().collect(),
+    );
     let adapted = GenericEventPublisherAdapter::<TError>::new(transport.clone(), error_mapper);
     let publisher = Arc::new(MultiQueueEventPublisher::new(vec![adapted], queue_names));
 
@@ -78,12 +80,12 @@ pub async fn create_signaled_event_consumer(
     Ok(SignaledConsumer { consumer, status })
 }
 
-fn default_queue_names(config: &QueueConfig) -> HashSet<String> {
+fn default_queue_names<S: BuildHasher + Default>(config: &QueueConfig) -> HashSet<String, S> {
     match config {
-        QueueConfig::Disabled => HashSet::new(),
-        QueueConfig::Sqs(sqs_config) => sqs_config.all_queue_names(),
+        QueueConfig::Disabled => HashSet::default(),
+        QueueConfig::Sqs(sqs_config) => sqs_config.all_queue_names().into_iter().collect(),
         QueueConfig::Kafka(kafka_config) => {
-            let mut queues = HashSet::new();
+            let mut queues = HashSet::default();
             queues.insert(kafka_config.user_events_topic.clone());
             queues
         }

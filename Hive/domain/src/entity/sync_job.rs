@@ -248,7 +248,6 @@ impl SyncJobType {
             Self::MembersOnly => "members_only",
         }
     }
-
 }
 
 impl std::str::FromStr for SyncJobType {
@@ -281,7 +280,6 @@ impl SyncJobStatus {
             Self::Failed => "failed",
         }
     }
-
 }
 
 impl std::str::FromStr for SyncJobStatus {

@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use rustycog::command::{Command, CommandError, CommandErrorMapper, CommandHandler};
+use std::str::FromStr;
 use std::sync::Arc;
 use uuid::Uuid;
 

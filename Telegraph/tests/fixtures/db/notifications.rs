@@ -90,7 +90,7 @@ impl NotificationFixtureBuilder {
 
     /// Set whether the notification is read
     #[must_use]
-    pub const fn is_read(mut self, is_read: bool) -> Self {
+    pub const fn with_read(mut self, is_read: bool) -> Self {
         self.is_read = is_read;
         self
     }

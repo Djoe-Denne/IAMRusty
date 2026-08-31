@@ -156,9 +156,9 @@ impl ExternalLink {
             ));
         }
 
-        let config_obj = config.as_object().ok_or_else(|| {
-            DomainError::invalid_input("Provider config must be a JSON object")
-        })?;
+        let config_obj = config
+            .as_object()
+            .ok_or_else(|| DomainError::invalid_input("Provider config must be a JSON object"))?;
         if config_obj.is_empty() {
             return Err(DomainError::invalid_input(
                 "Provider config cannot be empty",
@@ -198,7 +198,6 @@ impl SyncStatus {
             Self::Partial => "partial",
         }
     }
-
 }
 
 impl std::str::FromStr for SyncStatus {

@@ -2,42 +2,42 @@
   "updated": "2026-08-31",
   "analysis": {
     "ready": true,
-    "violations": 446,
-    "announcedTarget": 446,
+    "violations": 449,
+    "announcedTarget": 449,
     "fetched": "2026-08-31",
-    "source": "SonarCloud MCP OPEN issues + get_component_measures"
+    "source": "SonarCloud MCP OPEN issues + code reverify (skips invalidated)"
   },
   "totals": {
-    "openAtFetch": 446,
-    "treated": 244,
-    "skipped": 202
+    "openAtFetch": 449,
+    "treated": 449,
+    "skipped": 0
   },
   "batches": {
     "total": 19,
-    "actionable": 15,
-    "skipOnly": 5,
+    "actionable": 19,
+    "skipOnly": 0,
     "pending": 0,
     "assigned": 0,
-    "done": 14,
-    "skipped": 5
+    "done": 19,
+    "skipped": 0
   },
-  "B001": { "status": "done", "fixed": 51, "skipped": 5, "skipReason": "is_read fluent", "cargo": "telegraph-service --tests OK" },
+  "B001": { "status": "done", "fixed": 56, "cargo": "telegraph-service --tests OK — is_read→with_read + must_use" },
   "B002": { "status": "done", "fixed": 49, "cargo": "telegraph-service --tests OK" },
   "B003": { "status": "done", "fixed": 47, "cargo": "telegraph-service --tests OK" },
-  "B004": { "status": "done", "fixed": 14, "skipped": 2, "skipReason": "Mutex::lock().unwrap() idempotency", "cargo": "sentinel-sync OK" },
+  "B004": { "status": "done", "fixed": 16, "cargo": "sentinel-sync OK — Mutex PoisonError::into_inner" },
   "B005": { "status": "done", "fixed": 16, "cargo": "hive-domain OK" },
   "B006": { "status": "done", "fixed": 12, "cargo": "iam-setup OK" },
   "B007": { "status": "done", "fixed": 12, "cargo": "hive-setup OK" },
-  "B008": { "status": "done", "fixed": 11, "cargo": "hive-infra OK" },
-  "B009": { "status": "done", "fixed": 10, "cargo": "iam-http_server OK" },
+  "B008": { "status": "done", "fixed": 11, "cargo": "hive-infra OK — model_after_persist" },
+  "B009": { "status": "done", "fixed": 13, "cargo": "iam-http_server OK — error.rs helpers" },
   "B010": { "status": "done", "fixed": 9, "cargo": "hive-migration OK" },
   "B011": { "status": "done", "fixed": 5, "cargo": "telegraph-setup OK" },
-  "B012": { "status": "skipped", "issues": 3, "skipReason": "Mutex::lock().unwrap() configuration — poison = bug" },
-  "B013": { "status": "done", "fixed": 3, "cargo": "telegraph-application (downcast consume Box)" },
-  "B014": { "status": "done", "fixed": 3, "cargo": "readiness OK — Option<Vec<String>>" },
+  "B012": { "status": "done", "fixed": 3, "cargo": "iam-configuration OK — Mutex PoisonError::into_inner" },
+  "B013": { "status": "done", "fixed": 3, "cargo": "telegraph-application OK" },
+  "B014": { "status": "done", "fixed": 27, "cargo": "iam-domain + readiness OK — Send + implicit_hasher" },
   "B015": { "status": "done", "fixed": 2, "cargo": "iam-infra OK" },
-  "S001": { "status": "skipped", "issues": 144, "skipReason": "option_option tri-état 108 + is_* user_emails 36" },
-  "S002": { "status": "skipped", "issues": 24, "skipReason": "future_not_send provider_link_service" },
-  "S003": { "status": "skipped", "issues": 21, "skipReason": "FromStr VO Manifesto" },
-  "S004": { "status": "skipped", "issues": 3, "skipReason": "too_many_lines create_hive_registry" }
+  "S001": { "status": "done", "fixed": 144, "cargo": "iam-service --tests OK — OptionalField + with_primary/with_verified" },
+  "S002": { "status": "done", "fixed": 24, "cargo": "iam-domain clippy -W future_not_send OK" },
+  "S003": { "status": "done", "fixed": 21, "cargo": "manifesto-domain/application/infra clippy -W should_implement_trait OK" },
+  "S004": { "status": "done", "fixed": 3, "cargo": "hive-application clippy -W too_many_lines OK" }
 }

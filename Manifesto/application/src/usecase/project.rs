@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use chrono::Utc;
 use manifesto_configuration::BusinessConfig;
+use std::str::FromStr;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -8,7 +9,9 @@ use manifesto_domain::{
     entity::Project,
     port::ProjectListFilters,
     service::{ComponentService, MemberService, PermissionService, ProjectService},
-    value_objects::{DataClassification, MemberSource, OwnerType, ProjectStatus, Visibility},
+    value_objects::{
+        DataClassification, FieldUpdate, MemberSource, OwnerType, ProjectStatus, Visibility,
+    },
     ProjectMember,
 };
 use manifesto_events::{
@@ -463,7 +466,7 @@ impl ProjectUseCase for ProjectUseCaseImpl {
         project
             .update_metadata(
                 request.name.clone(),
-                Some(request.description.clone()),
+                FieldUpdate::Set(request.description.clone()),
                 visibility,
                 request.external_collaboration_enabled,
                 data_classification,

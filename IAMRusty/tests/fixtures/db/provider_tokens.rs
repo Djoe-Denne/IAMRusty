@@ -5,6 +5,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 // Import the entity types
+use super::super::OptionalField;
 use iam_infra::repository::entity::provider_tokens::{
     ActiveModel as ProviderTokenActiveModel, Entity as ProviderTokensEntity,
     Model as ProviderTokenModel,
@@ -17,8 +18,8 @@ pub struct ProviderTokenFixtureBuilder {
     user_id: Option<Uuid>,
     provider: Option<String>,
     access_token: Option<String>,
-    refresh_token: Option<Option<String>>,
-    expires_in: Option<Option<i32>>,
+    refresh_token: OptionalField<String>,
+    expires_in: OptionalField<i32>,
     created_at: Option<NaiveDateTime>,
     updated_at: Option<NaiveDateTime>,
     provider_user_id: Option<String>,
@@ -32,8 +33,8 @@ impl ProviderTokenFixtureBuilder {
             user_id: None,
             provider: None,
             access_token: None,
-            refresh_token: None,
-            expires_in: None,
+            refresh_token: OptionalField::Unset,
+            expires_in: OptionalField::Unset,
             created_at: None,
             updated_at: None,
             provider_user_id: None,
@@ -64,15 +65,27 @@ impl ProviderTokenFixtureBuilder {
         self
     }
 
-    /// Set the refresh token
-    pub fn refresh_token(mut self, refresh_token: Option<String>) -> Self {
-        self.refresh_token = Some(refresh_token);
+    /// Set an explicit refresh token
+    pub fn with_refresh_token(mut self, refresh_token: impl Into<String>) -> Self {
+        self.refresh_token = OptionalField::Set(Some(refresh_token.into()));
         self
     }
 
-    /// Set the `expires_in` value
-    pub const fn expires_in(mut self, expires_in: Option<i32>) -> Self {
-        self.expires_in = Some(expires_in);
+    /// Persist a NULL refresh token
+    pub fn clear_refresh_token(mut self) -> Self {
+        self.refresh_token = OptionalField::Set(None);
+        self
+    }
+
+    /// Set an explicit `expires_in` value
+    pub fn with_expires_in(mut self, expires_in: i32) -> Self {
+        self.expires_in = OptionalField::Set(Some(expires_in));
+        self
+    }
+
+    /// Persist a NULL `expires_in`
+    pub fn clear_expires_in(mut self) -> Self {
+        self.expires_in = OptionalField::Set(None);
         self
     }
 
@@ -107,8 +120,8 @@ impl ProviderTokenFixtureBuilder {
         self.user_id(user_id)
             .provider("github")
             .access_token(TestData::access_token())
-            .refresh_token(Some(TestData::refresh_token()))
-            .expires_in(Some(3600))
+            .with_refresh_token(TestData::refresh_token())
+            .with_expires_in(3600)
             .provider_user_id(TestData::provider_user_id())
     }
 
@@ -117,19 +130,19 @@ impl ProviderTokenFixtureBuilder {
         self.user_id(user_id)
             .provider("gitlab")
             .access_token(TestData::access_token())
-            .refresh_token(Some(TestData::refresh_token()))
-            .expires_in(Some(7200))
+            .with_refresh_token(TestData::refresh_token())
+            .with_expires_in(7200)
             .provider_user_id(TestData::provider_user_id())
     }
 
     /// Create an expired GitHub token
     pub fn github_expired(self, user_id: Uuid) -> Self {
-        self.github(user_id).expires_in(Some(0))
+        self.github(user_id).with_expires_in(0)
     }
 
     /// Create a GitHub token without refresh token
     pub fn github_no_refresh(self, user_id: Uuid) -> Self {
-        self.github(user_id).refresh_token(None)
+        self.github(user_id).clear_refresh_token()
     }
 
     /// Create Arthur's GitHub token
@@ -199,11 +212,9 @@ impl DbFixture<ProviderTokensEntity, ProviderTokenModel, ProviderTokenActiveMode
                     .unwrap_or_else(TestData::access_token),
             ),
             refresh_token: ActiveValue::Set(
-                self.refresh_token
-                    .clone()
-                    .unwrap_or_else(|| Some(TestData::refresh_token())),
+                self.refresh_token.resolve(Some(TestData::refresh_token())),
             ),
-            expires_in: ActiveValue::Set(self.expires_in.unwrap_or(Some(3600))),
+            expires_in: ActiveValue::Set(self.expires_in.resolve(Some(3600))),
             created_at: ActiveValue::Set(self.created_at.unwrap_or(now)),
             updated_at: ActiveValue::Set(self.updated_at.unwrap_or(now)),
             provider_user_id: ActiveValue::Set(

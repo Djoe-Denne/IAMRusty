@@ -36,7 +36,7 @@ async fn test_get_notifications_success_default_pagination() {
     let _notification1 = NotificationFixtureBuilder::new()
         .user_id(user_id)
         .title("First notification".to_string())
-        .is_read(false)
+        .with_read(false)
         .commit(&db)
         .await
         .expect("Failed to create notification 1");
@@ -44,7 +44,7 @@ async fn test_get_notifications_success_default_pagination() {
     let _notification2 = NotificationFixtureBuilder::new()
         .user_id(user_id)
         .title("Second notification".to_string())
-        .is_read(true)
+        .with_read(true)
         .read()
         .commit(&db)
         .await
@@ -125,7 +125,7 @@ async fn test_get_notifications_unread_only_filter() {
     let _unread1 = NotificationFixtureBuilder::new()
         .user_id(user_id)
         .title("Unread notification 1".to_string())
-        .is_read(false)
+        .with_read(false)
         .commit(&db)
         .await
         .expect("Failed to create unread notification 1");
@@ -141,7 +141,7 @@ async fn test_get_notifications_unread_only_filter() {
     let _unread2 = NotificationFixtureBuilder::new()
         .user_id(user_id)
         .title("Unread notification 2".to_string())
-        .is_read(false)
+        .with_read(false)
         .commit(&db)
         .await
         .expect("Failed to create unread notification 2");
@@ -311,14 +311,14 @@ async fn test_get_unread_count_success() {
     // Create mix of read and unread notifications
     let _unread1 = NotificationFixtureBuilder::new()
         .user_id(user_id)
-        .is_read(false)
+        .with_read(false)
         .commit(&db)
         .await
         .expect("Failed to create unread notification 1");
 
     let _unread2 = NotificationFixtureBuilder::new()
         .user_id(user_id)
-        .is_read(false)
+        .with_read(false)
         .commit(&db)
         .await
         .expect("Failed to create unread notification 2");
@@ -334,7 +334,7 @@ async fn test_get_unread_count_success() {
     let other_user_id = Uuid::new_v4();
     let _other_unread = NotificationFixtureBuilder::new()
         .user_id(other_user_id)
-        .is_read(false)
+        .with_read(false)
         .commit(&db)
         .await
         .expect("Failed to create other user unread notification");
@@ -420,7 +420,7 @@ async fn test_mark_notification_read_success() {
     let notification = NotificationFixtureBuilder::new()
         .user_id(user_id)
         .title("Test notification".to_string())
-        .is_read(false)
+        .with_read(false)
         .commit(&db)
         .await
         .expect("Failed to create notification");
@@ -554,7 +554,7 @@ async fn test_mark_notification_read_unauthorized() {
     let notification = NotificationFixtureBuilder::new()
         .user_id(owner_user_id)
         .title("Owner's notification".to_string())
-        .is_read(false)
+        .with_read(false)
         .commit(&db)
         .await
         .expect("Failed to create notification");
@@ -734,7 +734,7 @@ async fn test_notification_lifecycle_complete() {
     let notification1 = NotificationFixtureBuilder::new()
         .user_id(user_id)
         .title("Lifecycle test notification 1".to_string())
-        .is_read(false)
+        .with_read(false)
         .commit(&db)
         .await
         .expect("Failed to create notification 1");
@@ -742,7 +742,7 @@ async fn test_notification_lifecycle_complete() {
     let notification2 = NotificationFixtureBuilder::new()
         .user_id(user_id)
         .title("Lifecycle test notification 2".to_string())
-        .is_read(false)
+        .with_read(false)
         .commit(&db)
         .await
         .expect("Failed to create notification 2");

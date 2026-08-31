@@ -273,10 +273,6 @@ impl OrganizationMemberWriteRepositoryImpl {
     ///
     /// Returns [`DomainError`] if the lookup, insert, or update fails, or if `status` is not a
     /// recognized [`MemberStatus`].
-    ///
-    /// # Panics
-    ///
-    /// Panics if a required column is [`None`] after a successful `save`.
     pub async fn save_with_connection<C>(
         db: &C,
         member: &OrganizationMember,
@@ -301,17 +297,7 @@ impl OrganizationMemberWriteRepositoryImpl {
                 .await
                 .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
-            let saved_model = organization_members::Model {
-                id: result.id.unwrap(),
-                organization_id: result.organization_id.unwrap(),
-                user_id: result.user_id.unwrap(),
-                status: result.status.unwrap(),
-                invited_by_user_id: result.invited_by_user_id.unwrap(),
-                invited_at: result.invited_at.unwrap(),
-                joined_at: result.joined_at.unwrap(),
-                created_at: result.created_at.unwrap(),
-                updated_at: result.updated_at.unwrap(),
-            };
+            let saved_model = super::model_after_persist(result)?;
 
             OrganizationMemberMapper::to_domain(&saved_model)
         } else {

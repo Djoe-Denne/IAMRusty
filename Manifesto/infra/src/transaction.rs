@@ -6,6 +6,7 @@ use rustycog::core::error::DomainError;
 use rustycog::db::DbConnectionPool;
 use rustycog::events::DomainEvent;
 use rustycog::outbox::OutboxRecorder;
+use std::str::FromStr;
 
 use crate::repository::{
     MemberWriteRepositoryImpl, PermissionReadRepositoryImpl,

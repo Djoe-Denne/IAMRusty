@@ -6,7 +6,7 @@
 //! `completed` state for production-style workers.
 
 use std::collections::HashSet;
-use std::sync::Mutex;
+use std::sync::{Mutex, PoisonError};
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -47,12 +47,18 @@ impl InMemoryEventLedger {
 #[async_trait]
 impl EventLedger for InMemoryEventLedger {
     async fn begin(&self, event_id: Uuid) -> Result<bool> {
-        let guard = self.completed.lock().unwrap();
+        let guard = self
+            .completed
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
         Ok(!guard.contains(&event_id))
     }
 
     async fn complete(&self, event_id: Uuid) -> Result<()> {
-        self.completed.lock().unwrap().insert(event_id);
+        self.completed
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(event_id);
         Ok(())
     }
 

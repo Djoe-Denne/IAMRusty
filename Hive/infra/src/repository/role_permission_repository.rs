@@ -127,7 +127,9 @@ impl RolePermissionReadRepository for RolePermissionReadRepositoryImpl {
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
-        role_permission.map(RolePermissionMapper::to_domain).transpose()
+        role_permission
+            .map(RolePermissionMapper::to_domain)
+            .transpose()
     }
 
     async fn find_by_organization_role(
@@ -209,11 +211,8 @@ impl RolePermissionWriteRepositoryImpl {
     ///
     /// # Errors
     ///
-    /// Returns [`DomainError`] if the lookup, insert, or update fails.
-    ///
-    /// # Panics
-    ///
-    /// Panics if a required column is [`None`] after a successful `save`.
+    /// Returns [`DomainError`] if the lookup, insert, or update fails, or if a required
+    /// column is unset after persist.
     pub async fn save_with_connection<C>(
         db: &C,
         _organization_id: &Uuid,
@@ -239,15 +238,7 @@ impl RolePermissionWriteRepositoryImpl {
                 .await
                 .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
-            let saved_model = role_permissions::Model {
-                id: result.id.unwrap(),
-                organization_id: result.organization_id.unwrap(),
-                permission_id: result.permission_id.unwrap(),
-                resource_id: result.resource_id.unwrap(),
-                description: result.description.unwrap(),
-                created_at: result.created_at.unwrap(),
-                name: result.name.unwrap(),
-            };
+            let saved_model = super::model_after_persist(result)?;
 
             RolePermissionMapper::to_domain(saved_model)
         } else {

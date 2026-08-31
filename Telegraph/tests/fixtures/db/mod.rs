@@ -65,7 +65,7 @@ impl DbFixtures {
         let notification = Self::notification()
             .user_id(user_id)
             .title("Read Notification".to_string())
-            .is_read(true)
+            .with_read(true)
             .read_at(Some(chrono::Utc::now()))
             .commit(&db)
             .await?;

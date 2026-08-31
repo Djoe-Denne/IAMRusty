@@ -1,5 +1,6 @@
 use rustycog::core::error::DomainError;
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -19,12 +20,22 @@ impl Visibility {
         }
     }
 
+    /// Check if this visibility allows public access
+    #[must_use]
+    pub const fn is_public(&self) -> bool {
+        matches!(self, Self::Public)
+    }
+}
+
+impl FromStr for Visibility {
+    type Err = DomainError;
+
     /// Parse a visibility from a string.
     ///
     /// # Errors
     ///
     /// Returns [`DomainError`] if `s` is not a recognized visibility.
-    pub fn from_str(s: &str) -> Result<Self, DomainError> {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             "private" => Ok(Self::Private),
             "internal" => Ok(Self::Internal),
@@ -33,12 +44,6 @@ impl Visibility {
                 "Invalid visibility: {s}"
             ))),
         }
-    }
-
-    /// Check if this visibility allows public access
-    #[must_use]
-    pub const fn is_public(&self) -> bool {
-        matches!(self, Self::Public)
     }
 }
 

@@ -38,21 +38,24 @@ workspace Docker pendant que d’autres lots éditent. Check crate-local.
 | `future_not_send` | extraire, ne pas tenir un `MutexGuard` au-delà d’un `.await` | `#[allow(clippy::future_not_send)]` |
 | DDL migration | extraire un helper par table ; `expect("DDL")` | `unwrap` |
 | `serde_json` de **nos** types | `expect("Serialize")` | |
-| `Mutex::lock().unwrap()` | **garder** (poison = bug) | |
+| `Mutex::lock().unwrap()` | `unwrap_or_else(PoisonError::into_inner)` | `unwrap()` / `expect()` |
 | Telegraph tests `duplicate_mod` | un seul `#[path = "fixtures/mod.rs"]` dans `tests/common.rs` | re-`path` dans chaque `*_test.rs` |
 
 Hive : un rôle invalide fait échouer tout l’add/update (`collect::<Result<_>>()`).
 
 Setup IAM : extraire `setup_*` dans `IAMRusty/setup/src/app.rs`, pas d’`allow` sur `new()`.
 
-## Skip volontaire (ne pas « corriger »)
+## Skips invalidés (opérateur 2026-08-31)
 
-- Builders fluents `Option<Option<_>>` **tri-état** (unset = défaut vs `Some(None)` = NULL).
-- `is_*` fluents `mut self -> Self` si call sites hors lot (`wrong_self_convention`).
-- `FromStr` sur VO Manifesto si `Type::from_str` existe déjà sans `use FromStr` (casse API).
-- `future_not_send` dans `IAMRusty/domain/src/service/provider_link_service.rs` (B014).
-- `unwrap` restants : repos Hive infra, `IAMRusty/http/src/validation.rs`.
-- `too_many_lines` sur `create_hive_registry`.
+Ces familles se traitent, plus de skip « policy / hors lot / casse API » :
+
+- Builders fluents : plus de `Option<Option<T>>` — `OptionalField::{Unset,Set}` + `with_x` / `clear_x`.
+- Fluents `is_*` (`mut self -> Self`) : rename `with_*` ; getters `&self -> bool` inchangés.
+- `FromStr` sur VO Manifesto **et** Hive : `impl FromStr` + `use std::str::FromStr` aux call sites.
+- `future_not_send` `provider_link_service` : bornes `Send + Sync`, pas d’`allow`.
+- `Mutex::lock()` : `unwrap_or_else(PoisonError::into_inner)`.
+- `too_many_lines` `create_hive_registry` : extraire `register_*` / `setup_*`, pas d’`allow`.
+- `unwrap` persist Hive infra : `try_into_model` / `model_after_persist` + `ok_or_else` internal_error.
 
 ## Après un lot
 

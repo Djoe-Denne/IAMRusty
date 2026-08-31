@@ -54,13 +54,13 @@ impl UserEmailFixtureBuilder {
     }
 
     /// Set whether this is the primary email
-    pub const fn is_primary(mut self, is_primary: bool) -> Self {
+    pub const fn with_primary(mut self, is_primary: bool) -> Self {
         self.is_primary = Some(is_primary);
         self
     }
 
     /// Set whether this email is verified
-    pub const fn is_verified(mut self, is_verified: bool) -> Self {
+    pub const fn with_verified(mut self, is_verified: bool) -> Self {
         self.is_verified = Some(is_verified);
         self
     }
@@ -89,64 +89,64 @@ impl UserEmailFixtureBuilder {
     pub fn primary_verified(self, user_id: Uuid) -> Self {
         self.user_id(user_id)
             .email(TestData::email())
-            .is_primary(true)
-            .is_verified(true)
+            .with_primary(true)
+            .with_verified(true)
     }
 
     /// Create a secondary unverified email
     pub fn secondary_unverified(self, user_id: Uuid) -> Self {
         self.user_id(user_id)
             .email(TestData::email())
-            .is_primary(false)
-            .is_verified(false)
+            .with_primary(false)
+            .with_verified(false)
     }
 
     /// Create Arthur's primary email
     pub fn arthur_primary(self, user_id: Uuid) -> Self {
         self.user_id(user_id)
             .email("arthur@example.com")
-            .is_primary(true)
-            .is_verified(true)
+            .with_primary(true)
+            .with_verified(true)
     }
 
     /// Create Arthur's secondary email
     pub fn arthur_secondary(self, user_id: Uuid) -> Self {
         self.user_id(user_id)
             .email("arthur.secondary@example.com")
-            .is_primary(false)
-            .is_verified(false)
+            .with_primary(false)
+            .with_verified(false)
     }
 
     /// Create Arthur's GitHub email
     pub fn arthur_github(self, user_id: Uuid) -> Self {
         self.user_id(user_id)
             .email("arthur@github.example.com")
-            .is_primary(false)
-            .is_verified(false)
+            .with_primary(false)
+            .with_verified(false)
     }
 
     /// Create Bob's primary email
     pub fn bob_primary(self, user_id: Uuid) -> Self {
         self.user_id(user_id)
             .email("bob@example.com")
-            .is_primary(true)
-            .is_verified(true)
+            .with_primary(true)
+            .with_verified(true)
     }
 
     /// Create Alice's primary email
     pub fn alice_primary(self, user_id: Uuid) -> Self {
         self.user_id(user_id)
             .email("alice@example.com")
-            .is_primary(true)
-            .is_verified(true)
+            .with_primary(true)
+            .with_verified(true)
     }
 
     /// Create Alice's GitLab email
     pub fn alice_gitlab(self, user_id: Uuid) -> Self {
         self.user_id(user_id)
             .email("alice@gitlab.example.com")
-            .is_primary(false)
-            .is_verified(false)
+            .with_primary(false)
+            .with_verified(false)
     }
 }
 

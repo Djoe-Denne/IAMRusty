@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
+use super::super::OptionalField;
+
 /// GitLab user data structure matching the API response
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GitLabUser {
@@ -58,8 +60,8 @@ impl GitLabUser {
 pub struct GitLabUserBuilder {
     id: Option<i64>,
     username: Option<String>,
-    email: Option<Option<String>>,
-    avatar_url: Option<Option<String>>,
+    email: OptionalField<String>,
+    avatar_url: OptionalField<String>,
 }
 
 impl GitLabUserBuilder {
@@ -73,13 +75,23 @@ impl GitLabUserBuilder {
         self
     }
 
-    pub fn email(mut self, email: Option<impl Into<String>>) -> Self {
-        self.email = Some(email.map(std::convert::Into::into));
+    pub fn with_email(mut self, email: impl Into<String>) -> Self {
+        self.email = OptionalField::Set(Some(email.into()));
         self
     }
 
-    pub fn avatar_url(mut self, avatar_url: Option<impl Into<String>>) -> Self {
-        self.avatar_url = Some(avatar_url.map(std::convert::Into::into));
+    pub fn clear_email(mut self) -> Self {
+        self.email = OptionalField::Set(None);
+        self
+    }
+
+    pub fn with_avatar_url(mut self, avatar_url: impl Into<String>) -> Self {
+        self.avatar_url = OptionalField::Set(Some(avatar_url.into()));
+        self
+    }
+
+    pub fn clear_avatar_url(mut self) -> Self {
+        self.avatar_url = OptionalField::Set(None);
         self
     }
 
@@ -91,10 +103,10 @@ impl GitLabUserBuilder {
                 .unwrap_or_else(|| "test_gitlab_user".to_string()),
             email: self
                 .email
-                .unwrap_or_else(|| Some("test@gitlab.example.com".to_string())),
-            avatar_url: self.avatar_url.unwrap_or_else(|| {
-                Some("https://gitlab.com/uploads/-/system/user/avatar/54321/avatar.png".to_string())
-            }),
+                .resolve(Some("test@gitlab.example.com".to_string())),
+            avatar_url: self.avatar_url.resolve(Some(
+                "https://gitlab.com/uploads/-/system/user/avatar/54321/avatar.png".to_string(),
+            )),
         }
     }
 }

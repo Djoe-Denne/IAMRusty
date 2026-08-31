@@ -32,8 +32,8 @@ async fn test_resend_verification_success() {
     let user_email = DbFixtures::user_email()
         .user_id(user.id())
         .email("unverified@example.com")
-        .is_primary(true)
-        .is_verified(false) // Key: email is not verified
+        .with_primary(true)
+        .with_verified(false) // Key: email is not verified
         .commit(db.clone())
         .await
         .expect("Failed to create user email");
@@ -132,8 +132,8 @@ async fn test_resend_verification_email_already_verified() {
     let user_email = DbFixtures::user_email()
         .user_id(user.id())
         .email("verified@example.com")
-        .is_primary(true)
-        .is_verified(true) // Key: email is already verified
+        .with_primary(true)
+        .with_verified(true) // Key: email is already verified
         .commit(db.clone())
         .await
         .expect("Failed to create user email");
@@ -419,8 +419,8 @@ async fn test_resend_verification_multiple_times_same_email() {
     let user_email = DbFixtures::user_email()
         .user_id(user.id())
         .email("multiresend@example.com")
-        .is_primary(true)
-        .is_verified(false)
+        .with_primary(true)
+        .with_verified(false)
         .commit(db.clone())
         .await
         .expect("Failed to create user email");
@@ -495,8 +495,8 @@ async fn test_resend_verification_case_insensitive_email() {
     let _user_email = DbFixtures::user_email()
         .user_id(user.id())
         .email("casetest@example.com") // Lowercase email
-        .is_primary(true)
-        .is_verified(false)
+        .with_primary(true)
+        .with_verified(false)
         .commit(db.clone())
         .await
         .expect("Failed to create user email");
@@ -562,8 +562,8 @@ async fn test_resend_verification_database_consistency() {
     let user_email = DbFixtures::user_email()
         .user_id(user.id())
         .email("consistency@example.com")
-        .is_primary(true)
-        .is_verified(false)
+        .with_primary(true)
+        .with_verified(false)
         .commit(db.clone())
         .await
         .expect("Failed to create user email");
@@ -679,8 +679,8 @@ async fn test_resend_verification_invalidates_old_tokens() {
     let user_email = DbFixtures::user_email()
         .user_id(user.id())
         .email("tokeninvalidation@example.com")
-        .is_primary(true)
-        .is_verified(false)
+        .with_primary(true)
+        .with_verified(false)
         .commit(db.clone())
         .await
         .expect("Failed to create user email");

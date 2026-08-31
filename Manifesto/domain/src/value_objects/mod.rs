@@ -1,5 +1,6 @@
 pub mod component_status;
 pub mod data_classification;
+pub mod field_update;
 pub mod member_role;
 pub mod member_source;
 pub mod owner_type;
@@ -10,6 +11,7 @@ pub mod visibility;
 
 pub use component_status::ComponentStatus;
 pub use data_classification::DataClassification;
+pub use field_update::FieldUpdate;
 pub use member_role::MemberRole;
 pub use member_source::MemberSource;
 pub use owner_type::OwnerType;

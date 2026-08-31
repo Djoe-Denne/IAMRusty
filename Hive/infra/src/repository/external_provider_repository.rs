@@ -151,14 +151,7 @@ impl ExternalProviderWriteRepository for ExternalProviderWriteRepositoryImpl {
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
-        let saved_model = external_providers::Model {
-            id: result.id.unwrap(),
-            provider_type: result.provider_type.unwrap(),
-            name: result.name.unwrap(),
-            config_schema: result.config_schema.unwrap(),
-            is_active: result.is_active.unwrap(),
-            created_at: result.created_at.unwrap(),
-        };
+        let saved_model = super::model_after_persist(result)?;
 
         ExternalProviderMapper::to_domain(saved_model)
     }

@@ -12,7 +12,6 @@ use crate::{
 use rustycog::core::error::DomainError;
 
 /// Domain service for organization member management
-#[allow(clippy::struct_field_names)] // collaborators are repositories; `_repo` names the role
 pub struct RoleServiceImpl<MOR, RR, PR, RPR>
 where
     MOR: MemberRoleRepository,
@@ -20,10 +19,10 @@ where
     PR: PermissionRepository,
     RPR: RolePermissionRepository,
 {
-    member_role_repo: Arc<MOR>,
-    resource_repo: Arc<RR>,
-    permission_repo: Arc<PR>,
-    role_permission_repo: Arc<RPR>,
+    member_roles: Arc<MOR>,
+    resources: Arc<RR>,
+    permissions: Arc<PR>,
+    role_permissions: Arc<RPR>,
 }
 
 #[async_trait::async_trait]
@@ -111,16 +110,16 @@ where
 {
     /// Create a new member service
     pub const fn new(
-        member_role_repo: Arc<MOR>,
-        resource_repo: Arc<RR>,
-        permission_repo: Arc<PR>,
-        role_permission_repo: Arc<RPR>,
+        member_roles: Arc<MOR>,
+        resources: Arc<RR>,
+        permissions: Arc<PR>,
+        role_permissions: Arc<RPR>,
     ) -> Self {
         Self {
-            member_role_repo,
-            resource_repo,
-            permission_repo,
-            role_permission_repo,
+            member_roles,
+            resources,
+            permissions,
+            role_permissions,
         }
     }
 }
@@ -142,16 +141,16 @@ where
         &self,
         organization_id: &Uuid,
     ) -> Result<Vec<RolePermission>, DomainError> {
-        let permissions =
-            self.permission_repo
-                .find_all()
-                .await
-                .map_err(|e| DomainError::Internal {
-                    message: e.to_string(),
-                })?;
+        let permissions = self
+            .permissions
+            .find_all()
+            .await
+            .map_err(|e| DomainError::Internal {
+                message: e.to_string(),
+            })?;
 
         let resources = self
-            .resource_repo
+            .resources
             .find_all()
             .await
             .map_err(|e| DomainError::Internal {
@@ -175,7 +174,7 @@ where
                     Some(Utc::now()),
                 );
                 let role = self
-                    .role_permission_repo
+                    .role_permissions
                     .save(organization_id, &role)
                     .await
                     .map_err(|e| DomainError::Internal {
@@ -194,7 +193,7 @@ where
     ///
     /// Returns [`DomainError`] if persistence fails.
     async fn delete_organization_roles(&self, organization_id: &Uuid) -> Result<(), DomainError> {
-        self.member_role_repo
+        self.member_roles
             .delete_by_organization(organization_id)
             .await
             .map_err(|e| DomainError::Internal {
@@ -249,7 +248,7 @@ where
                 &role,
                 Utc::now(),
             );
-            new_roles.push(self.member_role_repo.save(&new_role).await.map_err(|_| {
+            new_roles.push(self.member_roles.save(&new_role).await.map_err(|_| {
                 DomainError::BusinessRuleViolation {
                     rule: "Trying to add roles to a unexisting member".to_string(),
                 }
@@ -269,7 +268,7 @@ where
         role_permissions: &[RolePermission],
     ) -> Result<Vec<RolePermission>, DomainError> {
         let roles = self
-            .role_permission_repo
+            .role_permissions
             .find_by_organization_roles(organization_id, role_permissions)
             .await
             .map_err(|e| DomainError::Internal {
@@ -288,7 +287,7 @@ where
         &self,
         organization_id: &Uuid,
     ) -> Result<Vec<RolePermission>, DomainError> {
-        self.role_permission_repo
+        self.role_permissions
             .find_by_organization(organization_id)
             .await
             .map_err(|e| DomainError::Internal {
@@ -307,7 +306,7 @@ where
         role_id: &Uuid,
     ) -> Result<RolePermission, DomainError> {
         let role = self
-            .role_permission_repo
+            .role_permissions
             .find_by_id(role_id)
             .await
             .map_err(|e| DomainError::Internal {

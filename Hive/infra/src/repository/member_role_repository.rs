@@ -140,12 +140,8 @@ impl MemberRoleWriteRepositoryImpl {
     ///
     /// # Errors
     ///
-    /// Returns [`DomainError`] if the lookup, insert, or update fails.
-    ///
-    /// # Panics
-    ///
-    /// Panics if a required identifier or column is [`None`], or if the related role-permission
-    /// row is missing.
+    /// Returns [`DomainError`] if the lookup, insert, or update fails, or if a required
+    /// column is unset after persist.
     pub async fn save_with_connection<C>(
         db: &C,
         member_role: &OrganizationMemberRolePermission,
@@ -181,12 +177,7 @@ impl MemberRoleWriteRepositoryImpl {
                 .await
                 .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
-            let saved_model = organization_member_role_permissions::Model {
-                id: result.id.unwrap(),
-                member_id: result.member_id.unwrap(),
-                role_permission_id: result.role_permission_id.unwrap(),
-                created_at: result.created_at.unwrap(),
-            };
+            let saved_model = super::model_after_persist(result)?;
 
             MemberRoleMapper::to_domain(&saved_model, role_permission)
         } else {

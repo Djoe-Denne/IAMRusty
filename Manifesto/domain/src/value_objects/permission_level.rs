@@ -1,5 +1,6 @@
 use rustycog::core::error::DomainError;
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 
 /// Permission level representing hierarchical access control
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -12,23 +13,6 @@ pub enum PermissionLevel {
 }
 
 impl PermissionLevel {
-    /// Parse a permission level from a string.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`DomainError`] if `s` is not a recognized permission level.
-    pub fn from_str(s: &str) -> Result<Self, DomainError> {
-        match s.to_lowercase().as_str() {
-            "read" => Ok(Self::Read),
-            "write" => Ok(Self::Write),
-            "admin" => Ok(Self::Admin),
-            "owner" => Ok(Self::Owner),
-            _ => Err(DomainError::invalid_input(&format!(
-                "Invalid permission level: {s}"
-            ))),
-        }
-    }
-
     /// Convert to string representation
     #[must_use]
     pub const fn to_str(&self) -> &'static str {
@@ -53,6 +37,27 @@ impl PermissionLevel {
     }
 }
 
+impl FromStr for PermissionLevel {
+    type Err = DomainError;
+
+    /// Parse a permission level from a string.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if `s` is not a recognized permission level.
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "read" => Ok(Self::Read),
+            "write" => Ok(Self::Write),
+            "admin" => Ok(Self::Admin),
+            "owner" => Ok(Self::Owner),
+            _ => Err(DomainError::invalid_input(&format!(
+                "Invalid permission level: {s}"
+            ))),
+        }
+    }
+}
+
 impl std::fmt::Display for PermissionLevel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.to_str())
@@ -62,6 +67,7 @@ impl std::fmt::Display for PermissionLevel {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::str::FromStr;
 
     #[test]
     fn test_hierarchy() {

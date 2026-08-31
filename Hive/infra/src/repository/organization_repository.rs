@@ -263,17 +263,7 @@ impl OrganizationWriteRepositoryImpl {
                 .await
                 .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
-            let saved_model = organizations::Model {
-                id: result.id.unwrap(),
-                name: result.name.unwrap(),
-                slug: result.slug.unwrap(),
-                description: result.description.unwrap(),
-                avatar_url: result.avatar_url.unwrap(),
-                owner_user_id: result.owner_user_id.unwrap(),
-                settings: result.settings.unwrap(),
-                created_at: result.created_at.unwrap(),
-                updated_at: result.updated_at.unwrap(),
-            };
+            let saved_model = super::model_after_persist(result)?;
             return Ok(OrganizationMapper::to_domain(saved_model));
         }
 

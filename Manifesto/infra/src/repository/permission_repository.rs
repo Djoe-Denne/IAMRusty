@@ -4,6 +4,7 @@ use manifesto_domain::port::PermissionReadRepository;
 use manifesto_domain::value_objects::PermissionLevel;
 use rustycog::core::error::DomainError;
 use sea_orm::{ConnectionTrait, DatabaseConnection, EntityTrait};
+use std::str::FromStr;
 use std::sync::Arc;
 use tracing::debug;
 
