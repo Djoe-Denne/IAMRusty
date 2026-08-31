@@ -4,7 +4,7 @@ category: project
 tags: [project, authorization, openfga, sentinel-sync, events]
 summary: >-
   Centralized authorization for AIForAll. OpenFGA holds the Zanzibar relation store; the sentinel-sync worker translates business events from Hive, Manifesto, IAMRusty, and Telegraph into relation tuples. Client services only call OpenFGA's Check API.
-updated: 2026-04-20
+updated: 2026-08-31T13:30:00Z
 ---
 
 # Sentinel Sync
@@ -14,7 +14,7 @@ The `sentinel-sync` project replaces per-service Casbin authorization with a sin
 ## Pieces
 
 - **OpenFGA server** — the only authorization engine. Deployed as its own process with its own Postgres store. Model lives at [openfga/model.fga](../../../openfga/model.fga).
-- **sentinel-sync worker** — a Rust binary that consumes events from Hive, Manifesto, and IAMRusty, translates them into OpenFGA `Write`/`Delete` tuple calls, and records every processed `event_id` for idempotency.
+- **sentinel-sync worker** — a Rust binary that consumes events from Hive, Manifesto, and IAMRusty, translates them into OpenFGA `Write`/`Delete` tuple calls, and records every processed `event_id` for idempotency. The ledger now has `begin` / `complete` / `fail`: a failed OpenFGA write stays retryable instead of being treated as a completed duplicate (`InMemoryEventLedger` for tests, `PostgresEventLedger` for durable state).
 - **rustycog-permission** — shrunk to a `PermissionChecker` trait plus an `OpenFgaPermissionChecker` client. All Casbin code removed.
 - **rustycog-http** middleware — injects `Arc<dyn PermissionChecker>` through `AppState` and exposes `with_permission_on(permission, object_type)` as the only authz builder method.
 

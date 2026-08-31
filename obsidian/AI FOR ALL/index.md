@@ -8,7 +8,7 @@ provenance:
   extracted: 0.9
   inferred: 0.08
   ambiguous: 0.02
-updated: 2026-04-26T13:36:00Z
+updated: 2026-08-31T13:30:00Z
 ---
 
 # Wiki Index
@@ -36,6 +36,12 @@ Central entry point for this vault. Use the area indexes for full catalogs; use 
 
 ## Recent Additions
 
+- [[concepts/architecture-coherence-across-services]] — August 2026 four-service comparison (scaffold shared, JWT/logging/errors/OpenAPI diverge).
+- [[projects/aiforall/concepts/rustycog-git-submodule]] — rustycog is a pinned gitlink, not a vendored tree.
+- [[projects/aiforall/skills/running-parallel-sonar-lanes]] — file-disjoint Sonar agent lanes.
+- [[projects/aiforall/references/cursor-history-2026-04-to-08]] — distilled Cursor sessions since the April wiki wave.
+- [[projects/rustycog/rustycog]] — hub restored (crate reference pages still missing on disk).
+- [[journal/2026-08-31]] — catch-up ingest note.
 - [[projects/rustycog/references/rustycog-outbox]] — transactional outbox bridge with Mermaid flow and sequence diagrams for DB-backed event durability.
 - [[projects/aiforall/roadmap]] — near-term focus on Sentinel Sync tests, DB transaction-load verification, and the RustyCog Events outbox pattern.
 - [[projects/rustycog/references/rustycog-events]] — SQS fanout now uses per-event destination queues and multi-queue consumer polling in RustyCog.

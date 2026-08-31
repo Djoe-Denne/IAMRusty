@@ -15,3 +15,4 @@ updated: 2026-08-31T09:45:00Z
 
 - [[projects/aiforall/skills/running-aiforall-runtime-modes]]
 - [[projects/aiforall/skills/fixing-sonar-clippy-in-services]]
+- [[projects/aiforall/skills/running-parallel-sonar-lanes]]

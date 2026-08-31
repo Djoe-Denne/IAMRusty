@@ -24,7 +24,7 @@ provenance:
   inferred: 0.12
   ambiguous: 0.06
 created: 2026-04-14T16:54:59.5971424Z
-updated: 2026-04-19T18:00:00Z
+updated: 2026-08-31T13:30:00Z
 ---
 
 # Manifesto
@@ -54,6 +54,8 @@ Manifesto is the project-management service for AIForAll. Use `[[projects/rustyc
 - Component add/remove now treats component-instance ACL sync as part of the same consistency boundary and fails instead of silently drifting state.
 - Apparatus status consumption is wired into startup when queue config resolves to a real consumer, while checked-in local/test configs keep queues disabled by default.
 - `ComponentResponse.endpoint` and `access_token` still remain unset, so component provisioning handoff is the main product boundary that is still deliberately narrow.
+- Partial project/member/component writes use [[concepts/optional-field-update]] (`FieldUpdate::Unchanged` vs `Set`) instead of nested `Option`.
+- Manifesto remains the golden-path scaffold in [[concepts/architecture-coherence-across-services]], except for hand-rolled logging.
 
 ## Related
 

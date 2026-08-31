@@ -13,6 +13,7 @@ Top-level references are cross-project/platform pages. Service-specific referenc
 - [[references/aiforall-platform]]
 - [[references/platform-building-blocks]]
 - [[references/rustycog-service-construction]]
+- [[projects/aiforall/references/cursor-history-2026-04-to-08]]
 
 ## Project References
 

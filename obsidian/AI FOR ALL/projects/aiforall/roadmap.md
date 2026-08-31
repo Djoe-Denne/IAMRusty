@@ -3,10 +3,10 @@ title: AIForAll Roadmap
 category: roadmap
 tags: [platform, testing, database, events, visibility/internal]
 summary: >-
-  Near-term roadmap for AIForAll: Sentinel Sync service tests, transaction-ready DB workflows, RustyCog Events outbox, and IAM external-provider extraction.
-status: planned
+  Platform roadmap plus 2026-08 progress: rustycog submodule, Sonar campaigns, architecture reviews, readiness signaling, JWT unification still open.
+status: in-progress
 created: 2026-04-25T11:42:00Z
-updated: 2026-04-26T13:36:00Z
+updated: 2026-08-31T13:30:00Z
 ---
 
 # AIForAll Roadmap
@@ -102,6 +102,18 @@ The workstreams reinforce each other:
 - IAM external-provider adapters keep identity ownership centralized while letting provider integrations evolve independently.
 
 Together, these features move AIForAll toward a more reliable event-driven platform: services own their data, events carry the integration contract, and authorization state remains synchronized through tested, repeatable infrastructure.
+
+## 2026-08 wave (in progress)
+
+Not on the April list, but now load-bearing:
+
+- **RustyCog pin:** submodule + CI checkout — [[projects/aiforall/concepts/rustycog-git-submodule]].
+- **Sonar / Clippy:** service policy + parallel lanes — [[projects/aiforall/skills/fixing-sonar-clippy-in-services]], [[projects/aiforall/skills/running-parallel-sonar-lanes]].
+- **Coherence reviews:** four service reviews + comparison — [[concepts/architecture-coherence-across-services]].
+- **`/ready` queues:** no silent rustycog no-op — [[projects/aiforall/concepts/queue-readiness-signaling]].
+- **JWT unification:** HS256 consumers vs RS256 issuer still open — [[projects/aiforall/concepts/jwt-issuer-vs-consumer]].
+- **Hive route/registry:** live routes must match `create_hive_registry` — [[projects/hive/concepts/command-registry-route-parity]].
+- **Partial updates:** `FieldUpdate` / `OptionalField` instead of `Option<Option<T>>` — [[concepts/optional-field-update]].
 
 ## Related Notes
 

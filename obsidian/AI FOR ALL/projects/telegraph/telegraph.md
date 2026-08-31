@@ -14,7 +14,7 @@ provenance:
   inferred: 0.17
   ambiguous: 0.10
 created: 2026-04-14T18:18:24.0602572Z
-updated: 2026-04-19T12:08:26.9393504Z
+updated: 2026-08-31T13:30:00Z
 ---
 
 # Telegraph
@@ -41,6 +41,9 @@ updated: 2026-04-19T12:08:26.9393504Z
 - The notification API follows the shared `[[concepts/centralized-authorization-service]]` pattern: the route layer asks the OpenFGA-backed `PermissionChecker` whether the caller is a `notification#recipient`. Tuples are written by [[projects/sentinel-sync/sentinel-sync]] when Telegraph starts publishing `NotificationCreated` events.
 - Runtime behavior depends on `[[concepts/structured-service-configuration]]`, especially the split between transport-level `queue` settings and Telegraph-specific `queues.*` event routing and `communication.*` delivery settings.
 - The root repo overview and some Telegraph config/model surfaces still describe SMS alongside email and notifications, but the currently wired processor composite only registers email and notification handlers. ^[ambiguous]
+- Queue command failures still flatten to `ServiceError::infrastructure` — the only **divergent** error verdict in [[concepts/architecture-coherence-across-services]].
+- Queue boot should go through [[projects/aiforall/concepts/queue-readiness-signaling]] so a rustycog no-op is visible on `/ready`.
+- Integration tests: one `#[path = "fixtures/mod.rs"]` in `tests/common.rs` (Sonar `duplicate_mod`). See [[projects/aiforall/skills/fixing-sonar-clippy-in-services]].
 
 ## Related
 

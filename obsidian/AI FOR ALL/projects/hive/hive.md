@@ -15,7 +15,7 @@ provenance:
   inferred: 0.16
   ambiguous: 0.10
 created: 2026-04-14T18:56:22.3888182Z
-updated: 2026-04-19T11:13:11Z
+updated: 2026-08-31T13:30:00Z
 ---
 
 # Hive
@@ -31,8 +31,8 @@ updated: 2026-04-19T11:13:11Z
 ## Key Ideas
 
 - The service is split across domain, application, infrastructure, HTTP, configuration, setup, and migration crates, with `setup/src/app.rs` acting as the composition root for DB access, permission fetchers, event publishing, use cases, and the command registry.
-- Hive's live HTTP surface is narrower than its declared OpenAPI contract: the route builder exposes core organization, member, invitation creation, external-link creation, and sync-job start flows, while the spec and handlers describe a wider API. Conflict to resolve. ^[ambiguous]
-- Command orchestration is centralized through a RustyCog registry, but Hive's registry breadth is larger than its live route table, so some operations exist as commands and handlers without being wired into the server.
+- Hive's live HTTP surface is still narrower than its declared OpenAPI contract (invitations / `update_member` leftovers). That contract drift remains. ^[ambiguous]
+- Operational invariant since 2026-08-29: live routes must match `create_hive_registry`. A route without a command (the `/roles` 500) is a defect — [[projects/hive/concepts/command-registry-route-parity]].
 - Runtime behavior depends on `[[concepts/structured-service-configuration]]`, especially the `HIVE` env prefix, command retry settings, queue transport, and the outbound `iam_service` and `external_provider_service` sections.
 - Hive publishes `[[projects/hive-events/hive-events]]` domain events for organization, member, invitation, external-link, and sync-job changes rather than treating HTTP as the only integration surface.
 - Hive uses the shared `[[projects/rustycog/rustycog]]` stack, but it diverges from IAMRusty and Telegraph in its custom HTTP error model and in how much of its command or spec surface is actually exposed over HTTP. Conflict to resolve. ^[ambiguous]

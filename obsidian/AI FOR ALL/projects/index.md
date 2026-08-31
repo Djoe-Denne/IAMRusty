@@ -8,7 +8,7 @@ provenance:
   extracted: 0.9
   inferred: 0.08
   ambiguous: 0.02
-updated: 2026-04-25T11:42:00Z
+updated: 2026-08-31T13:30:00Z
 ---
 
 # Projects Index
@@ -28,7 +28,7 @@ Use this page to navigate service hubs. Each project page links to its local con
 
 ## Project Knowledge Areas
 
-- AIForAll: [[projects/aiforall/roadmap]] / [[projects/aiforall/skills/index]] / [[projects/aiforall/references/modular-monolith-runtime]]
+- AIForAll: [[projects/aiforall/roadmap]] / [[projects/aiforall/concepts/index]] / [[projects/aiforall/skills/index]] / [[projects/aiforall/references/modular-monolith-runtime]] / [[projects/aiforall/references/cursor-history-2026-04-to-08]]
 - [[projects/iamrusty/concepts/index]] / [[projects/iamrusty/skills/index]] / [[projects/iamrusty/references/index]]
 - <!-- [[projects/hive/concepts/index]] --> / <!-- [[projects/hive/skills/index]] --> / <!-- [[projects/hive/references/index]] -->
 - [[projects/telegraph/concepts/index]] / [[projects/telegraph/skills/index]] / [[projects/telegraph/references/index]]

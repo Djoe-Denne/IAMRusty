@@ -8,7 +8,7 @@ provenance:
   extracted: 0.9
   inferred: 0.08
   ambiguous: 0.02
-updated: 2026-04-25T10:10:00Z
+updated: 2026-08-31T13:30:00Z
 ---
 
 # Skills Index
@@ -39,7 +39,7 @@ Server and meta packaging guidance now live directly in:
 
 ## Project Skills
 
-- AIForAll: [[projects/aiforall/skills/index]] (incl. [[projects/aiforall/skills/fixing-sonar-clippy-in-services]])
+- AIForAll: [[projects/aiforall/skills/index]] (runtime modes, Sonar policy, [[projects/aiforall/skills/running-parallel-sonar-lanes]])
 - IAMRusty: <!-- [[projects/iamrusty/skills/index]] -->
 - Hive: <!-- [[projects/hive/skills/index]] -->
 - Telegraph: <!-- [[projects/telegraph/skills/index]] -->

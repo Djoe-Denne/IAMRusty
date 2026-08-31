@@ -1,8 +1,22 @@
 {
   "version": 1,
   "stats": {
-    "total_sources_ingested": 187,
-    "total_pages": 126
+    "total_sources_ingested": 203,
+    "total_pages": 139,
+    "last_commit_synced": "72d73b579bd48dd5308e98c333e8f0e7fa79da61"
+  },
+  "projects": {
+    "aiforall": {
+      "source_cwd": "C:/Users/djden/source/repos/AIForAll",
+      "last_synced": "2026-08-31T13:30:00Z",
+      "last_commit_synced": "72d73b579bd48dd5308e98c333e8f0e7fa79da61",
+      "conversations_ingested": 29,
+      "conversations_total": 53,
+      "pages_in_vault": [
+        "projects/aiforall/aiforall.md",
+        "projects/aiforall/roadmap.md"
+      ]
+    }
   },
   "sources": {
     "IAMRusty/README.md": {
@@ -3033,6 +3047,123 @@
         "projects/rustycog/rustycog.md",
         "concepts/event-driven-microservice-platform.md",
         "index.md"
+      ]
+    },
+    "docs/reviews/iam-architecture-comparison.md": {
+      "ingested_at": "2026-08-31T13:30:00Z",
+      "size_bytes": 21825,
+      "modified_at": "2026-08-29T00:00:00Z",
+      "content_hash": "sha256:architecture-comparison-2026-08-29",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [
+        "concepts/architecture-coherence-across-services.md",
+        "projects/aiforall/concepts/jwt-issuer-vs-consumer.md",
+        "projects/hive/concepts/command-registry-route-parity.md"
+      ],
+      "pages_updated": [
+        "projects/aiforall/aiforall.md",
+        "projects/hive/hive.md",
+        "projects/iamrusty/iamrusty.md",
+        "projects/manifesto/manifesto.md",
+        "projects/telegraph/telegraph.md"
+      ]
+    },
+    "Manifesto/domain/src/value_objects/field_update.rs": {
+      "ingested_at": "2026-08-31T13:30:00Z",
+      "size_bytes": 199,
+      "modified_at": "2026-08-31T00:00:00Z",
+      "content_hash": "sha256:field-update-unchanged-set",
+      "source_type": "document",
+      "project": "manifesto",
+      "pages_created": [
+        "concepts/optional-field-update.md"
+      ],
+      "pages_updated": [
+        "projects/manifesto/manifesto.md"
+      ]
+    },
+    "readiness/src/factory.rs": {
+      "ingested_at": "2026-08-31T13:30:00Z",
+      "size_bytes": 3423,
+      "modified_at": "2026-08-31T00:00:00Z",
+      "content_hash": "sha256:readiness-signaled-factories",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [
+        "projects/aiforall/concepts/queue-readiness-signaling.md"
+      ],
+      "pages_updated": []
+    },
+    ".agents/skills/rustycog-submodule/SKILL.md": {
+      "ingested_at": "2026-08-31T13:30:00Z",
+      "size_bytes": 3681,
+      "modified_at": "2026-08-31T00:00:00Z",
+      "content_hash": "sha256:rustycog-submodule-skill",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [
+        "projects/aiforall/concepts/rustycog-git-submodule.md"
+      ],
+      "pages_updated": [
+        "projects/rustycog/rustycog.md",
+        "projects/iamrusty/iamrusty.md"
+      ]
+    },
+    ".agents/skills/aiforall-sonar-policy/SKILL.md": {
+      "ingested_at": "2026-08-31T13:30:00Z",
+      "size_bytes": 0,
+      "modified_at": "2026-08-31T00:00:00Z",
+      "content_hash": "sha256:aiforall-sonar-policy-aug31",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [
+        "projects/aiforall/skills/running-parallel-sonar-lanes.md"
+      ],
+      "pages_updated": [
+        "projects/aiforall/skills/fixing-sonar-clippy-in-services.md"
+      ]
+    },
+    "sentinel-sync/src/idempotency.rs": {
+      "ingested_at": "2026-08-31T13:30:00Z",
+      "size_bytes": 6651,
+      "modified_at": "2026-08-31T00:00:00Z",
+      "content_hash": "sha256:sentinel-event-ledger",
+      "source_type": "document",
+      "project": "sentinel-sync",
+      "pages_created": [],
+      "pages_updated": [
+        "projects/sentinel-sync/sentinel-sync.md",
+        "projects/aiforall/roadmap.md"
+      ]
+    },
+    "cursor-conversation/catchup-2026-04-26-to-2026-08-31": {
+      "ingested_at": "2026-08-31T13:30:00Z",
+      "size_bytes": 0,
+      "modified_at": "2026-08-31T13:30:00Z",
+      "content_hash": "conversation:catchup-2026-04-26-to-2026-08-31",
+      "source_type": "conversation",
+      "project": "aiforall",
+      "pages_created": [
+        "projects/aiforall/references/cursor-history-2026-04-to-08.md",
+        "journal/2026-08-31.md"
+      ],
+      "pages_updated": [
+        "projects/aiforall/aiforall.md",
+        "projects/aiforall/roadmap.md",
+        "index.md"
+      ]
+    },
+    "C:/Users/djden/.codex/sessions/aiforall-cwd-2026-08": {
+      "ingested_at": "2026-08-31T13:30:00Z",
+      "size_bytes": 0,
+      "modified_at": "2026-08-31T13:30:00Z",
+      "content_hash": "codex:aiforall-cwd-inventory",
+      "source_type": "codex_rollout",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": [
+        "projects/aiforall/references/cursor-history-2026-04-to-08.md"
       ]
     }
   }

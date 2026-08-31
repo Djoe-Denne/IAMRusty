@@ -21,6 +21,8 @@ Top-level concepts are shared across multiple projects. Service-specific concept
 - [[concepts/test-only-cargo-feature-relaxation]]
 - [[concepts/zanzibar-relation-tuples]]
 - [[concepts/resource-scoped-permission-fetchers]] (deprecated — kept for historical context)
+- [[concepts/architecture-coherence-across-services]]
+- [[concepts/optional-field-update]]
 - [[projects/rustycog/rustycog]] - Shared SDK anchor for common platform patterns.
 
 ## Project Concepts

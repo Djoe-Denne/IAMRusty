@@ -234,3 +234,6 @@ title: Wiki Log
 - [2026-04-26T13:36:00Z] WIKI_UPDATE project=AIForAll pages_updated=6 pages_created=1 source_cwd="c:/Users/djden/source/repos/AIForAll" topic=rustycog-outbox-mermaid-diagrams
 - [2026-08-30T16:17:00Z] QUERY query="judgment Sonar unwrap Send FromStr migrations duplicate_mod" result_pages=8 mode=normal escalated=false collection=aiforall-wiki
 - [2026-08-31T09:45:00Z] WIKI_UPDATE project=AIForAll pages_updated=5 pages_created=1 source_cwd="c:/Users/djden/source/repos/AIForAll" topic=sonar-policy-and-testopenfga-it-harness
+- [2026-08-31T13:30:00Z] WIKI_UPDATE project=AIForAll pages_updated=14 pages_created=11 source_cwd="c:/Users/djden/source/repos/AIForAll" topic=catchup-apr-aug-env-vault
+- [2026-08-31T13:30:00Z] CLAUDE_HISTORY_INGEST projects=1 conversations=29 pages_updated=14 pages_created=11 mode=append source=cursor-transcripts path="C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts"
+- [2026-08-31T13:30:00Z] CODEX_HISTORY_INGEST sessions=17 pages_updated=1 pages_created=0 mode=append note=inventoried-not-requoted cwd=AIForAll

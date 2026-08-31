@@ -13,7 +13,7 @@ provenance:
   inferred: 0.1
   ambiguous: 0.05
 created: 2026-08-31T09:45:00Z
-updated: 2026-08-31T09:45:00Z
+updated: 2026-08-31T13:30:00Z
 ---
 
 # Fixing Sonar / Clippy in AIForAll services
@@ -40,6 +40,16 @@ Rustdoc `# Errors` / `# Panics`. Local Clippy (`map_or`, `ptr_arg`, `CommandConf
 - Our `serde_json` → `expect("Serialize")`. Keep `Mutex::lock().unwrap()`.
 - Telegraph: one `#[path = "fixtures/mod.rs"]` in `tests/common.rs`.
 
-## Leave alone
+## Invalidated skips (operator 2026-08-31)
 
-Tri-state `option_option` builders, `is_*` fluents with out-of-lot call sites, Manifesto `FromStr` VOs that already parse without importing the trait, `provider_link_service` Send (B014), leftover Hive repo / `validation.rs` unwraps, `create_hive_registry` length.
+These families are **in scope** — no more “policy / hors lot / casse API” skip:
+
+- Builders: `OptionalField::{Unset,Set}` or [[concepts/optional-field-update]], not `Option<Option<T>>`.
+- Fluents `is_*` (`mut self -> Self`): rename `with_*`; getters `&self -> bool` stay.
+- `FromStr` on Manifesto **and** Hive VOs, with `use std::str::FromStr` at call sites.
+- `provider_link_service` `future_not_send`: `Send + Sync` bounds, no `allow`.
+- `Mutex::lock()`: `unwrap_or_else(PoisonError::into_inner)`.
+- `create_hive_registry` length: extract `register_*` / `setup_*`.
+- Hive persist unwraps: `try_into_model` / `model_after_persist` + `ok_or_else` internal_error.
+
+Parallel execution: [[projects/aiforall/skills/running-parallel-sonar-lanes]].
