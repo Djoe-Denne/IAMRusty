@@ -6,146 +6,8 @@ pub struct Migration;
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        manager
-            .create_table(
-                Table::create()
-                    .table(OrganizationInvitations::Table)
-                    .if_not_exists()
-                    .col(
-                        ColumnDef::new(OrganizationInvitations::Id)
-                            .uuid()
-                            .not_null()
-                            .primary_key()
-                            .extra("DEFAULT gen_random_uuid()".to_owned()),
-                    )
-                    .col(
-                        ColumnDef::new(OrganizationInvitations::OrganizationId)
-                            .uuid()
-                            .not_null(),
-                    )
-                    .col(
-                        ColumnDef::new(OrganizationInvitations::AggregateId)
-                            .string_len(255)
-                            .not_null(),
-                    )
-                    .col(
-                        ColumnDef::new(OrganizationInvitations::InvitedByUserId)
-                            .uuid()
-                            .not_null(),
-                    )
-                    .col(
-                        ColumnDef::new(OrganizationInvitations::RolePermissions)
-                            .json()
-                            .not_null(),
-                    )
-                    .col(
-                        ColumnDef::new(OrganizationInvitations::Token)
-                            .string_len(100)
-                            .not_null()
-                            .unique_key(),
-                    )
-                    .col(
-                        ColumnDef::new(OrganizationInvitations::Status)
-                            .string_len(20)
-                            .not_null()
-                            .default("pending"),
-                    )
-                    .col(
-                        ColumnDef::new(OrganizationInvitations::ExpiresAt)
-                            .timestamp_with_time_zone()
-                            .not_null(),
-                    )
-                    .col(
-                        ColumnDef::new(OrganizationInvitations::AcceptedAt)
-                            .timestamp_with_time_zone()
-                            .null(),
-                    )
-                    .col(
-                        ColumnDef::new(OrganizationInvitations::Message)
-                            .text()
-                            .null(),
-                    )
-                    .col(
-                        ColumnDef::new(OrganizationInvitations::CreatedAt)
-                            .timestamp_with_time_zone()
-                            .not_null()
-                            .default(Expr::current_timestamp()),
-                    )
-                    .foreign_key(
-                        ForeignKey::create()
-                            .name("fk_organization_invitations_organization_id")
-                            .from(
-                                OrganizationInvitations::Table,
-                                OrganizationInvitations::OrganizationId,
-                            )
-                            .to(Organizations::Table, Organizations::Id)
-                            .on_delete(ForeignKeyAction::Cascade),
-                    )
-                    .to_owned(),
-            )
-            .await?;
-
-        // Create indexes
-        manager
-            .create_index(
-                Index::create()
-                    .if_not_exists()
-                    .name("idx_organization_invitations_token")
-                    .table(OrganizationInvitations::Table)
-                    .col(OrganizationInvitations::Token)
-                    .to_owned(),
-            )
-            .await?;
-
-        manager
-            .create_index(
-                Index::create()
-                    .if_not_exists()
-                    .name("idx_organization_invitations_aggregate_id_status")
-                    .table(OrganizationInvitations::Table)
-                    .col(OrganizationInvitations::AggregateId)
-                    .col(OrganizationInvitations::Status)
-                    .to_owned(),
-            )
-            .await?;
-
-        manager
-            .create_index(
-                Index::create()
-                    .if_not_exists()
-                    .name("idx_organization_invitations_organization_id")
-                    .table(OrganizationInvitations::Table)
-                    .col(OrganizationInvitations::OrganizationId)
-                    .to_owned(),
-            )
-            .await?;
-
-        manager
-            .create_index(
-                Index::create()
-                    .if_not_exists()
-                    .name("idx_organization_invitations_expires_at")
-                    .table(OrganizationInvitations::Table)
-                    .col(OrganizationInvitations::ExpiresAt)
-                    .to_owned(),
-            )
-            .await?;
-
-        // Unique constraint on organization_id + email + status for pending invitations
-        manager
-            .create_index(
-                Index::create()
-                    .if_not_exists()
-                    .name("idx_organization_invitations_org_aggregate_id_status")
-                    .table(OrganizationInvitations::Table)
-                    .col(OrganizationInvitations::OrganizationId)
-                    .col(OrganizationInvitations::AggregateId)
-                    .col(OrganizationInvitations::Status)
-                    .unique()
-                    .to_owned(),
-            )
-            .await?;
-
+        create_organization_invitations_table(manager).await?;
+        create_organization_invitations_indexes(manager).await?;
         Ok(())
     }
 
@@ -158,6 +20,143 @@ impl MigrationTrait for Migration {
             )
             .await
     }
+}
+
+async fn create_organization_invitations_table(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+    manager
+        .create_table(
+            Table::create()
+                .table(OrganizationInvitations::Table)
+                .if_not_exists()
+                .col(
+                    ColumnDef::new(OrganizationInvitations::Id)
+                        .uuid()
+                        .not_null()
+                        .primary_key()
+                        .extra("DEFAULT gen_random_uuid()".to_owned()),
+                )
+                .col(
+                    ColumnDef::new(OrganizationInvitations::OrganizationId)
+                        .uuid()
+                        .not_null(),
+                )
+                .col(
+                    ColumnDef::new(OrganizationInvitations::AggregateId)
+                        .string_len(255)
+                        .not_null(),
+                )
+                .col(
+                    ColumnDef::new(OrganizationInvitations::InvitedByUserId)
+                        .uuid()
+                        .not_null(),
+                )
+                .col(
+                    ColumnDef::new(OrganizationInvitations::RolePermissions)
+                        .json()
+                        .not_null(),
+                )
+                .col(
+                    ColumnDef::new(OrganizationInvitations::Token)
+                        .string_len(100)
+                        .not_null()
+                        .unique_key(),
+                )
+                .col(
+                    ColumnDef::new(OrganizationInvitations::Status)
+                        .string_len(20)
+                        .not_null()
+                        .default("pending"),
+                )
+                .col(
+                    ColumnDef::new(OrganizationInvitations::ExpiresAt)
+                        .timestamp_with_time_zone()
+                        .not_null(),
+                )
+                .col(
+                    ColumnDef::new(OrganizationInvitations::AcceptedAt)
+                        .timestamp_with_time_zone()
+                        .null(),
+                )
+                .col(ColumnDef::new(OrganizationInvitations::Message).text().null())
+                .col(
+                    ColumnDef::new(OrganizationInvitations::CreatedAt)
+                        .timestamp_with_time_zone()
+                        .not_null()
+                        .default(Expr::current_timestamp()),
+                )
+                .foreign_key(
+                    ForeignKey::create()
+                        .name("fk_organization_invitations_organization_id")
+                        .from(
+                            OrganizationInvitations::Table,
+                            OrganizationInvitations::OrganizationId,
+                        )
+                        .to(Organizations::Table, Organizations::Id)
+                        .on_delete(ForeignKeyAction::Cascade),
+                )
+                .to_owned(),
+        )
+        .await
+}
+
+async fn create_organization_invitations_indexes(
+    manager: &SchemaManager<'_>,
+) -> Result<(), DbErr> {
+    manager
+        .create_index(
+            Index::create()
+                .if_not_exists()
+                .name("idx_organization_invitations_token")
+                .table(OrganizationInvitations::Table)
+                .col(OrganizationInvitations::Token)
+                .to_owned(),
+        )
+        .await?;
+    manager
+        .create_index(
+            Index::create()
+                .if_not_exists()
+                .name("idx_organization_invitations_aggregate_id_status")
+                .table(OrganizationInvitations::Table)
+                .col(OrganizationInvitations::AggregateId)
+                .col(OrganizationInvitations::Status)
+                .to_owned(),
+        )
+        .await?;
+    manager
+        .create_index(
+            Index::create()
+                .if_not_exists()
+                .name("idx_organization_invitations_organization_id")
+                .table(OrganizationInvitations::Table)
+                .col(OrganizationInvitations::OrganizationId)
+                .to_owned(),
+        )
+        .await?;
+    manager
+        .create_index(
+            Index::create()
+                .if_not_exists()
+                .name("idx_organization_invitations_expires_at")
+                .table(OrganizationInvitations::Table)
+                .col(OrganizationInvitations::ExpiresAt)
+                .to_owned(),
+        )
+        .await?;
+    manager
+        .create_index(
+            Index::create()
+                .if_not_exists()
+                .name("idx_organization_invitations_org_aggregate_id_status")
+                .table(OrganizationInvitations::Table)
+                .col(OrganizationInvitations::OrganizationId)
+                .col(OrganizationInvitations::AggregateId)
+                .col(OrganizationInvitations::Status)
+                .unique()
+                .to_owned(),
+        )
+        .await?;
+    Ok(())
 }
 
 #[derive(DeriveIden)]

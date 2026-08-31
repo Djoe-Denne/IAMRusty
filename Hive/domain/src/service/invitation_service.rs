@@ -274,14 +274,9 @@ where
                 message: e.to_string(),
             })?;
 
-        if invitation.is_none() {
-            return Err(DomainError::entity_not_found(
-                "organization_invitation",
-                &token,
-            ));
-        }
-
-        let mut invitation = invitation.unwrap();
+        let mut invitation = invitation.ok_or_else(|| {
+            DomainError::entity_not_found("organization_invitation", &token)
+        })?;
 
         if invitation.status != InvitationStatus::Pending {
             return Err(DomainError::business_rule_violation(
@@ -337,14 +332,12 @@ where
                 message: e.to_string(),
             })?;
 
-        if invitation.is_none() {
-            return Err(DomainError::entity_not_found(
+        let mut invitation = invitation.ok_or_else(|| {
+            DomainError::entity_not_found(
                 "organization_invitation",
                 &invitation_id.to_string(),
-            ));
-        }
-
-        let mut invitation = invitation.unwrap();
+            )
+        })?;
 
         if invitation.status != InvitationStatus::Pending {
             return Err(DomainError::business_rule_violation(
@@ -371,7 +364,7 @@ where
         &self,
         invitation_id: Uuid,
     ) -> Result<OrganizationInvitation, DomainError> {
-        let mut invitation = self
+        let invitation = self
             .invitation_repo
             .find_by_id(&invitation_id)
             .await
@@ -379,25 +372,22 @@ where
                 message: e.to_string(),
             })?;
 
-        if invitation.is_none() {
-            return Err(DomainError::entity_not_found(
+        let mut invitation = invitation.ok_or_else(|| {
+            DomainError::entity_not_found(
                 "organization_invitation",
                 &invitation_id.to_string(),
-            ));
-        }
+            )
+        })?;
 
         let organization = self
             .organization_service
-            .get_organization(&invitation.as_ref().unwrap().organization_id)
+            .get_organization(&invitation.organization_id)
             .await
             .map_err(|e| DomainError::Internal {
                 message: e.to_string(),
             })?;
-        invitation
-            .as_mut()
-            .unwrap()
-            .update_organization_name(&organization.name);
-        Ok(invitation.unwrap())
+        invitation.update_organization_name(&organization.name);
+        Ok(invitation)
     }
 
     /// Get invitation by organization and invited aggregate id
@@ -422,14 +412,12 @@ where
                 message: e.to_string(),
             })?;
 
-        if invitation.is_none() {
-            return Err(DomainError::entity_not_found(
+        invitation.ok_or_else(|| {
+            DomainError::entity_not_found(
                 "organization_invitation",
                 &organization_id.to_string(),
-            ));
-        }
-
-        Ok(invitation.unwrap())
+            )
+        })
     }
 
     /// List invitations for an organization

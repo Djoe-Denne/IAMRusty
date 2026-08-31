@@ -29,7 +29,7 @@ pub use rustycog::testing::common::openfga_testcontainer::TestOpenFga;
 pub use rustycog::permission::{Permission, ResourceRef, Subject};
 
 #[path = "fixtures/mod.rs"]
-mod fixtures;
+pub mod fixtures;
 
 use fixtures::smtp::testcontainer::TestSmtp;
 

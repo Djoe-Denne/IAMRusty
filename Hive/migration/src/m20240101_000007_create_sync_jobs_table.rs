@@ -6,119 +6,8 @@ pub struct Migration;
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        manager
-            .create_table(
-                Table::create()
-                    .table(SyncJobs::Table)
-                    .if_not_exists()
-                    .col(
-                        ColumnDef::new(SyncJobs::Id)
-                            .uuid()
-                            .not_null()
-                            .primary_key()
-                            .extra("DEFAULT gen_random_uuid()".to_owned()),
-                    )
-                    .col(
-                        ColumnDef::new(SyncJobs::OrganizationExternalLinkId)
-                            .uuid()
-                            .not_null(),
-                    )
-                    .col(ColumnDef::new(SyncJobs::JobType).string_len(50).not_null())
-                    .col(ColumnDef::new(SyncJobs::Status).string_len(20).not_null())
-                    .col(
-                        ColumnDef::new(SyncJobs::ItemsProcessed)
-                            .integer()
-                            .not_null()
-                            .default(0),
-                    )
-                    .col(
-                        ColumnDef::new(SyncJobs::ItemsCreated)
-                            .integer()
-                            .not_null()
-                            .default(0),
-                    )
-                    .col(
-                        ColumnDef::new(SyncJobs::ItemsUpdated)
-                            .integer()
-                            .not_null()
-                            .default(0),
-                    )
-                    .col(
-                        ColumnDef::new(SyncJobs::ItemsFailed)
-                            .integer()
-                            .not_null()
-                            .default(0),
-                    )
-                    .col(
-                        ColumnDef::new(SyncJobs::StartedAt)
-                            .timestamp_with_time_zone()
-                            .not_null()
-                            .default(Expr::current_timestamp()),
-                    )
-                    .col(
-                        ColumnDef::new(SyncJobs::CompletedAt)
-                            .timestamp_with_time_zone()
-                            .null(),
-                    )
-                    .col(ColumnDef::new(SyncJobs::ErrorMessage).text().null())
-                    .col(
-                        ColumnDef::new(SyncJobs::Details)
-                            .json_binary()
-                            .not_null()
-                            .default(Expr::cust("'{}'::jsonb")),
-                    )
-                    .col(
-                        ColumnDef::new(SyncJobs::CreatedAt)
-                            .timestamp_with_time_zone()
-                            .not_null()
-                            .default(Expr::current_timestamp()),
-                    )
-                    .foreign_key(
-                        ForeignKey::create()
-                            .name("fk_sync_jobs_external_link_id")
-                            .from(SyncJobs::Table, SyncJobs::OrganizationExternalLinkId)
-                            .to(ExternalLinks::Table, ExternalLinks::Id)
-                            .on_delete(ForeignKeyAction::Cascade),
-                    )
-                    .to_owned(),
-            )
-            .await?;
-
-        // Create indexes
-        manager
-            .create_index(
-                Index::create()
-                    .if_not_exists()
-                    .name("idx_sync_jobs_external_link_id")
-                    .table(SyncJobs::Table)
-                    .col(SyncJobs::OrganizationExternalLinkId)
-                    .to_owned(),
-            )
-            .await?;
-
-        manager
-            .create_index(
-                Index::create()
-                    .if_not_exists()
-                    .name("idx_sync_jobs_status_started_at")
-                    .table(SyncJobs::Table)
-                    .col(SyncJobs::Status)
-                    .col(SyncJobs::StartedAt)
-                    .to_owned(),
-            )
-            .await?;
-
-        manager
-            .create_index(
-                Index::create()
-                    .if_not_exists()
-                    .name("idx_sync_jobs_created_at")
-                    .table(SyncJobs::Table)
-                    .col(SyncJobs::CreatedAt)
-                    .to_owned(),
-            )
-            .await?;
-
+        create_sync_jobs_table(manager).await?;
+        create_sync_jobs_indexes(manager).await?;
         Ok(())
     }
 
@@ -127,6 +16,121 @@ impl MigrationTrait for Migration {
             .drop_table(Table::drop().table(SyncJobs::Table).to_owned())
             .await
     }
+}
+
+async fn create_sync_jobs_table(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+    manager
+        .create_table(
+            Table::create()
+                .table(SyncJobs::Table)
+                .if_not_exists()
+                .col(
+                    ColumnDef::new(SyncJobs::Id)
+                        .uuid()
+                        .not_null()
+                        .primary_key()
+                        .extra("DEFAULT gen_random_uuid()".to_owned()),
+                )
+                .col(
+                    ColumnDef::new(SyncJobs::OrganizationExternalLinkId)
+                        .uuid()
+                        .not_null(),
+                )
+                .col(ColumnDef::new(SyncJobs::JobType).string_len(50).not_null())
+                .col(ColumnDef::new(SyncJobs::Status).string_len(20).not_null())
+                .col(
+                    ColumnDef::new(SyncJobs::ItemsProcessed)
+                        .integer()
+                        .not_null()
+                        .default(0),
+                )
+                .col(
+                    ColumnDef::new(SyncJobs::ItemsCreated)
+                        .integer()
+                        .not_null()
+                        .default(0),
+                )
+                .col(
+                    ColumnDef::new(SyncJobs::ItemsUpdated)
+                        .integer()
+                        .not_null()
+                        .default(0),
+                )
+                .col(
+                    ColumnDef::new(SyncJobs::ItemsFailed)
+                        .integer()
+                        .not_null()
+                        .default(0),
+                )
+                .col(
+                    ColumnDef::new(SyncJobs::StartedAt)
+                        .timestamp_with_time_zone()
+                        .not_null()
+                        .default(Expr::current_timestamp()),
+                )
+                .col(
+                    ColumnDef::new(SyncJobs::CompletedAt)
+                        .timestamp_with_time_zone()
+                        .null(),
+                )
+                .col(ColumnDef::new(SyncJobs::ErrorMessage).text().null())
+                .col(
+                    ColumnDef::new(SyncJobs::Details)
+                        .json_binary()
+                        .not_null()
+                        .default(Expr::cust("'{}'::jsonb")),
+                )
+                .col(
+                    ColumnDef::new(SyncJobs::CreatedAt)
+                        .timestamp_with_time_zone()
+                        .not_null()
+                        .default(Expr::current_timestamp()),
+                )
+                .foreign_key(
+                    ForeignKey::create()
+                        .name("fk_sync_jobs_external_link_id")
+                        .from(SyncJobs::Table, SyncJobs::OrganizationExternalLinkId)
+                        .to(ExternalLinks::Table, ExternalLinks::Id)
+                        .on_delete(ForeignKeyAction::Cascade),
+                )
+                .to_owned(),
+        )
+        .await
+}
+
+async fn create_sync_jobs_indexes(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+    manager
+        .create_index(
+            Index::create()
+                .if_not_exists()
+                .name("idx_sync_jobs_external_link_id")
+                .table(SyncJobs::Table)
+                .col(SyncJobs::OrganizationExternalLinkId)
+                .to_owned(),
+        )
+        .await?;
+    manager
+        .create_index(
+            Index::create()
+                .if_not_exists()
+                .name("idx_sync_jobs_status_started_at")
+                .table(SyncJobs::Table)
+                .col(SyncJobs::Status)
+                .col(SyncJobs::StartedAt)
+                .to_owned(),
+        )
+        .await?;
+    manager
+        .create_index(
+            Index::create()
+                .if_not_exists()
+                .name("idx_sync_jobs_created_at")
+                .table(SyncJobs::Table)
+                .col(SyncJobs::CreatedAt)
+                .to_owned(),
+        )
+        .await?;
+    Ok(())
 }
 
 #[derive(DeriveIden)]

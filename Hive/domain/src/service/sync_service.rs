@@ -302,12 +302,12 @@ where
             })?;
 
         // Get organization info from external provider
+        let provider_source = external_link.provider_source.clone().ok_or_else(|| {
+            DomainError::internal_error("external link missing provider_source")
+        })?;
         let external_org_info = self
             .provider_client
-            .get_organization_info(
-                &external_link.provider_source.clone().unwrap(),
-                &external_link.provider_config,
-            )
+            .get_organization_info(&provider_source, &external_link.provider_config)
             .await?;
 
         // Update organization with external info
@@ -364,12 +364,12 @@ where
             })?;
 
         // Get members from external provider
+        let provider_source = external_link.provider_source.clone().ok_or_else(|| {
+            DomainError::internal_error("external link missing provider_source")
+        })?;
         let external_members = self
             .provider_client
-            .get_members(
-                &external_link.provider_source.clone().unwrap(),
-                &external_link.provider_config,
-            )
+            .get_members(&provider_source, &external_link.provider_config)
             .await?;
 
         let mut result = SyncResult {
@@ -395,7 +395,7 @@ where
         let invitation_message = Some(format!(
             "You have been invited to join {} organization based on your membership in the connected {:?} organization.",
             organization.name,
-            external_link.provider_source.clone().unwrap()
+            provider_source
         ));
 
         for external_member in external_members {

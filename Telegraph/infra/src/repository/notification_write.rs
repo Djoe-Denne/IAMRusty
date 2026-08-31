@@ -79,7 +79,10 @@ impl NotificationWriteRepository for NotificationWriteRepositoryImpl {
                 })?;
 
             let notification = mappers::to_domain_notification(notification_row)?;
-            let delivery = MessageDelivery::new(notification.id.unwrap(), delivery_mode);
+            let notification_id = notification.id.ok_or_else(|| {
+                DomainError::internal_error("notification missing id after persist")
+            })?;
+            let delivery = MessageDelivery::new(notification_id, delivery_mode);
             let delivery_model = mappers::to_infra_delivery(delivery);
             let delivery_row = notification_deliveries::Entity::insert(delivery_model)
                 .exec_with_returning(&txn)

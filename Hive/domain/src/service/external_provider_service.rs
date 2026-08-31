@@ -272,15 +272,15 @@ where
 
         for link in &mut links {
             link.set_organization_name(organization.name.clone());
+            let provider_source = link.provider_source.clone().ok_or_else(|| {
+                DomainError::internal_error("external link missing provider_source")
+            })?;
             let provider = self
                 .external_provider_repo
-                .find_by_source(&link.provider_source.clone().unwrap())
+                .find_by_source(&provider_source)
                 .await?
                 .ok_or_else(|| {
-                    DomainError::entity_not_found(
-                        "ExternalProvider",
-                        &link.provider_source.clone().unwrap(),
-                    )
+                    DomainError::entity_not_found("ExternalProvider", &provider_source)
                 })?;
             link.set_provider_source(provider.provider_source.clone());
         }

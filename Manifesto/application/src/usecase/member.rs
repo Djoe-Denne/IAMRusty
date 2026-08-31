@@ -245,7 +245,12 @@ impl MemberUseCase for MemberUseCaseImpl {
 
         let member_role_perm = self
             .permission_service
-            .grant_permission_to_member(&created.id, &role_perm.id.unwrap())
+            .grant_permission_to_member(
+                &created.id,
+                &role_perm.id.ok_or_else(|| {
+                    DomainError::internal_error("role permission missing id after persist")
+                })?,
+            )
             .await?;
 
         created.role_permissions = vec![member_role_perm];
@@ -360,7 +365,12 @@ impl MemberUseCase for MemberUseCaseImpl {
 
             let member_role_perm = self
                 .permission_service
-                .grant_permission_to_member(&member.id, &role_perm.id.unwrap())
+                .grant_permission_to_member(
+                    &member.id,
+                    &role_perm.id.ok_or_else(|| {
+                        DomainError::internal_error("role permission missing id after persist")
+                    })?,
+                )
                 .await?;
 
             new_role_permissions.push(member_role_perm);
@@ -491,7 +501,12 @@ impl MemberUseCase for MemberUseCaseImpl {
         // Grant permission
         let member_role_perm = self
             .permission_service
-            .grant_permission_to_member(&member.id, &role_perm.id.unwrap())
+            .grant_permission_to_member(
+                &member.id,
+                &role_perm.id.ok_or_else(|| {
+                    DomainError::internal_error("role permission missing id after persist")
+                })?,
+            )
             .await?;
 
         member.role_permissions.push(member_role_perm);
@@ -550,7 +565,12 @@ impl MemberUseCase for MemberUseCaseImpl {
         self.permission_service
             .revoke_permission_from_member(
                 &member.id,
-                &role_perm_to_revoke.role_permission.id.unwrap(),
+                &role_perm_to_revoke
+                    .role_permission
+                    .id
+                    .ok_or_else(|| {
+                        DomainError::internal_error("role permission missing id after persist")
+                    })?,
             )
             .await?;
 

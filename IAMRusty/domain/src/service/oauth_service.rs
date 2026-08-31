@@ -89,7 +89,14 @@ where
 
         Ok(client.generate_authorize_url())
     }
+}
 
+impl<U, T, UE> OAuthService<U, T, UE>
+where
+    U: UserRepository + Send + Sync,
+    T: TokenRepository + Send + Sync,
+    UE: UserEmailRepository + Send + Sync,
+{
     /// Process `OAuth2` callback and return user and JWT token.
     ///
     /// # Errors

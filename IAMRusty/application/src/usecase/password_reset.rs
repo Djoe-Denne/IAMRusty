@@ -125,12 +125,12 @@ pub trait PasswordResetUseCase: Send + Sync {
 /// Password reset use case implementation
 pub struct PasswordResetUseCaseImpl<UR, UER, PRTR, TS, EP, PS>
 where
-    UR: UserRepository,
-    UER: UserEmailRepository,
-    PRTR: PasswordResetTokenRepository,
-    TS: AuthTokenService,
-    EP: EventPublisher<DomainError>,
-    PS: PasswordService,
+    UR: UserRepository + Send + Sync,
+    UER: UserEmailRepository + Send + Sync,
+    PRTR: PasswordResetTokenRepository + Send + Sync,
+    TS: AuthTokenService + Send + Sync,
+    EP: EventPublisher<DomainError> + Send + Sync,
+    PS: PasswordService + Send + Sync,
 {
     user_repository: Arc<UR>,
     user_email_repository: Arc<UER>,
@@ -151,12 +151,12 @@ pub trait PasswordService: Send + Sync {
 
 impl<UR, UER, PRTR, TS, EP, PS> PasswordResetUseCaseImpl<UR, UER, PRTR, TS, EP, PS>
 where
-    UR: UserRepository,
-    UER: UserEmailRepository,
-    PRTR: PasswordResetTokenRepository,
-    TS: AuthTokenService,
-    EP: EventPublisher<DomainError>,
-    PS: PasswordService,
+    UR: UserRepository + Send + Sync,
+    UER: UserEmailRepository + Send + Sync,
+    PRTR: PasswordResetTokenRepository + Send + Sync,
+    TS: AuthTokenService + Send + Sync,
+    EP: EventPublisher<DomainError> + Send + Sync,
+    PS: PasswordService + Send + Sync,
 {
     /// Create a new password reset use case
     pub fn new(

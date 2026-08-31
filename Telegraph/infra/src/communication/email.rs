@@ -107,8 +107,11 @@ impl EmailAdapter {
 #[async_trait]
 impl EmailProvider for EmailAdapter {
     async fn send_email(&self, email: &EmailCommunication) -> Result<String, DomainError> {
+        let recipient_email = email.recipient.email.as_ref().ok_or_else(|| {
+            DomainError::invalid_email("recipient email missing")
+        })?;
         info!(
-            to = email.recipient.email.as_ref().unwrap(),
+            to = recipient_email,
             subject = email.subject,
             has_html = email.html_body.is_some(),
             "Sending email via SMTP"
@@ -120,11 +123,7 @@ impl EmailProvider for EmailAdapter {
             .from(from_address.parse().map_err(|e| {
                 DomainError::InfrastructureError(format!("Invalid from address: {e}"))
             })?)
-            .to(email
-                .recipient
-                .email
-                .as_ref()
-                .unwrap()
+            .to(recipient_email
                 .parse()
                 .map_err(|e| DomainError::invalid_email(format!("Invalid to address: {e}")))?)
             .subject(email.subject.clone());
@@ -159,7 +158,7 @@ impl EmailProvider for EmailAdapter {
                 let delivery_id = response.first_line().unwrap_or("unknown").to_string();
                 info!(
                     delivery_id = %delivery_id,
-                    to = email.recipient.email.as_ref().unwrap(),
+                    to = recipient_email,
                     "Email sent successfully via SMTP"
                 );
                 Ok(delivery_id)
@@ -167,7 +166,7 @@ impl EmailProvider for EmailAdapter {
             Err(e) => {
                 error!(
                     error = %e,
-                    to = email.recipient.email.as_ref().unwrap(),
+                    to = recipient_email,
                     subject = email.subject,
                     "Failed to send email via SMTP"
                 );

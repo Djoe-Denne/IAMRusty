@@ -1,4 +1,7 @@
+use std::str::FromStr;
+
 use chrono::Utc;
+use rustycog::core::error::DomainError;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use validator::Validate;
@@ -38,21 +41,42 @@ impl From<MemberRolePermission> for String {
     }
 }
 
-impl From<String> for MemberRolePermission {
-    fn from(permission: String) -> Self {
+impl FromStr for MemberRolePermission {
+    type Err = DomainError;
+
+    fn from_str(permission: &str) -> Result<Self, Self::Err> {
         match permission.to_lowercase().as_str() {
-            "read" => Self::Read,
-            "write" => Self::Write,
-            "delete" => Self::Delete,
-            "admin" => Self::Admin,
-            _ => panic!("Invalid member role permission"),
+            "read" => Ok(Self::Read),
+            "write" => Ok(Self::Write),
+            "delete" => Ok(Self::Delete),
+            "admin" => Ok(Self::Admin),
+            _ => Err(DomainError::invalid_input(&format!(
+                "Invalid member role permission: {permission}"
+            ))),
         }
     }
 }
 
-impl From<MemberRolePermission> for PermissionLevel {
-    fn from(permission: MemberRolePermission) -> Self {
-        Self::from_str(permission.into()).unwrap()
+impl TryFrom<String> for MemberRolePermission {
+    type Error = DomainError;
+
+    fn try_from(permission: String) -> Result<Self, Self::Error> {
+        permission.parse()
+    }
+}
+
+impl TryFrom<MemberRolePermission> for PermissionLevel {
+    type Error = DomainError;
+
+    fn try_from(permission: MemberRolePermission) -> Result<Self, Self::Error> {
+        match permission {
+            MemberRolePermission::Read => Ok(Self::Read),
+            MemberRolePermission::Write => Ok(Self::Write),
+            MemberRolePermission::Admin => Ok(Self::Admin),
+            MemberRolePermission::Delete => Err(DomainError::invalid_input(
+                "delete is not a Hive permission level",
+            )),
+        }
     }
 }
 
@@ -84,26 +108,34 @@ pub struct UpdateMemberRoleRequest {
     pub roles: Option<Vec<MemberRole>>,
 }
 
-impl From<&MemberRole> for RolePermission {
-    fn from(member_role: &MemberRole) -> Self {
-        let permission = Permission::new(member_role.permissions.into(), None, None);
-        Self::new(
+impl TryFrom<&MemberRole> for RolePermission {
+    type Error = DomainError;
+
+    fn try_from(member_role: &MemberRole) -> Result<Self, Self::Error> {
+        let level = PermissionLevel::try_from(member_role.permissions)?;
+        let permission = Permission::new(level, None, None);
+        Ok(Self::new(
             None,
             None,
             member_role.organization_id,
             &permission,
             &member_role.resource.clone().into(),
             Some(Utc::now()),
-        )
+        ))
     }
 }
 
 impl From<RolePermission> for MemberRole {
     fn from(role_permission: RolePermission) -> Self {
+        let permissions = match role_permission.permission.level {
+            PermissionLevel::Read => MemberRolePermission::Read,
+            PermissionLevel::Write => MemberRolePermission::Write,
+            PermissionLevel::Admin | PermissionLevel::Owner => MemberRolePermission::Admin,
+        };
         Self {
             organization_id: role_permission.organization_id,
             resource: role_permission.resource.name,
-            permissions: role_permission.permission.level.to_str().to_string().into(),
+            permissions,
         }
     }
 }

@@ -35,10 +35,9 @@ pub struct GitLabOAuth2Client {
 impl GitLabOAuth2Client {
     /// Create a new GitLab `OAuth2` client
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if `auth_url`, `token_url`, or `redirect_url` is not a valid URL.
-    #[must_use]
+    /// Returns [`DomainError::OAuth2Error`] if `auth_url`, `token_url`, or `redirect_url` is not a valid URL.
     pub fn new(
         client_id: String,
         client_secret: String,
@@ -46,25 +45,35 @@ impl GitLabOAuth2Client {
         auth_url: String,
         token_url: String,
         user_url: String,
-    ) -> Self {
+    ) -> Result<Self, DomainError> {
         let client = BasicClient::new(
             ClientId::new(client_id),
             Some(ClientSecret::new(client_secret.clone())),
-            AuthUrl::new(auth_url).unwrap(),
-            Some(TokenUrl::new(token_url).unwrap()),
+            AuthUrl::new(auth_url)
+                .map_err(|e| DomainError::OAuth2Error(format!("invalid auth URL: {e}")))?,
+            Some(
+                TokenUrl::new(token_url)
+                    .map_err(|e| DomainError::OAuth2Error(format!("invalid token URL: {e}")))?,
+            ),
         )
-        .set_redirect_uri(RedirectUrl::new(redirect_url).unwrap());
+        .set_redirect_uri(
+            RedirectUrl::new(redirect_url)
+                .map_err(|e| DomainError::OAuth2Error(format!("invalid redirect URL: {e}")))?,
+        );
 
-        Self {
+        Ok(Self {
             client,
             user_url,
             client_secret,
-        }
+        })
     }
 
     /// Create a new GitLab `OAuth2` client from a `GitlabConfig`
-    #[must_use]
-    pub fn from_config(config: &GitLabConfig) -> Self {
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError::OAuth2Error`] if configured URLs are invalid.
+    pub fn from_config(config: &GitLabConfig) -> Result<Self, DomainError> {
         Self::new(
             config.client_id.clone(),
             config.client_secret.clone(),
@@ -203,7 +212,10 @@ impl OAuthService for GitLabOAuth2Client {
             self.client.auth_url().clone(),
             self.client.token_url().cloned(),
         )
-        .set_redirect_uri(RedirectUrl::new(redirect_uri).unwrap());
+        .set_redirect_uri(
+            RedirectUrl::new(redirect_uri)
+                .expect("redirect URI remains valid after path replace"),
+        );
 
         // Generate the authorization URL with relink redirect URI
         let (auth_url, _csrf_token) = relink_client
@@ -222,7 +234,7 @@ impl OAuthService for GitLabOAuth2Client {
         debug!("GitLab exchange_code called with code: {}", code);
         debug!(
             "GitLab token URL: {}",
-            self.client.token_url().unwrap().as_str()
+            self.client.token_url().map_or("<none>", |u| u.as_str())
         );
         debug!("GitLab user URL: {}", self.user_url);
 
@@ -233,7 +245,9 @@ impl OAuthService for GitLabOAuth2Client {
             self.client.auth_url().clone(),
             self.client.token_url().cloned(),
         )
-        .set_redirect_uri(RedirectUrl::new(redirect_uri).unwrap());
+        .set_redirect_uri(
+            RedirectUrl::new(redirect_uri).map_err(|_| AuthError::InvalidCredentials)?,
+        );
 
         // Exchange code for tokens using the temporary client
         let token_result = exchange_client

@@ -51,134 +51,128 @@ impl Translator for ManifestoTranslator {
     }
 
     fn translate(&self, raw_event: &serde_json::Value) -> Result<Option<TupleDelta>> {
-        let event: ManifestoDomainEvent = match serde_json::from_value(raw_event.clone()) {
-            Ok(e) => e,
-            Err(_) => return Ok(None),
+        let Ok(event) = serde_json::from_value(raw_event.clone()) else {
+            return Ok(None);
         };
+        Ok(Some(translate_event(event)))
+    }
+}
 
-        let delta = match event {
-            ManifestoDomainEvent::ProjectCreated(evt) => {
-                let mut d = TupleDelta::default().write(Tuple::user(
-                    "project",
-                    evt.project_id,
-                    "owner",
-                    evt.created_by,
-                ));
-                if evt.owner_type == "organization" {
-                    d = d.write(Tuple::object(
-                        "project",
-                        evt.project_id,
-                        "organization",
-                        "organization",
-                        evt.owner_id,
-                    ));
-                }
-                d
-            }
+fn project_created_delta(evt: manifesto_events::ProjectCreatedEvent) -> TupleDelta {
+    let mut d = TupleDelta::default().write(Tuple::user(
+        "project",
+        evt.project_id,
+        "owner",
+        evt.created_by,
+    ));
+    if evt.owner_type == "organization" {
+        d = d.write(Tuple::object(
+            "project",
+            evt.project_id,
+            "organization",
+            "organization",
+            evt.owner_id,
+        ));
+    }
+    d
+}
 
-            ManifestoDomainEvent::ComponentAdded(evt) => {
-                TupleDelta::default().write(Tuple::object(
-                    "component",
-                    evt.component_id,
-                    "project",
-                    "project",
-                    evt.project_id,
-                ))
-            }
+fn component_added_delta(evt: manifesto_events::ComponentAddedEvent) -> TupleDelta {
+    TupleDelta::default().write(Tuple::object(
+        "component",
+        evt.component_id,
+        "project",
+        "project",
+        evt.project_id,
+    ))
+}
 
-            ManifestoDomainEvent::ComponentRemoved(evt) => {
-                TupleDelta::default().delete(Tuple::object(
-                    "component",
-                    evt.component_id,
-                    "project",
-                    "project",
-                    evt.project_id,
-                ))
-            }
+fn component_removed_delta(evt: manifesto_events::ComponentRemovedEvent) -> TupleDelta {
+    TupleDelta::default().delete(Tuple::object(
+        "component",
+        evt.component_id,
+        "project",
+        "project",
+        evt.project_id,
+    ))
+}
 
-            ManifestoDomainEvent::MemberAdded(evt) => {
-                // Every member gets the base `project#member` tuple. The
-                // initial permission/resource pair, when it resolves, adds a
-                // more privileged tuple on top.
-                let mut d = TupleDelta::default().write(Tuple::user(
-                    "project",
-                    evt.project_id,
-                    "member",
-                    evt.user_id,
-                ));
-                if let Some(relation) = permission_to_relation(&evt.initial_permission) {
-                    let object_type = resource_to_object_type(&evt.initial_resource);
-                    d = d.write(Tuple::user(
-                        object_type,
-                        // Initial grants are always project-scoped; component-
-                        // scoped grants use explicit PermissionGranted events.
-                        evt.project_id,
-                        relation,
-                        evt.user_id,
-                    ));
-                }
-                d
-            }
+fn member_added_delta(evt: manifesto_events::MemberAddedEvent) -> TupleDelta {
+    let mut d = TupleDelta::default().write(Tuple::user(
+        "project",
+        evt.project_id,
+        "member",
+        evt.user_id,
+    ));
+    if let Some(relation) = permission_to_relation(&evt.initial_permission) {
+        let object_type = resource_to_object_type(&evt.initial_resource);
+        d = d.write(Tuple::user(
+            object_type,
+            evt.project_id,
+            relation,
+            evt.user_id,
+        ));
+    }
+    d
+}
 
-            ManifestoDomainEvent::MemberRemoved(evt) => {
-                let mut d = TupleDelta::default();
-                for relation in ["owner", "admin", "member", "viewer"] {
-                    d = d.delete(Tuple::user(
-                        "project",
-                        evt.project_id,
-                        relation,
-                        evt.user_id,
-                    ));
-                }
-                d
-            }
+fn member_removed_delta(evt: manifesto_events::MemberRemovedEvent) -> TupleDelta {
+    let mut d = TupleDelta::default();
+    for relation in ["owner", "admin", "member", "viewer"] {
+        d = d.delete(Tuple::user(
+            "project",
+            evt.project_id,
+            relation,
+            evt.user_id,
+        ));
+    }
+    d
+}
 
-            ManifestoDomainEvent::PermissionGranted(evt) => {
-                match permission_to_relation(&evt.permission) {
-                    Some(relation) => {
-                        let object_type = resource_to_object_type(&evt.resource);
-                        TupleDelta::default().write(Tuple::user(
-                            object_type,
-                            evt.project_id,
-                            relation,
-                            evt.user_id,
-                        ))
-                    }
-                    None => TupleDelta::default(),
-                }
-            }
+fn permission_granted_delta(evt: manifesto_events::PermissionGrantedEvent) -> TupleDelta {
+    match permission_to_relation(&evt.permission) {
+        Some(relation) => {
+            let object_type = resource_to_object_type(&evt.resource);
+            TupleDelta::default().write(Tuple::user(
+                object_type,
+                evt.project_id,
+                relation,
+                evt.user_id,
+            ))
+        }
+        None => TupleDelta::default(),
+    }
+}
 
-            ManifestoDomainEvent::PermissionRevoked(evt) => {
-                // PermissionRevoked carries the `resource` string but not the
-                // original permission verb. Delete every relation on that
-                // object type for the user; OpenFGA is idempotent on missing
-                // tuples.
-                let object_type = resource_to_object_type(&evt.resource);
-                let mut d = TupleDelta::default();
-                for relation in ["owner", "admin", "member", "viewer"] {
-                    d = d.delete(Tuple::user(
-                        object_type,
-                        evt.project_id,
-                        relation,
-                        evt.user_id,
-                    ));
-                }
-                d
-            }
+fn permission_revoked_delta(evt: manifesto_events::PermissionRevokedEvent) -> TupleDelta {
+    let object_type = resource_to_object_type(&evt.resource);
+    let mut d = TupleDelta::default();
+    for relation in ["owner", "admin", "member", "viewer"] {
+        d = d.delete(Tuple::user(
+            object_type,
+            evt.project_id,
+            relation,
+            evt.user_id,
+        ));
+    }
+    d
+}
 
-            // Lifecycle events that do not move authorization state. Project
-            // deletion would ideally sweep every tuple on `project:{id}`; the
-            // cleanup is tracked in references/sentinel-sync-worker.md as a
-            // garbage-collect job rather than a single-event delete.
-            ManifestoDomainEvent::ProjectUpdated(_)
-            | ManifestoDomainEvent::ProjectDeleted(_)
-            | ManifestoDomainEvent::ProjectPublished(_)
-            | ManifestoDomainEvent::ProjectArchived(_)
-            | ManifestoDomainEvent::ComponentStatusChanged(_)
-            | ManifestoDomainEvent::MemberPermissionsUpdated(_) => TupleDelta::default(),
-        };
-
-        Ok(Some(delta))
+fn translate_event(event: ManifestoDomainEvent) -> TupleDelta {
+    match event {
+        ManifestoDomainEvent::ProjectCreated(evt) => project_created_delta(evt),
+        ManifestoDomainEvent::ComponentAdded(evt) => component_added_delta(evt),
+        ManifestoDomainEvent::ComponentRemoved(evt) => component_removed_delta(evt),
+        ManifestoDomainEvent::MemberAdded(evt) => member_added_delta(evt),
+        ManifestoDomainEvent::MemberRemoved(evt) => member_removed_delta(evt),
+        ManifestoDomainEvent::PermissionGranted(evt) => permission_granted_delta(evt),
+        ManifestoDomainEvent::PermissionRevoked(evt) => permission_revoked_delta(evt),
+        ManifestoDomainEvent::ProjectUpdated(_)
+        | ManifestoDomainEvent::ProjectDeleted(_)
+        | ManifestoDomainEvent::ProjectPublished(_)
+        | ManifestoDomainEvent::ProjectArchived(_)
+        | ManifestoDomainEvent::ComponentStatusChanged(_)
+        | ManifestoDomainEvent::MemberPermissionsUpdated(_) => TupleDelta::default(),
     }
 }
 
@@ -192,7 +186,7 @@ mod tests {
     use uuid::Uuid;
 
     fn to_json<T: serde::Serialize>(value: T) -> serde_json::Value {
-        serde_json::to_value(value).unwrap()
+        serde_json::to_value(value).expect("Serialize")
     }
 
     #[test]

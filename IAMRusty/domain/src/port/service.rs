@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 /// Provider `OAuth2` client interface
 #[async_trait::async_trait]
-pub trait ProviderOAuth2Client {
+pub trait ProviderOAuth2Client: Send + Sync {
     /// Get the `OAuth2` scopes for this provider
     fn get_scope(&self) -> String;
 

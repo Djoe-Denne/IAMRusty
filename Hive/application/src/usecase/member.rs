@@ -115,9 +115,11 @@ impl MemberUseCaseImpl {
     }
 
     /// Convert domain `OrganizationMember` to response DTO
-    fn member_to_response(member: &OrganizationMember) -> MemberResponse {
-        MemberResponse {
-            id: member.id.unwrap(),
+    fn member_to_response(member: &OrganizationMember) -> Result<MemberResponse, ApplicationError> {
+        Ok(MemberResponse {
+            id: member.id.ok_or_else(|| {
+                DomainError::internal_error("member missing id after persist")
+            })?,
             organization_id: member.organization_id,
             user_id: member.user_id,
             status: member.status.clone().into(),
@@ -126,7 +128,7 @@ impl MemberUseCaseImpl {
             invited_at: member.invited_at,
             created_at: member.created_at,
             updated_at: member.updated_at,
-        }
+        })
     }
 
     /// Publish member joined event
@@ -219,8 +221,12 @@ impl MemberUseCase for MemberUseCaseImpl {
             .await
             .map_err(ApplicationError::Domain)?;
 
-        let role_permissions: Vec<RolePermission> =
-            request.roles.iter().map(std::convert::Into::into).collect();
+        let role_permissions: Vec<RolePermission> = request
+            .roles
+            .iter()
+            .map(RolePermission::try_from)
+            .collect::<Result<_, _>>()
+            .map_err(ApplicationError::Domain)?;
 
         let member = if let Some(outbox_unit_of_work) = &self.outbox_unit_of_work {
             let roles = role_permissions
@@ -264,7 +270,7 @@ impl MemberUseCase for MemberUseCaseImpl {
             member
         };
 
-        Ok(Self::member_to_response(&member))
+        Self::member_to_response(&member)
     }
 
     async fn remove_member(
@@ -325,7 +331,7 @@ impl MemberUseCase for MemberUseCaseImpl {
         let members: Vec<MemberResponse> = members
             .iter()
             .map(Self::member_to_response)
-            .collect();
+            .collect::<Result<_, _>>()?;
 
         let total_count = i64::try_from(members.len()).unwrap_or(i64::MAX);
         let page_size = u64::from(pagination.page_size());
@@ -373,7 +379,7 @@ impl MemberUseCase for MemberUseCaseImpl {
             .await
             .map_err(ApplicationError::Domain)?;
 
-        Ok(Self::member_to_response(&member))
+        Self::member_to_response(&member)
     }
 
     async fn update_member(
@@ -388,8 +394,12 @@ impl MemberUseCase for MemberUseCaseImpl {
             .await
             .map_err(ApplicationError::Domain)?;
 
-        let role_permissions: Vec<RolePermission> =
-            request.roles.iter().map(std::convert::Into::into).collect();
+        let role_permissions: Vec<RolePermission> = request
+            .roles
+            .iter()
+            .map(RolePermission::try_from)
+            .collect::<Result<_, _>>()
+            .map_err(ApplicationError::Domain)?;
 
         let member = self
             .member_service
@@ -400,6 +410,6 @@ impl MemberUseCase for MemberUseCaseImpl {
         self.publish_member_roles_updated_event(&member, &organization.name, &role_permissions)
             .await?;
 
-        Ok(Self::member_to_response(&member))
+        Self::member_to_response(&member)
     }
 }

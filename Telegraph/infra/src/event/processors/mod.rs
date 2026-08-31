@@ -83,13 +83,12 @@ mod processor {
 
             if let Some(handlers) = self.config.event_mapping.get(&event.event_type) {
                 for handler in handlers {
-                    match self
-                        .event_handlers
-                        .get(handler)
-                        .unwrap()
-                        .handle_event(event)
-                        .await
-                    {
+                    let handler_impl = self.event_handlers.get(handler).ok_or_else(|| {
+                        DomainError::internal_error(format!(
+                            "event handler missing from map: {handler}"
+                        ))
+                    })?;
+                    match handler_impl.handle_event(event).await {
                         Ok(()) => {
                             processed_count += 1;
                         }
@@ -160,7 +159,9 @@ mod processor {
                 .map_or_else(Vec::new, |handlers| {
                     handlers
                         .iter()
-                        .map(|handler| self.event_handlers.get(handler).unwrap().as_ref())
+                        .filter_map(|handler| {
+                            self.event_handlers.get(handler).map(std::convert::AsRef::as_ref)
+                        })
                         .collect()
                 })
         }

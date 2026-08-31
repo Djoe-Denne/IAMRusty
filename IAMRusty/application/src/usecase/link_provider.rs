@@ -78,11 +78,11 @@ pub trait LinkProviderUseCase: Send + Sync {
 /// Link provider use case implementation
 pub struct LinkProviderUseCaseImpl<GH, GL, UR, UER, TR>
 where
-    GH: OAuthService + 'static,
-    GL: OAuthService + 'static,
-    UR: iam_domain::port::repository::UserRepository,
-    UER: iam_domain::port::repository::UserEmailRepository,
-    TR: iam_domain::port::repository::TokenRepository,
+    GH: OAuthService + Send + Sync + 'static,
+    GL: OAuthService + Send + Sync + 'static,
+    UR: iam_domain::port::repository::UserRepository + Send + Sync,
+    UER: iam_domain::port::repository::UserEmailRepository + Send + Sync,
+    TR: iam_domain::port::repository::TokenRepository + Send + Sync,
 {
     auth_factory: Arc<OAuthProviderFactory<GH, GL>>,
     provider_link_service: Arc<ProviderLinkService<UR, UER, TR>>,
@@ -90,11 +90,13 @@ where
 
 impl<GH, GL, UR, UER, TR> LinkProviderUseCaseImpl<GH, GL, UR, UER, TR>
 where
-    GH: OAuthService + 'static,
-    GL: OAuthService + 'static,
-    UR: iam_domain::port::repository::UserRepository,
-    UER: iam_domain::port::repository::UserEmailRepository,
-    TR: iam_domain::port::repository::TokenRepository,
+    GH: OAuthService + Send + Sync + 'static,
+    GL: OAuthService + Send + Sync + 'static,
+    UR: iam_domain::port::repository::UserRepository + Send + Sync,
+    UER: iam_domain::port::repository::UserEmailRepository + Send + Sync,
+    TR: iam_domain::port::repository::TokenRepository + Send + Sync,
+    <GH as OAuthService>::Error: std::error::Error + Send + Sync + 'static,
+    <GL as OAuthService>::Error: std::error::Error + Send + Sync + 'static,
 {
     /// Create a new `LinkProviderUseCaseImpl`
     pub fn new(

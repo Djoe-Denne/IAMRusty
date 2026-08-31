@@ -9,9 +9,6 @@ mod common;
 
 use common::*;
 
-#[path = "fixtures/mod.rs"]
-mod fixtures;
-
 use iam_events::{IamDomainEvent, UserSignedUpEvent};
 use rustycog::events::event::BaseEvent;
 use serial_test::serial;

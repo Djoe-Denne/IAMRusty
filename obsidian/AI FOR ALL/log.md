@@ -232,3 +232,4 @@ title: Wiki Log
 - [2026-04-25T11:42:00Z] WIKI_UPDATE project=AIForAll pages_updated=3 pages_created=1 source_cwd="c:/Users/djden/source/repos/AIForAll" topic=platform-roadmap-sentinel-sync-db-outbox
 - [2026-04-26T12:56:00Z] WIKI_UPDATE project=AIForAll pages_updated=1 pages_created=0 source_cwd="c:/Users/djden/source/repos/AIForAll" topic=transaction-readiness-progress-and-iam-provider-adapters
 - [2026-04-26T13:36:00Z] WIKI_UPDATE project=AIForAll pages_updated=6 pages_created=1 source_cwd="c:/Users/djden/source/repos/AIForAll" topic=rustycog-outbox-mermaid-diagrams
+- [2026-08-30T16:17:00Z] QUERY query="judgment Sonar unwrap Send FromStr migrations duplicate_mod" result_pages=8 mode=normal escalated=false collection=aiforall-wiki

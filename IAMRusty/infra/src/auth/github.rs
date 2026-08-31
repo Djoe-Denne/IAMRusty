@@ -26,7 +26,7 @@ async fn async_http_client(request: HttpRequest) -> Result<HttpResponse, Error<r
     debug!("request: {:?}", request);
     debug!(
         "string body: {:?}",
-        String::from_utf8(request.body.clone()).unwrap()
+        String::from_utf8_lossy(&request.body)
     );
 
     let mut request_builder = client
@@ -44,7 +44,7 @@ async fn async_http_client(request: HttpRequest) -> Result<HttpResponse, Error<r
     let chunks = response.bytes().await.map_err(Error::Reqwest)?;
     debug!(
         "response body: {:?}",
-        String::from_utf8(chunks.to_vec()).unwrap()
+        String::from_utf8_lossy(&chunks)
     );
     Ok(HttpResponse {
         status_code,
@@ -89,10 +89,9 @@ pub struct GitHubOAuth2Client {
 impl GitHubOAuth2Client {
     /// Create a new GitHub `OAuth2` client
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if `auth_url`, `token_url`, or `redirect_url` is not a valid URL.
-    #[must_use]
+    /// Returns [`DomainError::OAuth2Error`] if `auth_url`, `token_url`, or `redirect_url` is not a valid URL.
     pub fn new(
         client_id: String,
         client_secret: String,
@@ -100,25 +99,35 @@ impl GitHubOAuth2Client {
         auth_url: String,
         token_url: String,
         user_url: String,
-    ) -> Self {
+    ) -> Result<Self, DomainError> {
         let client = BasicClient::new(
             ClientId::new(client_id),
             Some(ClientSecret::new(client_secret.clone())),
-            AuthUrl::new(auth_url).unwrap(),
-            Some(TokenUrl::new(token_url).unwrap()),
+            AuthUrl::new(auth_url)
+                .map_err(|e| DomainError::OAuth2Error(format!("invalid auth URL: {e}")))?,
+            Some(
+                TokenUrl::new(token_url)
+                    .map_err(|e| DomainError::OAuth2Error(format!("invalid token URL: {e}")))?,
+            ),
         )
-        .set_redirect_uri(RedirectUrl::new(redirect_url).unwrap());
+        .set_redirect_uri(
+            RedirectUrl::new(redirect_url)
+                .map_err(|e| DomainError::OAuth2Error(format!("invalid redirect URL: {e}")))?,
+        );
 
-        Self {
+        Ok(Self {
             client,
             user_url,
             client_secret,
-        }
+        })
     }
 
     /// Create a new GitHub `OAuth2` client from a `GithubConfig`
-    #[must_use]
-    pub fn from_config(config: &GitHubConfig) -> Self {
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError::OAuth2Error`] if configured URLs are invalid.
+    pub fn from_config(config: &GitHubConfig) -> Result<Self, DomainError> {
         Self::new(
             config.client_id.clone(),
             config.client_secret.clone(),
@@ -286,7 +295,10 @@ impl OAuthService for GitHubOAuth2Client {
             self.client.auth_url().clone(),
             self.client.token_url().cloned(),
         )
-        .set_redirect_uri(RedirectUrl::new(redirect_uri).unwrap());
+        .set_redirect_uri(
+            RedirectUrl::new(redirect_uri)
+                .expect("redirect URI remains valid after path replace"),
+        );
 
         // Generate the authorization URL with relink redirect URI
         let (auth_url, _csrf_token) = relink_client
@@ -311,7 +323,11 @@ impl OAuthService for GitHubOAuth2Client {
             self.client.auth_url().clone(),
             self.client.token_url().cloned(),
         )
-        .set_redirect_uri(RedirectUrl::new(redirect_uri).unwrap());
+        .set_redirect_uri(
+            RedirectUrl::new(redirect_uri).map_err(|e| {
+                AuthError::InvalidResponse(format!("invalid redirect URI: {e}"))
+            })?,
+        );
 
         // Exchange code for tokens using the temporary client
         let token_result = exchange_client

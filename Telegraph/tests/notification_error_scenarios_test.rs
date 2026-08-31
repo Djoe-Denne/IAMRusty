@@ -9,16 +9,12 @@
 
 mod common;
 
-#[path = "fixtures/mod.rs"]
-mod fixtures;
-
 use axum::http::{header, StatusCode};
+use common::fixtures::db::NotificationFixtureBuilder;
 use common::*;
 use serde_json::Value;
 use serial_test::serial;
 use uuid::Uuid;
-
-use fixtures::db::NotificationFixtureBuilder;
 use rustycog::testing::http::jwt::create_jwt_token;
 
 /// Test parameter validation - negative page numbers

@@ -4,6 +4,7 @@
 target/
 docker-build-stage/
 .tools/
+.tmp-sonar-it
 
 
 # Cargo.lock (comment the next line if you want to commit the lock file)

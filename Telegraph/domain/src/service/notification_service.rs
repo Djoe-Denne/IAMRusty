@@ -49,7 +49,10 @@ pub struct NotificationServiceImpl<NR> {
     event_publisher: Arc<dyn EventPublisher<DomainError>>,
 }
 
-impl<NR> NotificationServiceImpl<NR> {
+impl<NR> NotificationServiceImpl<NR>
+where
+    NR: Send + Sync,
+{
     pub const fn new(
         notification_repo: Arc<NR>,
         event_publisher: Arc<dyn EventPublisher<DomainError>>,
@@ -86,7 +89,7 @@ impl<NR> NotificationServiceImpl<NR> {
 #[async_trait::async_trait]
 impl<NR> NotificationService for NotificationServiceImpl<NR>
 where
-    NR: NotificationRepository,
+    NR: NotificationRepository + Send + Sync,
 {
     async fn create_notification(
         &self,

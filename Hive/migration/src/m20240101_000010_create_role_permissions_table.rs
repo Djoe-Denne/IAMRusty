@@ -6,120 +6,8 @@ pub struct Migration;
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        manager
-            .create_table(
-                Table::create()
-                    .table(RolePermissions::Table)
-                    .if_not_exists()
-                    .col(
-                        ColumnDef::new(RolePermissions::Id)
-                            .uuid()
-                            .not_null()
-                            .primary_key()
-                            .extra("DEFAULT gen_random_uuid()".to_owned()),
-                    )
-                    .col(
-                        ColumnDef::new(RolePermissions::Name)
-                            .string_len(100)
-                            .not_null(),
-                    )
-                    .col(ColumnDef::new(RolePermissions::Description).text().null())
-                    .col(
-                        ColumnDef::new(RolePermissions::OrganizationId)
-                            .uuid()
-                            .not_null(),
-                    )
-                    .col(
-                        ColumnDef::new(RolePermissions::PermissionId)
-                            .string_len(36)
-                            .not_null(),
-                    )
-                    .col(
-                        ColumnDef::new(RolePermissions::ResourceId)
-                            .string_len(36)
-                            .not_null(),
-                    )
-                    .col(
-                        ColumnDef::new(RolePermissions::CreatedAt)
-                            .timestamp_with_time_zone()
-                            .not_null()
-                            .default(Expr::current_timestamp()),
-                    )
-                    .foreign_key(
-                        ForeignKey::create()
-                            .name("fk_role_permissions_permission_id")
-                            .from(RolePermissions::Table, RolePermissions::PermissionId)
-                            .to(Permissions::Table, Permissions::Id)
-                            .on_delete(ForeignKeyAction::Cascade),
-                    )
-                    .foreign_key(
-                        ForeignKey::create()
-                            .name("fk_role_permissions_resource_id")
-                            .from(RolePermissions::Table, RolePermissions::ResourceId)
-                            .to(Resources::Table, Resources::Id)
-                            .on_delete(ForeignKeyAction::Cascade),
-                    )
-                    .foreign_key(
-                        ForeignKey::create()
-                            .name("fk_role_permissions_organization_id")
-                            .from(RolePermissions::Table, RolePermissions::OrganizationId)
-                            .to(Organizations::Table, Organizations::Id)
-                            .on_delete(ForeignKeyAction::Cascade),
-                    )
-                    .to_owned(),
-            )
-            .await?;
-
-        // Create index on permission_id
-        manager
-            .create_index(
-                Index::create()
-                    .if_not_exists()
-                    .name("idx_role_permissions_permission_id")
-                    .table(RolePermissions::Table)
-                    .col(RolePermissions::PermissionId)
-                    .to_owned(),
-            )
-            .await?;
-
-        // Create index on resource_id
-        manager
-            .create_index(
-                Index::create()
-                    .if_not_exists()
-                    .name("idx_role_permissions_resource_id")
-                    .table(RolePermissions::Table)
-                    .col(RolePermissions::ResourceId)
-                    .to_owned(),
-            )
-            .await?;
-
-        // Create index on organization_id
-        manager
-            .create_index(
-                Index::create()
-                    .if_not_exists()
-                    .name("idx_role_permissions_organization_id")
-                    .table(RolePermissions::Table)
-                    .col(RolePermissions::OrganizationId)
-                    .to_owned(),
-            )
-            .await?;
-
-        // Create unique constraint to prevent duplicate permission-resource combinations
-        manager
-            .create_index(
-                Index::create()
-                    .if_not_exists()
-                    .name("idx_role_permissions_unique_combo")
-                    .table(RolePermissions::Table)
-                    .col(RolePermissions::PermissionId)
-                    .col(RolePermissions::ResourceId)
-                    .unique()
-                    .to_owned(),
-            )
-            .await?;
-
+        create_role_permissions_table(manager).await?;
+        create_role_permissions_indexes(manager).await?;
         Ok(())
     }
 
@@ -128,6 +16,118 @@ impl MigrationTrait for Migration {
             .drop_table(Table::drop().table(RolePermissions::Table).to_owned())
             .await
     }
+}
+
+async fn create_role_permissions_table(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+    manager
+        .create_table(
+            Table::create()
+                .table(RolePermissions::Table)
+                .if_not_exists()
+                .col(
+                    ColumnDef::new(RolePermissions::Id)
+                        .uuid()
+                        .not_null()
+                        .primary_key()
+                        .extra("DEFAULT gen_random_uuid()".to_owned()),
+                )
+                .col(
+                    ColumnDef::new(RolePermissions::Name)
+                        .string_len(100)
+                        .not_null(),
+                )
+                .col(ColumnDef::new(RolePermissions::Description).text().null())
+                .col(
+                    ColumnDef::new(RolePermissions::OrganizationId)
+                        .uuid()
+                        .not_null(),
+                )
+                .col(
+                    ColumnDef::new(RolePermissions::PermissionId)
+                        .string_len(36)
+                        .not_null(),
+                )
+                .col(
+                    ColumnDef::new(RolePermissions::ResourceId)
+                        .string_len(36)
+                        .not_null(),
+                )
+                .col(
+                    ColumnDef::new(RolePermissions::CreatedAt)
+                        .timestamp_with_time_zone()
+                        .not_null()
+                        .default(Expr::current_timestamp()),
+                )
+                .foreign_key(
+                    ForeignKey::create()
+                        .name("fk_role_permissions_permission_id")
+                        .from(RolePermissions::Table, RolePermissions::PermissionId)
+                        .to(Permissions::Table, Permissions::Id)
+                        .on_delete(ForeignKeyAction::Cascade),
+                )
+                .foreign_key(
+                    ForeignKey::create()
+                        .name("fk_role_permissions_resource_id")
+                        .from(RolePermissions::Table, RolePermissions::ResourceId)
+                        .to(Resources::Table, Resources::Id)
+                        .on_delete(ForeignKeyAction::Cascade),
+                )
+                .foreign_key(
+                    ForeignKey::create()
+                        .name("fk_role_permissions_organization_id")
+                        .from(RolePermissions::Table, RolePermissions::OrganizationId)
+                        .to(Organizations::Table, Organizations::Id)
+                        .on_delete(ForeignKeyAction::Cascade),
+                )
+                .to_owned(),
+        )
+        .await
+}
+
+async fn create_role_permissions_indexes(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+    manager
+        .create_index(
+            Index::create()
+                .if_not_exists()
+                .name("idx_role_permissions_permission_id")
+                .table(RolePermissions::Table)
+                .col(RolePermissions::PermissionId)
+                .to_owned(),
+        )
+        .await?;
+    manager
+        .create_index(
+            Index::create()
+                .if_not_exists()
+                .name("idx_role_permissions_resource_id")
+                .table(RolePermissions::Table)
+                .col(RolePermissions::ResourceId)
+                .to_owned(),
+        )
+        .await?;
+    manager
+        .create_index(
+            Index::create()
+                .if_not_exists()
+                .name("idx_role_permissions_organization_id")
+                .table(RolePermissions::Table)
+                .col(RolePermissions::OrganizationId)
+                .to_owned(),
+        )
+        .await?;
+    manager
+        .create_index(
+            Index::create()
+                .if_not_exists()
+                .name("idx_role_permissions_unique_combo")
+                .table(RolePermissions::Table)
+                .col(RolePermissions::PermissionId)
+                .col(RolePermissions::ResourceId)
+                .unique()
+                .to_owned(),
+        )
+        .await?;
+    Ok(())
 }
 
 #[derive(DeriveIden)]

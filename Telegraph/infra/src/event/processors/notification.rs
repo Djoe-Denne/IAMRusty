@@ -63,7 +63,9 @@ impl DatabaseNotificationProcessor {
         info!(
             event_id = %event.event_id,
             user_id = %user_id,
-            notification_id = %notification.id.unwrap(),
+            notification_id = %notification.id.ok_or_else(|| {
+                DomainError::internal_error("notification missing id after persist")
+            })?,
             "Database notification created successfully"
         );
 

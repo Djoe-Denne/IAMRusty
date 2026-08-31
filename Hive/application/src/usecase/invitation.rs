@@ -149,7 +149,12 @@ impl InvitationUseCase for InvitationUseCaseImpl {
         request: &CreateInvitationRequest,
         invited_by_user_id: Uuid,
     ) -> Result<InvitationResponse, ApplicationError> {
-        let role_permissions = request.roles.iter().map(std::convert::Into::into).collect();
+        let role_permissions: Vec<RolePermission> = request
+            .roles
+            .iter()
+            .map(RolePermission::try_from)
+            .collect::<Result<_, _>>()
+            .map_err(ApplicationError::Domain)?;
         let invitation = if let Some(outbox_unit_of_work) = &self.outbox_unit_of_work {
             let invitation = self
                 .invitation_service

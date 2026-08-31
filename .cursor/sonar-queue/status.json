@@ -11,9 +11,9 @@
     "total": 47,
     "actionable": 31,
     "judgment": 16,
-    "pending": 39,
+    "pending": 23,
     "assigned": 0,
-    "done": 8
+    "done": 24
   },
   "wave01Ready": ["B011", "B016", "B018"],
   "B014": {
@@ -260,6 +260,196 @@
   "manifesto-setup-command-ref": "done",
   "B042": "done",
   "B047": "done",
+  "B013": {
+    "status": "done",
+    "files": [
+      "Hive/domain/src/service/member_service.rs",
+      "Hive/domain/src/service/external_provider_service.rs",
+      "Hive/domain/src/service/sync_service.rs",
+      "Hive/domain/src/service/invitation_service.rs"
+    ],
+    "fixed": 7,
+    "unique": 4,
+    "skipped": 0,
+    "rules": { "unwrap_used": 7 },
+    "cargo": "cargo check -p hive-domain -p hive-application OK"
+  },
+  "B015": {
+    "status": "done",
+    "files": [
+      "IAMRusty/domain/src/service/auth_service.rs",
+      "IAMRusty/domain/src/service/oauth_service.rs"
+    ],
+    "fixed": 33,
+    "unique": 2,
+    "skipped": 0,
+    "skipReason": "provider_link_service.rs future_not_send reste hors lot (B014)",
+    "rules": { "future_not_send": 30, "too_many_lines": 3 },
+    "cargo": "cargo clippy -p iam-domain -W future_not_send : auth_service/oauth_service clean"
+  },
+  "B017": {
+    "status": "done",
+    "files": [
+      "Telegraph/tests/common.rs",
+      "Telegraph/tests/notification_business_logic_test.rs",
+      "Telegraph/tests/notification_error_scenarios_test.rs",
+      "Telegraph/tests/notification_http_endpoints_test.rs",
+      "Telegraph/tests/user_signup_event_test.rs",
+      "Telegraph/tests/user_email_verified_event_test.rs"
+    ],
+    "fixed": 32,
+    "unique": 4,
+    "skipped": 0,
+    "rules": { "duplicate_mod": 32 },
+    "cargo": "cargo check -p telegraph-service --tests OK"
+  },
+  "B020": {
+    "status": "done",
+    "files": [
+      "Hive/application/src/dto/role.rs",
+      "Hive/application/src/usecase/external_link.rs",
+      "Hive/application/src/usecase/member.rs",
+      "Hive/application/src/usecase/invitation.rs"
+    ],
+    "fixed": 9,
+    "unique": 4,
+    "skipped": 0,
+    "rules": { "fallible_impl_from": 6, "unwrap_used": 2, "panic": 1 },
+    "cargo": "cargo check -p hive-application -p hive-domain OK"
+  },
+  "B022": {
+    "status": "done",
+    "files": [
+      "Hive/migration/src/m20240101_000003_create_organization_members_table.rs",
+      "Hive/migration/src/m20240101_000004_create_organization_invitations_table.rs",
+      "Hive/migration/src/m20240101_000005_create_external_providers_table.rs",
+      "Hive/migration/src/m20240101_000006_create_external_links_table.rs",
+      "Hive/migration/src/m20240101_000007_create_sync_jobs_table.rs",
+      "Hive/migration/src/m20240101_000010_create_role_permissions_table.rs"
+    ],
+    "fixed": 21,
+    "unique": 6,
+    "skipped": 0,
+    "rules": { "too_many_lines": 21 },
+    "cargo": "cargo check -p hive-migration OK; clippy -W too_many_lines clean"
+  },
+  "B025": {
+    "status": "done",
+    "files": ["IAMRusty/http/src/error.rs"],
+    "fixed": 6,
+    "unique": 1,
+    "skipped": 0,
+    "rules": { "too_many_lines": 6 },
+    "cargo": "cargo check -p iam-http_server OK; clippy -W too_many_lines clean"
+  },
+  "B027": {
+    "status": "done",
+    "files": [
+      "IAMRusty/application/src/usecase/link_provider.rs",
+      "IAMRusty/application/src/usecase/password_reset.rs"
+    ],
+    "fixed": 6,
+    "unique": 2,
+    "skipped": 0,
+    "rules": { "future_not_send": 6 },
+    "cargo": "cargo clippy -p iam-application -W future_not_send : ces fichiers clean"
+  },
+  "B028": {
+    "status": "done",
+    "files": [
+      "IAMRusty/infra/src/auth/github.rs",
+      "IAMRusty/infra/src/auth/gitlab.rs",
+      "IAMRusty/setup/src/app.rs"
+    ],
+    "fixed": 13,
+    "unique": 3,
+    "skipped": 0,
+    "rules": { "unwrap_used": 13 },
+    "cargo": "cargo check -p iam-infra -p iam-setup OK"
+  },
+  "B030": {
+    "status": "done",
+    "files": [
+      "Telegraph/infra/src/communication/email.rs",
+      "Telegraph/infra/src/event/processors/mod.rs",
+      "Telegraph/infra/src/event/processors/notification.rs",
+      "Telegraph/infra/src/repository/notification_write.rs"
+    ],
+    "fixed": 8,
+    "unique": 4,
+    "skipped": 0,
+    "rules": { "unwrap_used": 8 },
+    "cargo": "cargo check -p telegraph-infra OK"
+  },
+  "B033": {
+    "status": "done",
+    "files": ["Manifesto/application/src/usecase/member.rs"],
+    "fixed": 4,
+    "unique": 1,
+    "skipped": 0,
+    "rules": { "unwrap_used": 4 },
+    "cargo": "cargo test -p manifesto-application --lib OK"
+  },
+  "B038": {
+    "status": "done",
+    "files": [
+      "Manifesto/migration/src/m20241015_000001_create_projects_table.rs",
+      "Manifesto/migration/src/m20241015_000003_create_project_members_table.rs"
+    ],
+    "fixed": 6,
+    "unique": 2,
+    "skipped": 0,
+    "rules": { "too_many_lines": 6 },
+    "cargo": "cargo check -p manifesto-migration OK; clippy -W too_many_lines clean"
+  },
+  "B041": {
+    "status": "done",
+    "files": ["Telegraph/domain/src/service/notification_service.rs"],
+    "fixed": 3,
+    "unique": 1,
+    "skipped": 0,
+    "rules": { "future_not_send": 3 },
+    "cargo": "cargo clippy -p telegraph-domain -W future_not_send clean"
+  },
+  "B043": {
+    "status": "done",
+    "files": [
+      "sentinel-sync/src/idempotency.rs",
+      "sentinel-sync/src/translator/manifesto.rs"
+    ],
+    "fixed": 4,
+    "unique": 2,
+    "skipped": 0,
+    "rules": { "unwrap_used": 2, "too_many_lines": 2 },
+    "cargo": "cargo check -p sentinel-sync OK; cargo test -p sentinel-sync --bins 11 passed"
+  },
+  "B044": {
+    "status": "done",
+    "files": ["IAMRusty/migration/src/m20220101_000001_create_table.rs"],
+    "fixed": 3,
+    "unique": 1,
+    "skipped": 0,
+    "rules": { "too_many_lines": 3 },
+    "cargo": "cargo check -p iam-migration OK; clippy -W too_many_lines clean"
+  },
+  "B045": {
+    "status": "done",
+    "files": ["IAMRusty/setup/src/app.rs"],
+    "fixed": 3,
+    "unique": 1,
+    "skipped": 0,
+    "rules": { "too_many_lines": 3 },
+    "cargo": "cargo check -p iam-setup OK; trop_de_lignes extraits en setup_* (pas d'allow)"
+  },
+  "B046": {
+    "status": "done",
+    "files": ["Telegraph/migration/src/m20250201_000001_create_notification_tables.rs"],
+    "fixed": 3,
+    "unique": 1,
+    "skipped": 0,
+    "rules": { "too_many_lines": 3 },
+    "cargo": "cargo check -p telegraph-migration OK; clippy -W too_many_lines clean"
+  },
   "doNotAutoAssign": [
     "B013", "B015", "B017", "B020", "B022", "B025", "B027", "B028",
     "B030", "B033", "B038", "B041", "B043", "B044", "B045", "B046"

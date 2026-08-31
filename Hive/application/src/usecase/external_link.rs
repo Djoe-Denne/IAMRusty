@@ -165,7 +165,11 @@ impl ExternalLinkUseCase for ExternalLinkUseCaseImpl {
             external_link
         };
 
-        let provider_source = external_link.provider_source.clone().unwrap();
+        let provider_source = external_link.provider_source.clone().ok_or_else(|| {
+            ApplicationError::Domain(DomainError::internal_error(
+                "external link missing provider_source after persist",
+            ))
+        })?;
 
         Ok(ExternalLinkResponse {
             id: external_link.id,

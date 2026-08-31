@@ -128,13 +128,13 @@ where
         member: &mut OrganizationMember,
         roles: Vec<RolePermission>,
     ) -> Result<OrganizationMember, DomainError> {
-        if member.id.is_none() {
-            return Err(DomainError::invalid_input("Member ID is required"));
-        }
+        let member_id = member.id.ok_or_else(|| {
+            DomainError::internal_error("member missing id after persist")
+        })?;
 
         let new_roles = self
             .role_service
-            .add_roles(&member.organization_id, &member.id.unwrap(), roles)
+            .add_roles(&member.organization_id, &member_id, roles)
             .await?;
         member.update_roles(new_roles);
         self.member_repo.save(member).await
@@ -220,7 +220,10 @@ where
             })?;
 
         // Remove the member
-        self.member_repo.delete_by_id(&member.id.unwrap()).await?;
+        let member_id = member.id.ok_or_else(|| {
+            DomainError::internal_error("member missing id after persist")
+        })?;
+        self.member_repo.delete_by_id(&member_id).await?;
 
         Ok(())
     }
