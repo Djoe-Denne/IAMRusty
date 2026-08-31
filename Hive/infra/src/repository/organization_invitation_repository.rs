@@ -82,7 +82,7 @@ impl OrganizationInvitationMapper {
             organization_id: ActiveValue::Set(invitation.organization_id),
             aggregate_id: ActiveValue::Set(invitation.aggregate_id.clone()),
             role_permissions: ActiveValue::Set(
-                serde_json::to_value(&invitation.role_permissions).unwrap(),
+                serde_json::to_value(&invitation.role_permissions).expect("Serialize"),
             ),
             invited_by_user_id: ActiveValue::Set(invitation.invited_by_user_id),
             token: ActiveValue::Set(invitation.token.clone()),

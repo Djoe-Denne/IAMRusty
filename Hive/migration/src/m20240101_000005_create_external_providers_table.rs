@@ -88,8 +88,14 @@ async fn create_external_providers_indexes(manager: &SchemaManager<'_>) -> Resul
     Ok(())
 }
 
+// DDL SeaORM
+#[allow(clippy::expect_used)]
+fn ddl(raw: &str) -> serde_json::Value {
+    serde_json::from_str(raw).expect("DDL")
+}
+
 async fn seed_external_providers(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
-    let github_json: serde_json::Value = serde_json::from_str(
+    let github_json = ddl(
         r#"{
             "type": "object",
             "properties": {
@@ -103,9 +109,8 @@ async fn seed_external_providers(manager: &SchemaManager<'_>) -> Result<(), DbEr
             },
             "required": ["org_name", "access_token"]
         }"#,
-    )
-    .expect("DDL");
-    let gitlab_json: serde_json::Value = serde_json::from_str(
+    );
+    let gitlab_json = ddl(
         r#"{
             "type": "object",
             "properties": {
@@ -119,9 +124,8 @@ async fn seed_external_providers(manager: &SchemaManager<'_>) -> Result<(), DbEr
             },
             "required": ["group_id", "access_token"]
         }"#,
-    )
-    .expect("DDL");
-    let confluence_json: serde_json::Value = serde_json::from_str(
+    );
+    let confluence_json = ddl(
         r#"{
             "type": "object",
             "properties": {
@@ -132,8 +136,7 @@ async fn seed_external_providers(manager: &SchemaManager<'_>) -> Result<(), DbEr
             },
             "required": ["space_key", "api_token", "username", "base_url"]
         }"#,
-    )
-    .expect("DDL");
+    );
 
     manager
         .exec_stmt(

@@ -6,15 +6,18 @@ pub struct Migration;
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        create_sync_jobs_table(manager).await?;
-        create_sync_jobs_indexes(manager).await?;
+        Box::pin(create_sync_jobs_table(manager)).await?;
+        Box::pin(create_sync_jobs_indexes(manager)).await?;
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        manager
-            .drop_table(Table::drop().table(SyncJobs::Table).to_owned())
-            .await
+        Box::pin(async {
+            manager
+                .drop_table(Table::drop().table(SyncJobs::Table).to_owned())
+                .await
+        })
+        .await
     }
 }
 

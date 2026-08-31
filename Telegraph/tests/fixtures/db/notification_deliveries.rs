@@ -19,7 +19,14 @@ pub struct NotificationDeliveryFixtureBuilder {
     error_message: Option<String>,
 }
 
+impl Default for NotificationDeliveryFixtureBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl NotificationDeliveryFixtureBuilder {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             notification_id: Uuid::new_v4(),
@@ -32,6 +39,11 @@ impl NotificationDeliveryFixtureBuilder {
         }
     }
 
+    /// Persist this builder as a committed delivery fixture.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`DbErr`] if the insert fails.
     pub async fn commit(
         self,
         db: &DatabaseConnection,
@@ -41,42 +53,49 @@ impl NotificationDeliveryFixtureBuilder {
     }
 
     /// Set the notification ID
+    #[must_use]
     pub const fn notification_id(mut self, notification_id: Uuid) -> Self {
         self.notification_id = notification_id;
         self
     }
 
     /// Set the delivery method
+    #[must_use]
     pub fn delivery_method(mut self, delivery_method: String) -> Self {
         self.delivery_method = delivery_method;
         self
     }
 
     /// Set the status
+    #[must_use]
     pub fn status(mut self, status: String) -> Self {
         self.status = status;
         self
     }
 
     /// Set the attempt count
+    #[must_use]
     pub const fn attempt_count(mut self, attempt_count: i16) -> Self {
         self.attempt_count = attempt_count;
         self
     }
 
     /// Set the last attempt timestamp
+    #[must_use]
     pub const fn last_attempt_at(mut self, last_attempt_at: Option<DateTime<Utc>>) -> Self {
         self.last_attempt_at = last_attempt_at;
         self
     }
 
     /// Set the delivered timestamp
+    #[must_use]
     pub const fn delivered_at(mut self, delivered_at: Option<DateTime<Utc>>) -> Self {
         self.delivered_at = delivered_at;
         self
     }
 
     /// Set the error message
+    #[must_use]
     pub fn error_message(mut self, error_message: Option<String>) -> Self {
         self.error_message = error_message;
         self
@@ -85,30 +104,35 @@ impl NotificationDeliveryFixtureBuilder {
     // Factory methods for common scenarios
 
     /// Create an email delivery
+    #[must_use]
     pub fn email(mut self) -> Self {
         self.delivery_method = "email".to_string();
         self
     }
 
     /// Create an SMS delivery
+    #[must_use]
     pub fn sms(mut self) -> Self {
         self.delivery_method = "sms".to_string();
         self
     }
 
     /// Create a push notification delivery
+    #[must_use]
     pub fn push(mut self) -> Self {
         self.delivery_method = "push".to_string();
         self
     }
 
     /// Create an in-app notification delivery
+    #[must_use]
     pub fn in_app(mut self) -> Self {
         self.delivery_method = "in_app".to_string();
         self
     }
 
     /// Create a pending delivery
+    #[must_use]
     pub fn pending(mut self) -> Self {
         self.status = "pending".to_string();
         self.attempt_count = 0;
@@ -116,6 +140,7 @@ impl NotificationDeliveryFixtureBuilder {
     }
 
     /// Create a sent delivery
+    #[must_use]
     pub fn sent(mut self) -> Self {
         self.status = "sent".to_string();
         self.attempt_count = 1;
@@ -124,6 +149,7 @@ impl NotificationDeliveryFixtureBuilder {
     }
 
     /// Create a delivered delivery
+    #[must_use]
     pub fn delivered(mut self) -> Self {
         self.status = "delivered".to_string();
         self.attempt_count = 1;
@@ -133,6 +159,7 @@ impl NotificationDeliveryFixtureBuilder {
     }
 
     /// Create a failed delivery
+    #[must_use]
     pub fn failed(mut self) -> Self {
         self.status = "failed".to_string();
         self.attempt_count = 3;
@@ -142,6 +169,7 @@ impl NotificationDeliveryFixtureBuilder {
     }
 
     /// Create a bounced delivery
+    #[must_use]
     pub fn bounced(mut self) -> Self {
         self.status = "bounced".to_string();
         self.attempt_count = 1;
@@ -151,6 +179,7 @@ impl NotificationDeliveryFixtureBuilder {
     }
 
     /// Create a delivery with retry attempts
+    #[must_use]
     pub fn retried(mut self, attempts: i16) -> Self {
         self.status = if attempts >= 3 {
             "failed".to_string()
@@ -207,6 +236,11 @@ pub struct NotificationDeliveryFixture {
 }
 
 impl NotificationDeliveryFixture {
+    /// Returns whether this fixture still exists in the database.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`DbErr`] if the lookup query fails.
     pub async fn check(&self, db: Arc<DatabaseConnection>) -> Result<bool, DbErr> {
         use sea_orm::EntityTrait;
         let found = notification_deliveries::Entity::find_by_id(self.id())
@@ -216,46 +250,57 @@ impl NotificationDeliveryFixture {
         Ok(found.is_some())
     }
 
+    #[must_use]
     pub const fn model(&self) -> &notification_deliveries::Model {
         self.inner.model()
     }
 
+    #[must_use]
     pub const fn id(&self) -> Uuid {
         self.model().id
     }
 
+    #[must_use]
     pub const fn notification_id(&self) -> Uuid {
         self.model().notification_id
     }
 
+    #[must_use]
     pub const fn delivery_method(&self) -> &String {
         &self.model().delivery_method
     }
 
+    #[must_use]
     pub const fn status(&self) -> &String {
         &self.model().status
     }
 
+    #[must_use]
     pub const fn attempt_count(&self) -> i16 {
         self.model().attempt_count
     }
 
+    #[must_use]
     pub const fn last_attempt_at(&self) -> Option<DateTime<Utc>> {
         self.model().last_attempt_at
     }
 
+    #[must_use]
     pub const fn delivered_at(&self) -> Option<DateTime<Utc>> {
         self.model().delivered_at
     }
 
+    #[must_use]
     pub const fn error_message(&self) -> Option<&String> {
         self.model().error_message.as_ref()
     }
 
+    #[must_use]
     pub const fn created_at(&self) -> DateTime<Utc> {
         self.model().created_at
     }
 
+    #[must_use]
     pub const fn updated_at(&self) -> DateTime<Utc> {
         self.model().updated_at
     }

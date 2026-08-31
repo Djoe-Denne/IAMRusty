@@ -1,137 +1,51 @@
 {
   "projectKey": "Djoe-Denne_IAMRusty",
   "organization": "djoe-denne06",
-  "source": "sonar-project.properties + SonarCloud MCP",
-  "fetched": "2026-08-30",
+  "source": "SonarCloud MCP search_sonar_issues_in_projects OPEN ps=500",
+  "fetched": "2026-08-31",
   "analysis": {
     "ready": true,
-    "qualityGate": "ERROR",
-    "qualityGateReason": "new_coverage 55.7 < 80 (not pending)",
-    "openIssues": 867,
-    "announcedTarget": 864,
-    "delta": 3
-  },
-  "inventory": {
-    "violations": 867,
+    "openIssues": 446,
+    "announcedTarget": 446,
+    "delta": 0,
+    "violations": 446,
     "bugs": 0,
     "vulnerabilities": 0,
-    "securityHotspots": 0,
-    "coverage": 61.0,
-    "ncloc": 79250,
-    "severity": { "MAJOR": 867 },
-    "files": 108,
-    "crates": 29,
-    "lanes": 29,
-    "rules": 32
+    "code_smells": 446
   },
-  "families": {
-    "clippy-style": 470,
-    "reliability": 192,
-    "docs": 111,
-    "complexity": 56,
-    "duplication": 32,
-    "unused": 6
+  "inventory": {
+    "violations": 446,
+    "severity": { "MAJOR": 446 },
+    "files": 41,
+    "rules": 19,
+    "paging": { "pageIndex": 1, "pageSize": 500, "total": 446 }
   },
-  "fixRisk": {
-    "mechanical": 177,
-    "semi": 464,
-    "judgment": 226
+  "classification": {
+    "mechanical": 168,
+    "judgment": 84,
+    "skip": 194
   },
-  "ruleRisk": {
-    "mechanical": [
-      "useless_borrows_in_formatting", "missing_const_for_fn", "redundant_closure",
-      "wildcard_in_or_patterns", "ignored_unit_patterns", "field_reassign_with_default",
-      "unused_async", "unused_self", "implicit_hasher", "double_must_use",
-      "must_use_candidate", "doc_markdown", "ptr_arg", "option_if_let_else",
-      "non_std_lazy_statics", "unnecessary_unwrap"
-    ],
-    "semi": [
-      "option_option", "needless_pass_by_value", "wrong_self_convention",
-      "unnecessary_wraps", "missing_errors_doc", "missing_panics_doc",
-      "struct_field_names", "should_implement_trait", "large_futures", "type_complexity"
-    ],
-    "judgment": [
-      "unwrap_used", "future_not_send", "too_many_lines", "duplicate_mod",
-      "fallible_impl_from", "panic"
-    ]
+  "skipReasons": {
+    "option_option": 108,
+    "wrong_self_convention_is_star": 41,
+    "future_not_send_provider_link_service": 24,
+    "should_implement_trait_manifesto_vo": 21
+  },
+  "skipAlso": {
+    "too_many_lines_create_hive_registry": 3
   },
   "isolation": {
     "atomicUnit": "file",
-    "mutex": "lane = cargo-package × {src|tests}",
-    "why": "Deux agents sur le même fichier = conflit git garanti. Deux agents sur le même crate (src ou tests) = rustfmt, lib.rs, re-exports. Packages d'un même service (IAMRusty/domain vs IAMRusty/http) restent parallélisables."
-  },
-  "crates": {
-    "IAMRusty": "iam-service",
-    "IAMRusty/domain": "iam-domain",
-    "IAMRusty/http": "iam-http_server",
-    "IAMRusty/infra": "iam-infra",
-    "IAMRusty/application": "iam-application",
-    "IAMRusty/setup": "iam-setup",
-    "IAMRusty/configuration": "iam-configuration",
-    "IAMRusty/migration": "iam-migration",
-    "Hive": "hive-service",
-    "Hive/domain": "hive-domain",
-    "Hive/http": "hive-http",
-    "Hive/infra": "hive-infra",
-    "Hive/application": "hive-application",
-    "Hive/setup": "hive-setup",
-    "Hive/configuration": "hive-configuration",
-    "Hive/migration": "hive-migration",
-    "Telegraph": "telegraph-service",
-    "Telegraph/http": "telegraph-http_server",
-    "Telegraph/infra": "telegraph-infra",
-    "Telegraph/application": "telegraph-application",
-    "Telegraph/domain": "telegraph-domain",
-    "Telegraph/setup": "telegraph-setup",
-    "Telegraph/configuration": "telegraph-configuration",
-    "Telegraph/migration": "telegraph-migration",
-    "Manifesto": "manifesto-service",
-    "Manifesto/http": "manifesto-http_server",
-    "Manifesto/infra": "manifesto-infra",
-    "Manifesto/application": "manifesto-application",
-    "Manifesto/domain": "manifesto-domain",
-    "Manifesto/setup": "manifesto-setup",
-    "Manifesto/configuration": "manifesto-configuration",
-    "Manifesto/migration": "manifesto-migration",
-    "monolith": "oodhive-monolith",
-    "sentinel-sync": "sentinel-sync",
-    "readiness": "readiness"
+    "mutex": "lane = cargo-package × {src|tests}"
   },
   "batch": {
-    "targetIssues": 55,
-    "algorithm": "FFD per lane, capacity 55; actionable files first, then judgment-only bins",
-    "batches": 47,
-    "actionable": 31,
-    "judgmentOnly": 16,
-    "sizeHist": { "le20": 30, "le40": 10, "le55": 7, "gt55": 0 },
-    "hotFilesSolo": []
-  },
-  "judgmentOnly": {
-    "files": 35,
-    "issues": 161,
-    "batches": 16,
-    "note": "Lots kind=judgment dans batches.tsv — hors auto-dispatch. unwrap/Send/too_many_lines/duplicate_mod/From/panic."
-  },
-  "simulation8Agents": {
-    "note": "Modèle discret: 1 lot = 1 slot/vague. Affinité same-lane puis plus grande lane déverrouillée.",
-    "laneLock": {
-      "T55_all47": { "waves": 8, "fullParallelWaves": 5, "idleSlots": 17 },
-      "T55_actionable31": { "waves": 8, "fullParallelWaves": 3, "idleSlots": 33 }
-    }
-  },
-  "decision": {
-    "chosen": "T55 + lane-lock + actionable-first",
-    "why": [
-      "Même unité/mutex/cible que la vague précédente",
-      "Plus aucun fichier ≥55 (max jwt.rs=50) — FFD ne produit plus de solo forcé hors taille",
-      "IAMRusty#tests=343 sérialise ~8 lots : affinité obligatoire",
-      "Têtes wave-01 = 1er lot actionable des 8 plus grandes lanes",
-      "Lots judgment-only trackés mais skip auto-dispatch"
-    ]
+    "targetIssues": "40-55",
+    "batches": 15,
+    "actionable": 14,
+    "skipOnly": 4
   },
   "dispatch": {
     "workers": 8,
-    "onFinish": "Assigner le prochain lot actionable de la même lane (affinité). Sinon plus grande lane déverrouillée. Ne pas assigner kind=judgment sans brief.",
     "never": "Deux agents actifs sur la même lane, ni le même fichier."
   }
 }

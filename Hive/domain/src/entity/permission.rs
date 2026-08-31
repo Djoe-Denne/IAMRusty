@@ -11,13 +11,15 @@ pub enum PermissionLevel {
     Owner,
 }
 
-impl PermissionLevel {
+impl std::str::FromStr for PermissionLevel {
+    type Err = DomainError;
+
     /// Parse a permission level from its canonical lowercase name.
     ///
     /// # Errors
     ///
     /// Returns [`DomainError`] if `s` is not a recognized permission level.
-    pub fn from_str(s: &str) -> Result<Self, DomainError> {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "read" => Ok(Self::Read),
             "write" => Ok(Self::Write),
@@ -28,7 +30,9 @@ impl PermissionLevel {
             }),
         }
     }
+}
 
+impl PermissionLevel {
     #[must_use]
     pub const fn to_str(&self) -> &str {
         match self {

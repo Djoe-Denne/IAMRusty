@@ -17,6 +17,7 @@ use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait,
     QueryFilter, QuerySelect, QueryTrait,
 };
+use std::str::FromStr;
 use std::sync::Arc;
 use tracing::debug;
 use uuid::Uuid;
@@ -32,15 +33,15 @@ pub struct MemberRoleMapper;
 impl MemberRoleMapper {
     /// Maps persisted member-role and role-permission rows to the domain entity.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if `role_permission.permission_id` is not a valid [`PermissionLevel`].
-    #[must_use]
+    /// Returns [`DomainError`] if `permission_id` is not a valid [`PermissionLevel`].
     pub fn to_domain(
         model: &organization_member_role_permissions::Model,
         role_permission: role_permissions::Model,
-    ) -> OrganizationMemberRolePermission {
-        OrganizationMemberRolePermission {
+    ) -> Result<OrganizationMemberRolePermission, DomainError> {
+        let level = PermissionLevel::from_str(role_permission.permission_id.as_str())?;
+        Ok(OrganizationMemberRolePermission {
             id: Some(model.id),
             organization_id: role_permission.organization_id,
             member_id: model.member_id,
@@ -51,11 +52,7 @@ impl MemberRoleMapper {
                     role_permission.resource_id, role_permission.permission_id
                 )),
                 role_permission.organization_id,
-                &Permission::new(
-                    PermissionLevel::from_str(role_permission.permission_id.as_str()).unwrap(),
-                    None,
-                    Some(role_permission.created_at),
-                ),
+                &Permission::new(level, None, Some(role_permission.created_at)),
                 &Resource::new(
                     role_permission.resource_id,
                     None,
@@ -64,24 +61,26 @@ impl MemberRoleMapper {
                 Some(model.created_at),
             ),
             created_at: model.created_at,
-        }
+        })
     }
 
     /// Builds a `SeaORM` active model from a domain member-role.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if `member_role.role_permission.id` is [`None`].
-    #[must_use]
+    /// Returns [`DomainError`] if `role_permission.id` is missing after persist.
     pub fn to_active_model(
         member_role: &OrganizationMemberRolePermission,
-    ) -> organization_member_role_permissions::ActiveModel {
-        organization_member_role_permissions::ActiveModel {
+    ) -> Result<organization_member_role_permissions::ActiveModel, DomainError> {
+        let role_permission_id = member_role.role_permission.id.ok_or_else(|| {
+            DomainError::internal_error("role_permission missing id after persist")
+        })?;
+        Ok(organization_member_role_permissions::ActiveModel {
             id: ActiveValue::Set(member_role.id.unwrap_or_else(Uuid::new_v4)),
             member_id: ActiveValue::Set(member_role.member_id),
-            role_permission_id: ActiveValue::Set(member_role.role_permission.id.unwrap()),
+            role_permission_id: ActiveValue::Set(role_permission_id),
             created_at: ActiveValue::Set(member_role.created_at),
-        }
+        })
     }
 }
 
@@ -113,12 +112,15 @@ impl MemberRoleReadRepository for MemberRoleReadRepositoryImpl {
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
-        Ok(member_roles
+        member_roles
             .into_iter()
             .map(|(member_role, role_permission)| {
-                MemberRoleMapper::to_domain(&member_role, role_permission.unwrap())
+                let role_permission = role_permission.ok_or_else(|| {
+                    DomainError::internal_error("member role missing related role_permission")
+                })?;
+                MemberRoleMapper::to_domain(&member_role, role_permission)
             })
-            .collect())
+            .collect()
     }
 }
 
@@ -151,21 +153,28 @@ impl MemberRoleWriteRepositoryImpl {
     where
         C: ConnectionTrait,
     {
-        let exists = member_role.id.is_some()
-            && OrganizationMemberRolePermissions::find_by_id(member_role.id.unwrap())
+        let exists = if let Some(id) = member_role.id {
+            OrganizationMemberRolePermissions::find_by_id(id)
                 .one(db)
                 .await
                 .map_err(|e| DomainError::internal_error(&e.to_string()))?
-                .is_some();
+                .is_some()
+        } else {
+            false
+        };
 
-        let role_permission =
-            OrganizationRolePermissions::find_by_id(member_role.role_permission.id.unwrap())
-                .one(db)
-                .await
-                .map_err(|e| DomainError::internal_error(&e.to_string()))?
-                .unwrap();
+        let role_permission_id = member_role.role_permission.id.ok_or_else(|| {
+            DomainError::internal_error("role_permission missing id after persist")
+        })?;
+        let role_permission = OrganizationRolePermissions::find_by_id(role_permission_id)
+            .one(db)
+            .await
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?
+            .ok_or_else(|| {
+                DomainError::internal_error("role_permission row missing after persist")
+            })?;
 
-        let active_model = MemberRoleMapper::to_active_model(member_role);
+        let active_model = MemberRoleMapper::to_active_model(member_role)?;
         if exists {
             let result = active_model
                 .save(db)
@@ -179,14 +188,14 @@ impl MemberRoleWriteRepositoryImpl {
                 created_at: result.created_at.unwrap(),
             };
 
-            Ok(MemberRoleMapper::to_domain(&saved_model, role_permission))
+            MemberRoleMapper::to_domain(&saved_model, role_permission)
         } else {
             let result = active_model
                 .insert(db)
                 .await
                 .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
-            Ok(MemberRoleMapper::to_domain(&result, role_permission))
+            MemberRoleMapper::to_domain(&result, role_permission)
         }
     }
 

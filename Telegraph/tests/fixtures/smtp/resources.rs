@@ -15,11 +15,13 @@ pub struct SmtpEmail {
 
 impl SmtpEmail {
     /// Create a builder for custom email data
+    #[must_use]
     pub fn create() -> SmtpEmailBuilder {
         SmtpEmailBuilder::default()
     }
 
     /// Pre-built email: User signup welcome
+    #[must_use]
     pub fn user_signup_welcome(user_email: &str, username: &str) -> Self {
         Self {
             from: "noreply@telegraph.com".to_string(),
@@ -36,6 +38,7 @@ impl SmtpEmail {
     }
 
     /// Pre-built email: Password reset request
+    #[must_use]
     pub fn password_reset_request(user_email: &str, username: &str) -> Self {
         Self {
             from: "noreply@telegraph.com".to_string(),
@@ -52,6 +55,7 @@ impl SmtpEmail {
     }
 
     /// Pre-built email: Email verification
+    #[must_use]
     pub fn email_verification(user_email: &str, username: &str) -> Self {
         Self {
             from: "noreply@telegraph.com".to_string(),
@@ -82,46 +86,55 @@ pub struct SmtpEmailBuilder {
 }
 
 impl SmtpEmailBuilder {
+    #[must_use]
     pub fn from(mut self, from: impl Into<String>) -> Self {
         self.from = Some(from.into());
         self
     }
 
+    #[must_use]
     pub fn to(mut self, to: impl Into<String>) -> Self {
         self.to.push(to.into());
         self
     }
 
+    #[must_use]
     pub fn cc(mut self, cc: Vec<String>) -> Self {
         self.cc = Some(cc);
         self
     }
 
+    #[must_use]
     pub fn bcc(mut self, bcc: Vec<String>) -> Self {
         self.bcc = Some(bcc);
         self
     }
 
+    #[must_use]
     pub fn subject(mut self, subject: impl Into<String>) -> Self {
         self.subject = Some(subject.into());
         self
     }
 
+    #[must_use]
     pub fn text_body(mut self, text_body: impl Into<String>) -> Self {
         self.text_body = Some(text_body.into());
         self
     }
 
+    #[must_use]
     pub fn html_body(mut self, html_body: impl Into<String>) -> Self {
         self.html_body = Some(html_body.into());
         self
     }
 
+    #[must_use]
     pub fn message_id(mut self, message_id: impl Into<String>) -> Self {
         self.message_id = Some(message_id.into());
         self
     }
 
+    #[must_use]
     pub fn build(self) -> SmtpEmail {
         SmtpEmail {
             from: self
@@ -147,6 +160,7 @@ pub struct SmtpAuthRequest {
 }
 
 impl SmtpAuthRequest {
+    #[must_use]
     pub fn plain(username: impl Into<String>, password: impl Into<String>) -> Self {
         Self {
             username: username.into(),
@@ -174,6 +188,7 @@ pub struct SmtpConnectionRequest {
 }
 
 impl SmtpConnectionRequest {
+    #[must_use]
     pub fn localhost(port: u16) -> Self {
         Self {
             host: "localhost".to_string(),
@@ -183,11 +198,13 @@ impl SmtpConnectionRequest {
         }
     }
 
+    #[must_use]
     pub const fn with_tls(mut self, use_tls: bool) -> Self {
         self.use_tls = use_tls;
         self
     }
 
+    #[must_use]
     pub const fn with_starttls(mut self, use_starttls: bool) -> Self {
         self.use_starttls = use_starttls;
         self
@@ -204,6 +221,7 @@ pub struct SmtpResponse {
 
 impl SmtpResponse {
     /// 220 Service ready
+    #[must_use]
     pub fn service_ready() -> Self {
         Self {
             code: 220,
@@ -213,6 +231,7 @@ impl SmtpResponse {
     }
 
     /// 250 Requested mail action okay, completed
+    #[must_use]
     pub fn ok() -> Self {
         Self {
             code: 250,
@@ -222,6 +241,7 @@ impl SmtpResponse {
     }
 
     /// 250 Authentication successful
+    #[must_use]
     pub fn auth_success() -> Self {
         Self {
             code: 235,
@@ -231,6 +251,7 @@ impl SmtpResponse {
     }
 
     /// 354 Start mail input
+    #[must_use]
     pub fn start_mail_input() -> Self {
         Self {
             code: 354,
@@ -240,6 +261,7 @@ impl SmtpResponse {
     }
 
     /// 250 Message accepted for delivery
+    #[must_use]
     pub fn message_accepted(message_id: &str) -> Self {
         Self {
             code: 250,
@@ -249,6 +271,7 @@ impl SmtpResponse {
     }
 
     /// 221 Service closing transmission channel
+    #[must_use]
     pub fn closing() -> Self {
         Self {
             code: 221,
@@ -258,6 +281,7 @@ impl SmtpResponse {
     }
 
     /// 535 Authentication failed
+    #[must_use]
     pub fn auth_failed() -> Self {
         Self {
             code: 535,
@@ -267,6 +291,7 @@ impl SmtpResponse {
     }
 
     /// 550 Requested action not taken: mailbox unavailable
+    #[must_use]
     pub fn mailbox_unavailable() -> Self {
         Self {
             code: 550,
@@ -284,6 +309,7 @@ pub struct SmtpCapabilities {
 }
 
 impl SmtpCapabilities {
+    #[must_use]
     pub fn default_localhost() -> Self {
         Self {
             hostname: "localhost".to_string(),
@@ -302,6 +328,7 @@ impl SmtpCapabilities {
         }
     }
 
+    #[must_use]
     pub fn to_response_lines(&self) -> Vec<String> {
         let mut lines = vec![format!("250-{}", self.hostname)];
         for (i, ext) in self.extensions.iter().enumerate() {

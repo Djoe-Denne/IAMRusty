@@ -14,16 +14,22 @@ pub struct DbFixtures;
 
 impl DbFixtures {
     /// Create a notification fixture builder
+    #[must_use]
     pub fn notification() -> NotificationFixtureBuilder {
         NotificationFixtureBuilder::new()
     }
 
     /// Create a notification delivery fixture builder
+    #[must_use]
     pub fn notification_delivery() -> NotificationDeliveryFixtureBuilder {
         NotificationDeliveryFixtureBuilder::new()
     }
 
-    /// Helper method to create a notification with delivery tracking
+    /// Helper method to create a notification with delivery tracking.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if either fixture insert fails.
     pub async fn create_notification_with_delivery(
         db: DatabaseConnection,
         user_id: uuid::Uuid,
@@ -47,7 +53,11 @@ impl DbFixtures {
         Ok((notification.model().clone(), delivery.model().clone()))
     }
 
-    /// Helper method to create a read notification
+    /// Helper method to create a read notification.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the fixture insert fails.
     pub async fn create_read_notification(
         db: DatabaseConnection,
         user_id: uuid::Uuid,
@@ -63,7 +73,11 @@ impl DbFixtures {
         Ok(notification.model().clone())
     }
 
-    /// Helper method to create an expired notification
+    /// Helper method to create an expired notification.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the fixture insert fails.
     pub async fn create_expired_notification(
         db: DatabaseConnection,
         user_id: uuid::Uuid,
@@ -79,7 +93,11 @@ impl DbFixtures {
         Ok(notification.model().clone())
     }
 
-    /// Clean up function to truncate all tables between tests
+    /// Clean up function to truncate all tables between tests.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a `TRUNCATE` statement fails.
     pub async fn cleanup(db: &DatabaseConnection) -> anyhow::Result<()> {
         use sea_orm::*;
 

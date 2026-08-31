@@ -134,7 +134,7 @@ pub async fn create_multi_queue_event_publisher_async<S: BuildHasher>(
     config: &QueueConfig,
     queue_names: Option<HashSet<String, S>>,
 ) -> Result<Arc<MultiQueueEventPublisher<DomainError>>, DomainError> {
-    let queue_names = queue_names.map(|names| names.into_iter().collect());
+    let queue_names: Option<Vec<String>> = queue_names.map(|names| names.into_iter().collect());
     let signaled = create_signaled_multi_queue_event_publisher(
         "hive",
         config,

@@ -22,6 +22,7 @@ impl SmtpService {
     }
 
     /// Get the base URL for SMTP mocking (used as SMTP host)
+    #[must_use]
     pub fn host(&self) -> String {
         // Extract just the host part from the URI
         let uri = self.server.uri();
@@ -29,11 +30,13 @@ impl SmtpService {
     }
 
     /// Get the port for SMTP mocking
+    #[must_use]
     pub fn port(&self) -> u16 {
         self.server.address().port()
     }
 
     /// Get the full server URI
+    #[must_use]
     pub fn uri(&self) -> String {
         self.server.uri()
     }
@@ -290,6 +293,7 @@ impl SmtpService {
     }
 
     /// Advanced mock for testing specific SMTP scenarios
+    #[must_use]
     pub const fn mock_custom_scenario(&self) -> SmtpScenarioBuilder<'_> {
         SmtpScenarioBuilder::new(self)
     }
@@ -348,6 +352,7 @@ impl<'a> SmtpScenarioBuilder<'a> {
     }
 
     /// Finish building the scenario
+    #[must_use]
     pub const fn build(self) -> &'a SmtpService {
         self.service
     }

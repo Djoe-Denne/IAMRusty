@@ -66,7 +66,12 @@ pub struct TestSmtp {
 }
 
 impl TestSmtp {
-    /// Create a new SMTP test container with `MailHog`
+    /// Create a new SMTP test container with `MailHog`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the container cannot start, config cannot load, or MailHog
+    /// does not become ready.
     pub async fn new() -> Result<Arc<Self>, Box<dyn std::error::Error>> {
         info!("Creating new MailHog SMTP test container");
 
@@ -121,7 +126,11 @@ impl TestSmtp {
         Ok(())
     }
 
-    /// Cleanup SQS container (for test cleanup)
+    /// Cleanup SMTP container (for test cleanup).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if taking the container lock fails. Docker cleanup errors are logged.
     pub async fn cleanup_container() -> Result<(), Box<dyn std::error::Error>> {
         let container_mutex = TEST_SMTP_CONTAINER.get();
         if let Some(container_mutex) = container_mutex {
@@ -188,7 +197,11 @@ impl TestSmtp {
         Err("MailHog failed to become ready within timeout".into())
     }
 
-    /// Get all emails sent to `MailHog`
+    /// Get all emails sent to `MailHog`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the MailHog API request or JSON parse fails.
     pub async fn get_emails(&self) -> Result<Vec<TestEmail>, Box<dyn std::error::Error>> {
         let api_url = format!("http://{}:{}/api/v1/messages", self.host, self.api_port);
 
@@ -240,7 +253,11 @@ impl TestSmtp {
         found
     }
 
-    /// Clear all emails from `MailHog`
+    /// Clear all emails from `MailHog`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the MailHog delete request fails.
     pub async fn clear_emails(&self) -> Result<(), Box<dyn std::error::Error>> {
         let api_url = format!("http://{}:{}/api/v1/messages", self.host, self.api_port);
         self.client.delete(&api_url).send().await?;
@@ -248,10 +265,12 @@ impl TestSmtp {
     }
 
     /// Get SMTP configuration for Telegraph
+    #[must_use]
     pub fn smtp_host(&self) -> &str {
         &self.host
     }
 
+    #[must_use]
     pub const fn smtp_port(&self) -> u16 {
         self.smtp_port
     }

@@ -41,7 +41,7 @@ pub struct SignaledConsumer {
 pub async fn create_signaled_multi_queue_event_publisher<TError>(
     service: &'static str,
     config: &QueueConfig,
-    queue_names: Option<HashSet<String>>,
+    queue_names: Option<Vec<String>>,
     error_mapper: Arc<dyn ErrorMapper<TError>>,
 ) -> Result<SignaledPublisher<TError>, TError> {
     let transport = create_event_publisher_from_queue_config(config)
@@ -50,7 +50,9 @@ pub async fn create_signaled_multi_queue_event_publisher<TError>(
     let status = classify_publisher(config, transport.as_ref());
     signal_queue_status(service, QueueRole::Publisher, &status);
 
-    let queue_names = queue_names.unwrap_or_else(|| default_queue_names(config));
+    let queue_names: HashSet<String> = queue_names
+        .map(|names| names.into_iter().collect())
+        .unwrap_or_else(|| default_queue_names(config));
     let adapted = GenericEventPublisherAdapter::<TError>::new(transport.clone(), error_mapper);
     let publisher = Arc::new(MultiQueueEventPublisher::new(vec![adapted], queue_names));
 

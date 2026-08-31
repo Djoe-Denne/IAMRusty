@@ -54,11 +54,11 @@ impl Translator for ManifestoTranslator {
         let Ok(event) = serde_json::from_value(raw_event.clone()) else {
             return Ok(None);
         };
-        Ok(Some(translate_event(event)))
+        Ok(Some(translate_event(&event)))
     }
 }
 
-fn project_created_delta(evt: manifesto_events::ProjectCreatedEvent) -> TupleDelta {
+fn project_created_delta(evt: &manifesto_events::ProjectCreatedEvent) -> TupleDelta {
     let mut d = TupleDelta::default().write(Tuple::user(
         "project",
         evt.project_id,
@@ -77,7 +77,7 @@ fn project_created_delta(evt: manifesto_events::ProjectCreatedEvent) -> TupleDel
     d
 }
 
-fn component_added_delta(evt: manifesto_events::ComponentAddedEvent) -> TupleDelta {
+fn component_added_delta(evt: &manifesto_events::ComponentAddedEvent) -> TupleDelta {
     TupleDelta::default().write(Tuple::object(
         "component",
         evt.component_id,
@@ -87,7 +87,7 @@ fn component_added_delta(evt: manifesto_events::ComponentAddedEvent) -> TupleDel
     ))
 }
 
-fn component_removed_delta(evt: manifesto_events::ComponentRemovedEvent) -> TupleDelta {
+fn component_removed_delta(evt: &manifesto_events::ComponentRemovedEvent) -> TupleDelta {
     TupleDelta::default().delete(Tuple::object(
         "component",
         evt.component_id,
@@ -97,7 +97,7 @@ fn component_removed_delta(evt: manifesto_events::ComponentRemovedEvent) -> Tupl
     ))
 }
 
-fn member_added_delta(evt: manifesto_events::MemberAddedEvent) -> TupleDelta {
+fn member_added_delta(evt: &manifesto_events::MemberAddedEvent) -> TupleDelta {
     let mut d = TupleDelta::default().write(Tuple::user(
         "project",
         evt.project_id,
@@ -116,7 +116,7 @@ fn member_added_delta(evt: manifesto_events::MemberAddedEvent) -> TupleDelta {
     d
 }
 
-fn member_removed_delta(evt: manifesto_events::MemberRemovedEvent) -> TupleDelta {
+fn member_removed_delta(evt: &manifesto_events::MemberRemovedEvent) -> TupleDelta {
     let mut d = TupleDelta::default();
     for relation in ["owner", "admin", "member", "viewer"] {
         d = d.delete(Tuple::user(
@@ -129,7 +129,7 @@ fn member_removed_delta(evt: manifesto_events::MemberRemovedEvent) -> TupleDelta
     d
 }
 
-fn permission_granted_delta(evt: manifesto_events::PermissionGrantedEvent) -> TupleDelta {
+fn permission_granted_delta(evt: &manifesto_events::PermissionGrantedEvent) -> TupleDelta {
     match permission_to_relation(&evt.permission) {
         Some(relation) => {
             let object_type = resource_to_object_type(&evt.resource);
@@ -144,7 +144,7 @@ fn permission_granted_delta(evt: manifesto_events::PermissionGrantedEvent) -> Tu
     }
 }
 
-fn permission_revoked_delta(evt: manifesto_events::PermissionRevokedEvent) -> TupleDelta {
+fn permission_revoked_delta(evt: &manifesto_events::PermissionRevokedEvent) -> TupleDelta {
     let object_type = resource_to_object_type(&evt.resource);
     let mut d = TupleDelta::default();
     for relation in ["owner", "admin", "member", "viewer"] {
@@ -158,7 +158,7 @@ fn permission_revoked_delta(evt: manifesto_events::PermissionRevokedEvent) -> Tu
     d
 }
 
-fn translate_event(event: ManifestoDomainEvent) -> TupleDelta {
+fn translate_event(event: &ManifestoDomainEvent) -> TupleDelta {
     match event {
         ManifestoDomainEvent::ProjectCreated(evt) => project_created_delta(evt),
         ManifestoDomainEvent::ComponentAdded(evt) => component_added_delta(evt),

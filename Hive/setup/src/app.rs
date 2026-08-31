@@ -51,6 +51,38 @@ use std::time::Duration;
 // External
 use anyhow::Error;
 
+type ApplicationUseCases = (
+    Arc<dyn hive_application::OrganizationUseCase>,
+    Arc<dyn hive_application::MemberUseCase>,
+    Arc<dyn hive_application::InvitationUseCase>,
+    Arc<dyn hive_application::ExternalLinkUseCase>,
+    Arc<dyn hive_application::SyncJobUseCase>,
+    Arc<dyn hive_application::RoleUseCase>,
+);
+
+type DomainServices = (
+    Arc<dyn hive_domain::service::OrganizationService>,
+    Arc<dyn hive_domain::service::MemberService>,
+    Arc<dyn hive_domain::service::InvitationService>,
+    Arc<dyn hive_domain::service::ExternalProviderService>,
+    Arc<dyn hive_domain::service::RoleService>,
+    Arc<dyn hive_domain::service::SyncService>,
+);
+
+type RepositoryBundle = (
+    Arc<OrganizationRepositoryImpl>,
+    Arc<OrganizationMemberRepositoryImpl>,
+    Arc<OrganizationInvitationRepositoryImpl>,
+    Arc<ExternalLinkRepositoryImpl>,
+    Arc<ExternalProviderRepositoryImpl>,
+    Arc<SyncJobRepositoryImpl>,
+    Arc<ResourceRepositoryImpl>,
+    Arc<PermissionRepositoryImpl>,
+    Arc<RolePermissionRepositoryImpl>,
+    Arc<MemberRoleRepositoryImpl>,
+    Arc<HttpExternalProviderClient>,
+);
+
 /// Application context for dependency injection
 pub struct Application {
     pub config: AppConfig,
@@ -272,17 +304,7 @@ fn setup_application(
     db: DbConnectionPool,
     config: &AppConfig,
     event_publisher: Arc<dyn EventPublisher<DomainError>>,
-) -> Result<
-    (
-        Arc<dyn hive_application::OrganizationUseCase>,
-        Arc<dyn hive_application::MemberUseCase>,
-        Arc<dyn hive_application::InvitationUseCase>,
-        Arc<dyn hive_application::ExternalLinkUseCase>,
-        Arc<dyn hive_application::SyncJobUseCase>,
-        Arc<dyn hive_application::RoleUseCase>,
-    ),
-    Error,
-> {
+) -> Result<ApplicationUseCases, Error> {
     let (
         organization_service,
         member_service,
@@ -290,7 +312,7 @@ fn setup_application(
         external_provider_service,
         role_service,
         sync_service,
-    ) = setup_domain(db.clone(), config)?;
+    ) = setup_domain(&db, config)?;
 
     let outbox_unit_of_work = Arc::new(HiveOutboxUnitOfWorkImpl::new(db, OutboxRecorder));
 
@@ -343,20 +365,7 @@ fn setup_application(
     ))
 }
 
-fn setup_domain(
-    db: DbConnectionPool,
-    config: &AppConfig,
-) -> Result<
-    (
-        Arc<dyn hive_domain::service::OrganizationService>,
-        Arc<dyn hive_domain::service::MemberService>,
-        Arc<dyn hive_domain::service::InvitationService>,
-        Arc<dyn hive_domain::service::ExternalProviderService>,
-        Arc<dyn hive_domain::service::RoleService>,
-        Arc<dyn hive_domain::service::SyncService>,
-    ),
-    Error,
-> {
+fn setup_domain(db: &DbConnectionPool, config: &AppConfig) -> Result<DomainServices, Error> {
     let (
         organization_repo,
         member_repo,
@@ -423,25 +432,7 @@ fn setup_domain(
 }
 
 /// Setup repositories
-fn setup_infra(
-    db: DbConnectionPool,
-    config: &AppConfig,
-) -> Result<
-    (
-        Arc<OrganizationRepositoryImpl>,
-        Arc<OrganizationMemberRepositoryImpl>,
-        Arc<OrganizationInvitationRepositoryImpl>,
-        Arc<ExternalLinkRepositoryImpl>,
-        Arc<ExternalProviderRepositoryImpl>,
-        Arc<SyncJobRepositoryImpl>,
-        Arc<ResourceRepositoryImpl>,
-        Arc<PermissionRepositoryImpl>,
-        Arc<RolePermissionRepositoryImpl>,
-        Arc<MemberRoleRepositoryImpl>,
-        Arc<HttpExternalProviderClient>,
-    ),
-    Error,
-> {
+fn setup_infra(db: &DbConnectionPool, config: &AppConfig) -> Result<RepositoryBundle, Error> {
     tracing::info!("Setting up repositories...");
 
     let organization_read_repo = OrganizationReadRepositoryImpl::new(db.get_read_connection());

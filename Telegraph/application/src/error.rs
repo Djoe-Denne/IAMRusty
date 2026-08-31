@@ -67,10 +67,10 @@ pub fn service_error_from_command_error(error: &CommandError) -> ServiceError {
 /// Map a boxed registry error, preferring `DomainError` when present.
 #[must_use]
 pub fn command_error_from_boxed(error: Box<dyn std::error::Error + Send + Sync>) -> CommandError {
-    if let Some(domain_error) = error.downcast_ref::<DomainError>() {
-        return command_error_from_domain(domain_error);
+    match error.downcast::<DomainError>() {
+        Ok(domain_error) => command_error_from_domain(&domain_error),
+        Err(error) => CommandError::infrastructure("unknown_error", error.to_string()),
     }
-    CommandError::infrastructure("unknown_error", error.to_string())
 }
 
 fn command_error_from_service_error(error: &ServiceError) -> CommandError {

@@ -5,6 +5,7 @@ use hive_domain::entity::{Permission, PermissionLevel};
 use hive_domain::port::repository::{PermissionReadRepository, PermissionRepository};
 use rustycog::core::error::DomainError;
 use sea_orm::{ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter};
+use std::str::FromStr;
 use std::sync::Arc;
 use tracing::debug;
 use uuid::Uuid;

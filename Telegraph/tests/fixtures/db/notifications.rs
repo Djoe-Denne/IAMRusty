@@ -22,7 +22,14 @@ pub struct NotificationFixtureBuilder {
     read_at: Option<DateTime<Utc>>,
 }
 
+impl Default for NotificationFixtureBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl NotificationFixtureBuilder {
+    #[must_use]
     pub fn new() -> Self {
         let default_content = json!({
             "message": "Default notification content",
@@ -41,24 +48,32 @@ impl NotificationFixtureBuilder {
         }
     }
 
+    /// Persist this builder as a committed notification fixture.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`DbErr`] if the insert fails.
     pub async fn commit(self, db: &DatabaseConnection) -> Result<NotificationFixture, DbErr> {
         let fixture = DbFixture::commit(self, db).await?;
         Ok(NotificationFixture { inner: fixture })
     }
 
     /// Set the user ID
+    #[must_use]
     pub const fn user_id(mut self, user_id: Uuid) -> Self {
         self.user_id = user_id;
         self
     }
 
     /// Set the title
+    #[must_use]
     pub fn title(mut self, title: String) -> Self {
         self.title = title;
         self
     }
 
     /// Set the content as JSON
+    #[must_use]
     pub fn content_json(mut self, content: &serde_json::Value) -> Self {
         self.content = content.to_string().into_bytes();
         self.content_type = "application/json".to_string();
@@ -66,6 +81,7 @@ impl NotificationFixtureBuilder {
     }
 
     /// Set the content as raw bytes
+    #[must_use]
     pub fn content_bytes(mut self, content: Vec<u8>, content_type: String) -> Self {
         self.content = content;
         self.content_type = content_type;
@@ -73,24 +89,28 @@ impl NotificationFixtureBuilder {
     }
 
     /// Set whether the notification is read
+    #[must_use]
     pub const fn is_read(mut self, is_read: bool) -> Self {
         self.is_read = is_read;
         self
     }
 
     /// Set the priority (1=high, 2=medium, 3=normal, 4=low)
+    #[must_use]
     pub const fn priority(mut self, priority: i16) -> Self {
         self.priority = priority;
         self
     }
 
     /// Set expiration date
+    #[must_use]
     pub const fn expires_at(mut self, expires_at: Option<DateTime<Utc>>) -> Self {
         self.expires_at = expires_at;
         self
     }
 
     /// Set read timestamp
+    #[must_use]
     pub const fn read_at(mut self, read_at: Option<DateTime<Utc>>) -> Self {
         self.read_at = read_at;
         self
@@ -99,6 +119,7 @@ impl NotificationFixtureBuilder {
     // Factory methods for common scenarios
 
     /// Create a high priority notification
+    #[must_use]
     pub fn high_priority(mut self) -> Self {
         self.priority = 1;
         self.title = "High Priority Notification".to_string();
@@ -106,6 +127,7 @@ impl NotificationFixtureBuilder {
     }
 
     /// Create a low priority notification
+    #[must_use]
     pub fn low_priority(mut self) -> Self {
         self.priority = 4;
         self.title = "Low Priority Notification".to_string();
@@ -113,6 +135,7 @@ impl NotificationFixtureBuilder {
     }
 
     /// Create an urgent notification that expires soon
+    #[must_use]
     pub fn urgent(mut self) -> Self {
         self.priority = 1;
         self.title = "Urgent Notification".to_string();
@@ -121,6 +144,7 @@ impl NotificationFixtureBuilder {
     }
 
     /// Create an already read notification
+    #[must_use]
     pub fn read(mut self) -> Self {
         self.is_read = true;
         self.read_at = Some(Utc::now() - chrono::Duration::minutes(30));
@@ -128,6 +152,7 @@ impl NotificationFixtureBuilder {
     }
 
     /// Create an expired notification
+    #[must_use]
     pub fn expired(mut self) -> Self {
         self.title = "Expired Notification".to_string();
         self.expires_at = Some(Utc::now() - chrono::Duration::hours(1));
@@ -135,22 +160,25 @@ impl NotificationFixtureBuilder {
     }
 
     /// Create a notification for user Alice
+    #[must_use]
     pub fn alice(mut self) -> Self {
-        self.user_id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440001").unwrap();
+        self.user_id = Uuid::from_u128(0x550e_8400_e29b_41d4_a716_4466_5544_0001);
         self.title = "Notification for Alice".to_string();
         self
     }
 
     /// Create a notification for user Bob
+    #[must_use]
     pub fn bob(mut self) -> Self {
-        self.user_id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440002").unwrap();
+        self.user_id = Uuid::from_u128(0x550e_8400_e29b_41d4_a716_4466_5544_0002);
         self.title = "Notification for Bob".to_string();
         self
     }
 
     /// Create a notification for user Charlie
+    #[must_use]
     pub fn charlie(mut self) -> Self {
-        self.user_id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440003").unwrap();
+        self.user_id = Uuid::from_u128(0x550e_8400_e29b_41d4_a716_4466_5544_0003);
         self.title = "Notification for Charlie".to_string();
         self
     }
@@ -200,6 +228,11 @@ pub struct NotificationFixture {
 }
 
 impl NotificationFixture {
+    /// Returns whether this fixture still exists in the database.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`DbErr`] if the lookup query fails.
     pub async fn check(&self, db: Arc<DatabaseConnection>) -> Result<bool, DbErr> {
         use sea_orm::EntityTrait;
         let found = notifications::Entity::find_by_id(self.id())
@@ -209,50 +242,62 @@ impl NotificationFixture {
         Ok(found.is_some())
     }
 
+    #[must_use]
     pub const fn model(&self) -> &notifications::Model {
         self.inner.model()
     }
 
+    #[must_use]
     pub const fn id(&self) -> Uuid {
         self.model().id
     }
 
+    #[must_use]
     pub const fn user_id(&self) -> Uuid {
         self.model().user_id
     }
 
+    #[must_use]
     pub const fn title(&self) -> &String {
         &self.model().title
     }
 
+    #[must_use]
     pub const fn content(&self) -> &Vec<u8> {
         &self.model().content
     }
 
+    #[must_use]
     pub const fn content_type(&self) -> &String {
         &self.model().content_type
     }
 
+    #[must_use]
     pub const fn is_read(&self) -> bool {
         self.model().is_read
     }
 
+    #[must_use]
     pub const fn priority(&self) -> i16 {
         self.model().priority
     }
 
+    #[must_use]
     pub const fn expires_at(&self) -> Option<DateTime<Utc>> {
         self.model().expires_at
     }
 
+    #[must_use]
     pub const fn read_at(&self) -> Option<DateTime<Utc>> {
         self.model().read_at
     }
 
+    #[must_use]
     pub const fn created_at(&self) -> DateTime<Utc> {
         self.model().created_at
     }
 
+    #[must_use]
     pub const fn updated_at(&self) -> DateTime<Utc> {
         self.model().updated_at
     }

@@ -206,15 +206,15 @@ impl OAuthService for GitLabOAuth2Client {
         );
 
         // Create a temporary client with the relink redirect URI
-        let relink_client = BasicClient::new(
+        let mut relink_client = BasicClient::new(
             self.client.client_id().clone(),
             Some(ClientSecret::new(self.client_secret.clone())),
             self.client.auth_url().clone(),
             self.client.token_url().cloned(),
-        )
-        .set_redirect_uri(
-            RedirectUrl::new(redirect_uri).expect("redirect URI remains valid after path replace"),
         );
+        if let Ok(uri) = RedirectUrl::new(redirect_uri) {
+            relink_client = relink_client.set_redirect_uri(uri);
+        }
 
         // Generate the authorization URL with relink redirect URI
         let (auth_url, _csrf_token) = relink_client

@@ -6,47 +6,54 @@ use regex::Regex;
 use tracing::log::{debug, warn};
 use validator::ValidationError;
 
+/// Compile a static validation pattern.
+///
+/// # Panics
+///
+/// Panics if `pattern` is not a valid regular expression. All call sites pass
+/// compile-time literals reviewed as valid.
+#[allow(clippy::expect_used, clippy::missing_panics_doc)] // static literals; panic = programmer error
+fn compile_regex(pattern: &'static str) -> Regex {
+    Regex::new(pattern).expect("static validation regex is valid")
+}
+
 /// Regex for validating provider names (letters only, case-insensitive)
-pub static PROVIDER_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[a-zA-Z]+$").unwrap());
+pub static PROVIDER_REGEX: LazyLock<Regex> = LazyLock::new(|| compile_regex(r"^[a-zA-Z]+$"));
 
 /// Regex for validating JWT tokens (base64url format)
 pub static JWT_TOKEN_REGEX: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$").unwrap());
+    LazyLock::new(|| compile_regex(r"^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$"));
 
 /// Regex for validating UUIDs
 pub static UUID_REGEX: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$").unwrap()
+    compile_regex(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 });
 
 /// Regex for validating email addresses (more comprehensive than basic email validation)
 pub static EMAIL_REGEX: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(
+    compile_regex(
         r"^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$",
     )
-    .unwrap()
 });
 
 /// Regex for validating usernames (alphanumeric, underscores, hyphens, 3-50 chars)
-pub static USERNAME_REGEX: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^[a-zA-Z0-9_-]{3,50}$").unwrap());
+pub static USERNAME_REGEX: LazyLock<Regex> = LazyLock::new(|| compile_regex(r"^[a-zA-Z0-9_-]{3,50}$"));
 
 /// Regex for strong password validation (at least 8 chars, contains letter and number)
-pub static STRONG_PASSWORD_REGEX: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^.{8,128}$").unwrap());
+pub static STRONG_PASSWORD_REGEX: LazyLock<Regex> = LazyLock::new(|| compile_regex(r"^.{8,128}$"));
 
 /// Regex to check if password contains at least one letter
-pub static HAS_LETTER_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[a-zA-Z]").unwrap());
+pub static HAS_LETTER_REGEX: LazyLock<Regex> = LazyLock::new(|| compile_regex(r"[a-zA-Z]"));
 
 /// Regex to check if password contains at least one digit
-pub static HAS_DIGIT_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\d").unwrap());
+pub static HAS_DIGIT_REGEX: LazyLock<Regex> = LazyLock::new(|| compile_regex(r"\d"));
 
 /// Regex for verification tokens (alphanumeric and common safe characters)
 pub static VERIFICATION_TOKEN_REGEX: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^[a-zA-Z0-9_-]{10,100}$").unwrap());
+    LazyLock::new(|| compile_regex(r"^[a-zA-Z0-9_-]{10,100}$"));
 
 /// Regex for password reset tokens (same format as generated tokens)
-pub static RESET_TOKEN_REGEX: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^[a-zA-Z0-9]{32}$").unwrap());
+pub static RESET_TOKEN_REGEX: LazyLock<Regex> = LazyLock::new(|| compile_regex(r"^[a-zA-Z0-9]{32}$"));
 
 // Common weak passwords to reject
 const COMMON_WEAK_PASSWORDS: &[&str] = &[

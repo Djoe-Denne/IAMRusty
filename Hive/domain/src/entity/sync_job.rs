@@ -249,12 +249,17 @@ impl SyncJobType {
         }
     }
 
+}
+
+impl std::str::FromStr for SyncJobType {
+    type Err = DomainError;
+
     /// Parse from string
     ///
     /// # Errors
     ///
     /// Returns [`DomainError`] if `s` is not a recognized sync job type.
-    pub fn from_str(s: &str) -> Result<Self, DomainError> {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             "full_sync" => Ok(Self::FullSync),
             "incremental_sync" => Ok(Self::IncrementalSync),
@@ -277,12 +282,17 @@ impl SyncJobStatus {
         }
     }
 
+}
+
+impl std::str::FromStr for SyncJobStatus {
+    type Err = DomainError;
+
     /// Parse from string
     ///
     /// # Errors
     ///
     /// Returns [`DomainError`] if `s` is not a recognized sync job status.
-    pub fn from_str(s: &str) -> Result<Self, DomainError> {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             "running" => Ok(Self::Running),
             "completed" => Ok(Self::Completed),
@@ -297,6 +307,7 @@ impl SyncJobStatus {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::str::FromStr;
 
     #[test]
     fn test_create_sync_job() {

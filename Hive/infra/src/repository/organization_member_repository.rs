@@ -284,12 +284,15 @@ impl OrganizationMemberWriteRepositoryImpl {
     where
         C: ConnectionTrait,
     {
-        let exists = member.id.is_some()
-            && OrganizationMembers::find_by_id(member.id.unwrap())
+        let exists = if let Some(id) = member.id {
+            OrganizationMembers::find_by_id(id)
                 .one(db)
                 .await
                 .map_err(|e| DomainError::internal_error(&e.to_string()))?
-                .is_some();
+                .is_some()
+        } else {
+            false
+        };
 
         let active_model = OrganizationMemberMapper::to_active_model(member);
         if exists {

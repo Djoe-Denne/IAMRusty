@@ -149,7 +149,7 @@ pub async fn build_app_state(
             let signaled = create_signaled_multi_queue_event_publisher(
                 "iam",
                 &config.queue,
-                None,
+                None::<Vec<String>>,
                 Arc::new(IAMErrorMapper),
             )
             .await?;
@@ -199,8 +199,7 @@ where
     );
 
     let repos = setup_repositories(&db_pool);
-    let (github_auth_login, gitlab_auth_login, github_auth_link, gitlab_auth_link) =
-        setup_oauth_clients(&config)?;
+    let oauth_clients = setup_oauth_clients(&config)?;
 
     // Create password service
     let password_service = Arc::new(PasswordService::new());
@@ -214,17 +213,16 @@ where
     ));
     let usecases = setup_iam_usecases(
         &db_pool,
-        repos,
-        event_publisher.clone(),
-        github_auth_login,
-        gitlab_auth_login,
-        github_auth_link,
-        gitlab_auth_link,
-        password_service,
-        password_service_adapter,
-        token_service,
-        registration_token_service,
-        outbox_unit_of_work,
+        IamUsecasesDeps {
+            repos,
+            event_publisher: event_publisher.clone(),
+            clients: oauth_clients,
+            password_service,
+            password_service_adapter,
+            token_service,
+            registration_token_service,
+            outbox_unit_of_work,
+        },
     );
     let registry = CommandRegistryFactory::create_iam_registry(usecases, &config.command);
     let command_service = Arc::new(GenericCommandService::new(Arc::new(registry)));
@@ -272,18 +270,65 @@ struct IamRepos {
     refresh_token_repo: RefreshRepo,
 }
 
-fn setup_oauth_and_link(
-    user_repo: UserRepo,
-    user_email_repo: UserEmailRepo,
-    token_repo_login: TokenRepo,
-    token_repo_link: TokenRepo,
+struct OauthClients {
     github_auth_login: GitHubOAuth2Client,
     gitlab_auth_login: GitLabOAuth2Client,
     github_auth_link: GitHubOAuth2Client,
     gitlab_auth_link: GitLabOAuth2Client,
+}
+
+struct OauthLinkDeps {
+    user_repo: UserRepo,
+    user_email_repo: UserEmailRepo,
+    token_repo_login: TokenRepo,
+    token_repo_link: TokenRepo,
+    clients: OauthClients,
     token_service: Arc<JwtTokenService>,
     registration_token_service: Arc<iam_infra::token::RegistrationTokenServiceImpl>,
+}
+
+struct AuthRegistrationDeps<EP> {
+    user_repo: UserRepo,
+    user_email_repo: UserEmailRepo,
+    email_verification_repo: CombinedEmailVerificationRepository,
+    password_reset_repo: PasswordResetRepo,
+    event_publisher: Arc<EP>,
+    password_service: Arc<PasswordService>,
+    password_service_adapter: Arc<PasswordServiceAdapter>,
+    token_service: Arc<JwtTokenService>,
+    registration_token_service: Arc<iam_infra::token::RegistrationTokenServiceImpl>,
+    outbox_unit_of_work: Arc<IamOutboxUnitOfWorkImpl>,
+}
+
+struct IamUsecasesDeps<EP> {
+    repos: IamRepos,
+    event_publisher: Arc<EP>,
+    clients: OauthClients,
+    password_service: Arc<PasswordService>,
+    password_service_adapter: Arc<PasswordServiceAdapter>,
+    token_service: Arc<JwtTokenService>,
+    registration_token_service: Arc<iam_infra::token::RegistrationTokenServiceImpl>,
+    outbox_unit_of_work: Arc<IamOutboxUnitOfWorkImpl>,
+}
+
+fn setup_oauth_and_link(
+    deps: OauthLinkDeps,
 ) -> (Arc<dyn OAuthUseCase>, Arc<dyn LinkProviderUseCase>) {
+    let OauthLinkDeps {
+        user_repo,
+        user_email_repo,
+        token_repo_login,
+        token_repo_link,
+        clients,
+        token_service,
+        registration_token_service,
+    } = deps;
+    let OauthClients {
+        github_auth_login,
+        gitlab_auth_login,
+        github_auth_link,
+        gitlab_auth_link,
+    } = clients;
     let mut oauth_service = iam_domain::service::oauth_service::OAuthService::new(
         user_repo.clone(),
         token_repo_login,
@@ -318,16 +363,7 @@ fn setup_oauth_and_link(
 
 fn setup_auth_registration_password<EP>(
     db_pool: &DbConnectionPool,
-    user_repo: UserRepo,
-    user_email_repo: UserEmailRepo,
-    email_verification_repo: CombinedEmailVerificationRepository,
-    password_reset_repo: PasswordResetRepo,
-    event_publisher: Arc<EP>,
-    password_service: Arc<PasswordService>,
-    password_service_adapter: Arc<PasswordServiceAdapter>,
-    token_service: Arc<JwtTokenService>,
-    registration_token_service: Arc<iam_infra::token::RegistrationTokenServiceImpl>,
-    outbox_unit_of_work: Arc<IamOutboxUnitOfWorkImpl>,
+    deps: AuthRegistrationDeps<EP>,
 ) -> (
     Arc<dyn LoginUseCase>,
     Arc<dyn RegistrationUseCase>,
@@ -336,6 +372,18 @@ fn setup_auth_registration_password<EP>(
 where
     EP: EventPublisher<DomainError> + Send + Sync + 'static,
 {
+    let AuthRegistrationDeps {
+        user_repo,
+        user_email_repo,
+        email_verification_repo,
+        password_reset_repo,
+        event_publisher,
+        password_service,
+        password_service_adapter,
+        token_service,
+        registration_token_service,
+        outbox_unit_of_work,
+    } = deps;
     let signup_transaction = Arc::new(SignupTransactionImpl::new(db_pool.get_write_connection()));
     let auth_service = Arc::new(
         iam_domain::service::auth_service::AuthService::new_with_signup_transaction_and_outbox(
@@ -425,21 +473,21 @@ fn setup_provider_user_token(
 
 fn setup_iam_usecases<EP>(
     db_pool: &DbConnectionPool,
-    repos: IamRepos,
-    event_publisher: Arc<EP>,
-    github_auth_login: GitHubOAuth2Client,
-    gitlab_auth_login: GitLabOAuth2Client,
-    github_auth_link: GitHubOAuth2Client,
-    gitlab_auth_link: GitLabOAuth2Client,
-    password_service: Arc<PasswordService>,
-    password_service_adapter: Arc<PasswordServiceAdapter>,
-    token_service: Arc<JwtTokenService>,
-    registration_token_service: Arc<iam_infra::token::RegistrationTokenServiceImpl>,
-    outbox_unit_of_work: Arc<IamOutboxUnitOfWorkImpl>,
+    deps: IamUsecasesDeps<EP>,
 ) -> IamRegistryUseCases
 where
     EP: EventPublisher<DomainError> + Send + Sync + 'static,
 {
+    let IamUsecasesDeps {
+        repos,
+        event_publisher,
+        clients,
+        password_service,
+        password_service_adapter,
+        token_service,
+        registration_token_service,
+        outbox_unit_of_work,
+    } = deps;
     let IamRepos {
         user_repo,
         user_email_repo,
@@ -449,30 +497,29 @@ where
         token_repo_link,
         refresh_token_repo,
     } = repos;
-    let (oauth, link_provider) = setup_oauth_and_link(
-        user_repo.clone(),
-        user_email_repo.clone(),
+    let (oauth, link_provider) = setup_oauth_and_link(OauthLinkDeps {
+        user_repo: user_repo.clone(),
+        user_email_repo: user_email_repo.clone(),
         token_repo_login,
         token_repo_link,
-        github_auth_login,
-        gitlab_auth_login,
-        github_auth_link,
-        gitlab_auth_link,
-        token_service.clone(),
-        registration_token_service.clone(),
-    );
+        clients,
+        token_service: token_service.clone(),
+        registration_token_service: registration_token_service.clone(),
+    });
     let (login_auth, registration, password_reset) = setup_auth_registration_password(
         db_pool,
-        user_repo.clone(),
-        user_email_repo.clone(),
-        email_verification_repo,
-        password_reset_repo,
-        event_publisher,
-        password_service,
-        password_service_adapter,
-        token_service.clone(),
-        registration_token_service,
-        outbox_unit_of_work,
+        AuthRegistrationDeps {
+            user_repo: user_repo.clone(),
+            user_email_repo: user_email_repo.clone(),
+            email_verification_repo,
+            password_reset_repo,
+            event_publisher,
+            password_service,
+            password_service_adapter,
+            token_service: token_service.clone(),
+            registration_token_service,
+            outbox_unit_of_work,
+        },
     );
     let (provider, user, token) = setup_provider_user_token(
         db_pool,
@@ -595,20 +642,13 @@ fn setup_jwt(
     ))
 }
 
-fn setup_oauth_clients(
-    config: &AppConfig,
-) -> Result<(
-    GitHubOAuth2Client,
-    GitLabOAuth2Client,
-    GitHubOAuth2Client,
-    GitLabOAuth2Client,
-)> {
-    Ok((
-        GitHubOAuth2Client::from_config(&config.oauth.github)?,
-        GitLabOAuth2Client::from_config(&config.oauth.gitlab)?,
-        GitHubOAuth2Client::from_config(&config.oauth.github)?,
-        GitLabOAuth2Client::from_config(&config.oauth.gitlab)?,
-    ))
+fn setup_oauth_clients(config: &AppConfig) -> Result<OauthClients> {
+    Ok(OauthClients {
+        github_auth_login: GitHubOAuth2Client::from_config(&config.oauth.github)?,
+        gitlab_auth_login: GitLabOAuth2Client::from_config(&config.oauth.gitlab)?,
+        github_auth_link: GitHubOAuth2Client::from_config(&config.oauth.github)?,
+        gitlab_auth_link: GitLabOAuth2Client::from_config(&config.oauth.gitlab)?,
+    })
 }
 
 /// Serve IAM HTTP/HTTPS until a shutdown signal or a background task fails.

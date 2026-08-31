@@ -12,6 +12,7 @@ use crate::{
 use rustycog::core::error::DomainError;
 
 /// Domain service for organization member management
+#[allow(clippy::struct_field_names)] // collaborators are repositories; `_repo` names the role
 pub struct RoleServiceImpl<MOR, RR, PR, RPR>
 where
     MOR: MemberRoleRepository,

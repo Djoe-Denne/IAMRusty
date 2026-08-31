@@ -156,7 +156,9 @@ impl ExternalLink {
             ));
         }
 
-        let config_obj = config.as_object().unwrap();
+        let config_obj = config.as_object().ok_or_else(|| {
+            DomainError::invalid_input("Provider config must be a JSON object")
+        })?;
         if config_obj.is_empty() {
             return Err(DomainError::invalid_input(
                 "Provider config cannot be empty",
@@ -197,12 +199,17 @@ impl SyncStatus {
         }
     }
 
+}
+
+impl std::str::FromStr for SyncStatus {
+    type Err = DomainError;
+
     /// Parse from string
     ///
     /// # Errors
     ///
     /// Returns [`DomainError`] if `s` is not a recognized sync status.
-    pub fn from_str(s: &str) -> Result<Self, DomainError> {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             "success" => Ok(Self::Success),
             "failed" => Ok(Self::Failed),

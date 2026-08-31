@@ -14,6 +14,7 @@ use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait,
     QueryFilter,
 };
+use std::str::FromStr;
 use std::sync::Arc;
 use tracing::debug;
 use uuid::Uuid;
@@ -25,41 +26,41 @@ pub struct RolePermissionMapper;
 impl RolePermissionMapper {
     /// Maps a persisted role-permission row to the domain entity.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if `model.permission_id` is not a valid [`PermissionLevel`].
-    #[must_use]
-    pub fn to_domain(model: role_permissions::Model) -> RolePermission {
-        RolePermission::new(
+    /// Returns [`DomainError`] if `permission_id` is not a valid [`PermissionLevel`].
+    pub fn to_domain(model: role_permissions::Model) -> Result<RolePermission, DomainError> {
+        let level = PermissionLevel::from_str(model.permission_id.as_str())?;
+        Ok(RolePermission::new(
             Some(model.id),
             Some(model.name.clone()),
             model.organization_id,
-            &Permission::new(
-                PermissionLevel::from_str(model.permission_id.as_str()).unwrap(),
-                None,
-                Some(model.created_at),
-            ),
+            &Permission::new(level, None, Some(model.created_at)),
             &Resource::new(model.resource_id, None, Some(model.created_at)),
             Some(model.created_at),
-        )
+        ))
     }
 
     /// Builds a `SeaORM` active model from a domain role-permission.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if `role_permission.created_at` is [`None`].
-    #[must_use]
-    pub fn to_active_model(role_permission: &RolePermission) -> role_permissions::ActiveModel {
-        role_permissions::ActiveModel {
+    /// Returns [`DomainError`] if `created_at` is missing after persist.
+    pub fn to_active_model(
+        role_permission: &RolePermission,
+    ) -> Result<role_permissions::ActiveModel, DomainError> {
+        let created_at = role_permission.created_at.ok_or_else(|| {
+            DomainError::internal_error("role_permission missing created_at after persist")
+        })?;
+        Ok(role_permissions::ActiveModel {
             id: ActiveValue::Set(role_permission.id.unwrap_or_else(Uuid::new_v4)),
             organization_id: ActiveValue::Set(role_permission.organization_id),
             permission_id: ActiveValue::Set(role_permission.permission.level.to_str().to_string()),
             resource_id: ActiveValue::Set(role_permission.resource.name.clone()),
             description: ActiveValue::Set(role_permission.resource.description.clone()),
-            created_at: ActiveValue::Set(role_permission.created_at.unwrap()),
+            created_at: ActiveValue::Set(created_at),
             name: ActiveValue::Set(role_permission.name.clone().unwrap_or_default()),
-        }
+        })
     }
 }
 
@@ -108,10 +109,10 @@ impl RolePermissionReadRepositoryImpl {
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
-        Ok(role_permissions
+        role_permissions
             .into_iter()
             .map(RolePermissionMapper::to_domain)
-            .collect())
+            .collect()
     }
 }
 
@@ -126,7 +127,7 @@ impl RolePermissionReadRepository for RolePermissionReadRepositoryImpl {
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
-        Ok(role_permission.map(RolePermissionMapper::to_domain))
+        role_permission.map(RolePermissionMapper::to_domain).transpose()
     }
 
     async fn find_by_organization_role(
@@ -145,10 +146,11 @@ impl RolePermissionReadRepository for RolePermissionReadRepositoryImpl {
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
-        Ok(role_permissions
+        role_permissions
             .into_iter()
+            .next()
             .map(RolePermissionMapper::to_domain)
-            .next())
+            .transpose()
     }
 
     async fn find_by_organization(
@@ -166,10 +168,10 @@ impl RolePermissionReadRepository for RolePermissionReadRepositoryImpl {
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
-        Ok(role_permissions
+        role_permissions
             .into_iter()
             .map(RolePermissionMapper::to_domain)
-            .collect())
+            .collect()
     }
 
     async fn find_by_organization_roles(
@@ -220,14 +222,17 @@ impl RolePermissionWriteRepositoryImpl {
     where
         C: ConnectionTrait,
     {
-        let exists = role_permission.id.is_some()
-            && OrganizationRolePermissions::find_by_id(role_permission.id.unwrap())
+        let exists = if let Some(id) = role_permission.id {
+            OrganizationRolePermissions::find_by_id(id)
                 .one(db)
                 .await
                 .map_err(|e| DomainError::internal_error(&e.to_string()))?
-                .is_some();
+                .is_some()
+        } else {
+            false
+        };
 
-        let active_model = RolePermissionMapper::to_active_model(role_permission);
+        let active_model = RolePermissionMapper::to_active_model(role_permission)?;
         if exists {
             let result = active_model
                 .save(db)
@@ -244,14 +249,14 @@ impl RolePermissionWriteRepositoryImpl {
                 name: result.name.unwrap(),
             };
 
-            Ok(RolePermissionMapper::to_domain(saved_model))
+            RolePermissionMapper::to_domain(saved_model)
         } else {
             let result = active_model
                 .insert(db)
                 .await
                 .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
-            Ok(RolePermissionMapper::to_domain(result))
+            RolePermissionMapper::to_domain(result)
         }
     }
 
