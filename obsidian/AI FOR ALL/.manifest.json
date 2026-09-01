@@ -3,13 +3,13 @@
   "stats": {
     "total_sources_ingested": 203,
     "total_pages": 139,
-    "last_commit_synced": "72d73b579bd48dd5308e98c333e8f0e7fa79da61"
+    "last_commit_synced": "68ac628"
   },
   "projects": {
     "aiforall": {
       "source_cwd": "C:/Users/djden/source/repos/AIForAll",
-      "last_synced": "2026-08-31T13:30:00Z",
-      "last_commit_synced": "72d73b579bd48dd5308e98c333e8f0e7fa79da61",
+      "last_synced": "2026-09-01T18:00:00Z",
+      "last_commit_synced": "68ac628",
       "conversations_ingested": 29,
       "conversations_total": 53,
       "pages_in_vault": [

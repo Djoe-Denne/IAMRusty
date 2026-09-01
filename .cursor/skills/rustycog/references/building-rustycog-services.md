@@ -4,7 +4,9 @@ Use this page when starting a new service that should look like the `Manifesto` 
 
 ## Workflow
 
+- Read `docs/guides/nouveau-service.md` for the **platform** checklist (events crate, OpenFGA model, sentinel-sync translator, compose, monolith nest). This page is the crate-level slice only.
 - Start with one vertical slice across `domain`, `application`, `infra`, `http`, `setup`, `configuration`, and `tests` rather than scaffolding everything at once.
+- Add `[auth.jwt]` (`hs256_secret`, `issuer = "iamrusty"`, `audience = "aiforall"`) before the first `.authenticated()` route. Wire `UserIdExtractor::new(auth_config)` in setup. How-to: `docs/guides/jwt-consommateur.md`.
 - Decide whether the service should depend on specific `rustycog-*` crates or the `rustycog-meta` umbrella package, then keep that choice aligned with the workspace manifest.
 - Define typed config first using the structured-service-configuration pattern, then decide explicitly whether your service will use `setup_logging` or a hand-rolled tracing initialization; `Manifesto` still uses the latter. Conflict to resolve. ^[ambiguous]
 - Create one `DbConnectionPool`, split read and write repositories correctly, and wire concrete dependencies inside the setup composition root.
@@ -21,6 +23,7 @@ Use this page when starting a new service that should look like the `Manifesto` 
 
 - Letting `command_type()` strings drift away from registration keys.
 - Mixing `AuthUser` and `OptionalAuthUser` with the wrong route mode.
+- Shipping `[auth.jwt]` without `issuer`/`audience` while IAM mints them — extractors treat non-empty values as required claims.
 - Assuming `config/default.toml` is always merged automatically.
 - Defining `[command.retry]`, `logging.level`, or service timeout knobs in TOML without verifying the current runtime path actually consumes them.
 - Treating `rustycog-meta` and individual `rustycog-*` crate dependencies as interchangeable without checking the workspace packaging story.

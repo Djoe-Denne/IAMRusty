@@ -7,6 +7,7 @@ Use this guide when setting up integration tests with `rustycog-testing`.
 - Create one service test descriptor that builds app fixtures, test DB setup, and HTTP app wiring.
 - Use `setup_test_server()` to obtain reusable base URL and HTTP client for endpoint tests. Hive, Telegraph, and Manifesto return a `TestOpenFga` handle (real `openfga/openfga` testcontainer). The harness writes **no** permissive default — default is deny. Each test calls `openfga.allow(subject, action, resource)` (or `allow_all` / `allow_wildcard`) for every tuple the route guard will Check. IAM keeps `has_openfga() == false`.
 - Return a **service-prefixed** base URL from each service's local `tests/common.rs`: `/iam` for IAMRusty, `/telegraph` for Telegraph, `/hive` for Hive, and `/manifesto` for Manifesto. Test bodies should append route paths such as `/api/...` to that prefixed base URL instead of repeating the prefix at every call site.
+- Mint callers with `rustycog::testing::http::jwt::create_jwt_token(user_id)`. It signs HS256 with `TEST_HS256_SECRET` (`rustycog-test-hs256-secret`) and sets `iss=iamrusty`, `aud=aiforall` (`TEST_JWT_ISSUER` / `TEST_JWT_AUDIENCE`). A hand-rolled token missing those claims 401s against current `[auth.jwt]` TOMLs. See `docs/guides/jwt-consommateur.md`.
 - Add DB fixtures and migration setup in shared test initialization so each test starts from explicit state.
 - Enable Kafka/SQS testcontainer helpers only for tests that need real queue behavior; keep shared `test.toml` queue settings `enabled = false` unless the whole suite genuinely needs transport.
 - For SQS producer routing tests, configure every physical queue in `SqsConfig`, use the LocalStack fixture's named-queue helpers (`wait_for_messages_from_queue`, `get_all_messages_from_queue`), and assert both the positive destination and the negative fallback queue. `Hive/tests/sqs_event_routing_tests.rs`, `IAMRusty/tests/sqs_event_routing_tests.rs`, and `Manifesto/tests/sqs_event_routing_tests.rs` are the reference shapes.
@@ -73,6 +74,7 @@ openfga
 ## Key helpers
 
 - `setup_test_server()` — reusable prefixed base URL + HTTP client; Hive/Telegraph/Manifesto also return `TestOpenFga`.
+- `create_jwt_token` / `create_jwt_token_with_secret` — HS256 test bearer with platform `iss`/`aud` (`rustycog/rustycog-testing/src/http/jwt.rs`).
 - `TestOpenFga::allow` / `deny` / `allow_all` / `allow_wildcard` / `write_tuple` — real relationship tuples for route guards.
 - `MockServerFixture::reset()` — wipe HTTP stubs for mid-test re-arrangement (outbound collaborators, not OpenFGA Check).
 - Kafka/SQS testcontainer helpers — opt-in real-transport coverage. For SQS routing, prefer `TestSqs::wait_for_messages_from_queue` and `TestSqs::get_all_messages_from_queue` over primary/default-queue helpers.

@@ -18,7 +18,7 @@ provenance:
   inferred: 0.18
   ambiguous: 0.04
 created: 2026-04-14T16:54:59.5971424Z
-updated: 2026-08-31T13:30:00Z
+updated: 2026-09-01T18:00:00Z
 ---
 
 # AIForAll
@@ -48,18 +48,20 @@ AIForAll is a Rust-based microservices workspace centered on [[projects/iamrusty
 - [[projects/aiforall/skills/running-aiforall-runtime-modes]]
 - [[projects/aiforall/skills/fixing-sonar-clippy-in-services]]
 - [[projects/aiforall/skills/running-parallel-sonar-lanes]]
+- GitHub handbook: `docs/README.md` (JWT, nouveau service, parcours métier). Agent skill: `.agents/skills/aiforall-new-service/SKILL.md`.
 
 ## Recent history
 
 - [[projects/aiforall/references/cursor-history-2026-04-to-08]]
 - [[journal/2026-08-31]]
+- [[journal/2026-09-01]]
 
 ## Open Questions
 
-- The top-level README names `iam-events`, but this source batch does not explain how it differs from `<!-- [[projects/hive-events/hive-events]] -->`.
-- Telegraph is described as handling SMS as well as email and notifications, but the live docs still describe email and notification flows more concretely than SMS delivery. ^[ambiguous]
+- Event crates: [[projects/hive-events/hive-events]] plus `iam-events`, `manifesto-events`, `telegraph-events` (see `docs/platform/events-outbox.md`).
+- Telegraph SMS: still not a live delivery mode; handbook `docs/functional/notifications.md` documents email + in-app only.
 
 ## Sources
 
-- <!-- [[references/aiforall-platform]] --> — Repository overview and shared dev workflow
+- [[references/aiforall-platform]] — Repository overview and shared dev workflow
 - [[projects/aiforall/references/modular-monolith-runtime]] — Runtime-mode decision and monolith composition notes

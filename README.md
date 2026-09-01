@@ -1,151 +1,64 @@
-# AIForAll Microservices
+# AIForAll
 
-This repository contains multiple microservices for the AIForAll platform:
+Plateforme Rust de bounded contexts (identité, organisations, projets, notifications) sur le SDK [rustycog](https://github.com/Djoe-Denne/rustycog) (git submodule).
 
-- **IAMRusty**: Identity and Access Management service
-- **Telegraph**: Communication service for emails, notifications, and SMS
-- **rustycog**: Shared Rust crates ([git submodule](https://github.com/Djoe-Denne/rustycog))
-- **iam-events**: Event definitions shared between services
+**Handbook (implémentation + parcours métier) :** [`docs/README.md`](docs/README.md)
 
-## Quick Start
+## Services
 
-### Prerequisites
+| Service | Préfixe | Port compose | Rôle |
+|---|---|---|---|
+| [IAMRusty](IAMRusty/README.md) | `/iam` | 8080 | Identité, OAuth, JWT |
+| [Telegraph](Telegraph/README.md) | `/telegraph` | 8081 | Emails et notifications in-app |
+| [Hive](Hive/README.md) | `/hive` | 8082 | Organisations, membres, invitations |
+| [Manifesto](Manifesto/README.md) | `/manifesto` | 8083 | Projets, composants, membership |
+| [sentinel-sync](sentinel-sync/README.md) | — | (hors compose) | Events → tuples OpenFGA |
+| [oodhive-monolith](monolith/README.md) | `/iam`…`/manifesto` | (hors compose) | Un listener, quatre routeurs |
 
-- Docker and Docker Compose
-- Git
+Infra compose : PostgreSQL **5432**, LocalStack SQS **4566**, OpenFGA **8090** (HTTP) / **8091** (gRPC) / **3000** (playground).
 
-### Running All Services
+Crates d’événements : `iam-events`, `hive-events`, `manifesto-events`, `telegraph-events`. Readiness : crate `readiness` (`/ready`).
 
-The global docker-compose setup runs both IAMRusty and Telegraph services with shared infrastructure:
+## Démarrage
 
 ```bash
-# Clone the repository
-git clone --recurse-submodules <repository-url>
+git clone --recurse-submodules <url>
 cd AIForAll
-
-# Start all services
-docker-compose up -d
-
-# View logs
-docker-compose logs -f
-
-# Stop all services
-docker-compose down
+docker compose up -d
 ```
 
-### Services Overview
+Logs : `docker compose logs -f`. Stop : `docker compose down`.
 
-| Service | Port | Description |
-|---------|------|-------------|
-| IAMRusty | 8080 (HTTP), 8443 (HTTPS) | Identity and Access Management |
-| Telegraph | 8081 | Communication service |
-| PostgreSQL | 5432 | Database for IAMRusty |
-| LocalStack | 4566 | SQS message queue service |
-
-### Service Communication
-
-- IAMRusty publishes `user_signed_up` events to the `user-events` SQS queue
-- Telegraph consumes these events and sends welcome emails
-- Both services share the same LocalStack SQS instance
-
-### Development Configuration
-
-Both services use development profiles when running in Docker:
-- `IAMRusty/config/development.toml`
-- `Telegraph/config/development.toml`
-
-### Database Management
+Outils (profil `tools`) :
 
 ```bash
-# Truncate all database tables
-docker-compose --profile tools run --rm truncate-db
-
-# Verify all emails (for testing)
-docker-compose --profile tools run --rm verify-emails
+docker compose --profile tools run --rm truncate-db
+docker compose --profile tools run --rm verify-emails
 ```
 
-### Individual Service Development
+JWT local : HMAC partagé, `iss=iamrusty`, `aud=aiforall`. Détail : [`docs/platform/authn-jwt.md`](docs/platform/authn-jwt.md).
 
-Each service can also be run individually:
+## Flux
 
-```bash
-# IAMRusty only
-cd IAMRusty
-docker-compose up
+- IAM publie `user_signed_up` / `password_reset_requested` / `user_email_verified` vers **`telegraph-events`**.
+- Hive, Manifesto, Telegraph publient vers **`sentinel-sync-events`** (AuthZ).
+- `sentinel-sync` n’est **pas** démarré par le compose — le lancer à part après bootstrap du store OpenFGA.
 
-# Telegraph (requires external SQS)
-cd Telegraph
-cargo run
-```
-
-Standalone service binaries use the same bounded-context URL prefixes as the
-monolith: IAMRusty routes are under `/iam`, Telegraph under `/telegraph`, Hive
-under `/hive`, and Manifesto under `/manifesto`.
-
-### Modular Monolith Development
-
-The Rust services can also be built into one modular monolith binary with a
-single HTTP listener and nested service routes:
+## Monolithe
 
 ```bash
-cargo build -p oodhive-monolith
 cargo run -p oodhive-monolith
 ```
 
-The monolith exposes top-level health at `/health` and service routers under
-their bounded-context prefixes:
+Mêmes préfixes qu’en standalone. Voir [`docs/platform/runtime.md`](docs/platform/runtime.md) et [`monolith/README.md`](monolith/README.md).
+
+## Tests et format
 
 ```bash
-curl http://localhost:8080/health
-curl http://localhost:8080/iam/health
-curl http://localhost:8080/telegraph/health
-curl http://localhost:8080/hive/health
-curl http://localhost:8080/manifesto/health
-```
-
-Representative nested routes:
-
-```bash
-curl http://localhost:8080/iam/.well-known/jwks.json
-curl http://localhost:8080/hive/api/organizations/search
-curl http://localhost:8080/manifesto/api/projects
-curl http://localhost:8080/telegraph/api/notifications
-```
-
-### Testing
-
-Integration tests can be run against the running services:
-
-```bash
-# Run IAMRusty tests
-cd IAMRusty
-cargo test
-
-# Run Telegraph tests  
-cd Telegraph
-cargo test
-```
-
-### Formatting
-
-Run Rust formatting from the workspace root:
-
-```bash
+cargo test -p hive-service
 cargo fmt
 ```
 
-To check formatting before every commit, see
-[`docs/CARGO_FMT_PRE_COMMIT.md`](docs/CARGO_FMT_PRE_COMMIT.md).
+Hook fmt : [`docs/CARGO_FMT_PRE_COMMIT.md`](docs/CARGO_FMT_PRE_COMMIT.md).
 
-### Configuration
-
-- **IAMRusty**: See `IAMRusty/README.md` for detailed configuration
-- **Telegraph**: See `Telegraph/config/` for communication service settings
-- **SQS**: Both services connect to LocalStack SQS on `localstack:4566`
-
-### Monitoring
-
-- Health checks are configured for all services
-- LocalStack dashboard: http://localhost:4566/_localstack/health
-- IAMRusty API: http://localhost:8080/iam/health
-- Telegraph API: http://localhost:8081/telegraph/health
+Nouveau service : [`docs/guides/nouveau-service.md`](docs/guides/nouveau-service.md). Submodule rustycog : [`.agents/skills/rustycog-submodule/SKILL.md`](.agents/skills/rustycog-submodule/SKILL.md).

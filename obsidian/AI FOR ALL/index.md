@@ -8,7 +8,7 @@ provenance:
   extracted: 0.9
   inferred: 0.08
   ambiguous: 0.02
-updated: 2026-08-31T13:30:00Z
+updated: 2026-09-01T18:00:00Z
 ---
 
 # Wiki Index
@@ -27,8 +27,8 @@ Central entry point for this vault. Use the area indexes for full catalogs; use 
 
 - [[projects/aiforall/aiforall]] — platform overview and roadmap
 - [[projects/iamrusty/iamrusty]] — IAM and OAuth
-- <!-- [[projects/hive/hive]] --> — organizations and permissions
-- <!-- [[projects/hive-events/hive-events]] --> — Hive domain events
+- [[projects/hive/hive]] — organizations and permissions
+- [[projects/hive-events/hive-events]] — Hive domain events
 - [[projects/telegraph/telegraph]] — notifications and communication
 - [[projects/manifesto/manifesto]] — project-service MVP and RustyCog blueprint
 - [[projects/rustycog/rustycog]] — shared Rust SDK (crate map: [[projects/rustycog/references/index]])
@@ -36,6 +36,7 @@ Central entry point for this vault. Use the area indexes for full catalogs; use 
 
 ## Recent Additions
 
+- GitHub handbook `docs/README.md` (2026-09-01) — JWT how-to, nouveau service, parcours métier. Concept JWT updated: [[projects/aiforall/concepts/jwt-issuer-vs-consumer]].
 - [[concepts/architecture-coherence-across-services]] — August 2026 four-service comparison (scaffold shared, JWT/logging/errors/OpenAPI diverge).
 - [[projects/aiforall/concepts/rustycog-git-submodule]] — rustycog is a pinned gitlink, not a vendored tree.
 - [[projects/aiforall/skills/running-parallel-sonar-lanes]] — file-disjoint Sonar agent lanes.

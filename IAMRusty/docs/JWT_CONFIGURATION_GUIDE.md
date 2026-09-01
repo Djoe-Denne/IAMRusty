@@ -4,8 +4,20 @@
 
 The IAM service supports flexible JWT token generation and validation using either symmetric (HMAC) or asymmetric (RSA) cryptographic algorithms. The configuration system is designed to be extensible, supporting multiple secret storage backends while keeping the JWT encoder agnostic to the secret source.
 
+### Issuer versus consumer (read this first)
+
+IAM **mints** tokens from **`[jwt]`** + **`[jwt.secret]`**. Hive, Manifesto, Telegraph (and IAM's own HTTP extractor) **verify** tokens from **`[auth.jwt]`** (`hs256_secret`, `issuer`, `audience`).
+
+| Side | TOML | Algorithm today |
+|---|---|---|
+| Issuer (this service) | `[jwt]` | HS256 (`type = "plain"`). RS256 still exists in the encoder but the composition root **rejects** it: rustycog-http `UserIdExtractor` cannot verify JWKS/RS256. |
+| Consumer (all HTTP) | `[auth.jwt]` | HS256 only. Non-empty `issuer` / `audience` are required claims (`iamrusty` / `aiforall`). Required payload claims also include `sub` (UUID), `exp`, `iat`, `jti`. |
+
+JWKS is served at `GET /iam/.well-known/jwks.json` and is **not** consumed by the shared extractor. Platform how-to: [`docs/platform/authn-jwt.md`](../../docs/platform/authn-jwt.md), [`docs/guides/jwt-consommateur.md`](../../docs/guides/jwt-consommateur.md). This guide below is the **issuer storage** story (`[jwt.secret]` backends).
+
 ## Table of Contents
 
+- [Issuer versus consumer (read this first)](#issuer-versus-consumer-read-this-first)
 - [Secret Storage Architecture](#secret-storage-architecture)
 - [Configuration Options](#configuration-options)
 - [HMAC (Symmetric) Configuration](#hmac-symmetric-configuration)

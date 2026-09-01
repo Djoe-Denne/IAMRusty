@@ -23,7 +23,8 @@ Pick the smallest set of references that match the task. Load each only when nee
 
 | Task | Reference |
 |------|-----------|
-| Scaffolding a brand-new service end-to-end | [references/building-rustycog-services.md](references/building-rustycog-services.md) |
+| Scaffolding a brand-new service end-to-end | [references/building-rustycog-services.md](references/building-rustycog-services.md) plus platform checklist `.agents/skills/aiforall-new-service/SKILL.md` and `docs/guides/nouveau-service.md` |
+| Consuming IAM JWTs (`[auth.jwt]`, `iss`/`aud`, test tokens) | [references/using-rustycog-http.md](references/using-rustycog-http.md) and `docs/platform/authn-jwt.md` |
 | Domain/service error types, retryability, HTTP status mapping | [references/using-rustycog-core.md](references/using-rustycog-core.md) |
 | Typed config loading, env prefixes, `QueueConfig`, `load_config_part` | [references/using-rustycog-config.md](references/using-rustycog-config.md) |
 | `DbConnectionPool`, read/write split, replica fallback | [references/using-rustycog-db.md](references/using-rustycog-db.md) |
@@ -55,14 +56,15 @@ These hold across every RustyCog crate and override anything that contradicts th
 - **`max_attempts = 0` disables retries.** It does not mean "default" or "infinite" — set it intentionally.
 - **`setup_logging` is a global singleton.** Call it exactly once, early, and never alongside hand-rolled `tracing_subscriber` setup.
 - **Queue factories can degrade to no-op.** A "successful" startup does not prove the transport is live — add an explicit health check.
+- **Bearer verification is HS256 + optional `iss`/`aud`.** Platform values: issuer `iamrusty`, audience `aiforall`. Do not mint RS256 for consumers.
 
 ## Workflow when starting a new service
 
 If the task is "build a new RustyCog service from scratch", follow this order regardless of which crates are involved:
 
-1. Read [references/building-rustycog-services.md](references/building-rustycog-services.md) first — it sets the vertical-slice shape.
+1. Read [references/building-rustycog-services.md](references/building-rustycog-services.md) first — it sets the vertical-slice shape. Then `.agents/skills/aiforall-new-service/SKILL.md` for compose / OpenFGA / sentinel-sync / monolith.
 2. Decide `rustycog-meta` umbrella vs individual `rustycog-*` crates and lock that into the workspace `Cargo.toml`.
-3. Write the typed config struct (see `using-rustycog-config`) and decide explicitly between `setup_logging` and hand-rolled tracing.
+3. Write the typed config struct (see `using-rustycog-config`), include `[auth.jwt]`, and decide explicitly between `setup_logging` and hand-rolled tracing.
 4. Build the composition root: `DbConnectionPool` → repositories → command registry → `AppState`.
 5. Compose routes through `RouteBuilder`, expose `create_router`/`create_prefixed_router`, and add permissions only on routes that need them.
 6. Add integration tests with service-prefixed `setup_test_server` base URLs before adding Kafka/SQS-backed checks.

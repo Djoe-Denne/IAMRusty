@@ -8,7 +8,7 @@ provenance:
   extracted: 0.9
   inferred: 0.08
   ambiguous: 0.02
-updated: 2026-08-31T13:30:00Z
+updated: 2026-09-01T18:00:00Z
 ---
 
 # Skills Index
@@ -41,5 +41,5 @@ Server and meta packaging guidance now live directly in:
 
 - AIForAll: [[projects/aiforall/skills/index]] (runtime modes, Sonar policy, [[projects/aiforall/skills/running-parallel-sonar-lanes]])
 - IAMRusty: <!-- [[projects/iamrusty/skills/index]] -->
-- Hive: <!-- [[projects/hive/skills/index]] -->
+- Hive: [[projects/hive/skills/index]]
 - Telegraph: <!-- [[projects/telegraph/skills/index]] -->
