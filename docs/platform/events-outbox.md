@@ -8,7 +8,7 @@ Les services publient des événements domaine (crates `*-events`). Le routage S
 |---|---|---|
 | IAMRusty | `user_signed_up`, `user_email_verified`, `password_reset_requested` | `telegraph-events` |
 | Hive | `organization_*`, `member_joined`, `member_removed`, `member_roles_updated` | `sentinel-sync-events` |
-| Manifesto | `project_created`, `component_*`, `member_*`, `permission_*` | `sentinel-sync-events` |
+| Manifesto | `project_created`, `project_visibility_changed`, `project_published`, `project_archived`, `component_*`, `member_*`, `permission_*` | `sentinel-sync-events` |
 | Telegraph | `notification_created` | `sentinel-sync-events` |
 
 Tests : mêmes clés, préfixe `test-` (`test-telegraph-events`, `test-sentinel-sync-events`). `queue.enabled = false` dans les TOML test/dev par défaut — activer explicitement (`HIVE_QUEUE__ENABLED=true`, etc.) pour les suites transport.

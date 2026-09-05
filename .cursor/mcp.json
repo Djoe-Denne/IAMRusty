@@ -17,6 +17,24 @@
         "mcp-serve",
         "C:\\Users\\djden\\source\\repos\\AIForAll"
       ]
+    },
+    "serena": {
+      "type": "stdio",
+      "command": "C:\\Users\\djden\\.cargo\\bin\\uvx.exe",
+      "args": [
+        "--from",
+        "serena-agent==1.7.0",
+        "serena",
+        "start-mcp-server",
+        "--context",
+        "ide",
+        "--mode",
+        "no-onboarding",
+        "--project",
+        "${workspaceFolder}",
+        "--transport",
+        "stdio"
+      ]
     }
   }
 }

@@ -8,7 +8,7 @@ provenance:
   extracted: 0.9
   inferred: 0.08
   ambiguous: 0.02
-updated: 2026-09-01T18:00:00Z
+updated: 2026-09-02T18:00:00Z
 ---
 
 # Wiki Index
@@ -36,6 +36,8 @@ Central entry point for this vault. Use the area indexes for full catalogs; use 
 
 ## Recent Additions
 
+- [[projects/manifesto/concepts/org-owned-visibility-and-participation-limits]] (2026-09-02) — org-owned public/private limits: no partnership/join, list vs GET, publish writes `user:*`.
+- [[journal/2026-09-02]] — documentation pass for those limits (wiki + handbook).
 - GitHub handbook `docs/README.md` (2026-09-01) — JWT how-to, nouveau service, parcours métier. Concept JWT updated: [[projects/aiforall/concepts/jwt-issuer-vs-consumer]].
 - [[concepts/architecture-coherence-across-services]] — August 2026 four-service comparison (scaffold shared, JWT/logging/errors/OpenAPI diverge).
 - [[projects/aiforall/concepts/rustycog-git-submodule]] — rustycog is a pinned gitlink, not a vendored tree.

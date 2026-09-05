@@ -4,3 +4,9 @@ args = [
     "mcp-serve",
     'C:\Users\djden\source\repos\AIForAll',
 ]
+
+[mcp_servers.serena]
+command = 'C:\Users\djden\.cargo\bin\uvx.exe'
+args = ["--from", "serena-agent==1.7.0", "serena", "start-mcp-server", "--context=codex", "--mode", "no-onboarding", "--project", 'C:\Users\djden\source\repos\AIForAll', "--transport", "stdio"]
+cwd = 'C:\Users\djden\source\repos\AIForAll'
+startup_timeout_sec = 60

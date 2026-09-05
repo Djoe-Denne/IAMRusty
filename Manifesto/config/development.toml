@@ -45,6 +45,9 @@ timeout_seconds = 30
 
 [queue.queues]
 project_created = ["sentinel-sync-events"]
+project_visibility_changed = ["sentinel-sync-events"]
+project_published = ["sentinel-sync-events"]
+project_archived = ["sentinel-sync-events"]
 component_added = ["sentinel-sync-events"]
 component_removed = ["sentinel-sync-events"]
 member_added = ["sentinel-sync-events"]

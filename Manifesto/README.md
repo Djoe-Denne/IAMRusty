@@ -7,8 +7,10 @@ Manifesto manages projects, attached components, and project membership for AIFo
 Manifesto is a production-ready baseline after the April 2026 remediation pass.
 
 - Bearer auth now uses the shared verified HS256-only service-side verifier.
-- Optional-auth resource reads evaluate anonymous callers correctly, and `GET /api/projects` filters by caller visibility/access.
-- Non-public project and component reads require real access.
+- Optional-auth resource reads evaluate anonymous callers correctly, and `GET /api/projects` filters by SQL visibility (public live, project membership, Internal org viewer, org admin). Item GET, details, and component list/get use OpenFGA plus the same world-read gate. Leftover `user:*` after private/archive does not keep those reads open. Org members read Internal org-owned projects; private requires a project member or org admin.
+- Manifesto does not write OpenFGA tuples. Create-as-public and a later visibility PUT emit events; sentinel-sync writes or removes `viewer@user:*` and the Internal org-member userset. A flip that involves `public` requires project `Admin`. `publish` is lifecycle only and does not write `user:*`.
+- `POST /api/projects/{id}/join` lets an IAM user without an org self-join a public live project. There is no org partnership (L-PARTNERSHIP). `public` is world-read plus optional self-join.
+- Non-public project and component reads require real access (membership or org-inherited FGA viewer on GET-by-id).
 - Component catalog calls fail closed and honor configured `api_key` and `timeout_seconds`.
 - Component add/remove fails if the matching component-instance ACL resource cannot be synchronized.
 - `logging.level`, `[command.retry]`, and business limits are wired into live runtime behavior.
@@ -30,8 +32,8 @@ Current lifecycle models:
 
 ## Runtime Notes
 
-- `GET /api/projects` is optionally authenticated and filters by caller visibility/access in the service and repository layers.
-- Public project/component resource reads can succeed anonymously through optional auth plus permission middleware; non-public reads require permission.
+- `GET /api/projects` is optionally authenticated and filters by caller visibility/access in the service and repository layers. Anonymous list is public **and** live (`draft|active`).
+- Public project GET/details and component list/get succeed anonymously only when OpenFGA has `viewer@user:*` and the row is still world-readable. `publish` does not write that tuple. There is no Manifesto+sentinel-sync e2e harness; HTTP tests simulate the worker with `allow_wildcard`.
 - Project creation bootstraps owner access immediately.
 - Component add/remove keeps the matching component-instance ACL resource in sync or fails the request.
 - Manifesto publishes its own domain events on a best-effort basis.

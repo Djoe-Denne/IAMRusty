@@ -19,7 +19,7 @@ provenance:
   inferred: 0.08
   ambiguous: 0.07
 created: 2026-04-14T20:28:20.9129598Z
-updated: 2026-04-19T11:13:11Z
+updated: 2026-09-02T18:00:00Z
 ---
 
 # Hive Entity Model
@@ -31,7 +31,7 @@ This page lists the main entities `[[projects/hive/hive]]` owns in its organizat
 - `Organization` is the aggregate root for tenant identity, slugging, owner linkage, and settings.
 - `OrganizationMember` and `OrganizationInvitation` handle onboarding and lifecycle for users joining the organization.
 - `Permission`, `Resource`, `RolePermission`, and `OrganizationMemberRolePermission` form Hive's organization-scoped RBAC model.
-- `ExternalProvider` and `ExternalLink` model third-party integrations attached to an organization.
+- `ExternalProvider` and `ExternalLink` model third-party integrations attached to an organization. They are not an org-to-org partnership. Hive has no partner/alliance entity, so Manifesto cannot key a public project off “members of a partner org.” See [[projects/manifesto/concepts/org-owned-visibility-and-participation-limits]].
 - `SyncJob` tracks long-running synchronization work and outcomes for those integrations.
 - `Organization` and membership lifecycle entities align with shared platform vocabulary, while Hive-specific RBAC and integration entities extend that core model for service-local behavior.
 

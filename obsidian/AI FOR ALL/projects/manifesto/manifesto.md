@@ -24,7 +24,7 @@ provenance:
   inferred: 0.12
   ambiguous: 0.06
 created: 2026-04-14T16:54:59.5971424Z
-updated: 2026-08-31T13:30:00Z
+updated: 2026-09-02T18:00:00Z
 ---
 
 # Manifesto
@@ -48,8 +48,9 @@ Manifesto is the project-management service for AIForAll. Use `[[projects/rustyc
 - Manifesto treats projects as assemblies of independently implemented components with their own lifecycle, visibility, and configuration flow.
 - The composition root is recognizably RustyCog-shaped, but Manifesto adds project-, component-, and member-scoped permission fetchers plus its own `ManifestoCommandRegistryFactory`.
 - Live runtime now wires verified HS256-only auth, logging level, command retry, component-service timeout/api key, and business limits from config instead of leaving those knobs as guide-era leftovers.
-- Public project/component resource reads use optional-auth routes plus explicit-anonymous permission evaluation; private reads still require real access.
-- `GET /api/projects` uses optional auth plus visibility filtering in the service/repository layers rather than the UUID-scoped permission middleware used by item/detail routes.
+- Public project/component resource reads use optional-auth routes plus explicit-anonymous permission evaluation; private reads still require real access. Create-as-public and a later flip to public write `viewer@user:*`. `publish` does not — see [[projects/manifesto/concepts/org-owned-visibility-and-participation-limits]].
+- `GET /api/projects` uses optional auth plus SQL visibility filtering (public OR caller is `project_member`). Item/detail routes use OpenFGA, so an org member can GET a private org-owned project by id without seeing it in the list.
+- There is no org partnership and no self-join. `external_collaboration_enabled` and `MemberSource::OrgCascade` / `Invitation` are unused. Public means world-read, not partner participation.
 - Component catalog integration is fail-closed.
 - Component add/remove now treats component-instance ACL sync as part of the same consistency boundary and fails instead of silently drifting state.
 - Apparatus status consumption is wired into startup when queue config resolves to a real consumer, while checked-in local/test configs keep queues disabled by default.
@@ -62,6 +63,7 @@ Manifesto is the project-management service for AIForAll. Use `[[projects/rustyc
 - [[projects/rustycog/references/index]] - Canonical shared framework map that the service pages below build on.
 - [[references/rustycog-service-construction]] - Generic RustyCog construction flow that Manifesto specializes.
 - [[projects/manifesto/concepts/project-ownership-and-publication-lifecycle]] - Ownership bootstrap, defaults, and publish/archive transitions.
+- [[projects/manifesto/concepts/org-owned-visibility-and-participation-limits]] - Org-owned visibility, list/GET split, missing partnership/join.
 - [[projects/manifesto/concepts/component-instance-permissions]] - Generic versus per-instance component permission model.
 - [[projects/manifesto/concepts/component-catalog-and-fallback-adapter]] - External component catalog integration and fail-closed behavior.
 - [[projects/manifesto/references/manifesto-entity-model]] - Project, component, membership, and project-scoped RBAC entities.
@@ -73,6 +75,7 @@ Manifesto is the project-management service for AIForAll. Use `[[projects/rustyc
 
 ## Open Questions
 
+- Later work: L-PARTNERSHIP remains open on [[projects/manifesto/concepts/org-owned-visibility-and-participation-limits]]. Org-less join and Internal org read shipped 2026-09-05.
 - When Manifesto eventually exposes richer component provisioning, should that happen through the existing component catalog boundary or through a separate runtime handoff flow?
 - If queue-backed operation becomes more common outside local/test, should the checked-in config examples start surfacing explicit broker settings?
 

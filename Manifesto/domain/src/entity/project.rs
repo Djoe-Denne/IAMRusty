@@ -16,6 +16,8 @@ pub struct Project {
     pub visibility: Visibility,
     pub external_collaboration_enabled: bool,
     pub data_classification: DataClassification,
+    /// Monotonic revision used to order authorization-relevant changes.
+    pub revision: i64,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub published_at: Option<DateTime<Utc>>,
@@ -65,6 +67,10 @@ impl Project {
     pub fn transition_status(&mut self, new_status: ProjectStatus) -> Result<(), DomainError> {
         let transitioned = self.status.transition_to(new_status)?;
         self.status = transitioned;
+        self.revision = self
+            .revision
+            .checked_add(1)
+            .ok_or_else(|| DomainError::internal_error("project revision overflow"))?;
         self.updated_at = Utc::now();
 
         // Set published_at when transitioning to Active
@@ -136,6 +142,10 @@ impl Project {
             self.data_classification = classification;
         }
 
+        self.revision = self
+            .revision
+            .checked_add(1)
+            .ok_or_else(|| DomainError::internal_error("project revision overflow"))?;
         self.updated_at = Utc::now();
 
         Ok(())
@@ -247,6 +257,7 @@ impl ProjectBuilder {
             data_classification: self
                 .data_classification
                 .unwrap_or(DataClassification::Internal),
+            revision: 0,
             created_at: now,
             updated_at: now,
             published_at: None,

@@ -5,9 +5,9 @@ use axum::{
 };
 use manifesto_application::{
     AddMemberCommand, AddMemberRequest, GetMemberCommand, GrantPermissionCommand,
-    GrantPermissionRequest, ListMembersCommand, MemberListResponse, MemberResponse,
-    PaginationRequest, RemoveMemberCommand, RevokePermissionCommand, UpdateMemberCommand,
-    UpdateMemberPermissionsRequest,
+    GrantPermissionRequest, JoinProjectCommand, ListMembersCommand, MemberListResponse,
+    MemberResponse, PaginationRequest, RemoveMemberCommand, RevokePermissionCommand,
+    UpdateMemberCommand, UpdateMemberPermissionsRequest,
 };
 use rustycog::command::CommandContext;
 use rustycog::http::{AppState, AuthUser, ValidatedJson};
@@ -54,7 +54,30 @@ pub async fn add_member(
     Ok((StatusCode::CREATED, Json(result)))
 }
 
-/// Get a member
+/// Join a public live project as the authenticated caller.
+/// POST /`api/projects/{project_id}/join`
+///
+/// # Errors
+///
+/// Returns [`HttpError`] if the command fails (authorization, validation, or persistence).
+pub async fn join_project(
+    State(state): State<AppState>,
+    Path(project_id): Path<ResourceId>,
+    auth_user: AuthUser,
+) -> Result<(StatusCode, Json<MemberResponse>), HttpError> {
+    tracing::info!("User {} joining project {}", auth_user.user_id, project_id);
+
+    let command = JoinProjectCommand::new(project_id.id(), auth_user.user_id);
+    let context = CommandContext::new().with_user_id(auth_user.user_id);
+
+    let result = state
+        .command_service
+        .execute(command, context)
+        .await
+        .map_err(error_mapper)?;
+
+    Ok((StatusCode::CREATED, Json(result)))
+}
 /// GET /`api/projects/{project_id}/members/{user_id`}
 ///
 /// # Errors

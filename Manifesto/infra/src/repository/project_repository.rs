@@ -36,6 +36,7 @@ impl ProjectMapper {
             visibility: Visibility::from_str(&model.visibility)?,
             external_collaboration_enabled: model.external_collaboration_enabled,
             data_classification: DataClassification::from_str(&model.data_classification)?,
+            revision: model.revision,
             created_at: model.created_at.naive_utc().and_utc(),
             updated_at: model.updated_at.naive_utc().and_utc(),
             published_at: model.published_at.map(|dt| dt.naive_utc().and_utc()),
@@ -57,6 +58,7 @@ impl ProjectMapper {
                 project.external_collaboration_enabled,
             ),
             data_classification: ActiveValue::Set(project.data_classification.as_str().to_string()),
+            revision: ActiveValue::Set(project.revision),
             created_at: ActiveValue::Set(project.created_at.into()),
             updated_at: ActiveValue::Set(project.updated_at.into()),
             published_at: ActiveValue::Set(project.published_at.map(std::convert::Into::into)),
@@ -73,6 +75,52 @@ impl ProjectReadRepositoryImpl {
     #[must_use]
     pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
+    }
+}
+
+fn public_live_condition() -> Condition {
+    Condition::all()
+        .add(projects::Column::Visibility.eq(Visibility::Public.as_str()))
+        .add(projects::Column::Status.is_in([
+            ProjectStatus::Draft.as_str(),
+            ProjectStatus::Active.as_str(),
+        ]))
+}
+
+fn list_access_condition(filters: &ProjectListFilters) -> Condition {
+    match filters.viewer_user_id {
+        None => public_live_condition(),
+        Some(user_id) => {
+            let mut access = Condition::any().add(public_live_condition()).add(
+                Condition::all()
+                    .add(project_members::Column::UserId.eq(user_id))
+                    .add(project_members::Column::RemovedAt.is_null()),
+            );
+            if !filters.org_viewer_ids.is_empty() {
+                access =
+                    access.add(
+                        Condition::all()
+                            .add(projects::Column::OwnerType.eq(OwnerType::Organization.as_str()))
+                            .add(projects::Column::OwnerId.is_in(filters.org_viewer_ids.clone()))
+                            .add(projects::Column::Visibility.is_in([
+                                Visibility::Internal.as_str(),
+                                Visibility::Public.as_str(),
+                            ]))
+                            .add(projects::Column::Status.is_in([
+                                ProjectStatus::Draft.as_str(),
+                                ProjectStatus::Active.as_str(),
+                            ])),
+                    );
+            }
+            if !filters.org_admin_ids.is_empty() {
+                access = access.add(
+                    Condition::all()
+                        .add(projects::Column::OwnerType.eq(OwnerType::Organization.as_str()))
+                        .add(projects::Column::OwnerId.is_in(filters.org_admin_ids.clone())),
+                );
+            }
+            access
+        }
     }
 }
 
@@ -122,18 +170,7 @@ impl ProjectReadRepository for ProjectReadRepositoryImpl {
         if filters.viewer_user_id.is_some() {
             query = query.left_join(project_members::Entity).distinct();
         }
-        let access_condition = filters.viewer_user_id.map_or_else(
-            || Condition::all().add(projects::Column::Visibility.eq(Visibility::Public.as_str())),
-            |user_id| {
-                Condition::any()
-                    .add(projects::Column::Visibility.eq(Visibility::Public.as_str()))
-                    .add(
-                        Condition::all()
-                            .add(project_members::Column::UserId.eq(user_id))
-                            .add(project_members::Column::RemovedAt.is_null()),
-                    )
-            },
-        );
+        let access_condition = list_access_condition(&filters);
 
         conditions = conditions.add(access_condition);
 
@@ -177,50 +214,32 @@ impl ProjectReadRepository for ProjectReadRepositoryImpl {
             .map_err(|_| DomainError::internal_error("project count does not fit in i64"))
     }
 
-    async fn count_with_filters(
-        &self,
-        owner_type: Option<OwnerType>,
-        owner_id: Option<Uuid>,
-        status: Option<ProjectStatus>,
-        search: Option<String>,
-        viewer_user_id: Option<Uuid>,
-    ) -> Result<i64, DomainError> {
+    async fn count_with_filters(&self, filters: ProjectListFilters) -> Result<i64, DomainError> {
         debug!("Counting projects with filters");
 
         let mut query = Projects::find();
         let mut conditions = Condition::all();
 
-        if viewer_user_id.is_some() {
+        if filters.viewer_user_id.is_some() {
             query = query.left_join(project_members::Entity).distinct();
         }
-        let access_condition = viewer_user_id.map_or_else(
-            || Condition::all().add(projects::Column::Visibility.eq(Visibility::Public.as_str())),
-            |user_id| {
-                Condition::any()
-                    .add(projects::Column::Visibility.eq(Visibility::Public.as_str()))
-                    .add(
-                        Condition::all()
-                            .add(project_members::Column::UserId.eq(user_id))
-                            .add(project_members::Column::RemovedAt.is_null()),
-                    )
-            },
-        );
+        let access_condition = list_access_condition(&filters);
 
         conditions = conditions.add(access_condition);
 
-        if let Some(ot) = owner_type {
+        if let Some(ot) = filters.owner_type {
             conditions = conditions.add(projects::Column::OwnerType.eq(ot.as_str()));
         }
 
-        if let Some(oid) = owner_id {
+        if let Some(oid) = filters.owner_id {
             conditions = conditions.add(projects::Column::OwnerId.eq(oid));
         }
 
-        if let Some(s) = status {
+        if let Some(s) = filters.status {
             conditions = conditions.add(projects::Column::Status.eq(s.as_str()));
         }
 
-        if let Some(search_term) = search.as_ref() {
+        if let Some(search_term) = filters.search.as_ref() {
             let like_pattern = format!("%{search_term}%");
             conditions = conditions.add(projects::Column::Name.like(&like_pattern));
         }
@@ -232,7 +251,7 @@ impl ProjectReadRepository for ProjectReadRepositoryImpl {
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
         i64::try_from(count)
-            .map_err(|_| DomainError::internal_error("filtered project count does not fit in i64"))
+            .map_err(|_| DomainError::internal_error("project count does not fit in i64"))
     }
 }
 
@@ -359,17 +378,8 @@ impl ProjectReadRepository for ProjectRepositoryImpl {
         self.read_repo.count().await
     }
 
-    async fn count_with_filters(
-        &self,
-        owner_type: Option<OwnerType>,
-        owner_id: Option<Uuid>,
-        status: Option<ProjectStatus>,
-        search: Option<String>,
-        viewer_user_id: Option<Uuid>,
-    ) -> Result<i64, DomainError> {
-        self.read_repo
-            .count_with_filters(owner_type, owner_id, status, search, viewer_user_id)
-            .await
+    async fn count_with_filters(&self, filters: ProjectListFilters) -> Result<i64, DomainError> {
+        self.read_repo.count_with_filters(filters).await
     }
 }
 

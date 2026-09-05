@@ -25,7 +25,11 @@ type project
     # whose visibility is `public`. Anonymous callers are resolved as
     # `Subject::wildcard()` by `optional_permission_middleware` and
     # rendered as `user:*` on the wire.
-    define viewer: [user, user:*] or member or viewer from organization
+    # Direct viewers: users, public wildcard, and an explicit
+    # `organization:{id}#member` userset written only for Internal
+    # org-owned projects. Org admins still inherit via
+    # `admin from organization` → `member` → `viewer`.
+    define viewer: [user, user:*, organization#member] or member
     define read: viewer
     define write: member
     define administer: admin

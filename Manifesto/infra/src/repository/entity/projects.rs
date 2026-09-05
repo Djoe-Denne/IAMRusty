@@ -14,6 +14,7 @@ pub struct Model {
     pub visibility: String,
     pub external_collaboration_enabled: bool,
     pub data_classification: String,
+    pub revision: i64,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
     pub published_at: Option<DateTimeWithTimeZone>,

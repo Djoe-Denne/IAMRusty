@@ -15,6 +15,8 @@ pub struct ProjectListFilters {
     pub status: Option<ProjectStatus>,
     pub search: Option<String>,
     pub viewer_user_id: Option<Uuid>,
+    pub org_viewer_ids: Vec<Uuid>,
+    pub org_admin_ids: Vec<Uuid>,
     pub page: u32,
     pub page_size: u32,
 }
@@ -40,14 +42,7 @@ pub trait ProjectReadRepository: Send + Sync {
 
     async fn count(&self) -> Result<i64, DomainError>;
 
-    async fn count_with_filters(
-        &self,
-        owner_type: Option<OwnerType>,
-        owner_id: Option<Uuid>,
-        status: Option<ProjectStatus>,
-        search: Option<String>,
-        viewer_user_id: Option<Uuid>,
-    ) -> Result<i64, DomainError>;
+    async fn count_with_filters(&self, filters: ProjectListFilters) -> Result<i64, DomainError>;
 }
 
 #[async_trait]

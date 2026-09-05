@@ -16,7 +16,7 @@ use manifesto_domain::{
         ComponentReadRepository, ProjectListFilters, ProjectReadRepository, ProjectWriteRepository,
     },
     service::{ProjectService, ProjectServiceImpl},
-    value_objects::{OwnerType, ProjectStatus, Visibility},
+    value_objects::{OwnerType, Visibility},
 };
 use rustycog::core::error::DomainError;
 use uuid::Uuid;
@@ -118,20 +118,13 @@ impl ProjectReadRepository for RecordingProjectRepository {
         Ok(1)
     }
 
-    async fn count_with_filters(
-        &self,
-        _owner_type: Option<OwnerType>,
-        _owner_id: Option<Uuid>,
-        _status: Option<ProjectStatus>,
-        search: Option<String>,
-        viewer_user_id: Option<Uuid>,
-    ) -> Result<i64, DomainError> {
+    async fn count_with_filters(&self, filters: ProjectListFilters) -> Result<i64, DomainError> {
         *self
             .last_count_args
             .lock()
             .expect("count args mutex should not be poisoned") = Some(RecordedCountArgs {
-            search,
-            viewer_user_id,
+            search: filters.search,
+            viewer_user_id: filters.viewer_user_id,
         });
 
         Ok(1)
@@ -198,19 +191,25 @@ async fn project_service_forwards_search_and_viewer_filters_to_the_repository() 
             status: None,
             search: Some("roadmap".to_string()),
             viewer_user_id: Some(viewer_user_id),
+            org_viewer_ids: Vec::new(),
+            org_admin_ids: Vec::new(),
             page: 2,
             page_size: 25,
         })
         .await
         .expect("list_projects should succeed");
     let total = service
-        .count_projects(
-            None,
-            None,
-            None,
-            Some("roadmap".to_string()),
-            Some(viewer_user_id),
-        )
+        .count_projects(ProjectListFilters {
+            owner_type: None,
+            owner_id: None,
+            status: None,
+            search: Some("roadmap".to_string()),
+            viewer_user_id: Some(viewer_user_id),
+            org_viewer_ids: Vec::new(),
+            org_admin_ids: Vec::new(),
+            page: 0,
+            page_size: 25,
+        })
         .await
         .expect("count_projects should succeed");
 

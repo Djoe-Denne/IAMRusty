@@ -7,15 +7,16 @@ use manifesto_application::{
 use manifesto_configuration::BusinessConfig;
 use manifesto_domain::{
     entity::{
-        Permission, Project, ProjectComponent, ProjectMemberRolePermission, Resource,
-        RolePermission,
+        Permission, Project, ProjectComponent, ProjectMember, ProjectMemberRolePermission,
+        Resource, RolePermission,
     },
     port::ProjectListFilters,
-    service::{ComponentService, PermissionService, ProjectService},
-    value_objects::{OwnerType, ProjectStatus, Visibility},
+    service::{ComponentService, MemberService, PermissionService, ProjectService},
+    value_objects::{MemberSource, OwnerType, Visibility},
 };
 use rustycog::core::error::DomainError;
 use rustycog::events::{DomainEvent, EventPublisher};
+use rustycog::permission::InMemoryPermissionChecker;
 use uuid::Uuid;
 
 fn build_project() -> Project {
@@ -76,14 +77,7 @@ impl ProjectService for StaticProjectService {
         Ok(vec![self.project.clone()])
     }
 
-    async fn count_projects(
-        &self,
-        _owner_type: Option<OwnerType>,
-        _owner_id: Option<Uuid>,
-        _status: Option<ProjectStatus>,
-        _search: Option<String>,
-        _viewer_user_id: Option<Uuid>,
-    ) -> Result<i64, DomainError> {
+    async fn count_projects(&self, _filters: ProjectListFilters) -> Result<i64, DomainError> {
         Ok(1)
     }
 
@@ -475,6 +469,63 @@ impl EventPublisher<DomainError> for RecordingEventPublisher {
     }
 }
 
+fn unused<T>(name: &'static str) -> Result<T, DomainError> {
+    Err(DomainError::internal_error(name))
+}
+
+struct UnusedMemberService;
+
+#[async_trait]
+impl MemberService for UnusedMemberService {
+    async fn get_member(
+        &self,
+        _project_id: Uuid,
+        _user_id: Uuid,
+    ) -> Result<ProjectMember, DomainError> {
+        unused("get_member")
+    }
+
+    async fn add_member(&self, _member: ProjectMember) -> Result<ProjectMember, DomainError> {
+        unused("add_member")
+    }
+
+    async fn update_member(&self, _member: ProjectMember) -> Result<ProjectMember, DomainError> {
+        unused("update_member")
+    }
+
+    async fn remove_member(
+        &self,
+        _project_id: &Uuid,
+        _user_id: &Uuid,
+        _grace_period_days: Option<i64>,
+    ) -> Result<(), DomainError> {
+        unused("remove_member")
+    }
+
+    async fn list_members(
+        &self,
+        _project_id: &Uuid,
+        _source: Option<MemberSource>,
+        _active_only: bool,
+        _page: u32,
+        _page_size: u32,
+    ) -> Result<Vec<ProjectMember>, DomainError> {
+        unused("list_members")
+    }
+
+    async fn count_active_members(&self, _project_id: &Uuid) -> Result<i64, DomainError> {
+        unused("count_active_members")
+    }
+
+    async fn check_member_exists(
+        &self,
+        _project_id: &Uuid,
+        _user_id: &Uuid,
+    ) -> Result<bool, DomainError> {
+        unused("check_member_exists")
+    }
+}
+
 #[tokio::test]
 async fn add_component_fails_before_persisting_when_instance_acl_creation_fails() {
     let project = build_project();
@@ -486,9 +537,11 @@ async fn add_component_fails_before_persisting_when_instance_acl_creation_fails(
     let usecase = ComponentUseCaseImpl::new(
         component_service.clone(),
         Arc::new(StaticProjectService::new(project.clone())),
+        Arc::new(UnusedMemberService),
         permission_service.clone(),
         event_publisher.clone(),
         BusinessConfig::default(),
+        Arc::new(InMemoryPermissionChecker::default()),
     );
 
     let result = usecase
@@ -536,9 +589,11 @@ async fn remove_component_restores_component_when_instance_acl_deletion_fails() 
     let usecase = ComponentUseCaseImpl::new(
         component_service.clone(),
         Arc::new(StaticProjectService::new(project.clone())),
+        Arc::new(UnusedMemberService),
         permission_service.clone(),
         event_publisher.clone(),
         BusinessConfig::default(),
+        Arc::new(InMemoryPermissionChecker::default()),
     );
 
     let result = usecase

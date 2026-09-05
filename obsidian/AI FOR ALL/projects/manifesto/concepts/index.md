@@ -8,5 +8,6 @@ tags: [index, concepts, projects]
 
 - [[projects/manifesto/concepts/component-based-project-orchestration]]
 - [[projects/manifesto/concepts/project-ownership-and-publication-lifecycle]]
+- [[projects/manifesto/concepts/org-owned-visibility-and-participation-limits]]
 - [[projects/manifesto/concepts/component-instance-permissions]]
 - [[projects/manifesto/concepts/component-catalog-and-fallback-adapter]]

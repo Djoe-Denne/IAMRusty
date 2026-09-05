@@ -24,24 +24,10 @@ pub struct MemberErrorMapper;
 
 impl CommandErrorMapper for MemberErrorMapper {
     fn map_error(&self, error: Box<dyn std::error::Error + Send + Sync>) -> CommandError {
-        error.downcast_ref::<ApplicationError>().map_or_else(
-            || CommandError::business("unknown_error", error.to_string()),
-            |app_error| match app_error {
-                ApplicationError::Domain(domain_error) => {
-                    CommandError::business("domain_error", domain_error.to_string())
-                }
-                ApplicationError::Validation(msg) => {
-                    CommandError::validation("validation_failed", msg)
-                }
-                ApplicationError::NotFound(msg) => CommandError::business("not_found", msg),
-                ApplicationError::AlreadyExists(msg) => {
-                    CommandError::business("already_exists", msg)
-                }
-                ApplicationError::Internal(msg) => {
-                    CommandError::infrastructure("internal_error", msg)
-                }
-            },
-        )
+        match error.downcast::<ApplicationError>() {
+            Ok(app_error) => CommandError::from(*app_error),
+            Err(error) => CommandError::business("unknown_error", error.to_string()),
+        }
     }
 }
 
@@ -117,6 +103,67 @@ impl CommandHandler<AddMemberCommand> for AddMemberCommandHandler {
     async fn handle(&self, command: AddMemberCommand) -> Result<MemberResponse, CommandError> {
         self.member_usecase
             .add_member(command.project_id, &command.request, command.added_by)
+            .await
+            .map_err(CommandError::from)
+    }
+}
+
+// =============================================================================
+// Join Project Command
+// =============================================================================
+
+#[derive(Debug, Clone)]
+pub struct JoinProjectCommand {
+    pub command_id: Uuid,
+    pub project_id: Uuid,
+    pub user_id: Uuid,
+}
+
+impl JoinProjectCommand {
+    #[must_use]
+    pub fn new(project_id: Uuid, user_id: Uuid) -> Self {
+        Self {
+            command_id: Uuid::new_v4(),
+            project_id,
+            user_id,
+        }
+    }
+}
+
+#[async_trait]
+impl Command for JoinProjectCommand {
+    type Result = MemberResponse;
+
+    fn command_type(&self) -> &'static str {
+        "join_project"
+    }
+
+    fn command_id(&self) -> Uuid {
+        self.command_id
+    }
+
+    fn validate(&self) -> Result<(), CommandError> {
+        Ok(())
+    }
+}
+
+pub struct JoinProjectCommandHandler {
+    member_usecase: Arc<dyn MemberUseCase>,
+}
+
+impl JoinProjectCommandHandler {
+    /// Build a join-project command handler.
+    #[must_use]
+    pub fn new(member_usecase: Arc<dyn MemberUseCase>) -> Self {
+        Self { member_usecase }
+    }
+}
+
+#[async_trait]
+impl CommandHandler<JoinProjectCommand> for JoinProjectCommandHandler {
+    async fn handle(&self, command: JoinProjectCommand) -> Result<MemberResponse, CommandError> {
+        self.member_usecase
+            .join_project(command.project_id, command.user_id)
             .await
             .map_err(CommandError::from)
     }

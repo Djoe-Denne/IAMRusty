@@ -14,7 +14,7 @@ sources:
   - openfga/model.fga
 summary: >-
   Manifesto-specific API behavior on top of RustyCog's shared HTTP shell, plus the OpenFGA-backed authorization model that replaced the per-resource fetcher pattern.
-updated: 2026-04-20
+updated: 2026-09-02T18:00:00Z
 ---
 
 # Manifesto API and Permission Flows
@@ -30,10 +30,11 @@ This page assumes the shared [[projects/rustycog/references/rustycog-http]] and 
 ## Service-Specific Differences
 
 - [Manifesto/http/src/lib.rs](../../../../../Manifesto/http/src/lib.rs) registers project, component, and member routes against the same shared `permission_checker` on `AppState`. There is no per-resource fetcher anymore.
-- Project get/detail routes are `.might_be_authenticated().with_permission_on(Permission::Read, "project")`. As of Phase 1 of [[concepts/anonymous-public-read-via-wildcard-subject]] (2026-04-22), `optional_permission_middleware` resolves anonymous callers as `Subject::wildcard()` and consults the centralized OpenFGA checker — but only `viewer@user:*` tuples grant access, and **`sentinel-sync` does not write those yet** (Phase 2 follow-up). So in production today, anonymous reads of a specific project still 403; authenticated reads work as long as the calling user has any of `owner` / `admin` / `member` / `viewer` on the project (or inherits one from its organization). Public-project access end-to-end is unblocked once Phase 2 ships the `ProjectVisibilityChanged` event and the matching `sentinel-sync` translator arms.
-- `GET /api/projects` is also optionally authenticated, but its visibility enforcement happens through command, use-case, service, and repository filtering rather than the UUID-scoped permission middleware used by get/detail routes.
+- Project get/detail and component list/get routes are `.might_be_authenticated()` plus project `Read`. `optional_permission_middleware` resolves anonymous callers as `Subject::wildcard()`. The use-case world-read gate then requires `visibility=public` and status `draft` or `active`. A leftover `viewer@user:*` after private / internal / archive is ignored on those surfaces. sentinel-sync writes that tuple on **create-as-public** and on a real visibility flip (`ProjectVisibilityChanged`). Manifesto does not write FGA. `ProjectPublished` does not write it. Authenticated reads succeed for owner, project member, or organization `Read` on org-owned projects.
+- `GET /api/projects` is also optionally authenticated, but its visibility enforcement is SQL: public **and** `draft|active`, OR the caller is an active `project_member`. Org members who only inherit FGA viewer do not appear in the list. See [[projects/manifesto/concepts/org-owned-visibility-and-participation-limits]].
+- There is no `POST .../join`. Adding a member is `Admin` on the project plus an in-use-case check that the requester already holds the granted permission.
 - Component routes use `"project"` as the OpenFGA object type today because the deepest UUID in component routes is the project id (`{component_type}` is a string segment). When component routes adopt `{component_id}` UUID parameters, switch the relevant routes to `with_permission_on(_, "component")`.
-- Member routes are project-scoped (`with_permission_on(Permission::Admin, "project")`).
+- Member routes are project-scoped (`with_permission_on(Permission::Admin, "project")` for writes; list/get require `Read`).
 - Permission grant/revoke endpoints emit `PermissionGrantedEvent` / `PermissionRevokedEvent`. The Manifesto translator maps the string `resource` to either `project` or `component` and writes/deletes the matching relation tuple — see [[projects/sentinel-sync/references/event-to-tuple-mapping]].
 - `ComponentUseCaseImpl` keeps domain state and emitted events synchronized so the OpenFGA tuple graph stays consistent.
 - `ProjectDetailResponse` and `ComponentResponse` still leave `endpoint` and `access_token` as `None`, so the API currently exposes component attachment metadata rather than a provisioning handoff.
@@ -52,4 +53,5 @@ This page assumes the shared [[projects/rustycog/references/rustycog-http]] and 
 - [[concepts/openfga-as-authorization-engine]]
 - [[projects/sentinel-sync/references/event-to-tuple-mapping]]
 - [[projects/manifesto/references/manifesto-event-model]]
-- [[concepts/anonymous-public-read-via-wildcard-subject]] — wildcard-subject design and the Phase 2 hand-off blocking anonymous public-read.
+- [[concepts/anonymous-public-read-via-wildcard-subject]] — wildcard-subject design and remaining visibility-flip / publish-vs-public work.
+- [[projects/manifesto/concepts/org-owned-visibility-and-participation-limits]] — list/GET split, missing join, partnership gap.

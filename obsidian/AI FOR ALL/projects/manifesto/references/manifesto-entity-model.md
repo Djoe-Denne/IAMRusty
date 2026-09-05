@@ -16,7 +16,7 @@ provenance:
   inferred: 0.08
   ambiguous: 0.07
 created: 2026-04-14T20:28:20.9129598Z
-updated: 2026-04-19T11:49:06.1450368Z
+updated: 2026-09-02T18:00:00Z
 ---
 
 # Manifesto Entity Model
@@ -27,7 +27,7 @@ This page lists the main entities `[[projects/manifesto/manifesto]]` owns in its
 
 - `Project` is the aggregate root and combines ownership, lifecycle, visibility, classification, and collaboration flags.
 - `ProjectComponent` attaches one typed component instance to a project and tracks its own status lifecycle.
-- `ProjectMember` stores user membership, source of addition, removal state, last access, and project-scoped permissions.
+- `ProjectMember` stores user membership, source of addition, removal state, last access, and project-scoped permissions. `MemberSource` includes `OrgCascade` and `Invitation`, but live writes use `Direct` only.
 - `Permission`, `Resource`, `RolePermission`, and `ProjectMemberRolePermission` mirror a project-scoped RBAC model beneath the project aggregate.
 - Compared with Hive, Manifesto repeats the same broad authorization pattern at project scope instead of organization scope. ^[inferred]
 
@@ -41,3 +41,4 @@ This page lists the main entities `[[projects/manifesto/manifesto]]` owns in its
 - [[entities/membership]] - Shared membership pattern across Manifesto and Hive.
 - [[projects/manifesto/concepts/component-instance-permissions]] - How the RBAC entities and component entities interact.
 - [[projects/manifesto/references/manifesto-api-and-permission-flows]] - API behavior built on top of these entities.
+- [[projects/manifesto/concepts/org-owned-visibility-and-participation-limits]] - Unused sources, flags, and org-owned access limits.

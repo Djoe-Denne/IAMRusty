@@ -12,7 +12,7 @@ provenance:
   inferred: 0.09
   ambiguous: 0.08
 created: 2026-04-14T20:28:20.9129598Z
-updated: 2026-04-19T11:49:06.1450368Z
+updated: 2026-09-02T18:00:00Z
 ---
 
 # Project
@@ -21,8 +21,8 @@ The canonical project entity lives in `[[projects/manifesto/manifesto]]`. A proj
 
 ## Key Ideas
 
-- `Project` carries lifecycle state, ownership shape, creator identity, visibility, collaboration flags, and data-classification metadata.
-- Projects can be owned personally or by an organization, so they bridge `[[entities/user]]` and `[[entities/organization]]`.
+- `Project` carries lifecycle state, ownership shape, creator identity, visibility (`private` / `internal` / `public`), collaboration flags, and data-classification metadata. `internal` and `external_collaboration_enabled` are persisted but unused as authorization rules.
+- Projects can be owned personally or by an organization, so they bridge `[[entities/user]]` and `[[entities/organization]]`. Org-owned public does **not** mean partner-joinable — see [[projects/manifesto/concepts/org-owned-visibility-and-participation-limits]].
 - `ProjectComponent` attaches typed capabilities to a project and tracks a component status progression from pending toward active and disabled states.
 - `ProjectMember` attaches users to the project with a source, lifecycle, and resource-scoped permissions rather than a single flat role string.
 - Manifesto therefore uses the project as both a product-facing workspace object and the scope root for its permission model.
@@ -36,5 +36,6 @@ The canonical project entity lives in `[[projects/manifesto/manifesto]]`. A proj
 
 - [[projects/manifesto/references/manifesto-entity-model]] - Manifesto's full entity inventory.
 - [[projects/manifesto/concepts/project-ownership-and-publication-lifecycle]] - Lifecycle and ownership behavior around projects.
+- [[projects/manifesto/concepts/org-owned-visibility-and-participation-limits]] - Visibility, list/GET, and participation limits.
 - [[entities/membership]] - Membership model attached to projects.
 - [[projects/manifesto/concepts/component-instance-permissions]] - Component and permission behavior living under the project aggregate.

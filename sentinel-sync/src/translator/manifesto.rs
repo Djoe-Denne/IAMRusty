@@ -62,6 +62,29 @@ const fn is_public_visibility(visibility: &str) -> bool {
     visibility.eq_ignore_ascii_case("public")
 }
 
+const fn is_internal_visibility(visibility: &str) -> bool {
+    visibility.eq_ignore_ascii_case("internal")
+}
+
+fn org_member_viewer_userset(
+    project_id: uuid::Uuid,
+    owner_type: &str,
+    owner_id: uuid::Uuid,
+) -> Option<Tuple> {
+    if owner_type == "organization" {
+        Some(Tuple::userset(
+            "project",
+            project_id,
+            "viewer",
+            "organization",
+            owner_id,
+            "member",
+        ))
+    } else {
+        None
+    }
+}
+
 fn project_created_delta(evt: &manifesto_events::ProjectCreatedEvent) -> TupleDelta {
     let mut d = TupleDelta::default().write(Tuple::user(
         "project",
@@ -80,6 +103,13 @@ fn project_created_delta(evt: &manifesto_events::ProjectCreatedEvent) -> TupleDe
     }
     if is_public_visibility(&evt.visibility) {
         d = d.write(Tuple::wildcard_user("project", evt.project_id, "viewer"));
+    }
+    if is_internal_visibility(&evt.visibility) {
+        if let Some(userset) =
+            org_member_viewer_userset(evt.project_id, &evt.owner_type, evt.owner_id)
+        {
+            d = d.write(userset);
+        }
     }
     d
 }
@@ -188,6 +218,31 @@ fn permission_granted_delta(evt: &manifesto_events::PermissionGrantedEvent) -> T
     })
 }
 
+fn project_visibility_changed_delta(
+    evt: &manifesto_events::ProjectVisibilityChangedEvent,
+) -> TupleDelta {
+    let old_public = is_public_visibility(&evt.old_visibility);
+    let new_public = is_public_visibility(&evt.new_visibility);
+    let old_internal = is_internal_visibility(&evt.old_visibility);
+    let new_internal = is_internal_visibility(&evt.new_visibility);
+    let wildcard = Tuple::wildcard_user("project", evt.project_id, "viewer");
+    let mut d = TupleDelta::default();
+    if !old_public && new_public {
+        d = d.write(wildcard);
+    } else if old_public && !new_public {
+        d = d.delete(wildcard);
+    }
+    if let Some(userset) = org_member_viewer_userset(evt.project_id, &evt.owner_type, evt.owner_id)
+    {
+        if !old_internal && new_internal {
+            d = d.write(userset);
+        } else if old_internal && !new_internal {
+            d = d.delete(userset);
+        }
+    }
+    d
+}
+
 fn permission_revoked_delta(evt: &manifesto_events::PermissionRevokedEvent) -> TupleDelta {
     let object_type = resource_to_object_type(&evt.resource);
     let mut d = TupleDelta::default();
@@ -215,11 +270,22 @@ fn translate_event(event: &ManifestoDomainEvent) -> TupleDelta {
         ManifestoDomainEvent::MemberPermissionsUpdated(evt) => {
             member_permissions_updated_delta(evt)
         }
-        ManifestoDomainEvent::ProjectPublished(evt) => {
-            TupleDelta::default().write(Tuple::wildcard_user("project", evt.project_id, "viewer"))
+        ManifestoDomainEvent::ProjectPublished(_) => TupleDelta::default(),
+        ManifestoDomainEvent::ProjectVisibilityChanged(evt) => {
+            project_visibility_changed_delta(evt)
         }
         ManifestoDomainEvent::ProjectArchived(evt) => {
-            TupleDelta::default().delete(Tuple::wildcard_user("project", evt.project_id, "viewer"))
+            let mut d = TupleDelta::default().delete(Tuple::wildcard_user(
+                "project",
+                evt.project_id,
+                "viewer",
+            ));
+            if let Some(userset) =
+                org_member_viewer_userset(evt.project_id, &evt.owner_type, evt.owner_id)
+            {
+                d = d.delete(userset);
+            }
+            d
         }
         ManifestoDomainEvent::ProjectUpdated(_)
         | ManifestoDomainEvent::ComponentStatusChanged(_) => TupleDelta::default(),
@@ -232,7 +298,8 @@ mod tests {
     use chrono::Utc;
     use manifesto_events::{
         ComponentAddedEvent, MemberAddedEvent, MemberPermissionsUpdatedEvent,
-        PermissionGrantedEvent, ProjectCreatedEvent, ProjectDeletedEvent, ResourcePermission,
+        PermissionGrantedEvent, ProjectArchivedEvent, ProjectCreatedEvent, ProjectDeletedEvent,
+        ProjectPublishedEvent, ProjectVisibilityChangedEvent, ResourcePermission,
     };
     use uuid::Uuid;
 
@@ -388,5 +455,139 @@ mod tests {
             .writes
             .iter()
             .any(|t| t.relation == "member" && t.user_id == user_id.to_string()));
+    }
+
+    fn visibility_event(
+        old: &str,
+        new: &str,
+        owner_type: &str,
+        owner_id: Uuid,
+    ) -> ManifestoDomainEvent {
+        ManifestoDomainEvent::ProjectVisibilityChanged(ProjectVisibilityChangedEvent::new(
+            Uuid::new_v4(),
+            owner_type.into(),
+            owner_id,
+            old.into(),
+            new.into(),
+            Uuid::new_v4(),
+            Utc::now(),
+        ))
+    }
+
+    #[test]
+    fn project_published_does_not_write_wildcard() {
+        let delta = translate_event(&ManifestoDomainEvent::ProjectPublished(
+            ProjectPublishedEvent::new(Uuid::new_v4(), "demo".into(), Uuid::new_v4(), Utc::now()),
+        ));
+        assert!(delta.is_empty());
+    }
+
+    #[test]
+    fn project_archived_deletes_wildcard_and_org_userset() {
+        let project_id = Uuid::new_v4();
+        let org_id = Uuid::new_v4();
+        let delta = translate_event(&ManifestoDomainEvent::ProjectArchived(
+            ProjectArchivedEvent::new(
+                project_id,
+                "demo".into(),
+                "organization".into(),
+                org_id,
+                Uuid::new_v4(),
+                Utc::now(),
+            ),
+        ));
+        assert!(delta.writes.is_empty());
+        assert_eq!(delta.deletes.len(), 2);
+        assert!(delta.deletes.iter().any(|t| t.user_id == "*"));
+        assert!(delta
+            .deletes
+            .iter()
+            .any(|t| t.user_id == format!("{org_id}#member")));
+    }
+
+    #[test]
+    fn project_created_internal_org_writes_member_userset_not_wildcard() {
+        let project_id = Uuid::new_v4();
+        let org_id = Uuid::new_v4();
+        let evt = ManifestoDomainEvent::ProjectCreated(ProjectCreatedEvent::new(
+            project_id,
+            "demo".into(),
+            "organization".into(),
+            org_id,
+            Uuid::new_v4(),
+            "internal".into(),
+            Utc::now(),
+        ));
+        let delta = ManifestoTranslator::new()
+            .translate(&to_json(evt))
+            .unwrap()
+            .unwrap();
+        assert!(delta
+            .writes
+            .iter()
+            .any(|t| t.user_id == format!("{org_id}#member")));
+        assert!(!delta.writes.iter().any(|t| t.user_id == "*"));
+    }
+
+    #[test]
+    fn project_visibility_changed_syncs_wildcard_only_for_public() {
+        let owner_id = Uuid::new_v4();
+        let cases = [
+            ("private", "public", 1, 0),
+            ("public", "private", 0, 1),
+            ("public", "internal", 0, 1),
+            ("private", "internal", 0, 0),
+            ("internal", "private", 0, 0),
+            ("public", "public", 0, 0),
+        ];
+        for (old, new, writes, deletes) in cases {
+            let delta = translate_event(&visibility_event(old, new, "personal", owner_id));
+            assert_eq!(
+                (delta.writes.len(), delta.deletes.len()),
+                (writes, deletes),
+                "personal {old} -> {new}"
+            );
+        }
+    }
+
+    #[test]
+    fn project_visibility_changed_syncs_org_internal_userset() {
+        let org_id = Uuid::new_v4();
+        let private_to_internal = translate_event(&visibility_event(
+            "private",
+            "internal",
+            "organization",
+            org_id,
+        ));
+        assert_eq!(private_to_internal.writes.len(), 1);
+        assert_eq!(
+            private_to_internal.writes[0].user_id,
+            format!("{org_id}#member")
+        );
+        assert!(private_to_internal.deletes.is_empty());
+
+        let public_to_internal = translate_event(&visibility_event(
+            "public",
+            "internal",
+            "organization",
+            org_id,
+        ));
+        assert_eq!(public_to_internal.writes.len(), 1);
+        assert_eq!(public_to_internal.deletes.len(), 1);
+        assert_eq!(public_to_internal.deletes[0].user_id, "*");
+
+        let internal_to_public = translate_event(&visibility_event(
+            "internal",
+            "public",
+            "organization",
+            org_id,
+        ));
+        assert_eq!(internal_to_public.writes.len(), 1);
+        assert_eq!(internal_to_public.writes[0].user_id, "*");
+        assert_eq!(internal_to_public.deletes.len(), 1);
+        assert_eq!(
+            internal_to_public.deletes[0].user_id,
+            format!("{org_id}#member")
+        );
     }
 }

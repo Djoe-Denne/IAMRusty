@@ -16,7 +16,7 @@ use manifesto_domain::{
 };
 use manifesto_events::{
     ManifestoDomainEvent, ProjectArchivedEvent, ProjectCreatedEvent, ProjectDeletedEvent,
-    ProjectPublishedEvent, ProjectUpdatedEvent,
+    ProjectPublishedEvent, ProjectUpdatedEvent, ProjectVisibilityChangedEvent,
 };
 use rustycog::core::error::DomainError;
 use rustycog::events::{DomainEvent, EventPublisher};
@@ -27,12 +27,14 @@ use crate::{
         ComponentResponse, CreateProjectRequest, PaginationRequest, PaginationResponse,
         ProjectDetailResponse, ProjectListResponse, ProjectResponse, UpdateProjectRequest,
     },
+    usecase::org_scope::{NoopOrgScopeLookup, OrgScopeLookup},
+    usecase::world_read::enforce_world_read_or_principal,
     ApplicationError,
 };
 
 /// Persists a project and its owner membership in one unit of work.
 #[async_trait]
-pub trait ProjectCreationUnitOfWork: Send + Sync {
+pub trait ProjectAuthorizationUnitOfWork: Send + Sync {
     /// Create a project together with owner permissions.
     ///
     /// # Errors
@@ -45,6 +47,31 @@ pub trait ProjectCreationUnitOfWork: Send + Sync {
         owner_resource_names: &[&str],
         event: Box<dyn DomainEvent>,
     ) -> Result<(Project, ProjectMember), ApplicationError>;
+
+    /// Persist a project and record AuthZ-relevant events in the same transaction.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ApplicationError`] if persistence or event recording fails.
+    async fn save_project_with_events(
+        &self,
+        project: Project,
+        events: Vec<Box<dyn DomainEvent>>,
+    ) -> Result<Project, ApplicationError>;
+
+    /// Persist a member, grant one permission, and record `MemberAdded` in the same transaction.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ApplicationError`] if persistence or event recording fails.
+    async fn save_member_with_permission_and_event(
+        &self,
+        member: ProjectMember,
+        resource_name: &str,
+        permission: &str,
+        member_limit: u32,
+        event: Box<dyn DomainEvent>,
+    ) -> Result<ProjectMember, ApplicationError>;
 }
 
 /// Application use cases for projects.
@@ -149,8 +176,9 @@ pub struct ProjectUseCaseImpl {
     permission_service: Arc<dyn PermissionService>,
     event_publisher: Arc<dyn EventPublisher<DomainError>>,
     business_config: BusinessConfig,
-    project_creation_uow: Option<Arc<dyn ProjectCreationUnitOfWork>>,
+    project_authorization_uow: Option<Arc<dyn ProjectAuthorizationUnitOfWork>>,
     org_permission_checker: Arc<dyn PermissionChecker>,
+    org_scope: Arc<dyn OrgScopeLookup>,
 }
 
 impl ProjectUseCaseImpl {
@@ -171,19 +199,44 @@ impl ProjectUseCaseImpl {
             permission_service,
             event_publisher,
             business_config,
-            project_creation_uow: None,
+            project_authorization_uow: None,
             org_permission_checker,
+            org_scope: Arc::new(NoopOrgScopeLookup),
         }
     }
 
     /// Persist project creation through a dedicated unit of work.
     #[must_use]
-    pub fn with_project_creation_uow(
+    pub fn with_project_authorization_uow(
         mut self,
-        project_creation_uow: Arc<dyn ProjectCreationUnitOfWork>,
+        project_authorization_uow: Arc<dyn ProjectAuthorizationUnitOfWork>,
     ) -> Self {
-        self.project_creation_uow = Some(project_creation_uow);
+        self.project_authorization_uow = Some(project_authorization_uow);
         self
+    }
+
+    /// Resolve org list scopes from stored OpenFGA tuples.
+    #[must_use]
+    pub fn with_org_scope(mut self, org_scope: Arc<dyn OrgScopeLookup>) -> Self {
+        self.org_scope = org_scope;
+        self
+    }
+
+    async fn persist_project_with_authz_events(
+        &self,
+        project: Project,
+        authz_events: Vec<Box<dyn DomainEvent>>,
+    ) -> Result<Project, ApplicationError> {
+        if let Some(uow) = &self.project_authorization_uow {
+            if !authz_events.is_empty() {
+                return uow.save_project_with_events(project, authz_events).await;
+            }
+        }
+        let updated = self.project_service.update_project(project).await?;
+        for event in authz_events {
+            self.event_publisher.publish(event.as_ref()).await?;
+        }
+        Ok(updated)
     }
 
     fn project_to_response(project: &Project) -> ProjectResponse {
@@ -260,6 +313,36 @@ impl ProjectUseCaseImpl {
             )));
         }
 
+        Ok(())
+    }
+
+    fn visibility_involves_public(old: Visibility, new: Visibility) -> bool {
+        matches!(old, Visibility::Public) || matches!(new, Visibility::Public)
+    }
+
+    fn permission_denied(message: &str) -> ApplicationError {
+        ApplicationError::from(DomainError::permission_denied(message))
+    }
+
+    async fn require_admin_on_project(
+        &self,
+        user_id: Uuid,
+        project_id: Uuid,
+    ) -> Result<(), ApplicationError> {
+        let allowed = self
+            .org_permission_checker
+            .check(
+                Subject::new(user_id),
+                Permission::Admin,
+                ResourceRef::new("project", project_id),
+            )
+            .await
+            .map_err(ApplicationError::from)?;
+        if !allowed {
+            return Err(Self::permission_denied(
+                "Admin required to change public visibility",
+            ));
+        }
         Ok(())
     }
 }
@@ -346,43 +429,44 @@ impl ProjectUseCase for ProjectUseCaseImpl {
             project.created_at,
         ));
 
-        let created_project = if let Some(project_creation_uow) = &self.project_creation_uow {
-            let (created_project, _owner_member) = project_creation_uow
-                .create_project_with_owner_permissions(
-                    project,
-                    owner_member,
-                    &["project", "component", "member"],
-                    project_created_event.into(),
-                )
-                .await?;
-            created_project
-        } else {
-            // Create project through service
-            let created_project = self.project_service.create_project(project).await?;
-
-            let owner_member = self.member_service.add_member(owner_member).await?;
-
-            for resource in ["project", "component", "member"] {
-                let role_permission = self
-                    .permission_service
-                    .get_or_create_role_permission(created_project.id, resource, "owner")
+        let created_project =
+            if let Some(project_authorization_uow) = &self.project_authorization_uow {
+                let (created_project, _owner_member) = project_authorization_uow
+                    .create_project_with_owner_permissions(
+                        project,
+                        owner_member,
+                        &["project", "component", "member"],
+                        project_created_event.into(),
+                    )
                     .await?;
-                let role_permission_id = role_permission.id.ok_or_else(|| {
-                    ApplicationError::Internal(format!(
-                        "Missing role permission ID for owner resource '{resource}'"
-                    ))
-                })?;
+                created_project
+            } else {
+                // Create project through service
+                let created_project = self.project_service.create_project(project).await?;
 
-                self.permission_service
-                    .grant_permission_to_member(&owner_member.id, &role_permission_id)
-                    .await?;
-            }
+                let owner_member = self.member_service.add_member(owner_member).await?;
 
-            let domain_ev: Box<dyn DomainEvent> = project_created_event.into();
-            self.event_publisher.publish(domain_ev.as_ref()).await?;
+                for resource in ["project", "component", "member"] {
+                    let role_permission = self
+                        .permission_service
+                        .get_or_create_role_permission(created_project.id, resource, "owner")
+                        .await?;
+                    let role_permission_id = role_permission.id.ok_or_else(|| {
+                        ApplicationError::Internal(format!(
+                            "Missing role permission ID for owner resource '{resource}'"
+                        ))
+                    })?;
 
-            created_project
-        };
+                    self.permission_service
+                        .grant_permission_to_member(&owner_member.id, &role_permission_id)
+                        .await?;
+                }
+
+                let domain_ev: Box<dyn DomainEvent> = project_created_event.into();
+                self.event_publisher.publish(domain_ev.as_ref()).await?;
+
+                created_project
+            };
 
         Ok(Self::project_to_response(&created_project))
     }
@@ -390,18 +474,32 @@ impl ProjectUseCase for ProjectUseCaseImpl {
     async fn get_project(
         &self,
         project_id: Uuid,
-        _user_id: Option<Uuid>,
+        user_id: Option<Uuid>,
     ) -> Result<ProjectResponse, ApplicationError> {
         let project = self.project_service.get_project(&project_id).await?;
+        enforce_world_read_or_principal(
+            &project,
+            user_id,
+            &self.member_service,
+            &self.org_permission_checker,
+        )
+        .await?;
         Ok(Self::project_to_response(&project))
     }
 
     async fn get_project_detail(
         &self,
         project_id: Uuid,
-        _user_id: Option<Uuid>,
+        user_id: Option<Uuid>,
     ) -> Result<ProjectDetailResponse, ApplicationError> {
         let project = self.project_service.get_project(&project_id).await?;
+        enforce_world_read_or_principal(
+            &project,
+            user_id,
+            &self.member_service,
+            &self.org_permission_checker,
+        )
+        .await?;
 
         // Get components from component service
         let domain_components = self.component_service.list_components(&project_id).await?;
@@ -440,6 +538,7 @@ impl ProjectUseCase for ProjectUseCaseImpl {
         user_id: Uuid,
     ) -> Result<ProjectResponse, ApplicationError> {
         let mut project = self.project_service.get_project(&project_id).await?;
+        let old_visibility = project.visibility;
 
         let visibility = request
             .visibility
@@ -454,6 +553,14 @@ impl ProjectUseCase for ProjectUseCaseImpl {
             .map(|d| DataClassification::from_str(d))
             .transpose()
             .map_err(ApplicationError::from)?;
+
+        if let Some(new_visibility) = visibility {
+            if old_visibility != new_visibility
+                && Self::visibility_involves_public(old_visibility, new_visibility)
+            {
+                self.require_admin_on_project(user_id, project_id).await?;
+            }
+        }
 
         self.validate_project_lengths(request.name.as_deref(), request.description.as_ref())?;
 
@@ -485,9 +592,29 @@ impl ProjectUseCase for ProjectUseCaseImpl {
             )
             .map_err(ApplicationError::from)?;
 
-        let updated_project = self.project_service.update_project(project).await?;
+        let mut authz_events: Vec<Box<dyn DomainEvent>> = Vec::new();
+        if let Some(new_visibility) = visibility {
+            if old_visibility != new_visibility {
+                let visibility_event = ManifestoDomainEvent::ProjectVisibilityChanged(
+                    ProjectVisibilityChangedEvent::new(
+                        project.id,
+                        project.owner_type.as_str().to_string(),
+                        project.owner_id,
+                        old_visibility.as_str().to_string(),
+                        new_visibility.as_str().to_string(),
+                        user_id,
+                        Utc::now(),
+                    )
+                    .with_visibility_revision(project.revision),
+                );
+                authz_events.push(visibility_event.into());
+            }
+        }
 
-        // Publish ProjectUpdated event
+        let updated_project = self
+            .persist_project_with_authz_events(project, authz_events)
+            .await?;
+
         let event = ManifestoDomainEvent::ProjectUpdated(ProjectUpdatedEvent::new(
             updated_project.id,
             updated_project.name.clone(),
@@ -537,23 +664,31 @@ impl ProjectUseCase for ProjectUseCaseImpl {
         let page = pagination.page();
         let page_size = self.configured_page_size(pagination);
 
-        let projects = self
-            .project_service
-            .list_projects(ProjectListFilters {
-                owner_type,
-                owner_id,
-                status,
-                search: search.clone(),
-                viewer_user_id: user_id,
-                page,
-                page_size,
-            })
-            .await?;
+        let (org_viewer_ids, org_admin_ids) = if let Some(uid) = user_id {
+            let (viewer, admin) = tokio::try_join!(
+                self.org_scope.org_ids_where_viewer(uid),
+                self.org_scope.org_ids_where_admin(uid),
+            )?;
+            (viewer, admin)
+        } else {
+            (Vec::new(), Vec::new())
+        };
 
-        let total_count = self
-            .project_service
-            .count_projects(owner_type, owner_id, status, search, user_id)
-            .await?;
+        let filters = ProjectListFilters {
+            owner_type,
+            owner_id,
+            status,
+            search: search.clone(),
+            viewer_user_id: user_id,
+            org_viewer_ids,
+            org_admin_ids,
+            page,
+            page_size,
+        };
+
+        let projects = self.project_service.list_projects(filters.clone()).await?;
+
+        let total_count = self.project_service.count_projects(filters).await?;
 
         let data: Vec<ProjectResponse> = projects.iter().map(Self::project_to_response).collect();
 
@@ -614,17 +749,17 @@ impl ProjectUseCase for ProjectUseCaseImpl {
             .transition_status(ProjectStatus::Archived)
             .map_err(ApplicationError::from)?;
 
-        let archived_project = self.project_service.update_project(project).await?;
-
-        // Publish ProjectArchived event
         let event = ManifestoDomainEvent::ProjectArchived(ProjectArchivedEvent::new(
-            archived_project.id,
-            archived_project.name.clone(),
+            project.id,
+            project.name.clone(),
+            project.owner_type.as_str().to_string(),
+            project.owner_id,
             user_id,
             Utc::now(),
         ));
-        let domain_ev: Box<dyn DomainEvent> = event.into();
-        self.event_publisher.publish(domain_ev.as_ref()).await?;
+        let archived_project = self
+            .persist_project_with_authz_events(project, vec![event.into()])
+            .await?;
 
         Ok(Self::project_to_response(&archived_project))
     }

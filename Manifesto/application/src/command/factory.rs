@@ -28,6 +28,8 @@ use super::{
     GetProjectDetailCommandHandler,
     GrantPermissionCommand,
     GrantPermissionCommandHandler,
+    JoinProjectCommand,
+    JoinProjectCommandHandler,
     ListComponentsCommand,
     ListComponentsCommandHandler,
     ListMembersCommand,
@@ -184,6 +186,7 @@ impl ManifestoCommandRegistryFactory {
         member_usecase: Arc<dyn MemberUseCase>,
     ) -> CommandRegistryBuilder {
         let add_handler = Arc::new(AddMemberCommandHandler::new(member_usecase.clone()));
+        let join_handler = Arc::new(JoinProjectCommandHandler::new(member_usecase.clone()));
         let get_handler = Arc::new(GetMemberCommandHandler::new(member_usecase.clone()));
         let list_handler = Arc::new(ListMembersCommandHandler::new(member_usecase.clone()));
         let update_handler = Arc::new(UpdateMemberCommandHandler::new(member_usecase.clone()));
@@ -198,6 +201,11 @@ impl ManifestoCommandRegistryFactory {
             .register::<AddMemberCommand, _>(
                 "add_member".to_string(),
                 add_handler,
+                error_mapper.clone(),
+            )
+            .register::<JoinProjectCommand, _>(
+                "join_project".to_string(),
+                join_handler,
                 error_mapper.clone(),
             )
             .register::<GetMemberCommand, _>(

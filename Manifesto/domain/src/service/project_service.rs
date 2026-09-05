@@ -20,14 +20,7 @@ pub trait ProjectService: Send + Sync {
     async fn list_projects(&self, filters: ProjectListFilters)
         -> Result<Vec<Project>, DomainError>;
 
-    async fn count_projects(
-        &self,
-        owner_type: Option<OwnerType>,
-        owner_id: Option<Uuid>,
-        status: Option<ProjectStatus>,
-        search: Option<String>,
-        viewer_user_id: Option<Uuid>,
-    ) -> Result<i64, DomainError>;
+    async fn count_projects(&self, filters: ProjectListFilters) -> Result<i64, DomainError>;
 
     async fn count_projects_by_owner(
         &self,
@@ -113,17 +106,8 @@ where
         self.project_repo.list_with_filters(filters).await
     }
 
-    async fn count_projects(
-        &self,
-        owner_type: Option<OwnerType>,
-        owner_id: Option<Uuid>,
-        status: Option<ProjectStatus>,
-        search: Option<String>,
-        viewer_user_id: Option<Uuid>,
-    ) -> Result<i64, DomainError> {
-        self.project_repo
-            .count_with_filters(owner_type, owner_id, status, search, viewer_user_id)
-            .await
+    async fn count_projects(&self, filters: ProjectListFilters) -> Result<i64, DomainError> {
+        self.project_repo.count_with_filters(filters).await
     }
 
     async fn count_projects_by_owner(

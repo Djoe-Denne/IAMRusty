@@ -5,7 +5,7 @@
 //! Postgres-backed implementation stores durable `processing` / `failed` /
 //! `completed` state for production-style workers.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Mutex, PoisonError};
 
 use anyhow::Result;
@@ -29,6 +29,13 @@ pub trait EventLedger: Send + Sync {
 
     /// Mark an attempted delivery as failed while keeping it retryable.
     async fn fail(&self, event_id: Uuid, error: &str) -> Result<()>;
+
+    /// Return whether a visibility revision is the next change to apply for a project.
+    /// Older revisions are skipped and gaps remain retryable until their predecessor completes.
+    async fn begin_visibility_change(&self, project_id: Uuid, revision: i64) -> Result<bool>;
+
+    /// Advance the durable visibility revision after OpenFGA accepted the delta.
+    async fn complete_visibility_change(&self, project_id: Uuid, revision: i64) -> Result<()>;
 }
 
 /// In-memory ledger. Loses state on restart — only use for tests and local
@@ -36,6 +43,7 @@ pub trait EventLedger: Send + Sync {
 #[derive(Default)]
 pub struct InMemoryEventLedger {
     completed: Mutex<HashSet<Uuid>>,
+    visibility_revisions: Mutex<HashMap<Uuid, i64>>,
 }
 
 impl InMemoryEventLedger {
@@ -65,6 +73,22 @@ impl EventLedger for InMemoryEventLedger {
     async fn fail(&self, _event_id: Uuid, _error: &str) -> Result<()> {
         Ok(())
     }
+
+    async fn begin_visibility_change(&self, project_id: Uuid, revision: i64) -> Result<bool> {
+        let revisions = self
+            .visibility_revisions
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        begin_visibility_revision(revisions.get(&project_id).copied(), revision)
+    }
+
+    async fn complete_visibility_change(&self, project_id: Uuid, revision: i64) -> Result<()> {
+        let mut revisions = self
+            .visibility_revisions
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        complete_visibility_revision(&mut revisions, project_id, revision)
+    }
 }
 
 pub struct PostgresEventLedger {
@@ -90,6 +114,18 @@ impl PostgresEventLedger {
                     attempts INTEGER NOT NULL DEFAULT 0,
                     last_error TEXT,
                     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                )
+                ",
+            ))
+            .await?;
+        self.db
+            .execute(Statement::from_string(
+                DbBackend::Postgres,
+                r"
+                CREATE TABLE IF NOT EXISTS sentinel_sync_visibility_revisions (
+                    project_id UUID PRIMARY KEY,
+                    last_applied_revision BIGINT NOT NULL CHECK (last_applied_revision >= 0),
                     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
                 )
                 ",
@@ -159,6 +195,91 @@ impl EventLedger for PostgresEventLedger {
             .await?;
         Ok(())
     }
+
+    async fn begin_visibility_change(&self, project_id: Uuid, revision: i64) -> Result<bool> {
+        let row = self
+            .db
+            .query_one(Statement::from_sql_and_values(
+                DbBackend::Postgres,
+                "SELECT last_applied_revision FROM sentinel_sync_visibility_revisions WHERE project_id = $1",
+                [project_id.into()],
+            ))
+            .await?;
+        let last_applied_revision = row
+            .map(|row| row.try_get::<i64>("", "last_applied_revision"))
+            .transpose()?;
+        begin_visibility_revision(last_applied_revision, revision)
+    }
+
+    async fn complete_visibility_change(&self, project_id: Uuid, revision: i64) -> Result<()> {
+        if revision <= 0 {
+            return Err(anyhow::anyhow!("visibility revision must be positive"));
+        }
+        self.db
+            .execute(Statement::from_sql_and_values(
+                DbBackend::Postgres,
+                r"
+                INSERT INTO sentinel_sync_visibility_revisions
+                    (project_id, last_applied_revision, updated_at)
+                VALUES ($1, $2, now())
+                ON CONFLICT (project_id) DO UPDATE
+                    SET last_applied_revision = EXCLUDED.last_applied_revision,
+                        updated_at = now()
+                WHERE sentinel_sync_visibility_revisions.last_applied_revision = EXCLUDED.last_applied_revision - 1
+                ",
+                [project_id.into(), revision.into()],
+            ))
+            .await?;
+
+        let row = self
+            .db
+            .query_one(Statement::from_sql_and_values(
+                DbBackend::Postgres,
+                "SELECT last_applied_revision FROM sentinel_sync_visibility_revisions WHERE project_id = $1",
+                [project_id.into()],
+            ))
+            .await?;
+        let last_applied_revision = row
+            .ok_or_else(|| anyhow::anyhow!("visibility revision row was not persisted"))?
+            .try_get::<i64>("", "last_applied_revision")?;
+        if last_applied_revision < revision {
+            return Err(anyhow::anyhow!(
+                "visibility revision {revision} cannot complete before its predecessor"
+            ));
+        }
+        Ok(())
+    }
+}
+
+fn begin_visibility_revision(last_applied_revision: Option<i64>, revision: i64) -> Result<bool> {
+    if revision <= 0 {
+        return Err(anyhow::anyhow!("visibility revision must be positive"));
+    }
+    let last = last_applied_revision.unwrap_or(0);
+    if revision <= last {
+        return Ok(false);
+    }
+    let expected = last
+        .checked_add(1)
+        .ok_or_else(|| anyhow::anyhow!("visibility revision overflow"))?;
+    if revision != expected {
+        return Err(anyhow::anyhow!(
+            "visibility revision {revision} arrived before required revision {expected}"
+        ));
+    }
+    Ok(true)
+}
+
+fn complete_visibility_revision(
+    revisions: &mut HashMap<Uuid, i64>,
+    project_id: Uuid,
+    revision: i64,
+) -> Result<()> {
+    if !begin_visibility_revision(revisions.get(&project_id).copied(), revision)? {
+        return Ok(());
+    }
+    revisions.insert(project_id, revision);
+    Ok(())
 }
 
 /// Build a ledger from config.
@@ -197,5 +318,34 @@ mod tests {
         assert!(ledger.begin(id).await.unwrap());
         ledger.fail(id, "fga unavailable").await.unwrap();
         assert!(ledger.begin(id).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn visibility_retries_cannot_reapply_an_obsolete_revision() {
+        let ledger = InMemoryEventLedger::new();
+        let project_id = Uuid::new_v4();
+
+        assert!(ledger.begin_visibility_change(project_id, 1).await.unwrap());
+        assert!(ledger.begin_visibility_change(project_id, 1).await.unwrap());
+        ledger
+            .complete_visibility_change(project_id, 1)
+            .await
+            .unwrap();
+
+        assert!(ledger.begin_visibility_change(project_id, 2).await.unwrap());
+        ledger
+            .complete_visibility_change(project_id, 2)
+            .await
+            .unwrap();
+        assert!(!ledger.begin_visibility_change(project_id, 1).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn visibility_revision_gaps_remain_retryable() {
+        let ledger = InMemoryEventLedger::new();
+        let project_id = Uuid::new_v4();
+
+        assert!(ledger.begin_visibility_change(project_id, 2).await.is_err());
+        assert!(ledger.begin_visibility_change(project_id, 1).await.unwrap());
     }
 }

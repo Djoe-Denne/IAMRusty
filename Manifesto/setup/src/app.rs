@@ -22,7 +22,8 @@ use manifesto_infra::{
         RolePermissionReadRepositoryImpl, RolePermissionRepositoryImpl,
         RolePermissionWriteRepositoryImpl,
     },
-    ApparatusEventConsumer, ManifestoErrorMapper, ProjectCreationUnitOfWorkImpl,
+    ApparatusEventConsumer, ManifestoErrorMapper, OpenFgaOrgScopeLookup,
+    ProjectAuthorizationUnitOfWorkImpl,
 };
 
 // Rustycog
@@ -400,9 +401,13 @@ async fn setup_application(
 ) -> Result<ApplicationUseCases, Error> {
     let (project_service, component_service, member_service, permission_service) =
         setup_domain(&db, config)?;
-    let project_creation_uow = Arc::new(ProjectCreationUnitOfWorkImpl::new(
+    let project_authorization_uow = Arc::new(ProjectAuthorizationUnitOfWorkImpl::new(
         db,
         OutboxRecorder::new(),
+    ));
+    let org_scope = Arc::new(OpenFgaOrgScopeLookup::new(
+        OpenFgaPermissionChecker::new(config.openfga.clone())
+            .map_err(|e| anyhow::anyhow!("Invalid OpenFGA configuration for org scope: {e}"))?,
     ));
 
     let project_usecase = Arc::new(
@@ -413,26 +418,32 @@ async fn setup_application(
             permission_service.clone(),
             event_publisher.clone(),
             config.service.business.clone(),
-            org_permission_checker,
+            org_permission_checker.clone(),
         )
-        .with_project_creation_uow(project_creation_uow),
+        .with_project_authorization_uow(project_authorization_uow.clone())
+        .with_org_scope(org_scope),
     );
 
     let component_usecase = Arc::new(ComponentUseCaseImpl::new(
         component_service.clone(),
         project_service.clone(),
+        member_service.clone(),
         permission_service.clone(),
         event_publisher.clone(),
         config.service.business.clone(),
+        org_permission_checker,
     ));
 
-    let member_usecase = Arc::new(MemberUseCaseImpl::new(
-        member_service.clone(),
-        project_service.clone(),
-        permission_service.clone(),
-        event_publisher.clone(),
-        config.service.business.clone(),
-    ));
+    let member_usecase = Arc::new(
+        MemberUseCaseImpl::new(
+            member_service.clone(),
+            project_service.clone(),
+            permission_service.clone(),
+            event_publisher.clone(),
+            config.service.business.clone(),
+        )
+        .with_authorization_uow(project_authorization_uow),
+    );
 
     let (apparatus_event_consumer, consumer_status) = {
         let component_status_processor =

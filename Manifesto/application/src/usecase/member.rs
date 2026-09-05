@@ -23,6 +23,8 @@ use crate::{
         PaginationRequest, PaginationResponse, ResourcePermissionResponse,
         UpdateMemberPermissionsRequest,
     },
+    usecase::project::ProjectAuthorizationUnitOfWork,
+    usecase::world_read::allows_world_read,
     ApplicationError,
 };
 
@@ -39,6 +41,18 @@ pub trait MemberUseCase: Send + Sync {
         project_id: Uuid,
         request: &AddMemberRequest,
         added_by: Uuid,
+    ) -> Result<MemberResponse, ApplicationError>;
+
+    /// Self-join a public live project as an authenticated caller.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ApplicationError`] if the project is not world-readable, the
+    /// caller is already a member, or persistence fails.
+    async fn join_project(
+        &self,
+        project_id: Uuid,
+        user_id: Uuid,
     ) -> Result<MemberResponse, ApplicationError>;
 
     /// Get one project member.
@@ -122,6 +136,7 @@ pub struct MemberUseCaseImpl {
     permission_service: Arc<dyn PermissionService>,
     event_publisher: Arc<dyn EventPublisher<DomainError>>,
     business_config: BusinessConfig,
+    authorization_uow: Option<Arc<dyn ProjectAuthorizationUnitOfWork>>,
 }
 
 impl MemberUseCaseImpl {
@@ -139,7 +154,18 @@ impl MemberUseCaseImpl {
             permission_service,
             event_publisher,
             business_config,
+            authorization_uow: None,
         }
+    }
+
+    /// Persist member writes through the same AuthZ outbox unit of work as project creation.
+    #[must_use]
+    pub fn with_authorization_uow(
+        mut self,
+        authorization_uow: Arc<dyn ProjectAuthorizationUnitOfWork>,
+    ) -> Self {
+        self.authorization_uow = Some(authorization_uow);
+        self
     }
 
     fn member_to_response(member: &ProjectMember) -> MemberResponse {
@@ -194,6 +220,49 @@ impl MemberUseCaseImpl {
                 .map(|(resource_type, _)| resource_type)
         }
     }
+
+    async fn persist_member_with_permission_and_event(
+        &self,
+        member: ProjectMember,
+        resource_name: &str,
+        permission: &str,
+        event: Box<dyn DomainEvent>,
+    ) -> Result<ProjectMember, ApplicationError> {
+        if let Some(uow) = &self.authorization_uow {
+            let saved = uow
+                .save_member_with_permission_and_event(
+                    member,
+                    resource_name,
+                    permission,
+                    self.business_config.max_members_per_project,
+                    event,
+                )
+                .await?;
+            return self
+                .member_service
+                .get_member(saved.project_id, saved.user_id)
+                .await
+                .map_err(ApplicationError::from);
+        }
+
+        let mut created = self.member_service.add_member(member).await?;
+        let role_perm = self
+            .permission_service
+            .get_or_create_role_permission(created.project_id, resource_name, permission)
+            .await?;
+        let member_role_perm = self
+            .permission_service
+            .grant_permission_to_member(
+                &created.id,
+                &role_perm.id.ok_or_else(|| {
+                    DomainError::internal_error("role permission missing id after persist")
+                })?,
+            )
+            .await?;
+        created.role_permissions = vec![member_role_perm];
+        self.event_publisher.publish(event.as_ref()).await?;
+        Ok(created)
+    }
 }
 
 #[async_trait]
@@ -235,39 +304,65 @@ impl MemberUseCase for MemberUseCaseImpl {
             Some(added_by),
         );
 
-        // Add through service
-        let mut created = self.member_service.add_member(member).await?;
-
-        // Grant initial permission
-        let role_perm = self
-            .permission_service
-            .get_or_create_role_permission(project_id, resource_name, &request.permission)
-            .await?;
-
-        let member_role_perm = self
-            .permission_service
-            .grant_permission_to_member(
-                &created.id,
-                &role_perm.id.ok_or_else(|| {
-                    DomainError::internal_error("role permission missing id after persist")
-                })?,
-            )
-            .await?;
-
-        created.role_permissions = vec![member_role_perm];
-
-        // Publish MemberAdded event
         let event = ManifestoDomainEvent::MemberAdded(MemberAddedEvent::new(
             project_id,
-            created.id,
-            created.user_id,
+            member.id,
+            member.user_id,
             request.permission.clone(),
             resource_name.to_string(),
             added_by,
-            created.added_at,
+            member.added_at,
         ));
-        let domain_ev: Box<dyn DomainEvent> = event.into();
-        self.event_publisher.publish(domain_ev.as_ref()).await?;
+        let created = self
+            .persist_member_with_permission_and_event(
+                member,
+                resource_name,
+                &request.permission,
+                event.into(),
+            )
+            .await?;
+
+        Ok(Self::member_to_response(&created))
+    }
+
+    async fn join_project(
+        &self,
+        project_id: Uuid,
+        user_id: Uuid,
+    ) -> Result<MemberResponse, ApplicationError> {
+        let project = self.project_service.get_project(&project_id).await?;
+        if !allows_world_read(&project) {
+            return Err(ApplicationError::from(DomainError::permission_denied(
+                "Only public live projects can be joined",
+            )));
+        }
+
+        if self
+            .member_service
+            .check_member_exists(&project_id, &user_id)
+            .await?
+        {
+            return Err(ApplicationError::AlreadyExists(format!(
+                "User {user_id} is already a member of project {project_id}"
+            )));
+        }
+
+        self.enforce_member_quota(&project_id).await?;
+
+        let member =
+            ProjectMember::new(project_id, user_id, MemberSource::Invitation, Some(user_id));
+        let event = ManifestoDomainEvent::MemberAdded(MemberAddedEvent::new(
+            project_id,
+            member.id,
+            member.user_id,
+            "write".to_string(),
+            "project".to_string(),
+            user_id,
+            member.added_at,
+        ));
+        let created = self
+            .persist_member_with_permission_and_event(member, "project", "write", event.into())
+            .await?;
 
         Ok(Self::member_to_response(&created))
     }

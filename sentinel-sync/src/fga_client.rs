@@ -53,6 +53,24 @@ impl Tuple {
         }
     }
 
+    /// Userset subject, e.g. `project:123#viewer@organization:456#member`.
+    pub fn userset(
+        object_type: impl Into<String>,
+        object_id: Uuid,
+        relation: impl Into<String>,
+        user_type: impl Into<String>,
+        user_id: Uuid,
+        user_relation: impl AsRef<str>,
+    ) -> Self {
+        Self {
+            object_type: object_type.into(),
+            object_id: object_id.to_string(),
+            relation: relation.into(),
+            user_type: user_type.into(),
+            user_id: format!("{}#{}", user_id, user_relation.as_ref()),
+        }
+    }
+
     /// Tuple pointing at another object (parent relation), e.g.
     /// `project:123#organization@organization:456`.
     pub fn object(
@@ -177,5 +195,80 @@ impl OpenFgaWriteClient {
             "OpenFGA write succeeded"
         );
         Ok(())
+    }
+
+    /// Apply desired `viewer@user:*` presence for each project id.
+    ///
+    /// `true` writes the public wildcard; `false` deletes it. Both sides are
+    /// idempotent (`already exists` / missing tuple are treated as success).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if OpenFGA rejects a write or delete for a reason
+    /// other than an idempotent no-op.
+    #[allow(dead_code)]
+    pub async fn reconcile_wildcards(&self, desired: Vec<(Uuid, bool)>) -> Result<()> {
+        let (writes, deletes) = wildcard_reconcile_ops(&desired);
+        for tuple in writes {
+            self.write_idempotent(&[tuple], &[]).await?;
+        }
+        for tuple in deletes {
+            self.write_idempotent(&[], &[tuple]).await?;
+        }
+        Ok(())
+    }
+
+    #[allow(dead_code)]
+    async fn write_idempotent(&self, writes: &[Tuple], deletes: &[Tuple]) -> Result<()> {
+        match self.write(writes, deletes).await {
+            Ok(()) => Ok(()),
+            Err(error) => {
+                let text = error.to_string();
+                if text.contains("cannot_write_tuple_which_already_exists")
+                    || text.contains("cannot_delete_tuple_which_does_not_exist")
+                    || text.contains("cannot_delete_unknown_tuple")
+                {
+                    Ok(())
+                } else {
+                    Err(error)
+                }
+            }
+        }
+    }
+}
+
+/// Build the write/delete batches for a wildcard sweep.
+#[must_use]
+pub fn wildcard_reconcile_ops(desired: &[(Uuid, bool)]) -> (Vec<Tuple>, Vec<Tuple>) {
+    let mut writes = Vec::new();
+    let mut deletes = Vec::new();
+    for &(project_id, wants_wildcard) in desired {
+        let tuple = Tuple::wildcard_user("project", project_id, "viewer");
+        if wants_wildcard {
+            writes.push(tuple);
+        } else {
+            deletes.push(tuple);
+        }
+    }
+    (writes, deletes)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reconcile_ops_writes_wanted_wildcards_and_deletes_unwanted() {
+        let keep = Uuid::new_v4();
+        let drop = Uuid::new_v4();
+        let (writes, deletes) = wildcard_reconcile_ops(&[(keep, true), (drop, false)]);
+        assert_eq!(
+            writes,
+            vec![Tuple::wildcard_user("project", keep, "viewer")]
+        );
+        assert_eq!(
+            deletes,
+            vec![Tuple::wildcard_user("project", drop, "viewer")]
+        );
     }
 }

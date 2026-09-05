@@ -17,7 +17,7 @@ provenance:
   inferred: 0.07
   ambiguous: 0.04
 created: 2026-04-14T20:25:00Z
-updated: 2026-04-19T18:00:00Z
+updated: 2026-09-02T19:45:00Z
 ---
 
 # Manifesto Event Model
@@ -26,7 +26,7 @@ updated: 2026-04-19T18:00:00Z
 
 ## Key Ideas
 
-- Project flows publish `ProjectCreated`, `ProjectUpdated`, `ProjectDeleted`, `ProjectPublished`, and `ProjectArchived`.
+- Project flows publish `ProjectCreated`, `ProjectUpdated`, `ProjectVisibilityChanged` (only when visibility actually flips), `ProjectDeleted`, `ProjectPublished`, and `ProjectArchived`.
 - Component flows publish `ComponentAdded`, `ComponentStatusChanged`, and `ComponentRemoved`.
 - Member flows publish `MemberAdded`, `MemberPermissionsUpdated`, `MemberRemoved`, `PermissionGranted`, and `PermissionRevoked`.
 - `setup/src/app.rs` injects the same `EventPublisher` into project, component, and member use cases, defaulting to a multi-queue publisher unless tests or alternate bootstraps override it.
@@ -37,6 +37,8 @@ updated: 2026-04-19T18:00:00Z
   - stale events are ignored,
   - applied timestamps use the event's `changed_at`.
 - The old unused outbound apparatus adapter is no longer part of the live runtime. Outbound publication currently uses only Manifesto's own domain-event vocabulary.
+- `update_project` emits `ProjectVisibilityChanged` (old + new) before `ProjectUpdated` when visibility changes. [[projects/sentinel-sync/sentinel-sync]] syncs `viewer@user:*` from that event only. `ProjectUpdated` stays a tuple no-op.
+- `ProjectPublished` / `ProjectArchived` are lifecycle events. Publish does not write `user:*`. Archive still deletes the wildcard. See [[projects/manifesto/concepts/org-owned-visibility-and-participation-limits]].
 
 ## Checked-In Queue Posture
 
@@ -46,6 +48,7 @@ updated: 2026-04-19T18:00:00Z
 
 ## Open Questions
 
+- Visibility flips emit `ProjectVisibilityChanged`; `ProjectPublished` no longer writes `viewer@user:*` (answered 2026-09-02).
 - Should any Manifesto domain events eventually become hard-fail instead of best-effort?
 - If queue-backed operation becomes a default CI path later, which event contracts deserve end-to-end broker coverage instead of unit-level runtime tests?
 
@@ -54,5 +57,6 @@ updated: 2026-04-19T18:00:00Z
 - [[projects/manifesto/manifesto]] - Service overview and runtime context.
 - [[projects/manifesto/references/manifesto-api-and-permission-flows]] - Route and use-case entrypoints that trigger these events.
 - [[projects/manifesto/concepts/project-ownership-and-publication-lifecycle]] - Project lifecycle transitions and their emitted events.
+- [[projects/manifesto/concepts/org-owned-visibility-and-participation-limits]] - Publish vs public; visibility event now live.
 - [[projects/manifesto/concepts/component-catalog-and-fallback-adapter]] - Component-side validation and runtime status updates.
 - [[concepts/event-driven-microservice-platform]] - Platform-wide async coordination context.

@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use manifesto_domain::{
     entity::ProjectComponent,
-    service::{ComponentService, PermissionService, ProjectService},
+    service::{ComponentService, MemberService, PermissionService, ProjectService},
     value_objects::ComponentStatus,
 };
 use manifesto_events::{
@@ -15,9 +15,11 @@ use manifesto_events::{
 };
 use rustycog::core::error::DomainError;
 use rustycog::events::{DomainEvent, EventPublisher};
+use rustycog::permission::PermissionChecker;
 
 use crate::{
     dto::{AddComponentRequest, ComponentListResponse, ComponentResponse, UpdateComponentRequest},
+    usecase::world_read::enforce_world_read_or_principal,
     ApplicationError,
 };
 
@@ -89,9 +91,11 @@ pub trait ComponentUseCase: Send + Sync {
 pub struct ComponentUseCaseImpl {
     component_service: Arc<dyn ComponentService>,
     project_service: Arc<dyn ProjectService>,
+    member_service: Arc<dyn MemberService>,
     permission_service: Arc<dyn PermissionService>,
     event_publisher: Arc<dyn EventPublisher<DomainError>>,
     business_config: BusinessConfig,
+    org_permission_checker: Arc<dyn PermissionChecker>,
 }
 
 impl ComponentUseCaseImpl {
@@ -99,16 +103,20 @@ impl ComponentUseCaseImpl {
     pub fn new(
         component_service: Arc<dyn ComponentService>,
         project_service: Arc<dyn ProjectService>,
+        member_service: Arc<dyn MemberService>,
         permission_service: Arc<dyn PermissionService>,
         event_publisher: Arc<dyn EventPublisher<DomainError>>,
         business_config: BusinessConfig,
+        org_permission_checker: Arc<dyn PermissionChecker>,
     ) -> Self {
         Self {
             component_service,
             project_service,
+            member_service,
             permission_service,
             event_publisher,
             business_config,
+            org_permission_checker,
         }
     }
 
@@ -211,8 +219,17 @@ impl ComponentUseCase for ComponentUseCaseImpl {
         &self,
         project_id: Uuid,
         component_id: Uuid,
-        _user_id: Option<Uuid>,
+        user_id: Option<Uuid>,
     ) -> Result<ComponentResponse, ApplicationError> {
+        let project = self.project_service.get_project(&project_id).await?;
+        enforce_world_read_or_principal(
+            &project,
+            user_id,
+            &self.member_service,
+            &self.org_permission_checker,
+        )
+        .await?;
+
         let component = self.component_service.get_component(&component_id).await?;
 
         if component.project_id != project_id {
@@ -227,8 +244,17 @@ impl ComponentUseCase for ComponentUseCaseImpl {
     async fn list_components(
         &self,
         project_id: Uuid,
-        _user_id: Option<Uuid>,
+        user_id: Option<Uuid>,
     ) -> Result<ComponentListResponse, ApplicationError> {
+        let project = self.project_service.get_project(&project_id).await?;
+        enforce_world_read_or_principal(
+            &project,
+            user_id,
+            &self.member_service,
+            &self.org_permission_checker,
+        )
+        .await?;
+
         let components = self.component_service.list_components(&project_id).await?;
 
         let data: Vec<ComponentResponse> =

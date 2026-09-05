@@ -74,6 +74,9 @@ pub fn create_router(state: AppState) -> Router {
         )
         .authenticated()
         .with_permission_on_param(Permission::Admin, "project", "project_id")
+        // Join is JWT-only: public live projects, no project Admin grant.
+        .post("/api/projects/{project_id}/join", join_project)
+        .authenticated()
         // Member routes (project-scoped)
         .get("/api/projects/{project_id}/members", list_members)
         .authenticated()

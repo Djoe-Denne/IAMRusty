@@ -12,7 +12,7 @@ provenance:
   inferred: 0.10
   ambiguous: 0.09
 created: 2026-04-14T20:28:20.9129598Z
-updated: 2026-04-14T20:28:20.9129598Z
+updated: 2026-09-02T18:00:00Z
 ---
 
 # Organization
@@ -26,10 +26,11 @@ The canonical organization entity lives in `<!-- [[projects/hive/hive]] -->`. It
 - `OrganizationInvitation` models invite tokens, expiry, acceptance, and the role-permission bundle the invited user is expected to receive.
 - Hive treats organizations as more than metadata containers: they are the aggregate root for membership, permissions, external provider links, and integration-triggered sync work.
 - Organization ownership overlaps with Manifesto's `OwnerType::Organization`, which means Hive's tenant model is reused by another service rather than staying internal to Hive alone. ^[inferred]
+- Hive has no org-to-org partnership, alliance, or collaboration entity. `ExternalLink` binds a provider (GitHub/GitLab), not a peer organization. Manifesto therefore cannot admit "members of a partner org" onto a public project. ^[extracted]
 
 ## Open Questions
 
-- The current wiki still does not map one end-to-end story for how organization membership in Hive feeds organization-owned projects in Manifesto. ^[ambiguous]
+- Hive membership feeds Manifesto only through shared OpenFGA tuples (`organization#member` → `project.viewer from organization`), not through copied `ProjectMember` rows. List vs GET therefore disagree. See [[projects/manifesto/concepts/org-owned-visibility-and-participation-limits]]. ^[extracted]
 - Hive's settings JSON carries at least visibility today, but the broader settings contract is still under-documented. ^[inferred]
 
 ## Sources
@@ -37,4 +38,5 @@ The canonical organization entity lives in `<!-- [[projects/hive/hive]] -->`. It
 - <!-- [[projects/hive/references/hive-entity-model]] --> - Hive's broader entity inventory.
 - [[entities/membership]] - Membership is the main child entity of organizations.
 - [[entities/project]] - Projects can be organization-owned even though they live in Manifesto.
+- [[projects/manifesto/concepts/org-owned-visibility-and-participation-limits]] - What org ownership does and does not grant in Manifesto.
 - <!-- [[projects/hive/concepts/organization-resource-authorization]] --> - Authorization model built on top of organizations.

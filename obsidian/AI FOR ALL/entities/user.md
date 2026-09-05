@@ -12,7 +12,7 @@ provenance:
   inferred: 0.10
   ambiguous: 0.08
 created: 2026-04-14T20:28:20.9129598Z
-updated: 2026-04-14T20:28:20.9129598Z
+updated: 2026-09-02T18:15:00Z
 ---
 
 # User
@@ -26,6 +26,7 @@ The canonical platform user lives in `<!-- [[projects/iamrusty/iamrusty]] -->`. 
 - `UserEmail` is stored separately from the core user record so one user can carry multiple email addresses with primary and verified flags.
 - `ProviderLink` captures the binding between one platform user and one external provider identity such as GitHub or GitLab.
 - In practice, IAMRusty owns the identity record, while organization, project, membership, and notification services treat `user_id` as a foreign identity reference. ^[inferred]
+- A user does **not** have to belong to a Hive organization. Org membership is optional. Personal Manifesto projects already use `OwnerType::Personal`. Joining someone else's **public** project as an org-less user is a tracked later-work limitation (L-USER-NO-ORG, L-PUBLIC-PARTICIPATE) on [[projects/manifesto/concepts/org-owned-visibility-and-participation-limits]].
 
 ## Open Questions
 
@@ -38,3 +39,4 @@ The canonical platform user lives in `<!-- [[projects/iamrusty/iamrusty]] -->`. 
 - [[entities/membership]] - Organization and project membership entities that point back to the user.
 - [[entities/organization]] - Organizations are owned by or joined by users.
 - [[entities/project]] - Projects record creators and owners through user-linked fields.
+- [[projects/manifesto/concepts/org-owned-visibility-and-participation-limits]] - Org-less user cannot yet join a public project (later work).

@@ -138,6 +138,54 @@ impl ProjectPublishedEvent {
     }
 }
 
+/// Event published when a project's visibility actually flips.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectVisibilityChangedEvent {
+    #[serde(flatten)]
+    pub base: BaseEvent,
+    pub project_id: Uuid,
+    pub owner_type: String,
+    pub owner_id: Uuid,
+    pub old_visibility: String,
+    pub new_visibility: String,
+    /// Monotonic source revision for ordering visibility changes per project.
+    pub visibility_revision: i64,
+    pub changed_by: Uuid,
+    pub changed_at: DateTime<Utc>,
+}
+
+impl ProjectVisibilityChangedEvent {
+    #[must_use]
+    pub fn new(
+        project_id: Uuid,
+        owner_type: String,
+        owner_id: Uuid,
+        old_visibility: String,
+        new_visibility: String,
+        changed_by: Uuid,
+        changed_at: DateTime<Utc>,
+    ) -> Self {
+        Self {
+            base: BaseEvent::new("project_visibility_changed".to_string(), project_id),
+            project_id,
+            owner_type,
+            owner_id,
+            old_visibility,
+            new_visibility,
+            visibility_revision: 1,
+            changed_by,
+            changed_at,
+        }
+    }
+
+    /// Set the durable source revision used to order visibility changes.
+    #[must_use]
+    pub const fn with_visibility_revision(mut self, visibility_revision: i64) -> Self {
+        self.visibility_revision = visibility_revision;
+        self
+    }
+}
+
 /// Event published when a project is archived
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectArchivedEvent {
@@ -145,6 +193,8 @@ pub struct ProjectArchivedEvent {
     pub base: BaseEvent,
     pub project_id: Uuid,
     pub project_name: String,
+    pub owner_type: String,
+    pub owner_id: Uuid,
     pub archived_by: Uuid,
     pub archived_at: DateTime<Utc>,
 }
@@ -154,6 +204,8 @@ impl ProjectArchivedEvent {
     pub fn new(
         project_id: Uuid,
         project_name: String,
+        owner_type: String,
+        owner_id: Uuid,
         archived_by: Uuid,
         archived_at: DateTime<Utc>,
     ) -> Self {
@@ -161,6 +213,8 @@ impl ProjectArchivedEvent {
             base: BaseEvent::new("project_archived".to_string(), project_id),
             project_id,
             project_name,
+            owner_type,
+            owner_id,
             archived_by,
             archived_at,
         }

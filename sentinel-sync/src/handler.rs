@@ -6,7 +6,9 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use rustycog::core::error::ServiceError;
 use rustycog::events::{DomainEvent, EventHandler};
+use serde::Deserialize;
 use tracing::{debug, info, warn};
+use uuid::Uuid;
 
 use crate::fga_client::OpenFgaWriteClient;
 use crate::idempotency::EventLedger;
@@ -16,6 +18,12 @@ pub struct SyncEventHandler {
     translators: Vec<Arc<dyn Translator>>,
     ledger: Arc<dyn EventLedger>,
     fga: OpenFgaWriteClient,
+}
+
+#[derive(Deserialize)]
+struct VisibilityChangeOrder {
+    project_id: Uuid,
+    visibility_revision: i64,
 }
 
 impl SyncEventHandler {
@@ -44,6 +52,21 @@ impl SyncEventHandler {
         }
         None
     }
+
+    fn visibility_change_order(
+        raw_event: &serde_json::Value,
+    ) -> Result<Option<VisibilityChangeOrder>, ServiceError> {
+        if raw_event
+            .get("event_type")
+            .and_then(serde_json::Value::as_str)
+            != Some("project_visibility_changed")
+        {
+            return Ok(None);
+        }
+        serde_json::from_value(raw_event.clone())
+            .map(Some)
+            .map_err(|error| ServiceError::internal(format!("visibility event decode: {error}")))
+    }
 }
 
 #[async_trait]
@@ -66,6 +89,30 @@ impl EventHandler for SyncEventHandler {
             serde_json::from_str::<serde_json::Value>(&s)
                 .map_err(|e| ServiceError::internal(format!("event json decode: {e}")))
         })?;
+        let visibility_order = Self::visibility_change_order(&raw)?;
+        if let Some(order) = &visibility_order {
+            let is_next = self
+                .ledger
+                .begin_visibility_change(order.project_id, order.visibility_revision)
+                .await
+                .map_err(|error| {
+                    ServiceError::infrastructure(format!(
+                        "visibility revision is not ready for processing: {error}"
+                    ))
+                })?;
+            if !is_next {
+                debug!(
+                    event_id = %event_id,
+                    project_id = %order.project_id,
+                    revision = order.visibility_revision,
+                    "obsolete visibility event, skipping"
+                );
+                self.ledger.complete(event_id).await.map_err(|error| {
+                    ServiceError::internal(format!("ledger.complete failed: {error}"))
+                })?;
+                return Ok(());
+            }
+        }
 
         let Some((delta, translator_name)) = self.translate(&raw) else {
             debug!(event_id = %event_id, event_type = %event_type, "no translator claimed event");
@@ -83,10 +130,19 @@ impl EventHandler for SyncEventHandler {
                 translator = translator_name,
                 "translator produced empty delta"
             );
-            self.ledger
-                .complete(event_id)
-                .await
-                .map_err(|e| ServiceError::internal(format!("ledger.complete failed: {e}")))?;
+            if let Some(order) = &visibility_order {
+                self.ledger
+                    .complete_visibility_change(order.project_id, order.visibility_revision)
+                    .await
+                    .map_err(|error| {
+                        ServiceError::internal(format!(
+                            "visibility revision completion failed: {error}"
+                        ))
+                    })?;
+            }
+            self.ledger.complete(event_id).await.map_err(|error| {
+                ServiceError::internal(format!("ledger.complete failed: {error}"))
+            })?;
             return Ok(());
         }
 
@@ -96,6 +152,17 @@ impl EventHandler for SyncEventHandler {
                 warn!(event_id = %event_id, error = %ledger_error, "failed to mark event delivery as failed");
             }
             return Err(ServiceError::infrastructure(&error_message));
+        }
+
+        if let Some(order) = &visibility_order {
+            self.ledger
+                .complete_visibility_change(order.project_id, order.visibility_revision)
+                .await
+                .map_err(|error| {
+                    ServiceError::internal(format!(
+                        "visibility revision completion failed: {error}"
+                    ))
+                })?;
         }
 
         self.ledger

@@ -33,6 +33,8 @@ pub enum ManifestoDomainEvent {
     ProjectDeleted(ProjectDeletedEvent),
     #[serde(rename = "project_published")]
     ProjectPublished(ProjectPublishedEvent),
+    #[serde(rename = "project_visibility_changed")]
+    ProjectVisibilityChanged(ProjectVisibilityChangedEvent),
     #[serde(rename = "project_archived")]
     ProjectArchived(ProjectArchivedEvent),
 
@@ -66,6 +68,7 @@ impl DomainEvent for ManifestoDomainEvent {
             Self::ProjectUpdated(event) => event.base.event_type.as_str(),
             Self::ProjectDeleted(event) => event.base.event_type.as_str(),
             Self::ProjectPublished(event) => event.base.event_type.as_str(),
+            Self::ProjectVisibilityChanged(event) => event.base.event_type.as_str(),
             Self::ProjectArchived(event) => event.base.event_type.as_str(),
             Self::ComponentAdded(event) => event.base.event_type.as_str(),
             Self::ComponentStatusChanged(event) => event.base.event_type.as_str(),
@@ -84,6 +87,7 @@ impl DomainEvent for ManifestoDomainEvent {
             Self::ProjectUpdated(event) => event.base.event_id,
             Self::ProjectDeleted(event) => event.base.event_id,
             Self::ProjectPublished(event) => event.base.event_id,
+            Self::ProjectVisibilityChanged(event) => event.base.event_id,
             Self::ProjectArchived(event) => event.base.event_id,
             Self::ComponentAdded(event) => event.base.event_id,
             Self::ComponentStatusChanged(event) => event.base.event_id,
@@ -102,6 +106,7 @@ impl DomainEvent for ManifestoDomainEvent {
             Self::ProjectUpdated(event) => event.base.aggregate_id,
             Self::ProjectDeleted(event) => event.base.aggregate_id,
             Self::ProjectPublished(event) => event.base.aggregate_id,
+            Self::ProjectVisibilityChanged(event) => event.base.aggregate_id,
             Self::ProjectArchived(event) => event.base.aggregate_id,
             Self::ComponentAdded(event) => event.base.aggregate_id,
             Self::ComponentStatusChanged(event) => event.base.aggregate_id,
@@ -120,6 +125,7 @@ impl DomainEvent for ManifestoDomainEvent {
             Self::ProjectUpdated(event) => event.base.occurred_at,
             Self::ProjectDeleted(event) => event.base.occurred_at,
             Self::ProjectPublished(event) => event.base.occurred_at,
+            Self::ProjectVisibilityChanged(event) => event.base.occurred_at,
             Self::ProjectArchived(event) => event.base.occurred_at,
             Self::ComponentAdded(event) => event.base.occurred_at,
             Self::ComponentStatusChanged(event) => event.base.occurred_at,
@@ -138,6 +144,7 @@ impl DomainEvent for ManifestoDomainEvent {
             Self::ProjectUpdated(event) => event.base.version,
             Self::ProjectDeleted(event) => event.base.version,
             Self::ProjectPublished(event) => event.base.version,
+            Self::ProjectVisibilityChanged(event) => event.base.version,
             Self::ProjectArchived(event) => event.base.version,
             Self::ComponentAdded(event) => event.base.version,
             Self::ComponentStatusChanged(event) => event.base.version,
@@ -161,6 +168,7 @@ impl DomainEvent for ManifestoDomainEvent {
             Self::ProjectUpdated(event) => event.base.metadata.clone(),
             Self::ProjectDeleted(event) => event.base.metadata.clone(),
             Self::ProjectPublished(event) => event.base.metadata.clone(),
+            Self::ProjectVisibilityChanged(event) => event.base.metadata.clone(),
             Self::ProjectArchived(event) => event.base.metadata.clone(),
             Self::ComponentAdded(event) => event.base.metadata.clone(),
             Self::ComponentStatusChanged(event) => event.base.metadata.clone(),

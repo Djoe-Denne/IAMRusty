@@ -348,6 +348,32 @@ paths:
         404:
           $ref: '#/components/responses/NotFound'
 
+  /api/projects/{projectId}/join:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    post:
+      summary: Join a public project
+      description: >
+        Authenticated self-join for a public live (draft or active) project.
+        Writes a project member with write permission. Returns 409 if the
+        caller is already a member. Does not require project Admin.
+      tags: [Members]
+      responses:
+        201:
+          description: Joined successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectMember'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+        409:
+          $ref: '#/components/responses/Conflict'
+
   # =============================================================================
   # Project Members
   # =============================================================================
@@ -1004,6 +1030,13 @@ components:
 
     NotFound:
       description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    Conflict:
+      description: Resource already exists
       content:
         application/json:
           schema:

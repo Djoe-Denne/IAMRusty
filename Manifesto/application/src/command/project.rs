@@ -23,24 +23,10 @@ pub struct ProjectErrorMapper;
 
 impl CommandErrorMapper for ProjectErrorMapper {
     fn map_error(&self, error: Box<dyn std::error::Error + Send + Sync>) -> CommandError {
-        error.downcast_ref::<ApplicationError>().map_or_else(
-            || CommandError::business("unknown_error", error.to_string()),
-            |app_error| match app_error {
-                ApplicationError::Domain(domain_error) => {
-                    CommandError::business("domain_error", domain_error.to_string())
-                }
-                ApplicationError::Validation(msg) => {
-                    CommandError::validation("validation_failed", msg)
-                }
-                ApplicationError::NotFound(msg) => CommandError::business("not_found", msg),
-                ApplicationError::AlreadyExists(msg) => {
-                    CommandError::business("already_exists", msg)
-                }
-                ApplicationError::Internal(msg) => {
-                    CommandError::infrastructure("internal_error", msg)
-                }
-            },
-        )
+        match error.downcast::<ApplicationError>() {
+            Ok(app_error) => CommandError::from(*app_error),
+            Err(error) => CommandError::business("unknown_error", error.to_string()),
+        }
     }
 }
 

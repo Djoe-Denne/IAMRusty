@@ -107,13 +107,7 @@
           "union": {
             "child": [
               { "this": {} },
-              { "computedUserset": { "relation": "member" } },
-              {
-                "tupleToUserset": {
-                  "tupleset": { "relation": "organization" },
-                  "computedUserset": { "object": "", "relation": "viewer" }
-                }
-              }
+              { "computedUserset": { "relation": "member" } }
             ]
           }
         },
@@ -155,7 +149,8 @@
           "viewer": {
             "directly_related_user_types": [
               { "type": "user" },
-              { "type": "user", "wildcard": {} }
+              { "type": "user", "wildcard": {} },
+              { "type": "organization", "relation": "member" }
             ]
           }
         }

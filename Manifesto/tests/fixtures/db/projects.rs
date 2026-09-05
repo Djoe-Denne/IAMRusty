@@ -170,6 +170,12 @@ impl ProjectFixtureBuilder {
         self
     }
 
+    /// Set as internal visibility
+    pub fn internal(mut self) -> Self {
+        self.visibility = Some("internal".to_string());
+        self
+    }
+
     /// Set external collaboration enabled
     pub const fn external_collaboration_enabled(mut self, enabled: bool) -> Self {
         self.external_collaboration_enabled = Some(enabled);
@@ -205,6 +211,7 @@ impl ProjectFixtureBuilder {
                 self.data_classification
                     .unwrap_or_else(|| "internal".to_string()),
             ),
+            revision: ActiveValue::Set(0),
             created_at: ActiveValue::Set(now),
             updated_at: ActiveValue::Set(now),
             published_at: ActiveValue::NotSet,
