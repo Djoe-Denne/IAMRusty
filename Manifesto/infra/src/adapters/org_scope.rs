@@ -21,24 +21,15 @@ impl OpenFgaOrgScopeLookup {
         user_id: Uuid,
     ) -> Result<Vec<RelationshipTuple>, ApplicationError> {
         let user = format!("user:{user_id}");
-        match self
+        let tuples = self
             .checker
-            .read_tuples(Some(user.as_str()), None, Some("organization:"))
+            .read_tuples(Some(user.as_str()), None, None)
             .await
-        {
-            Ok(tuples) => Ok(tuples),
-            Err(_) => {
-                let tuples = self
-                    .checker
-                    .read_tuples(Some(user.as_str()), None, None)
-                    .await
-                    .map_err(ApplicationError::from)?;
-                Ok(tuples
-                    .into_iter()
-                    .filter(|tuple| tuple.object.starts_with("organization:"))
-                    .collect())
-            }
-        }
+            .map_err(ApplicationError::from)?;
+        Ok(tuples
+            .into_iter()
+            .filter(|tuple| tuple.object.starts_with("organization:"))
+            .collect())
     }
 }
 
