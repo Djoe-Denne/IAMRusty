@@ -23,7 +23,7 @@ impl OpenFgaOrgScopeLookup {
         let user = format!("user:{user_id}");
         let tuples = self
             .checker
-            .read_tuples(Some(user.as_str()), None, None)
+            .read_tuples(Some(user.as_str()), None, Some("organization:"))
             .await
             .map_err(ApplicationError::from)?;
         Ok(tuples
