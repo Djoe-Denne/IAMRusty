@@ -5,8 +5,8 @@ use sea_orm::{ActiveModelTrait, DatabaseConnection, Set};
 use uuid::Uuid;
 
 use hive_infra::repository::entity::{
-    external_providers, organization_member_role_permissions, organization_members, organizations,
-    permissions, resources, role_permissions,
+    external_providers, organization_invitations, organization_member_role_permissions,
+    organization_members, organizations, permissions, resources, role_permissions,
 };
 
 /// Builder-style DB fixtures for Hive, mirroring the structure used in `IAMRusty/tests/fixtures/db`.
@@ -31,6 +31,11 @@ impl DbFixtures {
     #[must_use]
     pub fn organization_member() -> OrganizationMemberFixtureBuilder {
         OrganizationMemberFixtureBuilder::new()
+    }
+
+    #[must_use]
+    pub fn organization_invitation() -> OrganizationInvitationFixtureBuilder {
+        OrganizationInvitationFixtureBuilder::new()
     }
 
     #[must_use]
@@ -141,6 +146,110 @@ pub async fn seed_org_with_owner(
     owner_user_id: Uuid,
 ) -> anyhow::Result<organizations::Model> {
     DbFixtures::create_org_with_owner(db, owner_user_id).await
+}
+
+/// Builder for persisted invitations used to arrange HTTP-level acceptance and
+/// cancellation scenarios. It deliberately writes only test data; production
+/// behavior is always exercised through the live routes.
+pub struct OrganizationInvitationFixtureBuilder {
+    id: Uuid,
+    organization_id: Option<Uuid>,
+    aggregate_id: String,
+    invited_by_user_id: Option<Uuid>,
+    token: String,
+    status: String,
+    expires_at: chrono::DateTime<Utc>,
+    accepted_at: Option<chrono::DateTime<Utc>>,
+    message: Option<String>,
+}
+
+impl Default for OrganizationInvitationFixtureBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl OrganizationInvitationFixtureBuilder {
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            organization_id: None,
+            aggregate_id: "invitee@example.test".to_string(),
+            invited_by_user_id: None,
+            token: Uuid::new_v4().simple().to_string(),
+            status: "Pending".to_string(),
+            expires_at: Utc::now() + chrono::Duration::days(1),
+            accepted_at: None,
+            message: Some("Seeded invitation".to_string()),
+        }
+    }
+
+    #[must_use]
+    pub const fn organization_id(mut self, organization_id: Uuid) -> Self {
+        self.organization_id = Some(organization_id);
+        self
+    }
+
+    #[must_use]
+    pub const fn invited_by_user_id(mut self, user_id: Uuid) -> Self {
+        self.invited_by_user_id = Some(user_id);
+        self
+    }
+
+    #[must_use]
+    pub fn aggregate_id(mut self, aggregate_id: impl Into<String>) -> Self {
+        self.aggregate_id = aggregate_id.into();
+        self
+    }
+
+    #[must_use]
+    pub fn expired(mut self) -> Self {
+        self.expires_at = Utc::now() - chrono::Duration::seconds(1);
+        self
+    }
+
+    #[must_use]
+    pub fn cancelled(mut self) -> Self {
+        self.status = "Cancelled".to_string();
+        self
+    }
+
+    /// Persist a valid pending invitation with one read role. The JSON matches
+    /// the real repository mapper so acceptance reaches the member service.
+    pub async fn commit(
+        self,
+        db: Arc<DatabaseConnection>,
+    ) -> anyhow::Result<organization_invitations::Model> {
+        let organization_id = self.organization_id.expect("organization_id is required");
+        let invited_by_user_id = self
+            .invited_by_user_id
+            .expect("invited_by_user_id is required");
+        let role_permissions = serde_json::json!([{
+            "id": null,
+            "name": "invitation-read",
+            "organization_id": organization_id,
+            "permission": {"level": "Read", "description": null, "created_at": null},
+            "resource": {"name": "organization", "description": null, "created_at": null},
+            "created_at": null
+        }]);
+        let model = organization_invitations::ActiveModel {
+            id: Set(self.id),
+            organization_id: Set(organization_id),
+            aggregate_id: Set(self.aggregate_id),
+            invited_by_user_id: Set(invited_by_user_id),
+            role_permissions: Set(role_permissions),
+            token: Set(self.token),
+            status: Set(self.status),
+            expires_at: Set(self.expires_at),
+            accepted_at: Set(self.accepted_at),
+            message: Set(self.message),
+            created_at: Set(Utc::now()),
+        }
+        .insert(&*db)
+        .await?;
+        Ok(model)
+    }
 }
 
 // ========================= Builders & Fixtures =========================
