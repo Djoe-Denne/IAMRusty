@@ -34,7 +34,7 @@ pub trait EventLedger: Send + Sync {
     /// Older revisions are skipped and gaps remain retryable until their predecessor completes.
     async fn begin_visibility_change(&self, project_id: Uuid, revision: i64) -> Result<bool>;
 
-    /// Advance the durable visibility revision after OpenFGA accepted the delta.
+    /// Advance the durable visibility revision after `OpenFGA` accepted the delta.
     async fn complete_visibility_change(&self, project_id: Uuid, revision: i64) -> Result<()>;
 }
 

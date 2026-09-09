@@ -204,7 +204,7 @@ impl OpenFgaWriteClient {
     ///
     /// # Errors
     ///
-    /// Returns an error if OpenFGA rejects a write or delete for a reason
+    /// Returns an error if `OpenFGA` rejects a write or delete for a reason
     /// other than an idempotent no-op.
     #[allow(dead_code)]
     pub async fn reconcile_wildcards(&self, desired: Vec<(Uuid, bool)>) -> Result<()> {

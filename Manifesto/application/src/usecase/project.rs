@@ -215,7 +215,7 @@ impl ProjectUseCaseImpl {
         self
     }
 
-    /// Resolve org list scopes from stored OpenFGA tuples.
+    /// Resolve org list scopes from stored `OpenFGA` tuples.
     #[must_use]
     pub fn with_org_scope(mut self, org_scope: Arc<dyn OrgScopeLookup>) -> Self {
         self.org_scope = org_scope;
@@ -316,7 +316,7 @@ impl ProjectUseCaseImpl {
         Ok(())
     }
 
-    fn visibility_involves_public(old: Visibility, new: Visibility) -> bool {
+    const fn visibility_involves_public(old: Visibility, new: Visibility) -> bool {
         matches!(old, Visibility::Public) || matches!(new, Visibility::Public)
     }
 

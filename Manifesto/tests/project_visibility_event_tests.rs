@@ -330,6 +330,7 @@ impl EventPublisher<DomainError> for RecordingEventPublisher {
         for event in events {
             state.event_types.push(event.event_type().to_string());
         }
+        drop(state);
         Ok(())
     }
 

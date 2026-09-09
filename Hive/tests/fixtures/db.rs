@@ -149,8 +149,10 @@ pub async fn seed_org_with_owner(
 }
 
 /// Builder for persisted invitations used to arrange HTTP-level acceptance and
-/// cancellation scenarios. It deliberately writes only test data; production
-/// behavior is always exercised through the live routes.
+/// cancellation scenarios.
+///
+/// It deliberately writes only test data; production behavior is always
+/// exercised through the live routes.
 pub struct OrganizationInvitationFixtureBuilder {
     id: Uuid,
     organization_id: Option<Uuid>,
@@ -215,8 +217,18 @@ impl OrganizationInvitationFixtureBuilder {
         self
     }
 
-    /// Persist a valid pending invitation with one read role. The JSON matches
-    /// the real repository mapper so acceptance reaches the member service.
+    /// Persist a valid pending invitation with one read role.
+    ///
+    /// The JSON matches the real repository mapper so acceptance reaches the
+    /// member service.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the invitation cannot be inserted.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `organization_id` or `invited_by_user_id` was not set.
     pub async fn commit(
         self,
         db: Arc<DatabaseConnection>,

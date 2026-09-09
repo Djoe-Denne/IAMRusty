@@ -158,7 +158,7 @@ impl MemberUseCaseImpl {
         }
     }
 
-    /// Persist member writes through the same AuthZ outbox unit of work as project creation.
+    /// Persist member writes through the same `AuthZ` outbox unit of work as project creation.
     #[must_use]
     pub fn with_authorization_uow(
         mut self,

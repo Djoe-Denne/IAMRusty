@@ -70,7 +70,7 @@ impl TestSmtp {
     ///
     /// # Errors
     ///
-    /// Returns an error if the container cannot start, config cannot load, or MailHog
+    /// Returns an error if the container cannot start, config cannot load, or `MailHog`
     /// does not become ready.
     pub async fn new() -> Result<Arc<Self>, Box<dyn std::error::Error>> {
         info!("Creating new MailHog SMTP test container");
@@ -201,7 +201,7 @@ impl TestSmtp {
     ///
     /// # Errors
     ///
-    /// Returns an error if the MailHog API request or JSON parse fails.
+    /// Returns an error if the `MailHog` API request or JSON parse fails.
     pub async fn get_emails(&self) -> Result<Vec<TestEmail>, Box<dyn std::error::Error>> {
         let api_url = format!("http://{}:{}/api/v1/messages", self.host, self.api_port);
 
@@ -257,7 +257,7 @@ impl TestSmtp {
     ///
     /// # Errors
     ///
-    /// Returns an error if the MailHog delete request fails.
+    /// Returns an error if the `MailHog` delete request fails.
     pub async fn clear_emails(&self) -> Result<(), Box<dyn std::error::Error>> {
         let api_url = format!("http://{}:{}/api/v1/messages", self.host, self.api_port);
         self.client.delete(&api_url).send().await?;

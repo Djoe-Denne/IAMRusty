@@ -7,7 +7,7 @@ use rustycog::permission::Permission;
 use serial_test::serial;
 use uuid::Uuid;
 
-fn project_resource(project_id: Uuid) -> rustycog::permission::ResourceRef {
+const fn project_resource(project_id: Uuid) -> rustycog::permission::ResourceRef {
     rustycog::permission::ResourceRef::new("project", project_id)
 }
 

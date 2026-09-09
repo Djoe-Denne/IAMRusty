@@ -5,14 +5,14 @@ use manifesto_application::{ApplicationError, OrgScopeLookup};
 use rustycog::permission::{OpenFgaPermissionChecker, RelationshipTuple};
 use uuid::Uuid;
 
-/// Resolves org viewer/admin scopes from stored OpenFGA tuples.
+/// Resolves org viewer/admin scopes from stored `OpenFGA` tuples.
 pub struct OpenFgaOrgScopeLookup {
     checker: OpenFgaPermissionChecker,
 }
 
 impl OpenFgaOrgScopeLookup {
     #[must_use]
-    pub fn new(checker: OpenFgaPermissionChecker) -> Self {
+    pub const fn new(checker: OpenFgaPermissionChecker) -> Self {
         Self { checker }
     }
 

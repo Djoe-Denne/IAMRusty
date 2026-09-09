@@ -270,7 +270,6 @@ fn translate_event(event: &ManifestoDomainEvent) -> TupleDelta {
         ManifestoDomainEvent::MemberPermissionsUpdated(evt) => {
             member_permissions_updated_delta(evt)
         }
-        ManifestoDomainEvent::ProjectPublished(_) => TupleDelta::default(),
         ManifestoDomainEvent::ProjectVisibilityChanged(evt) => {
             project_visibility_changed_delta(evt)
         }
@@ -287,7 +286,8 @@ fn translate_event(event: &ManifestoDomainEvent) -> TupleDelta {
             }
             d
         }
-        ManifestoDomainEvent::ProjectUpdated(_)
+        ManifestoDomainEvent::ProjectPublished(_)
+        | ManifestoDomainEvent::ProjectUpdated(_)
         | ManifestoDomainEvent::ComponentStatusChanged(_) => TupleDelta::default(),
     }
 }

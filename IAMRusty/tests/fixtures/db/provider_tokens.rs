@@ -78,13 +78,13 @@ impl ProviderTokenFixtureBuilder {
     }
 
     /// Set an explicit `expires_in` value
-    pub fn with_expires_in(mut self, expires_in: i32) -> Self {
+    pub const fn with_expires_in(mut self, expires_in: i32) -> Self {
         self.expires_in = OptionalField::Set(Some(expires_in));
         self
     }
 
     /// Persist a NULL `expires_in`
-    pub fn clear_expires_in(mut self) -> Self {
+    pub const fn clear_expires_in(mut self) -> Self {
         self.expires_in = OptionalField::Set(None);
         self
     }

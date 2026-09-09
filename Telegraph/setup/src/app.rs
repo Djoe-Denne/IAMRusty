@@ -50,11 +50,8 @@ impl TelegraphApp {
     /// # Errors
     ///
     /// Returns an error when the email adapter, database pool, template service,
-    /// event consumer, auth extractor, or `OpenFGA` checker cannot be initialized.
-    ///
-    /// # Panics
-    ///
-    /// Panics if a configured event name is missing from `event_configs`.
+    /// event consumer, auth extractor, or `OpenFGA` checker cannot be initialized,
+    /// or when a configured event name is missing from `event_configs`.
     pub async fn new(config: TelegraphConfig) -> Result<Self, anyhow::Error> {
         info!("Starting Telegraph service and initializing components");
 
@@ -75,7 +72,7 @@ impl TelegraphApp {
             setup_notification_service(&db_pool, &config).await?;
         let communication_factory = setup_communication_factory(&config)?;
         let event_handler_config = EventHandlerConfig {
-            event_mapping: setup_event_mapping(&config),
+            event_mapping: setup_event_mapping(&config)?,
         };
 
         let domain_event_processor: Arc<dyn EventProcessor> =
@@ -320,24 +317,30 @@ fn setup_communication_factory(
 
 /// Build event-name → communication-modes from queue config.
 ///
-/// # Panics
+/// # Errors
 ///
-/// Panics if a configured event name is missing from `event_configs`.
-fn setup_event_mapping(config: &TelegraphConfig) -> HashMap<String, Vec<String>> {
+/// Returns an error if a configured event name is missing from `event_configs`.
+fn setup_event_mapping(
+    config: &TelegraphConfig,
+) -> Result<HashMap<String, Vec<String>>, anyhow::Error> {
     let mut event_mapping = HashMap::new();
     for event_config in config.queues.values() {
         for event_name in &event_config.events {
             let modes = event_config
                 .event_configs
                 .get(event_name)
-                .expect("configured event name missing from event_configs")
+                .ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "configured event name `{event_name}` missing from event_configs"
+                    )
+                })?
                 .modes
                 .clone();
             info!("Adding event mapping for event: {event_name} with modes: {modes:?}");
             event_mapping.insert(event_name.clone(), modes);
         }
     }
-    event_mapping
+    Ok(event_mapping)
 }
 
 fn setup_permission_checker(

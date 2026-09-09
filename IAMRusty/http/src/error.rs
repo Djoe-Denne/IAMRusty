@@ -389,7 +389,7 @@ fn map_command_error(cmd_error: CommandError) -> (StatusCode, String, String) {
     }
 }
 
-fn map_user_error(user_error: UserError) -> (StatusCode, String, String) {
+fn map_user_error(user_error: &UserError) -> (StatusCode, String, String) {
     match user_error {
         UserError::RepositoryError(_) => (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -420,7 +420,7 @@ fn map_user_error(user_error: UserError) -> (StatusCode, String, String) {
     }
 }
 
-fn map_token_error(token_error: TokenError) -> (StatusCode, String, String) {
+fn map_token_error(token_error: &TokenError) -> (StatusCode, String, String) {
     match token_error {
         TokenError::RepositoryError(_) => (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -460,8 +460,8 @@ impl IntoResponse for ApiError {
             | Self::Token(TokenError::DomainError(domain_error)) => {
                 return Self::Domain(domain_error).into_response();
             }
-            Self::User(user_error) => map_user_error(user_error),
-            Self::Token(token_error) => map_token_error(token_error),
+            Self::User(user_error) => map_user_error(&user_error),
+            Self::Token(token_error) => map_token_error(&token_error),
             Self::AuthenticationRequired => (
                 StatusCode::UNAUTHORIZED,
                 "authentication_required".into(),

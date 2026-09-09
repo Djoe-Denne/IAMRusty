@@ -20,20 +20,15 @@
     },
     "serena": {
       "type": "stdio",
-      "command": "C:\\Users\\djden\\.cargo\\bin\\uvx.exe",
+      "command": "powershell.exe",
       "args": [
-        "--from",
-        "serena-agent==1.7.0",
-        "serena",
-        "start-mcp-server",
-        "--context",
-        "ide",
-        "--mode",
-        "no-onboarding",
-        "--project",
-        "${workspaceFolder}",
-        "--transport",
-        "stdio"
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "C:\\Users\\djden\\.config\\1mcp\\serena-proxy.ps1",
+        "-ProjectPath",
+        "C:\\Users\\djden\\source\\repos\\AIForAll"
       ]
     }
   }

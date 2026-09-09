@@ -11,7 +11,7 @@ use rustycog::permission::{Permission, PermissionChecker, ResourceRef, Subject};
 
 use crate::ApplicationError;
 
-pub(crate) fn allows_world_read(project: &Project) -> bool {
+pub const fn allows_world_read(project: &Project) -> bool {
     matches!(project.visibility, Visibility::Public)
         && matches!(project.status, ProjectStatus::Draft | ProjectStatus::Active)
 }
@@ -20,14 +20,14 @@ fn permission_denied(message: &str) -> ApplicationError {
     ApplicationError::from(DomainError::permission_denied(message))
 }
 
-/// Fail-closed world-read gate used after OpenFGA middleware.
+/// Fail-closed world-read gate used after `OpenFGA` middleware.
 ///
 /// # Errors
 ///
 /// Returns [`ApplicationError`] when the project is not world-readable and the
 /// caller is not the owner, a project member, an organization reader on an
 /// Internal org-owned project, or an organization admin on a private one.
-pub(crate) async fn enforce_world_read_or_principal(
+pub async fn enforce_world_read_or_principal(
     project: &Project,
     user_id: Option<Uuid>,
     member_service: &Arc<dyn MemberService>,

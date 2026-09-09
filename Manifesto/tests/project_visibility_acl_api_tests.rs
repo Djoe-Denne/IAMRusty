@@ -1,4 +1,4 @@
-//! HTTP + real OpenFGA coverage for public-read vs publish vs visibility flips.
+//! HTTP + real `OpenFGA` coverage for public-read vs publish vs visibility flips.
 //!
 //! Manifesto does not write tuples itself — `sentinel-sync` does. These tests
 //! therefore (1) assert the store stays free of `viewer@user:*` after create /
@@ -21,7 +21,7 @@ fn create_test_jwt_token(user_id: Uuid) -> String {
     rustycog::testing::http::jwt::create_jwt_token(user_id)
 }
 
-fn project_resource(project_id: Uuid) -> ResourceRef {
+const fn project_resource(project_id: Uuid) -> ResourceRef {
     ResourceRef::new("project", project_id)
 }
 

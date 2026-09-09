@@ -16,7 +16,7 @@ fn create_test_jwt_token(user_id: Uuid) -> String {
     rustycog::testing::http::jwt::create_jwt_token(user_id)
 }
 
-fn project_resource(project_id: Uuid) -> ResourceRef {
+const fn project_resource(project_id: Uuid) -> ResourceRef {
     ResourceRef::new("project", project_id)
 }
 
