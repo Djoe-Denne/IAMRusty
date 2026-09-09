@@ -9,6 +9,7 @@ use reqwest::{Client, StatusCode};
 use serde_json::{json, Value};
 use serial_test::serial;
 use std::sync::Arc;
+use std::time::Duration;
 use uuid::Uuid;
 
 use fixtures::DbFixtures;
@@ -74,6 +75,26 @@ async fn setup_sqs_test_server() -> Result<(TestFixture, String, Client), Box<dy
 {
     enable_sqs_for_this_test_binary();
 
+    let mut last_error: Option<String> = None;
+    for _ in 1..=3 {
+        match try_setup_sqs_test_server().await {
+            Ok(result) => return Ok(result),
+            Err(error) => {
+                last_error = Some(error.to_string());
+                tokio::time::sleep(Duration::from_secs(2)).await;
+            }
+        }
+    }
+
+    Err(format!(
+        "failed to setup IAM SQS test server: {}",
+        last_error.unwrap_or_else(|| "unknown error".to_string())
+    )
+    .into())
+}
+
+async fn try_setup_sqs_test_server(
+) -> Result<(TestFixture, String, Client), Box<dyn std::error::Error>> {
     let descriptor = Arc::new(IamSqsTestDescriptor);
     let fixture = TestFixture::new(descriptor.clone()).await?;
     let (server_url, client) =

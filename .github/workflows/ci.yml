@@ -190,6 +190,9 @@ jobs:
           docker version
           docker info
 
+      - name: Pull LocalStack
+        run: docker pull localstack/localstack:3.0.2
+
       - name: Run integration tests (tests/) with coverage
         run: |
           set +e
