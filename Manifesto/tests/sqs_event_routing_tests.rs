@@ -304,30 +304,26 @@ async fn routes_join_project_member_added_to_sentinel_sync_queue() {
     let (fixture, base_url, client) = setup_sqs_test_server()
         .await
         .expect("failed to setup Manifesto SQS test server");
-    clear_routing_queues(&fixture).await;
-
+    let db = fixture.db();
     let owner_id = Uuid::new_v4();
     let joiner_id = Uuid::new_v4();
-    let owner_jwt = create_test_jwt_token(owner_id);
     let joiner_jwt = create_test_jwt_token(joiner_id);
 
-    let created = client
-        .post(format!("{base_url}/api/projects"))
-        .header("Authorization", format!("Bearer {owner_jwt}"))
-        .header("Content-Type", "application/json")
-        .json(&json!({
-            "name": "SQS Join Public",
-            "owner_type": "personal",
-            "visibility": "public"
-        }))
-        .send()
+    // Join requires public + active. HTTP create leaves status=draft.
+    let project = DbFixtures::project()
+        .personal(owner_id)
+        .public()
+        .active()
+        .name("SQS Join Public")
+        .commit(db.clone())
         .await
-        .expect("create public");
-    assert_eq!(created.status(), StatusCode::CREATED);
-    let body: Value = created.json().await.expect("create body");
-    let project_id = body["id"].as_str().expect("id").to_string();
-
-    let _created_event = wait_for_single_event(&fixture, "project_created").await;
+        .expect("public active project");
+    DbFixtures::member()
+        .owner(project.id(), owner_id)
+        .commit(db)
+        .await
+        .expect("owner member");
+    let project_id = project.id();
     clear_routing_queues(&fixture).await;
 
     let join = client
@@ -340,7 +336,11 @@ async fn routes_join_project_member_added_to_sentinel_sync_queue() {
 
     let event = wait_for_single_event(&fixture, "member_added").await;
     let expected_joiner = joiner_id.to_string();
-    assert_eq!(event["aggregate_id"].as_str(), Some(project_id.as_str()));
+    let expected_project = project_id.to_string();
+    assert_eq!(
+        event["aggregate_id"].as_str(),
+        Some(expected_project.as_str())
+    );
     assert_eq!(
         event_payload(&event)["user_id"].as_str(),
         Some(expected_joiner.as_str())
