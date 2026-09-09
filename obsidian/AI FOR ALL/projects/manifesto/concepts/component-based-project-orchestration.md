@@ -4,19 +4,19 @@ title: >-
 category: concepts
 tags: [projects, components, orchestration, visibility/internal]
 sources:
+  - "C:/Users/djden/.codex/attachments/486d0052-5759-4277-bcc1-9f209ce353d4/pasted-text.txt"
   - Manifesto/README.md
   - Manifesto/IMPLEMENTATION_STATUS.md
   - Manifesto/setup/src/app.rs
   - Manifesto/application/src/usecase/component.rs
   - Manifesto/infra/src/adapters/component_service_client.rs
-summary: >-
-  Projects are modeled as orchestration shells over component services; the live MVP demonstrates attachment and lifecycle flows, while registry and impersonation ideas remain partly blueprint-level.
+summary: "Orchestration actuelle de ProjectComponent, distincte de la future plateforme Apparatus documentée avec bindings, Factory et contrôleur."
 provenance:
-  extracted: 0.70
-  inferred: 0.11
-  ambiguous: 0.19
+  extracted: 0.75
+  inferred: 0.23
+  ambiguous: 0.02
 created: 2026-04-14T16:54:59.5971424Z
-updated: 2026-04-19T11:49:06.1450368Z
+updated: 2026-09-09T17:50:00Z
 ---
 
 # Component-Based Project Orchestration
@@ -32,6 +32,12 @@ The project-service architecture described for `[[projects/manifesto/manifesto]]
 - `README.md` and `IMPLEMENTATION_STATUS.md` still describe a broader registry, impersonation, and cascading model, but the repo no longer contains the referenced `docs/project/Archi.md` file that would have defined that architecture in detail. Conflict to resolve. ^[ambiguous]
 - The current code and implementation-status docs show a project/component/member MVP with real CRUD, permission checks, and migrations, but they do not demonstrate Redis-backed discovery or signed impersonation tokens in the live runtime. Conflict to resolve. ^[ambiguous]
 - In practice, Manifesto already acts as the orchestration shell for project records and component attachments, while the broader component ecosystem remains partly blueprint-level. ^[inferred]
+
+## Apparatus — évolution proposée
+
+Le document utilisateur du 9 septembre 2026 précise une cible, pas une description de fonctionnalités livrées. [[projects/manifesto/references/apparatus-source-reconciliation]] confirme le socle d’attachement/ACL/statuts et l’absence de Factory, registry versionné, contrôleur de workloads et host UI.
+
+[[projects/manifesto/concepts/apparatus-platform]] remplace les anciennes pistes vagues de registry/impersonation par une proposition explicite : catalogue métier, release immuable, binding et runtime séparés, gateway de capacités sans bearer IAM exposé. Le lifecycle proposé possède ses propres générations/opérations et conserve l’ancre `ProjectComponent` en V1. ^[inferred]
 
 ## Open Questions
 

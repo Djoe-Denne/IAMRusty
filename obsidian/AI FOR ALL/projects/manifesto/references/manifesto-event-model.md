@@ -3,22 +3,20 @@ title: Manifesto Event Model
 category: references
 tags: [reference, events, projects, visibility/internal]
 sources:
+  - "C:/Users/djden/.codex/attachments/486d0052-5759-4277-bcc1-9f209ce353d4/pasted-text.txt"
   - Manifesto/setup/src/app.rs
   - Manifesto/application/src/usecase/project.rs
   - Manifesto/application/src/usecase/component.rs
   - Manifesto/application/src/usecase/member.rs
   - Manifesto/infra/src/event/consumer.rs
   - Manifesto/infra/src/event/processors/component_processor.rs
-summary: >-
-  Manifesto publishes domain events from application flows. AuthZ mutation
-  paths write outbox rows in the same UoW as the row change; inbound apparatus
-  status still reconciles stored component state.
+summary: "Événements/outbox et consumer Apparatus actuels, distincts du futur lifecycle versionné de bindings avec générations et opérations."
 provenance:
-  extracted: 0.89
-  inferred: 0.07
-  ambiguous: 0.04
+  extracted: 0.75
+  inferred: 0.23
+  ambiguous: 0.02
 created: 2026-04-14T20:25:00Z
-updated: 2026-09-09T16:45:00Z
+updated: 2026-09-09T17:50:00Z
 ---
 
 # Manifesto Event Model
@@ -47,6 +45,12 @@ updated: 2026-09-09T16:45:00Z
 - Checked-in `default`, `development`, and `test` configs all disable queues.
 - That means local/test boots use no-op publisher/consumer behavior unless queue settings are explicitly overridden.
 - Focused runtime tests also cover the enabled-config path falling back to a safe no-op consumer when no broker fixture is present.
+
+## Apparatus — contrat de lifecycle futur
+
+Le consumer courant cible `project_id + component_type` et compare les statuts ; il ne dispose pas de `binding_id`, de génération runtime ni d’un contrôleur de provisioning. Le dossier [[projects/manifesto/concepts/apparatus-bindings-and-lifecycle]] prévoit des événements distincts, versionnés et authentifiés par leur frontière de transport, avec réconciliation depuis la DB. ^[inferred]
+
+Conserver `ComponentAdded`/`ComponentRemoved` pour les ACL et sentinel-sync, et l’outbox transactionnelle. Une phase runtime ne change pas les droits. La génération runtime ne remplace pas la révision AuthZ monotone du projet. Le consumer legacy doit être exclu des nouveaux bindings managed pour éviter une observation ancienne les réactivant. ^[inferred]
 
 ## Open Questions
 

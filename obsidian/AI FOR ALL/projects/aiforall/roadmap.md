@@ -2,11 +2,16 @@
 title: AIForAll Roadmap
 category: roadmap
 tags: [platform, testing, database, events, visibility/internal]
-summary: >-
-  Platform roadmap plus 2026-08 progress: rustycog submodule, Sonar campaigns, architecture reviews, readiness signaling, JWT unification still open.
+summary: "Roadmap AIForAll : fiabilité des services actuels et future plateforme Apparatus, avec migration, runtime isolé, Factory et UI."
 status: in-progress
 created: 2026-04-25T11:42:00Z
-updated: 2026-08-31T13:30:00Z
+updated: 2026-09-09T17:50:00Z
+sources:
+  - "C:/Users/djden/.codex/attachments/486d0052-5759-4277-bcc1-9f209ce353d4/pasted-text.txt"
+provenance:
+  extracted: 0.75
+  inferred: 0.25
+  ambiguous: 0.0
 ---
 
 # AIForAll Roadmap
@@ -114,6 +119,16 @@ Not on the April list, but now load-bearing:
 - **JWT unification:** HS256 consumers vs RS256 issuer still open — [[projects/aiforall/concepts/jwt-issuer-vs-consumer]].
 - **Hive route/registry:** live routes must match `create_hive_registry` — [[projects/hive/concepts/command-registry-route-parity]].
 - **Partial updates:** `FieldUpdate` / `OptionalField` instead of `Option<Option<T>>` — [[concepts/optional-field-update]].
+
+## Future feature — Apparatus platform
+
+La demande du 9 septembre 2026 ajoute une plateforme d’extensions Rust et UI statiques, officielles ou communautaires, construites depuis Git et distribuées par artifacts immuables. Le dossier [[projects/manifesto/concepts/apparatus-platform]] l’inscrit comme **fonctionnalité future**, sans changer le statut des chantiers existants.
+
+Le dépôt possède déjà `ProjectComponent`, les ACL et l’outbox utiles à une migration ; il ne possède pas encore la Factory, le contrôleur Apparatus ou le host UI. Les écarts sont consignés dans [[projects/manifesto/references/apparatus-source-reconciliation]].
+
+Ordre proposé : contrats et Apparatus de référence → persistance/catalogue/migration additive → reconciler testé → capacités/identité/stockage → Factory et runtime Kubernetes → host UI/parcours complet → qualification communautaire. V1 managed avec isolation par projet, digest figé et consentement explicite. Les modes mutualisés, SaaS externes, WASI et scale-to-zero restent ultérieurs. ^[inferred]
+
+Critère de sortie : soumettre un commit, construire une release, installer un binding autorisé, utiliser son UI puis le révoquer/supprimer avec preuves d’isolation et reprise après panne. Phases, tests et arbitrages : [[projects/manifesto/references/apparatus-implementation-plan]]. ^[inferred]
 
 ## Related Notes
 

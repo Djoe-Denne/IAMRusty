@@ -4,6 +4,7 @@ title: >-
 category: project
 tags: [projects, orchestration, blueprint, visibility/internal]
 sources:
+  - "C:/Users/djden/.codex/attachments/486d0052-5759-4277-bcc1-9f209ce353d4/pasted-text.txt"
   - Manifesto/README.md
   - Manifesto/SETUP.md
   - Manifesto/IMPLEMENTATION_STATUS.md
@@ -16,14 +17,13 @@ sources:
   - Manifesto/docs/rustycog-service-build-guide.md
   - Manifesto/docs/rustycog-hexagonal-web-service-guide.md
   - Manifesto/docs/rustycog-implementation-and-usage-guide.md
-summary: >-
-  Manifesto is AIForAll's project-service: org-owned visibility, public join as Direct/read, immediate membership ACL, and OpenFGA grants via sentinel-sync.
+summary: "Manifesto : service projet actuel, ACL et composants ; dossier Apparatus futur avec migration des bindings, Factory, isolation et host UI."
 provenance:
-  extracted: 0.82
-  inferred: 0.12
-  ambiguous: 0.06
+  extracted: 0.75
+  inferred: 0.23
+  ambiguous: 0.02
 created: 2026-04-14T16:54:59.5971424Z
-updated: 2026-09-09T16:45:00Z
+updated: 2026-09-09T17:50:00Z
 ---
 
 # Manifesto
@@ -57,6 +57,12 @@ Manifesto is the project-management service for AIForAll. Use `[[projects/rustyc
 - Partial project/member/component writes use [[concepts/optional-field-update]] (`FieldUpdate::Unchanged` vs `Set`) instead of nested `Option`.
 - Manifesto remains the golden-path scaffold in [[concepts/architecture-coherence-across-services]], except for hand-rolled logging.
 
+## Apparatus — fonctionnalité future
+
+Le dossier [[projects/manifesto/concepts/apparatus-platform]] décrit la plateforme d’extensions souhaitée, confrontée au dépôt du 9 septembre 2026. Le code actuel offre `ProjectComponent`, un client catalogue HTTP et un consumer de statuts ; il n’offre pas encore la Factory Git/OCI, le contrôleur de workloads ou le host UI.
+
+La migration proposée conserve les UUID et les droits `component:{id}`, ajoute le binding en relation 1:1 et sépare son desired state des observations runtime. Le catalogue métier reste dans Manifesto ; l’exécution tiers et les workers privilégiés sont isolés. Voir [[projects/manifesto/concepts/apparatus-bindings-and-lifecycle]] et [[projects/manifesto/references/apparatus-implementation-plan]]. ^[inferred]
+
 ## Related
 
 - [[projects/rustycog/references/index]] - Canonical shared framework map that the service pages below build on.
@@ -77,7 +83,7 @@ Manifesto is the project-management service for AIForAll. Use `[[projects/rustyc
 ## Open Questions
 
 - Later work: L-PARTNERSHIP remains open on [[projects/manifesto/concepts/org-owned-visibility-and-participation-limits]]. Join, Internal, immediate ACL, and restore/CAS shipped 2026-09.
-- When Manifesto eventually exposes richer component provisioning, should that happen through the existing component catalog boundary or through a separate runtime handoff flow?
+- Apparatus provisioning fait désormais l’objet d’une proposition dédiée : [[projects/manifesto/concepts/apparatus-platform]]. Les arbitrages encore ouverts sont listés dans son plan d’implémentation.
 - If queue-backed operation becomes more common outside local/test, should the checked-in config examples start surfacing explicit broker settings?
 
 ## Sources

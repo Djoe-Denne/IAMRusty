@@ -3,6 +3,7 @@ title: Manifesto Entity Model
 category: references
 tags: [reference, entities, projects, visibility/internal]
 sources:
+  - "C:/Users/djden/.codex/attachments/486d0052-5759-4277-bcc1-9f209ce353d4/pasted-text.txt"
   - Manifesto/domain/src/entity/project.rs
   - Manifesto/domain/src/entity/project_component.rs
   - Manifesto/domain/src/entity/project_member.rs
@@ -10,13 +11,13 @@ sources:
   - Manifesto/domain/src/entity/resource.rs
   - Manifesto/domain/src/entity/role_permission.rs
   - Manifesto/domain/src/entity/project_member_role_permission.rs
-summary: Inventory of Manifesto's project, component, membership, and project-scoped RBAC entities.
+summary: "Entités actuelles de Manifesto et distinction avec les futurs Apparatus, releases, bindings 1:1, opérations et instances runtime."
 provenance:
-  extracted: 0.85
-  inferred: 0.08
-  ambiguous: 0.07
+  extracted: 0.75
+  inferred: 0.23
+  ambiguous: 0.02
 created: 2026-04-14T20:28:20.9129598Z
-updated: 2026-09-02T18:00:00Z
+updated: 2026-09-09T17:50:00Z
 ---
 
 # Manifesto Entity Model
@@ -30,6 +31,12 @@ This page lists the main entities `[[projects/manifesto/manifesto]]` owns in its
 - `ProjectMember` stores user membership, source of addition, removal state, last access, and project-scoped permissions. `MemberSource` includes `OrgCascade` and `Invitation`, but live writes use `Direct` only.
 - `Permission`, `Resource`, `RolePermission`, and `ProjectMemberRolePermission` mirror a project-scoped RBAC model beneath the project aggregate.
 - Compared with Hive, Manifesto repeats the same broad authorization pattern at project scope instead of organization scope. ^[inferred]
+
+## Entités Apparatus futures
+
+`Apparatus`, `Release`, `ProjectApparatusBinding`, `Operation` et `Instance` sont des entités proposées dans [[projects/manifesto/concepts/apparatus-bindings-and-lifecycle]], absentes du modèle actuel. La V1 ajoute un binding 1:1 à `ProjectComponent`, conserve son UUID/ACL et maintient une installation par type canonique et projet. ^[inferred]
+
+La release fournit le digest ; le binding exprime l’intention ; l’instance représente l’exécution. Le projet ne possède pas directement un pod. Le backfill historique ne doit pas créer de workload sans résolution de release et consentement. ^[inferred]
 
 ## Open Questions
 

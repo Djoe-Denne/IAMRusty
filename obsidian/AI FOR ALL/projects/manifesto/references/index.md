@@ -2,13 +2,14 @@
 title: Manifesto References Index
 category: navigation
 tags: [index, references, projects]
-summary: >-
-  Manifesto-owned reference pages that assume RustyCog for shared runtime mechanics and keep only the service-specific deltas.
+summary: "Références du service Manifesto actuel et dossier futur Apparatus : audit, Factory, protocoles UI/backend et plan de livraison."
 provenance:
-  extracted: 0.92
-  inferred: 0.06
+  extracted: 0.75
+  inferred: 0.23
   ambiguous: 0.02
-updated: 2026-09-09T16:45:00Z
+updated: 2026-09-09T17:50:00Z
+sources:
+  - "C:/Users/djden/.codex/attachments/486d0052-5759-4277-bcc1-9f209ce353d4/pasted-text.txt"
 ---
 
 # Manifesto References
@@ -21,6 +22,13 @@ Use `[[projects/rustycog/references/index]]` for shared command, config, HTTP, p
 - [[projects/manifesto/references/manifesto-api-and-permission-flows]]
 - [[projects/manifesto/references/manifesto-event-model]]
 - [[projects/manifesto/references/manifesto-testing-and-fixtures]]
+
+## Apparatus — références de conception future
+
+- [[projects/manifesto/references/apparatus-source-reconciliation]] — document confronté au code et provenance.
+- [[projects/manifesto/references/apparatus-factory-and-distribution]] — manifeste, builders et OCI.
+- [[projects/manifesto/references/apparatus-ui-and-protocol]] — host, SDK et conformance.
+- [[projects/manifesto/references/apparatus-implementation-plan]] — migration, phases et décisions ouvertes.
 
 ## See Also
 

@@ -2,14 +2,14 @@
 title: Wiki Index
 category: navigation
 tags: [index, navigation, wiki]
-summary: >-
-  Central vault entry point with Manifesto AuthZ correction notes (2026-09-09)
-  and rustycog pin-on-main.
+summary: "Index du wiki AIForAll : services actuels, corrections AuthZ et dossier Apparatus comme fonctionnalité future."
 provenance:
-  extracted: 0.9
-  inferred: 0.08
+  extracted: 0.75
+  inferred: 0.23
   ambiguous: 0.02
-updated: 2026-09-09T16:45:00Z
+updated: 2026-09-09T17:50:00Z
+sources:
+  - "C:/Users/djden/.codex/attachments/486d0052-5759-4277-bcc1-9f209ce353d4/pasted-text.txt"
 ---
 
 # Wiki Index
@@ -34,6 +34,12 @@ Central entry point for this vault. Use the area indexes for full catalogs; use 
 - [[projects/manifesto/manifesto]] — project-service MVP and RustyCog blueprint
 - [[projects/rustycog/rustycog]] — shared Rust SDK (crate map: [[projects/rustycog/references/index]])
 - [[projects/sentinel-sync/sentinel-sync]] — centralized OpenFGA authorization and the sync worker
+
+## Fonctionnalité future — Apparatus
+
+- [[projects/manifesto/concepts/apparatus-platform]] — vision et décisions proposées, distinctes de l’existant.
+- [[projects/manifesto/references/apparatus-source-reconciliation]] — audit du dépôt et écarts avec le document utilisateur.
+- [[projects/manifesto/references/apparatus-implementation-plan]] — migration, étapes et critères d’acceptation.
 
 ## Recent Additions
 

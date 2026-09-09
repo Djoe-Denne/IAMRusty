@@ -3,6 +3,7 @@ title: Component-Instance Permissions
 category: concepts
 tags: [permissions, components, projects, openfga, visibility/internal]
 sources:
+  - "C:/Users/djden/.codex/attachments/486d0052-5759-4277-bcc1-9f209ce353d4/pasted-text.txt"
   - Manifesto/http/src/lib.rs
   - Manifesto/application/src/usecase/component.rs
   - Manifesto/application/src/usecase/member.rs
@@ -10,14 +11,13 @@ sources:
   - openfga/model.fga
   - sentinel-sync/src/translator/manifesto.rs
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/11c01523-bb74-444a-ac31-44384d63de7d/11c01523-bb74-444a-ac31-44384d63de7d.jsonl
-summary: >-
-  Generic component grants live on the project as component_editor/viewer. Instances inherit those, not project.member. Per-instance tuples attach to component:{id}.
+summary: "ACL génériques et par instance component ; la future couche de capacités Apparatus conserve ces identités et ajoute le consentement."
 provenance:
-  extracted: 0.88
-  inferred: 0.10
+  extracted: 0.75
+  inferred: 0.23
   ambiguous: 0.02
 created: 2026-04-20T00:00:00Z
-updated: 2026-09-09T16:45:00Z
+updated: 2026-09-09T17:50:00Z
 ---
 
 # Component-Instance Permissions
@@ -46,6 +46,12 @@ See [[projects/sentinel-sync/references/event-to-tuple-mapping]]. Component-spec
 ## HTTP vs graph
 
 Component routes still often use `with_permission_on(_, "project")` because the deepest UUID in the path may be the project id. Instance ACL is enforced in the use case (`caller_can_read_component`): owner, generic component grant, exact UUID grant, org admin, or world-readable public+active. Leftover FGA without an active member does not grant mutation ([[projects/manifesto/concepts/immediate-membership-acl]]).
+
+## Apparatus — droits futurs
+
+La proposition [[projects/manifesto/concepts/apparatus-bindings-and-lifecycle]] conserve `binding_id == component_id` et `component:{id}` via une extension 1:1. Les événements de phase runtime ne créent ni ne suppriment de tuples ; les événements ownership existants conservent leur rôle. ^[inferred]
+
+Les capacités du manifeste et le consentement d’installation ajoutent une restriction ; ils ne remplacent ni l’ACL d’instance ni la gate DB de membre actif. La lecture publique actuelle des composants ne doit pas exposer implicitement le stockage, les secrets ou l’invoke du futur plugin. Voir [[projects/manifesto/concepts/apparatus-capabilities-and-isolation]]. ^[inferred]
 
 ## Related
 

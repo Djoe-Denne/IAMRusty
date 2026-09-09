@@ -2,13 +2,14 @@
 title: Manifesto Concepts Index
 category: navigation
 tags: [index, concepts, projects]
-summary: >-
-  Manifesto concept pages: orchestration, visibility/join, immediate ACL, restore/CAS, and component grants.
+summary: "Concepts Manifesto : orchestration actuelle, ACL et droits, puis architecture future Apparatus, bindings et capacités."
 provenance:
-  extracted: 0.95
-  inferred: 0.05
-  ambiguous: 0.00
-updated: 2026-09-09T16:45:00Z
+  extracted: 0.75
+  inferred: 0.23
+  ambiguous: 0.02
+updated: 2026-09-09T17:50:00Z
+sources:
+  - "C:/Users/djden/.codex/attachments/486d0052-5759-4277-bcc1-9f209ce353d4/pasted-text.txt"
 ---
 
 # Manifesto Concepts
@@ -20,3 +21,9 @@ updated: 2026-09-09T16:45:00Z
 - [[projects/manifesto/concepts/membership-restore-and-cas]]
 - [[projects/manifesto/concepts/component-instance-permissions]]
 - [[projects/manifesto/concepts/component-catalog-and-fallback-adapter]]
+
+## Apparatus — propositions futures
+
+- [[projects/manifesto/concepts/apparatus-platform]] — vision et frontières.
+- [[projects/manifesto/concepts/apparatus-bindings-and-lifecycle]] — identités, migration et réconciliation.
+- [[projects/manifesto/concepts/apparatus-capabilities-and-isolation]] — identité, droits, réseau et données.

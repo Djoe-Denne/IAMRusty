@@ -4,6 +4,7 @@ title: >-
 category: references
 tags: [reference, configuration, projects, visibility/internal]
 sources:
+  - "C:/Users/djden/.codex/attachments/486d0052-5759-4277-bcc1-9f209ce353d4/pasted-text.txt"
   - Manifesto/src/main.rs
   - Manifesto/config/default.toml
   - Manifesto/config/development.toml
@@ -13,15 +14,13 @@ sources:
   - Manifesto/setup/src/config.rs
   - Manifesto/application/src/command/factory.rs
   - Manifesto/docs/rustycog-implementation-and-usage-guide.md
-summary: >-
-  Code-backed view of Manifesto's live config wiring after remediation: verified auth,
-  wired logging/retry/business knobs, explicit queue defaults, and component-service runtime settings.
+summary: "Configuration et queues actuelles de Manifesto ; Factory, contrôle Kubernetes et identité Apparatus restent des travaux futurs."
 provenance:
-  extracted: 0.88
-  inferred: 0.08
-  ambiguous: 0.04
+  extracted: 0.75
+  inferred: 0.23
+  ambiguous: 0.02
 created: 2026-04-19T11:49:06.1450368Z
-updated: 2026-04-19T18:00:00Z
+updated: 2026-09-09T17:50:00Z
 ---
 
 # Manifesto Runtime and Configuration
@@ -62,6 +61,12 @@ That is intentional. Local/test boots stay stable unless queue-backed behavior i
 - The checked-in TOML files still lean on defaults for some `service.component_service` and `service.business` values, but those defaults are now consumed by runtime rather than ignored.
 - Queue-backed publication and consumption are real features of the live runtime, just not enabled by default in local/test configs.
 - IAM still contains separate RS256-capable issuance code, but that is not part of the shared service-side verifier contract Manifesto currently relies on.
+
+## Apparatus — runtime futur
+
+Le consumer de statut actuel et les images/Compose locaux ne constituent pas un runtime de provisioning. [[projects/manifesto/references/apparatus-source-reconciliation]] distingue ces éléments de la Factory, du Registry et du contrôleur Kubernetes encore absents.
+
+La proposition [[projects/manifesto/concepts/apparatus-platform]] garde les API de contrôle compatibles standalone/monolithe, mais exécute les plugins hors processus. Contrôleur, leases, gateway, identité de workload, stockage et profils d’isolation nécessitent une configuration et une startup/shutdown propres. Les credentials utilisateurs et Kubernetes ne sont jamais copiés dans la configuration d’un plugin. ^[inferred]
 
 ## Open Questions
 

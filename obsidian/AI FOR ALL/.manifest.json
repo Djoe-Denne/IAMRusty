@@ -1,8 +1,8 @@
 {
   "version": 1,
   "stats": {
-    "total_sources_ingested": 212,
-    "total_pages": 146,
+    "total_sources_ingested": 213,
+    "total_pages": 160,
     "last_commit_synced": "68ac628"
   },
   "projects": {
@@ -19,6 +19,38 @@
     }
   },
   "sources": {
+    "C:/Users/djden/.codex/attachments/486d0052-5759-4277-bcc1-9f209ce353d4/pasted-text.txt": {
+      "ingested_at": "2026-09-09T18:05:29Z",
+      "size_bytes": 40912,
+      "modified_at": "2026-09-09T17:38:42.7105815Z",
+      "content_hash": "sha256:4c1f93d4ec2319babdc4c724ff90c09bdd66db0ff68193cb6374aa06f2385c13",
+      "source_type": "document",
+      "project": "manifesto",
+      "evidence_commit": "bbf236eee7b5be08477de3ed30d34c6ff280e81b",
+      "pages_created": [
+        "projects/manifesto/concepts/apparatus-platform.md",
+        "projects/manifesto/concepts/apparatus-bindings-and-lifecycle.md",
+        "projects/manifesto/concepts/apparatus-capabilities-and-isolation.md",
+        "projects/manifesto/references/apparatus-factory-and-distribution.md",
+        "projects/manifesto/references/apparatus-ui-and-protocol.md",
+        "projects/manifesto/references/apparatus-source-reconciliation.md",
+        "projects/manifesto/references/apparatus-implementation-plan.md"
+      ],
+      "pages_updated": [
+        "index.md",
+        "projects/manifesto/manifesto.md",
+        "projects/aiforall/roadmap.md",
+        "projects/manifesto/concepts/index.md",
+        "projects/manifesto/references/index.md",
+        "projects/manifesto/concepts/component-based-project-orchestration.md",
+        "projects/manifesto/concepts/component-catalog-and-fallback-adapter.md",
+        "projects/manifesto/concepts/component-instance-permissions.md",
+        "projects/manifesto/references/manifesto-event-model.md",
+        "projects/manifesto/references/manifesto-entity-model.md",
+        "projects/manifesto/references/manifesto-api-and-permission-flows.md",
+        "projects/manifesto/references/manifesto-runtime-and-configuration.md"
+      ]
+    },
     "IAMRusty/README.md": {
       "ingested_at": "2026-04-14T17:46:37.6929647Z",
       "size_bytes": 15874,
