@@ -97,19 +97,20 @@ fn list_access_condition(filters: &ProjectListFilters) -> Condition {
                     .add(project_members::Column::RemovedAt.is_null()),
             );
             if !filters.org_viewer_ids.is_empty() {
-                access = access.add(
-                    Condition::all()
-                        .add(projects::Column::OwnerType.eq(OwnerType::Organization.as_str()))
-                        .add(projects::Column::OwnerId.is_in(filters.org_viewer_ids.clone()))
-                        .add(projects::Column::Visibility.is_in([
-                            Visibility::Internal.as_str(),
-                            Visibility::Public.as_str(),
-                        ]))
-                        .add(projects::Column::Status.is_in([
-                            ProjectStatus::Draft.as_str(),
-                            ProjectStatus::Active.as_str(),
-                        ])),
-                );
+                access =
+                    access.add(
+                        Condition::all()
+                            .add(projects::Column::OwnerType.eq(OwnerType::Organization.as_str()))
+                            .add(projects::Column::OwnerId.is_in(filters.org_viewer_ids.clone()))
+                            .add(projects::Column::Visibility.is_in([
+                                Visibility::Internal.as_str(),
+                                Visibility::Public.as_str(),
+                            ]))
+                            .add(projects::Column::Status.is_in([
+                                ProjectStatus::Draft.as_str(),
+                                ProjectStatus::Active.as_str(),
+                            ])),
+                    );
             }
             if !filters.org_admin_ids.is_empty() {
                 access = access.add(

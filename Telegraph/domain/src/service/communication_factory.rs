@@ -47,16 +47,21 @@ impl CommunicationFactory {
 
         let email_desc = descriptor.email.ok_or_else(|| {
             DomainError::EventProcessingError(format!(
-                "No email configuration found for event type '{}'",
-                event.event_type
+                "No email configuration found for event type '{event_type}'",
+                event_type = event.event_type
             ))
         })?;
 
         // Extract variables from the event
-        let variables = self
+        let mut variables = self
             .event_extractor
             .extract_variables(event.event.as_ref())
             .await?;
+        if !email_desc.subject.is_empty() {
+            variables
+                .entry("subject".to_string())
+                .or_insert_with(|| email_desc.subject.clone());
+        }
 
         // Render the template using the template service
         let rendered_template = self
@@ -115,8 +120,8 @@ impl CommunicationFactory {
 
         let notification_desc = descriptor.notification.ok_or_else(|| {
             DomainError::EventProcessingError(format!(
-                "No notification configuration found for event type '{}'",
-                event.event_type
+                "No notification configuration found for event type '{event_type}'",
+                event_type = event.event_type
             ))
         })?;
 
@@ -217,8 +222,8 @@ impl CommunicationFactory {
 
         if communications.is_empty() {
             return Err(DomainError::EventProcessingError(format!(
-                "No valid communication configurations found for event type '{}'",
-                event.event_type
+                "No valid communication configurations found for event type '{event_type}'",
+                event_type = event.event_type
             )));
         }
 
@@ -240,8 +245,7 @@ impl CommunicationFactory {
 
         if !descriptor_path.exists() {
             return Err(DomainError::EventProcessingError(format!(
-                "Communication descriptor not found for event type '{}' at path '{}'",
-                event_type,
+                "Communication descriptor not found for event type '{event_type}' at path '{}'",
                 descriptor_path.display()
             )));
         }
@@ -250,17 +254,15 @@ impl CommunicationFactory {
             .await
             .map_err(|e| {
                 DomainError::EventProcessingError(format!(
-                    "Failed to read descriptor file '{}': {}",
-                    descriptor_path.display(),
-                    e
+                    "Failed to read descriptor file '{}': {e}",
+                    descriptor_path.display()
                 ))
             })?;
 
         let descriptor: CommunicationDescriptor = toml::from_str(&content).map_err(|e| {
             DomainError::EventProcessingError(format!(
-                "Failed to parse descriptor file '{}': {}",
-                descriptor_path.display(),
-                e
+                "Failed to parse descriptor file '{}': {e}",
+                descriptor_path.display()
             ))
         })?;
 

@@ -48,8 +48,8 @@ async fn create_external_link_happy_path() {
     // Act - call API
     let res = client
         .post(format!(
-            "{}/api/organizations/{}/external-links",
-            server_url, org.id
+            "{server_url}/api/organizations/{}/external-links",
+            org.id
         ))
         .header("Authorization", format!("Bearer {token}"))
         .json(&body)
@@ -92,8 +92,8 @@ async fn create_external_link_requires_auth() {
 
     let res = client
         .post(format!(
-            "{}/api/organizations/{}/external-links",
-            server_url, org.id
+            "{server_url}/api/organizations/{}/external-links",
+            org.id
         ))
         .json(&body)
         .send()
@@ -135,8 +135,8 @@ async fn create_external_link_forbidden_for_read_only_member() {
 
     let res = client
         .post(format!(
-            "{}/api/organizations/{}/external-links",
-            server_url, org.id
+            "{server_url}/api/organizations/{}/external-links",
+            org.id
         ))
         .header("Authorization", format!("Bearer {token}"))
         .json(&body)
@@ -144,4 +144,53 @@ async fn create_external_link_forbidden_for_read_only_member() {
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+#[serial]
+async fn create_external_link_rejects_invalid_payload_and_unknown_provider() {
+    let (fixture, server_url, client, openfga) = setup_test_server().await.unwrap();
+    let owner_id = Uuid::new_v4();
+    let token = create_jwt_token(owner_id);
+    let org = DbFixtures::create_org_with_owner(fixture.db().as_ref(), owner_id)
+        .await
+        .unwrap();
+    openfga
+        .allow(
+            Subject::new(owner_id),
+            Permission::Admin,
+            ResourceRef::new("organization", org.id),
+        )
+        .await
+        .expect("Failed to grant organization admin");
+
+    let invalid = client
+        .post(format!(
+            "{server_url}/api/organizations/{}/external-links",
+            org.id
+        ))
+        .header("Authorization", format!("Bearer {token}"))
+        .json(&serde_json::json!({"provider_config": {"org": "example"}}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(invalid.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    let _provider_mock = common::fixtures::ExternalProviderFixtures::service().await;
+    let unknown = client
+        .post(format!(
+            "{server_url}/api/organizations/{}/external-links",
+            org.id
+        ))
+        .header("Authorization", format!("Bearer {token}"))
+        .json(&serde_json::json!({
+            "provider_id": Uuid::new_v4(),
+            "provider_config": {"org": "example"},
+            "sync_enabled": true,
+            "sync_settings": {}
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert!(unknown.status().is_client_error() || unknown.status().is_server_error());
 }

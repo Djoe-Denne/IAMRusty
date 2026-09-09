@@ -315,16 +315,27 @@ impl OrganizationInvitationWriteRepositoryImpl {
     where
         C: ConnectionTrait,
     {
-        let active_model = OrganizationInvitationMapper::to_active_model(invitation);
+        let exists = OrganizationInvitations::find_by_id(invitation.id)
+            .one(db)
+            .await
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?
+            .is_some();
 
-        let result = active_model
-            .save(db)
+        let active_model = OrganizationInvitationMapper::to_active_model(invitation);
+        if exists {
+            let result = active_model
+                .save(db)
+                .await
+                .map_err(|e| DomainError::internal_error(&e.to_string()))?;
+            let saved_model = super::model_after_persist(result)?;
+            return OrganizationInvitationMapper::to_domain(saved_model);
+        }
+
+        let inserted = active_model
+            .insert(db)
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
-
-        let saved_model = super::model_after_persist(result)?;
-
-        OrganizationInvitationMapper::to_domain(saved_model)
+        OrganizationInvitationMapper::to_domain(inserted)
     }
 }
 

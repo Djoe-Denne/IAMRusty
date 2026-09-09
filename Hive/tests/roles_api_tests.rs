@@ -136,3 +136,45 @@ async fn a_role_from_another_organization_is_not_exposed_even_after_route_author
         .unwrap();
     assert!(response.status().is_server_error());
 }
+
+#[tokio::test]
+#[serial]
+async fn listing_roles_requires_auth_and_unknown_role_is_not_exposed() {
+    let (fixture, server_url, client, openfga) = setup_test_server().await.unwrap();
+    let owner_id = Uuid::new_v4();
+    let token = create_jwt_token(owner_id);
+    let organization = DbFixtures::create_org_with_owner(fixture.db().as_ref(), owner_id)
+        .await
+        .unwrap();
+
+    let unauthenticated = client
+        .get(format!(
+            "{server_url}/api/organizations/{}/roles",
+            organization.id
+        ))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(unauthenticated.status(), StatusCode::UNAUTHORIZED);
+
+    openfga
+        .allow(
+            Subject::new(owner_id),
+            Permission::Read,
+            ResourceRef::new("organization", organization.id),
+        )
+        .await
+        .expect("failed to grant read");
+
+    let missing = client
+        .get(format!(
+            "{server_url}/api/organizations/{}/roles/{}",
+            organization.id,
+            Uuid::new_v4()
+        ))
+        .header("Authorization", format!("Bearer {token}"))
+        .send()
+        .await
+        .unwrap();
+    assert!(missing.status().is_client_error() || missing.status().is_server_error());
+}

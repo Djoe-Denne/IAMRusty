@@ -2,41 +2,35 @@ use reqwest::StatusCode;
 use rustycog::testing::http::jwt::create_jwt_token;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serial_test::serial;
-use std::collections::HashMap;
 use uuid::Uuid;
 
+use hive_application::dto::member::{AddMemberRequest, MemberResponse, UpdateMemberRolesRequest};
+use hive_application::dto::role::{MemberRole, MemberRolePermission};
 use hive_infra::repository::entity::organization_members;
 
 mod common;
 use common::{fixtures::db::DbFixtures, setup_test_server, Permission, ResourceRef, Subject};
 
-fn read_role(organization_id: Uuid) -> serde_json::Value {
-    serde_json::json!({
-        "roles": [{
-            "organization_id": organization_id,
-            "resource": "organization",
-            "permissions": "Read"
-        }]
-    })
+fn write_roles(organization_id: Uuid) -> UpdateMemberRolesRequest {
+    UpdateMemberRolesRequest {
+        roles: vec![MemberRole {
+            organization_id,
+            resource: "organization".to_string(),
+            permissions: MemberRolePermission::Write,
+        }],
+    }
 }
 
 #[tokio::test]
 #[serial]
-async fn member_role_update_failure_is_exposed_without_losing_the_membership() {
+async fn member_role_update_happy_path_keeps_the_membership() {
     let (fixture, server_url, client, openfga) = setup_test_server().await.unwrap();
     let owner_id = Uuid::new_v4();
-    let member_id = Uuid::new_v4();
+    let member_user_id = Uuid::new_v4();
     let owner_token = create_jwt_token(owner_id);
-    let organization = DbFixtures::create_org(
-        fixture.db().as_ref(),
-        owner_id,
-        HashMap::from([
-            (owner_id.to_string(), "owner".to_string()),
-            (member_id.to_string(), "read".to_string()),
-        ]),
-    )
-    .await
-    .unwrap();
+    let organization = DbFixtures::create_org_with_owner(fixture.db().as_ref(), owner_id)
+        .await
+        .unwrap();
     openfga
         .allow(
             Subject::new(owner_id),
@@ -46,30 +40,49 @@ async fn member_role_update_failure_is_exposed_without_losing_the_membership() {
         .await
         .expect("failed to grant owner write");
 
-    let response = client
-        .patch(format!(
-            "{server_url}/api/organizations/{}/members/{member_id}",
+    let added = client
+        .post(format!(
+            "{server_url}/api/organizations/{}/members",
             organization.id
         ))
         .header("Authorization", format!("Bearer {owner_token}"))
-        .json(&read_role(organization.id))
+        .json(&AddMemberRequest {
+            user_id: member_user_id,
+            roles: vec![MemberRole {
+                organization_id: organization.id,
+                resource: "organization".to_string(),
+                permissions: MemberRolePermission::Read,
+            }],
+        })
         .send()
         .await
         .unwrap();
-    // The live route currently delegates the user id as a membership id to
-    // the role service, which rejects the operation. This characterization
-    // test protects the externally visible failure and its atomicity until
-    // that production behavior is changed in a dedicated feature.
-    assert!(response.status().is_server_error());
+    assert_eq!(added.status(), StatusCode::OK);
+    let member: MemberResponse = added.json().await.unwrap();
 
-    let member = organization_members::Entity::find()
+    let response = client
+        .patch(format!(
+            "{server_url}/api/organizations/{}/members/{member_user_id}",
+            organization.id
+        ))
+        .header("Authorization", format!("Bearer {owner_token}"))
+        .json(&write_roles(organization.id))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let updated: MemberResponse = response.json().await.unwrap();
+    assert_eq!(updated.id, member.id);
+    assert_eq!(updated.user_id, member_user_id);
+
+    let stored = organization_members::Entity::find()
         .filter(organization_members::Column::OrganizationId.eq(organization.id))
-        .filter(organization_members::Column::UserId.eq(member_id))
+        .filter(organization_members::Column::UserId.eq(member_user_id))
         .one(fixture.db().as_ref())
         .await
         .unwrap();
     assert!(
-        member.is_some(),
+        stored.is_some(),
         "the update route must retain the membership"
     );
 }
@@ -81,16 +94,9 @@ async fn invalid_member_role_does_not_mutate_the_existing_member() {
     let owner_id = Uuid::new_v4();
     let member_id = Uuid::new_v4();
     let owner_token = create_jwt_token(owner_id);
-    let organization = DbFixtures::create_org(
-        fixture.db().as_ref(),
-        owner_id,
-        HashMap::from([
-            (owner_id.to_string(), "owner".to_string()),
-            (member_id.to_string(), "read".to_string()),
-        ]),
-    )
-    .await
-    .unwrap();
+    let organization = DbFixtures::create_org_with_owner(fixture.db().as_ref(), owner_id)
+        .await
+        .unwrap();
     openfga
         .allow(
             Subject::new(owner_id),
@@ -99,6 +105,24 @@ async fn invalid_member_role_does_not_mutate_the_existing_member() {
         )
         .await
         .unwrap();
+    let added = client
+        .post(format!(
+            "{server_url}/api/organizations/{}/members",
+            organization.id
+        ))
+        .header("Authorization", format!("Bearer {owner_token}"))
+        .json(&AddMemberRequest {
+            user_id: member_id,
+            roles: vec![MemberRole {
+                organization_id: organization.id,
+                resource: "organization".to_string(),
+                permissions: MemberRolePermission::Read,
+            }],
+        })
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(added.status(), StatusCode::OK);
 
     let bad_request = serde_json::json!({
         "roles": [{

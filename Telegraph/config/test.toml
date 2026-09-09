@@ -51,7 +51,7 @@ max_retries = 3
 timeout_seconds = 30
 
 [queue.queues]
-notification_created = ["telegraph-events"]
+notification_created = ["test-telegraph-outbound"]
 
 # Telegraph-specific queue configurations
 [queues.telegraph-events]

@@ -264,6 +264,11 @@ jobs:
               --package manifesto-http_server
               --package manifesto-setup
               --package manifesto-configuration
+          - service: readiness
+            cache_key: readiness-unit
+            artifact_name: lcov-unit-readiness
+            output_path: lcov-unit-readiness.info
+            package_args: --package readiness
     steps:
       - uses: actions/checkout@v4
         with:

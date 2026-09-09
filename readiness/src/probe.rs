@@ -337,4 +337,35 @@ mod tests {
             Some("injected")
         );
     }
+
+    #[tokio::test]
+    async fn live_queue_without_transport_is_ready_and_is_ready_helper_matches() {
+        let probe = ReadinessProbe::new("telegraph")
+            .with_publisher(
+                ComponentStatus::Live {
+                    kind: QueueKind::Sqs,
+                },
+                None,
+            )
+            .with_consumer(ComponentStatus::Injected, None);
+        let report = probe.report().await;
+        assert_eq!(report.status, "ready");
+        assert_eq!(report.checks["queue_publisher"].status, "ok");
+        assert_eq!(report.checks["queue_publisher"].transport, Some("sqs"));
+        assert!(probe.is_ready().await);
+    }
+
+    #[tokio::test]
+    async fn aggregate_is_ready_when_all_children_are_ready() {
+        let iam =
+            Arc::new(ReadinessProbe::new("iam").with_publisher(ComponentStatus::Disabled, None));
+        let hive =
+            Arc::new(ReadinessProbe::new("hive").with_consumer(ComponentStatus::Disabled, None));
+        let probe = ReadinessProbe::aggregate("monolith", vec![("iam", iam), ("hive", hive)]);
+        let report = probe.report().await;
+        assert_eq!(report.status, "ready");
+        assert_eq!(report.checks["iam"].status, "ok");
+        assert!(report.checks["iam"].detail.is_none());
+        assert!(probe.is_ready().await);
+    }
 }

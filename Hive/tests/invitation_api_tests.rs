@@ -38,6 +38,43 @@ async fn allow_organization_write(
 
 #[tokio::test]
 #[serial]
+async fn create_invitation_happy_path_persists_a_pending_row() {
+    let (fixture, server_url, client, openfga) = setup_test_server().await.unwrap();
+    let owner_id = Uuid::new_v4();
+    let owner_token = create_jwt_token(owner_id);
+    let organization = DbFixtures::create_org_with_owner(fixture.db().as_ref(), owner_id)
+        .await
+        .unwrap();
+    allow_organization_write(&openfga, owner_id, organization.id).await;
+
+    let short_id = &Uuid::new_v4().to_string()[..8];
+    let email = format!("invite-{short_id}@example.test");
+    let created = client
+        .post(format!(
+            "{server_url}/api/organizations/{}/invitations",
+            organization.id
+        ))
+        .header("Authorization", format!("Bearer {owner_token}"))
+        .json(&invitation_body(organization.id, &email))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(created.status(), StatusCode::OK);
+    let body: serde_json::Value = created.json().await.unwrap();
+    assert_eq!(body["email"], email);
+    assert_eq!(body["organization_id"], organization.id.to_string());
+
+    let stored = organization_invitations::Entity::find()
+        .filter(organization_invitations::Column::OrganizationId.eq(organization.id))
+        .all(fixture.db().as_ref())
+        .await
+        .unwrap();
+    assert_eq!(stored.len(), 1);
+    assert_eq!(stored[0].status, "Pending");
+}
+
+#[tokio::test]
+#[serial]
 async fn cancel_pending_invitation_persists_cancelled_state_through_live_route() {
     let (fixture, server_url, client, openfga) = setup_test_server().await.unwrap();
     let owner_id = Uuid::new_v4();
@@ -273,4 +310,40 @@ async fn expired_cancelled_and_unknown_invitations_never_create_a_membership() {
             .unwrap();
         assert!(row.accepted_at.is_none());
     }
+}
+
+#[tokio::test]
+#[serial]
+async fn create_invitation_requires_auth_and_rejects_unknown_organization() {
+    let (fixture, server_url, client, _openfga) = setup_test_server().await.unwrap();
+    let owner_id = Uuid::new_v4();
+    let organization = DbFixtures::create_org_with_owner(fixture.db().as_ref(), owner_id)
+        .await
+        .unwrap();
+    let short_id = &Uuid::new_v4().to_string()[..8];
+    let email = format!("invite-{short_id}@example.test");
+    let owner_token = create_jwt_token(owner_id);
+
+    let unauthenticated = client
+        .post(format!(
+            "{server_url}/api/organizations/{}/invitations",
+            organization.id
+        ))
+        .json(&invitation_body(organization.id, &email))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(unauthenticated.status(), StatusCode::UNAUTHORIZED);
+
+    let missing = client
+        .post(format!(
+            "{server_url}/api/organizations/{}/invitations",
+            Uuid::new_v4()
+        ))
+        .header("Authorization", format!("Bearer {owner_token}"))
+        .json(&invitation_body(organization.id, &email))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(missing.status(), StatusCode::FORBIDDEN);
 }

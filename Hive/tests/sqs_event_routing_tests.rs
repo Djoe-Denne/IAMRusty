@@ -163,7 +163,10 @@ async fn routes_organization_created_to_sentinel_sync_queue() {
     let token = create_jwt_token(owner_id);
     let create_body = CreateOrganizationRequest {
         name: "SQS Routed Org".to_string(),
-        slug: format!("sqs-routed-org-{}", &Uuid::new_v4().to_string()[..8]),
+        slug: {
+            let short_id = &Uuid::new_v4().to_string()[..8];
+            format!("sqs-routed-org-{short_id}")
+        },
         description: Some("Created through SQS routing test".to_string()),
         avatar_url: None,
     };
@@ -206,7 +209,7 @@ async fn routes_organization_updated_to_sentinel_sync_queue() {
         .expect("failed to grant organization admin");
 
     let res = client
-        .put(format!("{}/api/organizations/{}", server_url, org.id))
+        .put(format!("{server_url}/api/organizations/{}", org.id))
         .header("Authorization", format!("Bearer {token}"))
         .json(&serde_json::json!({
             "name": "SQS Routed Org Updated",
@@ -255,10 +258,7 @@ async fn routes_member_joined_to_sentinel_sync_queue() {
     };
 
     let res = client
-        .post(format!(
-            "{}/api/organizations/{}/members",
-            server_url, org.id
-        ))
+        .post(format!("{server_url}/api/organizations/{}/members", org.id))
         .header("Authorization", format!("Bearer {token}"))
         .json(&body)
         .send()
@@ -304,8 +304,8 @@ async fn routes_member_removed_to_sentinel_sync_queue() {
 
     let res = client
         .delete(format!(
-            "{}/api/organizations/{}/members/{}",
-            server_url, org.id, removed_user_id
+            "{server_url}/api/organizations/{}/members/{removed_user_id}",
+            org.id
         ))
         .header("Authorization", format!("Bearer {token}"))
         .send()
@@ -317,4 +317,101 @@ async fn routes_member_removed_to_sentinel_sync_queue() {
     assert_aggregate_id(&event, org.id);
     assert_payload_uuid(&event, "organization_id", org.id);
     assert_payload_uuid(&event, "user_id", removed_user_id);
+}
+
+#[tokio::test]
+#[serial]
+async fn routes_organization_deleted_to_sentinel_sync_queue() {
+    let (fixture, server_url, client, openfga) = setup_sqs_test_server().await.unwrap();
+    clear_routing_queues(&fixture).await;
+
+    let owner_id = Uuid::new_v4();
+    let token = create_jwt_token(owner_id);
+    let org = DbFixtures::create_org_with_owner(fixture.db().as_ref(), owner_id)
+        .await
+        .unwrap();
+
+    openfga
+        .allow(
+            Subject::new(owner_id),
+            Permission::Admin,
+            ResourceRef::new("organization", org.id),
+        )
+        .await
+        .expect("failed to grant organization admin");
+
+    let res = client
+        .delete(format!("{server_url}/api/organizations/{}", org.id))
+        .header("Authorization", format!("Bearer {token}"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+
+    let event = wait_for_single_event(&fixture, "organization_deleted").await;
+    assert_aggregate_id(&event, org.id);
+    assert_payload_uuid(&event, "organization_id", org.id);
+}
+
+#[tokio::test]
+#[serial]
+async fn routes_member_roles_updated_to_sentinel_sync_queue() {
+    let (fixture, server_url, client, openfga) = setup_sqs_test_server().await.unwrap();
+    clear_routing_queues(&fixture).await;
+
+    let owner_id = Uuid::new_v4();
+    let member_user_id = Uuid::new_v4();
+    let token = create_jwt_token(owner_id);
+    let org = DbFixtures::create_org_with_owner(fixture.db().as_ref(), owner_id)
+        .await
+        .unwrap();
+
+    openfga
+        .allow(
+            Subject::new(owner_id),
+            Permission::Write,
+            ResourceRef::new("organization", org.id),
+        )
+        .await
+        .expect("failed to grant organization write");
+
+    let added = client
+        .post(format!("{server_url}/api/organizations/{}/members", org.id))
+        .header("Authorization", format!("Bearer {token}"))
+        .json(&AddMemberRequest {
+            user_id: member_user_id,
+            roles: vec![MemberRole {
+                organization_id: org.id,
+                resource: "organization".to_string(),
+                permissions: MemberRolePermission::Read,
+            }],
+        })
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(added.status(), StatusCode::OK);
+    let _ = wait_for_single_event(&fixture, "member_joined").await;
+
+    let res = client
+        .patch(format!(
+            "{server_url}/api/organizations/{}/members/{member_user_id}",
+            org.id
+        ))
+        .header("Authorization", format!("Bearer {token}"))
+        .json(&hive_application::dto::member::UpdateMemberRolesRequest {
+            roles: vec![MemberRole {
+                organization_id: org.id,
+                resource: "organization".to_string(),
+                permissions: MemberRolePermission::Write,
+            }],
+        })
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+
+    let event = wait_for_single_event(&fixture, "member_roles_updated").await;
+    assert_aggregate_id(&event, org.id);
+    assert_payload_uuid(&event, "organization_id", org.id);
+    assert_payload_uuid(&event, "user_id", member_user_id);
 }

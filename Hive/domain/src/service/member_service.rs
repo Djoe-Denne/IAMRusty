@@ -243,8 +243,12 @@ where
         user_id: Uuid,
         roles: Vec<RolePermission>,
     ) -> Result<OrganizationMember, DomainError> {
+        let resolved_roles = self
+            .role_service
+            .find_role_permissions_by_organization(&organization_id, &roles)
+            .await?;
         let mut member = self.get_member(organization_id, user_id).await?;
-        self.update_member_roles(&mut member, roles).await
+        self.update_member_roles(&mut member, resolved_roles).await
     }
 
     /// Get a member by organization and user ID

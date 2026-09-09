@@ -1,6 +1,6 @@
 use reqwest::StatusCode;
 use rustycog::testing::http::jwt::create_jwt_token;
-use sea_orm::{ActiveModelTrait, EntityTrait};
+use sea_orm::EntityTrait;
 use serial_test::serial;
 use uuid::Uuid;
 
@@ -31,10 +31,7 @@ async fn add_member_requires_auth() {
     };
 
     let res = client
-        .post(format!(
-            "{}/api/organizations/{}/members",
-            server_url, org.id
-        ))
+        .post(format!("{server_url}/api/organizations/{}/members", org.id))
         .json(&body)
         .send()
         .await
@@ -79,10 +76,7 @@ async fn add_member_forbidden_for_read_only_member() {
     };
 
     let res = client
-        .post(format!(
-            "{}/api/organizations/{}/members",
-            server_url, org.id
-        ))
+        .post(format!("{server_url}/api/organizations/{}/members", org.id))
         .header("Authorization", format!("Bearer {token}"))
         .json(&body)
         .send()
@@ -123,10 +117,7 @@ async fn add_member_happy_path_by_owner() {
     };
 
     let res = client
-        .post(format!(
-            "{}/api/organizations/{}/members",
-            server_url, org.id
-        ))
+        .post(format!("{server_url}/api/organizations/{}/members", org.id))
         .header("Authorization", format!("Bearer {token}"))
         .json(&body)
         .send()
@@ -166,8 +157,8 @@ async fn list_members_requires_auth_and_forbids_non_member() {
     // No auth — the strict 401 path doesn't touch the checker.
     let res = client
         .get(format!(
-            "{}/api/organizations/{}/members?page=0&page_size=10",
-            server_url, org.id
+            "{server_url}/api/organizations/{}/members?page=0&page_size=10",
+            org.id
         ))
         .send()
         .await
@@ -178,8 +169,8 @@ async fn list_members_requires_auth_and_forbids_non_member() {
     let token = create_jwt_token(random_user);
     let res = client
         .get(format!(
-            "{}/api/organizations/{}/members?page=0&page_size=10",
-            server_url, org.id
+            "{server_url}/api/organizations/{}/members?page=0&page_size=10",
+            org.id
         ))
         .header("Authorization", format!("Bearer {token}"))
         .send()
@@ -211,8 +202,8 @@ async fn list_members_happy_path_for_owner() {
 
     let res = client
         .get(format!(
-            "{}/api/organizations/{}/members?page=0&page_size=10",
-            server_url, org.id
+            "{server_url}/api/organizations/{}/members?page=0&page_size=10",
+            org.id
         ))
         .header("Authorization", format!("Bearer {token}"))
         .send()
@@ -238,8 +229,8 @@ async fn get_member_requires_auth_and_forbids_non_member() {
 
     let res = client
         .get(format!(
-            "{}/api/organizations/{}/members/{}",
-            server_url, org.id, owner_id
+            "{server_url}/api/organizations/{}/members/{owner_id}",
+            org.id
         ))
         .send()
         .await
@@ -249,8 +240,8 @@ async fn get_member_requires_auth_and_forbids_non_member() {
     let token = create_jwt_token(random_user);
     let res = client
         .get(format!(
-            "{}/api/organizations/{}/members/{}",
-            server_url, org.id, owner_id
+            "{server_url}/api/organizations/{}/members/{owner_id}",
+            org.id
         ))
         .header("Authorization", format!("Bearer {token}"))
         .send()
@@ -281,8 +272,8 @@ async fn get_member_happy_path_for_owner() {
 
     let res = client
         .get(format!(
-            "{}/api/organizations/{}/members/{}",
-            server_url, org.id, owner_id
+            "{server_url}/api/organizations/{}/members/{owner_id}",
+            org.id
         ))
         .header("Authorization", format!("Bearer {token}"))
         .send()
@@ -317,8 +308,8 @@ async fn remove_member_requires_auth_and_forbids_read_only() {
     // No auth — strict 401 path.
     let res = client
         .delete(format!(
-            "{}/api/organizations/{}/members/{}",
-            server_url, org.id, read_user_id
+            "{server_url}/api/organizations/{}/members/{read_user_id}",
+            org.id
         ))
         .send()
         .await
@@ -329,8 +320,8 @@ async fn remove_member_requires_auth_and_forbids_read_only() {
     let token = create_jwt_token(read_user_id);
     let res = client
         .delete(format!(
-            "{}/api/organizations/{}/members/{}",
-            server_url, org.id, read_user_id
+            "{server_url}/api/organizations/{}/members/{read_user_id}",
+            org.id
         ))
         .header("Authorization", format!("Bearer {token}"))
         .send()
@@ -369,12 +360,43 @@ async fn remove_member_happy_path_by_owner() {
 
     let res = client
         .delete(format!(
-            "{}/api/organizations/{}/members/{}",
-            server_url, org.id, read_user_id
+            "{server_url}/api/organizations/{}/members/{read_user_id}",
+            org.id
         ))
         .header("Authorization", format!("Bearer {token}"))
         .send()
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+#[serial]
+async fn get_unknown_member_is_rejected_after_authorization() {
+    let (fixture, server_url, client, openfga) = setup_test_server().await.unwrap();
+    let owner_id = Uuid::new_v4();
+    let token = create_jwt_token(owner_id);
+    let org = DbFixtures::create_org_with_owner(fixture.db().as_ref(), owner_id)
+        .await
+        .unwrap();
+    openfga
+        .allow(
+            Subject::new(owner_id),
+            Permission::Read,
+            ResourceRef::new("organization", org.id),
+        )
+        .await
+        .expect("Failed to grant organization read");
+
+    let res = client
+        .get(format!(
+            "{server_url}/api/organizations/{}/members/{}",
+            org.id,
+            Uuid::new_v4()
+        ))
+        .header("Authorization", format!("Bearer {token}"))
+        .send()
+        .await
+        .unwrap();
+    assert!(res.status().is_client_error() || res.status().is_server_error());
 }

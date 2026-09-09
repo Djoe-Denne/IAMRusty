@@ -264,3 +264,24 @@ async fn test_component_status_processor_ignores_stale_events() {
     assert_eq!(updated_component.configured_at, original_configured_at);
     assert_eq!(updated_component.activated_at, original_activated_at);
 }
+
+#[tokio::test]
+async fn test_component_status_processor_rejects_unknown_status() {
+    let project_id = Uuid::new_v4();
+    let component_service = Arc::new(InMemoryComponentService::new(build_pending_component(
+        project_id,
+        "taskboard",
+    )));
+    let processor = ComponentStatusProcessor::new(component_service);
+
+    let result = processor
+        .process(ComponentStatusChangedEvent::new(
+            project_id,
+            "taskboard".to_string(),
+            "pending".to_string(),
+            "not-a-status".to_string(),
+            Utc::now(),
+        ))
+        .await;
+    assert!(result.is_err());
+}

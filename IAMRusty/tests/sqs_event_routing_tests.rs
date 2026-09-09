@@ -124,7 +124,8 @@ async fn routes_iam_events_to_telegraph_queue() {
         .expect("failed to setup IAM SQS test server");
     clear_routing_queues(&fixture).await;
 
-    let email = format!("sqs-user-{}@example.com", &Uuid::new_v4().to_string()[..8]);
+    let short_id = &Uuid::new_v4().to_string()[..8];
+    let email = format!("sqs-user-{short_id}@example.com");
     let signup_response = client
         .post(format!("{base_url}/api/auth/signup"))
         .header("Content-Type", "application/json")
@@ -145,7 +146,8 @@ async fn routes_iam_events_to_telegraph_queue() {
         .as_str()
         .expect("signup should return registration token");
 
-    let username = format!("sqsuser{}", &Uuid::new_v4().to_string()[..8]);
+    let short_id = &Uuid::new_v4().to_string()[..8];
+    let username = format!("sqsuser{short_id}");
     let completion_response = client
         .post(format!("{base_url}/api/auth/complete-registration"))
         .header("Content-Type", "application/json")
@@ -169,7 +171,8 @@ async fn routes_iam_events_to_telegraph_queue() {
     );
     clear_routing_queues(&fixture).await;
 
-    let email = format!("sqs-reset-{}@example.com", &Uuid::new_v4().to_string()[..8]);
+    let short_id = &Uuid::new_v4().to_string()[..8];
+    let email = format!("sqs-reset-{short_id}@example.com");
     DbFixtures::create_user_with_email_password(
         fixture.db().as_ref(),
         &email,
@@ -192,5 +195,61 @@ async fn routes_iam_events_to_telegraph_queue() {
     assert_eq!(
         event_payload(&event)["email"].as_str(),
         Some(email.as_str())
+    );
+}
+
+#[tokio::test]
+#[serial]
+async fn routes_user_email_verified_to_telegraph_queue() {
+    use sea_orm::ConnectionTrait;
+
+    let (fixture, base_url, client) = setup_sqs_test_server()
+        .await
+        .expect("failed to setup IAM SQS test server");
+    clear_routing_queues(&fixture).await;
+
+    let db = fixture.db();
+    let user = DbFixtures::user()
+        .username("sqsverified")
+        .commit(db.clone())
+        .await
+        .expect("failed to create user");
+    let user_email = DbFixtures::user_email()
+        .user_id(user.id())
+        .email("sqs-verified@example.com")
+        .with_primary(true)
+        .with_verified(false)
+        .commit(db.clone())
+        .await
+        .expect("failed to create user email");
+
+    let verification_token = "sqs_verification_token";
+    db.execute(sea_orm::Statement::from_string(
+        sea_orm::DatabaseBackend::Postgres,
+        format!(
+            "INSERT INTO user_email_verification (id, email, verification_token, expires_at, created_at)
+             VALUES ('{id}', '{email}', '{verification_token}', NOW() + INTERVAL '1 hour', NOW())",
+            id = Uuid::new_v4(),
+            email = user_email.email(),
+        ),
+    ))
+    .await
+    .expect("failed to create verification record");
+
+    let response = client
+        .get(format!("{base_url}/api/auth/verify"))
+        .query(&[
+            ("email", "sqs-verified@example.com"),
+            ("token", verification_token),
+        ])
+        .send()
+        .await
+        .expect("failed to verify email");
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let event = wait_for_single_event(&fixture, "user_email_verified").await;
+    assert_eq!(
+        event_payload(&event)["email"].as_str(),
+        Some("sqs-verified@example.com")
     );
 }
