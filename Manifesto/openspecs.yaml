@@ -18,7 +18,8 @@ info:
     Component configuration and data operations are performed directly on component services.
     
     ## Authentication
-    All endpoints require Bearer token authentication unless otherwise specified.
+    GET and LIST allow optional authentication for public active projects.
+    Write operations require a Bearer token.
     
   version: 1.0.0
 
@@ -29,7 +30,7 @@ paths:
   /api/projects:
     get:
       summary: List projects
-      description: Get projects the authenticated user has access to
+      description: Optional authentication. Anonymous callers see public active projects only.
       tags: [Projects]
       parameters:
         - $ref: '#/components/parameters/Cursor'
@@ -74,8 +75,8 @@ paths:
                     $ref: '#/components/schemas/PaginationResponse'
         401:
           $ref: '#/components/responses/Unauthorized'
-        429:
-          $ref: '#/components/responses/RateLimited'
+        403:
+          $ref: '#/components/responses/Forbidden'
 
     post:
       summary: Create project
@@ -107,7 +108,7 @@ paths:
     
     get:
       summary: Get project
-      description: Get project details including component status
+      description: Get project summary. Optional authentication for public active projects.
       tags: [Projects]
       responses:
         200:
@@ -115,7 +116,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ProjectDetail'
+                $ref: '#/components/schemas/Project'
         401:
           $ref: '#/components/responses/Unauthorized'
         403:
@@ -148,6 +149,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         404:
           $ref: '#/components/responses/NotFound'
+        409:
+          $ref: '#/components/responses/Conflict'
 
     delete:
       summary: Delete project
@@ -156,6 +159,27 @@ paths:
       responses:
         204:
           description: Project deleted successfully
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+  /api/projects/{projectId}/details:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    get:
+      summary: Get project with components
+      description: Optional authentication. Public active projects are world-readable.
+      tags: [Projects]
+      responses:
+        200:
+          description: Project details with components
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectDetail'
         401:
           $ref: '#/components/responses/Unauthorized'
         403:
@@ -215,6 +239,84 @@ paths:
         404:
           $ref: '#/components/responses/NotFound'
 
+  /api/projects/{projectId}/suspend:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    post:
+      summary: Suspend project
+      description: Suspend an active project (requires project admin)
+      tags: [Projects]
+      responses:
+        200:
+          description: Project suspended
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+        422:
+          $ref: '#/components/responses/Unprocessable'
+
+  /api/projects/{projectId}/resume:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    post:
+      summary: Resume project
+      description: Resume a suspended project (requires project admin)
+      tags: [Projects]
+      responses:
+        200:
+          description: Project resumed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+        422:
+          $ref: '#/components/responses/Unprocessable'
+
+  /api/projects/{projectId}/transfer-ownership:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    post:
+      summary: Transfer project ownership
+      description: Transfer ownership to another active member. The previous owner becomes admin.
+      tags: [Members]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id]
+              properties:
+                user_id:
+                  type: string
+                  format: uuid
+      responses:
+        200:
+          description: New owner membership
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectMember'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+
   # =============================================================================
   # Project Components
   # =============================================================================
@@ -224,7 +326,7 @@ paths:
     
     get:
       summary: List project components
-      description: Get all components enabled for this project with their endpoints
+      description: Get all components enabled for this project. Instance ACL is applied.
       tags: [Components]
       responses:
         200:
@@ -277,14 +379,14 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /api/projects/{projectId}/components/{componentType}:
+  /api/projects/{projectId}/components/{componentId}:
     parameters:
       - $ref: '#/components/parameters/ProjectId'
-      - $ref: '#/components/parameters/ComponentType'
+      - $ref: '#/components/parameters/ComponentId'
     
     get:
       summary: Get component details
-      description: Get specific component status and endpoint for this project
+      description: Get specific component status for this project. Path uses the component UUID.
       tags: [Components]
       responses:
         200:
@@ -354,9 +456,9 @@ paths:
     post:
       summary: Join a public project
       description: >
-        Authenticated self-join for a public live (draft or active) project.
-        Writes a project member with write permission. Returns 409 if the
-        caller is already a member. Does not require project Admin.
+        Authenticated self-join for a public active project.
+        Grants project Read. Returns 409 if the caller is already a member.
+        Does not require project Admin.
       tags: [Members]
       responses:
         201:
@@ -661,14 +763,14 @@ components:
         type: string
         format: uuid
     
-    ComponentType:
-      name: componentType
+    ComponentId:
+      name: componentId
       in: path
       required: true
-      description: Component type identifier
+      description: Component instance UUID
       schema:
         type: string
-        example: taskboard
+        format: uuid
     
     Cursor:
       name: cursor
@@ -720,11 +822,6 @@ components:
         visibility:
           type: string
           enum: [private, internal, public]
-        external_collaboration_enabled:
-          type: boolean
-        data_classification:
-          type: string
-          enum: [public, internal, confidential, restricted]
         created_at:
           type: string
           format: date-time
@@ -762,15 +859,6 @@ components:
         status:
           type: string
           enum: [pending, configured, active, disabled]
-        endpoint:
-          type: string
-          format: uri
-          description: Direct endpoint to component service
-          example: https://taskboard-v1.components.svc/api/v1
-        access_token:
-          type: string
-          description: Component-scoped JWT for direct access
-          nullable: true
         added_at:
           type: string
           format: date-time
@@ -786,7 +874,7 @@ components:
           type: string
           format: date-time
           nullable: true
-      required: [id, component_type, status, endpoint, added_at]
+      required: [id, component_type, status, added_at]
 
     ProjectMember:
       type: object
@@ -867,13 +955,6 @@ components:
           type: string
           enum: [private, internal, public]
           default: private
-        external_collaboration_enabled:
-          type: boolean
-          default: false
-        data_classification:
-          type: string
-          enum: [public, internal, confidential, restricted]
-          default: internal
       required: [name, owner_type]
 
     UpdateProjectRequest:
@@ -889,11 +970,6 @@ components:
         visibility:
           type: string
           enum: [private, internal, public]
-        external_collaboration_enabled:
-          type: boolean
-        data_classification:
-          type: string
-          enum: [public, internal, confidential, restricted]
 
     AddComponentRequest:
       type: object
@@ -1037,6 +1113,13 @@ components:
 
     Conflict:
       description: Resource already exists
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    Unprocessable:
+      description: Business rule or status transition rejected
       content:
         application/json:
           schema:

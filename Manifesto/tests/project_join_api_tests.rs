@@ -30,21 +30,21 @@ async fn org_less_user_joins_public_project_and_can_read_write() {
     let creator_jwt = create_test_jwt_token(creator);
     let joiner_jwt = create_test_jwt_token(joiner);
 
-    let created = client
-        .post(format!("{base_url}/api/projects"))
-        .header("Authorization", format!("Bearer {creator_jwt}"))
-        .header("Content-Type", "application/json")
-        .json(&json!({
-            "name": format!("JoinPublic-{}", Uuid::new_v4()),
-            "owner_type": "personal",
-            "visibility": "public"
-        }))
-        .send()
+    let db = _fixture.db();
+    let project = DbFixtures::project()
+        .personal(creator)
+        .public()
+        .active()
+        .name(format!("JoinPublic-{}", Uuid::new_v4()))
+        .commit(db.clone())
         .await
-        .expect("create");
-    assert_eq!(created.status(), StatusCode::CREATED);
-    let body: Value = created.json().await.expect("create body");
-    let project_id = Uuid::parse_str(body["id"].as_str().expect("id")).expect("uuid");
+        .expect("public active project");
+    let project_id = project.id();
+    DbFixtures::member()
+        .owner(project_id, creator)
+        .commit(db)
+        .await
+        .expect("owner member");
 
     openfga
         .allow_all(Subject::new(creator), project_resource(project_id))
@@ -64,16 +64,20 @@ async fn org_less_user_joins_public_project_and_can_read_write() {
     assert_eq!(join.status(), StatusCode::CREATED);
     let member: Value = join.json().await.expect("join body");
     assert_eq!(member["user_id"], joiner.to_string());
-    assert_eq!(member["source"], "invitation");
+    assert_eq!(member["source"], "direct");
+    let permissions = member["permissions"].as_array().expect("permissions");
+    assert!(permissions
+        .iter()
+        .any(|p| { p["resource"] == "project" && p["permission"] == "read" }));
 
     openfga
         .allow(
             Subject::new(joiner),
-            Permission::Write,
+            Permission::Read,
             project_resource(project_id),
         )
         .await
-        .expect("synced member write tuple");
+        .expect("synced member read tuple");
 
     let get = client
         .get(format!("{base_url}/api/projects/{project_id}"))
@@ -82,16 +86,6 @@ async fn org_less_user_joins_public_project_and_can_read_write() {
         .await
         .expect("get after join");
     assert_eq!(get.status(), StatusCode::OK);
-
-    let put = client
-        .put(format!("{base_url}/api/projects/{project_id}"))
-        .header("Authorization", format!("Bearer {joiner_jwt}"))
-        .header("Content-Type", "application/json")
-        .json(&json!({ "description": "joined" }))
-        .send()
-        .await
-        .expect("put after join");
-    assert_eq!(put.status(), StatusCode::OK);
 }
 
 #[tokio::test]
@@ -115,22 +109,20 @@ async fn join_private_or_internal_is_403_and_already_member_is_409() {
         .await
         .expect("internal project");
 
-    let owner_jwt = create_test_jwt_token(owner_id);
-    let public = client
-        .post(format!("{base_url}/api/projects"))
-        .header("Authorization", format!("Bearer {owner_jwt}"))
-        .header("Content-Type", "application/json")
-        .json(&json!({
-            "name": format!("JoinDup-{}", Uuid::new_v4()),
-            "owner_type": "personal",
-            "visibility": "public"
-        }))
-        .send()
+    let public = DbFixtures::project()
+        .personal(owner_id)
+        .public()
+        .active()
+        .name(format!("JoinDup-{}", Uuid::new_v4()))
+        .commit(db.clone())
         .await
-        .expect("create public");
-    assert_eq!(public.status(), StatusCode::CREATED);
-    let public_body: Value = public.json().await.expect("public body");
-    let public_id = Uuid::parse_str(public_body["id"].as_str().expect("id")).expect("uuid");
+        .expect("public active");
+    let public_id = public.id();
+    DbFixtures::member()
+        .owner(public_id, owner_id)
+        .commit(db)
+        .await
+        .expect("owner");
     openfga
         .allow_all(Subject::new(owner_id), project_resource(public_id))
         .await

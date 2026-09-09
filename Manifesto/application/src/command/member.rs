@@ -625,3 +625,71 @@ impl CommandHandler<RevokePermissionCommand> for RevokePermissionCommandHandler 
             .map_err(CommandError::from)
     }
 }
+
+// =============================================================================
+// Transfer Ownership Command
+// =============================================================================
+
+#[derive(Debug, Clone)]
+pub struct TransferOwnershipCommand {
+    pub command_id: Uuid,
+    pub project_id: Uuid,
+    pub request: crate::dto::TransferOwnershipRequest,
+    pub requester_id: Uuid,
+}
+
+impl TransferOwnershipCommand {
+    #[must_use]
+    pub fn new(
+        project_id: Uuid,
+        request: crate::dto::TransferOwnershipRequest,
+        requester_id: Uuid,
+    ) -> Self {
+        Self {
+            command_id: Uuid::new_v4(),
+            project_id,
+            request,
+            requester_id,
+        }
+    }
+}
+
+#[async_trait]
+impl Command for TransferOwnershipCommand {
+    type Result = MemberResponse;
+
+    fn command_type(&self) -> &'static str {
+        "transfer_ownership"
+    }
+
+    fn command_id(&self) -> Uuid {
+        self.command_id
+    }
+
+    fn validate(&self) -> Result<(), CommandError> {
+        Ok(())
+    }
+}
+
+pub struct TransferOwnershipCommandHandler {
+    member_usecase: Arc<dyn MemberUseCase>,
+}
+
+impl TransferOwnershipCommandHandler {
+    pub fn new(member_usecase: Arc<dyn MemberUseCase>) -> Self {
+        Self { member_usecase }
+    }
+}
+
+#[async_trait]
+impl CommandHandler<TransferOwnershipCommand> for TransferOwnershipCommandHandler {
+    async fn handle(
+        &self,
+        command: TransferOwnershipCommand,
+    ) -> Result<MemberResponse, CommandError> {
+        self.member_usecase
+            .transfer_ownership(command.project_id, &command.request, command.requester_id)
+            .await
+            .map_err(CommandError::from)
+    }
+}

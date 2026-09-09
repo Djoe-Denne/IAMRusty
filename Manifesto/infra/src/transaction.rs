@@ -7,15 +7,16 @@ use rustycog::db::DbConnectionPool;
 use rustycog::events::DomainEvent;
 use rustycog::outbox::OutboxRecorder;
 use sea_orm::{
-    ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, PaginatorTrait, QueryFilter, Statement,
+    ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
+    Statement,
 };
 use std::str::FromStr;
 
 use crate::repository::entity::{prelude::ProjectMembers, project_members};
 use crate::repository::{
-    MemberWriteRepositoryImpl, PermissionReadRepositoryImpl,
+    MemberMapper, MemberWriteRepositoryImpl, PermissionReadRepositoryImpl,
     ProjectMemberRolePermissionWriteRepositoryImpl, ProjectWriteRepositoryImpl,
-    ResourceReadRepositoryImpl, RolePermissionReadRepositoryImpl,
+    ResourceReadRepositoryImpl, ResourceWriteRepositoryImpl, RolePermissionReadRepositoryImpl,
     RolePermissionWriteRepositoryImpl,
 };
 
@@ -203,6 +204,306 @@ impl ProjectAuthorizationUnitOfWork for ProjectAuthorizationUnitOfWorkImpl {
             }
         }
     }
+
+    async fn restore_or_insert_member_with_permission_and_event(
+        &self,
+        member: ProjectMember,
+        resource_name: &str,
+        permission: &str,
+        member_limit: u32,
+        event: Box<dyn DomainEvent>,
+    ) -> Result<ProjectMember, ApplicationError> {
+        let txn =
+            self.db.begin_write_transaction().await.map_err(|e| {
+                ApplicationError::Internal(format!("failed to begin transaction: {e}"))
+            })?;
+        let result = async {
+            lock_project_row(&txn, member.project_id).await?;
+            if let Some(active) =
+                find_active_member_row(&txn, member.project_id, member.user_id).await?
+            {
+                return Err(ApplicationError::AlreadyExists(format!(
+                    "User {} is already a member of project {}",
+                    active.user_id, active.project_id
+                )));
+            }
+            let saved = if let Some(mut restorable) =
+                find_restorable_member(&txn, member.project_id, member.user_id).await?
+            {
+                restorable
+                    .restore(chrono::Utc::now())
+                    .map_err(ApplicationError::from)?;
+                MemberWriteRepositoryImpl::save_with_connection(&txn, &restorable).await?
+            } else {
+                enforce_member_quota(&txn, member.project_id, member_limit).await?;
+                let saved = MemberWriteRepositoryImpl::save_with_connection(&txn, &member).await?;
+                let role_permission = get_or_create_role_permission(
+                    &txn,
+                    saved.project_id,
+                    resource_name,
+                    permission,
+                )
+                .await?;
+                ProjectMemberRolePermissionWriteRepositoryImpl::grant_known_with_connection(
+                    &txn,
+                    &saved.id,
+                    &role_permission,
+                )
+                .await?;
+                saved
+            };
+            record_events(&self.outbox, &txn, std::slice::from_ref(&event)).await?;
+            load_member_permissions(&txn, saved).await
+        }
+        .await;
+        finish_txn(txn, result).await
+    }
+
+    async fn delete_project_with_events(
+        &self,
+        project: Project,
+        events: Vec<Box<dyn DomainEvent>>,
+    ) -> Result<(), ApplicationError> {
+        let txn =
+            self.db.begin_write_transaction().await.map_err(|e| {
+                ApplicationError::Internal(format!("failed to begin transaction: {e}"))
+            })?;
+        let result = async {
+            lock_project_revision(&txn, project.id, project.revision).await?;
+            record_events(&self.outbox, &txn, &events).await?;
+            ProjectWriteRepositoryImpl::delete_by_id_with_connection(&txn, &project.id).await?;
+            Ok::<_, ApplicationError>(())
+        }
+        .await;
+        finish_txn(txn, result).await
+    }
+
+    async fn replace_member_permissions_with_events(
+        &self,
+        member: ProjectMember,
+        grants: &[(String, String)],
+        events: Vec<Box<dyn DomainEvent>>,
+    ) -> Result<ProjectMember, ApplicationError> {
+        let txn =
+            self.db.begin_write_transaction().await.map_err(|e| {
+                ApplicationError::Internal(format!("failed to begin transaction: {e}"))
+            })?;
+        let result = async {
+            lock_project_row(&txn, member.project_id).await?;
+            ProjectMemberRolePermissionWriteRepositoryImpl::revoke_all_for_member_with_connection(
+                &txn, &member.id,
+            )
+            .await?;
+            for (resource_name, permission) in grants {
+                let role_permission = get_or_create_role_permission(
+                    &txn,
+                    member.project_id,
+                    resource_name,
+                    permission,
+                )
+                .await?;
+                ProjectMemberRolePermissionWriteRepositoryImpl::grant_known_with_connection(
+                    &txn,
+                    &member.id,
+                    &role_permission,
+                )
+                .await?;
+            }
+            let saved = MemberWriteRepositoryImpl::save_with_connection(&txn, &member).await?;
+            record_events(&self.outbox, &txn, &events).await?;
+            load_member_permissions(&txn, saved).await
+        }
+        .await;
+        finish_txn(txn, result).await
+    }
+
+    async fn remove_member_with_events(
+        &self,
+        mut member: ProjectMember,
+        grace_period_days: i64,
+        events: Vec<Box<dyn DomainEvent>>,
+    ) -> Result<(), ApplicationError> {
+        let txn =
+            self.db.begin_write_transaction().await.map_err(|e| {
+                ApplicationError::Internal(format!("failed to begin transaction: {e}"))
+            })?;
+        let result = async {
+            lock_project_row(&txn, member.project_id).await?;
+            member.remove(None, Some(grace_period_days));
+            MemberWriteRepositoryImpl::save_with_connection(&txn, &member).await?;
+            record_events(&self.outbox, &txn, &events).await?;
+            Ok::<_, ApplicationError>(())
+        }
+        .await;
+        finish_txn(txn, result).await
+    }
+
+    async fn grant_permission_with_events(
+        &self,
+        member: ProjectMember,
+        resource_name: &str,
+        permission: &str,
+        events: Vec<Box<dyn DomainEvent>>,
+    ) -> Result<ProjectMember, ApplicationError> {
+        let txn =
+            self.db.begin_write_transaction().await.map_err(|e| {
+                ApplicationError::Internal(format!("failed to begin transaction: {e}"))
+            })?;
+        let result = async {
+            lock_project_row(&txn, member.project_id).await?;
+            let role_permission =
+                get_or_create_role_permission(&txn, member.project_id, resource_name, permission)
+                    .await?;
+            ProjectMemberRolePermissionWriteRepositoryImpl::grant_known_with_connection(
+                &txn,
+                &member.id,
+                &role_permission,
+            )
+            .await?;
+            let saved = MemberWriteRepositoryImpl::save_with_connection(&txn, &member).await?;
+            record_events(&self.outbox, &txn, &events).await?;
+            load_member_permissions(&txn, saved).await
+        }
+        .await;
+        finish_txn(txn, result).await
+    }
+
+    async fn revoke_permission_with_events(
+        &self,
+        member: ProjectMember,
+        role_permission_id: uuid::Uuid,
+        events: Vec<Box<dyn DomainEvent>>,
+    ) -> Result<(), ApplicationError> {
+        let txn =
+            self.db.begin_write_transaction().await.map_err(|e| {
+                ApplicationError::Internal(format!("failed to begin transaction: {e}"))
+            })?;
+        let result = async {
+            lock_project_row(&txn, member.project_id).await?;
+            ProjectMemberRolePermissionWriteRepositoryImpl::revoke_with_connection(
+                &txn,
+                &member.id,
+                &role_permission_id,
+            )
+            .await?;
+            record_events(&self.outbox, &txn, &events).await?;
+            Ok::<_, ApplicationError>(())
+        }
+        .await;
+        finish_txn(txn, result).await
+    }
+
+    async fn transfer_ownership_with_events(
+        &self,
+        project: Project,
+        mut current_owner: ProjectMember,
+        mut new_owner: ProjectMember,
+        events: Vec<Box<dyn DomainEvent>>,
+    ) -> Result<(Project, ProjectMember, ProjectMember), ApplicationError> {
+        let txn =
+            self.db.begin_write_transaction().await.map_err(|e| {
+                ApplicationError::Internal(format!("failed to begin transaction: {e}"))
+            })?;
+        let result = async {
+            lock_project_revision(&txn, project.id, project.revision).await?;
+            current_owner.is_owner = false;
+            new_owner.is_owner = true;
+            demote_owner_permissions(&txn, &current_owner).await?;
+            for resource in ["project", "component", "member"] {
+                let role_permission =
+                    get_or_create_role_permission(&txn, project.id, resource, "owner").await?;
+                let already_has = new_owner.role_permissions.iter().any(|rp| {
+                    rp.role_permission
+                        .resource
+                        .name
+                        .eq_ignore_ascii_case(resource)
+                        && rp.role_permission.permission.level == PermissionLevel::Owner
+                });
+                if !already_has {
+                    ProjectMemberRolePermissionWriteRepositoryImpl::grant_known_with_connection(
+                        &txn,
+                        &new_owner.id,
+                        &role_permission,
+                    )
+                    .await?;
+                }
+            }
+            let saved_project =
+                ProjectWriteRepositoryImpl::save_with_connection(&txn, &project).await?;
+            let current_owner =
+                MemberWriteRepositoryImpl::save_with_connection(&txn, &current_owner).await?;
+            let new_owner =
+                MemberWriteRepositoryImpl::save_with_connection(&txn, &new_owner).await?;
+            record_events(&self.outbox, &txn, &events).await?;
+            Ok::<_, ApplicationError>((
+                saved_project,
+                load_member_permissions(&txn, current_owner).await?,
+                load_member_permissions(&txn, new_owner).await?,
+            ))
+        }
+        .await;
+        finish_txn(txn, result).await
+    }
+
+    async fn save_component_with_events(
+        &self,
+        project_id: uuid::Uuid,
+        component: manifesto_domain::entity::ProjectComponent,
+        create_acl: bool,
+        events: Vec<Box<dyn DomainEvent>>,
+    ) -> Result<manifesto_domain::entity::ProjectComponent, ApplicationError> {
+        let txn =
+            self.db.begin_write_transaction().await.map_err(|e| {
+                ApplicationError::Internal(format!("failed to begin transaction: {e}"))
+            })?;
+        let result = async {
+            lock_project_row(&txn, project_id).await?;
+            if create_acl {
+                ResourceWriteRepositoryImpl::create_for_component_instance_with_connection(
+                    &txn,
+                    &component.id,
+                )
+                .await?;
+            }
+            let saved = crate::repository::ComponentWriteRepositoryImpl::save_with_connection(
+                &txn, &component,
+            )
+            .await?;
+            record_events(&self.outbox, &txn, &events).await?;
+            Ok::<_, ApplicationError>(saved)
+        }
+        .await;
+        finish_txn(txn, result).await
+    }
+
+    async fn delete_component_with_events(
+        &self,
+        project_id: uuid::Uuid,
+        component_id: uuid::Uuid,
+        events: Vec<Box<dyn DomainEvent>>,
+    ) -> Result<(), ApplicationError> {
+        let txn =
+            self.db.begin_write_transaction().await.map_err(|e| {
+                ApplicationError::Internal(format!("failed to begin transaction: {e}"))
+            })?;
+        let result = async {
+            lock_project_row(&txn, project_id).await?;
+            crate::repository::ComponentWriteRepositoryImpl::delete_with_connection(
+                &txn,
+                &component_id,
+            )
+            .await?;
+            ResourceWriteRepositoryImpl::delete_by_id_with_connection(
+                &txn,
+                &component_id.to_string(),
+            )
+            .await?;
+            record_events(&self.outbox, &txn, &events).await?;
+            Ok::<_, ApplicationError>(())
+        }
+        .await;
+        finish_txn(txn, result).await
+    }
 }
 
 async fn lock_project_revision<C>(
@@ -214,6 +515,21 @@ where
     C: ConnectionTrait,
 {
     if revision == 0 {
+        let existing = db
+            .query_one(Statement::from_sql_and_values(
+                DbBackend::Postgres,
+                "SELECT id FROM projects WHERE id = $1 FOR UPDATE",
+                [project_id.into()],
+            ))
+            .await
+            .map_err(|error| {
+                ApplicationError::Internal(format!("failed to lock project for insert: {error}"))
+            })?;
+        if existing.is_some() {
+            return Err(ApplicationError::Conflict(
+                "Project was modified concurrently; reload it before updating".to_string(),
+            ));
+        }
         return Ok(());
     }
     let expected_revision = revision.checked_sub(1).ok_or_else(|| {
@@ -230,7 +546,7 @@ where
             ApplicationError::Internal(format!("failed to lock project for update: {error}"))
         })?;
     if locked.is_none() {
-        return Err(ApplicationError::Validation(
+        return Err(ApplicationError::Conflict(
             "Project was modified concurrently; reload it before updating".to_string(),
         ));
     }
@@ -344,4 +660,178 @@ fn normalize_permission(permission: &Permission) -> Result<Permission, DomainErr
 
 const fn normalize_resource(resource: Resource) -> Resource {
     resource
+}
+
+async fn finish_txn<T>(
+    txn: sea_orm::DatabaseTransaction,
+    result: Result<T, ApplicationError>,
+) -> Result<T, ApplicationError> {
+    match result {
+        Ok(value) => {
+            txn.commit().await.map_err(|e| {
+                ApplicationError::Internal(format!("failed to commit transaction: {e}"))
+            })?;
+            Ok(value)
+        }
+        Err(error) => {
+            if let Err(rollback_error) = txn.rollback().await {
+                tracing::error!("failed to rollback Manifesto AuthZ transaction: {rollback_error}");
+            }
+            Err(error)
+        }
+    }
+}
+
+async fn record_events<C>(
+    outbox: &OutboxRecorder,
+    db: &C,
+    events: &[Box<dyn DomainEvent>],
+) -> Result<(), ApplicationError>
+where
+    C: ConnectionTrait,
+{
+    for event in events {
+        outbox.record(db, event.as_ref()).await.map_err(|e| {
+            ApplicationError::Internal(format!("failed to record AuthZ outbox event: {e}"))
+        })?;
+    }
+    Ok(())
+}
+
+async fn lock_project_row<C>(db: &C, project_id: uuid::Uuid) -> Result<(), ApplicationError>
+where
+    C: ConnectionTrait,
+{
+    let locked = db
+        .query_one(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            "SELECT id FROM projects WHERE id = $1 FOR UPDATE",
+            [project_id.into()],
+        ))
+        .await
+        .map_err(|error| ApplicationError::Internal(format!("failed to lock project: {error}")))?;
+    if locked.is_none() {
+        return Err(ApplicationError::from(DomainError::entity_not_found(
+            "Project",
+            &project_id.to_string(),
+        )));
+    }
+    Ok(())
+}
+
+async fn find_active_member_row<C>(
+    db: &C,
+    project_id: uuid::Uuid,
+    user_id: uuid::Uuid,
+) -> Result<Option<ProjectMember>, ApplicationError>
+where
+    C: ConnectionTrait,
+{
+    let model = ProjectMembers::find()
+        .filter(project_members::Column::ProjectId.eq(project_id))
+        .filter(project_members::Column::UserId.eq(user_id))
+        .filter(project_members::Column::RemovedAt.is_null())
+        .one(db)
+        .await
+        .map_err(|error| ApplicationError::Internal(format!("failed to check member: {error}")))?;
+    match model {
+        Some(model) => Ok(Some(
+            load_member_permissions(db, MemberMapper::to_domain(model)?).await?,
+        )),
+        None => Ok(None),
+    }
+}
+
+async fn find_restorable_member<C>(
+    db: &C,
+    project_id: uuid::Uuid,
+    user_id: uuid::Uuid,
+) -> Result<Option<ProjectMember>, ApplicationError>
+where
+    C: ConnectionTrait,
+{
+    let model = ProjectMembers::find()
+        .filter(project_members::Column::ProjectId.eq(project_id))
+        .filter(project_members::Column::UserId.eq(user_id))
+        .filter(project_members::Column::RemovedAt.is_not_null())
+        .filter(project_members::Column::GracePeriodEndsAt.gt(chrono::Utc::now()))
+        .order_by_desc(project_members::Column::RemovedAt)
+        .one(db)
+        .await
+        .map_err(|error| {
+            ApplicationError::Internal(format!("failed to load restorable member: {error}"))
+        })?;
+    match model {
+        Some(model) => Ok(Some(
+            load_member_permissions(db, MemberMapper::to_domain(model)?).await?,
+        )),
+        None => Ok(None),
+    }
+}
+
+async fn enforce_member_quota<C>(
+    db: &C,
+    project_id: uuid::Uuid,
+    member_limit: u32,
+) -> Result<(), ApplicationError>
+where
+    C: ConnectionTrait,
+{
+    let active_members = ProjectMembers::find()
+        .filter(project_members::Column::ProjectId.eq(project_id))
+        .filter(project_members::Column::RemovedAt.is_null())
+        .count(db)
+        .await
+        .map_err(|error| {
+            ApplicationError::Internal(format!("failed to count active project members: {error}"))
+        })?;
+    if active_members >= u64::from(member_limit) {
+        return Err(ApplicationError::Validation(format!(
+            "Project {project_id} has reached the maximum number of members ({member_limit})"
+        )));
+    }
+    Ok(())
+}
+
+async fn load_member_permissions<C>(
+    db: &C,
+    mut member: ProjectMember,
+) -> Result<ProjectMember, ApplicationError>
+where
+    C: ConnectionTrait,
+{
+    member.role_permissions =
+        ProjectMemberRolePermissionWriteRepositoryImpl::find_by_member_with_connection(
+            db, &member.id,
+        )
+        .await?;
+    Ok(member)
+}
+
+async fn demote_owner_permissions<C>(db: &C, member: &ProjectMember) -> Result<(), ApplicationError>
+where
+    C: ConnectionTrait,
+{
+    for grant in &member.role_permissions {
+        if grant.role_permission.permission.level != PermissionLevel::Owner {
+            continue;
+        }
+        let Some(role_permission_id) = grant.role_permission.id else {
+            continue;
+        };
+        ProjectMemberRolePermissionWriteRepositoryImpl::revoke_with_connection(
+            db,
+            &member.id,
+            &role_permission_id,
+        )
+        .await?;
+        let resource_name = grant.role_permission.resource.name.clone();
+        let admin =
+            get_or_create_role_permission(db, member.project_id, &resource_name, "admin").await?;
+        ProjectMemberRolePermissionWriteRepositoryImpl::grant_known_with_connection(
+            db, &member.id, &admin,
+        )
+        .await?;
+    }
+    Ok(())
 }

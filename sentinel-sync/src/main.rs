@@ -14,6 +14,7 @@ mod config;
 mod fga_client;
 mod handler;
 mod idempotency;
+mod reconcile;
 mod translator;
 
 use crate::config::SentinelSyncConfig;
@@ -35,6 +36,14 @@ async fn main() -> Result<()> {
         .init();
 
     let config = SentinelSyncConfig::load().context("failed to load sentinel-sync config")?;
+    if std::env::args().any(|arg| arg == "--reconcile") {
+        let database_url = std::env::var("MANIFESTO_DATABASE_URL")
+            .context("MANIFESTO_DATABASE_URL is required for --reconcile")?;
+        let fga = OpenFgaWriteClient::new(config.openfga.clone())?;
+        let written = reconcile::reconcile_manifesto(&database_url, &fga).await?;
+        info!(written, "manifesto OpenFGA reconcile completed");
+        return Ok(());
+    }
     info!(
         api_url = %config.openfga.api_url(),
         store_id = %config.openfga.store_id,

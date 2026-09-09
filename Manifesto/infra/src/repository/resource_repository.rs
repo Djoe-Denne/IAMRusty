@@ -112,6 +112,48 @@ impl ResourceWriteRepositoryImpl {
     pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
+
+    /// Create a component-instance ACL resource using an existing connection.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the insert fails.
+    pub async fn create_for_component_instance_with_connection<C>(
+        db: &C,
+        component_id: &Uuid,
+    ) -> Result<Resource, DomainError>
+    where
+        C: ConnectionTrait,
+    {
+        let resource_id = component_resource_id(component_id);
+        let active_model = resources::ActiveModel {
+            id: ActiveValue::Set(resource_id.clone()),
+            resource_type: ActiveValue::Set("component_instance".to_string()),
+            name: ActiveValue::Set(resource_id),
+            created_at: ActiveValue::NotSet,
+        };
+        let model = active_model
+            .insert(db)
+            .await
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
+        ResourceMapper::to_domain(model)
+    }
+
+    /// Delete a resource using an existing connection.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the delete fails.
+    pub async fn delete_by_id_with_connection<C>(db: &C, id: &str) -> Result<(), DomainError>
+    where
+        C: ConnectionTrait,
+    {
+        Resources::delete_by_id(id.to_string())
+            .exec(db)
+            .await
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -135,39 +177,14 @@ impl ResourceWriteRepository for ResourceWriteRepositoryImpl {
     }
 
     async fn delete_by_id(&self, id: &str) -> Result<(), DomainError> {
-        debug!("Deleting resource by id: {}", id);
-
-        Resources::delete_by_id(id.to_string())
-            .exec(self.db.as_ref())
-            .await
-            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
-
-        Ok(())
+        Self::delete_by_id_with_connection(self.db.as_ref(), id).await
     }
 
     async fn create_for_component_instance(
         &self,
         component_id: &Uuid,
     ) -> Result<Resource, DomainError> {
-        let resource_id = component_resource_id(component_id);
-        debug!(
-            "Creating resource for component instance: {} (resource_id: {})",
-            component_id, resource_id
-        );
-
-        let active_model = resources::ActiveModel {
-            id: ActiveValue::Set(resource_id.clone()),
-            resource_type: ActiveValue::Set("component_instance".to_string()),
-            name: ActiveValue::Set(resource_id),
-            created_at: ActiveValue::NotSet,
-        };
-
-        let model = active_model
-            .insert(self.db.as_ref())
-            .await
-            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
-
-        ResourceMapper::to_domain(model)
+        Self::create_for_component_instance_with_connection(self.db.as_ref(), component_id).await
     }
 }
 

@@ -146,7 +146,11 @@ impl EventHandler for SyncEventHandler {
             return Ok(());
         }
 
-        if let Err(error) = self.fga.write(&delta.writes, &delta.deletes).await {
+        if let Err(error) = self
+            .fga
+            .write_idempotent(&delta.writes, &delta.deletes)
+            .await
+        {
             let error_message = format!("OpenFGA write failed: {error}");
             if let Err(ledger_error) = self.ledger.fail(event_id, &error_message).await {
                 warn!(event_id = %event_id, error = %ledger_error, "failed to mark event delivery as failed");

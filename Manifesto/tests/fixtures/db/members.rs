@@ -65,6 +65,9 @@ pub struct MemberFixtureBuilder {
     source: Option<String>,
     added_by: Option<Uuid>,
     permission_level: Option<String>,
+    removed: bool,
+    grace_expired: bool,
+    resources: Option<Vec<String>>,
 }
 
 impl MemberFixtureBuilder {
@@ -77,6 +80,9 @@ impl MemberFixtureBuilder {
             source: None,
             added_by: None,
             permission_level: None,
+            removed: false,
+            grace_expired: false,
+            resources: None,
         }
     }
 
@@ -118,6 +124,29 @@ impl MemberFixtureBuilder {
         self
     }
 
+    /// Mark the membership as removed, still within grace.
+    #[must_use]
+    pub const fn removed_within_grace(mut self) -> Self {
+        self.removed = true;
+        self.grace_expired = false;
+        self
+    }
+
+    /// Mark the membership as removed after the grace window.
+    #[must_use]
+    pub const fn removed_after_grace(mut self) -> Self {
+        self.removed = true;
+        self.grace_expired = true;
+        self
+    }
+
+    /// Limit grants to the project resource only (no generic component ACL).
+    #[must_use]
+    pub fn project_only(mut self) -> Self {
+        self.resources = Some(vec!["project".to_string()]);
+        self
+    }
+
     /// Set the member source
     pub fn source(mut self, source: impl Into<String>) -> Self {
         self.source = Some(source.into());
@@ -150,8 +179,22 @@ impl MemberFixtureBuilder {
 
     /// Commit the member to the database
     pub async fn commit(self, db: Arc<DatabaseConnection>) -> Result<MemberFixture, DbErr> {
-        let now: DateTimeWithTimeZone = Utc::now().into();
+        let utc_now = Utc::now();
+        let now: DateTimeWithTimeZone = utc_now.into();
         let id = self.id.unwrap_or_else(Uuid::new_v4);
+        let (removed_at, grace_period_ends_at) = if self.removed {
+            let grace = if self.grace_expired {
+                utc_now - chrono::Duration::days(1)
+            } else {
+                utc_now + chrono::Duration::days(7)
+            };
+            (
+                ActiveValue::Set(Some(now)),
+                ActiveValue::Set(Some(grace.into())),
+            )
+        } else {
+            (ActiveValue::NotSet, ActiveValue::NotSet)
+        };
 
         let project_id = self.project_id.ok_or_else(|| {
             DbErr::Custom("project_id is required for MemberFixtureBuilder".to_string())
@@ -168,24 +211,35 @@ impl MemberFixtureBuilder {
             source: ActiveValue::Set(self.source.unwrap_or_else(|| "direct".to_string())),
             added_by: ActiveValue::Set(self.added_by),
             added_at: ActiveValue::Set(now),
-            removed_at: ActiveValue::NotSet,
-            removal_reason: ActiveValue::NotSet,
-            grace_period_ends_at: ActiveValue::NotSet,
+            removed_at,
+            removal_reason: if self.removed {
+                ActiveValue::Set(Some("removed".into()))
+            } else {
+                ActiveValue::NotSet
+            },
+            grace_period_ends_at,
             last_access_at: ActiveValue::NotSet,
+            is_owner: ActiveValue::Set(self.permission_level.as_deref() == Some("owner")),
         };
 
         let model = active_model.insert(db.as_ref()).await?;
 
         // Create role permission for this member if permission level is set
         if let Some(permission_level) = self.permission_level {
-            let resources = ["project", "component", "member"];
+            let resources = self.resources.unwrap_or_else(|| {
+                vec![
+                    "project".to_string(),
+                    "component".to_string(),
+                    "member".to_string(),
+                ]
+            });
             let permission_level = permission_level.clone();
             for resource in resources {
                 // Check if role_permission already exists for this project/permission/resource
                 let existing = RolePermissionsEntity::find()
                     .filter(RolePermissionsColumn::ProjectId.eq(project_id))
                     .filter(RolePermissionsColumn::PermissionId.eq(permission_level.clone()))
-                    .filter(RolePermissionsColumn::ResourceId.eq(resource))
+                    .filter(RolePermissionsColumn::ResourceId.eq(resource.clone()))
                     .one(db.as_ref())
                     .await?;
 
@@ -200,7 +254,7 @@ impl MemberFixtureBuilder {
                         name: ActiveValue::Set(Some(format!("{}_role", permission_level.clone()))),
                         project_id: ActiveValue::Set(project_id),
                         permission_id: ActiveValue::Set(permission_level.clone()),
-                        resource_id: ActiveValue::Set(resource.to_string()),
+                        resource_id: ActiveValue::Set(resource.clone()),
                         created_at: ActiveValue::Set(now),
                     };
                     role_permission.insert(db.as_ref()).await?;

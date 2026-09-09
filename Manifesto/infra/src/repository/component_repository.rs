@@ -6,8 +6,8 @@ use manifesto_domain::port::{
 use manifesto_domain::value_objects::ComponentStatus;
 use rustycog::core::error::DomainError;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait,
-    QueryFilter,
+    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait,
+    PaginatorTrait, QueryFilter,
 };
 use std::str::FromStr;
 use std::sync::Arc;
@@ -134,46 +134,70 @@ impl ComponentWriteRepositoryImpl {
     pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
-}
 
-#[async_trait]
-impl ComponentWriteRepository for ComponentWriteRepositoryImpl {
-    async fn save(&self, component: &ProjectComponent) -> Result<ProjectComponent, DomainError> {
+    /// Persist a component using an existing connection.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the query, insert, or update fails.
+    pub async fn save_with_connection<C>(
+        db: &C,
+        component: &ProjectComponent,
+    ) -> Result<ProjectComponent, DomainError>
+    where
+        C: ConnectionTrait,
+    {
         let exists = ProjectComponents::find_by_id(component.id)
-            .one(self.db.as_ref())
+            .one(db)
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?
             .is_some();
-
         let active_model = ComponentMapper::to_active_model(component);
         let model = if exists {
             active_model
-                .update(self.db.as_ref())
+                .update(db)
                 .await
                 .map_err(|e| DomainError::internal_error(&e.to_string()))?
         } else {
             active_model
-                .insert(self.db.as_ref())
+                .insert(db)
                 .await
                 .map_err(|e| DomainError::internal_error(&e.to_string()))?
         };
         ComponentMapper::to_domain(model)
     }
 
-    async fn delete(&self, id: &Uuid) -> Result<(), DomainError> {
+    /// Delete a component using an existing connection.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the delete fails or the row is missing.
+    pub async fn delete_with_connection<C>(db: &C, id: &Uuid) -> Result<(), DomainError>
+    where
+        C: ConnectionTrait,
+    {
         let result = ProjectComponents::delete_by_id(*id)
-            .exec(self.db.as_ref())
+            .exec(db)
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
-
         if result.rows_affected == 0 {
             return Err(DomainError::entity_not_found(
                 "ProjectComponent",
                 &id.to_string(),
             ));
         }
-
         Ok(())
+    }
+}
+
+#[async_trait]
+impl ComponentWriteRepository for ComponentWriteRepositoryImpl {
+    async fn save(&self, component: &ProjectComponent) -> Result<ProjectComponent, DomainError> {
+        Self::save_with_connection(self.db.as_ref(), component).await
+    }
+
+    async fn delete(&self, id: &Uuid) -> Result<(), DomainError> {
+        Self::delete_with_connection(self.db.as_ref(), id).await
     }
 
     async fn exists_by_project_and_type(

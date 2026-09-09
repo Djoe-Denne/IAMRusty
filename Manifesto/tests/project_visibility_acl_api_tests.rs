@@ -213,6 +213,23 @@ async fn make_publishable(
     component_id
 }
 
+async fn publish_public_live(
+    client: &Client,
+    base_url: &str,
+    jwt_token: &str,
+    project_id: Uuid,
+) -> Uuid {
+    let component_id = make_publishable(client, base_url, jwt_token, project_id).await;
+    let publish = client
+        .post(format!("{base_url}/api/projects/{project_id}/publish"))
+        .header("Authorization", format!("Bearer {jwt_token}"))
+        .send()
+        .await
+        .expect("publish");
+    assert_eq!(publish.status(), StatusCode::OK, "publish should 200");
+    component_id
+}
+
 #[tokio::test]
 #[serial]
 async fn create_private_has_no_wildcard_and_anonymous_get_is_403() {
@@ -258,8 +275,8 @@ async fn create_public_does_not_write_wildcard_until_sync_then_anonymous_get_200
         StatusCode::FORBIDDEN
     );
     assert!(
-        anonymous_list_contains(&client, &base_url, project_id, name).await,
-        "SQL list shows public rows even before wildcard; GET needs the tuple"
+        !anonymous_list_contains(&client, &base_url, project_id, name).await,
+        "draft public rows are not world-listed"
     );
 
     openfga
@@ -267,6 +284,14 @@ async fn create_public_does_not_write_wildcard_until_sync_then_anonymous_get_200
         .await
         .expect("simulate ProjectCreated public arm");
 
+    assert_eq!(
+        anonymous_get(&client, &base_url, project_id).await,
+        StatusCode::FORBIDDEN,
+        "public draft stays closed even with a leftover wildcard"
+    );
+
+    grant_creator(&openfga, user_id, project_id).await;
+    publish_public_live(&client, &base_url, &jwt, project_id).await;
     assert_eq!(
         anonymous_get(&client, &base_url, project_id).await,
         StatusCode::OK
@@ -289,6 +314,7 @@ async fn stranger_can_read_public_with_wildcard_but_cannot_write() {
     let created = create_personal_project(&client, &base_url, &owner_jwt, "public").await;
     let project_id = Uuid::parse_str(created["id"].as_str().unwrap()).unwrap();
     grant_creator(&openfga, owner_id, project_id).await;
+    publish_public_live(&client, &base_url, &owner_jwt, project_id).await;
     openfga
         .allow_wildcard(Permission::Read, project_resource(project_id))
         .await
@@ -430,6 +456,12 @@ async fn put_to_public_does_not_write_wildcard_until_sync() {
         .expect("simulate ProjectVisibilityChanged to public");
     assert_eq!(
         anonymous_get(&client, &base_url, project_id).await,
+        StatusCode::FORBIDDEN,
+        "public draft is not world-readable"
+    );
+    publish_public_live(&client, &base_url, &jwt, project_id).await;
+    assert_eq!(
+        anonymous_get(&client, &base_url, project_id).await,
         StatusCode::OK
     );
 }
@@ -463,6 +495,7 @@ async fn put_same_public_visibility_keeps_existing_wildcard() {
     let created = create_personal_project(&client, &base_url, &jwt, "public").await;
     let project_id = Uuid::parse_str(created["id"].as_str().unwrap()).unwrap();
     grant_creator(&openfga, user_id, project_id).await;
+    publish_public_live(&client, &base_url, &jwt, project_id).await;
     openfga
         .allow_wildcard(Permission::Read, project_resource(project_id))
         .await
@@ -488,7 +521,7 @@ async fn leftover_wildcard_does_not_keep_non_public_readable() {
     let created = create_personal_project(&client, &base_url, &jwt, "public").await;
     let project_id = Uuid::parse_str(created["id"].as_str().unwrap()).unwrap();
     grant_creator(&openfga, user_id, project_id).await;
-    let component_id = add_taskboard(&client, &base_url, &jwt, project_id).await;
+    let component_id = publish_public_live(&client, &base_url, &jwt, project_id).await;
     openfga
         .allow_wildcard(Permission::Read, project_resource(project_id))
         .await
@@ -663,8 +696,19 @@ async fn anonymous_list_shows_public_sql_row_while_get_needs_wildcard() {
     let name = created["name"].as_str().unwrap();
 
     assert!(
+        !anonymous_list_contains(&client, &base_url, project_id, name).await,
+        "draft public rows stay out of the anonymous list"
+    );
+    assert_eq!(
+        anonymous_get(&client, &base_url, project_id).await,
+        StatusCode::FORBIDDEN
+    );
+
+    grant_creator(&openfga, user_id, project_id).await;
+    publish_public_live(&client, &base_url, &jwt, project_id).await;
+    assert!(
         anonymous_list_contains(&client, &base_url, project_id, name).await,
-        "list SQL includes visibility=public without FGA"
+        "list SQL includes public active rows without FGA"
     );
     assert_eq!(
         anonymous_get(&client, &base_url, project_id).await,

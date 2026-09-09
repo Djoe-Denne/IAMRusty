@@ -12,7 +12,7 @@ use manifesto_domain::{
     },
     port::ProjectListFilters,
     service::{ComponentService, MemberService, PermissionService, ProjectService},
-    value_objects::{MemberSource, OwnerType, Visibility},
+    value_objects::{FieldUpdate, MemberSource, OwnerType, ProjectStatus, Visibility},
 };
 use rustycog::core::error::DomainError;
 use rustycog::events::{DomainEvent, EventPublisher};
@@ -33,6 +33,7 @@ fn build_project(visibility: Visibility) -> Project {
         .owner_id(owner_id)
         .created_by(owner_id)
         .visibility(visibility)
+        .status(ProjectStatus::Active)
         .build()
         .expect("test project should be valid")
 }
@@ -388,10 +389,8 @@ async fn update_visibility_flip_emits_visibility_changed_then_updated() {
             project.id,
             &UpdateProjectRequest {
                 name: None,
-                description: None,
+                description: FieldUpdate::Unchanged,
                 visibility: Some("public".to_string()),
-                external_collaboration_enabled: None,
-                data_classification: None,
             },
             project.created_by,
         )
@@ -415,10 +414,8 @@ async fn update_name_only_does_not_emit_visibility_changed() {
             project.id,
             &UpdateProjectRequest {
                 name: Some("Renamed".to_string()),
-                description: None,
+                description: FieldUpdate::Unchanged,
                 visibility: None,
-                external_collaboration_enabled: None,
-                data_classification: None,
             },
             project.created_by,
         )
@@ -453,10 +450,8 @@ async fn update_to_public_without_admin_is_denied() {
             project.id,
             &UpdateProjectRequest {
                 name: None,
-                description: None,
+                description: FieldUpdate::Unchanged,
                 visibility: Some("public".to_string()),
-                external_collaboration_enabled: None,
-                data_classification: None,
             },
             project.created_by,
         )

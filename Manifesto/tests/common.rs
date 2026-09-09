@@ -110,7 +110,7 @@ impl ServiceTestDescriptor<TestFixture> for ManifestoTestDescriptor {
 ///
 /// The `OpenFGA` fixture is process-global, so tests must remain
 /// `#[serial]` to avoid tuple-state collisions. The component-catalog
-/// fake shares the singleton wiremock listener at `127.0.0.1:3000` —
+/// fake shares the singleton wiremock listener on an ephemeral port —
 /// `reset()` on it wipes every wiremock stub, including any other
 /// fixture mounted on the same singleton.
 ///
@@ -144,6 +144,10 @@ pub async fn setup_test_server() -> Result<
     // wipe an unrelated fixture.
     let components = ComponentServiceFixtures::service().await;
     components.mock_default_catalog().await;
+    std::env::set_var(
+        "MANIFESTO_SERVICE__COMPONENT_SERVICE__BASE_URL",
+        components.base_url(),
+    );
 
     let (server_url, client) =
         rustycog::testing::setup_test_server::<ManifestoTestDescriptor, TestFixture>(descriptor)

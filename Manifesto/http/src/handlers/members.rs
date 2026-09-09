@@ -7,7 +7,8 @@ use manifesto_application::{
     AddMemberCommand, AddMemberRequest, GetMemberCommand, GrantPermissionCommand,
     GrantPermissionRequest, JoinProjectCommand, ListMembersCommand, MemberListResponse,
     MemberResponse, PaginationRequest, RemoveMemberCommand, RevokePermissionCommand,
-    UpdateMemberCommand, UpdateMemberPermissionsRequest,
+    TransferOwnershipCommand, TransferOwnershipRequest, UpdateMemberCommand,
+    UpdateMemberPermissionsRequest,
 };
 use rustycog::command::CommandContext;
 use rustycog::http::{AppState, AuthUser, ValidatedJson};
@@ -338,4 +339,31 @@ pub async fn revoke_permission_specific(
         .map_err(error_mapper)?;
 
     Ok((StatusCode::NO_CONTENT, Json(())))
+}
+
+/// Transfer project ownership to another active member.
+/// POST /`api/projects/{project_id}/transfer-ownership`
+///
+/// # Errors
+///
+/// Returns [`HttpError`] if the command fails.
+pub async fn transfer_ownership(
+    State(state): State<AppState>,
+    Path(project_id): Path<ResourceId>,
+    auth_user: AuthUser,
+    ValidatedJson(request): ValidatedJson<TransferOwnershipRequest>,
+) -> Result<Json<MemberResponse>, HttpError> {
+    tracing::info!(
+        "Transferring ownership of project {} to {}",
+        project_id,
+        request.user_id
+    );
+    let command = TransferOwnershipCommand::new(project_id.id(), request, auth_user.user_id);
+    let context = CommandContext::new().with_user_id(auth_user.user_id);
+    let result = state
+        .command_service
+        .execute(command, context)
+        .await
+        .map_err(error_mapper)?;
+    Ok(Json(result))
 }

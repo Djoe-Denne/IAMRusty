@@ -218,8 +218,25 @@ impl OpenFgaWriteClient {
         Ok(())
     }
 
-    #[allow(dead_code)]
-    async fn write_idempotent(&self, writes: &[Tuple], deletes: &[Tuple]) -> Result<()> {
+    /// Apply writes then deletes one tuple at a time, treating already-exists /
+    /// missing-tuple as success so AuthZ retries never fail a whole batch.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `OpenFGA` rejects a tuple for a non-idempotent reason.
+    pub async fn write_idempotent(&self, writes: &[Tuple], deletes: &[Tuple]) -> Result<()> {
+        for tuple in deletes {
+            self.write_one_idempotent(&[], std::slice::from_ref(tuple))
+                .await?;
+        }
+        for tuple in writes {
+            self.write_one_idempotent(std::slice::from_ref(tuple), &[])
+                .await?;
+        }
+        Ok(())
+    }
+
+    async fn write_one_idempotent(&self, writes: &[Tuple], deletes: &[Tuple]) -> Result<()> {
         match self.write(writes, deletes).await {
             Ok(()) => Ok(()),
             Err(error) => {

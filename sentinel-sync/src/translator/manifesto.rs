@@ -1,12 +1,16 @@
 //! Manifesto event -> `OpenFGA` tuple translation.
 //!
-//! Projects live under an optional parent organization (`owner_type ==
-//! "organization"`). Components live under their project. Members and
-//! explicit permission grants attach users to a project's `member`,
-//! `admin`, or `viewer` relation.
+//! v2 payloads carry exact `object_type` / `object_id` / `permission`. Incomplete
+//! v1 revoke/replace events produce an empty delta (stale allow) rather than a
+//! relation wipe. Deploy this consumer before Manifesto starts emitting v2.
 
 use anyhow::Result;
-use manifesto_events::ManifestoDomainEvent;
+use manifesto_events::{
+    exact_user_tuple, fga_relation, AuthzTuple, ManifestoDomainEvent,
+    MemberPermissionsUpdatedEvent, PermissionGrantedEvent, PermissionRevokedEvent,
+    ResourcePermission,
+};
+use uuid::Uuid;
 
 use super::{Translator, TupleDelta};
 use crate::fga_client::Tuple;
@@ -17,31 +21,6 @@ pub struct ManifestoTranslator;
 impl ManifestoTranslator {
     pub const fn new() -> Self {
         Self
-    }
-}
-
-/// Translate the string `permission` field on Manifesto events into the
-/// corresponding `OpenFGA` relation on `project` or `component`.
-///
-/// Unknown permissions yield `None`; the translator skips the tuple rather
-/// than fabricating a relation.
-fn permission_to_relation(permission: &str) -> Option<&'static str> {
-    match permission.to_lowercase().as_str() {
-        "owner" => Some("owner"),
-        "admin" => Some("admin"),
-        "write" => Some("member"),
-        "read" => Some("viewer"),
-        _ => None,
-    }
-}
-
-/// Map the string `resource` on Manifesto events to an `OpenFGA` object type.
-/// Anything unrecognized falls back to `project`, which preserves the old
-/// Casbin "unidentified resource" semantics.
-fn resource_to_object_type(resource: &str) -> &'static str {
-    match resource.to_lowercase().as_str() {
-        "component" => "component",
-        _ => "project",
     }
 }
 
@@ -66,11 +45,7 @@ const fn is_internal_visibility(visibility: &str) -> bool {
     visibility.eq_ignore_ascii_case("internal")
 }
 
-fn org_member_viewer_userset(
-    project_id: uuid::Uuid,
-    owner_type: &str,
-    owner_id: uuid::Uuid,
-) -> Option<Tuple> {
+fn org_member_viewer_userset(project_id: Uuid, owner_type: &str, owner_id: Uuid) -> Option<Tuple> {
     if owner_type == "organization" {
         Some(Tuple::userset(
             "project",
@@ -83,6 +58,34 @@ fn org_member_viewer_userset(
     } else {
         None
     }
+}
+
+fn tuple_from_authz(t: &AuthzTuple) -> Tuple {
+    Tuple::user(&t.object_type, t.object_id, &t.relation, t.user_id)
+}
+
+fn grant_tuple(
+    resource: &str,
+    permission: &str,
+    object_type: Option<&str>,
+    object_id: Option<Uuid>,
+    project_id: Uuid,
+    user_id: Uuid,
+) -> Option<Tuple> {
+    if let (Some(object_type), Some(object_id)) = (object_type, object_id) {
+        return fga_relation(object_type, permission)
+            .map(|relation| Tuple::user(object_type, object_id, relation, user_id));
+    }
+    exact_user_tuple(resource, permission, project_id, user_id).map(|t| tuple_from_authz(&t))
+}
+
+fn resource_permission_tuple(
+    perm: &ResourcePermission,
+    project_id: Uuid,
+    user_id: Uuid,
+) -> Option<Tuple> {
+    perm.to_tuple(project_id, user_id)
+        .map(|t| tuple_from_authz(&t))
 }
 
 fn project_created_delta(evt: &manifesto_events::ProjectCreatedEvent) -> TupleDelta {
@@ -117,38 +120,48 @@ fn project_created_delta(evt: &manifesto_events::ProjectCreatedEvent) -> TupleDe
 fn project_deleted_delta(evt: &manifesto_events::ProjectDeletedEvent) -> TupleDelta {
     let mut d =
         TupleDelta::default().delete(Tuple::wildcard_user("project", evt.project_id, "viewer"));
-    for relation in ["owner", "admin", "member", "viewer"] {
-        d = d.delete(Tuple::user(
+    if let (Some(owner_type), Some(owner_id)) = (&evt.owner_type, evt.owner_id) {
+        if let Some(userset) = org_member_viewer_userset(evt.project_id, owner_type, owner_id) {
+            d = d.delete(userset);
+        }
+    }
+    let mut users = evt.member_user_ids.clone();
+    if users.is_empty() {
+        users.push(evt.deleted_by);
+    }
+    for user_id in users {
+        for relation in ["owner", "admin", "member", "viewer"] {
+            d = d.delete(Tuple::user("project", evt.project_id, relation, user_id));
+        }
+        for component_id in &evt.component_ids {
+            d = d.delete(Tuple::user("component", *component_id, "viewer", user_id));
+            d = d.delete(Tuple::user("component", *component_id, "editor", user_id));
+        }
+    }
+    for component_id in &evt.component_ids {
+        d = d.delete(Tuple::object(
+            "component",
+            *component_id,
+            "project",
             "project",
             evt.project_id,
-            relation,
-            evt.deleted_by,
         ));
     }
     d
 }
 
-fn member_permissions_updated_delta(
-    evt: &manifesto_events::MemberPermissionsUpdatedEvent,
-) -> TupleDelta {
+fn member_permissions_updated_delta(evt: &MemberPermissionsUpdatedEvent) -> TupleDelta {
     let mut d = TupleDelta::default();
-    for relation in ["owner", "admin", "member", "viewer"] {
-        d = d.delete(Tuple::user(
-            "project",
-            evt.project_id,
-            relation,
-            evt.user_id,
-        ));
+    if !evt.previous.is_empty() {
+        for perm in &evt.previous {
+            if let Some(tuple) = resource_permission_tuple(perm, evt.project_id, evt.user_id) {
+                d = d.delete(tuple);
+            }
+        }
     }
     for perm in &evt.permissions {
-        if let Some(relation) = permission_to_relation(&perm.permission) {
-            let object_type = resource_to_object_type(&perm.resource);
-            d = d.write(Tuple::user(
-                object_type,
-                evt.project_id,
-                relation,
-                evt.user_id,
-            ));
+        if let Some(tuple) = resource_permission_tuple(perm, evt.project_id, evt.user_id) {
+            d = d.write(tuple);
         }
     }
     d
@@ -175,46 +188,80 @@ fn component_removed_delta(evt: &manifesto_events::ComponentRemovedEvent) -> Tup
 }
 
 fn member_added_delta(evt: &manifesto_events::MemberAddedEvent) -> TupleDelta {
-    let mut d = TupleDelta::default().write(Tuple::user(
-        "project",
+    grant_tuple(
+        &evt.initial_resource,
+        &evt.initial_permission,
+        evt.object_type.as_deref(),
+        evt.object_id,
         evt.project_id,
-        "member",
         evt.user_id,
-    ));
-    if let Some(relation) = permission_to_relation(&evt.initial_permission) {
-        let object_type = resource_to_object_type(&evt.initial_resource);
-        d = d.write(Tuple::user(
-            object_type,
-            evt.project_id,
-            relation,
-            evt.user_id,
-        ));
-    }
-    d
+    )
+    .map_or_else(TupleDelta::default, |tuple| {
+        TupleDelta::default().write(tuple)
+    })
 }
 
 fn member_removed_delta(evt: &manifesto_events::MemberRemovedEvent) -> TupleDelta {
     let mut d = TupleDelta::default();
-    for relation in ["owner", "admin", "member", "viewer"] {
+    if evt.tuples.is_empty() {
+        for relation in ["owner", "admin", "member", "viewer"] {
+            d = d.delete(Tuple::user(
+                "project",
+                evt.project_id,
+                relation,
+                evt.user_id,
+            ));
+        }
+    } else {
+        for tuple in &evt.tuples {
+            d = d.delete(tuple_from_authz(tuple));
+        }
+    }
+    for component_id in &evt.component_ids {
         d = d.delete(Tuple::user(
-            "project",
-            evt.project_id,
-            relation,
+            "component",
+            *component_id,
+            "viewer",
+            evt.user_id,
+        ));
+        d = d.delete(Tuple::user(
+            "component",
+            *component_id,
+            "editor",
             evt.user_id,
         ));
     }
     d
 }
 
-fn permission_granted_delta(evt: &manifesto_events::PermissionGrantedEvent) -> TupleDelta {
-    permission_to_relation(&evt.permission).map_or_else(TupleDelta::default, |relation| {
-        let object_type = resource_to_object_type(&evt.resource);
-        TupleDelta::default().write(Tuple::user(
-            object_type,
-            evt.project_id,
-            relation,
-            evt.user_id,
-        ))
+fn permission_granted_delta(evt: &PermissionGrantedEvent) -> TupleDelta {
+    grant_tuple(
+        &evt.resource,
+        &evt.permission,
+        evt.object_type.as_deref(),
+        evt.object_id,
+        evt.project_id,
+        evt.user_id,
+    )
+    .map_or_else(TupleDelta::default, |tuple| {
+        TupleDelta::default().write(tuple)
+    })
+}
+
+fn permission_revoked_delta(evt: &PermissionRevokedEvent) -> TupleDelta {
+    let Some(permission) = evt.permission.as_deref() else {
+        return TupleDelta::default();
+    };
+    grant_tuple(
+        &evt.resource,
+        permission,
+        evt.object_type.as_deref(),
+        evt.object_id,
+        evt.project_id,
+        evt.user_id,
+    )
+    .map_or_else(TupleDelta::default, |tuple| {
+        TupleDelta::default().delete(tuple)
     })
 }
 
@@ -243,16 +290,65 @@ fn project_visibility_changed_delta(
     d
 }
 
-fn permission_revoked_delta(evt: &manifesto_events::PermissionRevokedEvent) -> TupleDelta {
-    let object_type = resource_to_object_type(&evt.resource);
+fn project_suspended_delta(evt: &manifesto_events::ProjectSuspendedEvent) -> TupleDelta {
+    let mut d =
+        TupleDelta::default().delete(Tuple::wildcard_user("project", evt.project_id, "viewer"));
+    if let Some(userset) = org_member_viewer_userset(evt.project_id, &evt.owner_type, evt.owner_id)
+    {
+        d = d.delete(userset);
+    }
+    d
+}
+
+fn project_resumed_delta(evt: &manifesto_events::ProjectResumedEvent) -> TupleDelta {
     let mut d = TupleDelta::default();
-    for relation in ["owner", "admin", "member", "viewer"] {
-        d = d.delete(Tuple::user(
-            object_type,
+    if is_public_visibility(&evt.visibility) {
+        d = d.write(Tuple::wildcard_user("project", evt.project_id, "viewer"));
+    }
+    if is_internal_visibility(&evt.visibility) {
+        if let Some(userset) =
+            org_member_viewer_userset(evt.project_id, &evt.owner_type, evt.owner_id)
+        {
+            d = d.write(userset);
+        }
+    }
+    d
+}
+
+fn ownership_transferred_delta(
+    evt: &manifesto_events::ProjectOwnershipTransferredEvent,
+) -> TupleDelta {
+    let mut d = TupleDelta::default()
+        .delete(Tuple::user(
+            "project",
             evt.project_id,
-            relation,
-            evt.user_id,
+            "owner",
+            evt.from_user_id,
+        ))
+        .write(Tuple::user(
+            "project",
+            evt.project_id,
+            "admin",
+            evt.from_user_id,
+        ))
+        .write(Tuple::user(
+            "project",
+            evt.project_id,
+            "owner",
+            evt.to_user_id,
         ));
+    if evt.owner_type.as_deref() == Some("personal") {
+        if let Some(previous_owner_id) = evt.previous_owner_id {
+            d = d.delete(Tuple::object(
+                "project",
+                evt.project_id,
+                "organization",
+                "user",
+                previous_owner_id,
+            ));
+        }
+        // Personal projects have no organization parent tuple; owner_id is the user.
+        let _ = evt.new_owner_id;
     }
     d
 }
@@ -286,6 +382,9 @@ fn translate_event(event: &ManifestoDomainEvent) -> TupleDelta {
             }
             d
         }
+        ManifestoDomainEvent::ProjectSuspended(evt) => project_suspended_delta(evt),
+        ManifestoDomainEvent::ProjectResumed(evt) => project_resumed_delta(evt),
+        ManifestoDomainEvent::ProjectOwnershipTransferred(evt) => ownership_transferred_delta(evt),
         ManifestoDomainEvent::ProjectPublished(_)
         | ManifestoDomainEvent::ProjectUpdated(_)
         | ManifestoDomainEvent::ComponentStatusChanged(_) => TupleDelta::default(),
@@ -297,11 +396,12 @@ mod tests {
     use super::*;
     use chrono::Utc;
     use manifesto_events::{
-        ComponentAddedEvent, MemberAddedEvent, MemberPermissionsUpdatedEvent,
-        PermissionGrantedEvent, ProjectArchivedEvent, ProjectCreatedEvent, ProjectDeletedEvent,
-        ProjectPublishedEvent, ProjectVisibilityChangedEvent, ResourcePermission,
+        ComponentAddedEvent, MemberAddedEvent, MemberPermissionsUpdatedEvent, MemberRemovedEvent,
+        PermissionGrantedEvent, PermissionRevokedEvent, ProjectArchivedEvent, ProjectCreatedEvent,
+        ProjectDeletedEvent, ProjectOwnershipTransferredEvent, ProjectPublishedEvent,
+        ProjectResumedEvent, ProjectSuspendedEvent, ProjectVisibilityChangedEvent,
+        ResourcePermission,
     };
-    use uuid::Uuid;
 
     fn to_json<T: serde::Serialize>(value: T) -> serde_json::Value {
         serde_json::to_value(value).expect("Serialize")
@@ -362,14 +462,14 @@ mod tests {
     }
 
     #[test]
-    fn member_added_writes_member_plus_initial_role() {
+    fn member_added_writes_only_initial_role() {
         let project_id = Uuid::new_v4();
         let user_id = Uuid::new_v4();
         let evt = ManifestoDomainEvent::MemberAdded(MemberAddedEvent::new(
             project_id,
             Uuid::new_v4(),
             user_id,
-            "admin".into(),
+            "read".into(),
             "project".into(),
             Uuid::new_v4(),
             Utc::now(),
@@ -378,20 +478,21 @@ mod tests {
             .translate(&to_json(evt))
             .unwrap()
             .unwrap();
-        let relations: Vec<_> = delta.writes.iter().map(|t| t.relation.as_str()).collect();
-        assert!(relations.contains(&"admin"));
-        assert!(relations.contains(&"member"));
+        assert_eq!(delta.writes.len(), 1);
+        assert_eq!(delta.writes[0].relation, "viewer");
+        assert_eq!(delta.writes[0].object_id, project_id.to_string());
     }
 
     #[test]
-    fn permission_granted_on_component_uses_component_type() {
+    fn permission_granted_on_component_instance_uses_editor_and_uuid() {
         let project_id = Uuid::new_v4();
+        let component_id = Uuid::new_v4();
         let user_id = Uuid::new_v4();
         let evt = ManifestoDomainEvent::PermissionGranted(PermissionGrantedEvent::new(
             project_id,
             Uuid::new_v4(),
             user_id,
-            "component".into(),
+            component_id.to_string(),
             "write".into(),
             Uuid::new_v4(),
             Utc::now(),
@@ -402,7 +503,54 @@ mod tests {
             .unwrap();
         assert_eq!(delta.writes.len(), 1);
         assert_eq!(delta.writes[0].object_type, "component");
-        assert_eq!(delta.writes[0].relation, "member");
+        assert_eq!(delta.writes[0].object_id, component_id.to_string());
+        assert_eq!(delta.writes[0].relation, "editor");
+    }
+
+    #[test]
+    fn permission_revoked_v1_without_permission_is_noop() {
+        let raw = serde_json::json!({
+            "event_type": "permission_revoked",
+            "data": {
+                "event_id": Uuid::new_v4(),
+                "aggregate_id": Uuid::new_v4(),
+                "event_type": "permission_revoked",
+                "occurred_at": Utc::now(),
+                "version": 1,
+                "metadata": {},
+                "project_id": Uuid::new_v4(),
+                "member_id": Uuid::new_v4(),
+                "user_id": Uuid::new_v4(),
+                "resource": "project",
+                "revoked_by": Uuid::new_v4(),
+                "revoked_at": Utc::now()
+            }
+        });
+        let delta = ManifestoTranslator::new().translate(&raw).unwrap().unwrap();
+        assert!(delta.is_empty());
+    }
+
+    #[test]
+    fn permission_revoked_v2_deletes_one_tuple() {
+        let project_id = Uuid::new_v4();
+        let user_id = Uuid::new_v4();
+        let evt = ManifestoDomainEvent::PermissionRevoked(PermissionRevokedEvent::new(
+            project_id,
+            Uuid::new_v4(),
+            user_id,
+            "project".into(),
+            "admin".into(),
+            Uuid::new_v4(),
+            Utc::now(),
+        ));
+        let delta = ManifestoTranslator::new()
+            .translate(&to_json(evt))
+            .unwrap()
+            .unwrap();
+        assert_eq!(delta.deletes.len(), 1);
+        assert_eq!(delta.deletes[0].relation, "admin");
+        assert_eq!(delta.deletes[0].object_id, project_id.to_string());
+        assert!(delta.writes.is_empty());
     }
 
     #[test]
@@ -431,7 +579,7 @@ mod tests {
     }
 
     #[test]
-    fn member_permissions_updated_replaces_project_roles() {
+    fn member_permissions_updated_without_previous_does_not_wipe() {
         let project_id = Uuid::new_v4();
         let user_id = Uuid::new_v4();
         let evt =
@@ -439,10 +587,11 @@ mod tests {
                 project_id,
                 Uuid::new_v4(),
                 user_id,
-                vec![ResourcePermission {
-                    resource: "project".into(),
-                    permission: "write".into(),
-                }],
+                vec![ResourcePermission::new(
+                    "project".into(),
+                    "write".into(),
+                    project_id,
+                )],
                 Uuid::new_v4(),
                 Utc::now(),
             ));
@@ -450,11 +599,122 @@ mod tests {
             .translate(&to_json(evt))
             .unwrap()
             .unwrap();
-        assert!(delta.deletes.iter().any(|t| t.relation == "admin"));
+        assert!(delta.deletes.is_empty());
         assert!(delta
             .writes
             .iter()
             .any(|t| t.relation == "member" && t.user_id == user_id.to_string()));
+    }
+
+    #[test]
+    fn member_permissions_updated_with_previous_deletes_exact_prior() {
+        let project_id = Uuid::new_v4();
+        let user_id = Uuid::new_v4();
+        let evt = ManifestoDomainEvent::MemberPermissionsUpdated(
+            MemberPermissionsUpdatedEvent::with_previous(
+                project_id,
+                Uuid::new_v4(),
+                user_id,
+                vec![ResourcePermission::new(
+                    "project".into(),
+                    "admin".into(),
+                    project_id,
+                )],
+                vec![ResourcePermission::new(
+                    "project".into(),
+                    "write".into(),
+                    project_id,
+                )],
+                Uuid::new_v4(),
+                Utc::now(),
+            ),
+        );
+        let delta = translate_event(&evt);
+        assert!(delta.deletes.iter().any(|t| t.relation == "admin"));
+        assert!(delta.writes.iter().any(|t| t.relation == "member"));
+    }
+
+    #[test]
+    fn member_removed_with_component_ids_cleans_instance_grants() {
+        let project_id = Uuid::new_v4();
+        let user_id = Uuid::new_v4();
+        let component_id = Uuid::new_v4();
+        let evt = ManifestoDomainEvent::MemberRemoved(MemberRemovedEvent::with_tuples(
+            project_id,
+            Uuid::new_v4(),
+            user_id,
+            Uuid::new_v4(),
+            Utc::now(),
+            vec![AuthzTuple::new("project", project_id, "viewer", user_id)],
+            vec![component_id],
+        ));
+        let delta = translate_event(&evt);
+        assert!(delta
+            .deletes
+            .iter()
+            .any(|t| t.object_type == "component" && t.object_id == component_id.to_string()));
+        assert!(!delta.deletes.iter().any(|t| t.relation == "owner"));
+    }
+
+    #[test]
+    fn ownership_transfer_moves_owner_and_keeps_former_as_admin() {
+        let project_id = Uuid::new_v4();
+        let from = Uuid::new_v4();
+        let to = Uuid::new_v4();
+        let delta = translate_event(&ManifestoDomainEvent::ProjectOwnershipTransferred(
+            ProjectOwnershipTransferredEvent::new(
+                project_id,
+                from,
+                to,
+                from,
+                Utc::now(),
+                Some("personal".into()),
+                Some(from),
+                Some(to),
+            ),
+        ));
+        assert!(delta
+            .deletes
+            .iter()
+            .any(|t| t.relation == "owner" && t.user_id == from.to_string()));
+        assert!(delta
+            .writes
+            .iter()
+            .any(|t| t.relation == "owner" && t.user_id == to.to_string()));
+        assert!(delta
+            .writes
+            .iter()
+            .any(|t| t.relation == "admin" && t.user_id == from.to_string()));
+    }
+
+    #[test]
+    fn suspend_deletes_wildcard_and_resume_public_rewrites_it() {
+        let project_id = Uuid::new_v4();
+        let org_id = Uuid::new_v4();
+        let suspended = translate_event(&ManifestoDomainEvent::ProjectSuspended(
+            ProjectSuspendedEvent::new(
+                project_id,
+                "demo".into(),
+                "organization".into(),
+                org_id,
+                "public".into(),
+                Uuid::new_v4(),
+                Utc::now(),
+            ),
+        ));
+        assert!(suspended.deletes.iter().any(|t| t.user_id == "*"));
+        let resumed = translate_event(&ManifestoDomainEvent::ProjectResumed(
+            ProjectResumedEvent::new(
+                project_id,
+                "demo".into(),
+                "organization".into(),
+                org_id,
+                "public".into(),
+                Uuid::new_v4(),
+                Utc::now(),
+            ),
+        ));
+        assert!(resumed.writes.iter().any(|t| t.user_id == "*"));
     }
 
     fn visibility_event(
@@ -589,5 +849,24 @@ mod tests {
             internal_to_public.deletes[0].user_id,
             format!("{org_id}#member")
         );
+    }
+
+    #[test]
+    fn grant_tuple_prefers_explicit_object_over_resource_name() {
+        let project_id = Uuid::new_v4();
+        let component_id = Uuid::new_v4();
+        let user_id = Uuid::new_v4();
+        let tuple = grant_tuple(
+            "taskboard",
+            "write",
+            Some("component"),
+            Some(component_id),
+            project_id,
+            user_id,
+        )
+        .expect("tuple");
+        assert_eq!(tuple.object_type, "component");
+        assert_eq!(tuple.object_id, component_id.to_string());
+        assert_eq!(tuple.relation, "editor");
     }
 }

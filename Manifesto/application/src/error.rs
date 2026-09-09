@@ -16,6 +16,9 @@ pub enum ApplicationError {
     #[error("Already exists: {0}")]
     AlreadyExists(String),
 
+    #[error("Conflict: {0}")]
+    Conflict(String),
+
     #[error("Internal error: {0}")]
     Internal(String),
 }
@@ -52,6 +55,7 @@ impl From<ApplicationError> for CommandError {
             ApplicationError::Validation(msg) => Self::validation("validation_error", msg),
             ApplicationError::NotFound(msg) => Self::business("not_found", msg),
             ApplicationError::AlreadyExists(msg) => Self::business("already_exists", msg),
+            ApplicationError::Conflict(msg) => Self::business("conflict", msg),
             ApplicationError::Internal(msg) => Self::infrastructure("internal_error", msg),
         }
     }

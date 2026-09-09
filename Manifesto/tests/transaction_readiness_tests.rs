@@ -312,17 +312,12 @@ async fn member_added_is_recorded_in_the_same_transaction_as_the_member() {
     .await
     .expect("project creation should succeed");
 
-    let joiner = ProjectMember::new(
-        project_id,
-        joiner_id,
-        MemberSource::Invitation,
-        Some(joiner_id),
-    );
+    let joiner = ProjectMember::new(project_id, joiner_id, MemberSource::Direct, Some(joiner_id));
     let member_event = ManifestoDomainEvent::MemberAdded(MemberAddedEvent::new(
         project_id,
         joiner.id,
         joiner.user_id,
-        "write".to_string(),
+        "read".to_string(),
         "project".to_string(),
         joiner_id,
         joiner.added_at,
@@ -396,20 +391,20 @@ async fn concurrent_member_joins_cannot_exceed_the_project_limit() {
     let first_member = ProjectMember::new(
         project_id,
         first_user,
-        MemberSource::Invitation,
+        MemberSource::Direct,
         Some(first_user),
     );
     let second_member = ProjectMember::new(
         project_id,
         second_user,
-        MemberSource::Invitation,
+        MemberSource::Direct,
         Some(second_user),
     );
     let first_event = ManifestoDomainEvent::MemberAdded(MemberAddedEvent::new(
         project_id,
         first_member.id,
         first_user,
-        "write".to_string(),
+        "read".to_string(),
         "project".to_string(),
         first_user,
         first_member.added_at,
@@ -418,7 +413,7 @@ async fn concurrent_member_joins_cannot_exceed_the_project_limit() {
         project_id,
         second_member.id,
         second_user,
-        "write".to_string(),
+        "read".to_string(),
         "project".to_string(),
         second_user,
         second_member.added_at,
@@ -430,14 +425,14 @@ async fn concurrent_member_joins_cannot_exceed_the_project_limit() {
         first_uow.save_member_with_permission_and_event(
             first_member,
             "project",
-            "write",
+            "read",
             2,
             first_event.into(),
         ),
         second_uow.save_member_with_permission_and_event(
             second_member,
             "project",
-            "write",
+            "read",
             2,
             second_event.into(),
         )

@@ -4,10 +4,12 @@
 //! Events are used for inter-service communication, particularly with the Telegraph
 //! notification service.
 
+pub mod authz;
 pub mod component;
 pub mod member;
 pub mod project;
 
+pub use authz::*;
 pub use component::*;
 pub use member::*;
 pub use project::*;
@@ -37,6 +39,12 @@ pub enum ManifestoDomainEvent {
     ProjectVisibilityChanged(ProjectVisibilityChangedEvent),
     #[serde(rename = "project_archived")]
     ProjectArchived(ProjectArchivedEvent),
+    #[serde(rename = "project_suspended")]
+    ProjectSuspended(ProjectSuspendedEvent),
+    #[serde(rename = "project_resumed")]
+    ProjectResumed(ProjectResumedEvent),
+    #[serde(rename = "project_ownership_transferred")]
+    ProjectOwnershipTransferred(ProjectOwnershipTransferredEvent),
 
     // Component events
     #[serde(rename = "component_added")]
@@ -61,100 +69,49 @@ pub enum ManifestoDomainEvent {
     PermissionRevoked(PermissionRevokedEvent),
 }
 
+impl ManifestoDomainEvent {
+    fn base(&self) -> &rustycog::events::BaseEvent {
+        match self {
+            Self::ProjectCreated(event) => &event.base,
+            Self::ProjectUpdated(event) => &event.base,
+            Self::ProjectDeleted(event) => &event.base,
+            Self::ProjectPublished(event) => &event.base,
+            Self::ProjectVisibilityChanged(event) => &event.base,
+            Self::ProjectArchived(event) => &event.base,
+            Self::ProjectSuspended(event) => &event.base,
+            Self::ProjectResumed(event) => &event.base,
+            Self::ProjectOwnershipTransferred(event) => &event.base,
+            Self::ComponentAdded(event) => &event.base,
+            Self::ComponentStatusChanged(event) => &event.base,
+            Self::ComponentRemoved(event) => &event.base,
+            Self::MemberAdded(event) => &event.base,
+            Self::MemberPermissionsUpdated(event) => &event.base,
+            Self::MemberRemoved(event) => &event.base,
+            Self::PermissionGranted(event) => &event.base,
+            Self::PermissionRevoked(event) => &event.base,
+        }
+    }
+}
+
 impl DomainEvent for ManifestoDomainEvent {
     fn event_type(&self) -> &str {
-        match self {
-            Self::ProjectCreated(event) => event.base.event_type.as_str(),
-            Self::ProjectUpdated(event) => event.base.event_type.as_str(),
-            Self::ProjectDeleted(event) => event.base.event_type.as_str(),
-            Self::ProjectPublished(event) => event.base.event_type.as_str(),
-            Self::ProjectVisibilityChanged(event) => event.base.event_type.as_str(),
-            Self::ProjectArchived(event) => event.base.event_type.as_str(),
-            Self::ComponentAdded(event) => event.base.event_type.as_str(),
-            Self::ComponentStatusChanged(event) => event.base.event_type.as_str(),
-            Self::ComponentRemoved(event) => event.base.event_type.as_str(),
-            Self::MemberAdded(event) => event.base.event_type.as_str(),
-            Self::MemberPermissionsUpdated(event) => event.base.event_type.as_str(),
-            Self::MemberRemoved(event) => event.base.event_type.as_str(),
-            Self::PermissionGranted(event) => event.base.event_type.as_str(),
-            Self::PermissionRevoked(event) => event.base.event_type.as_str(),
-        }
+        self.base().event_type.as_str()
     }
 
     fn event_id(&self) -> Uuid {
-        match self {
-            Self::ProjectCreated(event) => event.base.event_id,
-            Self::ProjectUpdated(event) => event.base.event_id,
-            Self::ProjectDeleted(event) => event.base.event_id,
-            Self::ProjectPublished(event) => event.base.event_id,
-            Self::ProjectVisibilityChanged(event) => event.base.event_id,
-            Self::ProjectArchived(event) => event.base.event_id,
-            Self::ComponentAdded(event) => event.base.event_id,
-            Self::ComponentStatusChanged(event) => event.base.event_id,
-            Self::ComponentRemoved(event) => event.base.event_id,
-            Self::MemberAdded(event) => event.base.event_id,
-            Self::MemberPermissionsUpdated(event) => event.base.event_id,
-            Self::MemberRemoved(event) => event.base.event_id,
-            Self::PermissionGranted(event) => event.base.event_id,
-            Self::PermissionRevoked(event) => event.base.event_id,
-        }
+        self.base().event_id
     }
 
     fn aggregate_id(&self) -> Uuid {
-        match self {
-            Self::ProjectCreated(event) => event.base.aggregate_id,
-            Self::ProjectUpdated(event) => event.base.aggregate_id,
-            Self::ProjectDeleted(event) => event.base.aggregate_id,
-            Self::ProjectPublished(event) => event.base.aggregate_id,
-            Self::ProjectVisibilityChanged(event) => event.base.aggregate_id,
-            Self::ProjectArchived(event) => event.base.aggregate_id,
-            Self::ComponentAdded(event) => event.base.aggregate_id,
-            Self::ComponentStatusChanged(event) => event.base.aggregate_id,
-            Self::ComponentRemoved(event) => event.base.aggregate_id,
-            Self::MemberAdded(event) => event.base.aggregate_id,
-            Self::MemberPermissionsUpdated(event) => event.base.aggregate_id,
-            Self::MemberRemoved(event) => event.base.aggregate_id,
-            Self::PermissionGranted(event) => event.base.aggregate_id,
-            Self::PermissionRevoked(event) => event.base.aggregate_id,
-        }
+        self.base().aggregate_id
     }
 
     fn occurred_at(&self) -> DateTime<Utc> {
-        match self {
-            Self::ProjectCreated(event) => event.base.occurred_at,
-            Self::ProjectUpdated(event) => event.base.occurred_at,
-            Self::ProjectDeleted(event) => event.base.occurred_at,
-            Self::ProjectPublished(event) => event.base.occurred_at,
-            Self::ProjectVisibilityChanged(event) => event.base.occurred_at,
-            Self::ProjectArchived(event) => event.base.occurred_at,
-            Self::ComponentAdded(event) => event.base.occurred_at,
-            Self::ComponentStatusChanged(event) => event.base.occurred_at,
-            Self::ComponentRemoved(event) => event.base.occurred_at,
-            Self::MemberAdded(event) => event.base.occurred_at,
-            Self::MemberPermissionsUpdated(event) => event.base.occurred_at,
-            Self::MemberRemoved(event) => event.base.occurred_at,
-            Self::PermissionGranted(event) => event.base.occurred_at,
-            Self::PermissionRevoked(event) => event.base.occurred_at,
-        }
+        self.base().occurred_at
     }
 
     fn version(&self) -> u32 {
-        match self {
-            Self::ProjectCreated(event) => event.base.version,
-            Self::ProjectUpdated(event) => event.base.version,
-            Self::ProjectDeleted(event) => event.base.version,
-            Self::ProjectPublished(event) => event.base.version,
-            Self::ProjectVisibilityChanged(event) => event.base.version,
-            Self::ProjectArchived(event) => event.base.version,
-            Self::ComponentAdded(event) => event.base.version,
-            Self::ComponentStatusChanged(event) => event.base.version,
-            Self::ComponentRemoved(event) => event.base.version,
-            Self::MemberAdded(event) => event.base.version,
-            Self::MemberPermissionsUpdated(event) => event.base.version,
-            Self::MemberRemoved(event) => event.base.version,
-            Self::PermissionGranted(event) => event.base.version,
-            Self::PermissionRevoked(event) => event.base.version,
-        }
+        self.base().version
     }
 
     fn to_json(&self) -> Result<String, ServiceError> {
@@ -163,22 +120,7 @@ impl DomainEvent for ManifestoDomainEvent {
     }
 
     fn metadata(&self) -> HashMap<String, String> {
-        match self {
-            Self::ProjectCreated(event) => event.base.metadata.clone(),
-            Self::ProjectUpdated(event) => event.base.metadata.clone(),
-            Self::ProjectDeleted(event) => event.base.metadata.clone(),
-            Self::ProjectPublished(event) => event.base.metadata.clone(),
-            Self::ProjectVisibilityChanged(event) => event.base.metadata.clone(),
-            Self::ProjectArchived(event) => event.base.metadata.clone(),
-            Self::ComponentAdded(event) => event.base.metadata.clone(),
-            Self::ComponentStatusChanged(event) => event.base.metadata.clone(),
-            Self::ComponentRemoved(event) => event.base.metadata.clone(),
-            Self::MemberAdded(event) => event.base.metadata.clone(),
-            Self::MemberPermissionsUpdated(event) => event.base.metadata.clone(),
-            Self::MemberRemoved(event) => event.base.metadata.clone(),
-            Self::PermissionGranted(event) => event.base.metadata.clone(),
-            Self::PermissionRevoked(event) => event.base.metadata.clone(),
-        }
+        self.base().metadata.clone()
     }
 }
 

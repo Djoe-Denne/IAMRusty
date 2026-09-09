@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use validator::Validate;
 
+use manifesto_domain::value_objects::FieldUpdate;
+
 use crate::dto::ComponentResponse;
 
 /// Request to create a new project
@@ -18,10 +20,6 @@ pub struct CreateProjectRequest {
     pub owner_id: Option<Uuid>, // Required for organization projects
 
     pub visibility: Option<String>, // private, internal, public
-
-    pub external_collaboration_enabled: Option<bool>,
-
-    pub data_classification: Option<String>, // public, internal, confidential, restricted
 }
 
 /// Request to update a project
@@ -30,13 +28,10 @@ pub struct UpdateProjectRequest {
     #[validate(length(min = 1))]
     pub name: Option<String>,
 
-    pub description: Option<String>,
+    #[serde(default, skip_serializing_if = "FieldUpdate::is_unchanged")]
+    pub description: FieldUpdate<Option<String>>,
 
     pub visibility: Option<String>,
-
-    pub external_collaboration_enabled: Option<bool>,
-
-    pub data_classification: Option<String>,
 }
 
 /// Project response
@@ -50,8 +45,6 @@ pub struct ProjectResponse {
     pub owner_id: Uuid,
     pub created_by: Uuid,
     pub visibility: String,
-    pub external_collaboration_enabled: bool,
-    pub data_classification: String,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub published_at: Option<DateTime<Utc>>,

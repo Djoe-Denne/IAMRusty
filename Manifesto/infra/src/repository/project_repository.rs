@@ -6,8 +6,8 @@ use manifesto_domain::port::{
 use manifesto_domain::value_objects::{DataClassification, OwnerType, ProjectStatus, Visibility};
 use rustycog::core::error::DomainError;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, Condition, ConnectionTrait, DatabaseConnection,
-    EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect,
+    sea_query::Expr, ActiveModelTrait, ActiveValue, ColumnTrait, Condition, ConnectionTrait,
+    DatabaseConnection, EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect,
 };
 use std::str::FromStr;
 use std::sync::Arc;
@@ -81,10 +81,7 @@ impl ProjectReadRepositoryImpl {
 fn public_live_condition() -> Condition {
     Condition::all()
         .add(projects::Column::Visibility.eq(Visibility::Public.as_str()))
-        .add(projects::Column::Status.is_in([
-            ProjectStatus::Draft.as_str(),
-            ProjectStatus::Active.as_str(),
-        ]))
+        .add(projects::Column::Status.eq(ProjectStatus::Active.as_str()))
 }
 
 fn list_access_condition(filters: &ProjectListFilters) -> Condition {
@@ -94,7 +91,22 @@ fn list_access_condition(filters: &ProjectListFilters) -> Condition {
             let mut access = Condition::any().add(public_live_condition()).add(
                 Condition::all()
                     .add(project_members::Column::UserId.eq(user_id))
-                    .add(project_members::Column::RemovedAt.is_null()),
+                    .add(project_members::Column::RemovedAt.is_null())
+                    .add(
+                        Condition::any()
+                            .add(projects::Column::Status.ne(ProjectStatus::Suspended.as_str()))
+                            .add(project_members::Column::IsOwner.eq(true))
+                            .add(Expr::cust(
+                                r"EXISTS (
+                                    SELECT 1
+                                    FROM project_member_role_permissions pmr
+                                    JOIN role_permissions rp ON rp.id = pmr.role_permission_id
+                                    WHERE pmr.member_id = project_members.id
+                                      AND rp.resource_id = 'project'
+                                      AND rp.permission_id IN ('admin', 'owner')
+                                )",
+                            )),
+                    ),
             );
             if !filters.org_viewer_ids.is_empty() {
                 access =
@@ -297,6 +309,25 @@ impl ProjectWriteRepositoryImpl {
             ProjectMapper::to_domain(inserted)
         }
     }
+
+    /// Delete a project using an existing connection.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the delete fails or the row is missing.
+    pub async fn delete_by_id_with_connection<C>(db: &C, id: &Uuid) -> Result<(), DomainError>
+    where
+        C: ConnectionTrait,
+    {
+        let result = Projects::delete_by_id(*id)
+            .exec(db)
+            .await
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
+        if result.rows_affected == 0 {
+            return Err(DomainError::entity_not_found("Project", &id.to_string()));
+        }
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -309,17 +340,7 @@ impl ProjectWriteRepository for ProjectWriteRepositoryImpl {
 
     async fn delete_by_id(&self, id: &Uuid) -> Result<(), DomainError> {
         debug!("Deleting project by ID: {}", id);
-
-        let result = Projects::delete_by_id(*id)
-            .exec(self.db.as_ref())
-            .await
-            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
-
-        if result.rows_affected == 0 {
-            return Err(DomainError::entity_not_found("Project", &id.to_string()));
-        }
-
-        Ok(())
+        Self::delete_by_id_with_connection(self.db.as_ref(), id).await
     }
 
     async fn exists_by_id(&self, id: &Uuid) -> Result<bool, DomainError> {

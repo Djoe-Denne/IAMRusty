@@ -189,6 +189,83 @@ impl ProjectMemberRolePermissionWriteRepositoryImpl {
             role_permission.clone(),
         ))
     }
+
+    /// Revoke every grant for a member using an existing connection.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the delete fails.
+    pub async fn revoke_all_for_member_with_connection<C>(
+        db: &C,
+        member_id: &Uuid,
+    ) -> Result<(), DomainError>
+    where
+        C: ConnectionTrait,
+    {
+        ProjectMemberRolePermissions::delete_many()
+            .filter(project_member_role_permissions::Column::MemberId.eq(*member_id))
+            .exec(db)
+            .await
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
+        Ok(())
+    }
+
+    /// Revoke one grant using an existing connection.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the delete fails.
+    pub async fn revoke_with_connection<C>(
+        db: &C,
+        member_id: &Uuid,
+        role_permission_id: &Uuid,
+    ) -> Result<(), DomainError>
+    where
+        C: ConnectionTrait,
+    {
+        ProjectMemberRolePermissions::delete_many()
+            .filter(project_member_role_permissions::Column::MemberId.eq(*member_id))
+            .filter(
+                project_member_role_permissions::Column::RolePermissionId.eq(*role_permission_id),
+            )
+            .exec(db)
+            .await
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
+        Ok(())
+    }
+
+    /// Load grants for a member using an existing connection.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the query or mapping fails.
+    pub async fn find_by_member_with_connection<C>(
+        db: &C,
+        member_id: &Uuid,
+    ) -> Result<Vec<ProjectMemberRolePermission>, DomainError>
+    where
+        C: ConnectionTrait,
+    {
+        let models = ProjectMemberRolePermissions::find()
+            .filter(project_member_role_permissions::Column::MemberId.eq(*member_id))
+            .all(db)
+            .await
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
+        let mut result = Vec::new();
+        for model in models {
+            let role_permission = RolePermissionReadRepositoryImpl::find_by_id_with_connection(
+                db,
+                &model.role_permission_id,
+            )
+            .await?
+            .ok_or_else(|| DomainError::entity_not_found("RolePermission", "unknown"))?;
+            result.push(ProjectMemberRolePermissionMapper::to_domain(
+                &model,
+                role_permission,
+            ));
+        }
+        Ok(result)
+    }
 }
 
 #[async_trait]

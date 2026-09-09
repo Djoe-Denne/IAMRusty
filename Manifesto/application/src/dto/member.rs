@@ -33,6 +33,12 @@ pub struct UpdateMemberPermissionsRequest {
     pub permissions: Vec<ResourcePermissionRequest>,
 }
 
+/// Request to transfer project ownership to another active member.
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
+pub struct TransferOwnershipRequest {
+    pub user_id: Uuid,
+}
+
 /// Request to grant a permission on a resource
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct GrantPermissionRequest {

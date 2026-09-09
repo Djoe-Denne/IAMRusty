@@ -7,7 +7,7 @@ use manifesto_application::{
     ArchiveProjectCommand, CreateProjectCommand, CreateProjectRequest, DeleteProjectCommand,
     GetProjectCommand, GetProjectDetailCommand, ListProjectsCommand, PaginationRequest,
     ProjectDetailResponse, ProjectListResponse, ProjectResponse, PublishProjectCommand,
-    UpdateProjectCommand, UpdateProjectRequest,
+    ResumeProjectCommand, SuspendProjectCommand, UpdateProjectCommand, UpdateProjectRequest,
 };
 use rustycog::command::CommandContext;
 use rustycog::http::{AppState, AuthUser, OptionalAuthUser, ValidatedJson};
@@ -253,5 +253,49 @@ pub async fn archive_project(
         .await
         .map_err(error_mapper)?;
 
+    Ok(Json(result))
+}
+
+/// Suspend a project
+/// POST /`api/projects/{project_id}/suspend`
+///
+/// # Errors
+///
+/// Returns [`HttpError`] if the command fails.
+pub async fn suspend_project(
+    State(state): State<AppState>,
+    Path(project_id): Path<ResourceId>,
+    auth_user: AuthUser,
+) -> Result<Json<ProjectResponse>, HttpError> {
+    tracing::info!("Suspending project: {}", project_id);
+    let command = SuspendProjectCommand::new(project_id.id(), auth_user.user_id);
+    let context = CommandContext::new().with_user_id(auth_user.user_id);
+    let result = state
+        .command_service
+        .execute(command, context)
+        .await
+        .map_err(error_mapper)?;
+    Ok(Json(result))
+}
+
+/// Resume a suspended project
+/// POST /`api/projects/{project_id}/resume`
+///
+/// # Errors
+///
+/// Returns [`HttpError`] if the command fails.
+pub async fn resume_project(
+    State(state): State<AppState>,
+    Path(project_id): Path<ResourceId>,
+    auth_user: AuthUser,
+) -> Result<Json<ProjectResponse>, HttpError> {
+    tracing::info!("Resuming project: {}", project_id);
+    let command = ResumeProjectCommand::new(project_id.id(), auth_user.user_id);
+    let context = CommandContext::new().with_user_id(auth_user.user_id);
+    let result = state
+        .command_service
+        .execute(command, context)
+        .await
+        .map_err(error_mapper)?;
     Ok(Json(result))
 }

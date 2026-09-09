@@ -44,8 +44,14 @@ use super::{
     RemoveComponentCommandHandler,
     RemoveMemberCommand,
     RemoveMemberCommandHandler,
+    ResumeProjectCommand,
+    ResumeProjectCommandHandler,
     RevokePermissionCommand,
     RevokePermissionCommandHandler,
+    SuspendProjectCommand,
+    SuspendProjectCommandHandler,
+    TransferOwnershipCommand,
+    TransferOwnershipCommandHandler,
     UpdateComponentStatusCommand,
     UpdateComponentStatusCommandHandler,
     UpdateMemberCommand,
@@ -94,7 +100,9 @@ impl ManifestoCommandRegistryFactory {
         let delete_handler = Arc::new(DeleteProjectCommandHandler::new(project_usecase.clone()));
         let list_handler = Arc::new(ListProjectsCommandHandler::new(project_usecase.clone()));
         let publish_handler = Arc::new(PublishProjectCommandHandler::new(project_usecase.clone()));
-        let archive_handler = Arc::new(ArchiveProjectCommandHandler::new(project_usecase));
+        let archive_handler = Arc::new(ArchiveProjectCommandHandler::new(project_usecase.clone()));
+        let suspend_handler = Arc::new(SuspendProjectCommandHandler::new(project_usecase.clone()));
+        let resume_handler = Arc::new(ResumeProjectCommandHandler::new(project_usecase));
         let error_mapper = Arc::new(ProjectErrorMapper);
 
         builder
@@ -136,6 +144,16 @@ impl ManifestoCommandRegistryFactory {
             .register::<ArchiveProjectCommand, _>(
                 "archive_project".to_string(),
                 archive_handler,
+                error_mapper.clone(),
+            )
+            .register::<SuspendProjectCommand, _>(
+                "suspend_project".to_string(),
+                suspend_handler,
+                error_mapper.clone(),
+            )
+            .register::<ResumeProjectCommand, _>(
+                "resume_project".to_string(),
+                resume_handler,
                 error_mapper,
             )
     }
@@ -194,7 +212,8 @@ impl ManifestoCommandRegistryFactory {
         let grant_permission_handler =
             Arc::new(GrantPermissionCommandHandler::new(member_usecase.clone()));
         let revoke_permission_handler =
-            Arc::new(RevokePermissionCommandHandler::new(member_usecase));
+            Arc::new(RevokePermissionCommandHandler::new(member_usecase.clone()));
+        let transfer_handler = Arc::new(TransferOwnershipCommandHandler::new(member_usecase));
         let error_mapper = Arc::new(MemberErrorMapper);
 
         builder
@@ -236,6 +255,11 @@ impl ManifestoCommandRegistryFactory {
             .register::<RevokePermissionCommand, _>(
                 "revoke_permission".to_string(),
                 revoke_permission_handler,
+                error_mapper.clone(),
+            )
+            .register::<TransferOwnershipCommand, _>(
+                "transfer_ownership".to_string(),
+                transfer_handler,
                 error_mapper,
             )
     }

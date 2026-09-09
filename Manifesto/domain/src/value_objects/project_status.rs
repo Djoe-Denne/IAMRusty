@@ -17,7 +17,9 @@ impl ProjectStatus {
     pub fn can_transition_to(&self, target: &Self) -> bool {
         match (self, target) {
             // Draft→Active, Active→Archived|Suspended
-            (Self::Draft, Self::Active) | (Self::Active, Self::Archived | Self::Suspended) => true,
+            (Self::Draft, Self::Active)
+            | (Self::Active, Self::Archived | Self::Suspended)
+            | (Self::Suspended, Self::Active | Self::Archived) => true,
             // Same status is always allowed (no-op)
             (current, target) if current == target => true,
             // All other transitions are invalid
@@ -91,9 +93,11 @@ mod tests {
 
     #[test]
     fn test_invalid_transitions() {
-        assert!(!ProjectStatus::Draft.can_transition_to(&ProjectStatus::Archived));
+        assert!(ProjectStatus::Suspended.can_transition_to(&ProjectStatus::Active));
+        assert!(ProjectStatus::Suspended.can_transition_to(&ProjectStatus::Archived));
+        assert!(!ProjectStatus::Draft.can_transition_to(&ProjectStatus::Suspended));
         assert!(!ProjectStatus::Archived.can_transition_to(&ProjectStatus::Active));
-        assert!(!ProjectStatus::Suspended.can_transition_to(&ProjectStatus::Active));
+        assert!(!ProjectStatus::Suspended.can_transition_to(&ProjectStatus::Draft));
     }
 
     #[test]

@@ -47,6 +47,18 @@ pub fn create_router(state: AppState) -> Router {
         .post("/api/projects/{project_id}/archive", archive_project)
         .authenticated()
         .with_permission_on(Permission::Admin, "project")
+        .post("/api/projects/{project_id}/suspend", suspend_project)
+        .authenticated()
+        .with_permission_on(Permission::Admin, "project")
+        .post("/api/projects/{project_id}/resume", resume_project)
+        .authenticated()
+        .with_permission_on(Permission::Admin, "project")
+        .post(
+            "/api/projects/{project_id}/transfer-ownership",
+            transfer_ownership,
+        )
+        .authenticated()
+        .with_permission_on(Permission::Owner, "project")
         // Component GET/PATCH/DELETE take a component UUID after `{project_id}`.
         // Bind the check to `project_id` so AuthZ is project-scoped, not
         // `project:{component_id}`.
@@ -54,7 +66,7 @@ pub fn create_router(state: AppState) -> Router {
         .might_be_authenticated()
         .with_permission_on(Permission::Read, "project")
         .get(
-            "/api/projects/{project_id}/components/{component_type}",
+            "/api/projects/{project_id}/components/{component_id}",
             get_component,
         )
         .might_be_authenticated()
@@ -63,18 +75,18 @@ pub fn create_router(state: AppState) -> Router {
         .authenticated()
         .with_permission_on(Permission::Admin, "project")
         .patch(
-            "/api/projects/{project_id}/components/{component_type}",
+            "/api/projects/{project_id}/components/{component_id}",
             update_component_status,
         )
         .authenticated()
         .with_permission_on_param(Permission::Admin, "project", "project_id")
         .delete(
-            "/api/projects/{project_id}/components/{component_type}",
+            "/api/projects/{project_id}/components/{component_id}",
             remove_component,
         )
         .authenticated()
         .with_permission_on_param(Permission::Admin, "project", "project_id")
-        // Join is JWT-only: public live projects, no project Admin grant.
+        // Join is JWT-only: public active projects, no project Admin grant.
         .post("/api/projects/{project_id}/join", join_project)
         .authenticated()
         // Member routes (project-scoped)

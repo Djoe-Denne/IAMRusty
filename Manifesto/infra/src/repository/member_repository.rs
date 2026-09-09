@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use chrono::Utc;
 use manifesto_domain::entity::ProjectMember;
 use manifesto_domain::port::{
     MemberReadRepository, MemberRepository, MemberWriteRepository,
@@ -8,7 +9,7 @@ use manifesto_domain::value_objects::MemberSource;
 use rustycog::core::error::DomainError;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, Condition, ConnectionTrait, DatabaseConnection,
-    EntityTrait, PaginatorTrait, QueryFilter,
+    EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
 };
 use std::str::FromStr;
 use std::sync::Arc;
@@ -39,6 +40,7 @@ impl MemberMapper {
                 .grace_period_ends_at
                 .map(|dt| dt.naive_utc().and_utc()),
             last_access_at: model.last_access_at.map(|dt| dt.naive_utc().and_utc()),
+            is_owner: model.is_owner,
             role_permissions: Vec::new(), // Will be loaded separately
         })
     }
@@ -58,6 +60,7 @@ impl MemberMapper {
                 member.grace_period_ends_at.map(std::convert::Into::into),
             ),
             last_access_at: ActiveValue::Set(member.last_access_at.map(std::convert::Into::into)),
+            is_owner: ActiveValue::Set(member.is_owner),
         }
     }
 }
@@ -124,9 +127,84 @@ impl MemberReadRepository for MemberReadRepositoryImpl {
         project_id: &Uuid,
         user_id: &Uuid,
     ) -> Result<Option<ProjectMember>, DomainError> {
+        if let Some(active) = self
+            .find_active_by_project_and_user(project_id, user_id)
+            .await?
+        {
+            return Ok(Some(active));
+        }
         let member = ProjectMembers::find()
             .filter(project_members::Column::ProjectId.eq(*project_id))
             .filter(project_members::Column::UserId.eq(*user_id))
+            .order_by_desc(project_members::Column::AddedAt)
+            .one(self.db.as_ref())
+            .await
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
+
+        match member {
+            Some(model) => {
+                let member = MemberMapper::to_domain(model)?;
+                Ok(Some(self.load_with_permissions(member).await?))
+            }
+            None => Ok(None),
+        }
+    }
+
+    async fn find_active_by_project_and_user(
+        &self,
+        project_id: &Uuid,
+        user_id: &Uuid,
+    ) -> Result<Option<ProjectMember>, DomainError> {
+        let member = ProjectMembers::find()
+            .filter(project_members::Column::ProjectId.eq(*project_id))
+            .filter(project_members::Column::UserId.eq(*user_id))
+            .filter(project_members::Column::RemovedAt.is_null())
+            .one(self.db.as_ref())
+            .await
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
+
+        match member {
+            Some(model) => {
+                let member = MemberMapper::to_domain(model)?;
+                Ok(Some(self.load_with_permissions(member).await?))
+            }
+            None => Ok(None),
+        }
+    }
+
+    async fn find_restorable_by_project_and_user(
+        &self,
+        project_id: &Uuid,
+        user_id: &Uuid,
+    ) -> Result<Option<ProjectMember>, DomainError> {
+        let now = Utc::now();
+        let member = ProjectMembers::find()
+            .filter(project_members::Column::ProjectId.eq(*project_id))
+            .filter(project_members::Column::UserId.eq(*user_id))
+            .filter(project_members::Column::RemovedAt.is_not_null())
+            .filter(project_members::Column::GracePeriodEndsAt.gt(now))
+            .order_by_desc(project_members::Column::RemovedAt)
+            .one(self.db.as_ref())
+            .await
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
+
+        match member {
+            Some(model) => {
+                let member = MemberMapper::to_domain(model)?;
+                Ok(Some(self.load_with_permissions(member).await?))
+            }
+            None => Ok(None),
+        }
+    }
+
+    async fn find_active_owner(
+        &self,
+        project_id: &Uuid,
+    ) -> Result<Option<ProjectMember>, DomainError> {
+        let member = ProjectMembers::find()
+            .filter(project_members::Column::ProjectId.eq(*project_id))
+            .filter(project_members::Column::RemovedAt.is_null())
+            .filter(project_members::Column::IsOwner.eq(true))
             .one(self.db.as_ref())
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
@@ -277,6 +355,7 @@ impl MemberWriteRepository for MemberWriteRepositoryImpl {
         let count = ProjectMembers::find()
             .filter(project_members::Column::ProjectId.eq(*project_id))
             .filter(project_members::Column::UserId.eq(*user_id))
+            .filter(project_members::Column::RemovedAt.is_null())
             .count(self.db.as_ref())
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
@@ -321,6 +400,33 @@ impl MemberReadRepository for MemberRepositoryImpl {
         self.read_repo
             .find_by_project_and_user(project_id, user_id)
             .await
+    }
+
+    async fn find_active_by_project_and_user(
+        &self,
+        project_id: &Uuid,
+        user_id: &Uuid,
+    ) -> Result<Option<ProjectMember>, DomainError> {
+        self.read_repo
+            .find_active_by_project_and_user(project_id, user_id)
+            .await
+    }
+
+    async fn find_restorable_by_project_and_user(
+        &self,
+        project_id: &Uuid,
+        user_id: &Uuid,
+    ) -> Result<Option<ProjectMember>, DomainError> {
+        self.read_repo
+            .find_restorable_by_project_and_user(project_id, user_id)
+            .await
+    }
+
+    async fn find_active_owner(
+        &self,
+        project_id: &Uuid,
+    ) -> Result<Option<ProjectMember>, DomainError> {
+        self.read_repo.find_active_owner(project_id).await
     }
 
     async fn list_with_filters(

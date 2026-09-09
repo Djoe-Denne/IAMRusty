@@ -566,3 +566,124 @@ impl CommandHandler<ArchiveProjectCommand> for ArchiveProjectCommandHandler {
             .map_err(CommandError::from)
     }
 }
+
+// =============================================================================
+// Suspend Project Command
+// =============================================================================
+
+#[derive(Debug, Clone)]
+pub struct SuspendProjectCommand {
+    pub command_id: Uuid,
+    pub project_id: Uuid,
+    pub user_id: Uuid,
+}
+
+impl SuspendProjectCommand {
+    #[must_use]
+    pub fn new(project_id: Uuid, user_id: Uuid) -> Self {
+        Self {
+            command_id: Uuid::new_v4(),
+            project_id,
+            user_id,
+        }
+    }
+}
+
+#[async_trait]
+impl Command for SuspendProjectCommand {
+    type Result = ProjectResponse;
+
+    fn command_type(&self) -> &'static str {
+        "suspend_project"
+    }
+
+    fn command_id(&self) -> Uuid {
+        self.command_id
+    }
+
+    fn validate(&self) -> Result<(), CommandError> {
+        Ok(())
+    }
+}
+
+pub struct SuspendProjectCommandHandler {
+    project_usecase: Arc<dyn ProjectUseCase>,
+}
+
+impl SuspendProjectCommandHandler {
+    pub fn new(project_usecase: Arc<dyn ProjectUseCase>) -> Self {
+        Self { project_usecase }
+    }
+}
+
+#[async_trait]
+impl CommandHandler<SuspendProjectCommand> for SuspendProjectCommandHandler {
+    async fn handle(
+        &self,
+        command: SuspendProjectCommand,
+    ) -> Result<ProjectResponse, CommandError> {
+        self.project_usecase
+            .suspend_project(command.project_id, command.user_id)
+            .await
+            .map_err(CommandError::from)
+    }
+}
+
+// =============================================================================
+// Resume Project Command
+// =============================================================================
+
+#[derive(Debug, Clone)]
+pub struct ResumeProjectCommand {
+    pub command_id: Uuid,
+    pub project_id: Uuid,
+    pub user_id: Uuid,
+}
+
+impl ResumeProjectCommand {
+    #[must_use]
+    pub fn new(project_id: Uuid, user_id: Uuid) -> Self {
+        Self {
+            command_id: Uuid::new_v4(),
+            project_id,
+            user_id,
+        }
+    }
+}
+
+#[async_trait]
+impl Command for ResumeProjectCommand {
+    type Result = ProjectResponse;
+
+    fn command_type(&self) -> &'static str {
+        "resume_project"
+    }
+
+    fn command_id(&self) -> Uuid {
+        self.command_id
+    }
+
+    fn validate(&self) -> Result<(), CommandError> {
+        Ok(())
+    }
+}
+
+pub struct ResumeProjectCommandHandler {
+    project_usecase: Arc<dyn ProjectUseCase>,
+}
+
+impl ResumeProjectCommandHandler {
+    pub fn new(project_usecase: Arc<dyn ProjectUseCase>) -> Self {
+        Self { project_usecase }
+    }
+}
+
+#[async_trait]
+impl CommandHandler<ResumeProjectCommand> for ResumeProjectCommandHandler {
+    async fn handle(&self, command: ResumeProjectCommand) -> Result<ProjectResponse, CommandError> {
+        self.project_usecase
+            .resume_project(command.project_id, command.user_id)
+            .await
+            .map_err(CommandError::from)
+    }
+}

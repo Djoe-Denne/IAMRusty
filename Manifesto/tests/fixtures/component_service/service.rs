@@ -29,7 +29,7 @@ const CATALOG_PATH: &str = "/api/components";
 /// Holds both the [`Arc<MockServer>`] (for mounting stubs) and the
 /// [`MockServerFixture`] (kept in `fixture` so its `Drop` impl runs the
 /// post-test reset). Tests that run with `#[serial]` automatically share
-/// the singleton wiremock listener at `127.0.0.1:3000`.
+/// the singleton wiremock listener on an ephemeral localhost port.
 pub struct ComponentServiceMockService {
     server: Arc<MockServer>,
     fixture: MockServerFixture,

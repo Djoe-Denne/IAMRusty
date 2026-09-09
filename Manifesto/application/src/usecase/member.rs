@@ -12,7 +12,8 @@ use manifesto_domain::{
 };
 use manifesto_events::{
     ManifestoDomainEvent, MemberAddedEvent, MemberPermissionsUpdatedEvent, MemberRemovedEvent,
-    PermissionGrantedEvent, PermissionRevokedEvent, ResourcePermission,
+    PermissionGrantedEvent, PermissionRevokedEvent, ProjectOwnershipTransferredEvent,
+    ResourcePermission,
 };
 use rustycog::core::error::DomainError;
 use rustycog::events::{DomainEvent, EventPublisher};
@@ -21,7 +22,7 @@ use crate::{
     dto::{
         AddMemberRequest, GrantPermissionRequest, MemberListResponse, MemberResponse,
         PaginationRequest, PaginationResponse, ResourcePermissionResponse,
-        UpdateMemberPermissionsRequest,
+        TransferOwnershipRequest, UpdateMemberPermissionsRequest,
     },
     usecase::project::ProjectAuthorizationUnitOfWork,
     usecase::world_read::allows_world_read,
@@ -127,6 +128,18 @@ pub trait MemberUseCase: Send + Sync {
         resource: &str,
         requester_id: Uuid,
     ) -> Result<(), ApplicationError>;
+
+    /// Transfer project ownership to another active member.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ApplicationError`] if the transfer is forbidden or persistence fails.
+    async fn transfer_ownership(
+        &self,
+        project_id: Uuid,
+        request: &TransferOwnershipRequest,
+        requester_id: Uuid,
+    ) -> Result<MemberResponse, ApplicationError>;
 }
 
 /// Default [`MemberUseCase`] implementation.
@@ -263,6 +276,91 @@ impl MemberUseCaseImpl {
         self.event_publisher.publish(event.as_ref()).await?;
         Ok(created)
     }
+
+    async fn persist_restore_or_insert(
+        &self,
+        member: ProjectMember,
+        resource_name: &str,
+        permission: &str,
+        event: Box<dyn DomainEvent>,
+    ) -> Result<ProjectMember, ApplicationError> {
+        if let Some(uow) = &self.authorization_uow {
+            let saved = uow
+                .restore_or_insert_member_with_permission_and_event(
+                    member,
+                    resource_name,
+                    permission,
+                    self.business_config.max_members_per_project,
+                    event,
+                )
+                .await?;
+            return self
+                .member_service
+                .get_member(saved.project_id, saved.user_id)
+                .await
+                .map_err(ApplicationError::from);
+        }
+        self.persist_member_with_permission_and_event(member, resource_name, permission, event)
+            .await
+    }
+
+    fn permission_denied(message: &str) -> ApplicationError {
+        ApplicationError::from(DomainError::permission_denied(message))
+    }
+
+    fn reject_owner_level(level: PermissionLevel) -> Result<(), ApplicationError> {
+        if level == PermissionLevel::Owner {
+            return Err(Self::permission_denied(
+                "Ownership can only be changed via transfer-ownership",
+            ));
+        }
+        Ok(())
+    }
+
+    fn grants_from(member: &ProjectMember) -> Vec<ResourcePermission> {
+        member
+            .role_permissions
+            .iter()
+            .map(|rp| {
+                ResourcePermission::new(
+                    rp.role_permission.resource.name.clone(),
+                    rp.role_permission.permission.level.to_str().to_string(),
+                    member.project_id,
+                )
+            })
+            .collect()
+    }
+
+    fn removed_event(
+        project_id: Uuid,
+        member: &ProjectMember,
+        requester_id: Uuid,
+    ) -> MemberRemovedEvent {
+        let grants = Self::grants_from(member);
+        let tuples = grants
+            .iter()
+            .filter_map(|grant| grant.to_tuple(project_id, member.user_id))
+            .collect();
+        let component_ids = grants
+            .iter()
+            .filter_map(|grant| {
+                Uuid::parse_str(&grant.resource).ok().or_else(|| {
+                    grant
+                        .object_id
+                        .filter(|_| grant.object_type.as_deref() == Some("component"))
+                })
+            })
+            .collect();
+        MemberRemovedEvent::with_tuples(
+            project_id,
+            member.id,
+            member.user_id,
+            requester_id,
+            Utc::now(),
+            tuples,
+            component_ids,
+        )
+    }
 }
 
 #[async_trait]
@@ -287,10 +385,11 @@ impl MemberUseCase for MemberUseCaseImpl {
         // Validate permission level
         let permission_level =
             PermissionLevel::from_str(&request.permission).map_err(ApplicationError::from)?;
+        Self::reject_owner_level(permission_level)?;
 
         // Requester must have at least the permission level they're trying to grant
         if !requester.has_permission(resource_name, &permission_level) {
-            return Err(ApplicationError::Validation(format!(
+            return Err(Self::permission_denied(&format!(
                 "Cannot grant {} permission on {} - you don't have it yourself",
                 request.permission, resource_name
             )));
@@ -314,12 +413,7 @@ impl MemberUseCase for MemberUseCaseImpl {
             member.added_at,
         ));
         let created = self
-            .persist_member_with_permission_and_event(
-                member,
-                resource_name,
-                &request.permission,
-                event.into(),
-            )
+            .persist_restore_or_insert(member, resource_name, &request.permission, event.into())
             .await?;
 
         Ok(Self::member_to_response(&created))
@@ -333,7 +427,7 @@ impl MemberUseCase for MemberUseCaseImpl {
         let project = self.project_service.get_project(&project_id).await?;
         if !allows_world_read(&project) {
             return Err(ApplicationError::from(DomainError::permission_denied(
-                "Only public live projects can be joined",
+                "Only public active projects can be joined",
             )));
         }
 
@@ -349,19 +443,18 @@ impl MemberUseCase for MemberUseCaseImpl {
 
         self.enforce_member_quota(&project_id).await?;
 
-        let member =
-            ProjectMember::new(project_id, user_id, MemberSource::Invitation, Some(user_id));
+        let member = ProjectMember::new(project_id, user_id, MemberSource::Direct, Some(user_id));
         let event = ManifestoDomainEvent::MemberAdded(MemberAddedEvent::new(
             project_id,
             member.id,
             member.user_id,
-            "write".to_string(),
+            "read".to_string(),
             "project".to_string(),
             user_id,
             member.added_at,
         ));
         let created = self
-            .persist_member_with_permission_and_event(member, "project", "write", event.into())
+            .persist_restore_or_insert(member, "project", "read", event.into())
             .await?;
 
         Ok(Self::member_to_response(&created))
@@ -419,7 +512,7 @@ impl MemberUseCase for MemberUseCaseImpl {
         request: &UpdateMemberPermissionsRequest,
         requester_id: Uuid,
     ) -> Result<MemberResponse, ApplicationError> {
-        let mut member = self.member_service.get_member(project_id, user_id).await?;
+        let member = self.member_service.get_member(project_id, user_id).await?;
 
         // Get requester
         let requester = self
@@ -427,76 +520,88 @@ impl MemberUseCase for MemberUseCaseImpl {
             .get_member(project_id, requester_id)
             .await?;
 
-        // Requester needs admin permission on "member" resource
-        if !requester.has_permission("member", &PermissionLevel::Admin) {
-            return Err(ApplicationError::Validation(
-                "Insufficient permissions to update member permissions".into(),
+        if member.is_project_owner() {
+            return Err(Self::permission_denied(
+                "Cannot change the owner's permissions; transfer ownership instead",
             ));
         }
 
-        // Revoke all existing permissions
-        self.permission_service
-            .revoke_all_permissions_from_member(&member.id)
-            .await?;
+        // Requester needs admin permission on "member" resource
+        if !requester.has_permission("member", &PermissionLevel::Admin)
+            && !requester.is_project_owner()
+        {
+            return Err(Self::permission_denied(
+                "Insufficient permissions to update member permissions",
+            ));
+        }
 
-        // Grant new permissions
-        let mut new_role_permissions = Vec::new();
+        let previous = Self::grants_from(&member);
+        let mut grants = Vec::new();
         for perm_req in &request.permissions {
-            // Validate permission level
-            let _permission_level =
+            let permission_level =
                 PermissionLevel::from_str(&perm_req.permission).map_err(ApplicationError::from)?;
-
-            // Requester must have the permission they're trying to grant
-            if !requester.has_permission(&perm_req.resource, &_permission_level) {
-                return Err(ApplicationError::Validation(format!(
+            Self::reject_owner_level(permission_level)?;
+            if !requester.has_permission(&perm_req.resource, &permission_level) {
+                return Err(Self::permission_denied(&format!(
                     "Cannot grant {} permission on {} - you don't have it yourself",
                     perm_req.permission, perm_req.resource
                 )));
             }
-
-            let role_perm = self
-                .permission_service
-                .get_or_create_role_permission(project_id, &perm_req.resource, &perm_req.permission)
-                .await?;
-
-            let member_role_perm = self
-                .permission_service
-                .grant_permission_to_member(
-                    &member.id,
-                    &role_perm.id.ok_or_else(|| {
-                        DomainError::internal_error("role permission missing id after persist")
-                    })?,
-                )
-                .await?;
-
-            new_role_permissions.push(member_role_perm);
+            grants.push((perm_req.resource.clone(), perm_req.permission.clone()));
         }
 
-        member.role_permissions = new_role_permissions;
-
-        // Update through service
-        let updated = self.member_service.update_member(member).await?;
-
-        // Publish MemberPermissionsUpdated event
         let permissions: Vec<ResourcePermission> = request
             .permissions
             .iter()
-            .map(|p| ResourcePermission {
-                resource: p.resource.clone(),
-                permission: p.permission.clone(),
-            })
+            .map(|p| ResourcePermission::new(p.resource.clone(), p.permission.clone(), project_id))
             .collect();
-        let event =
-            ManifestoDomainEvent::MemberPermissionsUpdated(MemberPermissionsUpdatedEvent::new(
+        let event = ManifestoDomainEvent::MemberPermissionsUpdated(
+            MemberPermissionsUpdatedEvent::with_previous(
                 project_id,
-                updated.id,
-                updated.user_id,
+                member.id,
+                member.user_id,
+                previous,
                 permissions,
                 requester_id,
                 Utc::now(),
-            ));
-        let domain_ev: Box<dyn DomainEvent> = event.into();
-        self.event_publisher.publish(domain_ev.as_ref()).await?;
+            ),
+        );
+
+        let updated = if let Some(uow) = &self.authorization_uow {
+            uow.replace_member_permissions_with_events(member, &grants, vec![event.into()])
+                .await?
+        } else {
+            self.permission_service
+                .revoke_all_permissions_from_member(&member.id)
+                .await?;
+            let mut new_role_permissions = Vec::new();
+            for perm_req in &request.permissions {
+                let role_perm = self
+                    .permission_service
+                    .get_or_create_role_permission(
+                        project_id,
+                        &perm_req.resource,
+                        &perm_req.permission,
+                    )
+                    .await?;
+                let member_role_perm = self
+                    .permission_service
+                    .grant_permission_to_member(
+                        &member.id,
+                        &role_perm.id.ok_or_else(|| {
+                            DomainError::internal_error("role permission missing id after persist")
+                        })?,
+                    )
+                    .await?;
+                new_role_permissions.push(member_role_perm);
+            }
+            let mut member = member;
+            member.role_permissions = new_role_permissions;
+            let updated = self.member_service.update_member(member).await?;
+            let domain_ev: Box<dyn DomainEvent> = event.into();
+            self.event_publisher.publish(domain_ev.as_ref()).await?;
+            updated
+        };
 
         Ok(Self::member_to_response(&updated))
     }
@@ -511,38 +616,37 @@ impl MemberUseCase for MemberUseCaseImpl {
             .member_service
             .get_member(project_id, requester_id)
             .await?;
-        if !requester.has_permission("member", &PermissionLevel::Admin) {
-            return Err(ApplicationError::Validation(
-                "Insufficient permissions to remove a member".into(),
+        if !requester.has_permission("member", &PermissionLevel::Admin)
+            && !requester.is_project_owner()
+        {
+            return Err(Self::permission_denied(
+                "Insufficient permissions to remove a member",
             ));
         }
 
-        // Get target member
         let target = self.member_service.get_member(project_id, user_id).await?;
+        if target.is_project_owner() {
+            return Err(Self::permission_denied(
+                "Cannot remove the project owner; transfer ownership first",
+            ));
+        }
 
-        let member_id = target.id;
-
-        // Remove through service
-        self.member_service
-            .remove_member(
-                &project_id,
-                &user_id,
-                Some(i64::from(
-                    self.business_config.member_removal_grace_period_days,
-                )),
-            )
-            .await?;
-
-        // Publish MemberRemoved event
-        let event = ManifestoDomainEvent::MemberRemoved(MemberRemovedEvent::new(
+        let grace_days = i64::from(self.business_config.member_removal_grace_period_days);
+        let event = ManifestoDomainEvent::MemberRemoved(Self::removed_event(
             project_id,
-            member_id,
-            user_id,
+            &target,
             requester_id,
-            Utc::now(),
         ));
-        let domain_ev: Box<dyn DomainEvent> = event.into();
-        self.event_publisher.publish(domain_ev.as_ref()).await?;
+        if let Some(uow) = &self.authorization_uow {
+            uow.remove_member_with_events(target, grace_days, vec![event.into()])
+                .await?;
+        } else {
+            self.member_service
+                .remove_member(&project_id, &user_id, Some(grace_days))
+                .await?;
+            let domain_ev: Box<dyn DomainEvent> = event.into();
+            self.event_publisher.publish(domain_ev.as_ref()).await?;
+        }
 
         Ok(())
     }
@@ -566,6 +670,7 @@ impl MemberUseCase for MemberUseCaseImpl {
         // Validate permission level
         let permission_level =
             PermissionLevel::from_str(&request.permission).map_err(ApplicationError::from)?;
+        Self::reject_owner_level(permission_level)?;
 
         // Requester needs to have the permission they're trying to grant
         // For specific resources (UUIDs like component instances), also check generic "component" permission
@@ -578,14 +683,12 @@ impl MemberUseCase for MemberUseCaseImpl {
         );
 
         if !has_permission {
-            return Err(ApplicationError::Validation(format!(
+            return Err(Self::permission_denied(&format!(
                 "Cannot grant {} permission on {} - you don't have it yourself",
                 request.permission, request.resource
             )));
         }
 
-        // Check if member already has this exact permission
-        // Use case-insensitive comparison since resource names in DB may be capitalized
         if member.role_permissions.iter().any(|rp| {
             rp.role_permission
                 .resource
@@ -593,45 +696,48 @@ impl MemberUseCase for MemberUseCaseImpl {
                 .eq_ignore_ascii_case(&request.resource)
                 && rp.role_permission.permission.level == permission_level
         }) {
-            return Err(ApplicationError::Validation(
+            return Err(ApplicationError::AlreadyExists(
                 "Member already has this permission".into(),
             ));
         }
 
-        // Get or create role_permission
-        let role_perm = self
-            .permission_service
-            .get_or_create_role_permission(project_id, &request.resource, &request.permission)
-            .await?;
-
-        // Grant permission
-        let member_role_perm = self
-            .permission_service
-            .grant_permission_to_member(
-                &member.id,
-                &role_perm.id.ok_or_else(|| {
-                    DomainError::internal_error("role permission missing id after persist")
-                })?,
-            )
-            .await?;
-
-        member.role_permissions.push(member_role_perm);
-
-        // Update through service (to refresh the full member with permissions)
-        let updated = self.member_service.update_member(member).await?;
-
-        // Publish PermissionGranted event
         let event = ManifestoDomainEvent::PermissionGranted(PermissionGrantedEvent::new(
             project_id,
-            updated.id,
-            updated.user_id,
+            member.id,
+            member.user_id,
             request.resource.clone(),
             request.permission.clone(),
             requester_id,
             Utc::now(),
         ));
-        let domain_ev: Box<dyn DomainEvent> = event.into();
-        self.event_publisher.publish(domain_ev.as_ref()).await?;
+        let updated = if let Some(uow) = &self.authorization_uow {
+            uow.grant_permission_with_events(
+                member,
+                &request.resource,
+                &request.permission,
+                vec![event.into()],
+            )
+            .await?
+        } else {
+            let role_perm = self
+                .permission_service
+                .get_or_create_role_permission(project_id, &request.resource, &request.permission)
+                .await?;
+            let member_role_perm = self
+                .permission_service
+                .grant_permission_to_member(
+                    &member.id,
+                    &role_perm.id.ok_or_else(|| {
+                        DomainError::internal_error("role permission missing id after persist")
+                    })?,
+                )
+                .await?;
+            member.role_permissions.push(member_role_perm);
+            let updated = self.member_service.update_member(member).await?;
+            let domain_ev: Box<dyn DomainEvent> = event.into();
+            self.event_publisher.publish(domain_ev.as_ref()).await?;
+            updated
+        };
 
         Ok(Self::member_to_response(&updated))
     }
@@ -643,21 +749,24 @@ impl MemberUseCase for MemberUseCaseImpl {
         resource: &str,
         requester_id: Uuid,
     ) -> Result<(), ApplicationError> {
-        // Get member
         let member = self.member_service.get_member(project_id, user_id).await?;
-
         let requester = self
             .member_service
             .get_member(project_id, requester_id)
             .await?;
-        if !requester.has_permission("member", &PermissionLevel::Admin) {
-            return Err(ApplicationError::Validation(
-                "Insufficient permissions to revoke a permission".into(),
+        if !requester.has_permission("member", &PermissionLevel::Admin)
+            && !requester.is_project_owner()
+        {
+            return Err(Self::permission_denied(
+                "Insufficient permissions to revoke a permission",
+            ));
+        }
+        if member.is_project_owner() && resource.eq_ignore_ascii_case("project") {
+            return Err(Self::permission_denied(
+                "Cannot revoke the owner's project permission; transfer ownership first",
             ));
         }
 
-        // Find the role_permission to revoke
-        // Use case-insensitive comparison since resource names in DB may be capitalized
         let role_perm_to_revoke = member
             .role_permissions
             .iter()
@@ -668,31 +777,111 @@ impl MemberUseCase for MemberUseCaseImpl {
                     .eq_ignore_ascii_case(resource)
             })
             .ok_or_else(|| {
-                ApplicationError::Validation("Member does not have this permission".into())
+                ApplicationError::NotFound("Member does not have this permission".into())
             })?;
-
-        // Revoke permission
-        self.permission_service
-            .revoke_permission_from_member(
-                &member.id,
-                &role_perm_to_revoke.role_permission.id.ok_or_else(|| {
-                    DomainError::internal_error("role permission missing id after persist")
-                })?,
-            )
-            .await?;
-
-        // Publish PermissionRevoked event
+        let role_permission_id = role_perm_to_revoke.role_permission.id.ok_or_else(|| {
+            DomainError::internal_error("role permission missing id after persist")
+        })?;
+        let permission = role_perm_to_revoke
+            .role_permission
+            .permission
+            .level
+            .to_str()
+            .to_string();
         let event = ManifestoDomainEvent::PermissionRevoked(PermissionRevokedEvent::new(
             project_id,
             member.id,
             user_id,
             resource.to_string(),
+            permission,
             requester_id,
             Utc::now(),
         ));
-        let domain_ev: Box<dyn DomainEvent> = event.into();
-        self.event_publisher.publish(domain_ev.as_ref()).await?;
+        if let Some(uow) = &self.authorization_uow {
+            uow.revoke_permission_with_events(member, role_permission_id, vec![event.into()])
+                .await?;
+        } else {
+            self.permission_service
+                .revoke_permission_from_member(&member.id, &role_permission_id)
+                .await?;
+            let domain_ev: Box<dyn DomainEvent> = event.into();
+            self.event_publisher.publish(domain_ev.as_ref()).await?;
+        }
 
         Ok(())
+    }
+
+    async fn transfer_ownership(
+        &self,
+        project_id: Uuid,
+        request: &TransferOwnershipRequest,
+        requester_id: Uuid,
+    ) -> Result<MemberResponse, ApplicationError> {
+        let mut project = self.project_service.get_project(&project_id).await?;
+        let current_owner = self
+            .member_service
+            .get_member(project_id, requester_id)
+            .await?;
+        if !current_owner.is_project_owner() {
+            return Err(Self::permission_denied(
+                "Only the project owner can transfer ownership",
+            ));
+        }
+        if request.user_id == requester_id {
+            return Err(ApplicationError::Validation(
+                "Cannot transfer ownership to the current owner".into(),
+            ));
+        }
+        let new_owner = self
+            .member_service
+            .get_member(project_id, request.user_id)
+            .await?;
+        if project.owner_type == manifesto_domain::value_objects::OwnerType::Personal {
+            let current_count = self
+                .project_service
+                .count_projects_by_owner(project.owner_type, request.user_id)
+                .await?;
+            if current_count >= i64::from(self.business_config.max_projects_per_user) {
+                return Err(ApplicationError::Validation(format!(
+                    "Project quota exceeded for personal owner {}",
+                    request.user_id
+                )));
+            }
+            project.owner_id = request.user_id;
+        }
+        project.revision = project
+            .revision
+            .checked_add(1)
+            .ok_or_else(|| DomainError::internal_error("project revision overflow"))?;
+        project.updated_at = Utc::now();
+
+        let event = ManifestoDomainEvent::ProjectOwnershipTransferred(
+            ProjectOwnershipTransferredEvent::new(
+                project_id,
+                requester_id,
+                request.user_id,
+                requester_id,
+                Utc::now(),
+                Some(project.owner_type.as_str().to_string()),
+                Some(current_owner.user_id),
+                Some(request.user_id),
+            ),
+        );
+        let new_owner = if let Some(uow) = &self.authorization_uow {
+            let (_project, _previous, new_owner) = uow
+                .transfer_ownership_with_events(
+                    project,
+                    current_owner,
+                    new_owner,
+                    vec![event.into()],
+                )
+                .await?;
+            new_owner
+        } else {
+            return Err(ApplicationError::Internal(
+                "ownership transfer requires an authorization unit of work".into(),
+            ));
+        };
+        Ok(Self::member_to_response(&new_owner))
     }
 }

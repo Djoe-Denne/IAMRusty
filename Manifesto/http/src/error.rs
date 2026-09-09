@@ -48,7 +48,7 @@ pub fn error_mapper(error: CommandError) -> HttpError {
         },
         CommandError::Business { code, message } => match code.as_str() {
             "not_found" => HttpError::NotFound { message },
-            "already_exists" => HttpError::Conflict { message },
+            "already_exists" | "conflict" => HttpError::Conflict { message },
             "permission_denied" | "forbidden" => HttpError::Forbidden { message },
             _ => HttpError::BadRequest { message },
         },

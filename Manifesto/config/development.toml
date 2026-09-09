@@ -55,6 +55,10 @@ member_permissions_updated = ["sentinel-sync-events"]
 member_removed = ["sentinel-sync-events"]
 permission_granted = ["sentinel-sync-events"]
 permission_revoked = ["sentinel-sync-events"]
+project_deleted = ["sentinel-sync-events"]
+project_suspended = ["sentinel-sync-events"]
+project_resumed = ["sentinel-sync-events"]
+project_ownership_transferred = ["sentinel-sync-events"]
 
 [logging]
 level = "debug"

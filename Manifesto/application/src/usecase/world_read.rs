@@ -4,7 +4,7 @@ use uuid::Uuid;
 use manifesto_domain::{
     entity::Project,
     service::MemberService,
-    value_objects::{OwnerType, ProjectStatus, Visibility},
+    value_objects::{OwnerType, PermissionLevel, ProjectStatus, Visibility},
 };
 use rustycog::core::error::DomainError;
 use rustycog::permission::{Permission, PermissionChecker, ResourceRef, Subject};
@@ -13,7 +13,7 @@ use crate::ApplicationError;
 
 pub const fn allows_world_read(project: &Project) -> bool {
     matches!(project.visibility, Visibility::Public)
-        && matches!(project.status, ProjectStatus::Draft | ProjectStatus::Active)
+        && matches!(project.status, ProjectStatus::Active)
 }
 
 fn permission_denied(message: &str) -> ApplicationError {
@@ -45,6 +45,31 @@ pub async fn enforce_world_read_or_principal(
         || (project.owner_type == OwnerType::Personal && project.owner_id == uid)
     {
         return Ok(());
+    }
+    if project.status == ProjectStatus::Suspended {
+        if let Ok(member) = member_service.get_member(project.id, uid).await {
+            if member.is_project_owner()
+                || member.has_permission("project", &PermissionLevel::Admin)
+            {
+                return Ok(());
+            }
+        }
+        if project.owner_type == OwnerType::Organization {
+            let allowed = org_permission_checker
+                .check(
+                    Subject::new(uid),
+                    Permission::Admin,
+                    ResourceRef::new("organization", project.owner_id),
+                )
+                .await
+                .map_err(ApplicationError::from)?;
+            if allowed {
+                return Ok(());
+            }
+        }
+        return Err(permission_denied(
+            "Suspended projects are only visible to owners and admins",
+        ));
     }
     if member_service
         .check_member_exists(&project.id, &uid)

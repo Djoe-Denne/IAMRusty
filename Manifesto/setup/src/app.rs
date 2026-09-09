@@ -424,15 +424,18 @@ async fn setup_application(
         .with_org_scope(org_scope),
     );
 
-    let component_usecase = Arc::new(ComponentUseCaseImpl::new(
-        component_service.clone(),
-        project_service.clone(),
-        member_service.clone(),
-        permission_service.clone(),
-        event_publisher.clone(),
-        config.service.business.clone(),
-        org_permission_checker,
-    ));
+    let component_usecase = Arc::new(
+        ComponentUseCaseImpl::new(
+            component_service.clone(),
+            project_service.clone(),
+            member_service.clone(),
+            permission_service.clone(),
+            event_publisher.clone(),
+            config.service.business.clone(),
+            org_permission_checker,
+        )
+        .with_authorization_uow(project_authorization_uow.clone()),
+    );
 
     let member_usecase = Arc::new(
         MemberUseCaseImpl::new(

@@ -1,6 +1,6 @@
 # Manifesto Service - Implementation Status
 
-**Last Updated:** September 5, 2026
+**Last Updated:** September 9, 2026
 **Overall Status:** Production-ready baseline; L-PARTNERSHIP remains open.
 
 This file is the current source of truth for Manifesto's live runtime behavior.
@@ -33,15 +33,19 @@ Most important outcomes from the remediation pass:
 - `rustycog-http` verifies JWT signatures instead of trusting payload-only parsing, and the shared verifier path is HS256-only today.
 - Optional-auth project/component resource routes evaluate anonymous callers through the shared permission path.
 - `GET /api/projects` uses optional auth plus service-layer visibility filtering rather than UUID-scoped permission middleware.
-- Public project GET/details and component list/get succeed anonymously when `viewer@user:*` exists **and** the row is still world-readable (`visibility=public`, status `draft|active`). A leftover wildcard after private/internal/archive is ignored on those surfaces.
-- Anonymous `GET /api/projects` lists only public **live** rows (`draft|active`). Authenticated list also includes `project_members`, Internal/public org-owned rows for org viewers, and org-owned rows for org admins. Non-public GET-by-id succeeds for owners, project members, Internal org viewers, and org admins on private.
-- `POST /api/projects/{id}/join` is JWT-only self-join on public live projects (`write` / `project`, `MemberSource::Invitation`, 409 if already a member).
+- Public project GET/details and component list/get succeed anonymously when `viewer@user:*` exists **and** the row is world-readable (`visibility=public` **and** `status=active`). A leftover wildcard after private/internal/archive/draft/suspend is ignored on those surfaces.
+- Anonymous `GET /api/projects` lists only public **active** rows. Authenticated list also includes `project_members` (except `suspended` unless owner/project admin), Internal/public org-owned rows for org viewers, and all org-owned rows for org admins. `Suspended` GET is limited to owner, project admin, and org admin.
+- `POST /api/projects/{id}/join` is JWT-only self-join on public **active** projects (`read` / `project`, `MemberSource::Direct`, 409 if already a member). Soft-deleted memberships are restored with the same id during grace, then recreated after expiration.
+- Unique project owner: transfer via `POST /transfer-ownership` (previous owner becomes Admin; personal `owner_id`/quota follow the successor). Suspend/resume via `/suspend` and `/resume`.
+- Component routes use `{component_id}` (UUID). LIST/GET/details apply instance ACL after the project coarse gate.
+- AuthZ events are versioned (permission, object type/id, previous tuples). Incomplete v1 revoke/replace events are no-ops in sentinel-sync rather than relation wipes. Deploy sentinel-sync before Manifesto v2 producers.
+- Mutations that change AuthZ go through a unit of work (row lock, CAS revision, outbox, commit). Permission denied maps to 403; revision conflict to 409.
 - A visibility flip that involves `public` requires project `Admin`. `private↔internal` stays `Write`.
 - Specific component-instance grants preserve resource type semantics.
 
 ### Project, Component, and Member Flows
 
-- Project CRUD, publish, archive, list, and detail flows are implemented.
+- Project CRUD, publish, archive, suspend, resume, list, and detail flows are implemented.
 - Component add/get/list/update/remove flows are implemented.
 - Component add/remove aborts if the matching component-instance ACL resource cannot be synchronized, with compensation to avoid silent drift.
 - Member add/get/list/update/remove plus permission grant/revoke flows are implemented.

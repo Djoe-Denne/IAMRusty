@@ -147,6 +147,30 @@ impl RolePermissionReadRepositoryImpl {
             None => Ok(None),
         }
     }
+
+    /// Find a role permission by id using an existing connection.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the query fails or mapping fails.
+    pub async fn find_by_id_with_connection<C>(
+        db: &C,
+        id: &Uuid,
+    ) -> Result<Option<RolePermission>, DomainError>
+    where
+        C: ConnectionTrait,
+    {
+        let role = RolePermissions::find_by_id(*id)
+            .one(db)
+            .await
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
+        match role {
+            Some(r) => Ok(Some(
+                Self::load_with_relations_with_connection(db, r).await?,
+            )),
+            None => Ok(None),
+        }
+    }
 }
 
 #[async_trait]

@@ -112,6 +112,23 @@ pub trait MemberReadRepository: Send + Sync {
         user_id: &Uuid,
     ) -> Result<Option<ProjectMember>, DomainError>;
 
+    async fn find_active_by_project_and_user(
+        &self,
+        project_id: &Uuid,
+        user_id: &Uuid,
+    ) -> Result<Option<ProjectMember>, DomainError>;
+
+    async fn find_restorable_by_project_and_user(
+        &self,
+        project_id: &Uuid,
+        user_id: &Uuid,
+    ) -> Result<Option<ProjectMember>, DomainError>;
+
+    async fn find_active_owner(
+        &self,
+        project_id: &Uuid,
+    ) -> Result<Option<ProjectMember>, DomainError>;
+
     async fn list_with_filters(
         &self,
         project_id: &Uuid,

@@ -89,6 +89,14 @@ pub struct ProjectDeletedEvent {
     pub project_name: String,
     pub deleted_by: Uuid,
     pub deleted_at: DateTime<Utc>,
+    #[serde(default)]
+    pub member_user_ids: Vec<Uuid>,
+    #[serde(default)]
+    pub component_ids: Vec<Uuid>,
+    #[serde(default)]
+    pub owner_type: Option<String>,
+    #[serde(default)]
+    pub owner_id: Option<Uuid>,
 }
 
 impl ProjectDeletedEvent {
@@ -99,12 +107,39 @@ impl ProjectDeletedEvent {
         deleted_by: Uuid,
         deleted_at: DateTime<Utc>,
     ) -> Self {
-        Self {
-            base: BaseEvent::new("project_deleted".to_string(), project_id),
+        Self::with_authz(
             project_id,
             project_name,
             deleted_by,
             deleted_at,
+            Vec::new(),
+            Vec::new(),
+            None,
+            None,
+        )
+    }
+
+    #[must_use]
+    pub fn with_authz(
+        project_id: Uuid,
+        project_name: String,
+        deleted_by: Uuid,
+        deleted_at: DateTime<Utc>,
+        member_user_ids: Vec<Uuid>,
+        component_ids: Vec<Uuid>,
+        owner_type: Option<String>,
+        owner_id: Option<Uuid>,
+    ) -> Self {
+        Self {
+            base: BaseEvent::new("project_deleted".to_string(), project_id).with_version(2),
+            project_id,
+            project_name,
+            deleted_by,
+            deleted_at,
+            member_user_ids,
+            component_ids,
+            owner_type,
+            owner_id,
         }
     }
 }
@@ -217,6 +252,82 @@ impl ProjectArchivedEvent {
             owner_id,
             archived_by,
             archived_at,
+        }
+    }
+}
+
+/// Event published when a project is suspended
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectSuspendedEvent {
+    #[serde(flatten)]
+    pub base: BaseEvent,
+    pub project_id: Uuid,
+    pub project_name: String,
+    pub owner_type: String,
+    pub owner_id: Uuid,
+    pub visibility: String,
+    pub suspended_by: Uuid,
+    pub suspended_at: DateTime<Utc>,
+}
+
+impl ProjectSuspendedEvent {
+    #[must_use]
+    pub fn new(
+        project_id: Uuid,
+        project_name: String,
+        owner_type: String,
+        owner_id: Uuid,
+        visibility: String,
+        suspended_by: Uuid,
+        suspended_at: DateTime<Utc>,
+    ) -> Self {
+        Self {
+            base: BaseEvent::new("project_suspended".to_string(), project_id).with_version(2),
+            project_id,
+            project_name,
+            owner_type,
+            owner_id,
+            visibility,
+            suspended_by,
+            suspended_at,
+        }
+    }
+}
+
+/// Event published when a suspended project is resumed
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectResumedEvent {
+    #[serde(flatten)]
+    pub base: BaseEvent,
+    pub project_id: Uuid,
+    pub project_name: String,
+    pub owner_type: String,
+    pub owner_id: Uuid,
+    pub visibility: String,
+    pub resumed_by: Uuid,
+    pub resumed_at: DateTime<Utc>,
+}
+
+impl ProjectResumedEvent {
+    #[must_use]
+    pub fn new(
+        project_id: Uuid,
+        project_name: String,
+        owner_type: String,
+        owner_id: Uuid,
+        visibility: String,
+        resumed_by: Uuid,
+        resumed_at: DateTime<Utc>,
+    ) -> Self {
+        Self {
+            base: BaseEvent::new("project_resumed".to_string(), project_id).with_version(2),
+            project_id,
+            project_name,
+            owner_type,
+            owner_id,
+            visibility,
+            resumed_by,
+            resumed_at,
         }
     }
 }

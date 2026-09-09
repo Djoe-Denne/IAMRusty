@@ -8,7 +8,7 @@ use uuid::Uuid;
 use manifesto_domain::{
     entity::ProjectComponent,
     service::{ComponentService, MemberService, PermissionService, ProjectService},
-    value_objects::ComponentStatus,
+    value_objects::{ComponentStatus, PermissionLevel},
 };
 use manifesto_events::{
     ComponentAddedEvent, ComponentRemovedEvent, ComponentStatusChangedEvent, ManifestoDomainEvent,
@@ -19,7 +19,8 @@ use rustycog::permission::PermissionChecker;
 
 use crate::{
     dto::{AddComponentRequest, ComponentListResponse, ComponentResponse, UpdateComponentRequest},
-    usecase::world_read::enforce_world_read_or_principal,
+    usecase::project::ProjectAuthorizationUnitOfWork,
+    usecase::world_read::{allows_world_read, enforce_world_read_or_principal},
     ApplicationError,
 };
 
@@ -96,6 +97,7 @@ pub struct ComponentUseCaseImpl {
     event_publisher: Arc<dyn EventPublisher<DomainError>>,
     business_config: BusinessConfig,
     org_permission_checker: Arc<dyn PermissionChecker>,
+    authorization_uow: Option<Arc<dyn ProjectAuthorizationUnitOfWork>>,
 }
 
 impl ComponentUseCaseImpl {
@@ -117,7 +119,18 @@ impl ComponentUseCaseImpl {
             event_publisher,
             business_config,
             org_permission_checker,
+            authorization_uow: None,
         }
+    }
+
+    /// Persist component writes through the project AuthZ unit of work.
+    #[must_use]
+    pub fn with_authorization_uow(
+        mut self,
+        authorization_uow: Arc<dyn ProjectAuthorizationUnitOfWork>,
+    ) -> Self {
+        self.authorization_uow = Some(authorization_uow);
+        self
     }
 
     fn component_to_response(component: &ProjectComponent) -> ComponentResponse {
@@ -125,8 +138,6 @@ impl ComponentUseCaseImpl {
             id: component.id,
             component_type: component.component_type.clone(),
             status: component.status.as_str().to_string(),
-            endpoint: None,     // TODO: Get from component service
-            access_token: None, // TODO: Generate component-scoped JWT
             added_at: component.added_at,
             configured_at: component.configured_at,
             activated_at: component.activated_at,
@@ -144,6 +155,51 @@ impl ComponentUseCaseImpl {
         }
 
         Ok(())
+    }
+
+    async fn caller_can_read_component(
+        &self,
+        project: &manifesto_domain::entity::Project,
+        component_id: Uuid,
+        user_id: Option<Uuid>,
+    ) -> Result<bool, ApplicationError> {
+        if allows_world_read(project) {
+            return Ok(true);
+        }
+        let Some(uid) = user_id else {
+            return Ok(false);
+        };
+        if project.created_by == uid
+            || (project.owner_type == manifesto_domain::value_objects::OwnerType::Personal
+                && project.owner_id == uid)
+        {
+            return Ok(true);
+        }
+        if let Ok(member) = self.member_service.get_member(project.id, uid).await {
+            if member.is_project_owner()
+                || member.has_permission("component", &PermissionLevel::Read)
+                || member.has_permission(&component_id.to_string(), &PermissionLevel::Read)
+                || member
+                    .has_permission(&format!("component:{component_id}"), &PermissionLevel::Read)
+            {
+                return Ok(true);
+            }
+        }
+        if project.owner_type == manifesto_domain::value_objects::OwnerType::Organization {
+            let allowed = self
+                .org_permission_checker
+                .check(
+                    rustycog::permission::Subject::new(uid),
+                    rustycog::permission::Permission::Admin,
+                    rustycog::permission::ResourceRef::new("organization", project.owner_id),
+                )
+                .await
+                .map_err(ApplicationError::from)?;
+            if allowed {
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 }
 
@@ -173,44 +229,46 @@ impl ComponentUseCase for ComponentUseCaseImpl {
         // Create component so we have a stable UUID for the matching component-instance ACL
         // resource before anything is persisted.
         let component = ProjectComponent::new(project_id, request.component_type.clone())?;
-        self.permission_service
-            .create_component_instance_resource(&component.id)
-            .await?;
-
-        // Save through service (which uses repository). If persistence fails after the ACL
-        // resource was created, try to clean it back up before returning the original error.
-        let created = match self
-            .component_service
-            .add_component(component.clone())
-            .await
-        {
-            Ok(created) => created,
-            Err(error) => {
-                if let Err(cleanup_error) = self
-                    .permission_service
-                    .delete_component_instance_resource(&component.id)
-                    .await
-                {
-                    tracing::error!(
-                        "Failed to clean up component ACL resource {} after add failure: {:?}",
-                        component.id,
-                        cleanup_error
-                    );
-                }
-                return Err(error.into());
-            }
-        };
-
-        // Publish ComponentAdded event
         let event = ManifestoDomainEvent::ComponentAdded(ComponentAddedEvent::new(
             project_id,
-            created.id,
-            created.component_type.clone(),
+            component.id,
+            component.component_type.clone(),
             user_id,
-            created.added_at,
+            component.added_at,
         ));
-        let domain_ev: Box<dyn DomainEvent> = event.into();
-        self.event_publisher.publish(domain_ev.as_ref()).await?;
+        let created = if let Some(uow) = &self.authorization_uow {
+            uow.save_component_with_events(project_id, component, true, vec![event.into()])
+                .await?
+        } else {
+            self.permission_service
+                .create_component_instance_resource(&component.id)
+                .await?;
+            match self
+                .component_service
+                .add_component(component.clone())
+                .await
+            {
+                Ok(created) => {
+                    let domain_ev: Box<dyn DomainEvent> = event.into();
+                    self.event_publisher.publish(domain_ev.as_ref()).await?;
+                    created
+                }
+                Err(error) => {
+                    if let Err(cleanup_error) = self
+                        .permission_service
+                        .delete_component_instance_resource(&component.id)
+                        .await
+                    {
+                        tracing::error!(
+                            "Failed to clean up component ACL resource {} after add failure: {:?}",
+                            component.id,
+                            cleanup_error
+                        );
+                    }
+                    return Err(error.into());
+                }
+            }
+        };
 
         Ok(Self::component_to_response(&created))
     }
@@ -237,6 +295,14 @@ impl ComponentUseCase for ComponentUseCaseImpl {
                 "ProjectComponent not found for project {project_id}"
             )));
         }
+        if !self
+            .caller_can_read_component(&project, component_id, user_id)
+            .await?
+        {
+            return Err(ApplicationError::from(DomainError::permission_denied(
+                "Insufficient permissions to read this component",
+            )));
+        }
 
         Ok(Self::component_to_response(&component))
     }
@@ -256,9 +322,15 @@ impl ComponentUseCase for ComponentUseCaseImpl {
         .await?;
 
         let components = self.component_service.list_components(&project_id).await?;
-
-        let data: Vec<ComponentResponse> =
-            components.iter().map(Self::component_to_response).collect();
+        let mut data = Vec::new();
+        for component in components {
+            if self
+                .caller_can_read_component(&project, component.id, user_id)
+                .await?
+            {
+                data.push(Self::component_to_response(&component));
+            }
+        }
 
         Ok(ComponentListResponse { data })
     }
@@ -288,21 +360,24 @@ impl ComponentUseCase for ComponentUseCaseImpl {
             .transition_status(new_status)
             .map_err(ApplicationError::from)?;
 
-        // Update through service
-        let updated = self.component_service.update_component(component).await?;
-
-        // Publish ComponentStatusChanged event
         let event = ManifestoDomainEvent::ComponentStatusChanged(ComponentStatusChangedEvent::new(
             project_id,
-            updated.id,
-            updated.component_type.clone(),
+            component.id,
+            component.component_type.clone(),
             old_status.as_str().to_string(),
-            updated.status.as_str().to_string(),
+            component.status.as_str().to_string(),
             user_id,
             Utc::now(),
         ));
-        let domain_ev: Box<dyn DomainEvent> = event.into();
-        self.event_publisher.publish(domain_ev.as_ref()).await?;
+        let updated = if let Some(uow) = &self.authorization_uow {
+            uow.save_component_with_events(project_id, component, false, vec![event.into()])
+                .await?
+        } else {
+            let updated = self.component_service.update_component(component).await?;
+            let domain_ev: Box<dyn DomainEvent> = event.into();
+            self.event_publisher.publish(domain_ev.as_ref()).await?;
+            updated
+        };
 
         Ok(Self::component_to_response(&updated))
     }
@@ -321,47 +396,44 @@ impl ComponentUseCase for ComponentUseCaseImpl {
             )));
         }
 
-        let component_type_str = component.component_type.clone();
-
-        self.component_service
-            .remove_component(&component.id)
-            .await?;
-
-        // Delete the matching component-instance ACL resource. If this fails after the component
-        // has been removed, try to restore the component so the system does not silently drift.
-        if let Err(error) = self
-            .permission_service
-            .delete_component_instance_resource(&component_id)
-            .await
-        {
-            if let Err(restore_error) = self
-                .component_service
-                .add_component(component.clone())
-                .await
-            {
-                tracing::error!(
-                    "Failed to restore component {} after ACL cleanup failure: {:?}",
-                    component_id,
-                    restore_error
-                );
-                return Err(ApplicationError::Internal(format!(
-                    "Removed component {component_id} but failed to delete its ACL resource ({error}); restoring the component also failed ({restore_error})"
-                )));
-            }
-
-            return Err(error.into());
-        }
-
-        // Publish ComponentRemoved event
         let event = ManifestoDomainEvent::ComponentRemoved(ComponentRemovedEvent::new(
             project_id,
             component_id,
-            component_type_str,
+            component.component_type.clone(),
             user_id,
             Utc::now(),
         ));
-        let domain_ev: Box<dyn DomainEvent> = event.into();
-        self.event_publisher.publish(domain_ev.as_ref()).await?;
+        if let Some(uow) = &self.authorization_uow {
+            uow.delete_component_with_events(project_id, component_id, vec![event.into()])
+                .await?;
+        } else {
+            self.component_service
+                .remove_component(&component.id)
+                .await?;
+            if let Err(error) = self
+                .permission_service
+                .delete_component_instance_resource(&component_id)
+                .await
+            {
+                if let Err(restore_error) = self
+                    .component_service
+                    .add_component(component.clone())
+                    .await
+                {
+                    tracing::error!(
+                        "Failed to restore component {} after ACL cleanup failure: {:?}",
+                        component_id,
+                        restore_error
+                    );
+                    return Err(ApplicationError::Internal(format!(
+                        "Removed component {component_id} but failed to delete its ACL resource ({error}); restoring the component also failed ({restore_error})"
+                    )));
+                }
+                return Err(error.into());
+            }
+            let domain_ev: Box<dyn DomainEvent> = event.into();
+            self.event_publisher.publish(domain_ev.as_ref()).await?;
+        }
 
         Ok(())
     }

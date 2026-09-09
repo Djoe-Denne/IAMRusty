@@ -53,6 +53,10 @@ member_permissions_updated = ["test-sentinel-sync-events"]
 member_removed = ["test-sentinel-sync-events"]
 permission_granted = ["test-sentinel-sync-events"]
 permission_revoked = ["test-sentinel-sync-events"]
+project_deleted = ["test-sentinel-sync-events"]
+project_suspended = ["test-sentinel-sync-events"]
+project_resumed = ["test-sentinel-sync-events"]
+project_ownership_transferred = ["test-sentinel-sync-events"]
 
 # Component-catalog HTTP service. Tests route this through the same shared
 # wiremock singleton that hosts the OpenFGA fake; the test harness

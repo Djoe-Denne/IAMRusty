@@ -14,6 +14,7 @@ pub struct Model {
     pub removal_reason: Option<String>,
     pub grace_period_ends_at: Option<DateTimeWithTimeZone>,
     pub last_access_at: Option<DateTimeWithTimeZone>,
+    pub is_owner: bool,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

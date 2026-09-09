@@ -71,7 +71,7 @@ where
         user_id: Uuid,
     ) -> Result<ProjectMember, DomainError> {
         self.member_repo
-            .find_by_project_and_user(&project_id, &user_id)
+            .find_active_by_project_and_user(&project_id, &user_id)
             .await?
             .ok_or_else(|| {
                 DomainError::entity_not_found("ProjectMember", &format!("{project_id}/{user_id}"))

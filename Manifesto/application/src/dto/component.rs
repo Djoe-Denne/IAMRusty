@@ -22,8 +22,6 @@ pub struct ComponentResponse {
     pub id: Uuid,
     pub component_type: String,
     pub status: String,
-    pub endpoint: Option<String>,     // From component service
-    pub access_token: Option<String>, // Component-scoped JWT (not implemented yet)
     pub added_at: DateTime<Utc>,
     pub configured_at: Option<DateTime<Utc>>,
     pub activated_at: Option<DateTime<Utc>>,
