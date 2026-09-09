@@ -99,6 +99,7 @@ jobs:
       - name: Install native dependencies
         if: ${{ matrix.service == 'IAMRusty' }}
         run: |
+          sudo rm -f /etc/apt/sources.list.d/google-chrome*.list
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             libcurl4-openssl-dev
@@ -179,6 +180,7 @@ jobs:
       - name: Install native dependencies
         if: ${{ matrix.service == 'IAMRusty' }}
         run: |
+          sudo rm -f /etc/apt/sources.list.d/google-chrome*.list
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             libcurl4-openssl-dev
@@ -289,6 +291,7 @@ jobs:
       - name: Install native dependencies
         if: ${{ matrix.service == 'IAMRusty' }}
         run: |
+          sudo rm -f /etc/apt/sources.list.d/google-chrome*.list
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             libcurl4-openssl-dev
@@ -329,6 +332,7 @@ jobs:
 
       - name: Install LCOV tools
         run: |
+          sudo rm -f /etc/apt/sources.list.d/google-chrome*.list
           sudo apt-get update
           sudo apt-get install -y lcov
 
@@ -392,6 +396,7 @@ jobs:
 
       - name: Install native dependencies
         run: |
+          sudo rm -f /etc/apt/sources.list.d/google-chrome*.list
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             libcurl4-openssl-dev
