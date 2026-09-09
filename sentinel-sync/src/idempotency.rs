@@ -30,11 +30,11 @@ pub trait EventLedger: Send + Sync {
     /// Mark an attempted delivery as failed while keeping it retryable.
     async fn fail(&self, event_id: Uuid, error: &str) -> Result<()>;
 
-    /// Return whether a visibility revision is the next change to apply for a project.
-    /// Older revisions are skipped and gaps remain retryable until their predecessor completes.
+    /// Return whether a lifecycle revision should be applied for a project.
+    /// Older or equal revisions are skipped. Newer revisions (including gaps) apply.
     async fn begin_visibility_change(&self, project_id: Uuid, revision: i64) -> Result<bool>;
 
-    /// Advance the durable visibility revision after `OpenFGA` accepted the delta.
+    /// Advance the durable lifecycle revision after `OpenFGA` accepted the delta.
     async fn complete_visibility_change(&self, project_id: Uuid, revision: i64) -> Result<()>;
 }
 
@@ -225,7 +225,7 @@ impl EventLedger for PostgresEventLedger {
                 ON CONFLICT (project_id) DO UPDATE
                     SET last_applied_revision = EXCLUDED.last_applied_revision,
                         updated_at = now()
-                WHERE sentinel_sync_visibility_revisions.last_applied_revision = EXCLUDED.last_applied_revision - 1
+                WHERE sentinel_sync_visibility_revisions.last_applied_revision < EXCLUDED.last_applied_revision
                 ",
                 [project_id.into(), revision.into()],
             ))
@@ -244,7 +244,7 @@ impl EventLedger for PostgresEventLedger {
             .try_get::<i64>("", "last_applied_revision")?;
         if last_applied_revision < revision {
             return Err(anyhow::anyhow!(
-                "visibility revision {revision} cannot complete before its predecessor"
+                "lifecycle revision {revision} was not persisted"
             ));
         }
         Ok(())
@@ -253,21 +253,10 @@ impl EventLedger for PostgresEventLedger {
 
 fn begin_visibility_revision(last_applied_revision: Option<i64>, revision: i64) -> Result<bool> {
     if revision <= 0 {
-        return Err(anyhow::anyhow!("visibility revision must be positive"));
+        return Err(anyhow::anyhow!("lifecycle revision must be positive"));
     }
     let last = last_applied_revision.unwrap_or(0);
-    if revision <= last {
-        return Ok(false);
-    }
-    let expected = last
-        .checked_add(1)
-        .ok_or_else(|| anyhow::anyhow!("visibility revision overflow"))?;
-    if revision != expected {
-        return Err(anyhow::anyhow!(
-            "visibility revision {revision} arrived before required revision {expected}"
-        ));
-    }
-    Ok(true)
+    Ok(revision > last)
 }
 
 fn complete_visibility_revision(
@@ -341,11 +330,16 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn visibility_revision_gaps_remain_retryable() {
+    async fn visibility_revision_gaps_apply_newer_state() {
         let ledger = InMemoryEventLedger::new();
         let project_id = Uuid::new_v4();
 
-        assert!(ledger.begin_visibility_change(project_id, 2).await.is_err());
-        assert!(ledger.begin_visibility_change(project_id, 1).await.unwrap());
+        assert!(ledger.begin_visibility_change(project_id, 3).await.unwrap());
+        ledger
+            .complete_visibility_change(project_id, 3)
+            .await
+            .unwrap();
+        assert!(!ledger.begin_visibility_change(project_id, 2).await.unwrap());
+        assert!(ledger.begin_visibility_change(project_id, 4).await.unwrap());
     }
 }

@@ -27,7 +27,9 @@ use crate::{
         ProjectDetailResponse, ProjectListResponse, ProjectResponse, UpdateProjectRequest,
     },
     usecase::org_scope::{NoopOrgScopeLookup, OrgScopeLookup},
-    usecase::world_read::enforce_world_read_or_principal,
+    usecase::world_read::{
+        caller_can_read_component, enforce_world_read_or_principal, require_project_mutation_actor,
+    },
     ApplicationError,
 };
 
@@ -72,7 +74,8 @@ pub trait ProjectAuthorizationUnitOfWork: Send + Sync {
         event: Box<dyn DomainEvent>,
     ) -> Result<ProjectMember, ApplicationError>;
 
-    /// Restore a membership in grace or insert a new one, then grant the permission.
+    /// Restore a membership in grace or insert a new one, then grant only
+    /// the requested permission and record `MemberAdded` with the persisted id.
     ///
     /// # Errors
     ///
@@ -83,7 +86,7 @@ pub trait ProjectAuthorizationUnitOfWork: Send + Sync {
         resource_name: &str,
         permission: &str,
         member_limit: u32,
-        event: Box<dyn DomainEvent>,
+        added_by: Uuid,
     ) -> Result<ProjectMember, ApplicationError>;
 
     /// Persist a project deletion and its AuthZ events in one transaction.
@@ -156,6 +159,7 @@ pub trait ProjectAuthorizationUnitOfWork: Send + Sync {
         project: Project,
         current_owner: ProjectMember,
         new_owner: ProjectMember,
+        personal_project_limit: u32,
         events: Vec<Box<dyn DomainEvent>>,
     ) -> Result<(Project, ProjectMember, ProjectMember), ApplicationError>;
 
@@ -452,6 +456,19 @@ impl ProjectUseCaseImpl {
         ApplicationError::from(DomainError::permission_denied(message))
     }
 
+    fn reject_already_in_status(
+        project: &Project,
+        target: ProjectStatus,
+    ) -> Result<(), ApplicationError> {
+        if project.status == target {
+            return Err(ApplicationError::Validation(format!(
+                "Project is already {}",
+                target.as_str()
+            )));
+        }
+        Ok(())
+    }
+
     async fn require_admin_on_project(
         &self,
         user_id: Uuid,
@@ -627,12 +644,15 @@ impl ProjectUseCase for ProjectUseCaseImpl {
         let domain_components = self.component_service.list_components(&project_id).await?;
         let mut components = Vec::new();
         for c in domain_components {
-            let visible = crate::usecase::world_read::allows_world_read(&project)
-                || user_id.is_some_and(|uid| {
-                    project.created_by == uid
-                        || (project.owner_type == OwnerType::Personal && project.owner_id == uid)
-                });
-            if visible {
+            if caller_can_read_component(
+                &project,
+                c.id,
+                user_id,
+                &self.member_service,
+                &self.org_permission_checker,
+            )
+            .await?
+            {
                 components.push(ComponentResponse {
                     id: c.id,
                     component_type: c.component_type.clone(),
@@ -642,31 +662,6 @@ impl ProjectUseCase for ProjectUseCaseImpl {
                     activated_at: c.activated_at,
                     disabled_at: c.disabled_at,
                 });
-                continue;
-            }
-            if let Some(uid) = user_id {
-                if let Ok(member) = self.member_service.get_member(project_id, uid).await {
-                    if member.is_project_owner()
-                        || member.has_permission(
-                            "component",
-                            &manifesto_domain::value_objects::PermissionLevel::Read,
-                        )
-                        || member.has_permission(
-                            &c.id.to_string(),
-                            &manifesto_domain::value_objects::PermissionLevel::Read,
-                        )
-                    {
-                        components.push(ComponentResponse {
-                            id: c.id,
-                            component_type: c.component_type.clone(),
-                            status: c.status.as_str().to_string(),
-                            added_at: c.added_at,
-                            configured_at: c.configured_at,
-                            activated_at: c.activated_at,
-                            disabled_at: c.disabled_at,
-                        });
-                    }
-                }
             }
         }
 
@@ -690,6 +685,13 @@ impl ProjectUseCase for ProjectUseCaseImpl {
         user_id: Uuid,
     ) -> Result<ProjectResponse, ApplicationError> {
         let mut project = self.project_service.get_project(&project_id).await?;
+        require_project_mutation_actor(
+            &project,
+            user_id,
+            &self.member_service,
+            &self.org_permission_checker,
+        )
+        .await?;
         let old_visibility = project.visibility;
 
         let visibility = request
@@ -750,19 +752,20 @@ impl ProjectUseCase for ProjectUseCaseImpl {
             }
         }
 
+        authz_events.push(
+            ManifestoDomainEvent::ProjectUpdated(ProjectUpdatedEvent::new(
+                project.id,
+                project.name.clone(),
+                updated_fields,
+                user_id,
+                Utc::now(),
+            ))
+            .into(),
+        );
+
         let updated_project = self
             .persist_project_with_authz_events(project, authz_events)
             .await?;
-
-        let event = ManifestoDomainEvent::ProjectUpdated(ProjectUpdatedEvent::new(
-            updated_project.id,
-            updated_project.name.clone(),
-            updated_fields,
-            user_id,
-            Utc::now(),
-        ));
-        let domain_ev: Box<dyn DomainEvent> = event.into();
-        self.event_publisher.publish(domain_ev.as_ref()).await?;
 
         Ok(Self::project_to_response(&updated_project))
     }
@@ -773,6 +776,13 @@ impl ProjectUseCase for ProjectUseCaseImpl {
         user_id: Uuid,
     ) -> Result<(), ApplicationError> {
         let project = self.project_service.get_project(&project_id).await?;
+        require_project_mutation_actor(
+            &project,
+            user_id,
+            &self.member_service,
+            &self.org_permission_checker,
+        )
+        .await?;
         let members = self
             .member_service
             .list_members(&project_id, None, true, 0, 10_000)
@@ -864,8 +874,15 @@ impl ProjectUseCase for ProjectUseCaseImpl {
         self.project_service.validate_publish(&project_id).await?;
 
         let mut project = self.project_service.get_project(&project_id).await?;
+        require_project_mutation_actor(
+            &project,
+            user_id,
+            &self.member_service,
+            &self.org_permission_checker,
+        )
+        .await?;
+        Self::reject_already_in_status(&project, ProjectStatus::Active)?;
 
-        // Transition status
         project
             .transition_status(ProjectStatus::Active)
             .map_err(ApplicationError::from)?;
@@ -889,19 +906,30 @@ impl ProjectUseCase for ProjectUseCaseImpl {
         user_id: Uuid,
     ) -> Result<ProjectResponse, ApplicationError> {
         let mut project = self.project_service.get_project(&project_id).await?;
+        require_project_mutation_actor(
+            &project,
+            user_id,
+            &self.member_service,
+            &self.org_permission_checker,
+        )
+        .await?;
+        Self::reject_already_in_status(&project, ProjectStatus::Archived)?;
 
         project
             .transition_status(ProjectStatus::Archived)
             .map_err(ApplicationError::from)?;
 
-        let event = ManifestoDomainEvent::ProjectArchived(ProjectArchivedEvent::new(
-            project.id,
-            project.name.clone(),
-            project.owner_type.as_str().to_string(),
-            project.owner_id,
-            user_id,
-            Utc::now(),
-        ));
+        let event = ManifestoDomainEvent::ProjectArchived(
+            ProjectArchivedEvent::new(
+                project.id,
+                project.name.clone(),
+                project.owner_type.as_str().to_string(),
+                project.owner_id,
+                user_id,
+                Utc::now(),
+            )
+            .with_lifecycle_revision(project.revision),
+        );
         let archived_project = self
             .persist_project_with_authz_events(project, vec![event.into()])
             .await?;
@@ -915,18 +943,29 @@ impl ProjectUseCase for ProjectUseCaseImpl {
         user_id: Uuid,
     ) -> Result<ProjectResponse, ApplicationError> {
         let mut project = self.project_service.get_project(&project_id).await?;
+        require_project_mutation_actor(
+            &project,
+            user_id,
+            &self.member_service,
+            &self.org_permission_checker,
+        )
+        .await?;
+        Self::reject_already_in_status(&project, ProjectStatus::Suspended)?;
         project
             .transition_status(ProjectStatus::Suspended)
             .map_err(ApplicationError::from)?;
-        let event = ManifestoDomainEvent::ProjectSuspended(ProjectSuspendedEvent::new(
-            project.id,
-            project.name.clone(),
-            project.owner_type.as_str().to_string(),
-            project.owner_id,
-            project.visibility.as_str().to_string(),
-            user_id,
-            Utc::now(),
-        ));
+        let event = ManifestoDomainEvent::ProjectSuspended(
+            ProjectSuspendedEvent::new(
+                project.id,
+                project.name.clone(),
+                project.owner_type.as_str().to_string(),
+                project.owner_id,
+                project.visibility.as_str().to_string(),
+                user_id,
+                Utc::now(),
+            )
+            .with_lifecycle_revision(project.revision),
+        );
         let suspended = self
             .persist_project_with_authz_events(project, vec![event.into()])
             .await?;
@@ -939,18 +978,29 @@ impl ProjectUseCase for ProjectUseCaseImpl {
         user_id: Uuid,
     ) -> Result<ProjectResponse, ApplicationError> {
         let mut project = self.project_service.get_project(&project_id).await?;
+        require_project_mutation_actor(
+            &project,
+            user_id,
+            &self.member_service,
+            &self.org_permission_checker,
+        )
+        .await?;
+        Self::reject_already_in_status(&project, ProjectStatus::Active)?;
         project
             .transition_status(ProjectStatus::Active)
             .map_err(ApplicationError::from)?;
-        let event = ManifestoDomainEvent::ProjectResumed(ProjectResumedEvent::new(
-            project.id,
-            project.name.clone(),
-            project.owner_type.as_str().to_string(),
-            project.owner_id,
-            project.visibility.as_str().to_string(),
-            user_id,
-            Utc::now(),
-        ));
+        let event = ManifestoDomainEvent::ProjectResumed(
+            ProjectResumedEvent::new(
+                project.id,
+                project.name.clone(),
+                project.owner_type.as_str().to_string(),
+                project.owner_id,
+                project.visibility.as_str().to_string(),
+                user_id,
+                Utc::now(),
+            )
+            .with_lifecycle_revision(project.revision),
+        );
         let resumed = self
             .persist_project_with_authz_events(project, vec![event.into()])
             .await?;

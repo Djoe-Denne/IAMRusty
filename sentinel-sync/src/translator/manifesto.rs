@@ -118,6 +118,13 @@ fn project_created_delta(evt: &manifesto_events::ProjectCreatedEvent) -> TupleDe
 }
 
 fn project_deleted_delta(evt: &manifesto_events::ProjectDeletedEvent) -> TupleDelta {
+    let v1_incomplete = evt.member_user_ids.is_empty()
+        && evt.component_ids.is_empty()
+        && evt.owner_type.is_none()
+        && evt.owner_id.is_none();
+    if v1_incomplete {
+        return TupleDelta::default();
+    }
     let mut d =
         TupleDelta::default().delete(Tuple::wildcard_user("project", evt.project_id, "viewer"));
     if let (Some(owner_type), Some(owner_id)) = (&evt.owner_type, evt.owner_id) {
@@ -125,17 +132,13 @@ fn project_deleted_delta(evt: &manifesto_events::ProjectDeletedEvent) -> TupleDe
             d = d.delete(userset);
         }
     }
-    let mut users = evt.member_user_ids.clone();
-    if users.is_empty() {
-        users.push(evt.deleted_by);
-    }
-    for user_id in users {
+    for user_id in &evt.member_user_ids {
         for relation in ["owner", "admin", "member", "viewer"] {
-            d = d.delete(Tuple::user("project", evt.project_id, relation, user_id));
+            d = d.delete(Tuple::user("project", evt.project_id, relation, *user_id));
         }
         for component_id in &evt.component_ids {
-            d = d.delete(Tuple::user("component", *component_id, "viewer", user_id));
-            d = d.delete(Tuple::user("component", *component_id, "editor", user_id));
+            d = d.delete(Tuple::user("component", *component_id, "viewer", *user_id));
+            d = d.delete(Tuple::user("component", *component_id, "editor", *user_id));
         }
     }
     for component_id in &evt.component_ids {
@@ -151,12 +154,13 @@ fn project_deleted_delta(evt: &manifesto_events::ProjectDeletedEvent) -> TupleDe
 }
 
 fn member_permissions_updated_delta(evt: &MemberPermissionsUpdatedEvent) -> TupleDelta {
+    if evt.previous.is_empty() {
+        return TupleDelta::default();
+    }
     let mut d = TupleDelta::default();
-    if !evt.previous.is_empty() {
-        for perm in &evt.previous {
-            if let Some(tuple) = resource_permission_tuple(perm, evt.project_id, evt.user_id) {
-                d = d.delete(tuple);
-            }
+    for perm in &evt.previous {
+        if let Some(tuple) = resource_permission_tuple(perm, evt.project_id, evt.user_id) {
+            d = d.delete(tuple);
         }
     }
     for perm in &evt.permissions {
@@ -202,34 +206,12 @@ fn member_added_delta(evt: &manifesto_events::MemberAddedEvent) -> TupleDelta {
 }
 
 fn member_removed_delta(evt: &manifesto_events::MemberRemovedEvent) -> TupleDelta {
-    let mut d = TupleDelta::default();
     if evt.tuples.is_empty() {
-        for relation in ["owner", "admin", "member", "viewer"] {
-            d = d.delete(Tuple::user(
-                "project",
-                evt.project_id,
-                relation,
-                evt.user_id,
-            ));
-        }
-    } else {
-        for tuple in &evt.tuples {
-            d = d.delete(tuple_from_authz(tuple));
-        }
+        return TupleDelta::default();
     }
-    for component_id in &evt.component_ids {
-        d = d.delete(Tuple::user(
-            "component",
-            *component_id,
-            "viewer",
-            evt.user_id,
-        ));
-        d = d.delete(Tuple::user(
-            "component",
-            *component_id,
-            "editor",
-            evt.user_id,
-        ));
+    let mut d = TupleDelta::default();
+    for tuple in &evt.tuples {
+        d = d.delete(tuple_from_authz(tuple));
     }
     d
 }
@@ -354,7 +336,7 @@ fn ownership_transferred_delta(
 }
 
 fn translate_event(event: &ManifestoDomainEvent) -> TupleDelta {
-    match event {
+    let delta = match event {
         ManifestoDomainEvent::ProjectCreated(evt) => project_created_delta(evt),
         ManifestoDomainEvent::ComponentAdded(evt) => component_added_delta(evt),
         ManifestoDomainEvent::ComponentRemoved(evt) => component_removed_delta(evt),
@@ -388,7 +370,8 @@ fn translate_event(event: &ManifestoDomainEvent) -> TupleDelta {
         ManifestoDomainEvent::ProjectPublished(_)
         | ManifestoDomainEvent::ProjectUpdated(_)
         | ManifestoDomainEvent::ComponentStatusChanged(_) => TupleDelta::default(),
-    }
+    };
+    delta.normalize()
 }
 
 #[cfg(test)]
@@ -396,11 +379,11 @@ mod tests {
     use super::*;
     use chrono::Utc;
     use manifesto_events::{
-        ComponentAddedEvent, MemberAddedEvent, MemberPermissionsUpdatedEvent, MemberRemovedEvent,
-        PermissionGrantedEvent, PermissionRevokedEvent, ProjectArchivedEvent, ProjectCreatedEvent,
-        ProjectDeletedEvent, ProjectOwnershipTransferredEvent, ProjectPublishedEvent,
-        ProjectResumedEvent, ProjectSuspendedEvent, ProjectVisibilityChangedEvent,
-        ResourcePermission,
+        AuthzTuple, ComponentAddedEvent, MemberAddedEvent, MemberPermissionsUpdatedEvent,
+        MemberRemovedEvent, PermissionGrantedEvent, PermissionRevokedEvent, ProjectArchivedEvent,
+        ProjectCreatedEvent, ProjectDeletedEvent, ProjectOwnershipTransferredEvent,
+        ProjectPublishedEvent, ProjectResumedEvent, ProjectSuspendedEvent,
+        ProjectVisibilityChangedEvent, ResourcePermission,
     };
 
     fn to_json<T: serde::Serialize>(value: T) -> serde_json::Value {
@@ -554,14 +537,33 @@ mod tests {
     }
 
     #[test]
-    fn project_deleted_drops_wildcard_and_actor_tuples() {
+    fn project_deleted_v1_without_authz_lists_is_noop() {
+        let evt = ManifestoDomainEvent::ProjectDeleted(ProjectDeletedEvent::new(
+            Uuid::new_v4(),
+            "gone".into(),
+            Uuid::new_v4(),
+            Utc::now(),
+        ));
+        let delta = ManifestoTranslator::new()
+            .translate(&to_json(evt))
+            .unwrap()
+            .unwrap();
+        assert!(delta.is_empty());
+    }
+
+    #[test]
+    fn project_deleted_v2_drops_wildcard_and_member_tuples() {
         let project_id = Uuid::new_v4();
         let actor = Uuid::new_v4();
-        let evt = ManifestoDomainEvent::ProjectDeleted(ProjectDeletedEvent::new(
+        let evt = ManifestoDomainEvent::ProjectDeleted(ProjectDeletedEvent::with_authz(
             project_id,
             "gone".into(),
             actor,
             Utc::now(),
+            vec![actor],
+            Vec::new(),
+            Some("personal".into()),
+            Some(actor),
         ));
         let delta = ManifestoTranslator::new()
             .translate(&to_json(evt))
@@ -579,7 +581,7 @@ mod tests {
     }
 
     #[test]
-    fn member_permissions_updated_without_previous_does_not_wipe() {
+    fn member_permissions_updated_without_previous_is_noop() {
         let project_id = Uuid::new_v4();
         let user_id = Uuid::new_v4();
         let evt =
@@ -599,11 +601,7 @@ mod tests {
             .translate(&to_json(evt))
             .unwrap()
             .unwrap();
-        assert!(delta.deletes.is_empty());
-        assert!(delta
-            .writes
-            .iter()
-            .any(|t| t.relation == "member" && t.user_id == user_id.to_string()));
+        assert!(delta.is_empty());
     }
 
     #[test]
@@ -635,7 +633,20 @@ mod tests {
     }
 
     #[test]
-    fn member_removed_with_component_ids_cleans_instance_grants() {
+    fn member_removed_v1_without_tuples_is_noop() {
+        let evt = ManifestoDomainEvent::MemberRemoved(MemberRemovedEvent::new(
+            Uuid::new_v4(),
+            Uuid::new_v4(),
+            Uuid::new_v4(),
+            Uuid::new_v4(),
+            Utc::now(),
+        ));
+        let delta = translate_event(&evt);
+        assert!(delta.is_empty());
+    }
+
+    #[test]
+    fn member_removed_v2_deletes_exact_tuples_only() {
         let project_id = Uuid::new_v4();
         let user_id = Uuid::new_v4();
         let component_id = Uuid::new_v4();
@@ -645,10 +656,14 @@ mod tests {
             user_id,
             Uuid::new_v4(),
             Utc::now(),
-            vec![AuthzTuple::new("project", project_id, "viewer", user_id)],
+            vec![
+                AuthzTuple::new("project", project_id, "viewer", user_id),
+                AuthzTuple::new("component", component_id, "viewer", user_id),
+            ],
             vec![component_id],
         ));
         let delta = translate_event(&evt);
+        assert_eq!(delta.deletes.len(), 2);
         assert!(delta
             .deletes
             .iter()
@@ -849,6 +864,26 @@ mod tests {
             internal_to_public.deletes[0].user_id,
             format!("{org_id}#member")
         );
+    }
+
+    #[test]
+    fn member_added_generic_component_writes_project_component_viewer() {
+        let project_id = Uuid::new_v4();
+        let user_id = Uuid::new_v4();
+        let evt = ManifestoDomainEvent::MemberAdded(MemberAddedEvent::new(
+            project_id,
+            Uuid::new_v4(),
+            user_id,
+            "read".into(),
+            "component".into(),
+            Uuid::new_v4(),
+            Utc::now(),
+        ));
+        let delta = translate_event(&evt);
+        assert_eq!(delta.writes.len(), 1);
+        assert_eq!(delta.writes[0].object_type, "project");
+        assert_eq!(delta.writes[0].object_id, project_id.to_string());
+        assert_eq!(delta.writes[0].relation, "component_viewer");
     }
 
     #[test]

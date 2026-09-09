@@ -3,6 +3,7 @@ mod common;
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
+use chrono::Utc;
 use common::{ManifestoTestDescriptor, TestFixture};
 use manifesto_application::ProjectAuthorizationUnitOfWork;
 use manifesto_domain::{
@@ -10,7 +11,8 @@ use manifesto_domain::{
     Project, ProjectMember,
 };
 use manifesto_events::{
-    ManifestoDomainEvent, MemberAddedEvent, ProjectCreatedEvent, ProjectVisibilityChangedEvent,
+    ManifestoDomainEvent, MemberAddedEvent, ProjectCreatedEvent, ProjectUpdatedEvent,
+    ProjectVisibilityChangedEvent,
 };
 use manifesto_infra::{
     repository::entity::{prelude::*, project_members, role_permissions},
@@ -589,4 +591,87 @@ async fn outbox_dispatcher_publish_success_marks_outbox_row_published() {
         .lock()
         .expect("published event lock poisoned");
     assert_eq!(published_event_ids.as_slice(), &[event_id]);
+}
+
+#[tokio::test]
+#[serial]
+async fn concurrent_project_updates_only_one_commits() {
+    let descriptor = Arc::new(ManifestoTestDescriptor);
+    let fixture = TestFixture::new(descriptor)
+        .await
+        .expect("failed to create test fixture");
+    let db = fixture.db();
+    let db_pool = fixture.database.as_ref().unwrap().pool.clone();
+
+    let owner_id = Uuid::new_v4();
+    let project = Project::builder()
+        .name("Concurrent Put Project".to_string())
+        .owner_type(OwnerType::Personal)
+        .owner_id(owner_id)
+        .created_by(owner_id)
+        .visibility(Visibility::Private)
+        .build()
+        .expect("valid project");
+    let project_id = project.id;
+    let owner_member =
+        ProjectMember::new(project_id, owner_id, MemberSource::Direct, Some(owner_id));
+    let created_event = ManifestoDomainEvent::ProjectCreated(ProjectCreatedEvent::new(
+        project.id,
+        project.name.clone(),
+        project.owner_type.as_str().to_string(),
+        project.owner_id,
+        owner_id,
+        project.visibility.as_str().to_string(),
+        project.created_at,
+    ));
+    let uow = ProjectAuthorizationUnitOfWorkImpl::new(db_pool.clone(), OutboxRecorder::new());
+    let (created, _) = uow
+        .create_project_with_owner_permissions(
+            project,
+            owner_member,
+            &["project", "component", "member"],
+            created_event.into(),
+        )
+        .await
+        .expect("create");
+
+    let mut first = created.clone();
+    first.revision = first.revision.saturating_add(1);
+    first.name = "first-win".to_string();
+    let mut second = created;
+    second.revision = second.revision.saturating_add(1);
+    second.name = "second-win".to_string();
+
+    let first_event = ManifestoDomainEvent::ProjectUpdated(ProjectUpdatedEvent::new(
+        project_id,
+        first.name.clone(),
+        vec!["name".to_string()],
+        owner_id,
+        Utc::now(),
+    ));
+    let second_event = ManifestoDomainEvent::ProjectUpdated(ProjectUpdatedEvent::new(
+        project_id,
+        second.name.clone(),
+        vec!["name".to_string()],
+        owner_id,
+        Utc::now(),
+    ));
+    let first_uow = ProjectAuthorizationUnitOfWorkImpl::new(db_pool.clone(), OutboxRecorder::new());
+    let second_uow = ProjectAuthorizationUnitOfWorkImpl::new(db_pool, OutboxRecorder::new());
+    let (first_result, second_result) = tokio::join!(
+        first_uow.save_project_with_events(first, vec![first_event.into()]),
+        second_uow.save_project_with_events(second, vec![second_event.into()]),
+    );
+
+    assert_eq!(
+        usize::from(first_result.is_ok()) + usize::from(second_result.is_ok()),
+        1
+    );
+    let persisted = Projects::find_by_id(project_id)
+        .one(db.as_ref())
+        .await
+        .expect("lookup")
+        .expect("project");
+    assert_eq!(persisted.revision, 1);
+    assert!(persisted.name == "first-win" || persisted.name == "second-win");
 }

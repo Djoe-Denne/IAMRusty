@@ -11,6 +11,8 @@ pub mod iam;
 pub mod manifesto;
 pub mod telegraph;
 
+use std::collections::HashSet;
+
 use anyhow::Result;
 
 use crate::fga_client::Tuple;
@@ -36,6 +38,18 @@ impl TupleDelta {
     pub fn delete(mut self, t: Tuple) -> Self {
         self.deletes.push(t);
         self
+    }
+
+    /// Drop duplicates and cancel tuples that appear on both sides.
+    #[must_use]
+    pub fn normalize(self) -> Self {
+        let writes: HashSet<Tuple> = self.writes.into_iter().collect();
+        let deletes: HashSet<Tuple> = self.deletes.into_iter().collect();
+        let both: HashSet<Tuple> = writes.intersection(&deletes).cloned().collect();
+        Self {
+            writes: writes.difference(&both).cloned().collect(),
+            deletes: deletes.difference(&both).cloned().collect(),
+        }
     }
 }
 

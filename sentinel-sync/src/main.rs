@@ -10,18 +10,12 @@ use anyhow::{Context, Result};
 use rustycog::events::{create_event_consumer_from_queue_config, EventConsumer};
 use tracing::{error, info};
 
-mod config;
-mod fga_client;
-mod handler;
-mod idempotency;
-mod reconcile;
-mod translator;
-
-use crate::config::SentinelSyncConfig;
-use crate::fga_client::OpenFgaWriteClient;
-use crate::handler::SyncEventHandler;
-use crate::idempotency::build_ledger;
-use crate::translator::{
+use sentinel_sync::config::SentinelSyncConfig;
+use sentinel_sync::fga_client::OpenFgaWriteClient;
+use sentinel_sync::handler::SyncEventHandler;
+use sentinel_sync::idempotency::{self, build_ledger};
+use sentinel_sync::reconcile;
+use sentinel_sync::translator::{
     hive::HiveTranslator, iam::IamTranslator, manifesto::ManifestoTranslator,
     telegraph::TelegraphTranslator,
 };
@@ -54,7 +48,7 @@ async fn main() -> Result<()> {
     let ledger: Arc<dyn idempotency::EventLedger> =
         Arc::from(build_ledger(&config.idempotency).await?);
 
-    let translators: Vec<Arc<dyn translator::Translator>> = vec![
+    let translators: Vec<Arc<dyn sentinel_sync::translator::Translator>> = vec![
         Arc::new(HiveTranslator::new()),
         Arc::new(ManifestoTranslator::new()),
         Arc::new(IamTranslator::new()),

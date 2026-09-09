@@ -350,6 +350,20 @@ async fn write_member_can_flip_private_internal_but_not_public() {
     let writer_jwt = create_test_jwt_token(writer_id);
     let created = create_personal_project(&client, &base_url, &owner_jwt, "private").await;
     let project_id = Uuid::parse_str(created["id"].as_str().unwrap()).unwrap();
+    grant_creator(&openfga, owner_id, project_id).await;
+    let added = client
+        .post(format!("{base_url}/api/projects/{project_id}/members"))
+        .header("Authorization", format!("Bearer {owner_jwt}"))
+        .header("Content-Type", "application/json")
+        .json(&json!({
+            "user_id": writer_id,
+            "permission": "write",
+            "resource": "project"
+        }))
+        .send()
+        .await
+        .expect("add writer");
+    assert_eq!(added.status(), StatusCode::CREATED);
     grant_write(&openfga, writer_id, project_id).await;
 
     put_visibility(&client, &base_url, &writer_jwt, project_id, "internal").await;

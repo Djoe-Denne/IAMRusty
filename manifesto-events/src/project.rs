@@ -107,16 +107,17 @@ impl ProjectDeletedEvent {
         deleted_by: Uuid,
         deleted_at: DateTime<Utc>,
     ) -> Self {
-        Self::with_authz(
+        Self {
+            base: BaseEvent::new("project_deleted".to_string(), project_id).with_version(1),
             project_id,
             project_name,
             deleted_by,
             deleted_at,
-            Vec::new(),
-            Vec::new(),
-            None,
-            None,
-        )
+            member_user_ids: Vec::new(),
+            component_ids: Vec::new(),
+            owner_type: None,
+            owner_id: None,
+        }
     }
 
     #[must_use]
@@ -232,6 +233,9 @@ pub struct ProjectArchivedEvent {
     pub owner_id: Uuid,
     pub archived_by: Uuid,
     pub archived_at: DateTime<Utc>,
+    /// Source revision used to order lifecycle AuthZ changes. `0` on v1.
+    #[serde(default)]
+    pub lifecycle_revision: i64,
 }
 
 impl ProjectArchivedEvent {
@@ -252,7 +256,14 @@ impl ProjectArchivedEvent {
             owner_id,
             archived_by,
             archived_at,
+            lifecycle_revision: 0,
         }
+    }
+
+    #[must_use]
+    pub const fn with_lifecycle_revision(mut self, lifecycle_revision: i64) -> Self {
+        self.lifecycle_revision = lifecycle_revision;
+        self
     }
 }
 
@@ -268,6 +279,8 @@ pub struct ProjectSuspendedEvent {
     pub visibility: String,
     pub suspended_by: Uuid,
     pub suspended_at: DateTime<Utc>,
+    #[serde(default)]
+    pub lifecycle_revision: i64,
 }
 
 impl ProjectSuspendedEvent {
@@ -290,7 +303,14 @@ impl ProjectSuspendedEvent {
             visibility,
             suspended_by,
             suspended_at,
+            lifecycle_revision: 0,
         }
+    }
+
+    #[must_use]
+    pub const fn with_lifecycle_revision(mut self, lifecycle_revision: i64) -> Self {
+        self.lifecycle_revision = lifecycle_revision;
+        self
     }
 }
 
@@ -306,6 +326,8 @@ pub struct ProjectResumedEvent {
     pub visibility: String,
     pub resumed_by: Uuid,
     pub resumed_at: DateTime<Utc>,
+    #[serde(default)]
+    pub lifecycle_revision: i64,
 }
 
 impl ProjectResumedEvent {
@@ -328,6 +350,13 @@ impl ProjectResumedEvent {
             visibility,
             resumed_by,
             resumed_at,
+            lifecycle_revision: 0,
         }
+    }
+
+    #[must_use]
+    pub const fn with_lifecycle_revision(mut self, lifecycle_revision: i64) -> Self {
+        self.lifecycle_revision = lifecycle_revision;
+        self
     }
 }

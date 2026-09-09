@@ -10,6 +10,10 @@ license.workspace = true
 name = "sentinel-sync"
 path = "src/main.rs"
 
+[lib]
+name = "sentinel_sync"
+path = "src/lib.rs"
+
 [dependencies]
 rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full"] }
 

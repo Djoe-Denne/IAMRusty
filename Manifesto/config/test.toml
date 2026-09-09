@@ -58,14 +58,11 @@ project_suspended = ["test-sentinel-sync-events"]
 project_resumed = ["test-sentinel-sync-events"]
 project_ownership_transferred = ["test-sentinel-sync-events"]
 
-# Component-catalog HTTP service. Tests route this through the same shared
-# wiremock singleton that hosts the OpenFGA fake; the test harness
-# (`Manifesto/tests/common.rs::setup_test_server`) constructs a
-# `ComponentServiceMockService` and pre-mounts the default catalog
-# (taskboard + wiki). Tests that need a custom catalog or an error response
-# can re-arrange via the `components` handle returned from the harness.
+# Component-catalog HTTP service. Tests inject an ephemeral wiremock
+# catalog via `setup_test_server` (`ComponentServiceMockService`). The
+# placeholder URL below is overwritten before the app boots.
 [service.component_service]
-base_url = "http://127.0.0.1:3000"
+base_url = "http://127.0.0.1:0"
 timeout_seconds = 10
 
 [logging]

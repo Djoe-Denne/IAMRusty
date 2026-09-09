@@ -8,7 +8,7 @@ use uuid::Uuid;
 use manifesto_domain::{
     entity::ProjectComponent,
     service::{ComponentService, MemberService, PermissionService, ProjectService},
-    value_objects::{ComponentStatus, PermissionLevel},
+    value_objects::ComponentStatus,
 };
 use manifesto_events::{
     ComponentAddedEvent, ComponentRemovedEvent, ComponentStatusChangedEvent, ManifestoDomainEvent,
@@ -20,7 +20,9 @@ use rustycog::permission::PermissionChecker;
 use crate::{
     dto::{AddComponentRequest, ComponentListResponse, ComponentResponse, UpdateComponentRequest},
     usecase::project::ProjectAuthorizationUnitOfWork,
-    usecase::world_read::{allows_world_read, enforce_world_read_or_principal},
+    usecase::world_read::{
+        caller_can_read_component, enforce_world_read_or_principal, require_project_mutation_actor,
+    },
     ApplicationError,
 };
 
@@ -156,51 +158,6 @@ impl ComponentUseCaseImpl {
 
         Ok(())
     }
-
-    async fn caller_can_read_component(
-        &self,
-        project: &manifesto_domain::entity::Project,
-        component_id: Uuid,
-        user_id: Option<Uuid>,
-    ) -> Result<bool, ApplicationError> {
-        if allows_world_read(project) {
-            return Ok(true);
-        }
-        let Some(uid) = user_id else {
-            return Ok(false);
-        };
-        if project.created_by == uid
-            || (project.owner_type == manifesto_domain::value_objects::OwnerType::Personal
-                && project.owner_id == uid)
-        {
-            return Ok(true);
-        }
-        if let Ok(member) = self.member_service.get_member(project.id, uid).await {
-            if member.is_project_owner()
-                || member.has_permission("component", &PermissionLevel::Read)
-                || member.has_permission(&component_id.to_string(), &PermissionLevel::Read)
-                || member
-                    .has_permission(&format!("component:{component_id}"), &PermissionLevel::Read)
-            {
-                return Ok(true);
-            }
-        }
-        if project.owner_type == manifesto_domain::value_objects::OwnerType::Organization {
-            let allowed = self
-                .org_permission_checker
-                .check(
-                    rustycog::permission::Subject::new(uid),
-                    rustycog::permission::Permission::Admin,
-                    rustycog::permission::ResourceRef::new("organization", project.owner_id),
-                )
-                .await
-                .map_err(ApplicationError::from)?;
-            if allowed {
-                return Ok(true);
-            }
-        }
-        Ok(false)
-    }
 }
 
 #[async_trait]
@@ -212,7 +169,14 @@ impl ComponentUseCase for ComponentUseCaseImpl {
         user_id: Uuid,
     ) -> Result<ComponentResponse, ApplicationError> {
         // Ensure project exists
-        let _project = self.project_service.get_project(&project_id).await?;
+        let project = self.project_service.get_project(&project_id).await?;
+        require_project_mutation_actor(
+            &project,
+            user_id,
+            &self.member_service,
+            &self.org_permission_checker,
+        )
+        .await?;
 
         // Validate component type exists in component service
         self.component_service
@@ -295,9 +259,14 @@ impl ComponentUseCase for ComponentUseCaseImpl {
                 "ProjectComponent not found for project {project_id}"
             )));
         }
-        if !self
-            .caller_can_read_component(&project, component_id, user_id)
-            .await?
+        if !caller_can_read_component(
+            &project,
+            component_id,
+            user_id,
+            &self.member_service,
+            &self.org_permission_checker,
+        )
+        .await?
         {
             return Err(ApplicationError::from(DomainError::permission_denied(
                 "Insufficient permissions to read this component",
@@ -324,9 +293,14 @@ impl ComponentUseCase for ComponentUseCaseImpl {
         let components = self.component_service.list_components(&project_id).await?;
         let mut data = Vec::new();
         for component in components {
-            if self
-                .caller_can_read_component(&project, component.id, user_id)
-                .await?
+            if caller_can_read_component(
+                &project,
+                component.id,
+                user_id,
+                &self.member_service,
+                &self.org_permission_checker,
+            )
+            .await?
             {
                 data.push(Self::component_to_response(&component));
             }
@@ -342,6 +316,14 @@ impl ComponentUseCase for ComponentUseCaseImpl {
         request: &UpdateComponentRequest,
         user_id: Uuid,
     ) -> Result<ComponentResponse, ApplicationError> {
+        let project = self.project_service.get_project(&project_id).await?;
+        require_project_mutation_actor(
+            &project,
+            user_id,
+            &self.member_service,
+            &self.org_permission_checker,
+        )
+        .await?;
         let mut component = self.component_service.get_component(&component_id).await?;
 
         if component.project_id != project_id {
@@ -388,6 +370,14 @@ impl ComponentUseCase for ComponentUseCaseImpl {
         component_id: Uuid,
         user_id: Uuid,
     ) -> Result<(), ApplicationError> {
+        let project = self.project_service.get_project(&project_id).await?;
+        require_project_mutation_actor(
+            &project,
+            user_id,
+            &self.member_service,
+            &self.org_permission_checker,
+        )
+        .await?;
         let component = self.component_service.get_component(&component_id).await?;
 
         if component.project_id != project_id {

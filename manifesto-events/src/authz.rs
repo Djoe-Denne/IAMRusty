@@ -41,7 +41,7 @@ pub struct AuthzTarget {
 ///
 /// * `"project"` / `"member"` → `project:{project_id}`
 /// * a UUID, optionally prefixed with `component:` → `component:{id}`
-/// * generic `"component"` (type-level) → `None` (no instance tuple)
+/// * generic `"component"` (type-level) → `None` (use [`exact_user_tuple`])
 #[must_use]
 pub fn resolve_authz_target(resource: &str, project_id: Uuid) -> Option<AuthzTarget> {
     let trimmed = resource.trim();
@@ -92,14 +92,26 @@ pub fn fga_relation(object_type: &str, permission: &str) -> Option<&'static str>
         ("project", "admin") => Some("admin"),
         ("project", "write") => Some("member"),
         ("project", "read") => Some("viewer"),
+        ("project", "component_viewer") => Some("component_viewer"),
+        ("project", "component_editor") => Some("component_editor"),
         ("component", "write" | "admin") => Some("editor"),
         ("component", "read") => Some("viewer"),
         _ => None,
     }
 }
 
+fn generic_component_relation(permission: &str) -> Option<&'static str> {
+    match permission.to_ascii_lowercase().as_str() {
+        "read" => Some("component_viewer"),
+        "write" | "admin" | "owner" => Some("component_editor"),
+        _ => None,
+    }
+}
+
 /// Build the exact tuple for a grant/revoke, or `None` when the resource is
-/// type-level / unrecognized (caller must not invent a wipe).
+/// unrecognized (caller must not invent a wipe).
+///
+/// Generic `"component"` maps to `project:{id}#component_viewer|component_editor`.
 #[must_use]
 pub fn exact_user_tuple(
     resource: &str,
@@ -107,6 +119,11 @@ pub fn exact_user_tuple(
     project_id: Uuid,
     user_id: Uuid,
 ) -> Option<AuthzTuple> {
+    let trimmed = resource.trim();
+    if trimmed.eq_ignore_ascii_case("component") {
+        let relation = generic_component_relation(permission)?;
+        return Some(AuthzTuple::new("project", project_id, relation, user_id));
+    }
     let target = resolve_authz_target(resource, project_id)?;
     let relation = fga_relation(&target.object_type, permission)?;
     Some(AuthzTuple::new(
@@ -132,8 +149,20 @@ mod tests {
     }
 
     #[test]
-    fn generic_component_has_no_instance_tuple() {
+    fn generic_component_has_no_instance_target() {
         assert!(resolve_authz_target("component", Uuid::new_v4()).is_none());
+    }
+
+    #[test]
+    fn generic_component_grant_maps_to_project_component_relation() {
+        let project_id = Uuid::new_v4();
+        let user_id = Uuid::new_v4();
+        let read = exact_user_tuple("component", "read", project_id, user_id).expect("read");
+        assert_eq!(read.object_type, "project");
+        assert_eq!(read.object_id, project_id);
+        assert_eq!(read.relation, "component_viewer");
+        let write = exact_user_tuple("component", "write", project_id, user_id).expect("write");
+        assert_eq!(write.relation, "component_editor");
     }
 
     #[test]

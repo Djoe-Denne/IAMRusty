@@ -23,6 +23,9 @@ info:
     
   version: 1.0.0
 
+security:
+  - bearerAuth: []
+
 paths:
   # =============================================================================
   # Projects
@@ -32,6 +35,9 @@ paths:
       summary: List projects
       description: Optional authentication. Anonymous callers see public active projects only.
       tags: [Projects]
+      security:
+        - {}
+        - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/Cursor'
         - $ref: '#/components/parameters/Limit'
@@ -110,6 +116,9 @@ paths:
       summary: Get project
       description: Get project summary. Optional authentication for public active projects.
       tags: [Projects]
+      security:
+        - {}
+        - bearerAuth: []
       responses:
         200:
           description: Project details
@@ -165,6 +174,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         404:
           $ref: '#/components/responses/NotFound'
+        409:
+          $ref: '#/components/responses/Conflict'
 
   /api/projects/{projectId}/details:
     parameters:
@@ -173,6 +184,9 @@ paths:
       summary: Get project with components
       description: Optional authentication. Public active projects are world-readable.
       tags: [Projects]
+      security:
+        - {}
+        - bearerAuth: []
       responses:
         200:
           description: Project details with components
@@ -216,6 +230,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         404:
           $ref: '#/components/responses/NotFound'
+        422:
+          $ref: '#/components/responses/Unprocessable'
 
   /api/projects/{projectId}/archive:
     parameters:
@@ -238,6 +254,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         404:
           $ref: '#/components/responses/NotFound'
+        422:
+          $ref: '#/components/responses/Unprocessable'
 
   /api/projects/{projectId}/suspend:
     parameters:

@@ -25,7 +25,7 @@ use crate::{
         TransferOwnershipRequest, UpdateMemberPermissionsRequest,
     },
     usecase::project::ProjectAuthorizationUnitOfWork,
-    usecase::world_read::allows_world_read,
+    usecase::world_read::{allows_world_read, member_is_project_admin},
     ApplicationError,
 };
 
@@ -65,6 +65,7 @@ pub trait MemberUseCase: Send + Sync {
         &self,
         project_id: Uuid,
         user_id: Uuid,
+        requester_id: Uuid,
     ) -> Result<MemberResponse, ApplicationError>;
 
     /// List members of a project.
@@ -76,6 +77,7 @@ pub trait MemberUseCase: Send + Sync {
         &self,
         project_id: Uuid,
         pagination: &PaginationRequest,
+        requester_id: Uuid,
     ) -> Result<MemberListResponse, ApplicationError>;
 
     /// Replace a member's permissions.
@@ -212,6 +214,28 @@ impl MemberUseCaseImpl {
         )
     }
 
+    async fn reject_suspended_non_admin(
+        &self,
+        project_id: Uuid,
+        requester_id: Uuid,
+    ) -> Result<(), ApplicationError> {
+        let project = self.project_service.get_project(&project_id).await?;
+        if project.status != manifesto_domain::value_objects::ProjectStatus::Suspended {
+            return Ok(());
+        }
+        match self
+            .member_service
+            .get_member(project_id, requester_id)
+            .await
+        {
+            Ok(member) if member_is_project_admin(&member) => Ok(()),
+            Ok(_) | Err(DomainError::EntityNotFound { .. }) => Err(Self::permission_denied(
+                "Suspended projects are only visible to owners and admins",
+            )),
+            Err(error) => Err(ApplicationError::from(error)),
+        }
+    }
+
     async fn enforce_member_quota(&self, project_id: &Uuid) -> Result<(), ApplicationError> {
         let active_members = self.member_service.count_active_members(project_id).await?;
         if active_members >= i64::from(self.business_config.max_members_per_project) {
@@ -282,7 +306,7 @@ impl MemberUseCaseImpl {
         member: ProjectMember,
         resource_name: &str,
         permission: &str,
-        event: Box<dyn DomainEvent>,
+        added_by: Uuid,
     ) -> Result<ProjectMember, ApplicationError> {
         if let Some(uow) = &self.authorization_uow {
             let saved = uow
@@ -291,7 +315,7 @@ impl MemberUseCaseImpl {
                     resource_name,
                     permission,
                     self.business_config.max_members_per_project,
-                    event,
+                    added_by,
                 )
                 .await?;
             return self
@@ -300,8 +324,22 @@ impl MemberUseCaseImpl {
                 .await
                 .map_err(ApplicationError::from);
         }
-        self.persist_member_with_permission_and_event(member, resource_name, permission, event)
-            .await
+        let event = ManifestoDomainEvent::MemberAdded(MemberAddedEvent::new(
+            member.project_id,
+            member.id,
+            member.user_id,
+            permission.to_string(),
+            resource_name.to_string(),
+            added_by,
+            member.added_at,
+        ));
+        self.persist_member_with_permission_and_event(
+            member,
+            resource_name,
+            permission,
+            event.into(),
+        )
+        .await
     }
 
     fn permission_denied(message: &str) -> ApplicationError {
@@ -373,6 +411,8 @@ impl MemberUseCase for MemberUseCaseImpl {
     ) -> Result<MemberResponse, ApplicationError> {
         // Ensure project exists
         let _project = self.project_service.get_project(&project_id).await?;
+        self.reject_suspended_non_admin(project_id, added_by)
+            .await?;
 
         // Get requester to validate they can add members
         let requester = self.member_service.get_member(project_id, added_by).await?;
@@ -403,17 +443,8 @@ impl MemberUseCase for MemberUseCaseImpl {
             Some(added_by),
         );
 
-        let event = ManifestoDomainEvent::MemberAdded(MemberAddedEvent::new(
-            project_id,
-            member.id,
-            member.user_id,
-            request.permission.clone(),
-            resource_name.to_string(),
-            added_by,
-            member.added_at,
-        ));
         let created = self
-            .persist_restore_or_insert(member, resource_name, &request.permission, event.into())
+            .persist_restore_or_insert(member, resource_name, &request.permission, added_by)
             .await?;
 
         Ok(Self::member_to_response(&created))
@@ -444,17 +475,8 @@ impl MemberUseCase for MemberUseCaseImpl {
         self.enforce_member_quota(&project_id).await?;
 
         let member = ProjectMember::new(project_id, user_id, MemberSource::Direct, Some(user_id));
-        let event = ManifestoDomainEvent::MemberAdded(MemberAddedEvent::new(
-            project_id,
-            member.id,
-            member.user_id,
-            "read".to_string(),
-            "project".to_string(),
-            user_id,
-            member.added_at,
-        ));
         let created = self
-            .persist_restore_or_insert(member, "project", "read", event.into())
+            .persist_restore_or_insert(member, "project", "read", user_id)
             .await?;
 
         Ok(Self::member_to_response(&created))
@@ -464,7 +486,10 @@ impl MemberUseCase for MemberUseCaseImpl {
         &self,
         project_id: Uuid,
         user_id: Uuid,
+        requester_id: Uuid,
     ) -> Result<MemberResponse, ApplicationError> {
+        self.reject_suspended_non_admin(project_id, requester_id)
+            .await?;
         let member = self.member_service.get_member(project_id, user_id).await?;
         Ok(Self::member_to_response(&member))
     }
@@ -473,7 +498,10 @@ impl MemberUseCase for MemberUseCaseImpl {
         &self,
         project_id: Uuid,
         pagination: &PaginationRequest,
+        requester_id: Uuid,
     ) -> Result<MemberListResponse, ApplicationError> {
+        self.reject_suspended_non_admin(project_id, requester_id)
+            .await?;
         let page = pagination.page();
         let page_size = self.configured_page_size(pagination);
 
@@ -512,6 +540,8 @@ impl MemberUseCase for MemberUseCaseImpl {
         request: &UpdateMemberPermissionsRequest,
         requester_id: Uuid,
     ) -> Result<MemberResponse, ApplicationError> {
+        self.reject_suspended_non_admin(project_id, requester_id)
+            .await?;
         let member = self.member_service.get_member(project_id, user_id).await?;
 
         // Get requester
@@ -612,6 +642,8 @@ impl MemberUseCase for MemberUseCaseImpl {
         user_id: Uuid,
         requester_id: Uuid,
     ) -> Result<(), ApplicationError> {
+        self.reject_suspended_non_admin(project_id, requester_id)
+            .await?;
         let requester = self
             .member_service
             .get_member(project_id, requester_id)
@@ -658,6 +690,8 @@ impl MemberUseCase for MemberUseCaseImpl {
         request: &GrantPermissionRequest,
         requester_id: Uuid,
     ) -> Result<MemberResponse, ApplicationError> {
+        self.reject_suspended_non_admin(project_id, requester_id)
+            .await?;
         // Get member
         let mut member = self.member_service.get_member(project_id, user_id).await?;
 
@@ -749,6 +783,8 @@ impl MemberUseCase for MemberUseCaseImpl {
         resource: &str,
         requester_id: Uuid,
     ) -> Result<(), ApplicationError> {
+        self.reject_suspended_non_admin(project_id, requester_id)
+            .await?;
         let member = self.member_service.get_member(project_id, user_id).await?;
         let requester = self
             .member_service
@@ -837,16 +873,6 @@ impl MemberUseCase for MemberUseCaseImpl {
             .get_member(project_id, request.user_id)
             .await?;
         if project.owner_type == manifesto_domain::value_objects::OwnerType::Personal {
-            let current_count = self
-                .project_service
-                .count_projects_by_owner(project.owner_type, request.user_id)
-                .await?;
-            if current_count >= i64::from(self.business_config.max_projects_per_user) {
-                return Err(ApplicationError::Validation(format!(
-                    "Project quota exceeded for personal owner {}",
-                    request.user_id
-                )));
-            }
             project.owner_id = request.user_id;
         }
         project.revision = project
@@ -873,6 +899,7 @@ impl MemberUseCase for MemberUseCaseImpl {
                     project,
                     current_owner,
                     new_owner,
+                    self.business_config.max_projects_per_user,
                     vec![event.into()],
                 )
                 .await?;

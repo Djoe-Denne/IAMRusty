@@ -178,15 +178,17 @@ pub struct GetMemberCommand {
     pub command_id: Uuid,
     pub project_id: Uuid,
     pub user_id: Uuid,
+    pub requester_id: Uuid,
 }
 
 impl GetMemberCommand {
     #[must_use]
-    pub fn new(project_id: Uuid, user_id: Uuid) -> Self {
+    pub fn new(project_id: Uuid, user_id: Uuid, requester_id: Uuid) -> Self {
         Self {
             command_id: Uuid::new_v4(),
             project_id,
             user_id,
+            requester_id,
         }
     }
 }
@@ -222,7 +224,7 @@ impl GetMemberCommandHandler {
 impl CommandHandler<GetMemberCommand> for GetMemberCommandHandler {
     async fn handle(&self, command: GetMemberCommand) -> Result<MemberResponse, CommandError> {
         self.member_usecase
-            .get_member(command.project_id, command.user_id)
+            .get_member(command.project_id, command.user_id, command.requester_id)
             .await
             .map_err(CommandError::from)
     }
@@ -237,15 +239,17 @@ pub struct ListMembersCommand {
     pub command_id: Uuid,
     pub project_id: Uuid,
     pub pagination: PaginationRequest,
+    pub requester_id: Uuid,
 }
 
 impl ListMembersCommand {
     #[must_use]
-    pub fn new(project_id: Uuid, pagination: PaginationRequest) -> Self {
+    pub fn new(project_id: Uuid, pagination: PaginationRequest, requester_id: Uuid) -> Self {
         Self {
             command_id: Uuid::new_v4(),
             project_id,
             pagination,
+            requester_id,
         }
     }
 }
@@ -284,7 +288,11 @@ impl CommandHandler<ListMembersCommand> for ListMembersCommandHandler {
         command: ListMembersCommand,
     ) -> Result<MemberListResponse, CommandError> {
         self.member_usecase
-            .list_members(command.project_id, &command.pagination)
+            .list_members(
+                command.project_id,
+                &command.pagination,
+                command.requester_id,
+            )
             .await
             .map_err(CommandError::from)
     }

@@ -63,12 +63,12 @@ What the runtime actually does:
 
 - No org↔org partnership graph exists. QMD and Hive domain have no partner/alliance type. Tracked as **L-PARTNERSHIP**.
 - `POST /api/projects/{id}/members` remains Admin-only.
-- `MemberSource::OrgCascade` is unused. `Invitation` is written by `POST /api/projects/{id}/join`.
+- `MemberSource::OrgCascade` is unused. `Direct` is written by `POST /api/projects/{id}/join`.
 - `external_collaboration_enabled` is stored and returned. No use case reads it.
 
 ### Join (done 2026-09-05)
 
-`POST /api/projects/{id}/join` is JWT-only (no project Admin middleware). The project must be `public` and live (`draft|active`). Grants `write` / `project`, `MemberSource::Invitation`, `added_by = caller`. Already a member → 409. No invitation tokens.
+`POST /api/projects/{id}/join` is JWT-only (no project Admin middleware). The project must be `public` and `active`. Grants `read` / `project`, `MemberSource::Direct`, `added_by = caller`. Already a member → 409. No invitation tokens. Restore during grace keeps the same member id and replaces previous grants with `project/read`.
 
 ### List vs GET (aligned 2026-09-05 except anonymous public)
 

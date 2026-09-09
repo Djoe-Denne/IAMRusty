@@ -1,6 +1,7 @@
 //! Minimal `OpenFGA` HTTP client used by sentinel-sync to write and delete
 //! relation tuples. Keeps only the surface the sync worker needs.
 
+use std::collections::HashSet;
 use std::time::Duration;
 
 use anyhow::{anyhow, Context, Result};
@@ -218,13 +219,28 @@ impl OpenFgaWriteClient {
         Ok(())
     }
 
-    /// Apply writes then deletes one tuple at a time, treating already-exists /
-    /// missing-tuple as success so AuthZ retries never fail a whole batch.
+    /// Apply writes then deletes as a single grouped `OpenFGA` write when
+    /// possible. Conflicting already-exists / missing-tuple responses fall
+    /// back to per-tuple retries so AuthZ is idempotent.
     ///
     /// # Errors
     ///
     /// Returns an error if `OpenFGA` rejects a tuple for a non-idempotent reason.
     pub async fn write_idempotent(&self, writes: &[Tuple], deletes: &[Tuple]) -> Result<()> {
+        let (writes, deletes) = normalize_tuple_delta(writes, deletes);
+        if writes.is_empty() && deletes.is_empty() {
+            return Ok(());
+        }
+        match self.write(&writes, &deletes).await {
+            Ok(()) => Ok(()),
+            Err(error) if is_idempotent_tuple_error(&error) => {
+                self.write_per_tuple_idempotent(&writes, &deletes).await
+            }
+            Err(error) => Err(error),
+        }
+    }
+
+    async fn write_per_tuple_idempotent(&self, writes: &[Tuple], deletes: &[Tuple]) -> Result<()> {
         for tuple in deletes {
             self.write_one_idempotent(&[], std::slice::from_ref(tuple))
                 .await?;
@@ -239,19 +255,105 @@ impl OpenFgaWriteClient {
     async fn write_one_idempotent(&self, writes: &[Tuple], deletes: &[Tuple]) -> Result<()> {
         match self.write(writes, deletes).await {
             Ok(()) => Ok(()),
-            Err(error) => {
-                let text = error.to_string();
-                if text.contains("cannot_write_tuple_which_already_exists")
-                    || text.contains("cannot_delete_tuple_which_does_not_exist")
-                    || text.contains("cannot_delete_unknown_tuple")
-                {
-                    Ok(())
-                } else {
-                    Err(error)
-                }
-            }
+            Err(error) if is_idempotent_tuple_error(&error) => Ok(()),
+            Err(error) => Err(error),
         }
     }
+
+    fn read_url(&self) -> String {
+        format!(
+            "{}/stores/{}/read",
+            self.config.api_url().trim_end_matches('/'),
+            self.config.store_id
+        )
+    }
+
+    /// List every tuple whose object type is `project` or `component`.
+    ///
+    /// # Errors
+    ///
+    /// Returns if `OpenFGA` rejects a read or the payload cannot be parsed.
+    pub async fn read_manifesto_tuples(&self) -> Result<Vec<Tuple>> {
+        Ok(self
+            .read_all_tuples()
+            .await?
+            .into_iter()
+            .filter(|tuple| tuple.object_type == "project" || tuple.object_type == "component")
+            .collect())
+    }
+
+    async fn read_all_tuples(&self) -> Result<Vec<Tuple>> {
+        let mut tuples = Vec::new();
+        let mut continuation_token = String::new();
+        loop {
+            let mut body = serde_json::json!({ "page_size": 100 });
+            if !continuation_token.is_empty() {
+                body["continuation_token"] = serde_json::Value::String(continuation_token.clone());
+            }
+            let mut req = self.http.post(self.read_url()).json(&body);
+            if let Some(token) = &self.config.api_token {
+                req = req.bearer_auth(token);
+            }
+            let response = req.send().await.context("OpenFGA read request failed")?;
+            let status = response.status();
+            let text = response.text().await.unwrap_or_default();
+            if !status.is_success() {
+                return Err(anyhow!("OpenFGA read returned {status}: {text}"));
+            }
+            let parsed: serde_json::Value =
+                serde_json::from_str(&text).context("OpenFGA read JSON")?;
+            if let Some(items) = parsed.get("tuples").and_then(serde_json::Value::as_array) {
+                for item in items {
+                    if let Some(tuple) = parse_read_tuple(item) {
+                        tuples.push(tuple);
+                    }
+                }
+            }
+            continuation_token = parsed
+                .get("continuation_token")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or_default()
+                .to_string();
+            if continuation_token.is_empty() {
+                break;
+            }
+        }
+        Ok(tuples)
+    }
+}
+
+fn is_idempotent_tuple_error(error: &anyhow::Error) -> bool {
+    let text = error.to_string();
+    text.contains("cannot_write_tuple_which_already_exists")
+        || text.contains("cannot_delete_tuple_which_does_not_exist")
+        || text.contains("cannot_delete_unknown_tuple")
+}
+
+#[must_use]
+pub fn normalize_tuple_delta(writes: &[Tuple], deletes: &[Tuple]) -> (Vec<Tuple>, Vec<Tuple>) {
+    let writes: HashSet<Tuple> = writes.iter().cloned().collect();
+    let deletes: HashSet<Tuple> = deletes.iter().cloned().collect();
+    let both: HashSet<Tuple> = writes.intersection(&deletes).cloned().collect();
+    (
+        writes.difference(&both).cloned().collect(),
+        deletes.difference(&both).cloned().collect(),
+    )
+}
+
+fn parse_read_tuple(item: &serde_json::Value) -> Option<Tuple> {
+    let key = item.get("key").unwrap_or(item);
+    let object = key.get("object")?.as_str()?;
+    let relation = key.get("relation")?.as_str()?;
+    let user = key.get("user")?.as_str()?;
+    let (object_type, object_id) = object.split_once(':')?;
+    let (user_type, user_id) = user.split_once(':')?;
+    Some(Tuple {
+        object_type: object_type.to_string(),
+        object_id: object_id.to_string(),
+        relation: relation.to_string(),
+        user_type: user_type.to_string(),
+        user_id: user_id.to_string(),
+    })
 }
 
 /// Build the write/delete batches for a wildcard sweep.
@@ -287,5 +389,14 @@ mod tests {
             deletes,
             vec![Tuple::wildcard_user("project", drop, "viewer")]
         );
+    }
+
+    #[test]
+    fn normalize_cancels_writes_and_deletes_of_the_same_tuple() {
+        let keep = Uuid::new_v4();
+        let tuple = Tuple::wildcard_user("project", keep, "viewer");
+        let (writes, deletes) = normalize_tuple_delta(&[tuple.clone()], &[tuple]);
+        assert!(writes.is_empty());
+        assert!(deletes.is_empty());
     }
 }

@@ -108,7 +108,8 @@ impl ProjectAuthorizationUnitOfWork for ProjectAuthorizationUnitOfWorkImpl {
             })?;
 
         let result = async {
-            lock_project_revision(&txn, project.id, project.revision).await?;
+            let expected_revision = expected_persisted_revision(project.revision);
+            lock_project_revision(&txn, project.id, expected_revision).await?;
             let saved = ProjectWriteRepositoryImpl::save_with_connection(&txn, &project).await?;
             for event in &events {
                 self.outbox
@@ -211,7 +212,7 @@ impl ProjectAuthorizationUnitOfWork for ProjectAuthorizationUnitOfWorkImpl {
         resource_name: &str,
         permission: &str,
         member_limit: u32,
-        event: Box<dyn DomainEvent>,
+        added_by: uuid::Uuid,
     ) -> Result<ProjectMember, ApplicationError> {
         let txn =
             self.db.begin_write_transaction().await.map_err(|e| {
@@ -230,29 +231,33 @@ impl ProjectAuthorizationUnitOfWork for ProjectAuthorizationUnitOfWorkImpl {
             let saved = if let Some(mut restorable) =
                 find_restorable_member(&txn, member.project_id, member.user_id).await?
             {
+                enforce_member_quota(&txn, member.project_id, member_limit).await?;
                 restorable
                     .restore(chrono::Utc::now())
                     .map_err(ApplicationError::from)?;
-                MemberWriteRepositoryImpl::save_with_connection(&txn, &restorable).await?
+                let saved =
+                    MemberWriteRepositoryImpl::save_with_connection(&txn, &restorable).await?;
+                replace_member_grants(&txn, &saved, resource_name, permission).await?;
+                saved
             } else {
                 enforce_member_quota(&txn, member.project_id, member_limit).await?;
                 let saved = MemberWriteRepositoryImpl::save_with_connection(&txn, &member).await?;
-                let role_permission = get_or_create_role_permission(
-                    &txn,
-                    saved.project_id,
-                    resource_name,
-                    permission,
-                )
-                .await?;
-                ProjectMemberRolePermissionWriteRepositoryImpl::grant_known_with_connection(
-                    &txn,
-                    &saved.id,
-                    &role_permission,
-                )
-                .await?;
+                replace_member_grants(&txn, &saved, resource_name, permission).await?;
                 saved
             };
-            record_events(&self.outbox, &txn, std::slice::from_ref(&event)).await?;
+            let event = manifesto_events::ManifestoDomainEvent::MemberAdded(
+                manifesto_events::MemberAddedEvent::new(
+                    saved.project_id,
+                    saved.id,
+                    saved.user_id,
+                    permission.to_string(),
+                    resource_name.to_string(),
+                    added_by,
+                    saved.added_at,
+                ),
+            );
+            let boxed: Box<dyn DomainEvent> = event.into();
+            record_events(&self.outbox, &txn, std::slice::from_ref(&boxed)).await?;
             load_member_permissions(&txn, saved).await
         }
         .await;
@@ -290,6 +295,8 @@ impl ProjectAuthorizationUnitOfWork for ProjectAuthorizationUnitOfWorkImpl {
             })?;
         let result = async {
             lock_project_row(&txn, member.project_id).await?;
+            let member =
+                require_active_locked_member(&txn, member.project_id, member.user_id).await?;
             ProjectMemberRolePermissionWriteRepositoryImpl::revoke_all_for_member_with_connection(
                 &txn, &member.id,
             )
@@ -319,7 +326,7 @@ impl ProjectAuthorizationUnitOfWork for ProjectAuthorizationUnitOfWorkImpl {
 
     async fn remove_member_with_events(
         &self,
-        mut member: ProjectMember,
+        member: ProjectMember,
         grace_period_days: i64,
         events: Vec<Box<dyn DomainEvent>>,
     ) -> Result<(), ApplicationError> {
@@ -329,6 +336,8 @@ impl ProjectAuthorizationUnitOfWork for ProjectAuthorizationUnitOfWorkImpl {
             })?;
         let result = async {
             lock_project_row(&txn, member.project_id).await?;
+            let mut member =
+                require_active_locked_member(&txn, member.project_id, member.user_id).await?;
             member.remove(None, Some(grace_period_days));
             MemberWriteRepositoryImpl::save_with_connection(&txn, &member).await?;
             record_events(&self.outbox, &txn, &events).await?;
@@ -351,6 +360,8 @@ impl ProjectAuthorizationUnitOfWork for ProjectAuthorizationUnitOfWorkImpl {
             })?;
         let result = async {
             lock_project_row(&txn, member.project_id).await?;
+            let member =
+                require_active_locked_member(&txn, member.project_id, member.user_id).await?;
             let role_permission =
                 get_or_create_role_permission(&txn, member.project_id, resource_name, permission)
                     .await?;
@@ -380,6 +391,8 @@ impl ProjectAuthorizationUnitOfWork for ProjectAuthorizationUnitOfWorkImpl {
             })?;
         let result = async {
             lock_project_row(&txn, member.project_id).await?;
+            let member =
+                require_active_locked_member(&txn, member.project_id, member.user_id).await?;
             ProjectMemberRolePermissionWriteRepositoryImpl::revoke_with_connection(
                 &txn,
                 &member.id,
@@ -396,8 +409,9 @@ impl ProjectAuthorizationUnitOfWork for ProjectAuthorizationUnitOfWorkImpl {
     async fn transfer_ownership_with_events(
         &self,
         project: Project,
-        mut current_owner: ProjectMember,
-        mut new_owner: ProjectMember,
+        current_owner: ProjectMember,
+        new_owner: ProjectMember,
+        personal_project_limit: u32,
         events: Vec<Box<dyn DomainEvent>>,
     ) -> Result<(Project, ProjectMember, ProjectMember), ApplicationError> {
         let txn =
@@ -405,7 +419,25 @@ impl ProjectAuthorizationUnitOfWork for ProjectAuthorizationUnitOfWorkImpl {
                 ApplicationError::Internal(format!("failed to begin transaction: {e}"))
             })?;
         let result = async {
-            lock_project_revision(&txn, project.id, project.revision).await?;
+            lock_project_revision(
+                &txn,
+                project.id,
+                expected_persisted_revision(project.revision),
+            )
+            .await?;
+            if project.owner_type == manifesto_domain::value_objects::OwnerType::Personal {
+                enforce_personal_quota_for_transfer(
+                    &txn,
+                    project.id,
+                    new_owner.user_id,
+                    personal_project_limit,
+                )
+                .await?;
+            }
+            let mut current_owner =
+                require_active_locked_member(&txn, project.id, current_owner.user_id).await?;
+            let mut new_owner =
+                require_active_locked_member(&txn, project.id, new_owner.user_id).await?;
             current_owner.is_owner = false;
             new_owner.is_owner = true;
             demote_owner_permissions(&txn, &current_owner).await?;
@@ -506,35 +538,22 @@ impl ProjectAuthorizationUnitOfWork for ProjectAuthorizationUnitOfWorkImpl {
     }
 }
 
+const fn expected_persisted_revision(in_memory_revision: i64) -> i64 {
+    if in_memory_revision == 0 {
+        0
+    } else {
+        in_memory_revision - 1
+    }
+}
+
 async fn lock_project_revision<C>(
     db: &C,
     project_id: uuid::Uuid,
-    revision: i64,
+    expected_revision: i64,
 ) -> Result<(), ApplicationError>
 where
     C: ConnectionTrait,
 {
-    if revision == 0 {
-        let existing = db
-            .query_one(Statement::from_sql_and_values(
-                DbBackend::Postgres,
-                "SELECT id FROM projects WHERE id = $1 FOR UPDATE",
-                [project_id.into()],
-            ))
-            .await
-            .map_err(|error| {
-                ApplicationError::Internal(format!("failed to lock project for insert: {error}"))
-            })?;
-        if existing.is_some() {
-            return Err(ApplicationError::Conflict(
-                "Project was modified concurrently; reload it before updating".to_string(),
-            ));
-        }
-        return Ok(());
-    }
-    let expected_revision = revision.checked_sub(1).ok_or_else(|| {
-        ApplicationError::Internal("project revision underflow before persistence".to_string())
-    })?;
     let locked = db
         .query_one(Statement::from_sql_and_values(
             DbBackend::Postgres,
@@ -543,14 +562,25 @@ where
         ))
         .await
         .map_err(|error| {
-            ApplicationError::Internal(format!("failed to lock project for update: {error}"))
+            ApplicationError::Internal(format!("failed to lock project at revision: {error}"))
         })?;
-    if locked.is_none() {
-        return Err(ApplicationError::Conflict(
-            "Project was modified concurrently; reload it before updating".to_string(),
-        ));
+    if locked.is_some() {
+        return Ok(());
     }
-    Ok(())
+    let existing = db
+        .query_one(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            "SELECT id FROM projects WHERE id = $1 FOR UPDATE",
+            [project_id.into()],
+        ))
+        .await
+        .map_err(|error| ApplicationError::Internal(format!("failed to lock project: {error}")))?;
+    if existing.is_none() && expected_revision == 0 {
+        return Ok(());
+    }
+    Err(ApplicationError::Conflict(
+        "Project was modified concurrently; reload it before updating".to_string(),
+    ))
 }
 
 async fn lock_project_for_member_change<C>(
@@ -832,6 +862,79 @@ where
             db, &member.id, &admin,
         )
         .await?;
+    }
+    Ok(())
+}
+
+async fn replace_member_grants<C>(
+    db: &C,
+    member: &ProjectMember,
+    resource_name: &str,
+    permission: &str,
+) -> Result<(), ApplicationError>
+where
+    C: ConnectionTrait,
+{
+    ProjectMemberRolePermissionWriteRepositoryImpl::revoke_all_for_member_with_connection(
+        db, &member.id,
+    )
+    .await?;
+    let role_permission =
+        get_or_create_role_permission(db, member.project_id, resource_name, permission).await?;
+    ProjectMemberRolePermissionWriteRepositoryImpl::grant_known_with_connection(
+        db,
+        &member.id,
+        &role_permission,
+    )
+    .await?;
+    Ok(())
+}
+
+async fn require_active_locked_member<C>(
+    db: &C,
+    project_id: uuid::Uuid,
+    user_id: uuid::Uuid,
+) -> Result<ProjectMember, ApplicationError>
+where
+    C: ConnectionTrait,
+{
+    find_active_member_row(db, project_id, user_id)
+        .await?
+        .ok_or_else(|| {
+            ApplicationError::from(DomainError::permission_denied(
+                "Caller is not an active project member",
+            ))
+        })
+}
+
+async fn enforce_personal_quota_for_transfer<C>(
+    db: &C,
+    project_id: uuid::Uuid,
+    new_owner_id: uuid::Uuid,
+    personal_project_limit: u32,
+) -> Result<(), ApplicationError>
+where
+    C: ConnectionTrait,
+{
+    let rows = db
+        .query_all(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            r"
+            SELECT id
+            FROM projects
+            WHERE owner_type = 'personal' AND owner_id = $1 AND id <> $2
+            FOR UPDATE
+            ",
+            [new_owner_id.into(), project_id.into()],
+        ))
+        .await
+        .map_err(|error| {
+            ApplicationError::Internal(format!("failed to lock personal projects: {error}"))
+        })?;
+    if rows.len() >= personal_project_limit as usize {
+        return Err(ApplicationError::Validation(format!(
+            "Project quota exceeded for personal owner {new_owner_id}"
+        )));
     }
     Ok(())
 }

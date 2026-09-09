@@ -91,7 +91,7 @@ pub async fn get_member(
 ) -> Result<Json<MemberResponse>, HttpError> {
     tracing::info!("Getting member {} for project {}", user_id, project_id);
 
-    let command = GetMemberCommand::new(project_id.id(), user_id);
+    let command = GetMemberCommand::new(project_id.id(), user_id, auth_user.user_id);
     let context = CommandContext::new().with_user_id(auth_user.user_id);
 
     let result = state
@@ -117,7 +117,7 @@ pub async fn list_members(
 ) -> Result<Json<MemberListResponse>, HttpError> {
     tracing::info!("Listing members for project {}", project_id);
 
-    let command = ListMembersCommand::new(project_id.id(), pagination);
+    let command = ListMembersCommand::new(project_id.id(), pagination, auth_user.user_id);
     let context = CommandContext::new().with_user_id(auth_user.user_id);
 
     let result = state

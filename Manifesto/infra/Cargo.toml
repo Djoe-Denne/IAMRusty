@@ -13,6 +13,7 @@ test-utils = []
 # Internal dependencies
 manifesto-domain = { path = "../domain" }
 manifesto-application = { path = "../application" }
+manifesto-events = { path = "../../manifesto-events" }
 
 # Event crates
 apparatus-events = { path = "../../apparatus-events" }

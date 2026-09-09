@@ -20,6 +20,10 @@ type project
     define owner: [user]
     define admin: [user] or owner or admin from organization
     define member: [user] or admin
+    # Generic component grants live on the project object so a project
+    # membership does not automatically expose every instance.
+    define component_editor: [user] or admin
+    define component_viewer: [user] or component_editor
     # `[user, user:*]` permits public-read tuples
     # (`project:{id}#viewer@user:*`) written by sentinel-sync for projects
     # whose visibility is `public`. Anonymous callers are resolved as
@@ -38,8 +42,8 @@ type project
 type component
   relations
     define project: [project]
-    define editor: [user] or admin from project
-    define viewer: [user] or member from project
+    define editor: [user] or admin from project or component_editor from project
+    define viewer: [user] or editor or component_viewer from project
     define read: viewer
     define write: editor
     define administer: admin from project

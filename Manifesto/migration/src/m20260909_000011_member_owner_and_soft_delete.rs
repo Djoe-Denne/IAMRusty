@@ -14,12 +14,50 @@ ALTER TABLE project_members
             ",
         )
         .await?;
+
+        // Deduplicate active memberships first, merging grants onto the keeper.
         db.execute_unprepared(
             r"
-UPDATE project_members SET is_owner = false;
+INSERT INTO project_member_role_permissions (member_id, role_permission_id)
+SELECT keepers.keep_id, pmr.role_permission_id
+FROM project_members pm
+JOIN project_member_role_permissions pmr ON pmr.member_id = pm.id
+JOIN (
+    SELECT DISTINCT ON (project_id, user_id) id AS keep_id, project_id, user_id
+    FROM project_members
+    WHERE removed_at IS NULL
+    ORDER BY project_id, user_id, added_at ASC
+) keepers
+  ON keepers.project_id = pm.project_id AND keepers.user_id = pm.user_id
+WHERE pm.removed_at IS NULL
+  AND pm.id <> keepers.keep_id
+ON CONFLICT (member_id, role_permission_id) DO NOTHING;
             ",
         )
         .await?;
+        db.execute_unprepared(
+            r"
+UPDATE project_members pm
+SET removed_at = NOW(),
+    removal_reason = 'duplicate_active_membership',
+    is_owner = false
+WHERE pm.removed_at IS NULL
+  AND pm.id NOT IN (
+    SELECT keep_id FROM (
+      SELECT DISTINCT ON (project_id, user_id) id AS keep_id
+      FROM project_members
+      WHERE removed_at IS NULL
+      ORDER BY project_id, user_id, added_at ASC
+    ) keepers
+  );
+            ",
+        )
+        .await?;
+
+        db.execute_unprepared(r"UPDATE project_members SET is_owner = false;")
+            .await?;
+
+        // Elect exactly one active owner per project (oldest member with owner grant).
         db.execute_unprepared(
             r"
 UPDATE project_members pm
@@ -41,23 +79,64 @@ WHERE pm.removed_at IS NULL
             ",
         )
         .await?;
+
+        // Guarantee an owner exists: fall back to the oldest active member.
         db.execute_unprepared(
             r"
 UPDATE project_members pm
-SET removed_at = NOW(),
-    removal_reason = 'duplicate_active_membership'
+SET is_owner = true
 WHERE pm.removed_at IS NULL
-  AND pm.id NOT IN (
-    SELECT keep_id FROM (
-      SELECT DISTINCT ON (project_id, user_id) id AS keep_id
-      FROM project_members
-      WHERE removed_at IS NULL
-      ORDER BY project_id, user_id, added_at ASC
-    ) keepers
+  AND NOT EXISTS (
+    SELECT 1 FROM project_members owned
+    WHERE owned.project_id = pm.project_id
+      AND owned.removed_at IS NULL
+      AND owned.is_owner
+  )
+  AND pm.id IN (
+    SELECT DISTINCT ON (project_id) id
+    FROM project_members
+    WHERE removed_at IS NULL
+    ORDER BY project_id, added_at ASC
   );
             ",
         )
         .await?;
+
+        // Demote leftover owner grants on non-owner members to admin.
+        db.execute_unprepared(
+            r"
+INSERT INTO project_member_role_permissions (member_id, role_permission_id)
+SELECT DISTINCT pm.id, admin_rp.id
+FROM project_members pm
+JOIN project_member_role_permissions pmr ON pmr.member_id = pm.id
+JOIN role_permissions owner_rp ON owner_rp.id = pmr.role_permission_id
+JOIN permissions owner_p
+  ON owner_p.id = owner_rp.permission_id AND owner_p.level = 'owner'
+JOIN role_permissions admin_rp
+  ON admin_rp.project_id = owner_rp.project_id
+ AND admin_rp.resource_id = owner_rp.resource_id
+JOIN permissions admin_p
+  ON admin_p.id = admin_rp.permission_id AND admin_p.level = 'admin'
+WHERE pm.removed_at IS NULL
+  AND NOT pm.is_owner
+ON CONFLICT (member_id, role_permission_id) DO NOTHING;
+            ",
+        )
+        .await?;
+        db.execute_unprepared(
+            r"
+DELETE FROM project_member_role_permissions pmr
+USING project_members pm, role_permissions rp, permissions p
+WHERE pmr.member_id = pm.id
+  AND rp.id = pmr.role_permission_id
+  AND p.id = rp.permission_id
+  AND pm.removed_at IS NULL
+  AND NOT pm.is_owner
+  AND p.level = 'owner';
+            ",
+        )
+        .await?;
+
         db.execute_unprepared(r"DROP INDEX IF EXISTS project_members_unique;")
             .await?;
         db.execute_unprepared(
@@ -95,6 +174,23 @@ CREATE INDEX IF NOT EXISTS idx_project_members_restorable
             .await?;
         db.execute_unprepared(r"DROP INDEX IF EXISTS project_members_one_active;")
             .await?;
+
+        // Archive remaining active duplicates before restoring a non-partial unique index.
+        db.execute_unprepared(
+            r"
+UPDATE project_members pm
+SET removed_at = COALESCE(pm.removed_at, NOW()),
+    removal_reason = COALESCE(pm.removal_reason, 'duplicate_active_membership_down')
+WHERE pm.id NOT IN (
+    SELECT keep_id FROM (
+      SELECT DISTINCT ON (project_id, user_id) id AS keep_id
+      FROM project_members
+      ORDER BY project_id, user_id, added_at ASC
+    ) keepers
+);
+            ",
+        )
+        .await?;
         db.execute_unprepared(
             r"
 CREATE UNIQUE INDEX IF NOT EXISTS project_members_unique

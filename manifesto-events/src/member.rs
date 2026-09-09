@@ -165,7 +165,7 @@ pub struct MemberRemovedEvent {
     pub user_id: Uuid,
     pub removed_by: Uuid,
     pub removed_at: DateTime<Utc>,
-    /// Exact tuples to delete. Empty on v1 — translators must not wipe extras.
+    /// Exact tuples to delete. Empty on v1 — translators must no-op.
     #[serde(default)]
     pub tuples: Vec<AuthzTuple>,
     #[serde(default)]

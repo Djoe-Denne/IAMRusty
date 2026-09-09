@@ -147,6 +147,13 @@ impl MemberFixtureBuilder {
         self
     }
 
+    /// Override the grant level (`read`, `write`, `admin`, `owner`).
+    #[must_use]
+    pub fn with_permission(mut self, permission: impl Into<String>) -> Self {
+        self.permission_level = Some(permission.into());
+        self
+    }
+
     /// Set the member source
     pub fn source(mut self, source: impl Into<String>) -> Self {
         self.source = Some(source.into());

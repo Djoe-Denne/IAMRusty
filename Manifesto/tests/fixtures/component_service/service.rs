@@ -37,7 +37,7 @@ pub struct ComponentServiceMockService {
 
 impl ComponentServiceMockService {
     pub async fn new() -> Self {
-        let fixture = MockServerFixture::new().await;
+        let fixture = MockServerFixture::isolated().await;
         let server = fixture.server();
         Self { server, fixture }
     }
