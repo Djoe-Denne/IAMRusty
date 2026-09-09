@@ -3,8 +3,12 @@ title: OpenFGA Model
 category: reference
 tags: [reference, authorization, openfga, sentinel-sync, zanzibar]
 summary: >-
-  The unified Zanzibar authorization model that replaces every per-service Casbin .conf file. Defines types organization, project, component, notification plus their cross-type relations and the read/write/administer/own verb mapping.
-updated: 2026-04-20
+  Unified Zanzibar model: organization, project (including component_editor/viewer), component, notification. Replaces per-service Casbin files.
+provenance:
+  extracted: 0.90
+  inferred: 0.08
+  ambiguous: 0.02
+updated: 2026-09-09T16:45:00Z
 ---
 
 # OpenFGA Model
@@ -17,8 +21,8 @@ Source of truth: [openfga/model.fga](../../../../openfga/model.fga).
 |----------------|----------------------------------------------------------|-----------------------------------------------|
 | `user`         | —                                                        | Terminal subject type.                        |
 | `organization` | `owner`, `admin`, `member`, `viewer` + verb relations    | `admin` inherits from `owner`; `member` from `admin`; `viewer` from `member`. |
-| `project`      | `organization` (parent), `owner`, `admin`, `member`, `viewer` + verb relations | `admin` inherits `admin from organization`; `viewer` inherits `viewer from organization`. |
-| `component`    | `project` (parent), `editor`, `viewer` + verb relations  | `editor` inherits `admin from project`; `viewer` inherits `member from project`. |
+| `project`      | `organization`, `owner`, `admin`, `member`, `viewer`, `component_editor`, `component_viewer` + verbs | `viewer` allows `[user, user:*, organization#member]`. Generic component grants do **not** follow `member`. |
+| `component`    | `project`, `editor`, `viewer` + verbs | `editor` = user or `admin from project` or `component_editor from project`. `viewer` = user or editor or `component_viewer from project`. |
 | `notification` | `recipient` + verb relations                             | Notifications are user-scoped; only the recipient can read/write/admin. |
 
 ## Verb mapping

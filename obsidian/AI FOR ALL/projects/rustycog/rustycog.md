@@ -14,7 +14,7 @@ provenance:
   inferred: 0.22
   ambiguous: 0.06
 created: 2026-04-15T17:15:56Z
-updated: 2026-08-31T13:30:00Z
+updated: 2026-09-09T16:45:00Z
 ---
 
 # RustyCog
@@ -44,4 +44,6 @@ This vault’s detailed crate reference pages (`projects/rustycog/references/rus
 
 - [[concepts/shared-rust-microservice-sdk]]
 - [[concepts/architecture-coherence-across-services]]
+- [[projects/aiforall/concepts/rustycog-git-submodule]] — pin on **main**; cherry-pick SDK APIs before bumping.
+- [[projects/rustycog/references/isolated-wiremock-fixture]] — private WireMock listener for parallel collaborator stubs.
 - [[projects/aiforall/aiforall]]

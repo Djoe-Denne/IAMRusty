@@ -21,7 +21,7 @@ provenance:
   inferred: 0.08
   ambiguous: 0.04
 created: 2026-04-15T17:15:56.0808743Z
-updated: 2026-08-31T09:45:00Z
+updated: 2026-09-09T16:45:00Z
 ---
 
 # Using RustyCog Testing
@@ -40,7 +40,7 @@ Use this guide when setting up integration tests with `<!-- [[projects/rustycog/
 - For producer-side SQS routing tests, use a distinct `default_queues` fallback plus explicit `[queue.queues]` mappings. Drain every relevant queue before the action, then assert the event appears via `wait_for_messages_from_queue(mapped_queue, ...)` and does **not** appear via `get_all_messages_from_queue(default_queue, ...)`.
 - Prefer a dedicated routing-test descriptor with `has_sqs() == true` and a test-binary env override such as `HIVE_QUEUE__ENABLED=true`, `IAM_QUEUE__ENABLED=true`, or `MANIFESTO_QUEUE__ENABLED=true`. The default descriptor should keep `has_sqs() == false` so normal HTTP/API tests do not pay LocalStack startup cost.
 - Keep named-queue routing tests transport-heavy and `#[serial]`. `Hive/tests/sqs_event_routing_tests.rs`, `IAMRusty/tests/sqs_event_routing_tests.rs`, and `Manifesto/tests/sqs_event_routing_tests.rs` are the reference shapes for HTTP action -> domain event -> mapped LocalStack queue assertions.
-- For outbound HTTP collaborators, wrap the shared [[projects/rustycog/references/wiremock-mock-server-fixture]] in a typed `MockService` per collaborator and arrange responses with `mock_*` helpers — see [[skills/stubbing-http-with-wiremock]] for the recipe.
+- For outbound HTTP collaborators, wrap [[projects/rustycog/references/isolated-wiremock-fixture]] (`new()` singleton or `isolated()`) in a typed `MockService` — see [[skills/stubbing-http-with-wiremock]].
 - Opt in with `has_openfga() == true` and `openfga_authorization_model_json()`. Keep `openfga.cache_ttl_seconds = 0` so grant→revoke is not served from `CachedPermissionChecker`. `OpenFgaMockService` is crate-level only — not for Hive / Telegraph / Manifesto HTTP ITs.
 - Keep transport-heavy tests separate from fast unit tests to preserve local iteration speed.
 

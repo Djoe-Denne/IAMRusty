@@ -8,7 +8,7 @@ provenance:
   extracted: 0.92
   inferred: 0.06
   ambiguous: 0.02
-updated: 2026-04-19T12:08:26.9393504Z
+updated: 2026-09-09T16:45:00Z
 ---
 
 # Manifesto References

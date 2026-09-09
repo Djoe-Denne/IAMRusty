@@ -16,15 +16,15 @@ sources:
   - docs/functional/projet.md
 summary: >-
   Internal org-owned read uses organization#member userset; private is
-  project_member or org admin; public self-join is live. L-PARTNERSHIP remains
-  open. Publish is lifecycle; visibility flips sync user:* via
-  ProjectVisibilityChanged.
+  project_member or org admin; public self-join is Direct/read. L-PARTNERSHIP
+  remains open. Publish is lifecycle; visibility flips sync user:* via
+  ProjectVisibilityChanged. Restore and Suspended ACL live on sibling pages.
 provenance:
   extracted: 0.82
   inferred: 0.14
   ambiguous: 0.04
 created: 2026-09-02T18:00:00Z
-updated: 2026-09-05T10:00:00Z
+updated: 2026-09-09T16:45:00Z
 ---
 
 # Org-Owned Visibility and Participation Limits
@@ -68,7 +68,7 @@ What the runtime actually does:
 
 ### Join (done 2026-09-05)
 
-`POST /api/projects/{id}/join` is JWT-only (no project Admin middleware). The project must be `public` and `active`. Grants `read` / `project`, `MemberSource::Direct`, `added_by = caller`. Already a member → 409. No invitation tokens. Restore during grace keeps the same member id and replaces previous grants with `project/read`.
+`POST /api/projects/{id}/join` is JWT-only (no project Admin middleware). The project must be `public` and `active`. Grants `read` / `project`, `MemberSource::Direct`, `added_by = caller`. Already a member → 409. No invitation tokens. Restore semantics: [[projects/manifesto/concepts/membership-restore-and-cas]]. Suspended projects are not joinable via the world-read gate.
 
 ### List vs GET (aligned 2026-09-05 except anonymous public)
 
@@ -101,7 +101,7 @@ Manifesto does not load Hive membership rows. Org access is only the shared Open
 | ID | Limitation | Status |
 |---|---|---|
 | L-USER-NO-ORG | Org-less IAM user can join a public project via `POST .../join`. | **Done** 2026-09-05 |
-| L-PUBLIC-PARTICIPATE | Public join grants `write` / `project` membership, not world-write. | **Done** 2026-09-05 |
+| L-PUBLIC-PARTICIPATE | Public join grants `read` / `project` (`MemberSource::Direct`), not world-write. | **Done** 2026-09-05 (grant is **read**, not write) |
 | L-PARTNERSHIP | Hive has no org↔org partnership. Partner members have no distinct path onto a public project. | **Open** — one feeder into join, not a substitute |
 | L-JOIN-PRIMITIVE | `POST /api/projects/{id}/join` (not `add_member`). | **Done** 2026-09-05 |
 | L-LIST-GET | Authenticated org list/GET aligned; anonymous public list-without-wildcard kept. | **Done** 2026-09-05 |
@@ -113,11 +113,13 @@ Do not treat L-PARTNERSHIP as the only public-project story. Join already covers
 
 ## Not the same as component public-read
 
-HTTP component list/get is gated on **project** `Read` plus the same world-read use-case gate as project GET/details. The FGA `component.viewer` relation still derives from `member from project`, not from `viewer`. A leftover project wildcard no longer keeps component HTTP open after private/archive. See [[concepts/anonymous-public-read-via-wildcard-subject]].
+HTTP component list/get is gated on **project** `Read` plus the same world-read use-case gate as project GET/details. FGA `component.viewer` inherits `component_viewer from project` and `editor`, **not** `member from project`. A leftover project wildcard no longer keeps component HTTP open after private/archive. See [[projects/manifesto/concepts/component-instance-permissions]] and [[concepts/anonymous-public-read-via-wildcard-subject]].
 
 ## Related
 
 - [[projects/manifesto/concepts/project-ownership-and-publication-lifecycle]]
+- [[projects/manifesto/concepts/immediate-membership-acl]]
+- [[projects/manifesto/concepts/membership-restore-and-cas]]
 - [[projects/manifesto/references/manifesto-api-and-permission-flows]]
 - [[projects/manifesto/references/manifesto-event-model]]
 - [[concepts/anonymous-public-read-via-wildcard-subject]]

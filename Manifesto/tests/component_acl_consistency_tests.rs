@@ -473,16 +473,46 @@ fn unused<T>(name: &'static str) -> Result<T, DomainError> {
     Err(DomainError::internal_error(name))
 }
 
-struct UnusedMemberService;
+struct OwnerMemberService {
+    project_id: Uuid,
+    owner_id: Uuid,
+}
+
+impl OwnerMemberService {
+    fn for_project(project: &Project) -> Self {
+        Self {
+            project_id: project.id,
+            owner_id: project.created_by,
+        }
+    }
+
+    fn owner_member(&self) -> ProjectMember {
+        let mut member = ProjectMember::new(
+            self.project_id,
+            self.owner_id,
+            MemberSource::Direct,
+            Some(self.owner_id),
+        );
+        member.is_owner = true;
+        member
+    }
+}
 
 #[async_trait]
-impl MemberService for UnusedMemberService {
+impl MemberService for OwnerMemberService {
     async fn get_member(
         &self,
-        _project_id: Uuid,
-        _user_id: Uuid,
+        project_id: Uuid,
+        user_id: Uuid,
     ) -> Result<ProjectMember, DomainError> {
-        unused("get_member")
+        if project_id == self.project_id && user_id == self.owner_id {
+            Ok(self.owner_member())
+        } else {
+            Err(DomainError::entity_not_found(
+                "ProjectMember",
+                &user_id.to_string(),
+            ))
+        }
     }
 
     async fn add_member(&self, _member: ProjectMember) -> Result<ProjectMember, DomainError> {
@@ -513,16 +543,16 @@ impl MemberService for UnusedMemberService {
         unused("list_members")
     }
 
-    async fn count_active_members(&self, _project_id: &Uuid) -> Result<i64, DomainError> {
-        unused("count_active_members")
+    async fn count_active_members(&self, project_id: &Uuid) -> Result<i64, DomainError> {
+        Ok(if *project_id == self.project_id { 1 } else { 0 })
     }
 
     async fn check_member_exists(
         &self,
-        _project_id: &Uuid,
-        _user_id: &Uuid,
+        project_id: &Uuid,
+        user_id: &Uuid,
     ) -> Result<bool, DomainError> {
-        unused("check_member_exists")
+        Ok(*project_id == self.project_id && *user_id == self.owner_id)
     }
 }
 
@@ -537,7 +567,7 @@ async fn add_component_fails_before_persisting_when_instance_acl_creation_fails(
     let usecase = ComponentUseCaseImpl::new(
         component_service.clone(),
         Arc::new(StaticProjectService::new(project.clone())),
-        Arc::new(UnusedMemberService),
+        Arc::new(OwnerMemberService::for_project(&project)),
         permission_service.clone(),
         event_publisher.clone(),
         BusinessConfig::default(),
@@ -589,7 +619,7 @@ async fn remove_component_restores_component_when_instance_acl_deletion_fails() 
     let usecase = ComponentUseCaseImpl::new(
         component_service.clone(),
         Arc::new(StaticProjectService::new(project.clone())),
-        Arc::new(UnusedMemberService),
+        Arc::new(OwnerMemberService::for_project(&project)),
         permission_service.clone(),
         event_publisher.clone(),
         BusinessConfig::default(),

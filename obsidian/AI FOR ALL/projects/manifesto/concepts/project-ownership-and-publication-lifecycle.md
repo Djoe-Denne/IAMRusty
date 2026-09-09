@@ -11,7 +11,7 @@ provenance:
   inferred: 0.12
   ambiguous: 0.08
 created: 2026-04-14T20:25:00Z
-updated: 2026-09-02T18:00:00Z
+updated: 2026-09-09T16:45:00Z
 ---
 
 # Project Ownership and Publication Lifecycle
@@ -26,12 +26,12 @@ updated: 2026-09-02T18:00:00Z
 - `publish_project()` validates that the project is publishable before transitioning **lifecycle** to `active`. It does not change `Visibility`. `ProjectPublished` is a tuple no-op; `ProjectArchived` still deletes `viewer@user:*`.
 - `update_project` emits `ProjectVisibilityChanged` (then `ProjectUpdated`) when visibility actually flips. sentinel-sync writes or deletes `viewer@user:*` from that event.
 - Ownership, publication, and archival all emit Manifesto domain events, so lifecycle changes are modeled as integration-relevant state transitions rather than local DB updates only.
-- The README documents a broader workflow including `suspended`, while the current HTTP surface centers on publish and archive operations. Conflict to resolve. ^[ambiguous]
-- Org-owned public/private participation limits — including the missing partnership/join story — live on [[projects/manifesto/concepts/org-owned-visibility-and-participation-limits]].
+- The README documents `suspended`. HTTP GET/members/mutations on Suspended are owner / project admin / org admin only. See [[projects/manifesto/concepts/immediate-membership-acl]].
+- Public join and org-owned limits: [[projects/manifesto/concepts/org-owned-visibility-and-participation-limits]].
 
 ## Open Questions
 
-- When should `suspended` become a first-class operator-facing state in the HTTP and wiki surface? ^[ambiguous]
+- Suspended operator UX beyond the ACL matrix. ^[inferred]
 - Should organization-owned project creation validate Hive membership rows in addition to the OpenFGA write check? ^[inferred]
 - `ProjectPublished` no longer writes `viewer@user:*`; visibility flips emit `ProjectVisibilityChanged` (answered 2026-09-02).
 

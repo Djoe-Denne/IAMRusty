@@ -11,12 +11,13 @@ sources:
   - sentinel-sync/src/config.rs
   - rustycog/rustycog-config/src/lib.rs
 summary: >-
-  The sentinel-sync worker consumes per-service domain events, translates them into OpenFGA tuple writes/deletes, and now reuses the shared OpenFGA config type from rustycog-config.
+  sentinel-sync consumes per-service events, canonicalizes envelopes, applies
+  tuple deltas, and persists a Postgres EventLedger with begin/complete/fail and Manifesto revisions.
 provenance:
   extracted: 0.86
   inferred: 0.1
   ambiguous: 0.04
-updated: 2026-04-24T19:05:00Z
+updated: 2026-09-09T16:45:00Z
 ---
 
 # Sentinel Sync Worker
@@ -26,11 +27,12 @@ updated: 2026-04-24T19:05:00Z
 ## Layout
 
 - `main.rs` — boots logging, loads config, builds the OpenFGA write client, the idempotency ledger, the translator list, and the concrete event consumer; waits on SIGINT.
-- `config.rs` — `SentinelSyncConfig` with `logging`, `queue` (shared RustyCog types), `openfga` (the shared `OpenFgaClientConfig` from [[projects/rustycog/references/rustycog-config]]), and `idempotency`. Loads from `config/sentinel-sync.toml` and `SENTINEL_SYNC__*` env vars.
-- `fga_client.rs` — minimal `reqwest`-based OpenFGA HTTP client covering `POST /stores/{id}/write` (atomic writes + deletes) and the `Tuple` helper types.
-- `idempotency.rs` — `EventLedger` trait plus `InMemoryEventLedger`. Postgres backend is reserved (`idempotency.backend = "postgres"` returns an error until implemented).
-- `translator/` — one module per producer service (`hive`, `manifesto`, `iam`). Each implements `Translator::translate(raw_event) -> Option<TupleDelta>`.
-- `handler.rs` — `SyncEventHandler` dispatches one event: records in the ledger, tries translators in order, applies the resulting delta atomically.
+- `lib.rs` — public library surface for tests (`canonical_event_envelope`, reconcile, translators).
+- `idempotency.rs` — `EventLedger` plus `InMemoryEventLedger` and `PostgresEventLedger`. Manifesto revisions must be `> last`.
+- `fga_client.rs` — Write plus store-wide Read used by reconcile (`read_manifesto_tuples`).
+- `config.rs` — `SentinelSyncConfig` (`SENTINEL_SYNC__*`).
+- `handler.rs` — envelope, ledger, translators.
+- `translator/` — hive, manifesto, iam.
 
 ## Data flow
 
@@ -69,13 +71,11 @@ The split `scheme` / `host` / `port` shape mirrors service OpenFGA config and su
 
 ## Idempotency
 
-`SyncEventHandler` records every `event_id` in the ledger before processing. A duplicate record is treated as "already applied" and silently skipped. Retried deliveries and replays are safe.
-
-The in-memory ledger is appropriate for tests and local runs; the planned Postgres backend will store `(event_id, processed_at)` rows in a dedicated schema next to OpenFGA's datastore so restarts are safe too.
+`SyncEventHandler` begins a ledger row, canonicalizes the envelope, translates, writes OpenFGA, then completes. Duplicates skip. A failed OpenFGA write **fails** the row (retryable). An undecodable **Manifesto** event type also fails, not complete. Details: [[projects/sentinel-sync/concepts/manifesto-transport-and-ledger]].
 
 ## Translators
 
-Each translator decodes the raw JSON into the service's `DomainEvent` enum. Decoding failure yields `None` (the event belongs to another service). A successful decode returns a `TupleDelta { writes, deletes }`. An empty delta is valid — most domain events are not authorization-relevant.
+Each translator decodes the raw JSON into the service's `DomainEvent` enum. Decoding failure yields `None` unless the type is Manifesto — then the handler errors. Empty deltas are valid. Incomplete v1 Manifesto destructives are empty on purpose.
 
 The concrete event-to-tuple mappings live in [[projects/sentinel-sync/references/event-to-tuple-mapping]].
 

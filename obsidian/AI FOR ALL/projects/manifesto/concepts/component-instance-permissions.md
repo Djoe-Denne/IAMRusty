@@ -6,56 +6,51 @@ sources:
   - Manifesto/http/src/lib.rs
   - Manifesto/application/src/usecase/component.rs
   - Manifesto/application/src/usecase/member.rs
+  - manifesto-events/src/authz.rs
   - openfga/model.fga
   - sentinel-sync/src/translator/manifesto.rs
+  - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/11c01523-bb74-444a-ac31-44384d63de7d/11c01523-bb74-444a-ac31-44384d63de7d.jsonl
 summary: >-
-  Manifesto expresses component permissions as relations on the OpenFGA `component` type, which inherits from its parent `project`. Generic grants flow through `project`; per-instance grants attach tuples directly to `component:{id}`.
-updated: 2026-04-20
+  Generic component grants live on the project as component_editor/viewer. Instances inherit those, not project.member. Per-instance tuples attach to component:{id}.
+provenance:
+  extracted: 0.88
+  inferred: 0.10
+  ambiguous: 0.02
+created: 2026-04-20T00:00:00Z
+updated: 2026-09-09T16:45:00Z
 ---
 
 # Component-Instance Permissions
 
-Manifesto models components as children of projects in the OpenFGA authorization graph. The inheritance is expressed in [openfga/model.fga](../../../../openfga/model.fga):
+Manifesto models components as children of projects in OpenFGA. A project **member** does **not** automatically view every instance.
 
-```
-type component
-  relations
-    define project: [project]
-    define editor: [user] or admin from project
-    define viewer: [user] or member from project
-```
+From [openfga/model.fga](../../../../openfga/model.fga):
 
-So a project `admin` automatically edits every component under the project, and a project `member` automatically views every component, without needing explicit per-component tuples.
+- `project.component_editor` / `project.component_viewer` — generic grants (admin implies editor; editor implies viewer).
+- `component.editor` = direct user **or** `admin from project` **or** `component_editor from project`.
+- `component.viewer` = direct user **or** `editor` **or** `component_viewer from project`.
+
+`exact_user_tuple` in `manifesto-events` maps generic `resource == "component"` to those project relations. An instance UUID maps to `component:{id}#editor|viewer`.
 
 ## Event -> tuple mapping
 
-See [[projects/sentinel-sync/references/event-to-tuple-mapping]] for the full table. The component-specific rows:
+See [[projects/sentinel-sync/references/event-to-tuple-mapping]]. Component-specific rows:
 
-| Event                    | Tuples                                                        |
+| Event | Tuples |
 |--------------------------|---------------------------------------------------------------|
-| `ProjectCreated`         | `project:{id}#organization@organization:{owner_id}` (when org-owned), `project:{id}#owner@user:{created_by}` |
-| `ComponentAdded`         | `component:{component_id}#project@project:{project_id}`       |
-| `ComponentRemoved`       | delete `component:{component_id}#project@project:{project_id}` |
-| `PermissionGranted`      | one tuple of the matching relation on the chosen object type (`component:{id}` for `resource == "component"`) |
-| `PermissionRevoked`      | delete every `{owner, admin, member, viewer}` tuple on the object |
+| `ComponentAdded` | `component:{component_id}#project@project:{project_id}` |
+| `ComponentRemoved` | delete tuples on `component:{component_id}` |
+| `PermissionGranted` | generic component → `project:{id}#component_viewer|component_editor`; instance → `component:{id}#viewer|editor` |
+| `PermissionRevoked` | exact matching delete (v2). Incomplete v1 revoke is a **no-op**. |
 
-## Route layer
+## HTTP vs graph
 
-Every component route in [Manifesto/http/src/lib.rs](../../../../../Manifesto/http/src/lib.rs) currently uses `with_permission_on(Permission::X, "project")` because the deepest UUID in the route path is always the project id — Manifesto models `component_type` as a string segment rather than a UUID. Per-instance component authorization uses `with_permission_on(_, "component")` whenever routes switch to `{component_id}` UUID params.
+Component routes still often use `with_permission_on(_, "project")` because the deepest UUID in the path may be the project id. Instance ACL is enforced in the use case (`caller_can_read_component`): owner, generic component grant, exact UUID grant, org admin, or world-readable public+active. Leftover FGA without an active member does not grant mutation ([[projects/manifesto/concepts/immediate-membership-acl]]).
 
-## Grant/revoke semantics
-
-`grant_permission_specific` and `grant_permission` both emit `PermissionGrantedEvent` with a `resource` string. The Manifesto translator maps:
-
-- `resource == "component"` -> tuple on `component:{project_id}` (generic)
-- anything else -> tuple on `project:{project_id}`
-
-Revokes emit `PermissionRevokedEvent` and the translator deletes every known relation on the target object for the user so the reverse is idempotent even without remembering the original grant.
-
-## Sources
+## Related
 
 - [[projects/manifesto/references/manifesto-api-and-permission-flows]]
 - [[projects/sentinel-sync/references/event-to-tuple-mapping]]
 - [[projects/sentinel-sync/references/openfga-model]]
-- [[projects/rustycog/references/rustycog-permission]]
+- [[projects/manifesto/concepts/immediate-membership-acl]]
 - [[concepts/openfga-as-authorization-engine]]

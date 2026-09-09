@@ -1,17 +1,17 @@
 {
   "version": 1,
   "stats": {
-    "total_sources_ingested": 203,
-    "total_pages": 139,
+    "total_sources_ingested": 212,
+    "total_pages": 146,
     "last_commit_synced": "68ac628"
   },
   "projects": {
     "aiforall": {
       "source_cwd": "C:/Users/djden/source/repos/AIForAll",
-      "last_synced": "2026-09-01T18:00:00Z",
+      "last_synced": "2026-09-09T16:45:00Z",
       "last_commit_synced": "68ac628",
-      "conversations_ingested": 29,
-      "conversations_total": 53,
+      "conversations_ingested": 37,
+      "conversations_total": 66,
       "pages_in_vault": [
         "projects/aiforall/aiforall.md",
         "projects/aiforall/roadmap.md"
@@ -3164,6 +3164,140 @@
       "pages_created": [],
       "pages_updated": [
         "projects/aiforall/references/cursor-history-2026-04-to-08.md"
+      ]
+    },
+    "cursor-conversation/catchup-2026-09-02-to-2026-09-09": {
+      "ingested_at": "2026-09-09T16:45:00Z",
+      "size_bytes": 0,
+      "modified_at": "2026-09-09T16:45:00Z",
+      "content_hash": "conversation:catchup-2026-09-02-to-2026-09-09",
+      "source_type": "conversation",
+      "project": "aiforall",
+      "pages_created": [
+        "journal/2026-09-09.md",
+        "projects/aiforall/references/cursor-history-2026-09.md",
+        "projects/manifesto/concepts/immediate-membership-acl.md",
+        "projects/manifesto/concepts/membership-restore-and-cas.md",
+        "projects/sentinel-sync/concepts/manifesto-transport-and-ledger.md",
+        "projects/sentinel-sync/concepts/db-to-openfga-reconcile.md",
+        "projects/rustycog/references/isolated-wiremock-fixture.md"
+      ],
+      "pages_updated": [
+        "index.md",
+        "projects/manifesto/manifesto.md",
+        "projects/sentinel-sync/sentinel-sync.md"
+      ]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/54cbe718-8042-4a4e-8a15-767a7c0e15ba/54cbe718-8042-4a4e-8a15-767a7c0e15ba.jsonl": {
+      "ingested_at": "2026-09-09T16:45:00Z",
+      "size_bytes": 105407,
+      "modified_at": "2026-09-02T18:27:53.015Z",
+      "content_hash": "sha256:e232603dff9eb0efaf30bfb35b2abbcbfa70152825e0e0304dc756b4e230822d",
+      "source_type": "conversation",
+      "project": "manifesto",
+      "pages_created": [],
+      "pages_updated": [
+        "projects/aiforall/references/cursor-history-2026-09.md",
+        "journal/2026-09-09.md"
+      ]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/23280216-f48f-426e-8a11-6b42b8184a6e/23280216-f48f-426e-8a11-6b42b8184a6e.jsonl": {
+      "ingested_at": "2026-09-09T16:45:00Z",
+      "size_bytes": 115837,
+      "modified_at": "2026-09-02T18:45:38.676Z",
+      "content_hash": "sha256:6a4516c876ec00a96ee6149962907db2287e26f2b674e6c9510dfaa07c2e8ca7",
+      "source_type": "conversation",
+      "project": "manifesto",
+      "pages_created": [
+        "projects/rustycog/references/isolated-wiremock-fixture.md"
+      ],
+      "pages_updated": [
+        "projects/manifesto/references/manifesto-testing-and-fixtures.md",
+        "skills/stubbing-http-with-wiremock.md"
+      ]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/208e7f4b-556a-478d-80c2-dcdd79e8475b/208e7f4b-556a-478d-80c2-dcdd79e8475b.jsonl": {
+      "ingested_at": "2026-09-09T16:45:00Z",
+      "size_bytes": 401158,
+      "modified_at": "2026-09-05T09:13:43.565Z",
+      "content_hash": "sha256:2ad40e745b101c846f3808ca1738395f72b1cd6341ab24377d0cd2c2edbe0169",
+      "source_type": "conversation",
+      "project": "manifesto",
+      "pages_created": [],
+      "pages_updated": [
+        "projects/manifesto/concepts/org-owned-visibility-and-participation-limits.md",
+        "projects/manifesto/manifesto.md"
+      ]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/7d3c467c-eaeb-49f6-a6e3-f6b4ef5a68b2/7d3c467c-eaeb-49f6-a6e3-f6b4ef5a68b2.jsonl": {
+      "ingested_at": "2026-09-09T16:45:00Z",
+      "size_bytes": 56141,
+      "modified_at": "2026-09-09T10:39:18.993Z",
+      "content_hash": "sha256:97bc1a582ecb1bc2b8ccffee12a33a30d0e4b46079c36c924add5a7d42e9087b",
+      "source_type": "conversation",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": [
+        "journal/2026-09-09.md",
+        "projects/aiforall/references/cursor-history-2026-09.md"
+      ]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/e9a1f9f4-d707-4a08-a607-638340586b89/e9a1f9f4-d707-4a08-a607-638340586b89.jsonl": {
+      "ingested_at": "2026-09-09T16:45:00Z",
+      "size_bytes": 102678,
+      "modified_at": "2026-09-09T12:00:54.607Z",
+      "content_hash": "sha256:1afc42b97378b2f9d50fadc1c55bb64b940580067653fbd53a70069dc84bcb91",
+      "source_type": "conversation",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": [
+        "journal/2026-09-09.md",
+        "projects/aiforall/references/cursor-history-2026-09.md"
+      ]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/2924d20c-07e2-4741-a4aa-f3eb9e48c5ca/2924d20c-07e2-4741-a4aa-f3eb9e48c5ca.jsonl": {
+      "ingested_at": "2026-09-09T16:45:00Z",
+      "size_bytes": 324690,
+      "modified_at": "2026-09-09T12:38:09.114Z",
+      "content_hash": "sha256:76859f85b5bba4b310441b70147fddc58a1437768543185c6b01e1e6ac49fe9a",
+      "source_type": "conversation",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": [
+        "journal/2026-09-09.md",
+        "projects/aiforall/references/cursor-history-2026-09.md"
+      ]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/3c82c7d9-a42d-448f-8573-90ed739ba6b6/3c82c7d9-a42d-448f-8573-90ed739ba6b6.jsonl": {
+      "ingested_at": "2026-09-09T16:45:00Z",
+      "size_bytes": 219229,
+      "modified_at": "2026-09-09T13:50:26.106Z",
+      "content_hash": "sha256:17b655b4a5a7b38cb653f66597156ce5e57fb79e97d1d82fe63388ec8a7e9c1e",
+      "source_type": "conversation",
+      "project": "manifesto",
+      "pages_created": [
+        "projects/manifesto/concepts/immediate-membership-acl.md",
+        "projects/manifesto/concepts/membership-restore-and-cas.md"
+      ],
+      "pages_updated": [
+        "projects/manifesto/concepts/org-owned-visibility-and-participation-limits.md"
+      ]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/11c01523-bb74-444a-ac31-44384d63de7d/11c01523-bb74-444a-ac31-44384d63de7d.jsonl": {
+      "ingested_at": "2026-09-09T16:45:00Z",
+      "size_bytes": 159719,
+      "modified_at": "2026-09-09T16:31:54.345Z",
+      "content_hash": "sha256:d76363bb365519f194b47836c16a3819558c381ff85d42f8a633f1c5076866d7",
+      "source_type": "conversation",
+      "project": "manifesto",
+      "pages_created": [
+        "projects/sentinel-sync/concepts/manifesto-transport-and-ledger.md",
+        "projects/sentinel-sync/concepts/db-to-openfga-reconcile.md"
+      ],
+      "pages_updated": [
+        "projects/aiforall/concepts/rustycog-git-submodule.md",
+        "projects/sentinel-sync/sentinel-sync.md",
+        "projects/manifesto/concepts/component-instance-permissions.md"
       ]
     }
   }

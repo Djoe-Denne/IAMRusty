@@ -157,16 +157,46 @@ impl ComponentService for UnusedComponentService {
     }
 }
 
-struct UnusedMemberService;
+struct OwnerMemberService {
+    project_id: Uuid,
+    owner_id: Uuid,
+}
+
+impl OwnerMemberService {
+    fn for_project(project: &Project) -> Self {
+        Self {
+            project_id: project.id,
+            owner_id: project.created_by,
+        }
+    }
+
+    fn owner_member(&self) -> ProjectMember {
+        let mut member = ProjectMember::new(
+            self.project_id,
+            self.owner_id,
+            MemberSource::Direct,
+            Some(self.owner_id),
+        );
+        member.is_owner = true;
+        member
+    }
+}
 
 #[async_trait]
-impl MemberService for UnusedMemberService {
+impl MemberService for OwnerMemberService {
     async fn get_member(
         &self,
-        _project_id: Uuid,
-        _user_id: Uuid,
+        project_id: Uuid,
+        user_id: Uuid,
     ) -> Result<ProjectMember, DomainError> {
-        unused("get_member")
+        if project_id == self.project_id && user_id == self.owner_id {
+            Ok(self.owner_member())
+        } else {
+            Err(DomainError::entity_not_found(
+                "ProjectMember",
+                &user_id.to_string(),
+            ))
+        }
     }
 
     async fn add_member(&self, _member: ProjectMember) -> Result<ProjectMember, DomainError> {
@@ -197,16 +227,16 @@ impl MemberService for UnusedMemberService {
         unused("list_members")
     }
 
-    async fn count_active_members(&self, _project_id: &Uuid) -> Result<i64, DomainError> {
-        unused("count_active_members")
+    async fn count_active_members(&self, project_id: &Uuid) -> Result<i64, DomainError> {
+        Ok(if *project_id == self.project_id { 1 } else { 0 })
     }
 
     async fn check_member_exists(
         &self,
-        _project_id: &Uuid,
-        _user_id: &Uuid,
+        project_id: &Uuid,
+        user_id: &Uuid,
     ) -> Result<bool, DomainError> {
-        unused("check_member_exists")
+        Ok(*project_id == self.project_id && *user_id == self.owner_id)
     }
 }
 
@@ -354,9 +384,9 @@ fn usecase_with_checker(
     checker: Arc<InMemoryPermissionChecker>,
 ) -> ProjectUseCaseImpl {
     ProjectUseCaseImpl::new(
-        Arc::new(MemoryProjectService::new(project)),
+        Arc::new(MemoryProjectService::new(project.clone())),
         Arc::new(UnusedComponentService),
-        Arc::new(UnusedMemberService),
+        Arc::new(OwnerMemberService::for_project(&project)),
         Arc::new(UnusedPermissionService),
         publisher,
         BusinessConfig::default(),
@@ -427,7 +457,8 @@ async fn update_name_only_does_not_emit_visibility_changed() {
 
 #[tokio::test]
 async fn publish_project_does_not_emit_visibility_changed() {
-    let project = build_project(Visibility::Private);
+    let mut project = build_project(Visibility::Private);
+    project.status = ProjectStatus::Draft;
     let publisher = Arc::new(RecordingEventPublisher::default());
     let usecase = usecase(project.clone(), publisher.clone());
 

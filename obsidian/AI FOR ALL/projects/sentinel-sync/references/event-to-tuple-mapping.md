@@ -2,8 +2,12 @@
 title: Event To Tuple Mapping
 category: reference
 tags: [reference, sentinel-sync, authorization, events]
-summary: Table of every domain event consumed by sentinel-sync and the OpenFGA tuple writes/deletes it produces, including the live public wildcard on create-as-public and ProjectVisibilityChanged.
-updated: 2026-09-02T19:45:00Z
+summary: Table of domain events to OpenFGA tuples, including public wildcard, v1 destructive no-ops, and generic component_editor/viewer grants.
+provenance:
+  extracted: 0.88
+  inferred: 0.10
+  ambiguous: 0.02
+updated: 2026-09-09T16:45:00Z
 ---
 
 # Event To Tuple Mapping
@@ -43,8 +47,8 @@ Source enum: `manifesto_events::ManifestoDomainEvent`.
 | `MemberAdded`             | `project:{project_id}#member@user:{user_id}`                                                                                     | —                                                             |
 | `MemberRemoved`           | —                                                                                                                                | `project:{project_id}#member@user:{user_id}` and any role tuples |
 | `MemberPermissionsUpdated` | tuples matching the new permission list                                                                                          | tuples implied by the previous permission list                |
-| `PermissionGranted`       | one tuple per granted resource-relation (map the string `resource` to its `object_type` and the string `permission` to a verb relation) | —                                                      |
-| `PermissionRevoked`       | —                                                                                                                                | the matching tuple                                            |
+| `PermissionGranted`       | exact relation via `exact_user_tuple` (generic `component` → `project#component_viewer|component_editor`) | —                                                      |
+| `PermissionRevoked`       | —                                                                                                                                | exact matching tuple (v2). Incomplete v1 (missing permission/lists) is a **no-op** |
 
 ## IAM
 
@@ -78,7 +82,7 @@ The Telegraph translator is added by the `telegraph-translator-cutover` todo.
 
 ## Public-read status (2026-09-02)
 
-`Tuple::wildcard_user`, the `ProjectCreated` public arm, and `ProjectVisibilityChanged` **are implemented**. `ProjectPublished` is a tuple no-op. `ProjectArchived` still deletes the wildcard. See [[projects/manifesto/concepts/org-owned-visibility-and-participation-limits]].
+`Tuple::wildcard_user`, the `ProjectCreated` public arm, and `ProjectVisibilityChanged` **are implemented**. `ProjectPublished` is a tuple no-op. `ProjectArchived` still deletes the wildcard. Incomplete v1 Manifesto destructives are empty deltas. See [[projects/sentinel-sync/concepts/manifesto-transport-and-ledger]] and [[projects/manifesto/concepts/org-owned-visibility-and-participation-limits]].
 
 Cleanup invariants remain those in [[concepts/anonymous-public-read-via-wildcard-subject]]. The OpenFGA model already permits `[user, user:*]` on `project.viewer`. Historical private-published wildcards are an ops sweep, not a translator bug.
 
@@ -86,5 +90,8 @@ Cleanup invariants remain those in [[concepts/anonymous-public-read-via-wildcard
 
 - [[projects/sentinel-sync/references/sentinel-sync-worker]]
 - [[projects/sentinel-sync/references/openfga-model]]
+- [[projects/sentinel-sync/concepts/manifesto-transport-and-ledger]]
+- [[projects/sentinel-sync/concepts/db-to-openfga-reconcile]]
+- [[projects/manifesto/concepts/component-instance-permissions]]
 - [[concepts/anonymous-public-read-via-wildcard-subject]]
 - [[projects/manifesto/concepts/org-owned-visibility-and-participation-limits]]

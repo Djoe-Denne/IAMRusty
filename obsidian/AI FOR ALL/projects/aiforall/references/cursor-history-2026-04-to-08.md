@@ -12,7 +12,7 @@ provenance:
   inferred: 0.40
   ambiguous: 0.05
 created: 2026-08-31T13:30:00Z
-updated: 2026-08-31T13:30:00Z
+updated: 2026-09-09T16:45:00Z
 ---
 
 # Cursor history April–August 2026
@@ -44,4 +44,4 @@ Knowledge compiled from 29 parent Cursor sessions after the last full wiki wave 
 
 ## Codex
 
-Seventeen Codex rollouts mentioned AIForAll; several ran with `cwd` on this repo (2026-08-28/29). They were inventoried, not re-quoted. Treat them as supporting evidence for the same themes (CI, Hive, IAM), not a second source of record. ^[inferred]
+Follow-on: [[projects/aiforall/references/cursor-history-2026-09]] (sessions after 2026-09-02).

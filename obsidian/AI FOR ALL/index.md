@@ -3,12 +3,13 @@ title: Wiki Index
 category: navigation
 tags: [index, navigation, wiki]
 summary: >-
-  Central vault entry point with direct links to RustyCog, service hubs, and recent architecture notes including transactional outbox delivery.
+  Central vault entry point with Manifesto AuthZ correction notes (2026-09-09)
+  and rustycog pin-on-main.
 provenance:
   extracted: 0.9
   inferred: 0.08
   ambiguous: 0.02
-updated: 2026-09-02T18:00:00Z
+updated: 2026-09-09T16:45:00Z
 ---
 
 # Wiki Index
@@ -36,8 +37,14 @@ Central entry point for this vault. Use the area indexes for full catalogs; use 
 
 ## Recent Additions
 
-- [[projects/manifesto/concepts/org-owned-visibility-and-participation-limits]] (2026-09-02) — org-owned public/private limits: no partnership/join, list vs GET, publish writes `user:*`.
-- [[journal/2026-09-02]] — documentation pass for those limits (wiki + handbook).
+- [[journal/2026-09-09]] — eight Cursor sessions since last wiki sync.
+- [[projects/aiforall/references/cursor-history-2026-09]] — visibility/join, AuthZ correction, rustycog `main` pin.
+- [[projects/manifesto/concepts/immediate-membership-acl]] — DB membership gate; Suspended admin-only.
+- [[projects/manifesto/concepts/membership-restore-and-cas]] — grace restore, unique owner, CAS + outbox.
+- [[projects/sentinel-sync/concepts/manifesto-transport-and-ledger]] — envelope, v1 no-op, monotonic revision.
+- [[projects/sentinel-sync/concepts/db-to-openfga-reconcile]] — exact project/component diff; OpenFGA 1.5 Read.
+- [[projects/rustycog/references/isolated-wiremock-fixture]] — `MockServerFixture::isolated()`.
+- [[projects/manifesto/concepts/org-owned-visibility-and-participation-limits]] — org-owned public/private; join is Direct/read; L-PARTNERSHIP open.
 - GitHub handbook `docs/README.md` (2026-09-01) — JWT how-to, nouveau service, parcours métier. Concept JWT updated: [[projects/aiforall/concepts/jwt-issuer-vs-consumer]].
 - [[concepts/architecture-coherence-across-services]] — August 2026 four-service comparison (scaffold shared, JWT/logging/errors/OpenAPI diverge).
 - [[projects/aiforall/concepts/rustycog-git-submodule]] — rustycog is a pinned gitlink, not a vendored tree.

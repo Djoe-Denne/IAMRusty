@@ -10,14 +10,15 @@ sources:
   - Manifesto/infra/src/event/consumer.rs
   - Manifesto/infra/src/event/processors/component_processor.rs
 summary: >-
-  Code-backed view of Manifesto's live event behavior: best-effort publication of Manifesto
-  domain events plus inbound apparatus component-status consumption when queues are enabled.
+  Manifesto publishes domain events from application flows. AuthZ mutation
+  paths write outbox rows in the same UoW as the row change; inbound apparatus
+  status still reconciles stored component state.
 provenance:
   extracted: 0.89
   inferred: 0.07
   ambiguous: 0.04
 created: 2026-04-14T20:25:00Z
-updated: 2026-09-02T19:45:00Z
+updated: 2026-09-09T16:45:00Z
 ---
 
 # Manifesto Event Model
@@ -30,7 +31,8 @@ updated: 2026-09-02T19:45:00Z
 - Component flows publish `ComponentAdded`, `ComponentStatusChanged`, and `ComponentRemoved`.
 - Member flows publish `MemberAdded`, `MemberPermissionsUpdated`, `MemberRemoved`, `PermissionGranted`, and `PermissionRevoked`.
 - `setup/src/app.rs` injects the same `EventPublisher` into project, component, and member use cases, defaulting to a multi-queue publisher unless tests or alternate bootstraps override it.
-- Event publication remains best-effort: failures are logged with `tracing::warn!` but do not roll back the main business transaction.
+- AuthZ-relevant mutations persist outbox events in the **same** unit of work as the row change (CAS-locked). A failed outbox insert rolls back the business write. Non-AuthZ publication may still be best-effort depending on the path. ^[inferred]
+- Envelope and monotonic revision for sentinel-sync: [[projects/sentinel-sync/concepts/manifesto-transport-and-ledger]].
 - `ApparatusEventConsumer` is constructed in setup and started alongside the HTTP server only when queue config resolves to a real consumer.
 - `ComponentStatusProcessor` handles inbound `apparatus_events::ComponentStatusChangedEvent` messages by updating the matching stored component:
   - duplicates are treated as no-ops,
@@ -49,7 +51,7 @@ updated: 2026-09-02T19:45:00Z
 ## Open Questions
 
 - Visibility flips emit `ProjectVisibilityChanged`; `ProjectPublished` no longer writes `viewer@user:*` (answered 2026-09-02).
-- Should any Manifesto domain events eventually become hard-fail instead of best-effort?
+- AuthZ mutation outbox is now in-transaction (answered 2026-09-09). See [[projects/manifesto/concepts/membership-restore-and-cas]].
 - If queue-backed operation becomes a default CI path later, which event contracts deserve end-to-end broker coverage instead of unit-level runtime tests?
 
 ## Sources
@@ -57,6 +59,7 @@ updated: 2026-09-02T19:45:00Z
 - [[projects/manifesto/manifesto]] - Service overview and runtime context.
 - [[projects/manifesto/references/manifesto-api-and-permission-flows]] - Route and use-case entrypoints that trigger these events.
 - [[projects/manifesto/concepts/project-ownership-and-publication-lifecycle]] - Project lifecycle transitions and their emitted events.
+- [[projects/sentinel-sync/concepts/manifesto-transport-and-ledger]] - Envelope, v1 no-op, monotonic ledger.
 - [[projects/manifesto/concepts/org-owned-visibility-and-participation-limits]] - Publish vs public; visibility event now live.
 - [[projects/manifesto/concepts/component-catalog-and-fallback-adapter]] - Component-side validation and runtime status updates.
 - [[concepts/event-driven-microservice-platform]] - Platform-wide async coordination context.

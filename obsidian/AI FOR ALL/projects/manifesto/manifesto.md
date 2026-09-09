@@ -17,14 +17,13 @@ sources:
   - Manifesto/docs/rustycog-hexagonal-web-service-guide.md
   - Manifesto/docs/rustycog-implementation-and-usage-guide.md
 summary: >-
-  Manifesto is AIForAll's project-service and a practical RustyCog variant, with this page focused
-  on orchestration-specific behavior and the now-aligned runtime/docs boundary after remediation.
+  Manifesto is AIForAll's project-service: org-owned visibility, public join as Direct/read, immediate membership ACL, and OpenFGA grants via sentinel-sync.
 provenance:
   extracted: 0.82
   inferred: 0.12
   ambiguous: 0.06
 created: 2026-04-14T16:54:59.5971424Z
-updated: 2026-09-02T18:00:00Z
+updated: 2026-09-09T16:45:00Z
 ---
 
 # Manifesto
@@ -48,9 +47,9 @@ Manifesto is the project-management service for AIForAll. Use `[[projects/rustyc
 - Manifesto treats projects as assemblies of independently implemented components with their own lifecycle, visibility, and configuration flow.
 - The composition root is recognizably RustyCog-shaped, but Manifesto adds project-, component-, and member-scoped permission fetchers plus its own `ManifestoCommandRegistryFactory`.
 - Live runtime now wires verified HS256-only auth, logging level, command retry, component-service timeout/api key, and business limits from config instead of leaving those knobs as guide-era leftovers.
-- Public project/component resource reads use optional-auth routes plus explicit-anonymous permission evaluation; private reads still require real access. Create-as-public and a later flip to public write `viewer@user:*`. `publish` does not — see [[projects/manifesto/concepts/org-owned-visibility-and-participation-limits]].
-- `GET /api/projects` uses optional auth plus SQL visibility filtering (public OR caller is `project_member`). Item/detail routes use OpenFGA, so an org member can GET a private org-owned project by id without seeing it in the list.
-- There is no org partnership and no self-join. `external_collaboration_enabled` and `MemberSource::OrgCascade` / `Invitation` are unused. Public means world-read, not partner participation.
+- Public project/component resource reads use optional-auth routes plus a world-read use-case gate; private reads still require real access. Create-as-public and a later flip to public write `viewer@user:*`. `publish` does not — see [[projects/manifesto/concepts/org-owned-visibility-and-participation-limits]].
+- Authenticated `GET /api/projects` SQL now matches GET for org-inherited access (Internal for org members, private for org admins). Anonymous list can still show live public rows without `user:*`; anonymous GET needs the wildcard.
+- Public self-join is live (`POST /api/projects/{id}/join`, `Direct` / `project` / `read`). There is still no org partnership. `external_collaboration_enabled` and `MemberSource::OrgCascade` / `Invitation` are unused. Mutations require an active DB member or org admin ([[projects/manifesto/concepts/immediate-membership-acl]]).
 - Component catalog integration is fail-closed.
 - Component add/remove now treats component-instance ACL sync as part of the same consistency boundary and fails instead of silently drifting state.
 - Apparatus status consumption is wired into startup when queue config resolves to a real consumer, while checked-in local/test configs keep queues disabled by default.
@@ -63,7 +62,9 @@ Manifesto is the project-management service for AIForAll. Use `[[projects/rustyc
 - [[projects/rustycog/references/index]] - Canonical shared framework map that the service pages below build on.
 - [[references/rustycog-service-construction]] - Generic RustyCog construction flow that Manifesto specializes.
 - [[projects/manifesto/concepts/project-ownership-and-publication-lifecycle]] - Ownership bootstrap, defaults, and publish/archive transitions.
-- [[projects/manifesto/concepts/org-owned-visibility-and-participation-limits]] - Org-owned visibility, list/GET split, missing partnership/join.
+- [[projects/manifesto/concepts/org-owned-visibility-and-participation-limits]] - Org-owned visibility, join, list/GET, publish vs public.
+- [[projects/manifesto/concepts/immediate-membership-acl]] - DB membership gate and Suspended matrix.
+- [[projects/manifesto/concepts/membership-restore-and-cas]] - Grace restore, owner CAS, outbox in the same UoW.
 - [[projects/manifesto/concepts/component-instance-permissions]] - Generic versus per-instance component permission model.
 - [[projects/manifesto/concepts/component-catalog-and-fallback-adapter]] - External component catalog integration and fail-closed behavior.
 - [[projects/manifesto/references/manifesto-entity-model]] - Project, component, membership, and project-scoped RBAC entities.
@@ -75,7 +76,7 @@ Manifesto is the project-management service for AIForAll. Use `[[projects/rustyc
 
 ## Open Questions
 
-- Later work: L-PARTNERSHIP remains open on [[projects/manifesto/concepts/org-owned-visibility-and-participation-limits]]. Org-less join and Internal org read shipped 2026-09-05.
+- Later work: L-PARTNERSHIP remains open on [[projects/manifesto/concepts/org-owned-visibility-and-participation-limits]]. Join, Internal, immediate ACL, and restore/CAS shipped 2026-09.
 - When Manifesto eventually exposes richer component provisioning, should that happen through the existing component catalog boundary or through a separate runtime handoff flow?
 - If queue-backed operation becomes more common outside local/test, should the checked-in config examples start surfacing explicit broker settings?
 

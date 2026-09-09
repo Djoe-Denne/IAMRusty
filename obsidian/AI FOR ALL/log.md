@@ -240,3 +240,5 @@ title: Wiki Log
 - [2026-09-01T18:00:00Z] WIKI_UPDATE project=aiforall pages_updated=5 pages_created=1 source_cwd=C:/Users/djden/source/repos/AIForAll topic=handbook-jwt-hive-index-delta
 - [2026-09-02T18:00:00Z] WIKI_UPDATE project=AIForAll pages_updated=16 pages_created=2 source_cwd=C:/Users/djden/source/repos/AIForAll topic=org-owned-visibility-and-participation-limits
 - [2026-09-02T18:15:00Z] WIKI_UPDATE project=AIForAll pages_updated=5 pages_created=0 source_cwd=C:/Users/djden/source/repos/AIForAll topic=later-work-limit-ids-user-no-org-public-participate
+- [2026-09-09T16:45:00Z] INGEST source="C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts" pages_updated=25 pages_created=7 mode=append conversations=8 since=2026-09-02T18:15:00Z
+- [2026-09-09T16:45:00Z] CLAUDE_HISTORY_INGEST projects=1 conversations=8 pages_updated=25 pages_created=7 mode=append source=cursor-transcripts path="C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts"

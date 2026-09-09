@@ -8,32 +8,32 @@ sources:
   - Hive/tests/fixtures/external_provider/mod.rs
   - Telegraph/tests/fixtures/smtp/service.rs
   - Telegraph/tests/fixtures/smtp/mod.rs
-summary: Recipe for stubbing outbound HTTP in service integration tests by wrapping rustycog-testing's shared MockServerFixture with a per-collaborator helper struct, including the per-test reset pattern needed when overriding stubs mounted by setup_test_server.
+summary: Recipe for stubbing outbound HTTP with rustycog-testing MockServerFixture, including isolated() for parallel catalog stubs. Not for OpenFGA Check.
 provenance:
   extracted: 0.7
   inferred: 0.24
   ambiguous: 0.06
 created: 2026-04-22T16:20:59Z
-updated: 2026-04-22T17:30:00Z
+updated: 2026-09-09T16:45:00Z
 ---
 
 # Stubbing HTTP with Wiremock
 
-Use this recipe when a service test needs to fake an external HTTP collaborator. The shared `MockServerFixture` from `[[projects/rustycog/references/wiremock-mock-server-fixture]]` already handles the listener, lifecycle, and reset semantics — your job is to wrap it in a typed helper that exposes one method per scenario you care about.
+Use this recipe when a service test needs to fake an external HTTP collaborator. The shared `MockServerFixture` from [[projects/rustycog/references/isolated-wiremock-fixture]] handles the listener. `new()` is the singleton; `isolated()` is a private server — Manifesto’s component catalog uses isolated.
 
-Do **not** use wiremock for OpenFGA **Check** in Hive / Telegraph / Manifesto HTTP ITs. Those suites use [[projects/rustycog/references/openfga-real-testcontainer-fixture|`TestOpenFga`]] (`allow` / `deny`, default deny). `OpenFgaMockService` stays crate-level only.
+Do **not** use wiremock for OpenFGA **Check** in Hive / Telegraph / Manifesto HTTP ITs. Those suites use [[projects/rustycog/references/openfga-real-testcontainer-fixture|`TestOpenFga`]].
 
 ## Workflow
 
 1. **Add a fixture module** under `<service>/tests/fixtures/<collaborator>/` with `mod.rs`, `service.rs`, and (optionally) `resources.rs` for the request/response DTOs. Hive's `external_provider` and Telegraph's `smtp` are the canonical examples.
-2. **Hold both the `Arc<MockServer>` and the `MockServerFixture`** in your service struct. The fixture is kept in a `_fixture` field purely so its `Drop` impl runs at the right moment:
+2. **Hold both the `Arc<MockServer>` and the `MockServerFixture`** in your service struct. The fixture is kept in a `_fixture` field purely so its `Drop` impl runs at the right moment.
    ```rust
    pub struct MyCollaboratorMockService {
        server: Arc<MockServer>,
        _fixture: MockServerFixture,
    }
    ```
-3. **Construct via `MockServerFixture::new().await`** in an async `new()` constructor. The fixture's constructor already calls `reset_all_mocks()`, so each test starts with a clean board.
+3. **Construct via `MockServerFixture::new().await` or `isolated().await`**. Isolated is required when the test suite already uses the singleton for something else.
 4. **Expose one async `mock_*` method per scenario.** Return `&Self` so callers can chain arrangements:
    ```rust
    pub async fn mock_validate_config_ok(&self) -> &Self {
