@@ -24,24 +24,38 @@ updated: 2026-09-09T17:50:00Z
 
 Plan proposé pour [[projects/manifesto/concepts/apparatus-platform]], sans date ni estimation d’effort inventée. La source utilisateur fixe la vision ; les choix ci-dessous préparent une implémentation future. L’existant est référencé dans [[projects/manifesto/references/apparatus-source-reconciliation]].
 
-## Décisions suffisamment précisées pour préparer des ADR
+## Recommandations du 9 septembre — baseline de traçabilité
 
-| Sujet | Choix recommandé | Pourquoi / limite |
+Ce tableau conserve les recommandations antérieures aux ADR. Il constitue leur baseline de comparaison, pas une acceptation implicite. ^[inferred]
+
+| Sujet | Choix recommandé le 9 septembre | Pourquoi / limite |
 |---|---|---|
 | Propriété métier | Catalogue, release et binding dans la frontière Manifesto | Cohérence avec le propriétaire actuel des projets/composants |
 | Processus privilégiés | Factory, admission/signature et contrôleur runtime séparés des plugins | Le code auteur ne doit jamais obtenir leurs privilèges |
-| Migration | Extension 1:1 du ProjectComponent, UUID et ACL component conservés | Pas de nouveau type FGA ni de migration des grants en V1 |
-| Cardinalité | Un Apparatus canonique par projet | Préserve l’unicité SQL actuelle |
-| Installation | Release et digest figés, commande asynchrone + suivi | Reconciliation stable après restart |
-| Lifecycle | Desired state et observations distincts, génération/lease/fencing | Évite les doublons et les observations périmées |
+| Migration | Extension 1:1 de `ProjectComponent`, UUID et ACL `component` conservés | Pas de nouveau type FGA ni de migration des grants en V1 |
+| Cardinalité | Un Apparatus canonique du même type par projet | Préserve l’unicité SQL actuelle |
+| Installation | Release et digest figés, commande asynchrone avec suivi | Réconciliation stable après restart |
+| Lifecycle | Desired state et observations distincts, génération, lease et fencing | Évite les doublons et les observations périmées |
 | Autorisation | Gateway : ACL utilisateur/projet/instance ∩ consentement ∩ politique | Un plugin ne reçoit aucun bearer IAM interne |
-| Runtime | Managed, isolation par binding/projet, première cible Kubernetes | Le dépôt ne fournit pas encore cette infrastructure |
+| Runtime | Managed, isolation par binding/projet ; Kubernetes était une première piste | Le moteur et la plateforme restent ouverts dans `APP-01` |
 | Frontend | Host à créer ; schema et sandbox statique Vite | Pas de runtime Node/SSR par Apparatus |
 | Données | KV plateforme par binding ; secrets par références | Pas d’accès direct aux bases des services |
-| Publication | Git résolu en commit → artifacts candidats → conformance → signature/admission | Le runtime consomme uniquement les digests validés |
-| Confiance | VALID distinct de VERIFIED ; aucun bypass officiel | Même protocole pour tous les publishers |
+| Publication | Git résolu en commit → artifacts → conformance → signature/admission | Le runtime consomme uniquement des digests admis |
+| Confiance | `VALID` distinct de `VERIFIED` ; aucun bypass officiel | Même protocole pour tous les publishers |
 
-Ce tableau constitue des recommandations nouvelles, pas des décisions déjà acceptées par l’équipe. ^[inferred]
+Ces lignes étaient des recommandations nouvelles, pas des décisions déjà acceptées. Les ADR ci-dessous ont été amendées puis ratifiées séparément le 10 septembre. ^[inferred]
+
+## Décisions — ADR Accepted
+
+Canon : `docs/adr/` ; hub wiki : [[projects/manifesto/decisions/index]]. `Accepted` fixe la cible ; le champ `Réalité` de chaque ADR indique séparément l’état du code.
+
+| Sujet | ADR | Réalité | Encore hors ADR |
+|---|---|---|---|
+| Propriété Manifesto, 1:1 `ProjectComponent`, unicité | [0001](../../../../../docs/adr/0001-apparatus-binding-owned-by-manifesto.md) | Partial | Lease / fencing (P2) |
+| Contrats, digest immuable, Apparatus KV de référence | [0002](../../../../../docs/adr/0002-apparatus-contract-first.md) | Unimplemented | CLI / macro ; champs TOML de détail |
+| Plugin hostile hors processus privilégiés | [0003](../../../../../docs/adr/0003-apparatus-untrusted-plugin.md) | Unimplemented | Moteur et adaptateur / `APP-01` |
+| Gateway, KV, pas de bearer IAM, fermeture DB immédiate | [0004](../../../../../docs/adr/0004-apparatus-capability-gateway.md) | Unimplemented | mTLS concret (P3) |
+| Même protocole ; admission, `VALID`, `VERIFIED` et installabilité distincts | [0005](../../../../../docs/adr/0005-apparatus-same-protocol-valid-verified.md) | Unimplemented | Pipeline OCI (P4), drain/destruction |
 
 ## Livraison séquencée
 
@@ -49,7 +63,7 @@ Ce tableau constitue des recommandations nouvelles, pas des décisions déjà ac
 
 Écrire le schéma canonique de `apparatus.toml`, les contrats release/binding/operation, l’API de capabilities et les protocoles backend/UI. Définir les versions et erreurs, puis créer un Apparatus de référence simple utilisant KV et une UI de lecture, sans dépendance réseau externe. La macro Rust et l’ergonomie de CLI viennent après les contrats wire. ^[inferred]
 
-**Preuve de sortie** : manifeste accepté/refusé de manière déterministe, mêmes validations CLI/Factory, ID/version sans ambiguïté, DTO sans credentials. Les valeurs limites sont testées ; aucun contrat n’emploie `latest` comme identité. ^[inferred]
+**Preuve de sortie** : manifeste accepté/refusé de manière déterministe par une bibliothèque unique et son harness, ID/version sans ambiguïté, DTO sans credentials. Les valeurs limites sont testées ; aucun contrat n’emploie `latest` comme identité. La CLI et la Factory n’existent pas encore et réutiliseront ce validateur plus tard. ^[inferred]
 
 ### P1 — Persistance, catalogue et migration additive
 
@@ -119,7 +133,7 @@ Conventions de test : ports/adaptateurs simulés pour logique de réconciliation
 | APP-04 | Premier Apparatus métier et ses besoins réels de données/opérations | Référence KV simple pour qualifier, puis Git ou wiki à choisir ; évite de généraliser une API réseau sans cas concret |
 | APP-05 | UI publique sur projet public et tâches de fond autorisées | Invoke privé par défaut et grants de service explicites ; décision avant exposition de données réelles |
 | APP-06 | Quotas, limites de taille, délais, capacité et coût | Limites conservatrices configurables, mesures en P6 ; valeurs économiques et SLO restent à fixer |
-| APP-07 | Organisation qui change ou projet transféré | Bloquer/reconsentir les grants dépendant de l’organisation avant reprise ; vérifier le parcours de transfert quand il existe |
+| APP-07 | Organisation qui change ou projet déplacé vers une autre organisation | Bloquer/reconsentir les grants dépendant de l’organisation avant reprise ; le transfert du rôle owner déjà livré ne change pas l’identité du composant |
 
 Ces choix ne bloquent pas la documentation ni P0/P1. Ils ne sont pas tranchés artificiellement sans besoin produit ou infrastructure disponible. ^[inferred]
 

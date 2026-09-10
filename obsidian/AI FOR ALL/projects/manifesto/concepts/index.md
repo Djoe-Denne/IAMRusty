@@ -22,8 +22,9 @@ sources:
 - [[projects/manifesto/concepts/component-instance-permissions]]
 - [[projects/manifesto/concepts/component-catalog-and-fallback-adapter]]
 
-## Apparatus — propositions futures
+## Apparatus — architecture future
 
+- [[projects/manifesto/decisions/index]] — ADR Accepted ; réalité d’implémentation distincte (canon `docs/adr/`).
 - [[projects/manifesto/concepts/apparatus-platform]] — vision et frontières.
 - [[projects/manifesto/concepts/apparatus-bindings-and-lifecycle]] — identités, migration et réconciliation.
 - [[projects/manifesto/concepts/apparatus-capabilities-and-isolation]] — identité, droits, réseau et données.

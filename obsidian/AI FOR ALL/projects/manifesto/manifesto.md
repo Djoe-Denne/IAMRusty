@@ -61,7 +61,7 @@ Manifesto is the project-management service for AIForAll. Use `[[projects/rustyc
 
 Le dossier [[projects/manifesto/concepts/apparatus-platform]] décrit la plateforme d’extensions souhaitée, confrontée au dépôt du 9 septembre 2026. Le code actuel offre `ProjectComponent`, un client catalogue HTTP et un consumer de statuts ; il n’offre pas encore la Factory Git/OCI, le contrôleur de workloads ou le host UI.
 
-La migration proposée conserve les UUID et les droits `component:{id}`, ajoute le binding en relation 1:1 et sépare son desired state des observations runtime. Le catalogue métier reste dans Manifesto ; l’exécution tiers et les workers privilégiés sont isolés. Voir [[projects/manifesto/concepts/apparatus-bindings-and-lifecycle]] et [[projects/manifesto/references/apparatus-implementation-plan]]. ^[inferred]
+Les invariants de la vague 1 sont ratifiés dans [[projects/manifesto/decisions/index]], avec une réalité `Partial` ou `Unimplemented`. Ils conservent les UUID et les droits `component:{id}`, ajoutent le binding en relation 1:1 et séparent son desired state des observations runtime. Le catalogue métier reste dans Manifesto ; le code auteur doit rester hors des processus privilégiés. Voir [[projects/manifesto/concepts/apparatus-bindings-and-lifecycle]] et [[projects/manifesto/references/apparatus-implementation-plan]].
 
 ## Related
 

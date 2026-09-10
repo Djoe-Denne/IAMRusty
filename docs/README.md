@@ -44,5 +44,6 @@ Documentation d’implémentation et de parcours métier pour ce workspace. Le v
 - Guides Manifesto hexagonaux : [`Manifesto/docs/`](../Manifesto/docs/)
 - Scénarios QA identité : [`IAMRusty/qa/scenarii/`](../IAMRusty/qa/scenarii/)
 - Reviews d’architecture août 2026 : [`docs/reviews/`](reviews/)
-- ADR Project Service : [`docs/project/Archi.md`](project/Archi.md)
+- ADR Project Service (historique) : [`docs/project/Archi.md`](project/Archi.md)
+- ADR Apparatus (Accepted ; implémentation future) : [`docs/adr/README.md`](adr/README.md)
 - Hook `cargo fmt` : [`docs/CARGO_FMT_PRE_COMMIT.md`](CARGO_FMT_PRE_COMMIT.md)

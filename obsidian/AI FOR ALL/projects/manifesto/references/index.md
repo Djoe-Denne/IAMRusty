@@ -23,6 +23,10 @@ Use `[[projects/rustycog/references/index]]` for shared command, config, HTTP, p
 - [[projects/manifesto/references/manifesto-event-model]]
 - [[projects/manifesto/references/manifesto-testing-and-fixtures]]
 
+## Apparatus — décisions
+
+- [[projects/manifesto/decisions/index]] — ADR Accepted ; réalité `Partial` ou `Unimplemented` (`docs/adr/0001`–`0005`).
+
 ## Apparatus — références de conception future
 
 - [[projects/manifesto/references/apparatus-source-reconciliation]] — document confronté au code et provenance.

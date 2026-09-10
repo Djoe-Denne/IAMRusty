@@ -37,7 +37,8 @@ Central entry point for this vault. Use the area indexes for full catalogs; use 
 
 ## Fonctionnalité future — Apparatus
 
-- [[projects/manifesto/concepts/apparatus-platform]] — vision et décisions proposées, distinctes de l’existant.
+- [[projects/manifesto/decisions/index]] — ADR Accepted ; réalité `Partial` ou `Unimplemented` (`docs/adr/`).
+- [[projects/manifesto/concepts/apparatus-platform]] — vision et rationnel de conception, distincts de l’existant.
 - [[projects/manifesto/references/apparatus-source-reconciliation]] — audit du dépôt et écarts avec le document utilisateur.
 - [[projects/manifesto/references/apparatus-implementation-plan]] — migration, étapes et critères d’acceptation.
 

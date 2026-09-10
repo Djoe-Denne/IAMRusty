@@ -2,7 +2,7 @@
 title: "Apparatus — plateforme d’extensions future"
 category: concepts
 tags: [projects, components, architecture, roadmap, visibility/internal]
-aliases: [Apparatus, Apparatus Control Plane, ProjectApparatusBinding]
+aliases: [Apparatus, Apparatus Control Plane]
 status: proposed
 feature_status: future
 sources:
@@ -23,7 +23,7 @@ updated: 2026-09-09T17:50:00Z
 # Apparatus — plateforme d’extensions future
 
 > [!important] Proposition, pas fonctionnalité livrée
-> Le document utilisateur exprime une intention produit. Le code du dépôt fait foi pour l’existant. Ce dossier précise une architecture recommandée ; ses contrats, noms de nouvelles API et phases restent à implémenter et ne constituent pas des ADR déjà acceptées.
+> Le document utilisateur exprime une intention produit. Le code du dépôt fait foi pour l’existant. Ce dossier reste le **rationnel de conception**. Les invariants de la vague 1 ont été ratifiés comme ADR **Accepted** dans `docs/adr/` (hub : [[projects/manifesto/decisions/index]]), mais leur champ `Réalité` reste `Partial` ou `Unimplemented` : Apparatus n’est pas une fonctionnalité livrée.
 
 Un **Apparatus** apporte une capacité fonctionnelle à un projet : Git, wiki, kanban, CI ou outil spécialisé. Officiels et communautaires utilisent le même contrat. Le développeur fournit du Rust, éventuellement une interface statique, un manifeste et un dépôt Git ; la plateforme prend en charge la construction, la distribution et l’exécution. Ces exigences viennent du document fourni.
 
@@ -38,6 +38,7 @@ La base actuelle est [[projects/manifesto/concepts/component-based-project-orche
 | [[projects/manifesto/concepts/apparatus-capabilities-and-isolation]] | Autorisations, identité de workload, stockage, secrets, réseau et isolation |
 | [[projects/manifesto/references/apparatus-factory-and-distribution]] | Manifeste, Git → OCI, builders, provenance et admission |
 | [[projects/manifesto/references/apparatus-ui-and-protocol]] | Host à créer, contrats SDK, iframe, handshake et contributions |
+| [[projects/manifesto/decisions/index]] | ADR Accepted (identité, contrats, confiance, gateway) et réalité d’implémentation |
 | [[projects/manifesto/references/apparatus-implementation-plan]] | Migration par étapes, tests d’acceptation et arbitrages restants |
 
 ## Responsabilités proposées
@@ -50,7 +51,7 @@ Les frontières suivantes sont des choix de conception pour la future plateforme
 | Hive | Organisations, appartenance et droits organisationnels | Service actuel ou monolithe |
 | Manifesto | Projets/composants actuels ; catalogue métier, releases, bindings et consentements futurs | Modules à créer dans le service actuel |
 | Contrôleur Apparatus | Réconcilier le desired state avec l’état observé, allouer les instances | Worker plateforme ; privilèges runtime isolés des handlers HTTP |
-| Runtime adapter | Créer/observer/supprimer des workloads, exposer un routage interne | Adaptateur Kubernetes en production ; adaptateur de développement contrôlé |
+| Runtime adapter | Créer/observer/supprimer des workloads, exposer un routage interne | Adaptateur de production à décider dans `APP-01` ; adaptateur de développement contrôlé |
 | Capability gateway | Autoriser chaque opération, filtrer les données, résoudre le binding et les secrets | Composant plateforme de confiance, jamais code d’Apparatus |
 | Factory | Construire du code hostile, tester puis soumettre un résultat candidat | Workers éphémères séparés ; publication/signature hors workers |
 | Registry OCI | Conserver blobs, manifestes, attestations et signatures | Infrastructure séparée du catalogue |
@@ -91,7 +92,7 @@ Les restrictions de V1 réduisent les mécanismes à prouver sans supprimer la v
 - Digest et consentement figés au niveau du binding ; aucune mise à jour automatique de code ou de permissions.
 - SDK identique pour tous les publishers ; `VERIFIED` ne contourne aucune frontière.
 - Slots `project.tab`, `project.settings` et `project.overview.widget` seulement. Les slots organisation/globaux nécessitent un modèle d’installation et d’autorisation distinct.
-- Contrôle Kubernetes pour le premier déploiement de production, sans prétendre qu’un cluster ou des manifests sont déjà fournis par le dépôt.
+- Adaptateur de production et moteur d’isolation à trancher dans `APP-01` ; Kubernetes reste une piste documentée, pas une décision de la vague 1.
 - Stockage persistant via API plateforme, filesystem du workload jetable ; voir [[projects/manifesto/concepts/apparatus-capabilities-and-isolation]].
 
 ## Évolutions conservées

@@ -34,7 +34,7 @@ This page lists the main entities `[[projects/manifesto/manifesto]]` owns in its
 
 ## Entités Apparatus futures
 
-`Apparatus`, `Release`, `ProjectApparatusBinding`, `Operation` et `Instance` sont des entités proposées dans [[projects/manifesto/concepts/apparatus-bindings-and-lifecycle]], absentes du modèle actuel. La V1 ajoute un binding 1:1 à `ProjectComponent`, conserve son UUID/ACL et maintient une installation par type canonique et projet. ^[inferred]
+`Apparatus`, `Release`, l’extension 1:1 de `ProjectComponent`, `Operation` et `Instance` sont des entités futures décrites dans [[projects/manifesto/concepts/apparatus-bindings-and-lifecycle]], absentes du modèle actuel. ADR-0001 a rejeté `ProjectApparatusBinding` comme ressource publique portant un second UUID : `binding_id = component.id`, avec le même UUID/ACL et une installation par type canonique et projet.
 
 La release fournit le digest ; le binding exprime l’intention ; l’instance représente l’exécution. Le projet ne possède pas directement un pod. Le backfill historique ne doit pas créer de workload sans résolution de release et consentement. ^[inferred]
 
