@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Reference KV settings",
+  "description": "Schéma UI déclaratif de l'Apparatus KV de référence (mode schema, sans host).",
+  "type": "object",
+  "properties": {
+    "display_name": {
+      "type": "string",
+      "description": "Nom d'affichage du namespace KV.",
+      "maxLength": 100
+    },
+    "read_only": {
+      "type": "boolean",
+      "description": "Si vrai, l'UI ne propose que la lecture.",
+      "default": false
+    },
+    "page_size": {
+      "type": "integer",
+      "description": "Nombre de clés affichées par page.",
+      "minimum": 1,
+      "maximum": 100,
+      "default": 20
+    }
+  },
+  "additionalProperties": false
+}

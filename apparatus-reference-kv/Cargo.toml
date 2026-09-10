@@ -1,0 +1,15 @@
+[package]
+name = "apparatus-reference-kv"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Apparatus KV de référence P0 : backend kv-v1 injecté, UI schema, sans réseau (pur Rust)"
+license.workspace = true
+
+[dependencies]
+apparatus-contracts = { path = "../apparatus-contracts" }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

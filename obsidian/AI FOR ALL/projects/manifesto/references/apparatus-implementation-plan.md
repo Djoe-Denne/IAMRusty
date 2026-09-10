@@ -52,10 +52,10 @@ Canon : `docs/adr/` ; hub wiki : [[projects/manifesto/decisions/index]]. `Accept
 | Sujet | ADR | Réalité | Encore hors ADR |
 |---|---|---|---|
 | Propriété Manifesto, 1:1 `ProjectComponent`, unicité | [0001](../../../../../docs/adr/0001-apparatus-binding-owned-by-manifesto.md) | Partial | Lease / fencing (P2) |
-| Contrats, digest immuable, Apparatus KV de référence | [0002](../../../../../docs/adr/0002-apparatus-contract-first.md) | Unimplemented | CLI / macro ; champs TOML de détail |
-| Plugin hostile hors processus privilégiés | [0003](../../../../../docs/adr/0003-apparatus-untrusted-plugin.md) | Unimplemented | Moteur et adaptateur / `APP-01` |
-| Gateway, KV, pas de bearer IAM, fermeture DB immédiate | [0004](../../../../../docs/adr/0004-apparatus-capability-gateway.md) | Unimplemented | mTLS concret (P3) |
-| Même protocole ; admission, `VALID`, `VERIFIED` et installabilité distincts | [0005](../../../../../docs/adr/0005-apparatus-same-protocol-valid-verified.md) | Unimplemented | Pipeline OCI (P4), drain/destruction |
+| Contrats, digest immuable, Apparatus KV de référence | [0002](../../../../../docs/adr/0002-apparatus-contract-first.md) | Partial | CLI / macro ; champs TOML de détail |
+| Plugin hostile hors processus privilégiés | [0003](../../../../../docs/adr/0003-apparatus-untrusted-plugin.md) | Partial | Moteur et adaptateur / `APP-01` |
+| Gateway, KV, pas de bearer IAM, fermeture DB immédiate | [0004](../../../../../docs/adr/0004-apparatus-capability-gateway.md) | Partial | mTLS concret (P3) |
+| Même protocole ; admission, `VALID`, `VERIFIED` et installabilité distincts | [0005](../../../../../docs/adr/0005-apparatus-same-protocol-valid-verified.md) | Partial | Pipeline OCI (P4), drain/destruction |
 
 ## Livraison séquencée
 
@@ -64,6 +64,8 @@ Canon : `docs/adr/` ; hub wiki : [[projects/manifesto/decisions/index]]. `Accept
 Écrire le schéma canonique de `apparatus.toml`, les contrats release/binding/operation, l’API de capabilities et les protocoles backend/UI. Définir les versions et erreurs, puis créer un Apparatus de référence simple utilisant KV et une UI de lecture, sans dépendance réseau externe. La macro Rust et l’ergonomie de CLI viennent après les contrats wire. ^[inferred]
 
 **Preuve de sortie** : manifeste accepté/refusé de manière déterministe par une bibliothèque unique et son harness, ID/version sans ambiguïté, DTO sans credentials. Les valeurs limites sont testées ; aucun contrat n’emploie `latest` comme identité. La CLI et la Factory n’existent pas encore et réutiliseront ce validateur plus tard. ^[inferred]
+
+**Preuve P0 livrée (2026-09-10)** : crates `apparatus-contracts` (lib, limits, ids, manifest, capabilities, ui, protocol, validation, digest, error, ports `KvStore`, harness feature-gaté `test-harness` ; tests `contracts_p0.rs`) et `apparatus-reference-kv` (`apparatus.toml`, `ui/settings.schema.json`, tests `kv_p0.rs` ; `apparatus_id` `io.aiforall.reference-kv`). Protocole wire `manifesto-apparatus/1`, digest sha256 canonique BTreeMap+serde_json, harness TEST-ONLY namespacé `binding_id` (absent des builds prod sans feature), `unbind` validé + inconnu rejeté en `InvalidOperation`, `is_forbidden_key` insensible à la casse, zéro statut `VALID`/`VERIFIED`. 16/16 tests verts minimum avec `--features test-harness` ; gates `cargo fmt --check`, `cargo check`, `cargo test`, `cargo clippy`, `cargo doc`, `cargo metadata` verts. Reports P1+ : persistance Manifesto (P1), gateway réseau et identité workload (P3), Factory/admission OCI (P4), host UI et CLI (P5).
 
 ### P1 — Persistance, catalogue et migration additive
 

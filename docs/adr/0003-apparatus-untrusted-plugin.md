@@ -1,7 +1,7 @@
 # ADR-0003 : Le code d’un Apparatus n’est pas digne de confiance et s’exécute hors des processus privilégiés
 
 - Statut : Accepted
-- Réalité : Unimplemented
+- Réalité : Partial
 - Date : 2026-09-10
 - Décideurs : Architecture AIForAll — ratification orchestrée du 2026-09-10
 - Jalon concerné : P0 (modèle de confiance), P3–P4 (runtime réel)
@@ -51,4 +51,4 @@ Le monolithe `oodhive-monolith` compose déjà IAM, Hive, Manifesto, Telegraph. 
 
 - Wiki : `apparatus-platform`, `apparatus-capabilities-and-isolation`, `apparatus-factory-and-distribution`, `modular-monolith-runtime`
 - Code : `monolith/src/runtime.rs`, Dockerfile Manifesto (image **du service**, pas une Factory Apparatus)
-- Preuve d’implémentation : aucune ; l’absence actuelle de plugin dans le monolithe ne constitue pas un runtime isolé.
+- Preuve d’implémentation (2026-09-10) : le harness `TestHarness` / `InMemoryKv` dans `apparatus-contracts/src/harness.rs` est TEST-ONLY et compilé uniquement avec la feature `test-harness` (absent des builds prod), namespacé par `binding_id`. Aucun code de plugin n’est chargé dans le monolithe ni Manifesto. Le harness ne produit ni statut `VALID`, ni `VERIFIED` — l’absence de plugin in-process ne constitue pas un runtime isolé de production.

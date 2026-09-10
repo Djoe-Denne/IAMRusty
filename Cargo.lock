@@ -112,6 +112,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 
 [[package]]
+name = "apparatus-contracts"
+version = "0.1.0"
+dependencies = [
+ "semver",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "thiserror 2.0.18",
+ "toml 0.8.23",
+ "uuid",
+]
+
+[[package]]
 name = "apparatus-events"
 version = "0.1.0"
 dependencies = [
@@ -120,6 +133,15 @@ dependencies = [
  "serde",
  "serde_json",
  "uuid",
+]
+
+[[package]]
+name = "apparatus-reference-kv"
+version = "0.1.0"
+dependencies = [
+ "apparatus-contracts",
+ "serde_json",
+ "thiserror 2.0.18",
 ]
 
 [[package]]

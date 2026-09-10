@@ -6,7 +6,7 @@ status: accepted
 feature_status: future
 summary: "Hub wiki vers les ADR Apparatus ratifiées dans docs/adr/ ; décision cible et réalité d’implémentation restent distinctes."
 created: 2026-09-10T06:32:00Z
-updated: 2026-09-10T06:32:00Z
+updated: 2026-09-10T16:40:00Z
 ---
 
 # Apparatus — index des ADR
@@ -23,10 +23,10 @@ Les ADR Apparatus ci-dessous sont **Accepted** depuis la ratification orchestré
 | ADR | Décision | Réalité |
 |---|---|---|
 | [0001](../../../../../docs/adr/0001-apparatus-binding-owned-by-manifesto.md) | Binding = extension 1:1 de `ProjectComponent`, propriété métier Manifesto | Partial |
-| [0002](../../../../../docs/adr/0002-apparatus-contract-first.md) | Contrats + Apparatus KV de référence avant Factory et host | Unimplemented |
-| [0003](../../../../../docs/adr/0003-apparatus-untrusted-plugin.md) | Code auteur hors des processus privilégiés | Unimplemented |
-| [0004](../../../../../docs/adr/0004-apparatus-capability-gateway.md) | Gateway de capacités ; KV plateforme ; pas de bearer IAM | Unimplemented |
-| [0005](../../../../../docs/adr/0005-apparatus-same-protocol-valid-verified.md) | Même protocole ; admission, `VALID`, `VERIFIED` et installabilité distincts | Unimplemented |
+| [0002](../../../../../docs/adr/0002-apparatus-contract-first.md) | Contrats + Apparatus KV de référence avant Factory et host | Partial |
+| [0003](../../../../../docs/adr/0003-apparatus-untrusted-plugin.md) | Code auteur hors des processus privilégiés | Partial |
+| [0004](../../../../../docs/adr/0004-apparatus-capability-gateway.md) | Gateway de capacités ; KV plateforme ; pas de bearer IAM | Partial |
+| [0005](../../../../../docs/adr/0005-apparatus-same-protocol-valid-verified.md) | Même protocole ; admission, `VALID`, `VERIFIED` et installabilité distincts | Partial |
 
 ## Conception (pas des ADR)
 

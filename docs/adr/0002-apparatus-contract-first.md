@@ -1,7 +1,7 @@
 # ADR-0002 : Les contrats versionnés et un Apparatus de référence précèdent Factory et host
 
 - Statut : Accepted
-- Réalité : Unimplemented
+- Réalité : Partial
 - Date : 2026-09-10
 - Décideurs : Architecture AIForAll — ratification orchestrée du 2026-09-10
 - Jalon concerné : P0
@@ -54,5 +54,5 @@ Les noms de crates (`apparatus-contract`, …) sont une conséquence d’implém
 ## Références
 
 - Wiki : `apparatus-implementation-plan` (P0), `apparatus-factory-and-distribution`, `apparatus-ui-and-protocol`, `apparatus-platform`
-- Code actuel : aucun parseur de manifeste Apparatus ; catalogue = `ComponentServicePort`
-- Preuve d’implémentation : aucune.
+- Code P0 : validateur unique dans `apparatus-contracts` (`validation.rs`, TOML canonique) ; catalogue legacy = `ComponentServicePort` (inchangé)
+- Preuve d’implémentation (2026-09-10) : crates `apparatus-contracts` (schéma `apparatus.toml`, validateur unique, digest sha256 canonique BTreeMap+serde_json, protocole wire `manifesto-apparatus/1`, port `KvStore`, harness TEST-ONLY feature-gaté `test-harness`) et `apparatus-reference-kv` (`apparatus_id` `io.aiforall.reference-kv`, UI `schema`, stockage `kv-v1`). Tests `contracts_p0.rs` + `kv_p0.rs` déterministes (16/16 minimum avec `--features test-harness`). Gates verts : `cargo fmt --check`, `cargo check`, `cargo test`, `cargo clippy`, `cargo doc`, `cargo metadata`.

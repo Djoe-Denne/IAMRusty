@@ -1,0 +1,25 @@
+[package]
+name = "apparatus-contracts"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Contrats Apparatus P0 : manifeste, protocole wire manifesto-apparatus/1, digest, validation (pur Rust)"
+license.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true }
+sha2 = { workspace = true }
+semver = { workspace = true }
+
+[features]
+default = []
+# Harness in-process TEST-ONLY + helpers d'assertion de tests.
+# Jamais activée en production ni dans le monolithe/Manifesto.
+test-harness = []
+
+[lints]
+workspace = true

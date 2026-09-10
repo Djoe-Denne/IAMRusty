@@ -1,7 +1,7 @@
 # ADR-0005 : Officiel et communautaire partagent le même protocole ; admission, VALID, VERIFIED et installabilité sont distincts
 
 - Statut : Accepted
-- Réalité : Unimplemented
+- Réalité : Partial
 - Date : 2026-09-10
 - Décideurs : Architecture AIForAll — ratification orchestrée du 2026-09-10
 - Jalon concerné : P0 (pas d’exception dans les contrats), P4–P6 (preuves)
@@ -51,4 +51,4 @@ Le détail des attestations OCI, SBOM et de l’autorité de signature relève d
 ## Références
 
 - Wiki : `apparatus-factory-and-distribution`, `apparatus-platform`, `apparatus-implementation-plan` (P6)
-- Preuve d’implémentation : aucune ; aucun pipeline d’admission ni statut `VALID` / `VERIFIED` n’existe dans le code.
+- Preuve d’implémentation (2026-09-10) : l’Apparatus de référence emprunte le même contrat wire `manifesto-apparatus/1` que le catalogue cible. Les DTO et le manifeste n’ont aucun champ `trusted_*`. Le harness et les tests P0 ne produisent ni statut `VALID`, ni `VERIFIED` ; aucun pipeline d’admission n’existe encore.

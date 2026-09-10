@@ -20,6 +20,10 @@ members = [
 
     # Sentinel authorization sync worker
     "sentinel-sync",
+
+    # Apparatus P0 — contrats + backend KV de référence (pur Rust, sans runtime)
+    "apparatus-contracts",
+    "apparatus-reference-kv",
 ]
 
 [workspace.package]
@@ -118,6 +122,10 @@ indexmap = { version = "2.10.0", features = ["serde"] }
 # Crypto
 rsa = { version = "0.9", features = ["pem"] }
 pem = "3.0"
+# Apparatus P0 : digest SHA-256 déterministe du descripteur canonique (ADR-0002).
+sha2 = "0.10.8"
+# Apparatus P0 : SemVer déclarative du manifeste, distincte de l'identité d'installation (digest).
+semver = "1.0.23"
 
 # Testing dependencies
 tokio-test = "0.4.4"

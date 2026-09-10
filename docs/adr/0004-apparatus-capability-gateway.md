@@ -1,7 +1,7 @@
 # ADR-0004 : Toute I/O d’un Apparatus passe par une gateway de capacités ; l’état durable est un KV plateforme
 
 - Statut : Accepted
-- Réalité : Unimplemented
+- Réalité : Partial
 - Date : 2026-09-10
 - Décideurs : Architecture AIForAll — ratification orchestrée du 2026-09-10
 - Jalon concerné : P0 (contrat de capacités), P3 (implémentation gateway)
@@ -58,4 +58,4 @@ L’implémentation mTLS / rotation (P3) n’est pas figée ici ; le contrat d�
 
 - Wiki : `apparatus-capabilities-and-isolation`, `immediate-membership-acl`, `component-instance-permissions`
 - Code : JWT consommateur (`docs/platform/authn-jwt.md`), `enforce_world_read_or_principal`, OpenFGA Manifesto
-- Preuve d’implémentation : aucune ; la gateway, le KV Apparatus et l’identité workload n’existent pas encore.
+- Preuve d’implémentation (2026-09-10) : taxonomie minimale déclarée dans le manifeste (`project.read`, `storage.kv.read/write`) ; port `KvStore` en domaine (`apparatus-contracts/src/ports.rs`), KV de référence namespacé par `binding_id` via le harness in-process (feature `test-harness`). Aucun bearer IAM ni JWT transmis au plugin. La gateway réseau réelle, l’identité workload et le KV plateforme persistent restent hors P0 (P3).

@@ -1,0 +1,17 @@
+[apparatus]
+id = "io.aiforall.reference-kv"
+version = "0.1.0"
+schema_version = 1
+name = "Reference KV"
+description = "Apparatus KV de référence P0 : stockage kv-v1, UI schema, sans réseau."
+
+[backend]
+protocol = "manifesto-apparatus/1"
+storage = "kv-v1"
+
+[capabilities]
+requires = ["project.read", "storage.kv.read", "storage.kv.write"]
+
+[ui]
+mode = "schema"
+schema_path = "ui/settings.schema.json"

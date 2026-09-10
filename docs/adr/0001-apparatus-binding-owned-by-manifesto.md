@@ -50,4 +50,4 @@ L’identité immuable d’une release et l’interdiction de `latest` relèvent
 
 - Wiki : `apparatus-bindings-and-lifecycle`, `apparatus-platform`, `apparatus-implementation-plan`, `component-instance-permissions`
 - Code : `Manifesto/domain/src/entity/project_component.rs`, `openfga/model.fga`, `apparatus-events/`
-- Preuve partielle : UUID, unicité SQL et ACL `component:{id}` existent ; l’extension binding 1:1 Apparatus n’existe pas encore.
+- Preuve partielle : UUID, unicité SQL et ACL `component:{id}` existent (pré-P0) ; l’extension binding 1:1 Apparatus n’existe pas encore. P0 n’ajoute aucune persistance Manifesto : `Partial` reflète l’existant, pas un apport P0 (cohérent avec le plan P0 « aucune persistance »).
