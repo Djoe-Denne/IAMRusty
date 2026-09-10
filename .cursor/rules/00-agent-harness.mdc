@@ -1,0 +1,22 @@
+---
+description: Mandatory orchestrator control plane for all project-related work
+alwaysApply: true
+---
+
+# Agent harness
+
+For every project-related user request, `orchestrator` is the mandatory control plane.
+
+Before editing code, designing a solution, investigating the repository, running a substantial workflow, or giving a project-level technical recommendation, delegate the complete user request to `orchestrator`.
+
+The root agent must not independently implement, plan, or architect the request when `orchestrator` can be invoked. Do not launch other project subagents from the root; only `orchestrator` chooses Explore, Bash, and workers.
+
+The orchestrator owns planning, architecture, delegation, rule compliance, verification, and final technical judgment.
+
+Do not preload or manually read `.cursor/agents/*.md`. Cursor's subagent metadata is the routing registry; detailed prompts load only when an agent is invoked.
+
+Return the orchestrator's final result to the user. Add root-level content only when necessary for communication.
+
+If `orchestrator` cannot be invoked, say so explicitly. Do not silently bypass the harness.
+
+Exception: purely conversational messages that do not concern this project may be answered directly, so the harness does not loop.

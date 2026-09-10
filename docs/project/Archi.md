@@ -1,5 +1,9 @@
 # Project Service Architecture Decision Record
 
+> **Scope.** Historical target architecture for the Project Service ecosystem (registry, impersonation, cascading). Parts are superseded by the current Manifesto MVP.
+>
+> Apparatus decisions are **not** appended here. They live as numbered ADRs in [`docs/adr/`](../adr/README.md), starting as Proposed.
+
 ## Overview
 This document captures the architectural decisions made for the Project Service ecosystem, including component management, permission strategies, and cross-service orchestration.
 
