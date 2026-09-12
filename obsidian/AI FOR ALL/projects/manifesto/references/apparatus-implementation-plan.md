@@ -10,14 +10,18 @@ sources:
   - Manifesto/http/src/lib.rs
   - openfga/model.fga
   - sentinel-sync/src/translator/manifesto.rs
-  - .agents/skills/aiforall-new-service/SKILL.md
-summary: "Livraison par étapes, migration sans rupture des composants, critères de conformance et arbitrages produit/infrastructure encore nécessaires."
+  - docs/adr/0002-apparatus-contract-first.md
+  - apparatus-contracts/src/lib.rs
+  - apparatus-reference-kv/apparatus.toml
+  - docs/apparatus-p1-implementation-prompt.md
+  - docs/services/manifesto.md
+summary: "Livraison par étapes, migration sans rupture des composants, critères de conformance et arbitrages produit/infrastructure encore nécessaires. P1 prouvé non commité."
 provenance:
   extracted: 0.12
   inferred: 0.88
   ambiguous: 0.0
 created: 2026-09-09T17:50:00Z
-updated: 2026-09-09T17:50:00Z
+updated: 2026-09-12T09:30:00Z
 ---
 
 # Apparatus — plan d’implémentation et décisions restantes
@@ -65,7 +69,7 @@ Canon : `docs/adr/` ; hub wiki : [[projects/manifesto/decisions/index]]. `Accept
 
 **Preuve de sortie** : manifeste accepté/refusé de manière déterministe par une bibliothèque unique et son harness, ID/version sans ambiguïté, DTO sans credentials. Les valeurs limites sont testées ; aucun contrat n’emploie `latest` comme identité. La CLI et la Factory n’existent pas encore et réutiliseront ce validateur plus tard. ^[inferred]
 
-**Preuve P0 livrée (2026-09-10)** : crates `apparatus-contracts` (lib, limits, ids, manifest, capabilities, ui, protocol, validation, digest, error, ports `KvStore`, harness feature-gaté `test-harness` ; tests `contracts_p0.rs`) et `apparatus-reference-kv` (`apparatus.toml`, `ui/settings.schema.json`, tests `kv_p0.rs` ; `apparatus_id` `io.aiforall.reference-kv`). Protocole wire `manifesto-apparatus/1`, digest sha256 canonique BTreeMap+serde_json, harness TEST-ONLY namespacé `binding_id` (absent des builds prod sans feature), `unbind` validé + inconnu rejeté en `InvalidOperation`, `is_forbidden_key` insensible à la casse, zéro statut `VALID`/`VERIFIED`. 16/16 tests verts minimum avec `--features test-harness` ; gates `cargo fmt --check`, `cargo check`, `cargo test`, `cargo clippy`, `cargo doc`, `cargo metadata` verts. Reports P1+ : persistance Manifesto (P1), gateway réseau et identité workload (P3), Factory/admission OCI (P4), host UI et CLI (P5).
+**Preuve P0 livrée (2026-09-10, tests élargis 2026-09-11, P0.1 2026-09-12)** : détail dans [[projects/manifesto/concepts/apparatus-p0-contracts]]. 27 tests `contracts_p0` + 10 `kv_p0` = **37** socle, + `apparatus_p01_micro.rs` (3+2) = **42/42** (contracts 27+3=30, ref-kv 10+2=12) avec `cargo test -p apparatus-contracts --features test-harness` et `cargo test -p apparatus-reference-kv`. CI job apparatus-p0 + coverage Apparatus, gates `fmt` / `check` / `test` / `clippy` verts. Reports P1+ : persistance Manifesto (P1), gateway réseau et identité workload (P3), Factory/admission OCI (P4), host UI et CLI (P5).
 
 ### P1 — Persistance, catalogue et migration additive
 
@@ -74,6 +78,15 @@ Dans les couches domain/application/infra/migration de Manifesto, ajouter releas
 Backfill : les composants existants deviennent `source=legacy`, avec identité conservée, release non résolue et contrôleur désactivé pour ces lignes. Un administrateur choisit un mapping canonique et une release, puis consent avant passage en managed. Détecter les collisions entre deux anciens types mappés vers le même Apparatus ; ne pas fusionner ni supprimer silencieusement. ^[inferred]
 
 **Preuve de sortie** : migration réversible avant activation de workloads ; comparaisons avant/après des IDs, permissions et réponses legacy ; rejet d’un double ajout concurrent ; rollback transactionnel si écriture outbox échoue. Aucun backfill ne démarre du code tiers. ^[inferred]
+
+**Preuve P1 livrée (2026-09-12, non commitée)** : T1-T6 28/28, mapping 5/5, T7 3/3 = P1 36 ; P0.1 42/42 ; total 78. Synthèse : [[projects/manifesto/concepts/apparatus-p1-persistence]].
+1. Migration réversible — table `apparatus_bindings` (`id` BIGSERIAL interne, `component_id` UUID UNIQUE FK→`project_components.id` CASCADE, `digest` VARCHAR(128) NULL, `source` CHECK legacy|managed), migration `m20260912_000012` additive réversible, up/down/up verts, 8/8. Fichier : `Manifesto/migration/src/m20260912_000012_create_apparatus_bindings_table.rs`.
+2. Backfill legacy — `backfill_apparatus_legacy` explicite (`INSERT...SELECT` legacy `ON CONFLICT DO NOTHING`), idempotent 2 runs même état, legacy intact, 5/5. Fichier : `Manifesto/infra/src/apparatus_backfill.rs`.
+3. Collisions rejetées — table injective taskboard/wiki, `check_pairs_injective`, erreur `APPARATUS_MAPPING_COLLISION` v1, `is_unique_violation` 23505→409, `map_unique_conflict` 409, concurrence [201,409] stable, 4/4 + mapping 5/5. Fichiers : `Manifesto/infra/src/apparatus_mapping.rs`, `Manifesto/infra/src/repository/component_repository.rs`.
+4. Rollback atomique — `persist_binding_atomically` (BEGIN→INSERT managed→publish→COMMIT/ROLLBACK), échec→0 ligne, succès→1 ligne managed, faux broker in-memory, 0 polling/worker, 3/3. Fichier : `Manifesto/infra/src/apparatus_outbox.rs`.
+5. ACL/routes/events inchangés — INSERT managed même txn que composant+ACL+outbox (`Manifesto/infra/src/transaction.rs`), grants projet inchangés, revoke→403 TTL0, ownership conservés, `grep apparatus model.fga` 0, zéro nouveau type FGA, 4/4 ; alias `?binding` même `component_id` ou 404, POST 7 clés gelées, GET==POST, list `{data}`, DTO inchangé, catalogue wiremock, 4/4, 5 routes `/components`, FGA 5 types. Fichier : `Manifesto/http/src/handlers/components.rs`.
+6. Zéro workload — T7 : 0 token P2 dans le prod Manifesto scanné par T7 (7 crates src), 0 `VALID`/`VERIFIED` quotés, 5 routes ; T5 : FGA 5 types ; T3+T6 : 0 second UUID ; pas de seconde ressource, pas de renommage, gate 3/3 vert.
+Consentement/génération non ajoutés (sans spec ADR, ADR dédiée avant P2).
 
 ### P2 — Réconciliation sans infrastructure réelle
 

@@ -51,4 +51,4 @@ Le détail des attestations OCI, SBOM et de l’autorité de signature relève d
 ## Références
 
 - Wiki : `apparatus-factory-and-distribution`, `apparatus-platform`, `apparatus-implementation-plan` (P6)
-- Preuve d’implémentation (2026-09-10) : l’Apparatus de référence emprunte le même contrat wire `manifesto-apparatus/1` que le catalogue cible. Les DTO et le manifeste n’ont aucun champ `trusted_*`. Le harness et les tests P0 ne produisent ni statut `VALID`, ni `VERIFIED` ; aucun pipeline d’admission n’existe encore.
+- Preuve d’implémentation (2026-09-10, P1 2026-09-12) : l’Apparatus de référence emprunte le même contrat wire `manifesto-apparatus/1` que le catalogue cible. Les DTO et le manifeste n’ont aucun champ `trusted_*`. Le harness et les tests P0 ne produisent ni statut `VALID`, ni `VERIFIED` ; aucun pipeline d’admission n’existe encore. P1 : 0 `VALID`/`VERIFIED`, 0 second UUID, 5 routes `/components`, FGA 5 types inchangés (T5 4/4 FGA 5 types ; T3+T6 0 second UUID ; T7 3/3 : 0 `VALID`/`VERIFIED` quotés, 5 routes) → `Partial` maintenu.

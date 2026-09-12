@@ -2,12 +2,12 @@
 title: Manifesto Concepts Index
 category: navigation
 tags: [index, concepts, projects]
-summary: "Concepts Manifesto : orchestration actuelle, ACL et droits, puis architecture future Apparatus, bindings et capacités."
+summary: "Concepts Manifesto : orchestration actuelle, ACL, puis Apparatus (P0 contrats + vision Factory/host)."
 provenance:
   extracted: 0.75
   inferred: 0.23
   ambiguous: 0.02
-updated: 2026-09-09T17:50:00Z
+updated: 2026-09-12T10:20:00Z
 sources:
   - "C:/Users/djden/.codex/attachments/486d0052-5759-4277-bcc1-9f209ce353d4/pasted-text.txt"
 ---
@@ -22,9 +22,11 @@ sources:
 - [[projects/manifesto/concepts/component-instance-permissions]]
 - [[projects/manifesto/concepts/component-catalog-and-fallback-adapter]]
 
-## Apparatus — architecture future
+## Apparatus
 
-- [[projects/manifesto/decisions/index]] — ADR Accepted ; réalité d’implémentation distincte (canon `docs/adr/`).
+- [[projects/manifesto/decisions/index]] — ADR Apparatus (vague 1) + extrait 0401/0406.
+- [[projects/aiforall/decisions/index]] — ADR architecture actuelle (vague 2).
+- [[projects/manifesto/concepts/apparatus-p0-contracts]] — crates P0 livrées.
 - [[projects/manifesto/concepts/apparatus-platform]] — vision et frontières.
 - [[projects/manifesto/concepts/apparatus-bindings-and-lifecycle]] — identités, migration et réconciliation.
 - [[projects/manifesto/concepts/apparatus-capabilities-and-isolation]] — identité, droits, réseau et données.

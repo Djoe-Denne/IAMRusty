@@ -6,18 +6,20 @@ sources:
   - IAMRusty/docs/ARCHITECTURE.md
   - IAMRusty/setup/src/app.rs
   - IAMRusty/http/src/lib.rs
-summary: IAMRusty applies a generic RustyCog-style service split but adds IAM-specific OAuth, token, and setup boundaries that matter more than the generic layer names alone.
+  - docs/adr/0100-services-metier-hexagonaux-rustycog.md
+  - docs/adr/0101-crates-par-couche-hexagonale.md
+summary: IAMRusty is a RustyCog vertical slice (ADR 0100–0103): domain ports, setup composition root, IdP not PDP.
 provenance:
-  extracted: 0.79
-  inferred: 0.16
-  ambiguous: 0.05
+  extracted: 0.82
+  inferred: 0.14
+  ambiguous: 0.04
 created: 2026-04-14T17:46:37.6929647Z
-updated: 2026-04-19T12:08:26.9393504Z
+updated: 2026-09-12T10:20:00Z
 ---
 
 # Hexagonal Architecture
 
-`[[projects/iamrusty/iamrusty]]` uses a hexagonal layout where domain services and ports stay isolated from HTTP, database, provider, and queue adapters. This page focuses on how IAMRusty applies that pattern differently from the generic RustyCog service story.
+`[[projects/iamrusty/iamrusty]]` uses a hexagonal layout where domain services and ports stay isolated from HTTP, database, provider, and queue adapters. Platform decision: [[projects/aiforall/decisions/0100-hexagone-rustycog]].
 
 ## RustyCog Baseline
 
@@ -34,8 +36,8 @@ updated: 2026-04-19T12:08:26.9393504Z
 
 ## Open Questions
 
-- The architecture guide mostly describes four layers, but the current repo also treats configuration and setup as first-class crates with their own runtime responsibilities. ^[ambiguous]
-- Some doc examples still show older route names and DTO shapes, so not every example in the architecture docs matches the live HTTP surface exactly. ^[ambiguous]
+- Harmoniser `hive-http` vs `*-http_server` (ADR 0101, non décidé).
+- Unification JWT RS256/JWKS (0302). Some IAM architecture-doc examples still show older route names. ^[ambiguous]
 
 ## Sources
 

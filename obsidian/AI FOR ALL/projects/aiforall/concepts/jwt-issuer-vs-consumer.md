@@ -10,14 +10,15 @@ sources:
   - rustycog/rustycog-http/src/jwt_handler.rs
   - projects/iamrusty/concepts/jwt-algorithm-enforcement-and-test-relaxation.md
   - cursor-conversation/jwt-jwks-unification-2026-08-29
+  - docs/adr/0302-authn-jwt-authz-openfga.md
 summary: >-
-  IAM mints HS256 with iss/aud; all HTTP extractors verify the same HMAC. RS256/JWKS remains unused. Telegraph aligned [auth.jwt] on 2026-09-01.
+  IAM mints HS256 with iss/aud; extractors verify the same HMAC (ADR 0302). RS256/JWKS unused. Impersonation Archi.md caduque.
 provenance:
-  extracted: 0.85
+  extracted: 0.86
   inferred: 0.12
-  ambiguous: 0.03
+  ambiguous: 0.02
 created: 2026-08-31T13:30:00Z
-updated: 2026-09-01T18:00:00Z
+updated: 2026-09-12T10:20:00Z
 ---
 
 # JWT issuer versus consumer
@@ -39,6 +40,7 @@ How-to (GitHub handbook, not this page): `docs/platform/authn-jwt.md` and `docs/
 
 ## Related
 
+- [[projects/aiforall/decisions/0300-events-authz]] — ADR 0302
 - [[concepts/architecture-coherence-across-services]]
 - [[projects/iamrusty/iamrusty]]
 - [[skills/using-rustycog-http]]

@@ -11,14 +11,15 @@ sources:
   - docs/reviews/iam-architecture-comparison.md
   - .agents/skills/rustycog-submodule/SKILL.md
   - C:/Users/djden/source/repos/AIForAll/.env
+  - docs/adr/README.md
 summary: >-
-  Repo-level map of AIForAll: four RustyCog services, rustycog git submodule, dual runtime modes, and the 2026-08 coherence / Sonar wave.
+  Workspace AIForAll : 4 slices RustyCog, dual runtime, ADR vague 2 (0100–0502), P0 Apparatus (pas Factory).
 provenance:
-  extracted: 0.78
-  inferred: 0.18
+  extracted: 0.80
+  inferred: 0.16
   ambiguous: 0.04
 created: 2026-04-14T16:54:59.5971424Z
-updated: 2026-09-09T16:45:00Z
+updated: 2026-09-12T10:20:00Z
 ---
 
 # AIForAll
@@ -31,8 +32,10 @@ AIForAll is a Rust-based microservices workspace centered on [[projects/iamrusty
 - A top-level Docker Compose flow runs the services plus PostgreSQL, LocalStack, and OpenFGA.
 - Two runtime modes: standalone microservice binaries and the `oodhive-monolith` modular monolith under one HTTP listener.
 - Shared patterns live in [[concepts/shared-rust-microservice-sdk]]. The SDK tree is pinned as [[projects/aiforall/concepts/rustycog-git-submodule]].
-- August 2026 reviews show one hexagonal scaffold with structural gaps on JWT, logging, errors, OpenAPI, and OpenFGA — [[concepts/architecture-coherence-across-services]].
+- August 2026 reviews show one hexagonal scaffold with remaining gaps on JWT/JWKS, errors, OpenAPI Hive, and OpenFGA wiring — [[concepts/architecture-coherence-across-services]]. Photograph rétroactive : [[projects/aiforall/decisions/index]].
 - Queue factories must surface rustycog no-ops on `/ready` — [[projects/aiforall/concepts/queue-readiness-signaling]].
+- Project work is routed through [[projects/aiforall/concepts/orchestrator-agent-harness]].
+- Apparatus P0 crates live at workspace root, not inside Manifesto HTTP — [[projects/manifesto/concepts/apparatus-p0-contracts]] (ADR 0406).
 
 ## Runtime Modes
 
@@ -48,12 +51,20 @@ AIForAll is a Rust-based microservices workspace centered on [[projects/iamrusty
 - [[projects/aiforall/skills/running-aiforall-runtime-modes]]
 - [[projects/aiforall/skills/fixing-sonar-clippy-in-services]]
 - [[projects/aiforall/skills/running-parallel-sonar-lanes]]
+- [[projects/aiforall/skills/running-apparatus-p0-tests]]
 - GitHub handbook: `docs/README.md` (JWT, nouveau service, parcours métier). Agent skill: `.agents/skills/aiforall-new-service/SKILL.md`.
+
+## Décisions
+
+- [[projects/aiforall/decisions/index]] — vague 2 (hexagone, tests, events, services, plateforme)
+- [[projects/manifesto/decisions/index]] — vague 1 Apparatus
 
 ## Recent history
 
 - [[projects/aiforall/references/cursor-history-2026-09]]
 - [[projects/aiforall/references/cursor-history-2026-04-to-08]]
+- [[journal/2026-09-12]]
+- [[journal/2026-09-11]]
 - [[journal/2026-09-09]]
 - [[journal/2026-08-31]]
 - [[journal/2026-09-01]]

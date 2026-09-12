@@ -11,6 +11,7 @@ mod m20241015_000008_seed_permissions_and_resources;
 mod m20241015_000009_drop_resources_type_unique_index;
 mod m20260905_000010_add_project_revision;
 mod m20260909_000011_member_owner_and_soft_delete;
+mod m20260912_000012_create_apparatus_bindings_table;
 
 pub struct Migrator;
 
@@ -29,6 +30,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20241015_000009_drop_resources_type_unique_index::Migration),
             Box::new(m20260905_000010_add_project_revision::Migration),
             Box::new(m20260909_000011_member_owner_and_soft_delete::Migration),
+            Box::new(m20260912_000012_create_apparatus_bindings_table::Migration),
             rustycog::outbox::outbox_migration(),
         ]
     }

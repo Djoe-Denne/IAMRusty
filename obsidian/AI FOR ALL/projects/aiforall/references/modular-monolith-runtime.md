@@ -14,19 +14,20 @@ sources:
   - Telegraph/setup/src/app.rs
   - Hive/setup/src/app.rs
   - Manifesto/setup/src/app.rs
+  - docs/adr/0404-runtime-microservices-et-monolithe.md
 summary: >-
-  AIForAll now supports standalone microservices and a modular monolith named oodhive-monolith, with both modes using the same bounded-context route prefixes.
+  Dual runtime (ADR 0404): standalones and oodhive-monolith share SERVICE_PREFIX. sentinel-sync is outside both.
 provenance:
-  extracted: 0.82
-  inferred: 0.15
+  extracted: 0.84
+  inferred: 0.13
   ambiguous: 0.03
 created: 2026-04-25T10:04:00Z
-updated: 2026-04-25T10:07:00Z
+updated: 2026-09-12T10:20:00Z
 ---
 
 # Modular Monolith Runtime
 
-AIForAll now has two supported runtime shapes:
+AIForAll now has two supported runtime shapes (ADR 0404 — [[projects/aiforall/decisions/0400-services-runtime]]):
 
 - Standalone microservices remain available through packages such as `iam-service`, `telegraph-service`, `hive-service`, and `manifesto-service`, and each standalone route surface is mounted under its bounded-context prefix.
 - The modular monolith is a separate workspace package currently named `oodhive-monolith`, built from the `monolith/` crate.

@@ -1,17 +1,17 @@
 {
   "version": 1,
   "stats": {
-    "total_sources_ingested": 213,
-    "total_pages": 160,
-    "last_commit_synced": "68ac628"
+    "total_sources_ingested": 281,
+    "total_pages": 178,
+    "last_commit_synced": "f6d2931"
   },
   "projects": {
     "aiforall": {
       "source_cwd": "C:/Users/djden/source/repos/AIForAll",
-      "last_synced": "2026-09-09T16:45:00Z",
-      "last_commit_synced": "68ac628",
-      "conversations_ingested": 37,
-      "conversations_total": 66,
+      "last_synced": "2026-09-12T10:20:00Z",
+      "last_commit_synced": "f6d2931",
+      "conversations_ingested": 47,
+      "conversations_total": 80,
       "pages_in_vault": [
         "projects/aiforall/aiforall.md",
         "projects/aiforall/roadmap.md"
@@ -19,6 +19,370 @@
     }
   },
   "sources": {
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/6de9b375-2f3a-4301-9342-b9a00323c9a8/6de9b375-2f3a-4301-9342-b9a00323c9a8.jsonl": {
+      "ingested_at": "2026-09-12T10:20:00Z",
+      "size_bytes": 30083,
+      "modified_at": "2026-09-12T10:09:57.177Z",
+      "content_hash": "sha256:c6f40a19eab56b79de0ae2ee2c08062493d6854ab2d24a40c8c6e02845910408",
+      "source_type": "claude_conversation",
+      "project": "aiforall",
+      "pages_created": [
+        "projects/aiforall/decisions/index.md",
+        "projects/aiforall/decisions/0100-hexagone-rustycog.md",
+        "projects/aiforall/decisions/0200-strategie-tests.md",
+        "projects/aiforall/decisions/0300-events-authz.md",
+        "projects/aiforall/decisions/0400-services-runtime.md",
+        "projects/aiforall/decisions/0500-plateforme-qualite.md"
+      ],
+      "pages_updated": [
+        "journal/2026-09-12.md",
+        "projects/aiforall/references/cursor-history-2026-09.md",
+        "projects/aiforall/concepts/orchestrator-agent-harness.md",
+        "index.md"
+      ]
+    },
+    "docs/adr/0100-services-metier-hexagonaux-rustycog.md": {
+      "ingested_at": "2026-09-12T10:20:00Z",
+      "size_bytes": 3333,
+      "modified_at": "2026-09-12T10:02:20.893Z",
+      "content_hash": "sha256:3b6ab9882d865d6003e4f902637cfb92b0d1f0cb7b2366358237f0c41be2cf2f",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": ["projects/aiforall/decisions/0100-hexagone-rustycog.md"],
+      "pages_updated": ["projects/aiforall/decisions/index.md", "concepts/architecture-coherence-across-services.md"]
+    },
+    "docs/adr/0101-crates-par-couche-hexagonale.md": {
+      "ingested_at": "2026-09-12T10:20:00Z",
+      "size_bytes": 2639,
+      "modified_at": "2026-09-12T10:02:27.075Z",
+      "content_hash": "sha256:bed226e90b9ed0873fdfe9b589131c418a72e934dbc698f8df7a045b7836039e",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": ["projects/aiforall/decisions/0100-hexagone-rustycog.md"],
+      "pages_updated": ["projects/iamrusty/concepts/hexagonal-architecture.md"]
+    },
+    "docs/adr/0102-setup-composition-root.md": {
+      "ingested_at": "2026-09-12T10:20:00Z",
+      "size_bytes": 2890,
+      "modified_at": "2026-09-12T10:02:35.072Z",
+      "content_hash": "sha256:fd0138fe60802bfdf0edeb741163c2220f91551179c9e004878fa4d69b2e1948",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": ["projects/aiforall/decisions/0100-hexagone-rustycog.md"],
+      "pages_updated": ["projects/aiforall/decisions/index.md"]
+    },
+    "docs/adr/0103-ports-adapters-command-factory.md": {
+      "ingested_at": "2026-09-12T10:20:00Z",
+      "size_bytes": 2910,
+      "modified_at": "2026-09-12T10:02:40.937Z",
+      "content_hash": "sha256:eba9af5319d912f56ea8ed83e6e35c2add340536eeb7b505fad7bd2e4fc264c1",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": ["projects/aiforall/decisions/0100-hexagone-rustycog.md"],
+      "pages_updated": ["projects/aiforall/decisions/index.md"]
+    },
+    "docs/adr/0200-it-infra-reelle-rustycog-testing.md": {
+      "ingested_at": "2026-09-12T10:20:00Z",
+      "size_bytes": 4161,
+      "modified_at": "2026-09-12T10:07:32.686Z",
+      "content_hash": "sha256:ec9e7dcac1e87ac7b26619f014b73bf1044c82fd91af36f7729a08dbfd17145f",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": ["projects/aiforall/decisions/0200-strategie-tests.md"],
+      "pages_updated": ["concepts/integration-testing-with-real-infrastructure.md", "skills/using-rustycog-testing.md"]
+    },
+    "docs/adr/0201-mocks-http-sortant-seulement.md": {
+      "ingested_at": "2026-09-12T10:20:00Z",
+      "size_bytes": 3697,
+      "modified_at": "2026-09-12T10:04:11.242Z",
+      "content_hash": "sha256:ea6945631eb4176c58387a11f64b001cd9f25dc75a768228ef5613546af6dcba",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": ["projects/aiforall/decisions/0200-strategie-tests.md"],
+      "pages_updated": ["concepts/integration-testing-with-real-infrastructure.md"]
+    },
+    "docs/adr/0202-transport-opt-in-queues-desactivees.md": {
+      "ingested_at": "2026-09-12T10:20:00Z",
+      "size_bytes": 3564,
+      "modified_at": "2026-09-12T10:04:32.989Z",
+      "content_hash": "sha256:f5cfa8ddda17f7a76645a061ecb70217bf81feb8570bca2f3abcc7adb1132875",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": ["projects/aiforall/decisions/0200-strategie-tests.md"],
+      "pages_updated": ["concepts/integration-testing-with-real-infrastructure.md"]
+    },
+    "docs/adr/0300-crates-events-contrat-sans-transport.md": {
+      "ingested_at": "2026-09-12T10:20:00Z",
+      "size_bytes": 3137,
+      "modified_at": "2026-09-12T10:04:06.986Z",
+      "content_hash": "sha256:8b3a1c78aceda93c552e5b9dfff5f86d5a04418f4d491276c07400d52a1429f7",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": ["projects/aiforall/decisions/0300-events-authz.md"],
+      "pages_updated": ["projects/aiforall/decisions/index.md"]
+    },
+    "docs/adr/0301-outbox-transactionnel-rustycog.md": {
+      "ingested_at": "2026-09-12T10:20:00Z",
+      "size_bytes": 3151,
+      "modified_at": "2026-09-12T10:04:16.507Z",
+      "content_hash": "sha256:fd6961f13543aec0b834364a71a9060cf675446d5a39d17a1b2c63f5ec7e2ea5",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": ["projects/aiforall/decisions/0300-events-authz.md"],
+      "pages_updated": ["projects/aiforall/decisions/index.md"]
+    },
+    "docs/adr/0302-authn-jwt-authz-openfga.md": {
+      "ingested_at": "2026-09-12T10:20:00Z",
+      "size_bytes": 3370,
+      "modified_at": "2026-09-12T10:04:23.205Z",
+      "content_hash": "sha256:f01bf34a04589598627c34abc45954031c54eda11f72abc6475e8332716be502",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": ["projects/aiforall/decisions/0300-events-authz.md"],
+      "pages_updated": ["projects/aiforall/concepts/jwt-issuer-vs-consumer.md"]
+    },
+    "docs/adr/0303-sentinel-sync-worker-fga.md": {
+      "ingested_at": "2026-09-12T10:20:00Z",
+      "size_bytes": 3125,
+      "modified_at": "2026-09-12T10:04:31.641Z",
+      "content_hash": "sha256:0e3ffd8327a50c396ec2cb50e4860a0a39a586619315a329c94f47a7080f5f3d",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": ["projects/aiforall/decisions/0300-events-authz.md"],
+      "pages_updated": ["projects/aiforall/decisions/index.md"]
+    },
+    "docs/adr/0400-iamrusty-identite-hexagonale.md": {
+      "ingested_at": "2026-09-12T10:20:00Z",
+      "size_bytes": 3524,
+      "modified_at": "2026-09-12T10:05:25.526Z",
+      "content_hash": "sha256:ef247d34fb85074fddb1e4bf78bddb67e5c101df91e1898ed2d4d9b7a14d0a87",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": ["projects/aiforall/decisions/0400-services-runtime.md"],
+      "pages_updated": ["projects/aiforall/decisions/index.md"]
+    },
+    "docs/adr/0401-manifesto-projets-composants-acl-cas.md": {
+      "ingested_at": "2026-09-12T10:20:00Z",
+      "size_bytes": 3682,
+      "modified_at": "2026-09-12T10:05:38.215Z",
+      "content_hash": "sha256:2350a1c1241ffd3494d21ff004e58d631113a8e5c5ccac34ce993a32d5ad6e37",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": ["projects/aiforall/decisions/0400-services-runtime.md"],
+      "pages_updated": ["projects/manifesto/manifesto.md", "projects/manifesto/decisions/index.md"]
+    },
+    "docs/adr/0402-hive-organisations.md": {
+      "ingested_at": "2026-09-12T10:20:00Z",
+      "size_bytes": 2852,
+      "modified_at": "2026-09-12T10:05:47.509Z",
+      "content_hash": "sha256:b57494e4172e014138a9ffa6743770188f698f2ef06fc6c9a2f9abc93c59d1ab",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": ["projects/aiforall/decisions/0400-services-runtime.md"],
+      "pages_updated": ["projects/aiforall/decisions/index.md"]
+    },
+    "docs/adr/0403-telegraph-notifications-event-driven.md": {
+      "ingested_at": "2026-09-12T10:20:00Z",
+      "size_bytes": 3052,
+      "modified_at": "2026-09-12T10:05:56.489Z",
+      "content_hash": "sha256:430deb1dcd8dc94a410eca1f4fa3ba27d2f4299018428b286e39e4083d01e87c",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": ["projects/aiforall/decisions/0400-services-runtime.md"],
+      "pages_updated": ["projects/aiforall/decisions/index.md"]
+    },
+    "docs/adr/0404-runtime-microservices-et-monolithe.md": {
+      "ingested_at": "2026-09-12T10:20:00Z",
+      "size_bytes": 3103,
+      "modified_at": "2026-09-12T10:06:06.837Z",
+      "content_hash": "sha256:bb35a57bd4a36031e0b04a16b9b39004c38240cca198538c603c69b6f0c27912",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": ["projects/aiforall/decisions/0400-services-runtime.md"],
+      "pages_updated": ["projects/aiforall/references/modular-monolith-runtime.md"]
+    },
+    "docs/adr/0405-readiness-crate-partagee.md": {
+      "ingested_at": "2026-09-12T10:20:00Z",
+      "size_bytes": 2544,
+      "modified_at": "2026-09-12T10:06:16.165Z",
+      "content_hash": "sha256:0a8c7a090e94608f5751020f5e037c9cb1b971c381beeec843718eb3b775550c",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": ["projects/aiforall/decisions/0400-services-runtime.md"],
+      "pages_updated": ["projects/aiforall/decisions/index.md"]
+    },
+    "docs/adr/0406-crates-apparatus-p0-pas-le-host.md": {
+      "ingested_at": "2026-09-12T10:20:00Z",
+      "size_bytes": 3849,
+      "modified_at": "2026-09-12T10:06:28.217Z",
+      "content_hash": "sha256:cb3ffa1a4cc99be86f3d01ab54664367385343f7fbcd8f07346f2b99c70cb373",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": ["projects/aiforall/decisions/0400-services-runtime.md"],
+      "pages_updated": ["projects/manifesto/decisions/index.md"]
+    },
+    "docs/adr/0500-config-typee-et-compose-local.md": {
+      "ingested_at": "2026-09-12T10:20:00Z",
+      "size_bytes": 2938,
+      "modified_at": "2026-09-12T10:03:56.515Z",
+      "content_hash": "sha256:104d3623631614fde072c01145cb568b3233e06b2607eff06bc20c51eb33aa8b",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": ["projects/aiforall/decisions/0500-plateforme-qualite.md"],
+      "pages_updated": ["projects/aiforall/decisions/index.md"]
+    },
+    "docs/adr/0501-qualite-fmt-clippy-sonar.md": {
+      "ingested_at": "2026-09-12T10:20:00Z",
+      "size_bytes": 2888,
+      "modified_at": "2026-09-12T10:03:59.724Z",
+      "content_hash": "sha256:a859c5a25996ac0d9d80f84f1fb0192a1446d2c03a66bd1d1a0dcc469d531dec",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": ["projects/aiforall/decisions/0500-plateforme-qualite.md"],
+      "pages_updated": ["projects/aiforall/decisions/index.md"]
+    },
+    "docs/adr/0502-rustycog-framework-feature-gated.md": {
+      "ingested_at": "2026-09-12T10:20:00Z",
+      "size_bytes": 3036,
+      "modified_at": "2026-09-12T10:04:04.183Z",
+      "content_hash": "sha256:a11c522f71cb1fbadd35b7107b051d275131f9f8f6a127a9e391a4015a0b1325",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": ["projects/aiforall/decisions/0500-plateforme-qualite.md"],
+      "pages_updated": ["projects/aiforall/decisions/index.md"]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/442685dd-30ba-4a9d-b59b-f8ae6aa47b9a/442685dd-30ba-4a9d-b59b-f8ae6aa47b9a.jsonl": {
+      "ingested_at": "2026-09-12T09:30:00Z",
+      "size_bytes": 142775,
+      "modified_at": "2026-09-11T05:47:15.206Z",
+      "content_hash": "sha256:e3a84d1c6d5c2eb700b575ba3479fe8ba82ff54d234375029a017668283188d4",
+      "source_type": "claude_conversation",
+      "project": "manifesto",
+      "pages_created": [
+        "journal/2026-09-11.md",
+        "projects/manifesto/concepts/apparatus-p0-contracts.md",
+        "projects/aiforall/skills/running-apparatus-p0-tests.md"
+      ],
+      "pages_updated": [
+        "index.md",
+        "projects/aiforall/references/cursor-history-2026-09.md",
+        "projects/manifesto/references/apparatus-implementation-plan.md"
+      ]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/d0c9b007-93a2-4cec-814a-155dcbb74d59/d0c9b007-93a2-4cec-814a-155dcbb74d59.jsonl": {
+      "ingested_at": "2026-09-11T05:45:00Z",
+      "size_bytes": 52457,
+      "modified_at": "2026-09-10T15:19:26.674Z",
+      "content_hash": "sha256:34d90b7da78259be3d400d2d03cb3fba505ad46a5ac3622e613c5de0b03ad412",
+      "source_type": "claude_conversation",
+      "project": "aiforall",
+      "pages_created": [
+        "projects/aiforall/concepts/orchestrator-agent-harness.md"
+      ],
+      "pages_updated": [
+        "projects/aiforall/aiforall.md",
+        "projects/aiforall/concepts/index.md"
+      ]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/5b38bc90-792f-4181-8fcd-11686b13f543/5b38bc90-792f-4181-8fcd-11686b13f543.jsonl": {
+      "ingested_at": "2026-09-12T09:30:00Z",
+      "size_bytes": 213116,
+      "modified_at": "2026-09-11T06:06:32.339Z",
+      "content_hash": "sha256:33d6fbe8f139653b1f9840acf3d6d06d4a63d16bcc636e5954e54a54d556062f",
+      "source_type": "claude_conversation",
+      "project": "manifesto",
+      "pages_created": [],
+      "pages_updated": [
+        "projects/manifesto/decisions/index.md",
+        "projects/aiforall/references/cursor-history-2026-09.md"
+      ]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/9c672b13-9a03-4aeb-b35a-bf8a682f0bd6/9c672b13-9a03-4aeb-b35a-bf8a682f0bd6.jsonl": {
+      "ingested_at": "2026-09-11T05:45:00Z",
+      "size_bytes": 83653,
+      "modified_at": "2026-09-10T06:46:34.826Z",
+      "content_hash": "sha256:1ead548d78d4fe3e062d884a1e13a1b7c319b352af972986d128893a28008dbf",
+      "source_type": "claude_conversation",
+      "project": "manifesto",
+      "pages_created": [],
+      "pages_updated": [
+        "projects/manifesto/decisions/index.md",
+        "journal/2026-09-11.md"
+      ]
+    },
+    "docs/adr/0001-apparatus-binding-owned-by-manifesto.md": {
+      "ingested_at": "2026-09-12T09:30:00Z",
+      "size_bytes": 4844,
+      "modified_at": "2026-09-12T09:02:28.544Z",
+      "content_hash": "sha256:bfbbdb8f55e587e2177fb10a4675314376cceeb194cc67758de236f0ddfd6292",
+      "source_type": "document",
+      "project": "manifesto",
+      "pages_created": ["projects/manifesto/decisions/0001-apparatus-binding.md"],
+      "pages_updated": ["projects/manifesto/decisions/index.md", "projects/manifesto/concepts/apparatus-p1-persistence.md"]
+    },
+    "docs/adr/0002-apparatus-contract-first.md": {
+      "ingested_at": "2026-09-12T09:30:00Z",
+      "size_bytes": 4953,
+      "modified_at": "2026-09-12T07:49:16.933Z",
+      "content_hash": "sha256:8b3c54ee165c34e7854d62635a4518bfb82cd568c2d0e07139d094e5b592ed06",
+      "source_type": "document",
+      "project": "manifesto",
+      "pages_created": ["projects/manifesto/decisions/0002-apparatus-contracts.md"],
+      "pages_updated": ["projects/manifesto/concepts/apparatus-p0-contracts.md", "projects/manifesto/references/apparatus-implementation-plan.md"]
+    },
+    "docs/adr/0003-apparatus-untrusted-plugin.md": {
+      "ingested_at": "2026-09-12T09:30:00Z",
+      "size_bytes": 4109,
+      "modified_at": "2026-09-12T09:14:24.002Z",
+      "content_hash": "sha256:e735b944aa256a5dc5b410c0ccc1fc2a4c37fef30d9bab8f7ff02c298aaac502",
+      "source_type": "document",
+      "project": "manifesto",
+      "pages_created": ["projects/manifesto/decisions/0003-apparatus-untrusted.md"],
+      "pages_updated": ["projects/manifesto/decisions/index.md"]
+    },
+    "docs/adr/0004-apparatus-capability-gateway.md": {
+      "ingested_at": "2026-09-12T09:30:00Z",
+      "size_bytes": 5107,
+      "modified_at": "2026-09-12T09:02:49.066Z",
+      "content_hash": "sha256:cd293ce18a24878d2523b2c762eb864dfe98b548d6ddd2df8ea8f2fc191c1d05",
+      "source_type": "document",
+      "project": "manifesto",
+      "pages_created": ["projects/manifesto/decisions/0004-apparatus-gateway.md"],
+      "pages_updated": ["projects/manifesto/decisions/index.md"]
+    },
+    "docs/adr/0005-apparatus-same-protocol-valid-verified.md": {
+      "ingested_at": "2026-09-12T09:30:00Z",
+      "size_bytes": 4401,
+      "modified_at": "2026-09-12T09:14:25.794Z",
+      "content_hash": "sha256:3c10c2285b813e989203e07c23ebf40e19c64b5159857c928f9a6ad09f004dd9",
+      "source_type": "document",
+      "project": "manifesto",
+      "pages_created": ["projects/manifesto/decisions/0005-apparatus-protocol.md"],
+      "pages_updated": ["projects/manifesto/decisions/index.md"]
+    },
+    "docs/adr/README.md": {
+      "ingested_at": "2026-09-12T10:20:00Z",
+      "size_bytes": 9751,
+      "modified_at": "2026-09-12T10:07:38.728Z",
+      "content_hash": "sha256:5b0c9ae9b1b999f9357d124d9b10dd7ec440e8c9de016d1cbe30e67d53b6c73c",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": ["projects/aiforall/decisions/index.md"],
+      "pages_updated": ["projects/manifesto/decisions/index.md", "index.md"]
+    },
+    "docs/apparatus-p0-implementation-prompt.md": {
+      "ingested_at": "2026-09-11T05:45:00Z",
+      "size_bytes": 7815,
+      "modified_at": "2026-09-10T08:41:07.477Z",
+      "content_hash": "sha256:e2e18e251ec66a3c30b26ca8cc509c445d2c18178f1f2f35c9e19bc1e28a9e46",
+      "source_type": "document",
+      "project": "manifesto",
+      "pages_created": [
+        "projects/manifesto/concepts/apparatus-p0-contracts.md",
+        "projects/aiforall/skills/running-apparatus-p0-tests.md"
+      ],
+      "pages_updated": []
+    },
     "C:/Users/djden/.codex/attachments/486d0052-5759-4277-bcc1-9f209ce353d4/pasted-text.txt": {
       "ingested_at": "2026-09-09T18:05:29Z",
       "size_bytes": 40912,
@@ -3331,6 +3695,356 @@
         "projects/sentinel-sync/sentinel-sync.md",
         "projects/manifesto/concepts/component-instance-permissions.md"
       ]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/345e4ffb-1efa-4ee7-bcd9-a6a769cf9516/345e4ffb-1efa-4ee7-bcd9-a6a769cf9516.jsonl": {
+      "ingested_at": "2026-09-12T09:30:00Z",
+      "size_bytes": 114397,
+      "modified_at": "2026-09-12T07:45:41.789Z",
+      "content_hash": "sha256:365274b02714044d41691bb9f43b4fd34a6148cbadf78ca02aa0039639148fbf",
+      "source_type": "claude_conversation",
+      "project": "manifesto",
+      "pages_created": ["projects/manifesto/concepts/apparatus-p1-persistence.md"],
+      "pages_updated": ["projects/aiforall/references/cursor-history-2026-09.md"]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/5b38bc90-792f-4181-8fcd-11686b13f543/subagents/0373df26-dac8-41f9-ae99-c341878f6168.jsonl": {
+      "ingested_at": "2026-09-12T09:30:00Z",
+      "size_bytes": 17563,
+      "modified_at": "2026-09-11T06:06:28.562Z",
+      "content_hash": "sha256:ef870c8f967e22ef54227178589f1708e706fea4e7450a3bf59a8ce6a4a80b12",
+      "source_type": "cursor_subagent",
+      "project": "manifesto",
+      "pages_created": ["projects/manifesto/concepts/apparatus-p1-persistence.md"],
+      "pages_updated": ["projects/manifesto/references/apparatus-implementation-plan.md"]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/5b38bc90-792f-4181-8fcd-11686b13f543/subagents/688f5240-08ac-4f6e-94ce-323953bc759a.jsonl": {
+      "ingested_at": "2026-09-12T09:30:00Z",
+      "size_bytes": 36366,
+      "modified_at": "2026-09-11T06:02:37.832Z",
+      "content_hash": "sha256:2aba3cb12b39584a586c0ee58d7a8840393496ad6613945f1d6f1d48dadd1038",
+      "source_type": "cursor_subagent",
+      "project": "manifesto",
+      "pages_created": [],
+      "pages_updated": ["projects/manifesto/concepts/apparatus-p0-contracts.md"]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/688f5240-08ac-4f6e-94ce-323953bc759a/688f5240-08ac-4f6e-94ce-323953bc759a.jsonl": {
+      "ingested_at": "2026-09-12T09:30:00Z",
+      "size_bytes": 37284,
+      "modified_at": "2026-09-11T06:02:51.167Z",
+      "content_hash": "sha256:208d22215a31ca7d4b6543d4a412f1f5e7f1a2f3e71424d43cd9061edc374599",
+      "source_type": "claude_conversation",
+      "project": "manifesto",
+      "pages_created": ["journal/2026-09-12.md"],
+      "pages_updated": ["projects/manifesto/concepts/apparatus-p0-contracts.md", "projects/aiforall/references/cursor-history-2026-09.md"]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/688f5240-08ac-4f6e-94ce-323953bc759a/subagents/59202bd1-d0d7-488e-baf9-2ff650e02d4b.jsonl": {
+      "ingested_at": "2026-09-12T09:30:00Z",
+      "size_bytes": 30977,
+      "modified_at": "2026-09-11T05:57:46.715Z",
+      "content_hash": "sha256:1cae0a1929b3dda9244dee2a004b97f6d1a802b277b64aedea1bdf99fc02a8b2",
+      "source_type": "cursor_subagent",
+      "project": "manifesto",
+      "pages_created": [],
+      "pages_updated": ["projects/manifesto/concepts/apparatus-p0-contracts.md"]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/8e0500f9-8cee-43b6-b67c-630f573a7877/8e0500f9-8cee-43b6-b67c-630f573a7877.jsonl": {
+      "ingested_at": "2026-09-12T09:30:00Z",
+      "size_bytes": 19245,
+      "modified_at": "2026-09-12T08:48:42.445Z",
+      "content_hash": "sha256:598785b0d551d761793781bf1fe6350f94d901f0ec9bf964b691b0332f3a7245",
+      "source_type": "claude_conversation",
+      "project": "manifesto",
+      "pages_created": [],
+      "pages_updated": ["projects/aiforall/references/cursor-history-2026-09.md"]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/ba50e9a6-646f-4b29-b6f5-fcba07136bea/subagents/09f7b1d5-6183-4d65-ba76-a56c2fb27bf1.jsonl": {
+      "ingested_at": "2026-09-12T09:30:00Z",
+      "size_bytes": 46639,
+      "modified_at": "2026-09-12T09:12:37.495Z",
+      "content_hash": "sha256:8692aa9f6bd95ec57fcac6b750df925e40c4def000aed10be859aaa65f9b25a5",
+      "source_type": "cursor_subagent",
+      "project": "manifesto",
+      "pages_created": [],
+      "pages_updated": ["projects/manifesto/decisions/index.md"]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/ba50e9a6-646f-4b29-b6f5-fcba07136bea/subagents/13a0a309-6147-41d3-ab10-aea74a1d3c30.jsonl": {
+      "ingested_at": "2026-09-12T09:30:00Z",
+      "size_bytes": 24528,
+      "modified_at": "2026-09-12T08:12:02.186Z",
+      "content_hash": "sha256:257333d38554522d1b2e73f8faa8be96ad27c62e56680c3925e5819621086306",
+      "source_type": "cursor_subagent",
+      "project": "manifesto",
+      "pages_created": ["projects/manifesto/concepts/apparatus-p1-persistence.md"],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/ba50e9a6-646f-4b29-b6f5-fcba07136bea/subagents/345e4ffb-1efa-4ee7-bcd9-a6a769cf9516.jsonl": {
+      "ingested_at": "2026-09-12T09:30:00Z",
+      "size_bytes": 113645,
+      "modified_at": "2026-09-12T07:45:34.162Z",
+      "content_hash": "sha256:b6b771a563c1996744997a401b349a9c2ecef911e00f434ee8e9256982e7a68a",
+      "source_type": "cursor_subagent",
+      "project": "manifesto",
+      "pages_created": ["projects/aiforall/skills/running-apparatus-p1-tests.md"],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/ba50e9a6-646f-4b29-b6f5-fcba07136bea/subagents/3667fab4-f8e0-4406-8253-b38aab080812.jsonl": {
+      "ingested_at": "2026-09-12T09:30:00Z",
+      "size_bytes": 19081,
+      "modified_at": "2026-09-12T09:00:41.667Z",
+      "content_hash": "sha256:e249dc80c93789d40f18a388b7f6053eed646b84ccaf244bc814d6ff83abeadd",
+      "source_type": "cursor_subagent",
+      "project": "manifesto",
+      "pages_created": [],
+      "pages_updated": ["projects/manifesto/references/apparatus-implementation-plan.md"]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/ba50e9a6-646f-4b29-b6f5-fcba07136bea/subagents/45a931ef-b3c8-4943-a93f-c8d8272597eb.jsonl": {
+      "ingested_at": "2026-09-12T09:30:00Z",
+      "size_bytes": 12276,
+      "modified_at": "2026-09-12T07:21:32.008Z",
+      "content_hash": "sha256:7fd004b5357831786cef03d85d7e4b4f0ba95b72dc65deafa3b20dcbbe9877ec",
+      "source_type": "cursor_subagent",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": ["projects/aiforall/concepts/orchestrator-agent-harness.md"]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/ba50e9a6-646f-4b29-b6f5-fcba07136bea/subagents/4b8de4c6-a232-4df3-a8b4-705122fceef8.jsonl": {
+      "ingested_at": "2026-09-12T09:30:00Z",
+      "size_bytes": 26339,
+      "modified_at": "2026-09-12T09:10:01.533Z",
+      "content_hash": "sha256:0dadf29040ada5f3c394bea6f809ef3e99c8a5fa55b65f23c48b2432dfdffade",
+      "source_type": "cursor_subagent",
+      "project": "manifesto",
+      "pages_created": [],
+      "pages_updated": ["projects/manifesto/decisions/index.md"]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/ba50e9a6-646f-4b29-b6f5-fcba07136bea/subagents/63a12ded-24a1-4bce-a73b-58fe7297c882.jsonl": {
+      "ingested_at": "2026-09-12T09:30:00Z",
+      "size_bytes": 43176,
+      "modified_at": "2026-09-12T08:31:47.991Z",
+      "content_hash": "sha256:4a1cd5d8e0b57eac1e1fe3c13cc3603168f10f37e7b90d84b6d15121ee2edcd2",
+      "source_type": "cursor_subagent",
+      "project": "manifesto",
+      "pages_created": ["projects/manifesto/concepts/apparatus-p1-persistence.md"],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/ba50e9a6-646f-4b29-b6f5-fcba07136bea/subagents/78043f26-c754-4048-87a8-b35f1cbf13c7.jsonl": {
+      "ingested_at": "2026-09-12T09:30:00Z",
+      "size_bytes": 17080,
+      "modified_at": "2026-09-12T09:15:30.512Z",
+      "content_hash": "sha256:ff414c2f44436a22a4222f28d4e36463488c62aacb5edc3e70b59c227600ec23",
+      "source_type": "cursor_subagent",
+      "project": "manifesto",
+      "pages_created": [],
+      "pages_updated": ["projects/manifesto/decisions/index.md"]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/ba50e9a6-646f-4b29-b6f5-fcba07136bea/subagents/7d051a57-2de2-411a-bf3c-95c9a8e66e72.jsonl": {
+      "ingested_at": "2026-09-12T09:30:00Z",
+      "size_bytes": 37144,
+      "modified_at": "2026-09-12T07:25:18.321Z",
+      "content_hash": "sha256:67976800d18534ea4e5fc8aa4ba3489feabae6f1f4ec345b7e6504a9869b35c9",
+      "source_type": "cursor_subagent",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": ["projects/aiforall/concepts/orchestrator-agent-harness.md"]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/ba50e9a6-646f-4b29-b6f5-fcba07136bea/subagents/8e0500f9-8cee-43b6-b67c-630f573a7877.jsonl": {
+      "ingested_at": "2026-09-12T09:30:00Z",
+      "size_bytes": 18689,
+      "modified_at": "2026-09-12T08:48:37.311Z",
+      "content_hash": "sha256:42a38b02f91edaf54ebc3d2fb379f3b2699e960b5727845e33bfa902cfb4457b",
+      "source_type": "cursor_subagent",
+      "project": "manifesto",
+      "pages_created": [],
+      "pages_updated": ["projects/manifesto/references/apparatus-implementation-plan.md"]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/ba50e9a6-646f-4b29-b6f5-fcba07136bea/subagents/9585f224-fb8b-409d-b81f-bd152e254c95.jsonl": {
+      "ingested_at": "2026-09-12T09:30:00Z",
+      "size_bytes": 28154,
+      "modified_at": "2026-09-12T08:40:06.296Z",
+      "content_hash": "sha256:bc0827f5cadbdbc7c9eaafc63e4fc914c53192288c3d2d12007c5ac5aa1d5ec2",
+      "source_type": "cursor_subagent",
+      "project": "manifesto",
+      "pages_created": [],
+      "pages_updated": ["projects/manifesto/references/apparatus-implementation-plan.md"]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/ba50e9a6-646f-4b29-b6f5-fcba07136bea/subagents/a64d83e5-9574-4a47-8ef3-bbdb03205615.jsonl": {
+      "ingested_at": "2026-09-12T09:30:00Z",
+      "size_bytes": 25555,
+      "modified_at": "2026-09-12T09:04:03.467Z",
+      "content_hash": "sha256:3a43b0985fe1f4efead8132aa20c1b8acd7e31248c24205f1f36111b878140e1",
+      "source_type": "cursor_subagent",
+      "project": "manifesto",
+      "pages_created": ["projects/manifesto/decisions/0001-apparatus-binding.md", "projects/manifesto/decisions/0002-apparatus-contracts.md", "projects/manifesto/decisions/0003-apparatus-untrusted.md", "projects/manifesto/decisions/0004-apparatus-gateway.md", "projects/manifesto/decisions/0005-apparatus-protocol.md"],
+      "pages_updated": ["projects/manifesto/references/apparatus-implementation-plan.md"]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/ba50e9a6-646f-4b29-b6f5-fcba07136bea/subagents/b681db28-2956-4cc1-bb8f-3a2dac29a133.jsonl": {
+      "ingested_at": "2026-09-12T09:30:00Z",
+      "size_bytes": 39670,
+      "modified_at": "2026-09-12T08:03:20.402Z",
+      "content_hash": "sha256:d4ad0b541f89c569e629e299b689f848404733779f78406703658533e8dd3eb9",
+      "source_type": "cursor_subagent",
+      "project": "manifesto",
+      "pages_created": [],
+      "pages_updated": ["projects/manifesto/references/apparatus-implementation-plan.md"]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/ba50e9a6-646f-4b29-b6f5-fcba07136bea/subagents/c0284b08-ade6-4865-b97c-61798de43da5.jsonl": {
+      "ingested_at": "2026-09-12T09:30:00Z",
+      "size_bytes": 27686,
+      "modified_at": "2026-09-12T08:56:13.436Z",
+      "content_hash": "sha256:d071351ca5a96511119a4e92842e7aba01ff2380c5e58e91157bf19ef19c5eca",
+      "source_type": "cursor_subagent",
+      "project": "manifesto",
+      "pages_created": [],
+      "pages_updated": ["projects/manifesto/references/apparatus-implementation-plan.md"]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/ba50e9a6-646f-4b29-b6f5-fcba07136bea/subagents/e5fa8c13-7afd-40cb-a1fb-17d86dc094db.jsonl": {
+      "ingested_at": "2026-09-12T09:30:00Z",
+      "size_bytes": 15512,
+      "modified_at": "2026-09-12T07:26:12.860Z",
+      "content_hash": "sha256:fa22ca9a079c4094da0dc890e1b086e8fdcffc4044ac4151936710e5a21ca93a",
+      "source_type": "cursor_subagent",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": ["projects/aiforall/concepts/orchestrator-agent-harness.md", "projects/manifesto/concepts/apparatus-p1-persistence.md"]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/ba50e9a6-646f-4b29-b6f5-fcba07136bea/subagents/eaadac42-3780-413c-95a8-308c8f866f6c.jsonl": {
+      "ingested_at": "2026-09-12T09:30:00Z",
+      "size_bytes": 19821,
+      "modified_at": "2026-09-12T07:50:23.387Z",
+      "content_hash": "sha256:ca82f74a69605f8cd8da530ed3862658a845fa570bc6c3d4e7948c7cd6d79c40",
+      "source_type": "cursor_subagent",
+      "project": "manifesto",
+      "pages_created": [],
+      "pages_updated": ["projects/manifesto/concepts/apparatus-p0-contracts.md", "projects/aiforall/skills/running-apparatus-p0-tests.md"]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/e32d072c-e2be-42a4-82f4-2b6808695124/e32d072c-e2be-42a4-82f4-2b6808695124.jsonl": {
+      "ingested_at": "2026-09-12T09:30:00Z",
+      "size_bytes": 5795,
+      "modified_at": "2026-09-12T07:11:00.254Z",
+      "content_hash": "sha256:a1d3f9f4cf2752b16d7c1b73ce8aeb5f18aa2208f1c7123a3a7f0d2331bdd220",
+      "source_type": "claude_conversation",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": ["projects/aiforall/concepts/orchestrator-agent-harness.md"]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/e32d072c-e2be-42a4-82f4-2b6808695124/subagents/01fb9a30-9d6a-47ba-b810-72687bcda818.jsonl": {
+      "ingested_at": "2026-09-12T09:30:00Z",
+      "size_bytes": 13349,
+      "modified_at": "2026-09-12T07:10:14.837Z",
+      "content_hash": "sha256:311f1c9a61dc471d723576a85d3920f811df774d0d63551aa25e42daac005dea",
+      "source_type": "cursor_subagent",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": ["projects/aiforall/concepts/orchestrator-agent-harness.md"]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/f5e5a1e2-20b9-4794-95b0-c75b32a52fb4/f5e5a1e2-20b9-4794-95b0-c75b32a52fb4.jsonl": {
+      "ingested_at": "2026-09-12T09:30:00Z",
+      "size_bytes": 31602,
+      "modified_at": "2026-09-12T09:22:56.541Z",
+      "content_hash": "sha256:a09375a952bce36cbdf4236df199729d6f597198138d95444dc62e843295c43d",
+      "source_type": "claude_conversation",
+      "project": "aiforall",
+      "pages_created": ["journal/2026-09-12.md"],
+      "pages_updated": ["projects/aiforall/references/cursor-history-2026-09.md", "projects/aiforall/concepts/orchestrator-agent-harness.md", "index.md"]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/f5e5a1e2-20b9-4794-95b0-c75b32a52fb4/subagents/18f4af8b-f110-45c9-a3aa-a9835fef588a.jsonl": {
+      "ingested_at": "2026-09-12T09:30:00Z",
+      "size_bytes": 5519,
+      "modified_at": "2026-09-12T09:23:47.502Z",
+      "content_hash": "sha256:233531c4172c99f12de75b9bcddf37fd256b0aa96078236ba1074aefe9f62349",
+      "source_type": "cursor_subagent",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": ["projects/aiforall/concepts/orchestrator-agent-harness.md"]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/f5e5a1e2-20b9-4794-95b0-c75b32a52fb4/subagents/2c27f367-a250-4ffc-b61c-77393d6d0cb8.jsonl": {
+      "ingested_at": "2026-09-12T09:30:00Z",
+      "size_bytes": 30906,
+      "modified_at": "2026-09-12T07:18:03.776Z",
+      "content_hash": "sha256:123a97db53b0fccdf994435b3892b2dc565c65d201e465ee737b8397e9558611",
+      "source_type": "cursor_subagent",
+      "project": "manifesto",
+      "pages_created": [],
+      "pages_updated": ["projects/aiforall/concepts/orchestrator-agent-harness.md"]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/f5e5a1e2-20b9-4794-95b0-c75b32a52fb4/subagents/ba50e9a6-646f-4b29-b6f5-fcba07136bea.jsonl": {
+      "ingested_at": "2026-09-12T09:30:00Z",
+      "size_bytes": 67343,
+      "modified_at": "2026-09-12T09:16:09.740Z",
+      "content_hash": "sha256:c1f4cb5b31146e76cf8ac35c5f5dd42696a7e6b7b0b2e65ec0f8b83d92df0af5",
+      "source_type": "cursor_subagent",
+      "project": "manifesto",
+      "pages_created": ["projects/manifesto/concepts/apparatus-p1-persistence.md", "projects/aiforall/skills/running-apparatus-p1-tests.md"],
+      "pages_updated": ["projects/manifesto/references/apparatus-implementation-plan.md", "projects/manifesto/concepts/apparatus-platform.md"]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/f5e5a1e2-20b9-4794-95b0-c75b32a52fb4/subagents/f6b19baa-359b-41d4-831b-1ba39e021cf2.jsonl": {
+      "ingested_at": "2026-09-12T09:30:00Z",
+      "size_bytes": 7147,
+      "modified_at": "2026-09-12T09:21:00.273Z",
+      "content_hash": "sha256:5c5ace42196f988775337ca9dd49928cbfe06f2375b676fbb3f8b2df85e023b5",
+      "source_type": "cursor_subagent",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": ["projects/aiforall/concepts/orchestrator-agent-harness.md"]
+    },
+    "C:/Users/djden/.codex/sessions/2026/09/11/rollout-2026-09-11T13-40-54-01a09045-472c-7390-abf3-435e5a6e4c12.jsonl": {
+      "ingested_at": "2026-09-12T09:30:00Z",
+      "size_bytes": 98889,
+      "modified_at": "2026-09-11T11:40:54.446Z",
+      "content_hash": "sha256:46eccec681d9e4ae82c92cf04a3ad1550475f1289c0569fe51859a4d90e51b0f",
+      "source_type": "codex_rollout",
+      "project": "manifesto",
+      "pages_created": [],
+      "pages_updated": ["projects/manifesto/concepts/apparatus-p0-contracts.md", "journal/2026-09-12.md"]
+    },
+    "docs/adr/template.md": {
+      "ingested_at": "2026-09-12T09:30:00Z",
+      "size_bytes": 1131,
+      "modified_at": "2026-09-10T08:24:58.765Z",
+      "content_hash": "sha256:21f95b098ed21076b2d61f617f7701c8ede33053ac202a6602c40b60d31416c6",
+      "source_type": "document",
+      "project": "manifesto",
+      "pages_created": [],
+      "pages_updated": ["projects/manifesto/decisions/index.md"]
+    },
+    "docs/apparatus-p1-implementation-prompt.md": {
+      "ingested_at": "2026-09-12T09:30:00Z",
+      "size_bytes": 11218,
+      "modified_at": "2026-09-11T06:06:22.886Z",
+      "content_hash": "sha256:c0220cea9c19aa5fa6bf17f3140475b7a70af9a86e11ceae1e2fb82e12e374a4",
+      "source_type": "document",
+      "project": "manifesto",
+      "pages_created": ["projects/manifesto/concepts/apparatus-p1-persistence.md", "projects/aiforall/skills/running-apparatus-p1-tests.md"],
+      "pages_updated": ["projects/manifesto/references/apparatus-implementation-plan.md", "index.md"]
+    },
+    "docs/services/manifesto.md": {
+      "ingested_at": "2026-09-12T09:30:00Z",
+      "size_bytes": 3184,
+      "modified_at": "2026-09-12T09:14:33.328Z",
+      "content_hash": "sha256:6bf24bc4b8e4a560751b02261b9760399ec85e3f31b8291f53ce29576ba990f9",
+      "source_type": "document",
+      "project": "manifesto",
+      "pages_created": ["projects/aiforall/skills/running-apparatus-p1-tests.md"],
+      "pages_updated": ["projects/manifesto/references/apparatus-implementation-plan.md"]
+    },
+    ".cursor/agents/orchestrator.md": {
+      "ingested_at": "2026-09-12T09:30:00Z",
+      "size_bytes": 6843,
+      "modified_at": "2026-09-12T09:22:18.943Z",
+      "content_hash": "sha256:a8c4e447b538787be2292e47a7c02d927b6eafef2434d000efc20f630d1f31fb",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": ["projects/aiforall/concepts/orchestrator-agent-harness.md"]
+    },
+    ".serena/memories/constraints/no-muse-spark.md": {
+      "ingested_at": "2026-09-12T09:30:00Z",
+      "size_bytes": 384,
+      "modified_at": "2026-09-12T09:16:37.137Z",
+      "content_hash": "sha256:837f0f237b34ff85e60721d7726b3d433245e66af8a453f44035de35d42e661a",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": ["projects/aiforall/concepts/orchestrator-agent-harness.md", "journal/2026-09-12.md"]
     }
   }
 }

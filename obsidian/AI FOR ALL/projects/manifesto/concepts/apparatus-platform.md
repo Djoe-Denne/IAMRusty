@@ -11,19 +11,21 @@ sources:
   - Manifesto/application/src/usecase/component.rs
   - Manifesto/setup/src/app.rs
   - monolith/src/runtime.rs
-summary: "Vision future des Apparatus, confrontée au dépôt : périmètre, responsabilités, décisions proposées et parcours vers une plateforme d’extensions."
+  - apparatus-contracts/src/lib.rs
+  - docs/adr/0002-apparatus-contract-first.md
+summary: "Vision future des Apparatus, confrontée au dépôt : périmètre, responsabilités, décisions proposées et parcours vers une plateforme d’extensions. P0/P1 partiellement livrés."
 provenance:
   extracted: 0.55
   inferred: 0.45
   ambiguous: 0.0
 created: 2026-09-09T17:50:00Z
-updated: 2026-09-09T17:50:00Z
+updated: 2026-09-12T09:30:00Z
 ---
 
 # Apparatus — plateforme d’extensions future
 
 > [!important] Proposition, pas fonctionnalité livrée
-> Le document utilisateur exprime une intention produit. Le code du dépôt fait foi pour l’existant. Ce dossier reste le **rationnel de conception**. Les invariants de la vague 1 ont été ratifiés comme ADR **Accepted** dans `docs/adr/` (hub : [[projects/manifesto/decisions/index]]), mais leur champ `Réalité` reste `Partial` ou `Unimplemented` : Apparatus n’est pas une fonctionnalité livrée.
+> Le document utilisateur exprime une intention produit. Le code du dépôt fait foi pour l’existant. Ce dossier reste le **rationnel de conception**. Les invariants de la vague 1 sont ADR **Accepted** ([[projects/manifesto/decisions/index]]) avec `Réalité` **Partial**. P0 (contrats + KV de référence) est dans [[projects/manifesto/concepts/apparatus-p0-contracts]] ; P1 (persistance Manifesto, non commité) dans [[projects/manifesto/concepts/apparatus-p1-persistence]] ; Factory, contrôleur, gateway réseau et host UI restent absents.
 
 Un **Apparatus** apporte une capacité fonctionnelle à un projet : Git, wiki, kanban, CI ou outil spécialisé. Officiels et communautaires utilisent le même contrat. Le développeur fournit du Rust, éventuellement une interface statique, un manifeste et un dépôt Git ; la plateforme prend en charge la construction, la distribution et l’exécution. Ces exigences viennent du document fourni.
 
@@ -39,6 +41,8 @@ La base actuelle est [[projects/manifesto/concepts/component-based-project-orche
 | [[projects/manifesto/references/apparatus-factory-and-distribution]] | Manifeste, Git → OCI, builders, provenance et admission |
 | [[projects/manifesto/references/apparatus-ui-and-protocol]] | Host à créer, contrats SDK, iframe, handshake et contributions |
 | [[projects/manifesto/decisions/index]] | ADR Accepted (identité, contrats, confiance, gateway) et réalité d’implémentation |
+| [[projects/manifesto/concepts/apparatus-p0-contracts]] | Crates P0 livrées (validateur, digest, harness, KV de référence) |
+| [[projects/manifesto/concepts/apparatus-p1-persistence]] | Persistance P1 (extension 1:1, backfill, T1-T7) |
 | [[projects/manifesto/references/apparatus-implementation-plan]] | Migration par étapes, tests d’acceptation et arbitrages restants |
 
 ## Responsabilités proposées

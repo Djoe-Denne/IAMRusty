@@ -135,11 +135,26 @@ impl ComponentWriteRepositoryImpl {
         Self { db }
     }
 
+    /// Mappe une violation d'unicité DB (T3) vers un conflit 409.
+    ///
+    /// Sous course réelle, la contrainte `project_components_unique` tranche :
+    /// l'écriture fautive devient `ResourceAlreadyExists` (409), pas une
+    /// erreur interne (500). Le refus vient de la base, pas d'un `if` applicatif.
+    fn map_unique_conflict(err: sea_orm::DbErr, component_type: &str) -> DomainError {
+        if crate::apparatus_mapping::is_unique_violation(&err) {
+            DomainError::resource_already_exists("Component", component_type)
+        } else {
+            DomainError::internal_error(&err.to_string())
+        }
+    }
+
     /// Persist a component using an existing connection.
     ///
     /// # Errors
     ///
     /// Returns [`DomainError`] if the query, insert, or update fails.
+    /// A `UNIQUE` violation on `(project_id, component_type)` maps to
+    /// `ResourceAlreadyExists` (HTTP 409).
     pub async fn save_with_connection<C>(
         db: &C,
         component: &ProjectComponent,
@@ -157,12 +172,12 @@ impl ComponentWriteRepositoryImpl {
             active_model
                 .update(db)
                 .await
-                .map_err(|e| DomainError::internal_error(&e.to_string()))?
+                .map_err(|e| Self::map_unique_conflict(e, &component.component_type))?
         } else {
             active_model
                 .insert(db)
                 .await
-                .map_err(|e| DomainError::internal_error(&e.to_string()))?
+                .map_err(|e| Self::map_unique_conflict(e, &component.component_type))?
         };
         ComponentMapper::to_domain(model)
     }

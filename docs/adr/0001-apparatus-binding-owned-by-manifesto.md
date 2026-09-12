@@ -49,5 +49,5 @@ L’identité immuable d’une release et l’interdiction de `latest` relèvent
 ## Références
 
 - Wiki : `apparatus-bindings-and-lifecycle`, `apparatus-platform`, `apparatus-implementation-plan`, `component-instance-permissions`
-- Code : `Manifesto/domain/src/entity/project_component.rs`, `openfga/model.fga`, `apparatus-events/`
-- Preuve partielle : UUID, unicité SQL et ACL `component:{id}` existent (pré-P0) ; l’extension binding 1:1 Apparatus n’existe pas encore. P0 n’ajoute aucune persistance Manifesto : `Partial` reflète l’existant, pas un apport P0 (cohérent avec le plan P0 « aucune persistance »).
+- Code : `Manifesto/domain/src/entity/project_component.rs`, `openfga/model.fga`, `apparatus-events/`, `Manifesto/migration/src/m20260912_000012_create_apparatus_bindings_table.rs`, `Manifesto/infra/src/apparatus_backfill.rs`, `Manifesto/infra/src/apparatus_mapping.rs`, `Manifesto/infra/src/apparatus_outbox.rs`, `Manifesto/infra/src/transaction.rs`, `Manifesto/http/src/handlers/components.rs`
+- Preuve partielle (P1 2026-09-12, T1-T6 28/28 + mapping 5/5 + T7 3/3) : table `apparatus_bindings` 1:1 (`component_id` UNIQUE FK→`project_components.id` CASCADE, `digest` NULL, `source` legacy|managed), migration additive réversible up/down/up (T1 8/8) ; backfill `backfill_apparatus_legacy` explicite idempotent, `component_type` non réécrit (T2 5/5) ; mapping injectif (T3 4/4+5/5) ; alias `?binding` même `component_id` (T6 4/4). Consentement/génération non ajoutés (ADR dédiée avant P2), lease/fencing P2 → `Partial` maintenu.

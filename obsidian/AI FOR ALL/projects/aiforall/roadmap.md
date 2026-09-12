@@ -5,7 +5,7 @@ tags: [platform, testing, database, events, visibility/internal]
 summary: "Roadmap AIForAll : fiabilité des services actuels et future plateforme Apparatus, avec migration, runtime isolé, Factory et UI."
 status: in-progress
 created: 2026-04-25T11:42:00Z
-updated: 2026-09-09T17:50:00Z
+updated: 2026-09-11T05:45:00Z
 sources:
   - "C:/Users/djden/.codex/attachments/486d0052-5759-4277-bcc1-9f209ce353d4/pasted-text.txt"
 provenance:
@@ -122,11 +122,9 @@ Not on the April list, but now load-bearing:
 
 ## Future feature — Apparatus platform
 
-La demande du 9 septembre 2026 ajoute une plateforme d’extensions Rust et UI statiques, officielles ou communautaires, construites depuis Git et distribuées par artifacts immuables. Le dossier [[projects/manifesto/concepts/apparatus-platform]] l’inscrit comme **fonctionnalité future**, sans changer le statut des chantiers existants.
+La demande du 9 septembre 2026 reste une plateforme d’extensions (Factory, runtime isolé, host UI). **P0 est livré** : [[projects/manifesto/concepts/apparatus-p0-contracts]]. Factory, contrôleur et host n’existent toujours pas. Écarts : [[projects/manifesto/references/apparatus-source-reconciliation]].
 
-Le dépôt possède déjà `ProjectComponent`, les ACL et l’outbox utiles à une migration ; il ne possède pas encore la Factory, le contrôleur Apparatus ou le host UI. Les écarts sont consignés dans [[projects/manifesto/references/apparatus-source-reconciliation]].
-
-Ordre proposé : contrats et Apparatus de référence → persistance/catalogue/migration additive → reconciler testé → capacités/identité/stockage → Factory et runtime Kubernetes → host UI/parcours complet → qualification communautaire. V1 managed avec isolation par projet, digest figé et consentement explicite. Les modes mutualisés, SaaS externes, WASI et scale-to-zero restent ultérieurs. ^[inferred]
+Ordre : **contrats P0 (fait)** → persistance/catalogue/migration additive → reconciler testé → capacités/identité/stockage réseau → Factory et runtime → host UI. V1 managed : isolation par projet, digest figé, consentement explicite. Mutualisé / SaaS / WASI / scale-to-zero hors V1. ^[inferred]
 
 Critère de sortie : soumettre un commit, construire une release, installer un binding autorisé, utiliser son UI puis le révoquer/supprimer avec preuves d’isolation et reprise après panne. Phases, tests et arbitrages : [[projects/manifesto/references/apparatus-implementation-plan]]. ^[inferred]
 

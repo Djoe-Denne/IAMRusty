@@ -12,19 +12,29 @@ sources:
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/2924d20c-07e2-4741-a4aa-f3eb9e48c5ca/2924d20c-07e2-4741-a4aa-f3eb9e48c5ca.jsonl
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/3c82c7d9-a42d-448f-8573-90ed739ba6b6/3c82c7d9-a42d-448f-8573-90ed739ba6b6.jsonl
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/11c01523-bb74-444a-ac31-44384d63de7d/11c01523-bb74-444a-ac31-44384d63de7d.jsonl
+  - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/442685dd-30ba-4a9d-b59b-f8ae6aa47b9a/442685dd-30ba-4a9d-b59b-f8ae6aa47b9a.jsonl
+  - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/d0c9b007-93a2-4cec-814a-155dcbb74d59/d0c9b007-93a2-4cec-814a-155dcbb74d59.jsonl
+  - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/5b38bc90-792f-4181-8fcd-11686b13f543/5b38bc90-792f-4181-8fcd-11686b13f543.jsonl
+  - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/9c672b13-9a03-4aeb-b35a-bf8a682f0bd6/9c672b13-9a03-4aeb-b35a-bf8a682f0bd6.jsonl
+  - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/688f5240-08ac-4f6e-94ce-323953bc759a/688f5240-08ac-4f6e-94ce-323953bc759a.jsonl
+  - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/345e4ffb-1efa-4ee7-bcd9-a6a769cf9516/345e4ffb-1efa-4ee7-bcd9-a6a769cf9516.jsonl
+  - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/e32d072c-e2be-42a4-82f4-2b6808695124/e32d072c-e2be-42a4-82f4-2b6808695124.jsonl
+  - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/8e0500f9-8cee-43b6-b67c-630f573a7877/8e0500f9-8cee-43b6-b67c-630f573a7877.jsonl
+  - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/f5e5a1e2-20b9-4794-95b0-c75b32a52fb4/f5e5a1e2-20b9-4794-95b0-c75b32a52fb4.jsonl
+  - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/6de9b375-2f3a-4301-9342-b9a00323c9a8/6de9b375-2f3a-4301-9342-b9a00323c9a8.jsonl
 summary: >-
-  Distilled eight Cursor parent sessions after 2026-09-02: visibility/join, Manifesto AuthZ correction, rustycog main pin, CI tuple reads.
+  Cursor septembre 2026 : AuthZ Manifesto, ADR Apparatus puis vague 2 (0100–0502), P0/P1, Grok-only.
 provenance:
-  extracted: 0.70
-  inferred: 0.25
+  extracted: 0.72
+  inferred: 0.23
   ambiguous: 0.05
 created: 2026-09-09T16:45:00Z
-updated: 2026-09-09T16:45:00Z
+updated: 2026-09-12T10:20:00Z
 ---
 
 # Cursor history September 2026
 
-Follows [[projects/aiforall/references/cursor-history-2026-04-to-08]]. Subagent jsonl skipped. Distilled by topic.
+Follows [[projects/aiforall/references/cursor-history-2026-04-to-08]]. Parent jsonl only. Distilled by topic.
 
 ## Visibility and join (2–5 Sep)
 
@@ -54,8 +64,37 @@ A leftover OpenFGA Write without an **active** `project_members` row is 403. Tes
 
 Clippy/Sonar passes on unpushed files and a coverage-to-80% test plan ran the same day. Treat as quality work, not a product-rule change. ^[inferred]
 
+## Apparatus ADR then P0 (10–11 Sep)
+
+- Notes conception → ADR `docs/adr/0001`–`0005` **Accepted**, `Réalité` distincte. Hub [[projects/manifesto/decisions/index]].
+- Triple review ADR vs wiki (cohérence / sécurité / implémentation, deux avis chacun). Les contre-reviews proposent des trajectoires minimales. ^[inferred]
+- Harnais [[projects/aiforall/concepts/orchestrator-agent-harness]] : Muse trop coûteux remplacé par Grok Extra High pour le quotidien.
+- P0 : [[projects/manifesto/concepts/apparatus-p0-contracts]]. Revue 2 Grok + 1 Muse → harness feature-gaté, puis 37 tests.
+
+## P0 audit then P1 (11–12 Sep)
+
+- Twin read-only P0 audits (Cursor + Codex, same verdict): P0 done with non-blocking reserves → P0.1. Standalone P1 prompt written (`docs/apparatus-p1-implementation-prompt.md`).
+- P1 executed TDD-strict: duel gather → unique resolution → RED socle → P0.1 (42/42 + `apparatus-p0` CI job) → slices T1-T7 (36 tests) → reviewed Phase E docs. Total 78, uncommitted. See [[projects/manifesto/concepts/apparatus-p1-persistence]].
+- ADR wave 1 enriched with P0.1/P1 proofs (`Partial` kept, `Accepted` untouched). Pages: [[projects/manifesto/decisions/index]].
+- Model policy: Spark Max first in the morning, then user **banned Muse Spark** — Grok 4.6 Extra High only. See [[projects/aiforall/concepts/orchestrator-agent-harness]].
+- P2 implementation prompt in preparation (Grok-only constraint up front).
+
+## Vague 2 retrospective ADRs (12 Sep midday)
+
+User asked for exhaustive retrospective ADRs (hexagon, crate responsibilities, IT, mocks vs real infra). Orchestrator + five `adr-*` agents (Grok Extra High) wrote `docs/adr/0100`–`0502`. Numbering is **by range**, not `0006` after Apparatus. Hub: [[projects/aiforall/decisions/index]].
+
+Durable claims:
+
+- Four business services = RustyCog vertical slices ; `setup` = only composition root ; commands registered by string key.
+- IT = real HTTP + real DB ; WireMock = outbound HTTP only ; OpenFGA = real testcontainer. Producer queues opt-in ; Telegraph suite still queue-on (**Partial** 0202).
+- `*-events` = contract, not transport. **NATS is not a transport.** Outbox same-txn Hive/Manifesto only (**Partial** 0301).
+- Dual runtime standalones + `oodhive-monolith`. Apparatus crates = P0 only (**Partial** 0406). Sonar `new_coverage` 80 % not met (**Partial** 0501).
+
 ## Related
 
+- [[journal/2026-09-12]]
+- [[journal/2026-09-11]]
 - [[journal/2026-09-09]]
 - [[projects/manifesto/concepts/org-owned-visibility-and-participation-limits]]
 - [[projects/aiforall/concepts/rustycog-git-submodule]]
+- [[projects/aiforall/concepts/orchestrator-agent-harness]]

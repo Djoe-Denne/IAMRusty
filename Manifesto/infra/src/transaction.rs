@@ -501,6 +501,20 @@ impl ProjectAuthorizationUnitOfWork for ProjectAuthorizationUnitOfWorkImpl {
                 &txn, &component,
             )
             .await?;
+            if create_acl {
+                // T5 : extension 1:1 `managed` (T1) committée avec le composant neuf,
+                // même transaction que l'ACL instance et l'outbox (atomicité T4).
+                // Création seule : les mises à jour ne touchent pas au binding.
+                txn.execute(Statement::from_sql_and_values(
+                    DbBackend::Postgres,
+                    "INSERT INTO apparatus_bindings (component_id, source) VALUES ($1, 'managed')",
+                    [component.id.into()],
+                ))
+                .await
+                .map_err(|e| {
+                    ApplicationError::Internal(format!("failed to record apparatus binding: {e}"))
+                })?;
+            }
             record_events(&self.outbox, &txn, &events).await?;
             Ok::<_, ApplicationError>(saved)
         }

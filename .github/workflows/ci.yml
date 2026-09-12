@@ -107,6 +107,28 @@ jobs:
       - name: Build service
         run: cargo build --locked --all-targets ${{ matrix.package_args }}
 
+  apparatus-p0:
+    name: Apparatus P0 (contracts + reference-kv)
+    runs-on: ubuntu-latest
+    needs: [fmt]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: apparatus-p0
+          cache-on-failure: true
+
+      - name: Test apparatus-contracts (with test-harness)
+        run: cargo test -p apparatus-contracts --features test-harness
+
+      - name: Test apparatus-reference-kv
+        run: cargo test -p apparatus-reference-kv
+
   coverage-integration:
     name: Coverage - integration (${{ matrix.service }})
     runs-on: ubuntu-latest
@@ -163,6 +185,14 @@ jobs:
               --package manifesto-http_server
               --package manifesto-setup
               --package manifesto-configuration
+          - service: Apparatus
+            cache_key: apparatus
+            artifact_name: lcov-integration-apparatus
+            output_path: lcov-integration-apparatus.info
+            package_args: >-
+              --package apparatus-contracts
+              --package apparatus-reference-kv
+              --features apparatus-contracts/test-harness
     steps:
       - uses: actions/checkout@v4
         with:

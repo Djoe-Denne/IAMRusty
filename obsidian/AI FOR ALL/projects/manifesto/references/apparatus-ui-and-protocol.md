@@ -8,15 +8,16 @@ sources:
   - "C:/Users/djden/.codex/attachments/486d0052-5759-4277-bcc1-9f209ce353d4/pasted-text.txt"
   - Manifesto/http/src/lib.rs
   - apparatus-events/src/component.rs
+  - apparatus-contracts/src/protocol.rs
   - https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/iframe
   - https://developer.mozilla.org/en-US/docs/Web/API/Window/postMessage
-summary: "Host UI encore absent, contrat statique, sandbox cross-origin, bridge de capacités, protocole backend versionné et conformance future."
+summary: "Host UI absent ; DTO protocole P0 dans apparatus-contracts, sans transport HTTP."
 provenance:
-  extracted: 0.3
-  inferred: 0.7
+  extracted: 0.45
+  inferred: 0.55
   ambiguous: 0.0
 created: 2026-09-09T17:50:00Z
-updated: 2026-09-09T17:50:00Z
+updated: 2026-09-11T05:45:00Z
 ---
 
 # Apparatus — UI, SDK et protocole
@@ -83,7 +84,7 @@ Thème, locale et densité sont des métadonnées validées, sans secret. Le pac
 
 ## Protocole backend cible
 
-Les endpoints suivants appartiennent au **workload privé**. Ils ne sont ni de nouvelles routes existantes de Manifesto, ni des URLs remises au navigateur. Ils devront être normalisés dans un contrat versionné. ^[inferred]
+Les DTO discovery / health / bind / configure / invoke / unbind existent dans `apparatus-contracts` (`protocol.rs`, `manifesto-apparatus/1`). P0 n’a **pas** de transport HTTP : le harness in-process les rejoue. Voir [[projects/manifesto/concepts/apparatus-p0-contracts]]. Les endpoints restent un contrat de **workload privé**, pas de nouvelles routes Manifesto.
 
 | Opération | Contrat candidat |
 |---|---|

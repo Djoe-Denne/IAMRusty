@@ -2,14 +2,17 @@
 title: Wiki Index
 category: navigation
 tags: [index, navigation, wiki]
-summary: "Index du wiki AIForAll : services actuels, corrections AuthZ et dossier Apparatus comme fonctionnalité future."
+summary: "Index du wiki AIForAll : services, ADR vague 2 (0100–0502), P0/P1 Apparatus, harnais orchestrator Grok-only."
 provenance:
   extracted: 0.75
   inferred: 0.23
   ambiguous: 0.02
-updated: 2026-09-09T17:50:00Z
+updated: 2026-09-12T10:20:00Z
 sources:
   - "C:/Users/djden/.codex/attachments/486d0052-5759-4277-bcc1-9f209ce353d4/pasted-text.txt"
+  - docs/adr/README.md
+  - docs/apparatus-p0-implementation-prompt.md
+  - docs/apparatus-p1-implementation-prompt.md
 ---
 
 # Wiki Index
@@ -35,15 +38,27 @@ Central entry point for this vault. Use the area indexes for full catalogs; use 
 - [[projects/rustycog/rustycog]] — shared Rust SDK (crate map: [[projects/rustycog/references/index]])
 - [[projects/sentinel-sync/sentinel-sync]] — centralized OpenFGA authorization and the sync worker
 
-## Fonctionnalité future — Apparatus
+## Architecture — ADR
 
-- [[projects/manifesto/decisions/index]] — ADR Accepted ; réalité `Partial` ou `Unimplemented` (`docs/adr/`).
-- [[projects/manifesto/concepts/apparatus-platform]] — vision et rationnel de conception, distincts de l’existant.
-- [[projects/manifesto/references/apparatus-source-reconciliation]] — audit du dépôt et écarts avec le document utilisateur.
-- [[projects/manifesto/references/apparatus-implementation-plan]] — migration, étapes et critères d’acceptation.
+- [[projects/aiforall/decisions/index]] — vague 2 rétroactive (0100–0502) : hexagone, tests, events, services, plateforme.
+- [[projects/manifesto/decisions/index]] — vague 1 Apparatus Accepted ; réalité `Partial` (`docs/adr/`).
+
+## Fonctionnalité — Apparatus
+
+- [[projects/manifesto/concepts/apparatus-p0-contracts]] — crates P0 livrées + audit + P0.1 42/42.
+- [[projects/manifesto/concepts/apparatus-p1-persistence]] — persistance P1 T1-T7 (non commitée).
+- [[projects/manifesto/concepts/apparatus-platform]] — vision ; Factory/host encore absents.
+- [[projects/manifesto/references/apparatus-implementation-plan]] — phases et preuves P0/P1.
 
 ## Recent Additions
 
+- [[projects/aiforall/decisions/index]] — 21 ADR rétroactives 0100–0502.
+- [[journal/2026-09-12]] — audit P0, P1 TDD 78 tests, ban Muse Spark, vague 2 ADR.
+- [[projects/aiforall/skills/running-apparatus-p1-tests]] — `cargo test --test apparatus_p1_t* -- --test-threads=1`.
+- [[projects/manifesto/decisions/0001-apparatus-binding]] — [[projects/manifesto/decisions/0005-apparatus-protocol]] — pages ADR vague 1.
+- [[journal/2026-09-11]] — ADR, harnais orchestrator, P0 crates + tests.
+- [[projects/aiforall/concepts/orchestrator-agent-harness]] — contrôle plane Cursor.
+- [[projects/aiforall/skills/running-apparatus-p0-tests]] — `cargo test --features test-harness`.
 - [[journal/2026-09-09]] — eight Cursor sessions since last wiki sync.
 - [[projects/aiforall/references/cursor-history-2026-09]] — visibility/join, AuthZ correction, rustycog `main` pin.
 - [[projects/manifesto/concepts/immediate-membership-acl]] — DB membership gate; Suspended admin-only.

@@ -29,19 +29,24 @@ sources:
   - rustycog/rustycog-testing/src/common/openfga_testcontainer.rs
   - Manifesto/tests/common.rs
   - Manifesto/tests/sqs_event_routing_tests.rs
+  - docs/adr/0200-it-infra-reelle-rustycog-testing.md
+  - docs/adr/0201-mocks-http-sortant-seulement.md
+  - docs/adr/0202-transport-opt-in-queues-desactivees.md
 summary: >-
-  Repo services favor real DB, queue, and protocol fixtures; OpenFGA authorization tests now use a real testcontainer while HTTP collaborators still use typed wiremock wrappers.
+  IT = real HTTP/DB/JWT via rustycog-testing. WireMock = outbound HTTP only. OpenFGA = testcontainer. Producer queues opt-in (ADR 0200–0202).
 provenance:
-  extracted: 0.74
-  inferred: 0.15
-  ambiguous: 0.11
+  extracted: 0.78
+  inferred: 0.14
+  ambiguous: 0.08
 created: 2026-04-14T17:46:37.6929647Z
-updated: 2026-04-25T11:25:00Z
+updated: 2026-09-12T10:20:00Z
 ---
 
 # Integration Testing with Real Infrastructure
 
-`<!-- [[projects/iamrusty/iamrusty]] -->`, `<!-- [[projects/telegraph/telegraph]] -->`, `<!-- [[projects/hive/hive]] -->`, and `<!-- [[projects/manifesto/manifesto]] -->` all lean on integration tests that exercise real transport, database, and application state instead of treating orchestration code as something to mock away. The concrete stacks differ, but the repo-wide testing instinct is the same.
+`<!-- [[projects/iamrusty/iamrusty]] -->`, `<!-- [[projects/telegraph/telegraph]] -->`, `<!-- [[projects/hive/hive]] -->`, and `<!-- [[projects/manifesto/manifesto]] -->` all lean on integration tests that exercise real transport, database, and application state instead of treating orchestration code as something to mock away.
+
+Décision canonique (12 sept. 2026) : [[projects/aiforall/decisions/0200-strategie-tests]] (ADR 0200–0202).
 
 ## Key Ideas
 
@@ -55,18 +60,19 @@ updated: 2026-04-25T11:25:00Z
 - Hive's org/member/external-link tests use real JWTs, DB fixtures, and a Wiremock-backed external-provider service to verify authorization, persistence, and integration behavior through the live HTTP server.
 - Hive, IAMRusty, and Manifesto now share the named-queue SQS assertion shape: drain each relevant queue, act through the live HTTP API, assert the event appears on the mapped destination queue, and assert the default queue remains empty.
 - Telegraph's queue-driven tests publish `iam_events` payloads through the SQS fixture, then poll SMTP or the database until the expected email or notification record appears.
-- Outbound HTTP collaborators are faked through a single shared wiremock singleton bound to `127.0.0.1:3000`, exposed by [[projects/rustycog/references/wiremock-mock-server-fixture]]; per-collaborator wrappers (`ExternalProviderMockService` in Hive, `SmtpService` in Telegraph) hold the fixture handle and expose typed `mock_*` methods so tests stay declarative. The recipe behind these wrappers is captured in [[skills/stubbing-http-with-wiremock]].
+- Outbound HTTP collaborators are faked through WireMock: shared singleton `MockServerFixture::new` (`127.0.0.1:3000`) **or** `isolated()` (Manifesto catalogue). Per-collaborator wrappers (`ExternalProviderMockService` in Hive, `SmtpService` in Telegraph, GitHub/GitLab in IAM) expose typed `mock_*` methods. Recipe: [[skills/stubbing-http-with-wiremock]]. **Not** for OpenFGA `Check` (ADR 0201).
 - Telegraph keeps both a wiremock-backed `SmtpService` and a real MailHog `TestSmtp` testcontainer side by side: the former is used when the test asserts on what Telegraph would send, the latter when the test needs a real listener and round-trip parsing. ^[inferred]
-- Permission-gated routes (services that wire [[projects/rustycog/references/rustycog-permission]] through `with_permission_on`) now test against [[projects/rustycog/references/openfga-real-testcontainer-fixture]]. The real fixture denies by default, so happy-path tests seed tuples with `openfga.allow(...)`; denial tests usually arrange no tuple. Tests that exercise grant ➜ revoke ➜ deny semantics still need `openfga.cache_ttl_seconds = 0` so the production `CachedPermissionChecker` does not mask the second decision.
+- Permission-gated routes now test against [[projects/rustycog/references/openfga-real-testcontainer-fixture]]. The type `OpenFgaMockService` **no longer exists**. Default deny ; happy-path `openfga.allow(...)`. IAM keeps `has_openfga() == false`.
 - OpenFGA test configs follow the same random-port convention as DB and SQS: `[openfga] scheme = "http"`, `host = "localhost"`, `port = 0`. `OpenFgaClientConfig::actual_port()` in [[projects/rustycog/references/rustycog-config]] resolves and caches the host port, then the fixture publishes the resolved `SCHEME`/`HOST`/`PORT` env vars before the app boots.
 - Anonymous-public-read tests (`.might_be_authenticated()` routes that should let unauthenticated callers reach a public resource) arrange the wildcard form via `openfga.allow_wildcard(action, resource)` / `deny_wildcard(action, resource)`. The middleware consults the checker with `Subject::wildcard()` instead of failing closed on missing JWT — see [[concepts/anonymous-public-read-via-wildcard-subject]]. The end-to-end production path requires `sentinel-sync` to write the matching tuples on visibility changes.
 - IAMRusty, Hive, and Manifesto now all cover producer-side named-queue SQS routing; Telegraph remains the consumer-side SQS plus SMTP example. All four real-infrastructure variants are first-class in this repo.
 
 ## Open Questions
 
-- The repo still does not present one unified rule for when services should prefer Kafka fixtures versus SQS and SMTP fixture stacks for event-heavy tests. ^[ambiguous]
-- Event verification depth still varies by service: IAMRusty, Hive, and Manifesto verify producer-side SQS routing, while Telegraph verifies consumer side effects. ^[inferred]
-- Telegraph's polling loops and second-long sleeps are practical for async delivery verification, but the suite would be faster if the shared harness exposed stronger event-completion signals. ^[inferred]
+- Kafka vs SQS as the default event fixture remains unresolved in the wiki and in ADR 0202 « Non décidé ici ». ^[ambiguous]
+- Event verification depth still varies: IAM/Hive/Manifesto producer-side SQS vs Telegraph consumer side effects. ^[inferred]
+- Telegraph polling/sleeps vs a harness completion signal — still open (ADR 0202). ^[inferred]
+- Align Telegraph producer-style opt-in (`enabled = false`) or freeze the consumer-always-on exception — Partial 0202.
 
 ## Sources
 

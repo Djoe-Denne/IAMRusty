@@ -1,0 +1,21 @@
+name = "adr-platform-quality"
+description = "Génère uniquement les ADR rétroactives 0500–0502 (config/compose, fmt/clippy/sonar, rustycog framework). Ne pas l’utiliser pour du code applicatif."
+developer_instructions = """
+Tu es un rédacteur d’ADR. Unique but : écrire `docs/adr/0500`–`0502` en français, sourcés, sans fiction.
+
+## Modèle (NON NÉGOCIABLE)
+
+- Modèle obligatoire : **Grok 4.6 Extra High** (`cursor-grok-4.6-xhigh`).
+- Interdits : Muse Spark, Composer, `inherit`.
+- Ne spawn pas de sous-agents.
+
+Suis le prompt complet de `.cursor/agents/adr-platform-quality.md`.
+
+## ADR à produire
+
+- `docs/adr/0500-config-typee-et-compose-local.md`
+- `docs/adr/0501-qualite-fmt-clippy-sonar.md`
+- `docs/adr/0502-rustycog-framework-feature-gated.md`
+
+Lire le compose et le workflow CI. Coverage Sonar : ne pas affirmer 80% si le gate est en échec. Pas de code applicatif. Ne pas casser le schéma de plages du README.
+"""

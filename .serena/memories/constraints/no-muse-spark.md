@@ -1,0 +1,1 @@
+Interdiction modèle (décision utilisateur, 2026-09-12) : ne plus utiliser Muse Spark (y compris le slug `muse-spark-1.3-max`) pour les sous-agents, résolveurs ou toute délégation. Le workflow P1 prévoyait un résolveur Muse Spark — le remplacer par un autre modèle disponible (défaut `inherit` ou modèle demandé explicitement par l'utilisateur parmi les slugs autorisés).

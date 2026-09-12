@@ -17,13 +17,14 @@ sources:
   - Manifesto/docs/rustycog-service-build-guide.md
   - Manifesto/docs/rustycog-hexagonal-web-service-guide.md
   - Manifesto/docs/rustycog-implementation-and-usage-guide.md
-summary: "Manifesto : service projet actuel, ACL et composants ; dossier Apparatus futur avec migration des bindings, Factory, isolation et host UI."
+  - docs/adr/0401-manifesto-projets-composants-acl-cas.md
+summary: "Manifesto : slice hexagonale (ADR 0401) ; Apparatus P0 contrats + P1 persistance, pas Factory/host."
 provenance:
-  extracted: 0.75
-  inferred: 0.23
+  extracted: 0.76
+  inferred: 0.22
   ambiguous: 0.02
 created: 2026-04-14T16:54:59.5971424Z
-updated: 2026-09-09T17:50:00Z
+updated: 2026-09-12T10:20:00Z
 ---
 
 # Manifesto
@@ -55,13 +56,13 @@ Manifesto is the project-management service for AIForAll. Use `[[projects/rustyc
 - Apparatus status consumption is wired into startup when queue config resolves to a real consumer, while checked-in local/test configs keep queues disabled by default.
 - `ComponentResponse.endpoint` and `access_token` still remain unset, so component provisioning handoff is the main product boundary that is still deliberately narrow.
 - Partial project/member/component writes use [[concepts/optional-field-update]] (`FieldUpdate::Unchanged` vs `Set`) instead of nested `Option`.
-- Manifesto remains the golden-path scaffold in [[concepts/architecture-coherence-across-services]], except for hand-rolled logging.
+- Manifesto remains the golden-path scaffold in [[concepts/architecture-coherence-across-services]] (logging désormais `setup_logging`, ADR 0100).
 
-## Apparatus — fonctionnalité future
+## Apparatus
 
-Le dossier [[projects/manifesto/concepts/apparatus-platform]] décrit la plateforme d’extensions souhaitée, confrontée au dépôt du 9 septembre 2026. Le code actuel offre `ProjectComponent`, un client catalogue HTTP et un consumer de statuts ; il n’offre pas encore la Factory Git/OCI, le contrôleur de workloads ou le host UI.
+Le rationnel reste [[projects/manifesto/concepts/apparatus-platform]]. **P0** (contrats, digest, harness, KV) : [[projects/manifesto/concepts/apparatus-p0-contracts]]. **P1** persistance binding (TDD, non commité) : [[projects/manifesto/concepts/apparatus-p1-persistence]]. Factory / host / gateway restent hors livré (ADR 0406).
 
-Les invariants de la vague 1 sont ratifiés dans [[projects/manifesto/decisions/index]], avec une réalité `Partial` ou `Unimplemented`. Ils conservent les UUID et les droits `component:{id}`, ajoutent le binding en relation 1:1 et séparent son desired state des observations runtime. Le catalogue métier reste dans Manifesto ; le code auteur doit rester hors des processus privilégiés. Voir [[projects/manifesto/concepts/apparatus-bindings-and-lifecycle]] et [[projects/manifesto/references/apparatus-implementation-plan]].
+Les ADR vague 1 sont **Accepted** ([[projects/manifesto/decisions/index]]) avec `Réalité` **Partial**. La photographie du service actuel : ADR 0401 — [[projects/aiforall/decisions/0400-services-runtime]].
 
 ## Related
 
@@ -83,7 +84,7 @@ Les invariants de la vague 1 sont ratifiés dans [[projects/manifesto/decisions/
 ## Open Questions
 
 - Later work: L-PARTNERSHIP remains open on [[projects/manifesto/concepts/org-owned-visibility-and-participation-limits]]. Join, Internal, immediate ACL, and restore/CAS shipped 2026-09.
-- Apparatus provisioning fait désormais l’objet d’une proposition dédiée : [[projects/manifesto/concepts/apparatus-platform]]. Les arbitrages encore ouverts sont listés dans son plan d’implémentation.
+- Apparatus : P0 + P1 persistance (non commité) dans le workspace ; Factory/host/gateway ouverts. Plan : [[projects/manifesto/references/apparatus-implementation-plan]]. ADR 0406.
 - If queue-backed operation becomes more common outside local/test, should the checked-in config examples start surfacing explicit broker settings?
 
 ## Sources

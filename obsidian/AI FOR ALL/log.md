@@ -245,3 +245,16 @@ title: Wiki Log
 - [2026-09-09T18:05:29Z] INGEST source="C:/Users/djden/.codex/attachments/486d0052-5759-4277-bcc1-9f209ce353d4/pasted-text.txt" pages_updated=12 pages_created=7 mode=append topic=apparatus-future-platform evidence_commit=bbf236eee7b5be08477de3ed30d34c6ff280e81b
 - [2026-09-10T06:23:00Z] QUERY query="première milestone d'implémentation Apparatus (factory, SDK, ou premier Apparatus), architecture/design/code sans déploiement" result_pages=7 mode=normal escalated=false
 - [2026-09-10T06:32:00Z] QUERY query="passer les propositions Apparatus sous forme d'ADR" result_pages=8 mode=normal escalated=false
+- [2026-09-11T05:45:00Z] INGEST source="docs/adr/" pages_updated=12 pages_created=4 mode=append topic=apparatus-adr-and-p0
+- [2026-09-11T05:45:00Z] CLAUDE_HISTORY_INGEST projects=1 conversations=4 pages_updated=12 pages_created=4 mode=append source=cursor-transcripts since=2026-09-09T16:45:00Z
+- [2026-09-11T05:45:00Z] WIKI_UPDATE project=aiforall pages_updated=12 pages_created=4 source_cwd=C:/Users/djden/source/repos/AIForAll last_commit_synced=f6d2931 topic=apparatus-p0-and-orchestrator-harness
+- [2026-09-12T09:30:00Z] INGEST source="docs/adr/" pages_updated=3 pages_created=5 mode=append topic=apparatus-adr-p1-proofs files=7
+- [2026-09-12T09:30:00Z] INGEST source="docs/apparatus-p1-implementation-prompt.md" pages_updated=2 pages_created=2 mode=append topic=apparatus-p1-prompt
+- [2026-09-12T09:30:00Z] INGEST source="docs/services/manifesto.md" pages_updated=1 pages_created=1 mode=append topic=apparatus-p1-service-doc
+- [2026-09-12T09:30:00Z] CLAUDE_HISTORY_INGEST projects=1 conversations=7 pages_updated=9 pages_created=8 mode=append source=cursor-transcripts since=2026-09-11T05:45:00Z files=31 subagents_included=true
+- [2026-09-12T09:30:00Z] CODEX_HISTORY_INGEST sessions=1 pages_updated=2 pages_created=0 mode=append source=codex-rollout cwd=AIForAll topic=p0-audit-readonly
+- [2026-09-12T09:30:00Z] WIKI_UPDATE project=aiforall pages_updated=9 pages_created=8 source_cwd=C:/Users/djden/source/repos/AIForAll last_commit_synced=f6d2931 topic=apparatus-p1-and-adr-sync
+- [2026-09-12T10:20:00Z] INGEST source="docs/adr/" pages_updated=15 pages_created=6 mode=append topic=vague-2-hexagone-tests-events-services-plateforme files=22
+- [2026-09-12T10:20:00Z] INGEST source="C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/6de9b375-2f3a-4301-9342-b9a00323c9a8/6de9b375-2f3a-4301-9342-b9a00323c9a8.jsonl" pages_updated=4 pages_created=6 mode=append topic=chat-adr-retroactives
+
+

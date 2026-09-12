@@ -15,18 +15,21 @@ sources:
   - Hive/tests/sqs_event_routing_tests.rs
   - Manifesto/tests/common.rs
   - Manifesto/tests/sqs_event_routing_tests.rs
-summary: Workflow for using rustycog-testing to bootstrap service tests, prefixed URLs, SQS fanout fixtures, real infrastructure, and wiremock fakes.
+  - docs/adr/0200-it-infra-reelle-rustycog-testing.md
+  - docs/adr/0201-mocks-http-sortant-seulement.md
+  - docs/adr/0202-transport-opt-in-queues-desactivees.md
+summary: Workflow rustycog-testing (ADR 0200–0202): serveur réel, URLs préfixées, WireMock sortant, OpenFGA réel, files producteur opt-in.
 provenance:
   extracted: 0.88
   inferred: 0.08
   ambiguous: 0.04
 created: 2026-04-15T17:15:56.0808743Z
-updated: 2026-09-09T16:45:00Z
+updated: 2026-09-12T10:20:00Z
 ---
 
 # Using RustyCog Testing
 
-Use this guide when setting up integration tests with `<!-- [[projects/rustycog/references/rustycog-testing]] -->`.
+Use this guide when setting up integration tests with `<!-- [[projects/rustycog/references/rustycog-testing]] -->`. Canon : [[projects/aiforall/decisions/0200-strategie-tests]].
 
 ## Workflow
 

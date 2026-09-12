@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::Json,
 };
@@ -11,8 +11,38 @@ use manifesto_application::{
 use rustycog::command::CommandContext;
 use rustycog::http::{AppState, AuthUser, OptionalAuthUser, ValidatedJson};
 use rustycog::permission::ResourceId;
+use serde::Deserialize;
+use uuid::Uuid;
 
 use crate::error::{error_mapper, HttpError};
+
+/// Query for the Apparatus binding alias (P1 T6).
+///
+/// `binding` is an alias of the path `component_id` (1:1 identity).
+/// Same id, same resource, no second resource.
+#[derive(Debug, Clone, Copy, Default, Deserialize)]
+pub struct BindingAliasQuery {
+    /// Alias value, when present it must equal the path id.
+    pub binding: Option<Uuid>,
+}
+
+/// Resolve the Apparatus binding alias to its component id.
+///
+/// `None` keeps legacy behavior. A value equal to the path id resolves
+/// to that same id. A distinct value is rejected with 404: the alias
+/// never points at another id.
+fn resolve_apparatus_binding_alias(
+    path_id: Uuid,
+    query: &BindingAliasQuery,
+) -> Result<Uuid, HttpError> {
+    match query.binding {
+        None => Ok(path_id),
+        Some(binding) if binding == path_id => Ok(path_id),
+        Some(other) => Err(HttpError::NotFound {
+            message: format!("Binding alias {other} does not match component {path_id}"),
+        }),
+    }
+}
 
 /// Add a component to a project
 /// POST /`api/projects/{project_id}/components`
@@ -53,6 +83,7 @@ pub async fn add_component(
 pub async fn get_component(
     State(state): State<AppState>,
     Path((project_id, component_id)): Path<(ResourceId, ResourceId)>,
+    Query(alias): Query<BindingAliasQuery>,
     auth_user: OptionalAuthUser,
 ) -> Result<Json<ComponentResponse>, HttpError> {
     tracing::info!(
@@ -61,8 +92,9 @@ pub async fn get_component(
         project_id
     );
 
+    let resolved = resolve_apparatus_binding_alias(component_id.id(), &alias)?;
     let user_id = auth_user.user_id();
-    let command = GetComponentCommand::new(project_id.id(), component_id.id(), user_id);
+    let command = GetComponentCommand::new(project_id.id(), resolved, user_id);
     let mut context = CommandContext::new();
 
     if let Some(user_id) = user_id {
