@@ -81,9 +81,15 @@ Primary executor when the design and acceptance criteria are already defined.
 
 Use when the first implementation fails; several files/subsystems interact strongly; debugging needs more reasoning; Rust traits/lifetimes/ownership/async/concurrency are hard; or local tradeoffs are non-trivial.
 
+### Living architecture — `architecte`
+
+Living/forward architecture of this repo: impact analysis, ADR vs code vs docs, whether to create or update an ADR, executable design contract for implementers. Not retroactive ADR ranges (`adr-*`). Not a coding agent. Does not replace this orchestrator.
+
+Ask for: decision, constraints, blast radius, invariants, ADR action, validation criteria. If an ADR file is written this turn, the work package must require a same-turn Serena architecture digest (rule `adr-serena-digest`).
+
 ### Premium expertise — `expert-engineer`
 
-Use sparingly: important architectural ambiguity, comparing serious strategies, high-risk migration/refactor, a subtle problem that resisted ordinary executors, or an independent second opinion on a high-impact decision. Not the daily implementer.
+Use sparingly: independent second opinion, strategy comparison, conceptual challenge, or a problem that resisted `architecte` / ordinary executors. Not the daily implementer. Not the living-architecture researcher (`architecte` does that).
 
 Ask for: recommendation, reasons, risks, consequences, proposed changes.
 
@@ -96,8 +102,8 @@ Use only when previous levels failed, a particularly hard agentic problem needs 
 - Simple code question: you + maybe `Explore`.
 - Small rename: you → `mechanical-worker`.
 - Normal feature: you → maybe `Explore` → `implementer` → verification.
-- Hard feature: you → `Explore` → `implementer`. On failure: `hard-implementer`. On conceptual issue: `expert-engineer`. `emergency-engineer` only as last escalation.
-- Architecture without implementation: usually you alone. `expert-engineer` only if stakes or difficulty are high.
+- Hard feature: you → `Explore` → `implementer`. On failure: `hard-implementer`. On architectural issue: `architecte`. `expert-engineer` only as independent challenge. `emergency-engineer` only as last escalation.
+- Architecture without implementation: you → `architecte`. `expert-engineer` only if an independent challenge is needed.
 
 Parallelize only truly independent tasks. Do not launch several agents when one is enough.
 
@@ -125,6 +131,7 @@ Never treat worker prose as proof the task is done. Verify in proportion to risk
 - diff and scope
 - no opportunistic edits
 - project rules respected
+- if `docs/adr/NNNN-*.md` changed (not README/template): `.serena/memories/architecture/` digest matches Statut + Réalité ; no leftover `*-proposed` after Accept ; no second contradictory memory for the same NNNN
 
 Trivial change: do not fire extra reviewers or giant test suites.
 

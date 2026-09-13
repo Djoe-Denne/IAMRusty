@@ -1,0 +1,23 @@
+---
+description: Same-turn Serena architecture digest when an ADR is written or its Statut/Réalité changes
+globs: docs/adr/**/*.md,.serena/memories/architecture/**
+alwaysApply: false
+---
+
+# ADR → digest Serena (même tour)
+
+Canon = `docs/adr/NNNN-*.md`. Serena = digest, jamais au-dessus. Pas de hook : un hook ne peut pas résumer une ADR.
+
+## Quand (obligatoire)
+
+Toute création, Accept, ou changement de `Statut` / `Réalité` d’un fichier `docs/adr/NNNN-*.md` (pas `README.md` ni `template.md`) : **dans le même tour**, créer / mettre à jour / supprimer le digest `.serena/memories/architecture/` via MCP Serena (`write_memory` / `edit_memory` / `rename_memory` / `delete_memory`).
+
+## Quoi
+
+- Nom : `architecture/<jalon>-adr-NNNN` (ex. `architecture/apparatus-p2-adr-0006`). **Interdit** de laisser `*-proposed` une fois `Statut: Accepted`.
+- Corps : jalon, chemin ADR, Statut, Réalité, 3–6 puces max, « voir le fichier ADR ». Pas de dump. Pas d’affirmer T2–T7 interdits si le canon dit le contraire.
+- SuperSède : le digest pointe SuperSède / SuperSédée par, ou `delete_memory`.
+
+## Hors scope
+
+Wiki, prompts `docs/*-implementation-prompt.md`, handbook, ECC, recopier l’ADR entière, deux mémoires contradictoires pour le même NNNN.
