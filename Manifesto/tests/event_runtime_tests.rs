@@ -8,9 +8,11 @@ use chrono::{Duration, Utc};
 use manifesto_domain::{
     entity::ProjectComponent, service::ComponentService, value_objects::ComponentStatus,
 };
-use manifesto_infra::{ApparatusEventConsumer, ComponentStatusProcessor};
+use manifesto_infra::{
+    ApparatusBindingSourceLookup, ApparatusEventConsumer, ComponentStatusProcessor,
+};
 use rustycog::config::{KafkaConfig, QueueConfig};
-use rustycog::core::error::DomainError;
+use rustycog::core::error::{DomainError, ServiceError};
 use uuid::Uuid;
 
 #[derive(Clone)]
@@ -122,6 +124,18 @@ impl ComponentService for InMemoryComponentService {
     }
 }
 
+struct AbsentBindingSource;
+
+#[async_trait]
+impl ApparatusBindingSourceLookup for AbsentBindingSource {
+    async fn source_for_component(
+        &self,
+        _component_id: Uuid,
+    ) -> Result<Option<manifesto_infra::ApparatusBindingSource>, ServiceError> {
+        Ok(None)
+    }
+}
+
 fn build_pending_component(project_id: Uuid, component_type: &str) -> ProjectComponent {
     ProjectComponent::new(project_id, component_type.to_string())
         .expect("test component should be valid")
@@ -134,7 +148,10 @@ async fn test_apparatus_consumer_is_noop_when_queue_is_disabled() {
         project_id,
         "taskboard",
     )));
-    let processor = Arc::new(ComponentStatusProcessor::new(component_service));
+    let processor = Arc::new(ComponentStatusProcessor::new(
+        component_service,
+        Arc::new(AbsentBindingSource),
+    ));
 
     let consumer = ApparatusEventConsumer::new(&QueueConfig::Disabled, processor)
         .await
@@ -150,7 +167,10 @@ async fn test_apparatus_consumer_bootstraps_safely_with_enabled_kafka_config() {
         project_id,
         "taskboard",
     )));
-    let processor = Arc::new(ComponentStatusProcessor::new(component_service));
+    let processor = Arc::new(ComponentStatusProcessor::new(
+        component_service,
+        Arc::new(AbsentBindingSource),
+    ));
 
     let kafka_config = KafkaConfig {
         enabled: true,
@@ -174,7 +194,8 @@ async fn test_component_status_processor_applies_incoming_status_changes() {
         project_id,
         "taskboard",
     )));
-    let processor = ComponentStatusProcessor::new(component_service.clone());
+    let processor =
+        ComponentStatusProcessor::new(component_service.clone(), Arc::new(AbsentBindingSource));
     let changed_at = Utc::now() - Duration::minutes(5);
 
     processor
@@ -200,7 +221,8 @@ async fn test_component_status_processor_treats_duplicate_delivery_as_noop() {
         project_id,
         "taskboard",
     )));
-    let processor = ComponentStatusProcessor::new(component_service.clone());
+    let processor =
+        ComponentStatusProcessor::new(component_service.clone(), Arc::new(AbsentBindingSource));
     let first_changed_at = Utc::now() - Duration::minutes(10);
     let duplicate_changed_at = Utc::now();
 
@@ -246,7 +268,8 @@ async fn test_component_status_processor_ignores_stale_events() {
     let original_activated_at = component.activated_at;
 
     let component_service = Arc::new(InMemoryComponentService::new(component));
-    let processor = ComponentStatusProcessor::new(component_service.clone());
+    let processor =
+        ComponentStatusProcessor::new(component_service.clone(), Arc::new(AbsentBindingSource));
 
     processor
         .process(ComponentStatusChangedEvent::new(
@@ -272,7 +295,7 @@ async fn test_component_status_processor_rejects_unknown_status() {
         project_id,
         "taskboard",
     )));
-    let processor = ComponentStatusProcessor::new(component_service);
+    let processor = ComponentStatusProcessor::new(component_service, Arc::new(AbsentBindingSource));
 
     let result = processor
         .process(ComponentStatusChangedEvent::new(

@@ -84,5 +84,6 @@ manifesto-setup = { path = "setup" }
 sentinel-sync = { path = "../sentinel-sync" }
 rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full", "test-utils"] }
 apparatus-events = { path = "../apparatus-events" }
+apparatus-contracts = { path = "../apparatus-contracts" }
 
 

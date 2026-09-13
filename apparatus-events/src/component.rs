@@ -18,6 +18,8 @@ pub struct ComponentStatusChangedEvent {
     pub old_status: String,
     pub new_status: String,
     pub changed_at: DateTime<Utc>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub binding_id: Option<Uuid>,
 }
 
 impl ComponentStatusChangedEvent {
@@ -36,6 +38,7 @@ impl ComponentStatusChangedEvent {
             old_status,
             new_status,
             changed_at,
+            binding_id: None,
         }
     }
 }

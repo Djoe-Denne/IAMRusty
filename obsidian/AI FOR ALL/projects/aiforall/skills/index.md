@@ -17,4 +17,6 @@ updated: 2026-09-11T05:45:00Z
 - [[projects/aiforall/skills/fixing-sonar-clippy-in-services]]
 - [[projects/aiforall/skills/running-parallel-sonar-lanes]]
 - [[projects/aiforall/skills/running-apparatus-p0-tests]]
+- [[projects/aiforall/skills/running-apparatus-p1-tests]]
+- [[projects/aiforall/skills/running-apparatus-p2-tests]]
 - Repo handbook (not a vault page): `docs/README.md` — JWT, nouveau service, parcours métier. Agent skill `.agents/skills/aiforall-new-service/SKILL.md`.

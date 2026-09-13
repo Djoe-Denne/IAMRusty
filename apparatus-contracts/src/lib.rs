@@ -38,7 +38,7 @@ pub use limits::{
     MAX_SCHEMA_PATH_LEN,
 };
 pub use manifest::{ApparatusManifest, ApparatusMeta, BackendDecl, CapabilitiesDecl};
-pub use ports::KvStore;
+pub use ports::{ApparatusRuntime, KvStore, RuntimeObservation};
 pub use protocol::{
     new_operation_id, BindRequest, BindResponse, ConfigureRequest, ConfigureResponse,
     DiscoveryDocument, DiscoveryEndpoints, HealthResponse, HealthStatus, InvokeRequest,

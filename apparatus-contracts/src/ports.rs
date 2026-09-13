@@ -6,6 +6,9 @@
 
 use crate::error::ApparatusError;
 use crate::ids::BindingId;
+use crate::protocol::{
+    BindRequest, BindResponse, ConfigureRequest, ConfigureResponse, UnbindRequest, UnbindResponse,
+};
 
 /// Stockage KV abstrait `kv-v1`, fourni par l'hôte (harness en P0).
 ///
@@ -37,4 +40,53 @@ pub trait KvStore: Send + Sync {
 
     /// Purge le namespace d'un binding.
     fn kv_purge(&self, binding: &BindingId);
+}
+
+/// Observation déterministe d'un binding (digest appliqué + génération).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RuntimeObservation {
+    /// Digest observé, s'il y a une instance attachée.
+    pub digest: Option<String>,
+    /// Génération observée (0 = jamais appliqué).
+    pub generation: u64,
+}
+
+/// Port sync du cycle de vie Apparatus (comme [`KvStore`] : pas de Tokio).
+///
+/// Pas d'`invoke`. Pas d'`ensure_instance` / `release`.
+pub trait ApparatusRuntime: Send + Sync {
+    /// Attache un binding (idempotent par `operation_id`).
+    ///
+    /// # Errors
+    ///
+    /// Retourne [`ApparatusError`] si la requête est hors bornes.
+    fn bind(&self, req: &BindRequest) -> Result<BindResponse, ApparatusError>;
+
+    /// Remplace la configuration d'un binding.
+    ///
+    /// # Errors
+    ///
+    /// Retourne [`ApparatusError`] si le binding est inconnu ou hors bornes.
+    fn configure(&self, req: &ConfigureRequest) -> Result<ConfigureResponse, ApparatusError>;
+
+    /// Détache un binding (idempotent par `operation_id`).
+    ///
+    /// # Errors
+    ///
+    /// Retourne [`ApparatusError`] si le binding est inconnu hors rejeu.
+    fn unbind(&self, req: &UnbindRequest) -> Result<UnbindResponse, ApparatusError>;
+
+    /// Observe l'instance attachée.
+    ///
+    /// # Errors
+    ///
+    /// Retourne [`ApparatusError`] si l'observation est impossible.
+    fn observe(&self, binding: &BindingId) -> Result<RuntimeObservation, ApparatusError>;
+
+    /// Démontage idempotent (pas de `release`).
+    ///
+    /// # Errors
+    ///
+    /// Réservé aux adaptateurs qui ne peuvent pas garantir l'idempotence.
+    fn teardown(&self, binding: &BindingId) -> Result<(), ApparatusError>;
 }

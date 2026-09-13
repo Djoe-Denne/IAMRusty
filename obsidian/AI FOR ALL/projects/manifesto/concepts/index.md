@@ -27,6 +27,8 @@ sources:
 - [[projects/manifesto/decisions/index]] — ADR Apparatus (vague 1) + extrait 0401/0406.
 - [[projects/aiforall/decisions/index]] — ADR architecture actuelle (vague 2).
 - [[projects/manifesto/concepts/apparatus-p0-contracts]] — crates P0 livrées.
+- [[projects/manifesto/concepts/apparatus-p1-persistence]] — persistance P1.
+- [[projects/manifesto/concepts/apparatus-p2-reconciliation]] — T1 events ; P2 contrôleur **non** livré (ADR-0006 Proposed).
 - [[projects/manifesto/concepts/apparatus-platform]] — vision et frontières.
 - [[projects/manifesto/concepts/apparatus-bindings-and-lifecycle]] — identités, migration et réconciliation.
 - [[projects/manifesto/concepts/apparatus-capabilities-and-isolation]] — identité, droits, réseau et données.

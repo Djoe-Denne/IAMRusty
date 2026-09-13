@@ -502,18 +502,16 @@ impl ProjectAuthorizationUnitOfWork for ProjectAuthorizationUnitOfWorkImpl {
             )
             .await?;
             if create_acl {
-                // T5 : extension 1:1 `managed` (T1) committée avec le composant neuf,
-                // même transaction que l'ACL instance et l'outbox (atomicité T4).
+                // T5/T3 : extension 1:1 `managed`, desired_generation=1, next_retry_at=now(),
+                // même transaction que l'ACL instance et l'outbox.
                 // Création seule : les mises à jour ne touchent pas au binding.
-                txn.execute(Statement::from_sql_and_values(
-                    DbBackend::Postgres,
-                    "INSERT INTO apparatus_bindings (component_id, source) VALUES ($1, 'managed')",
-                    [component.id.into()],
-                ))
-                .await
-                .map_err(|e| {
-                    ApplicationError::Internal(format!("failed to record apparatus binding: {e}"))
-                })?;
+                crate::apparatus_outbox::insert_managed_binding(&txn, component.id)
+                    .await
+                    .map_err(|e| {
+                        ApplicationError::Internal(format!(
+                            "failed to record apparatus binding: {e}"
+                        ))
+                    })?;
             }
             record_events(&self.outbox, &txn, &events).await?;
             Ok::<_, ApplicationError>(saved)
@@ -534,6 +532,28 @@ impl ProjectAuthorizationUnitOfWork for ProjectAuthorizationUnitOfWorkImpl {
             })?;
         let result = async {
             lock_project_row(&txn, project_id).await?;
+            if let Some(row) = crate::apparatus_outbox::load_binding_cleanup_row(&txn, component_id)
+                .await
+                .map_err(|e| {
+                    ApplicationError::Internal(format!("failed to read apparatus binding: {e}"))
+                })?
+            {
+                if crate::apparatus_outbox::cleanup_job_required(&row) {
+                    crate::apparatus_outbox::insert_cleanup_job(
+                        &txn,
+                        component_id,
+                        project_id,
+                        row.desired_generation,
+                        row.digest,
+                    )
+                    .await
+                    .map_err(|e| {
+                        ApplicationError::Internal(format!(
+                            "failed to record apparatus cleanup job: {e}"
+                        ))
+                    })?;
+                }
+            }
             crate::repository::ComponentWriteRepositoryImpl::delete_with_connection(
                 &txn,
                 &component_id,

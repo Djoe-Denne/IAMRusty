@@ -5,15 +5,26 @@ use apparatus_events::ComponentStatusChangedEvent;
 use manifesto_domain::{service::ComponentService, value_objects::ComponentStatus};
 use rustycog::core::error::ServiceError;
 use tracing::{info, warn};
+use uuid::Uuid;
+
+use crate::apparatus_binding_source::{ApparatusBindingSource, ApparatusBindingSourceLookup};
 
 /// Processor for component status changed events
 pub struct ComponentStatusProcessor {
     component_service: Arc<dyn ComponentService>,
+    source_lookup: Arc<dyn ApparatusBindingSourceLookup>,
 }
 
 impl ComponentStatusProcessor {
-    pub fn new(component_service: Arc<dyn ComponentService>) -> Self {
-        Self { component_service }
+    #[must_use]
+    pub fn new(
+        component_service: Arc<dyn ComponentService>,
+        source_lookup: Arc<dyn ApparatusBindingSourceLookup>,
+    ) -> Self {
+        Self {
+            component_service,
+            source_lookup,
+        }
     }
 
     fn parse_status(raw_status: &str, field_name: &str) -> Result<ComponentStatus, ServiceError> {
@@ -28,16 +39,22 @@ impl ComponentStatusProcessor {
     ///
     /// # Errors
     ///
-    /// Returns [`ServiceError`] if a status cannot be parsed, the component cannot be
-    /// loaded or updated, or the status transition is rejected.
+    /// Returns [`ServiceError`] if the binding source cannot be read, a status cannot
+    /// be parsed, the component cannot be loaded or updated, or the status
+    /// transition is rejected.
     pub async fn process(&self, event: ComponentStatusChangedEvent) -> Result<(), ServiceError> {
-        let expected_old_status = Self::parse_status(&event.old_status, "old_status")?;
-        let target_status = Self::parse_status(&event.new_status, "new_status")?;
         let mut component = self
             .component_service
             .get_component_by_type(&event.project_id, &event.component_type)
             .await
             .map_err(ServiceError::from)?;
+
+        if self.ignore_managed_binding(&event, component.id).await? {
+            return Ok(());
+        }
+
+        let expected_old_status = Self::parse_status(&event.old_status, "old_status")?;
+        let target_status = Self::parse_status(&event.new_status, "new_status")?;
 
         info!(
             event_id = %event.base.event_id,
@@ -112,5 +129,30 @@ impl ComponentStatusProcessor {
         );
 
         Ok(())
+    }
+
+    async fn ignore_managed_binding(
+        &self,
+        event: &ComponentStatusChangedEvent,
+        component_id: Uuid,
+    ) -> Result<bool, ServiceError> {
+        match self
+            .source_lookup
+            .source_for_component(component_id)
+            .await?
+        {
+            Some(ApparatusBindingSource::Managed) => {
+                info!(
+                    event_id = %event.base.event_id,
+                    project_id = %event.project_id,
+                    component_type = %event.component_type,
+                    component_id = %component_id,
+                    binding_id = ?event.binding_id,
+                    "Ignoring apparatus component status event for managed binding"
+                );
+                Ok(true)
+            }
+            Some(ApparatusBindingSource::Legacy) | None => Ok(false),
+        }
     }
 }

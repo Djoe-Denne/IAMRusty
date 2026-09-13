@@ -4,9 +4,9 @@ category: references
 tags: [architecture, components, visibility/internal]
 status: accepted
 feature_status: partial
-summary: "Hub ADR Apparatus Accepted ; Réalité Partial. P0 = contrats + KV de référence, P1 = persistance Manifesto, pas Factory ni host."
+summary: "Hub ADR Apparatus 0001–0006 Accepted / Réalité Partial. P0 = contrats, P1 = persistance, P2 = réconciliation in-process (pas Factory ni host)."
 created: 2026-09-10T06:32:00Z
-updated: 2026-09-12T10:20:00Z
+updated: 2026-09-12T13:45:00Z
 sources:
   - docs/adr/README.md
   - docs/adr/0001-apparatus-binding-owned-by-manifesto.md
@@ -14,6 +14,7 @@ sources:
   - docs/adr/0003-apparatus-untrusted-plugin.md
   - docs/adr/0004-apparatus-capability-gateway.md
   - docs/adr/0005-apparatus-same-protocol-valid-verified.md
+  - docs/adr/0006-apparatus-p2-reconciliation-in-process.md
   - docs/adr/0401-manifesto-projets-composants-acl-cas.md
   - docs/adr/0406-crates-apparatus-p0-pas-le-host.md
 provenance:
@@ -40,8 +41,9 @@ Les ADR Apparatus ci-dessous sont **Accepted** depuis la ratification orchestré
 | [0003](../../../../../docs/adr/0003-apparatus-untrusted-plugin.md) — [[projects/manifesto/decisions/0003-apparatus-untrusted]] | Code auteur hors des processus privilégiés | Partial |
 | [0004](../../../../../docs/adr/0004-apparatus-capability-gateway.md) — [[projects/manifesto/decisions/0004-apparatus-gateway]] | Gateway de capacités ; KV plateforme ; pas de bearer IAM | Partial |
 | [0005](../../../../../docs/adr/0005-apparatus-same-protocol-valid-verified.md) — [[projects/manifesto/decisions/0005-apparatus-protocol]] | Même protocole ; admission, `VALID`, `VERIFIED` et installabilité distincts | Partial |
+| [0006](../../../../../docs/adr/0006-apparatus-p2-reconciliation-in-process.md) — [[projects/manifesto/decisions/0006-apparatus-p2-reconciliation]] | Réconciliation P2 = contrôleur in-process Manifesto, sans infra réelle | Partial |
 
-Preuve P0 (contrats, pas persistance) : [[projects/manifesto/concepts/apparatus-p0-contracts]]. Preuve P1 (persistance, non commitée) : [[projects/manifesto/concepts/apparatus-p1-persistence]]. Les 5 ADR restent `Partial` : décisions `Accepted` intactes, preuves P0.1/P1 ajoutées le 12 sept. (review + contre-review docs, compteurs 36/42/78).
+Preuve P0 : [[projects/manifesto/concepts/apparatus-p0-contracts]]. Preuve P1 : [[projects/manifesto/concepts/apparatus-p1-persistence]]. ADR-0006 Accepted 2026-09-12 (checklist A–M) ; Réalité Partial (T1 vert, T2–T7 = tests). Le wiki bindings/plan reste conception.
 
 ## Conception (pas des ADR)
 

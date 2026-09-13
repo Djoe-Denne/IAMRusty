@@ -30,7 +30,7 @@ Canon : `docs/adr/0001-apparatus-binding-owned-by-manifesto.md`. Hub : [[project
 ## Réalité : Partial
 
 - P1 (2026-09-12) : table `apparatus_bindings` 1:1, migration réversible (T1 8/8), backfill legacy idempotent (T2 5/5), mapping injectif (T3), alias `?binding` même `component_id` (T6). Voir [[projects/manifesto/concepts/apparatus-p1-persistence]].
-- Manquants : consentement/génération (ADR dédiée avant P2), lease/fencing (P2).
+- Manquants : consentement/génération/lease/fencing (ADR-0006 **Proposed**, pas Accepted). T1 isolation events managed livrée (conséquence ADR-0001, pas une ratification P2).
 
 ## Non décidé ici
 

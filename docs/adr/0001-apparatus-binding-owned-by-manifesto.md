@@ -43,11 +43,11 @@ L’identité immuable d’une release et l’interdiction de `latest` relèvent
 
 - `APP-02` (qui publie / installe).
 - `APP-07` (changement d’organisation ou déplacement du projet). Le transfert d’un rôle owner déjà livré ne réécrit pas l’identité du composant.
-- Worker, lease, fencing (P2).
+- Worker, lease, fencing (P2) — [ADR-0006](0006-apparatus-p2-reconciliation-in-process.md) **Proposed**, pas Accepted.
 - Conservation d’une intention de nettoyage avant la cascade SQL, exigée avant l’activation de tout workload.
 
 ## Références
 
 - Wiki : `apparatus-bindings-and-lifecycle`, `apparatus-platform`, `apparatus-implementation-plan`, `component-instance-permissions`
 - Code : `Manifesto/domain/src/entity/project_component.rs`, `openfga/model.fga`, `apparatus-events/`, `Manifesto/migration/src/m20260912_000012_create_apparatus_bindings_table.rs`, `Manifesto/infra/src/apparatus_backfill.rs`, `Manifesto/infra/src/apparatus_mapping.rs`, `Manifesto/infra/src/apparatus_outbox.rs`, `Manifesto/infra/src/transaction.rs`, `Manifesto/http/src/handlers/components.rs`
-- Preuve partielle (P1 2026-09-12, T1-T6 28/28 + mapping 5/5 + T7 3/3) : table `apparatus_bindings` 1:1 (`component_id` UNIQUE FK→`project_components.id` CASCADE, `digest` NULL, `source` legacy|managed), migration additive réversible up/down/up (T1 8/8) ; backfill `backfill_apparatus_legacy` explicite idempotent, `component_type` non réécrit (T2 5/5) ; mapping injectif (T3 4/4+5/5) ; alias `?binding` même `component_id` (T6 4/4). Consentement/génération non ajoutés (ADR dédiée avant P2), lease/fencing P2 → `Partial` maintenu.
+- Preuve partielle (P1 2026-09-12, T1-T6 28/28 + mapping 5/5 + T7 3/3) : table `apparatus_bindings` 1:1 (`component_id` UNIQUE FK→`project_components.id` CASCADE, `digest` NULL, `source` legacy|managed), migration additive réversible up/down/up (T1 8/8) ; backfill `backfill_apparatus_legacy` explicite idempotent, `component_type` non réécrit (T2 5/5) ; mapping injectif (T3 4/4+5/5) ; alias `?binding` même `component_id` (T6 4/4). Preuve T1 P2 (2026-09-12, isolation events, 5 tests) : `source=managed` + `component_status_changed` sans `binding_id` ignoré (`ComponentStatusProcessor` + `SqlApparatusBindingSourceLookup`) ; chemin legacy `project_id + component_type` inchangé. Consentement/génération/lease/fencing **non** ajoutés (ADR-0006 **Proposed**, pas Accepted) → `Partial` maintenu.

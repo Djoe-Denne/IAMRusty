@@ -11,6 +11,7 @@ license.workspace = true
 manifesto-domain = { path = "../domain" }
 manifesto-application = { path = "../application" }
 manifesto-infra = { path = "../infra" }
+apparatus-contracts = { path = "../../apparatus-contracts" }
 manifesto-http_server = { path = "../http" }
 manifesto-configuration = { path = "../configuration" }
 

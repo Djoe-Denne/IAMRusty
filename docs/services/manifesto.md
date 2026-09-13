@@ -5,7 +5,7 @@ Projets, composants, membership projet. Service de référence pour scaffolder.
 - Préfixe : `/manifesto` — compose : **8083**
 - JWT : `[auth.jwt]` consommateur
 - OpenFGA : types `project` / `component` ; `user:*` via sentinel-sync sur création `public` ou flip `ProjectVisibilityChanged`, jamais sur `publish`. GET/details/composants et liste anonyme fail-closed si la ligne n’est plus world-readable (`public` + `draft|active`). Flip impliquant `public` = `Admin`. Pas de partenariat / join. Détail : [../functional/projet.md](../functional/projet.md).
-- Events : `project_created` / `project_visibility_changed` / `project_published` / `project_archived` / membre / permission → `sentinel-sync-events` ; conso optionnelle `component_status_changed`
+- Events : `project_created` / `project_visibility_changed` / `project_published` / `project_archived` / membre / permission → `sentinel-sync-events` ; conso optionnelle `component_status_changed` (`source=managed` sans `binding_id` ignoré, T1 P2 2026-09-12)
 - Collaborateur HTTP : catalogue composants (`service.component_service`)
 
 ## Apparatus P1 — persistance (2026-09-12)
@@ -24,6 +24,21 @@ Tests reproductibles (P1 36 = T1-T6 28/28 + mapping 5/5 + T7 3/3 ; P0.1 42/42) :
 - AuthZ OpenFGA réel : `cargo test -p manifesto-service --test apparatus_p1_t5_acl -- --test-threads=1` (grants inchangés, revoke→403 TTL0, 0 nouveau type FGA, FGA 5 types).
 - HTTP live + wiremock : `cargo test -p manifesto-service --test apparatus_p1_t6_http -- --test-threads=1` (alias `?binding`, POST 7 clés, GET==POST, list `{data}`, 0 second UUID).
 - Gate : `cargo test -p manifesto-service --test apparatus_p1_t7_gate -- --test-threads=1` + `grep` bloquants T7 (0 token P2, 0 `VALID`/`VERIFIED` quotés, 5 routes).
+
+## Apparatus P2 — réconciliation in-process (2026-09-12)
+
+ADR-0006 **Accepted**, Réalité Partial. Pas de gateway / K8s / 202 / nouvel event.
+
+```
+cargo test -p manifesto-service --test apparatus_p2_t1_events -- --test-threads=1
+cargo test -p manifesto-service --test apparatus_p2_t2_migration -- --test-threads=1
+cargo test -p manifesto-service --test apparatus_p2_t3_persist -- --test-threads=1
+cargo test -p manifesto-service --test apparatus_p2_t4_resume -- --test-threads=1
+cargo test -p manifesto-service --test apparatus_p2_t5_tick -- --test-threads=1
+cargo test -p manifesto-service --test apparatus_p2_t6_runtime -- --test-threads=1
+cargo test -p manifesto-service --test apparatus_p2_t7_cleanup -- --test-threads=1
+cargo test -p manifesto-service --test apparatus_p2_t7_gate -- --test-threads=1
+```
 
 ## Docs
 

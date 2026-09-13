@@ -96,6 +96,8 @@ Modifier dès ce stade la suppression du projet pour conserver l’intention de 
 
 **Preuve de sortie** : crash après création de ressource simulée puis reprise sans doublon ; deux workers concurrents ; événement perdu/doublé/désordonné ; upgrade périmé refusé ; suppression pendant provisioning ; cleanup relançable. ^[inferred]
 
+**État 2026-09-12 (ADR-0006 Accepted, Réalité Partial)** : checklist A–M figée. T1 isolation events ; T2 migration 9 colonnes + `apparatus_cleanup_jobs` ; T3 persist atomique ; T4 reprise/idempotence ; T5 ticker in-process + lease/fencing ; T6 `ApparatusRuntime` in-process ; T7 cleanup relançable + gate P3+. Tests `apparatus_p2_t1`…`t7`. Pas de gateway / K8s / 202 / nouvel event. `/ready` n’expose pas encore le ticker (`is_live()`).
+
 ### P3 — Frontière de capacités et données
 
 Implémenter identité de workload, certificat/rotation, gateway, grants interactifs et de fond, consentement/revocation, stockage KV, secrets et proxy réseau. Les refus sont contrôlés côté serveur et liés au binding courant. Les règles du projet public ne rendent pas le stockage ni l’invoke public par défaut. ^[inferred]

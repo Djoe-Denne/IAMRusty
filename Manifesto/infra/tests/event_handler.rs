@@ -8,7 +8,8 @@ use manifesto_domain::entity::ProjectComponent;
 use manifesto_domain::service::ComponentService;
 use manifesto_domain::DomainError;
 use manifesto_infra::{
-    create_apparatus_event_consumer, ApparatusEventHandler, ComponentStatusProcessor,
+    create_apparatus_event_consumer, ApparatusBindingSourceLookup, ApparatusEventHandler,
+    ComponentStatusProcessor,
 };
 use rustycog::core::error::ServiceError;
 use rustycog::events::{DomainEvent, EventHandler};
@@ -154,13 +155,28 @@ impl ComponentService for InMemoryComponentService {
     }
 }
 
+struct AbsentBindingSource;
+
+#[async_trait]
+impl ApparatusBindingSourceLookup for AbsentBindingSource {
+    async fn source_for_component(
+        &self,
+        _component_id: Uuid,
+    ) -> Result<Option<manifesto_infra::ApparatusBindingSource>, ServiceError> {
+        Ok(None)
+    }
+}
+
 #[tokio::test]
 async fn apparatus_handler_accepts_status_changes_and_rejects_unknown_payloads() {
     let project_id = Uuid::new_v4();
     let component_service = Arc::new(InMemoryComponentService::new(
         ProjectComponent::new(project_id, "taskboard".to_string()).unwrap(),
     ));
-    let processor = Arc::new(ComponentStatusProcessor::new(component_service));
+    let processor = Arc::new(ComponentStatusProcessor::new(
+        component_service,
+        Arc::new(AbsentBindingSource),
+    ));
     let handler = ApparatusEventHandler::new(processor);
 
     assert!(handler.supports_event_type("component_status_changed"));
@@ -196,9 +212,10 @@ async fn apparatus_handler_accepts_status_changes_and_rejects_unknown_payloads()
         .await
         .is_err());
 
-    let _ = create_apparatus_event_consumer(Arc::new(ComponentStatusProcessor::new(Arc::new(
-        InMemoryComponentService::new(
+    let _ = create_apparatus_event_consumer(Arc::new(ComponentStatusProcessor::new(
+        Arc::new(InMemoryComponentService::new(
             ProjectComponent::new(project_id, "taskboard".to_string()).unwrap(),
-        ),
-    ))));
+        )),
+        Arc::new(AbsentBindingSource),
+    )));
 }

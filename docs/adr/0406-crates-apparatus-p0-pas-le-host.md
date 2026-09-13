@@ -51,4 +51,4 @@ P1 persistance Manifesto (table, backfill) est **0001** / handbook Manifesto, pa
 - ADR : [0001](0001-apparatus-binding-owned-by-manifesto.md), [0002](0002-apparatus-contract-first.md), [0003](0003-apparatus-untrusted-plugin.md), [0004](0004-apparatus-capability-gateway.md), [0005](0005-apparatus-same-protocol-valid-verified.md)
 - Wiki : `projects/manifesto/concepts/apparatus-p0-contracts`, `projects/manifesto/decisions/index.md`
 - Code : `apparatus-contracts/`, `apparatus-reference-kv/`, `apparatus-events/src/lib.rs` (`ComponentStatusChanged` seulement)
-- Preuve partielle : tests P0.1 `cargo test -p apparatus-contracts --features test-harness` + `cargo test -p apparatus-reference-kv` ; absence de crates Factory/host/gateway dans le workspace
+- Preuve partielle : tests P0.1 `cargo test -p apparatus-contracts --features test-harness` + `cargo test -p apparatus-reference-kv` ; absence de crates Factory/host/gateway dans le workspace. Isolation T1 (2026-09-12) : `component_status_changed` sans `binding_id` n'altère pas un binding managed (`Manifesto/tests/apparatus_p2_t1_events.rs`)

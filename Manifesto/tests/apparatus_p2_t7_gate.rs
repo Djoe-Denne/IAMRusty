@@ -1,11 +1,11 @@
-//! Apparatus P1 — T7 gate P2 (garde-fou négatif, pur, sans Docker).
+//! Apparatus P2 — T7 gate P3+ (garde-fou négatif, pur, sans Docker).
 //!
-//! Tokens P2 restent allowlistés L (migration runtime + `apparatus_runtime/`).
-//! Le gate P3+ vit dans `apparatus_p2_t7_gate.rs`.
+//! Tokens P2 (`poll`, `worker`, `lease`, `fencing`, `controller`,
+//! `desired_state`) uniquement sur l'allowlist L. Tokens P3+ interdits
+//! partout, y compris l'allowlist P2.
 
 use std::path::{Path, PathBuf};
 
-/// Racine du workspace (`Manifesto/../`).
 fn workspace_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("..")
@@ -13,7 +13,6 @@ fn workspace_root() -> PathBuf {
         .expect("workspace lisible")
 }
 
-/// Collecte récursive des `.rs` sous `dir` (hors `tests/` et `target/`).
 fn collect_rs(dir: &Path, out: &mut Vec<PathBuf>) {
     let entries = std::fs::read_dir(dir).expect("dossier prod lisible");
     for entry in entries {
@@ -30,7 +29,6 @@ fn collect_rs(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
-/// Fichiers prod Manifesto scannés par le gate.
 fn prod_files() -> Vec<PathBuf> {
     let root = workspace_root();
     let mut files = Vec::new();
@@ -49,9 +47,6 @@ fn prod_files() -> Vec<PathBuf> {
     files
 }
 
-/// Occurrences `needle` (insensible à la casse) hors allowlists.
-/// `allow_line` : sous-chaînes autorisées dans la ligne.
-/// `allow_path` : sous-chaînes autorisées dans le chemin normalisé (`/`).
 fn hits_case_insensitive(
     files: &[PathBuf],
     needle: &str,
@@ -75,17 +70,14 @@ fn hits_case_insensitive(
     hits
 }
 
+const P2_RUNTIME_ALLOW_PATH: &[&str] = &[
+    "Manifesto/migration/src/m20260912_000013_apparatus_p2_runtime.rs",
+    "Manifesto/infra/src/apparatus_runtime/",
+];
+
 #[test]
-fn t7_no_p2_runtime_tokens_in_manifesto_prod() {
+fn t7_p2_tokens_only_on_allowlist_l() {
     let files = prod_files();
-    // Allowlist `factory` : registre de commandes préexistant + commentaire du
-    // consumer apparatus legacy (`infra/src/event/consumer.rs`, chemin legacy).
-    // ADR-0006 L : tokens P2 autorisés uniquement dans la migration runtime et
-    // `apparatus_runtime/`. Le gate P3+ vit dans `apparatus_p2_t7_gate.rs`.
-    const P2_RUNTIME_ALLOW_PATH: &[&str] = &[
-        "Manifesto/migration/src/m20260912_000013_apparatus_p2_runtime.rs",
-        "Manifesto/infra/src/apparatus_runtime/",
-    ];
     let mut all_hits = Vec::new();
     for token in [
         "poll",
@@ -102,7 +94,17 @@ fn t7_no_p2_runtime_tokens_in_manifesto_prod() {
             P2_RUNTIME_ALLOW_PATH,
         ));
     }
-    // P3+ : aucun allow_path (y compris dans les fichiers P2).
+    assert!(
+        all_hits.is_empty(),
+        "T7 RED : tokens P2 hors allowlist L :\n{}",
+        all_hits.join("\n")
+    );
+}
+
+#[test]
+fn t7_p3_tokens_forbidden_even_on_p2_allowlist() {
+    let files = prod_files();
+    let mut all_hits = Vec::new();
     for token in [
         "wasm",
         "wasi",
@@ -117,27 +119,36 @@ fn t7_no_p2_runtime_tokens_in_manifesto_prod() {
     ] {
         all_hits.extend(hits_case_insensitive(&files, token, &[], &[]));
     }
-    all_hits.extend(hits_case_insensitive(
-        &files,
-        "factory",
-        &["Factory outcome", "ManifestoCommandRegistryFactory"],
-        &["application/src/command/"],
-    ));
     assert!(
         all_hits.is_empty(),
-        "T7 RED : tokens P2+ détectés dans le prod Manifesto :\n{}",
+        "T7 RED : tokens P3+ dans Manifesto/*/src :\n{}",
         all_hits.join("\n")
     );
 }
 
 #[test]
-fn t7_no_valid_verified_status_and_no_second_uuid() {
+fn t7_factory_allowlist_unchanged() {
+    let files = prod_files();
+    let hits = hits_case_insensitive(
+        &files,
+        "factory",
+        &["Factory outcome", "ManifestoCommandRegistryFactory"],
+        &["application/src/command/"],
+    );
+    assert!(
+        hits.is_empty(),
+        "T7 RED : factory hors allowlist :\n{}",
+        hits.join("\n")
+    );
+}
+
+#[test]
+fn t7_no_valid_verified_status() {
     let files = prod_files();
     let mut hits = Vec::new();
     for file in &files {
         let content = std::fs::read_to_string(file).expect("fichier lisible");
         for (idx, line) in content.lines().enumerate() {
-            // Statuts quoted uniquement : `Validation`/`validate`/`valid_input` restent légitimes.
             if line.contains("\"VALID\"")
                 || line.contains("\"VERIFIED\"")
                 || line.contains("'VALID'")

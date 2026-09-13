@@ -3987,6 +3987,7 @@ name = "manifesto-infra"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "apparatus-contracts",
  "apparatus-events",
  "async-trait",
  "chrono",
@@ -4022,6 +4023,7 @@ name = "manifesto-service"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "apparatus-contracts",
  "apparatus-events",
  "async-trait",
  "aws-config",
@@ -4075,6 +4077,7 @@ name = "manifesto-setup"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "apparatus-contracts",
  "axum 0.8.9",
  "hyper 1.10.1",
  "manifesto-application",

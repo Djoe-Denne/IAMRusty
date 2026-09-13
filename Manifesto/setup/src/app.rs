@@ -11,6 +11,7 @@ use manifesto_domain::service::{ComponentServiceImpl, MemberServiceImpl, Project
 use manifesto_http_server::{create_app_routes, create_router};
 use manifesto_infra::{
     adapters::ComponentServiceClient,
+    apparatus_runtime::InProcessApparatusRuntime,
     processors::ComponentStatusProcessor,
     repository::{
         ComponentReadRepositoryImpl, ComponentRepositoryImpl, ComponentWriteRepositoryImpl,
@@ -23,7 +24,7 @@ use manifesto_infra::{
         RolePermissionWriteRepositoryImpl,
     },
     ApparatusEventConsumer, ManifestoErrorMapper, OpenFgaOrgScopeLookup,
-    ProjectAuthorizationUnitOfWorkImpl,
+    ProjectAuthorizationUnitOfWorkImpl, SqlApparatusBindingSourceLookup,
 };
 
 // Rustycog
@@ -44,6 +45,7 @@ use rustycog::permission::{
 use std::time::Duration;
 
 // External
+use crate::apparatus_runtime::{start_apparatus_runtime, ApparatusRuntimeHandle};
 use anyhow::Error;
 
 type EventPublisherSetup = (
@@ -97,6 +99,7 @@ pub struct Application {
     pub state: AppState,
     pub apparatus_event_consumer: Option<Arc<ApparatusEventConsumer>>,
     pub outbox_dispatcher: Arc<OutboxDispatcher<DomainError>>,
+    pub apparatus_runtime: ApparatusRuntimeHandle,
     pub readiness: Arc<ReadinessProbe>,
 }
 
@@ -124,6 +127,13 @@ impl Application {
         // Setup database connection
         let db = setup_database(&config).await?;
         let db_write = db.get_write_connection();
+        let tick_interval = manifesto_infra::apparatus_runtime::APPARATUS_TICK_INTERVAL;
+        let apparatus_runtime = start_apparatus_runtime(
+            db_write.as_ref().clone(),
+            Arc::new(InProcessApparatusRuntime::new()),
+            format!("manifesto-{}", std::process::id()),
+            tick_interval,
+        );
 
         // Setup event publisher for Telegraph + sentinel-sync communication
         let (event_publisher, publisher_status, publisher_transport): EventPublisherSetup =
@@ -216,6 +226,7 @@ impl Application {
             state,
             apparatus_event_consumer,
             outbox_dispatcher,
+            apparatus_runtime,
             readiness,
         })
     }
@@ -363,6 +374,7 @@ impl Application {
     }
 
     pub async fn stop_background_tasks(&self) {
+        self.apparatus_runtime.abort();
         if let Err(e) = self.outbox_dispatcher.stop().await {
             tracing::error!("Failed to stop Manifesto outbox dispatcher: {}", e);
         }
@@ -401,6 +413,9 @@ async fn setup_application(
 ) -> Result<ApplicationUseCases, Error> {
     let (project_service, component_service, member_service, permission_service) =
         setup_domain(&db, config)?;
+    let apparatus_binding_source = Arc::new(SqlApparatusBindingSourceLookup::new(
+        db.get_read_connection().as_ref().clone(),
+    ));
     let project_authorization_uow = Arc::new(ProjectAuthorizationUnitOfWorkImpl::new(
         db,
         OutboxRecorder::new(),
@@ -449,8 +464,10 @@ async fn setup_application(
     );
 
     let (apparatus_event_consumer, consumer_status) = {
-        let component_status_processor =
-            Arc::new(ComponentStatusProcessor::new(component_service.clone()));
+        let component_status_processor = Arc::new(ComponentStatusProcessor::new(
+            component_service.clone(),
+            apparatus_binding_source,
+        ));
         let consumer = ApparatusEventConsumer::new(&config.queue, component_status_processor)
             .await
             .map_err(|error| {

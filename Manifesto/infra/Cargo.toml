@@ -17,6 +17,7 @@ manifesto-events = { path = "../../manifesto-events" }
 
 # Event crates
 apparatus-events = { path = "../../apparatus-events" }
+apparatus-contracts = { path = "../../apparatus-contracts" }
 
 # Shared crates
 readiness = { path = "../../readiness" }
