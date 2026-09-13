@@ -4,7 +4,7 @@ category: references
 tags: [architecture, components, visibility/internal]
 status: accepted
 feature_status: partial
-summary: "Hub ADR Apparatus 0001–0006 Accepted / Réalité Partial. P2 ticker in-process livré ; Factory/host hors livré."
+summary: "Hub ADR Apparatus 0001–0006 Accepted. P2 (0006) Implemented ; 0001–0005 Partial. Factory/host hors livré."
 created: 2026-09-10T06:32:00Z
 updated: 2026-09-13T10:25:00Z
 sources:
@@ -41,9 +41,9 @@ Les ADR Apparatus ci-dessous sont **Accepted** depuis la ratification orchestré
 | [0003](../../../../../docs/adr/0003-apparatus-untrusted-plugin.md) — [[projects/manifesto/decisions/0003-apparatus-untrusted]] | Code auteur hors des processus privilégiés | Partial |
 | [0004](../../../../../docs/adr/0004-apparatus-capability-gateway.md) — [[projects/manifesto/decisions/0004-apparatus-gateway]] | Gateway de capacités ; KV plateforme ; pas de bearer IAM | Partial |
 | [0005](../../../../../docs/adr/0005-apparatus-same-protocol-valid-verified.md) — [[projects/manifesto/decisions/0005-apparatus-protocol]] | Même protocole ; admission, `VALID`, `VERIFIED` et installabilité distincts | Partial |
-| [0006](../../../../../docs/adr/0006-apparatus-p2-reconciliation-in-process.md) — [[projects/manifesto/decisions/0006-apparatus-p2-reconciliation]] | Réconciliation P2 = contrôleur in-process Manifesto, sans infra réelle | Partial |
+| [0006](../../../../../docs/adr/0006-apparatus-p2-reconciliation-in-process.md) — [[projects/manifesto/decisions/0006-apparatus-p2-reconciliation]] | Réconciliation P2 = contrôleur in-process Manifesto, sans infra réelle | Implemented |
 
-Preuve P0 : [[projects/manifesto/concepts/apparatus-p0-contracts]]. Preuve P1 : [[projects/manifesto/concepts/apparatus-p1-persistence]]. ADR-0006 Accepted 2026-09-12 ; Réalité Partial (T1–T7, écarts A/D/I). Concept : [[projects/manifesto/concepts/apparatus-p2-reconciliation]].
+Preuve P0 : [[projects/manifesto/concepts/apparatus-p0-contracts]]. Preuve P1 : [[projects/manifesto/concepts/apparatus-p1-persistence]]. ADR-0006 Accepted 2026-09-12 ; Réalité Implemented (T1–T7 + writer §D). Concept : [[projects/manifesto/concepts/apparatus-p2-reconciliation]].
 
 ## Conception (pas des ADR)
 

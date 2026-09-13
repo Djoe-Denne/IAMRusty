@@ -10,7 +10,8 @@ use chrono::{Duration, Utc};
 use common::*;
 use fixtures::DbFixtures;
 use manifesto_infra::apparatus_runtime::{
-    apply_due_once, apply_due_once_skip_observe, write_observed, InProcessApparatusRuntime,
+    apply_due_once, apply_due_once_skip_observe, write_bind_failure, write_observed,
+    InProcessApparatusRuntime,
 };
 use rustycog::permission::{Permission, ResourceRef, Subject};
 use sea_orm::{ConnectionTrait, DatabaseBackend, DatabaseConnection, Statement};
@@ -85,6 +86,27 @@ async fn observed_generation(db: &DatabaseConnection, component_id: Uuid) -> i64
         .expect("query")
         .expect("binding");
     row.try_get("", "observed_generation").expect("observed")
+}
+
+async fn retry_state(
+    db: &DatabaseConnection,
+    component_id: Uuid,
+) -> (i32, Option<String>, Option<chrono::DateTime<Utc>>) {
+    let row = db
+        .query_one(Statement::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            "SELECT retry_count, last_error_code, next_retry_at \
+             FROM apparatus_bindings WHERE component_id = $1",
+            [component_id.into()],
+        ))
+        .await
+        .expect("query")
+        .expect("binding");
+    (
+        row.try_get("", "retry_count").expect("retry_count"),
+        row.try_get("", "last_error_code").expect("last_error_code"),
+        row.try_get("", "next_retry_at").expect("next_retry_at"),
+    )
 }
 
 #[tokio::test]
@@ -195,4 +217,37 @@ async fn t4_stale_observed_write_is_refused() {
         .expect("write observed");
     assert_eq!(rows, 0, "T4 RED : fencing refuse (0 row)");
     assert_eq!(observed_generation(db.as_ref(), component_id).await, 0);
+}
+
+#[tokio::test]
+#[serial]
+async fn t4_stale_bind_failure_write_is_refused() {
+    let (fixture, base_url, client, openfga, _components) =
+        setup_test_server().await.expect("serveur de test");
+    let db = fixture.db();
+    let component_id = create_managed_with_digest(db.as_ref(), &base_url, &client, &openfga).await;
+    let runtime = InProcessApparatusRuntime::new();
+    let now = Utc::now() + Duration::hours(2);
+
+    apply_due_once_skip_observe(db.as_ref(), &runtime, "t4-owner", now)
+        .await
+        .expect("claim");
+
+    let (retry_before, last_before, next_before) = retry_state(db.as_ref(), component_id).await;
+    assert_eq!(retry_before, 0);
+
+    let wrong_owner = write_bind_failure(db.as_ref(), component_id, 1, 1, "other", now)
+        .await
+        .expect("write bind failure wrong owner");
+    assert_eq!(wrong_owner, 0, "T4 : writer périmé (owner) = 0 row");
+
+    let wrong_epoch = write_bind_failure(db.as_ref(), component_id, 1, 99, "t4-owner", now)
+        .await
+        .expect("write bind failure wrong epoch");
+    assert_eq!(wrong_epoch, 0, "T4 : writer périmé (epoch) = 0 row");
+
+    let (retry_after, last_error, next_retry) = retry_state(db.as_ref(), component_id).await;
+    assert_eq!(retry_after, retry_before, "T4 : pas d'incrément stale");
+    assert_eq!(last_error, last_before);
+    assert_eq!(next_retry, next_before);
 }

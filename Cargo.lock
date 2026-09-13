@@ -4050,6 +4050,7 @@ dependencies = [
  "manifesto-migration",
  "manifesto-setup",
  "rand 0.8.6",
+ "readiness",
  "reqwest 0.12.28",
  "rustycog-framework",
  "sea-orm",

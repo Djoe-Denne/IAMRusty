@@ -30,9 +30,9 @@ Décisions d’architecture **acceptées ou proposées**, distinctes des notes d
 | [0003](0003-apparatus-untrusted-plugin.md) | Code auteur hors des processus privilégiés | Partial | platform, capabilities, factory |
 | [0004](0004-apparatus-capability-gateway.md) | Gateway seule I/O ; KV plateforme ; pas de bearer IAM | Partial | capabilities |
 | [0005](0005-apparatus-same-protocol-valid-verified.md) | Même protocole ; admission, `VALID`, `VERIFIED` et installabilité distincts | Partial | factory, platform |
-| [0006](0006-apparatus-p2-reconciliation-in-process.md) | Réconciliation P2 = contrôleur in-process Manifesto, sans infra réelle | Partial | bindings, plan — Accepted 2026-09-12 |
+| [0006](0006-apparatus-p2-reconciliation-in-process.md) | Réconciliation P2 = contrôleur in-process Manifesto, sans infra réelle | Implemented | bindings, plan — Accepted 2026-09-12 |
 
-Ratification 0001–0005 : revue orchestrée du 2026-09-10. ADR-0006 : Accept explicite utilisateur du 2026-09-12 (checklist A–M figée). `Accepted` fixe la cible ; T2–T7 se mesurent aux tests.
+Ratification 0001–0005 : revue orchestrée du 2026-09-10. ADR-0006 : Accept explicite utilisateur du 2026-09-12 (checklist A–M figée). `Accepted` fixe la cible ; T1–T7 + writer backoff §D sont livrés (Réalité Implemented).
 
 ## Traçabilité de la baseline du 9 septembre
 
@@ -43,7 +43,7 @@ Ratification 0001–0005 : revue orchestrée du 2026-09-10. ADR-0006 : Accept ex
 | Migration 1:1, UUID et ACL `component` conservés | ADR-0001 | Migration P1 |
 | Un Apparatus canonique du même type par projet | ADR-0001 | Plusieurs instances hors V1 |
 | Identité d’installation immuable, jamais `latest` | ADR-0002 | Admission et artifacts P4 |
-| Desired/observed, génération, lease et fencing | ADR-0006 | Colonnes et sémantique figées ; Réalité Partial |
+| Desired/observed, génération, lease et fencing | ADR-0006 | Colonnes et sémantique figées ; Réalité Implemented |
 | Gateway = ACL ∩ consentement ∩ politique | ADR-0004 | Implémentation P3 |
 | Runtime managed, plugin isolé | ADR-0003 | Moteur et plateforme (`APP-01`) |
 | Host à créer ; UI schema ou bundle statique | ADR-0002 (contrat seulement) | Sécurité du host avant P5 |

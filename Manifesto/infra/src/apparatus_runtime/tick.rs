@@ -9,7 +9,7 @@ use apparatus_contracts::{ApparatusId, ApparatusRuntime, BindRequest, BindingId,
 use std::sync::Arc;
 use std::time::Duration;
 
-use super::cas::{claim_binding, write_observed};
+use super::cas::{claim_binding, write_bind_failure, write_observed};
 use super::cleanup::apply_cleanup_due;
 use super::derived_operation_id;
 use crate::apparatus_mapping::legacy_to_apparatus;
@@ -137,9 +137,31 @@ async fn apply_one(
         return Ok(());
     };
     let request = bind_request(row, digest_text)?;
-    runtime
-        .bind(&request)
-        .map_err(|error| RuntimeApplyError::Runtime(error.to_string()))?;
+    if let Err(error) = runtime.bind(&request) {
+        tracing::warn!(
+            %error,
+            component_id = %row.component_id,
+            "apparatus bind failed"
+        );
+        let rows_affected = write_bind_failure(
+            db,
+            row.component_id,
+            row.desired_generation,
+            epoch,
+            owner,
+            now,
+        )
+        .await?;
+        if rows_affected == 0 {
+            tracing::warn!(
+                component_id = %row.component_id,
+                generation = row.desired_generation,
+                epoch,
+                "apparatus fencing refused bind-failure write"
+            );
+        }
+        return Ok(());
+    }
     if write_observe {
         let rows_affected = write_observed(
             db,

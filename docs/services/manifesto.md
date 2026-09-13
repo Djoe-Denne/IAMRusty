@@ -27,7 +27,7 @@ Tests reproductibles (P1 36 = T1-T6 28/28 + mapping 5/5 + T7 3/3 ; P0.1 42/42) :
 
 ## Apparatus P2 — réconciliation in-process (2026-09-12)
 
-ADR-0006 **Accepted**, Réalité Partial. Pas de gateway / K8s / 202 / nouvel event.
+ADR-0006 **Accepted**, Réalité Implemented. Pas de gateway / K8s / 202 / nouvel event.
 
 ```
 cargo test -p manifesto-service --test apparatus_p2_t1_events -- --test-threads=1

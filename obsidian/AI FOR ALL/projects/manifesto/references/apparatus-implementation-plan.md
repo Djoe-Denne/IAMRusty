@@ -100,9 +100,9 @@ Modifier dès ce stade la suppression du projet pour conserver l’intention de 
 
 **Preuve de sortie** : crash après création de ressource simulée puis reprise sans doublon ; deux workers concurrents ; événement perdu/doublé/désordonné ; upgrade périmé refusé ; suppression pendant provisioning ; cleanup relançable. ^[inferred]
 
-**État 2026-09-13 (ADR-0006 Accepted, Réalité Partial, HEAD `7455ee5`)** : T1–T7 existent (t2 12, t4 4, t5 5, t7 cleanup 2). Pas de gateway / K8s / 202 / nouvel event. Écarts A/D/I : pas de bump update/remove, pas de writer retry, `/ready` hors ticker. Mineurs (IF NOT EXISTS index/table cleanup, isolation poison, log fencing) **dans** ce commit. `ADD COLUMN` des 9 colonnes sans IF NOT EXISTS. Create ne pose pas `digest` → apply no-op hors tests. Synthèse : [[projects/manifesto/concepts/apparatus-p2-reconciliation]].
+**État 2026-09-13 (ADR-0006 Accepted, Réalité Implemented)** : T1–T7 + writer backoff §D (t1 4+1, t2 12, t3 7, t4 5, t5 10, t6 3, t7 cleanup 4 + gate 5, readiness 17). PATCH managed CAS +1 ; `/ready` = ticker live ; backoff fencé `min(30s * 2^retry_count, 5 min)`, terminal à 8. Pas de gateway / K8s / 202 / nouvel event. Synthèse : [[projects/manifesto/concepts/apparatus-p2-reconciliation]].
 
-**P2.1 (prochain jalon, pas P3)** : CAS `desired_generation + 1` sur update/remove ; writer `retry_count`/`last_error_code` + backoff ; brancher `/ready` sur `is_live()` ; poser `digest` sur le chemin commande. P3+ (`invoke`, gateway, K8s) reste interdit par T7.
+P2.1 (CAS update, backoff, `/ready`) est **livré** dans ce jalon. P3+ (`invoke`, gateway, K8s) reste interdit par T7.
 
 ### P3 — Frontière de capacités et données
 

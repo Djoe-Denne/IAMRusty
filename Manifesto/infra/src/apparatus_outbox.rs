@@ -22,6 +22,16 @@ const INSERT_CLEANUP_JOB: &str = "INSERT INTO apparatus_cleanup_jobs \
      (component_id, project_id, desired_generation, digest) \
      VALUES ($1, $2, $3, $4)";
 
+const SELECT_BINDING_SOURCE_GENERATION: &str = "SELECT source, desired_generation \
+     FROM apparatus_bindings WHERE component_id = $1";
+
+const BUMP_MANAGED_DESIRED_GENERATION: &str = "UPDATE apparatus_bindings \
+     SET desired_generation = desired_generation + 1, \
+         next_retry_at = NOW(), \
+         last_error_code = NULL, \
+         retry_count = 0 \
+     WHERE component_id = $1 AND source = 'managed' AND desired_generation = $2";
+
 /// Échec de l'écriture atomique T4 (insertion annulée dans tous les cas).
 #[derive(Debug, thiserror::Error)]
 pub enum ApparatusAtomicError {
@@ -120,6 +130,75 @@ where
 /// Job requis si `managed` et (`digest` présent ou `desired_generation > 0`).
 pub(crate) fn cleanup_job_required(row: &BindingCleanupRow) -> bool {
     row.source == "managed" && (row.digest.is_some() || row.desired_generation > 0)
+}
+
+enum BumpOutcome {
+    Done,
+    Conflict,
+}
+
+/// CAS `desired_generation + 1` pour un binding `managed`.
+///
+/// Pas de ligne ou `source != managed` : no-op. Un conflit concurrent
+/// (0 ligne après un SELECT `managed`) est retenté une fois, puis [`DbErr`].
+///
+/// # Errors
+///
+/// Retourne [`DbErr`] si la lecture/écriture échoue, ou si le CAS échoue
+/// deux fois de suite.
+pub(crate) async fn bump_managed_desired_generation<C>(
+    db: &C,
+    component_id: Uuid,
+) -> Result<(), DbErr>
+where
+    C: ConnectionTrait,
+{
+    match try_bump_managed_desired_generation(db, component_id).await? {
+        BumpOutcome::Done => Ok(()),
+        BumpOutcome::Conflict => match try_bump_managed_desired_generation(db, component_id).await?
+        {
+            BumpOutcome::Done => Ok(()),
+            BumpOutcome::Conflict => Err(DbErr::Custom(
+                "apparatus desired_generation conflict".to_owned(),
+            )),
+        },
+    }
+}
+
+async fn try_bump_managed_desired_generation<C>(
+    db: &C,
+    component_id: Uuid,
+) -> Result<BumpOutcome, DbErr>
+where
+    C: ConnectionTrait,
+{
+    let Some(row) = db
+        .query_one(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            SELECT_BINDING_SOURCE_GENERATION,
+            [component_id.into()],
+        ))
+        .await?
+    else {
+        return Ok(BumpOutcome::Done);
+    };
+    let source: String = row.try_get("", "source")?;
+    if source != "managed" {
+        return Ok(BumpOutcome::Done);
+    }
+    let expected: i64 = row.try_get("", "desired_generation")?;
+    let updated = db
+        .execute(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            BUMP_MANAGED_DESIRED_GENERATION,
+            [component_id.into(), expected.into()],
+        ))
+        .await?;
+    if updated.rows_affected() == 0 {
+        Ok(BumpOutcome::Conflict)
+    } else {
+        Ok(BumpOutcome::Done)
+    }
 }
 
 async fn commit_or_rollback(

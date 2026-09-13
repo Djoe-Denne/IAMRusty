@@ -6,7 +6,7 @@ mod common;
 #[path = "fixtures/mod.rs"]
 mod fixtures;
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
@@ -26,6 +26,7 @@ use manifesto_infra::{
     ComponentStatusProcessor,
 };
 use manifesto_setup::start_apparatus_runtime;
+use readiness::ReadinessProbe;
 use rustycog::config::QueueConfig;
 use rustycog::core::error::{DomainError, ServiceError};
 use rustycog::permission::{Permission, ResourceRef, Subject};
@@ -119,6 +120,27 @@ async fn observed_generation(db: &DatabaseConnection, component_id: Uuid) -> i64
     row.try_get("", "observed_generation").expect("observed")
 }
 
+async fn retry_state(
+    db: &DatabaseConnection,
+    component_id: Uuid,
+) -> (i32, Option<String>, Option<chrono::DateTime<Utc>>) {
+    let row = db
+        .query_one(Statement::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            "SELECT retry_count, last_error_code, next_retry_at \
+             FROM apparatus_bindings WHERE component_id = $1",
+            [component_id.into()],
+        ))
+        .await
+        .expect("query")
+        .expect("binding");
+    (
+        row.try_get("", "retry_count").expect("retry_count"),
+        row.try_get("", "last_error_code").expect("last_error_code"),
+        row.try_get("", "next_retry_at").expect("next_retry_at"),
+    )
+}
+
 struct FailFirstBindRuntime {
     inner: InProcessApparatusRuntime,
     fail_next: AtomicBool,
@@ -141,6 +163,49 @@ impl ApparatusRuntime for FailFirstBindRuntime {
             });
         }
         self.inner.bind(req)
+    }
+
+    fn configure(&self, req: &ConfigureRequest) -> Result<ConfigureResponse, ApparatusError> {
+        self.inner.configure(req)
+    }
+
+    fn unbind(&self, req: &UnbindRequest) -> Result<UnbindResponse, ApparatusError> {
+        self.inner.unbind(req)
+    }
+
+    fn observe(&self, binding: &BindingId) -> Result<RuntimeObservation, ApparatusError> {
+        self.inner.observe(binding)
+    }
+
+    fn teardown(&self, binding: &BindingId) -> Result<(), ApparatusError> {
+        self.inner.teardown(binding)
+    }
+}
+
+struct AlwaysFailBindRuntime {
+    inner: InProcessApparatusRuntime,
+    binds: AtomicUsize,
+}
+
+impl AlwaysFailBindRuntime {
+    fn new() -> Self {
+        Self {
+            inner: InProcessApparatusRuntime::new(),
+            binds: AtomicUsize::new(0),
+        }
+    }
+
+    fn bind_attempts(&self) -> usize {
+        self.binds.load(Ordering::SeqCst)
+    }
+}
+
+impl ApparatusRuntime for AlwaysFailBindRuntime {
+    fn bind(&self, _req: &BindRequest) -> Result<BindResponse, ApparatusError> {
+        self.binds.fetch_add(1, Ordering::SeqCst);
+        Err(ApparatusError::InvalidOperation {
+            reason: "always fail bind".to_owned(),
+        })
     }
 
     fn configure(&self, req: &ConfigureRequest) -> Result<ConfigureResponse, ApparatusError> {
@@ -266,6 +331,46 @@ async fn t5_ticker_start_stop_is_live() {
 
 #[tokio::test]
 #[serial]
+async fn t5_ready_reports_live_apparatus_runtime() {
+    let (_fixture, base_url, client, _openfga, _components) =
+        setup_test_server().await.expect("serveur de test");
+    let resp = client
+        .get(format!("{base_url}/ready"))
+        .send()
+        .await
+        .expect("GET /ready");
+    assert_eq!(
+        resp.status(),
+        200,
+        "queue disabled ne doit pas bloquer /ready"
+    );
+    let body: serde_json::Value = resp.json().await.expect("JSON");
+    assert_eq!(body["status"], "ready");
+    assert_eq!(body["checks"]["apparatus_runtime"]["status"], "ok");
+}
+
+#[tokio::test]
+#[serial]
+async fn t5_abort_makes_readiness_not_ready() {
+    let (fixture, _base_url, _client, _openfga, _components) =
+        setup_test_server().await.expect("serveur de test");
+    let runtime = Arc::new(InProcessApparatusRuntime::new());
+    let handle = start_apparatus_runtime(
+        fixture.db().as_ref().clone(),
+        runtime,
+        "t5-ready".to_owned(),
+        Duration::from_secs(60),
+    );
+    let probe =
+        ReadinessProbe::new("manifesto").with_liveness("apparatus_runtime", handle.live_flag());
+    handle.abort();
+    let report = probe.report().await;
+    assert_eq!(report.status, "not_ready");
+    assert_eq!(report.checks["apparatus_runtime"].status, "error");
+}
+
+#[tokio::test]
+#[serial]
 async fn t5_poison_bind_does_not_abort_pass() {
     let (fixture, base_url, client, openfga, _components) =
         setup_test_server().await.expect("serveur de test");
@@ -287,6 +392,121 @@ async fn t5_poison_bind_does_not_abort_pass() {
         observed.contains(&0) && observed.contains(&1),
         "T5 : second binding observé (generation 1), poison non observé, got {observed:?}"
     );
+}
+
+#[tokio::test]
+#[serial]
+async fn t5_bind_fail_writes_backoff_and_skips_same_now() {
+    let (fixture, base_url, client, openfga, _components) =
+        setup_test_server().await.expect("serveur de test");
+    let db = fixture.db();
+    let component_id = create_managed_with_digest(db.as_ref(), &base_url, &client, &openfga).await;
+    let runtime = AlwaysFailBindRuntime::new();
+    let now = Utc::now() + ChronoDuration::hours(2);
+
+    apply_due_once(db.as_ref(), &runtime, "t5-backoff", now)
+        .await
+        .expect("apply fail");
+
+    let (retry, last_error, next_retry) = retry_state(db.as_ref(), component_id).await;
+    assert_eq!(retry, 1);
+    assert_eq!(last_error.as_deref(), Some("bind_failed"));
+    let next = next_retry.expect("next_retry_at");
+    let expected = now + ChronoDuration::seconds(60);
+    assert!(
+        (next - expected).num_seconds().abs() <= 2,
+        "T5 : 1er fail → 60s, expected {expected}, got {next}"
+    );
+    assert_eq!(runtime.bind_attempts(), 1);
+    assert_eq!(observed_generation(db.as_ref(), component_id).await, 0);
+
+    apply_due_once(db.as_ref(), &runtime, "t5-backoff", now)
+        .await
+        .expect("same now not due");
+
+    let (retry2, last_error2, next2) = retry_state(db.as_ref(), component_id).await;
+    assert_eq!(retry2, 1, "T5 : same now ne ré-incrémente pas");
+    assert_eq!(last_error2, last_error);
+    assert_eq!(next2, Some(next));
+    assert_eq!(runtime.bind_attempts(), 1);
+}
+
+#[tokio::test]
+#[serial]
+async fn t5_bind_fails_until_terminal_excluded() {
+    let (fixture, base_url, client, openfga, _components) =
+        setup_test_server().await.expect("serveur de test");
+    let db = fixture.db();
+    let component_id = create_managed_with_digest(db.as_ref(), &base_url, &client, &openfga).await;
+    let runtime = AlwaysFailBindRuntime::new();
+    let mut now = Utc::now() + ChronoDuration::hours(2);
+
+    for expected_retry in 1..=8 {
+        apply_due_once(db.as_ref(), &runtime, "t5-terminal", now)
+            .await
+            .expect("apply fail");
+        let (retry, last_error, next_retry) = retry_state(db.as_ref(), component_id).await;
+        assert_eq!(retry, expected_retry);
+        assert_eq!(last_error.as_deref(), Some("bind_failed"));
+        if expected_retry >= 8 {
+            assert!(next_retry.is_none(), "T5 : terminal next_retry_at NULL");
+        } else {
+            assert!(next_retry.is_some());
+            now += ChronoDuration::seconds(301);
+        }
+    }
+    assert_eq!(runtime.bind_attempts(), 8);
+
+    apply_due_once(
+        db.as_ref(),
+        &runtime,
+        "t5-terminal",
+        now + ChronoDuration::hours(24),
+    )
+    .await
+    .expect("far future");
+
+    let (retry, last_error, next_retry) = retry_state(db.as_ref(), component_id).await;
+    assert_eq!(retry, 8, "T5 : terminal exclu du scan");
+    assert_eq!(last_error.as_deref(), Some("bind_failed"));
+    assert!(next_retry.is_none());
+    assert_eq!(runtime.bind_attempts(), 8);
+    assert_eq!(observed_generation(db.as_ref(), component_id).await, 0);
+}
+
+#[tokio::test]
+#[serial]
+async fn t5_bind_success_after_fail_resets_retry() {
+    let (fixture, base_url, client, openfga, _components) =
+        setup_test_server().await.expect("serveur de test");
+    let db = fixture.db();
+    let component_id = create_managed_with_digest(db.as_ref(), &base_url, &client, &openfga).await;
+    let runtime = FailFirstBindRuntime::new();
+    let now = Utc::now() + ChronoDuration::hours(2);
+
+    apply_due_once(db.as_ref(), &runtime, "t5-recover", now)
+        .await
+        .expect("fail once");
+    let (retry, last_error, next_retry) = retry_state(db.as_ref(), component_id).await;
+    assert_eq!(retry, 1);
+    assert_eq!(last_error.as_deref(), Some("bind_failed"));
+    assert!(next_retry.is_some());
+    assert_eq!(observed_generation(db.as_ref(), component_id).await, 0);
+
+    let later = now + ChronoDuration::seconds(61);
+    apply_due_once(db.as_ref(), &runtime, "t5-recover", later)
+        .await
+        .expect("recover");
+
+    let (retry, last_error, next_retry) = retry_state(db.as_ref(), component_id).await;
+    assert_eq!(
+        observed_generation(db.as_ref(), component_id).await,
+        1,
+        "T5 : observed == desired après succès"
+    );
+    assert_eq!(retry, 0);
+    assert!(last_error.is_none());
+    assert!(next_retry.is_none());
 }
 
 #[derive(Clone)]

@@ -1,10 +1,10 @@
 ---
 title: >-
-  Apparatus P2 — réconciliation in-process (Partial)
+  Apparatus P2 — réconciliation in-process
 category: concepts
 tags: [components, architecture, testing, visibility/internal]
 status: accepted
-feature_status: partial
+feature_status: implemented
 sources:
   - docs/adr/0006-apparatus-p2-reconciliation-in-process.md
   - docs/apparatus-p2-implementation-prompt.md
@@ -14,35 +14,36 @@ sources:
   - Manifesto/infra/src/apparatus_outbox.rs
   - Manifesto/tests/apparatus_p2_t5_tick.rs
 summary: >-
-  Contrôleur in-process Manifesto (ticker + scan DB). T1–T7 livrés en Partial :
-  pas de bump update/remove, pas de writer retry, /ready hors ticker.
+  Contrôleur in-process Manifesto (ticker + scan DB). T1–T7 livrés : update
+  managed CAS +1 ; delete = snapshot+cleanup ; writer retry/backoff/terminal
+  fencé ; `/ready` inclut `apparatus_runtime`.
 provenance:
-  extracted: 0.86
-  inferred: 0.12
+  extracted: 0.88
+  inferred: 0.10
   ambiguous: 0.02
 created: 2026-09-12T13:20:00Z
-updated: 2026-09-13T10:25:00Z
+updated: 2026-09-13T12:00:00Z
 ---
 
 # Apparatus P2 — réconciliation in-process
 
 Pourquoi P2 : réconcilier desired/observed **sans** K8s, gateway, broker dédié ni HTTP 202. Le contrôleur est un ticker in-process de Manifesto (standalone et monolithe). Canon : [[projects/manifesto/decisions/0006-apparatus-p2-reconciliation]].
 
-ADR-0006 **Accepted** (2026-09-12). Réalité **Partial**. HEAD `7455ee5` (working tree propre le 13 sept.).
+ADR-0006 **Accepted** (2026-09-12). Réalité **Implemented** (2026-09-13). Le wiki ne dépasse pas ce canon.
 
 Le prompt `docs/apparatus-p2-implementation-prompt.md` dit encore « P2 n’est pas implémenté » — **périmé** vis-à-vis du code. ^[ambiguous]
 
 ## Ce qui est livré (T1–T7)
 
-| Tranche | Rôle | Preuve (docs, Docker non relancé ici) |
+| Tranche | Rôle | Preuve |
 |---|---|---|
 | T1 | Isolation events : managed sans `binding_id` ignoré ; legacy inchangé | `t1_events` 4 + `t1_lookup` 1 |
 | T2 | 9 colonnes + `apparatus_cleanup_jobs` sans FK, down réversible | t2 **12** |
-| T3 | Create managed gen=1 + `next_retry_at` ; delete → job ; même txn outbox | t3 **5** |
-| T4 | Reprise, pas 2e bind, fencing 0-row | t4 **4** |
-| T5 | Claim unique, steal, `is_live`, poison isolé | t5 **5** (poison 2026-09-13) |
+| T3 | Create managed gen=1 + `next_retry_at` ; update managed CAS +1 ; delete → job (snapshot, pas +1) ; même txn outbox | t3 **7** |
+| T4 | Reprise, pas 2e bind, fencing 0-row (observed + bind-failure) | t4 **5** |
+| T5 | Claim unique, steal, `is_live`, poison isolé, `/ready` ticker, backoff/terminal | t5 **10** |
 | T6 | Ports `ApparatusRuntime` + double in-process | t6 **3** (unit) |
-| T7 | Cleanup idempotent + gate P3+ ; T7 P1 retargeté | t7 cleanup **2** + gate **5** ; P1 T7 **3** |
+| T7 | Cleanup idempotent + backoff teardown + gate P3+ ; T7 P1 retargeté | t7 cleanup **4** + gate **5** ; P1 T7 **3** |
 
 Clippy OK cité dans le jalon. Commandes : [[projects/aiforall/skills/running-apparatus-p2-tests]].
 
@@ -55,9 +56,9 @@ Clippy OK cité dans le jalon. Commandes : [[projects/aiforall/skills/running-ap
 ## Runtime
 
 - Ticker : `start_apparatus_runtime` dans `Application::new_with_maybe_event_publisher`.
-- Apply : claim CAS (`lease_epoch`) → `bind` si digest présent → `write_observed`.
-- Cleanup : `teardown` puis CAS `completed_at`.
-- `/ready` : `ReadinessProbe` DB + publisher + consumer — **pas** le ticker.
+- Apply : claim CAS (`lease_epoch`) → `bind` si digest présent → `write_observed` (reset retry) ou `write_bind_failure` fencé (backoff, max 8, terminal).
+- Cleanup : `teardown` puis CAS `completed_at` ; échec → même backoff ; jobs terminaux exclus du scan.
+- `/ready` : `ReadinessProbe` DB + publisher + consumer + check `apparatus_runtime` (`live_flag`). Queue `disabled` ne bloque pas.
 
 ## Related
 

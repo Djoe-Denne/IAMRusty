@@ -27,6 +27,8 @@ async fn ready_response(probe: Arc<ReadinessProbe>) -> impl IntoResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::AtomicBool;
+
     use crate::classify::ComponentStatus;
     use crate::probe::ReadinessProbe;
 
@@ -56,5 +58,34 @@ mod tests {
         response.assert_status(StatusCode::SERVICE_UNAVAILABLE);
         let body: serde_json::Value = response.json();
         assert_eq!(body["status"], "not_ready");
+    }
+
+    #[tokio::test]
+    async fn ready_endpoint_is_unavailable_when_liveness_is_false() {
+        let live = Arc::new(AtomicBool::new(false));
+        let probe = Arc::new(ReadinessProbe::new("test").with_liveness("apparatus_runtime", live));
+        let server = axum_test::TestServer::new(attach_ready(Router::new(), probe)).unwrap();
+        let response = server.get("/ready").await;
+        response.assert_status(StatusCode::SERVICE_UNAVAILABLE);
+        let body: serde_json::Value = response.json();
+        assert_eq!(body["status"], "not_ready");
+        assert_eq!(body["checks"]["apparatus_runtime"]["status"], "error");
+    }
+
+    #[tokio::test]
+    async fn ready_endpoint_is_ok_when_liveness_true_and_queue_disabled() {
+        let live = Arc::new(AtomicBool::new(true));
+        let probe = Arc::new(
+            ReadinessProbe::new("test")
+                .with_liveness("apparatus_runtime", live)
+                .with_publisher(ComponentStatus::Disabled, None),
+        );
+        let server = axum_test::TestServer::new(attach_ready(Router::new(), probe)).unwrap();
+        let response = server.get("/ready").await;
+        response.assert_status_ok();
+        let body: serde_json::Value = response.json();
+        assert_eq!(body["status"], "ready");
+        assert_eq!(body["checks"]["apparatus_runtime"]["status"], "ok");
+        assert_eq!(body["checks"]["queue_publisher"]["status"], "disabled");
     }
 }

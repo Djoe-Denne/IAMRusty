@@ -216,7 +216,8 @@ impl Application {
                     apparatus_event_consumer
                         .as_ref()
                         .map(|consumer| consumer.inner()),
-                ),
+                )
+                .with_liveness("apparatus_runtime", apparatus_runtime.live_flag()),
         );
 
         tracing::info!("Manifesto application initialized successfully");

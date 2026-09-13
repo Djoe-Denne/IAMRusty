@@ -347,3 +347,168 @@ async fn t3_cleanup_publish_failure_rolls_back_job() {
     assert_eq!(n, 0, "T3 : échec publish ⇒ 0 job persisté");
     assert!(broker.published().is_empty(), "T3 : rien publié");
 }
+
+async fn binding_generation_and_retry(
+    db: &sea_orm::DatabaseConnection,
+    component_id: Uuid,
+) -> (i64, bool) {
+    let binding = db
+        .query_one(Statement::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            "SELECT desired_generation, \
+                    (next_retry_at IS NOT NULL) AS retry_set \
+             FROM apparatus_bindings WHERE component_id = $1",
+            [component_id.into()],
+        ))
+        .await
+        .expect("lecture binding")
+        .expect("ligne binding");
+    (
+        binding
+            .try_get("", "desired_generation")
+            .expect("desired_generation"),
+        binding.try_get("", "retry_set").expect("retry_set"),
+    )
+}
+
+#[tokio::test]
+#[serial]
+async fn t3_update_managed_bumps_desired_generation() {
+    let (fixture, base_url, client, openfga, _components) =
+        setup_test_server().await.expect("serveur de test");
+    let db = fixture.db();
+    let owner_id = Uuid::new_v4();
+    let (project, _member) = DbFixtures::create_project_with_owner(&db, owner_id)
+        .await
+        .expect("projet");
+    openfga
+        .allow(
+            Subject::new(owner_id),
+            Permission::Admin,
+            ResourceRef::new("project", project.id()),
+        )
+        .await
+        .expect("grant admin");
+
+    let jwt = create_test_jwt_token(owner_id);
+    let created_resp = client
+        .post(format!(
+            "{}/api/projects/{}/components",
+            base_url,
+            project.id()
+        ))
+        .header("Authorization", format!("Bearer {jwt}"))
+        .header("Content-Type", "application/json")
+        .json(&serde_json::json!({"component_type": "wiki"}))
+        .send()
+        .await
+        .expect("POST component");
+    assert_eq!(created_resp.status(), 201);
+    let created: serde_json::Value = created_resp.json().await.expect("JSON");
+    let cid = created["id"].as_str().expect("id composant");
+    let component_id = Uuid::parse_str(cid).expect("uuid composant");
+
+    let configured = client
+        .patch(format!(
+            "{}/api/projects/{}/components/{}",
+            base_url,
+            project.id(),
+            component_id
+        ))
+        .header("Authorization", format!("Bearer {jwt}"))
+        .header("Content-Type", "application/json")
+        .json(&serde_json::json!({"status": "configured"}))
+        .send()
+        .await
+        .expect("PATCH configured");
+    assert_eq!(configured.status(), 200);
+    let (generation, retry_set) = binding_generation_and_retry(db.as_ref(), component_id).await;
+    assert_eq!(
+        generation, 2,
+        "T3 : update managed Pending→Configured ⇒ gen 2"
+    );
+    assert!(retry_set, "T3 : next_retry_at reste posé après bump");
+    let retry_count: i32 = db
+        .query_one(Statement::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            "SELECT retry_count FROM apparatus_bindings WHERE component_id = $1",
+            [component_id.into()],
+        ))
+        .await
+        .expect("retry_count")
+        .expect("binding")
+        .try_get("", "retry_count")
+        .expect("retry_count");
+    assert_eq!(retry_count, 0, "T3 : bump commande remet retry_count à 0");
+
+    let active = client
+        .patch(format!(
+            "{}/api/projects/{}/components/{}",
+            base_url,
+            project.id(),
+            component_id
+        ))
+        .header("Authorization", format!("Bearer {jwt}"))
+        .header("Content-Type", "application/json")
+        .json(&serde_json::json!({"status": "active"}))
+        .send()
+        .await
+        .expect("PATCH active");
+    assert_eq!(active.status(), 200);
+    let (generation, retry_set) = binding_generation_and_retry(db.as_ref(), component_id).await;
+    assert_eq!(
+        generation, 3,
+        "T3 : second update Configured→Active ⇒ gen 3"
+    );
+    assert!(retry_set, "T3 : next_retry_at reste posé après second bump");
+}
+
+#[tokio::test]
+#[serial]
+async fn t3_legacy_update_does_not_bump_desired_generation() {
+    let (fixture, base_url, client, openfga, _components) =
+        setup_test_server().await.expect("serveur de test");
+    let db = fixture.db();
+    let owner_id = Uuid::new_v4();
+    let (project, _member, component) =
+        DbFixtures::create_project_with_component(&db, owner_id, "wiki")
+            .await
+            .expect("composant legacy");
+    db.execute(Statement::from_sql_and_values(
+        DatabaseBackend::Postgres,
+        "INSERT INTO apparatus_bindings \
+         (component_id, source, desired_generation) VALUES ($1, 'legacy', 0)",
+        [component.id().into()],
+    ))
+    .await
+    .expect("insert legacy binding");
+    openfga
+        .allow(
+            Subject::new(owner_id),
+            Permission::Admin,
+            ResourceRef::new("project", project.id()),
+        )
+        .await
+        .expect("grant admin");
+
+    let jwt = create_test_jwt_token(owner_id);
+    let patched = client
+        .patch(format!(
+            "{}/api/projects/{}/components/{}",
+            base_url,
+            project.id(),
+            component.id()
+        ))
+        .header("Authorization", format!("Bearer {jwt}"))
+        .header("Content-Type", "application/json")
+        .json(&serde_json::json!({"status": "configured"}))
+        .send()
+        .await
+        .expect("PATCH legacy");
+    assert_eq!(patched.status(), 200);
+    let (generation, _) = binding_generation_and_retry(db.as_ref(), component.id()).await;
+    assert_eq!(
+        generation, 0,
+        "T3 : legacy ne bump jamais desired_generation"
+    );
+}

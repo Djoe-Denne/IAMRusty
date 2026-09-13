@@ -1,14 +1,14 @@
 # ADR-0006 : La réconciliation Apparatus P2 est un contrôleur in-process de Manifesto, sans infrastructure réelle
 
 - Statut : Accepted
-- Réalité : Partial
+- Réalité : Implemented
 - Date : 2026-09-12
 - Décideurs : Architecture AIForAll — Accept explicite utilisateur (« Je te fais confiance », 2026-09-12) ; checklist A–M figée par l’orchestrateur après avis expert-engineer
 - Jalon concerné : P2
 - SuperSède : aucune
 - SuperSédée par : —
 
-`Accepted` ratifie la cible ci-dessous. `Réalité : Partial` : T1 (isolation events, ADR-0001) est livré ; T2–T7 se mesurent aux preuves de tests, pas à cette ratification.
+`Accepted` ratifie la cible ci-dessous. `Réalité : Implemented` : T1–T7 et le writer backoff §D sont livrés (preuves en Références). Aucun écart P2 ouvert.
 
 ## Contexte
 
@@ -24,7 +24,7 @@ P2 vit **dans le process Manifesto** (standalone et monolithe) : ticker + scan D
 
 ### A — Génération
 
-Compteur monotone `desired_generation` **par binding**. **Incrémenté seulement par la commande** métier existante (add/update/remove via `/components`, `source=managed`) : CAS `UPDATE … SET desired_generation = desired_generation + 1 WHERE component_id = $id AND desired_generation = $attendu`. Le ticker **n’incrémente jamais**. Scan worker : `source = 'managed'` seulement ; **legacy ne bump jamais**. `component_status_changed` managed sans `binding_id` **ou** sans génération **reste ignoré** (ADR-0001 / T1). P2 **n’ajoute pas** de champ génération sur l’event et ne s’en sert pas comme gâchette.
+Compteur monotone `desired_generation` **par binding**. **Incrémenté seulement par la commande** métier existante (`source=managed`) : create pose `desired_generation = 1` ; update (PATCH `/components` status) CAS `UPDATE … SET desired_generation = desired_generation + 1 WHERE component_id = $id AND desired_generation = $attendu`. **Delete/remove ne bump pas** : snapshot `desired_generation` + insert `apparatus_cleanup_jobs` (décision figée 2026-09-13). Le ticker **n’incrémente jamais**. Scan worker : `source = 'managed'` seulement ; **legacy ne bump jamais**. `component_status_changed` managed sans `binding_id` **ou** sans génération **reste ignoré** (ADR-0001 / T1). P2 **n’ajoute pas** de champ génération sur l’event et ne s’en sert pas comme gâchette.
 
 ### B — Lease
 
@@ -56,8 +56,10 @@ Lease **par binding**. TTL constante **30 s** (`APPARATUS_LEASE_TTL`, injectable
 | `lease_owner` | `VARCHAR(64)` | NOT NULL | `''` | `''` = jamais claim |
 | `lease_expires_at` | `TIMESTAMPTZ` | NULL | NULL | NULL = unowned |
 | `next_retry_at` | `TIMESTAMPTZ` | NULL | NULL | dû si `NULL` ou `<= now()` ; terminal = `NULL` **et** `last_error_code IS NOT NULL` |
-| `retry_count` | `INTEGER` | NOT NULL | `0` | CHECK `>= 0` |
-| `last_error_code` | `VARCHAR(64)` | NULL | NULL | pas de secrets |
+| `retry_count` | `INTEGER` | NOT NULL | `0` | CHECK `>= 0` ; plafond `APPARATUS_RETRY_MAX = 8` |
+| `last_error_code` | `VARCHAR(64)` | NULL | NULL | codes stables `bind_failed` / `teardown_failed` ; pas de secrets |
+
+Writer backoff (figé 2026-09-13), dans `Manifesto/infra/src/apparatus_runtime/` : après un échec fencé, `retry_count = retry_count + 1` et `last_error_code` court (jamais `error.to_string()`). Si `retry_count >= 8` : **terminal** — `next_retry_at = NULL` **et** `last_error_code IS NOT NULL`. Sinon `next_retry_at = now + min(30s * 2^retry_count, 5 min)` avec le **nouveau** compteur (`APPARATUS_BACKOFF_BASE` 30 s, `APPARATUS_BACKOFF_CAP` 300 s ; 1→60 s, 2→120 s, 3→240 s, 4–7→300 s). Tick 2 s / lease 30 s inchangés. Scan due bindings : `AND NOT (next_retry_at IS NULL AND last_error_code IS NOT NULL)` — **même prédicat** sur `apparatus_cleanup_jobs`. Writer périmé (CAS 0 ligne) : **pas** d’incrément. Succès `write_observed` : `retry_count = 0`, `last_error_code = NULL`, `next_retry_at = NULL`. Une **commande** update (CAS §A) remet aussi `retry_count = 0`, `last_error_code = NULL`, `next_retry_at = NOW()` (nouveau budget). Cleanup succès : CAS `completed_at` seulement ; échec `teardown` : même backoff via `UPDATE … WHERE id = $id AND completed_at IS NULL` (0 ligne = déjà complété, pas d’incrément).
 
 CHECK owned : `(lease_owner = '' AND lease_expires_at IS NULL) OR (lease_owner <> '' AND lease_expires_at IS NOT NULL)`.
 
@@ -80,7 +82,7 @@ Index : `idx_apparatus_bindings_managed_due` **partiel** `(next_retry_at) WHERE 
 | `completed_at` | `TIMESTAMPTZ` | NULL | NULL | NULL = ouvert ; CAS de fin |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL | `now()` | |
 
-Pas de lease sur cette table : `teardown` idempotent + `UPDATE … SET completed_at = now() WHERE id = $id AND completed_at IS NULL`.
+Pas de lease sur cette table : `teardown` idempotent + `UPDATE … SET completed_at = now() WHERE id = $id AND completed_at IS NULL`. Échec : retry/backoff/terminal (même formule que les bindings). Scan due : exclut le prédicat terminal.
 
 Index : `uq_apparatus_cleanup_jobs_open` UNIQUE partiel `(component_id) WHERE completed_at IS NULL` ; `idx_apparatus_cleanup_jobs_due` partiel `(next_retry_at) WHERE completed_at IS NULL`.
 
@@ -120,7 +122,7 @@ Desired + (job cleanup si delete) + outbox ownership dans **la même txn**, **sa
 
 ### K — Cleanup
 
-Insert `apparatus_cleanup_jobs` dans l’UoW **delete** si managed et (`digest IS NOT NULL` ou `desired_generation > 0`). Worker `teardown` puis CAS `completed_at`. Relançable tant que `completed_at IS NULL`. Pas de tombstone P1, pas de trigger.
+Insert `apparatus_cleanup_jobs` dans l’UoW **delete** si managed et (`digest IS NOT NULL` ou `desired_generation > 0`). Worker `teardown` puis CAS `completed_at`. Relançable tant que `completed_at IS NULL` et non terminal. Pas de tombstone P1, pas de trigger.
 
 ### L — Gate T7 dès T2
 
@@ -143,6 +145,7 @@ Hors P2.
 - Prod P2 : `Manifesto/infra/src/apparatus_runtime/` ; wiring `start_apparatus_runtime` dans setup (noms hors allowlist **sans** tokens P2).
 - Tests `Manifesto/tests/apparatus_p2_t2_*.rs` … `t7_*.rs`. T1 reste vert.
 - T7 P1 retargeté dès T2 selon L.
+- Update managed CAS +1 livré. Delete/remove ne bump pas (snapshot + cleanup) — décision figée 2026-09-13, pas un écart.
 
 ## Alternatives rejetées
 
@@ -169,12 +172,8 @@ Hors P2.
 - ADR-0001 … 0005
 - Code P1 : `m20260912_000012_create_apparatus_bindings_table.rs`
 - Preuve T1 : `apparatus_p2_t1_events` 4/4, `apparatus_p2_t1_lookup` 1/1
-- Preuve T2–T7 (2026-09-12, t5 poison 2026-09-13) : t2 12, t3 5, t4 4, t5 5, t6 3, t7 cleanup 2 + gate 5 ; T7 P1 3. `/ready` n’est pas encore branché sur le ticker (`is_live()` explicite).
+- Preuve T2–T7 (2026-09-13, §D backoff) : t2 12, t3 7, t4 5, t5 10, t6 3, t7 cleanup 4 + gate 5 ; T7 P1 3 ; `cargo test -p readiness` 17. `/ready` inclut le check `apparatus_runtime` (`live_flag`).
 
-### Écarts de réalité P2
+### Réalité P2
 
-Cible Accepted A–M inchangée. Ce jalon n’a pas livré ces exigences (même motif que `/ready`) :
-
-- **§A** : create managed pose `desired_generation = 1` et `next_retry_at = NOW()`. Update/remove **ne bumpent pas**. Reconfiguration non réconciliable dans ce jalon (génération figée à 1). Report conscient, déjà noté dans `.serena/memories/architecture/apparatus-p2-t3-persist.md`.
-- **§D** : colonnes `retry_count` / `last_error_code` / prédicat terminal présentes ; **aucun writer** en prod. `next_retry_at` fixé à l’insert. Échec de `bind` = re-scan au tick suivant, sans backoff.
-- **§I** : `/ready` reste non branché (déjà écrit ci-dessus).
+Aucun écart P2 ouvert. §A remove-not-bump est une décision figée (Décision A / Conséquences), pas un écart d’implémentation.

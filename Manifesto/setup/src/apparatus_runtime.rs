@@ -27,6 +27,12 @@ impl ApparatusRuntimeHandle {
         self.live.store(false, Ordering::SeqCst);
         self.join.abort();
     }
+
+    /// Flag partagé avec `/ready` (`false` après [`Self::abort`]).
+    #[must_use]
+    pub fn live_flag(&self) -> Arc<AtomicBool> {
+        Arc::clone(&self.live)
+    }
 }
 
 /// Démarre la boucle d'intervalle in-process.
@@ -39,8 +45,17 @@ pub fn start_apparatus_runtime(
     let live = Arc::new(AtomicBool::new(true));
     let live_flag = live.clone();
     let join = tokio::spawn(async move {
+        let _clear_on_exit = ClearLiveOnDrop(live_flag);
         run_tick_loop(db, runtime, owner, tick_interval).await;
-        live_flag.store(false, Ordering::SeqCst);
     });
     ApparatusRuntimeHandle { join, live }
+}
+
+/// Met le flag à `false` si la tâche finit ou panique (aligné sur `is_live()`).
+struct ClearLiveOnDrop(Arc<AtomicBool>);
+
+impl Drop for ClearLiveOnDrop {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::SeqCst);
+    }
 }

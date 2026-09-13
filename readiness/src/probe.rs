@@ -1,6 +1,7 @@
 //! Compose database + queue checks into a `/ready` report.
 
 use std::collections::BTreeMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use rustycog::events::{
@@ -22,6 +23,7 @@ enum ProbeKind {
         database: Option<Arc<DatabaseConnection>>,
         publisher: Option<QueueAttachment>,
         consumer: Option<QueueAttachment>,
+        liveness: Vec<(&'static str, Arc<AtomicBool>)>,
     },
     Aggregate {
         children: Vec<(&'static str, Arc<ReadinessProbe>)>,
@@ -68,6 +70,7 @@ impl ReadinessProbe {
                 database: None,
                 publisher: None,
                 consumer: None,
+                liveness: Vec::new(),
             },
         }
     }
@@ -127,6 +130,17 @@ impl ReadinessProbe {
         self
     }
 
+    /// Attach a named liveness flag. `false` makes the service `not_ready`.
+    ///
+    /// Service probes only; ignored on aggregates.
+    #[must_use]
+    pub fn with_liveness(mut self, name: &'static str, live: Arc<AtomicBool>) -> Self {
+        if let ProbeKind::Service { liveness, .. } = &mut self.kind {
+            liveness.push((name, live));
+        }
+        self
+    }
+
     /// Evaluate all checks.
     pub async fn report(&self) -> ReadinessReport {
         match &self.kind {
@@ -134,9 +148,15 @@ impl ReadinessProbe {
                 database,
                 publisher,
                 consumer,
+                liveness,
             } => {
-                self.service_report(database.as_ref(), publisher.as_ref(), consumer.as_ref())
-                    .await
+                self.service_report(
+                    database.as_ref(),
+                    publisher.as_ref(),
+                    consumer.as_ref(),
+                    liveness,
+                )
+                .await
             }
             ProbeKind::Aggregate { children } => self.aggregate_report(children).await,
         }
@@ -152,6 +172,7 @@ impl ReadinessProbe {
         database: Option<&Arc<DatabaseConnection>>,
         publisher: Option<&QueueAttachment>,
         consumer: Option<&QueueAttachment>,
+        liveness: &[(&'static str, Arc<AtomicBool>)],
     ) -> ReadinessReport {
         let mut checks = BTreeMap::new();
         if let Some(database) = database {
@@ -165,6 +186,17 @@ impl ReadinessProbe {
         }
         if let Some(consumer) = consumer {
             checks.insert("queue_consumer".to_owned(), queue_check(consumer).await);
+        }
+        for (name, live) in liveness {
+            let is_live = live.load(Ordering::SeqCst);
+            checks.insert(
+                (*name).to_owned(),
+                CheckReport {
+                    status: if is_live { "ok" } else { "error" },
+                    transport: None,
+                    detail: (!is_live).then(|| "not_live".to_owned()),
+                },
+            );
         }
         Self::finish(self.service, checks)
     }
@@ -367,5 +399,43 @@ mod tests {
         assert_eq!(report.checks["iam"].status, "ok");
         assert!(report.checks["iam"].detail.is_none());
         assert!(probe.is_ready().await);
+    }
+
+    #[tokio::test]
+    async fn liveness_false_is_not_ready() {
+        let live = Arc::new(AtomicBool::new(false));
+        let probe = ReadinessProbe::new("manifesto").with_liveness("apparatus_runtime", live);
+        let report = probe.report().await;
+        assert_eq!(report.status, "not_ready");
+        assert_eq!(report.checks["apparatus_runtime"].status, "error");
+        assert_eq!(
+            report.checks["apparatus_runtime"].detail.as_deref(),
+            Some("not_live")
+        );
+    }
+
+    #[tokio::test]
+    async fn liveness_true_with_disabled_queue_is_ready() {
+        let live = Arc::new(AtomicBool::new(true));
+        let probe = ReadinessProbe::new("manifesto")
+            .with_liveness("apparatus_runtime", live)
+            .with_publisher(ComponentStatus::Disabled, None)
+            .with_consumer(ComponentStatus::Disabled, None);
+        let report = probe.report().await;
+        assert_eq!(report.status, "ready");
+        assert_eq!(report.checks["apparatus_runtime"].status, "ok");
+        assert_eq!(report.checks["queue_publisher"].status, "disabled");
+        assert_eq!(report.checks["queue_consumer"].status, "disabled");
+    }
+
+    #[tokio::test]
+    async fn aggregate_fails_when_child_liveness_is_false() {
+        let live = Arc::new(AtomicBool::new(false));
+        let child =
+            Arc::new(ReadinessProbe::new("manifesto").with_liveness("apparatus_runtime", live));
+        let probe = ReadinessProbe::aggregate("monolith", vec![("manifesto", child)]);
+        let report = probe.report().await;
+        assert_eq!(report.status, "not_ready");
+        assert_eq!(report.checks["manifesto"].status, "error");
     }
 }

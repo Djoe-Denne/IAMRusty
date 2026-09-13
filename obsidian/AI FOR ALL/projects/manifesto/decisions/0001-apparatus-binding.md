@@ -32,12 +32,12 @@ Canon : `docs/adr/0001-apparatus-binding-owned-by-manifesto.md`. Hub : [[project
 ## Réalité : Partial
 
 - P1 (2026-09-12, désormais dans HEAD `7455ee5`) : table `apparatus_bindings` 1:1, migration réversible (T1 8/8), backfill legacy idempotent (T2 5/5), mapping injectif (T3), alias `?binding` même `component_id` (T6). Voir [[projects/manifesto/concepts/apparatus-p1-persistence]].
-- P2 : ADR-0006 **Accepted** / Réalité Partial. Isolation events T1, ticker in-process, lease/fencing, cleanup. Le canon ADR-0001 dit encore « 0006 Proposed » — **périmé** vis-à-vis de `docs/adr/0006`. ^[ambiguous]
-- Manquants vis-à-vis 0001 : consentement ; génération CAS complète (create seulement). Voir [[projects/manifesto/decisions/0006-apparatus-p2-reconciliation]].
+- P2 : ADR-0006 **Accepted** / Réalité Implemented (T1–T7 + writer backoff §D). Voir [[projects/manifesto/decisions/0006-apparatus-p2-reconciliation]].
+- Manquants vis-à-vis 0001 : consentement (hors P2). Génération CAS create+update livrée ; delete = snapshot + cleanup (pas de bump).
 
 ## Non décidé ici
 
-`APP-02` (publish/install), `APP-07` (transfert org). Worker/lease/fencing : tranchés dans [[projects/manifesto/decisions/0006-apparatus-p2-reconciliation]] (Partial).
+`APP-02` (publish/install), `APP-07` (transfert org). Worker/lease/fencing : tranchés et livrés dans [[projects/manifesto/decisions/0006-apparatus-p2-reconciliation]] (Implemented).
 
 ## Related
 

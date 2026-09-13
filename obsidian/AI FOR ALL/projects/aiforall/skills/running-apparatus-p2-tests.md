@@ -11,18 +11,19 @@ sources:
   - Manifesto/tests/apparatus_p2_t7_cleanup.rs
 summary: >-
   Tests P2 T1–T7 : unit sans Docker + DB --test-threads=1. Compteurs cités :
-  t2 12, t4 4, t5 5, t7_cleanup 2. ADR-0006 Accepted / Partial.
+  t2 12, t3 7, t4 5, t5 10, t7_cleanup 4, readiness 17. ADR-0006 Accepted /
+  Implemented.
 provenance:
   extracted: 0.92
   inferred: 0.08
   ambiguous: 0.00
 created: 2026-09-12T13:20:00Z
-updated: 2026-09-13T10:25:00Z
+updated: 2026-09-13T12:00:00Z
 ---
 
 # Lancer les tests Apparatus P2
 
-ADR-0006 Accepted, Réalité Partial. Harness `Manifesto/tests/common.rs`. Concept : [[projects/manifesto/concepts/apparatus-p2-reconciliation]].
+ADR-0006 Accepted, Réalité Implemented. Harness `Manifesto/tests/common.rs`. Concept : [[projects/manifesto/concepts/apparatus-p2-reconciliation]].
 
 T4/T5 **injectent `digest` en SQL** après le create HTTP : le chemin prod ne pose pas le digest, donc un create seul ne suffit pas à exercer `bind`. ^[extracted]
 
@@ -43,6 +44,6 @@ cargo test -p manifesto-service --test apparatus_p1_t7_gate -- --test-threads=1
 
 `t1_events` / `t6_runtime` / gates : sans Docker. Les autres : Postgres (+ OpenFGA via `setup_test_server`), `#[serial]`.
 
-## Compteurs cités (2026-09-12 / t5 poison 2026-09-13)
+## Compteurs cités (2026-09-13)
 
-t1 4+1, t2 **12**, t3 5, t4 **4**, t5 **5**, t6 3, t7 cleanup **2** + gate 5. Suite Docker non relancée à l’ingest wiki. Clippy OK cité dans le jalon.
+t1 4+1, t2 **12**, t3 **7**, t4 **5**, t5 **10**, t6 3, t7 cleanup **4** + gate 5 ; `cargo test -p readiness` **17**.

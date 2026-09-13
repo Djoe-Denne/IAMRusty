@@ -502,14 +502,20 @@ impl ProjectAuthorizationUnitOfWork for ProjectAuthorizationUnitOfWorkImpl {
             )
             .await?;
             if create_acl {
-                // T5/T3 : extension 1:1 `managed`, desired_generation=1, next_retry_at=now(),
-                // même transaction que l'ACL instance et l'outbox.
-                // Création seule : les mises à jour ne touchent pas au binding.
+                // Create managed: desired_generation=1, next_retry_at=now(), même txn ACL + outbox.
                 crate::apparatus_outbox::insert_managed_binding(&txn, component.id)
                     .await
                     .map_err(|e| {
                         ApplicationError::Internal(format!(
                             "failed to record apparatus binding: {e}"
+                        ))
+                    })?;
+            } else {
+                crate::apparatus_outbox::bump_managed_desired_generation(&txn, component.id)
+                    .await
+                    .map_err(|e| {
+                        ApplicationError::Internal(format!(
+                            "failed to bump apparatus desired_generation: {e}"
                         ))
                     })?;
             }
