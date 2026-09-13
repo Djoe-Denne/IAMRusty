@@ -4,9 +4,9 @@ category: references
 tags: [architecture, components, visibility/internal]
 status: accepted
 feature_status: partial
-summary: "Hub ADR Apparatus 0001–0006 Accepted / Réalité Partial. P0 = contrats, P1 = persistance, P2 = réconciliation in-process (pas Factory ni host)."
+summary: "Hub ADR Apparatus 0001–0006 Accepted / Réalité Partial. P2 ticker in-process livré ; Factory/host hors livré."
 created: 2026-09-10T06:32:00Z
-updated: 2026-09-12T13:45:00Z
+updated: 2026-09-13T10:25:00Z
 sources:
   - docs/adr/README.md
   - docs/adr/0001-apparatus-binding-owned-by-manifesto.md
@@ -43,7 +43,7 @@ Les ADR Apparatus ci-dessous sont **Accepted** depuis la ratification orchestré
 | [0005](../../../../../docs/adr/0005-apparatus-same-protocol-valid-verified.md) — [[projects/manifesto/decisions/0005-apparatus-protocol]] | Même protocole ; admission, `VALID`, `VERIFIED` et installabilité distincts | Partial |
 | [0006](../../../../../docs/adr/0006-apparatus-p2-reconciliation-in-process.md) — [[projects/manifesto/decisions/0006-apparatus-p2-reconciliation]] | Réconciliation P2 = contrôleur in-process Manifesto, sans infra réelle | Partial |
 
-Preuve P0 : [[projects/manifesto/concepts/apparatus-p0-contracts]]. Preuve P1 : [[projects/manifesto/concepts/apparatus-p1-persistence]]. ADR-0006 Accepted 2026-09-12 (checklist A–M) ; Réalité Partial (T1 vert, T2–T7 = tests). Le wiki bindings/plan reste conception.
+Preuve P0 : [[projects/manifesto/concepts/apparatus-p0-contracts]]. Preuve P1 : [[projects/manifesto/concepts/apparatus-p1-persistence]]. ADR-0006 Accepted 2026-09-12 ; Réalité Partial (T1–T7, écarts A/D/I). Concept : [[projects/manifesto/concepts/apparatus-p2-reconciliation]].
 
 ## Conception (pas des ADR)
 
@@ -65,4 +65,4 @@ Photographie rétroactive du 12 septembre 2026. Extrait Manifesto ; index platef
 | ADR | Décision | Réalité |
 |---|---|---|
 | [0401](../../../../../docs/adr/0401-manifesto-projets-composants-acl-cas.md) — [[projects/aiforall/decisions/0400-services-runtime]] | Manifesto = projets, composants, membership SQL, CAS, ACL+outbox atomiques | Implemented |
-| [0406](../../../../../docs/adr/0406-crates-apparatus-p0-pas-le-host.md) — [[projects/aiforall/decisions/0400-services-runtime]] | `apparatus-contracts` + KV réf. = P0 ; Factory / host / gateway hors livré — voir 0001–0005 | Partial |
+| [0406](../../../../../docs/adr/0406-crates-apparatus-p0-pas-le-host.md) — [[projects/aiforall/decisions/0400-services-runtime]] | `apparatus-contracts` + KV réf. = P0 ; Factory / host / gateway hors livré — voir 0001–0006 | Partial |

@@ -8,7 +8,7 @@ provenance:
   extracted: 0.9
   inferred: 0.08
   ambiguous: 0.02
-updated: 2026-09-11T05:45:00Z
+updated: 2026-09-13T10:25:00Z
 ---
 
 # AIForAll Skills
@@ -18,5 +18,5 @@ updated: 2026-09-11T05:45:00Z
 - [[projects/aiforall/skills/running-parallel-sonar-lanes]]
 - [[projects/aiforall/skills/running-apparatus-p0-tests]]
 - [[projects/aiforall/skills/running-apparatus-p1-tests]]
-- [[projects/aiforall/skills/running-apparatus-p2-tests]]
+- [[projects/aiforall/skills/running-apparatus-p2-tests]] — T1–T7, `--test-threads=1` ; t2 12 / t5 5 / t7 cleanup 2.
 - Repo handbook (not a vault page): `docs/README.md` — JWT, nouveau service, parcours métier. Agent skill `.agents/skills/aiforall-new-service/SKILL.md`.

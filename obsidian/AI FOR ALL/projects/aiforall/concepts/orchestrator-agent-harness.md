@@ -18,7 +18,7 @@ provenance:
   inferred: 0.14
   ambiguous: 0.00
 created: 2026-09-11T05:45:00Z
-updated: 2026-09-12T10:20:00Z
+updated: 2026-09-13T10:25:00Z
 ---
 
 # Harnais orchestrator Cursor
@@ -53,7 +53,7 @@ Ne pas précharger `.cursor/agents/*.md` ; le registre Cursor suffit. Les prompt
 
 La session du 10 sept. a remplacé des occurrences Muse trop coûteuses par **Grok 4.6 Extra High** pour le travail courant. Muse reste utilisable quand on le demande explicitement (ex. triple review P0). ^[inferred]
 
-Le 12 sept., l'utilisateur a d'abord priorisé **Muse Spark Max** premier / Grok second (7 fichiers agents mis à jour), puis a **interdit Muse Spark** pour toute délégation (`Plus le droit d'utiliser Muse Spark`, mémoire `constraints/no-muse-spark`). État effectif : les 6 agents Cursor sont en `model: cursor-grok-4.6-xhigh`, et seul Grok 4.6 Extra High est autorisé (résolveurs, reviews et contre-agents inclus). Le prompt P2 en préparation doit l'exiger explicitement en tête. ^[inferred]
+Le 12 sept., l'utilisateur a d'abord priorisé **Muse Spark Max**, puis a **interdit Muse Spark** (`constraints/no-muse-spark`). Délégation quotidienne : Grok Extra High. Le 12–13 sept., P2 a été mené sous ce harnais (TDD T1–T7). Agents `adr-*` aussi versionnés `.codex/agents/*.toml` (`5991670`). Voir [[projects/manifesto/concepts/apparatus-p2-reconciliation]] et [[journal/2026-09-13]].
 
 ## Patterns durables (P1, 12 sept.)
 
@@ -66,5 +66,6 @@ Le 12 sept., l'utilisateur a d'abord priorisé **Muse Spark Max** premier / Grok
 - [[projects/aiforall/aiforall]]
 - [[projects/manifesto/concepts/apparatus-p0-contracts]] — première livraison menée sous ce harnais
 - [[projects/manifesto/concepts/apparatus-p1-persistence]] — duel gather + tranches TDD sous ce harnais
-- [[journal/2026-09-11]]
+- [[projects/manifesto/concepts/apparatus-p2-reconciliation]] — TDD T1–T7 sous ce harnais
+- [[journal/2026-09-13]]
 - [[journal/2026-09-12]]

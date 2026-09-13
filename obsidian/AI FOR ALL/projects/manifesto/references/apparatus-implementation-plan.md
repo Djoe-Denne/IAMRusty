@@ -15,13 +15,17 @@ sources:
   - apparatus-reference-kv/apparatus.toml
   - docs/apparatus-p1-implementation-prompt.md
   - docs/services/manifesto.md
-summary: "Livraison par étapes, migration sans rupture des composants, critères de conformance et arbitrages produit/infrastructure encore nécessaires. P1 prouvé non commité."
+  - docs/adr/0006-apparatus-p2-reconciliation-in-process.md
+  - docs/apparatus-p2-implementation-prompt.md
+summary: >-
+  Phases Apparatus : P0/P1/P2 Partial dans HEAD 7455ee5. P2.1 = bump, writer,
+  /ready. P3+ = gateway/K8s/invoke.
 provenance:
-  extracted: 0.12
-  inferred: 0.88
-  ambiguous: 0.0
+  extracted: 0.22
+  inferred: 0.76
+  ambiguous: 0.02
 created: 2026-09-09T17:50:00Z
-updated: 2026-09-12T09:30:00Z
+updated: 2026-09-13T10:25:00Z
 ---
 
 # Apparatus — plan d’implémentation et décisions restantes
@@ -55,7 +59,7 @@ Canon : `docs/adr/` ; hub wiki : [[projects/manifesto/decisions/index]]. `Accept
 
 | Sujet | ADR | Réalité | Encore hors ADR |
 |---|---|---|---|
-| Propriété Manifesto, 1:1 `ProjectComponent`, unicité | [0001](../../../../../docs/adr/0001-apparatus-binding-owned-by-manifesto.md) | Partial | Lease / fencing (P2) |
+| Propriété Manifesto, 1:1 `ProjectComponent`, unicité | [0001](../../../../../docs/adr/0001-apparatus-binding-owned-by-manifesto.md) | Partial | Consentement ; bump génération update/remove (P2.1) |
 | Contrats, digest immuable, Apparatus KV de référence | [0002](../../../../../docs/adr/0002-apparatus-contract-first.md) | Partial | CLI / macro ; champs TOML de détail |
 | Plugin hostile hors processus privilégiés | [0003](../../../../../docs/adr/0003-apparatus-untrusted-plugin.md) | Partial | Moteur et adaptateur / `APP-01` |
 | Gateway, KV, pas de bearer IAM, fermeture DB immédiate | [0004](../../../../../docs/adr/0004-apparatus-capability-gateway.md) | Partial | mTLS concret (P3) |
@@ -79,7 +83,7 @@ Backfill : les composants existants deviennent `source=legacy`, avec identité c
 
 **Preuve de sortie** : migration réversible avant activation de workloads ; comparaisons avant/après des IDs, permissions et réponses legacy ; rejet d’un double ajout concurrent ; rollback transactionnel si écriture outbox échoue. Aucun backfill ne démarre du code tiers. ^[inferred]
 
-**Preuve P1 livrée (2026-09-12, non commitée)** : T1-T6 28/28, mapping 5/5, T7 3/3 = P1 36 ; P0.1 42/42 ; total 78. Synthèse : [[projects/manifesto/concepts/apparatus-p1-persistence]].
+**Preuve P1 livrée (2026-09-12, commit `7455ee5`)** : T1-T6 28/28, mapping 5/5, T7 3/3 = P1 36 ; P0.1 42/42. Synthèse : [[projects/manifesto/concepts/apparatus-p1-persistence]].
 1. Migration réversible — table `apparatus_bindings` (`id` BIGSERIAL interne, `component_id` UUID UNIQUE FK→`project_components.id` CASCADE, `digest` VARCHAR(128) NULL, `source` CHECK legacy|managed), migration `m20260912_000012` additive réversible, up/down/up verts, 8/8. Fichier : `Manifesto/migration/src/m20260912_000012_create_apparatus_bindings_table.rs`.
 2. Backfill legacy — `backfill_apparatus_legacy` explicite (`INSERT...SELECT` legacy `ON CONFLICT DO NOTHING`), idempotent 2 runs même état, legacy intact, 5/5. Fichier : `Manifesto/infra/src/apparatus_backfill.rs`.
 3. Collisions rejetées — table injective taskboard/wiki, `check_pairs_injective`, erreur `APPARATUS_MAPPING_COLLISION` v1, `is_unique_violation` 23505→409, `map_unique_conflict` 409, concurrence [201,409] stable, 4/4 + mapping 5/5. Fichiers : `Manifesto/infra/src/apparatus_mapping.rs`, `Manifesto/infra/src/repository/component_repository.rs`.
@@ -96,7 +100,9 @@ Modifier dès ce stade la suppression du projet pour conserver l’intention de 
 
 **Preuve de sortie** : crash après création de ressource simulée puis reprise sans doublon ; deux workers concurrents ; événement perdu/doublé/désordonné ; upgrade périmé refusé ; suppression pendant provisioning ; cleanup relançable. ^[inferred]
 
-**État 2026-09-12 (ADR-0006 Accepted, Réalité Partial)** : checklist A–M figée. T1 isolation events ; T2 migration 9 colonnes + `apparatus_cleanup_jobs` ; T3 persist atomique ; T4 reprise/idempotence ; T5 ticker in-process + lease/fencing ; T6 `ApparatusRuntime` in-process ; T7 cleanup relançable + gate P3+. Tests `apparatus_p2_t1`…`t7`. Pas de gateway / K8s / 202 / nouvel event. `/ready` n’expose pas encore le ticker (`is_live()`).
+**État 2026-09-13 (ADR-0006 Accepted, Réalité Partial, HEAD `7455ee5`)** : T1–T7 existent (t2 12, t4 4, t5 5, t7 cleanup 2). Pas de gateway / K8s / 202 / nouvel event. Écarts A/D/I : pas de bump update/remove, pas de writer retry, `/ready` hors ticker. Mineurs (IF NOT EXISTS index/table cleanup, isolation poison, log fencing) **dans** ce commit. `ADD COLUMN` des 9 colonnes sans IF NOT EXISTS. Create ne pose pas `digest` → apply no-op hors tests. Synthèse : [[projects/manifesto/concepts/apparatus-p2-reconciliation]].
+
+**P2.1 (prochain jalon, pas P3)** : CAS `desired_generation + 1` sur update/remove ; writer `retry_count`/`last_error_code` + backoff ; brancher `/ready` sur `is_live()` ; poser `digest` sur le chemin commande. P3+ (`invoke`, gateway, K8s) reste interdit par T7.
 
 ### P3 — Frontière de capacités et données
 
@@ -124,7 +130,7 @@ L’Apparatus officiel de référence utilise exactement le chemin de publicatio
 
 ## Matrice de tests d’acceptation
 
-Ces tests sont à écrire dans l’implémentation future ; ils n’ont pas été exécutés pendant la rédaction. ^[inferred]
+La matrice gateway/Factory/K8s reste **future** (P3+). Les preuves worker P2 (crash, lease, fencing, cleanup) sont exercées par `apparatus_p2_t4`–`t7` (Partial). ^[inferred]
 
 | Frontière | Tests décisifs |
 |---|---|

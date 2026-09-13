@@ -13,13 +13,14 @@ sources:
   - C:/Users/djden/source/repos/AIForAll/.env
   - docs/adr/README.md
 summary: >-
-  Workspace AIForAll : 4 slices RustyCog, dual runtime, ADR vague 2 (0100–0502), P0 Apparatus (pas Factory).
+  Workspace AIForAll : 4 slices RustyCog, dual runtime, ADR vague 2, Apparatus
+  P0/P1/P2 Partial (pas Factory).
 provenance:
   extracted: 0.80
   inferred: 0.16
   ambiguous: 0.04
 created: 2026-04-14T16:54:59.5971424Z
-updated: 2026-09-12T10:20:00Z
+updated: 2026-09-13T10:25:00Z
 ---
 
 # AIForAll
@@ -35,7 +36,7 @@ AIForAll is a Rust-based microservices workspace centered on [[projects/iamrusty
 - August 2026 reviews show one hexagonal scaffold with remaining gaps on JWT/JWKS, errors, OpenAPI Hive, and OpenFGA wiring — [[concepts/architecture-coherence-across-services]]. Photograph rétroactive : [[projects/aiforall/decisions/index]].
 - Queue factories must surface rustycog no-ops on `/ready` — [[projects/aiforall/concepts/queue-readiness-signaling]].
 - Project work is routed through [[projects/aiforall/concepts/orchestrator-agent-harness]].
-- Apparatus P0 crates live at workspace root, not inside Manifesto HTTP — [[projects/manifesto/concepts/apparatus-p0-contracts]] (ADR 0406).
+- Apparatus P0 crates live at workspace root ; P2 ticker is in Manifesto (Partial) — [[projects/manifesto/concepts/apparatus-p2-reconciliation]] (ADR 0406 + 0006).
 
 ## Runtime Modes
 

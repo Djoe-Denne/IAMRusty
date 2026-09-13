@@ -18,13 +18,15 @@ sources:
   - Manifesto/docs/rustycog-hexagonal-web-service-guide.md
   - Manifesto/docs/rustycog-implementation-and-usage-guide.md
   - docs/adr/0401-manifesto-projets-composants-acl-cas.md
-summary: "Manifesto : slice hexagonale (ADR 0401) ; Apparatus P0 contrats + P1 persistance, pas Factory/host."
+summary: >-
+  Manifesto : slice hexagonale (ADR 0401). Apparatus P0/P1/P2 Partial dans
+  HEAD 7455ee5 ; Factory/host/gateway hors livré.
 provenance:
   extracted: 0.76
   inferred: 0.22
   ambiguous: 0.02
 created: 2026-04-14T16:54:59.5971424Z
-updated: 2026-09-12T10:20:00Z
+updated: 2026-09-13T10:25:00Z
 ---
 
 # Manifesto
@@ -60,7 +62,7 @@ Manifesto is the project-management service for AIForAll. Use `[[projects/rustyc
 
 ## Apparatus
 
-Le rationnel reste [[projects/manifesto/concepts/apparatus-platform]]. **P0** (contrats, digest, harness, KV) : [[projects/manifesto/concepts/apparatus-p0-contracts]]. **P1** persistance binding (TDD, non commité) : [[projects/manifesto/concepts/apparatus-p1-persistence]]. Factory / host / gateway restent hors livré (ADR 0406).
+Le rationnel reste [[projects/manifesto/concepts/apparatus-platform]]. **P0** : [[projects/manifesto/concepts/apparatus-p0-contracts]]. **P1** persistance : [[projects/manifesto/concepts/apparatus-p1-persistence]]. **P2** réconciliation in-process (Partial) : [[projects/manifesto/concepts/apparatus-p2-reconciliation]]. Factory / host / gateway restent hors livré (ADR 0406). HEAD `7455ee5`.
 
 Les ADR vague 1 sont **Accepted** ([[projects/manifesto/decisions/index]]) avec `Réalité` **Partial**. La photographie du service actuel : ADR 0401 — [[projects/aiforall/decisions/0400-services-runtime]].
 
@@ -84,7 +86,7 @@ Les ADR vague 1 sont **Accepted** ([[projects/manifesto/decisions/index]]) avec 
 ## Open Questions
 
 - Later work: L-PARTNERSHIP remains open on [[projects/manifesto/concepts/org-owned-visibility-and-participation-limits]]. Join, Internal, immediate ACL, and restore/CAS shipped 2026-09.
-- Apparatus : P0 + P1 persistance (non commité) dans le workspace ; Factory/host/gateway ouverts. Plan : [[projects/manifesto/references/apparatus-implementation-plan]]. ADR 0406.
+- Apparatus : P0 + P1 + P2 Partial dans `7455ee5` ; P2.1 (bump, writer, `/ready`) avant P3. Plan : [[projects/manifesto/references/apparatus-implementation-plan]]. ADR 0406.
 - If queue-backed operation becomes more common outside local/test, should the checked-in config examples start surfacing explicit broker settings?
 
 ## Sources

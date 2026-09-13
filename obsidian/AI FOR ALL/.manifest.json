@@ -1,29 +1,58 @@
 {
   "version": 1,
   "stats": {
-    "total_sources_ingested": 281,
-    "total_pages": 178,
-    "last_commit_synced": "f6d2931"
+    "total_sources_ingested": 308,
+    "total_pages": 179,
+    "last_commit_synced": "7455ee55abc4acec223a78c4d5bfeced5bb680f7"
   },
   "projects": {
     "aiforall": {
       "source_cwd": "C:/Users/djden/source/repos/AIForAll",
-      "last_synced": "2026-09-12T10:20:00Z",
-      "last_commit_synced": "f6d2931",
-      "conversations_ingested": 47,
-      "conversations_total": 80,
+      "last_synced": "2026-09-13T10:25:00Z",
+      "last_commit_synced": "7455ee55abc4acec223a78c4d5bfeced5bb680f7",
+      "sync_note": "working-tree-clean; P2 lives in HEAD 7455ee5 (not uncommitted)",
+      "conversations_ingested": 49,
+      "conversations_total": 82,
       "pages_in_vault": [
         "projects/aiforall/aiforall.md",
-        "projects/aiforall/roadmap.md"
+        "projects/aiforall/roadmap.md",
+        "journal/2026-09-13.md"
       ]
     }
   },
   "sources": {
+    "docs/adr/0006-apparatus-p2-reconciliation-in-process.md": {"ingested_at":"2026-09-13T10:25:00Z","size_bytes":11060,"modified_at":"2026-09-13T10:04:54.206Z","content_hash":"sha256:e9ee5a71e9990a5ab4a2ce25e9a841c0ce0bd3ac8f135ae8c295ee6a0147669d","source_type":"document","project":"manifesto","pages_created":[],"pages_updated":["projects/manifesto/decisions/0006-apparatus-p2-reconciliation.md","projects/manifesto/concepts/apparatus-p2-reconciliation.md"]},
+    "docs/apparatus-p2-implementation-prompt.md": {"ingested_at":"2026-09-13T10:25:00Z","size_bytes":17341,"modified_at":"2026-09-12T09:41:18.698Z","content_hash":"sha256:3dff8bff842c13cce80f799fcbb8ef4262926c91273f6397fcfaf5718d99310d","source_type":"document","project":"manifesto","pages_created":[],"pages_updated":["projects/aiforall/skills/running-apparatus-p2-tests.md","projects/manifesto/concepts/apparatus-p2-reconciliation.md"]},
+    ".serena/memories/architecture/apparatus-p2-adr-0006-accepted.md": {"ingested_at":"2026-09-13T10:25:00Z","size_bytes":1065,"modified_at":"2026-09-13T10:04:54.560Z","content_hash":"sha256:da0de6f42b2118f7e50abe1d699198f480cb83abc84d6b482e9568de908d0f80","source_type":"document","project":"manifesto","pages_created":[],"pages_updated":["projects/manifesto/decisions/0006-apparatus-p2-reconciliation.md"]},
+    ".serena/memories/architecture/apparatus-p2-adr-0006-proposed.md": {"ingested_at":"2026-09-13T10:25:00Z","size_bytes":988,"modified_at":"2026-09-12T11:41:56.859Z","content_hash":"sha256:986c6ca8f5afd7430731f59bb3312d2bef028ea0225d1699a951c50bd9ba727e","source_type":"document","project":"manifesto","pages_created":[],"pages_updated":["projects/manifesto/concepts/apparatus-p2-reconciliation.md"]},
+    ".serena/memories/architecture/apparatus-p2-t3-persist.md": {"ingested_at":"2026-09-13T10:25:00Z","size_bytes":958,"modified_at":"2026-09-12T12:24:59.186Z","content_hash":"sha256:8c3808451b4dce2ab5b71a72b325bcb668a5478f774bc0c3cf0438ed24e99ef8","source_type":"document","project":"manifesto","pages_created":[],"pages_updated":["projects/manifesto/concepts/apparatus-p2-reconciliation.md"]},
+    ".serena/memories/architecture/apparatus-p2-t4-t7-runtime.md": {"ingested_at":"2026-09-13T10:25:00Z","size_bytes":967,"modified_at":"2026-09-12T12:53:50.499Z","content_hash":"sha256:e13e54747f992c549f8d316256867f2a2816e8d092be0faad575cf58ccbc213e","source_type":"document","project":"manifesto","pages_created":[],"pages_updated":["projects/manifesto/concepts/apparatus-p2-reconciliation.md"]},
+    "Manifesto/migration/src/m20260912_000013_apparatus_p2_runtime.rs": {"ingested_at":"2026-09-13T10:25:00Z","size_bytes":9180,"modified_at":"2026-09-13T09:58:37.750Z","content_hash":"sha256:f013aa8d7be2117d4d43f8658e6190490b0bef92dd26edfc70a0f23ac18305b9","source_type":"document","project":"manifesto","pages_created":[],"pages_updated":["projects/manifesto/concepts/apparatus-p2-reconciliation.md"]},
+    "Manifesto/infra/src/apparatus_outbox.rs": {"ingested_at":"2026-09-13T10:25:00Z","size_bytes":6632,"modified_at":"2026-09-12T12:21:32.310Z","content_hash":"sha256:9b52a3eeddd3f281a9fd62cd4b0379846e33842a4c3df3744b9b74452fbfa908","source_type":"document","project":"manifesto","pages_created":[],"pages_updated":["projects/manifesto/concepts/apparatus-p2-reconciliation.md"]},
+    "Manifesto/infra/src/apparatus_runtime/mod.rs": {"ingested_at":"2026-09-13T10:25:00Z","size_bytes":1266,"modified_at":"2026-09-12T12:48:22.992Z","content_hash":"sha256:bcd483b7ee27984981bb309e2ae5b2971d1601eaf5d7c2d95c10722e5565432b","source_type":"document","project":"manifesto","pages_created":[],"pages_updated":["projects/manifesto/concepts/apparatus-p2-reconciliation.md"]},
+    "Manifesto/infra/src/apparatus_runtime/cas.rs": {"ingested_at":"2026-09-13T10:25:00Z","size_bytes":2764,"modified_at":"2026-09-12T12:42:04.783Z","content_hash":"sha256:078ec3bd0bc6799b98f638a1534d49691f58dc14099f32cd7cbbdfd05ac46c2b","source_type":"document","project":"manifesto","pages_created":[],"pages_updated":["projects/manifesto/concepts/apparatus-p2-reconciliation.md"]},
+    "Manifesto/infra/src/apparatus_runtime/tick.rs": {"ingested_at":"2026-09-13T10:25:00Z","size_bytes":6430,"modified_at":"2026-09-13T09:58:45.771Z","content_hash":"sha256:c80462e9104c17a87f549cea4d1ade55a849781f33f4aefd8a7e7f43a7e75178","source_type":"document","project":"manifesto","pages_created":[],"pages_updated":["projects/manifesto/concepts/apparatus-p2-reconciliation.md"]},
+    "Manifesto/infra/src/apparatus_runtime/cleanup.rs": {"ingested_at":"2026-09-13T10:25:00Z","size_bytes":2437,"modified_at":"2026-09-13T09:58:46.264Z","content_hash":"sha256:7abf6cf892187b6807edc2594401e2af67b18b18049bb7efbd355b710fb55999","source_type":"document","project":"manifesto","pages_created":[],"pages_updated":["projects/manifesto/concepts/apparatus-p2-reconciliation.md"]},
+    "Manifesto/infra/src/apparatus_runtime/in_process.rs": {"ingested_at":"2026-09-13T10:25:00Z","size_bytes":5548,"modified_at":"2026-09-12T12:49:18.292Z","content_hash":"sha256:5b1291784995fb5e73fc1622bed6ca2db596c3c06191620cf8f9e38b31b0c033","source_type":"document","project":"manifesto","pages_created":[],"pages_updated":["projects/manifesto/concepts/apparatus-p2-reconciliation.md"]},
+    "Manifesto/setup/src/apparatus_runtime.rs": {"ingested_at":"2026-09-13T10:25:00Z","size_bytes":1330,"modified_at":"2026-09-12T12:44:55.031Z","content_hash":"sha256:09bd04aaec2d62c55ddf0efde52e3989c6eed0fc90589e00cbeaae668fbdf33f","source_type":"document","project":"manifesto","pages_created":[],"pages_updated":["projects/manifesto/concepts/apparatus-p2-reconciliation.md"]},
+    "Manifesto/infra/src/event/processors/component_processor.rs": {"ingested_at":"2026-09-13T10:25:00Z","size_bytes":5782,"modified_at":"2026-09-12T11:36:10.566Z","content_hash":"sha256:da21e82c32667596ad80497761d747ae44c17b84b534d83acb47031304444e6e","source_type":"document","project":"manifesto","pages_created":[],"pages_updated":["projects/manifesto/concepts/apparatus-p2-reconciliation.md"]},
+    "Manifesto/infra/src/transaction.rs": {"ingested_at":"2026-09-13T10:25:00Z","size_bytes":34389,"modified_at":"2026-09-12T12:23:55.584Z","content_hash":"sha256:816e4ed40ffd4bb741a177b5f7ba2e0bef5bef2a454e5f63995f073c5a04e714","source_type":"document","project":"manifesto","pages_created":[],"pages_updated":["projects/manifesto/concepts/apparatus-p2-reconciliation.md"]},
+    "Manifesto/tests/apparatus_p2_t1_events.rs": {"ingested_at":"2026-09-13T10:25:00Z","size_bytes":8282,"modified_at":"2026-09-12T11:36:10.693Z","content_hash":"sha256:5beac27923e86e5515a977bb4078c30ca34ef2c514aa52ee3ff18566413dc3a0","source_type":"document","project":"manifesto","pages_created":[],"pages_updated":["projects/aiforall/skills/running-apparatus-p2-tests.md"]},
+    "Manifesto/tests/apparatus_p2_t1_lookup.rs": {"ingested_at":"2026-09-13T10:25:00Z","size_bytes":2237,"modified_at":"2026-09-12T11:36:10.697Z","content_hash":"sha256:50aaae7e80b18f9e80bd90efca73ca74473161e7573548b86923b917ace7340d","source_type":"document","project":"manifesto","pages_created":[],"pages_updated":["projects/aiforall/skills/running-apparatus-p2-tests.md"]},
+    "Manifesto/tests/apparatus_p2_t2_migration.rs": {"ingested_at":"2026-09-13T10:25:00Z","size_bytes":14460,"modified_at":"2026-09-12T12:08:23.339Z","content_hash":"sha256:14fa74034813c974179cf023ad13848e69b310a0234852f533c5e4af6b1d8887","source_type":"document","project":"manifesto","pages_created":[],"pages_updated":["projects/aiforall/skills/running-apparatus-p2-tests.md"]},
+    "Manifesto/tests/apparatus_p2_t3_persist.rs": {"ingested_at":"2026-09-13T10:25:00Z","size_bytes":11389,"modified_at":"2026-09-12T12:23:55.714Z","content_hash":"sha256:e7d0ccd470d29f25da9a76ae61c75eef269e0a05a05bd7a9da3308239cef56fa","source_type":"document","project":"manifesto","pages_created":[],"pages_updated":["projects/aiforall/skills/running-apparatus-p2-tests.md"]},
+    "Manifesto/tests/apparatus_p2_t4_resume.rs": {"ingested_at":"2026-09-13T10:25:00Z","size_bytes":6719,"modified_at":"2026-09-12T12:49:18.471Z","content_hash":"sha256:e77632335ed64c811f5c010b2bd2ce27cde874b4053691ce3cc5808474f1383a","source_type":"document","project":"manifesto","pages_created":[],"pages_updated":["projects/aiforall/skills/running-apparatus-p2-tests.md"]},
+    "Manifesto/tests/apparatus_p2_t5_tick.rs": {"ingested_at":"2026-09-13T10:25:00Z","size_bytes":12653,"modified_at":"2026-09-13T09:59:04.017Z","content_hash":"sha256:cfbb3069be57d31aaf5262ff9fb8f48027340f73ac59ab5a442a02528b813e9c","source_type":"document","project":"manifesto","pages_created":[],"pages_updated":["projects/aiforall/skills/running-apparatus-p2-tests.md"]},
+    "Manifesto/tests/apparatus_p2_t6_runtime.rs": {"ingested_at":"2026-09-13T10:25:00Z","size_bytes":5090,"modified_at":"2026-09-12T12:49:18.488Z","content_hash":"sha256:108634c90163f03d8b02874578399da25599e60767cf1729a7446b53e8cda6b9","source_type":"document","project":"manifesto","pages_created":[],"pages_updated":["projects/aiforall/skills/running-apparatus-p2-tests.md"]},
+    "Manifesto/tests/apparatus_p2_t7_cleanup.rs": {"ingested_at":"2026-09-13T10:25:00Z","size_bytes":4614,"modified_at":"2026-09-12T12:49:18.492Z","content_hash":"sha256:9184dbf816fe89f0d3a95436c472093a3d97a18b337f2639335d24651fa72c13","source_type":"document","project":"manifesto","pages_created":[],"pages_updated":["projects/aiforall/skills/running-apparatus-p2-tests.md"]},
+    "Manifesto/tests/apparatus_p2_t7_gate.rs": {"ingested_at":"2026-09-13T10:25:00Z","size_bytes":5056,"modified_at":"2026-09-12T12:47:38.859Z","content_hash":"sha256:04c0c438f940b4c8340c2dee9abaa05c295977cfe6ecd6f10e1b7f894368d120","source_type":"document","project":"manifesto","pages_created":[],"pages_updated":["projects/aiforall/skills/running-apparatus-p2-tests.md"]},
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/cd391d48-2b6b-4300-8a70-452b2230a8d8/cd391d48-2b6b-4300-8a70-452b2230a8d8.jsonl": {"ingested_at":"2026-09-13T10:25:00Z","size_bytes":15805,"modified_at":"2026-09-12T12:56:52.804Z","content_hash":"sha256:da76c64bf68604415534f9fb01aee1709e3799c7327ed80f21b80bad58681ca3","source_type":"claude_conversation","project":"manifesto","pages_created":[],"pages_updated":["projects/aiforall/references/cursor-history-2026-09.md","journal/2026-09-13.md"]},
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/a5acce59-de4a-47c1-ae8b-cfd25a84c747/a5acce59-de4a-47c1-ae8b-cfd25a84c747.jsonl": {"ingested_at":"2026-09-13T10:25:00Z","size_bytes":34007,"modified_at":"2026-09-13T10:08:28.586Z","content_hash":"sha256:5db74efcfd187af5c2d1c7f0bb61e3d52e92718f71cc8b302086f8763f20c271","source_type":"claude_conversation","project":"aiforall","pages_created":["journal/2026-09-13.md"],"pages_updated":["projects/aiforall/references/cursor-history-2026-09.md"]},
     "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/6de9b375-2f3a-4301-9342-b9a00323c9a8/6de9b375-2f3a-4301-9342-b9a00323c9a8.jsonl": {
-      "ingested_at": "2026-09-12T10:20:00Z",
-      "size_bytes": 30083,
-      "modified_at": "2026-09-12T10:09:57.177Z",
-      "content_hash": "sha256:c6f40a19eab56b79de0ae2ee2c08062493d6854ab2d24a40c8c6e02845910408",
+      "ingested_at": "2026-09-13T10:25:00Z",
+      "size_bytes": 160941,
+      "modified_at": "2026-09-12T11:08:51.949Z",
+      "content_hash": "sha256:0251b1885fd06c7e298cf66139d8b64874c133318c9735b531d8d3d747510094",
       "source_type": "claude_conversation",
       "project": "aiforall",
       "pages_created": [
@@ -212,14 +241,14 @@
       "pages_updated": ["projects/aiforall/decisions/index.md"]
     },
     "docs/adr/0406-crates-apparatus-p0-pas-le-host.md": {
-      "ingested_at": "2026-09-12T10:20:00Z",
-      "size_bytes": 3849,
-      "modified_at": "2026-09-12T10:06:28.217Z",
-      "content_hash": "sha256:cb3ffa1a4cc99be86f3d01ab54664367385343f7fbcd8f07346f2b99c70cb373",
+      "ingested_at": "2026-09-13T10:25:00Z",
+      "size_bytes": 4002,
+      "modified_at": "2026-09-12T11:41:21.496Z",
+      "content_hash": "sha256:f327fc6fe48679384e058da8788e8e9fd42f033764d4e874c2c84a31dab6de89",
       "source_type": "document",
       "project": "aiforall",
       "pages_created": ["projects/aiforall/decisions/0400-services-runtime.md"],
-      "pages_updated": ["projects/manifesto/decisions/index.md"]
+      "pages_updated": ["projects/aiforall/decisions/0400-services-runtime.md", "projects/manifesto/decisions/index.md"]
     },
     "docs/adr/0500-config-typee-et-compose-local.md": {
       "ingested_at": "2026-09-12T10:20:00Z",
@@ -311,14 +340,14 @@
       ]
     },
     "docs/adr/0001-apparatus-binding-owned-by-manifesto.md": {
-      "ingested_at": "2026-09-12T09:30:00Z",
-      "size_bytes": 4844,
-      "modified_at": "2026-09-12T09:02:28.544Z",
-      "content_hash": "sha256:bfbbdb8f55e587e2177fb10a4675314376cceeb194cc67758de236f0ddfd6292",
+      "ingested_at": "2026-09-13T10:25:00Z",
+      "size_bytes": 5197,
+      "modified_at": "2026-09-12T11:40:31.268Z",
+      "content_hash": "sha256:b97a7be4903f6c70199ce96dea9578c954afc847c627f2ba244531b7ce5bf6c8",
       "source_type": "document",
       "project": "manifesto",
       "pages_created": ["projects/manifesto/decisions/0001-apparatus-binding.md"],
-      "pages_updated": ["projects/manifesto/decisions/index.md", "projects/manifesto/concepts/apparatus-p1-persistence.md"]
+      "pages_updated": ["projects/manifesto/decisions/0001-apparatus-binding.md", "projects/manifesto/decisions/index.md", "projects/manifesto/concepts/apparatus-p1-persistence.md"]
     },
     "docs/adr/0002-apparatus-contract-first.md": {
       "ingested_at": "2026-09-12T09:30:00Z",
@@ -361,10 +390,10 @@
       "pages_updated": ["projects/manifesto/decisions/index.md"]
     },
     "docs/adr/README.md": {
-      "ingested_at": "2026-09-12T10:20:00Z",
-      "size_bytes": 9751,
-      "modified_at": "2026-09-12T10:07:38.728Z",
-      "content_hash": "sha256:5b0c9ae9b1b999f9357d124d9b10dd7ec440e8c9de016d1cbe30e67d53b6c73c",
+      "ingested_at": "2026-09-13T10:25:00Z",
+      "size_bytes": 9903,
+      "modified_at": "2026-09-12T11:53:47.221Z",
+      "content_hash": "sha256:3e02d8ae7411db0c20b069d63b9fb026205b8b0e595ac5307f8fc9f208f0a72b",
       "source_type": "document",
       "project": "aiforall",
       "pages_created": ["projects/aiforall/decisions/index.md"],
@@ -1579,10 +1608,10 @@
       ]
     },
     "Manifesto/setup/src/app.rs": {
-      "ingested_at": "2026-04-22T17:30:00Z",
-      "size_bytes": 16582,
-      "modified_at": "2026-04-22T17:19:15.5476687Z",
-      "content_hash": "sha256:78dd881d73636cf0c80d60f6cffbbd9529ad422acd0291684428251ef6ba48df",
+      "ingested_at": "2026-09-13T10:25:00Z",
+      "size_bytes": 21889,
+      "modified_at": "2026-09-12T12:49:18.361Z",
+      "content_hash": "sha256:7b5319f769a2bffe99813e83670aa2b08359c478c78826ec570a59b24864446a",
       "source_type": "document",
       "project": "manifesto",
       "pages_created": [],
@@ -4017,14 +4046,14 @@
       "pages_updated": ["projects/manifesto/references/apparatus-implementation-plan.md", "index.md"]
     },
     "docs/services/manifesto.md": {
-      "ingested_at": "2026-09-12T09:30:00Z",
-      "size_bytes": 3184,
-      "modified_at": "2026-09-12T09:14:33.328Z",
-      "content_hash": "sha256:6bf24bc4b8e4a560751b02261b9760399ec85e3f31b8291f53ce29576ba990f9",
+      "ingested_at": "2026-09-13T10:25:00Z",
+      "size_bytes": 4061,
+      "modified_at": "2026-09-12T12:56:04.151Z",
+      "content_hash": "sha256:ffe07a561e982356764a63948437162f6dd953f38b8ea8de6554818e1d4302d8",
       "source_type": "document",
       "project": "manifesto",
       "pages_created": ["projects/aiforall/skills/running-apparatus-p1-tests.md"],
-      "pages_updated": ["projects/manifesto/references/apparatus-implementation-plan.md"]
+      "pages_updated": ["projects/manifesto/references/apparatus-implementation-plan.md", "projects/manifesto/manifesto.md"]
     },
     ".cursor/agents/orchestrator.md": {
       "ingested_at": "2026-09-12T09:30:00Z",

@@ -256,5 +256,8 @@ title: Wiki Log
 - [2026-09-12T09:30:00Z] WIKI_UPDATE project=aiforall pages_updated=9 pages_created=8 source_cwd=C:/Users/djden/source/repos/AIForAll last_commit_synced=f6d2931 topic=apparatus-p1-and-adr-sync
 - [2026-09-12T10:20:00Z] INGEST source="docs/adr/" pages_updated=15 pages_created=6 mode=append topic=vague-2-hexagone-tests-events-services-plateforme files=22
 - [2026-09-12T10:20:00Z] INGEST source="C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/6de9b375-2f3a-4301-9342-b9a00323c9a8/6de9b375-2f3a-4301-9342-b9a00323c9a8.jsonl" pages_updated=4 pages_created=6 mode=append topic=chat-adr-retroactives
+- [2026-09-13T10:25:00Z] WIKI_UPDATE project=aiforall pages_updated=14 pages_created=1 source_cwd=C:/Users/djden/source/repos/AIForAll last_commit_synced=7455ee55abc4acec223a78c4d5bfeced5bb680f7 topic=apparatus-p2-partial-head-clean-wt vault="obsidian/AI FOR ALL" note="working-tree-clean P2-in-HEAD"
+- [2026-09-13T10:25:00Z] INGEST source="docs/adr/0006-apparatus-p2-reconciliation-in-process.md" pages_updated=14 pages_created=1 mode=append topic=apparatus-p2-partial files=27_new+6_hash
+- [2026-09-13T10:25:00Z] CLAUDE_HISTORY_INGEST projects=1 conversations=2 pages_updated=2 pages_created=1 mode=append source=cursor-transcripts parents=cd391d48,a5acce59 subagents_skipped=true
 
 

@@ -2,17 +2,19 @@
 title: Wiki Index
 category: navigation
 tags: [index, navigation, wiki]
-summary: "Index du wiki AIForAll : services, ADR vague 2 (0100–0502), P0/P1 Apparatus, harnais orchestrator Grok-only."
+summary: >-
+  Index wiki AIForAll : ADR vague 2, Apparatus P0/P1/P2 Partial (HEAD 7455ee5).
 provenance:
   extracted: 0.75
   inferred: 0.23
   ambiguous: 0.02
-updated: 2026-09-12T10:20:00Z
+updated: 2026-09-13T10:25:00Z
 sources:
   - "C:/Users/djden/.codex/attachments/486d0052-5759-4277-bcc1-9f209ce353d4/pasted-text.txt"
   - docs/adr/README.md
   - docs/apparatus-p0-implementation-prompt.md
   - docs/apparatus-p1-implementation-prompt.md
+  - docs/adr/0006-apparatus-p2-reconciliation-in-process.md
 ---
 
 # Wiki Index
@@ -46,12 +48,15 @@ Central entry point for this vault. Use the area indexes for full catalogs; use 
 ## Fonctionnalité — Apparatus
 
 - [[projects/manifesto/concepts/apparatus-p0-contracts]] — crates P0 livrées + audit + P0.1 42/42.
-- [[projects/manifesto/concepts/apparatus-p1-persistence]] — persistance P1 T1-T7 (non commitée).
+- [[projects/manifesto/concepts/apparatus-p1-persistence]] — persistance P1 T1–T7 (commit `7455ee5`).
+- [[projects/manifesto/concepts/apparatus-p2-reconciliation]] — ticker in-process Partial ; P2.1 ensuite.
 - [[projects/manifesto/concepts/apparatus-platform]] — vision ; Factory/host encore absents.
-- [[projects/manifesto/references/apparatus-implementation-plan]] — phases et preuves P0/P1.
+- [[projects/manifesto/references/apparatus-implementation-plan]] — phases et preuves P0/P1/P2.
 
 ## Recent Additions
 
+- [[journal/2026-09-13]] — P2 Partial dans HEAD `7455ee5` ; working tree propre ; P2.1 ensuite.
+- [[projects/manifesto/concepts/apparatus-p2-reconciliation]] — ticker, T1–T7, écarts A/D/I.
 - [[projects/aiforall/decisions/index]] — 21 ADR rétroactives 0100–0502.
 - [[journal/2026-09-12]] — audit P0, P1 TDD 78 tests, ban Muse Spark, vague 2 ADR.
 - [[projects/aiforall/skills/running-apparatus-p1-tests]] — `cargo test --test apparatus_p1_t* -- --test-threads=1`.

@@ -2,9 +2,9 @@
 title: "ADR 0400–0406 — services, dual runtime, P0 Apparatus"
 category: decisions
 tags: [architecture, platform, microservices, visibility/internal]
-summary: "IAM = IdP ; Manifesto projets/ACL/CAS ; Hive orgs ; Telegraph notifications. Dual runtime standalones + oodhive-monolith. Apparatus = P0 seulement (Partial)."
+summary: "IAM = IdP ; Manifesto projets/ACL/CAS + ticker P2 Partial. Dual runtime. Apparatus Factory/host hors livré (0406)."
 created: 2026-09-12T10:20:00Z
-updated: 2026-09-12T10:20:00Z
+updated: 2026-09-13T10:25:00Z
 sources:
   - docs/adr/0400-iamrusty-identite-hexagonale.md
   - docs/adr/0401-manifesto-projets-composants-acl-cas.md
@@ -13,6 +13,7 @@ sources:
   - docs/adr/0404-runtime-microservices-et-monolithe.md
   - docs/adr/0405-readiness-crate-partagee.md
   - docs/adr/0406-crates-apparatus-p0-pas-le-host.md
+  - docs/adr/0006-apparatus-p2-reconciliation-in-process.md
 provenance:
   extracted: 0.88
   inferred: 0.10
@@ -49,9 +50,11 @@ Health `/ready` assemblé dans `setup`, pas un second composition root.
 
 ## 0406 — Apparatus P0 seulement (Partial)
 
-`apparatus-contracts` + KV de référence = P0 livré. Factory, host, gateway, runtime isolé = **hors livré** — cibles vague 1 [[projects/manifesto/decisions/0001-apparatus-binding]] … [[projects/manifesto/decisions/0005-apparatus-protocol]]. P1 persistance Manifesto (bindings) est du code de preuve, distinct du host. Voir [[projects/manifesto/concepts/apparatus-p0-contracts]] et [[projects/manifesto/concepts/apparatus-p1-persistence]].
+`apparatus-contracts` + KV de référence = P0 livré. Factory, host, gateway réseau = **hors livré**. Le ticker P2 in-process Manifesto existe (Partial, ADR-0006) — le canon 0406 dit encore « contrôleur / workers » non livrés : **périmé** pour le worker in-process, vrai pour K8s/Factory. ^[ambiguous] Voir [[projects/manifesto/concepts/apparatus-p2-reconciliation]] et [[projects/manifesto/decisions/0006-apparatus-p2-reconciliation]].
 
 ## Related
 
 - [[concepts/architecture-coherence-across-services]]
 - [[projects/aiforall/aiforall]]
+- [[projects/manifesto/concepts/apparatus-p2-reconciliation]]
+- [[projects/manifesto/decisions/0006-apparatus-p2-reconciliation]]

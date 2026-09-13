@@ -22,14 +22,17 @@ sources:
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/8e0500f9-8cee-43b6-b67c-630f573a7877/8e0500f9-8cee-43b6-b67c-630f573a7877.jsonl
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/f5e5a1e2-20b9-4794-95b0-c75b32a52fb4/f5e5a1e2-20b9-4794-95b0-c75b32a52fb4.jsonl
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/6de9b375-2f3a-4301-9342-b9a00323c9a8/6de9b375-2f3a-4301-9342-b9a00323c9a8.jsonl
+  - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/cd391d48-2b6b-4300-8a70-452b2230a8d8/cd391d48-2b6b-4300-8a70-452b2230a8d8.jsonl
+  - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/a5acce59-de4a-47c1-ae8b-cfd25a84c747/a5acce59-de4a-47c1-ae8b-cfd25a84c747.jsonl
 summary: >-
-  Cursor septembre 2026 : AuthZ Manifesto, ADR Apparatus puis vague 2 (0100–0502), P0/P1, Grok-only.
+  Cursor septembre 2026 : ADR, P0/P1/P2 Apparatus Partial (HEAD 7455ee5),
+  vague 2 0100–0502, Grok-only.
 provenance:
   extracted: 0.72
   inferred: 0.23
   ambiguous: 0.05
 created: 2026-09-09T16:45:00Z
-updated: 2026-09-12T10:20:00Z
+updated: 2026-09-13T10:25:00Z
 ---
 
 # Cursor history September 2026
@@ -74,7 +77,7 @@ Clippy/Sonar passes on unpushed files and a coverage-to-80% test plan ran the sa
 ## P0 audit then P1 (11–12 Sep)
 
 - Twin read-only P0 audits (Cursor + Codex, same verdict): P0 done with non-blocking reserves → P0.1. Standalone P1 prompt written (`docs/apparatus-p1-implementation-prompt.md`).
-- P1 executed TDD-strict: duel gather → unique resolution → RED socle → P0.1 (42/42 + `apparatus-p0` CI job) → slices T1-T7 (36 tests) → reviewed Phase E docs. Total 78, uncommitted. See [[projects/manifesto/concepts/apparatus-p1-persistence]].
+- P1 executed TDD-strict: duel gather → unique resolution → RED socle → P0.1 (42/42 + `apparatus-p0` CI job) → slices T1-T7 (36 tests). Later committed in `7455ee5`. See [[projects/manifesto/concepts/apparatus-p1-persistence]].
 - ADR wave 1 enriched with P0.1/P1 proofs (`Partial` kept, `Accepted` untouched). Pages: [[projects/manifesto/decisions/index]].
 - Model policy: Spark Max first in the morning, then user **banned Muse Spark** — Grok 4.6 Extra High only. See [[projects/aiforall/concepts/orchestrator-agent-harness]].
 - P2 implementation prompt in preparation (Grok-only constraint up front).
@@ -88,10 +91,19 @@ Durable claims:
 - Four business services = RustyCog vertical slices ; `setup` = only composition root ; commands registered by string key.
 - IT = real HTTP + real DB ; WireMock = outbound HTTP only ; OpenFGA = real testcontainer. Producer queues opt-in ; Telegraph suite still queue-on (**Partial** 0202).
 - `*-events` = contract, not transport. **NATS is not a transport.** Outbox same-txn Hive/Manifesto only (**Partial** 0301).
-- Dual runtime standalones + `oodhive-monolith`. Apparatus crates = P0 only (**Partial** 0406). Sonar `new_coverage` 80 % not met (**Partial** 0501).
+- Dual runtime standalones + `oodhive-monolith`. Apparatus crates = P0 + contrôleur P2 Partial (**Partial** 0406 pour Factory/host). Sonar `new_coverage` 80 % not met (**Partial** 0501).
+
+## Apparatus P2 (12–13 Sep)
+
+Parent sessions : `cd391d48` (prompt P2) puis revue `a5acce59`. Code + ADR-0006 dans HEAD `7455ee5` (working tree propre le 13 sept.).
+
+- Ticker in-process Manifesto, migration `000013`, tests T1–T7. Pages : [[projects/manifesto/concepts/apparatus-p2-reconciliation]], [[projects/manifesto/decisions/0006-apparatus-p2-reconciliation]].
+- Écarts A/D/I : pas de bump update/remove, pas de writer retry, `/ready` hors ticker. Mineurs (IF NOT EXISTS index, poison, fencing log) livrés.
+- Prochain jalon **P2.1**, pas P3.
 
 ## Related
 
+- [[journal/2026-09-13]]
 - [[journal/2026-09-12]]
 - [[journal/2026-09-11]]
 - [[journal/2026-09-09]]

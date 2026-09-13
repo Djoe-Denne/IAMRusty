@@ -19,12 +19,12 @@ provenance:
   inferred: 0.13
   ambiguous: 0.02
 created: 2026-09-12T09:30:00Z
-updated: 2026-09-12T09:30:00Z
+updated: 2026-09-13T10:25:00Z
 ---
 
 # Apparatus P1 — persistance et catalogue Manifesto
 
-P1 implémente la persistance du binding [[projects/manifesto/decisions/index|ADR-0001]] en TDD strict (RED-GREEN-REFACTOR, tranches T1-T7), sans workload, sans gateway, sans Factory. Rien n'est commité au moment de l'ingest (travail non commité du 12 sept.). ^[inferred]
+P1 implémente la persistance du binding [[projects/manifesto/decisions/index|ADR-0001]] en TDD strict (tranches T1-T7), sans workload, sans gateway, sans Factory. Commit `7455ee5` (working tree propre le 13 sept.). Suite : [[projects/manifesto/concepts/apparatus-p2-reconciliation]].
 
 ## Extension 1:1
 
