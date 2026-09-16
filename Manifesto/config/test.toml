@@ -95,3 +95,8 @@ store_id = ""
 # inside a single process actually observe the second decision instead of
 # the cached one from the first call.
 cache_ttl_seconds = 0
+
+[apparatus.grant_snapshot_auth]
+hs256_secret = "manifesto-grant-snapshot-test-hs256"
+issuer = "aiforall-platform"
+audience = "manifesto-bindings"

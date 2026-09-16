@@ -1,0 +1,16 @@
+[package]
+name = "lazaret-configuration"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Configuration management for Lazaret capability-boundary service"
+license.workspace = true
+
+[dependencies]
+lazaret-domain = { path = "../domain" }
+rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full"] }
+serde = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }

@@ -24,7 +24,8 @@ use manifesto_infra::{
         RolePermissionWriteRepositoryImpl,
     },
     ApparatusEventConsumer, ManifestoErrorMapper, OpenFgaOrgScopeLookup,
-    ProjectAuthorizationUnitOfWorkImpl, SqlApparatusBindingSourceLookup,
+    ProjectAuthorizationUnitOfWorkImpl, SqlApparatusBindingSourceLookup, SqlBindingConsentWriter,
+    SqlBindingGrantSnapshotReader,
 };
 
 // Rustycog
@@ -33,7 +34,7 @@ use readiness::{
     ComponentStatus, QueueRole, ReadinessProbe,
 };
 use rustycog::command::GenericCommandService;
-use rustycog::config::ServerConfig;
+use rustycog::config::{AuthConfig, JwtAuthConfig, ServerConfig};
 use rustycog::core::error::DomainError;
 use rustycog::db::DbConnectionPool;
 use rustycog::events::EventPublisher;
@@ -101,6 +102,8 @@ pub struct Application {
     pub outbox_dispatcher: Arc<OutboxDispatcher<DomainError>>,
     pub apparatus_runtime: ApparatusRuntimeHandle,
     pub readiness: Arc<ReadinessProbe>,
+    /// Dedicated HS256 extractor for the binding grant snapshot GET.
+    pub grant_snapshot_extractor: Arc<UserIdExtractor>,
 }
 
 impl Application {
@@ -161,6 +164,7 @@ impl Application {
 
         let user_id_extractor = UserIdExtractor::new(config.auth.clone())
             .map_err(|e| anyhow::anyhow!("Invalid auth configuration: {e}"))?;
+        let grant_snapshot_extractor = grant_snapshot_user_id_extractor(&config)?;
 
         let raw_checker: Arc<dyn PermissionChecker> = Arc::new(
             OpenFgaPermissionChecker::new(config.openfga.clone())
@@ -229,6 +233,7 @@ impl Application {
             outbox_dispatcher,
             apparatus_runtime,
             readiness,
+            grant_snapshot_extractor,
         })
     }
 
@@ -241,10 +246,11 @@ impl Application {
         let mut server_handle = {
             let state = self.state.clone();
             let probe = self.readiness.clone();
+            let grant_snapshot_auth = self.grant_snapshot_extractor.clone();
             let server_config = server_config.clone();
 
             tokio::spawn(async move {
-                create_app_routes(state, server_config, probe)
+                create_app_routes(state, grant_snapshot_auth, server_config, probe)
                     .await
                     .map_err(|e| anyhow::anyhow!("HTTP server failed: {e}"))
             })
@@ -342,7 +348,10 @@ impl Application {
     }
 
     pub fn router(&self) -> Router {
-        attach_ready(create_router(self.state.clone()), self.readiness.clone())
+        attach_ready(
+            create_router(self.state.clone(), self.grant_snapshot_extractor.clone()),
+            self.readiness.clone(),
+        )
     }
 
     #[must_use]
@@ -388,6 +397,24 @@ impl Application {
     }
 }
 
+/// Build the dedicated snapshot GET extractor from `[apparatus.grant_snapshot_auth]`.
+///
+/// # Errors
+///
+/// Returns an error if the HS256 secret is missing or empty (fail closed).
+fn grant_snapshot_user_id_extractor(config: &AppConfig) -> Result<Arc<UserIdExtractor>, Error> {
+    let auth = &config.apparatus.grant_snapshot_auth;
+    let extractor = UserIdExtractor::new(AuthConfig {
+        jwt: JwtAuthConfig {
+            hs256_secret: auth.hs256_secret.clone(),
+            issuer: Some(auth.issuer.clone()),
+            audience: Some(auth.audience.clone()),
+        },
+    })
+    .map_err(|e| anyhow::anyhow!("Invalid grant snapshot auth configuration: {e}"))?;
+    Ok(Arc::new(extractor))
+}
+
 /// Setup database connection
 async fn setup_database(config: &AppConfig) -> Result<DbConnectionPool, Error> {
     tracing::info!("Connecting to database");
@@ -416,6 +443,12 @@ async fn setup_application(
         setup_domain(&db, config)?;
     let apparatus_binding_source = Arc::new(SqlApparatusBindingSourceLookup::new(
         db.get_read_connection().as_ref().clone(),
+    ));
+    let binding_grant_reader = Arc::new(SqlBindingGrantSnapshotReader::new(
+        db.get_read_connection().as_ref().clone(),
+    ));
+    let binding_consent_writer = Arc::new(SqlBindingConsentWriter::new(
+        db.get_write_connection().as_ref().clone(),
     ));
     let project_authorization_uow = Arc::new(ProjectAuthorizationUnitOfWorkImpl::new(
         db,
@@ -450,7 +483,9 @@ async fn setup_application(
             config.service.business.clone(),
             org_permission_checker,
         )
-        .with_authorization_uow(project_authorization_uow.clone()),
+        .with_authorization_uow(project_authorization_uow.clone())
+        .with_binding_grant_reader(binding_grant_reader)
+        .with_binding_consent_writer(binding_consent_writer),
     );
 
     let member_usecase = Arc::new(

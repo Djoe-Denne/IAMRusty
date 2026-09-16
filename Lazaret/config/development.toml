@@ -1,0 +1,69 @@
+# Lazaret Service - Development Configuration
+#
+# Targets the docker-compose stack on `aiforall-network`.
+
+[server]
+host = "0.0.0.0"
+port = 8080
+tls_enabled = false
+
+[auth.jwt]
+hs256_secret = "rustycog-dev-hs256-secret"
+issuer = "iamrusty"
+audience = "aiforall"
+
+[identity]
+session_ttl_minutes = 15
+cert_ttl_hours = 24
+
+[database]
+host = "postgres"
+port = 5432
+db = "lazaret_dev"
+[database.creds]
+username = "postgres"
+password = "postgres"
+
+[command]
+[command.retry]
+max_attempts = 0
+base_delay_ms = 50
+max_delay_ms = 5000
+backoff_multiplier = 2.0
+use_jitter = false
+
+[queue]
+type = "sqs"
+enabled = false
+region = "us-east-1"
+account_id = "000000000000"
+default_queues = []
+host = "localstack"
+port = 4566
+access_key_id = "test"
+secret_access_key = "test"
+max_retries = 3
+timeout_seconds = 30
+
+[manifesto_service]
+base_url = "http://manifesto-service:8080/manifesto"
+timeout_seconds = 10
+bearer_token = ""
+hs256_secret = "manifesto-grant-snapshot-dev-hs256"
+issuer = "aiforall-platform"
+audience = "manifesto-bindings"
+
+[kv]
+backend = "postgres"
+
+[redis]
+hostname = "127.0.0.1"
+port = 6379
+
+[vault]
+base_url = ""
+token = ""
+mount = "secret"
+
+[logging]
+level = "debug"

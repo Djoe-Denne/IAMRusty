@@ -1,0 +1,31 @@
+[package]
+name = "lazaret-infra"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Infrastructure layer for Lazaret capability-boundary service"
+license.workspace = true
+
+[dependencies]
+lazaret-domain = { path = "../domain" }
+lazaret-application = { path = "../application" }
+lazaret-configuration = { path = "../configuration" }
+apparatus-contracts = { path = "../../apparatus-contracts" }
+rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full"] }
+async-trait = { workspace = true }
+chrono = { workspace = true }
+jsonwebtoken = { workspace = true }
+rand = { workspace = true }
+rcgen = { workspace = true }
+redis = { workspace = true }
+reqwest = { workspace = true, features = ["stream"] }
+sea-orm = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+time = { version = "0.3", features = ["std"] }
+tokio = { workspace = true }
+tracing = { workspace = true }
+urlencoding = "2.1"
+uuid = { workspace = true }
+futures = { workspace = true }

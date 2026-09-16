@@ -18,6 +18,8 @@ use super::{
     CreateProjectCommandHandler,
     DeleteProjectCommand,
     DeleteProjectCommandHandler,
+    GetBindingGrantSnapshotCommand,
+    GetBindingGrantSnapshotCommandHandler,
     GetComponentCommand,
     GetComponentCommandHandler,
     GetMemberCommand,
@@ -58,6 +60,8 @@ use super::{
     UpdateMemberCommandHandler,
     UpdateProjectCommand,
     UpdateProjectCommandHandler,
+    UpsertBindingConsentCommand,
+    UpsertBindingConsentCommandHandler,
 };
 use crate::usecase::{ComponentUseCase, MemberUseCase, ProjectUseCase};
 
@@ -168,6 +172,12 @@ impl ManifestoCommandRegistryFactory {
         let update_status_handler = Arc::new(UpdateComponentStatusCommandHandler::new(
             component_usecase.clone(),
         ));
+        let snapshot_handler = Arc::new(GetBindingGrantSnapshotCommandHandler::new(
+            component_usecase.clone(),
+        ));
+        let consent_handler = Arc::new(UpsertBindingConsentCommandHandler::new(
+            component_usecase.clone(),
+        ));
         let remove_handler = Arc::new(RemoveComponentCommandHandler::new(component_usecase));
         let error_mapper = Arc::new(ComponentErrorMapper);
 
@@ -190,6 +200,16 @@ impl ManifestoCommandRegistryFactory {
             .register::<UpdateComponentStatusCommand, _>(
                 "update_component_status".to_string(),
                 update_status_handler,
+                error_mapper.clone(),
+            )
+            .register::<GetBindingGrantSnapshotCommand, _>(
+                "get_binding_grant_snapshot".to_string(),
+                snapshot_handler,
+                error_mapper.clone(),
+            )
+            .register::<UpsertBindingConsentCommand, _>(
+                "upsert_binding_consent".to_string(),
+                consent_handler,
                 error_mapper.clone(),
             )
             .register::<RemoveComponentCommand, _>(

@@ -1,1 +1,7 @@
-Interdiction de modèle (décision utilisateur, 2026-09-12) : seul Grok 4.6 Extra High est autorisé pour les sous-agents, résolveurs et délégations. Slug Cursor : `cursor-grok-4.6-xhigh`. Interdits : Muse Spark (`muse-spark-1.3-max`), Composer, inherit si cela dévierait vers un autre modèle. Le prompt P2 Apparatus doit l'exiger explicitement. Voir aussi `mem:constraints/no-muse-spark`.
+# Constraint modèle — supersedée
+
+**Supersede 2026-09-16.** Cette contrainte du 2026-09-12 (Grok 4.6 Extra High *seul*) n'est plus la politique complète.
+
+Politique actuelle : `mem:decisions/agents-authorized-model`.
+- Gourmand / high (high n'existe pas) → `cursor-grok-4.6-xhigh`
+- Lecture → `composer-2.5-fast`

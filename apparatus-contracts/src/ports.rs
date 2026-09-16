@@ -10,11 +10,11 @@ use crate::protocol::{
     BindRequest, BindResponse, ConfigureRequest, ConfigureResponse, UnbindRequest, UnbindResponse,
 };
 
-/// Stockage KV abstrait `kv-v1`, fourni par l'hôte (harness en P0).
+/// Stockage KV abstrait `kv-v1`, fourni par l'hôte.
 ///
-/// Toutes les méthodes sont synchrones et pures (ni réseau, ni SQL, ni E/S).
 /// L'implémentation namespacée par `binding_id` est exigée : l'appelant ne
-/// fournit que `key`, l'adaptateur impose l'isolation.
+/// fournit que `key`, l'adaptateur impose l'isolation. Le harness P0 reste
+/// in-memory ; les adaptateurs plateforme (Postgres, Redis) réalisent l'I/O.
 pub trait KvStore: Send + Sync {
     /// Lit une valeur pour un binding.
     ///
@@ -25,11 +25,21 @@ pub trait KvStore: Send + Sync {
 
     /// Écrit une valeur pour un binding.
     ///
+    /// `expected_cas` : `None` écrit inconditionnellement ; `Some(n)` exige
+    /// que la version courante soit `n` (`0` si la clé est absente).
+    /// Retourne la nouvelle `cas_version`.
+    ///
     /// # Errors
     ///
-    /// Retourne [`ApparatusError::InvalidOperation`] ou
+    /// Retourne [`ApparatusError::InvalidOperation`] (clé, CAS, quota) ou
     /// [`ApparatusError::PayloadTooLarge`] hors bornes.
-    fn kv_put(&self, binding: &BindingId, key: &str, value: &[u8]) -> Result<(), ApparatusError>;
+    fn kv_put(
+        &self,
+        binding: &BindingId,
+        key: &str,
+        value: &[u8],
+        expected_cas: Option<i64>,
+    ) -> Result<i64, ApparatusError>;
 
     /// Supprime une valeur pour un binding.
     ///

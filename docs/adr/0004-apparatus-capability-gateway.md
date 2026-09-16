@@ -8,6 +8,8 @@
 - SuperSède : aucune
 - SuperSédée par : —
 
+`Accepted` ratifie le contrat ci-dessous. `Réalité : Partial` (plus proche) : la gateway **réseau** existe désormais comme HTTP `invoke` **Lazaret** + connecteurs **nommés** (pas Manifesto). Preuves P3 T5–T7 : consentement close-at-commit, KV Postgres+Redis, secrets-by-ref + adaptateur Vault HTTP (IT wiremock). **Pas** Implemented : mTLS rustls complete encore résiduel, OpenBao produit absent du compose, `kv_purge` non branché sur unbind Manifesto.
+
 ## Contexte
 
 Aujourd’hui l’authz Manifesto croise session IAM, ACL projet/composant et parfois `enforce_world_read_or_principal` (projet public lisible). Un JWT consommateur HS256 (`iss=iamrusty`, `aud=aiforall`) ne doit pas être remis à du code tiers : le secret HMAC permettrait de forger des identités.
@@ -58,4 +60,4 @@ L’implémentation mTLS / rotation (P3) n’est pas figée ici ; le contrat d�
 
 - Wiki : `apparatus-capabilities-and-isolation`, `immediate-membership-acl`, `component-instance-permissions`
 - Code : JWT consommateur (`docs/platform/authn-jwt.md`), `enforce_world_read_or_principal`, OpenFGA Manifesto
-- Preuve d’implémentation (2026-09-10, P1 2026-09-12) : taxonomie minimale déclarée dans le manifeste (`project.read`, `storage.kv.read/write`) ; port `KvStore` en domaine (`apparatus-contracts/src/ports.rs`), KV de référence namespacé par `binding_id` via le harness in-process (feature `test-harness`). Aucun bearer IAM ni JWT transmis au plugin. P1 : INSERT managed même txn que composant+ACL+outbox (`Manifesto/infra/src/transaction.rs`), grants projet inchangés, revoke→403 TTL0, ownership conservés, `grep apparatus openfga/model.fga` 0, zéro nouveau type FGA (T5 4/4). La gateway réseau réelle, l’identité workload et le KV plateforme persistent restent hors P1 (P3) → `Partial` maintenu.
+- Preuve d’implémentation (2026-09-10, P1 2026-09-12, P3 T5–T7 2026-09-15) : taxonomie minimale déclarée dans le manifeste (`project.read`, `storage.kv.read/write`) ; port `KvStore` en domaine (`apparatus-contracts/src/ports.rs`), KV de référence namespacé par `binding_id` via le harness in-process (feature `test-harness`). Aucun bearer IAM ni JWT transmis au plugin. P1 : INSERT managed même txn que composant+ACL+outbox (`Manifesto/infra/src/transaction.rs`), grants projet inchangés, revoke→403 TTL0, ownership conservés, `grep apparatus openfga/model.fga` 0, zéro nouveau type FGA. P3 : gateway **réseau** = Lazaret `POST /invoke` + connecteurs nommés (pas Manifesto) ; KV plateforme Postgres+Redis (`apparatus_kv_entries`) ; secrets-by-ref + adaptateur Vault HTTP KV v2 (IT wiremock). **Pas** Implemented (mTLS rustls complete résiduel, OpenBao produit hors compose, `kv_purge` non branché unbind) → `Partial` maintenu.

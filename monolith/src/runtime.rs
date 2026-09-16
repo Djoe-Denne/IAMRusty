@@ -13,6 +13,7 @@ pub async fn run() -> anyhow::Result<()> {
         telegraph,
         hive,
         manifesto,
+        lazaret,
     } = load_monolith_config()?;
 
     setup_logging_once();
@@ -21,12 +22,14 @@ pub async fn run() -> anyhow::Result<()> {
     let telegraph_app = Box::pin(telegraph_setup::AppBuilder::new(telegraph).build()).await?;
     let hive_app = Box::pin(hive_setup::AppBuilder::new(hive).build()).await?;
     let manifesto_app = Box::pin(manifesto_setup::Application::new(manifesto)).await?;
+    let lazaret_app = Box::pin(lazaret_setup::AppBuilder::new(lazaret).build()).await?;
 
     let mut background_tasks = Vec::new();
     background_tasks.extend(iam_app.start_background_tasks());
     background_tasks.extend(telegraph_app.start_background_tasks());
     background_tasks.extend(hive_app.start_background_tasks());
     background_tasks.extend(manifesto_app.start_background_tasks());
+    background_tasks.extend(lazaret_app.start_background_tasks());
 
     let readiness = std::sync::Arc::new(readiness::ReadinessProbe::aggregate(
         "monolith",
@@ -35,6 +38,7 @@ pub async fn run() -> anyhow::Result<()> {
             ("telegraph", telegraph_app.readiness()),
             ("hive", hive_app.readiness()),
             ("manifesto", manifesto_app.readiness()),
+            ("lazaret", lazaret_app.readiness()),
         ],
     ));
 
@@ -44,6 +48,7 @@ pub async fn run() -> anyhow::Result<()> {
             telegraph: telegraph_app.router(),
             hive: hive_app.router(),
             manifesto: manifesto_app.router(),
+            lazaret: lazaret_app.router(),
         },
         readiness,
     );
@@ -60,6 +65,7 @@ pub async fn run() -> anyhow::Result<()> {
     telegraph_app.stop_background_tasks().await;
     hive_app.stop_background_tasks().await;
     manifesto_app.stop_background_tasks().await;
+    lazaret_app.stop_background_tasks().await;
 
     result
 }

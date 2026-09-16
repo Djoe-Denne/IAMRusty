@@ -4,9 +4,9 @@ category: references
 tags: [architecture, components, visibility/internal]
 status: accepted
 feature_status: partial
-summary: "Hub ADR Apparatus 0001–0006 Accepted. P2 (0006) Implemented ; 0001–0005 Partial. Factory/host hors livré."
+summary: "Hub ADR Apparatus 0001–0007 Accepted. P2 (0006) Implemented ; 0007 Partial (T1–T7, pas Implemented) ; 0001–0005 Partial. Factory/host hors livré."
 created: 2026-09-10T06:32:00Z
-updated: 2026-09-13T10:25:00Z
+updated: 2026-09-15T16:42:00Z
 sources:
   - docs/adr/README.md
   - docs/adr/0001-apparatus-binding-owned-by-manifesto.md
@@ -15,6 +15,7 @@ sources:
   - docs/adr/0004-apparatus-capability-gateway.md
   - docs/adr/0005-apparatus-same-protocol-valid-verified.md
   - docs/adr/0006-apparatus-p2-reconciliation-in-process.md
+  - docs/adr/0007-apparatus-p3-capability-boundary-after-accept.md
   - docs/adr/0401-manifesto-projets-composants-acl-cas.md
   - docs/adr/0406-crates-apparatus-p0-pas-le-host.md
 provenance:
@@ -30,7 +31,7 @@ Les **décisions** vivent dans le handbook git, pas dans les notes de conception
 - Index : `docs/adr/README.md`
 - Template : `docs/adr/template.md`
 
-Les ADR Apparatus ci-dessous sont **Accepted** depuis la ratification orchestrée du 10 septembre 2026. `Accepted` fixe une cible ; il ne signifie pas `Implemented`. Les pages [[projects/manifesto/concepts/apparatus-platform]] et suivantes restent le rationnel, et la baseline antérieure aux ADR est conservée dans [[projects/manifesto/references/apparatus-implementation-plan#Recommandations du 9 septembre — baseline de traçabilité]].
+Les ADR Apparatus 0001–0007 sont **Accepted**. `Accepted` fixe une cible ; il ne signifie pas `Implemented`. Les pages [[projects/manifesto/concepts/apparatus-platform]] et suivantes restent le rationnel, et la baseline antérieure aux ADR est conservée dans [[projects/manifesto/references/apparatus-implementation-plan#Recommandations du 9 septembre — baseline de traçabilité]].
 
 ## Vague 1
 
@@ -42,8 +43,9 @@ Les ADR Apparatus ci-dessous sont **Accepted** depuis la ratification orchestré
 | [0004](../../../../../docs/adr/0004-apparatus-capability-gateway.md) — [[projects/manifesto/decisions/0004-apparatus-gateway]] | Gateway de capacités ; KV plateforme ; pas de bearer IAM | Partial |
 | [0005](../../../../../docs/adr/0005-apparatus-same-protocol-valid-verified.md) — [[projects/manifesto/decisions/0005-apparatus-protocol]] | Même protocole ; admission, `VALID`, `VERIFIED` et installabilité distincts | Partial |
 | [0006](../../../../../docs/adr/0006-apparatus-p2-reconciliation-in-process.md) — [[projects/manifesto/decisions/0006-apparatus-p2-reconciliation]] | Réconciliation P2 = contrôleur in-process Manifesto, sans infra réelle | Implemented |
+| [0007](../../../../../docs/adr/0007-apparatus-p3-capability-boundary-after-accept.md) — [[projects/manifesto/decisions/0007-apparatus-p3-lazaret]] | Frontière P3 = BC Lazaret, distinct de Manifesto ; 0006 G et E restent | Partial |
 
-Preuve P0 : [[projects/manifesto/concepts/apparatus-p0-contracts]]. Preuve P1 : [[projects/manifesto/concepts/apparatus-p1-persistence]]. ADR-0006 Accepted 2026-09-12 ; Réalité Implemented (T1–T7 + writer §D). Concept : [[projects/manifesto/concepts/apparatus-p2-reconciliation]].
+Preuve P0 : [[projects/manifesto/concepts/apparatus-p0-contracts]]. Preuve P1 : [[projects/manifesto/concepts/apparatus-p1-persistence]]. ADR-0006 Accepted 2026-09-12 ; Réalité Implemented (T1–T7 + writer §D). Concept : [[projects/manifesto/concepts/apparatus-p2-reconciliation]]. ADR-0007 Accepted 2026-09-13 ; Réalité Partial (T1–T7 prouvés ; holes dans le canon ADR ; pas Implemented). Pointeur : [[projects/manifesto/decisions/0007-apparatus-p3-lazaret]].
 
 ## Conception (pas des ADR)
 

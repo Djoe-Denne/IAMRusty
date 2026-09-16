@@ -8,6 +8,7 @@ pub struct MonolithRouters {
     pub telegraph: Router,
     pub hive: Router,
     pub manifesto: Router,
+    pub lazaret: Router,
 }
 
 pub fn compose_routes(routers: MonolithRouters, readiness: Arc<ReadinessProbe>) -> Router {
@@ -17,7 +18,8 @@ pub fn compose_routes(routers: MonolithRouters, readiness: Arc<ReadinessProbe>) 
             .nest(iam_http_server::SERVICE_PREFIX, routers.iam)
             .nest(telegraph_http_server::SERVICE_PREFIX, routers.telegraph)
             .nest(hive_http::SERVICE_PREFIX, routers.hive)
-            .nest(manifesto_http_server::SERVICE_PREFIX, routers.manifesto),
+            .nest(manifesto_http_server::SERVICE_PREFIX, routers.manifesto)
+            .nest(lazaret_http::SERVICE_PREFIX, routers.lazaret),
         readiness,
     )
 }

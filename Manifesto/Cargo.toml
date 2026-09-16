@@ -69,6 +69,8 @@ serial_test = { workspace = true }
 ctrlc = { workspace = true }
 libc = { workspace = true }
 ctor = { workspace = true }
+jsonwebtoken = { workspace = true }
+chrono = { workspace = true }
 rand = { workspace = true }
 async-trait = { workspace = true }
 reqwest = { workspace = true }

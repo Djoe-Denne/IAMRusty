@@ -193,8 +193,36 @@ services:
     environment:
       - RUST_ENVIRONMENT=development
       - DATABASE_URL=postgres://postgres:postgres@postgres:5432/manifesto_dev
+      - MANIFESTO_APPARATUS__GRANT_SNAPSHOT_AUTH__HS256_SECRET=manifesto-grant-snapshot-dev-hs256
     volumes:
       - ./Manifesto/config:/app/config
+    depends_on:
+      postgres:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+      build-artifacts:
+        condition: service_completed_successfully
+      create-databases:
+        condition: service_completed_successfully
+      openfga:
+        condition: service_healthy
+    networks:
+      - aiforall-network
+
+  # Lazaret capability-boundary service
+  lazaret-service:
+    build:
+      context: .
+      dockerfile: Lazaret/Dockerfile
+    ports:
+      - "8084:8080"   # HTTP port
+    environment:
+      - RUST_ENVIRONMENT=development
+      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/lazaret_dev
+      - LAZARET_MANIFESTO_SERVICE__HS256_SECRET=manifesto-grant-snapshot-dev-hs256
+    volumes:
+      - ./Lazaret/config:/app/config
     depends_on:
       postgres:
         condition: service_healthy
@@ -293,16 +321,19 @@ services:
         psql -h postgres -U postgres -c 'DROP DATABASE IF EXISTS telegraph_dev;' &&
         psql -h postgres -U postgres -c 'DROP DATABASE IF EXISTS hive_dev;' &&
         psql -h postgres -U postgres -c 'DROP DATABASE IF EXISTS manifesto_dev;' &&
+        psql -h postgres -U postgres -c 'DROP DATABASE IF EXISTS lazaret_dev;' &&
         psql -h postgres -U postgres -c 'DROP DATABASE IF EXISTS openfga_dev;' &&
         psql -h postgres -U postgres -c 'CREATE DATABASE iam_dev;' &&
         psql -h postgres -U postgres -c 'CREATE DATABASE telegraph_dev;' &&
         psql -h postgres -U postgres -c 'CREATE DATABASE hive_dev;' &&
         psql -h postgres -U postgres -c 'CREATE DATABASE manifesto_dev;' &&
+        psql -h postgres -U postgres -c 'CREATE DATABASE lazaret_dev;' &&
         psql -h postgres -U postgres -c 'CREATE DATABASE openfga_dev;' &&
         psql -h postgres -U postgres -c 'GRANT ALL PRIVILEGES ON DATABASE iam_dev TO postgres;' &&
         psql -h postgres -U postgres -c 'GRANT ALL PRIVILEGES ON DATABASE telegraph_dev TO postgres;' &&
         psql -h postgres -U postgres -c 'GRANT ALL PRIVILEGES ON DATABASE hive_dev TO postgres;' &&
         psql -h postgres -U postgres -c 'GRANT ALL PRIVILEGES ON DATABASE manifesto_dev TO postgres;' &&
+        psql -h postgres -U postgres -c 'GRANT ALL PRIVILEGES ON DATABASE lazaret_dev TO postgres;' &&
         psql -h postgres -U postgres -c 'GRANT ALL PRIVILEGES ON DATABASE openfga_dev TO postgres;' &&
         echo 'Databases created successfully!'
       "

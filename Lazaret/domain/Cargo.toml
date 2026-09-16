@@ -1,0 +1,19 @@
+[package]
+name = "lazaret-domain"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Domain layer for Lazaret capability-boundary service"
+license.workspace = true
+
+[dependencies]
+rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full"] }
+apparatus-contracts = { path = "../../apparatus-contracts" }
+async-trait = { workspace = true }
+pem = { workspace = true }
+serde = { workspace = true }
+sha2 = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+url = { workspace = true }

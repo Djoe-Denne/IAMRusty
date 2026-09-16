@@ -4,7 +4,10 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::{
-    dto::{AddComponentRequest, ComponentListResponse, ComponentResponse, UpdateComponentRequest},
+    dto::{
+        AddComponentRequest, BindingGrantSnapshotResponse, ComponentListResponse,
+        ComponentResponse, UpdateComponentRequest, UpsertBindingConsentRequest,
+    },
     usecase::ComponentUseCase,
     ApplicationError,
 };
@@ -359,6 +362,150 @@ impl CommandHandler<RemoveComponentCommand> for RemoveComponentCommandHandler {
     async fn handle(&self, command: RemoveComponentCommand) -> Result<(), CommandError> {
         self.component_usecase
             .remove_component(command.project_id, command.component_id, command.user_id)
+            .await
+            .map_err(CommandError::from)
+    }
+}
+
+// =============================================================================
+// Get Binding Grant Snapshot Command
+// =============================================================================
+
+/// Privileged read of binding consents and grants.
+#[derive(Debug, Clone)]
+pub struct GetBindingGrantSnapshotCommand {
+    pub command_id: Uuid,
+    pub project_id: Uuid,
+    pub component_id: Uuid,
+    pub principal: Option<Uuid>,
+}
+
+impl GetBindingGrantSnapshotCommand {
+    /// Query `principal` is the intersection user when present (not the JWT subject).
+    #[must_use]
+    pub fn new(project_id: Uuid, component_id: Uuid, principal: Option<Uuid>) -> Self {
+        Self {
+            command_id: Uuid::new_v4(),
+            project_id,
+            component_id,
+            principal,
+        }
+    }
+}
+
+#[async_trait]
+impl Command for GetBindingGrantSnapshotCommand {
+    type Result = BindingGrantSnapshotResponse;
+
+    fn command_type(&self) -> &'static str {
+        "get_binding_grant_snapshot"
+    }
+
+    fn command_id(&self) -> Uuid {
+        self.command_id
+    }
+
+    fn validate(&self) -> Result<(), CommandError> {
+        Ok(())
+    }
+}
+
+/// Handler for [`GetBindingGrantSnapshotCommand`].
+pub struct GetBindingGrantSnapshotCommandHandler {
+    component_usecase: Arc<dyn ComponentUseCase>,
+}
+
+impl GetBindingGrantSnapshotCommandHandler {
+    /// Create a handler.
+    #[must_use]
+    pub fn new(component_usecase: Arc<dyn ComponentUseCase>) -> Self {
+        Self { component_usecase }
+    }
+}
+
+#[async_trait]
+impl CommandHandler<GetBindingGrantSnapshotCommand> for GetBindingGrantSnapshotCommandHandler {
+    async fn handle(
+        &self,
+        command: GetBindingGrantSnapshotCommand,
+    ) -> Result<BindingGrantSnapshotResponse, CommandError> {
+        self.component_usecase
+            .get_binding_grant_snapshot(command.project_id, command.component_id, command.principal)
+            .await
+            .map_err(CommandError::from)
+    }
+}
+
+// =============================================================================
+// Upsert Binding Consent Command
+// =============================================================================
+
+/// Write or revoke a consented capability on a binding.
+#[derive(Debug, Clone)]
+pub struct UpsertBindingConsentCommand {
+    pub command_id: Uuid,
+    pub project_id: Uuid,
+    pub component_id: Uuid,
+    pub request: UpsertBindingConsentRequest,
+}
+
+impl UpsertBindingConsentCommand {
+    /// Domain write of a consent row.
+    #[must_use]
+    pub fn new(project_id: Uuid, component_id: Uuid, request: UpsertBindingConsentRequest) -> Self {
+        Self {
+            command_id: Uuid::new_v4(),
+            project_id,
+            component_id,
+            request,
+        }
+    }
+}
+
+#[async_trait]
+impl Command for UpsertBindingConsentCommand {
+    type Result = BindingGrantSnapshotResponse;
+
+    fn command_type(&self) -> &'static str {
+        "upsert_binding_consent"
+    }
+
+    fn command_id(&self) -> Uuid {
+        self.command_id
+    }
+
+    fn validate(&self) -> Result<(), CommandError> {
+        if self.request.capability.trim().is_empty() {
+            return Err(CommandError::validation(
+                "empty_capability",
+                "Capability cannot be empty",
+            ));
+        }
+        Ok(())
+    }
+}
+
+/// Handler for [`UpsertBindingConsentCommand`].
+pub struct UpsertBindingConsentCommandHandler {
+    component_usecase: Arc<dyn ComponentUseCase>,
+}
+
+impl UpsertBindingConsentCommandHandler {
+    /// Create a handler.
+    #[must_use]
+    pub fn new(component_usecase: Arc<dyn ComponentUseCase>) -> Self {
+        Self { component_usecase }
+    }
+}
+
+#[async_trait]
+impl CommandHandler<UpsertBindingConsentCommand> for UpsertBindingConsentCommandHandler {
+    async fn handle(
+        &self,
+        command: UpsertBindingConsentCommand,
+    ) -> Result<BindingGrantSnapshotResponse, CommandError> {
+        self.component_usecase
+            .upsert_binding_consent(command.project_id, command.component_id, &command.request)
             .await
             .map_err(CommandError::from)
     }

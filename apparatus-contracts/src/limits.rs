@@ -15,6 +15,9 @@ pub const MAX_KV_KEY_LEN: usize = 256;
 /// Taille maximale d'une valeur KV (en octets).
 pub const MAX_KV_VALUE_BYTES: usize = 64 * 1024;
 
+/// Nombre maximal d'entrées KV par binding (quota plateforme P3).
+pub const MAX_KV_ENTRIES_PER_BINDING: usize = 256;
+
 /// Taille maximale d'un document de configuration sérialisé (en octets, JSON compact).
 pub const MAX_CONFIG_BYTES: usize = 64 * 1024;
 

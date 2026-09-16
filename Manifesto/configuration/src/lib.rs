@@ -54,6 +54,51 @@ pub struct ManifestoConfig {
     /// `OpenFGA` authorization checker configuration.
     #[serde(default)]
     pub openfga: OpenFgaClientConfig,
+
+    /// Apparatus binding grant snapshot settings (distinct from `[auth.jwt]`).
+    #[serde(default)]
+    pub apparatus: ApparatusConfig,
+}
+
+/// Apparatus-specific Manifesto configuration.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ApparatusConfig {
+    /// HS256 verifier for the privileged binding grant snapshot GET.
+    #[serde(default)]
+    pub grant_snapshot_auth: GrantSnapshotAuthConfig,
+}
+
+/// Platform-service JWT for `GET /api/projects/{project_id}/bindings/{component_id}`.
+/// Distinct from IAM `[auth.jwt]` (`iss=iamrusty`, `aud=aiforall`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GrantSnapshotAuthConfig {
+    /// HS256 secret shared with platform callers of the snapshot GET.
+    #[serde(default)]
+    pub hs256_secret: Option<String>,
+    /// Expected `iss` claim.
+    #[serde(default = "default_grant_snapshot_issuer")]
+    pub issuer: String,
+    /// Expected `aud` claim.
+    #[serde(default = "default_grant_snapshot_audience")]
+    pub audience: String,
+}
+
+impl Default for GrantSnapshotAuthConfig {
+    fn default() -> Self {
+        Self {
+            hs256_secret: None,
+            issuer: default_grant_snapshot_issuer(),
+            audience: default_grant_snapshot_audience(),
+        }
+    }
+}
+
+fn default_grant_snapshot_issuer() -> String {
+    "aiforall-platform".to_owned()
+}
+
+fn default_grant_snapshot_audience() -> String {
+    "manifesto-bindings".to_owned()
 }
 
 /// Component service configuration

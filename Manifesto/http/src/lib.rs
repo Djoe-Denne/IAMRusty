@@ -1,7 +1,7 @@
-use axum::Router;
+use axum::{middleware, routing::get, Router};
 use readiness::{attach_ready, ReadinessProbe};
 use rustycog::config::ServerConfig;
-use rustycog::http::{AppState, RouteBuilder};
+use rustycog::http::{auth_middleware, AppState, RouteBuilder, UserIdExtractor};
 use rustycog::permission::Permission;
 use std::sync::Arc;
 
@@ -20,7 +20,21 @@ pub const SERVICE_PREFIX: &str = "/manifesto";
 /// the `"project"` object type; component-scoped routes use `"component"`.
 /// Members, permission grants, and archives all collapse to project-level
 /// relations.
-pub fn create_router(state: AppState) -> Router {
+///
+/// The binding grant snapshot GET is verified with a dedicated platform
+/// extractor (`grant_snapshot_auth`), not IAM `[auth.jwt]`.
+pub fn create_router(state: AppState, grant_snapshot_auth: Arc<UserIdExtractor>) -> Router {
+    let snapshot_routes = Router::new()
+        .route(
+            "/api/projects/{project_id}/bindings/{component_id}",
+            get(get_binding_grant_snapshot),
+        )
+        .route_layer(middleware::from_fn_with_state(
+            grant_snapshot_auth,
+            auth_middleware,
+        ))
+        .with_state(state.clone());
+
     RouteBuilder::new(state)
         .health_check()
         // Project routes
@@ -32,6 +46,13 @@ pub fn create_router(state: AppState) -> Router {
         .get("/api/projects/{project_id}/details", get_project_detail)
         .might_be_authenticated()
         .with_permission_on(Permission::Read, "project")
+        // Consent write stays IAM + project Admin. Snapshot GET is merged below.
+        .put(
+            "/api/projects/{project_id}/bindings/{component_id}/consents",
+            upsert_binding_consent,
+        )
+        .authenticated()
+        .with_permission_on_param(Permission::Admin, "project", "project_id")
         // Authenticated project routes
         .post("/api/projects", create_project)
         .authenticated()
@@ -137,11 +158,19 @@ pub fn create_router(state: AppState) -> Router {
         .authenticated()
         .with_permission_on_param(Permission::Admin, "project", "project_id")
         .into_router()
+        .merge(snapshot_routes)
 }
 
 /// Create the Manifesto router under its bounded-context prefix.
-pub fn create_prefixed_router(state: AppState, probe: Arc<ReadinessProbe>) -> Router {
-    Router::new().nest(SERVICE_PREFIX, attach_ready(create_router(state), probe))
+pub fn create_prefixed_router(
+    state: AppState,
+    grant_snapshot_auth: Arc<UserIdExtractor>,
+    probe: Arc<ReadinessProbe>,
+) -> Router {
+    Router::new().nest(
+        SERVICE_PREFIX,
+        attach_ready(create_router(state, grant_snapshot_auth), probe),
+    )
 }
 
 /// Create and start the application routes using the fluent builder API.
@@ -151,8 +180,13 @@ pub fn create_prefixed_router(state: AppState, probe: Arc<ReadinessProbe>) -> Ro
 /// Returns an error if the HTTP server cannot bind or stops with a failure.
 pub async fn create_app_routes(
     state: AppState,
+    grant_snapshot_auth: Arc<UserIdExtractor>,
     config: ServerConfig,
     probe: Arc<ReadinessProbe>,
 ) -> anyhow::Result<()> {
-    rustycog::http::serve_router(create_prefixed_router(state, probe), config).await
+    rustycog::http::serve_router(
+        create_prefixed_router(state, grant_snapshot_auth, probe),
+        config,
+    )
+    .await
 }

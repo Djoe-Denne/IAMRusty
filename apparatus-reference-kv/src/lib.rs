@@ -245,7 +245,7 @@ fn dispatch<S: KvStore>(
         "kv.put" => {
             let key = param_key(&request.params)?;
             let value = param_value(&request.params)?;
-            store.kv_put(binding, key, value.as_bytes())?;
+            store.kv_put(binding, key, value.as_bytes(), None)?;
             Ok(serde_json::json!({"stored": true}))
         }
         "kv.delete" => {
@@ -289,13 +289,15 @@ fn param_value(params: &serde_json::Value) -> Result<&str, ApparatusError> {
         )
 }
 
+type KvEntryMap = HashMap<(String, String), (Vec<u8>, i64)>;
+
 /// Stockage en mémoire namespacé par `binding_id` (doublure de test).
 ///
 /// L'isolation est imposée par la clé interne `(binding_id, key)`.
 #[derive(Debug, Default)]
 pub struct InMemoryKvStore {
-    /// Entrées `(binding_id, key) -> valeur brute`.
-    entries: Mutex<HashMap<(String, String), Vec<u8>>>,
+    /// Entrées `(binding_id, key) -> (valeur brute, cas_version)`.
+    entries: Mutex<KvEntryMap>,
 }
 
 impl InMemoryKvStore {
@@ -314,10 +316,16 @@ impl KvStore for InMemoryKvStore {
         let guard = self.entries.lock().unwrap_or_else(PoisonError::into_inner);
         Ok(guard
             .get(&(binding.as_str().to_owned(), key.to_owned()))
-            .cloned())
+            .map(|(value, _)| value.clone()))
     }
 
-    fn kv_put(&self, binding: &BindingId, key: &str, value: &[u8]) -> Result<(), ApparatusError> {
+    fn kv_put(
+        &self,
+        binding: &BindingId,
+        key: &str,
+        value: &[u8],
+        expected_cas: Option<i64>,
+    ) -> Result<i64, ApparatusError> {
         check_key(key)?;
         if value.len() > apparatus_contracts::MAX_KV_VALUE_BYTES {
             return Err(ApparatusError::PayloadTooLarge {
@@ -325,14 +333,32 @@ impl KvStore for InMemoryKvStore {
                 actual: value.len(),
             });
         }
-        {
-            let mut guard = self.entries.lock().unwrap_or_else(PoisonError::into_inner);
-            guard.insert(
-                (binding.as_str().to_owned(), key.to_owned()),
-                value.to_vec(),
-            );
+        let mut guard = self.entries.lock().unwrap_or_else(PoisonError::into_inner);
+        let map_key = (binding.as_str().to_owned(), key.to_owned());
+        let current = guard.get(&map_key).map(|(_, ver)| *ver);
+        if let Some(expected) = expected_cas {
+            let actual = current.unwrap_or(0);
+            if actual != expected {
+                return Err(ApparatusError::InvalidOperation {
+                    reason: "cas mismatch".to_owned(),
+                });
+            }
         }
-        Ok(())
+        if current.is_none() {
+            let count = guard
+                .keys()
+                .filter(|(owner, _)| owner == binding.as_str())
+                .count();
+            if count >= apparatus_contracts::MAX_KV_ENTRIES_PER_BINDING {
+                return Err(ApparatusError::InvalidOperation {
+                    reason: "kv entry quota exceeded".to_owned(),
+                });
+            }
+        }
+        let next = current.unwrap_or(0).saturating_add(1);
+        guard.insert(map_key, (value.to_vec(), next));
+        drop(guard);
+        Ok(next)
     }
 
     fn kv_delete(&self, binding: &BindingId, key: &str) -> Result<bool, ApparatusError> {

@@ -34,8 +34,8 @@ pub use harness::{InMemoryKv, TestHarness};
 pub use ids::{ApparatusId, BindingId, OperationId, ReleaseDigest};
 pub use limits::{
     MAX_CAPABILITIES, MAX_CONFIG_BYTES, MAX_DESCRIPTION_LEN, MAX_ID_LEN, MAX_INSTALL_REF_LEN,
-    MAX_KV_KEY_LEN, MAX_KV_VALUE_BYTES, MAX_OPERATION_NAME_LEN, MAX_PAYLOAD_BYTES,
-    MAX_SCHEMA_PATH_LEN,
+    MAX_KV_ENTRIES_PER_BINDING, MAX_KV_KEY_LEN, MAX_KV_VALUE_BYTES, MAX_OPERATION_NAME_LEN,
+    MAX_PAYLOAD_BYTES, MAX_SCHEMA_PATH_LEN,
 };
 pub use manifest::{ApparatusManifest, ApparatusMeta, BackendDecl, CapabilitiesDecl};
 pub use ports::{ApparatusRuntime, KvStore, RuntimeObservation};

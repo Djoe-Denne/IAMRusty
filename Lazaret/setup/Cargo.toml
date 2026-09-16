@@ -1,0 +1,21 @@
+[package]
+name = "lazaret-setup"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Application setup and dependency injection for Lazaret service"
+license.workspace = true
+
+[dependencies]
+lazaret-application = { path = "../application" }
+lazaret-domain = { path = "../domain" }
+lazaret-http = { path = "../http" }
+lazaret-infra = { path = "../infra" }
+lazaret-configuration = { path = "../configuration" }
+lazaret-migration = { path = "../migration" }
+readiness = { path = "../../readiness" }
+rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full"] }
+axum = { workspace = true }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }

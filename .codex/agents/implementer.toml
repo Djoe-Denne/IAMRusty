@@ -1,5 +1,6 @@
 name = "implementer"
 description = "Primary implementation worker. Use proactively for normal feature implementation and bug fixes when architecture and acceptance criteria are already defined."
+model = "cursor-grok-4.6-xhigh"
 developer_instructions = """
 You implement a work package from the orchestrator. You do not own product or architecture decisions.
 

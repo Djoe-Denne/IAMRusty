@@ -32,3 +32,7 @@ hive-setup = { path = "../Hive/setup" }
 manifesto-configuration = { path = "../Manifesto/configuration" }
 manifesto-http_server = { path = "../Manifesto/http" }
 manifesto-setup = { path = "../Manifesto/setup" }
+
+lazaret-configuration = { path = "../Lazaret/configuration" }
+lazaret-http = { path = "../Lazaret/http" }
+lazaret-setup = { path = "../Lazaret/setup" }

@@ -6,6 +6,7 @@ pub struct MonolithConfig {
     pub telegraph: telegraph_configuration::TelegraphConfig,
     pub hive: hive_configuration::AppConfig,
     pub manifesto: manifesto_configuration::AppConfig,
+    pub lazaret: lazaret_configuration::AppConfig,
 }
 
 pub fn load_monolith_config() -> anyhow::Result<MonolithConfig> {
@@ -13,6 +14,7 @@ pub fn load_monolith_config() -> anyhow::Result<MonolithConfig> {
     let telegraph = telegraph_configuration::load_config()?;
     let hive = hive_configuration::load_config()?;
     let manifesto = manifesto_configuration::load_config()?;
+    let lazaret = lazaret_configuration::load_config()?;
 
     let server = ServerConfig {
         host: "0.0.0.0".to_string(),
@@ -29,5 +31,6 @@ pub fn load_monolith_config() -> anyhow::Result<MonolithConfig> {
         telegraph,
         hive,
         manifesto,
+        lazaret,
     })
 }

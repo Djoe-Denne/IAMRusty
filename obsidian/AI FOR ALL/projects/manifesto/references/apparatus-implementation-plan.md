@@ -106,6 +106,8 @@ P2.1 (CAS update, backoff, `/ready`) est **livré** dans ce jalon. P3+ (`invoke`
 
 ### P3 — Frontière de capacités et données
 
+**État 2026-09-13** : [ADR-0007](../../../../../docs/adr/0007-apparatus-p3-capability-boundary-after-accept.md) **Accepted**, Réalité **Unimplemented**. T1 = absence. T2 (gate Lazaret P4+, migration Manifesto `grant_revision` + `apparatus_capability_consents`, squelette `/lazaret`) est landé ; T3–T7 et le mécanisme P3 (identité, grants, consentement, KV, secrets, proxy, invoke) ne sont pas prouvés. Conception ci-dessous `^[inferred]`, pas un contrat. Pointeur : [[projects/manifesto/decisions/0007-apparatus-p3-lazaret]].
+
 Implémenter identité de workload, certificat/rotation, gateway, grants interactifs et de fond, consentement/revocation, stockage KV, secrets et proxy réseau. Les refus sont contrôlés côté serveur et liés au binding courant. Les règles du projet public ne rendent pas le stockage ni l’invoke public par défaut. ^[inferred]
 
 **Preuve de sortie** : test de deux projets et deux bindings adverses ; plugin incapable de changer son tenant, lire un secret, réutiliser un grant révoqué, contacter l’infrastructure interne ou invoquer une opération non accordée. Tester suspension immédiate du membre avec une projection FGA encore ancienne. ^[inferred]

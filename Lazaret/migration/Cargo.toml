@@ -1,0 +1,20 @@
+[package]
+name = "lazaret-migration"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Database migrations for Lazaret capability-boundary service"
+license.workspace = true
+
+[lib]
+name = "lazaret_migration"
+path = "src/lib.rs"
+
+[[bin]]
+name = "migration"
+path = "src/main.rs"
+
+[dependencies]
+async-std = { version = "1", features = ["attributes", "tokio1"] }
+sea-orm-migration = { workspace = true }
+rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full"] }

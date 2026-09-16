@@ -13,6 +13,8 @@ mod m20260905_000010_add_project_revision;
 mod m20260909_000011_member_owner_and_soft_delete;
 mod m20260912_000012_create_apparatus_bindings_table;
 mod m20260912_000013_apparatus_p2_runtime;
+mod m20260913_000014_apparatus_p3_grants;
+mod m20260916_000015_apparatus_declared_capabilities;
 
 pub struct Migrator;
 
@@ -33,6 +35,8 @@ impl MigratorTrait for Migrator {
             Box::new(m20260909_000011_member_owner_and_soft_delete::Migration),
             Box::new(m20260912_000012_create_apparatus_bindings_table::Migration),
             Box::new(m20260912_000013_apparatus_p2_runtime::Migration),
+            Box::new(m20260913_000014_apparatus_p3_grants::Migration),
+            Box::new(m20260916_000015_apparatus_declared_capabilities::Migration),
             rustycog::outbox::outbox_migration(),
         ]
     }

@@ -18,7 +18,11 @@ use rustycog::events::{DomainEvent, EventPublisher};
 use rustycog::permission::PermissionChecker;
 
 use crate::{
-    dto::{AddComponentRequest, ComponentListResponse, ComponentResponse, UpdateComponentRequest},
+    dto::{
+        AddComponentRequest, BindingGrantSnapshotResponse, ComponentListResponse,
+        ComponentResponse, UpdateComponentRequest, UpsertBindingConsentRequest,
+    },
+    usecase::binding_grant::{BindingConsentWriter, BindingGrantSnapshotReader},
     usecase::project::ProjectAuthorizationUnitOfWork,
     usecase::world_read::{
         caller_can_read_component, enforce_world_read_or_principal, require_project_mutation_actor,
@@ -88,6 +92,36 @@ pub trait ComponentUseCase: Send + Sync {
         component_id: Uuid,
         user_id: Uuid,
     ) -> Result<(), ApplicationError>;
+
+    /// Privileged read of binding consents and grants.
+    ///
+    /// `principal` is the intersection user when present. The caller JWT is
+    /// not used as that principal.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ApplicationError::NotFound`] when the binding is missing, or
+    /// [`ApplicationError::Internal`] when the reader is unwired or the read fails.
+    async fn get_binding_grant_snapshot(
+        &self,
+        project_id: Uuid,
+        component_id: Uuid,
+        principal: Option<Uuid>,
+    ) -> Result<BindingGrantSnapshotResponse, ApplicationError>;
+
+    /// Write or revoke a consented capability. Closes access at commit.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ApplicationError::NotFound`] when the binding is missing,
+    /// [`ApplicationError::Validation`] when the body is invalid, or
+    /// [`ApplicationError::Internal`] when the writer is unwired or the write fails.
+    async fn upsert_binding_consent(
+        &self,
+        project_id: Uuid,
+        component_id: Uuid,
+        request: &UpsertBindingConsentRequest,
+    ) -> Result<BindingGrantSnapshotResponse, ApplicationError>;
 }
 
 /// Default [`ComponentUseCase`] implementation.
@@ -100,6 +134,8 @@ pub struct ComponentUseCaseImpl {
     business_config: BusinessConfig,
     org_permission_checker: Arc<dyn PermissionChecker>,
     authorization_uow: Option<Arc<dyn ProjectAuthorizationUnitOfWork>>,
+    binding_grant_reader: Option<Arc<dyn BindingGrantSnapshotReader>>,
+    binding_consent_writer: Option<Arc<dyn BindingConsentWriter>>,
 }
 
 impl ComponentUseCaseImpl {
@@ -122,6 +158,8 @@ impl ComponentUseCaseImpl {
             business_config,
             org_permission_checker,
             authorization_uow: None,
+            binding_grant_reader: None,
+            binding_consent_writer: None,
         }
     }
 
@@ -132,6 +170,26 @@ impl ComponentUseCaseImpl {
         authorization_uow: Arc<dyn ProjectAuthorizationUnitOfWork>,
     ) -> Self {
         self.authorization_uow = Some(authorization_uow);
+        self
+    }
+
+    /// Wire the privileged binding grant snapshot reader.
+    #[must_use]
+    pub fn with_binding_grant_reader(
+        mut self,
+        binding_grant_reader: Arc<dyn BindingGrantSnapshotReader>,
+    ) -> Self {
+        self.binding_grant_reader = Some(binding_grant_reader);
+        self
+    }
+
+    /// Wire the consent writer (same transaction as `grant_revision` bump).
+    #[must_use]
+    pub fn with_binding_consent_writer(
+        mut self,
+        binding_consent_writer: Arc<dyn BindingConsentWriter>,
+    ) -> Self {
+        self.binding_consent_writer = Some(binding_consent_writer);
         self
     }
 
@@ -426,5 +484,29 @@ impl ComponentUseCase for ComponentUseCaseImpl {
         }
 
         Ok(())
+    }
+
+    async fn get_binding_grant_snapshot(
+        &self,
+        project_id: Uuid,
+        component_id: Uuid,
+        principal: Option<Uuid>,
+    ) -> Result<BindingGrantSnapshotResponse, ApplicationError> {
+        let reader = self.binding_grant_reader.as_ref().ok_or_else(|| {
+            ApplicationError::Internal("binding grant snapshot reader is not configured".to_owned())
+        })?;
+        reader.load(project_id, component_id, principal).await
+    }
+
+    async fn upsert_binding_consent(
+        &self,
+        project_id: Uuid,
+        component_id: Uuid,
+        request: &UpsertBindingConsentRequest,
+    ) -> Result<BindingGrantSnapshotResponse, ApplicationError> {
+        let writer = self.binding_consent_writer.as_ref().ok_or_else(|| {
+            ApplicationError::Internal("binding consent writer is not configured".to_owned())
+        })?;
+        writer.upsert(project_id, component_id, request).await
     }
 }

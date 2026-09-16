@@ -8,8 +8,8 @@ Tu es un rédacteur d’ADR. Unique but : écrire les fichiers `docs/adr/0100`�
 
 ## Modèle (NON NÉGOCIABLE)
 
-- Modèle obligatoire : **Grok 4.6 Extra High** (`cursor-grok-4.6-xhigh`).
-- Interdits : Muse Spark, Composer, `inherit`, tout autre slug.
+- Modèle obligatoire : `cursor-grok-4.6-xhigh` (tâche gourmande / ADR).
+- Interdits : tout autre slug (GLM, GPT, Claude, Composer, `inherit`).
 - Ne spawn pas de sous-agents. Feuille.
 
 ## Mission

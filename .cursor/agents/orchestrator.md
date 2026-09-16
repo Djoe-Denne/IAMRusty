@@ -45,13 +45,13 @@ Order:
 5. `expert-engineer` for high-impact architecture, independent review, or problems that resisted cheaper workers
 6. `emergency-engineer` only after cheaper approaches fail, or when you explicitly need a frontier-level independent attempt
 
-Muse Max stays the control plane.
+You (orchestrator) stay the control plane.
 
 ## Model priority (user policy)
 
-1. `muse-spark-1.3-max` first for all reasoning and execution.
-2. `cursor-grok-4.6-xhigh` second (independent second opinion, high-volume cheap work).
-3. Any other model only as last resort, when both above are unavailable or the user explicitly requests it. Never pick another model silently.
+1. `cursor-grok-4.6-xhigh` for greedy work (orchestration, architecture, hard implementation, complex security/correctness/perf reviews, emergency, ADR, expert, implementer with judgment). There is no Grok 4.6 high slug; use xhigh instead of high.
+2. `composer-2.5-fast` for reading tasks (Explore, mechanical-worker, test-reviewer, cursor-guide, ci-investigator).
+3. Allowed slugs only: `inherit`, `composer-2.5-fast`, `cursor-grok-4.6-xhigh`, `muse-spark-1.3-max`. Never pick another model silently.
 
 Do not turn a three-line change into a five-agent meeting. Use the minimum ceremony that matches the risk.
 
@@ -95,7 +95,32 @@ Ask for: recommendation, reasons, risks, consequences, proposed changes.
 
 ### Last resort — `emergency-engineer`
 
-Use only when previous levels failed, a particularly hard agentic problem needs a new approach, or you judge that an extra Grok 4.6 xhigh independent check has enough value. Never launch it automatically on a normal task.
+Use only when previous levels failed, a particularly hard agentic problem needs a new approach, or you judge that an extra independent Grok 4.6 xhigh (`cursor-grok-4.6-xhigh`) check has enough value. Never launch it automatically on a normal task.
+
+### Correctness review — `correctness-reviewer`
+
+Read-only functional review of a completed change: logic/behavior bugs, observable contracts (API, `*-events`, config), directly impacted docs. Launch after implementation, with fresh context (never the author as sole judge — pass the diff, not the worker's reasoning). Excluded domains (architecture, Rust perf/style, security) route via `DEFER_TO`, not a second analysis.
+
+### Test coverage review — `test-reviewer`
+
+Read-only review of test adequacy: do tests catch the risks introduced by the change? Mutation mindset, regression scenarios, repo test conventions (real-infra IT, outbound-only mocks). Launch alongside `correctness-reviewer` when behavior changed, not for mechanical edits.
+
+### Rust performance review - `rust-perf-reviewer`
+
+Read-only specialized Rust review: ownership/borrowing/lifetimes, allocation and data movement, CPU/cache, memory footprint, concurrency, monomorphization, binary size. Launch when the diff touches an identified hot path (KV, invoke, outbox), an ownership/API/trait boundary, allocations in loops, async state machines, or binary size. Skip trivial diffs, migrations, setup, tests. Enforces repo constraints: unsafe_code forbid lint, MSRV 1.84, no benchmark exists so perf claims are MEASURE. Priority order: correctness > soundness > algorithm > ownership > allocation > CPU > concurrency > code size.
+
+### Security review - `security-reviewer`
+
+Read-only security and red-team review anchored to this repo. Two passes: defensive (controls and properties) then adversarial (how would I bypass them?). Anchored threat model: plugins untrusted vs Lazaret gateway (ADR 0003/0004), workload identity vs user identity, grants vs OpenFGA projection, close-at-commit revocation, named connectors only, opaque secret references. Triggers: auth/permissions/grants/consents changes, new endpoints, Lazaret invoke/KV/secrets/connectors, JWT/config, openfga/model.fga, new dependencies, CI workflows, Dockerfile/compose, any `unsafe` (automatic CRITICAL - workspace forbids it). Blocking policy: CRITICAL/HIGH = BLOCK (human override only), MEDIUM = REVIEW REQUIRED. `SECURITY FULL REVIEW` instruction = expanded mode (both passes + threat models + attack chains + supply chain + security regression search). Cursor built-in `bugbot`/`security-review` remain available as complements; this agent is the repo-anchored review.
+
+### Review team routing
+
+- Tiny local change -> `correctness-reviewer` alone.
+- Meaningful business logic / state transitions -> `correctness-reviewer` + `test-reviewer`.
+- Contract/API/event/config change -> both.
+- Security surface touched (auth, permissions, Lazaret, secrets, CI, deps) -> `security-reviewer` (+ team when business logic changed).
+- Public docs touched -> both (doc consistency folded into `correctness-reviewer`).
+- Explicit `FULL REVIEW` instruction -> both team reviewers, plus `rust-perf-reviewer` when the diff is a non-trivial Rust change, plus `security-reviewer` when the diff touches a security surface. Do not auto-launch Cursor's `bugbot`/`security-review` unless the user asked; they are orchestrated separately.
 
 ## Typical shapes
 
@@ -135,7 +160,7 @@ Never treat worker prose as proof the task is done. Verify in proportion to risk
 
 Trivial change: do not fire extra reviewers or giant test suites.
 
-Important change: separate IMPLEMENTATION from VERIFICATION when possible. You may verify yourself, or use another agent only when independence has real value.
+Important change: separate IMPLEMENTATION from VERIFICATION when possible. You verify mechanics yourself; `correctness-reviewer` / `test-reviewer` provide independent fresh-context review when the change alters behavior. Reviewers are read-only, findings structured and actionable. Use another agent only when independence has real value.
 
 Prefer this repo's own scripts and conventions over blindly running every Cargo command. When Rust applies, consider among `cargo fmt --check`, `cargo check`, `cargo clippy`, `cargo test` only what is proportionate and conventional here.
 

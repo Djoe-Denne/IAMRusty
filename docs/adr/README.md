@@ -21,18 +21,19 @@ Décisions d’architecture **acceptées ou proposées**, distinctes des notes d
 7. **Accepter tôt les invariants qui figent P0.** Reporter les mécanismes qui dépendent de P2/P4 (worker, lease/fencing, moteur d’isolation, pipeline OCI).
 8. **Traçabilité non circulaire.** La baseline Apparatus est le document utilisateur et le wiki commité le 9 septembre 2026 (`d0664e3`). Un hub wiki mis à jour après une ADR ne constitue pas une preuve indépendante de son acceptation.
 
-## Vague 1 — Apparatus (Accepted, 2026-09-10)
+## Vague 1 — Apparatus (0001–0007 Accepted)
 
 | ID | Décision | Réalité | Notes wiki |
 |---|---|---|---|
 | [0001](0001-apparatus-binding-owned-by-manifesto.md) | Binding = `ProjectComponent` 1:1, propriété métier Manifesto | Partial | bindings, plan |
 | [0002](0002-apparatus-contract-first.md) | Contrats + Apparatus KV de référence avant Factory et host | Partial | platform, factory, UI, plan P0 |
 | [0003](0003-apparatus-untrusted-plugin.md) | Code auteur hors des processus privilégiés | Partial | platform, capabilities, factory |
-| [0004](0004-apparatus-capability-gateway.md) | Gateway seule I/O ; KV plateforme ; pas de bearer IAM | Partial | capabilities |
+| [0004](0004-apparatus-capability-gateway.md) | Gateway seule I/O ; KV plateforme ; pas de bearer IAM | Partial | capabilities — gateway réseau = Lazaret invoke (P3 T7) ; pas Implemented |
 | [0005](0005-apparatus-same-protocol-valid-verified.md) | Même protocole ; admission, `VALID`, `VERIFIED` et installabilité distincts | Partial | factory, platform |
 | [0006](0006-apparatus-p2-reconciliation-in-process.md) | Réconciliation P2 = contrôleur in-process Manifesto, sans infra réelle | Implemented | bindings, plan — Accepted 2026-09-12 |
+| [0007](0007-apparatus-p3-capability-boundary-after-accept.md) | Frontière P3 = BC Lazaret, distinct de Manifesto ; 0006 G et E restent | Partial | Accepted 2026-09-13 ; Réalité Partial (T1–T7) ; holes bloquent Implemented |
 
-Ratification 0001–0005 : revue orchestrée du 2026-09-10. ADR-0006 : Accept explicite utilisateur du 2026-09-12 (checklist A–M figée). `Accepted` fixe la cible ; T1–T7 + writer backoff §D sont livrés (Réalité Implemented).
+Ratification 0001–0005 : revue orchestrée du 2026-09-10. ADR-0006 : Accept explicite utilisateur du 2026-09-12 (checklist A–M figée). `Accepted` fixe la cible ; T1–T7 + writer backoff §D sont livrés (Réalité Implemented). ADR-0007 : Accept explicite utilisateur du 2026-09-13 (« accepté ») ; checklist 1–14 ratifiée ; G et E **non levées**. Réalité **Partial** (T1–T7 livrés) ; holes (mTLS complete, OpenBao produit, kv_purge↔unbind, invoke IT vs `/lazaret`, APP-05, G/E) bloquent Implemented.
 
 ## Traçabilité de la baseline du 9 septembre
 

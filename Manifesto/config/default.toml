@@ -48,5 +48,10 @@ store_id = ""
 # authorization_model_id = ""
 # api_token = ""
 
+[apparatus.grant_snapshot_auth]
+hs256_secret = "manifesto-grant-snapshot-dev-hs256"
+issuer = "aiforall-platform"
+audience = "manifesto-bindings"
+
 
 

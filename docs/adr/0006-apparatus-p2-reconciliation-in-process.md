@@ -139,6 +139,8 @@ Retargeter `Manifesto/tests/apparatus_p1_t7_gate.rs` **avant** d’introduire ce
 
 Hors P2.
 
+**Note de Réalité (2026-09-13, pas une réécriture de M)** : le consentement / révocation de capacités reste un travail **P3** ([ADR-0007](0007-apparatus-p3-capability-boundary-after-accept.md) checklist 9). La migration / backfill `legacy`→`managed` n’est **pas** un travail P3 actif : le service n’a **jamais** été déployé ; pas de tenants de production. Le modèle Accepted `source` ∈ `legacy|managed` (Décision, §A) est **inchangé**. Cette ADR **ne SuperSède pas** elle-même.
+
 ## Conséquences
 
 - Migration `m20260912_000013_apparatus_p2_runtime` additive réversible.
@@ -177,3 +179,5 @@ Hors P2.
 ### Réalité P2
 
 Aucun écart P2 ouvert. §A remove-not-bump est une décision figée (Décision A / Conséquences), pas un écart d’implémentation.
+
+**Hors jalon / jamais déployé (2026-09-13)** : M reste Hors P2. Consentement capacités = P3 (ADR-0007 checklist 9). Jamais déployé ; pas de tenants de production ; migration / backfill `legacy`→`managed` n’est pas un travail actif. `source` ∈ `legacy|managed` inchangé.

@@ -1,0 +1,69 @@
+# Lazaret Service Test Configuration
+
+[server]
+host = "127.0.0.1"
+port = 0
+tls_enabled = false
+
+[auth.jwt]
+hs256_secret = "rustycog-test-hs256-secret"
+issuer = "iamrusty"
+audience = "aiforall"
+
+[identity]
+session_ttl_minutes = 15
+cert_ttl_hours = 24
+
+[database]
+host = "localhost"
+port = 0
+db = "test-db"
+[database.creds]
+username = "postgres"
+password = "postgres"
+read_replicas = []
+
+[command]
+[command.retry]
+max_attempts = 0
+base_delay_ms = 50
+max_delay_ms = 5000
+backoff_multiplier = 2.0
+use_jitter = false
+
+[queue]
+type = "sqs"
+enabled = false
+region = "us-east-1"
+account_id = "000000000000"
+default_queues = []
+host = "localhost"
+port = 0
+access_key_id = "test"
+secret_access_key = "test"
+max_retries = 3
+timeout_seconds = 30
+
+[manifesto_service]
+base_url = "http://127.0.0.1:8080/manifesto"
+timeout_seconds = 10
+bearer_token = ""
+hs256_secret = "manifesto-grant-snapshot-test-hs256"
+issuer = "aiforall-platform"
+audience = "manifesto-bindings"
+
+[kv]
+backend = "postgres"
+
+[redis]
+hostname = "127.0.0.1"
+port = 6379
+
+[vault]
+base_url = ""
+token = ""
+mount = "secret"
+
+[logging]
+level = "debug"
+filter = "debug"

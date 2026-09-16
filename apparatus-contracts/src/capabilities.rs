@@ -21,6 +21,8 @@ pub enum Capability {
     StorageKvRead,
     /// Écriture du KV plateforme namespacé par binding (`storage.kv.write`).
     StorageKvWrite,
+    /// Appel sortant via un connecteur nommé admis par la plateforme (`connector.fetch`).
+    ConnectorFetch,
 }
 
 impl Capability {
@@ -31,22 +33,27 @@ impl Capability {
             Self::ProjectRead => "project.read",
             Self::StorageKvRead => "storage.kv.read",
             Self::StorageKvWrite => "storage.kv.write",
+            Self::ConnectorFetch => "connector.fetch",
         }
     }
 
     /// Liste exhaustive des capacités P0.
     #[must_use]
     pub const fn all() -> &'static [Self] {
-        &[Self::ProjectRead, Self::StorageKvRead, Self::StorageKvWrite]
+        &[
+            Self::ProjectRead,
+            Self::StorageKvRead,
+            Self::StorageKvWrite,
+            Self::ConnectorFetch,
+        ]
     }
 
     /// Indique si la capacité accorde un accès réseau.
     ///
-    /// Toujours `false` en P0 : aucune capacité réseau n'est définie.
-    /// Toute chaîne réseau inconnue est rejetée au parsing.
+    /// `true` uniquement pour [`Self::ConnectorFetch`] (sortie via proxy nommé).
     #[must_use]
     pub const fn is_network(&self) -> bool {
-        false
+        matches!(self, Self::ConnectorFetch)
     }
 
     /// Parse une liste de noms de capacités.
@@ -72,6 +79,7 @@ impl FromStr for Capability {
             "project.read" => Ok(Self::ProjectRead),
             "storage.kv.read" => Ok(Self::StorageKvRead),
             "storage.kv.write" => Ok(Self::StorageKvWrite),
+            "connector.fetch" => Ok(Self::ConnectorFetch),
             other => Err(ApparatusError::UnknownCapability {
                 name: ApparatusError::truncate(other, 100),
             }),
@@ -100,8 +108,7 @@ impl<'de> Deserialize<'de> for Capability {
 
 /// Indique si une liste de capacités contient un accès réseau.
 ///
-/// Retourne toujours `false` en P0 (aucune capacité réseau définie).
-/// Conservé comme point d'extension documenté pour P3.
+/// `true` si [`Capability::ConnectorFetch`] est présent.
 #[must_use]
 pub const fn requires_network(caps: &[Capability]) -> bool {
     let mut index = 0;
