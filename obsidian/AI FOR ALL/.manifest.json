@@ -1,26 +1,38 @@
 {
   "version": 1,
   "stats": {
-    "total_sources_ingested": 308,
-    "total_pages": 179,
-    "last_commit_synced": "7455ee55abc4acec223a78c4d5bfeced5bb680f7"
+    "total_sources_ingested": 320,
+    "total_pages": 192,
+    "last_commit_synced": "e978cd0db05bb5d5443bc58a8e44c2a4751f8095"
   },
   "projects": {
     "aiforall": {
       "source_cwd": "C:/Users/djden/source/repos/AIForAll",
-      "last_synced": "2026-09-13T10:25:00Z",
-      "last_commit_synced": "7455ee55abc4acec223a78c4d5bfeced5bb680f7",
-      "sync_note": "working-tree-clean; P2 lives in HEAD 7455ee5 (not uncommitted)",
-      "conversations_ingested": 49,
-      "conversations_total": 82,
+      "last_synced": "2026-09-17T10:55:00Z",
+      "last_commit_synced": "e978cd0db05bb5d5443bc58a8e44c2a4751f8095",
+      "sync_note": "chat+commit since 7455ee5: P2 Implemented, architecte, Lazaret P3 Partial",
+      "conversations_ingested": 56,
+      "conversations_total": 91,
       "pages_in_vault": [
         "projects/aiforall/aiforall.md",
-        "projects/aiforall/roadmap.md",
-        "journal/2026-09-13.md"
+        "projects/lazaret/lazaret.md",
+        "journal/2026-09-17.md"
       ]
     }
   },
   "sources": {
+    "docs/adr/0007-apparatus-p3-capability-boundary-after-accept.md": {"ingested_at":"2026-09-17T10:55:00Z","size_bytes":35642,"modified_at":"2026-09-15T14:45:21.768Z","content_hash":"sha256:d22fe5aca29e8a926ef821056d5251a5c4d356c0ac69491c6b2d20f39f4b7d78","source_type":"document","project":"lazaret","pages_created":["projects/lazaret/lazaret.md","projects/lazaret/concepts/workload-identity.md","projects/lazaret/concepts/grants-secrets-and-named-proxy.md"],"pages_updated":["projects/manifesto/decisions/0007-apparatus-p3-lazaret.md","projects/manifesto/references/apparatus-implementation-plan.md"]},
+    "docs/services/lazaret.md": {"ingested_at":"2026-09-17T10:55:00Z","size_bytes":812,"modified_at":"2026-09-15T10:36:12.029Z","content_hash":"sha256:35ca6dcf68387e502c2f727bf9633d3a89cc68ed0a1d47a840219a39b3e15dde","source_type":"document","project":"lazaret","pages_created":[],"pages_updated":["projects/lazaret/lazaret.md"]},
+    "Lazaret/README.md": {"ingested_at":"2026-09-17T10:55:00Z","size_bytes":660,"modified_at":"2026-09-13T17:24:42.585Z","content_hash":"sha256:be004b5ef89861d6fbc98b296ff4586461cee044b88ff3c5fb5f3affee0d2c0a","source_type":"document","project":"lazaret","pages_created":[],"pages_updated":["projects/lazaret/lazaret.md"]},
+    ".cursor/agents/architecte.md": {"ingested_at":"2026-09-17T10:55:00Z","size_bytes":7041,"modified_at":"2026-09-16T17:12:19.144Z","content_hash":"sha256:6618c65b5a3d34ff344c07357f6250fe471e416a2623abfdaf2860681f7b5b83","source_type":"document","project":"aiforall","pages_created":["projects/aiforall/concepts/architecte-agent.md"],"pages_updated":["projects/aiforall/concepts/orchestrator-agent-harness.md"]},
+    "docs/apparatus-p3-implementation-prompt.md": {"ingested_at":"2026-09-17T10:55:00Z","size_bytes":22557,"modified_at":"2026-09-13T12:23:10.023Z","content_hash":"sha256:bef86dcb165236c0b2147cfc4a158c516cdd499a944bcea3beb2b6bca76c2e2d","source_type":"document","project":"lazaret","pages_created":["projects/lazaret/skills/running-apparatus-p3-tests.md"],"pages_updated":[]},
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/4f3bb8d7-c6d7-4238-a320-445fe479de6b/4f3bb8d7-c6d7-4238-a320-445fe479de6b.jsonl": {"ingested_at":"2026-09-17T10:55:00Z","size_bytes":88330,"modified_at":"2026-09-16T19:37:07.793Z","content_hash":"sha256:f52a9b193a6e8657235eb290fe587bd06469d11b5167bec1c958d8be5e9ae64a","source_type":"claude_conversation","project":"lazaret","pages_created":[],"pages_updated":["projects/lazaret/concepts/workload-identity.md","journal/2026-09-17.md"]},
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/a340bab3-a47f-4710-af1e-3d4bff06e4a2/a340bab3-a47f-4710-af1e-3d4bff06e4a2.jsonl": {"ingested_at":"2026-09-17T10:55:00Z","size_bytes":9306,"modified_at":"2026-09-16T17:15:34.138Z","content_hash":"sha256:aa03137d32d72caada5419660eb42d61f1f22b7e06a41a4c694ff820047f0b95","source_type":"claude_conversation","project":"aiforall","pages_created":[],"pages_updated":["projects/aiforall/concepts/orchestrator-agent-harness.md"]},
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/0f84c7ec-f0e7-4d40-9a05-fe5d5507bed2/0f84c7ec-f0e7-4d40-9a05-fe5d5507bed2.jsonl": {"ingested_at":"2026-09-17T10:55:00Z","size_bytes":350787,"modified_at":"2026-09-15T18:47:12.162Z","content_hash":"sha256:9f85b933f19ba812c687748f0766e2ad3e6b1ec448489f2bae9552e1a3643e55","source_type":"claude_conversation","project":"aiforall","pages_created":[],"pages_updated":["projects/aiforall/concepts/orchestrator-agent-harness.md","projects/aiforall/references/cursor-history-2026-09.md"]},
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/03d5f1f8-78f6-4029-bada-07ee1c299818/03d5f1f8-78f6-4029-bada-07ee1c299818.jsonl": {"ingested_at":"2026-09-17T10:55:00Z","size_bytes":115398,"modified_at":"2026-09-15T15:37:51.130Z","content_hash":"sha256:b20859ad0d0a3844e0fbe1186a277154915eea44dc6f757a683337a5a860ce26","source_type":"claude_conversation","project":"lazaret","pages_created":[],"pages_updated":["projects/aiforall/references/cursor-history-2026-09.md","journal/2026-09-17.md"]},
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/90c57f76-8e86-42d2-8d81-968d0cb6507b/90c57f76-8e86-42d2-8d81-968d0cb6507b.jsonl": {"ingested_at":"2026-09-17T10:55:00Z","size_bytes":321244,"modified_at":"2026-09-15T14:37:20.336Z","content_hash":"sha256:4bee8d1c5153edfd63f736d30204ea76211350dc0932b2886a2cc42cd033d4f1","source_type":"claude_conversation","project":"lazaret","pages_created":["projects/lazaret/skills/running-apparatus-p3-tests.md"],"pages_updated":["journal/2026-09-17.md"]},
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/ff6a8f77-27c6-452d-a17b-adb52f30e431/ff6a8f77-27c6-452d-a17b-adb52f30e431.jsonl": {"ingested_at":"2026-09-17T10:55:00Z","size_bytes":76095,"modified_at":"2026-09-13T15:46:00.373Z","content_hash":"sha256:5c9d050f2db3c458d86e7297adcf577571d1abf63bf46dc73e73cebc31a72f57","source_type":"claude_conversation","project":"lazaret","pages_created":[],"pages_updated":["projects/aiforall/references/cursor-history-2026-09.md"]},
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/804c422a-63c7-42d5-94a0-dba53752c278/804c422a-63c7-42d5-94a0-dba53752c278.jsonl": {"ingested_at":"2026-09-17T10:55:00Z","size_bytes":47350,"modified_at":"2026-09-13T11:44:55.109Z","content_hash":"sha256:8b24484f68b820dd019606618024ec62a024ab8bb45671a873e6554bfb0edab3","source_type":"claude_conversation","project":"aiforall","pages_created":["projects/aiforall/concepts/architecte-agent.md"],"pages_updated":["journal/2026-09-17.md"]},
     "docs/adr/0006-apparatus-p2-reconciliation-in-process.md": {"ingested_at":"2026-09-13T10:25:00Z","size_bytes":11060,"modified_at":"2026-09-13T10:04:54.206Z","content_hash":"sha256:e9ee5a71e9990a5ab4a2ce25e9a841c0ce0bd3ac8f135ae8c295ee6a0147669d","source_type":"document","project":"manifesto","pages_created":[],"pages_updated":["projects/manifesto/decisions/0006-apparatus-p2-reconciliation.md","projects/manifesto/concepts/apparatus-p2-reconciliation.md"]},
     "docs/apparatus-p2-implementation-prompt.md": {"ingested_at":"2026-09-13T10:25:00Z","size_bytes":17341,"modified_at":"2026-09-12T09:41:18.698Z","content_hash":"sha256:3dff8bff842c13cce80f799fcbb8ef4262926c91273f6397fcfaf5718d99310d","source_type":"document","project":"manifesto","pages_created":[],"pages_updated":["projects/aiforall/skills/running-apparatus-p2-tests.md","projects/manifesto/concepts/apparatus-p2-reconciliation.md"]},
     ".serena/memories/architecture/apparatus-p2-adr-0006-accepted.md": {"ingested_at":"2026-09-13T10:25:00Z","size_bytes":1065,"modified_at":"2026-09-13T10:04:54.560Z","content_hash":"sha256:da0de6f42b2118f7e50abe1d699198f480cb83abc84d6b482e9568de908d0f80","source_type":"document","project":"manifesto","pages_created":[],"pages_updated":["projects/manifesto/decisions/0006-apparatus-p2-reconciliation.md"]},
@@ -46,8 +58,8 @@
     "Manifesto/tests/apparatus_p2_t6_runtime.rs": {"ingested_at":"2026-09-13T10:25:00Z","size_bytes":5090,"modified_at":"2026-09-12T12:49:18.488Z","content_hash":"sha256:108634c90163f03d8b02874578399da25599e60767cf1729a7446b53e8cda6b9","source_type":"document","project":"manifesto","pages_created":[],"pages_updated":["projects/aiforall/skills/running-apparatus-p2-tests.md"]},
     "Manifesto/tests/apparatus_p2_t7_cleanup.rs": {"ingested_at":"2026-09-13T10:25:00Z","size_bytes":4614,"modified_at":"2026-09-12T12:49:18.492Z","content_hash":"sha256:9184dbf816fe89f0d3a95436c472093a3d97a18b337f2639335d24651fa72c13","source_type":"document","project":"manifesto","pages_created":[],"pages_updated":["projects/aiforall/skills/running-apparatus-p2-tests.md"]},
     "Manifesto/tests/apparatus_p2_t7_gate.rs": {"ingested_at":"2026-09-13T10:25:00Z","size_bytes":5056,"modified_at":"2026-09-12T12:47:38.859Z","content_hash":"sha256:04c0c438f940b4c8340c2dee9abaa05c295977cfe6ecd6f10e1b7f894368d120","source_type":"document","project":"manifesto","pages_created":[],"pages_updated":["projects/aiforall/skills/running-apparatus-p2-tests.md"]},
-    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/cd391d48-2b6b-4300-8a70-452b2230a8d8/cd391d48-2b6b-4300-8a70-452b2230a8d8.jsonl": {"ingested_at":"2026-09-13T10:25:00Z","size_bytes":15805,"modified_at":"2026-09-12T12:56:52.804Z","content_hash":"sha256:da76c64bf68604415534f9fb01aee1709e3799c7327ed80f21b80bad58681ca3","source_type":"claude_conversation","project":"manifesto","pages_created":[],"pages_updated":["projects/aiforall/references/cursor-history-2026-09.md","journal/2026-09-13.md"]},
-    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/a5acce59-de4a-47c1-ae8b-cfd25a84c747/a5acce59-de4a-47c1-ae8b-cfd25a84c747.jsonl": {"ingested_at":"2026-09-13T10:25:00Z","size_bytes":34007,"modified_at":"2026-09-13T10:08:28.586Z","content_hash":"sha256:5db74efcfd187af5c2d1c7f0bb61e3d52e92718f71cc8b302086f8763f20c271","source_type":"claude_conversation","project":"aiforall","pages_created":["journal/2026-09-13.md"],"pages_updated":["projects/aiforall/references/cursor-history-2026-09.md"]},
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/cd391d48-2b6b-4300-8a70-452b2230a8d8/cd391d48-2b6b-4300-8a70-452b2230a8d8.jsonl": {"ingested_at":"2026-09-17T10:55:00Z","size_bytes":64474,"modified_at":"2026-09-13T12:25:55.099Z","content_hash":"sha256:7551dbac78ccd768468e4ec1148b2f135713502d2f210eb3069d823a328228eb","source_type":"claude_conversation","project":"manifesto","pages_created":[],"pages_updated":["projects/aiforall/references/cursor-history-2026-09.md","journal/2026-09-17.md"]},
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/a5acce59-de4a-47c1-ae8b-cfd25a84c747/a5acce59-de4a-47c1-ae8b-cfd25a84c747.jsonl": {"ingested_at":"2026-09-17T10:55:00Z","size_bytes":41009,"modified_at":"2026-09-13T10:25:03.074Z","content_hash":"sha256:e3593392865f5b323083d39b65841c5225f705d7bacfa8110cc833021a007fd7","source_type":"claude_conversation","project":"aiforall","pages_created":["journal/2026-09-13.md"],"pages_updated":["projects/aiforall/references/cursor-history-2026-09.md"]},
     "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/6de9b375-2f3a-4301-9342-b9a00323c9a8/6de9b375-2f3a-4301-9342-b9a00323c9a8.jsonl": {
       "ingested_at": "2026-09-13T10:25:00Z",
       "size_bytes": 160941,

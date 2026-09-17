@@ -13,19 +13,19 @@ sources:
   - C:/Users/djden/source/repos/AIForAll/.env
   - docs/adr/README.md
 summary: >-
-  Workspace AIForAll : 4 slices RustyCog, dual runtime, ADR vague 2, Apparatus
-  P0/P1/P2 Partial (pas Factory).
+  Workspace AIForAll : 5 slices RustyCog (Lazaret P3 Partial), dual runtime,
+  ADR vague 2, Apparatus P2 Implemented, Factory/host hors livré.
 provenance:
   extracted: 0.80
   inferred: 0.16
   ambiguous: 0.04
 created: 2026-04-14T16:54:59.5971424Z
-updated: 2026-09-13T10:25:00Z
+updated: 2026-09-17T10:55:00Z
 ---
 
 # AIForAll
 
-AIForAll is a Rust-based microservices workspace centered on [[projects/iamrusty/iamrusty]], [[projects/telegraph/telegraph]], [[projects/hive/hive]], [[projects/manifesto/manifesto]], the [[projects/rustycog/rustycog]] SDK (git submodule), [[projects/sentinel-sync/sentinel-sync]], and event crates such as [[projects/hive-events/hive-events]].
+AIForAll is a Rust-based microservices workspace centered on [[projects/iamrusty/iamrusty]], [[projects/telegraph/telegraph]], [[projects/hive/hive]], [[projects/manifesto/manifesto]], [[projects/lazaret/lazaret]], the [[projects/rustycog/rustycog]] SDK (git submodule), [[projects/sentinel-sync/sentinel-sync]], and event crates such as [[projects/hive-events/hive-events]].
 
 ## Key Ideas
 
@@ -35,13 +35,13 @@ AIForAll is a Rust-based microservices workspace centered on [[projects/iamrusty
 - Shared patterns live in [[concepts/shared-rust-microservice-sdk]]. The SDK tree is pinned as [[projects/aiforall/concepts/rustycog-git-submodule]].
 - August 2026 reviews show one hexagonal scaffold with remaining gaps on JWT/JWKS, errors, OpenAPI Hive, and OpenFGA wiring — [[concepts/architecture-coherence-across-services]]. Photograph rétroactive : [[projects/aiforall/decisions/index]].
 - Queue factories must surface rustycog no-ops on `/ready` — [[projects/aiforall/concepts/queue-readiness-signaling]].
-- Project work is routed through [[projects/aiforall/concepts/orchestrator-agent-harness]].
-- Apparatus P0 crates live at workspace root ; P2 ticker is in Manifesto (Partial) — [[projects/manifesto/concepts/apparatus-p2-reconciliation]] (ADR 0406 + 0006).
+- Project work is routed through [[projects/aiforall/concepts/orchestrator-agent-harness]]. Architecture vivante : [[projects/aiforall/concepts/architecte-agent]].
+- Apparatus P0 crates live at workspace root ; P2 ticker is in Manifesto (**Implemented**) — [[projects/manifesto/concepts/apparatus-p2-reconciliation]] (ADR 0006). Frontière P3 : [[projects/lazaret/lazaret]] (ADR 0007, **Partial**). Factory/host hors livré (ADR 0406).
 
 ## Runtime Modes
 
-- **Microservices:** `iam-service`, `telegraph-service`, `hive-service`, and `manifesto-service` remain independently runnable packages.
-- **Modular monolith:** `[[projects/aiforall/references/modular-monolith-runtime]]` documents the `oodhive-monolith` package, which composes IAMRusty, Telegraph, Hive, and Manifesto routers at `/iam`, `/telegraph`, `/hive`, and `/manifesto` while keeping SQS/event semantics unchanged.
+- **Microservices:** `iam-service`, `telegraph-service`, `hive-service`, `manifesto-service`, and `lazaret-service` remain independently runnable packages.
+- **Modular monolith:** `[[projects/aiforall/references/modular-monolith-runtime]]` documents the `oodhive-monolith` package, which composes IAMRusty, Telegraph, Hive, Manifesto, and Lazaret routers at `/iam`, `/telegraph`, `/hive`, `/manifesto`, and `/lazaret` while keeping SQS/event semantics unchanged.
 
 ## Roadmap
 
@@ -53,6 +53,7 @@ AIForAll is a Rust-based microservices workspace centered on [[projects/iamrusty
 - [[projects/aiforall/skills/fixing-sonar-clippy-in-services]]
 - [[projects/aiforall/skills/running-parallel-sonar-lanes]]
 - [[projects/aiforall/skills/running-apparatus-p0-tests]]
+- [[projects/lazaret/skills/running-apparatus-p3-tests]]
 - GitHub handbook: `docs/README.md` (JWT, nouveau service, parcours métier). Agent skill: `.agents/skills/aiforall-new-service/SKILL.md`.
 
 ## Décisions
@@ -64,6 +65,8 @@ AIForAll is a Rust-based microservices workspace centered on [[projects/iamrusty
 
 - [[projects/aiforall/references/cursor-history-2026-09]]
 - [[projects/aiforall/references/cursor-history-2026-04-to-08]]
+- [[journal/2026-09-17]]
+- [[journal/2026-09-13]]
 - [[journal/2026-09-12]]
 - [[journal/2026-09-11]]
 - [[journal/2026-09-09]]
@@ -80,3 +83,4 @@ AIForAll is a Rust-based microservices workspace centered on [[projects/iamrusty
 
 - [[references/aiforall-platform]] — Repository overview and shared dev workflow
 - [[projects/aiforall/references/modular-monolith-runtime]] — Runtime-mode decision and monolith composition notes
+- [[projects/lazaret/lazaret]] — P3 capability boundary (Partial)

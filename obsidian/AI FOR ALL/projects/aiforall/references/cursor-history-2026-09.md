@@ -24,15 +24,21 @@ sources:
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/6de9b375-2f3a-4301-9342-b9a00323c9a8/6de9b375-2f3a-4301-9342-b9a00323c9a8.jsonl
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/cd391d48-2b6b-4300-8a70-452b2230a8d8/cd391d48-2b6b-4300-8a70-452b2230a8d8.jsonl
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/a5acce59-de4a-47c1-ae8b-cfd25a84c747/a5acce59-de4a-47c1-ae8b-cfd25a84c747.jsonl
+  - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/804c422a-63c7-42d5-94a0-dba53752c278/804c422a-63c7-42d5-94a0-dba53752c278.jsonl
+  - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/03d5f1f8-78f6-4029-bada-07ee1c299818/03d5f1f8-78f6-4029-bada-07ee1c299818.jsonl
+  - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/90c57f76-8e86-42d2-8d81-968d0cb6507b/90c57f76-8e86-42d2-8d81-968d0cb6507b.jsonl
+  - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/0f84c7ec-f0e7-4d40-9a05-fe5d5507bed2/0f84c7ec-f0e7-4d40-9a05-fe5d5507bed2.jsonl
+  - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/a340bab3-a47f-4710-af1e-3d4bff06e4a2/a340bab3-a47f-4710-af1e-3d4bff06e4a2.jsonl
+  - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/4f3bb8d7-c6d7-4238-a320-445fe479de6b/4f3bb8d7-c6d7-4238-a320-445fe479de6b.jsonl
 summary: >-
-  Cursor septembre 2026 : ADR, P0/P1/P2 Apparatus Partial (HEAD 7455ee5),
-  vague 2 0100–0502, Grok-only.
+  Cursor septembre 2026 : P2 Implemented, Architecte, Lazaret P3 Partial
+  (HEAD e978cd0). Grok xhigh ; Composer lecture.
 provenance:
   extracted: 0.72
   inferred: 0.23
   ambiguous: 0.05
 created: 2026-09-09T16:45:00Z
-updated: 2026-09-13T10:25:00Z
+updated: 2026-09-17T10:55:00Z
 ---
 
 # Cursor history September 2026
@@ -91,18 +97,33 @@ Durable claims:
 - Four business services = RustyCog vertical slices ; `setup` = only composition root ; commands registered by string key.
 - IT = real HTTP + real DB ; WireMock = outbound HTTP only ; OpenFGA = real testcontainer. Producer queues opt-in ; Telegraph suite still queue-on (**Partial** 0202).
 - `*-events` = contract, not transport. **NATS is not a transport.** Outbox same-txn Hive/Manifesto only (**Partial** 0301).
-- Dual runtime standalones + `oodhive-monolith`. Apparatus crates = P0 + contrôleur P2 Partial (**Partial** 0406 pour Factory/host). Sonar `new_coverage` 80 % not met (**Partial** 0501).
+- Dual runtime standalones + `oodhive-monolith`. Apparatus crates = P0 + contrôleur P2 **Implemented** + BC Lazaret P3 **Partial** (0406 reste Partial pour Factory/host). Sonar `new_coverage` 80 % not met (**Partial** 0501).
 
 ## Apparatus P2 (12–13 Sep)
 
-Parent sessions : `cd391d48` (prompt P2) puis revue `a5acce59`. Code + ADR-0006 dans HEAD `7455ee5` (working tree propre le 13 sept.).
+Parent sessions : `cd391d48` (prompt P2) puis revue `a5acce59`. Code + ADR-0006 d’abord dans HEAD `7455ee5`, puis clôturé **Implemented** (`8f37a0b` / `873a274`).
 
-- Ticker in-process Manifesto, migration `000013`, tests T1–T7. Pages : [[projects/manifesto/concepts/apparatus-p2-reconciliation]], [[projects/manifesto/decisions/0006-apparatus-p2-reconciliation]].
-- Écarts A/D/I : pas de bump update/remove, pas de writer retry, `/ready` hors ticker. Mineurs (IF NOT EXISTS index, poison, fencing log) livrés.
-- Prochain jalon **P2.1**, pas P3.
+- Ticker in-process Manifesto, migration `000013`, tests T1–T7 + writer §D. Pages : [[projects/manifesto/concepts/apparatus-p2-reconciliation]], [[projects/manifesto/decisions/0006-apparatus-p2-reconciliation]].
+- P2.1 (CAS bump, writer retry, `/ready`) livré dans le même jalon. Plus le prochain travail.
+
+## Architecte et reviewers (13–16 Sep)
+
+- Agent [[projects/aiforall/concepts/architecte-agent]] (`804c422a`, commit `666ead4`) : ADR Proposed + contrat, pas de code, pas 0100–0502.
+- Reviewers versionnés : `correctness-reviewer`, `test-reviewer`, `rust-perf-reviewer`, `security-reviewer`.
+- Modèles : slug `High` absent → `cursor-grok-4.6-xhigh` ; `composer-2.5-fast` lecture. Tentative `glm-5p3` sur 12 agents puis Grok sur le frontmatter Architecte. ^[ambiguous]
+
+## Apparatus P3 / Lazaret (13–16 Sep)
+
+Parents : `03d5f1f8` / `ff6a8f77` (ADR Proposed + T1), `90c57f76` (T5–T7 TDD), `4f3bb8d7` (revue uncommitted). Commit `e978cd0`.
+
+- ADR-0007 Accepted 13 sept. ; T1 seulement tant que Proposed ; pas d’auto-Accept.
+- Réalité **Partial** : identité hybride, grants live, KV, secrets-by-ref, proxy nommé, invoke HTTP. Hub : [[projects/lazaret/lazaret]].
+- Revue : GET snapshot = JWT de service (pas FGA) ; enroll anonyme + consult + CSR forcé. ^[inferred]
+- 0006 G et E restent. README Lazaret encore « T2 only » vs tests T3–T7. ^[ambiguous]
 
 ## Related
 
+- [[journal/2026-09-17]]
 - [[journal/2026-09-13]]
 - [[journal/2026-09-12]]
 - [[journal/2026-09-11]]
@@ -110,3 +131,4 @@ Parent sessions : `cd391d48` (prompt P2) puis revue `a5acce59`. Code + ADR-0006 
 - [[projects/manifesto/concepts/org-owned-visibility-and-participation-limits]]
 - [[projects/aiforall/concepts/rustycog-git-submodule]]
 - [[projects/aiforall/concepts/orchestrator-agent-harness]]
+- [[projects/lazaret/lazaret]]

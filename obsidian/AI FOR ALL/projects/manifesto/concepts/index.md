@@ -2,12 +2,12 @@
 title: Manifesto Concepts Index
 category: navigation
 tags: [index, concepts, projects]
-summary: "Concepts Manifesto : ACL, P0/P1/P2 Apparatus Partial, vision Factory/host."
+summary: "Concepts Manifesto : ACL, P2 Implemented, P3 Lazaret Partial, vision Factory/host."
 provenance:
   extracted: 0.75
   inferred: 0.23
   ambiguous: 0.02
-updated: 2026-09-13T10:25:00Z
+updated: 2026-09-17T10:55:00Z
 sources:
   - "C:/Users/djden/.codex/attachments/486d0052-5759-4277-bcc1-9f209ce353d4/pasted-text.txt"
 ---
@@ -28,7 +28,8 @@ sources:
 - [[projects/aiforall/decisions/index]] — ADR architecture actuelle (vague 2).
 - [[projects/manifesto/concepts/apparatus-p0-contracts]] — crates P0 livrées.
 - [[projects/manifesto/concepts/apparatus-p1-persistence]] — persistance P1.
-- [[projects/manifesto/concepts/apparatus-p2-reconciliation]] — contrôleur in-process Partial (ADR-0006 Accepted).
+- [[projects/manifesto/concepts/apparatus-p2-reconciliation]] — contrôleur in-process Implemented (ADR-0006).
+- [[projects/lazaret/lazaret]] — frontière P3 Partial (ADR-0007).
 - [[projects/manifesto/concepts/apparatus-platform]] — vision et frontières.
 - [[projects/manifesto/concepts/apparatus-bindings-and-lifecycle]] — identités, migration et réconciliation.
 - [[projects/manifesto/concepts/apparatus-capabilities-and-isolation]] — identité, droits, réseau et données.

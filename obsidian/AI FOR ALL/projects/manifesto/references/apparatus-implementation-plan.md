@@ -16,16 +16,17 @@ sources:
   - docs/apparatus-p1-implementation-prompt.md
   - docs/services/manifesto.md
   - docs/adr/0006-apparatus-p2-reconciliation-in-process.md
-  - docs/apparatus-p2-implementation-prompt.md
+  - docs/adr/0007-apparatus-p3-capability-boundary-after-accept.md
+  - docs/apparatus-p3-implementation-prompt.md
 summary: >-
-  Phases Apparatus : P0/P1/P2 Partial dans HEAD 7455ee5. P2.1 = bump, writer,
-  /ready. P3+ = gateway/K8s/invoke.
+  Phases Apparatus : P2 Implemented, Lazaret P3 Partial (HEAD e978cd0).
+  P4+ = Factory / K8s / host.
 provenance:
-  extracted: 0.22
-  inferred: 0.76
+  extracted: 0.28
+  inferred: 0.70
   ambiguous: 0.02
 created: 2026-09-09T17:50:00Z
-updated: 2026-09-13T10:25:00Z
+updated: 2026-09-17T10:55:00Z
 ---
 
 # Apparatus — plan d’implémentation et décisions restantes
@@ -102,13 +103,13 @@ Modifier dès ce stade la suppression du projet pour conserver l’intention de 
 
 **État 2026-09-13 (ADR-0006 Accepted, Réalité Implemented)** : T1–T7 + writer backoff §D (t1 4+1, t2 12, t3 7, t4 5, t5 10, t6 3, t7 cleanup 4 + gate 5, readiness 17). PATCH managed CAS +1 ; `/ready` = ticker live ; backoff fencé `min(30s * 2^retry_count, 5 min)`, terminal à 8. Pas de gateway / K8s / 202 / nouvel event. Synthèse : [[projects/manifesto/concepts/apparatus-p2-reconciliation]].
 
-P2.1 (CAS update, backoff, `/ready`) est **livré** dans ce jalon. P3+ (`invoke`, gateway, K8s) reste interdit par T7.
+P2.1 (CAS update, backoff, `/ready`) est **livré** dans ce jalon.
 
 ### P3 — Frontière de capacités et données
 
-**État 2026-09-13** : [ADR-0007](../../../../../docs/adr/0007-apparatus-p3-capability-boundary-after-accept.md) **Accepted**, Réalité **Unimplemented**. T1 = absence. T2 (gate Lazaret P4+, migration Manifesto `grant_revision` + `apparatus_capability_consents`, squelette `/lazaret`) est landé ; T3–T7 et le mécanisme P3 (identité, grants, consentement, KV, secrets, proxy, invoke) ne sont pas prouvés. Conception ci-dessous `^[inferred]`, pas un contrat. Pointeur : [[projects/manifesto/decisions/0007-apparatus-p3-lazaret]].
+**État 2026-09-16** : [ADR-0007](../../../../../docs/adr/0007-apparatus-p3-capability-boundary-after-accept.md) **Accepted**, Réalité **Partial** (HEAD `e978cd0`). T1–T7 prouvés dans le BC [[projects/lazaret/lazaret]] : identité hybride, grants live Manifesto, consentement, KV Postgres+Redis, secrets-by-ref + Vault fail-closed, proxy nommé, invoke HTTP. Holes (mTLS complete, OpenBao produit, kv_purge↔unbind, prefix invoke IT vs prod, APP-05, 0006 G/E) : **pas** Implemented. Conception ci-dessous `^[inferred]`, pas un contrat. Pointeur : [[projects/manifesto/decisions/0007-apparatus-p3-lazaret]].
 
-Implémenter identité de workload, certificat/rotation, gateway, grants interactifs et de fond, consentement/revocation, stockage KV, secrets et proxy réseau. Les refus sont contrôlés côté serveur et liés au binding courant. Les règles du projet public ne rendent pas le stockage ni l’invoke public par défaut. ^[inferred]
+Le mécanisme P3 (identité, grants, consentement, KV, secrets, proxy, invoke) existe en Partial ; Factory, host UI et adapter Kubernetes restent P4+. Les refus sont contrôlés côté serveur et liés au binding courant. Les règles du projet public ne rendent pas le stockage ni l’invoke public par défaut. ^[inferred]
 
 **Preuve de sortie** : test de deux projets et deux bindings adverses ; plugin incapable de changer son tenant, lire un secret, réutiliser un grant révoqué, contacter l’infrastructure interne ou invoquer une opération non accordée. Tester suspension immédiate du membre avec une projection FGA encore ancienne. ^[inferred]
 
@@ -132,7 +133,7 @@ L’Apparatus officiel de référence utilise exactement le chemin de publicatio
 
 ## Matrice de tests d’acceptation
 
-La matrice gateway/Factory/K8s reste **future** (P3+). Les preuves worker P2 (crash, lease, fencing, cleanup) sont exercées par `apparatus_p2_t4`–`t7` (Partial). ^[inferred]
+La matrice Factory/K8s/host reste **future** (P4+). Les preuves P3 Partial vivent dans `Lazaret/tests/apparatus_p3_t*`. Les preuves worker P2 sont exercées par `apparatus_p2_t4`–`t7` (Implemented). ^[inferred]
 
 | Frontière | Tests décisifs |
 |---|---|

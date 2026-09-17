@@ -259,5 +259,9 @@ title: Wiki Log
 - [2026-09-13T10:25:00Z] WIKI_UPDATE project=aiforall pages_updated=14 pages_created=1 source_cwd=C:/Users/djden/source/repos/AIForAll last_commit_synced=7455ee55abc4acec223a78c4d5bfeced5bb680f7 topic=apparatus-p2-partial-head-clean-wt vault="obsidian/AI FOR ALL" note="working-tree-clean P2-in-HEAD"
 - [2026-09-13T10:25:00Z] INGEST source="docs/adr/0006-apparatus-p2-reconciliation-in-process.md" pages_updated=14 pages_created=1 mode=append topic=apparatus-p2-partial files=27_new+6_hash
 - [2026-09-13T10:25:00Z] CLAUDE_HISTORY_INGEST projects=1 conversations=2 pages_updated=2 pages_created=1 mode=append source=cursor-transcripts parents=cd391d48,a5acce59 subagents_skipped=true
+- [2026-09-17T10:55:00Z] WIKI_UPDATE project=aiforall pages_updated=16 pages_created=8 source_cwd=C:/Users/djden/source/repos/AIForAll last_commit_synced=e978cd0db05bb5d5443bc58a8e44c2a4751f8095 topic=lazaret-p3-partial-architecte-p2-implemented vault="obsidian/AI FOR ALL"
+- [2026-09-17T10:55:00Z] INGEST source="docs/adr/0007-apparatus-p3-capability-boundary-after-accept.md" pages_updated=8 pages_created=6 mode=append topic=apparatus-p3-lazaret
+- [2026-09-17T10:55:00Z] CLAUDE_HISTORY_INGEST projects=1 conversations=9 pages_updated=6 pages_created=2 mode=append source=cursor-transcripts parents=4f3bb8d7,a340bab3,0f84c7ec,03d5f1f8,90c57f76,ff6a8f77,cd391d48,804c422a,a5acce59 subagents_skipped=true since=2026-09-13T10:25:00Z
+
 
 

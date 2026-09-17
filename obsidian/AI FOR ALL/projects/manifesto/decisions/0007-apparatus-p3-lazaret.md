@@ -6,22 +6,34 @@ status: accepted
 feature_status: partial
 sources:
   - docs/adr/0007-apparatus-p3-capability-boundary-after-accept.md
+  - docs/services/lazaret.md
+  - Lazaret/README.md
+  - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/4f3bb8d7-c6d7-4238-a320-445fe479de6b/4f3bb8d7-c6d7-4238-a320-445fe479de6b.jsonl
 summary: >-
-  ADR-0007 Accepted 2026-09-13. Réalité Partial (T1–T7). BC Lazaret =
-  frontière capacités/données, distinct de Manifesto. 0006 G et E restent.
-  Holes listés dans le canon ADR ; pas Implemented.
+  ADR-0007 Accepted 2026-09-13. Réalité Partial (T1–T7) dans HEAD e978cd0.
+  BC Lazaret distinct de Manifesto. 0006 G et E restent. Pas Implemented.
 created: 2026-09-13T17:06:00Z
-updated: 2026-09-15T16:42:00Z
+updated: 2026-09-17T10:55:00Z
 provenance:
-  extracted: 0.95
-  inferred: 0.05
-  ambiguous: 0.00
+  extracted: 0.82
+  inferred: 0.13
+  ambiguous: 0.05
 ---
 
 # ADR-0007 — frontière P3 Lazaret
 
-Canon : `docs/adr/0007-apparatus-p3-capability-boundary-after-accept.md`. Hub : [[projects/manifesto/decisions/index]]. Plan : [[projects/manifesto/references/apparatus-implementation-plan]].
+Canon : `docs/adr/0007-apparatus-p3-capability-boundary-after-accept.md`. Hub service : [[projects/lazaret/lazaret]]. Hub ADR : [[projects/manifesto/decisions/index]]. Plan : [[projects/manifesto/references/apparatus-implementation-plan]].
 
 ## Statut : Accepted (2026-09-13)
 
-Accept explicite utilisateur (« accepté »). Réalité **Partial** : T1–T7 prouvés (consent write / révocation close-at-commit, KV Postgres+Redis, secrets-by-ref + adaptateur Vault, proxy nommé, invoke HTTP Lazaret). Holes (mTLS complete, OpenBao produit, kv_purge↔unbind, prefix invoke IT vs prod, APP-05, 0006 G/E) listés dans le canon ADR — **pas** Implemented. La conception wiki du plan P3 reste `^[inferred]`.
+Accept explicite utilisateur (« accepté »). Réalité **Partial** dans HEAD `e978cd0` : T1–T7 prouvés (identité hybride, grants live, consent write / révocation close-at-commit, KV Postgres+Redis, secrets-by-ref + adaptateur Vault, proxy nommé, invoke HTTP Lazaret). Holes (mTLS complete, OpenBao produit, kv_purge↔unbind, prefix invoke IT vs prod, APP-05, 0006 G/E) listés dans le canon ADR — **pas** Implemented.
+
+Revue 16 sept. (`4f3bb8d7`) : GET snapshot = JWT de service (pas FGA) ; enroll anonyme + consult + CSR forcé. ^[inferred] `Lazaret/README.md` encore « T2 only » — périmé. ^[ambiguous]
+
+## Related
+
+- [[projects/lazaret/concepts/workload-identity]]
+- [[projects/lazaret/concepts/grants-secrets-and-named-proxy]]
+- [[projects/lazaret/skills/running-apparatus-p3-tests]]
+- [[projects/manifesto/decisions/0006-apparatus-p2-reconciliation]]
+- [[journal/2026-09-17]]

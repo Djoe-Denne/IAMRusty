@@ -8,7 +8,7 @@ provenance:
   extracted: 0.9
   inferred: 0.08
   ambiguous: 0.02
-updated: 2026-09-12T10:20:00Z
+updated: 2026-09-17T10:55:00Z
 ---
 
 # Projects Index
@@ -22,6 +22,7 @@ Use this page to navigate service hubs. Each project page links to its local con
 - [[projects/hive-events/hive-events]] - Shared event contracts for the Hive domain.
 - [[projects/iamrusty/iamrusty]] - IAM and OAuth service architecture and runtime notes.
 - [[projects/manifesto/manifesto]] - Project orchestration service and RustyCog blueprint docs.
+- [[projects/lazaret/lazaret]] - P3 capability and data boundary (partial, ADR-0007).
 - [[projects/telegraph/telegraph]] - Event-driven communication and notification service.
 - [[projects/rustycog/rustycog]] - Shared Rust SDK and workspace building blocks.
 - [[projects/sentinel-sync/sentinel-sync]] - Centralized OpenFGA authorization plus the event-to-tuple sync worker.
@@ -33,4 +34,5 @@ Use this page to navigate service hubs. Each project page links to its local con
 - [[projects/hive/concepts/index]] / [[projects/hive/skills/index]] / [[projects/hive/references/index]]
 - [[projects/telegraph/concepts/index]] / [[projects/telegraph/skills/index]] / [[projects/telegraph/references/index]]
 - [[projects/manifesto/concepts/index]] / [[projects/manifesto/skills/index]] / [[projects/manifesto/references/index]]
+- [[projects/lazaret/concepts/index]] / [[projects/lazaret/skills/index]]
 - [[projects/rustycog/references/index]]

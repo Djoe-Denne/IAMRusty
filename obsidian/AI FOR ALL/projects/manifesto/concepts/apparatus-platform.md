@@ -13,19 +13,19 @@ sources:
   - monolith/src/runtime.rs
   - apparatus-contracts/src/lib.rs
   - docs/adr/0002-apparatus-contract-first.md
-summary: "Vision Apparatus : P0/P1/P2 Partial livrés ; Factory, gateway réseau et host UI restent hors livré."
+summary: "Vision Apparatus : P0/P1 livrés, P2 Implemented, Lazaret P3 Partial ; Factory/host/K8s hors livré."
 provenance:
   extracted: 0.55
   inferred: 0.45
   ambiguous: 0.0
 created: 2026-09-09T17:50:00Z
-updated: 2026-09-13T10:25:00Z
+updated: 2026-09-17T10:55:00Z
 ---
 
 # Apparatus — plateforme d’extensions future
 
 > [!important] Proposition, pas fonctionnalité livrée
-> Le document utilisateur exprime une intention produit. Le code du dépôt fait foi pour l’existant. Ce dossier reste le **rationnel de conception**. Les invariants de la vague 1 sont ADR **Accepted** ([[projects/manifesto/decisions/index]]) avec `Réalité` **Partial**. P0 : [[projects/manifesto/concepts/apparatus-p0-contracts]] ; P1 : [[projects/manifesto/concepts/apparatus-p1-persistence]] ; P2 in-process : [[projects/manifesto/concepts/apparatus-p2-reconciliation]] ; Factory, gateway réseau et host UI restent absents.
+> Le document utilisateur exprime une intention produit. Le code du dépôt fait foi pour l’existant. Ce dossier reste le **rationnel de conception**. Les invariants de la vague 1 sont ADR **Accepted** ([[projects/manifesto/decisions/index]]). P0 : [[projects/manifesto/concepts/apparatus-p0-contracts]] ; P1 : [[projects/manifesto/concepts/apparatus-p1-persistence]] ; P2 in-process **Implemented** : [[projects/manifesto/concepts/apparatus-p2-reconciliation]] ; frontière P3 **Partial** : [[projects/lazaret/lazaret]] ; Factory, gateway K8s et host UI restent absents.
 
 Un **Apparatus** apporte une capacité fonctionnelle à un projet : Git, wiki, kanban, CI ou outil spécialisé. Officiels et communautaires utilisent le même contrat. Le développeur fournit du Rust, éventuellement une interface statique, un manifeste et un dépôt Git ; la plateforme prend en charge la construction, la distribution et l’exécution. Ces exigences viennent du document fourni.
 
@@ -43,6 +43,8 @@ La base actuelle est [[projects/manifesto/concepts/component-based-project-orche
 | [[projects/manifesto/decisions/index]] | ADR Accepted (identité, contrats, confiance, gateway) et réalité d’implémentation |
 | [[projects/manifesto/concepts/apparatus-p0-contracts]] | Crates P0 livrées (validateur, digest, harness, KV de référence) |
 | [[projects/manifesto/concepts/apparatus-p1-persistence]] | Persistance P1 (extension 1:1, backfill, T1-T7) |
+| [[projects/manifesto/concepts/apparatus-p2-reconciliation]] | Contrôleur in-process Implemented |
+| [[projects/lazaret/lazaret]] | Frontière P3 Partial (identité, grants, KV, invoke) |
 | [[projects/manifesto/references/apparatus-implementation-plan]] | Migration par étapes, tests d’acceptation et arbitrages restants |
 
 ## Responsabilités proposées
@@ -114,4 +116,5 @@ Un développeur soumet un commit d’un Apparatus de référence ; la plateforme
 - [[projects/manifesto/manifesto]] — service propriétaire du projet.
 - [[projects/manifesto/concepts/component-instance-permissions]] — conserver les droits par instance.
 - [[projects/manifesto/concepts/immediate-membership-acl]] — l’état DB des membres reste décisif.
+- [[projects/lazaret/lazaret]] — frontière P3 Partial.
 - [[projects/aiforall/roadmap]] — inscription de cette fonctionnalité future.

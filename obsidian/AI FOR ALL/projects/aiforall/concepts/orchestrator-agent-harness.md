@@ -11,14 +11,18 @@ sources:
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/e32d072c-e2be-42a4-82f4-2b6808695124/e32d072c-e2be-42a4-82f4-2b6808695124.jsonl
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/6de9b375-2f3a-4301-9342-b9a00323c9a8/6de9b375-2f3a-4301-9342-b9a00323c9a8.jsonl
   - .cursor/agents/adr-hexagonal-rustycog.md
+  - .cursor/agents/architecte.md
+  - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/804c422a-63c7-42d5-94a0-dba53752c278/804c422a-63c7-42d5-94a0-dba53752c278.jsonl
+  - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/a340bab3-a47f-4710-af1e-3d4bff06e4a2/a340bab3-a47f-4710-af1e-3d4bff06e4a2.jsonl
 summary: >-
-  Toute tâche projet passe par orchestrator ; Grok-only. Agents adr-* pour générer les ADR rétroactives.
+  Toute tâche projet passe par orchestrator. Architecte pour l’ADR vivante.
+  Grok xhigh ; Composer lecture-only.
 provenance:
   extracted: 0.86
   inferred: 0.14
   ambiguous: 0.00
 created: 2026-09-11T05:45:00Z
-updated: 2026-09-13T10:25:00Z
+updated: 2026-09-17T10:55:00Z
 ---
 
 # Harnais orchestrator Cursor
@@ -46,6 +50,11 @@ Installé le 10 septembre 2026 (commit `a72979a`). Règle always-on : `.cursor/r
 | `adr-events-authz` | ADR plage 0300 (events, outbox, JWT/FGA) |
 | `adr-services-runtime` | ADR plage 0400 (services, dual runtime) |
 | `adr-platform-quality` | ADR plage 0500 (config, CI, rustycog) |
+| `architecte` | Architecture vivante, ADR Proposed, contrat — [[projects/aiforall/concepts/architecte-agent]] |
+| `correctness-reviewer` | Correctness fonctionnelle (read-only) |
+| `test-reviewer` | Couverture des risques par les tests |
+| `rust-perf-reviewer` | Perf / ownership Rust |
+| `security-reviewer` | Authn/authz, frontières Apparatus |
 
 Ne pas précharger `.cursor/agents/*.md` ; le registre Cursor suffit. Les prompts détaillés se chargent à l’invocation. Hub ADR : [[projects/aiforall/decisions/index]].
 
@@ -53,7 +62,9 @@ Ne pas précharger `.cursor/agents/*.md` ; le registre Cursor suffit. Les prompt
 
 La session du 10 sept. a remplacé des occurrences Muse trop coûteuses par **Grok 4.6 Extra High** pour le travail courant. Muse reste utilisable quand on le demande explicitement (ex. triple review P0). ^[inferred]
 
-Le 12 sept., l'utilisateur a d'abord priorisé **Muse Spark Max**, puis a **interdit Muse Spark** (`constraints/no-muse-spark`). Délégation quotidienne : Grok Extra High. Le 12–13 sept., P2 a été mené sous ce harnais (TDD T1–T7). Agents `adr-*` aussi versionnés `.codex/agents/*.toml` (`5991670`). Voir [[projects/manifesto/concepts/apparatus-p2-reconciliation]] et [[journal/2026-09-13]].
+Le 16 sept., le slug `High` n’existe pas dans la liste sous-agents → fallback **`cursor-grok-4.6-xhigh`**. `composer-2.5-fast` est réservé à la lecture. Une passe `glm-5p3` a été posée sur 12 agents puis le frontmatter Architecte est revenu à Grok. ^[ambiguous]
+
+Le 12–13 sept., P2 a été mené sous ce harnais (TDD T1–T7, aujourd’hui Implemented). Agents `adr-*` aussi versionnés `.codex/agents/*.toml` (`5991670`). P3 Lazaret (13–16 sept.) idem. Voir [[projects/manifesto/concepts/apparatus-p2-reconciliation]], [[projects/lazaret/lazaret]] et [[journal/2026-09-17]].
 
 ## Patterns durables (P1, 12 sept.)
 
@@ -67,5 +78,8 @@ Le 12 sept., l'utilisateur a d'abord priorisé **Muse Spark Max**, puis a **inte
 - [[projects/manifesto/concepts/apparatus-p0-contracts]] — première livraison menée sous ce harnais
 - [[projects/manifesto/concepts/apparatus-p1-persistence]] — duel gather + tranches TDD sous ce harnais
 - [[projects/manifesto/concepts/apparatus-p2-reconciliation]] — TDD T1–T7 sous ce harnais
+- [[projects/lazaret/lazaret]] — P3 sous ce harnais
+- [[projects/aiforall/concepts/architecte-agent]]
+- [[journal/2026-09-17]]
 - [[journal/2026-09-13]]
 - [[journal/2026-09-12]]
