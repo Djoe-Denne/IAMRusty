@@ -7,7 +7,7 @@ provenance:
   extracted: 0.75
   inferred: 0.23
   ambiguous: 0.02
-updated: 2026-09-13T10:25:00Z
+updated: 2026-09-17T11:20:00Z
 sources:
   - "C:/Users/djden/.codex/attachments/486d0052-5759-4277-bcc1-9f209ce353d4/pasted-text.txt"
 ---
@@ -32,7 +32,7 @@ Use `[[projects/rustycog/references/index]]` for shared command, config, HTTP, p
 - [[projects/manifesto/references/apparatus-source-reconciliation]] — document confronté au code et provenance.
 - [[projects/manifesto/references/apparatus-factory-and-distribution]] — manifeste, builders et OCI.
 - [[projects/manifesto/references/apparatus-ui-and-protocol]] — host, SDK et conformance.
-- [[projects/manifesto/references/apparatus-implementation-plan]] — phases P0–P2 Partial, P2.1 vs P3.
+- [[projects/manifesto/references/apparatus-implementation-plan]] — P0–P3 ; P2 Implemented ; P3 Partial ; prochain = P3-close.
 - [[projects/manifesto/concepts/apparatus-p0-contracts]] — ce qui est réellement compilé.
 - [[projects/manifesto/concepts/apparatus-p2-reconciliation]] — ticker in-process.
 

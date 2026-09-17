@@ -13,7 +13,7 @@ summary: >-
   ADR-0007 Accepted 2026-09-13. Réalité Partial (T1–T7) dans HEAD e978cd0.
   BC Lazaret distinct de Manifesto. 0006 G et E restent. Pas Implemented.
 created: 2026-09-13T17:06:00Z
-updated: 2026-09-17T10:55:00Z
+updated: 2026-09-17T11:20:00Z
 provenance:
   extracted: 0.82
   inferred: 0.13
@@ -26,7 +26,7 @@ Canon : `docs/adr/0007-apparatus-p3-capability-boundary-after-accept.md`. Hub se
 
 ## Statut : Accepted (2026-09-13)
 
-Accept explicite utilisateur (« accepté »). Réalité **Partial** dans HEAD `e978cd0` : T1–T7 prouvés (identité hybride, grants live, consent write / révocation close-at-commit, KV Postgres+Redis, secrets-by-ref + adaptateur Vault, proxy nommé, invoke HTTP Lazaret). Holes (mTLS complete, OpenBao produit, kv_purge↔unbind, prefix invoke IT vs prod, APP-05, 0006 G/E) listés dans le canon ADR — **pas** Implemented.
+Accept explicite utilisateur (« accepté »). Réalité **Partial** dans HEAD `e978cd0` : T1–T7 prouvés (identité hybride, grants live, consent write / révocation close-at-commit, KV Postgres+Redis, secrets-by-ref + adaptateur Vault, proxy nommé, invoke HTTP Lazaret). Holes (mTLS complete, OpenBao produit, kv_purge↔unbind, prefix invoke IT vs prod, APP-05, 0006 G/E) listés dans le canon ADR — **pas** Implemented. Prochain jalon : [[projects/manifesto/references/apparatus-implementation-plan#P3-close — isolation KV en fin de vie]].
 
 Revue 16 sept. (`4f3bb8d7`) : GET snapshot = JWT de service (pas FGA) ; enroll anonyme + consult + CSR forcé. ^[inferred] `Lazaret/README.md` encore « T2 only » — périmé. ^[ambiguous]
 

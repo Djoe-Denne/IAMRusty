@@ -19,7 +19,7 @@ provenance:
   inferred: 0.12
   ambiguous: 0.02
 created: 2026-09-17T10:55:00Z
-updated: 2026-09-17T10:55:00Z
+updated: 2026-09-17T11:20:00Z
 ---
 
 # Grants, secrets opaques et proxy nommé
@@ -36,7 +36,7 @@ Consent write / révocation : close-at-commit côté Manifesto (preuve T5). Le p
 
 Port async derrière `apparatus_contracts::KvStore`. Adapters Postgres + Redis (T6). Namespacing par binding. Le plaintext des secrets **n’entre pas** dans le KV plugin.
 
-Hole Remaining : `kv_purge`↔unbind pas refermé — **pas** Implemented. ^[extracted]
+Hole Remaining : `kv_purge`↔unbind pas refermé — **pas** Implemented. Jalon : [[projects/manifesto/references/apparatus-implementation-plan#P3-close — isolation KV en fin de vie]]. ^[extracted]
 
 ## Secrets
 

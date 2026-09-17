@@ -18,15 +18,16 @@ sources:
   - docs/adr/0006-apparatus-p2-reconciliation-in-process.md
   - docs/adr/0007-apparatus-p3-capability-boundary-after-accept.md
   - docs/apparatus-p3-implementation-prompt.md
+  - manifesto-events/src/component.rs
 summary: >-
   Phases Apparatus : P2 Implemented, Lazaret P3 Partial (HEAD e978cd0).
-  P4+ = Factory / K8s / host.
+  Prochain jalon = P3-close (kv_purge ← component_removed). P4+ pas maintenant.
 provenance:
-  extracted: 0.28
-  inferred: 0.70
+  extracted: 0.34
+  inferred: 0.64
   ambiguous: 0.02
 created: 2026-09-09T17:50:00Z
-updated: 2026-09-17T10:55:00Z
+updated: 2026-09-17T11:20:00Z
 ---
 
 # Apparatus — plan d’implémentation et décisions restantes
@@ -65,8 +66,12 @@ Canon : `docs/adr/` ; hub wiki : [[projects/manifesto/decisions/index]]. `Accept
 | Plugin hostile hors processus privilégiés | [0003](../../../../../docs/adr/0003-apparatus-untrusted-plugin.md) | Partial | Moteur et adaptateur / `APP-01` |
 | Gateway, KV, pas de bearer IAM, fermeture DB immédiate | [0004](../../../../../docs/adr/0004-apparatus-capability-gateway.md) | Partial | mTLS concret (P3) |
 | Même protocole ; admission, `VALID`, `VERIFIED` et installabilité distincts | [0005](../../../../../docs/adr/0005-apparatus-same-protocol-valid-verified.md) | Partial | Pipeline OCI (P4), drain/destruction |
+| Réconciliation in-process, ticker `/ready`, CAS, lease | [0006](../../../../../docs/adr/0006-apparatus-p2-reconciliation-in-process.md) | Implemented | G/E encore en vigueur (pas d’`invoke` sur `ApparatusRuntime` ; `/components` gelé) |
+| Frontière P3 = BC [[projects/lazaret/lazaret]] | [0007](../../../../../docs/adr/0007-apparatus-p3-capability-boundary-after-accept.md) | Partial | [[#P3-close — isolation KV en fin de vie]] ; mTLS ; OpenBao produit ; APP-05 ; G/E |
 
 ## Livraison séquencée
+
+**Avancées (2026-09-17)** : P0 contrats livrés ; P1 persistance livrée (0001 Partial) ; P2 **Implemented** (0006) ; P3 **Partial** T1–T7 (0007, HEAD `e978cd0`). Prochain jalon recommandé : [[#P3-close — isolation KV en fin de vie]]. P4+ pas maintenant. ADR-0007 reste Partial — ce close-out ne le promeut pas en Implemented. ^[extracted]
 
 ### P0 — Contrats et Apparatus de référence
 
@@ -112,6 +117,29 @@ P2.1 (CAS update, backoff, `/ready`) est **livré** dans ce jalon.
 Le mécanisme P3 (identité, grants, consentement, KV, secrets, proxy, invoke) existe en Partial ; Factory, host UI et adapter Kubernetes restent P4+. Les refus sont contrôlés côté serveur et liés au binding courant. Les règles du projet public ne rendent pas le stockage ni l’invoke public par défaut. ^[inferred]
 
 **Preuve de sortie** : test de deux projets et deux bindings adverses ; plugin incapable de changer son tenant, lire un secret, réutiliser un grant révoqué, contacter l’infrastructure interne ou invoquer une opération non accordée. Tester suspension immédiate du membre avec une projection FGA encore ancienne. ^[inferred]
+
+#### P3-close — isolation KV en fin de vie
+
+**Prochain jalon recommandé (2026-09-17).** Pas une nouvelle ADR. Canon : [ADR-0007](../../../../../docs/adr/0007-apparatus-p3-capability-boundary-after-accept.md) reste **Accepted / Réalité Partial**. Hub : [[projects/lazaret/lazaret]]. ^[extracted]
+
+Le hole ADR est « `kv_purge` prouvé isolé, non branché sur unbind Manifesto ». **Unbind** ici = fin de vie du composant côté Manifesto, **pas** un appel à `ApparatusRuntime::unbind` (0006 G : le port P2 reste `bind` / `configure` / `unbind` / `observe` / `teardown` ; pas d’`invoke` runtime). Le signal existant est `component_removed` (`ComponentRemovedEvent` dans `manifesto-events`). ^[extracted]
+
+**Pourquoi maintenant** : T6 a déjà prouvé `KvStore::kv_purge` (Postgres et Redis). C’est le plus petit close-out d’isolation de données : brancher une API déjà verte sur un événement déjà publié. Ça ne rouvre ni mTLS, ni OpenBao, ni P4. Fermer ce trou **ne suffit pas** à passer 0007 en Implemented (les autres holes restent). ^[extracted]
+
+**Quoi** : Lazaret consomme `manifesto-events` existant. Sur `component_removed`, exécuter `kv_purge` pour le namespace du binding. Manifesto n’apprend pas Lazaret.
+
+**Critères done**
+
+- Consommateur Lazaret de `component_removed` (crate `manifesto-events` déjà publiée).
+- `kv_purge` exécuté pour le namespace du binding disparu (adapters Postgres et Redis, comme T6).
+- Preuve : après remove, le namespace n’est plus lisible ; un binding voisin reste intact.
+- **Pas** de crate `lazaret-events` / `apparatus-gateway-events`.
+- **Pas** de nouvelle route Manifesto (0006 E : `/components` gelé, pas de 202).
+- **Pas** d’`ApparatusRuntime::unbind` ni d’`invoke` ajouté au port runtime.
+
+**Hors jalon** (ne pas élargir) : mTLS rustls complete / enrollment T3 in-memory ; OpenBao **produit** dans le compose ; P4 (Factory, K8s, host) ; APP-03 (rétention, export, restore — P3-close = isolation à la suppression, pas la politique de durée) ; APP-05 ; écart de chemin invoke IT `/invoke` vs nest prod `/lazaret` ; lever 0006 G/E.
+
+**Ensuite** : les autres holes 0007 restent ouverts. P4+ uniquement sur décision explicite.
 
 ### P4 — Factory et runtime de production
 
@@ -186,4 +214,7 @@ Le contrôleur nécessite une startup/shutdown contrôlée dans les modes standa
 - [[projects/manifesto/references/manifesto-testing-and-fixtures]] — tests existants.
 - [[projects/sentinel-sync/concepts/db-to-openfga-reconcile]] — reconstruction des droits.
 - [[projects/manifesto/concepts/apparatus-bindings-and-lifecycle]] — contrat détaillé de réconciliation.
+- [[projects/lazaret/concepts/grants-secrets-and-named-proxy]] — KV / hole `kv_purge`.
+- [[projects/manifesto/references/manifesto-event-model]] — `component_removed`.
+- [[journal/2026-09-17]] — distillat du jour.
 

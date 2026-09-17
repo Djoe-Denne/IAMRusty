@@ -12,12 +12,13 @@ sources:
 summary: >-
   Bounded context P3 : frontière de capacités et de données, distincte de
   Manifesto. Préfixe /lazaret, port 8084. Réalité Partial (T1–T7).
+  Prochain jalon : P3-close (kv_purge ← component_removed).
 provenance:
   extracted: 0.82
   inferred: 0.14
   ambiguous: 0.04
 created: 2026-09-17T10:55:00Z
-updated: 2026-09-17T10:55:00Z
+updated: 2026-09-17T11:20:00Z
 ---
 
 # Lazaret
@@ -47,6 +48,8 @@ Préfixe HTTP : `/lazaret`. Compose : hôte **8084** (`8084:8080`). Base : `laza
 ## Ce qui reste hors livré
 
 Holes listés dans le canon ADR-0007 : mTLS complete, OpenBao produit, `kv_purge`↔unbind, prefix invoke IT vs prod, APP-05, **0006 G et E** (pas d’`invoke` sur `ApparatusRuntime` ; pas de 202 / nouvelle registration sur les 5 routes `/components` gelées). Factory, host UI, gateway K8s : P4+.
+
+Prochain jalon recommandé : **P3-close** — brancher `kv_purge` (T6) sur `component_removed` (`manifesto-events`). Critères done et hors-scope : [[projects/manifesto/references/apparatus-implementation-plan#P3-close — isolation KV en fin de vie]]. ADR-0007 reste Partial.
 
 ## Related
 
