@@ -24,5 +24,9 @@ pub trait AsyncKvStore: Send + Sync {
     async fn delete(&self, binding: &BindingId, key: &str) -> Result<bool, ApparatusError>;
 
     /// Wipe one binding namespace only.
-    async fn purge(&self, binding: &BindingId);
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ApparatusError`] if the backing store fails to purge.
+    async fn purge(&self, binding: &BindingId) -> Result<(), ApparatusError>;
 }

@@ -12,6 +12,9 @@ awslocal sqs list-queues || echo "Waiting for SQS service..."
 echo "📋 Creating user-events queue..."
 awslocal sqs create-queue --queue-name user-events
 
+echo "📋 Creating lazaret-kv-events queue..."
+awslocal sqs create-queue --queue-name lazaret-kv-events
+
 # Verify queue was created
 echo "✅ Verifying queue creation..."
 awslocal sqs list-queues

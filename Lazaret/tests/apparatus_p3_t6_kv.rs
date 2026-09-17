@@ -37,7 +37,7 @@ async fn t6_postgres_kv_isolates_bindings_and_purge() {
         store.get(&b, "k").await.expect("get b"),
         Some(b"secret-b".to_vec())
     );
-    store.purge(&a).await;
+    store.purge(&a).await.expect("purge a");
     assert_eq!(store.get(&a, "k").await.expect("purged a"), None);
     assert_eq!(
         store.get(&b, "k").await.expect("b intact"),
@@ -96,7 +96,7 @@ async fn t6_redis_kv_isolates_and_implements_port() {
         KvStore::kv_get(&store, &b, "k").expect("get"),
         Some(b"rb".to_vec())
     );
-    KvStore::kv_purge(&store, &a);
+    store.purge(&a).await.expect("purge a");
     assert_eq!(KvStore::kv_get(&store, &a, "k").expect("purged"), None);
     assert_eq!(
         KvStore::kv_get(&store, &b, "k").expect("b"),
@@ -179,7 +179,10 @@ async fn t6_redis_cas() {
     let a = binding(Uuid::new_v4());
     let v1 = KvStore::kv_put(&store, &a, "k", b"one", None).expect("put");
     let err = KvStore::kv_put(&store, &a, "k", b"two", Some(v1 - 1)).expect_err("cas");
-    assert!(err.to_string().contains("cas") || format!("{err:?}").contains("cas"));
+    assert!(
+        err.to_string().contains("cas") || format!("{err:?}").contains("cas"),
+        "{err:?}"
+    );
     let v2 = KvStore::kv_put(&store, &a, "k", b"two", Some(v1)).expect("cas ok");
     assert!(v2 > v1);
 }

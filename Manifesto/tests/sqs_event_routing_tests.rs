@@ -21,6 +21,7 @@ use fixtures::DbFixtures;
 
 const SENTINEL_SYNC_QUEUE: &str = "test-sentinel-sync-events";
 const DEFAULT_QUEUE: &str = "test-manifesto-default-events";
+const LAZARET_KV_QUEUE: &str = "test-lazaret-kv-events";
 
 struct ManifestoSqsTestDescriptor;
 
@@ -118,6 +119,7 @@ async fn clear_routing_queues(fixture: &TestFixture) {
         .get_all_messages_from_queue(SENTINEL_SYNC_QUEUE, 1)
         .await;
     let _ = sqs.get_all_messages_from_queue(DEFAULT_QUEUE, 1).await;
+    let _ = sqs.get_all_messages_from_queue(LAZARET_KV_QUEUE, 1).await;
 }
 
 async fn wait_for_single_event(fixture: &TestFixture, expected_event_type: &str) -> Value {
@@ -572,4 +574,77 @@ async fn archive_routes_project_archived_not_visibility_changed() {
     let event = wait_for_single_event(&fixture, "project_archived").await;
     let expected_id = project.id().to_string();
     assert_eq!(event["aggregate_id"].as_str(), Some(expected_id.as_str()));
+}
+
+#[tokio::test]
+#[serial]
+async fn delete_component_fans_out_component_removed_to_sentinel_and_lazaret_queues() {
+    let (fixture, base_url, client) = setup_sqs_test_server()
+        .await
+        .expect("failed to setup Manifesto SQS test server");
+    let owner_id = Uuid::new_v4();
+    let db = fixture.db();
+    let (project, _member) = DbFixtures::create_project_with_owner(&db, owner_id)
+        .await
+        .expect("failed to create project with owner");
+    let component = DbFixtures::component()
+        .for_project(project.id())
+        .taskboard()
+        .active()
+        .commit(db.clone())
+        .await
+        .expect("failed to seed active component");
+    fixture
+        .openfga()
+        .allow_all(
+            Subject::new(owner_id),
+            ResourceRef::new("project", project.id()),
+        )
+        .await
+        .expect("failed to grant owner tuples");
+    clear_routing_queues(&fixture).await;
+
+    let jwt_token = create_test_jwt_token(owner_id);
+    let response = client
+        .delete(format!(
+            "{base_url}/api/projects/{}/components/{}",
+            project.id(),
+            component.id()
+        ))
+        .header("Authorization", format!("Bearer {jwt_token}"))
+        .send()
+        .await
+        .expect("failed to delete component");
+    assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+    let sentinel = wait_for_queue_event(&fixture, SENTINEL_SYNC_QUEUE, "component_removed").await;
+    let lazaret = wait_for_queue_event(&fixture, LAZARET_KV_QUEUE, "component_removed").await;
+    let expected_id = component.id().to_string();
+    assert_eq!(sentinel["event_type"], "component_removed");
+    assert_eq!(lazaret["event_type"], "component_removed");
+    assert_eq!(
+        event_payload(&sentinel)["component_id"].as_str(),
+        Some(expected_id.as_str())
+    );
+    assert_eq!(
+        event_payload(&lazaret)["component_id"].as_str(),
+        Some(expected_id.as_str())
+    );
+
+    let created = client
+        .post(format!("{base_url}/api/projects"))
+        .header("Authorization", format!("Bearer {jwt_token}"))
+        .header("Content-Type", "application/json")
+        .json(&json!({
+            "name": "Lazaret Fan-out Control",
+            "description": "Must not land on lazaret-kv-events",
+            "owner_type": "personal",
+            "visibility": "private"
+        }))
+        .send()
+        .await
+        .expect("failed to create control project");
+    assert_eq!(created.status(), StatusCode::CREATED);
+    let _ = wait_for_queue_event(&fixture, SENTINEL_SYNC_QUEUE, "project_created").await;
+    assert_queue_empty(&fixture, LAZARET_KV_QUEUE).await;
 }

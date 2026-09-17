@@ -34,10 +34,10 @@ use_jitter = false
 
 [queue]
 type = "sqs"
-enabled = false
+enabled = true
 region = "us-east-1"
 account_id = "000000000000"
-default_queues = []
+default_queues = ["lazaret-kv-events"]
 host = "localstack"
 port = 4566
 access_key_id = "test"

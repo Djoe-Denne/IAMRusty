@@ -249,18 +249,19 @@ impl AsyncKvStore for PostgresKvStore {
         Ok(result.rows_affected() > 0)
     }
 
-    async fn purge(&self, binding: &BindingId) {
+    async fn purge(&self, binding: &BindingId) -> Result<(), ApparatusError> {
         let Ok(binding_id) = binding_uuid(binding) else {
-            return;
+            return Ok(());
         };
-        let _ = self
-            .db
+        self.db
             .execute(Statement::from_sql_and_values(
                 DbBackend::Postgres,
                 "DELETE FROM apparatus_kv_entries WHERE binding_id = $1",
                 [binding_id.into()],
             ))
-            .await;
+            .await
+            .map_err(|_| store_failed())?;
+        Ok(())
     }
 }
 
@@ -284,9 +285,7 @@ impl KvStore for PostgresKvStore {
     }
 
     fn kv_purge(&self, binding: &BindingId) {
-        run_sync(async {
-            AsyncKvStore::purge(self, binding).await;
-        });
+        let _ = run_sync(AsyncKvStore::purge(self, binding));
     }
 }
 

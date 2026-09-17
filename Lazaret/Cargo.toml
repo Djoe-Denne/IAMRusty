@@ -70,4 +70,5 @@ lazaret-infra = { path = "infra" }
 lazaret-migration = { path = "migration" }
 lazaret-configuration = { path = "configuration" }
 lazaret-setup = { path = "setup" }
+manifesto-events = { path = "../manifesto-events" }
 rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full", "test-utils"] }

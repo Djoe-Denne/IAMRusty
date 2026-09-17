@@ -11,13 +11,13 @@ sources:
   - Lazaret/tests/common.rs
 summary: >-
   Preuves P3 sous Lazaret/tests/apparatus_p3_t*.rs : identité, grants,
-  consentement, KV, invoke. ADR-0007 Accepted / Partial.
+  consentement, KV, invoke, T8 kv_purge. ADR-0007 Accepted / Partial.
 provenance:
   extracted: 0.90
   inferred: 0.10
   ambiguous: 0.00
 created: 2026-09-17T10:55:00Z
-updated: 2026-09-17T10:55:00Z
+updated: 2026-09-17T13:40:00Z
 ---
 
 # Lancer les tests Apparatus P3
@@ -34,6 +34,8 @@ cargo test -p lazaret-service --test apparatus_p3_t4_grants -- --test-threads=1
 cargo test -p lazaret-service --test apparatus_p3_t5_consent -- --test-threads=1
 cargo test -p lazaret-service --test apparatus_p3_t6_kv -- --test-threads=1
 cargo test -p lazaret-service --test apparatus_p3_t7_invoke -- --test-threads=1
+cargo test -p lazaret-service --test apparatus_p3_t8_kv_purge -- --test-threads=1
+cargo test -p manifesto-service --test sqs_event_routing_tests -- --test-threads=1
 cargo test -p lazaret-service --test health
 ```
 

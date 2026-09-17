@@ -8,16 +8,17 @@ Les services publient des événements domaine (crates `*-events`). Le routage S
 |---|---|---|
 | IAMRusty | `user_signed_up`, `user_email_verified`, `password_reset_requested` | `telegraph-events` |
 | Hive | `organization_*`, `member_joined`, `member_removed`, `member_roles_updated` | `sentinel-sync-events` |
-| Manifesto | `project_created`, `project_visibility_changed`, `project_published`, `project_archived`, `component_*`, `member_*`, `permission_*` | `sentinel-sync-events` |
+| Manifesto | `project_created`, `project_visibility_changed`, `project_published`, `project_archived`, `component_*`, `member_*`, `permission_*` | `sentinel-sync-events` ; **`component_removed` fan-out aussi vers `lazaret-kv-events`** |
 | Telegraph | `notification_created` | `sentinel-sync-events` |
 
-Tests : mêmes clés, préfixe `test-` (`test-telegraph-events`, `test-sentinel-sync-events`). `queue.enabled = false` dans les TOML test/dev par défaut — activer explicitement (`HIVE_QUEUE__ENABLED=true`, etc.) pour les suites transport.
+Tests : mêmes clés, préfixe `test-` (`test-telegraph-events`, `test-sentinel-sync-events`, `test-lazaret-kv-events`). `queue.enabled = false` dans les TOML test/dev par défaut — activer explicitement (`HIVE_QUEUE__ENABLED=true`, etc.) pour les suites transport. Exception : `Lazaret/config/development.toml` a `queue.enabled = true` (consommateur `lazaret-kv-events`).
 
 ## Consommateurs
 
 - **Telegraph** lit `telegraph-events` et mappe via `[queues.telegraph-events]` : `user_signed_up` / `password_reset_requested` → email ; `user_email_verified` → notification in-app.
 - **sentinel-sync** lit `sentinel-sync-events` (ou sa config) et dispatch par préfixe `event_type` vers `HiveTranslator`, `ManifestoTranslator`, `IamTranslator`, `TelegraphTranslator`.
 - **Manifesto** peut aussi *consommer* `component_status_changed` (apparatus) si la queue est réellement résolue.
+- **Lazaret** lit `lazaret-kv-events` (tests : `test-lazaret-kv-events`) et purge le namespace KV du binding sur `component_removed` seulement.
 
 Un événement sans bras translator : `None` — pas d’erreur, **pas de tuple**. Ajouter un event AuthZ-relevant sans mettre à jour `sentinel-sync/src/translator/` = store FGA à la dérive.
 
@@ -36,6 +37,8 @@ Un événement sans bras translator : `None` — pas d’erreur, **pas de tuple*
 ## Fan-out
 
 SQS est 1:1. Pour N consommateurs, déclarer N files dans `[queue.queues]` pour le même `event_type`, ou un worker dédié. Ne pas compter sur une file unique partagée.
+
+Manifesto `component_removed` fan-out : `sentinel-sync-events` **et** `lazaret-kv-events` (tests : `test-sentinel-sync-events` **et** `test-lazaret-kv-events`). Les autres event types Manifesto ne ciblent **pas** la file Lazaret.
 
 ## Suite
 

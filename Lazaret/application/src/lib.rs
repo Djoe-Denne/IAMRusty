@@ -3,12 +3,14 @@
 mod grants;
 mod identity;
 mod invoke;
+mod kv_lifecycle;
 
 use rustycog::command::{CommandRegistry, CommandRegistryBuilder};
 
 pub use grants::GrantService;
 pub use identity::{EnrollCommand, IdentityService};
 pub use invoke::{invoke_path, InvokeError, InvokeService};
+pub use kv_lifecycle::purge_binding_namespace;
 
 /// Build an empty command registry (no handlers this slice).
 #[must_use]

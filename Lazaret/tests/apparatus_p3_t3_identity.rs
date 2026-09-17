@@ -74,7 +74,9 @@ impl AsyncKvStore for NoopKv {
         Ok(false)
     }
 
-    async fn purge(&self, _binding: &BindingId) {}
+    async fn purge(&self, _binding: &BindingId) -> Result<(), ApparatusError> {
+        Ok(())
+    }
 }
 
 fn snapshot_for(identity: &WorkloadIdentity, project_id: Uuid) -> BindingGrantSnapshot {

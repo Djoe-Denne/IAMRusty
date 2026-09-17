@@ -1,6 +1,7 @@
 //! Infrastructure layer for Lazaret.
 
 pub mod connector_proxy;
+pub mod event;
 pub mod identity;
 pub mod kv_postgres;
 pub mod kv_redis;
@@ -9,6 +10,7 @@ pub mod secrets_deny;
 pub mod vault;
 
 pub use connector_proxy::NamedConnectorProxy;
+pub use event::{KvPurgeEventConsumer, KvPurgeEventHandler};
 pub use identity::{
     build_identity_service, DedicatedSessionSigner, InMemoryEnrollmentRegistry, PlatformInternalCa,
 };

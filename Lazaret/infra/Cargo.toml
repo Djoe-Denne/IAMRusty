@@ -11,6 +11,8 @@ lazaret-domain = { path = "../domain" }
 lazaret-application = { path = "../application" }
 lazaret-configuration = { path = "../configuration" }
 apparatus-contracts = { path = "../../apparatus-contracts" }
+manifesto-events = { path = "../../manifesto-events" }
+readiness = { path = "../../readiness" }
 rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full"] }
 async-trait = { workspace = true }
 chrono = { workspace = true }

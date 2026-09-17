@@ -36,7 +36,7 @@ Consent write / révocation : close-at-commit côté Manifesto (preuve T5). Le p
 
 Port async derrière `apparatus_contracts::KvStore`. Adapters Postgres + Redis (T6). Namespacing par binding. Le plaintext des secrets **n’entre pas** dans le KV plugin.
 
-Hole Remaining : `kv_purge`↔unbind pas refermé — **pas** Implemented. Jalon : [[projects/manifesto/references/apparatus-implementation-plan#P3-close — isolation KV en fin de vie]]. ^[extracted]
+P3-close livré : `kv_purge` sur Manifesto `component_removed` (file `lazaret-kv-events`, T8). 0007 **reste Partial**. ^[extracted]
 
 ## Secrets
 

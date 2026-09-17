@@ -11,14 +11,14 @@ sources:
   - Lazaret/http/src/lib.rs
 summary: >-
   Bounded context P3 : frontière de capacités et de données, distincte de
-  Manifesto. Préfixe /lazaret, port 8084. Réalité Partial (T1–T7).
-  Prochain jalon : P3-close (kv_purge ← component_removed).
+  Manifesto. Préfixe /lazaret, port 8084. Réalité Partial (T1–T8).
+  Hole `kv_purge` fermé (`component_removed`) ; autres holes 0007 ouverts.
 provenance:
   extracted: 0.82
   inferred: 0.14
   ambiguous: 0.04
 created: 2026-09-17T10:55:00Z
-updated: 2026-09-17T11:20:00Z
+updated: 2026-09-17T13:50:00Z
 ---
 
 # Lazaret
@@ -41,15 +41,13 @@ Préfixe HTTP : `/lazaret`. Compose : hôte **8084** (`8084:8080`). Base : `laza
 - Santé : `GET /lazaret/health`, `GET /lazaret/ready`.
 - Identité hybride T3 : CSR → certificat client (CA `platform-internal-ca`), puis jeton de session `iss`/`aud`=`lazaret` (EdDSA). Routes `POST /lazaret/enroll`, `POST /lazaret/session`. JWT IAM `[auth.jwt]` = consommateur rustycog pour `AppState` seulement — **pas** l’identité workload. Détail : [[projects/lazaret/concepts/workload-identity]].
 - Grants, consentement, KV, secrets-by-ref, proxy nommé, invoke : [[projects/lazaret/concepts/grants-secrets-and-named-proxy]].
-- Tests T3–T7 sous `Lazaret/tests/apparatus_p3_t*.rs`. Skill : [[projects/lazaret/skills/running-apparatus-p3-tests]].
+- Tests T3–T8 sous `Lazaret/tests/apparatus_p3_t*.rs`. Skill : [[projects/lazaret/skills/running-apparatus-p3-tests]].
 
-`Lazaret/README.md` dit encore « Slice T2 : health / ready uniquement » — **périmé** vis-à-vis du code et de l’ADR (T1–T7 Partial). ^[ambiguous]
+`Lazaret/README.md` dit encore « Slice T2 : health / ready uniquement » — **périmé** vis-à-vis du code et de l’ADR (T1–T8 Partial). ^[ambiguous]
 
 ## Ce qui reste hors livré
 
-Holes listés dans le canon ADR-0007 : mTLS complete, OpenBao produit, `kv_purge`↔unbind, prefix invoke IT vs prod, APP-05, **0006 G et E** (pas d’`invoke` sur `ApparatusRuntime` ; pas de 202 / nouvelle registration sur les 5 routes `/components` gelées). Factory, host UI, gateway K8s : P4+.
-
-Prochain jalon recommandé : **P3-close** — brancher `kv_purge` (T6) sur `component_removed` (`manifesto-events`). Critères done et hors-scope : [[projects/manifesto/references/apparatus-implementation-plan#P3-close — isolation KV en fin de vie]]. ADR-0007 reste Partial.
+Holes listés dans le canon ADR-0007 : mTLS complete, OpenBao produit, prefix invoke IT vs prod, APP-05, **0006 G et E** (pas d’`invoke` sur `ApparatusRuntime` ; pas de 202 / nouvelle registration sur les 5 routes `/components` gelées). Factory, host UI, gateway K8s : P4+. Hole `kv_purge` **fermé** : `component_removed` sur file dédiée `lazaret-kv-events` (T8). ADR-0007 reste Partial.
 
 ## Related
 

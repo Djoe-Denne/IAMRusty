@@ -262,6 +262,7 @@ title: Wiki Log
 - [2026-09-17T10:55:00Z] WIKI_UPDATE project=aiforall pages_updated=16 pages_created=8 source_cwd=C:/Users/djden/source/repos/AIForAll last_commit_synced=e978cd0db05bb5d5443bc58a8e44c2a4751f8095 topic=lazaret-p3-partial-architecte-p2-implemented vault="obsidian/AI FOR ALL"
 - [2026-09-17T10:55:00Z] INGEST source="docs/adr/0007-apparatus-p3-capability-boundary-after-accept.md" pages_updated=8 pages_created=6 mode=append topic=apparatus-p3-lazaret
 - [2026-09-17T10:55:00Z] CLAUDE_HISTORY_INGEST projects=1 conversations=9 pages_updated=6 pages_created=2 mode=append source=cursor-transcripts parents=4f3bb8d7,a340bab3,0f84c7ec,03d5f1f8,90c57f76,ff6a8f77,cd391d48,804c422a,a5acce59 subagents_skipped=true since=2026-09-13T10:25:00Z
+- [2026-09-17T12:57:00Z] QUERY query="ajouts récents Apparatus et Lazaret vs CI Manifesto validation" result_pages=6 mode=normal escalated=false
 
 
 

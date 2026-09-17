@@ -28,12 +28,43 @@ impl RedisKvStore {
     fn connection(&self) -> Result<redis::Connection, ApparatusError> {
         self.client.get_connection().map_err(|_| store_failed())
     }
+
+    /// Delete both hashes for one binding.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ApparatusError`] if the Redis connection or script fails.
+    fn purge_namespace(&self, binding: &BindingId) -> Result<(), ApparatusError> {
+        let mut con = self.connection()?;
+        let script = redis::Script::new(
+            r"
+redis.call('DEL', KEYS[1])
+redis.call('DEL', KEYS[2])
+return 1
+",
+        );
+        let _: i32 = script
+            .key(kv_hash(binding))
+            .key(cas_hash(binding))
+            .invoke(&mut con)
+            .map_err(|_| store_failed())?;
+        Ok(())
+    }
 }
 
 fn store_failed() -> ApparatusError {
     ApparatusError::InvalidOperation {
         reason: "kv store failed".to_owned(),
     }
+}
+
+fn redis_error_text(error: &redis::RedisError) -> String {
+    format!(
+        "{} {} {}",
+        error,
+        error.code().unwrap_or(""),
+        error.detail().unwrap_or("")
+    )
 }
 
 fn check_key(key: &str) -> Result<(), ApparatusError> {
@@ -112,7 +143,7 @@ return nxt
             .arg(MAX_KV_ENTRIES_PER_BINDING as i64)
             .invoke(&mut con);
         let next = next.map_err(|error| {
-            let msg = error.to_string();
+            let msg = redis_error_text(&error);
             if msg.contains("cas mismatch") {
                 ApparatusError::InvalidOperation {
                     reason: "cas mismatch".to_owned(),
@@ -122,7 +153,9 @@ return nxt
                     reason: "kv entry quota exceeded".to_owned(),
                 }
             } else {
-                store_failed()
+                ApparatusError::InvalidOperation {
+                    reason: format!("kv store failed: {msg}"),
+                }
             }
         })?;
         Ok(next)
@@ -151,20 +184,7 @@ return removed
     }
 
     fn kv_purge(&self, binding: &BindingId) {
-        let Ok(mut con) = self.connection() else {
-            return;
-        };
-        let script = redis::Script::new(
-            r"
-redis.call('DEL', KEYS[1])
-redis.call('DEL', KEYS[2])
-return 1
-",
-        );
-        let _: redis::RedisResult<i32> = script
-            .key(kv_hash(binding))
-            .key(cas_hash(binding))
-            .invoke(&mut con);
+        let _ = self.purge_namespace(binding);
     }
 }
 
@@ -206,9 +226,11 @@ impl AsyncKvStore for RedisKvStore {
             .map_err(|_| store_failed())?
     }
 
-    async fn purge(&self, binding: &BindingId) {
+    async fn purge(&self, binding: &BindingId) -> Result<(), ApparatusError> {
         let store = self.clone();
         let binding = binding.clone();
-        let _ = tokio::task::spawn_blocking(move || KvStore::kv_purge(&store, &binding)).await;
+        tokio::task::spawn_blocking(move || store.purge_namespace(&binding))
+            .await
+            .map_err(|_| store_failed())?
     }
 }
