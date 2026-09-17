@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, PoisonError};
 
+use async_trait::async_trait;
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use lazaret_application::IdentityService;
 use lazaret_configuration::IdentityConfig;
@@ -15,15 +16,17 @@ use rcgen::{
     BasicConstraints, Certificate, CertificateParams, CertificateSigningRequestParams,
     DistinguishedName, DnType, ExtendedKeyUsagePurpose, IsCa, KeyPair, KeyUsagePurpose, SanType,
 };
+use sea_orm::DatabaseConnection;
 use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
 
 /// Maximum distinct bindings remembered by the in-process registry.
 const MAX_ENROLLMENTS: usize = 10_000;
 
-/// Build the T3 identity service from `[identity]` config and a live snapshot port.
+/// Build the identity service from `[identity]` config, a live snapshot port, and Lazaret DB.
 ///
-/// Empty signing PEM → ephemeral Ed25519 at boot. Never uses `[auth.jwt].hs256_secret`.
+/// Production enrollments use Postgres (`apparatus_enrollments`). Empty signing PEM →
+/// ephemeral Ed25519 at boot. Never uses `[auth.jwt].hs256_secret`.
 ///
 /// # Errors
 ///
@@ -31,10 +34,13 @@ const MAX_ENROLLMENTS: usize = 10_000;
 pub fn build_identity_service(
     config: &IdentityConfig,
     snapshots: Arc<dyn BindingGrantSnapshotPort>,
+    db: DatabaseConnection,
 ) -> Result<Arc<IdentityService>, IdentityError> {
     let ca = Arc::new(PlatformInternalCa::new()?);
     let signer = Arc::new(DedicatedSessionSigner::from_config(config)?);
-    let enrollments = Arc::new(InMemoryEnrollmentRegistry::new());
+    let enrollments = Arc::new(crate::enrollment_postgres::PostgresEnrollmentRegistry::new(
+        db,
+    ));
     let session_ttl = if config.session_ttl_minutes == 0 {
         DEFAULT_SESSION_TTL_MINUTES
     } else {
@@ -76,8 +82,13 @@ impl Default for InMemoryEnrollmentRegistry {
     }
 }
 
+#[async_trait]
 impl EnrollmentStore for InMemoryEnrollmentRegistry {
-    fn put(&self, fingerprint: String, identity: WorkloadIdentity) -> Result<(), IdentityError> {
+    async fn put(
+        &self,
+        fingerprint: String,
+        identity: WorkloadIdentity,
+    ) -> Result<(), IdentityError> {
         let mut map = self.inner.lock().unwrap_or_else(PoisonError::into_inner);
         let existing_fp = map
             .iter()
@@ -94,7 +105,7 @@ impl EnrollmentStore for InMemoryEnrollmentRegistry {
         Ok(())
     }
 
-    fn get(&self, fingerprint: &str) -> Option<WorkloadIdentity> {
+    async fn get(&self, fingerprint: &str) -> Option<WorkloadIdentity> {
         self.inner
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
@@ -102,12 +113,22 @@ impl EnrollmentStore for InMemoryEnrollmentRegistry {
             .cloned()
     }
 
-    fn binding_enrolled(&self, binding: Uuid) -> bool {
-        self.inner
+    async fn binding_enrolled(&self, binding: Uuid) -> Result<bool, IdentityError> {
+        let enrolled = self
+            .inner
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .values()
-            .any(|enrolled| enrolled.binding == binding)
+            .any(|enrolled| enrolled.binding == binding);
+        Ok(enrolled)
+    }
+
+    async fn revoke_binding(&self, binding: Uuid) -> Result<(), IdentityError> {
+        self.inner
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .retain(|_, enrolled| enrolled.binding != binding);
+        Ok(())
     }
 }
 

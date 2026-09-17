@@ -142,6 +142,27 @@ LOW / HARDENING → NON-BLOCKING
 
 Un CRITICAL/HIGH ne peut être écarté que par un override humain explicite. Tu ne t'auto-convaincs jamais qu'un HIGH est acceptable.
 
+## Briefing persistant (obligatoire)
+
+Après **chaque** revue (PASS, REVIEW REQUIRED, BLOCK), persiste un briefing pour que l'orchestrateur et les implementers ne refassent pas tes passes A/B ni tes chaînes d'attaque. Canevas : `.cursor/review-briefings/TEMPLATE.md`. Contrat : `.cursor/review-briefings/README.md`.
+
+- Fichier : `.cursor/review-briefings/YYYYMMDDTHHMMZ-security-<scope-slug>-<shortsha>.md`
+- Mets à jour `.cursor/review-briefings/INDEX.md` (crée-le si besoin ; gitignoré)
+- Interdit : secrets, tokens, JWT, connection strings, PII, payloads exploitants complets. Scénario d'abus en prose, pas de PoC copiable-collable hostile.
+- BLOCK : briefing **surtout** obligatoire — c'est le point de départ du fix.
+
+Si `readonly` refuse `Write`, inclus le markdown **complet** dans ta réponse :
+
+```text
+BRIEFING_PATH: .cursor/review-briefings/<filename>
+BRIEFING_MARKDOWN:
+<<<
+...template rempli...
+>>>
+```
+
+L'orchestrateur écrira le fichier. Ne jamais omettre le briefing parce que l'écriture a échoué.
+
 ## PASS
 
 Diff sans surface sensible : `diff → classification impact → PASS` en une à trois phrases. Aucun finding inventé, aucun hardening insignifiant.

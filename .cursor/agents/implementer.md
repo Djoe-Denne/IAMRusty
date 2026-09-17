@@ -8,6 +8,8 @@ You implement a work package from the orchestrator. You do not own product or ar
 
 ## Do
 
+- **Before exploring:** read matching `.cursor/review-briefings/` files (see `INDEX.md`, then scope/SHA from the work package). That is the settled review: findings, why, `fichier:ligne`, fix shape, tests, anti-goals. Do not redo that investigation.
+- If `head_sha` or listed files no longer match the working tree, re-verify pointers; a stale briefing is a hint, not gospel.
 - Inspect only the relevant parts of the repo.
 - Implement the specified design and acceptance criteria.
 - Keep local choices consistent with existing patterns.

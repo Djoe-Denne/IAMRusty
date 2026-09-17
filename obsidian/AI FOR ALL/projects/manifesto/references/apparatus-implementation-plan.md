@@ -20,15 +20,16 @@ sources:
   - docs/apparatus-p3-implementation-prompt.md
   - manifesto-events/src/component.rs
 summary: >-
-  Phases Apparatus : P2 Implemented, Lazaret P3 Partial (T1–T9).
+  Phases Apparatus : P2 Implemented, Lazaret P3 Partial (T1–T10).
   P3-close = T8 kv_purge. T9 = chemin public `/lazaret/invoke`.
+  T10 = enrollment Postgres + revoke sur `component_removed`.
   0007 reste Partial. P4+ pas maintenant.
 provenance:
   extracted: 0.34
   inferred: 0.64
   ambiguous: 0.02
 created: 2026-09-09T17:50:00Z
-updated: 2026-09-17T17:40:00Z
+updated: 2026-09-17T20:35:00Z
 ---
 
 # Apparatus — plan d’implémentation et décisions restantes
@@ -68,11 +69,11 @@ Canon : `docs/adr/` ; hub wiki : [[projects/manifesto/decisions/index]]. `Accept
 | Gateway, KV, pas de bearer IAM, fermeture DB immédiate | [0004](../../../../../docs/adr/0004-apparatus-capability-gateway.md) | Partial | mTLS concret (P3) |
 | Même protocole ; admission, `VALID`, `VERIFIED` et installabilité distincts | [0005](../../../../../docs/adr/0005-apparatus-same-protocol-valid-verified.md) | Partial | Pipeline OCI (P4), drain/destruction |
 | Réconciliation in-process, ticker `/ready`, CAS, lease | [0006](../../../../../docs/adr/0006-apparatus-p2-reconciliation-in-process.md) | Implemented | G/E encore en vigueur (pas d’`invoke` sur `ApparatusRuntime` ; `/components` gelé) |
-| Frontière P3 = BC [[projects/lazaret/lazaret]] | [0007](../../../../../docs/adr/0007-apparatus-p3-capability-boundary-after-accept.md) | Partial | P3-close livré (`kv_purge` ← `component_removed`) ; mTLS ; OpenBao produit ; APP-05 ; G/E |
+| Frontière P3 = BC [[projects/lazaret/lazaret]] | [0007](../../../../../docs/adr/0007-apparatus-p3-capability-boundary-after-accept.md) | Partial | P3-close livré (`kv_purge` ← `component_removed`) ; enrollment Postgres (T10) ; mTLS ; OpenBao produit ; APP-05 ; G/E |
 
 ## Livraison séquencée
 
-**Avancées (2026-09-17)** : P0 contrats livrés ; P1 persistance livrée (0001 Partial) ; P2 **Implemented** (0006) ; P3 **Partial** T1–T9 (0007). P3-close livré (`kv_purge` ← `component_removed`, T8). T9 a fermé le hole de chemin invoke public. ADR-0007 reste **Partial** — ce close-out ne le promeut pas en Implemented. P4+ pas maintenant. ^[extracted]
+**Avancées (2026-09-17)** : P0 contrats livrés ; P1 persistance livrée (0001 Partial) ; P2 **Implemented** (0006) ; P3 **Partial** T1–T10 (0007). P3-close livré (`kv_purge` ← `component_removed`, T8). T10 persiste l’enrollment et le révoque sur `component_removed`. ADR-0007 reste **Partial** — ce close-out ne le promeut pas en Implemented. P4+ pas maintenant. ^[extracted]
 
 ### P0 — Contrats et Apparatus de référence
 
@@ -113,7 +114,7 @@ P2.1 (CAS update, backoff, `/ready`) est **livré** dans ce jalon.
 
 ### P3 — Frontière de capacités et données
 
-**État 2026-09-17** : [ADR-0007](../../../../../docs/adr/0007-apparatus-p3-capability-boundary-after-accept.md) **Accepted**, Réalité **Partial**. T1–T9 prouvés dans le BC [[projects/lazaret/lazaret]] : identité hybride, grants live Manifesto, consentement, KV Postgres+Redis, secrets-by-ref + Vault fail-closed, proxy nommé, invoke HTTP, `kv_purge` sur `component_removed`, chemin public `POST /lazaret/invoke` sur `prefixed_router`. Holes (mTLS complete, OpenBao produit, APP-05, 0006 G/E) : **pas** Implemented. Conception ci-dessous `^[inferred]`, pas un contrat. Pointeur : [[projects/manifesto/decisions/0007-apparatus-p3-lazaret]].
+**État 2026-09-17** : [ADR-0007](../../../../../docs/adr/0007-apparatus-p3-capability-boundary-after-accept.md) **Accepted**, Réalité **Partial**. T1–T10 prouvés dans le BC [[projects/lazaret/lazaret]] : identité hybride, grants live Manifesto, consentement, KV Postgres+Redis, secrets-by-ref + Vault fail-closed, proxy nommé, invoke HTTP, `kv_purge` sur `component_removed`, chemin public `POST /lazaret/invoke` sur `prefixed_router`, enrollment persisté + revoke sur `component_removed`. Holes (mTLS rustls complete, OpenBao produit, APP-05, 0006 G/E) : **pas** Implemented. Conception ci-dessous `^[inferred]`, pas un contrat. Pointeur : [[projects/manifesto/decisions/0007-apparatus-p3-lazaret]].
 
 Le mécanisme P3 (identité, grants, consentement, KV, secrets, proxy, invoke) existe en Partial ; Factory, host UI et adapter Kubernetes restent P4+. Les refus sont contrôlés côté serveur et liés au binding courant. Les règles du projet public ne rendent pas le stockage ni l’invoke public par défaut. ^[inferred]
 
@@ -134,13 +135,17 @@ Hole `kv_purge` **fermé** : branché sur Manifesto `component_removed` (file d�
 - **Pas** de nouvelle route Manifesto (0006 E).
 - **Pas** d’`ApparatusRuntime::unbind` ni d’`invoke` ajouté au port runtime.
 
-**Hors jalon** (inchangé) : mTLS rustls complete / enrollment T3 in-memory ; OpenBao **produit** dans le compose ; P4 ; APP-03 ; APP-05 ; lever 0006 G/E.
+**Hors jalon** (inchangé) : mTLS rustls complete ; OpenBao **produit** dans le compose ; P4 ; APP-03 ; APP-05 ; lever 0006 G/E.
 
 **Ensuite** : les autres holes 0007 restent ouverts. P4+ uniquement sur décision explicite.
 
 #### T9 — chemin public invoke
 
 Hole de chemin **fermé** : `POST /lazaret/invoke` sur `prefixed_router` / `run()` ; `INVOKE_PATH` reste `/invoke` ; `Application::router()` reste non préfixé. Preuve : `Lazaret/tests/apparatus_p3_t9_invoke_prefix.rs`. ADR-0007 **reste Partial**. ^[extracted]
+
+#### T10 — enrollment persisté
+
+Hole enrollment T3 in-memory **fermé** : table Lazaret `apparatus_enrollments` (même DB que KV) ; `revoke_binding` sur Manifesto `component_removed` (fail-closed avec le purge KV). InMemory réservé aux tests unitaires. Preuve : `Lazaret/tests/apparatus_p3_t10_enrollment_persist.rs`. ADR-0007 **reste Partial**. ^[extracted]
 
 ### P4 — Factory et runtime de production
 

@@ -14,7 +14,7 @@ use axum::http::{Request, StatusCode};
 use common::create_jwt_token;
 use fixtures::BindingSnapshotFixtures;
 use jsonwebtoken::decode_header;
-use lazaret_application::{empty_command_registry, EnrollCommand, InvokeService};
+use lazaret_application::{empty_command_registry, EnrollCommand, IdentityService, InvokeService};
 use lazaret_configuration::IdentityConfig;
 use lazaret_domain::{
     authorization_from_session, AsyncKvStore, AuthorizationDecision, BindingGrantSnapshot,
@@ -23,7 +23,8 @@ use lazaret_domain::{
 };
 use lazaret_http::create_router;
 use lazaret_infra::{
-    build_identity_service, DeniedSecretResolver, HttpBindingGrantClient, NamedConnectorProxy,
+    DedicatedSessionSigner, DeniedSecretResolver, HttpBindingGrantClient,
+    InMemoryEnrollmentRegistry, NamedConnectorProxy, PlatformInternalCa,
 };
 use rcgen::{CertificateParams, CustomExtension, KeyPair};
 use rustycog::command::GenericCommandService;
@@ -100,20 +101,27 @@ fn snapshot_for(identity: &WorkloadIdentity, project_id: Uuid) -> BindingGrantSn
     }
 }
 
-fn identity_service_for(
-    identity: &WorkloadIdentity,
-    project_id: Uuid,
-) -> Arc<lazaret_application::IdentityService> {
-    build_identity_service(
-        &IdentityConfig::default(),
-        Arc::new(MemoryPort {
-            snapshot: snapshot_for(identity, project_id),
-        }),
-    )
-    .expect("identity service")
+fn identity_service_from_snapshots(
+    snapshots: Arc<dyn BindingGrantSnapshotPort>,
+) -> Arc<IdentityService> {
+    let config = IdentityConfig::default();
+    Arc::new(IdentityService::new(
+        Arc::new(PlatformInternalCa::new().expect("ca")),
+        Arc::new(DedicatedSessionSigner::from_config(&config).expect("signer")),
+        Arc::new(InMemoryEnrollmentRegistry::new()),
+        snapshots,
+        config.session_ttl_minutes,
+        config.cert_ttl_hours,
+    ))
 }
 
-fn identity_service() -> Arc<lazaret_application::IdentityService> {
+fn identity_service_for(identity: &WorkloadIdentity, project_id: Uuid) -> Arc<IdentityService> {
+    identity_service_from_snapshots(Arc::new(MemoryPort {
+        snapshot: snapshot_for(identity, project_id),
+    }))
+}
+
+fn identity_service() -> Arc<IdentityService> {
     identity_service_for(&sample_identity(), Uuid::new_v4())
 }
 
@@ -153,7 +161,7 @@ fn app_state() -> AppState {
     AppState::new(command_service, extractor, checker)
 }
 
-fn invoke_stub(identity: Arc<lazaret_application::IdentityService>) -> Arc<InvokeService> {
+fn invoke_stub(identity: Arc<IdentityService>) -> Arc<InvokeService> {
     let snapshots: Arc<dyn BindingGrantSnapshotPort> = Arc::new(MemoryPort {
         snapshot: snapshot_for(&sample_identity(), Uuid::new_v4()),
     });
@@ -187,12 +195,13 @@ fn t3_iam_jwt_is_rejected_by_session_verify() {
     );
 }
 
-#[test]
-fn t3_session_without_enrollment_is_refused() {
+#[tokio::test]
+async fn t3_session_without_enrollment_is_refused() {
     let identity = identity_service();
     let stray = VerifiedClientCertificate::from_der(vec![0x30, 0x00, 0x01, 0x02]);
     let err = identity
         .issue_session(&stray)
+        .await
         .expect_err("session without enrollment");
     assert!(matches!(err, IdentityError::NotEnrolled));
 }
@@ -230,7 +239,7 @@ async fn t3_enroll_csr_then_verified_cert_then_session_claims() {
     );
 
     let cert = VerifiedClientCertificate::from_pem(&issued.pem).expect("verified cert");
-    let token = identity.issue_session(&cert).expect("session");
+    let token = identity.issue_session(&cert).await.expect("session");
 
     let header = decode_header(&token).expect("session header");
     assert_ne!(
@@ -288,7 +297,7 @@ async fn t3_enroll_rewrites_generation_from_snapshot() {
         .await
         .expect("enroll");
     let cert = VerifiedClientCertificate::from_pem(&issued.pem).expect("cert");
-    let token = identity.issue_session(&cert).expect("session");
+    let token = identity.issue_session(&cert).await.expect("session");
     let proof = identity.verify_session(&token).expect("verify");
     assert_eq!(proof.identity.generation, 1);
     assert_eq!(proof.identity.grant_revision, 2);
@@ -349,7 +358,7 @@ async fn t3_http_enroll_consults_snapshot() {
         })
         .expect("client"),
     );
-    let identity = build_identity_service(&IdentityConfig::default(), snapshots).expect("svc");
+    let identity = identity_service_from_snapshots(snapshots);
     let invoke = invoke_stub(identity.clone());
     let server = axum_test::TestServer::new(create_router(app_state(), identity, invoke))
         .expect("test server");
@@ -449,7 +458,7 @@ async fn t3_http_second_csr_same_binding_is_409_first_cert_still_sessions() {
         })
         .expect("client"),
     );
-    let identity = build_identity_service(&IdentityConfig::default(), snapshots).expect("svc");
+    let identity = identity_service_from_snapshots(snapshots);
     let invoke = invoke_stub(identity.clone());
     let server =
         axum_test::TestServer::new(create_router(app_state(), identity.clone(), invoke.clone()))

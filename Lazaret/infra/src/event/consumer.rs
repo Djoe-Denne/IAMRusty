@@ -1,11 +1,11 @@
-//! Event consumer: purge a binding KV namespace on Manifesto `component_removed`.
+//! Event consumer: purge KV and revoke enrollment on Manifesto `component_removed`.
 
 use std::sync::Arc;
 
 use apparatus_contracts::BindingId;
 use async_trait::async_trait;
 use lazaret_application::purge_binding_namespace;
-use lazaret_domain::AsyncKvStore;
+use lazaret_domain::{AsyncKvStore, EnrollmentStore};
 use manifesto_events::ManifestoDomainEvent;
 use readiness::{create_signaled_event_consumer, ComponentStatus};
 use rustycog::config::QueueConfig;
@@ -19,6 +19,7 @@ use tracing::{error, info, warn};
 pub struct KvPurgeEventConsumer {
     inner_consumer: Arc<ConcreteEventConsumer>,
     kv: Arc<dyn AsyncKvStore>,
+    enrollments: Arc<dyn EnrollmentStore>,
     transport_status: ComponentStatus,
 }
 
@@ -31,11 +32,13 @@ impl KvPurgeEventConsumer {
     pub async fn new(
         queue_config: &QueueConfig,
         kv: Arc<dyn AsyncKvStore>,
+        enrollments: Arc<dyn EnrollmentStore>,
     ) -> Result<Self, ServiceError> {
         let signaled = create_signaled_event_consumer("lazaret", queue_config).await?;
         Ok(Self {
             inner_consumer: signaled.consumer,
             kv,
+            enrollments,
             transport_status: signaled.status,
         })
     }
@@ -87,23 +90,24 @@ impl KvPurgeEventConsumer {
         self.inner_consumer.health_check().await
     }
 
-    /// Handler bound to the same KV store this consumer was wired with.
+    /// Handler bound to the same KV store and enrollment registry this consumer was wired with.
     #[must_use]
     pub fn handler(&self) -> KvPurgeEventHandler {
-        KvPurgeEventHandler::new(self.kv.clone())
+        KvPurgeEventHandler::new(self.kv.clone(), self.enrollments.clone())
     }
 }
 
-/// Purges one binding namespace; ignores other Manifesto event types.
+/// Purges one binding namespace and revokes its enrollment; ignores other Manifesto event types.
 pub struct KvPurgeEventHandler {
     kv: Arc<dyn AsyncKvStore>,
+    enrollments: Arc<dyn EnrollmentStore>,
 }
 
 impl KvPurgeEventHandler {
-    /// Construct a handler over the platform KV store.
+    /// Construct a handler over the platform KV store and enrollment registry.
     #[must_use]
-    pub const fn new(kv: Arc<dyn AsyncKvStore>) -> Self {
-        Self { kv }
+    pub const fn new(kv: Arc<dyn AsyncKvStore>, enrollments: Arc<dyn EnrollmentStore>) -> Self {
+        Self { kv, enrollments }
     }
 
     async fn process_manifesto_event(
@@ -111,6 +115,13 @@ impl KvPurgeEventHandler {
         event: ManifestoDomainEvent,
     ) -> Result<(), ServiceError> {
         if let ManifestoDomainEvent::ComponentRemoved(removed) = event {
+            self.enrollments
+                .revoke_binding(removed.component_id)
+                .await
+                .map_err(|error| {
+                    error!(error = %error, "enrollment revoke failed");
+                    ServiceError::infrastructure(format!("enrollment revoke failed: {error}"))
+                })?;
             let binding = match removed.component_id.to_string().parse::<BindingId>() {
                 Ok(binding) => binding,
                 Err(error) => {

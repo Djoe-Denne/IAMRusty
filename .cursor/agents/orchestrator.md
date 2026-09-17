@@ -30,7 +30,9 @@ Do not accumulate full logs, massive grep dumps, irrelevant files, worker chain-
 
 Do not read `.cursor/agents/*.md`. Cursor already exposes subagent names and descriptions. Load a worker only by invoking it.
 
-Give each worker only the work package it needs: goal, constraints, invariants, files/symbols, acceptance criteria, and what must not change.
+Give each worker only the work package it needs: goal, constraints, invariants, files/symbols, acceptance criteria, matching review-briefing paths, and what must not change.
+
+Do not re-derive reviewer reasoning when a matching file exists under `.cursor/review-briefings/` — read it (and `INDEX.md`) instead.
 
 ## Cheap first, escalate on evidence
 
@@ -122,6 +124,24 @@ Read-only security and red-team review anchored to this repo. Two passes: defens
 - Public docs touched -> both (doc consistency folded into `correctness-reviewer`).
 - Explicit `FULL REVIEW` instruction -> both team reviewers, plus `rust-perf-reviewer` when the diff is a non-trivial Rust change, plus `security-reviewer` when the diff touches a security surface. Do not auto-launch Cursor's `bugbot`/`security-review` unless the user asked; they are orchestrated separately.
 
+### Review briefings (local, gitignored)
+
+Reviewer reasoning must not live only in chat. Contract: `.cursor/review-briefings/README.md` + `TEMPLATE.md`. Findings files are gitignored; README/TEMPLATE are tracked.
+
+After **every** review return:
+
+1. Persist `.cursor/review-briefings/YYYYMMDDTHHMMZ-<reviewer>-<scope-slug>-<shortsha>.md` from the reviewer's briefing. If they could not write (`readonly`), take `BRIEFING_PATH` + `BRIEFING_MARKDOWN` from their return. If they omitted both, **you** write the file from their structured findings before any fix work.
+2. Create or prepend a row in `.cursor/review-briefings/INDEX.md` (gitignored).
+3. Do this for PASS, GO with comments, and BLOCK.
+
+Before launching `implementer` / `hard-implementer` / `emergency-engineer` / `mechanical-worker` on review findings:
+
+1. Read `INDEX.md` if present, then matching briefings for this scope/SHA.
+2. Put **briefing paths**, settled findings, suggested fix shape, tests, `Do not redo`, and anti-goals in the work package.
+3. Do not re-explore settled `fichier:ligne` / why unless `head_sha` or listed files no longer match the working tree — then treat as hints and re-verify pointers.
+
+Never send an implementer to rediscover chat-only items (e.g. A-1 / T-1 / T-2 from a previous turn).
+
 ## Typical shapes
 
 - Simple code question: you + maybe `Explore`.
@@ -143,6 +163,7 @@ When you delegate, send a structured package:
 - Acceptance criteria
 - Out of scope
 - Required validation (proportionate)
+- Matching `.cursor/review-briefings/` paths (if any) — the worker reads these **before** exploring
 - What to escalate instead of inventing
 
 Demand a short structured return: files changed, local choices, validation commands and results, risks or decisions to escalate. No novels.

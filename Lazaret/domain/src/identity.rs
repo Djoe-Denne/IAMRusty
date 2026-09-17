@@ -1,5 +1,6 @@
 //! Workload identity types for Lazaret (ADR-0004 claims, ADR-0007 hybrid transport).
 
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
@@ -215,7 +216,8 @@ pub trait SessionTokenSigner: Send + Sync {
     fn verify(&self, token: &str) -> Result<SessionClaims, IdentityError>;
 }
 
-/// In-memory enrollment registry (fingerprint → identity). No SQL.
+/// Enrollment registry (fingerprint → identity). Durable or in-memory.
+#[async_trait]
 pub trait EnrollmentStore: Send + Sync {
     /// Store enrollment for a certificate fingerprint.
     ///
@@ -226,15 +228,35 @@ pub trait EnrollmentStore: Send + Sync {
     /// # Errors
     ///
     /// Returns [`IdentityError::RegistryFull`] when a new binding would exceed
-    /// capacity, or [`IdentityError::BindingAlreadyEnrolled`] when the binding
-    /// is already enrolled under a different fingerprint.
-    fn put(&self, fingerprint: String, identity: WorkloadIdentity) -> Result<(), IdentityError>;
+    /// in-memory capacity, [`IdentityError::BindingAlreadyEnrolled`] when the
+    /// binding is already enrolled under a different fingerprint, or
+    /// [`IdentityError::EnrollmentStore`] when a durable adapter fails.
+    async fn put(
+        &self,
+        fingerprint: String,
+        identity: WorkloadIdentity,
+    ) -> Result<(), IdentityError>;
 
     /// Lookup enrollment by fingerprint.
-    fn get(&self, fingerprint: &str) -> Option<WorkloadIdentity>;
+    ///
+    /// Durable adapters map store failure to `None` (fail-closed session 401).
+    async fn get(&self, fingerprint: &str) -> Option<WorkloadIdentity>;
 
     /// `true` when this binding already has a stored fingerprint (first-wins).
-    fn binding_enrolled(&self, binding: Uuid) -> bool;
+    ///
+    /// # Errors
+    ///
+    /// Returns [`IdentityError::EnrollmentStore`] when a durable adapter fails.
+    /// In-memory adapters return `Ok(bool)`.
+    async fn binding_enrolled(&self, binding: Uuid) -> Result<bool, IdentityError>;
+
+    /// Drop enrollment rows for this binding. Missing binding is a no-op.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`IdentityError::EnrollmentStore`] when a durable adapter fails.
+    /// In-memory adapters always return `Ok(())`.
+    async fn revoke_binding(&self, binding: Uuid) -> Result<(), IdentityError>;
 }
 
 /// Workload identity failures.
@@ -279,4 +301,7 @@ pub enum IdentityError {
     /// Internal CA failed to issue a certificate.
     #[error("platform internal CA: {0}")]
     CaFailure(String),
+    /// Durable enrollment adapter failed (no SQL in the message).
+    #[error("enrollment store: {0}")]
+    EnrollmentStore(String),
 }

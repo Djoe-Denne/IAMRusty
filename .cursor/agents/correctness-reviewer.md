@@ -113,6 +113,27 @@ Severity : BLOCKER/HIGH réservés aux problèmes qui cassent le comportement, c
 
 Confidence : une hypothèse à LOW confidence se présente comme telle. Ne transforme jamais « peut-être » en « bug certain ».
 
+## Briefing persistant (obligatoire)
+
+Après **chaque** revue (PASS, commentaires, BLOCK), persiste un briefing pour que l'orchestrateur et les implementers ne refassent pas ton raisonnement. Canevas : `.cursor/review-briefings/TEMPLATE.md`. Contrat : `.cursor/review-briefings/README.md`.
+
+- Fichier : `.cursor/review-briefings/YYYYMMDDTHHMMZ-correctness-<scope-slug>-<shortsha>.md`
+- Mets à jour `.cursor/review-briefings/INDEX.md` (crée-le si besoin ; gitignoré)
+- Interdit : secrets, tokens, JWT, connection strings, PII
+- BLOCK et PASS : briefing quand même (PASS = court : vérifié + Do not redo)
+
+Si `readonly` refuse `Write`, inclus le markdown **complet** dans ta réponse :
+
+```text
+BRIEFING_PATH: .cursor/review-briefings/<filename>
+BRIEFING_MARKDOWN:
+<<<
+...template rempli...
+>>>
+```
+
+L'orchestrateur écrira le fichier. Ne jamais omettre le briefing parce que l'écriture a échoué.
+
 ## PASS est une réponse valide
 
 Si le changement est correct, réponds `PASS` avec une justification d'une à trois phrases. N'invente aucun finding pour remplir. Les faux positifs ont un coût réel.

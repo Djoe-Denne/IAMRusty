@@ -47,7 +47,7 @@ async fn enroll_session(app: &Application, project_id: Uuid, identity: WorkloadI
         .await
         .expect("enroll");
     let cert = lazaret_domain::VerifiedClientCertificate::from_pem(&issued.pem).expect("cert");
-    app.identity.issue_session(&cert).expect("session")
+    app.identity.issue_session(&cert).await.expect("session")
 }
 
 fn snapshot(

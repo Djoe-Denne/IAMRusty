@@ -52,6 +52,12 @@ impl IdentityService {
         }
     }
 
+    /// Shared enrollment registry (same Arc the event consumer must use).
+    #[must_use]
+    pub fn enrollment_store(&self) -> Arc<dyn EnrollmentStore> {
+        self.enrollments.clone()
+    }
+
     /// Issue a client certificate from a workload CSR after a live snapshot consult.
     ///
     /// Generation, grant revision, and binding come from the snapshot. `instance`
@@ -63,8 +69,9 @@ impl IdentityService {
     /// [`IdentityError::InvalidIdentity`] if the snapshot is missing or the binding
     /// does not match, [`IdentityError::ConsultFailed`] on transport failure,
     /// [`IdentityError::RegistryFull`] when the registry is at capacity,
-    /// [`IdentityError::BindingAlreadyEnrolled`] when the binding is already enrolled
-    /// under a different fingerprint, or CA errors.
+    /// [`IdentityError::BindingAlreadyEnrolled`] when the binding is already enrolled,
+    /// [`IdentityError::EnrollmentStore`] when the durable registry is unavailable,
+    /// or CA errors.
     pub async fn enroll(&self, command: EnrollCommand) -> Result<IssuedCertificate, IdentityError> {
         reject_private_key_material(&command.csr_pem)?;
         let snapshot = self
@@ -85,14 +92,14 @@ impl IdentityService {
             snapshot.desired_generation,
             snapshot.grant_revision,
         )?;
-        if self.enrollments.binding_enrolled(identity.binding) {
+        if self.enrollments.binding_enrolled(identity.binding).await? {
             return Err(IdentityError::BindingAlreadyEnrolled);
         }
         let issued = self
             .ca
             .sign_csr(&command.csr_pem, self.cert_ttl_hours, identity.binding)?;
         let fingerprint = lazaret_domain::fingerprint_sha256(&issued.der);
-        self.enrollments.put(fingerprint, identity)?;
+        self.enrollments.put(fingerprint, identity).await?;
         Ok(issued)
     }
 
@@ -102,10 +109,14 @@ impl IdentityService {
     ///
     /// Returns [`IdentityError::NotEnrolled`] when the certificate was not enrolled,
     /// or signing errors.
-    pub fn issue_session(&self, cert: &VerifiedClientCertificate) -> Result<String, IdentityError> {
+    pub async fn issue_session(
+        &self,
+        cert: &VerifiedClientCertificate,
+    ) -> Result<String, IdentityError> {
         let identity = self
             .enrollments
             .get(&cert.fingerprint_sha256())
+            .await
             .ok_or(IdentityError::NotEnrolled)?;
         let now = Utc::now().timestamp();
         let ttl_minutes =

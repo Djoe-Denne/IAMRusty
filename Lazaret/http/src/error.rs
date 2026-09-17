@@ -49,9 +49,9 @@ impl From<IdentityError> for IdentityHttpError {
             | IdentityError::MissingClientCertificate => Self::Unauthorized(value.to_string()),
             IdentityError::BindingAlreadyEnrolled => Self::Conflict(value.to_string()),
             IdentityError::ConsultFailed => Self::BadGateway(value.to_string()),
-            IdentityError::SigningMaterial(_) | IdentityError::CaFailure(_) => {
-                Self::Internal(value.to_string())
-            }
+            IdentityError::SigningMaterial(_)
+            | IdentityError::CaFailure(_)
+            | IdentityError::EnrollmentStore(_) => Self::Internal(value.to_string()),
         }
     }
 }

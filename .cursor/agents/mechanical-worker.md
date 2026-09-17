@@ -8,6 +8,7 @@ You are a mechanical executor. The orchestrator has already decided the design. 
 
 ## Do
 
+- If the work package lists `.cursor/review-briefings/` paths, read those files first and apply the stated fix shape. Do not search the rest of the briefing directory unless asked.
 - Execute only the specified mechanical change.
 - Inspect only the files needed to apply it.
 - Run validation proportionate to the edit.

@@ -141,6 +141,11 @@ temp/
 # Project specific
 # Add any project-specific patterns here
 
+# Local review briefings (reviewer reasoning dumps — never commit findings)
+.cursor/review-briefings/*
+!.cursor/review-briefings/README.md
+!.cursor/review-briefings/TEMPLATE.md
+
 # TLS/SSL Certificates and Keys
 certs/
 *.pem

@@ -171,6 +171,27 @@ Top-3 ratio gain/risque/complexité:
 
 PASS sans finding est une réponse valide. Une hypothèse de perf n'est jamais présentée comme une mesure.
 
+## Briefing persistant (obligatoire)
+
+Après **chaque** revue (PASS ou findings), persiste un briefing pour que l'orchestrateur et les implementers ne refassent pas l'analyse ownership/alloc/CPU. Canevas : `.cursor/review-briefings/TEMPLATE.md`. Contrat : `.cursor/review-briefings/README.md`.
+
+- Fichier : `.cursor/review-briefings/YYYYMMDDTHHMMZ-rust-perf-<scope-slug>-<shortsha>.md`
+- Mets à jour `.cursor/review-briefings/INDEX.md` (crée-le si besoin ; gitignoré)
+- Interdit : secrets, tokens, JWT, connection strings, PII
+- Inclure P0–P3, MEASURE, trade-offs déjà tranchés, **Do not redo** (ex. ne pas re-proposer `unsafe` / `target-cpu=native`)
+
+Si `readonly` refuse `Write`, inclus le markdown **complet** dans ta réponse :
+
+```text
+BRIEFING_PATH: .cursor/review-briefings/<filename>
+BRIEFING_MARKDOWN:
+<<<
+...template rempli...
+>>>
+```
+
+L'orchestrateur écrira le fichier. Ne jamais omettre le briefing parce que l'écriture a échoué.
+
 ## Modification du code
 
 Read-only par défaut. Uniquement sur invocation explicite `APPLY` : appliquer P0/P1/P2 suffisamment certains d'abord, puis compiler, tester, Clippy, mesurer si l'optimisation prétend améliorer la perf. Une optimisation rendant le code plus lent est revert.

@@ -6,7 +6,9 @@ use anyhow::Error;
 use axum::Router;
 use lazaret_application::{empty_command_registry, GrantService, IdentityService, InvokeService};
 use lazaret_configuration::AppConfig;
-use lazaret_domain::{AsyncKvStore, BindingGrantSnapshotPort, ConnectorRegistry, SecretResolver};
+use lazaret_domain::{
+    AsyncKvStore, BindingGrantSnapshotPort, ConnectorRegistry, EnrollmentStore, SecretResolver,
+};
 use lazaret_http::{create_app_routes, create_prefixed_router, create_router};
 use lazaret_infra::{
     build_identity_service, DeniedSecretResolver, HttpBindingGrantClient, KvPurgeEventConsumer,
@@ -64,13 +66,14 @@ impl Application {
             HttpBindingGrantClient::from_config(&config.manifesto_service)
                 .map_err(|e| anyhow::anyhow!("Invalid Manifesto service configuration: {e}"))?,
         );
-        let identity = build_identity_service(&config.identity, snapshots.clone())
+        let identity = build_identity_service(&config.identity, snapshots.clone(), kv_conn.clone())
             .map_err(|e| anyhow::anyhow!("Invalid identity configuration: {e}"))?;
         let grant_service = Arc::new(GrantService::new(snapshots));
         let kv = build_platform_kv(&config, kv_conn)?;
         let secrets = build_secret_resolver(&config)?;
         let connectors = build_named_connectors(&config)?;
-        let kv_event_consumer = maybe_kv_event_consumer(&config.queue, kv.clone()).await?;
+        let kv_event_consumer =
+            maybe_kv_event_consumer(&config.queue, kv.clone(), identity.enrollment_store()).await?;
         let invoke = Arc::new(InvokeService::new(
             identity.clone(),
             grant_service.clone(),
@@ -244,11 +247,12 @@ fn build_named_connectors(config: &AppConfig) -> Result<Arc<NamedConnectorProxy>
 async fn maybe_kv_event_consumer(
     queue: &QueueConfig,
     kv: Arc<dyn AsyncKvStore>,
+    enrollments: Arc<dyn EnrollmentStore>,
 ) -> Result<Option<Arc<KvPurgeEventConsumer>>, Error> {
     if !queue.is_enabled() {
         return Ok(None);
     }
-    let consumer = KvPurgeEventConsumer::new(queue, kv)
+    let consumer = KvPurgeEventConsumer::new(queue, kv, enrollments)
         .await
         .map_err(|e| anyhow::anyhow!("KV event consumer: {e}"))?;
     // Keep no-op so `/ready` can surface `Degraded` (factory_fallback_noop), like Manifesto.

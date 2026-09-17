@@ -12,7 +12,9 @@ use chrono::Utc;
 use common::setup_test_server;
 use fixtures::TestRedis;
 use lazaret_domain::AsyncKvStore;
-use lazaret_infra::{KvPurgeEventHandler, PostgresKvStore, RedisKvStore};
+use lazaret_infra::{
+    InMemoryEnrollmentRegistry, KvPurgeEventHandler, PostgresKvStore, RedisKvStore,
+};
 use manifesto_events::{ComponentAddedEvent, ComponentRemovedEvent, ManifestoDomainEvent};
 use rustycog::events::{DomainEvent, EventHandler};
 use serial_test::serial;
@@ -45,7 +47,8 @@ fn added(component_id: Uuid) -> Box<dyn DomainEvent> {
 }
 
 async fn assert_purge_isolates_neighbor(store: Arc<dyn AsyncKvStore>) {
-    let handler = KvPurgeEventHandler::new(store.clone());
+    let handler =
+        KvPurgeEventHandler::new(store.clone(), Arc::new(InMemoryEnrollmentRegistry::new()));
     let a_id = Uuid::new_v4();
     let b_id = Uuid::new_v4();
     let a = binding(a_id);

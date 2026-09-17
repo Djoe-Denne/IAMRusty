@@ -8,6 +8,10 @@
 ## Trust boundaries canon (dans le prompt security-reviewer)
 Plugin ↔ gateway Lazaret (jamais bearer IAM/HMAC au plugin) ; utilisateur ↔ services (JWT HS256 iss=iamrusty aud=aiforall ; session workload iss/aud=lazaret, autorité distincte) ; Lazaret ↔ Manifesto (grants/consentements close-at-commit, grant_revision) ; service ↔ connecteurs nommés (no-redirect, timeout) ; service ↔ Vault (références opaques secret:{path}#{field}, fail-closed) ; service ↔ DB/Redis (namespace binding_id, bornes KV).
 
+## Review briefings (2026-09-17)
+
+Findings + raisonnement des 4 reviewers → fichiers **gitignorés** `.cursor/review-briefings/` (README + TEMPLATE trackés). Reviewers écrivent (ou `BRIEFING_MARKDOWN` si `readonly`). Orchestrator persiste + INDEX.md. Implementers / hard-implementer / emergency lisent **avant** d'explorer. Stale si SHA / fichiers ont bougé.
+
 ## Routing (orchestrator.md)
 - Local pur → correctness seul. Logique métier/état ou contrat → correctness + test. Hot path/ownership/allocations/async/binary size + diff Rust non trivial → + rust-perf. Surface sécu (auth, permissions, Lazaret, secrets, CI, deps) → security-reviewer (+ équipe si logique métier).
 - `FULL REVIEW` = correctness + test (+ rust-perf si Rust non trivial) (+ security si surface sécu).

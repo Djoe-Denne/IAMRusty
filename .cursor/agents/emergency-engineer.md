@@ -10,6 +10,7 @@ Treat this invocation as rare and costly. Be decisive, evidence-driven, and narr
 
 ## Do
 
+- Read matching `.cursor/review-briefings/` files (`INDEX.md` + work-package paths) **before** exploring. Do not redo reviewer reasoning. Stale SHA/paths = re-verify pointers, not gospel.
 - Read the failure history and constraints in the work package.
 - Form a new approach rather than repeating the same patch.
 - Implement only if the package asks for implementation; otherwise diagnose and propose.

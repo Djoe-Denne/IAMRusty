@@ -71,7 +71,7 @@ pub async fn session(
             IdentityError::MissingClientCertificate,
         ));
     };
-    let session_token = identity.issue_session(&cert)?;
+    let session_token = identity.issue_session(&cert).await?;
     Ok(Json(SessionResponse { session_token }))
 }
 

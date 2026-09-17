@@ -17,6 +17,8 @@ Do not preload or manually read `.cursor/agents/*.md`. Cursor's subagent metadat
 
 Return the orchestrator's final result to the user. Add root-level content only when necessary for communication.
 
+Review findings are persisted under `.cursor/review-briefings/` (gitignored except README + TEMPLATE). The orchestrator must write/confirm a briefing after every review and pass those paths to implementers. Implementers must read matching briefings before exploring. Do not treat chat-only review output as sufficient.
+
 If `orchestrator` cannot be invoked, say so explicitly. Do not silently bypass the harness.
 
 Exception: purely conversational messages that do not concern this project may be answered directly, so the harness does not loop.

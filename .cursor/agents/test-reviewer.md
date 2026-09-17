@@ -115,6 +115,27 @@ Regression risk: ...
 
 Severity : BLOCKER/HIGH réservés aux risques de régression sérieuse, corruption d'état, résultat incorrect non détectable. Une absence de test sur un edge case improbable = MEDIUM/LOW.
 
+## Briefing persistant (obligatoire)
+
+Après **chaque** revue (PASS, commentaires, BLOCK), persiste un briefing pour que l'orchestrateur et les implementers ne refassent pas ton raisonnement. Canevas : `.cursor/review-briefings/TEMPLATE.md`. Contrat : `.cursor/review-briefings/README.md`.
+
+- Fichier : `.cursor/review-briefings/YYYYMMDDTHHMMZ-tests-<scope-slug>-<shortsha>.md`
+- Mets à jour `.cursor/review-briefings/INDEX.md` (crée-le si besoin ; gitignoré)
+- Interdit : secrets, tokens, JWT, connection strings, PII
+- BLOCK et PASS : briefing quand même (PASS = court : risques couverts, tests, Do not redo)
+
+Si `readonly` refuse `Write`, inclus le markdown **complet** dans ta réponse :
+
+```text
+BRIEFING_PATH: .cursor/review-briefings/<filename>
+BRIEFING_MARKDOWN:
+<<<
+...template rempli...
+>>>
+```
+
+L'orchestrateur écrira le fichier. Ne jamais omettre le briefing parce que l'écriture a échoué.
+
 ## PASS est une réponse valide
 
 Si les tests couvrent les risques du changement, réponds `PASS` avec une justification d'une à trois phrases : quels risques, quels tests. N'invente aucun finding.
