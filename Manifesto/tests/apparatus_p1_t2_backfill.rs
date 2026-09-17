@@ -66,21 +66,23 @@ fn t2_backfill_entrypoint_exists() {
     );
 }
 
-/// Nom de la table d'extension (`%apparatus%`) ou RED explicite.
+/// Table d'extension P1 (`apparatus_bindings`) ou RED explicite.
+///
+/// P2/P3 ont ajouté d'autres tables `apparatus_*` ; `apparatus_cleanup_jobs`
+/// n'a pas de FK vers `project_components` par design (ADR-0006).
+/// `LIKE '%apparatus%'` + `rows[0]` est non déterministe (CI a pris cleanup_jobs).
 async fn require_extension_table(db: &Arc<sea_orm::DatabaseConnection>) -> String {
-    let rows = db
-        .query_all(Statement::from_string(
+    let row = db
+        .query_one(Statement::from_string(
             DatabaseBackend::Postgres,
-            "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name LIKE '%apparatus%'".to_owned(),
+            "SELECT table_name FROM information_schema.tables \
+             WHERE table_schema = 'public' AND table_name = 'apparatus_bindings'"
+                .to_owned(),
         ))
         .await
-        .expect("information_schema lisible");
-    assert!(
-        !rows.is_empty(),
-        "RED T2 : aucune table d'extension '%apparatus%' — migration T1 / backfill T2 non implémentés"
-    );
-    rows[0]
-        .try_get::<String>("", "table_name")
+        .expect("information_schema lisible")
+        .expect("RED T2 : table apparatus_bindings absente — migration T1 / backfill T2 non implémentés");
+    row.try_get::<String>("", "table_name")
         .expect("table_name lisible")
 }
 

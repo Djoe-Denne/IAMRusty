@@ -91,6 +91,24 @@ async fn create_managed_with_digest(
     component_id
 }
 
+/// Les tests `#[serial]` réutilisent le Postgres singleton. Un binding managed
+/// laissé par un test précédent (backoff alphabétique, `retry_count` déjà à 1)
+/// redevient dû dès que `now` avance de 301s — d'où 15 = 1 + 7×2 `bind`.
+async fn quarantine_other_due_managed_bindings(db: &DatabaseConnection, keep: Uuid) {
+    db.execute(Statement::from_sql_and_values(
+        DatabaseBackend::Postgres,
+        "UPDATE apparatus_bindings \
+         SET next_retry_at = TIMESTAMPTZ '2099-01-01+00' \
+         WHERE source = 'managed' \
+           AND component_id <> $1 \
+           AND desired_generation > observed_generation \
+           AND NOT (next_retry_at IS NULL AND last_error_code IS NOT NULL)",
+        [keep.into()],
+    ))
+    .await
+    .expect("quarantine leftover due bindings");
+}
+
 async fn lease_row(db: &DatabaseConnection, component_id: Uuid) -> (i64, String) {
     let row = db
         .query_one(Statement::from_sql_and_values(
@@ -438,6 +456,7 @@ async fn t5_bind_fails_until_terminal_excluded() {
         setup_test_server().await.expect("serveur de test");
     let db = fixture.db();
     let component_id = create_managed_with_digest(db.as_ref(), &base_url, &client, &openfga).await;
+    quarantine_other_due_managed_bindings(db.as_ref(), component_id).await;
     let runtime = AlwaysFailBindRuntime::new();
     let mut now = Utc::now() + ChronoDuration::hours(2);
 

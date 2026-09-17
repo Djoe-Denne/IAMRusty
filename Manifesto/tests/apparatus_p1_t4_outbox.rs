@@ -137,19 +137,21 @@ async fn t4_binding_consent_write_failure_rolls_back_atomically() {
         setup_test_server().await.expect("serveur de test");
     let db = fixture.db();
 
-    // RED si la table d'extension est absente : rien à rendre atomique (T1/T2 requis).
-    let tables = db
-        .query_all(Statement::from_string(
+    // P1 = `apparatus_bindings`. P2/P3 ont d'autres `apparatus_*` ; cleanup_jobs
+    // n'a pas de FK vers project_components (ADR-0006). LIKE '%apparatus%' + rows[0]
+    // est non déterministe.
+    let table: String = db
+        .query_one(Statement::from_string(
             DatabaseBackend::Postgres,
-            "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name LIKE '%apparatus%'".to_owned(),
+            "SELECT table_name FROM information_schema.tables \
+             WHERE table_schema = 'public' AND table_name = 'apparatus_bindings'"
+                .to_owned(),
         ))
         .await
-        .expect("information_schema lisible");
-    assert!(
-        !tables.is_empty(),
-        "RED T4 : aucune table d'extension '%apparatus%' — persistance binding+consentement non implémentée"
-    );
-    let table: String = tables[0].try_get("", "table_name").expect("table_name");
+        .expect("information_schema lisible")
+        .expect("RED T4 : table apparatus_bindings absente — persistance binding+consentement non implémentée")
+        .try_get("", "table_name")
+        .expect("table_name");
     let fk_col: String = db
         .query_one(Statement::from_string(
             DatabaseBackend::Postgres,

@@ -175,18 +175,21 @@ async fn t5_extension_row_commits_with_component_write() {
     let (fixture, base_url, client, openfga, _components) =
         setup_test_server().await.expect("serveur de test");
     let db = fixture.db();
-    let tables = db
-        .query_all(Statement::from_string(
+    // P1 = `apparatus_bindings`. P2/P3 ont d'autres `apparatus_*` ; cleanup_jobs
+    // n'a pas de FK vers project_components (ADR-0006). LIKE '%apparatus%' + rows[0]
+    // est non déterministe.
+    let table: String = db
+        .query_one(Statement::from_string(
             DatabaseBackend::Postgres,
-            "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name LIKE '%apparatus%'".to_owned(),
+            "SELECT table_name FROM information_schema.tables \
+             WHERE table_schema = 'public' AND table_name = 'apparatus_bindings'"
+                .to_owned(),
         ))
         .await
-        .expect("information_schema lisible");
-    assert!(
-        !tables.is_empty(),
-        "RED T5 : aucune table d'extension '%apparatus%' — ownership extension non committé"
-    );
-    let table: String = tables[0].try_get("", "table_name").expect("table_name");
+        .expect("information_schema lisible")
+        .expect("RED T5 : table apparatus_bindings absente — ownership extension non committé")
+        .try_get("", "table_name")
+        .expect("table_name");
     let fk_col: String = db
         .query_one(Statement::from_string(
             DatabaseBackend::Postgres,

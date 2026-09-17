@@ -1,7 +1,8 @@
 //! Colonne additive `declared_capabilities` sur `apparatus_bindings`.
 //!
 //! JSONB NOT NULL DEFAULT `[]`. Aucune lecture de manifeste d'artifact :
-//! la liste est fournie à l'INSERT (tests) ou reste vide (fail-closed à l'invoke).
+//! la liste est fournie à l'INSERT (tests) ou reste vide
+//! (fail-closed si `declared_capabilities` est vide / à la frontière de capacité).
 //!
 //! Réversible : `down` retire uniquement cette colonne.
 
