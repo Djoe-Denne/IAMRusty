@@ -20,14 +20,15 @@ sources:
   - docs/apparatus-p3-implementation-prompt.md
   - manifesto-events/src/component.rs
 summary: >-
-  Phases Apparatus : P2 Implemented, Lazaret P3 Partial (T1–T8).
-  P3-close (`kv_purge` ← `component_removed`) livré ; 0007 reste Partial. P4+ pas maintenant.
+  Phases Apparatus : P2 Implemented, Lazaret P3 Partial (T1–T9).
+  P3-close = T8 kv_purge. T9 = chemin public `/lazaret/invoke`.
+  0007 reste Partial. P4+ pas maintenant.
 provenance:
   extracted: 0.34
   inferred: 0.64
   ambiguous: 0.02
 created: 2026-09-09T17:50:00Z
-updated: 2026-09-17T13:50:00Z
+updated: 2026-09-17T17:40:00Z
 ---
 
 # Apparatus — plan d’implémentation et décisions restantes
@@ -71,7 +72,7 @@ Canon : `docs/adr/` ; hub wiki : [[projects/manifesto/decisions/index]]. `Accept
 
 ## Livraison séquencée
 
-**Avancées (2026-09-17)** : P0 contrats livrés ; P1 persistance livrée (0001 Partial) ; P2 **Implemented** (0006) ; P3 **Partial** T1–T8 (0007). P3-close livré (`kv_purge` ← `component_removed`, T8). ADR-0007 reste **Partial** — ce close-out ne le promeut pas en Implemented. P4+ pas maintenant. ^[extracted]
+**Avancées (2026-09-17)** : P0 contrats livrés ; P1 persistance livrée (0001 Partial) ; P2 **Implemented** (0006) ; P3 **Partial** T1–T9 (0007). P3-close livré (`kv_purge` ← `component_removed`, T8). T9 a fermé le hole de chemin invoke public. ADR-0007 reste **Partial** — ce close-out ne le promeut pas en Implemented. P4+ pas maintenant. ^[extracted]
 
 ### P0 — Contrats et Apparatus de référence
 
@@ -112,7 +113,7 @@ P2.1 (CAS update, backoff, `/ready`) est **livré** dans ce jalon.
 
 ### P3 — Frontière de capacités et données
 
-**État 2026-09-17** : [ADR-0007](../../../../../docs/adr/0007-apparatus-p3-capability-boundary-after-accept.md) **Accepted**, Réalité **Partial**. T1–T8 prouvés dans le BC [[projects/lazaret/lazaret]] : identité hybride, grants live Manifesto, consentement, KV Postgres+Redis, secrets-by-ref + Vault fail-closed, proxy nommé, invoke HTTP, `kv_purge` sur `component_removed`. Holes (mTLS complete, OpenBao produit, prefix invoke IT vs prod, APP-05, 0006 G/E) : **pas** Implemented. Conception ci-dessous `^[inferred]`, pas un contrat. Pointeur : [[projects/manifesto/decisions/0007-apparatus-p3-lazaret]].
+**État 2026-09-17** : [ADR-0007](../../../../../docs/adr/0007-apparatus-p3-capability-boundary-after-accept.md) **Accepted**, Réalité **Partial**. T1–T9 prouvés dans le BC [[projects/lazaret/lazaret]] : identité hybride, grants live Manifesto, consentement, KV Postgres+Redis, secrets-by-ref + Vault fail-closed, proxy nommé, invoke HTTP, `kv_purge` sur `component_removed`, chemin public `POST /lazaret/invoke` sur `prefixed_router`. Holes (mTLS complete, OpenBao produit, APP-05, 0006 G/E) : **pas** Implemented. Conception ci-dessous `^[inferred]`, pas un contrat. Pointeur : [[projects/manifesto/decisions/0007-apparatus-p3-lazaret]].
 
 Le mécanisme P3 (identité, grants, consentement, KV, secrets, proxy, invoke) existe en Partial ; Factory, host UI et adapter Kubernetes restent P4+. Les refus sont contrôlés côté serveur et liés au binding courant. Les règles du projet public ne rendent pas le stockage ni l’invoke public par défaut. ^[inferred]
 
@@ -122,7 +123,7 @@ Le mécanisme P3 (identité, grants, consentement, KV, secrets, proxy, invoke) e
 
 **Livré (2026-09-17).** Pas une nouvelle ADR. Canon : [ADR-0007](../../../../../docs/adr/0007-apparatus-p3-capability-boundary-after-accept.md) reste **Accepted / Réalité Partial**. Hub : [[projects/lazaret/lazaret]]. ^[extracted]
 
-Hole `kv_purge` **fermé** : branché sur Manifesto `component_removed` (file dédiée `lazaret-kv-events` / `test-lazaret-kv-events`), **pas** via `ApparatusRuntime::unbind` (0006 G). Preuve : `Lazaret/tests/apparatus_p3_t8_kv_purge.rs` (Postgres + Redis) ; fan-out Manifesto `sqs_event_routing_tests`. Binding voisin intact ; second handle no-op ; autres event types ignorés. Pas de crate `lazaret-events`. 0007 **reste Partial** (mTLS, OpenBao produit, invoke IT vs nest `/lazaret`, APP-05, G/E). ^[extracted]
+Hole `kv_purge` **fermé** : branché sur Manifesto `component_removed` (file dédiée `lazaret-kv-events` / `test-lazaret-kv-events`), **pas** via `ApparatusRuntime::unbind` (0006 G). Preuve : `Lazaret/tests/apparatus_p3_t8_kv_purge.rs` (Postgres + Redis) ; fan-out Manifesto `sqs_event_routing_tests`. Binding voisin intact ; second handle no-op ; autres event types ignorés. Pas de crate `lazaret-events`. 0007 **reste Partial** (mTLS, OpenBao produit, APP-05, G/E). ^[extracted]
 
 **Critères done** (preuves)
 
@@ -133,9 +134,13 @@ Hole `kv_purge` **fermé** : branché sur Manifesto `component_removed` (file d�
 - **Pas** de nouvelle route Manifesto (0006 E).
 - **Pas** d’`ApparatusRuntime::unbind` ni d’`invoke` ajouté au port runtime.
 
-**Hors jalon** (inchangé) : mTLS rustls complete / enrollment T3 in-memory ; OpenBao **produit** dans le compose ; P4 ; APP-03 ; APP-05 ; écart de chemin invoke IT `/invoke` vs nest prod `/lazaret` ; lever 0006 G/E.
+**Hors jalon** (inchangé) : mTLS rustls complete / enrollment T3 in-memory ; OpenBao **produit** dans le compose ; P4 ; APP-03 ; APP-05 ; lever 0006 G/E.
 
 **Ensuite** : les autres holes 0007 restent ouverts. P4+ uniquement sur décision explicite.
+
+#### T9 — chemin public invoke
+
+Hole de chemin **fermé** : `POST /lazaret/invoke` sur `prefixed_router` / `run()` ; `INVOKE_PATH` reste `/invoke` ; `Application::router()` reste non préfixé. Preuve : `Lazaret/tests/apparatus_p3_t9_invoke_prefix.rs`. ADR-0007 **reste Partial**. ^[extracted]
 
 ### P4 — Factory et runtime de production
 
@@ -210,7 +215,7 @@ Le contrôleur nécessite une startup/shutdown contrôlée dans les modes standa
 - [[projects/manifesto/references/manifesto-testing-and-fixtures]] — tests existants.
 - [[projects/sentinel-sync/concepts/db-to-openfga-reconcile]] — reconstruction des droits.
 - [[projects/manifesto/concepts/apparatus-bindings-and-lifecycle]] — contrat détaillé de réconciliation.
-- [[projects/lazaret/concepts/grants-secrets-and-named-proxy]] — KV / hole `kv_purge`.
+- [[projects/lazaret/concepts/grants-secrets-and-named-proxy]] — KV ; hole `kv_purge` fermé (T8).
 - [[projects/manifesto/references/manifesto-event-model]] — `component_removed`.
 - [[journal/2026-09-17]] — distillat du jour.
 

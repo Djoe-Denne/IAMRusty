@@ -3907,6 +3907,7 @@ dependencies = [
  "rustycog-framework",
  "serde",
  "serde_json",
+ "tokio",
  "tower 0.4.13",
  "tracing",
  "uuid",

@@ -7,7 +7,7 @@ use axum::Router;
 use lazaret_application::{empty_command_registry, GrantService, IdentityService, InvokeService};
 use lazaret_configuration::AppConfig;
 use lazaret_domain::{AsyncKvStore, BindingGrantSnapshotPort, ConnectorRegistry, SecretResolver};
-use lazaret_http::{create_app_routes, create_router};
+use lazaret_http::{create_app_routes, create_prefixed_router, create_router};
 use lazaret_infra::{
     build_identity_service, DeniedSecretResolver, HttpBindingGrantClient, KvPurgeEventConsumer,
     NamedConnectorProxy, PostgresKvStore, RedisKvStore, VaultHttpSecretResolver,
@@ -124,6 +124,19 @@ impl Application {
                 self.invoke.clone(),
             ),
             self.readiness.clone(),
+        )
+    }
+
+    /// Router nested under `SERVICE_PREFIX` for standalone/IT only.
+    ///
+    /// The monolith must call [`Self::router`] then nest the prefix once.
+    /// Nesting this router again yields `/lazaret/lazaret` (tests assert 404).
+    pub fn prefixed_router(&self) -> Router {
+        create_prefixed_router(
+            self.state.clone(),
+            self.readiness.clone(),
+            self.identity.clone(),
+            self.invoke.clone(),
         )
     }
 
