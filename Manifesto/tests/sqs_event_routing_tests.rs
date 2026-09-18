@@ -104,7 +104,6 @@ fn is_transient_sqs_setup(message: &str) -> bool {
         "connection reset",
         "broken pipe",
         "timed out",
-        "timeout",
         "error sending request",
     ];
     let lowered = message.to_ascii_lowercase();
@@ -151,12 +150,38 @@ async fn setup_sqs_test_server() -> Result<(TestFixture, String, Client), Box<dy
 
 #[test]
 fn is_transient_sqs_setup_classifies_localstack_dispatch_failure() {
+    // One isolated message per remaining needle: removing that needle must fail its row.
+    const ISOLATED_TRANSIENT: &[&str] = &[
+        "dispatch failure",
+        "failed to create test sqs",
+        "connection refused",
+        "connection reset",
+        "broken pipe",
+        "timed out",
+        "error sending request",
+    ];
+    for message in ISOLATED_TRANSIENT {
+        assert!(
+            is_transient_sqs_setup(message),
+            "expected transient classification for isolated needle {message:?}"
+        );
+    }
+
     assert!(is_transient_sqs_setup(
         r#"Custom("Failed to create test SQS: dispatch failure")"#,
     ));
-    assert!(!is_transient_sqs_setup(
+
+    const PERMANENT: &[&str] = &[
         "OpenFGA authorization model is missing",
-    ));
+        "migration failed: checksum mismatch",
+        "request_timeout_ms configuration invalid",
+    ];
+    for message in PERMANENT {
+        assert!(
+            !is_transient_sqs_setup(message),
+            "expected permanent classification for {message:?}"
+        );
+    }
 }
 
 fn create_test_jwt_token(user_id: Uuid) -> String {
