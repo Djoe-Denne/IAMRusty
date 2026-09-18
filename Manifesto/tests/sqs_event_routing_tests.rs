@@ -96,10 +96,23 @@ impl ServiceTestDescriptor<TestFixture> for ManifestoSqsTestDescriptor {
     }
 }
 
-async fn setup_sqs_test_server() -> Result<(TestFixture, String, Client), Box<dyn std::error::Error>>
-{
-    enable_sqs_for_this_test_binary();
+fn is_transient_sqs_setup(message: &str) -> bool {
+    const NEEDLES: &[&str] = &[
+        "dispatch failure",
+        "failed to create test sqs",
+        "connection refused",
+        "connection reset",
+        "broken pipe",
+        "timed out",
+        "timeout",
+        "error sending request",
+    ];
+    let lowered = message.to_ascii_lowercase();
+    NEEDLES.iter().any(|needle| lowered.contains(needle))
+}
 
+async fn bring_up_sqs_test_server(
+) -> Result<(TestFixture, String, Client), Box<dyn std::error::Error>> {
     let descriptor = Arc::new(ManifestoSqsTestDescriptor);
     let fixture = TestFixture::new(descriptor.clone()).await?;
     let (server_url, client) =
@@ -107,6 +120,43 @@ async fn setup_sqs_test_server() -> Result<(TestFixture, String, Client), Box<dy
             .await?;
 
     Ok((fixture, format!("{server_url}{SERVICE_PREFIX}"), client))
+}
+
+async fn setup_sqs_test_server() -> Result<(TestFixture, String, Client), Box<dyn std::error::Error>>
+{
+    enable_sqs_for_this_test_binary();
+
+    const MAX_ATTEMPTS: u32 = 8;
+    for attempt in 1..=MAX_ATTEMPTS {
+        match bring_up_sqs_test_server().await {
+            Ok(ok) => return Ok(ok),
+            Err(err) => {
+                if !is_transient_sqs_setup(&err.to_string()) {
+                    return Err(err);
+                }
+                eprintln!(
+                    "transient Manifesto SQS setup failure (attempt {attempt}/{MAX_ATTEMPTS}): {err}"
+                );
+                if attempt == MAX_ATTEMPTS {
+                    return Err(err);
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(250 * u64::from(attempt)))
+                    .await;
+            }
+        }
+    }
+
+    Err("exhausted SQS setup retries".into())
+}
+
+#[test]
+fn is_transient_sqs_setup_classifies_localstack_dispatch_failure() {
+    assert!(is_transient_sqs_setup(
+        r#"Custom("Failed to create test SQS: dispatch failure")"#,
+    ));
+    assert!(!is_transient_sqs_setup(
+        "OpenFGA authorization model is missing",
+    ));
 }
 
 fn create_test_jwt_token(user_id: Uuid) -> String {

@@ -1,12 +1,16 @@
 ---
-title: "Apparatus — index des ADR"
+title: >-
+  Apparatus — index des ADR
 category: references
 tags: [architecture, components, visibility/internal]
 status: accepted
 feature_status: partial
-summary: "Hub ADR Apparatus 0001–0007 Accepted. P2 (0006) Implemented ; 0007 Partial (T1–T7, pas Implemented) ; 0001–0005 Partial. Factory/host hors livré."
+summary: >-
+  Hub ADR Apparatus 0001–0007 Accepted. P2 (0006) Implemented ; 0007
+  Partial (T1–T10, pas Implemented) ; 0001–0005 Partial. Factory/host hors
+  livré.
 created: 2026-09-10T06:32:00Z
-updated: 2026-09-17T10:55:00Z
+updated: 2026-09-18T13:45:00Z
 sources:
   - docs/adr/README.md
   - docs/adr/0001-apparatus-binding-owned-by-manifesto.md
@@ -45,7 +49,7 @@ Les ADR Apparatus 0001–0007 sont **Accepted**. `Accepted` fixe une cible ; il 
 | [0006](../../../../../docs/adr/0006-apparatus-p2-reconciliation-in-process.md) — [[projects/manifesto/decisions/0006-apparatus-p2-reconciliation]] | Réconciliation P2 = contrôleur in-process Manifesto, sans infra réelle | Implemented |
 | [0007](../../../../../docs/adr/0007-apparatus-p3-capability-boundary-after-accept.md) — [[projects/manifesto/decisions/0007-apparatus-p3-lazaret]] | Frontière P3 = BC Lazaret, distinct de Manifesto ; 0006 G et E restent | Partial |
 
-Preuve P0 : [[projects/manifesto/concepts/apparatus-p0-contracts]]. Preuve P1 : [[projects/manifesto/concepts/apparatus-p1-persistence]]. ADR-0006 Accepted 2026-09-12 ; Réalité Implemented (T1–T7 + writer §D). Concept : [[projects/manifesto/concepts/apparatus-p2-reconciliation]]. ADR-0007 Accepted 2026-09-13 ; Réalité Partial (T1–T7 prouvés dans `e978cd0` ; holes dans le canon ADR ; pas Implemented). Service : [[projects/lazaret/lazaret]]. Pointeur : [[projects/manifesto/decisions/0007-apparatus-p3-lazaret]].
+Preuve P0 : [[projects/manifesto/concepts/apparatus-p0-contracts]]. Preuve P1 : [[projects/manifesto/concepts/apparatus-p1-persistence]]. ADR-0006 Accepted 2026-09-12 ; Réalité Implemented (T1–T7 + writer §D). Concept : [[projects/manifesto/concepts/apparatus-p2-reconciliation]]. ADR-0007 Accepted 2026-09-13 ; Réalité Partial (T1–T10 : T8 `f0cf1d2`, T10 `9e85edd` ; holes dans le canon ADR ; pas Implemented). Service : [[projects/lazaret/lazaret]]. Pointeur : [[projects/manifesto/decisions/0007-apparatus-p3-lazaret]].
 
 ## Conception (pas des ADR)
 

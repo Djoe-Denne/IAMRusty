@@ -1,8 +1,9 @@
 ---
-title: "Apparatus — plateforme d’extensions future"
+title: >-
+  Apparatus — plateforme d’extensions future
 category: concepts
 tags: [projects, components, architecture, roadmap, visibility/internal]
-aliases: [Apparatus, Apparatus Control Plane]
+aliases: [Apparatus, Apparatus Control Plane, Paravretius]
 status: proposed
 feature_status: future
 sources:
@@ -13,13 +14,15 @@ sources:
   - monolith/src/runtime.rs
   - apparatus-contracts/src/lib.rs
   - docs/adr/0002-apparatus-contract-first.md
-summary: "Vision Apparatus : P0/P1 livrés, P2 Implemented, Lazaret P3 Partial ; Factory/host/K8s hors livré."
+summary: >-
+  Vision Apparatus : P0/P1 livrés, P2 Implemented, Lazaret P3 Partial ;
+  Factory/host/K8s hors livré. Alias historique Paravretius.
 provenance:
   extracted: 0.55
   inferred: 0.45
   ambiguous: 0.0
 created: 2026-09-09T17:50:00Z
-updated: 2026-09-17T10:55:00Z
+updated: 2026-09-18T13:45:00Z
 ---
 
 # Apparatus — plateforme d’extensions future
@@ -27,7 +30,7 @@ updated: 2026-09-17T10:55:00Z
 > [!important] Proposition, pas fonctionnalité livrée
 > Le document utilisateur exprime une intention produit. Le code du dépôt fait foi pour l’existant. Ce dossier reste le **rationnel de conception**. Les invariants de la vague 1 sont ADR **Accepted** ([[projects/manifesto/decisions/index]]). P0 : [[projects/manifesto/concepts/apparatus-p0-contracts]] ; P1 : [[projects/manifesto/concepts/apparatus-p1-persistence]] ; P2 in-process **Implemented** : [[projects/manifesto/concepts/apparatus-p2-reconciliation]] ; frontière P3 **Partial** : [[projects/lazaret/lazaret]] ; Factory, gateway K8s et host UI restent absents.
 
-Un **Apparatus** apporte une capacité fonctionnelle à un projet : Git, wiki, kanban, CI ou outil spécialisé. Officiels et communautaires utilisent le même contrat. Le développeur fournit du Rust, éventuellement une interface statique, un manifeste et un dépôt Git ; la plateforme prend en charge la construction, la distribution et l’exécution. Ces exigences viennent du document fourni.
+Un **Apparatus** apporte une capacité fonctionnelle à un projet : Git, wiki, kanban, CI ou outil spécialisé. Officiels et communautaires utilisent le même contrat. Le développeur fournit du Rust, éventuellement une interface statique, un manifeste et un dépôt Git ; la plateforme prend en charge la construction, la distribution et l’exécution. Ces exigences viennent du document fourni. **Paravretius** est un nom historique pour cette plateforme : zéro hit dans le code — canon ici et BC P3 [[projects/lazaret/lazaret]]. Détail : [[entities/paravretius]]. ^[extracted]
 
 La base actuelle est [[projects/manifesto/concepts/component-based-project-orchestration]] : Manifesto sait attacher un `ProjectComponent`, contrôler ses droits et recevoir des changements de statut. Il ne possède pas encore la Factory, le catalogue versionné, le contrôleur de workloads ni le host UI décrits ici. La photographie technique et les preuves sont dans [[projects/manifesto/references/apparatus-source-reconciliation]].
 
@@ -117,4 +120,5 @@ Un développeur soumet un commit d’un Apparatus de référence ; la plateforme
 - [[projects/manifesto/concepts/component-instance-permissions]] — conserver les droits par instance.
 - [[projects/manifesto/concepts/immediate-membership-acl]] — l’état DB des membres reste décisif.
 - [[projects/lazaret/lazaret]] — frontière P3 Partial.
+- [[entities/paravretius]] — alias historique, absent du code.
 - [[projects/aiforall/roadmap]] — inscription de cette fonctionnalité future.

@@ -2,21 +2,23 @@
   "version": 1,
   "stats": {
     "total_sources_ingested": 320,
-    "total_pages": 192,
-    "last_commit_synced": "e978cd0db05bb5d5443bc58a8e44c2a4751f8095"
+    "total_pages": 194,
+    "last_commit_synced": "9e85edd92a0f4e2007a75ebdb3c8d3ef9c29465a"
   },
   "projects": {
     "aiforall": {
       "source_cwd": "C:/Users/djden/source/repos/AIForAll",
-      "last_synced": "2026-09-17T10:55:00Z",
-      "last_commit_synced": "e978cd0db05bb5d5443bc58a8e44c2a4751f8095",
-      "sync_note": "chat+commit since 7455ee5: P2 Implemented, architecte, Lazaret P3 Partial",
+      "last_synced": "2026-09-18T13:45:00Z",
+      "last_commit_synced": "9e85edd92a0f4e2007a75ebdb3c8d3ef9c29465a",
+      "sync_note": "since e978cd0: Paravretius alias Apparatus; Lazaret T8 f0cf1d2 kv_purge + T10 9e85edd apparatus_enrollments; Manifesto SQS LocalStack CreateQueue flake (run 35266261797) retry harness not src regression",
       "conversations_ingested": 56,
       "conversations_total": 91,
       "pages_in_vault": [
         "projects/aiforall/aiforall.md",
         "projects/lazaret/lazaret.md",
-        "journal/2026-09-17.md"
+        "journal/2026-09-17.md",
+        "journal/2026-09-18.md",
+        "entities/paravretius.md"
       ]
     }
   },

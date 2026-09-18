@@ -14,12 +14,13 @@ sources:
 summary: >-
   Grant = intersection live Manifesto. Secrets secret:{path}#{field}, jamais
   en clair dans le KV plugin. Sortie réseau = nom opérateur, jamais une URL.
+  T8 kv_purge sur component_removed (file lazaret-kv-events, f0cf1d2).
 provenance:
   extracted: 0.86
   inferred: 0.12
   ambiguous: 0.02
 created: 2026-09-17T10:55:00Z
-updated: 2026-09-17T11:20:00Z
+updated: 2026-09-18T13:45:00Z
 ---
 
 # Grants, secrets opaques et proxy nommé
@@ -36,7 +37,7 @@ Consent write / révocation : close-at-commit côté Manifesto (preuve T5). Le p
 
 Port async derrière `apparatus_contracts::KvStore`. Adapters Postgres + Redis (T6). Namespacing par binding. Le plaintext des secrets **n’entre pas** dans le KV plugin.
 
-P3-close livré : `kv_purge` sur Manifesto `component_removed` (file `lazaret-kv-events`, T8). 0007 **reste Partial**. ^[extracted]
+P3-close livré : `kv_purge` sur Manifesto `component_removed` (file `lazaret-kv-events`, T8, land `f0cf1d2`). 0007 **reste Partial**. ^[extracted]
 
 ## Secrets
 

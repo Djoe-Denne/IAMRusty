@@ -10,14 +10,15 @@ sources:
   - Lazaret/application/src/identity.rs
   - Lazaret/http/src/lib.rs
 summary: >-
-  Enroll CSR anonyme puis session EdDSA iss/aud=lazaret. Un jeton valide
-  n’autorise pas : Manifesto live reste obligatoire.
+  Enroll CSR anonyme puis session EdDSA iss/aud=lazaret. T10 : enrollment
+  persisté Postgres `apparatus_enrollments` (9e85edd) ; revoke on
+  component_removed. Un jeton valide n’autorise pas.
 provenance:
   extracted: 0.88
   inferred: 0.10
   ambiguous: 0.02
 created: 2026-09-17T10:55:00Z
-updated: 2026-09-17T10:55:00Z
+updated: 2026-09-18T13:45:00Z
 ---
 
 # Identité workload Lazaret
@@ -42,6 +43,10 @@ Choix figés sur le code alors non commité, puis landés dans `e978cd0` :
 - Enroll **reste anonyme**, mais consult Manifesto + CSR **forcé**. ^[inferred]
 
 Routes HTTP d’identité : `POST /lazaret/enroll`, `POST /lazaret/session`. Le routeur identité n’empile pas le middleware JWT utilisateur rustycog. `[auth.jwt]` existe pour `UserIdExtractor` / `AppState` seulement.
+
+## T10 — persist Postgres (`9e85edd`)
+
+L’enrollment n’est plus seulement in-memory : table `apparatus_enrollments` côté Postgres Lazaret. Révocation sur Manifesto `component_removed`. Le hole T3 in-memory est **fermé**. Land : `9e85edd` (le message de commit « cursor review briefing » est trompeur). ^[extracted]
 
 ## Related
 

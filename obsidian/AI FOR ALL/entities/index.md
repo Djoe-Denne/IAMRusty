@@ -1,7 +1,12 @@
 ---
-title: Entities Index
+title: >-
+  Entities Index
 category: navigation
 tags: [index, entities, navigation]
+summary: >-
+  Glossaire des noms métier et entités techniques ; inclut Paravretius
+  (alias historique Apparatus).
+updated: 2026-09-18T13:45:00Z
 ---
 
 # Entities Index
@@ -12,6 +17,7 @@ For crate-by-crate RustyCog behavior, use [[projects/rustycog/references/index]]
 
 ## Global Entities
 
+- [[entities/paravretius]] — nom historique ; canon Apparatus / Lazaret
 - [[entities/user]]
 - [[entities/organization]]
 - [[entities/project]]

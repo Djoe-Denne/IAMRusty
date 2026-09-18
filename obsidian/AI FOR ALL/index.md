@@ -1,15 +1,16 @@
 ﻿---
-title: Wiki Index
+title: >-
+  Wiki Index
 category: navigation
 tags: [index, navigation, wiki]
 summary: >-
   Index wiki AIForAll : ADR vague 2, P2 Implemented, Lazaret P3 Partial
-  (HEAD e978cd0).
+  T1–T10 (HEAD 9e85edd).
 provenance:
   extracted: 0.75
   inferred: 0.23
   ambiguous: 0.02
-updated: 2026-09-17T10:55:00Z
+updated: 2026-09-18T13:45:00Z
 sources:
   - "C:/Users/djden/.codex/attachments/486d0052-5759-4277-bcc1-9f209ce353d4/pasted-text.txt"
   - docs/adr/README.md
@@ -52,14 +53,16 @@ Central entry point for this vault. Use the area indexes for full catalogs; use 
 - [[projects/manifesto/concepts/apparatus-p0-contracts]] — crates P0 livrées + audit + P0.1 42/42.
 - [[projects/manifesto/concepts/apparatus-p1-persistence]] — persistance P1 T1–T7 (commit `7455ee5`).
 - [[projects/manifesto/concepts/apparatus-p2-reconciliation]] — ticker in-process **Implemented**.
-- [[projects/lazaret/lazaret]] — frontière P3 Partial (T1–T7, holes ADR).
-- [[projects/manifesto/concepts/apparatus-platform]] — vision ; Factory/host encore absents.
+- [[projects/lazaret/lazaret]] — frontière P3 Partial (T1–T10, holes ADR).
+- [[projects/manifesto/concepts/apparatus-platform]] — vision ; Factory/host encore absents. Alias [[entities/paravretius]].
 - [[projects/manifesto/references/apparatus-implementation-plan]] — phases et preuves P0–P3.
 
 ## Recent Additions
 
+- [[journal/2026-09-18]] — HEAD `9e85edd` : T8 `kv_purge` `f0cf1d2`, T10 enrollment `9e85edd`, flake CI SQS LocalStack.
+- [[entities/paravretius]] — nom historique ; canon Apparatus / Lazaret ; absent du code.
+- [[projects/lazaret/lazaret]] — P3 Partial T1–T10 (T8 file `lazaret-kv-events`, T10 `apparatus_enrollments`).
 - [[journal/2026-09-17]] — HEAD `e978cd0` : P2 Implemented, Architecte, Lazaret P3 Partial.
-- [[projects/lazaret/lazaret]] — BC capacités/données, `/lazaret` :8084.
 - [[projects/aiforall/concepts/architecte-agent]] — ADR Proposed + contrat, pas 0100–0502.
 - [[journal/2026-09-13]] — P2 alors Partial dans HEAD `7455ee5`.
 - [[projects/manifesto/concepts/apparatus-p2-reconciliation]] — ticker, T1–T7, écarts A/D/I.
