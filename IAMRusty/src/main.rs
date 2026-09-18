@@ -29,6 +29,7 @@ async fn main() -> anyhow::Result<()> {
         } else {
             String::new()
         },
+        tls_client_ca_path: config.server.tls_client_ca_path.clone(),
         tls_port: if config.server.tls_enabled {
             config.server.tls_port
         } else {

@@ -2,13 +2,15 @@
 
 use std::sync::Arc;
 
-use axum::extract::Extension;
+use axum::extract::{Extension, Request};
+use axum::middleware::Next;
+use axum::response::Response;
 use axum::Router;
 use lazaret_application::{IdentityService, InvokeService};
 use lazaret_configuration::ServerConfig;
+use lazaret_domain::VerifiedClientCertificate;
 use readiness::{attach_ready, ReadinessProbe};
-use rustycog::http::{AppState, RouteBuilder};
-use tower::layer::util::Identity;
+use rustycog::http::{AppState, PeerClientCertificate, RouteBuilder};
 
 mod error;
 mod handlers;
@@ -16,6 +18,37 @@ mod invoke;
 
 /// Bounded-context path for standalone and monolith embedding.
 pub const SERVICE_PREFIX: &str = "/lazaret";
+
+fn is_session_path(path: &str) -> bool {
+    path == "/session" || path.strip_prefix(SERVICE_PREFIX) == Some("/session")
+}
+
+/// Map rustycog's accepted peer cert onto Lazaret's typed extension.
+///
+/// rustycog attaches [`PeerClientCertificate`] when `tls_client_ca_path` is set
+/// (handshake leaf only). Fail-closed: never copy `X-SSL-Client-Cert` or other
+/// TLS terminator headers into [`PeerClientCertificate`] or
+/// [`VerifiedClientCertificate`].
+///
+/// Tests may still inject [`VerifiedClientCertificate`] via `extensions_mut`;
+/// do not overwrite an existing value (T3/T10 in-process). Mapping runs only
+/// for `/session` and `{SERVICE_PREFIX}/session`.
+async fn map_peer_client_certificate(mut req: Request, next: Next) -> Response {
+    if is_session_path(req.uri().path())
+        && req
+            .extensions()
+            .get::<VerifiedClientCertificate>()
+            .is_none()
+    {
+        if let Some(PeerClientCertificate { der }) =
+            req.extensions_mut().remove::<PeerClientCertificate>()
+        {
+            req.extensions_mut()
+                .insert(VerifiedClientCertificate::from_der(der));
+        }
+    }
+    next.run(req).await
+}
 
 /// Unprefixed router (`/health`, `/enroll`, `/session`). Nested under [`SERVICE_PREFIX`] by the monolith.
 pub fn create_router(
@@ -31,10 +64,7 @@ pub fn create_router(
         .into_router()
         .layer(Extension(identity))
         .layer(Extension(invoke))
-        // rustycog HTTP does not expose a TLS client certificate. Cleartext
-        // requests therefore never carry `VerifiedClientCertificate`; `/session`
-        // returns 401 until a terminator or test inserts the extension.
-        .layer(Identity::new())
+        .layer(axum::middleware::from_fn(map_peer_client_certificate))
 }
 
 /// Nest `inner` under [`SERVICE_PREFIX`] once.

@@ -56,6 +56,9 @@ tracing-subscriber = { workspace = true }
 serial_test = { workspace = true }
 async-trait = { workspace = true }
 reqwest = { workspace = true }
+readiness = { path = "../readiness" }
+tempfile = { workspace = true }
+rustls = { workspace = true }
 wiremock = { workspace = true }
 sea-orm = { workspace = true }
 jsonwebtoken = { workspace = true }

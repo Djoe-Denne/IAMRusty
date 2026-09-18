@@ -164,6 +164,12 @@ impl PlatformInternalCa {
             .map_err(|e| IdentityError::CaFailure(e.to_string()))?;
         Ok(Self { cert, key })
     }
+
+    /// PEM of the CA certificate only (no private key).
+    #[must_use]
+    pub fn cert_pem(&self) -> String {
+        self.cert.pem()
+    }
 }
 
 impl CertificateAuthority for PlatformInternalCa {
@@ -365,4 +371,22 @@ fn fill_random(buf: &mut [u8]) -> Result<(), IdentityError> {
     rand::thread_rng()
         .try_fill_bytes(buf)
         .map_err(|e| IdentityError::SigningMaterial(e.to_string()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn platform_ca_cert_pem_excludes_private_key() {
+        let pem = PlatformInternalCa::new().expect("platform ca").cert_pem();
+        assert!(
+            pem.contains("BEGIN CERTIFICATE"),
+            "cert_pem must include a certificate"
+        );
+        assert!(
+            !pem.contains("PRIVATE KEY"),
+            "cert_pem must not include the CA private key"
+        );
+    }
 }

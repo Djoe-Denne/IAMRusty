@@ -22,6 +22,7 @@ pub fn load_monolith_config() -> anyhow::Result<MonolithConfig> {
         tls_enabled: false,
         tls_cert_path: String::new(),
         tls_key_path: String::new(),
+        tls_client_ca_path: String::new(),
         tls_port: 0,
     };
 
