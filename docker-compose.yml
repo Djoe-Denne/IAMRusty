@@ -98,6 +98,60 @@ services:
     networks:
       - aiforall-network
 
+  # OpenBao — local secrets product (Vault-compatible HTTP KV v2 at secret/).
+  # -dev is ephemeral (no durable volume). Root token is a local secret like HS256.
+  # OpenBao CLI prefers BAO_ADDR/BAO_TOKEN; healthcheck uses
+  # VAULT_ADDR=http://127.0.0.1:8200 as specified; VAULT_* aliases kept because
+  # OpenBao accepts them. Image ENTRYPOINT is docker-entrypoint.sh (wraps `bao`).
+  openbao:
+    image: openbao/openbao:2.6.2
+    ports:
+      - "8200:8200"
+    cap_add:
+      - IPC_LOCK
+    environment:
+      BAO_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+      BAO_DEV_ROOT_TOKEN_ID: lazaret-dev-root
+      VAULT_DEV_ROOT_TOKEN_ID: lazaret-dev-root
+      BAO_ADDR: http://127.0.0.1:8200
+      VAULT_ADDR: http://127.0.0.1:8200
+    command:
+      - server
+      - -dev
+      - -dev-listen-address=0.0.0.0:8200
+      - -dev-root-token-id=lazaret-dev-root
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "VAULT_ADDR=http://127.0.0.1:8200 BAO_ADDR=http://127.0.0.1:8200 bao status || wget -q -O /dev/null http://127.0.0.1:8200/v1/sys/health",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - aiforall-network
+
+  # Seed KV v2 at secret/ops/token (T7 shape secret:ops/token#token).
+  # Oneshot then exit 0 (pattern openfga-migrate). Entrypoint overridden to bao
+  # so docker-entrypoint.sh does not wrap a non-server CLI poorly.
+  openbao-seed:
+    image: openbao/openbao:2.6.2
+    environment:
+      BAO_ADDR: http://openbao:8200
+      VAULT_ADDR: http://openbao:8200
+      BAO_TOKEN: lazaret-dev-root
+      VAULT_TOKEN: lazaret-dev-root
+    depends_on:
+      openbao:
+        condition: service_healthy
+    entrypoint: ["bao"]
+    command: ["kv", "put", "secret/ops/token", "token=compose-dev-secret"]
+    networks:
+      - aiforall-network
+
   # IAMRusty Service
   iam-service:
     build:
@@ -234,6 +288,10 @@ services:
         condition: service_completed_successfully
       openfga:
         condition: service_healthy
+      openbao:
+        condition: service_healthy
+      openbao-seed:
+        condition: service_completed_successfully
     networks:
       - aiforall-network
 

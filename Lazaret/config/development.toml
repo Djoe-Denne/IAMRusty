@@ -61,8 +61,8 @@ hostname = "127.0.0.1"
 port = 6379
 
 [vault]
-base_url = ""
-token = ""
+base_url = "http://openbao:8200"
+token = "lazaret-dev-root"
 mount = "secret"
 
 [logging]
