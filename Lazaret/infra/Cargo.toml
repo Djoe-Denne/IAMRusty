@@ -31,3 +31,7 @@ tracing = { workspace = true }
 urlencoding = "2.1"
 uuid = { workspace = true }
 futures = { workspace = true }
+x509-parser = "0.16"
+
+[dev-dependencies]
+tempfile = { workspace = true }

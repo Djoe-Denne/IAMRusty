@@ -13,6 +13,8 @@ audience = "aiforall"
 [identity]
 session_ttl_minutes = 15
 cert_ttl_hours = 24
+ca_cert_pem_path = ""
+ca_key_pem_path = ""
 
 [database]
 host = "localhost"

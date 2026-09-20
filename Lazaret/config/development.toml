@@ -5,7 +5,11 @@
 [server]
 host = "0.0.0.0"
 port = 8080
-tls_enabled = false
+tls_enabled = true
+tls_port = 8080
+tls_cert_path = "/app/certs/server.crt"
+tls_key_path = "/app/certs/server.key"
+tls_client_ca_path = "/app/certs/ca.crt"
 
 [auth.jwt]
 hs256_secret = "rustycog-dev-hs256-secret"
@@ -15,6 +19,8 @@ audience = "aiforall"
 [identity]
 session_ttl_minutes = 15
 cert_ttl_hours = 24
+ca_cert_pem_path = "/app/certs/ca.crt"
+ca_key_pem_path = "/app/certs/ca.key"
 
 [database]
 host = "postgres"

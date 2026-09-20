@@ -270,13 +270,14 @@ services:
       context: .
       dockerfile: Lazaret/Dockerfile
     ports:
-      - "8084:8080"   # HTTP port
+      - "8084:8080"   # HTTPS (tls_port 8080)
     environment:
       - RUST_ENVIRONMENT=development
       - DATABASE_URL=postgres://postgres:postgres@postgres:5432/lazaret_dev
       - LAZARET_MANIFESTO_SERVICE__HS256_SECRET=manifesto-grant-snapshot-dev-hs256
     volumes:
       - ./Lazaret/config:/app/config
+      - ./Lazaret/certs:/app/certs
     depends_on:
       postgres:
         condition: service_healthy

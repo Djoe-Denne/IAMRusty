@@ -12,6 +12,9 @@ pub const DEFAULT_SESSION_TTL_MINUTES: u64 = 15;
 /// Implementation default for issued client-certificate TTL (not an Accepted frozen number).
 pub const DEFAULT_CERT_TTL_HOURS: u64 = 24;
 
+/// Implementation default for platform CA certificate TTL (not an Accepted frozen number).
+pub const DEFAULT_CA_TTL_HOURS: u64 = 24 * 365;
+
 /// Software product name of the in-process platform CA (not a commercial PKI).
 pub const PLATFORM_INTERNAL_CA_PRODUCT: &str = "platform-internal-ca";
 

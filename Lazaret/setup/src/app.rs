@@ -1,5 +1,6 @@
 //! Composition root: typed config, pool, empty registry, deny-all checker, workload identity.
 
+use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::Error;
@@ -7,12 +8,14 @@ use axum::Router;
 use lazaret_application::{empty_command_registry, GrantService, IdentityService, InvokeService};
 use lazaret_configuration::AppConfig;
 use lazaret_domain::{
-    AsyncKvStore, BindingGrantSnapshotPort, ConnectorRegistry, EnrollmentStore, SecretResolver,
+    AsyncKvStore, BindingGrantSnapshotPort, ConnectorRegistry, EnrollmentStore, IdentityError,
+    SecretResolver,
 };
 use lazaret_http::{create_app_routes, create_prefixed_router, create_router};
 use lazaret_infra::{
     build_identity_service, DeniedSecretResolver, HttpBindingGrantClient, KvPurgeEventConsumer,
-    NamedConnectorProxy, PostgresKvStore, RedisKvStore, VaultHttpSecretResolver,
+    NamedConnectorProxy, PlatformInternalCa, PostgresKvStore, RedisKvStore,
+    VaultHttpSecretResolver,
 };
 use readiness::{attach_ready, ComponentStatus, ReadinessProbe};
 use rustycog::command::GenericCommandService;
@@ -66,8 +69,11 @@ impl Application {
             HttpBindingGrantClient::from_config(&config.manifesto_service)
                 .map_err(|e| anyhow::anyhow!("Invalid Manifesto service configuration: {e}"))?,
         );
-        let identity = build_identity_service(&config.identity, snapshots.clone(), kv_conn.clone())
-            .map_err(|e| anyhow::anyhow!("Invalid identity configuration: {e}"))?;
+        let (identity, ca) =
+            build_identity_service(&config.identity, snapshots.clone(), kv_conn.clone())
+                .map_err(|e| anyhow::anyhow!("Invalid identity configuration: {e}"))?;
+        ensure_boot_tls(&ca, &config.server)
+            .map_err(|e| anyhow::anyhow!("Invalid TLS material: {e}"))?;
         let grant_service = Arc::new(GrantService::new(snapshots));
         let kv = build_platform_kv(&config, kv_conn)?;
         let secrets = build_secret_resolver(&config)?;
@@ -197,6 +203,20 @@ impl AppBuilder {
     pub async fn build(self) -> Result<Application, anyhow::Error> {
         Application::new(self.config).await
     }
+}
+
+fn ensure_boot_tls(ca: &PlatformInternalCa, server: &ServerConfig) -> Result<(), IdentityError> {
+    if !server.tls_enabled {
+        return Ok(());
+    }
+    ca.ensure_server_leaf(
+        Path::new(&server.tls_cert_path),
+        Path::new(&server.tls_key_path),
+    )?;
+    if !server.tls_client_ca_path.trim().is_empty() {
+        ca.write_trust_anchor(Path::new(&server.tls_client_ca_path))?;
+    }
+    Ok(())
 }
 
 fn build_platform_kv(

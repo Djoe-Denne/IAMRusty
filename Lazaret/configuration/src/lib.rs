@@ -25,6 +25,12 @@ pub struct IdentityConfig {
     /// Optional dedicated Ed25519 PKCS#8 PEM. Empty/dev → ephemeral key at boot.
     #[serde(default)]
     pub session_signing_key_pem: Option<String>,
+    /// Platform CA certificate PEM path. Empty/whitespace → ephemeral in-process CA.
+    #[serde(default)]
+    pub ca_cert_pem_path: String,
+    /// Platform CA private-key PEM path. Empty/whitespace → ephemeral in-process CA.
+    #[serde(default)]
+    pub ca_key_pem_path: String,
 }
 
 impl Default for IdentityConfig {
@@ -33,6 +39,8 @@ impl Default for IdentityConfig {
             session_ttl_minutes: default_session_ttl_minutes(),
             cert_ttl_hours: default_cert_ttl_hours(),
             session_signing_key_pem: None,
+            ca_cert_pem_path: String::new(),
+            ca_key_pem_path: String::new(),
         }
     }
 }
@@ -286,8 +294,12 @@ mod tests {
         assert_eq!(identity.session_ttl_minutes, DEFAULT_SESSION_TTL_MINUTES);
         assert_eq!(identity.cert_ttl_hours, DEFAULT_CERT_TTL_HOURS);
         assert!(identity.session_signing_key_pem.is_none());
+        assert!(identity.ca_cert_pem_path.is_empty());
+        assert!(identity.ca_key_pem_path.is_empty());
         let app = AppConfig::default();
         assert!(app.identity.session_signing_key_pem.is_none());
+        assert!(app.identity.ca_cert_pem_path.is_empty());
+        assert!(app.identity.ca_key_pem_path.is_empty());
         assert_ne!(
             format!("{:?}", app.identity),
             format!("{:?}", app.auth),

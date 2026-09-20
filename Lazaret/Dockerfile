@@ -40,7 +40,7 @@ EXPOSE 8080
 
 # Health check (prefixed router)
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:8080/lazaret/health || exit 1
+  CMD curl -fk https://localhost:8080/lazaret/health || exit 1
 
 # Set entrypoint
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
