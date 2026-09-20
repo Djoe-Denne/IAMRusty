@@ -86,3 +86,7 @@ aws-config = { workspace = true }
 aws-credential-types = { workspace = true }
 iam-infra = { path = "infra", features = ["test-utils", "test-relaxed-jwt"] }
 rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full", "test-utils"] }
+readiness = { path = "../readiness" }
+tempfile = { workspace = true }
+rustls = { workspace = true }
+rcgen = { workspace = true }

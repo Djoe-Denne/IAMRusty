@@ -152,6 +152,16 @@ services:
     networks:
       - aiforall-network
 
+  # Platform mesh CA + leaves (Hive/IAM/Telegraph). Distinct from Lazaret CA.
+  platform-mesh-certs:
+    image: alpine:3.20
+    volumes:
+      - ./certs/platform-mesh:/certs
+      - ./scripts/generate-platform-mesh-certs.sh:/generate-platform-mesh-certs.sh:ro
+    command: ["sh", "-c", "apk add --no-cache openssl && sh /generate-platform-mesh-certs.sh"]
+    networks:
+      - aiforall-network
+
   # IAMRusty Service
   iam-service:
     build:
@@ -159,6 +169,7 @@ services:
       dockerfile: IAMRusty/Dockerfile
     ports:
       - "8080:8080"   # HTTP port
+      - "8443:8443"   # HTTPS
     env_file:
       - path: IAMRusty/.env
         required: false
@@ -170,6 +181,7 @@ services:
       - DATABASE_URL=postgres://postgres:postgres@postgres:5432/iam_dev
     volumes:
       - ./IAMRusty/config:/app/config
+      - ./certs/platform-mesh:/app/certs
     depends_on:
       postgres:
         condition: service_healthy
@@ -181,6 +193,8 @@ services:
         condition: service_completed_successfully
       openfga:
         condition: service_healthy
+      platform-mesh-certs:
+        condition: service_completed_successfully
     networks:
       - aiforall-network
 
@@ -191,6 +205,7 @@ services:
       dockerfile: Telegraph/Dockerfile
     ports:
       - "8081:8080"   # HTTP port (different from IAM to avoid conflicts)
+      - "8444:8443"   # HTTPS
     env_file:
       - path: Telegraph/.env
         required: false
@@ -199,6 +214,7 @@ services:
       - DATABASE_URL=postgres://postgres:postgres@postgres:5432/telegraph_dev
     volumes:
       - ./Telegraph/config:/app/config
+      - ./certs/platform-mesh:/app/certs
     depends_on:
       localstack:
         condition: service_healthy
@@ -208,6 +224,8 @@ services:
         condition: service_completed_successfully
       openfga:
         condition: service_healthy
+      platform-mesh-certs:
+        condition: service_completed_successfully
     networks:
       - aiforall-network
 
@@ -218,11 +236,13 @@ services:
       dockerfile: Hive/Dockerfile
     ports:
       - "8082:8080"   # HTTP port
+      - "8445:8443"   # HTTPS
     environment:
       - RUST_ENVIRONMENT=development
       - DATABASE_URL=postgres://postgres:postgres@postgres:5432/hive_dev
     volumes:
       - ./Hive/config:/app/config
+      - ./certs/platform-mesh:/app/certs
     depends_on:
       postgres:
         condition: service_healthy
@@ -234,6 +254,8 @@ services:
         condition: service_completed_successfully
       openfga:
         condition: service_healthy
+      platform-mesh-certs:
+        condition: service_completed_successfully
     networks:
       - aiforall-network
 

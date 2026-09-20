@@ -31,9 +31,9 @@ Décisions d’architecture **acceptées ou proposées**, distinctes des notes d
 | [0004](0004-apparatus-capability-gateway.md) | Gateway seule I/O ; KV plateforme ; pas de bearer IAM | Partial | capabilities — gateway réseau = Lazaret invoke (P3 T7) ; pas Implemented |
 | [0005](0005-apparatus-same-protocol-valid-verified.md) | Même protocole ; admission, `VALID`, `VERIFIED` et installabilité distincts | Partial | factory, platform |
 | [0006](0006-apparatus-p2-reconciliation-in-process.md) | Réconciliation P2 = contrôleur in-process Manifesto, sans infra réelle | Implemented | bindings, plan — Accepted 2026-09-12 |
-| [0007](0007-apparatus-p3-capability-boundary-after-accept.md) | Frontière P3 = BC Lazaret, distinct de Manifesto ; 0006 G et E restent | Partial | Accepted 2026-09-13 ; Réalité Partial (T1–T9) ; holes bloquent Implemented |
+| [0007](0007-apparatus-p3-capability-boundary-after-accept.md) | Frontière P3 = BC Lazaret, distinct de Manifesto ; 0006 G et E restent | Partial | Accepted 2026-09-13 ; Réalité Partial (T14b : hole mTLS Hive-IAM-Telegraph fermé en HTTPS compose + CA optionnelle) ; holes restants bloquent Implemented |
 
-Ratification 0001–0005 : revue orchestrée du 2026-09-10. ADR-0006 : Accept explicite utilisateur du 2026-09-12 (checklist A–M figée). `Accepted` fixe la cible ; T1–T7 + writer backoff §D sont livrés (Réalité Implemented). ADR-0007 : Accept explicite utilisateur du 2026-09-13 (« accepté ») ; checklist 1–14 ratifiée ; G et E **non levées**. Réalité **Partial** (T1–T9 livrés) ; holes (mTLS complete, OpenBao produit, APP-05, G/E) bloquent Implemented.
+Ratification 0001–0005 : revue orchestrée du 2026-09-10. ADR-0006 : Accept explicite utilisateur du 2026-09-12 (checklist A–M figée). `Accepted` fixe la cible ; T1–T7 + writer backoff §D sont livrés (Réalité Implemented). ADR-0007 : Accept explicite utilisateur du 2026-09-13 (« accepté ») ; checklist 1–14 ratifiée ; G et E **non levées**. Réalité **Partial** (T1–T14b livrés) ; hole mTLS Hive-IAM-Telegraph fermé (HTTPS compose + CA optionnelle) ; holes restants (`APP-05`, G/E, pas K8s, pas de second protocole) bloquent Implemented.
 
 ## Traçabilité de la baseline du 9 septembre
 
