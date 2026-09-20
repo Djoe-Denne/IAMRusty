@@ -9,47 +9,46 @@ sources:
   - docs/adr/0007-apparatus-p3-capability-boundary-after-accept.md
   - Lazaret/src/main.rs
   - Lazaret/http/src/lib.rs
+  - Lazaret/tests/apparatus_p3_t11b_session_mtls.rs
+  - Lazaret/tests/apparatus_p3_t12_openbao.rs
+  - Lazaret/tests/apparatus_p3_t13_ca_persist.rs
 summary: >-
-  Bounded context P3 : frontière de capacités et de données, distincte de
-  Manifesto. Préfixe /lazaret, port 8084. Réalité Partial (T1–T10).
-  T8 kv_purge f0cf1d2 ; T10 enrollment Postgres 9e85edd.
-  Holes restants : mTLS rustls complete, OpenBao produit, APP-05, G/E,
-  pas K8s, pas de second protocole.
+  BC P3 Implemented T1–T14b (A-DEC 2026-09-20). Hors-jalon encore ouverts :
+  APP-05, 0006 G/E, pas K8s, pas de 2e protocole.
 provenance:
-  extracted: 0.82
-  inferred: 0.14
+  extracted: 0.84
+  inferred: 0.12
   ambiguous: 0.04
 created: 2026-09-17T10:55:00Z
-updated: 2026-09-18T13:45:00Z
+updated: 2026-09-20T12:14:00Z
 ---
 
 # Lazaret
 
-Slice hexagonale RustyCog introduite dans `e978cd0` (2026-09-16). Nom Accepted : dossier `Lazaret`, package `lazaret-service` — analogie de quarantaine, pas un template générique. Canon : [[projects/manifesto/decisions/0007-apparatus-p3-lazaret]]. Hub plateforme : [[projects/aiforall/aiforall]]. Alias historique de la plateforme : [[entities/paravretius]] (zéro hit code).
+Slice hexagonale RustyCog introduite dans `e978cd0` (2026-09-16). Nom Accepted : dossier `Lazaret`, package `lazaret-service` — analogie de quarantaine, pas un template générique. Canon : [[projects/manifesto/decisions/0007-apparatus-p3-lazaret]]. Hub plateforme : [[projects/aiforall/aiforall]]. Alias historique de la plateforme : [[entities/paravretius]] (zéro hit code). Mesh inter-services : [[projects/aiforall/concepts/https-platform-mesh]].
 
 ## Indexes
 
-- [[projects/lazaret/concepts/index]] — identité, grants, secrets, proxy
+- [[projects/lazaret/concepts/index]] — identité, grants, secrets, proxy, CA, OpenBao
 - [[projects/lazaret/skills/index]] — tests P3
 
 ## Rôle
 
 Lazaret est la **frontière serveur** visée par ADR-0004 : autorisation à l’appel, identité de **workload**, KV namespacé, secrets opaques, connecteurs nommés, `invoke` HTTP. Ce n’est **pas** Manifesto (propriétaire du binding) et **pas** IAM (émetteur utilisateur). Composition : standalone **et** monolithe, comme Hive / Manifesto, sans fusionner les domaines.
 
-Préfixe HTTP : `/lazaret`. Compose : hôte **8084** (`8084:8080`). Base : `lazaret_dev` (Postgres propre au BC). OpenFGA : aucun type ce slice (`InMemoryPermissionChecker`).
+Préfixe HTTP : `/lazaret`. Compose : hôte **8084** (`8084:8080`). TLS compose : `tls_port` 8080, volume `./Lazaret/certs:/app/certs`, HEALTHCHECK `curl -fk https://localhost:8080/lazaret/health` (T13). Base : `lazaret_dev` (Postgres propre au BC). OpenFGA : aucun type ce slice (`InMemoryPermissionChecker`).
 
-## Ce qui est livré (Partial)
+## Ce qui est livré (Implemented)
 
 - Santé : `GET /lazaret/health`, `GET /lazaret/ready`.
-- Identité hybride T3 : CSR → certificat client (CA `platform-internal-ca`), puis jeton de session `iss`/`aud`=`lazaret` (EdDSA). Routes `POST /lazaret/enroll`, `POST /lazaret/session`. JWT IAM `[auth.jwt]` = consommateur rustycog pour `AppState` seulement — **pas** l’identité workload. Détail : [[projects/lazaret/concepts/workload-identity]].
-- Grants, consentement, KV, secrets-by-ref, proxy nommé, invoke : [[projects/lazaret/concepts/grants-secrets-and-named-proxy]].
-- Tests T3–T10 sous `Lazaret/tests/apparatus_p3_t*.rs`. T8 `kv_purge` landé `f0cf1d2` (file `lazaret-kv-events`). T10 persiste l’enrollment dans Postgres (`apparatus_enrollments`) et le révoque sur `component_removed`, landé `9e85edd`. Skill : [[projects/lazaret/skills/running-apparatus-p3-tests]].
+- Identité hybride T3 : CSR → certificat client (CA `platform-internal-ca`), puis jeton de session `iss`/`aud`=`lazaret` (EdDSA). Routes `POST /lazaret/enroll`, `POST /lazaret/session`. JWT IAM `[auth.jwt]` = consommateur rustycog pour `AppState` seulement — **pas** l’identité workload. T10 persist Postgres. T11b session sous mTLS optionnel. T13 CA persist + leaf serveur. Détail : [[projects/lazaret/concepts/workload-identity]].
+- Grants, consentement, KV, secrets-by-ref, proxy nommé, invoke : [[projects/lazaret/concepts/grants-secrets-and-named-proxy]]. T12 OpenBao **produit** ; T6 IT reste wiremock.
+- Tests T3–T13 sous `Lazaret/tests/apparatus_p3_t*.rs`. T8 `kv_purge` landé `f0cf1d2`. T10 landé `9e85edd`. T11b `d605377`. T12 `4e645d5`. T13 `311e0ab`. Skill : [[projects/lazaret/skills/running-apparatus-p3-tests]].
+- T14b mesh HTTPS Hive–IAM–Telegraph : [[projects/aiforall/concepts/https-platform-mesh]] (`a27ea5b`).
 
-`Lazaret/README.md` dit encore « Slice T2 : health / ready uniquement » — **périmé** vis-à-vis du code et de l’ADR (T1–T10 Partial). ^[ambiguous]
+## Ce qui reste hors-jalon
 
-## Ce qui reste hors livré
-
-Holes listés dans le canon ADR-0007 : mTLS rustls complete, OpenBao produit, APP-05, **0006 G et E** (pas d’`invoke` sur `ApparatusRuntime` ; pas de 202 / nouvelle registration sur les 5 routes `/components` gelées). Factory, host UI, gateway K8s : P4+. Hole `kv_purge` **fermé** (T8, `f0cf1d2`). Hole enrollment T3 in-memory **fermé** (T10, Postgres, `9e85edd`). ADR-0007 reste Partial. Holes inchangés.
+ADR-0007 est **Accepted / Implemented** (A-DEC 2026-09-20). Holes **fermés** : mTLS `/session` (T11b), OpenBao produit (T12), persistance CA + TLS Lazaret compose (T13), mTLS Hive–IAM–Telegraph comme HTTPS + CA optionnelle (T14b). Hors-jalon **encore ouverts** : APP-05 ; **0006 G et E** (pas d’`invoke` sur `ApparatusRuntime` ; pas de 202 / nouvelle registration sur les 5 routes `/components` gelées) ; pas K8s ; pas de second protocole. Factory, host UI : P4+.
 
 ## Related
 
@@ -59,3 +58,4 @@ Holes listés dans le canon ADR-0007 : mTLS rustls complete, OpenBao produit, AP
 - [[entities/paravretius]] — nom historique, pas dans le code
 - [[projects/iamrusty/iamrusty]] — JWT utilisateur, distinct de la session Lazaret
 - [[projects/aiforall/concepts/orchestrator-agent-harness]]
+- [[journal/2026-09-20]]

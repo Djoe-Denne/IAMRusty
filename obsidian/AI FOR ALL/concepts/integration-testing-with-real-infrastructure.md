@@ -1,5 +1,6 @@
 ﻿---
-title: Integration Testing with Real Infrastructure
+title: >-
+  Integration Testing with Real Infrastructure
 category: concepts
 tags: [testing, integration, fixtures, visibility/internal]
 sources:
@@ -29,17 +30,19 @@ sources:
   - rustycog/rustycog-testing/src/common/openfga_testcontainer.rs
   - Manifesto/tests/common.rs
   - Manifesto/tests/sqs_event_routing_tests.rs
+  - Lazaret/tests/apparatus_p3_t12_openbao.rs
   - docs/adr/0200-it-infra-reelle-rustycog-testing.md
   - docs/adr/0201-mocks-http-sortant-seulement.md
   - docs/adr/0202-transport-opt-in-queues-desactivees.md
 summary: >-
-  IT = real HTTP/DB/JWT via rustycog-testing. WireMock = outbound HTTP only. OpenFGA = testcontainer. Producer queues opt-in (ADR 0200–0202).
+  IT = HTTP/DB réels. T12 OpenBao testcontainer produit ; T6 wiremock.
+  SQS LocalStack : retry CreateQueue, timeout hors transient.
 provenance:
   extracted: 0.78
   inferred: 0.14
   ambiguous: 0.08
 created: 2026-04-14T17:46:37.6929647Z
-updated: 2026-09-12T10:20:00Z
+updated: 2026-09-20T10:35:00Z
 ---
 
 # Integration Testing with Real Infrastructure
@@ -66,6 +69,8 @@ Décision canonique (12 sept. 2026) : [[projects/aiforall/decisions/0200-strateg
 - OpenFGA test configs follow the same random-port convention as DB and SQS: `[openfga] scheme = "http"`, `host = "localhost"`, `port = 0`. `OpenFgaClientConfig::actual_port()` in [[projects/rustycog/references/rustycog-config]] resolves and caches the host port, then the fixture publishes the resolved `SCHEME`/`HOST`/`PORT` env vars before the app boots.
 - Anonymous-public-read tests (`.might_be_authenticated()` routes that should let unauthenticated callers reach a public resource) arrange the wildcard form via `openfga.allow_wildcard(action, resource)` / `deny_wildcard(action, resource)`. The middleware consults the checker with `Subject::wildcard()` instead of failing closed on missing JWT — see [[concepts/anonymous-public-read-via-wildcard-subject]]. The end-to-end production path requires `sentinel-sync` to write the matching tuples on visibility changes.
 - IAMRusty, Hive, and Manifesto now all cover producer-side named-queue SQS routing; Telegraph remains the consumer-side SQS plus SMTP example. All four real-infrastructure variants are first-class in this repo.
+- T12 Lazaret : OpenBao **produit** via testcontainer `lazaret_test-openbao` (image pin `openbao/openbao:2.6.2`, KV v2 `secret/`). T6 IT **reste** wiremock : preuve protocole ≠ preuve produit. [[projects/lazaret/concepts/grants-secrets-and-named-proxy]]
+- IT event-routing Manifesto : retry LocalStack `CreateQueue` (`46fed9b`) — flake **hyper dispatch**, pas une régression `Manifesto/src`. Classification transient vs permanent affinée (`de825b1`) : **timeout retiré** des erreurs transient ; tests isolés. [[journal/2026-09-20]]
 
 ## Open Questions
 

@@ -4,39 +4,47 @@ title: >-
 category: decisions
 tags: [architecture, components, visibility/internal]
 status: accepted
-feature_status: partial
+feature_status: implemented
 sources:
   - docs/adr/0007-apparatus-p3-capability-boundary-after-accept.md
   - docs/services/lazaret.md
   - Lazaret/README.md
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/4f3bb8d7-c6d7-4238-a320-445fe479de6b/4f3bb8d7-c6d7-4238-a320-445fe479de6b.jsonl
 summary: >-
-  ADR-0007 Accepted 2026-09-13. Réalité Partial (T1–T10). T8 kv_purge
-  f0cf1d2. T10 enrollment Postgres 9e85edd. 0006 G et E restent. Pas
-  Implemented.
+  ADR-0007 Accepted 2026-09-13. Réalité Implemented (A-DEC 2026-09-20,
+  T1–T14b). Holes hors-jalon : APP-05 encore ouvert, 0006 G/E, pas K8s,
+  pas de 2e protocole.
 created: 2026-09-13T17:06:00Z
-updated: 2026-09-18T13:45:00Z
+updated: 2026-09-20T12:14:00Z
 provenance:
-  extracted: 0.82
-  inferred: 0.13
-  ambiguous: 0.05
+  extracted: 0.84
+  inferred: 0.12
+  ambiguous: 0.04
 ---
 
 # ADR-0007 — frontière P3 Lazaret
 
-Canon : `docs/adr/0007-apparatus-p3-capability-boundary-after-accept.md`. Hub service : [[projects/lazaret/lazaret]]. Hub ADR : [[projects/manifesto/decisions/index]]. Plan : [[projects/manifesto/references/apparatus-implementation-plan]].
+Canon : `docs/adr/0007-apparatus-p3-capability-boundary-after-accept.md`. Hub service : [[projects/lazaret/lazaret]]. Hub ADR : [[projects/manifesto/decisions/index]]. Plan : [[projects/manifesto/references/apparatus-implementation-plan]]. Mesh : [[projects/aiforall/concepts/https-platform-mesh]].
 
 ## Statut : Accepted (2026-09-13)
 
-Accept explicite utilisateur (« accepté »). Réalité **Partial** : T1–T10 prouvés (identité hybride, grants live, consent write / révocation close-at-commit, KV Postgres+Redis, secrets-by-ref + adaptateur Vault, proxy nommé, invoke HTTP Lazaret, `kv_purge` sur `component_removed` T8 `f0cf1d2`, chemin public `POST /lazaret/invoke`, enrollment persisté Postgres T10 `9e85edd`). Holes (mTLS complete, OpenBao produit, APP-05, 0006 G/E) listés dans le canon ADR — **pas** Implemented. P3-close : [[projects/manifesto/references/apparatus-implementation-plan#P3-close — isolation KV en fin de vie]]. P4+ uniquement sur décision explicite.
+Accept explicite utilisateur (« accepté »). Réalité **Implemented** (A-DEC 2026-09-20) — T1–T10 + **T11b** + **T12** + **T13** + **T14b**.
 
-Revue 16 sept. (`4f3bb8d7`) : GET snapshot = JWT de service (pas FGA) ; enroll anonyme + consult + CSR forcé. ^[inferred] `Lazaret/README.md` encore « T2 only » — périmé. ^[ambiguous]
+Holes **fermés** : mTLS `/session` (T11b `d605377`) ; OpenBao produit (T12 `4e645d5`) ; persistance CA + TLS Lazaret compose (T13 `311e0ab`) ; mTLS Hive–IAM–Telegraph comme HTTPS compose + CA client optionnelle, pas rustls required (T14b `a27ea5b`).
+
+Holes **hors-jalon** (ne bloquent plus Implemented) : APP-05 **reste ouvert** ; 0006 G et E (pas d’`invoke` sur `ApparatusRuntime` ; 5 routes `/components` gelées) ; pas K8s ; pas de second protocole.
+
+P3-close : [[projects/manifesto/references/apparatus-implementation-plan#P3-close — isolation KV en fin de vie]]. P4+ uniquement sur décision explicite.
+
+Revue 16 sept. (`4f3bb8d7`) : GET snapshot = JWT de service (pas FGA) ; enroll anonyme + consult + CSR forcé.
 
 ## Related
 
 - [[projects/lazaret/concepts/workload-identity]]
 - [[projects/lazaret/concepts/grants-secrets-and-named-proxy]]
 - [[projects/lazaret/skills/running-apparatus-p3-tests]]
+- [[projects/aiforall/concepts/https-platform-mesh]]
 - [[entities/paravretius]]
 - [[projects/manifesto/decisions/0006-apparatus-p2-reconciliation]]
+- [[journal/2026-09-20]]
 - [[journal/2026-09-18]]

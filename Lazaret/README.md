@@ -1,6 +1,6 @@
 # Lazaret
 
-Frontière de capacités (BC distinct de Manifesto). Slice T2 : health / ready uniquement.
+Frontière de capacités (BC distinct de Manifesto). T3–T14b : enroll, session, invoke, KV, OpenBao.
 
 - Préfixe HTTP : `/lazaret` (compose : port hôte **8084**)
 - JWT consommateur : `[auth.jwt]` — `hs256_secret`, `issuer = "iamrusty"`, `audience = "aiforall"`

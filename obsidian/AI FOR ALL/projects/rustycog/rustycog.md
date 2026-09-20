@@ -8,13 +8,14 @@ sources:
   - .agents/skills/rustycog-submodule/SKILL.md
   - skills/building-rustycog-services.md
 summary: >-
-  Shared Rust microservice SDK consumed as a git submodule. Crate how-tos live under skills/using-rustycog-*; this page is the project hub.
+  SDK git submodule. Pin T14b : dual-bind HTTP 8080 + tls_port 8443 ;
+  T11b auth client optionnelle (0858eab).
 provenance:
-  extracted: 0.72
-  inferred: 0.22
+  extracted: 0.74
+  inferred: 0.20
   ambiguous: 0.06
 created: 2026-04-15T17:15:56Z
-updated: 2026-09-09T16:45:00Z
+updated: 2026-09-20T10:35:00Z
 ---
 
 # RustyCog
@@ -26,6 +27,8 @@ This vault’s detailed crate reference pages (`projects/rustycog/references/rus
 ## Pin
 
 `AIForAll/rustycog/` is a git submodule, not a vendored tree. See [[projects/aiforall/concepts/rustycog-git-submodule]].
+
+Pin T11b (`0858eab`) : authentification client TLS **optionnelle** pour `/lazaret/session`. Pin T14b : **dual-bind** `port` 8080 + `tls_port` 8443 (mesh HTTPS Hive/IAM/Telegraph). Détail mesh : [[projects/aiforall/concepts/https-platform-mesh]].
 
 ## Crate skills
 
@@ -47,3 +50,5 @@ This vault’s detailed crate reference pages (`projects/rustycog/references/rus
 - [[projects/aiforall/concepts/rustycog-git-submodule]] — pin on **main**; cherry-pick SDK APIs before bumping.
 - [[projects/rustycog/references/isolated-wiremock-fixture]] — private WireMock listener for parallel collaborator stubs.
 - [[projects/aiforall/aiforall]]
+- [[projects/lazaret/lazaret]]
+- [[journal/2026-09-20]]

@@ -4,13 +4,13 @@ title: >-
 category: navigation
 tags: [index, navigation, wiki]
 summary: >-
-  Index wiki AIForAll : ADR vague 2, P2 Implemented, Lazaret P3 Partial
-  T1–T10 (HEAD 9e85edd).
+  Index wiki AIForAll : P2 Implemented, Lazaret P3 Implemented (A-DEC
+  2026-09-20) T1–T14b, mesh HTTPS (HEAD a27ea5b).
 provenance:
   extracted: 0.75
   inferred: 0.23
   ambiguous: 0.02
-updated: 2026-09-18T13:45:00Z
+updated: 2026-09-20T12:30:00Z
 sources:
   - "C:/Users/djden/.codex/attachments/486d0052-5759-4277-bcc1-9f209ce353d4/pasted-text.txt"
   - docs/adr/README.md
@@ -39,26 +39,29 @@ Central entry point for this vault. Use the area indexes for full catalogs; use 
 - [[projects/hive-events/hive-events]] — Hive domain events
 - [[projects/telegraph/telegraph]] — notifications and communication
 - [[projects/manifesto/manifesto]] — project-service MVP and RustyCog blueprint
-- [[projects/lazaret/lazaret]] — P3 capability/data boundary (ADR-0007 Partial)
+- [[projects/lazaret/lazaret]] — P3 capability/data boundary (ADR-0007 Implemented T1–T14b)
 - [[projects/rustycog/rustycog]] — shared Rust SDK (crate map: [[projects/rustycog/references/index]])
 - [[projects/sentinel-sync/sentinel-sync]] — centralized OpenFGA authorization and the sync worker
 
 ## Architecture — ADR
 
 - [[projects/aiforall/decisions/index]] — vague 2 rétroactive (0100–0502) : hexagone, tests, events, services, plateforme.
-- [[projects/manifesto/decisions/index]] — vague 1 Apparatus Accepted ; P2 Implemented ; 0007 Partial.
+- [[projects/manifesto/decisions/index]] — vague 1 Apparatus Accepted ; P2 Implemented ; 0007 Implemented.
 
 ## Fonctionnalité — Apparatus
 
 - [[projects/manifesto/concepts/apparatus-p0-contracts]] — crates P0 livrées + audit + P0.1 42/42.
 - [[projects/manifesto/concepts/apparatus-p1-persistence]] — persistance P1 T1–T7 (commit `7455ee5`).
 - [[projects/manifesto/concepts/apparatus-p2-reconciliation]] — ticker in-process **Implemented**.
-- [[projects/lazaret/lazaret]] — frontière P3 Partial (T1–T10, holes ADR).
+- [[projects/lazaret/lazaret]] — frontière P3 Implemented (T1–T14b ; A-DEC 2026-09-20).
+- [[projects/aiforall/concepts/https-platform-mesh]] — T14b HTTPS Hive–IAM–Telegraph, dual-bind, CA mesh ≠ CA Lazaret.
 - [[projects/manifesto/concepts/apparatus-platform]] — vision ; Factory/host encore absents. Alias [[entities/paravretius]].
 - [[projects/manifesto/references/apparatus-implementation-plan]] — phases et preuves P0–P3.
 
 ## Recent Additions
 
+- [[journal/2026-09-20]] — HEAD `a27ea5b` : T11b–T14b + SQS ; ingest transcripts sous-agents inclus.
+- [[projects/aiforall/concepts/https-platform-mesh]] — mesh HTTPS T14b (Hive 8443, IAM 8444, Telegraph 8445).
 - [[journal/2026-09-18]] — HEAD `9e85edd` : T8 `kv_purge` `f0cf1d2`, T10 enrollment `9e85edd`, flake CI SQS LocalStack.
 - [[entities/paravretius]] — nom historique ; canon Apparatus / Lazaret ; absent du code.
 - [[projects/lazaret/lazaret]] — P3 Partial T1–T10 (T8 file `lazaret-kv-events`, T10 `apparatus_enrollments`).

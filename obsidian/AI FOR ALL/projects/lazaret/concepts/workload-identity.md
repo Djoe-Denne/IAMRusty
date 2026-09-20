@@ -9,21 +9,23 @@ sources:
   - Lazaret/domain/src/identity.rs
   - Lazaret/application/src/identity.rs
   - Lazaret/http/src/lib.rs
+  - Lazaret/tests/apparatus_p3_t11b_session_mtls.rs
+  - Lazaret/tests/apparatus_p3_t13_ca_persist.rs
 summary: >-
-  Enroll CSR anonyme puis session EdDSA iss/aud=lazaret. T10 : enrollment
-  persisté Postgres `apparatus_enrollments` (9e85edd) ; revoke on
-  component_removed. Un jeton valide n’autorise pas.
+  Enroll CSR puis session EdDSA. T11b : /session sous mTLS optionnel
+  (même CA). T13 : CA persist generate-if-absent, leaf serveur, TTL
+  8760 h non figé.
 provenance:
-  extracted: 0.88
-  inferred: 0.10
+  extracted: 0.86
+  inferred: 0.12
   ambiguous: 0.02
 created: 2026-09-17T10:55:00Z
-updated: 2026-09-18T13:45:00Z
+updated: 2026-09-20T10:35:00Z
 ---
 
 # Identité workload Lazaret
 
-Canon : [[projects/manifesto/decisions/0007-apparatus-p3-lazaret]]. Hub : [[projects/lazaret/lazaret]].
+Canon : [[projects/manifesto/decisions/0007-apparatus-p3-lazaret]]. Hub : [[projects/lazaret/lazaret]]. Mesh plateforme (CA **autre**) : [[projects/aiforall/concepts/https-platform-mesh]].
 
 ## Hybride T3
 
@@ -48,8 +50,23 @@ Routes HTTP d’identité : `POST /lazaret/enroll`, `POST /lazaret/session`. Le 
 
 L’enrollment n’est plus seulement in-memory : table `apparatus_enrollments` côté Postgres Lazaret. Révocation sur Manifesto `component_removed`. Le hole T3 in-memory est **fermé**. Land : `9e85edd` (le message de commit « cursor review briefing » est trompeur). ^[extracted]
 
+## T11b — `/session` sous mTLS (`d605377`)
+
+Trou mTLS `POST /lazaret/session` **fermé**. HTTPS live via `serve_router` + authentification client **optionnelle** rustycog (pin `0858eab`). Mapping `PeerClientCertificate` → `VerifiedClientCertificate` **sans** écraser les `extensions_mut` T3/T10 : la session mTLS ne doit pas perdre l’identité déjà posée à l’enroll. ^[inferred]
+
+Même **instance** CA pour enroll et `tls_client_ca_path` : le certificat émis à l’enroll est celui que le handshake `/session` vérifie. Preuve : `Lazaret/tests/apparatus_p3_t11b_session_mtls.rs`.
+
+## T13 — persistance CA + leaf serveur (`311e0ab`)
+
+Trou persistance clé CA **fermé**. `generate-if-absent` au boot `Application::new` — pas `openssl` dans l’entrypoint. La leaf serveur est signée par cette CA. Survive un redémarrage avec la **même** CA. Preuve : `Lazaret/tests/apparatus_p3_t13_ca_persist.rs`.
+
+Défaut TTL CA : 24×365 h (8760). Nombre d’**implémentation**, **non** figé par Accept. ^[extracted]
+
+TLS compose Lazaret (distinct du mesh T14b) : `tls_port` 8080, volume `./Lazaret/certs:/app/certs`, HEALTHCHECK `curl -fk https://localhost:8080/lazaret/health`.
+
 ## Related
 
 - [[projects/lazaret/concepts/grants-secrets-and-named-proxy]]
 - [[projects/aiforall/concepts/jwt-issuer-vs-consumer]] — émetteur IAM vs consommateur
 - [[projects/iamrusty/iamrusty]]
+- [[journal/2026-09-20]]

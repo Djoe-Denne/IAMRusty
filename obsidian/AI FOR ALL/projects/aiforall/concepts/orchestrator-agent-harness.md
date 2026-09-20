@@ -1,5 +1,6 @@
 ---
-title: "Harnais orchestrator Cursor"
+title: >-
+  Harnais orchestrator Cursor
 category: concepts
 tags: [architecture, rust, visibility/internal]
 aliases: [agent-harness, orchestrator]
@@ -14,15 +15,16 @@ sources:
   - .cursor/agents/architecte.md
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/804c422a-63c7-42d5-94a0-dba53752c278/804c422a-63c7-42d5-94a0-dba53752c278.jsonl
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/a340bab3-a47f-4710-af1e-3d4bff06e4a2/a340bab3-a47f-4710-af1e-3d4bff06e4a2.jsonl
+  - .cursor/review-briefings/README.md
 summary: >-
-  Toute tâche projet passe par orchestrator. Architecte pour l’ADR vivante.
-  Grok xhigh ; Composer lecture-only.
+  Toute tâche projet passe par orchestrator. Reviewers persistent sous
+  .cursor/review-briefings/. Grok xhigh ; Composer lecture-only.
 provenance:
   extracted: 0.86
   inferred: 0.14
   ambiguous: 0.00
 created: 2026-09-11T05:45:00Z
-updated: 2026-09-17T10:55:00Z
+updated: 2026-09-20T10:35:00Z
 ---
 
 # Harnais orchestrator Cursor
@@ -58,6 +60,10 @@ Installé le 10 septembre 2026 (commit `a72979a`). Règle always-on : `.cursor/r
 
 Ne pas précharger `.cursor/agents/*.md` ; le registre Cursor suffit. Les prompts détaillés se chargent à l’invocation. Hub ADR : [[projects/aiforall/decisions/index]].
 
+## Review briefings persistants (depuis 17 sept.)
+
+Une revue dans le chat disparaît au tour suivant. Convention : les reviewers (`correctness`, `tests`, `rust-perf`, `security`) persistent un briefing sous `.cursor/review-briefings/` après **chaque** revue (PASS, commentaires, BLOCK) et tiennent `INDEX.md`. Fichiers **gitignorés** sauf `README.md` + `TEMPLATE.md`. Si le reviewer est en lecture seule, l’**orchestrateur** écrit le fichier. Avant un fix : lire INDEX + briefings du scope et les coller dans le work package. Les implementers lisent les briefings matching **avant** d’explorer. Un compte-rendu chat n’est pas suffisant. Un briefing stale (`head_sha` ou fichiers bougés) est une piste, pas une parole d’évangile.
+
 ## Modèles
 
 La session du 10 sept. a remplacé des occurrences Muse trop coûteuses par **Grok 4.6 Extra High** pour le travail courant. Muse reste utilisable quand on le demande explicitement (ex. triple review P0). ^[inferred]
@@ -80,6 +86,7 @@ Le 12–13 sept., P2 a été mené sous ce harnais (TDD T1–T7, aujourd’hui I
 - [[projects/manifesto/concepts/apparatus-p2-reconciliation]] — TDD T1–T7 sous ce harnais
 - [[projects/lazaret/lazaret]] — P3 sous ce harnais
 - [[projects/aiforall/concepts/architecte-agent]]
+- [[journal/2026-09-20]]
 - [[journal/2026-09-17]]
 - [[journal/2026-09-13]]
 - [[journal/2026-09-12]]

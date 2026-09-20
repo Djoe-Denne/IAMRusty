@@ -13,14 +13,14 @@ sources:
   - C:/Users/djden/source/repos/AIForAll/.env
   - docs/adr/README.md
 summary: >-
-  Workspace AIForAll : 5 slices RustyCog (Lazaret P3 Partial), dual runtime,
-  ADR vague 2, Apparatus P2 Implemented, Factory/host hors livré.
+  Workspace : 5 slices RustyCog, mesh HTTPS T14b, Lazaret P3 Implemented
+  (A-DEC 2026-09-20, HEAD a27ea5b). P2 Implemented. Factory/host hors livré.
 provenance:
   extracted: 0.80
   inferred: 0.16
   ambiguous: 0.04
 created: 2026-04-14T16:54:59.5971424Z
-updated: 2026-09-17T10:55:00Z
+updated: 2026-09-20T12:30:00Z
 ---
 
 # AIForAll
@@ -36,7 +36,7 @@ AIForAll is a Rust-based microservices workspace centered on [[projects/iamrusty
 - August 2026 reviews show one hexagonal scaffold with remaining gaps on JWT/JWKS, errors, OpenAPI Hive, and OpenFGA wiring — [[concepts/architecture-coherence-across-services]]. Photograph rétroactive : [[projects/aiforall/decisions/index]].
 - Queue factories must surface rustycog no-ops on `/ready` — [[projects/aiforall/concepts/queue-readiness-signaling]].
 - Project work is routed through [[projects/aiforall/concepts/orchestrator-agent-harness]]. Architecture vivante : [[projects/aiforall/concepts/architecte-agent]].
-- Apparatus P0 crates live at workspace root ; P2 ticker is in Manifesto (**Implemented**) — [[projects/manifesto/concepts/apparatus-p2-reconciliation]] (ADR 0006). Frontière P3 : [[projects/lazaret/lazaret]] (ADR 0007, **Partial**). Factory/host hors livré (ADR 0406).
+- Apparatus P0 crates live at workspace root ; P2 ticker is in Manifesto (**Implemented**) — [[projects/manifesto/concepts/apparatus-p2-reconciliation]] (ADR 0006). Frontière P3 : [[projects/lazaret/lazaret]] (ADR 0007 **Implemented** T1–T14b ; hors-jalon APP-05 / G/E / K8s / 2e proto, HEAD `a27ea5b`). Mesh HTTPS : [[projects/aiforall/concepts/https-platform-mesh]]. Factory/host hors livré (ADR 0406).
 
 ## Runtime Modes
 
@@ -65,6 +65,8 @@ AIForAll is a Rust-based microservices workspace centered on [[projects/iamrusty
 
 - [[projects/aiforall/references/cursor-history-2026-09]]
 - [[projects/aiforall/references/cursor-history-2026-04-to-08]]
+- [[journal/2026-09-20]]
+- [[journal/2026-09-18]]
 - [[journal/2026-09-17]]
 - [[journal/2026-09-13]]
 - [[journal/2026-09-12]]
@@ -83,4 +85,5 @@ AIForAll is a Rust-based microservices workspace centered on [[projects/iamrusty
 
 - [[references/aiforall-platform]] — Repository overview and shared dev workflow
 - [[projects/aiforall/references/modular-monolith-runtime]] — Runtime-mode decision and monolith composition notes
-- [[projects/lazaret/lazaret]] — P3 capability boundary (Partial)
+- [[projects/lazaret/lazaret]] — P3 capability boundary (Implemented T1–T14b, A-DEC 2026-09-20)
+- [[projects/aiforall/concepts/https-platform-mesh]] — T14b dual-bind + CA mesh

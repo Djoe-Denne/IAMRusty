@@ -11,16 +11,16 @@ sources:
   - Lazaret/domain/src/kv.rs
   - Lazaret/infra/src/secrets_deny.rs
   - Lazaret/infra/src/vault.rs
+  - Lazaret/tests/apparatus_p3_t12_openbao.rs
 summary: >-
-  Grant = intersection live Manifesto. Secrets secret:{path}#{field}, jamais
-  en clair dans le KV plugin. Sortie réseau = nom opérateur, jamais une URL.
-  T8 kv_purge sur component_removed (file lazaret-kv-events, f0cf1d2).
+  Grant = intersection live Manifesto. T12 : OpenBao produit pin 2.6.2 +
+  testcontainer ; T6 IT reste wiremock (preuve protocole ≠ produit).
 provenance:
   extracted: 0.86
   inferred: 0.12
   ambiguous: 0.02
 created: 2026-09-17T10:55:00Z
-updated: 2026-09-18T13:45:00Z
+updated: 2026-09-20T10:35:00Z
 ---
 
 # Grants, secrets opaques et proxy nommé
@@ -43,7 +43,15 @@ P3-close livré : `kv_purge` sur Manifesto `component_removed` (file `lazaret-kv
 
 Forme unique : `secret:{path}#{field}`. Path et field = `^[A-Za-z0-9/_-]+$` ; `.`, `..`, `//`, `://` rejetés. Injection seulement dans une opération **déjà accordée**.
 
-Si `[vault]` est vide : `DeniedSecretResolver` échoue toujours (`ResolveFailed`). Adaptateur Vault HTTP existant pour les IT ; OpenBao produit = hole ADR. ^[extracted]
+Si `[vault]` est vide : `DeniedSecretResolver` échoue toujours (`ResolveFailed`).
+
+### T12 — OpenBao produit (`4e645d5`)
+
+Trou OpenBao **produit hors compose** **fermé**. Image pin `openbao/openbao:2.6.2` dans docker-compose **et** testcontainer service-local `lazaret_test-openbao`. KV v2 `secret/`. Mode `-dev` écoute `0.0.0.0:8200`. Services compose `openbao` + `openbao-seed`. Preuve : `Lazaret/tests/apparatus_p3_t12_openbao.rs`.
+
+T6 IT **reste wiremock**. Preuve protocole (forme `secret:path#field`, deny, adaptateur HTTP) ≠ preuve produit (image pin + seed + KV v2 réel). Les deux couches doivent rester distinctes. ^[inferred]
+
+Pattern testcontainer : [[concepts/integration-testing-with-real-infrastructure]].
 
 ## Proxy nommé
 
@@ -57,3 +65,4 @@ Handler HTTP Lazaret, DTO P0 et `INVOKE_PATH` (`/invoke`) réutilisés. Ce n’e
 
 - [[projects/manifesto/concepts/apparatus-capabilities-and-isolation]]
 - [[projects/manifesto/concepts/apparatus-p2-reconciliation]]
+- [[journal/2026-09-20]]

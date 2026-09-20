@@ -31,19 +31,19 @@ sources:
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/a340bab3-a47f-4710-af1e-3d4bff06e4a2/a340bab3-a47f-4710-af1e-3d4bff06e4a2.jsonl
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/4f3bb8d7-c6d7-4238-a320-445fe479de6b/4f3bb8d7-c6d7-4238-a320-445fe479de6b.jsonl
 summary: >-
-  Cursor septembre 2026 : P2 Implemented, Architecte, Lazaret P3 Partial
-  (HEAD e978cd0). Grok xhigh ; Composer lecture.
+  Cursor sept. 2026 : P2 Implemented, Lazaret T1–T14b Partial (HEAD
+  a27ea5b). Ingest 17–20 sept. inclus sous-agents. Pas de verbatim.
 provenance:
   extracted: 0.72
   inferred: 0.23
   ambiguous: 0.05
 created: 2026-09-09T16:45:00Z
-updated: 2026-09-17T10:55:00Z
+updated: 2026-09-20T10:35:00Z
 ---
 
 # Cursor history September 2026
 
-Follows [[projects/aiforall/references/cursor-history-2026-04-to-08]]. Parent jsonl only. Distilled by topic.
+Follows [[projects/aiforall/references/cursor-history-2026-04-to-08]]. Distilled by topic, never by chat. Ingest 20 sept. : **sous-agents inclus** (`subagents_included=true`). Les nested avril–août n’ajoutent pas de claims au-delà de cette page et de l’historique avril–août.
 
 ## Visibility and join (2–5 Sep)
 
@@ -121,8 +121,23 @@ Parents : `03d5f1f8` / `ff6a8f77` (ADR Proposed + T1), `90c57f76` (T5–T7 TDD),
 - Revue : GET snapshot = JWT de service (pas FGA) ; enroll anonyme + consult + CSR forcé. ^[inferred]
 - 0006 G et E restent. README Lazaret encore « T2 only » vs tests T3–T7. ^[ambiguous]
 
+## T11b–T14b et SQS (17–20 Sep)
+
+Clusters récents (parents + nested) confirment les mêmes invariants que le code et [[journal/2026-09-20]] — pas de claims nouveaux hors commits.
+
+- **T11b** : `/session` sous mTLS optionnel, même CA enroll / TLS client. [[projects/lazaret/concepts/workload-identity]]
+- **T12** : OpenBao produit pin 2.6.2 ; T6 reste wiremock. [[projects/lazaret/concepts/grants-secrets-and-named-proxy]]
+- **T13** : CA persist `generate-if-absent`, TLS Lazaret compose, TTL 8760 h non figé.
+- **T14b** : mesh HTTPS dual-bind, CA `platform-mesh` ≠ CA Lazaret, mTLS client optionnel. [[projects/aiforall/concepts/https-platform-mesh]]
+- **SQS** : retry LocalStack `CreateQueue` (flake hyper, pas `src`) ; timeout retiré des erreurs transient.
+- **Harness** : review briefings persistés sous `.cursor/review-briefings/`. [[projects/aiforall/concepts/orchestrator-agent-harness]]
+
+ADR-0007 reste Accepted / Partial (HEAD `a27ea5b`). **Pas** Implemented.
+
 ## Related
 
+- [[journal/2026-09-20]]
+- [[journal/2026-09-18]]
 - [[journal/2026-09-17]]
 - [[journal/2026-09-13]]
 - [[journal/2026-09-12]]

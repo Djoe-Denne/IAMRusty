@@ -1,5 +1,6 @@
 ---
-title: Telegraph
+title: >-
+  Telegraph
 category: project
 tags: [communication, events, notifications, visibility/internal]
 sources:
@@ -8,13 +9,15 @@ sources:
   - Telegraph/setup/src/app.rs
   - Telegraph/infra/src/event/consumer.rs
   - Telegraph/http/src/lib.rs
-summary: Telegraph is a Rust communication service whose docs now treat RustyCog as the shared baseline and focus here on the queue, descriptor, and notification behaviors unique to Telegraph.
+summary: >-
+  Telegraph : notifications et files. T14b : HTTPS compose port 8445,
+  CA mesh optionnelle (pas rustls required).
 provenance:
   extracted: 0.73
   inferred: 0.17
   ambiguous: 0.10
 created: 2026-04-14T18:18:24.0602572Z
-updated: 2026-08-31T13:30:00Z
+updated: 2026-09-20T10:35:00Z
 ---
 
 # Telegraph
@@ -44,6 +47,7 @@ updated: 2026-08-31T13:30:00Z
 - Queue command failures still flatten to `ServiceError::infrastructure` — the only **divergent** error verdict in [[concepts/architecture-coherence-across-services]].
 - Queue boot should go through [[projects/aiforall/concepts/queue-readiness-signaling]] so a rustycog no-op is visible on `/ready`.
 - Integration tests: one `#[path = "fixtures/mod.rs"]` in `tests/common.rs` (Sonar `duplicate_mod`). See [[projects/aiforall/skills/fixing-sonar-clippy-in-services]].
+- T14b (HEAD `a27ea5b`) : HTTPS compose via dual-bind rustycog, hôte **8445**, CA mesh distincte de Lazaret, client cert **optionnel**. Preuve `Telegraph/tests/https_mesh_optional_mtls.rs`. Concept : [[projects/aiforall/concepts/https-platform-mesh]].
 
 ## Related
 
@@ -55,6 +59,7 @@ updated: 2026-08-31T13:30:00Z
 - [[projects/telegraph/references/telegraph-event-processing]] - SQS consumption, command dispatch, descriptor loading, and delivery-mode routing.
 - [[projects/telegraph/references/telegraph-testing-and-smtp-fixtures]] - Real SQS, SMTP, DB, and JWT-backed integration tests.
 - [[projects/telegraph/skills/building-event-driven-notification-services]] - Reusable workflow for building Telegraph-style communication services.
+- [[projects/aiforall/concepts/https-platform-mesh]] — T14b HTTPS + CA client optionnelle.
 
 ## Open Questions
 

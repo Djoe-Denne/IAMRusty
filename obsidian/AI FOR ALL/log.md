@@ -265,6 +265,10 @@ title: Wiki Log
 - [2026-09-17T12:57:00Z] QUERY query="ajouts récents Apparatus et Lazaret vs CI Manifesto validation" result_pages=6 mode=normal escalated=false
 - [2026-09-18T13:30:00Z] QUERY query="ajouts récents Paravretius et Lazaret vs CI Manifesto validation run 35266261797" result_pages=6 mode=normal escalated=false
 - [2026-09-18T13:45:00Z] WIKI_UPDATE project=aiforall pages_updated=10 pages_created=2 source_cwd=C:/Users/djden/source/repos/AIForAll last_commit_synced=9e85edd92a0f4e2007a75ebdb3c8d3ef9c29465a vault="obsidian/AI FOR ALL"
+- [2026-09-20T10:35:00Z] WIKI_UPDATE project=aiforall pages_updated=19 pages_created=2 source_cwd=C:/Users/djden/source/repos/AIForAll last_commit_synced=a27ea5bf9b53bb6fde9e9da6a267f84f2e927333 vault="obsidian/AI FOR ALL"
+- [2026-09-20T10:35:00Z] DATA_INGEST source=cursor-transcripts format=jsonl pages_updated=19 pages_created=2 mode=append subagents_included=true conversations=489
+- [2026-09-20T10:35:00Z] CLAUDE_HISTORY_INGEST source=cursor-transcripts mode=append subagents_included=true conversations=489 pages_updated=19 pages_created=2 parents_new=75 nested_new=411 unchanged=48
+- [2026-09-20T10:35:00Z] QMD_UPDATE collection=aiforall-wiki files_new=4 files_updated=24 files_unchanged=197 embed_chunks=117 embed_docs=28
 
 
 

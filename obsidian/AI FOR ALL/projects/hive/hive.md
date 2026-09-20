@@ -1,5 +1,6 @@
 ---
-title: Hive
+title: >-
+  Hive
 category: project
 tags: [organizations, permissions, integrations, visibility/internal]
 sources:
@@ -9,13 +10,15 @@ sources:
   - Hive/setup/src/app.rs
   - Hive/http/src/lib.rs
   - Hive/application/src/command/factory.rs
-summary: Hive is a Rust organization-management service for organizations, members, invitations, external links, and sync jobs built on rustycog and hive-events.
+summary: >-
+  Hive : organisations et permissions. T14b : HTTPS compose port 8443,
+  CA mesh optionnelle (pas rustls required).
 provenance:
   extracted: 0.74
   inferred: 0.16
   ambiguous: 0.10
 created: 2026-04-14T18:56:22.3888182Z
-updated: 2026-08-31T13:30:00Z
+updated: 2026-09-20T10:35:00Z
 ---
 
 # Hive
@@ -37,6 +40,7 @@ updated: 2026-08-31T13:30:00Z
 - Hive publishes `[[projects/hive-events/hive-events]]` domain events for organization, member, invitation, external-link, and sync-job changes rather than treating HTTP as the only integration surface.
 - Hive uses the shared `[[projects/rustycog/rustycog]]` stack, but it diverges from IAMRusty and Telegraph in its custom HTTP error model and in how much of its command or spec surface is actually exposed over HTTP. Conflict to resolve. ^[ambiguous]
 - Hive treats `hive-events` as event-contract vocabulary and relies on `[[projects/rustycog/references/rustycog-events]]` for queue transport and publisher runtime behavior.
+- T14b (HEAD `a27ea5b`) : HTTPS compose via dual-bind rustycog, hôte **8443**, CA mesh `./certs/platform-mesh` **distincte** de la CA Lazaret, authentification client **optionnelle** — pas un rustls required. Preuve `Hive/tests/https_mesh_optional_mtls.rs`. Concept : [[projects/aiforall/concepts/https-platform-mesh]].
 
 ## Related
 
@@ -48,6 +52,7 @@ updated: 2026-08-31T13:30:00Z
 - [[projects/hive/references/hive-data-model-and-schema]] - Organizations, members, invitations, external links, sync jobs, and permission tables.
 - [[projects/hive/references/hive-testing-and-api-fixtures]] - Real DB, JWT, and external-provider fixture patterns in the Hive tests.
 - [[projects/hive/skills/building-organization-management-services]] - Reusable workflow for building Hive-style org-management services.
+- [[projects/aiforall/concepts/https-platform-mesh]] — T14b HTTPS + CA client optionnelle.
 
 ## Open Questions
 

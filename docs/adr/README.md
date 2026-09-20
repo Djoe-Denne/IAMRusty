@@ -28,12 +28,12 @@ Décisions d’architecture **acceptées ou proposées**, distinctes des notes d
 | [0001](0001-apparatus-binding-owned-by-manifesto.md) | Binding = `ProjectComponent` 1:1, propriété métier Manifesto | Partial | bindings, plan |
 | [0002](0002-apparatus-contract-first.md) | Contrats + Apparatus KV de référence avant Factory et host | Partial | platform, factory, UI, plan P0 |
 | [0003](0003-apparatus-untrusted-plugin.md) | Code auteur hors des processus privilégiés | Partial | platform, capabilities, factory |
-| [0004](0004-apparatus-capability-gateway.md) | Gateway seule I/O ; KV plateforme ; pas de bearer IAM | Partial | capabilities — gateway réseau = Lazaret invoke (P3 T7) ; pas Implemented |
+| [0004](0004-apparatus-capability-gateway.md) | Gateway seule I/O ; KV plateforme ; pas de bearer IAM | Implemented | capabilities — gateway réseau = Lazaret invoke (P3 T7) |
 | [0005](0005-apparatus-same-protocol-valid-verified.md) | Même protocole ; admission, `VALID`, `VERIFIED` et installabilité distincts | Partial | factory, platform |
 | [0006](0006-apparatus-p2-reconciliation-in-process.md) | Réconciliation P2 = contrôleur in-process Manifesto, sans infra réelle | Implemented | bindings, plan — Accepted 2026-09-12 |
-| [0007](0007-apparatus-p3-capability-boundary-after-accept.md) | Frontière P3 = BC Lazaret, distinct de Manifesto ; 0006 G et E restent | Partial | Accepted 2026-09-13 ; Réalité Partial (T14b : hole mTLS Hive-IAM-Telegraph fermé en HTTPS compose + CA optionnelle) ; holes restants bloquent Implemented |
+| [0007](0007-apparatus-p3-capability-boundary-after-accept.md) | Frontière P3 = BC Lazaret, distinct de Manifesto ; 0006 G et E restent | Implemented | Accepted 2026-09-13 ; Réalité Implemented (A-DEC 2026-09-20) ; holes hors-jalon, ne bloquent plus Implemented |
 
-Ratification 0001–0005 : revue orchestrée du 2026-09-10. ADR-0006 : Accept explicite utilisateur du 2026-09-12 (checklist A–M figée). `Accepted` fixe la cible ; T1–T7 + writer backoff §D sont livrés (Réalité Implemented). ADR-0007 : Accept explicite utilisateur du 2026-09-13 (« accepté ») ; checklist 1–14 ratifiée ; G et E **non levées**. Réalité **Partial** (T1–T14b livrés) ; hole mTLS Hive-IAM-Telegraph fermé (HTTPS compose + CA optionnelle) ; holes restants (`APP-05`, G/E, pas K8s, pas de second protocole) bloquent Implemented.
+Ratification 0001–0005 : revue orchestrée du 2026-09-10. ADR-0006 : Accept explicite utilisateur du 2026-09-12 (checklist A–M figée). `Accepted` fixe la cible ; T1–T7 + writer backoff §D sont livrés (Réalité Implemented). ADR-0007 : Accept explicite utilisateur du 2026-09-13 (« accepté ») ; checklist 1–14 ratifiée ; G et E **non levées**. Réalité **Implemented** (A-DEC 2026-09-20 ; T1–T14b livrés) ; holes (`APP-05`, G/E, pas K8s, pas de second protocole) **hors-jalon**, ne bloquent plus Implemented. Inventaire de clôture : [0007-closeout.md](0007-closeout.md).
 
 ## Traçabilité de la baseline du 9 septembre
 
@@ -45,10 +45,10 @@ Ratification 0001–0005 : revue orchestrée du 2026-09-10. ADR-0006 : Accept ex
 | Un Apparatus canonique du même type par projet | ADR-0001 | Plusieurs instances hors V1 |
 | Identité d’installation immuable, jamais `latest` | ADR-0002 | Admission et artifacts P4 |
 | Desired/observed, génération, lease et fencing | ADR-0006 | Colonnes et sémantique figées ; Réalité Implemented |
-| Gateway = ACL ∩ consentement ∩ politique | ADR-0004 | Implémentation P3 |
+| Gateway = ACL ∩ consentement ∩ politique | ADR-0004 | Livrée P3 (Lazaret) ; restes `APP-05` / `APP-03` / `APP-06` |
 | Runtime managed, plugin isolé | ADR-0003 | Moteur et plateforme (`APP-01`) |
 | Host à créer ; UI schema ou bundle statique | ADR-0002 (contrat seulement) | Sécurité du host avant P5 |
-| KV par binding ; secrets par référence | ADR-0004 | Rétention, quotas et produit secrets |
+| KV par binding ; secrets par référence | ADR-0004 | Restes `APP-03` / `APP-06` ; secrets = 0007 T12 |
 | Git → artifacts → conformance → admission | — | ADR avant P4 |
 | Même protocole ; `VALID` distinct de `VERIFIED` | ADR-0005 | Publishers (`APP-02`) |
 

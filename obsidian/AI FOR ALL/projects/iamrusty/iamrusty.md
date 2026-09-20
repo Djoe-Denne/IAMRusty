@@ -1,5 +1,6 @@
 ---
-title: IAMRusty
+title: >-
+  IAMRusty
 category: project
 tags: [iam, oauth, security, visibility/internal]
 sources:
@@ -9,13 +10,15 @@ sources:
   - IAMRusty/domain/src/entity/events.rs
   - IAMRusty/setup/src/app.rs
   - IAMRusty/http/src/lib.rs
-summary: IAMRusty is a Rust IAM service whose docs now treat RustyCog as the shared baseline and focus here on the auth, OAuth, JWT, and event behaviors unique to IAMRusty.
+summary: >-
+  IAMRusty : IAM, OAuth, JWT. T14b : HTTPS compose port 8444, CA mesh
+  optionnelle (pas rustls required).
 provenance:
   extracted: 0.74
   inferred: 0.18
   ambiguous: 0.08
 created: 2026-04-14T17:46:37.6929647Z
-updated: 2026-08-31T13:30:00Z
+updated: 2026-09-20T10:35:00Z
 ---
 
 # IAMRusty
@@ -44,6 +47,7 @@ updated: 2026-08-31T13:30:00Z
 - The service relies on `[[concepts/integration-testing-with-real-infrastructure]]` for end-to-end confidence, using real databases, HTTP servers, fixtures, provider mocks, and optional queue-backed checks.
 - IAMRusty uses `iam-events` as its domain-event contract surface, while `[[projects/rustycog/references/rustycog-events]]` provides the queue transport and publisher runtime.
 - The published API and the current implementation are close but not identical: the docs still describe some older route names and payload shapes, while the live route table in `http/src/lib.rs` exposes separate login, link, and relink endpoints. ^[ambiguous]
+- T14b (HEAD `a27ea5b`) : HTTPS compose via dual-bind rustycog, hôte **8444**, CA mesh distincte de Lazaret, client cert **optionnel**. Preuve `IAMRusty/tests/https_mesh_optional_mtls.rs`. Concept : [[projects/aiforall/concepts/https-platform-mesh]].
 
 ## Related
 
@@ -56,6 +60,7 @@ updated: 2026-08-31T13:30:00Z
 - [[projects/iamrusty/references/iamrusty-testing-and-fixtures]] - Test server, database fixture, and Kafka-backed validation patterns.
 - [[projects/iamrusty/skills/testing-rust-services-with-fixtures]] - Preferred workflow for building IAM-style integration tests.
 - [[projects/iamrusty/skills/extending-iamrusty-with-oauth-providers]] - End-to-end checklist for adding another provider safely.
+- [[projects/aiforall/concepts/https-platform-mesh]] — T14b HTTPS + CA client optionnelle.
 
 ## Open Questions
 
