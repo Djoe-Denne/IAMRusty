@@ -6,7 +6,7 @@ use crate::entity::{
 use crate::error::DomainError;
 use crate::port::{
     repository::{TokenRepository, UserEmailRepository, UserRepository},
-    service::ProviderOAuth2Client,
+    service::FederatedOAuthClient,
 };
 use tracing::{debug, info};
 use uuid::Uuid;
@@ -14,6 +14,7 @@ use uuid::Uuid;
 use super::TokenService;
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 /// Authentication service for `OAuth2` providers
 pub struct OAuthService<U, T, UE>
@@ -26,7 +27,7 @@ where
     token_repository: T,
     user_email_repository: UE,
     token_service: TokenService,
-    provider_clients: HashMap<Provider, Box<dyn ProviderOAuth2Client + Send + Sync>>,
+    provider_clients: HashMap<Provider, Arc<dyn FederatedOAuthClient>>,
 }
 
 impl<U, T, UE> OAuthService<U, T, UE>
@@ -51,43 +52,29 @@ where
         }
     }
 
-    /// Register an `OAuth2` provider client
+    /// Register a federated `OAuth2` client (one per provider slug).
     pub fn register_provider_client(
         &mut self,
         provider: Provider,
-        client: Box<dyn ProviderOAuth2Client + Send + Sync>,
+        client: Arc<dyn FederatedOAuthClient>,
     ) {
         self.provider_clients.insert(provider, client);
     }
 
-    /// Get `OAuth2` provider client for the specified provider
+    /// Get federated client for the specified provider
     fn get_provider_client(
         &self,
         provider: Provider,
-    ) -> Result<&(dyn ProviderOAuth2Client + Send + Sync), DomainError> {
+    ) -> Result<Arc<dyn FederatedOAuthClient>, DomainError> {
         self.provider_clients
             .get(&provider)
-            .map(std::convert::AsRef::as_ref)
+            .cloned()
             .ok_or_else(|| {
                 DomainError::AuthorizationError(format!(
                     "Provider client not configured: {}",
                     provider.as_str()
                 ))
             })
-    }
-
-    /// Generate an authorization URL for the provider's `OAuth2` flow.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`DomainError`] if the provider is unsupported or its client is not configured.
-    pub fn generate_authorize_url(&self, provider: &str) -> Result<String, DomainError> {
-        let provider = Provider::from_str(provider)
-            .ok_or_else(|| DomainError::ProviderNotSupported(provider.to_string()))?;
-
-        let client = self.get_provider_client(provider)?;
-
-        Ok(client.generate_authorize_url())
     }
 }
 
@@ -97,6 +84,29 @@ where
     T: TokenRepository + Send + Sync,
     UE: UserEmailRepository + Send + Sync,
 {
+    /// Generate an authorization URL for the provider's `OAuth2` flow.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the provider is unsupported, its client is not configured,
+    /// or the federated authorize call fails.
+    pub async fn generate_authorize_url(
+        &self,
+        provider: &str,
+        redirect_uri: &str,
+        state: &str,
+    ) -> Result<String, DomainError> {
+        let provider = Provider::from_str(provider)
+            .ok_or_else(|| DomainError::ProviderNotSupported(provider.to_string()))?;
+
+        let client = self.get_provider_client(provider)?;
+        let response = client
+            .authorize(redirect_uri, state)
+            .await
+            .map_err(|e| DomainError::OAuth2Error(e.to_string()))?;
+        Ok(response.authorization_url)
+    }
+
     /// Process `OAuth2` callback and return user and JWT token.
     ///
     /// # Errors
@@ -107,22 +117,26 @@ where
         &self,
         provider_name: &str,
         code: &str,
+        redirect_uri: &str,
     ) -> Result<(User, String, String), DomainError> {
         let provider = Provider::from_str(provider_name)
             .ok_or_else(|| DomainError::ProviderNotSupported(provider_name.to_string()))?;
 
         debug!("Processing OAuth2 callback for provider: {}", provider_name);
 
-        // Get the provider client
         let client = self.get_provider_client(provider)?;
 
-        // Exchange the authorization code for tokens
-        let tokens = client.exchange_code(code).await?;
+        let tokens = client
+            .exchange_code(code, redirect_uri)
+            .await
+            .map_err(|e| DomainError::OAuth2Error(e.to_string()))?;
 
         debug!("Successfully exchanged code for tokens");
 
-        // Get the user profile
-        let profile = client.get_user_profile(&tokens).await?;
+        let profile = client
+            .user_profile(&tokens.access_token)
+            .await
+            .map_err(|e| DomainError::UserProfileError(e.to_string()))?;
 
         debug!("Retrieved user profile: {}", profile.username);
 

@@ -51,21 +51,23 @@ password = "postgres"
 # Read replicas (array of connection strings)
 read_replicas = []
 
-[oauth.github]
-client_id = "your-github-client-id"
-client_secret = "your-github-client-secret"
-redirect_uri = "http://localhost:8080/api/auth/github/callback"
-auth_url = "https://github.com/login/oauth/authorize"
-token_url = "https://github.com/login/oauth/access_token"
-user_url = "https://api.github.com/user"
+[[idp.connectors]]
+id = "github"
+base_url = "http://127.0.0.1:8085/github-connect"
+hmac_secret = "change-me-github-connect-hmac"
+redirect_uris = [
+  "http://127.0.0.1:8080/iam/api/auth/github/callback",
+  "http://127.0.0.1:8080/iam/api/auth/github/relink-callback",
+]
 
-[oauth.gitlab]
-client_id = "your-gitlab-client-id"
-client_secret = "your-gitlab-client-secret"
-redirect_uri = "http://localhost:8080/api/auth/gitlab/callback"
-auth_url = "https://gitlab.com/oauth/authorize"
-token_url = "https://gitlab.com/oauth/token"
-user_url = "https://gitlab.com/api/v4/user"
+[[idp.connectors]]
+id = "gitlab"
+base_url = "http://127.0.0.1:8086/gitlab-connect"
+hmac_secret = "change-me-gitlab-connect-hmac"
+redirect_uris = [
+  "http://127.0.0.1:8080/iam/api/auth/gitlab/callback",
+  "http://127.0.0.1:8080/iam/api/auth/gitlab/relink-callback",
+]
 
 [jwt]
 expiration_seconds = 3600
@@ -107,11 +109,23 @@ read_replicas = [
     "postgres://postgres:postgres@db-read-2:5432/iam_prod"
 ]
 
-[oauth.github]
-redirect_uri = "https://your-domain.com/api/auth/github/callback"
+[[idp.connectors]]
+id = "github"
+base_url = "http://github-connect-service:8080/github-connect"
+hmac_secret = "change-me-set-via-env-github"
+redirect_uris = [
+  "https://your-domain.com/iam/api/auth/github/callback",
+  "https://your-domain.com/iam/api/auth/github/relink-callback",
+]
 
-[oauth.gitlab]
-redirect_uri = "https://your-domain.com/api/auth/gitlab/callback"
+[[idp.connectors]]
+id = "gitlab"
+base_url = "http://gitlab-connect-service:8080/gitlab-connect"
+hmac_secret = "change-me-set-via-env-gitlab"
+redirect_uris = [
+  "https://your-domain.com/iam/api/auth/gitlab/callback",
+  "https://your-domain.com/iam/api/auth/gitlab/relink-callback",
+]
 
 [jwt]
 expiration_seconds = 86400  # 24 hours
@@ -323,14 +337,8 @@ APP_DATABASE_DB=iam_prod
 APP_DATABASE_CREDS_USERNAME=postgres
 APP_DATABASE_CREDS_PASSWORD=secure_password
 
-# OAuth configuration
-APP_OAUTH_GITHUB_CLIENT_ID=your_github_client_id
-APP_OAUTH_GITHUB_CLIENT_SECRET=your_github_client_secret
-APP_OAUTH_GITHUB_REDIRECT_URI=https://yourdomain.com/api/auth/github/callback
-
-APP_OAUTH_GITLAB_CLIENT_ID=your_gitlab_client_id
-APP_OAUTH_GITLAB_CLIENT_SECRET=your_gitlab_client_secret
-APP_OAUTH_GITLAB_REDIRECT_URI=https://yourdomain.com/api/auth/gitlab/callback
+# Federated IdP connectors (HMAC). Vendor secrets belong to Connect services.
+# IAM_IDP connectors are set in config TOML, not as GitHub/GitLab client_secret.
 
 # JWT configuration
 # Option 1: HMAC with plain text secret
@@ -425,8 +433,8 @@ docker build -t iam-service:latest .
 RUN_ENV=production
 APP_DATABASE_CREDS_PASSWORD=secure_production_password
 APP_JWT_SECRET=super-secure-jwt-secret-at-least-32-chars
-APP_OAUTH_GITHUB_CLIENT_SECRET=github_secret
-APP_OAUTH_GITLAB_CLIENT_SECRET=gitlab_secret
+# Connector HMAC secrets: set in IAMRusty/config/production.toml [[idp.connectors]]
+# Vendor GitHub/GitLab client_secret stays on the Connect services.
 ```
 
 3. **Run with production config:**

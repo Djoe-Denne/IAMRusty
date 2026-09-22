@@ -1,0 +1,23 @@
+[package]
+name = "github-connect-setup"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Composition root for GitHub Connect"
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+github-connect-configuration = { path = "../configuration" }
+github-connect-http = { path = "../http" }
+github-connect-infra = { path = "../infra" }
+idp-connect-contract = { path = "../../idp-connect-contract", features = ["server"] }
+readiness = { path = "../../readiness" }
+rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full"] }
+
+anyhow = { workspace = true }
+axum = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }

@@ -1,0 +1,23 @@
+[package]
+name = "gitlab-connect-setup"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Composition root for GitLab Connect"
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+gitlab-connect-configuration = { path = "../configuration" }
+gitlab-connect-http = { path = "../http" }
+gitlab-connect-infra = { path = "../infra" }
+idp-connect-contract = { path = "../../idp-connect-contract", features = ["server"] }
+readiness = { path = "../../readiness" }
+rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full"] }
+
+anyhow = { workspace = true }
+axum = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }

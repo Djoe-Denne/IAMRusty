@@ -30,15 +30,18 @@ sources:
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/0f84c7ec-f0e7-4d40-9a05-fe5d5507bed2/0f84c7ec-f0e7-4d40-9a05-fe5d5507bed2.jsonl
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/a340bab3-a47f-4710-af1e-3d4bff06e4a2/a340bab3-a47f-4710-af1e-3d4bff06e4a2.jsonl
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/4f3bb8d7-c6d7-4238-a320-445fe479de6b/4f3bb8d7-c6d7-4238-a320-445fe479de6b.jsonl
+  - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/d5c0a4f7-e945-4de1-aa1c-8fa771ba9733/d5c0a4f7-e945-4de1-aa1c-8fa771ba9733.jsonl
+  - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/94f1da54-afad-406b-bf7e-0726eeb26f35/94f1da54-afad-406b-bf7e-0726eeb26f35.jsonl
+  - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/c8017f8d-4ca1-436c-a2ee-d906b79972f2/c8017f8d-4ca1-436c-a2ee-d906b79972f2.jsonl
 summary: >-
-  Cursor sept. 2026 : P2 Implemented, Lazaret T1–T14b Partial (HEAD
-  a27ea5b). Ingest 17–20 sept. inclus sous-agents. Pas de verbatim.
+  Cursor sept. 2026 : P2 Implemented, Lazaret Implemented, P4-core Partial,
+  IAM-IdP 0407–0410 Accepted. Ingest 20–22 sept. Pas de verbatim.
+updated: 2026-09-22T06:55:00Z
+created: 2026-09-09T16:45:00Z
 provenance:
   extracted: 0.72
   inferred: 0.23
   ambiguous: 0.05
-created: 2026-09-09T16:45:00Z
-updated: 2026-09-20T10:35:00Z
 ---
 
 # Cursor history September 2026
@@ -132,10 +135,18 @@ Clusters récents (parents + nested) confirment les mêmes invariants que le cod
 - **SQS** : retry LocalStack `CreateQueue` (flake hyper, pas `src`) ; timeout retiré des erreurs transient.
 - **Harness** : review briefings persistés sous `.cursor/review-briefings/`. [[projects/aiforall/concepts/orchestrator-agent-harness]]
 
-ADR-0007 reste Accepted / Partial (HEAD `a27ea5b`). **Pas** Implemented.
+ADR-0007 Accepted / **Implemented** (A-DEC 2026-09-20, hors-jalon APP-05). HEAD `a27ea5b` pour P3.
+
+## 20–22 sept. (après ingest 10:35Z)
+
+- A-DEC + ADR-0008 Accepted. Prompt P4. [[journal/2026-09-20]]
+- IAM-IdP : 0407–0410 **Accepted** ; contrat HTTP connecteurs. [[projects/iamrusty/decisions/index]]
+- Cloud : 0600–0602 **Proposed** (OTLP vendor-neutral, pas d’implémentation). [[projects/aiforall/decisions/0602-observabilite-portable]]
+- P4-core T2–T12 **livrés** `apparatus-operator` ; tests 22 sept. **livrés** (pin 64 hex, pull zot IfNotPresent, RBAC, NotValid, automount) ; Kind IT Calico v3.29.7 ; T11 **vert** ; Cosign fail-closed ; 0008 **Partial**. [[journal/2026-09-22]] [[projects/manifesto/concepts/apparatus-p4-operator]]
 
 ## Related
 
+- [[journal/2026-09-22]]
 - [[journal/2026-09-20]]
 - [[journal/2026-09-18]]
 - [[journal/2026-09-17]]

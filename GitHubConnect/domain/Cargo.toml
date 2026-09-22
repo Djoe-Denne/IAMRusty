@@ -1,0 +1,13 @@
+[package]
+name = "github-connect-domain"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Domain types for GitHub Connect"
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+thiserror = { workspace = true }

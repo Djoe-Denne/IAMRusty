@@ -1,0 +1,21 @@
+[package]
+name = "github-connect-infra"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "GitHub vendor HTTP adapter for GitHub Connect"
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+github-connect-configuration = { path = "../configuration" }
+github-connect-domain = { path = "../domain" }
+idp-connect-contract = { path = "../../idp-connect-contract" }
+
+async-trait = { workspace = true }
+oauth2 = { workspace = true }
+reqwest = { version = "0.11", features = ["json"] }
+serde = { workspace = true }
+tracing = { workspace = true }

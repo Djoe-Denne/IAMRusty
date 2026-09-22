@@ -223,6 +223,17 @@ pub struct AppConfig {
     /// Operator-admitted named connectors.
     #[serde(default)]
     pub connectors: Vec<ConnectorEntry>,
+    /// Optional isolated-plugin HTTP hop. Empty `endpoint_url` → in-process dispatch.
+    #[serde(default)]
+    pub plugin_hop: PluginHopConfig,
+}
+
+/// Locator config for the Lazaret → plugin HTTP hop (M5).
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct PluginHopConfig {
+    /// Plugin base URL (`http://host:port`). Empty disables the hop.
+    #[serde(default)]
+    pub endpoint_url: String,
 }
 
 impl ConfigLoader<Self> for AppConfig {

@@ -398,15 +398,23 @@ pub fn decode(encoded: &str) -> Result<Self, StateError> {
 
 **Configuration**:
 ```toml
-[oauth.github]
-client_id = "github-client-id"
-client_secret = "github-client-secret"
-redirect_uri = "https://iam.example.com/api/auth/github/callback"  # Exact match required
+[[idp.connectors]]
+id = "github"
+base_url = "https://github-connect.example.com/github-connect"
+hmac_secret = "iam-to-github-connect-hmac"  # ≥ 16 chars; IAM S2S only
+redirect_uris = [
+  "https://iam.example.com/iam/api/auth/github/callback",
+  "https://iam.example.com/iam/api/auth/github/relink-callback",
+]
 
-[oauth.gitlab]
-client_id = "gitlab-client-id"
-client_secret = "gitlab-client-secret"
-redirect_uri = "https://iam.example.com/api/auth/gitlab/callback"  # Exact match required
+[[idp.connectors]]
+id = "gitlab"
+base_url = "https://gitlab-connect.example.com/gitlab-connect"
+hmac_secret = "iam-to-gitlab-connect-hmac"
+redirect_uris = [
+  "https://iam.example.com/iam/api/auth/gitlab/callback",
+  "https://iam.example.com/iam/api/auth/gitlab/relink-callback",
+]
 ```
 
 ### 4. Session Fixation
@@ -425,13 +433,8 @@ redirect_uri = "https://iam.example.com/api/auth/gitlab/callback"  # Exact match
 
 **OAuth Provider Setup**:
 ```bash
-# Use strong, unique client secrets
-APP_OAUTH_GITHUB_CLIENT_SECRET="highly-secure-random-secret-256-bits"
-APP_OAUTH_GITLAB_CLIENT_SECRET="different-highly-secure-random-secret"
-
-# Enforce HTTPS redirect URIs
-APP_OAUTH_GITHUB_REDIRECT_URI="https://iam.example.com/api/auth/github/callback"
-APP_OAUTH_GITLAB_REDIRECT_URI="https://iam.example.com/api/auth/gitlab/callback"
+# Vendor client_secret lives on GitHubConnect / GitLabConnect, not IAM.
+# IAM HMAC secrets (≥ 16 chars) are [[idp.connectors]] hmac_secret in TOML.
 
 # Use strong JWT signing secret
 APP_JWT_SECRET="secure-jwt-signing-secret-at-least-256-bits-long"

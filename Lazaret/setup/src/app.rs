@@ -5,7 +5,10 @@ use std::sync::Arc;
 
 use anyhow::Error;
 use axum::Router;
-use lazaret_application::{empty_command_registry, GrantService, IdentityService, InvokeService};
+use lazaret_application::{
+    empty_command_registry, EmptyPluginLocator, GrantService, IdentityService, InvokeService,
+    PluginEndpointLocator, StaticPluginLocator,
+};
 use lazaret_configuration::AppConfig;
 use lazaret_domain::{
     AsyncKvStore, BindingGrantSnapshotPort, ConnectorRegistry, EnrollmentStore, IdentityError,
@@ -80,12 +83,13 @@ impl Application {
         let connectors = build_named_connectors(&config)?;
         let kv_event_consumer =
             maybe_kv_event_consumer(&config.queue, kv.clone(), identity.enrollment_store()).await?;
-        let invoke = Arc::new(InvokeService::new(
+        let invoke = Arc::new(InvokeService::new_with_locator(
             identity.clone(),
             grant_service.clone(),
             kv,
             secrets,
             connectors,
+            plugin_endpoint_locator(&config),
         ));
         let readiness = build_readiness(db_write, kv_event_consumer.as_ref());
 
@@ -257,6 +261,15 @@ fn build_named_connectors(config: &AppConfig) -> Result<Arc<NamedConnectorProxy>
     NamedConnectorProxy::new(ConnectorRegistry::from_entries(&entries))
         .map(Arc::new)
         .map_err(|e| anyhow::anyhow!("Connector proxy: {e}"))
+}
+
+fn plugin_endpoint_locator(config: &AppConfig) -> Arc<dyn PluginEndpointLocator> {
+    let url = config.plugin_hop.endpoint_url.trim();
+    if url.is_empty() {
+        Arc::new(EmptyPluginLocator)
+    } else {
+        Arc::new(StaticPluginLocator::new(url.to_owned()))
+    }
 }
 
 /// Wire the dedicated KV-events consumer when the queue is enabled and live.

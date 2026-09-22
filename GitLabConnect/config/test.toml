@@ -1,0 +1,27 @@
+# GitLab Connect test configuration
+
+[server]
+host = "127.0.0.1"
+port = 0
+tls_enabled = false
+
+[auth.jwt]
+hs256_secret = "rustycog-test-hs256-secret"
+issuer = "iamrusty"
+audience = "aiforall"
+
+[logging]
+level = "debug"
+
+[gitlab]
+client_id = "test_gitlab_client_id"
+client_secret = "test_gitlab_client_secret"
+# Tests override vendor URLs via GitLabService::base_url() from MockServerFixture::isolated().
+auth_url = "http://127.0.0.1:9/oauth/authorize"
+token_url = "http://127.0.0.1:9/oauth/token"
+user_url = "http://127.0.0.1:9/api/v4/user"
+hmac_secret = "gitlab-connect-test-hmac"
+redirect_uris = [
+  "http://127.0.0.1:8081/iam/api/auth/gitlab/callback",
+  "http://127.0.0.1:8081/iam/api/auth/gitlab/relink-callback",
+]

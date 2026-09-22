@@ -6,36 +6,42 @@ sources:
   - IAMRusty/docs/OAUTH_SECURITY_GUIDE.md
   - IAMRusty/http/src/oauth_state.rs
   - IAMRusty/http/src/handlers/auth.rs
-summary: IAMRusty uses encoded OAuth state and context-aware callbacks to separate login from linking, though the docs describe stronger expiry semantics than the current struct exposes.
+  - docs/adr/0409-confiance-callback-oauth-idp-connect.md
+summary: >-
+  OAuthState carries operation, nonce, exp (TTL 600 s) and HMAC. redirect_uri
+  comes from [[idp.connectors]] redirect_uris, not a hardcoded 8081 handler.
 provenance:
-  extracted: 0.7
-  inferred: 0.16
-  ambiguous: 0.14
+  extracted: 0.84
+  inferred: 0.12
+  ambiguous: 0.04
 created: 2026-04-14T17:46:37.6929647Z
-updated: 2026-04-14T17:46:37.6929647Z
+updated: 2026-09-22T12:49:00Z
 ---
 
 # OAuth State and CSRF Protection
 
-The IAM docs treat OAuth state as a core security control, not just a callback parameter. The live implementation still uses state to separate operations and reject malformed callbacks, but some of the stronger guarantees described in the guides are only partially visible in the current code.
+> [!note] Code (2026-09-22)
+> `OAuthState` a `exp` (TTL 600 s), HMAC et anti-rejeu. `redirect_uri` login/relink vient du registry `[[idp.connectors]]` (last-segment `callback` vs `relink-callback`). Canon : [[projects/iamrusty/decisions/0409-confiance-oauth]] (Accepted / **Implemented**).
+
+IAM treats OAuth `state` as a security control, not a pass-through cookie. The connector **propagates** `state` to the vendor; it does not mint CSRF.
 
 ## Key Ideas
 
-- Login and link flows both create an `OAuthState` before redirecting to the provider, and the callback handler decodes that state before executing any auth logic.
-- The current `http/src/oauth_state.rs` struct stores the operation plus a random nonce, and the link variant carries the authenticated user ID inside the operation payload.
-- The callback handler rejects missing code, missing state, provider error responses, invalid providers, and invalid state before dispatching login or link commands.
-- Authenticated link starts also verify the current user through `GetUserCommand`, so the link flow is tied to both bearer auth and the state payload.
-- The security guide describes timestamp-based expiry and exact redirect validation, but the current `OAuthState` struct does not store a timestamp and the callback handler currently hardcodes local redirect URIs for provider callbacks. ^[ambiguous]
-- OAuth failures are surfaced through dedicated `AuthError` responses, which keeps state-validation and provider errors distinct from generic API failures.
+- Login and link create an `OAuthState` before redirecting. The callback decodes it before any auth command runs.
+- `http/src/oauth_state.rs` stores operation, nonce, and `exp`. Encode is HMAC-signed. Link carries the authenticated user ID.
+- TTL is **600 s**, not the older 30-minute figure in some IAM guides. ^[extracted]
+- `redirect_uri` is chosen from the connector’s `redirect_uris[]` (exact public IAM URLs). Development compose uses **8080**; IAM **tests** still use **8081** because that is the rustycog-testing IAM port, not Telegraph. ^[extracted]
+- The callback rejects missing code/state, provider errors, unknown slugs, and invalid state before login or link.
+- Authenticated link also runs `GetUserCommand`, so link is bound to bearer auth and the state payload.
 
-## Open Questions
+## Leftover (accurate)
 
-- If callback URIs remain hardcoded to the local test port in handler code, production redirect handling likely depends on additional wiring or pending refactoring. ^[ambiguous]
-- The docs emphasize 30-minute state expiry and richer tamper detection, but those checks are not explicit in the current state type. ^[ambiguous]
+- Some IAM markdown guides still mention a 30-minute expiry; the code is 600 s + HMAC + replay. ^[ambiguous]
+- Vendor `client_secret` is on GitHub Connect / GitLab Connect. IAM’s remaining HMAC secret is the IdP-connect S2S key plus `jwt.oauth_state_secret`. ^[extracted]
 
 ## Sources
 
-- [[projects/iamrusty/iamrusty]] - Service where the state model is enforced.
+- [[projects/iamrusty/iamrusty]] - Service that mints and checks state.
 - [[projects/iamrusty/concepts/oauth-provider-linking]] - Flow that depends on operation-aware state.
-- [[projects/iamrusty/references/iamrusty-runtime-and-security]] - Security and config context for callback hardening.
-- [[projects/iamrusty/references/iamrusty-api-and-auth-flows]] - Handler-level view of callback validation and error responses.
+- [[projects/iamrusty/decisions/0409-confiance-oauth]] - Callback/CSRF ownership.
+- [[projects/iamrusty/references/iamrusty-api-and-auth-flows]] - Handler-level callback validation.

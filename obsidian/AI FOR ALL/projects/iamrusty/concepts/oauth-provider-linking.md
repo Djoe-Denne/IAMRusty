@@ -13,10 +13,13 @@ provenance:
   inferred: 0.14
   ambiguous: 0.08
 created: 2026-04-14T17:46:37.6929647Z
-updated: 2026-04-14T17:46:37.6929647Z
+updated: 2026-09-22T12:49:00Z
 ---
 
 # OAuth Provider Linking
+
+> [!note] Catalogue providers
+> Open question « only GH/GL » : cible vivante [[projects/iamrusty/decisions/0407-contrat-federe]] / [[projects/iamrusty/decisions/0408-connecteurs-http]] (**Accepted**). Linking **reste IAM** ([[projects/iamrusty/decisions/0409-confiance-oauth]]).
 
 `[[projects/iamrusty/iamrusty]]` treats external providers as attachable identities rather than separate users. A logged-in account can add GitHub or GitLab credentials to the same provider-agnostic user record, while provider tokens and secondary emails are stored explicitly for later reuse.
 
@@ -31,7 +34,7 @@ updated: 2026-04-14T17:46:37.6929647Z
 
 ## Open Questions
 
-- The current source set only covers GitHub and GitLab explicitly; extending the same guarantees to more providers depends on additional wiring and tests. ^[ambiguous]
+- The current source set only covers GitHub and GitLab as v1 route slugs; extra IdPs are new Connect services (ADR-0407–0410 **Implemented**), not more in-process IAM wiring.
 - The user-facing conflict-resolution experience is only partially documented, especially when provider profile data and existing account data disagree. ^[ambiguous]
 
 ## Sources

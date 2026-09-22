@@ -73,7 +73,12 @@ pub trait OAuthUseCase: Send + Sync {
     /// # Errors
     ///
     /// Returns [`OAuthError`] if the authorization URL cannot be generated.
-    fn generate_start_url(&self, provider: Provider) -> Result<String, OAuthError>;
+    async fn generate_start_url(
+        &self,
+        provider: Provider,
+        redirect_uri: String,
+        state: String,
+    ) -> Result<String, OAuthError>;
 
     /// Exchange authorization code for tokens and login user
     /// This handles the OAuth callback and:
@@ -86,6 +91,7 @@ pub trait OAuthUseCase: Send + Sync {
         &self,
         provider: Provider,
         code: String,
+        redirect_uri: String,
     ) -> Result<OAuthResponse, OAuthError>;
 }
 
@@ -138,10 +144,15 @@ where
     <UER as UserEmailRepository>::Error: std::error::Error + Send + Sync + 'static,
     TS::Error: std::error::Error + Send + Sync + 'static,
 {
-    fn generate_start_url(&self, provider: Provider) -> Result<String, OAuthError> {
-        // Delegate to domain service
+    async fn generate_start_url(
+        &self,
+        provider: Provider,
+        redirect_uri: String,
+        state: String,
+    ) -> Result<String, OAuthError> {
         self.oauth
-            .generate_authorize_url(provider.as_str())
+            .generate_authorize_url(provider.as_str(), &redirect_uri, &state)
+            .await
             .map_err(Into::into)
     }
 
@@ -149,11 +160,12 @@ where
         &self,
         provider: Provider,
         code: String,
+        redirect_uri: String,
     ) -> Result<OAuthResponse, OAuthError> {
         // Delegate to domain service - note: we ignore the JWT token since we'll generate proper tokens
         let (user, _jwt_token, email) = self
             .oauth
-            .process_callback(provider.as_str(), &code)
+            .process_callback(provider.as_str(), &code, &redirect_uri)
             .await?;
 
         // Check if user is complete (has username) or needs registration

@@ -17,22 +17,27 @@ sources:
   - docs/services/manifesto.md
   - docs/adr/0006-apparatus-p2-reconciliation-in-process.md
   - docs/adr/0007-apparatus-p3-capability-boundary-after-accept.md
+  - docs/adr/0007-closeout.md
+  - docs/adr/0008-apparatus-p4-k8s-isolation-outside-manifesto.md
   - docs/apparatus-p3-implementation-prompt.md
+  - docs/apparatus-p4-implementation-prompt.md
   - manifesto-events/src/component.rs
 summary: >-
-  Phases Apparatus : P2 Implemented, Lazaret P3 Partial (T1–T10).
-  P3-close = T8 kv_purge. T9 = chemin public `/lazaret/invoke`.
-  T10 = enrollment Postgres + revoke sur `component_removed`.
-  0007 reste Partial. P4+ pas maintenant.
+  Plan conception P0–P6. Canon 2026-09-20 : P2 Implemented, 0007
+  Implemented (A-DEC), APP-01 = ADR-0008 Partial. Corps ^[inferred]
+  encore photo P3 Partial — ne pas promouvoir en contrat.
 provenance:
-  extracted: 0.34
-  inferred: 0.64
-  ambiguous: 0.02
+  extracted: 0.30
+  inferred: 0.66
+  ambiguous: 0.04
 created: 2026-09-09T17:50:00Z
-updated: 2026-09-17T20:35:00Z
+updated: 2026-09-22T10:00:00Z
 ---
 
 # Apparatus — plan d’implémentation et décisions restantes
+
+> [!warning] Conception, pas canon
+> Le corps ci-dessous est une **photo P3 datée** (`^[inferred]`, 0007 **alors** Partial, APP-01 **alors** ouvert). **Canon courant (2026-09-22)** : 0007 **Implemented** (A-DEC) — [[projects/manifesto/references/0007-closeout]] ; APP-01 = [[projects/manifesto/decisions/0008-apparatus-p4-k8s]] (**Accepted / Partial**, T2–T12 livrés). **Ne pas** relivrer P4-core ni traiter APP-01 comme ouvert. Ne pas traiter L152 `KubernetesAdapter` comme contrat Manifesto. Prompts `docs/` : POST-LOT **historiques** — [[projects/manifesto/references/apparatus-p4-implementation-prompt]].
 
 Plan proposé pour [[projects/manifesto/concepts/apparatus-platform]], sans date ni estimation d’effort inventée. La source utilisateur fixe la vision ; les choix ci-dessous préparent une implémentation future. L’existant est référencé dans [[projects/manifesto/references/apparatus-source-reconciliation]].
 
@@ -49,7 +54,7 @@ Ce tableau conserve les recommandations antérieures aux ADR. Il constitue leur 
 | Installation | Release et digest figés, commande asynchrone avec suivi | Réconciliation stable après restart |
 | Lifecycle | Desired state et observations distincts, génération, lease et fencing | Évite les doublons et les observations périmées |
 | Autorisation | Gateway : ACL utilisateur/projet/instance ∩ consentement ∩ politique | Un plugin ne reçoit aucun bearer IAM interne |
-| Runtime | Managed, isolation par binding/projet ; Kubernetes était une première piste | Le moteur et la plateforme restent ouverts dans `APP-01` |
+| Runtime | Managed, isolation par binding/projet ; Kubernetes était une première piste | Moteur tranché **0008 Partial** (operator Kind) ; TCB / APP-06 encore ouverts — pas « APP-01 ouvert » |
 | Frontend | Host à créer ; schema et sandbox statique Vite | Pas de runtime Node/SSR par Apparatus |
 | Données | KV plateforme par binding ; secrets par références | Pas d’accès direct aux bases des services |
 | Publication | Git résolu en commit → artifacts → conformance → signature/admission | Le runtime consomme uniquement des digests admis |
@@ -65,7 +70,7 @@ Canon : `docs/adr/` ; hub wiki : [[projects/manifesto/decisions/index]]. `Accept
 |---|---|---|---|
 | Propriété Manifesto, 1:1 `ProjectComponent`, unicité | [0001](../../../../../docs/adr/0001-apparatus-binding-owned-by-manifesto.md) | Partial | Consentement ; bump génération update/remove (P2.1) |
 | Contrats, digest immuable, Apparatus KV de référence | [0002](../../../../../docs/adr/0002-apparatus-contract-first.md) | Partial | CLI / macro ; champs TOML de détail |
-| Plugin hostile hors processus privilégiés | [0003](../../../../../docs/adr/0003-apparatus-untrusted-plugin.md) | Partial | Moteur et adaptateur / `APP-01` |
+| Plugin hostile hors processus privilégiés | [0003](../../../../../docs/adr/0003-apparatus-untrusted-plugin.md) | Partial | moteur = 0008 Partial (operator) ; Factory/host = P5/P6 |
 | Gateway, KV, pas de bearer IAM, fermeture DB immédiate | [0004](../../../../../docs/adr/0004-apparatus-capability-gateway.md) | Partial | mTLS concret (P3) |
 | Même protocole ; admission, `VALID`, `VERIFIED` et installabilité distincts | [0005](../../../../../docs/adr/0005-apparatus-same-protocol-valid-verified.md) | Partial | Pipeline OCI (P4), drain/destruction |
 | Réconciliation in-process, ticker `/ready`, CAS, lease | [0006](../../../../../docs/adr/0006-apparatus-p2-reconciliation-in-process.md) | Implemented | G/E encore en vigueur (pas d’`invoke` sur `ApparatusRuntime` ; `/components` gelé) |
@@ -187,7 +192,7 @@ Conventions de test : ports/adaptateurs simulés pour logique de réconciliation
 
 | ID | Arbitrage | Recommandation par défaut / moment où il bloque |
 |---|---|---|
-| APP-01 | Plateforme cible, budget, architecture CPU, moteur d’isolation, registry et autorité de signature | Profil opérateur unique et vérifié ; à choisir avant P4. Docker Compose ne suffit pas à répondre |
+| APP-01 | Moteur / registry / signature — **ADRé** [[projects/manifesto/decisions/0008-apparatus-p4-k8s]] (Accepted / **Partial** post-lot). Budget/CPU numériques encore `APP-06`. | Tranché 2026-09-20 ; mécanisme T2–T12 livré, **pas** Implemented. Le reste de cette table (`APP-02`…`APP-07`) reste ouvert. ^[inferred] |
 | APP-02 | Qui peut soumettre/publier/installer ? Portée du catalogue privé/public et ownership publisher | Administrateur projet pour installer, publisher authentifié pour soumettre ; politique finale avant ouverture |
 | APP-03 | Rétention, purge, export et restore après désinstallation/archive | Suspendre à l’archive, suppression logique puis purge différée ; durée et confirmation de purge avant P6 |
 | APP-04 | Premier Apparatus métier et ses besoins réels de données/opérations | Référence KV simple pour qualifier, puis Git ou wiki à choisir ; évite de généraliser une API réseau sans cas concret |

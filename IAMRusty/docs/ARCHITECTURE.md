@@ -104,7 +104,7 @@ domain/
 #### Ports (Interfaces)
 - **UserRepository**: User data persistence contract
 - **TokenRepository**: Token storage contract
-- **ProviderOAuth2Client**: OAuth provider integration contract
+- **FederatedOAuthClient**: HTTP IdP connector contract (`idp-connect-contract`)
 - **JwtTokenEncoder**: JWT encoding/decoding contract
 
 #### Domain Errors
@@ -231,8 +231,7 @@ infra/
 - **RefreshTokenRepositoryImpl**: Refresh token storage
 
 #### OAuth Client Implementations
-- **GitHubOAuth2Client**: GitHub OAuth integration
-- **GitLabOAuth2Client**: GitLab OAuth integration
+- **HttpIdpConnector**: HMAC HTTP client to GitHub Connect / GitLab Connect
 
 #### Token Service Implementation
 - **JwtTokenService**: JWT encoding/decoding with jsonwebtoken
@@ -332,7 +331,7 @@ configuration/
 - **AppConfig**: Root configuration containing all subsystem configs
 - **ServerConfig**: HTTP server configuration (host, port, TLS settings)
 - **DatabaseConfig**: Database connection configuration with read replicas
-- **OAuthConfig**: OAuth provider configurations (GitHub, GitLab)
+- **IdpConfig**: Federated connector registry (`[[idp.connectors]]`)
 - **JwtConfig**: JWT token configuration with extensible secret storage
 - **CommandConfig**: Command retry configuration system
 - **CommandRetryConfig**: Retry policy configuration for commands
@@ -406,7 +405,7 @@ pub enum JwtSecret {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     pub server: ServerConfig,
-    pub oauth: OAuthConfig,
+    pub idp: IdpConfig,
     pub jwt: JwtConfig,
     pub database: DatabaseConfig,
     #[serde(default)]
@@ -570,9 +569,9 @@ External services implement domain ports:
 
 ```rust
 #[async_trait]
-impl ProviderOAuth2Client for GitHubOAuth2Client {
+impl FederatedOAuthClient for HttpIdpConnector {
     async fn exchange_code(&self, code: &str) -> Result<ProviderTokens, DomainError> {
-        // GitHub-specific implementation
+        // HMAC HTTP call to GitHub Connect / GitLab Connect
     }
 }
 ```

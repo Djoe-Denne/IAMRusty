@@ -1,0 +1,29 @@
+[package]
+name = "idp-connect-contract"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Vendor-neutral HTTP JSON federated OAuth contract and HMAC helpers for IAM ↔ IdP Connect"
+license.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = []
+server = ["dep:axum"]
+
+[dependencies]
+async-trait = { workspace = true }
+hex = { workspace = true }
+hmac = { workspace = true }
+serde = { workspace = true }
+sha2 = { workspace = true }
+subtle = { workspace = true }
+thiserror = { workspace = true }
+
+axum = { workspace = true, optional = true }
+
+[dev-dependencies]
+axum-test = { workspace = true }
+tokio = { workspace = true }

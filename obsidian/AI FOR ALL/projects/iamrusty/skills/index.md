@@ -8,3 +8,4 @@ tags: [index, skills, iam]
 
 - [[projects/iamrusty/skills/extending-iamrusty-with-oauth-providers]]
 - [[projects/iamrusty/skills/testing-rust-services-with-fixtures]]
+- [[projects/iamrusty/decisions/index]]

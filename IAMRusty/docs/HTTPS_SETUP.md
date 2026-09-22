@@ -69,13 +69,25 @@ For development and testing, you can use self-signed certificates.
 
 3. **Update OAuth Redirect URLs**
 
-   Update your OAuth provider configurations to use HTTPS:
+   Update connector allowlists (and IAM `[[idp.connectors]]` `redirect_uris`) to the public IAM HTTPS callbacks:
    ```toml
-   [oauth.github]
-   redirect_uri = "https://localhost:8443/auth/github/callback"
+   [[idp.connectors]]
+   id = "github"
+   base_url = "http://github-connect-service:8080/github-connect"
+   hmac_secret = "change-me-github-connect-hmac"
+   redirect_uris = [
+     "https://localhost:8443/iam/api/auth/github/callback",
+     "https://localhost:8443/iam/api/auth/github/relink-callback",
+   ]
 
-   [oauth.gitlab]
-   redirect_uri = "https://localhost:8443/auth/gitlab/callback"
+   [[idp.connectors]]
+   id = "gitlab"
+   base_url = "http://gitlab-connect-service:8080/gitlab-connect"
+   hmac_secret = "change-me-gitlab-connect-hmac"
+   redirect_uris = [
+     "https://localhost:8443/iam/api/auth/gitlab/callback",
+     "https://localhost:8443/iam/api/auth/gitlab/relink-callback",
+   ]
    ```
 
 4. **Run the Service**

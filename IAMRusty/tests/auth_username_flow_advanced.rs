@@ -6,7 +6,7 @@ mod fixtures;
 
 use base64::{engine::general_purpose, Engine as _};
 use common::setup_test_server;
-use fixtures::{DbFixtures, GitHubFixtures};
+use fixtures::{DbFixtures, IdpConnectFixtures};
 use serde_json::{json, Value};
 use serial_test::serial;
 
@@ -451,9 +451,8 @@ async fn test_oauth_first_flow_with_github() {
         .expect("Failed to setup test server");
 
     // Setup GitHub mock
-    let github = GitHubFixtures::service().await;
-    github.setup_successful_token_exchange().await;
-    github.setup_successful_user_profile_arthur().await;
+    let idp = IdpConnectFixtures::service().await;
+    idp.mock_github_happy_arthur().await;
 
     // Step 1: Start OAuth flow
     let start_response = client

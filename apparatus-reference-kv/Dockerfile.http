@@ -1,0 +1,18 @@
+# Contexte : mini-workspace (Cargo.toml + apparatus-contracts + apparatus-reference-kv).
+# Construit le CRI HTTP de référence. wget conservé pour les sondes T11.
+FROM rust:bookworm AS builder
+WORKDIR /src
+COPY Cargo.toml ./
+COPY apparatus-contracts ./apparatus-contracts
+COPY apparatus-reference-kv ./apparatus-reference-kv
+RUN cargo build --release -p apparatus-reference-kv --bin reference-kv-http --features http
+
+FROM debian:bookworm-slim
+LABEL apparatus.id=io.aiforall.reference-kv
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends wget ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /src/target/release/reference-kv-http /usr/local/bin/reference-kv-http
+COPY apparatus-reference-kv/apparatus.toml /apparatus.toml
+EXPOSE 8080
+CMD ["/usr/local/bin/reference-kv-http"]

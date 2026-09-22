@@ -6,7 +6,9 @@ mod fixtures;
 mod utils;
 
 use common::setup_test_server;
-use fixtures::{GitHubFixtures, GitLabFixtures};
+use fixtures::IdpConnectFixtures;
+use iam_infra::auth::HttpIdpConnector;
+use idp_connect_contract::{FederatedOAuthClient, FederatedOAuthError};
 use serde_json::Value;
 use serial_test::serial;
 use url::Url;
@@ -43,7 +45,8 @@ async fn test_oauth_start_github_redirect_success() {
         .expect("Failed to setup test server");
 
     // Setup GitHub fixtures (scoped to this test)
-    let _github_service = GitHubFixtures::service().await;
+    let idp = IdpConnectFixtures::service().await;
+    idp.mock_github_happy_arthur().await;
 
     // Make request to GitHub OAuth login endpoint (updated endpoint)
     let response = client
@@ -63,10 +66,9 @@ async fn test_oauth_start_github_redirect_success() {
         .to_str()
         .expect("Location header should be valid string");
 
-    // ✅ Should redirect to GitHub OAuth URL
     assert!(
-        location.contains("github.com") || location.contains("localhost:3000"),
-        "Should redirect to GitHub OAuth provider (or mock)"
+        location.starts_with("http://localhost:3000/login/oauth/authorize"),
+        "Should redirect to the WireMock connector authorize URL, not github.com"
     );
 
     // ✅ Parse redirect URL and verify query parameters
@@ -102,6 +104,14 @@ async fn test_oauth_start_github_redirect_success() {
         redirect_uri.contains("github"),
         "redirect_uri should point to our GitHub callback endpoint"
     );
+    assert!(
+        redirect_uri.ends_with("/callback"),
+        "login redirect_uri must use the callback path"
+    );
+    assert!(
+        !redirect_uri.contains("relink-callback"),
+        "login redirect_uri must not use relink-callback"
+    );
 
     // ✅ Verify state parameter is properly encoded and contains login operation
     let state = params.get("state").unwrap();
@@ -127,7 +137,8 @@ async fn test_oauth_start_gitlab_redirect_success() {
         .expect("Failed to setup test server");
 
     // Setup GitLab fixtures (scoped to this test)
-    let _gitlab_service = GitLabFixtures::service().await;
+    let idp = IdpConnectFixtures::service().await;
+    idp.mock_gitlab_happy_alice().await;
 
     // Make request to GitLab OAuth login endpoint (updated endpoint)
     let response = client
@@ -147,10 +158,9 @@ async fn test_oauth_start_gitlab_redirect_success() {
         .to_str()
         .expect("Location header should be valid string");
 
-    // ✅ Should redirect to GitLab OAuth URL
     assert!(
-        location.contains("gitlab.com") || location.contains("localhost:3000"),
-        "Should redirect to GitLab OAuth provider (or mock)"
+        location.starts_with("http://localhost:3000/oauth/authorize"),
+        "Should redirect to the WireMock connector authorize URL, not gitlab.com"
     );
 
     // ✅ Parse redirect URL and verify query parameters
@@ -186,6 +196,14 @@ async fn test_oauth_start_gitlab_redirect_success() {
         redirect_uri.contains("gitlab"),
         "redirect_uri should point to our GitLab callback endpoint"
     );
+    assert!(
+        redirect_uri.ends_with("/callback"),
+        "login redirect_uri must use the callback path"
+    );
+    assert!(
+        !redirect_uri.contains("relink-callback"),
+        "login redirect_uri must not use relink-callback"
+    );
 
     // ✅ Verify state parameter is properly encoded and contains login operation
     let state = params.get("state").unwrap();
@@ -211,7 +229,7 @@ async fn test_oauth_start_unsupported_provider_returns_422() {
         .expect("Failed to setup test server");
 
     // Test unsupported providers
-    let unsupported_providers = vec!["facebook", "google", "twitter", "unknown", ""];
+    let unsupported_providers = vec!["facebook", "google", "twitter", "unknown", "bitbucket", ""];
 
     for provider in unsupported_providers {
         let response = client
@@ -249,8 +267,9 @@ async fn test_oauth_start_case_insensitive_providers() {
         .expect("Failed to setup test server");
 
     // Setup fixtures
-    let _github_service = GitHubFixtures::service().await;
-    let _gitlab_service = GitLabFixtures::service().await;
+    let idp = IdpConnectFixtures::service().await;
+    idp.mock_github_happy_arthur().await;
+    idp.mock_gitlab_happy_alice().await;
 
     // Test case variations that should work
     let valid_cases = vec![
@@ -283,11 +302,16 @@ async fn test_oauth_start_case_insensitive_providers() {
             .to_str()
             .expect("Location header should be valid string");
 
-        // Verify the redirect goes to the correct provider
         if expected_provider == "GitHub" {
-            assert!(location.contains("github") || location.contains("localhost:3000"));
+            assert!(
+                location.starts_with("http://localhost:3000/login/oauth/authorize"),
+                "GitHub start must use the connector mock, not github.com"
+            );
         } else {
-            assert!(location.contains("gitlab") || location.contains("localhost:3000"));
+            assert!(
+                location.starts_with("http://localhost:3000/oauth/authorize"),
+                "GitLab start must use the connector mock, not gitlab.com"
+            );
         }
     }
 }
@@ -301,7 +325,8 @@ async fn test_oauth_start_state_security_and_uniqueness() {
         .expect("Failed to setup test server");
 
     // Setup GitHub fixtures (scoped to this test)
-    let _github_service = GitHubFixtures::service().await;
+    let idp = IdpConnectFixtures::service().await;
+    idp.mock_github_happy_arthur().await;
 
     // Make multiple requests to verify state uniqueness
     let mut states = std::collections::HashSet::new();
@@ -363,7 +388,8 @@ async fn test_oauth_start_with_auth_header_link_operation() {
         .expect("Failed to setup test server");
 
     // Setup GitHub fixtures (scoped to this test)
-    let _github_service = GitHubFixtures::service().await;
+    let idp = IdpConnectFixtures::service().await;
+    idp.mock_github_happy_arthur().await;
 
     // First, we need a valid JWT token (in a real scenario, this would come from a login)
     // For this test, we'll use a mock JWT token that would be validated by the system
@@ -446,8 +472,9 @@ async fn test_oauth_start_query_parameter_structure() {
         .expect("Failed to setup test server");
 
     // Setup fixtures
-    let _github_service = GitHubFixtures::service().await;
-    let _gitlab_service = GitLabFixtures::service().await;
+    let idp = IdpConnectFixtures::service().await;
+    idp.mock_github_happy_arthur().await;
+    idp.mock_gitlab_happy_alice().await;
 
     let providers = vec!["github", "gitlab"];
 
@@ -516,5 +543,55 @@ async fn test_oauth_start_query_parameter_structure() {
             redirect_uri.contains(provider),
             "redirect_uri should point to correct callback endpoint for provider '{provider}'"
         );
+        assert!(
+            redirect_uri.ends_with("/callback"),
+            "login redirect_uri must use the callback path for provider '{provider}'"
+        );
+        assert!(
+            !redirect_uri.contains("relink-callback"),
+            "login redirect_uri must not use relink-callback for provider '{provider}'"
+        );
     }
+}
+
+#[tokio::test]
+#[serial]
+async fn idp_connect_rejects_invalid_hmac_with_401() {
+    let idp = IdpConnectFixtures::service().await;
+    idp.mock_github_happy_arthur().await;
+
+    let connector = HttpIdpConnector::new(
+        format!("{}/github-connect", idp.base_url()),
+        "wrong-hmac-secret!!",
+    )
+    .expect("wrong secret still meets minimum length");
+
+    let err = connector
+        .exchange_code(
+            "test_auth_code",
+            "http://127.0.0.1:8081/iam/api/auth/github/callback",
+        )
+        .await
+        .expect_err("mismatched HMAC must fail closed");
+
+    assert_eq!(err, FederatedOAuthError::ExchangeCode);
+}
+
+#[tokio::test]
+#[serial]
+async fn oauth_start_connector_401_is_not_redirect() {
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
+    let idp = IdpConnectFixtures::service().await;
+    idp.mock_s2s_unauthorized("github", "/v1/authorize").await;
+
+    let response = client
+        .get(format!("{base_url}/api/auth/github/login"))
+        .send()
+        .await
+        .expect("Failed to send request");
+
+    assert_ne!(response.status(), 200);
+    assert_ne!(response.status(), 303);
 }

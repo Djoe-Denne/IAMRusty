@@ -1,11 +1,12 @@
 //! Link Provider use case module
 
-use crate::auth::OAuthService;
 use crate::usecase::factory::OAuthProviderFactory;
 use async_trait::async_trait;
 use iam_domain::entity::{provider::Provider, user::User, user_email::UserEmail};
 use iam_domain::error::DomainError;
+use iam_domain::port::service::FederatedOAuthClient;
 use iam_domain::service::ProviderLinkService;
+use std::collections::HashMap;
 use std::sync::Arc;
 use thiserror::Error;
 use uuid::Uuid;
@@ -47,14 +48,24 @@ pub trait LinkProviderUseCase: Send + Sync {
     /// # Errors
     ///
     /// Returns [`LinkProviderError`] if the provider is not configured or the URL cannot be generated.
-    fn generate_start_url(&self, provider: Provider) -> Result<String, LinkProviderError>;
+    async fn generate_start_url(
+        &self,
+        provider: Provider,
+        redirect_uri: String,
+        state: String,
+    ) -> Result<String, LinkProviderError>;
 
     /// Generate OAuth authorization URL for relink provider flow
     ///
     /// # Errors
     ///
     /// Returns [`LinkProviderError`] if the provider is not configured or the URL cannot be generated.
-    fn generate_relink_start_url(&self, provider: Provider) -> Result<String, LinkProviderError>;
+    async fn generate_relink_start_url(
+        &self,
+        provider: Provider,
+        redirect_uri: String,
+        state: String,
+    ) -> Result<String, LinkProviderError>;
 
     /// Link a new OAuth provider to an existing authenticated user
     async fn link_provider(
@@ -76,40 +87,48 @@ pub trait LinkProviderUseCase: Send + Sync {
 }
 
 /// Link provider use case implementation
-pub struct LinkProviderUseCaseImpl<GH, GL, UR, UER, TR>
+pub struct LinkProviderUseCaseImpl<UR, UER, TR>
 where
-    GH: OAuthService + Send + Sync + 'static,
-    GL: OAuthService + Send + Sync + 'static,
     UR: iam_domain::port::repository::UserRepository + Send + Sync,
     UER: iam_domain::port::repository::UserEmailRepository + Send + Sync,
     TR: iam_domain::port::repository::TokenRepository + Send + Sync,
 {
-    auth_factory: Arc<OAuthProviderFactory<GH, GL>>,
+    auth_factory: Arc<OAuthProviderFactory>,
     provider_link_service: Arc<ProviderLinkService<UR, UER, TR>>,
 }
 
-impl<GH, GL, UR, UER, TR> LinkProviderUseCaseImpl<GH, GL, UR, UER, TR>
+impl<UR, UER, TR> LinkProviderUseCaseImpl<UR, UER, TR>
 where
-    GH: OAuthService + Send + Sync + 'static,
-    GL: OAuthService + Send + Sync + 'static,
     UR: iam_domain::port::repository::UserRepository + Send + Sync,
     UER: iam_domain::port::repository::UserEmailRepository + Send + Sync,
     TR: iam_domain::port::repository::TokenRepository + Send + Sync,
-    <GH as OAuthService>::Error: std::error::Error + Send + Sync + 'static,
-    <GL as OAuthService>::Error: std::error::Error + Send + Sync + 'static,
 {
     /// Create a new `LinkProviderUseCaseImpl`
     pub fn new(
-        github_auth: Arc<GH>,
-        gitlab_auth: Arc<GL>,
+        clients: HashMap<Provider, Arc<dyn FederatedOAuthClient>>,
         provider_link_service: Arc<ProviderLinkService<UR, UER, TR>>,
     ) -> Self {
-        let auth_factory = Arc::new(OAuthProviderFactory::new(github_auth, gitlab_auth));
-
         Self {
-            auth_factory,
+            auth_factory: Arc::new(OAuthProviderFactory::new(clients)),
             provider_link_service,
         }
+    }
+
+    async fn authorize_url(
+        &self,
+        provider: Provider,
+        redirect_uri: String,
+        state: String,
+    ) -> Result<String, LinkProviderError> {
+        let client = self
+            .auth_factory
+            .get(provider)
+            .map_err(|_| LinkProviderError::ProviderNotConfigured(provider.as_str().to_string()))?;
+        let response = client
+            .authorize(&redirect_uri, &state)
+            .await
+            .map_err(|e| LinkProviderError::AuthError(e.to_string()))?;
+        Ok(response.authorization_url)
     }
 
     /// Exchange authorization code for tokens and user profile
@@ -124,17 +143,18 @@ where
             iam_domain::entity::provider::ProviderUserProfile,
         ),
         LinkProviderError,
-    >
-    where
-        GH: OAuthService,
-        GL: OAuthService,
-        <GH as OAuthService>::Error: std::error::Error + Send + Sync + 'static,
-        <GL as OAuthService>::Error: std::error::Error + Send + Sync + 'static,
-    {
-        let auth_service = self.auth_factory.get_oauth_service(provider);
+    > {
+        let client = self
+            .auth_factory
+            .get(provider)
+            .map_err(|_| LinkProviderError::ProviderNotConfigured(provider.as_str().to_string()))?;
 
-        let (tokens, profile) = auth_service
-            .exchange_code(code, redirect_uri)
+        let tokens = client
+            .exchange_code(&code, &redirect_uri)
+            .await
+            .map_err(|e| LinkProviderError::AuthError(e.to_string()))?;
+        let profile = client
+            .user_profile(&tokens.access_token)
             .await
             .map_err(|e| LinkProviderError::AuthError(e.to_string()))?;
 
@@ -143,15 +163,11 @@ where
 }
 
 #[async_trait]
-impl<GH, GL, UR, UER, TR> LinkProviderUseCase for LinkProviderUseCaseImpl<GH, GL, UR, UER, TR>
+impl<UR, UER, TR> LinkProviderUseCase for LinkProviderUseCaseImpl<UR, UER, TR>
 where
-    GH: OAuthService + Send + Sync + 'static,
-    GL: OAuthService + Send + Sync + 'static,
-    UR: iam_domain::port::repository::UserRepository + Send + Sync,
-    UER: iam_domain::port::repository::UserEmailRepository + Send + Sync,
-    TR: iam_domain::port::repository::TokenRepository + Send + Sync,
-    <GH as OAuthService>::Error: std::error::Error + Send + Sync + 'static,
-    <GL as OAuthService>::Error: std::error::Error + Send + Sync + 'static,
+    UR: iam_domain::port::repository::UserRepository + Send + Sync + 'static,
+    UER: iam_domain::port::repository::UserEmailRepository + Send + Sync + 'static,
+    TR: iam_domain::port::repository::TokenRepository + Send + Sync + 'static,
     <UR as iam_domain::port::repository::UserRepository>::Error:
         std::error::Error + Send + Sync + 'static,
     <UER as iam_domain::port::repository::UserEmailRepository>::Error:
@@ -159,14 +175,22 @@ where
     <TR as iam_domain::port::repository::TokenRepository>::Error:
         std::error::Error + Send + Sync + 'static,
 {
-    fn generate_start_url(&self, provider: Provider) -> Result<String, LinkProviderError> {
-        let auth_service = self.auth_factory.get_oauth_service(provider);
-        Ok(auth_service.generate_authorize_url())
+    async fn generate_start_url(
+        &self,
+        provider: Provider,
+        redirect_uri: String,
+        state: String,
+    ) -> Result<String, LinkProviderError> {
+        self.authorize_url(provider, redirect_uri, state).await
     }
 
-    fn generate_relink_start_url(&self, provider: Provider) -> Result<String, LinkProviderError> {
-        let auth_service = self.auth_factory.get_oauth_service(provider);
-        Ok(auth_service.generate_relink_authorize_url())
+    async fn generate_relink_start_url(
+        &self,
+        provider: Provider,
+        redirect_uri: String,
+        state: String,
+    ) -> Result<String, LinkProviderError> {
+        self.authorize_url(provider, redirect_uri, state).await
     }
 
     async fn link_provider(
@@ -176,18 +200,15 @@ where
         code: String,
         redirect_uri: String,
     ) -> Result<LinkProviderResponse, LinkProviderError> {
-        // Step 1: Exchange code for tokens and profile
         let (tokens, profile) = self
             .fetch_provider_profile(provider, code, redirect_uri)
             .await?;
 
-        // Step 2: Use domain service to handle the business logic
         let result = self
             .provider_link_service
             .link_provider_to_user(user_id, provider, profile.id.clone(), tokens, profile)
             .await?;
 
-        // Step 3: Convert domain result to use case response
         Ok(LinkProviderResponse {
             user: result.user,
             emails: result.emails,
@@ -203,18 +224,15 @@ where
         code: String,
         redirect_uri: String,
     ) -> Result<LinkProviderResponse, LinkProviderError> {
-        // Step 1: Exchange code for tokens and profile
         let (tokens, profile) = self
             .fetch_provider_profile(provider, code, redirect_uri)
             .await?;
 
-        // Step 2: Use domain service to relink (replace existing tokens)
         let result = self
             .provider_link_service
             .relink_provider_for_user(user_id, provider, profile.id.clone(), tokens, profile)
             .await?;
 
-        // Step 3: Convert domain result to use case response
         Ok(LinkProviderResponse {
             user: result.user,
             emails: result.emails,

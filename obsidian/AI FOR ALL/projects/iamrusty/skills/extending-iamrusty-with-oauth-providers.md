@@ -5,44 +5,49 @@ tags: [oauth, services, rust, visibility/internal]
 sources:
   - IAMRusty/docs/PROVIDER_FACTORY_GUIDE.md
   - IAMRusty/setup/src/app.rs
-  - IAMRusty/http/src/handlers/auth.rs
-summary: Add an OAuth provider to IAMRusty by updating provider enums, infra clients, setup wiring, route validation, config, and tests together.
+  - docs/adr/0407-contrat-authn-federee-vendor-neutral.md
+  - docs/adr/0408-connecteurs-idp-services-http.md
+  - docs/adr/0410-migration-iam-connecteurs-idp.md
+summary: >-
+  Add an IdP by shipping a Connect HMAC service and one [[idp.connectors]]
+  line. IAM keeps /api/auth/{provider} routes; vendor clients stay out of IAM.
 provenance:
-  extracted: 0.76
-  inferred: 0.18
-  ambiguous: 0.06
+  extracted: 0.82
+  inferred: 0.14
+  ambiguous: 0.04
 created: 2026-04-14T17:46:37.6929647Z
-updated: 2026-04-14T17:46:37.6929647Z
+updated: 2026-09-22T12:49:00Z
 ---
 
 # Extending IAMRusty with OAuth Providers
 
-Adding a provider to `[[projects/iamrusty/iamrusty]]` is a cross-cutting change. The docs describe a provider-factory style extension path, while the current runtime wiring also requires direct updates in setup, validation, and tests.
+> [!note] Cible vivante (Implemented)
+> Canon : [[projects/iamrusty/decisions/index]] (ADR-0407–0410, Réalité **Implemented**). Ajouter un IdP = **nouveau service connecteur** + ligne `[[idp.connectors]]`, pas un client in-process dans IAM.
+
+Adding a provider to `[[projects/iamrusty/iamrusty]]` is no longer a cross-cutting IAM enum + factory change. GitHub and GitLab already live in `GitHubConnect/` and `GitLabConnect/`. IAM talks to them only through `HttpIdpConnector` (HMAC S2S).
 
 ## Key Ideas
 
-- Start from the provider enum and string mappings so the new provider can participate in domain logic and route parsing.
-- Implement the provider client in infrastructure, normalizing provider-specific tokens and user profile data into the shared IAM abstractions.
-- Register the provider anywhere the runtime creates OAuth services: login, link, relink, and internal provider-token flows all need consistent wiring in `setup/src/app.rs`.
-- Update HTTP validation and handler parsing so the route layer accepts the new provider name instead of rejecting it before any use case runs.
-- Extend config, redirect URIs, and tests at the same time so the provider exists in development, test, and production shapes instead of only in the domain layer.
-- The provider-factory guide is useful conceptually, but the current codebase still performs several registrations directly in setup and handler logic rather than through one universal factory. ^[ambiguous]
+- IAM owns browser callbacks, CSRF `OAuthState`, linking, JWT, and `provider_tokens`. The connector owns vendor `client_id` / `client_secret` and the GitHub/GitLab HTTP calls.
+- Register the connector in IAM TOML: `id`, `base_url` (service prefix included), `hmac_secret` (≥ 16 chars), `redirect_uris` (callback **and** relink-callback). Compose IAM is port **8080**.
+- Boot fails closed if `idp.connectors` is empty, any HMAC is shorter than 16 bytes, or no known v1 slug (`github` / `gitlab`) is wired.
+- Domain `Provider` GitHub|GitLab remains the v1 **route** adapter ([0407 §8](docs/adr/0407-contrat-authn-federee-vendor-neutral.md)). Do not add Google to that enum; add a new Connect service instead.
+- Integration tests: IAM mocks the **connector**; the connector mocks the **vendor**. Do not remount vendor APIs on IAM `:3000`. Do not nest Connect in `oodhive-monolith` (v1).
 
 ## Workflow
 
-- Add the provider enum variant and string conversions in the domain model.
-- Create the provider OAuth client in `infra/src/auth/` and normalize remote profile data to the shared provider profile type.
-- Register the client in every relevant OAuth service instance built in `setup/src/app.rs`.
-- Update handler validation and provider parsing in `http/src/handlers/auth.rs`.
-- Add config values, mock fixtures, and integration tests for login, callback, linking, and relinking behavior.
+- Scaffold a Connect service (hexagon mince, no Postgres, no OpenFGA, no user JWT) implementing `FederatedOAuthClient` from `idp-connect-contract` feature `server`.
+- Allowlist the public IAM callback URIs; keep HMAC secrets aligned between IAM `[[idp.connectors]]` and the connector config.
+- Add the IAM registry line. `setup_http_idp_clients` maps known slugs onto `OAuthProviderFactory` (`HashMap<Provider, Arc<dyn FederatedOAuthClient>>`).
+- Cover login/callback/link/relink with the existing IAM WireMock connector fixture; cover token+profile in the connector crate against WireMock vendor.
 
-## Open Questions
+## Leftover (accurate)
 
-- The current `ProviderPath` validator and route handlers are explicitly GitHub/GitLab-only, so provider expansion is not yet a purely data-driven operation. ^[ambiguous]
+- v1 routes still parse `{provider}` as GitHub|GitLab. Extra slugs in the registry are skipped until a later route slice. ^[extracted]
 
 ## Sources
 
-- [[projects/iamrusty/iamrusty]] - Service being extended.
-- [[projects/iamrusty/concepts/oauth-provider-linking]] - Existing provider-link semantics the new provider must preserve.
-- <!-- [[concepts/structured-service-configuration]] --> - Config model the provider must plug into.
-- [[projects/iamrusty/references/iamrusty-api-and-auth-flows]] - Route and handler behavior affected by provider expansion.
+- [[projects/iamrusty/iamrusty]] - Platform IdP that consumes Connect.
+- [[projects/iamrusty/concepts/oauth-provider-linking]] - Linking stays on IAM.
+- [[projects/iamrusty/decisions/0408-connecteurs-http]] - Connect = HTTP services.
+- [[projects/iamrusty/references/iamrusty-api-and-auth-flows]] - `/iam/api/auth/{provider}` stays.

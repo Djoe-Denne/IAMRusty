@@ -1,5 +1,6 @@
 use crate::{
     error::AuthError,
+    idp_registry,
     oauth_state::OAuthState,
     validation::{validate_provider_name, PROVIDER_REGEX},
 };
@@ -7,7 +8,7 @@ use axum::{
     extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
     response::Redirect,
-    Json,
+    Extension, Json,
 };
 use axum_valid::Valid;
 use iam_application::command::{
@@ -25,10 +26,12 @@ use iam_application::command::{
     verify_email::VerifyEmailCommand,
     CommandContext,
 };
+use iam_configuration::{IdpConfig, IdpRedirectFlow};
 use iam_domain::entity::provider::Provider;
 use rustycog::http::AppState;
 use rustycog::http::{AuthUser, ValidatedJson};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use tracing::{debug, error};
 use url;
 use uuid::Uuid;
@@ -261,6 +264,20 @@ pub enum LoginResponse {
     },
 }
 
+fn resolve_provider_redirect(
+    idp: &IdpConfig,
+    provider_name: &str,
+    flow: IdpRedirectFlow,
+    operation: &str,
+) -> Result<(Provider, String), AuthError> {
+    let slug = provider_name.to_lowercase();
+    let redirect_uri = idp_registry::redirect_uri_for(idp, &slug, flow)
+        .ok_or_else(|| AuthError::oauth_connector_not_configured(operation))?;
+    let provider = Provider::from_str(&slug)
+        .ok_or_else(|| AuthError::oauth_connector_not_configured(operation))?;
+    Ok((provider, redirect_uri))
+}
+
 /// Handle OAuth login start - redirects to provider for login (unauthenticated users)
 ///
 /// # Errors
@@ -269,6 +286,7 @@ pub enum LoginResponse {
 /// the authorization URL cannot be generated, or the generated URL is invalid.
 pub async fn oauth_login_start(
     State(state): State<AppState>,
+    Extension(idp): Extension<Arc<IdpConfig>>,
     Valid(Path(provider_path)): Valid<Path<ProviderPath>>,
 ) -> Result<Redirect, AuthError> {
     debug!(
@@ -276,12 +294,12 @@ pub async fn oauth_login_start(
         provider_path.provider_name
     );
 
-    // Parse the provider
-    let provider = match provider_path.provider_name.to_lowercase().as_str() {
-        "github" => Provider::GitHub,
-        "gitlab" => Provider::GitLab,
-        _ => return Err(AuthError::oauth_invalid_provider("login_start")),
-    };
+    let (provider, redirect_uri) = resolve_provider_redirect(
+        &idp,
+        &provider_path.provider_name,
+        IdpRedirectFlow::Callback,
+        "login_start",
+    )?;
 
     // Create login state
     debug!("Creating login state");
@@ -297,7 +315,7 @@ pub async fn oauth_login_start(
         .with_metadata("operation".to_string(), "login_start".to_string())
         .with_metadata("provider".to_string(), provider.as_str().to_string());
 
-    let command = GenerateOAuthStartUrlCommand::new(provider);
+    let command = GenerateOAuthStartUrlCommand::new(provider, redirect_uri, encoded_state.clone());
     let base_auth_url = state
         .command_service
         .execute(command, context)
@@ -342,6 +360,7 @@ pub async fn oauth_login_start(
 /// the authorization URL cannot be generated, or the generated URL is invalid.
 pub async fn oauth_link_start(
     State(state): State<AppState>,
+    Extension(idp): Extension<Arc<IdpConfig>>,
     Valid(Path(provider_path)): Valid<Path<ProviderPath>>,
     auth_user: AuthUser,
 ) -> Result<Redirect, AuthError> {
@@ -350,12 +369,12 @@ pub async fn oauth_link_start(
         provider_path.provider_name, auth_user.user_id
     );
 
-    // Parse the provider
-    let provider = match provider_path.provider_name.to_lowercase().as_str() {
-        "github" => Provider::GitHub,
-        "gitlab" => Provider::GitLab,
-        _ => return Err(AuthError::oauth_invalid_provider("link_start")),
-    };
+    let (provider, redirect_uri) = resolve_provider_redirect(
+        &idp,
+        &provider_path.provider_name,
+        IdpRedirectFlow::Callback,
+        "link_start",
+    )?;
 
     // check if user exists
     let user_context = CommandContext::new()
@@ -385,7 +404,8 @@ pub async fn oauth_link_start(
         .with_metadata("operation".to_string(), "link_start".to_string())
         .with_metadata("provider".to_string(), provider.as_str().to_string());
 
-    let command = GenerateLinkProviderStartUrlCommand::new(provider);
+    let command =
+        GenerateLinkProviderStartUrlCommand::new(provider, redirect_uri, encoded_state.clone());
     let base_auth_url = state
         .command_service
         .execute(command, context)
@@ -431,6 +451,7 @@ pub async fn oauth_link_start(
 /// execution fails.
 pub async fn oauth_callback(
     State(state): State<AppState>,
+    Extension(idp): Extension<Arc<IdpConfig>>,
     Valid(Path(provider_path)): Valid<Path<ProviderPath>>,
     Valid(Query(query)): Valid<Query<OAuthCallbackQuery>>,
 ) -> Result<(StatusCode, Json<OAuthResponse>), AuthError> {
@@ -458,24 +479,18 @@ pub async fn oauth_callback(
         _ => return Err(AuthError::oauth_missing_code("callback")),
     };
 
-    // Parse the provider
-    let provider = match provider_path.provider_name.to_lowercase().as_str() {
-        "github" => Provider::GitHub,
-        "gitlab" => Provider::GitLab,
-        _ => return Err(AuthError::oauth_invalid_provider("callback")),
-    };
+    let (provider, redirect_uri) = resolve_provider_redirect(
+        &idp,
+        &provider_path.provider_name,
+        IdpRedirectFlow::Callback,
+        "callback",
+    )?;
 
     // Decode the state to determine operation type
     let oauth_state = if let Some(state_param) = query.state {
         OAuthState::decode(&state_param).map_err(|_e| AuthError::oauth_invalid_state("callback"))?
     } else {
         return Err(AuthError::oauth_missing_state("callback"));
-    };
-
-    // Get redirect URI - hardcoded for now since we don't have config in AppState
-    let redirect_uri = match provider {
-        Provider::GitHub => "http://127.0.0.1:8081/api/auth/github/callback".to_string(),
-        Provider::GitLab => "http://127.0.0.1:8081/api/auth/gitlab/callback".to_string(),
     };
 
     if oauth_state.is_login() {
@@ -485,10 +500,7 @@ pub async fn oauth_callback(
         Ok((status_code, json_response))
     } else if let Some(user_id) = oauth_state.get_link_user_id() {
         // Handle link operation
-        debug!(
-            "handle_link_callback {:?}, {:?}, {:?}",
-            user_id, code, redirect_uri
-        );
+        debug!("handle_link_callback user={user_id}");
         let json_response =
             handle_link_callback(state, provider, code, redirect_uri, user_id).await?;
         Ok((StatusCode::OK, json_response))
@@ -503,7 +515,7 @@ async fn handle_login_callback(
     state: AppState,
     provider: Provider,
     code: String,
-    _redirect_uri: String,
+    redirect_uri: String,
 ) -> Result<(StatusCode, Json<OAuthResponse>), AuthError> {
     debug!("Handling login callback");
 
@@ -511,7 +523,7 @@ async fn handle_login_callback(
         .with_metadata("operation".to_string(), "login_callback".to_string())
         .with_metadata("provider".to_string(), provider.as_str().to_string());
 
-    let command = OAuthLoginCommand::new(provider, code);
+    let command = OAuthLoginCommand::new(provider, code, redirect_uri);
     let response = state
         .command_service
         .execute(command, context)
@@ -1111,6 +1123,7 @@ pub struct RelinkProviderCallbackResponse {
 /// or the relink command fails.
 pub async fn relink_provider_callback(
     State(state): State<AppState>,
+    Extension(idp): Extension<Arc<IdpConfig>>,
     Valid(Path(provider_path)): Valid<Path<ProviderPath>>,
     Query(callback_request): Query<OAuthCallbackQuery>,
     auth_user: AuthUser,
@@ -1120,18 +1133,12 @@ pub async fn relink_provider_callback(
         provider_path.provider_name, auth_user.user_id
     );
 
-    // Parse the provider
-    let provider = match provider_path.provider_name.to_lowercase().as_str() {
-        "github" => Provider::GitHub,
-        "gitlab" => Provider::GitLab,
-        _ => return Err(AuthError::oauth_invalid_provider("relink_provider")),
-    };
-
-    // Build redirect URI dynamically - use correct port 8081 for tests
-    let redirect_uri = format!(
-        "http://127.0.0.1:8081/api/auth/{}/relink-callback",
-        provider.as_str()
-    );
+    let (provider, redirect_uri) = resolve_provider_redirect(
+        &idp,
+        &provider_path.provider_name,
+        IdpRedirectFlow::Relink,
+        "relink_provider",
+    )?;
 
     let code = callback_request
         .code
@@ -1193,6 +1200,7 @@ pub async fn relink_provider_callback(
 /// be generated.
 pub async fn generate_relink_provider_start_url(
     State(state): State<AppState>,
+    Extension(idp): Extension<Arc<IdpConfig>>,
     Valid(Path(provider_path)): Valid<Path<ProviderPath>>,
     _auth_user: AuthUser,
 ) -> Result<Json<OAuthStartResponse>, AuthError> {
@@ -1201,18 +1209,14 @@ pub async fn generate_relink_provider_start_url(
         provider_path.provider_name
     );
 
-    // Parse the provider
-    let provider = match provider_path.provider_name.to_lowercase().as_str() {
-        "github" => Provider::GitHub,
-        "gitlab" => Provider::GitLab,
-        _ => {
-            return Err(AuthError::oauth_invalid_provider(
-                "generate_relink_provider_start_url",
-            ))
-        }
-    };
+    let (provider, redirect_uri) = resolve_provider_redirect(
+        &idp,
+        &provider_path.provider_name,
+        IdpRedirectFlow::Relink,
+        "generate_relink_provider_start_url",
+    )?;
 
-    let command = GenerateRelinkProviderStartUrlCommand::new(provider);
+    let command = GenerateRelinkProviderStartUrlCommand::new(provider, redirect_uri, String::new());
 
     let context = CommandContext::new()
         .with_metadata(

@@ -7,7 +7,7 @@ mod utils;
 
 use base64::{engine::general_purpose, Engine as _};
 use common::setup_test_server;
-use fixtures::{DbFixtures, GitHubFixtures};
+use fixtures::{DbFixtures, IdpConnectFixtures};
 use iam_configuration::{load_config_part, JwtConfig};
 use sea_orm::ConnectionTrait;
 use serde_json::{json, Value};
@@ -86,9 +86,8 @@ async fn test_oauth_provider_already_linked_to_same_user() {
         .expect("Failed to create GitHub token");
 
     // Setup GitHub mock
-    let github = GitHubFixtures::service().await;
-    github.setup_successful_token_exchange().await;
-    github.setup_successful_user_profile_arthur().await;
+    let idp = IdpConnectFixtures::service().await;
+    idp.mock_github_happy_arthur().await;
 
     // Try to link GitHub again with authentication
     let oauth_start_response = client
@@ -150,9 +149,8 @@ async fn test_oauth_provider_linked_to_different_user_returns_409() {
         .expect("Failed to create second user email");
 
     // Setup GitHub mock to return the same GitHub profile that's already linked to first user
-    let github = GitHubFixtures::service().await;
-    github.setup_successful_token_exchange().await;
-    github.setup_successful_user_profile_arthur().await; // Same profile as first user
+    let idp = IdpConnectFixtures::service().await;
+    idp.mock_github_happy_arthur().await; // Same profile as first user
 
     // Generate mock JWT for second user
     let mock_jwt_second_user = create_valid_jwt_token_with_encoder(

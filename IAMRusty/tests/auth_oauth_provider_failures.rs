@@ -4,7 +4,7 @@ mod fixtures;
 mod utils;
 
 use common::setup_test_server;
-use fixtures::{GitHubFixtures, GitLabFixtures};
+use fixtures::IdpConnectFixtures;
 use reqwest::{Response, StatusCode};
 use serial_test::serial;
 use utils::{auth::AuthTestUtils, oauth::OAuthTestUtils};
@@ -35,10 +35,10 @@ async fn assert_failed_without_persistence(
 async fn github_rate_limit_and_server_error_are_http_failures_without_account_side_effects() {
     let (fixture, base_url, client) = setup_test_server().await.unwrap();
     let db = fixture.db();
-    let github = GitHubFixtures::service().await;
+    let idp = IdpConnectFixtures::service().await;
 
-    github.setup_successful_token_exchange().await;
-    github.setup_rate_limit_exceeded().await;
+    idp.mock_token("github").await;
+    idp.mock_profile_status("github", 429).await;
     let state = OAuthTestUtils::create_login_state();
     let rate_limited = client
         .get(format!("{base_url}/api/auth/github/callback"))
@@ -48,9 +48,9 @@ async fn github_rate_limit_and_server_error_are_http_failures_without_account_si
         .unwrap();
     assert_failed_without_persistence(rate_limited, db.clone()).await;
 
-    github.reset().await;
-    github.setup_successful_token_exchange().await;
-    github.setup_server_error().await;
+    idp.reset().await;
+    idp.mock_token("github").await;
+    idp.mock_profile_status("github", 502).await;
     let state = OAuthTestUtils::create_login_state();
     let unavailable = client
         .get(format!("{base_url}/api/auth/github/callback"))
@@ -66,10 +66,10 @@ async fn github_rate_limit_and_server_error_are_http_failures_without_account_si
 async fn gitlab_forbidden_rate_limit_and_server_error_keep_the_same_public_contract() {
     let (fixture, base_url, client) = setup_test_server().await.unwrap();
     let db = fixture.db();
-    let gitlab = GitLabFixtures::service().await;
+    let idp = IdpConnectFixtures::service().await;
 
-    gitlab.setup_successful_token_exchange().await;
-    gitlab.setup_forbidden_error().await;
+    idp.mock_token("gitlab").await;
+    idp.mock_profile_status("gitlab", 403).await;
     let state = OAuthTestUtils::create_login_state();
     let forbidden = client
         .get(format!("{base_url}/api/auth/gitlab/callback"))
@@ -79,9 +79,9 @@ async fn gitlab_forbidden_rate_limit_and_server_error_keep_the_same_public_contr
         .unwrap();
     assert_failed_without_persistence(forbidden, db.clone()).await;
 
-    gitlab.reset().await;
-    gitlab.setup_successful_token_exchange().await;
-    gitlab.setup_rate_limit_exceeded().await;
+    idp.reset().await;
+    idp.mock_token("gitlab").await;
+    idp.mock_profile_status("gitlab", 429).await;
     let state = OAuthTestUtils::create_login_state();
     let rate_limited = client
         .get(format!("{base_url}/api/auth/gitlab/callback"))
@@ -91,9 +91,9 @@ async fn gitlab_forbidden_rate_limit_and_server_error_keep_the_same_public_contr
         .unwrap();
     assert_failed_without_persistence(rate_limited, db.clone()).await;
 
-    gitlab.reset().await;
-    gitlab.setup_successful_token_exchange().await;
-    gitlab.setup_server_error().await;
+    idp.reset().await;
+    idp.mock_token("gitlab").await;
+    idp.mock_profile_status("gitlab", 502).await;
     let state = OAuthTestUtils::create_login_state();
     let unavailable = client
         .get(format!("{base_url}/api/auth/gitlab/callback"))
@@ -109,9 +109,9 @@ async fn gitlab_forbidden_rate_limit_and_server_error_keep_the_same_public_contr
 async fn github_rejects_invalid_authorization_codes_and_clients_without_writing_tokens() {
     let (fixture, base_url, client) = setup_test_server().await.unwrap();
     let db = fixture.db();
-    let github = GitHubFixtures::service().await;
+    let idp = IdpConnectFixtures::service().await;
 
-    github.setup_failed_token_exchange_invalid_code().await;
+    idp.mock_s2s_unauthorized("github", "/v1/token").await;
     let state = OAuthTestUtils::create_login_state();
     let invalid_code = client
         .get(format!("{base_url}/api/auth/github/callback"))
@@ -121,8 +121,8 @@ async fn github_rejects_invalid_authorization_codes_and_clients_without_writing_
         .unwrap();
     assert_failed_without_persistence(invalid_code, db.clone()).await;
 
-    github.reset().await;
-    github.setup_failed_token_exchange_invalid_client().await;
+    idp.reset().await;
+    idp.mock_s2s_unauthorized("github", "/v1/token").await;
     let state = OAuthTestUtils::create_login_state();
     let invalid_client = client
         .get(format!("{base_url}/api/auth/github/callback"))
@@ -138,9 +138,9 @@ async fn github_rejects_invalid_authorization_codes_and_clients_without_writing_
 async fn gitlab_rejects_invalid_authorization_codes_and_clients_without_writing_tokens() {
     let (fixture, base_url, client) = setup_test_server().await.unwrap();
     let db = fixture.db();
-    let gitlab = GitLabFixtures::service().await;
+    let idp = IdpConnectFixtures::service().await;
 
-    gitlab.setup_failed_token_exchange_invalid_code().await;
+    idp.mock_s2s_unauthorized("gitlab", "/v1/token").await;
     let state = OAuthTestUtils::create_login_state();
     let invalid_code = client
         .get(format!("{base_url}/api/auth/gitlab/callback"))
@@ -150,8 +150,8 @@ async fn gitlab_rejects_invalid_authorization_codes_and_clients_without_writing_
         .unwrap();
     assert_failed_without_persistence(invalid_code, db.clone()).await;
 
-    gitlab.reset().await;
-    gitlab.setup_failed_token_exchange_invalid_client().await;
+    idp.reset().await;
+    idp.mock_s2s_unauthorized("gitlab", "/v1/token").await;
     let state = OAuthTestUtils::create_login_state();
     let invalid_client = client
         .get(format!("{base_url}/api/auth/gitlab/callback"))

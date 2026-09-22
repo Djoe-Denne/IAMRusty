@@ -283,15 +283,21 @@ pub struct GenerateLinkProviderStartUrlCommand {
     pub command_id: Uuid,
     /// OAuth provider
     pub provider: Provider,
+    /// Redirect URI for this start
+    pub redirect_uri: String,
+    /// Encoded IAM OAuth state
+    pub state: String,
 }
 
 impl GenerateLinkProviderStartUrlCommand {
     /// Create a new generate link provider start URL command
     #[must_use]
-    pub fn new(provider: Provider) -> Self {
+    pub fn new(provider: Provider, redirect_uri: String, state: String) -> Self {
         Self {
             command_id: Uuid::new_v4(),
             provider,
+            redirect_uri,
+            state,
         }
     }
 }
@@ -345,7 +351,8 @@ where
         command: GenerateLinkProviderStartUrlCommand,
     ) -> Result<String, CommandError> {
         self.link_provider_use_case
-            .generate_start_url(command.provider)
+            .generate_start_url(command.provider, command.redirect_uri, command.state)
+            .await
             .map_err(|e| LinkProviderErrorMapper.map_error(Box::new(e)))
     }
 }
@@ -635,15 +642,21 @@ pub struct GenerateRelinkProviderStartUrlCommand {
     pub command_id: Uuid,
     /// OAuth provider
     pub provider: Provider,
+    /// Redirect URI for this start
+    pub redirect_uri: String,
+    /// Opaque state forwarded to the connector
+    pub state: String,
 }
 
 impl GenerateRelinkProviderStartUrlCommand {
     /// Create a new generate relink provider start URL command
     #[must_use]
-    pub fn new(provider: Provider) -> Self {
+    pub fn new(provider: Provider, redirect_uri: String, state: String) -> Self {
         Self {
             command_id: Uuid::new_v4(),
             provider,
+            redirect_uri,
+            state,
         }
     }
 }
@@ -697,7 +710,8 @@ where
         command: GenerateRelinkProviderStartUrlCommand,
     ) -> Result<String, CommandError> {
         self.link_provider_use_case
-            .generate_relink_start_url(command.provider)
+            .generate_relink_start_url(command.provider, command.redirect_uri, command.state)
+            .await
             .map_err(|e| LinkProviderErrorMapper.map_error(Box::new(e)))
     }
 }

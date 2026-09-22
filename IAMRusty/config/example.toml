@@ -13,13 +13,23 @@ audience = "aiforall"
 # Use a different database for development
 db = "iam_dev"
 
-[oauth.github]
-# Development GitHub OAuth settings
-redirect_uri = "http://www.github.com/api/auth/github/callback"
+[[idp.connectors]]
+id = "github"
+base_url = "http://127.0.0.1:8085/github-connect"
+hmac_secret = "change-me-github-connect-hmac"
+redirect_uris = [
+  "http://127.0.0.1:8080/iam/api/auth/github/callback",
+  "http://127.0.0.1:8080/iam/api/auth/github/relink-callback",
+]
 
-[oauth.gitlab]
-# Development GitLab OAuth settings  
-redirect_uri = "http://www.gitlab.com/api/auth/gitlab/callback"
+[[idp.connectors]]
+id = "gitlab"
+base_url = "http://127.0.0.1:8086/gitlab-connect"
+hmac_secret = "change-me-gitlab-connect-hmac"
+redirect_uris = [
+  "http://127.0.0.1:8080/iam/api/auth/gitlab/callback",
+  "http://127.0.0.1:8080/iam/api/auth/gitlab/relink-callback",
+]
 
 [jwt]
 expiration_seconds = 900  # 15 minutes

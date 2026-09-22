@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: apparatus-system
+  labels:
+    apparatus.aiforall.dev/ns: system
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: apparatus-plugins
+  labels:
+    apparatus.aiforall.dev/ns: plugins

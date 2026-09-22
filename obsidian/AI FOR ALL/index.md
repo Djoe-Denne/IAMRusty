@@ -4,19 +4,24 @@ title: >-
 category: navigation
 tags: [index, navigation, wiki]
 summary: >-
-  Index wiki AIForAll : P2 Implemented, Lazaret P3 Implemented (A-DEC
-  2026-09-20) T1–T14b, mesh HTTPS (HEAD a27ea5b).
+  Index wiki AIForAll : P2 Implemented, Lazaret P3 Implemented (A-DEC),
+  ADR-0008 Accepted / Partial, IAM-IdP 0407–0410 Accepted / Implemented, cloud 0600–0602
+  Proposed. P4-core operator T2–T12.
 provenance:
   extracted: 0.75
   inferred: 0.23
   ambiguous: 0.02
-updated: 2026-09-20T12:30:00Z
+updated: 2026-09-22T12:49:00Z
 sources:
   - "C:/Users/djden/.codex/attachments/486d0052-5759-4277-bcc1-9f209ce353d4/pasted-text.txt"
   - docs/adr/README.md
   - docs/apparatus-p0-implementation-prompt.md
   - docs/apparatus-p1-implementation-prompt.md
   - docs/adr/0006-apparatus-p2-reconciliation-in-process.md
+  - docs/adr/0007-closeout.md
+  - docs/adr/0008-apparatus-p4-k8s-isolation-outside-manifesto.md
+  - docs/apparatus-p4-implementation-prompt.md
+  - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/d5c0a4f7-e945-4de1-aa1c-8fa771ba9733/d5c0a4f7-e945-4de1-aa1c-8fa771ba9733.jsonl
 ---
 
 # Wiki Index
@@ -46,7 +51,7 @@ Central entry point for this vault. Use the area indexes for full catalogs; use 
 ## Architecture — ADR
 
 - [[projects/aiforall/decisions/index]] — vague 2 rétroactive (0100–0502) : hexagone, tests, events, services, plateforme.
-- [[projects/manifesto/decisions/index]] — vague 1 Apparatus Accepted ; P2 Implemented ; 0007 Implemented.
+- [[projects/manifesto/decisions/index]] — vague 1 Apparatus 0001–0008 Accepted ; P2 Implemented ; 0007 Implemented ; 0008 Partial.
 
 ## Fonctionnalité — Apparatus
 
@@ -55,12 +60,21 @@ Central entry point for this vault. Use the area indexes for full catalogs; use 
 - [[projects/manifesto/concepts/apparatus-p2-reconciliation]] — ticker in-process **Implemented**.
 - [[projects/lazaret/lazaret]] — frontière P3 Implemented (T1–T14b ; A-DEC 2026-09-20).
 - [[projects/aiforall/concepts/https-platform-mesh]] — T14b HTTPS Hive–IAM–Telegraph, dual-bind, CA mesh ≠ CA Lazaret.
-- [[projects/manifesto/concepts/apparatus-platform]] — vision ; Factory/host encore absents. Alias [[entities/paravretius]].
+- [[projects/manifesto/concepts/apparatus-platform]] — vision ; Factory/host encore absents. Alias [[entities/paravretius]]. Moteur P4 : [[projects/manifesto/decisions/0008-apparatus-p4-k8s]] (Accepted / Partial). Crate : [[projects/manifesto/concepts/apparatus-p4-operator]].
 - [[projects/manifesto/references/apparatus-implementation-plan]] — phases et preuves P0–P3.
 
 ## Recent Additions
 
-- [[journal/2026-09-20]] — HEAD `a27ea5b` : T11b–T14b + SQS ; ingest transcripts sous-agents inclus.
+- [[journal/2026-09-22]] — P4-core T2–T12 ; pull zot IfNotPresent ; gel IAM.
+- [[projects/manifesto/concepts/apparatus-p4-operator]] — crate `apparatus-operator`.
+- [[projects/aiforall/skills/running-apparatus-p4-tests]] — Docker + Kind `--test-threads=1`.
+- [[projects/iamrusty/decisions/index]] — 0407–0410 Accepted / Implemented.
+- [[projects/aiforall/decisions/0602-observabilite-portable]] — OTLP Proposed, pas implémenté.
+- [[projects/manifesto/decisions/0008-apparatus-p4-k8s]] — ADR-0008 Accepted / Partial.
+- [[projects/manifesto/references/0007-closeout]] — A-DEC inventaire ; APP-05 reste ouvert.
+- [[projects/manifesto/references/0008-app01-reconciliation]] — méthode RATIFIÉE, pas canon.
+- [[projects/manifesto/references/apparatus-p4-implementation-prompt]] — contrat TDD P4 (P4-core livré, 0008 Partial).
+- [[journal/2026-09-20]] — HEAD `a27ea5b` : T11b–T14b + SQS ; ingest 0008 / closeout.
 - [[projects/aiforall/concepts/https-platform-mesh]] — mesh HTTPS T14b (Hive 8443, IAM 8444, Telegraph 8445).
 - [[journal/2026-09-18]] — HEAD `9e85edd` : T8 `kv_purge` `f0cf1d2`, T10 enrollment `9e85edd`, flake CI SQS LocalStack.
 - [[entities/paravretius]] — nom historique ; canon Apparatus / Lazaret ; absent du code.

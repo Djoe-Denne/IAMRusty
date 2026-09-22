@@ -28,15 +28,23 @@ password = ""
 # Add read replicas for production via env, not committed URLs
 read_replicas = []
 
-[oauth.github]
-# Production values should be set via environment variables
-# These are just placeholders
-redirect_uri = "https://your-domain.com/api/auth/github/callback"
+[[idp.connectors]]
+id = "github"
+base_url = "http://github-connect-service:8080/github-connect"
+hmac_secret = "change-me-set-via-env-github"
+redirect_uris = [
+  "https://your-domain.com/iam/api/auth/github/callback",
+  "https://your-domain.com/iam/api/auth/github/relink-callback",
+]
 
-[oauth.gitlab]
-# Production values should be set via environment variables  
-# These are just placeholders
-redirect_uri = "https://your-domain.com/api/auth/gitlab/callback"
+[[idp.connectors]]
+id = "gitlab"
+base_url = "http://gitlab-connect-service:8080/gitlab-connect"
+hmac_secret = "change-me-set-via-env-gitlab"
+redirect_uris = [
+  "https://your-domain.com/iam/api/auth/gitlab/callback",
+  "https://your-domain.com/iam/api/auth/gitlab/relink-callback",
+]
 
 # Set longer JWT expiration for production
 [jwt]

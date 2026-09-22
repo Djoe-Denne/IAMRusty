@@ -7,6 +7,8 @@ sources:
   - Lazaret/README.md
   - docs/services/lazaret.md
   - docs/adr/0007-apparatus-p3-capability-boundary-after-accept.md
+  - docs/adr/0007-closeout.md
+  - docs/adr/0008-apparatus-p4-k8s-isolation-outside-manifesto.md
   - Lazaret/src/main.rs
   - Lazaret/http/src/lib.rs
   - Lazaret/tests/apparatus_p3_t11b_session_mtls.rs
@@ -20,7 +22,7 @@ provenance:
   inferred: 0.12
   ambiguous: 0.04
 created: 2026-09-17T10:55:00Z
-updated: 2026-09-20T12:14:00Z
+updated: 2026-09-20T15:55:00Z
 ---
 
 # Lazaret
@@ -48,7 +50,7 @@ Préfixe HTTP : `/lazaret`. Compose : hôte **8084** (`8084:8080`). TLS compose 
 
 ## Ce qui reste hors-jalon
 
-ADR-0007 est **Accepted / Implemented** (A-DEC 2026-09-20). Holes **fermés** : mTLS `/session` (T11b), OpenBao produit (T12), persistance CA + TLS Lazaret compose (T13), mTLS Hive–IAM–Telegraph comme HTTPS + CA optionnelle (T14b). Hors-jalon **encore ouverts** : APP-05 ; **0006 G et E** (pas d’`invoke` sur `ApparatusRuntime` ; pas de 202 / nouvelle registration sur les 5 routes `/components` gelées) ; pas K8s ; pas de second protocole. Factory, host UI : P4+.
+ADR-0007 est **Accepted / Implemented** (A-DEC 2026-09-20). Holes **fermés** : mTLS `/session` (T11b), OpenBao produit (T12), persistance CA + TLS Lazaret compose (T13), mTLS Hive–IAM–Telegraph comme HTTPS + CA optionnelle (T14b). Hors-jalon **encore ouverts** : APP-05 ; **0006 G et E** (pas d’`invoke` sur `ApparatusRuntime` ; pas de 202 / nouvelle registration sur les 5 routes `/components` gelées) ; pas K8s-as-P3 ; pas de second protocole. Factory, host UI : P4+. Le moteur d’isolation P4 (Kubernetes, [[projects/manifesto/decisions/0008-apparatus-p4-k8s|ADR-0008]]) vit **hors** Lazaret ; OpenBao **Transit** (signature) ≠ plugin KV T12.
 
 ## Related
 
@@ -58,4 +60,6 @@ ADR-0007 est **Accepted / Implemented** (A-DEC 2026-09-20). Holes **fermés** : 
 - [[entities/paravretius]] — nom historique, pas dans le code
 - [[projects/iamrusty/iamrusty]] — JWT utilisateur, distinct de la session Lazaret
 - [[projects/aiforall/concepts/orchestrator-agent-harness]]
+- [[projects/manifesto/references/0007-closeout]]
+- [[projects/manifesto/decisions/0008-apparatus-p4-k8s]]
 - [[journal/2026-09-20]]

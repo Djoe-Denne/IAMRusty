@@ -1,8 +1,10 @@
 //! Server invoke bound to the current binding (P0 DTOs, live Manifesto grants).
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use apparatus_contracts::{Capability, InvokeRequest, InvokeResponse, INVOKE_PATH};
+use async_trait::async_trait;
 use lazaret_domain::{
     AsyncKvStore, CallOrigin, ConnectorError, ConnectorProxy, GrantAuthorizationRequest,
     GrantDecision, GrantDenyReason, GrantFetchError, IdentityError, SecretError, SecretResolver,
@@ -11,6 +13,51 @@ use thiserror::Error;
 use uuid::Uuid;
 
 use crate::{GrantService, IdentityService};
+
+/// Resolves an isolated plugin HTTP base URL by binding (and instance).
+///
+/// `None` keeps in-process dispatch (T7). Implementations must not call kube.
+#[async_trait]
+pub trait PluginEndpointLocator: Send + Sync {
+    /// Return `http://host:port` for this binding, or `None` to stay in-process.
+    async fn locate(&self, binding_id: &str, instance_id: &str) -> Option<String>;
+}
+
+/// Default locator: no hop.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct EmptyPluginLocator;
+
+#[async_trait]
+impl PluginEndpointLocator for EmptyPluginLocator {
+    async fn locate(&self, _binding_id: &str, _instance_id: &str) -> Option<String> {
+        None
+    }
+}
+
+/// Test/config locator: one injected URL for every binding.
+#[derive(Debug, Clone)]
+pub struct StaticPluginLocator {
+    url: String,
+}
+
+impl StaticPluginLocator {
+    /// Wire a plugin base URL (`http://127.0.0.1:port` from the test).
+    #[must_use]
+    pub fn new(url: impl Into<String>) -> Self {
+        Self { url: url.into() }
+    }
+}
+
+#[async_trait]
+impl PluginEndpointLocator for StaticPluginLocator {
+    async fn locate(&self, _binding_id: &str, _instance_id: &str) -> Option<String> {
+        if self.url.trim().is_empty() {
+            None
+        } else {
+            Some(self.url.clone())
+        }
+    }
+}
 
 /// Errors from [`InvokeService`].
 #[derive(Debug, Error)]
@@ -80,10 +127,12 @@ pub struct InvokeService {
     kv: Arc<dyn AsyncKvStore>,
     secrets: Arc<dyn SecretResolver>,
     connectors: Arc<dyn ConnectorProxy>,
+    locator: Arc<dyn PluginEndpointLocator>,
+    http: reqwest::Client,
 }
 
 impl InvokeService {
-    /// Wire collaborators.
+    /// Wire collaborators with an empty locator (in-process dispatch).
     #[must_use]
     pub fn new(
         identity: Arc<IdentityService>,
@@ -92,12 +141,39 @@ impl InvokeService {
         secrets: Arc<dyn SecretResolver>,
         connectors: Arc<dyn ConnectorProxy>,
     ) -> Self {
+        Self::new_with_locator(
+            identity,
+            grants,
+            kv,
+            secrets,
+            connectors,
+            Arc::new(EmptyPluginLocator),
+        )
+    }
+
+    /// Wire collaborators once, including the optional plugin hop locator.
+    #[must_use]
+    pub fn new_with_locator(
+        identity: Arc<IdentityService>,
+        grants: Arc<GrantService>,
+        kv: Arc<dyn AsyncKvStore>,
+        secrets: Arc<dyn SecretResolver>,
+        connectors: Arc<dyn ConnectorProxy>,
+        locator: Arc<dyn PluginEndpointLocator>,
+    ) -> Self {
+        let http = reqwest::Client::builder()
+            .timeout(Duration::from_secs(10))
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .unwrap_or_else(|_| reqwest::Client::new());
         Self {
             identity,
             grants,
             kv,
             secrets,
             connectors,
+            locator,
+            http,
         }
     }
 
@@ -135,6 +211,14 @@ impl InvokeService {
             GrantDecision::Allow => {}
             GrantDecision::Deny { reason } => return Err(InvokeError::Forbidden(reason)),
         }
+        let instance = proof.identity.instance.to_string();
+        if let Some(endpoint) = self
+            .locator
+            .locate(request.binding_id.as_str(), &instance)
+            .await
+        {
+            return self.forward_invoke(&endpoint, request).await;
+        }
         let result = self.dispatch(&request).await?;
         let response = InvokeResponse {
             binding_id: request.binding_id.clone(),
@@ -143,6 +227,27 @@ impl InvokeService {
         };
         response.validate().map_err(map_contract_error)?;
         Ok(response)
+    }
+
+    async fn forward_invoke(
+        &self,
+        endpoint: &str,
+        request: InvokeRequest,
+    ) -> Result<InvokeResponse, InvokeError> {
+        let url = plugin_invoke_url(endpoint);
+        let response = self
+            .http
+            .post(&url)
+            .json(&request)
+            .send()
+            .await
+            .map_err(|_| InvokeError::Failed)?;
+        if !response.status().is_success() {
+            return Err(InvokeError::Failed);
+        }
+        let body: InvokeResponse = response.json().await.map_err(|_| InvokeError::Failed)?;
+        body.validate().map_err(map_contract_error)?;
+        Ok(body)
     }
 
     async fn dispatch(&self, request: &InvokeRequest) -> Result<serde_json::Value, InvokeError> {
@@ -290,4 +395,8 @@ fn reject_urlish(params: &serde_json::Value) -> Result<(), InvokeError> {
 #[must_use]
 pub const fn invoke_path() -> &'static str {
     INVOKE_PATH
+}
+
+fn plugin_invoke_url(endpoint: &str) -> String {
+    format!("{}{INVOKE_PATH}", endpoint.trim_end_matches('/'))
 }

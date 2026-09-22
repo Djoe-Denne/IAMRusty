@@ -7,6 +7,7 @@ status: accepted
 feature_status: implemented
 sources:
   - docs/adr/0004-apparatus-capability-gateway.md
+  - docs/adr/0007-closeout.md
   - apparatus-contracts/src/ports.rs
 summary: >-
   Toute I/O via gateway ; KV namespacé par binding ; jamais de bearer IAM
@@ -17,7 +18,7 @@ provenance:
   inferred: 0.12
   ambiguous: 0.00
 created: 2026-09-12T09:30:00Z
-updated: 2026-09-20T12:14:00Z
+updated: 2026-09-20T15:55:00Z
 ---
 
 # ADR-0004 — gateway de capacités et KV plateforme
@@ -58,3 +59,5 @@ Produit secrets et transport identité : ADR-0007 (T12 / T3+T11b), plus ici.
 
 - [[projects/manifesto/concepts/apparatus-capabilities-and-isolation]]
 - [[projects/manifesto/concepts/component-instance-permissions]]
+- [[projects/manifesto/references/0007-closeout]]
+- [[projects/manifesto/decisions/0008-apparatus-p4-k8s]]

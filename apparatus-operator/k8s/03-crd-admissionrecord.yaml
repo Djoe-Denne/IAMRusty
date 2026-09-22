@@ -1,0 +1,49 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: admissionrecords.apparatus.aiforall.dev
+spec:
+  group: apparatus.aiforall.dev
+  names:
+    kind: AdmissionRecord
+    listKind: AdmissionRecordList
+    plural: admissionrecords
+    singular: admissionrecord
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required:
+                - descriptorDigest
+                - policyVersion
+                - reportDigest
+              properties:
+                descriptorDigest:
+                  type: string
+                  description: Identité catalogue ReleaseDigest ADR-0002 (descripteur).
+                policyVersion:
+                  type: string
+                reportDigest:
+                  type: string
+                criImage:
+                  type: string
+                  description: Image CRI pinée name@sha256 (≠ digest OCI enveloppe).
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  description: VALID uniquement si écrit par admit.
+      additionalPrinterColumns:
+        - name: Phase
+          type: string
+          jsonPath: .status.phase

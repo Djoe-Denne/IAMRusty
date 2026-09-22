@@ -24,7 +24,7 @@ provenance:
   inferred: 0.14
   ambiguous: 0.00
 created: 2026-09-11T05:45:00Z
-updated: 2026-09-20T10:35:00Z
+updated: 2026-09-22T06:55:00Z
 ---
 
 # Harnais orchestrator Cursor
@@ -70,7 +70,7 @@ La session du 10 sept. a remplacé des occurrences Muse trop coûteuses par **Gr
 
 Le 16 sept., le slug `High` n’existe pas dans la liste sous-agents → fallback **`cursor-grok-4.6-xhigh`**. `composer-2.5-fast` est réservé à la lecture. Une passe `glm-5p3` a été posée sur 12 agents puis le frontmatter Architecte est revenu à Grok. ^[ambiguous]
 
-Le 12–13 sept., P2 a été mené sous ce harnais (TDD T1–T7, aujourd’hui Implemented). Agents `adr-*` aussi versionnés `.codex/agents/*.toml` (`5991670`). P3 Lazaret (13–16 sept.) idem. Voir [[projects/manifesto/concepts/apparatus-p2-reconciliation]], [[projects/lazaret/lazaret]] et [[journal/2026-09-17]].
+Le 12–13 sept., P2 a été mené sous ce harnais (TDD T1–T7, aujourd’hui Implemented). Agents `adr-*` aussi versionnés `.codex/agents/*.toml` (`5991670`). P3 Lazaret (13–16 sept.) idem. P4-core (21–22 sept.) : Kind `apparatus-p4-it` ; orchestrateur parfois abort alors que les workers ont déjà écrit — reprendre le lot, ne pas relivrer T1. [[journal/2026-09-22]]
 
 ## Patterns durables (P1, 12 sept.)
 

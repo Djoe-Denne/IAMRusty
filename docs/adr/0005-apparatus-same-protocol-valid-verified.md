@@ -1,12 +1,14 @@
 # ADR-0005 : Officiel et communautaire partagent le même protocole ; admission, VALID, VERIFIED et installabilité sont distincts
 
 - Statut : Accepted
-- Réalité : Partial
+- Réalité : Implemented
 - Date : 2026-09-10
-- Décideurs : Architecture AIForAll — ratification orchestrée du 2026-09-10
+- Décideurs : Architecture AIForAll — ratification orchestrée du 2026-09-10 ; A-DEC Réalité Implemented 2026-09-22 (holes = hors-jalon)
 - Jalon concerné : P0 (pas d’exception dans les contrats), P4–P6 (preuves)
 - SuperSède : aucune
 - SuperSédée par : —
+
+`Accepted` ratifie la cible ci-dessous. `Réalité : Implemented` (A-DEC 2026-09-22) : un seul protocole ; Adm-A worker = seule source `VALID` (persisté, chaîne Kind M2–M6) ; install fail-closed si non-`VALID` (M3). Adm-B n’est **jamais** source `VALID` (**D-ADMB**). Le harness / `apparatus dev` ne produisent jamais `VALID`/`VERIFIED`. `VERIFIED` / catalogue P6 = **après**. Kind = environnement V1. Hors-jalon (ne bloquent **pas** Implemented, A-DEC 2026-09-22) : **D-TRANSIT-TCB** ; **D-ADMB** ; **D-PROD**.
 
 ## Contexte
 
@@ -51,4 +53,4 @@ Le détail des attestations OCI, SBOM et de l’autorité de signature relève d
 ## Références
 
 - Wiki : `apparatus-factory-and-distribution`, `apparatus-platform`, `apparatus-implementation-plan` (P6)
-- Preuve d’implémentation (2026-09-10, P1 2026-09-12) : l’Apparatus de référence emprunte le même contrat wire `manifesto-apparatus/1` que le catalogue cible. Les DTO et le manifeste n’ont aucun champ `trusted_*`. Le harness et les tests P0 ne produisent ni statut `VALID`, ni `VERIFIED` ; aucun pipeline d’admission n’existe encore. P1 : 0 `VALID`/`VERIFIED`, 0 second UUID, 5 routes `/components`, FGA 5 types inchangés (T5 4/4 FGA 5 types ; T3+T6 0 second UUID ; T7 3/3 : 0 `VALID`/`VERIFIED` quotés, 5 routes) → `Partial` maintenu.
+- Preuve d’implémentation (2026-09-10, P1 2026-09-12, chaîne Kind 2026-09-22) : l’Apparatus de référence emprunte le même contrat wire `manifesto-apparatus/1` que le catalogue cible. Les DTO et le manifeste n’ont aucun champ `trusted_*`. Le harness et les tests P0 ne produisent ni statut `VALID`, ni `VERIFIED`. Adm-A worker = seule source `VALID` (persisté / chaîne Kind M2–M6). Adm-B n’est jamais source `VALID` (**D-ADMB**). `VERIFIED` / catalogue P6 = après. P1 : 0 second UUID, 5 routes `/components`, FGA 5 types inchangés (T5 4/4 FGA 5 types ; T3+T6 0 second UUID ; T7 3/3 : 5 routes). → `Implemented` (A-DEC 2026-09-22). Dette : **D-TRANSIT-TCB**, **D-ADMB**, **D-PROD**.

@@ -1,12 +1,14 @@
 # ADR-0002 : Les contrats versionnés et un Apparatus de référence précèdent Factory et host
 
 - Statut : Accepted
-- Réalité : Partial
+- Réalité : Implemented
 - Date : 2026-09-10
-- Décideurs : Architecture AIForAll — ratification orchestrée du 2026-09-10
+- Décideurs : Architecture AIForAll — ratification orchestrée du 2026-09-10 ; A-DEC Réalité Implemented 2026-09-22 (holes = hors-jalon)
 - Jalon concerné : P0
 - SuperSède : aucune
 - SuperSédée par : —
+
+`Accepted` ratifie la cible ci-dessous. `Réalité : Implemented` (A-DEC 2026-09-22) : contrats versionnés + Apparatus de référence KV (`apparatus-contracts`, `apparatus-reference-kv`) ; identité d’installation = digest descripteur 0002 (pin 64 hex, jamais `latest`) ; chaîne Kind M1–M6 (`m6_e2e_0002_0008_chain`) : pin descripteur → VALID JSON Adm-A → install fail-closed → pont Manifesto HTTP 5 routes → invoke Lazaret → Pod isolé. Kind = environnement V1. Hors-jalon (ne bloquent **pas** Implemented, A-DEC 2026-09-22) : Factory / host UI / CLI = P5/P6 **après** ; **D-TRANSIT-TCB** ; **D-ADMB** ; **D-PROD**.
 
 ## Contexte
 

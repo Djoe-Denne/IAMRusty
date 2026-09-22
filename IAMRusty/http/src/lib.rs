@@ -3,8 +3,8 @@
 //! This crate provides the HTTP interface for the application,
 //! implementing the `OpenAPI` specification.
 
-use axum::{middleware, Router};
-use iam_configuration::ServerConfig;
+use axum::{middleware, Extension, Router};
+use iam_configuration::{IdpConfig, ServerConfig};
 use readiness::{attach_ready, ReadinessProbe};
 use rustycog::http::{AppState, RouteBuilder};
 use std::sync::Arc;
@@ -13,6 +13,7 @@ use crate::rate_limit::rate_limit_auth;
 
 pub mod error;
 pub mod handlers;
+pub mod idp_registry;
 pub mod oauth_state;
 pub mod rate_limit;
 pub mod validation;
@@ -37,8 +38,11 @@ pub use rate_limit::configure_internal_service_token;
 
 pub const SERVICE_PREFIX: &str = "/iam";
 
-/// Create the application routes using the fluent builder API
-pub fn create_router(state: AppState) -> Router {
+/// Create the application routes using the fluent builder API.
+///
+/// `idp` is attached as an axum [`Extension`] so OAuth handlers resolve
+/// redirect URIs from this app instance, not a process-wide lock.
+pub fn create_router(state: AppState, idp: Arc<IdpConfig>) -> Router {
     RouteBuilder::new(state)
         .health_check()
         // Public authentication routes
@@ -84,11 +88,19 @@ pub fn create_router(state: AppState) -> Router {
         .authenticated()
         .into_router()
         .layer(middleware::from_fn(rate_limit_auth))
+        .layer(Extension(idp))
 }
 
 /// Create the IAM router under its bounded-context prefix.
-pub fn create_prefixed_router(state: AppState, probe: Arc<ReadinessProbe>) -> Router {
-    Router::new().nest(SERVICE_PREFIX, attach_ready(create_router(state), probe))
+pub fn create_prefixed_router(
+    state: AppState,
+    probe: Arc<ReadinessProbe>,
+    idp: Arc<IdpConfig>,
+) -> Router {
+    Router::new().nest(
+        SERVICE_PREFIX,
+        attach_ready(create_router(state, idp), probe),
+    )
 }
 
 /// Create and start the application routes using the fluent builder API.
@@ -100,6 +112,7 @@ pub async fn create_app_routes(
     state: AppState,
     config: ServerConfig,
     probe: Arc<ReadinessProbe>,
+    idp: Arc<IdpConfig>,
 ) -> anyhow::Result<()> {
-    rustycog::http::serve_router(create_prefixed_router(state, probe), config).await
+    rustycog::http::serve_router(create_prefixed_router(state, probe, idp), config).await
 }

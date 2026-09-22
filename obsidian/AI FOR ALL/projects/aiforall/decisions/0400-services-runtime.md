@@ -57,6 +57,7 @@ Health `/ready` assemblé dans `setup`, pas un second composition root.
 
 - [[concepts/architecture-coherence-across-services]]
 - [[projects/aiforall/aiforall]]
+- [[projects/iamrusty/decisions/index]] — vivant 0407–0410 (Proposed ; **pas** cette photographie 0400–0406)
 - [[projects/manifesto/concepts/apparatus-p2-reconciliation]]
 - [[projects/manifesto/decisions/0006-apparatus-p2-reconciliation]]
 - [[projects/lazaret/lazaret]]

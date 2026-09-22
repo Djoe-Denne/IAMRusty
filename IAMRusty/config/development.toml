@@ -26,21 +26,25 @@ db = "iam_dev"
 username = "postgres"
 password = "postgres"
 
-[oauth.github]
-client_id = "your-github-client-id"
-client_secret = "your-github-client-secret"
-redirect_uri = "http://localhost:5173/oauth/github/callback"
-auth_url = "https://github.com/login/oauth/authorize"
-token_url = "https://github.com/login/oauth/access_token"
-user_url = "https://api.github.com/user"
+# IAM → Connect S2S is HTTP on the compose network (service DNS :8080), not HTTPS mesh.
+# HMAC (0409) authenticates the hop. Public OAuth callbacks stay on IAM :8080.
+[[idp.connectors]]
+id = "github"
+base_url = "http://github-connect-service:8080/github-connect"
+hmac_secret = "change-me-github-connect-hmac"
+redirect_uris = [
+  "http://127.0.0.1:8080/iam/api/auth/github/callback",
+  "http://127.0.0.1:8080/iam/api/auth/github/relink-callback",
+]
 
-[oauth.gitlab]
-client_id = "your-gitlab-client-id"
-client_secret = "your-gitlab-client-secret"
-redirect_uri = "http://localhost:5173/oauth/gitlab/callback"
-auth_url = "https://gitlab.com/oauth/authorize"
-token_url = "https://gitlab.com/oauth/token"
-user_url = "https://gitlab.com/api/v4/user"
+[[idp.connectors]]
+id = "gitlab"
+base_url = "http://gitlab-connect-service:8080/gitlab-connect"
+hmac_secret = "change-me-gitlab-connect-hmac"
+redirect_uris = [
+  "http://127.0.0.1:8080/iam/api/auth/gitlab/callback",
+  "http://127.0.0.1:8080/iam/api/auth/gitlab/relink-callback",
+]
 
 [jwt]
 expiration_seconds = 900

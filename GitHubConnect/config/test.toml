@@ -1,0 +1,27 @@
+# GitHub Connect test configuration
+
+[server]
+host = "127.0.0.1"
+port = 0
+tls_enabled = false
+
+[auth.jwt]
+hs256_secret = "rustycog-test-hs256-secret"
+issuer = "iamrusty"
+audience = "aiforall"
+
+[logging]
+level = "debug"
+
+[github]
+client_id = "test_github_client_id"
+client_secret = "test_github_client_secret"
+# Tests override vendor URLs via GitHubService::base_url() from MockServerFixture::isolated().
+auth_url = "http://127.0.0.1:9/login/oauth/authorize"
+token_url = "http://127.0.0.1:9/login/oauth/access_token"
+user_url = "http://127.0.0.1:9/user"
+hmac_secret = "github-connect-test-hmac"
+redirect_uris = [
+  "http://127.0.0.1:8081/iam/api/auth/github/callback",
+  "http://127.0.0.1:8081/iam/api/auth/github/relink-callback",
+]

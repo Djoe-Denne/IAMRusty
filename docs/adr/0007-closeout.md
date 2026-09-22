@@ -31,9 +31,9 @@ ADR-0004 `Réalité: Implemented` ce tour : L11/L63 ne citent plus OpenBao absen
 
 | ID | Statut déclaré | Réalité déclarée | Verdict | Pourquoi | Action |
 |---|---|---|---|---|---|
-| [0001](0001-apparatus-binding-owned-by-manifesto.md) | Accepted | Partial | **ALIGNÉ** | P1 SQL livré ; pas de tenants ; `APP-01` admission ; backfill legacy **mis de côté** (0007 §9) | Laisser Partial |
+| [0001](0001-apparatus-binding-owned-by-manifesto.md) | Accepted | Partial | **ALIGNÉ** | P1 SQL livré ; pas de tenants ; admission P4 = 0008 Partial ; backfill legacy **mis de côté** (0007 §9) | Laisser Partial |
 | [0002](0002-apparatus-contract-first.md) | Accepted | Partial | **ALIGNÉ** | `apparatus-contracts` + `apparatus-reference-kv` ; Factory/host = P4 | Laisser Partial |
-| [0003](0003-apparatus-untrusted-plugin.md) | Accepted | Partial | **ALIGNÉ** | Harness test-only ; moteur isolation = `APP-01` / P4 | Laisser Partial |
+| [0003](0003-apparatus-untrusted-plugin.md) | Accepted | Partial | **ALIGNÉ** | Harness test-only ; moteur isolation = ADR-0008 **Partial** (`apparatus-operator`), **pas** « APP-01 encore ouvert » | Laisser Partial |
 | [0004](0004-apparatus-capability-gateway.md) | Accepted | Implemented | **ALIGNÉ** (recast 2026-09-20) | Gateway+KV+secrets livrés T5–T14b. `APP-05` = **D** | Laisser Implemented ; ne pas clôturer `APP-05` |
 | [0005](0005-apparatus-same-protocol-valid-verified.md) | Accepted | Partial | **ALIGNÉ** | Même wire ; 0 `VALID`/`VERIFIED` persistés ; pipeline admission = P4 | Laisser Partial |
 | [0006](0006-apparatus-p2-reconciliation-in-process.md) | Accepted | Implemented | **ALIGNÉ** | T1–T7 + §D ; G/E en vigueur = **succès** du titre | Ne pas toucher ; **ne pas** lever G/E |

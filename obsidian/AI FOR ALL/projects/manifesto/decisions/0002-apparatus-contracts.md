@@ -8,13 +8,13 @@ sources:
   - apparatus-contracts/src/validation.rs
   - apparatus-reference-kv/apparatus.toml
 summary: >-
-  P0 avant Factory/host : apparatus.toml canonique, validateur unique, digest sha256, KV de référence. Partial.
+  P0 avant Factory/host : apparatus.toml canonique, validateur unique, digest sha256, KV de référence. Implemented (A-DEC 2026-09-22).
 provenance:
   extracted: 0.90
   inferred: 0.10
   ambiguous: 0.00
 created: 2026-09-12T09:30:00Z
-updated: 2026-09-12T09:30:00Z
+updated: 2026-09-22T14:00:00Z
 ---
 
 # ADR-0002 — contrats versionnés et KV de référence d'abord
@@ -28,10 +28,11 @@ Canon : `docs/adr/0002-apparatus-contract-first.md`. Hub : [[projects/manifesto/
 - Une seule syntaxe (TOML), un seul validateur (Factory/CLI le réutiliseront).
 - Apparatus de référence KV : backend Rust, stockage `kv-v1`, UI `schema`, zéro réseau.
 
-## Réalité : Partial
+## Réalité : Implemented
 
 - P0/P0.1 : `apparatus-contracts` + `apparatus-reference-kv`, 42/42 tests, CI job `apparatus-p0`. Voir [[projects/manifesto/concepts/apparatus-p0-contracts]].
-- Restent hors code : macro, CLI `check/dev/publish`, Factory (P4), host (P5).
+- M1–M6 (2026-09-22) : pin produit + chaîne Kind (`m6_e2e_0002_0008_chain`) ; identité installation = digest descripteur 0002 (Kind V1).
+- Factory/host/CLI = P5/P6 **après** — ne bloquent plus Implemented. Dette : D-TRANSIT-TCB / D-ADMB / D-PROD.
 
 ## Non décidé ici
 

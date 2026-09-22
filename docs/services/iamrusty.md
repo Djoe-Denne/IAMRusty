@@ -1,6 +1,6 @@
 # IAMRusty
 
-Identité et accès : comptes, OAuth GitHub/GitLab, JWT, refresh, reset MDP.
+Identité et accès : comptes, OAuth GitHub/GitLab via connecteurs HTTP HMAC, JWT, refresh, reset MDP.
 
 - Préfixe : `/iam` — compose : **8080**
 - JWT **émetteur** : `[jwt]` + `[jwt.secret]` (HS256 obligatoire aujourd’hui)

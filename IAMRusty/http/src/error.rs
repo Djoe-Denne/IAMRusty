@@ -491,6 +491,16 @@ impl AuthError {
     }
 
     #[must_use]
+    pub fn oauth_connector_not_configured(operation: &str) -> Self {
+        Self::OAuth {
+            operation: operation.to_string(),
+            error_code: "connector_not_configured".to_string(),
+            message: "IdP connector is not configured for this provider".to_string(),
+            status: StatusCode::UNPROCESSABLE_ENTITY,
+        }
+    }
+
+    #[must_use]
     pub fn oauth_invalid_authorization_header(operation: &str) -> Self {
         Self::OAuth {
             operation: operation.to_string(),

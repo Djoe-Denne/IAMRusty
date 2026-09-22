@@ -1,0 +1,33 @@
+{
+  "distSpecVersion": "1.1.1",
+  "storage": {
+    "rootDirectory": "/var/lib/zot"
+  },
+  "http": {
+    "address": "0.0.0.0",
+    "port": "5000",
+    "realm": "zot",
+    "auth": {
+      "htpasswd": {
+        "path": "/etc/zot/htpasswd"
+      }
+    },
+    "accessControl": {
+      "repositories": {
+        "**": {
+          "anonymousPolicy": ["read"],
+          "defaultPolicy": [],
+          "policies": [
+            {
+              "users": ["signer"],
+              "actions": ["read", "create", "update"]
+            }
+          ]
+        }
+      }
+    }
+  },
+  "log": {
+    "level": "error"
+  }
+}

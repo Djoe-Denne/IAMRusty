@@ -1,0 +1,62 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: plugins-isolate
+  namespace: apparatus-plugins
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector: {}
+    # Ingress invoke : pods gateway (Lazaret futur), pas tout apparatus-system.
+    - from:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              app: apparatus-gateway
+      ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - podSelector: {}
+    # Egress plugin → Lazaret/gateway, sans Transit ni canary system.
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              app: apparatus-gateway
+      ports:
+        - protocol: TCP
+          port: 8080
+---
+# Les plugins ne joignent pas Transit / secrets d'apparatus-system.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: system-deny-plugins
+  namespace: apparatus-system
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              apparatus.aiforall.dev/ns: system

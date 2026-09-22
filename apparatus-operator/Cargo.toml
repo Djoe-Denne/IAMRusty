@@ -1,0 +1,113 @@
+[package]
+name = "apparatus-operator"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Operator Apparatus P4 (BC-A) : binaires controller, admit et build hors Manifesto"
+license.workspace = true
+
+[features]
+default = []
+# T6 : ORAS/cosign CLI + Transit HTTP (reqwest). serde est non-optionnel (store M2).
+admit = ["dep:reqwest"]
+# T10 : client Kubernetes (kube + k8s-openapi v1_32). Jamais dans Manifesto/Lazaret.
+controller = [
+    "dep:kube",
+    "dep:k8s-openapi",
+    "dep:tokio",
+    "dep:futures",
+    "dep:reqwest",
+]
+
+[[bin]]
+name = "apparatus-controller"
+path = "src/bin/controller.rs"
+
+[[bin]]
+name = "apparatus-admit"
+path = "src/bin/admit.rs"
+
+[[bin]]
+name = "apparatus-build"
+path = "src/bin/build.rs"
+
+[[test]]
+name = "apparatus_p4_t6_sign_registry"
+required-features = ["admit"]
+
+[[test]]
+name = "apparatus_p4_t9_malicious_worker"
+required-features = ["admit"]
+
+[[test]]
+name = "apparatus_p4_t10_platform_workload"
+required-features = ["admit", "controller"]
+
+[[test]]
+name = "apparatus_p4_t11_runtime"
+required-features = ["admit", "controller"]
+
+[[test]]
+name = "apparatus_p4_t12_gate_regression"
+
+[[test]]
+name = "apparatus_m1_reference_kv_pin"
+required-features = ["admit"]
+
+[[test]]
+name = "apparatus_m3_install_fail_closed"
+required-features = ["admit", "controller"]
+
+[[test]]
+name = "apparatus_m4_desired_state_bridge"
+required-features = ["admit", "controller"]
+
+[[test]]
+name = "apparatus_m5_invoke_isolated"
+required-features = ["admit", "controller"]
+
+[[test]]
+name = "apparatus_m6_e2e_chain"
+required-features = ["admit", "controller"]
+
+[dependencies]
+apparatus-contracts = { path = "../apparatus-contracts" }
+hex = { workspace = true }
+sha2 = { workspace = true }
+toml = { workspace = true }
+uuid = { workspace = true }
+reqwest = { workspace = true, optional = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+kube = { workspace = true, optional = true, features = [
+    "client",
+    "runtime",
+    "rustls-tls",
+    "aws-lc-rs",
+] }
+k8s-openapi = { workspace = true, optional = true, features = ["v1_32"] }
+tokio = { workspace = true, optional = true, features = [
+    "macros",
+    "rt-multi-thread",
+    "time",
+] }
+futures = { workspace = true, optional = true }
+
+[dev-dependencies]
+reqwest = { workspace = true }
+serde_json = { workspace = true }
+serial_test = { workspace = true }
+testcontainers = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time", "net", "io-util"] }
+async-trait = { workspace = true }
+axum-test = { workspace = true }
+rcgen = { workspace = true }
+lazaret-application = { path = "../Lazaret/application" }
+lazaret-configuration = { path = "../Lazaret/configuration" }
+lazaret-domain = { path = "../Lazaret/domain" }
+lazaret-http = { path = "../Lazaret/http" }
+lazaret-infra = { path = "../Lazaret/infra" }
+rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full"] }
+
+[lints]
+workspace = true

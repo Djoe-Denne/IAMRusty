@@ -3,13 +3,24 @@ name = "apparatus-reference-kv"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
-description = "Apparatus KV de référence P0 : backend kv-v1 injecté, UI schema, sans réseau (pur Rust)"
+description = "Apparatus KV de référence P0 : backend kv-v1 injecté, UI schema ; binaire HTTP optionnel (feature http)"
 license.workspace = true
+
+[features]
+default = []
+http = ["dep:tokio", "dep:axum"]
+
+[[bin]]
+name = "reference-kv-http"
+path = "src/bin/reference-kv-http.rs"
+required-features = ["http"]
 
 [dependencies]
 apparatus-contracts = { path = "../apparatus-contracts" }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
+axum = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true, features = ["rt-multi-thread", "macros", "net", "signal"] }
 
 [lints]
 workspace = true

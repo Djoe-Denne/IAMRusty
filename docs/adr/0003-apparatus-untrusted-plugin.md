@@ -1,12 +1,14 @@
 # ADR-0003 : Le code d’un Apparatus n’est pas digne de confiance et s’exécute hors des processus privilégiés
 
 - Statut : Accepted
-- Réalité : Partial
+- Réalité : Implemented
 - Date : 2026-09-10
-- Décideurs : Architecture AIForAll — ratification orchestrée du 2026-09-10
+- Décideurs : Architecture AIForAll — ratification orchestrée du 2026-09-10 ; A-DEC Réalité Implemented 2026-09-22 (holes = hors-jalon)
 - Jalon concerné : P0 (modèle de confiance), P3–P4 (runtime réel)
 - SuperSède : aucune
 - SuperSédée par : —
+
+`Accepted` ratifie la cible ci-dessous. `Réalité : Implemented` (A-DEC 2026-09-22) : isolation Kind/Calico (`apparatus-operator`, IT `apparatus-p4-it`) + quatre ServiceAccounts sur le chemin invoke (M5–M6). Le harness TEST-ONLY **peut rester**. Kind = environnement V1. Cette ADR **n’est SuperSédée par aucune**. Hors-jalon (ne bloquent **pas** Implemented, A-DEC 2026-09-22) : Factory auteur / host = P5/P6 **après** ; **D-TRANSIT-TCB** ; **D-ADMB** ; **D-PROD**.
 
 ## Contexte
 
@@ -14,7 +16,7 @@ Un Apparatus V1 est du Rust (et éventuellement du JS statique) fourni par un pu
 
 Le monolithe `oodhive-monolith` compose déjà IAM, Hive, Manifesto, Telegraph. Y charger du Rust communautaire donnerait au plugin les secrets et le réseau de la plateforme.
 
-`docs/project/Archi.md` visait des microservices composants avec registre Redis et découverte Kubernetes. Le dépôt n’a ni Factory, ni isolation de workloads Apparatus, ni ce registre.
+`docs/project/Archi.md` visait des microservices composants avec registre Redis et découverte Kubernetes. Le dépôt n’a ni répertoire Factory, ni host UI P5, ni ce registre Redis de découverte. L’isolation P4-core est **Implemented** hors Manifesto (`apparatus-operator`, IT Kind/Calico, 4 SA sur le chemin invoke). Factory auteur et runtime host restent absents (P5/P6 **après**, ne bloquent plus 0003).
 
 ## Décision
 
@@ -51,4 +53,4 @@ Le monolithe `oodhive-monolith` compose déjà IAM, Hive, Manifesto, Telegraph. 
 
 - Wiki : `apparatus-platform`, `apparatus-capabilities-and-isolation`, `apparatus-factory-and-distribution`, `modular-monolith-runtime`
 - Code : `monolith/src/runtime.rs`, Dockerfile Manifesto (image **du service**, pas une Factory Apparatus)
-- Preuve d’implémentation (2026-09-10, P1 2026-09-12) : le harness `TestHarness` / `InMemoryKv` dans `apparatus-contracts/src/harness.rs` est TEST-ONLY et compilé uniquement avec la feature `test-harness` (absent des builds prod), namespacé par `binding_id`. Aucun code de plugin n’est chargé dans le monolithe ni Manifesto. Le harness ne produit ni statut `VALID`, ni `VERIFIED`. P1 : zéro workload tiers démarré (T2 5/5, T4 3/3 faux broker in-memory, 0 polling/worker, `Manifesto/infra/src/apparatus_outbox.rs`) ; gate T7 3/3 vert, 0 token P2 dans le prod Manifesto scanné par T7 (7 crates src) — l’absence de plugin in-process ne constitue pas un runtime isolé de production → `Partial` maintenu.
+- Preuve d’implémentation (2026-09-10, P1 2026-09-12) : le harness `TestHarness` / `InMemoryKv` dans `apparatus-contracts/src/harness.rs` est TEST-ONLY et compilé uniquement avec la feature `test-harness` (absent des builds prod), namespacé par `binding_id`. Aucun code de plugin n’est chargé dans le monolithe ni Manifesto. Le harness ne produit ni statut `VALID`, ni `VERIFIED`. P1 : zéro workload tiers démarré (T2 5/5, T4 3/3 faux broker in-memory, 0 polling/worker, `Manifesto/infra/src/apparatus_outbox.rs`) ; gate T7 3/3 vert, 0 token P2 dans le prod Manifesto scanné par T7 (7 crates src). L’absence de plugin in-process ne constitue pas à elle seule un runtime isolé ; la preuve V1 = isolation Kind/Calico + 4 SA sur le chemin invoke (M5–M6). Harness TEST-ONLY **peut rester**. → `Implemented` (A-DEC 2026-09-22). Dette : **D-TRANSIT-TCB**, **D-ADMB**, **D-PROD**.

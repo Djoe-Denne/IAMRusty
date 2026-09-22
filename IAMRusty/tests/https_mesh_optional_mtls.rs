@@ -5,6 +5,7 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use iam_configuration::IdpConfig;
 use iam_http_server::{create_prefixed_router, SERVICE_PREFIX};
 use rcgen::{
     BasicConstraints, Certificate, CertificateParams, DnType, ExtendedKeyUsagePurpose, IsCa,
@@ -166,7 +167,11 @@ fn http_client() -> reqwest::Client {
 }
 
 async fn spawn_server(config: ServerConfig) -> tokio::task::JoinHandle<anyhow::Result<()>> {
-    let router = create_prefixed_router(app_state(), Arc::new(ReadinessProbe::new("iam")));
+    let router = create_prefixed_router(
+        app_state(),
+        Arc::new(ReadinessProbe::new("iam")),
+        Arc::new(IdpConfig::default()),
+    );
     tokio::spawn(async move { serve_router(router, config).await })
 }
 

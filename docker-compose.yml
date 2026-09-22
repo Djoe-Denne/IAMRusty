@@ -152,7 +152,7 @@ services:
     networks:
       - aiforall-network
 
-  # Platform mesh CA + leaves (Hive/IAM/Telegraph). Distinct from Lazaret CA.
+  # Platform mesh CA + leaves (Hive/IAM/Telegraph/GitHub Connect). Distinct from Lazaret CA.
   platform-mesh-certs:
     image: alpine:3.20
     volumes:
@@ -163,6 +163,9 @@ services:
       - aiforall-network
 
   # IAMRusty Service
+  # IdP S2S uses HTTP on the compose network (`github-connect-service:8080` /
+  # `gitlab-connect-service:8080`), not the HTTPS mesh host ports 8446/8447.
+  # HMAC (ADR-0409) authenticates IAM → Connect. Public OAuth callbacks stay on IAM :8080.
   iam-service:
     build:
       context: .
@@ -195,6 +198,10 @@ services:
         condition: service_healthy
       platform-mesh-certs:
         condition: service_completed_successfully
+      github-connect-service:
+        condition: service_started
+      gitlab-connect-service:
+        condition: service_started
     networks:
       - aiforall-network
 
@@ -314,6 +321,50 @@ services:
       openbao:
         condition: service_healthy
       openbao-seed:
+        condition: service_completed_successfully
+    networks:
+      - aiforall-network
+
+  # GitHub IdP Connect (HMAC S2S, no Postgres / OpenFGA / LocalStack).
+  # IAM calls this over HTTP :8080 on the compose network; 8446 is the mesh TLS port.
+  github-connect-service:
+    build:
+      context: .
+      dockerfile: GitHubConnect/Dockerfile
+    ports:
+      - "8085:8080"   # HTTP
+      - "8446:8443"   # HTTPS
+    environment:
+      - RUST_ENVIRONMENT=development
+    volumes:
+      - ./GitHubConnect/config:/app/config
+      - ./certs/platform-mesh:/app/certs
+    depends_on:
+      build-artifacts:
+        condition: service_completed_successfully
+      platform-mesh-certs:
+        condition: service_completed_successfully
+    networks:
+      - aiforall-network
+
+  # GitLab IdP Connect (HMAC S2S, no Postgres / OpenFGA / LocalStack).
+  # IAM calls this over HTTP :8080 on the compose network; 8447 is the mesh TLS port.
+  gitlab-connect-service:
+    build:
+      context: .
+      dockerfile: GitLabConnect/Dockerfile
+    ports:
+      - "8086:8080"   # HTTP
+      - "8447:8443"   # HTTPS
+    environment:
+      - RUST_ENVIRONMENT=development
+    volumes:
+      - ./GitLabConnect/config:/app/config
+      - ./certs/platform-mesh:/app/certs
+    depends_on:
+      build-artifacts:
+        condition: service_completed_successfully
+      platform-mesh-certs:
         condition: service_completed_successfully
     networks:
       - aiforall-network

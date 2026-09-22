@@ -20,6 +20,10 @@ fn oauth_protocol_errors_map_to_http() {
         StatusCode::BAD_REQUEST
     );
     assert_eq!(
+        status_of_auth(AuthError::oauth_connector_not_configured("login")),
+        StatusCode::UNPROCESSABLE_ENTITY
+    );
+    assert_eq!(
         status_of_auth(AuthError::oauth_invalid_authorization_header("login")),
         StatusCode::BAD_REQUEST
     );

@@ -1,0 +1,29 @@
+# GitLab Connect default configuration (TOML)
+
+[server]
+host = "127.0.0.1"
+port = 8080
+tls_enabled = false
+tls_cert_path = "./certs/cert.pem"
+tls_key_path = "./certs/key.pem"
+tls_port = 8443
+
+[auth.jwt]
+hs256_secret = "rustycog-dev-hs256-secret"
+issuer = "iamrusty"
+audience = "aiforall"
+
+[logging]
+level = "info"
+
+[gitlab]
+client_id = "your-gitlab-client-id"
+client_secret = "your-gitlab-client-secret"
+auth_url = "https://gitlab.com/oauth/authorize"
+token_url = "https://gitlab.com/oauth/token"
+user_url = "https://gitlab.com/api/v4/user"
+hmac_secret = "change-me-gitlab-connect-hmac"
+redirect_uris = [
+  "http://127.0.0.1:8080/iam/api/auth/gitlab/callback",
+  "http://127.0.0.1:8080/iam/api/auth/gitlab/relink-callback",
+]

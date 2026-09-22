@@ -1,0 +1,77 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: apparatus-admit
+  namespace: apparatus-system
+rules:
+  - apiGroups: ["apparatus.aiforall.dev"]
+    resources: ["admissionrecords"]
+    verbs: ["create", "get", "update", "patch"]
+  - apiGroups: ["apparatus.aiforall.dev"]
+    resources: ["admissionrecords/status"]
+    verbs: ["create", "get", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: apparatus-admit
+  namespace: apparatus-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: apparatus-admit
+subjects:
+  - kind: ServiceAccount
+    name: apparatus-admit
+    namespace: apparatus-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: apparatus-controller
+  namespace: apparatus-system
+rules:
+  - apiGroups: ["apparatus.aiforall.dev"]
+    resources: ["admissionrecords"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: apparatus-controller
+  namespace: apparatus-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: apparatus-controller
+subjects:
+  - kind: ServiceAccount
+    name: apparatus-controller
+    namespace: apparatus-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: apparatus-controller
+  namespace: apparatus-plugins
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["create", "get", "list", "watch", "delete", "update", "patch"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: apparatus-controller
+  namespace: apparatus-plugins
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: apparatus-controller
+subjects:
+  - kind: ServiceAccount
+    name: apparatus-controller
+    namespace: apparatus-system

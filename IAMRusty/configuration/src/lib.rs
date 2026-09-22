@@ -1,7 +1,7 @@
 //! IAM service specific configuration
 //!
-//! This crate provides IAM-specific configuration structures including OAuth and JWT
-//! configuration, while re-exporting core configuration utilities from rustycog-config.
+//! This crate provides IAM-specific configuration structures including federated IdP
+//! connectors and JWT configuration, while re-exporting core configuration utilities from rustycog-config.
 
 // Re-export core configuration from rustycog-config
 pub use rustycog::config::{
@@ -21,6 +21,9 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use tracing::debug;
+
+mod idp;
+pub use idp::{IdpConfig, IdpConnectorConfig, IdpRedirectFlow};
 
 use thiserror::Error;
 
@@ -162,55 +165,6 @@ impl SecretStorage {
             }
         }
     }
-}
-
-/// OAuth configuration containing provider-specific settings
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OAuthConfig {
-    /// GitHub OAuth configuration
-    pub github: GitHubConfig,
-    /// GitLab OAuth configuration
-    pub gitlab: GitLabConfig,
-}
-
-/// GitHub OAuth configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GitHubConfig {
-    /// GitHub OAuth client ID
-    pub client_id: String,
-    /// GitHub OAuth client secret
-    pub client_secret: String,
-    /// OAuth redirect URI
-    pub redirect_uri: String,
-    /// GitHub authorization URL
-    #[serde(default = "default_github_auth_url")]
-    pub auth_url: String,
-    /// GitHub token exchange URL
-    #[serde(default = "default_github_token_url")]
-    pub token_url: String,
-    /// GitHub user info API URL
-    #[serde(default = "default_github_user_url")]
-    pub user_url: String,
-}
-
-/// GitLab OAuth configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GitLabConfig {
-    /// GitLab OAuth client ID
-    pub client_id: String,
-    /// GitLab OAuth client secret
-    pub client_secret: String,
-    /// OAuth redirect URI
-    pub redirect_uri: String,
-    /// GitLab authorization URL
-    #[serde(default = "default_gitlab_auth_url")]
-    pub auth_url: String,
-    /// GitLab token exchange URL
-    #[serde(default = "default_gitlab_token_url")]
-    pub token_url: String,
-    /// GitLab user info API URL
-    #[serde(default = "default_gitlab_user_url")]
-    pub user_url: String,
 }
 
 /// JWT configuration
@@ -379,8 +333,9 @@ pub struct AppConfig {
     pub auth: AuthConfig,
     /// Database configuration
     pub database: DatabaseConfig,
-    /// OAuth provider configurations
-    pub oauth: OAuthConfig,
+    /// Federated IdP connector registry (`[[idp.connectors]]`)
+    #[serde(default)]
+    pub idp: IdpConfig,
     /// JWT configuration
     pub jwt: JwtConfig,
     /// Logging configuration
@@ -402,30 +357,6 @@ pub struct AppConfig {
 }
 
 // Default value functions
-fn default_github_auth_url() -> String {
-    "https://github.com/login/oauth/authorize".to_string()
-}
-
-fn default_github_token_url() -> String {
-    "https://github.com/login/oauth/access_token".to_string()
-}
-
-fn default_github_user_url() -> String {
-    "https://api.github.com/user".to_string()
-}
-
-fn default_gitlab_auth_url() -> String {
-    "https://gitlab.com/oauth/authorize".to_string()
-}
-
-fn default_gitlab_token_url() -> String {
-    "https://gitlab.com/oauth/token".to_string()
-}
-
-fn default_gitlab_user_url() -> String {
-    "https://gitlab.com/api/v4/user".to_string()
-}
-
 const fn default_jwt_expiration() -> u64 {
     900 // 15 minutes
 }
@@ -445,41 +376,6 @@ fn default_jwt_audience() -> String {
 fn default_oauth_state_secret() -> String {
     "iam-oauth-state-hmac-change-me".to_string()
 }
-
-/// Generic provider configuration for conversion utilities
-#[derive(Debug, Clone)]
-pub struct ProviderConfig {
-    /// Client ID
-    pub client_id: String,
-    /// Client secret
-    pub client_secret: String,
-    /// Redirect URI
-    pub redirect_uri: String,
-}
-
-impl From<&GitHubConfig> for ProviderConfig {
-    fn from(config: &GitHubConfig) -> Self {
-        Self {
-            client_id: config.client_id.clone(),
-            client_secret: config.client_secret.clone(),
-            redirect_uri: config.redirect_uri.clone(),
-        }
-    }
-}
-
-impl From<&GitLabConfig> for ProviderConfig {
-    fn from(config: &GitLabConfig) -> Self {
-        Self {
-            client_id: config.client_id.clone(),
-            client_secret: config.client_secret.clone(),
-            redirect_uri: config.redirect_uri.clone(),
-        }
-    }
-}
-
-// Type aliases for backward compatibility
-pub type GithubConfig = GitHubConfig;
-pub type GitlabConfig = GitLabConfig;
 
 /// Global configuration cache
 static CONFIG_CACHE: OnceLock<Arc<Mutex<Option<AppConfig>>>> = OnceLock::new();
@@ -512,24 +408,7 @@ impl ConfigLoader<Self> for AppConfig {
             server: ServerConfig::default(),
             auth: AuthConfig::default(),
             database: DatabaseConfig::default(),
-            oauth: OAuthConfig {
-                github: GitHubConfig {
-                    client_id: "YOUR_GITHUB_CLIENT_ID".to_string(),
-                    client_secret: "YOUR_GITHUB_CLIENT_SECRET".to_string(),
-                    redirect_uri: "http://localhost:8080/auth/github/callback".to_string(),
-                    auth_url: default_github_auth_url(),
-                    token_url: default_github_token_url(),
-                    user_url: default_github_user_url(),
-                },
-                gitlab: GitLabConfig {
-                    client_id: "YOUR_GITLAB_CLIENT_ID".to_string(),
-                    client_secret: "YOUR_GITLAB_CLIENT_SECRET".to_string(),
-                    redirect_uri: "http://localhost:8080/auth/gitlab/callback".to_string(),
-                    auth_url: default_gitlab_auth_url(),
-                    token_url: default_gitlab_token_url(),
-                    user_url: default_gitlab_user_url(),
-                },
-            },
+            idp: IdpConfig::default(),
             jwt: JwtConfig {
                 secret: SecretStorage::PlainText {
                     value: "your-256-bit-secret-key-change-this-in-production".to_string(),
@@ -675,7 +554,7 @@ mod tests {
         let toml_config = generate_default_config().expect("Should generate default config");
         assert!(toml_config.contains("[server]"));
         assert!(toml_config.contains("[database]"));
-        assert!(toml_config.contains("[oauth.github]"));
+        assert!(toml_config.contains("[idp]"));
         assert!(toml_config.contains("[jwt]"));
     }
 
@@ -714,25 +593,5 @@ mod tests {
         let message = err.to_string();
         assert!(message.contains("RS256"), "{message}");
         assert!(message.contains("HS256"), "{message}");
-    }
-
-    #[test]
-    fn test_provider_config_conversion() {
-        let github_config = GitHubConfig {
-            client_id: "test_id".to_string(),
-            client_secret: "test_secret".to_string(),
-            redirect_uri: "http://localhost:8080/callback".to_string(),
-            auth_url: default_github_auth_url(),
-            token_url: default_github_token_url(),
-            user_url: default_github_user_url(),
-        };
-
-        let provider_config: ProviderConfig = (&github_config).into();
-        assert_eq!(provider_config.client_id, "test_id");
-        assert_eq!(provider_config.client_secret, "test_secret");
-        assert_eq!(
-            provider_config.redirect_uri,
-            "http://localhost:8080/callback"
-        );
     }
 }

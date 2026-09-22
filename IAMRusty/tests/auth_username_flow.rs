@@ -6,7 +6,7 @@ mod fixtures;
 
 use base64::{engine::general_purpose, Engine as _};
 use common::setup_test_server;
-use fixtures::{DbFixtures, GitHubFixtures};
+use fixtures::{DbFixtures, IdpConnectFixtures};
 use iam_application::usecase::login::PasswordService as AppPasswordService;
 use sea_orm::ConnectionTrait;
 use serde_json::{json, Value};
@@ -582,9 +582,8 @@ async fn test_oauth_callback_new_user_returns_202_with_registration_token() {
         .expect("Failed to setup test server");
 
     // Setup GitHub mock
-    let github = GitHubFixtures::service().await;
-    github.setup_successful_token_exchange().await;
-    github.setup_successful_user_profile_arthur().await;
+    let idp = IdpConnectFixtures::service().await;
+    idp.mock_github_happy_arthur().await;
 
     // Start OAuth flow
     let start_response = client
@@ -649,9 +648,8 @@ async fn test_registration_token_contains_oauth_provider_info() {
         .expect("Failed to setup test server");
 
     // Setup GitHub mock
-    let github = GitHubFixtures::service().await;
-    github.setup_successful_token_exchange().await;
-    github.setup_successful_user_profile_arthur().await;
+    let idp = IdpConnectFixtures::service().await;
+    idp.mock_github_happy_arthur().await;
 
     // Start OAuth flow
     let start_response = client
@@ -1351,9 +1349,8 @@ async fn test_complete_email_first_flow() {
 
     // Step 6: Add OAuth provider (mock scenario)
     // Setup GitHub mock
-    let github = GitHubFixtures::service().await;
-    github.setup_successful_token_exchange().await;
-    github.setup_successful_user_profile_arthur().await;
+    let idp = IdpConnectFixtures::service().await;
+    idp.mock_github_happy_arthur().await;
 
     // Start OAuth linking flow with authentication
     let oauth_start_response = client
@@ -1380,9 +1377,8 @@ async fn test_complete_oauth_first_flow() {
         .expect("Failed to setup test server");
 
     // Setup GitHub mock
-    let github = GitHubFixtures::service().await;
-    github.setup_successful_token_exchange().await;
-    github.setup_successful_user_profile_arthur().await;
+    let idp = IdpConnectFixtures::service().await;
+    idp.mock_github_happy_arthur().await;
 
     // Step 1: OAuth signup
     let start_response = client

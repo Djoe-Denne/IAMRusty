@@ -1,0 +1,19 @@
+[package]
+name = "github-connect-http"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "HTTP layer for GitHub Connect"
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+github-connect-configuration = { path = "../configuration" }
+idp-connect-contract = { path = "../../idp-connect-contract", features = ["server"] }
+readiness = { path = "../../readiness" }
+rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full"] }
+
+anyhow = { workspace = true }
+axum = { workspace = true }

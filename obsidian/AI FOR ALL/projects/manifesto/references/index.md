@@ -7,7 +7,7 @@ provenance:
   extracted: 0.75
   inferred: 0.23
   ambiguous: 0.02
-updated: 2026-09-17T11:20:00Z
+updated: 2026-09-22T06:55:00Z
 sources:
   - "C:/Users/djden/.codex/attachments/486d0052-5759-4277-bcc1-9f209ce353d4/pasted-text.txt"
 ---
@@ -25,14 +25,18 @@ Use `[[projects/rustycog/references/index]]` for shared command, config, HTTP, p
 
 ## Apparatus — décisions
 
-- [[projects/manifesto/decisions/index]] — ADR Accepted ; réalité `Partial` (`docs/adr/0001`–`0006`).
+- [[projects/manifesto/decisions/index]] — ADR 0001–0008 Accepted ; 0008 Partial.
 
 ## Apparatus — références de conception future
 
 - [[projects/manifesto/references/apparatus-source-reconciliation]] — document confronté au code et provenance.
 - [[projects/manifesto/references/apparatus-factory-and-distribution]] — manifeste, builders et OCI.
 - [[projects/manifesto/references/apparatus-ui-and-protocol]] — host, SDK et conformance.
-- [[projects/manifesto/references/apparatus-implementation-plan]] — P0–P3 ; P2 Implemented ; P3 Partial ; prochain = P3-close.
+- [[projects/manifesto/references/apparatus-implementation-plan]] — conception ; APP-01 = 0008 ; corps encore photo P3.
+- [[projects/manifesto/references/0007-closeout]] — A-DEC 0004/0007 Implemented ; holes hors-jalon.
+- [[projects/manifesto/references/0008-app01-reconciliation]] — méthode APP-01 RATIFIÉE, pas canon.
+- [[projects/manifesto/references/apparatus-p4-implementation-prompt]] — contrat TDD P4 (P4-core livré).
+- [[projects/manifesto/concepts/apparatus-p4-operator]] — crate `apparatus-operator`.
 - [[projects/manifesto/concepts/apparatus-p0-contracts]] — ce qui est réellement compilé.
 - [[projects/manifesto/concepts/apparatus-p2-reconciliation]] — ticker in-process.
 

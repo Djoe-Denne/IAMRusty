@@ -18,7 +18,7 @@ provenance:
   inferred: 0.18
   ambiguous: 0.08
 created: 2026-04-14T17:46:37.6929647Z
-updated: 2026-09-20T10:35:00Z
+updated: 2026-09-22T12:49:00Z
 ---
 
 # IAMRusty
@@ -28,6 +28,7 @@ updated: 2026-09-20T10:35:00Z
 - [[projects/iamrusty/concepts/index]] — concepts
 - [[projects/iamrusty/skills/index]] — skills
 - [[projects/iamrusty/references/index]] — references
+- [[projects/iamrusty/decisions/index]] — décisions vivantes IAM-IdP (ADR **Accepted** / **Implemented** 0407–0410 ; canon `docs/adr/`)
 
 `IAMRusty` is the identity service in the AIForAll workspace. Use `[[projects/rustycog/references/index]]` for the shared service shell and crate behavior; use this page and the linked IAMRusty references for the auth, OAuth, JWT, and event-contract choices that specialize that baseline.
 
@@ -59,7 +60,7 @@ updated: 2026-09-20T10:35:00Z
 - [[projects/iamrusty/references/iamrusty-command-execution]] - How the command registry wraps the service's use cases.
 - [[projects/iamrusty/references/iamrusty-testing-and-fixtures]] - Test server, database fixture, and Kafka-backed validation patterns.
 - [[projects/iamrusty/skills/testing-rust-services-with-fixtures]] - Preferred workflow for building IAM-style integration tests.
-- [[projects/iamrusty/skills/extending-iamrusty-with-oauth-providers]] - End-to-end checklist for adding another provider safely.
+- [[projects/iamrusty/skills/extending-iamrusty-with-oauth-providers]] — nouvel IdP = service Connect + `[[idp.connectors]]` ([[projects/iamrusty/decisions/index]], Implemented).
 - [[projects/aiforall/concepts/https-platform-mesh]] — T14b HTTPS + CA client optionnelle.
 
 ## Open Questions

@@ -14,21 +14,22 @@ sources:
   - monolith/src/runtime.rs
   - apparatus-contracts/src/lib.rs
   - docs/adr/0002-apparatus-contract-first.md
+  - docs/adr/0008-apparatus-p4-k8s-isolation-outside-manifesto.md
 summary: >-
-  Vision Apparatus : P0/P1 livrés, P2 Implemented, Lazaret P3 Implemented
-  A-DEC ; Factory/host/K8s hors livré. Alias Paravretius.
+  Vision Apparatus : P0–P2 livrés, Lazaret P3 Implemented A-DEC.
+  0008 Accepted / Partial (T2–T12 operator). Factory/host hors livré.
 provenance:
-  extracted: 0.55
-  inferred: 0.45
-  ambiguous: 0.0
+  extracted: 0.52
+  inferred: 0.46
+  ambiguous: 0.02
 created: 2026-09-09T17:50:00Z
-updated: 2026-09-20T12:30:00Z
+updated: 2026-09-22T06:55:00Z
 ---
 
 # Apparatus — plateforme d’extensions future
 
 > [!important] Proposition, pas fonctionnalité livrée
-> Le document utilisateur exprime une intention produit. Le code du dépôt fait foi pour l’existant. Ce dossier reste le **rationnel de conception**. Les invariants de la vague 1 sont ADR **Accepted** ([[projects/manifesto/decisions/index]]). P0 : [[projects/manifesto/concepts/apparatus-p0-contracts]] ; P1 : [[projects/manifesto/concepts/apparatus-p1-persistence]] ; P2 in-process **Implemented** : [[projects/manifesto/concepts/apparatus-p2-reconciliation]] ; frontière P3 **Implemented** (A-DEC 2026-09-20, T1–T14b) — restent hors-jalon APP-05 (ouvert), 0006 G/E, pas K8s, pas de second protocole : [[projects/lazaret/lazaret]] ; Factory, gateway K8s et host UI restent absents.
+> Le document utilisateur exprime une intention produit. Le code du dépôt fait foi pour l’existant. Ce dossier reste le **rationnel de conception**. Les invariants de la vague 1 sont ADR **Accepted** ([[projects/manifesto/decisions/index]]). P0 : [[projects/manifesto/concepts/apparatus-p0-contracts]] ; P1 : [[projects/manifesto/concepts/apparatus-p1-persistence]] ; P2 in-process **Implemented** : [[projects/manifesto/concepts/apparatus-p2-reconciliation]] ; frontière P3 **Implemented** (A-DEC 2026-09-20, T1–T14b) — restent hors-jalon APP-05 (ouvert), 0006 G/E, pas K8s-as-P3, pas de second protocole : [[projects/lazaret/lazaret]] ; moteur P4 = [[projects/manifesto/decisions/0008-apparatus-p4-k8s]] (**Accepted / Partial**, crate [[projects/manifesto/concepts/apparatus-p4-operator]]) ; Factory et host UI restent absents.
 
 Un **Apparatus** apporte une capacité fonctionnelle à un projet : Git, wiki, kanban, CI ou outil spécialisé. Officiels et communautaires utilisent le même contrat. Le développeur fournit du Rust, éventuellement une interface statique, un manifeste et un dépôt Git ; la plateforme prend en charge la construction, la distribution et l’exécution. Ces exigences viennent du document fourni. **Paravretius** est un nom historique pour cette plateforme : zéro hit dans le code — canon ici et BC P3 [[projects/lazaret/lazaret]]. Détail : [[entities/paravretius]]. ^[extracted]
 
@@ -48,7 +49,10 @@ La base actuelle est [[projects/manifesto/concepts/component-based-project-orche
 | [[projects/manifesto/concepts/apparatus-p1-persistence]] | Persistance P1 (extension 1:1, backfill, T1-T7) |
 | [[projects/manifesto/concepts/apparatus-p2-reconciliation]] | Contrôleur in-process Implemented |
 | [[projects/lazaret/lazaret]] | Frontière P3 Implemented T1–T14b ; mesh [[projects/aiforall/concepts/https-platform-mesh]] |
-| [[projects/manifesto/references/apparatus-implementation-plan]] | Migration par étapes, tests d’acceptation et arbitrages restants |
+| [[projects/manifesto/references/apparatus-implementation-plan]] | Migration par étapes ; APP-01 = 0008 ; corps encore photo P3 |
+| [[projects/manifesto/decisions/0008-apparatus-p4-k8s]] | Moteur P4 K8s hors Manifesto — Accepted / Partial |
+| [[projects/manifesto/concepts/apparatus-p4-operator]] | Crate `apparatus-operator` T2–T12 + Kind/zot |
+| [[projects/manifesto/references/apparatus-p4-implementation-prompt]] | Contrat TDD P4 (T2–T12 P4-core livré ; 0008 pas Implemented) |
 
 ## Responsabilités proposées
 

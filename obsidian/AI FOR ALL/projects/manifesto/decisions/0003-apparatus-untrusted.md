@@ -7,13 +7,13 @@ sources:
   - docs/adr/0003-apparatus-untrusted-plugin.md
   - apparatus-contracts/src/harness.rs
 summary: >-
-  Plugin = processus OS et identité workload distincts ; managed-only V1 ; harness = double de test. Partial.
+  Plugin = processus OS et identité workload distincts ; managed-only V1 ; harness = double de test. Implemented (A-DEC 2026-09-22).
 provenance:
   extracted: 0.88
   inferred: 0.12
   ambiguous: 0.00
 created: 2026-09-12T09:30:00Z
-updated: 2026-09-12T09:30:00Z
+updated: 2026-09-22T14:00:00Z
 ---
 
 # ADR-0003 — code Apparatus non digne de confiance
@@ -27,14 +27,15 @@ Canon : `docs/adr/0003-apparatus-untrusted-plugin.md`. Hub : [[projects/manifest
 - Le monolithe expose les API de contrôle mais ne charge jamais le binaire communautaire.
 - Le harness in-process P0 est un double de test : aucun secret IAM, jamais `VALID`/`VERIFIED`.
 
-## Réalité : Partial
+## Réalité : Implemented
 
-- `TestHarness`/`InMemoryKv` TEST-ONLY (feature `test-harness`, absent prod), namespacé par `binding_id`.
-- P1 : zéro workload tiers démarré (faux broker in-memory, 0 polling/worker), gate T7 vert. Aucun runtime isolé de production n'existe — `Partial` maintenu.
+- Isolation Kind/Calico v3.29.7 + 4 SA sur le chemin invoke (M5–M6) ; plugin hors processus privilégiés.
+- `TestHarness`/`InMemoryKv` TEST-ONLY (feature `test-harness`) — **peut rester** ; jamais VALID/VERIFIED.
+- **APP-01** tranché par ADR-0008 (moteur K8s hors Manifesto) ; budget CPU numériques (`APP-06`) peuvent rester ouverts.
 
 ## Non décidé ici
 
-`APP-01` (budget, CPU, moteur d'isolation, registry, signature), adaptateur prod, scale-to-zero.
+Budget CPU numériques (`APP-06`), scale-to-zero, cluster prod (dette D-PROD).
 
 ## Related
 

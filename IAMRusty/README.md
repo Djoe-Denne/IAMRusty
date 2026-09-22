@@ -47,8 +47,7 @@ The IAM service supports a flexible configuration system with multiple sources a
    APP_SERVER_PORT=8080
    APP_DATABASE_URL=postgres://postgres:postgres@localhost:5432/iam
    APP_JWT_SECRET=your-super-secret-jwt-key-at-least-32-characters-long
-   APP_OAUTH_GITHUB_CLIENT_ID=your-github-client-id
-   APP_OAUTH_GITHUB_CLIENT_SECRET=your-github-client-secret
+   # Vendor OAuth secrets live on GitHubConnect / GitLabConnect, not IAM.
    ```
 
 2. **Environment File**: Create a `.env` file in the project root (automatically loaded)
@@ -72,14 +71,7 @@ The IAM service supports a flexible configuration system with multiple sources a
    # APP_JWT_SECRET_STORAGE__PUBLIC_KEY_PATH=config/certs/public-key.pem
    # APP_JWT_EXPIRATION_SECONDS=86400
    
-   # OAuth Configuration
-   APP_OAUTH_GITHUB_CLIENT_ID=your-github-client-id
-   APP_OAUTH_GITHUB_CLIENT_SECRET=your-github-client-secret
-   APP_OAUTH_GITHUB_REDIRECT_URI=http://localhost:8080/auth/github/callback
-   
-   APP_OAUTH_GITLAB_CLIENT_ID=your-gitlab-client-id
-   APP_OAUTH_GITLAB_CLIENT_SECRET=your-gitlab-client-secret
-   APP_OAUTH_GITLAB_REDIRECT_URI=http://localhost:8080/auth/gitlab/callback
+   # Federated IdP connectors (HMAC S2S). Vendor client_secret is not an IAM setting.
    
    # Logging
    RUST_LOG=info,iam_service=debug
@@ -94,15 +86,23 @@ The IAM service supports a flexible configuration system with multiple sources a
    [database]
    url = "postgres://postgres:postgres@localhost:5432/iam"
    
-   [oauth.github]
-   client_id = "your-github-client-id"
-   client_secret = "your-github-client-secret"
-   redirect_uri = "http://localhost:8080/auth/github/callback"
-   
-   [oauth.gitlab]
-   client_id = "your-gitlab-client-id"
-   client_secret = "your-gitlab-client-secret"
-   redirect_uri = "http://localhost:8080/auth/gitlab/callback"
+   [[idp.connectors]]
+   id = "github"
+   base_url = "http://127.0.0.1:8085/github-connect"
+   hmac_secret = "change-me-github-connect-hmac"
+   redirect_uris = [
+     "http://127.0.0.1:8080/iam/api/auth/github/callback",
+     "http://127.0.0.1:8080/iam/api/auth/github/relink-callback",
+   ]
+
+   [[idp.connectors]]
+   id = "gitlab"
+   base_url = "http://127.0.0.1:8086/gitlab-connect"
+   hmac_secret = "change-me-gitlab-connect-hmac"
+   redirect_uris = [
+     "http://127.0.0.1:8080/iam/api/auth/gitlab/callback",
+     "http://127.0.0.1:8080/iam/api/auth/gitlab/relink-callback",
+   ]
    
    [jwt]
    expiration_seconds = 3600

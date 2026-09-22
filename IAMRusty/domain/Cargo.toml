@@ -10,6 +10,7 @@ test-mode = []
 # Events abstraction
 rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full"] }
 iam-events = { path = "../../iam-events" }
+idp-connect-contract = { path = "../../idp-connect-contract" }
 
 # Utility
 serde = { workspace = true }

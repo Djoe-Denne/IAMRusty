@@ -1,0 +1,14 @@
+[package]
+name = "gitlab-connect-configuration"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Typed configuration for GitLab Connect"
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full"] }
+serde = { workspace = true }

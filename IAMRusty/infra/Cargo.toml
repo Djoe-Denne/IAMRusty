@@ -8,6 +8,7 @@ edition = "2021"
 iam-domain = { path = "../domain" }
 iam-application = { path = "../application" }
 iam-configuration = { path = "../configuration" }
+idp-connect-contract = { path = "../../idp-connect-contract" }
 
 # Shared crates
 readiness = { path = "../../readiness" }
@@ -18,8 +19,6 @@ sea-orm = { version = "1.1.11", features = ["sqlx-postgres", "runtime-tokio-rust
 sea-orm-migration = { version = "1.1.11" }
 
 # Auth
-oauth2 = { version = "4.4.2", features = ["reqwest"] }
-openidconnect = { version = "4.0.0", features = ["reqwest"] }
 jsonwebtoken = "9.0.2"
 
 # Password hashing

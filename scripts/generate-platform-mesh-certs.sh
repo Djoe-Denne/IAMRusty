@@ -1,5 +1,5 @@
 #!/bin/sh
-# Generate-if-absent platform mesh CA + per-service leaves for Hive/IAM/Telegraph.
+# Generate-if-absent platform mesh CA + per-service leaves for Hive/IAM/Telegraph/GitHub Connect/GitLab Connect.
 # POSIX sh, alpine/openssl 3. Do not call from service entrypoints.
 set -eu
 
@@ -44,4 +44,6 @@ EOF
 issue_leaf "iam-service"
 issue_leaf "hive-service"
 issue_leaf "telegraph-service"
+issue_leaf "github-connect-service"
+issue_leaf "gitlab-connect-service"
 chmod_mesh_files

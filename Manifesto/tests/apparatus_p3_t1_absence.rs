@@ -141,7 +141,10 @@ fn t1_apparatus_runtime_has_no_invoke() {
 fn t1_no_invoke_in_manifesto_rs() {
     let mut files = Vec::new();
     collect_rs_including_tests(&workspace_root().join("Manifesto"), &mut files);
-    files.retain(|p| p.file_name().and_then(|n| n.to_str()) != Some("apparatus_p3_t1_absence.rs"));
+    files.retain(|p| {
+        let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        name != "apparatus_p3_t1_absence.rs" && name != "apparatus_p4_t1_absence.rs"
+    });
     assert!(!files.is_empty(), "scope Manifesto .rs non vide");
     let hits = hits_case_insensitive(&files, "invoke", &[], &[]);
     assert!(

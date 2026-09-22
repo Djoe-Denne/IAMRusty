@@ -36,8 +36,6 @@ sea-orm = { workspace = true }
 sea-orm-migration = { workspace = true, optional = true }
 
 # Auth
-oauth2 = { workspace = true }
-openidconnect = { workspace = true }
 jsonwebtoken = { workspace = true }
 
 # Utility
@@ -85,6 +83,7 @@ aws-sdk-sqs = { workspace = true }
 aws-config = { workspace = true }
 aws-credential-types = { workspace = true }
 iam-infra = { path = "infra", features = ["test-utils", "test-relaxed-jwt"] }
+idp-connect-contract = { path = "../idp-connect-contract" }
 rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full", "test-utils"] }
 readiness = { path = "../readiness" }
 tempfile = { workspace = true }

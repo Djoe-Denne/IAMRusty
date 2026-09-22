@@ -24,23 +24,23 @@ db = "test-db"
 username = "postgres"
 password = "postgres"
 
-[oauth.github]
-client_id = "test_github_client_id"
-client_secret = "test_github_client_secret"
-redirect_uri = "http://127.0.0.1:8081/api/auth/github/callback"
-# These URLs will be overridden by test setup to use mock server
-auth_url = "http://localhost:3000/login/oauth/authorize"
-token_url = "http://localhost:3000/login/oauth/access_token"
-user_url = "http://localhost:3000/user"
+[[idp.connectors]]
+id = "github"
+base_url = "http://127.0.0.1:3000/github-connect"
+hmac_secret = "iam-idp-connect-test-hmac"
+redirect_uris = [
+  "http://127.0.0.1:8081/iam/api/auth/github/callback",
+  "http://127.0.0.1:8081/iam/api/auth/github/relink-callback",
+]
 
-[oauth.gitlab]
-client_id = "test_gitlab_client_id"
-client_secret = "test_gitlab_client_secret"
-redirect_uri = "http://127.0.0.1:8081/api/auth/gitlab/callback"
-# These URLs will be overridden by test setup to use mock server
-auth_url = "http://localhost:3000/oauth/authorize"
-token_url = "http://localhost:3000/oauth/token"
-user_url = "http://localhost:3000/api/v4/user"
+[[idp.connectors]]
+id = "gitlab"
+base_url = "http://127.0.0.1:3000/gitlab-connect"
+hmac_secret = "iam-idp-connect-test-hmac"
+redirect_uris = [
+  "http://127.0.0.1:8081/iam/api/auth/gitlab/callback",
+  "http://127.0.0.1:8081/iam/api/auth/gitlab/relink-callback",
+]
 
 [jwt]
 expiration_seconds = 900  # 15 minutes

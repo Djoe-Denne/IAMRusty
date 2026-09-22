@@ -8,7 +8,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use common::setup_test_server;
-use fixtures::{DbFixtures, GitHubFixtures, GitLabFixtures};
+use fixtures::{DbFixtures, IdpConnectFixtures};
 use iam_configuration::{load_config_part, JwtConfig};
 use utils::jwt::{create_expired_jwt_token_with_encoder, create_valid_jwt_token_with_encoder};
 
@@ -33,6 +33,9 @@ async fn test_generate_relink_provider_start_url_github_success() {
         .await
         .expect("Failed to setup test server");
     let token = relink_bearer(fixture.db()).await;
+
+    let idp = IdpConnectFixtures::service().await;
+    idp.mock_authorize("github").await;
 
     // Make request to generate GitHub relink start URL
     let response = client
@@ -90,6 +93,9 @@ async fn test_generate_relink_provider_start_url_gitlab_success() {
         .await
         .expect("Failed to setup test server");
     let token = relink_bearer(fixture.db()).await;
+
+    let idp = IdpConnectFixtures::service().await;
+    idp.mock_authorize("gitlab").await;
 
     // Make request to generate GitLab relink start URL
     let response = client
@@ -182,9 +188,8 @@ async fn test_relink_provider_callback_github_success() {
         .expect("Failed to create existing GitHub token");
 
     // Setup GitHub mock server for relink (same user profile but new tokens)
-    let github = GitHubFixtures::service().await;
-    github.setup_successful_token_exchange().await;
-    github.setup_successful_user_profile_arthur().await;
+    let idp = IdpConnectFixtures::service().await;
+    idp.mock_github_happy_arthur().await;
 
     // Create valid JWT token for authentication
     let jwt_token = create_valid_jwt_token_with_encoder(
@@ -392,9 +397,8 @@ async fn test_relink_provider_callback_returns_422_when_provider_not_currently_l
         .expect("Failed to create primary email");
 
     // Setup GitHub mock server
-    let github = GitHubFixtures::service().await;
-    github.setup_successful_token_exchange().await;
-    github.setup_successful_user_profile_arthur().await;
+    let idp = IdpConnectFixtures::service().await;
+    idp.mock_github_happy_arthur().await;
 
     // Create valid JWT token for authentication
     let jwt_token = create_valid_jwt_token_with_encoder(
@@ -469,9 +473,8 @@ async fn test_relink_provider_callback_gitlab_success() {
         .expect("Failed to create existing GitLab token");
 
     // Setup GitLab mock server for relink
-    let gitlab = GitLabFixtures::service().await;
-    gitlab.setup_successful_token_exchange().await;
-    gitlab.setup_successful_user_profile_alice().await; // Using Alice profile for GitLab
+    let idp = IdpConnectFixtures::service().await;
+    idp.mock_gitlab_happy_alice().await;
 
     // Create valid JWT token for authentication
     let jwt_token = create_valid_jwt_token_with_encoder(
@@ -545,9 +548,8 @@ async fn test_relink_provider_callback_user_with_multiple_providers() {
         .expect("Failed to create GitLab token");
 
     // Setup GitHub mock server for relink
-    let github = GitHubFixtures::service().await;
-    github.setup_successful_token_exchange().await;
-    github.setup_successful_user_profile_arthur().await;
+    let idp = IdpConnectFixtures::service().await;
+    idp.mock_github_happy_arthur().await;
 
     // Create valid JWT token for authentication
     let jwt_token = create_valid_jwt_token_with_encoder(

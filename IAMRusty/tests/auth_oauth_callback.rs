@@ -7,7 +7,7 @@ mod utils;
 
 use base64::{engine::general_purpose, Engine as _};
 use common::setup_test_server;
-use fixtures::{DbFixtures, GitHubFixtures, GitLabFixtures};
+use fixtures::{DbFixtures, IdpConnectFixtures};
 use sea_orm::{ConnectionTrait, DatabaseBackend, Statement};
 use serde_json::Value;
 use serial_test::serial;
@@ -26,9 +26,8 @@ async fn test_oauth_callback_gitlab_successful_flow_creates_jwt_for_new_user() {
     let _db = fixture.db();
 
     // Setup GitLab mock server for successful flow
-    let gitlab = GitLabFixtures::service().await;
-    gitlab.setup_successful_token_exchange().await;
-    gitlab.setup_successful_user_profile_alice().await;
+    let idp = IdpConnectFixtures::service().await;
+    idp.mock_gitlab_happy_alice().await;
 
     // Create valid state for login operation
     let state = OAuthTestUtils::create_login_state();
@@ -78,6 +77,50 @@ async fn test_oauth_callback_gitlab_successful_flow_creates_jwt_for_new_user() {
 
 #[tokio::test]
 #[serial]
+async fn test_oauth_callback_replay_same_state_returns_400_invalid_state() {
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
+
+    let idp = IdpConnectFixtures::service().await;
+    idp.mock_gitlab_happy_alice().await;
+
+    let state = OAuthTestUtils::create_login_state();
+    let callback = format!("{base_url}/api/auth/gitlab/callback");
+
+    let first = client
+        .get(&callback)
+        .query(&[("code", "test_auth_code"), ("state", &state)])
+        .send()
+        .await
+        .expect("Failed to send first callback request");
+    assert_eq!(
+        first.status(),
+        202,
+        "First callback should succeed and consume OAuthState nonce"
+    );
+
+    let replay = client
+        .get(&callback)
+        .query(&[("code", "test_auth_code"), ("state", &state)])
+        .send()
+        .await
+        .expect("Failed to send replayed callback request");
+    assert_eq!(
+        replay.status(),
+        400,
+        "Replayed OAuthState must return 400 invalid_state"
+    );
+
+    let error_response: Value = replay
+        .json()
+        .await
+        .expect("Should return JSON error response");
+    assert_eq!(error_response["error"]["error_code"], "invalid_state");
+}
+
+#[tokio::test]
+#[serial]
 async fn test_oauth_callback_links_external_account_with_valid_link_state() {
     // Setup test environment
     let (fixture, base_url, client) = setup_test_server()
@@ -99,9 +142,8 @@ async fn test_oauth_callback_links_external_account_with_valid_link_state() {
         .expect("Failed to create primary email");
 
     // Setup GitHub mock server
-    let github = GitHubFixtures::service().await;
-    github.setup_successful_token_exchange().await;
-    github.setup_successful_user_profile_arthur().await;
+    let idp = IdpConnectFixtures::service().await;
+    idp.mock_github_happy_arthur().await;
 
     // Create valid state for link operation with existing user ID
     let state = OAuthTestUtils::create_link_state(existing_user.id());
@@ -211,10 +253,8 @@ async fn test_oauth_callback_associates_new_provider_for_same_user() {
         .expect("Failed to create GitHub token");
 
     // Setup GitLab mock server for the same user (Arthur)
-    let gitlab = GitLabFixtures::service().await;
-    gitlab.setup_successful_token_exchange().await;
-    // Note: We'll mock GitLab to return Arthur's profile (same user, different provider)
-    gitlab.setup_successful_user_profile_alice().await; // Using Alice profile for GitLab
+    let idp = IdpConnectFixtures::service().await;
+    idp.mock_gitlab_happy_alice().await;
 
     // Create valid state for link operation
     let state = OAuthTestUtils::create_link_state(existing_user.id());
@@ -342,9 +382,8 @@ async fn test_oauth_callback_prevents_linking_provider_already_bound_to_another_
         .expect("Failed to create second user email");
 
     // Setup GitHub mock server to return Arthur's profile (already linked to first user)
-    let github = GitHubFixtures::service().await;
-    github.setup_successful_token_exchange().await;
-    github.setup_successful_user_profile_arthur().await;
+    let idp = IdpConnectFixtures::service().await;
+    idp.mock_github_happy_arthur().await;
 
     // Create valid state for link operation with second user ID
     let state = OAuthTestUtils::create_link_state(second_user.id());
@@ -429,8 +468,8 @@ async fn test_oauth_callback_fails_on_invalid_authorization_code() {
     let db = fixture.db();
 
     // Setup GitHub mock server to return error for invalid code
-    let github = GitHubFixtures::service().await;
-    github.setup_failed_token_exchange_invalid_code().await;
+    let idp = IdpConnectFixtures::service().await;
+    idp.mock_s2s_unauthorized("github", "/v1/token").await;
 
     // Create valid state
     let state = OAuthTestUtils::create_login_state();
@@ -496,8 +535,8 @@ async fn test_oauth_callback_fails_on_expired_authorization_code() {
     let db = fixture.db();
 
     // Setup GitHub mock server to return error for expired code
-    let github = GitHubFixtures::service().await;
-    github.setup_failed_token_exchange_invalid_code().await; // Using invalid_code as expired_code may not exist
+    let idp = IdpConnectFixtures::service().await;
+    idp.mock_s2s_unauthorized("github", "/v1/token").await; // Using invalid_code as expired_code may not exist
 
     // Create valid state
     let state = OAuthTestUtils::create_login_state();
@@ -716,9 +755,9 @@ async fn test_oauth_callback_returns_401_when_provider_refuses_user() {
     let db = fixture.db();
 
     // Setup GitHub mock server to return successful token exchange but unauthorized user profile
-    let github = GitHubFixtures::service().await;
-    github.setup_successful_token_exchange().await;
-    github.setup_failed_user_profile_unauthorized().await;
+    let idp = IdpConnectFixtures::service().await;
+    idp.mock_token("github").await;
+    idp.mock_profile_status("github", 401).await;
 
     // Create valid state
     let state = OAuthTestUtils::create_login_state();
@@ -784,9 +823,9 @@ async fn test_oauth_callback_returns_401_when_provider_rejects_user() {
     let db = fixture.db();
 
     // Setup GitHub mock server to simulate provider rejection (e.g., account suspended)
-    let github = GitHubFixtures::service().await;
-    github.setup_successful_token_exchange().await;
-    github.setup_failed_user_profile_unauthorized().await; // Using unauthorized as account_suspended may not exist
+    let idp = IdpConnectFixtures::service().await;
+    idp.mock_token("github").await;
+    idp.mock_profile_status("github", 401).await; // Using unauthorized as account_suspended may not exist
 
     // Create valid state
     let state = OAuthTestUtils::create_login_state();
@@ -895,8 +934,9 @@ async fn test_oauth_callback_case_insensitive_providers() {
     let _db = fixture.db();
 
     // Setup fixtures
-    let github = GitHubFixtures::service().await;
-    let gitlab = GitLabFixtures::service().await;
+    let idp = IdpConnectFixtures::service().await;
+    idp.mock_github_happy_arthur().await;
+    idp.mock_gitlab_happy_alice().await;
 
     // Test case variations that should work
     let valid_cases = vec![
@@ -909,16 +949,6 @@ async fn test_oauth_callback_case_insensitive_providers() {
     ];
 
     for (provider_input, auth_code) in valid_cases {
-        // Setup the appropriate mock for each provider
-        if provider_input.to_lowercase() == "github" {
-            github.setup_successful_token_exchange().await;
-            github.setup_successful_user_profile_arthur().await;
-        } else {
-            gitlab.setup_successful_token_exchange().await;
-            gitlab.setup_successful_user_profile_alice().await;
-        }
-
-        // Create fresh state for each test
         let state = OAuthTestUtils::create_login_state();
 
         let response = client
@@ -942,4 +972,25 @@ async fn test_oauth_callback_case_insensitive_providers() {
             "registration_required".to_string()
         );
     }
+}
+
+#[tokio::test]
+#[serial]
+async fn oauth_callback_connector_401_is_iam_error() {
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
+    let idp = IdpConnectFixtures::service().await;
+    idp.mock_s2s_unauthorized("github", "/v1/token").await;
+
+    let state = OAuthTestUtils::create_login_state();
+    let response = client
+        .get(format!("{base_url}/api/auth/github/callback"))
+        .query(&[("code", "test_auth_code"), ("state", &state)])
+        .send()
+        .await
+        .expect("Failed to send callback request");
+
+    assert_ne!(response.status(), 200);
+    assert_ne!(response.status(), 202);
 }

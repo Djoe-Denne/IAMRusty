@@ -269,6 +269,21 @@ title: Wiki Log
 - [2026-09-20T10:35:00Z] DATA_INGEST source=cursor-transcripts format=jsonl pages_updated=19 pages_created=2 mode=append subagents_included=true conversations=489
 - [2026-09-20T10:35:00Z] CLAUDE_HISTORY_INGEST source=cursor-transcripts mode=append subagents_included=true conversations=489 pages_updated=19 pages_created=2 parents_new=75 nested_new=411 unchanged=48
 - [2026-09-20T10:35:00Z] QMD_UPDATE collection=aiforall-wiki files_new=4 files_updated=24 files_unchanged=197 embed_chunks=117 embed_docs=28
+- [2026-09-20T15:55:00Z] INGEST source="docs/adr/0008-apparatus-p4-k8s-isolation-outside-manifesto.md" pages_updated=8 pages_created=0 mode=append topic=adr-0008-accepted-unimplemented
+- [2026-09-20T15:55:00Z] INGEST source="docs/adr/0008-app01-reconciliation.md" pages_updated=2 pages_created=1 mode=append topic=app01-reconciliation-methode
+- [2026-09-20T15:55:00Z] INGEST source="docs/adr/0007-closeout.md" pages_updated=4 pages_created=1 mode=append topic=adec-closeout
+- [2026-09-20T15:55:00Z] INGEST source="docs/apparatus-p4-implementation-prompt.md" pages_updated=2 pages_created=1 mode=append topic=p4-prompt
+- [2026-09-20T15:55:00Z] INGEST source="docs/adr/0004-apparatus-capability-gateway.md" pages_updated=3 pages_created=0 mode=append topic=app05-ab-implemented
+- [2026-09-20T15:55:00Z] INGEST source="docs/adr/0007-apparatus-p3-capability-boundary-after-accept.md" pages_updated=4 pages_created=0 mode=append topic=0007-implemented-adec
+- [2026-09-20T15:55:00Z] INGEST source="docs/adr/README.md" pages_updated=3 pages_created=0 mode=append topic=vague1-0008
+- [2026-09-20T15:55:00Z] WIKI_UPDATE project=aiforall pages_updated=13 pages_created=3 source_cwd=C:/Users/djden/source/repos/AIForAll last_commit_synced=a27ea5bf9b53bb6fde9e9da6a267f84f2e927333 vault="obsidian/AI FOR ALL" topic=append-0008-closeout-p4-prompt skipped_rs=1 skipped_other_new=168 skipped_other_mod=15 qmd=skip
+- [2026-09-20T16:15:00Z] QUERY query="IAM identity providers GitHub GitLab common auth contract future extraction" result_pages=8 mode=normal escalated=false
+- [2026-09-22T06:55:00Z] INGEST source="C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts" pages_updated=18 pages_created=3 mode=append conversations=10 parents_new=9 parents_changed=1 nested_new_or_changed=105 since=2026-09-20T10:35:00Z
+- [2026-09-22T06:55:00Z] CLAUDE_HISTORY_INGEST source=cursor-transcripts mode=append subagents_included=true conversations=10 pages_updated=18 pages_created=3 vault="obsidian/AI FOR ALL" topic=p4-core-operator-idp-otlp
+- [2026-09-22T06:55:00Z] WIKI_UPDATE project=aiforall pages_updated=18 pages_created=3 source_cwd=C:/Users/djden/source/repos/AIForAll vault="obsidian/AI FOR ALL" topic=chat-since-2026-09-20T10:35Z qmd=skip
+- [2026-09-22T12:49:00Z] WIKI_UPDATE project=iamrusty pages_updated=11 pages_created=0 source_cwd=C:/Users/djden/source/repos/AIForAll topic=iam-idp-s5-s6-implemented
+
+
 
 
 

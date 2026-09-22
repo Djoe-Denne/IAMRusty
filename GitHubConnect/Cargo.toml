@@ -1,0 +1,33 @@
+[package]
+name = "github-connect-service"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "GitHub IdP Connect service for the AIForAll platform"
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+github-connect-configuration = { path = "configuration" }
+github-connect-setup = { path = "setup" }
+
+anyhow = { workspace = true }
+axum = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+github-connect-http = { path = "http" }
+github-connect-infra = { path = "infra" }
+idp-connect-contract = { path = "../idp-connect-contract" }
+axum-test = { workspace = true }
+reqwest = { workspace = true }
+rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full", "test-utils"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serial_test = { workspace = true }
+tokio = { workspace = true }
+uuid = { workspace = true }
+wiremock = { workspace = true }

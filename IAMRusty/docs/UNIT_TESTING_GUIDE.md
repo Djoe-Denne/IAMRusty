@@ -99,7 +99,7 @@ where
     user_repository: U,
     token_repository: T,
     token_service: TokenService,
-    provider_clients: HashMap<Provider, Box<dyn ProviderOAuth2Client + Send + Sync>>,
+    provider_clients: HashMap<Provider, Arc<dyn FederatedOAuthClient>>,
 }
 ```
 
@@ -359,9 +359,12 @@ mock! {
     OAuth2Client {}
 
     #[async_trait::async_trait]
-    impl ProviderOAuth2Client for OAuth2Client {
-        fn generate_authorize_url(&self) -> String;
-        async fn exchange_code(&self, code: &str) -> Result<ProviderTokens, DomainError>;
+    impl FederatedOAuthClient for OAuth2Client {
+        async fn exchange_code(
+            &self,
+            code: &str,
+            redirect_uri: &str,
+        ) -> Result<ProviderTokens, DomainError>;
     }
 }
 ```

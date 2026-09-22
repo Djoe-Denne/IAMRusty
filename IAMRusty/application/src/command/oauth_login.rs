@@ -104,16 +104,19 @@ pub struct OAuthLoginCommand {
     pub provider: Provider,
     /// Authorization code from OAuth callback
     pub code: String,
+    /// Redirect URI used at authorize time
+    pub redirect_uri: String,
 }
 
 impl OAuthLoginCommand {
     /// Create a new OAuth login command
     #[must_use]
-    pub fn new(provider: Provider, code: String) -> Self {
+    pub fn new(provider: Provider, code: String, redirect_uri: String) -> Self {
         Self {
             command_id: Uuid::new_v4(),
             provider,
             code,
+            redirect_uri,
         }
     }
 }
@@ -135,6 +138,13 @@ impl Command for OAuthLoginCommand {
             return Err(CommandError::validation(
                 OAuthLoginErrorCode::ValidationFailed.as_str(),
                 "Authorization code cannot be empty",
+            ));
+        }
+
+        if self.redirect_uri.trim().is_empty() {
+            return Err(CommandError::validation(
+                OAuthLoginErrorCode::ValidationFailed.as_str(),
+                "Redirect URI cannot be empty",
             ));
         }
 
@@ -167,7 +177,7 @@ where
 {
     async fn handle(&self, command: OAuthLoginCommand) -> Result<OAuthResponse, CommandError> {
         self.oauth_use_case
-            .oauth_login(command.provider, command.code)
+            .oauth_login(command.provider, command.code, command.redirect_uri)
             .await
             .map_err(|e| OAuthLoginErrorMapper.map_error(Box::new(e)))
     }
@@ -180,15 +190,21 @@ pub struct GenerateOAuthStartUrlCommand {
     pub command_id: Uuid,
     /// OAuth provider
     pub provider: Provider,
+    /// Redirect URI for this start
+    pub redirect_uri: String,
+    /// Encoded IAM OAuth state
+    pub state: String,
 }
 
 impl GenerateOAuthStartUrlCommand {
     /// Create a new generate OAuth start URL command
     #[must_use]
-    pub fn new(provider: Provider) -> Self {
+    pub fn new(provider: Provider, redirect_uri: String, state: String) -> Self {
         Self {
             command_id: Uuid::new_v4(),
             provider,
+            redirect_uri,
+            state,
         }
     }
 }
@@ -206,7 +222,12 @@ impl Command for GenerateOAuthStartUrlCommand {
     }
 
     fn validate(&self) -> Result<(), CommandError> {
-        // Provider validation is handled by the enum itself
+        if self.redirect_uri.trim().is_empty() {
+            return Err(CommandError::validation(
+                OAuthLoginErrorCode::ValidationFailed.as_str(),
+                "Redirect URI cannot be empty",
+            ));
+        }
         Ok(())
     }
 }
@@ -236,7 +257,8 @@ where
 {
     async fn handle(&self, command: GenerateOAuthStartUrlCommand) -> Result<String, CommandError> {
         self.oauth_use_case
-            .generate_start_url(command.provider)
+            .generate_start_url(command.provider, command.redirect_uri, command.state)
+            .await
             .map_err(|e| OAuthLoginErrorMapper.map_error(Box::new(e)))
     }
 }

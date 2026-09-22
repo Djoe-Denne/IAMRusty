@@ -1,14 +1,14 @@
 use anyhow::Result;
 use axum::Router;
 use chrono::Duration;
+use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::info;
 
 use iam_http_server::{create_app_routes, create_router};
 use iam_infra::{
     auth::{
-        GitHubOAuth2Client, GitLabOAuth2Client, PasswordResetServiceAdapter, PasswordService,
-        PasswordServiceAdapter,
+        HttpIdpConnector, PasswordResetServiceAdapter, PasswordService, PasswordServiceAdapter,
     },
     db::DbConnectionPool,
     event_adapter::IAMErrorMapper,
@@ -39,8 +39,10 @@ use iam_infra::{
 use rustycog::http::{AppState, UserIdExtractor};
 use rustycog::permission::{InMemoryPermissionChecker, PermissionChecker};
 
-use iam_configuration::AppConfig;
+use iam_configuration::{AppConfig, IdpConfig};
+use iam_domain::entity::provider::Provider;
 use iam_domain::error::DomainError;
+use iam_domain::port::service::FederatedOAuthClient;
 use readiness::{
     ComponentStatus, QueueRole, ReadinessProbe, attach_ready,
     create_signaled_multi_queue_event_publisher, signal_queue_status,
@@ -68,6 +70,7 @@ pub struct IAMRustyApp {
     app_state: AppState,
     outbox_dispatcher: Arc<OutboxDispatcher<DomainError>>,
     readiness: Arc<ReadinessProbe>,
+    idp: Arc<IdpConfig>,
 }
 
 impl IAMRustyApp {
@@ -75,17 +78,19 @@ impl IAMRustyApp {
         app_state: AppState,
         outbox_dispatcher: Arc<OutboxDispatcher<DomainError>>,
         readiness: Arc<ReadinessProbe>,
+        idp: Arc<IdpConfig>,
     ) -> Self {
         Self {
             app_state,
             outbox_dispatcher,
             readiness,
+            idp,
         }
     }
 
     pub fn router(&self) -> Router {
         attach_ready(
-            create_router(self.app_state.clone()),
+            create_router(self.app_state.clone(), self.idp.clone()),
             self.readiness.clone(),
         )
     }
@@ -199,6 +204,7 @@ where
     );
 
     let repos = setup_repositories(&db_pool);
+    let idp = Arc::new(config.idp.clone());
     let oauth_clients = setup_oauth_clients(&config)?;
 
     // Create password service
@@ -246,7 +252,12 @@ where
             .with_publisher(queue_status, queue_transport),
     );
 
-    Ok(IAMRustyApp::new(app_state, outbox_dispatcher, readiness))
+    Ok(IAMRustyApp::new(
+        app_state,
+        outbox_dispatcher,
+        readiness,
+        idp,
+    ))
 }
 
 type UserRepo = CombinedUserRepository<UserReadRepositoryImpl, UserWriteRepositoryImpl>;
@@ -286,10 +297,7 @@ struct IamRepos {
 }
 
 struct OauthClients {
-    github_auth_login: GitHubOAuth2Client,
-    gitlab_auth_login: GitLabOAuth2Client,
-    github_auth_link: GitHubOAuth2Client,
-    gitlab_auth_link: GitLabOAuth2Client,
+    by_slug: HashMap<Provider, Arc<dyn FederatedOAuthClient>>,
 }
 
 struct OauthLinkDeps {
@@ -339,26 +347,15 @@ fn setup_oauth_and_link(
         token_service,
         registration_token_service,
     } = deps;
-    let OauthClients {
-        github_auth_login,
-        gitlab_auth_login,
-        github_auth_link,
-        gitlab_auth_link,
-    } = clients;
     let mut oauth_service = iam_domain::service::oauth_service::OAuthService::new(
         user_repo.clone(),
         token_repo_login,
         user_email_repo.clone(),
         iam_domain::service::TokenService::new(token_service.clone(), Duration::hours(1)),
     );
-    oauth_service.register_provider_client(
-        iam_domain::entity::provider::Provider::GitHub,
-        Box::new(github_auth_login),
-    );
-    oauth_service.register_provider_client(
-        iam_domain::entity::provider::Provider::GitLab,
-        Box::new(gitlab_auth_login),
-    );
+    for (provider, client) in &clients.by_slug {
+        oauth_service.register_provider_client(*provider, client.clone());
+    }
     let oauth = Arc::new(OAuthUseCaseImpl::new(
         Arc::new(oauth_service),
         registration_token_service,
@@ -370,8 +367,7 @@ fn setup_oauth_and_link(
         Arc::new(token_repo_link),
     ));
     let link_provider = Arc::new(LinkProviderUseCaseImpl::new(
-        Arc::new(github_auth_link),
-        Arc::new(gitlab_auth_link),
+        clients.by_slug,
         provider_link_service,
     ));
     (oauth, link_provider)
@@ -673,12 +669,32 @@ fn setup_jwt(
 }
 
 fn setup_oauth_clients(config: &AppConfig) -> Result<OauthClients> {
-    Ok(OauthClients {
-        github_auth_login: GitHubOAuth2Client::from_config(&config.oauth.github)?,
-        gitlab_auth_login: GitLabOAuth2Client::from_config(&config.oauth.gitlab)?,
-        github_auth_link: GitHubOAuth2Client::from_config(&config.oauth.github)?,
-        gitlab_auth_link: GitLabOAuth2Client::from_config(&config.oauth.gitlab)?,
-    })
+    let by_slug = setup_http_idp_clients(&config.idp)?;
+    Ok(OauthClients { by_slug })
+}
+
+fn setup_http_idp_clients(
+    idp: &IdpConfig,
+) -> Result<HashMap<Provider, Arc<dyn FederatedOAuthClient>>> {
+    idp.validate().map_err(DomainError::OAuth2Error)?;
+    let mut by_slug = HashMap::new();
+    for connector in &idp.connectors {
+        let provider = match connector.id.to_lowercase().as_str() {
+            "github" => Provider::GitHub,
+            "gitlab" => Provider::GitLab,
+            _ => continue,
+        };
+        let client = HttpIdpConnector::new(&connector.base_url, &connector.hmac_secret)?;
+        by_slug.insert(provider, Arc::new(client) as Arc<dyn FederatedOAuthClient>);
+    }
+    if by_slug.is_empty() {
+        return Err(DomainError::OAuth2Error(
+            "idp.connectors must include at least one known provider (github or gitlab)"
+                .to_string(),
+        )
+        .into());
+    }
+    Ok(by_slug)
 }
 
 /// Serve IAM HTTP/HTTPS until a shutdown signal or a background task fails.
@@ -708,7 +724,8 @@ pub async fn run_server(app: IAMRustyApp, app_config: ServerConfig) -> Result<()
     let mut server_handle = {
         let app_state = app.app_state.clone();
         let probe = app.readiness.clone();
-        tokio::spawn(async move { create_app_routes(app_state, server_config, probe).await })
+        let idp = app.idp.clone();
+        tokio::spawn(async move { create_app_routes(app_state, server_config, probe, idp).await })
     };
 
     let mut background_tasks = app.start_background_tasks();
@@ -748,4 +765,31 @@ pub async fn run_server(app: IAMRustyApp, app_config: ServerConfig) -> Result<()
     let _ = server_handle.await;
 
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::setup_http_idp_clients;
+    use iam_configuration::{IdpConfig, IdpConnectorConfig};
+
+    #[test]
+    fn setup_rejects_unknown_only_connectors() {
+        let idp = IdpConfig {
+            connectors: vec![IdpConnectorConfig {
+                id: "google".to_string(),
+                base_url: "http://127.0.0.1:9/google-connect".to_string(),
+                hmac_secret: "sixteen-bytes-ok".to_string(),
+                redirect_uris: vec![
+                    "http://127.0.0.1:8080/iam/api/auth/google/callback".to_string(),
+                ],
+            }],
+        };
+        match setup_http_idp_clients(&idp) {
+            Ok(_) => panic!("expected fail-closed boot"),
+            Err(err) => assert!(
+                err.to_string().contains("known provider"),
+                "unexpected error: {err}"
+            ),
+        }
+    }
 }

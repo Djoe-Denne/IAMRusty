@@ -1,18 +1,18 @@
 {
   "version": 1,
   "stats": {
-    "total_sources_ingested": 806,
-    "total_pages": 196,
+    "total_sources_ingested": 921,
+    "total_pages": 202,
     "last_commit_synced": "a27ea5bf9b53bb6fde9e9da6a267f84f2e927333"
   },
   "projects": {
     "aiforall": {
       "source_cwd": "C:/Users/djden/source/repos/AIForAll",
-      "last_synced": "2026-09-20T10:35:00Z",
+      "last_synced": "2026-09-22T12:49:00Z",
       "last_commit_synced": "a27ea5bf9b53bb6fde9e9da6a267f84f2e927333",
-      "sync_note": "since 9e85edd: Lazaret T11b mTLS rustycog-http, T12/T13/T14b ADR-0007 P3 capability boundary; ingest cursor subagents_included (537 jsonl)",
+      "sync_note": "IAM-IdP Vague 4 S5/S6: in-process retired, ADR 0407-0410 Implemented",
       "conversations_ingested": 102,
-      "conversations_total": 537,
+      "conversations_total": 648,
       "pages_in_vault": [
         "projects/aiforall/aiforall.md",
         "projects/lazaret/lazaret.md",
@@ -21,16 +21,85 @@
         "entities/paravretius.md",
         "journal/2026-09-20.md",
         "projects/aiforall/references/cursor-history-2026-09.md",
-        "projects/aiforall/concepts/https-platform-mesh.md"
+        "projects/aiforall/concepts/https-platform-mesh.md",
+        "journal/2026-09-22.md",
+        "projects/manifesto/concepts/apparatus-p4-operator.md",
+        "projects/aiforall/skills/running-apparatus-p4-tests.md"
       ]
     }
   },
   "sources": {
+    "docs/adr/0008-apparatus-p4-k8s-isolation-outside-manifesto.md": {
+      "ingested_at": "2026-09-20T15:55:00Z",
+      "size_bytes": 7570,
+      "modified_at": "2026-09-20T14:07:27.441Z",
+      "content_hash": "sha256:be3df0838214a6f4e2b99b03025e35eb07cee35338368395596da09ed4f01698",
+      "source_type": "document",
+      "project": "manifesto",
+      "pages_created": [],
+      "pages_updated": [
+        "projects/manifesto/decisions/0008-apparatus-p4-k8s.md",
+        "projects/manifesto/decisions/index.md",
+        "projects/manifesto/concepts/apparatus-platform.md",
+        "projects/manifesto/references/apparatus-implementation-plan.md",
+        "projects/lazaret/lazaret.md",
+        "projects/aiforall/aiforall.md",
+        "index.md",
+        "journal/2026-09-20.md"
+      ]
+    },
+    "docs/adr/0008-app01-reconciliation.md": {
+      "ingested_at": "2026-09-20T15:55:00Z",
+      "size_bytes": 5307,
+      "modified_at": "2026-09-20T13:57:30.361Z",
+      "content_hash": "sha256:0d74103beee90014f60e4c70fbc87268b4f87d62187ba1356401799111c4a7df",
+      "source_type": "document",
+      "project": "manifesto",
+      "pages_created": [
+        "projects/manifesto/references/0008-app01-reconciliation.md"
+      ],
+      "pages_updated": [
+        "projects/manifesto/decisions/0008-apparatus-p4-k8s.md",
+        "journal/2026-09-20.md"
+      ]
+    },
+    "docs/adr/0007-closeout.md": {
+      "ingested_at": "2026-09-20T15:55:00Z",
+      "size_bytes": 17177,
+      "modified_at": "2026-09-20T12:19:49.468Z",
+      "content_hash": "sha256:f92ffb979e2e4a91fdab1e7f4bf623d70ba776978e7babd49ec14a7ee5965444",
+      "source_type": "document",
+      "project": "manifesto",
+      "pages_created": [
+        "projects/manifesto/references/0007-closeout.md"
+      ],
+      "pages_updated": [
+        "projects/manifesto/decisions/0007-apparatus-p3-lazaret.md",
+        "projects/manifesto/decisions/0004-apparatus-gateway.md",
+        "projects/lazaret/lazaret.md",
+        "journal/2026-09-20.md"
+      ]
+    },
+    "docs/apparatus-p4-implementation-prompt.md": {
+      "ingested_at": "2026-09-20T15:55:00Z",
+      "size_bytes": 21654,
+      "modified_at": "2026-09-20T14:07:28.675Z",
+      "content_hash": "sha256:b8ecbc26dc1efa77c8e8d691ea95e90c264317836330eb7e4a0e24c967e41cc8",
+      "source_type": "document",
+      "project": "manifesto",
+      "pages_created": [
+        "projects/manifesto/references/apparatus-p4-implementation-prompt.md"
+      ],
+      "pages_updated": [
+        "projects/manifesto/decisions/0008-apparatus-p4-k8s.md",
+        "projects/manifesto/references/apparatus-implementation-plan.md"
+      ]
+    },
     "docs/adr/0007-apparatus-p3-capability-boundary-after-accept.md": {
-      "ingested_at": "2026-09-17T10:55:00Z",
-      "size_bytes": 35642,
-      "modified_at": "2026-09-15T14:45:21.768Z",
-      "content_hash": "sha256:d22fe5aca29e8a926ef821056d5251a5c4d356c0ac69491c6b2d20f39f4b7d78",
+      "ingested_at": "2026-09-20T15:55:00Z",
+      "size_bytes": 41658,
+      "modified_at": "2026-09-20T12:22:58.544Z",
+      "content_hash": "sha256:8a9f6995c45800c109c73bd31dffdbf07621dd3c31b54142c90b9faa7b72f9f6",
       "source_type": "document",
       "project": "lazaret",
       "pages_created": [
@@ -40,7 +109,9 @@
       ],
       "pages_updated": [
         "projects/manifesto/decisions/0007-apparatus-p3-lazaret.md",
-        "projects/manifesto/references/apparatus-implementation-plan.md"
+        "projects/manifesto/references/apparatus-implementation-plan.md",
+        "projects/manifesto/references/0007-closeout.md",
+        "projects/lazaret/lazaret.md"
       ]
     },
     "docs/services/lazaret.md": {
@@ -938,17 +1009,19 @@
       ]
     },
     "docs/adr/0004-apparatus-capability-gateway.md": {
-      "ingested_at": "2026-09-12T09:30:00Z",
-      "size_bytes": 5107,
-      "modified_at": "2026-09-12T09:02:49.066Z",
-      "content_hash": "sha256:cd293ce18a24878d2523b2c762eb864dfe98b548d6ddd2df8ea8f2fc191c1d05",
+      "ingested_at": "2026-09-20T15:55:00Z",
+      "size_bytes": 7267,
+      "modified_at": "2026-09-20T12:24:17.154Z",
+      "content_hash": "sha256:dcce4b18c16d5e059dc69317dbee22c9a3e07ba79f0bf1d5688df07429e15c8a",
       "source_type": "document",
       "project": "manifesto",
       "pages_created": [
         "projects/manifesto/decisions/0004-apparatus-gateway.md"
       ],
       "pages_updated": [
-        "projects/manifesto/decisions/index.md"
+        "projects/manifesto/decisions/index.md",
+        "projects/manifesto/decisions/0004-apparatus-gateway.md",
+        "projects/manifesto/references/0007-closeout.md"
       ]
     },
     "docs/adr/0005-apparatus-same-protocol-valid-verified.md": {
@@ -966,10 +1039,10 @@
       ]
     },
     "docs/adr/README.md": {
-      "ingested_at": "2026-09-13T10:25:00Z",
-      "size_bytes": 9903,
-      "modified_at": "2026-09-12T11:53:47.221Z",
-      "content_hash": "sha256:3e02d8ae7411db0c20b069d63b9fb026205b8b0e595ac5307f8fc9f208f0a72b",
+      "ingested_at": "2026-09-20T15:55:00Z",
+      "size_bytes": 11459,
+      "modified_at": "2026-09-20T14:07:27.442Z",
+      "content_hash": "sha256:b44c535ec3de25e26713ee3ea256d286fb8372648b7664c01674398bede959fb",
       "source_type": "document",
       "project": "aiforall",
       "pages_created": [
@@ -977,7 +1050,8 @@
       ],
       "pages_updated": [
         "projects/manifesto/decisions/index.md",
-        "index.md"
+        "index.md",
+        "projects/aiforall/aiforall.md"
       ]
     },
     "docs/apparatus-p0-implementation-prompt.md": {
@@ -5062,37 +5136,44 @@
       ]
     },
     "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/0e8396bd-7a98-4e1b-9430-3d0605704333/0e8396bd-7a98-4e1b-9430-3d0605704333.jsonl": {
-      "ingested_at": "2026-09-20T10:35:00Z",
-      "size_bytes": 305,
-      "modified_at": "2026-09-20T10:18:23.388Z",
-      "content_hash": "sha256:2028feb42050fdd3df436db9c231f91931ca037f4c0b00b4f3fa6de26495c590",
-      "source_type": "cursor_conversation",
-      "project": "aiforall",
-      "pages_created": [
-        "projects/aiforall/concepts/https-platform-mesh.md",
-        "journal/2026-09-20.md"
-      ],
-      "pages_updated": [
-        "journal/2026-09-20.md",
-        "projects/aiforall/references/cursor-history-2026-09.md",
-        "projects/lazaret/lazaret.md",
-        "projects/manifesto/decisions/0007-apparatus-p3-lazaret.md"
-      ]
-    },
-    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/0e8396bd-7a98-4e1b-9430-3d0605704333/subagents/63795849-d03d-4114-b19a-d33ed06c1329.jsonl": {
-      "ingested_at": "2026-09-20T10:35:00Z",
-      "size_bytes": 5444,
-      "modified_at": "2026-09-20T10:21:35.998Z",
-      "content_hash": "sha256:804975cbce08f855bb6c8bacace1c0bffe2ab4e7db3dcd54fd81fa46fda077cd",
-      "source_type": "cursor_subagent",
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 24622,
+      "modified_at": "2026-09-20T10:37:14.697Z",
+      "content_hash": "sha256:4dbfd05712510aefe96589ed389d19e24ff0b1a9d612393978dee6e87cb37101",
+      "source_type": "document",
       "project": "aiforall",
       "pages_created": [],
       "pages_updated": [
         "journal/2026-09-20.md",
+        "projects/manifesto/decisions/0008-apparatus-p4-k8s.md",
+        "projects/manifesto/concepts/apparatus-platform.md",
+        "projects/manifesto/references/apparatus-p4-implementation-prompt.md",
+        "projects/manifesto/decisions/index.md",
+        "projects/manifesto/manifesto.md",
+        "projects/aiforall/aiforall.md",
+        "projects/iamrusty/iamrusty.md",
+        "projects/iamrusty/decisions/index.md",
+        "projects/iamrusty/decisions/0410-migration.md",
+        "projects/iamrusty/concepts/oauth-provider-linking.md",
+        "projects/aiforall/decisions/index.md",
+        "projects/manifesto/concepts/index.md",
+        "projects/manifesto/references/index.md",
+        "projects/iamrusty/concepts/index.md",
+        "projects/aiforall/skills/index.md",
         "projects/aiforall/references/cursor-history-2026-09.md",
-        "projects/lazaret/lazaret.md",
-        "projects/manifesto/decisions/0007-apparatus-p3-lazaret.md"
+        "projects/aiforall/concepts/orchestrator-agent-harness.md",
+        "index.md"
       ]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/0e8396bd-7a98-4e1b-9430-3d0605704333/subagents/63795849-d03d-4114-b19a-d33ed06c1329.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 66294,
+      "modified_at": "2026-09-20T10:36:56.826Z",
+      "content_hash": "sha256:2d5e45658eb0f2d4cc0b0169ec1b89f9caada5e8a344a6885c094407f93993bd",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
     },
     "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/0f84c7ec-f0e7-4d40-9a05-fe5d5507bed2/subagents/4aae9428-dc11-477f-a671-6d37ecc9290a.jsonl": {
       "ingested_at": "2026-09-20T10:35:00Z",
@@ -7813,34 +7894,24 @@
       ]
     },
     "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/63795849-d03d-4114-b19a-d33ed06c1329/subagents/c8d8180f-9ac9-47c0-bde1-9dcac923ed55.jsonl": {
-      "ingested_at": "2026-09-20T10:35:00Z",
-      "size_bytes": 4105,
-      "modified_at": "2026-09-20T10:27:02.641Z",
-      "content_hash": "sha256:2244e0c08510182207c84092cfff31e324bfa82df60fc9c083e14e1b823a0d9f",
-      "source_type": "cursor_subagent",
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 19447,
+      "modified_at": "2026-09-20T10:27:48.070Z",
+      "content_hash": "sha256:3a87e92245ac511e90d3f35fab3c2f07c2c58b054fdfec084749c63af142372a",
+      "source_type": "document",
       "project": "aiforall",
       "pages_created": [],
-      "pages_updated": [
-        "journal/2026-09-20.md",
-        "projects/aiforall/references/cursor-history-2026-09.md",
-        "projects/lazaret/lazaret.md",
-        "projects/manifesto/decisions/0007-apparatus-p3-lazaret.md"
-      ]
+      "pages_updated": []
     },
     "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/63795849-d03d-4114-b19a-d33ed06c1329/subagents/fdbfe589-fca7-4987-b7c3-703dac4c41b6.jsonl": {
-      "ingested_at": "2026-09-20T10:35:00Z",
-      "size_bytes": 7231,
-      "modified_at": "2026-09-20T10:26:44.532Z",
-      "content_hash": "sha256:116fb6953a23d4e43c250d9ffc0f41f00ad89cf5454bdd76ab6c5e562bf23093",
-      "source_type": "cursor_subagent",
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 80042,
+      "modified_at": "2026-09-20T10:33:42.806Z",
+      "content_hash": "sha256:3b80fd0f7a1d08cb35b86bce9c00f09a71ab5c7abbfb9f7209be2c5d5be49d95",
+      "source_type": "document",
       "project": "aiforall",
       "pages_created": [],
-      "pages_updated": [
-        "journal/2026-09-20.md",
-        "projects/aiforall/references/cursor-history-2026-09.md",
-        "projects/lazaret/lazaret.md",
-        "projects/manifesto/decisions/0007-apparatus-p3-lazaret.md"
-      ]
+      "pages_updated": []
     },
     "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/651cd87d-3b1e-4cb1-880c-82954abefaa3/subagents/16c765f9-a5ba-4933-b9ef-08c0f0dfb1dd.jsonl": {
       "ingested_at": "2026-09-20T10:35:00Z",
@@ -11315,6 +11386,1332 @@
         "journal/2026-09-20.md",
         "projects/aiforall/references/cursor-history-2026-09.md"
       ]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/0025a001-5827-4e9c-b73b-ed20b6b84269/subagents/d0c57f97-56d5-446e-9edc-406492e035ca.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 61736,
+      "modified_at": "2026-09-20T16:11:33.089Z",
+      "content_hash": "sha256:ce975978baec00eecd060012b8fbde4d0a9360f76d2cb96764570ec0d52fdf38",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/0025a001-5827-4e9c-b73b-ed20b6b84269/subagents/f962e0cb-c540-4a2c-bbd5-c63b7407bc65.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 18297,
+      "modified_at": "2026-09-20T16:04:16.027Z",
+      "content_hash": "sha256:fe86a94b47691403eb3e77021474d063da4c053d34bfdee10a321a89884e2005",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/126cd5f2-47ad-490c-b096-ecb67192e154/subagents/cbb81d62-09f5-4e49-8f6f-de3854596bbf.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 27625,
+      "modified_at": "2026-09-20T16:53:21.604Z",
+      "content_hash": "sha256:46ef1bb432bb9542136cf6470c584cef5d11c0e7acfb0ea39bd96e3fc138c546",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/3edf0b7b-d275-4fee-9822-92179f70b258/subagents/330d55bd-d6f4-45a6-a3ae-e72515514602.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 14666,
+      "modified_at": "2026-09-20T16:28:23.598Z",
+      "content_hash": "sha256:8635f788c6d6498d5012bd5ed8140ba14bf874bae4fa8a2076531eb7b87e9923",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/3edf0b7b-d275-4fee-9822-92179f70b258/subagents/7a888a5e-5491-4e81-9c95-64b53efd9cf6.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 53328,
+      "modified_at": "2026-09-20T16:40:02.102Z",
+      "content_hash": "sha256:006220431b18937956b59a9089cc097405edc36e576f66d570d14b95e0afab68",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/3edf0b7b-d275-4fee-9822-92179f70b258/subagents/f6b3e98c-02ba-4872-9b71-9fcc98a0430c.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 38567,
+      "modified_at": "2026-09-20T16:46:54.238Z",
+      "content_hash": "sha256:7cdf26b4f9c0bf97fbdb28c32b8eac23391506bcf3a1f4a11d68d53d302b0388",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/3edf0b7b-d275-4fee-9822-92179f70b258/subagents/fb62a938-7da4-45ff-bbde-3ca69d36e194.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 44974,
+      "modified_at": "2026-09-20T16:55:36.740Z",
+      "content_hash": "sha256:0ea7c6f2febf114eaeca76b9e8a9fdeed5bcb04d375c137eb433c976ee163786",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/41953bf3-2021-400a-9af8-62f98a51bb7d/41953bf3-2021-400a-9af8-62f98a51bb7d.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 62060,
+      "modified_at": "2026-09-22T06:45:11.004Z",
+      "content_hash": "sha256:88cae6b605e211d39422e89750935b418227688fe2f77ba52f0f0984403fc786",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [
+        "journal/2026-09-22.md",
+        "projects/manifesto/concepts/apparatus-p4-operator.md",
+        "projects/aiforall/skills/running-apparatus-p4-tests.md"
+      ],
+      "pages_updated": [
+        "journal/2026-09-20.md",
+        "projects/manifesto/decisions/0008-apparatus-p4-k8s.md",
+        "projects/manifesto/concepts/apparatus-platform.md",
+        "projects/manifesto/references/apparatus-p4-implementation-prompt.md",
+        "projects/manifesto/decisions/index.md",
+        "projects/manifesto/manifesto.md",
+        "projects/aiforall/aiforall.md",
+        "projects/iamrusty/iamrusty.md",
+        "projects/iamrusty/decisions/index.md",
+        "projects/iamrusty/decisions/0410-migration.md",
+        "projects/iamrusty/concepts/oauth-provider-linking.md",
+        "projects/aiforall/decisions/index.md",
+        "projects/manifesto/concepts/index.md",
+        "projects/manifesto/references/index.md",
+        "projects/iamrusty/concepts/index.md",
+        "projects/aiforall/skills/index.md",
+        "projects/aiforall/references/cursor-history-2026-09.md",
+        "projects/aiforall/concepts/orchestrator-agent-harness.md",
+        "index.md"
+      ]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/41953bf3-2021-400a-9af8-62f98a51bb7d/subagents/0b099881-03d2-4cb9-b8a8-897a5d38f9ef.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 33957,
+      "modified_at": "2026-09-22T06:43:52.971Z",
+      "content_hash": "sha256:1c4b80a4c606cb4b1e17b822dd0d2c706df54e0de847105ed99f358619b8ad0d",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/41953bf3-2021-400a-9af8-62f98a51bb7d/subagents/545368c8-6b89-4f9d-b855-7fd423b40f14.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 15124,
+      "modified_at": "2026-09-22T06:19:04.776Z",
+      "content_hash": "sha256:6c0de814fada7b4fe8d535fc71d2cd2f94e658b9d1a195404678a650e9a74f44",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/41953bf3-2021-400a-9af8-62f98a51bb7d/subagents/56da1ef7-ca43-410b-9248-6116dc9d3589.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 14559,
+      "modified_at": "2026-09-22T05:43:59.985Z",
+      "content_hash": "sha256:f0def3919d18a775f93add8e37ac7c7f4c6dc202c9cb5a05c23f1a7d79052e59",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/41953bf3-2021-400a-9af8-62f98a51bb7d/subagents/63ecefe9-8ef4-427d-a9c7-794e5a396ee6.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 3048,
+      "modified_at": "2026-09-22T06:36:36.677Z",
+      "content_hash": "sha256:3eb5b7223254864bca11a1a1cc776e30dd742603260f417f45d0b5884f2f19ee",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/41953bf3-2021-400a-9af8-62f98a51bb7d/subagents/c507a32f-dcbf-4cdc-a41a-3b49f624a9c2.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 131873,
+      "modified_at": "2026-09-22T06:15:49.769Z",
+      "content_hash": "sha256:e3005798139ab90667a907bbd761e883e2c15c55abf47f9072646c2420c806df",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/41953bf3-2021-400a-9af8-62f98a51bb7d/subagents/dc6001b0-f822-40cf-8444-e7a96d63427f.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 30544,
+      "modified_at": "2026-09-22T06:30:34.984Z",
+      "content_hash": "sha256:b2a532d255bd87d9018940ff0ca19636fa4c9d3fe2695deaa3624d55cb22b7a9",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/447a27ef-8de0-4959-9f35-fc6162169d89/447a27ef-8de0-4959-9f35-fc6162169d89.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 38684,
+      "modified_at": "2026-09-20T10:46:55.548Z",
+      "content_hash": "sha256:ccf150b02aadd165456e66fcd67e27b23e7eb32ce6ceb38ac9240b2954493e2b",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [
+        "journal/2026-09-22.md",
+        "projects/manifesto/concepts/apparatus-p4-operator.md",
+        "projects/aiforall/skills/running-apparatus-p4-tests.md"
+      ],
+      "pages_updated": [
+        "journal/2026-09-20.md",
+        "projects/manifesto/decisions/0008-apparatus-p4-k8s.md",
+        "projects/manifesto/concepts/apparatus-platform.md",
+        "projects/manifesto/references/apparatus-p4-implementation-prompt.md",
+        "projects/manifesto/decisions/index.md",
+        "projects/manifesto/manifesto.md",
+        "projects/aiforall/aiforall.md",
+        "projects/iamrusty/iamrusty.md",
+        "projects/iamrusty/decisions/index.md",
+        "projects/iamrusty/decisions/0410-migration.md",
+        "projects/iamrusty/concepts/oauth-provider-linking.md",
+        "projects/aiforall/decisions/index.md",
+        "projects/manifesto/concepts/index.md",
+        "projects/manifesto/references/index.md",
+        "projects/iamrusty/concepts/index.md",
+        "projects/aiforall/skills/index.md",
+        "projects/aiforall/references/cursor-history-2026-09.md",
+        "projects/aiforall/concepts/orchestrator-agent-harness.md",
+        "index.md"
+      ]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/447a27ef-8de0-4959-9f35-fc6162169d89/subagents/004d6980-6d2e-4c69-8ae6-9d5f68cc6519.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 24107,
+      "modified_at": "2026-09-20T13:39:05.883Z",
+      "content_hash": "sha256:b20ac0fe4843579bc2a4205e65d5b0ea4545f14bb1107d61bd3528fcab340e64",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/447a27ef-8de0-4959-9f35-fc6162169d89/subagents/03d2fdec-0a68-4ee8-a5f8-9d616842f4f6.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 30713,
+      "modified_at": "2026-09-20T13:39:20.120Z",
+      "content_hash": "sha256:4525fd5203d1ef6b64de6899e2609dfdb19c0d2b3e502a4025bf9f91795c4717",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/447a27ef-8de0-4959-9f35-fc6162169d89/subagents/0e4df7bd-5108-4dd9-a5c2-270564cb42b6.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 22123,
+      "modified_at": "2026-09-20T12:13:42.538Z",
+      "content_hash": "sha256:2b341262089a74b8a81322b38200060372a12b5f84c3350d81f3f575fc577c79",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/447a27ef-8de0-4959-9f35-fc6162169d89/subagents/0ff4a08f-4ea9-4b3e-ad3b-d5c9964c7885.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 22995,
+      "modified_at": "2026-09-20T13:39:30.713Z",
+      "content_hash": "sha256:7abc06ab79a3ea97ad990bf2277d160128ad31ac726c40a015cc35357db6139e",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/447a27ef-8de0-4959-9f35-fc6162169d89/subagents/141c24a2-b618-4040-a134-634f02cad2ec.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 38547,
+      "modified_at": "2026-09-20T13:46:46.001Z",
+      "content_hash": "sha256:216ffbd522a74af29957a23ca467ad939c6e7e47f8bcb15f23d1a9292a51ce9c",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/447a27ef-8de0-4959-9f35-fc6162169d89/subagents/2162ae2b-0d3d-4b08-beb8-7bc2706538cb.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 37660,
+      "modified_at": "2026-09-20T14:06:21.364Z",
+      "content_hash": "sha256:80c530bbc1b6efdf2b3744366e45675321378039c8e4b5fdccd956315ab5a430",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/447a27ef-8de0-4959-9f35-fc6162169d89/subagents/2e3149eb-ce74-4fb0-ae77-a4b43f7cd27b.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 23828,
+      "modified_at": "2026-09-20T12:50:27.377Z",
+      "content_hash": "sha256:6add7f7b6fe384047866c6f4c75deb3a66a3839954c9f70ac3255021be1c8dc0",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/447a27ef-8de0-4959-9f35-fc6162169d89/subagents/323b6b4a-489f-4544-916a-624cc8d352d6.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 24716,
+      "modified_at": "2026-09-20T13:07:56.611Z",
+      "content_hash": "sha256:167e12ad652a2d56961b7264b3c7a1c7234e16bc488593e5cb99b551dc7b2497",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/447a27ef-8de0-4959-9f35-fc6162169d89/subagents/3afca790-c8f0-4433-8d0f-974039d92237.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 18360,
+      "modified_at": "2026-09-20T10:42:42.943Z",
+      "content_hash": "sha256:22c8c7eceb6c2d86023f7d3d08fa19a023a40b2b63e92716b2995c5eb60ef38d",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/447a27ef-8de0-4959-9f35-fc6162169d89/subagents/4f83719f-f335-45ab-bc6f-634148c5650d.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 59883,
+      "modified_at": "2026-09-20T12:37:52.484Z",
+      "content_hash": "sha256:5879b15355bb0a259d5aeb18c65a3dbb67451e4ae2e1b42975a8230e7b551da8",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/447a27ef-8de0-4959-9f35-fc6162169d89/subagents/7420c248-8c47-4f33-b774-1b500e685eb7.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 34564,
+      "modified_at": "2026-09-20T13:39:39.176Z",
+      "content_hash": "sha256:9ce4efba9de5b315a8822c099a501b3985648a49c25d4ac7fab74050b8cae41f",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/447a27ef-8de0-4959-9f35-fc6162169d89/subagents/8e627b54-551d-4d23-bd6e-086c4e7b5da4.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 35332,
+      "modified_at": "2026-09-20T14:07:11.389Z",
+      "content_hash": "sha256:64eb4a7ce6b904652b7c20875f7f832673ec8f345cd13a4e38dab944a21a4a74",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/447a27ef-8de0-4959-9f35-fc6162169d89/subagents/9185fad0-f2f5-4822-84ab-f192333412f1.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 79231,
+      "modified_at": "2026-09-20T14:00:51.996Z",
+      "content_hash": "sha256:e0d98be90d3d0c744479e26fe8d2cdcb3cf3d2d142673fa4f612462d2176fffb",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/447a27ef-8de0-4959-9f35-fc6162169d89/subagents/94b1ff75-b1a2-421f-aa00-fd14787797ae.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 16397,
+      "modified_at": "2026-09-20T12:51:42.712Z",
+      "content_hash": "sha256:c8dc7d87a516e9874488db14b4ce45e60a454955b11d4dcd96b1f07f2c51546e",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/447a27ef-8de0-4959-9f35-fc6162169d89/subagents/9566195d-ecfd-4aba-8c13-8f48146f5072.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 21975,
+      "modified_at": "2026-09-20T13:38:01.898Z",
+      "content_hash": "sha256:9e21cbcfc9492b116426a71e959f4373b8fe510730a2f9dc01cebc9bd5fecd7a",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/447a27ef-8de0-4959-9f35-fc6162169d89/subagents/98abb03b-5d38-4593-905c-5e8b3f22337a.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 34549,
+      "modified_at": "2026-09-20T10:53:31.762Z",
+      "content_hash": "sha256:4cd59d854060f135d3922b7fe39ff402d2f5c93cbd2fbc5b9838c66a85a9490d",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/447a27ef-8de0-4959-9f35-fc6162169d89/subagents/a0a0a5f7-2e1a-4f46-bb6c-bb177f525185.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 22180,
+      "modified_at": "2026-09-20T13:45:20.873Z",
+      "content_hash": "sha256:9f51a3c61d632a7245ccf48dab48ebe2b0981451a5ce0c139854af6a9471cf16",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/447a27ef-8de0-4959-9f35-fc6162169d89/subagents/ab85b84e-1f2e-4e21-b9c5-35c1ac35ab09.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 18176,
+      "modified_at": "2026-09-20T12:22:12.811Z",
+      "content_hash": "sha256:0b274151de4371b5f359350b265b342aef5ee940495eb0a28478547e2abb03ec",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/447a27ef-8de0-4959-9f35-fc6162169d89/subagents/abd2cc5d-25f0-41b9-9f9b-6dd86fdb1107.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 21694,
+      "modified_at": "2026-09-20T13:38:01.807Z",
+      "content_hash": "sha256:6167568673c6d3d7179ef3910a6b1e9b8a94657fb86104934083ba3f499aa844",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/447a27ef-8de0-4959-9f35-fc6162169d89/subagents/abefeeee-91cd-4a54-86bc-439d008eb471.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 20461,
+      "modified_at": "2026-09-20T13:39:31.150Z",
+      "content_hash": "sha256:849d6eb1b7b4c5fddf7149209319f196deb8790a8d358a00023ba79b9efe6125",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/447a27ef-8de0-4959-9f35-fc6162169d89/subagents/c370e21c-b744-4ec7-82aa-0f8073eab966.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 27653,
+      "modified_at": "2026-09-20T13:52:56.910Z",
+      "content_hash": "sha256:d2f8b026b7cd2a03c669da53e543690887dc77d2042eb52b78be476c19e04f8b",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/447a27ef-8de0-4959-9f35-fc6162169d89/subagents/c4bbf616-9ca7-4963-892a-85a1c3beaf62.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 40790,
+      "modified_at": "2026-09-20T12:45:58.281Z",
+      "content_hash": "sha256:0edf1d9e1fed33fc05e79ba7a24a1b1dabd80d19c736258398ed8bdbf1cc9046",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/447a27ef-8de0-4959-9f35-fc6162169d89/subagents/c7408f0d-3b9c-4a39-9d84-6e1826d55840.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 39682,
+      "modified_at": "2026-09-20T13:40:43.790Z",
+      "content_hash": "sha256:811260fb26a00bb6d344cbd149f0fcf7c1b81e305b41f11af31fea51477e9511",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/447a27ef-8de0-4959-9f35-fc6162169d89/subagents/cd7a9a5f-4d4f-445c-89ae-5bfe667dbcc7.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 20262,
+      "modified_at": "2026-09-20T13:45:10.431Z",
+      "content_hash": "sha256:54f5fb6fb1f5f6463c36b66f95061af496d41ef4a7f20cc5cce3e66e7f39ab3a",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/447a27ef-8de0-4959-9f35-fc6162169d89/subagents/cdc473d8-7bd7-4f40-bab8-bfa00738de00.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 23843,
+      "modified_at": "2026-09-20T13:45:50.071Z",
+      "content_hash": "sha256:b92715e08793db99e59909cb48004e7b6b9d7d39f4c9d74fdb9931176fb6b4f4",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/447a27ef-8de0-4959-9f35-fc6162169d89/subagents/d03be76f-4175-4e09-bfae-3ce51ba9ba11.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 10182,
+      "modified_at": "2026-09-20T12:53:01.293Z",
+      "content_hash": "sha256:0599b6ad2177dbeae005f371f31bf836a25eca02b988cdf260a690728f31efb1",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/447a27ef-8de0-4959-9f35-fc6162169d89/subagents/d33fe2cb-5967-47e3-a9d6-e4aab56b3dde.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 20835,
+      "modified_at": "2026-09-20T12:52:10.659Z",
+      "content_hash": "sha256:fa2c08646b91be3bd37329d0a986a4b013eb574ebb3e70f1e065b216a1f4d32b",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/447a27ef-8de0-4959-9f35-fc6162169d89/subagents/dc381b88-b9f6-4745-869a-3374df044c31.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 34431,
+      "modified_at": "2026-09-20T13:40:05.542Z",
+      "content_hash": "sha256:ff7c72fdf5031aa351ce1b4aec7057ed290f1ca0565e685676b8023b0a156f70",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/447a27ef-8de0-4959-9f35-fc6162169d89/subagents/e9cce291-2e0a-4dcd-b9af-96fac957ddea.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 58648,
+      "modified_at": "2026-09-20T12:20:33.740Z",
+      "content_hash": "sha256:a5054feb325f55b19fabae725c3c3ba0a226caf1cd9b03a393a007e772cb2415",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/447a27ef-8de0-4959-9f35-fc6162169d89/subagents/f12236bf-d446-4c6c-a577-a7bcc566ee96.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 30141,
+      "modified_at": "2026-09-20T13:38:31.804Z",
+      "content_hash": "sha256:98d0cf48d994aa14b1db2ab3d69fd57653c4e4c491c8bf868d007f71e350e75a",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/447a27ef-8de0-4959-9f35-fc6162169d89/subagents/f382f8f6-c165-4fcf-838a-df517c654863.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 29205,
+      "modified_at": "2026-09-20T13:46:03.494Z",
+      "content_hash": "sha256:32eb571fbf58a16741a94462e0978011ccb5fdbf07e809c3868d02124da70e3d",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/447a27ef-8de0-4959-9f35-fc6162169d89/subagents/f7b48364-e508-4362-98ca-301598094b80.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 15750,
+      "modified_at": "2026-09-20T12:23:05.877Z",
+      "content_hash": "sha256:002b0fe4bc6434c3c02b4614e545aa89511d18905faa227839555e658f16d3b3",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/447a27ef-8de0-4959-9f35-fc6162169d89/subagents/f8d73bcc-d7f3-49ef-92fd-051c60961136.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 37079,
+      "modified_at": "2026-09-20T12:32:34.025Z",
+      "content_hash": "sha256:783a1815ef25ccff1f6fa4dc68478b543c27ee186a60155e1130e5b3aefc941f",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/484a5483-3519-45ef-b558-8c5a28d3a016/subagents/1ccf33fc-5584-4cb2-920f-991abfb11bb4.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 37016,
+      "modified_at": "2026-09-21T17:09:28.834Z",
+      "content_hash": "sha256:23291fc262669847561d0b3e6d75f33eb9d8703e3dad889eaa6862b84f7a4f3a",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/484a5483-3519-45ef-b558-8c5a28d3a016/subagents/3740750d-bb6f-474f-b696-8137c40f59a6.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 42071,
+      "modified_at": "2026-09-21T17:22:05.336Z",
+      "content_hash": "sha256:65486880c66477f0ef825afd5ed370ea6d686dd5b3feea317ceff0e986a92d05",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/484a5483-3519-45ef-b558-8c5a28d3a016/subagents/54ff2022-85ac-4f29-a59e-0af5a1fb9163.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 9326,
+      "modified_at": "2026-09-21T15:41:08.972Z",
+      "content_hash": "sha256:4e9e7ddeade20974bcfde6527f34686fbcd8aa6269e2b7bed3d296daff5ccfaa",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/484a5483-3519-45ef-b558-8c5a28d3a016/subagents/72df6a19-9c31-43cb-9f83-8daae6605b8f.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 37043,
+      "modified_at": "2026-09-21T17:45:29.669Z",
+      "content_hash": "sha256:deabec6fbfce8dad17299615ec38f78caf6dd6728a0f1b9f2c3736a773da740c",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/484a5483-3519-45ef-b558-8c5a28d3a016/subagents/976c42c7-628a-48fc-a4a0-16b2812f1206.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 47279,
+      "modified_at": "2026-09-21T17:31:22.927Z",
+      "content_hash": "sha256:814451d972b8d123d748d57941dccf222c65198e5e6608d7960ee590f5617ccd",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/484a5483-3519-45ef-b558-8c5a28d3a016/subagents/cd81e3ff-3f71-45d0-9483-6db31107ddb0.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 14143,
+      "modified_at": "2026-09-21T15:36:02.248Z",
+      "content_hash": "sha256:a060e1486b1e41a617c8c2085fb05db90c75479ead6fd2344d8383fb8c08e330",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/484a5483-3519-45ef-b558-8c5a28d3a016/subagents/e25a1934-82f4-4500-8c04-0f3ef000905a.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 12425,
+      "modified_at": "2026-09-21T17:36:52.625Z",
+      "content_hash": "sha256:7bd3fdbdf29d4c3e4274ea6edec23b4bd434500f96d6af8e9fd7dbd135aad753",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/484a5483-3519-45ef-b558-8c5a28d3a016/subagents/e9f5acd9-7095-4e74-b500-3148aff78b27.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 16915,
+      "modified_at": "2026-09-21T17:39:14.085Z",
+      "content_hash": "sha256:15b2739f0e1b311676f539ee334e8d16b68b4107d1be418a2d24289a2e129bce",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/484a5483-3519-45ef-b558-8c5a28d3a016/subagents/f2f2485f-25ee-48a5-8897-d92c176e470e.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 42056,
+      "modified_at": "2026-09-21T17:46:32.964Z",
+      "content_hash": "sha256:a32cf9508f944c33d862a72f3049d82132447a534c5eb6bf09db80f0a2b1cbf5",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/48daea3f-e1c5-4179-b8e8-abe63a03ce36/48daea3f-e1c5-4179-b8e8-abe63a03ce36.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 106270,
+      "modified_at": "2026-09-20T15:56:54.743Z",
+      "content_hash": "sha256:35a770826a6795371f0ed17653bc17d0e212a8daacacdaaa7d5df0046cecc9fa",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [
+        "journal/2026-09-22.md",
+        "projects/manifesto/concepts/apparatus-p4-operator.md",
+        "projects/aiforall/skills/running-apparatus-p4-tests.md"
+      ],
+      "pages_updated": [
+        "journal/2026-09-20.md",
+        "projects/manifesto/decisions/0008-apparatus-p4-k8s.md",
+        "projects/manifesto/concepts/apparatus-platform.md",
+        "projects/manifesto/references/apparatus-p4-implementation-prompt.md",
+        "projects/manifesto/decisions/index.md",
+        "projects/manifesto/manifesto.md",
+        "projects/aiforall/aiforall.md",
+        "projects/iamrusty/iamrusty.md",
+        "projects/iamrusty/decisions/index.md",
+        "projects/iamrusty/decisions/0410-migration.md",
+        "projects/iamrusty/concepts/oauth-provider-linking.md",
+        "projects/aiforall/decisions/index.md",
+        "projects/manifesto/concepts/index.md",
+        "projects/manifesto/references/index.md",
+        "projects/iamrusty/concepts/index.md",
+        "projects/aiforall/skills/index.md",
+        "projects/aiforall/references/cursor-history-2026-09.md",
+        "projects/aiforall/concepts/orchestrator-agent-harness.md",
+        "index.md"
+      ]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/48daea3f-e1c5-4179-b8e8-abe63a03ce36/subagents/447a27ef-8de0-4959-9f35-fc6162169d89.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 390512,
+      "modified_at": "2026-09-20T15:56:50.417Z",
+      "content_hash": "sha256:49ab4fc55c7a338e6010922e5956ed641aae75493bd55bff1999dc8cca5a10c2",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/619281eb-f2f0-48e0-96e1-b6c28d717b13/subagents/0653e275-f719-4ba0-af44-91d9cab2cf4c.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 14904,
+      "modified_at": "2026-09-21T15:08:08.904Z",
+      "content_hash": "sha256:9e1280e49e1d10c22dd17a6a58e8496c4ffb1f96673e81d0a57dcbf92e3a507a",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/619281eb-f2f0-48e0-96e1-b6c28d717b13/subagents/810e55c0-a63b-4e6f-b558-fbb0a890891c.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 4704,
+      "modified_at": "2026-09-21T15:18:49.767Z",
+      "content_hash": "sha256:fecd79d43d3036c89261478fb6370a598b82160744af13abbdeac1afaea37f28",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/619281eb-f2f0-48e0-96e1-b6c28d717b13/subagents/945fad20-74c9-4573-b8b9-e7645f5bb127.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 35401,
+      "modified_at": "2026-09-21T15:16:21.391Z",
+      "content_hash": "sha256:ccfb9429567cea875f535567454692d38b8b4bfb7b0ab83c84dada5a408604af",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/619281eb-f2f0-48e0-96e1-b6c28d717b13/subagents/9ff24286-ec40-429c-b4b7-d5a0dcd682e7.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 43853,
+      "modified_at": "2026-09-21T15:07:18.395Z",
+      "content_hash": "sha256:e133714046de88bc9aa115d7a00c514c335a63560bc03e9d337f54ddd5e7a99a",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/619281eb-f2f0-48e0-96e1-b6c28d717b13/subagents/ba46c521-b134-4885-8088-94112ea60fca.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 18619,
+      "modified_at": "2026-09-20T17:00:39.153Z",
+      "content_hash": "sha256:92e1f43fe9774abdb5f51ec0a25bff2a276a80b129065c0614c87b42a6c6de0d",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/619281eb-f2f0-48e0-96e1-b6c28d717b13/subagents/c4b16fa1-8680-4131-95cf-66c4ecf2c7c8.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 118315,
+      "modified_at": "2026-09-20T17:29:48.667Z",
+      "content_hash": "sha256:2726e6f52ca07529dfb6d1b40b93872c17316795079b1d0c616bdedc8189f229",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/619281eb-f2f0-48e0-96e1-b6c28d717b13/subagents/d44579cb-7dfd-40de-9b79-eca728ed79c2.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 62731,
+      "modified_at": "2026-09-20T17:42:01.234Z",
+      "content_hash": "sha256:a905e4b87e20cac52c0921ab861192e8ab64607dedfa15b76854a9bd5d01b7cc",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/619281eb-f2f0-48e0-96e1-b6c28d717b13/subagents/d781abc3-93be-4f16-8284-7379fd86bdf6.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 53018,
+      "modified_at": "2026-09-20T17:11:00.648Z",
+      "content_hash": "sha256:4499bf22413d77a7e9e4bee18257031153705258e128d88cd9b35509fb15a1fd",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/619281eb-f2f0-48e0-96e1-b6c28d717b13/subagents/dbaf791a-c419-4447-a884-df4bf7bf27cd.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 6014,
+      "modified_at": "2026-09-20T17:02:35.301Z",
+      "content_hash": "sha256:0124198dc320023e596c4caa869e761d3d652deec66dadb36ed20009790119fe",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/6820d020-8813-45a0-8bb1-373056a9976f/6820d020-8813-45a0-8bb1-373056a9976f.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 55075,
+      "modified_at": "2026-09-20T16:13:04.166Z",
+      "content_hash": "sha256:d359d09a0d7b618420ea1c6a6b36a5d207677e6e67601a1301a47cce99d804a4",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [
+        "journal/2026-09-22.md",
+        "projects/manifesto/concepts/apparatus-p4-operator.md",
+        "projects/aiforall/skills/running-apparatus-p4-tests.md"
+      ],
+      "pages_updated": [
+        "journal/2026-09-20.md",
+        "projects/manifesto/decisions/0008-apparatus-p4-k8s.md",
+        "projects/manifesto/concepts/apparatus-platform.md",
+        "projects/manifesto/references/apparatus-p4-implementation-prompt.md",
+        "projects/manifesto/decisions/index.md",
+        "projects/manifesto/manifesto.md",
+        "projects/aiforall/aiforall.md",
+        "projects/iamrusty/iamrusty.md",
+        "projects/iamrusty/decisions/index.md",
+        "projects/iamrusty/decisions/0410-migration.md",
+        "projects/iamrusty/concepts/oauth-provider-linking.md",
+        "projects/aiforall/decisions/index.md",
+        "projects/manifesto/concepts/index.md",
+        "projects/manifesto/references/index.md",
+        "projects/iamrusty/concepts/index.md",
+        "projects/aiforall/skills/index.md",
+        "projects/aiforall/references/cursor-history-2026-09.md",
+        "projects/aiforall/concepts/orchestrator-agent-harness.md",
+        "index.md"
+      ]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/6820d020-8813-45a0-8bb1-373056a9976f/subagents/5a3f2ddc-01bb-4273-9883-f26a6e6836e7.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 92628,
+      "modified_at": "2026-09-20T16:10:14.203Z",
+      "content_hash": "sha256:b93823f6aab91837e43f13d9a039efdb742dad284f878ce08d1755bf26e53d04",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/76d47016-7b84-439b-9a30-04e8665a3cd2/subagents/10f8fd4b-b8af-48bf-a464-c683d6831f82.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 35812,
+      "modified_at": "2026-09-20T16:13:18.623Z",
+      "content_hash": "sha256:e71cb0d8568980169a5e215310fb232d9e053d69dad01acef10f855cd23cc564",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/76d47016-7b84-439b-9a30-04e8665a3cd2/subagents/63eff8e8-7b1c-45e8-a239-5b9fbfffb944.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 72643,
+      "modified_at": "2026-09-20T16:20:34.804Z",
+      "content_hash": "sha256:134d090e600cc25597532984381da274a4d525e1e55aea3823a2ea215109d327",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/76d47016-7b84-439b-9a30-04e8665a3cd2/subagents/69034ab7-f2fc-45a1-9a04-ecc329e5804f.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 50512,
+      "modified_at": "2026-09-20T16:38:34.263Z",
+      "content_hash": "sha256:6f9a14f3b205c6e0686a6dd842f8ffe2b524d78ac20b40018ff781d1218b4bdd",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/76d47016-7b84-439b-9a30-04e8665a3cd2/subagents/8ace59a7-16b3-4ad6-aceb-edbdc82f124c.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 36233,
+      "modified_at": "2026-09-20T16:09:46.959Z",
+      "content_hash": "sha256:ee80644b8664022abed425c84ded2093da5e9d87ea8347a33a92eac0cd5e803f",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/76d47016-7b84-439b-9a30-04e8665a3cd2/subagents/d9629304-109a-42ee-b28d-69d798988462.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 47453,
+      "modified_at": "2026-09-20T16:48:16.436Z",
+      "content_hash": "sha256:c4ea598ba8a28855dff6fae5e656f61b051fe1b0c7b05399e4d16bbc54fa39fe",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/76d47016-7b84-439b-9a30-04e8665a3cd2/subagents/ed837a58-7897-477f-8f1b-bbd655c44a74.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 49334,
+      "modified_at": "2026-09-20T16:11:13.529Z",
+      "content_hash": "sha256:ca2b52a3f2aeacd30ee4176168bdb0d7aa3345dabe6517f30532f9dc08b6abef",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/76d47016-7b84-439b-9a30-04e8665a3cd2/subagents/fbca1d2e-66e6-4f92-8d0b-c987d8a52212.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 29345,
+      "modified_at": "2026-09-20T16:08:23.844Z",
+      "content_hash": "sha256:878cc5d8b1ec9f2dedddbbdc901f4876c3168a3522e40bc0c003de294d048c8b",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/94f1da54-afad-406b-bf7e-0726eeb26f35/94f1da54-afad-406b-bf7e-0726eeb26f35.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 58397,
+      "modified_at": "2026-09-20T17:17:43.652Z",
+      "content_hash": "sha256:2f8a26735025f4e8ed1b4fbae08dbfb53906d985210b5a0a8ea2c89c837834e1",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [
+        "journal/2026-09-22.md",
+        "projects/manifesto/concepts/apparatus-p4-operator.md",
+        "projects/aiforall/skills/running-apparatus-p4-tests.md"
+      ],
+      "pages_updated": [
+        "journal/2026-09-20.md",
+        "projects/manifesto/decisions/0008-apparatus-p4-k8s.md",
+        "projects/manifesto/concepts/apparatus-platform.md",
+        "projects/manifesto/references/apparatus-p4-implementation-prompt.md",
+        "projects/manifesto/decisions/index.md",
+        "projects/manifesto/manifesto.md",
+        "projects/aiforall/aiforall.md",
+        "projects/iamrusty/iamrusty.md",
+        "projects/iamrusty/decisions/index.md",
+        "projects/iamrusty/decisions/0410-migration.md",
+        "projects/iamrusty/concepts/oauth-provider-linking.md",
+        "projects/aiforall/decisions/index.md",
+        "projects/manifesto/concepts/index.md",
+        "projects/manifesto/references/index.md",
+        "projects/iamrusty/concepts/index.md",
+        "projects/aiforall/skills/index.md",
+        "projects/aiforall/references/cursor-history-2026-09.md",
+        "projects/aiforall/concepts/orchestrator-agent-harness.md",
+        "index.md"
+      ]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/94f1da54-afad-406b-bf7e-0726eeb26f35/subagents/6820d020-8813-45a0-8bb1-373056a9976f.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 53832,
+      "modified_at": "2026-09-20T16:12:42.382Z",
+      "content_hash": "sha256:90d82e0a93e8d35605f0186eeba0adfeb8765f61e61d03937dddcded841178cc",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/94f1da54-afad-406b-bf7e-0726eeb26f35/subagents/be5ee209-9006-4ac4-b2aa-398576941b84.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 8945,
+      "modified_at": "2026-09-20T16:29:38.498Z",
+      "content_hash": "sha256:e3c496af75d5da50aec44a5282ba2a1ba34c90ab6d287979975a4e8bcf1d1963",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/b10407ff-c686-4ab5-84b1-5fed7cd87f53/b10407ff-c686-4ab5-84b1-5fed7cd87f53.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 15448,
+      "modified_at": "2026-09-20T16:16:01.694Z",
+      "content_hash": "sha256:931448c885c22d31cb991e39e4f1b7ac7a1459cf9623c0a2c5e9263ea0eda711",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [
+        "journal/2026-09-22.md",
+        "projects/manifesto/concepts/apparatus-p4-operator.md",
+        "projects/aiforall/skills/running-apparatus-p4-tests.md"
+      ],
+      "pages_updated": [
+        "journal/2026-09-20.md",
+        "projects/manifesto/decisions/0008-apparatus-p4-k8s.md",
+        "projects/manifesto/concepts/apparatus-platform.md",
+        "projects/manifesto/references/apparatus-p4-implementation-prompt.md",
+        "projects/manifesto/decisions/index.md",
+        "projects/manifesto/manifesto.md",
+        "projects/aiforall/aiforall.md",
+        "projects/iamrusty/iamrusty.md",
+        "projects/iamrusty/decisions/index.md",
+        "projects/iamrusty/decisions/0410-migration.md",
+        "projects/iamrusty/concepts/oauth-provider-linking.md",
+        "projects/aiforall/decisions/index.md",
+        "projects/manifesto/concepts/index.md",
+        "projects/manifesto/references/index.md",
+        "projects/iamrusty/concepts/index.md",
+        "projects/aiforall/skills/index.md",
+        "projects/aiforall/references/cursor-history-2026-09.md",
+        "projects/aiforall/concepts/orchestrator-agent-harness.md",
+        "index.md"
+      ]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/b10407ff-c686-4ab5-84b1-5fed7cd87f53/subagents/0025a001-5827-4e9c-b73b-ed20b6b84269.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 56663,
+      "modified_at": "2026-09-20T16:12:58.065Z",
+      "content_hash": "sha256:b4456fcfee7701ffe021d4e7e382f0c06e79eec209c4825a11c7895b432bee15",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/be5ee209-9006-4ac4-b2aa-398576941b84/subagents/2f10b51a-1161-4975-817c-d2fc084a2ffe.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 988,
+      "modified_at": "2026-09-21T15:20:29.223Z",
+      "content_hash": "sha256:63291de7b08f2e5261d5410c627125f75bc29bd241bda81c7384020cb9667a07",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/be5ee209-9006-4ac4-b2aa-398576941b84/subagents/32dc0716-f30a-48fb-bd26-5fce8fd810d1.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 58183,
+      "modified_at": "2026-09-21T15:19:43.556Z",
+      "content_hash": "sha256:83e0c9d7cb26e71caeaac2cd89384ce38ba319a663496d58a32b892c1cfc66dd",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/be5ee209-9006-4ac4-b2aa-398576941b84/subagents/548f895c-1bc1-460c-be5e-f197ba859239.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 162127,
+      "modified_at": "2026-09-20T17:23:23.877Z",
+      "content_hash": "sha256:18ec7b72d80d4bd3ebd1484492973256a16df17aabc532d55261d44d832c35b7",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/be5ee209-9006-4ac4-b2aa-398576941b84/subagents/564ba91c-1b0c-44f6-9fd9-27c2c4ba53d7.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 52071,
+      "modified_at": "2026-09-20T17:31:03.178Z",
+      "content_hash": "sha256:ac836c3811099f07b26ee7565daab1f1da6f3a9361508d5942e8c161684c6ff1",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/be5ee209-9006-4ac4-b2aa-398576941b84/subagents/5dd30340-d7bf-4a53-a21c-577d4f70c1f4.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 45918,
+      "modified_at": "2026-09-20T17:40:33.255Z",
+      "content_hash": "sha256:0dff7915967d7f2003029bc57137aeadcd3144253b0563eb6e633297d68b9020",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/be5ee209-9006-4ac4-b2aa-398576941b84/subagents/5ecc8ca9-09f8-4ba1-9ede-88b0de09f741.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 10217,
+      "modified_at": "2026-09-20T16:50:04.484Z",
+      "content_hash": "sha256:a61c4593841bf7164d37fa31e096952a1987f02ef3762d2f78ac558341cf8632",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/be5ee209-9006-4ac4-b2aa-398576941b84/subagents/65ed353d-0895-4334-b72a-02ab5ffe7a85.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 41199,
+      "modified_at": "2026-09-20T16:58:18.943Z",
+      "content_hash": "sha256:3167c08f5defcd3b5692f036c1c7536f51e5f6e9d25ba99a1f979aba94f5f0e3",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/be5ee209-9006-4ac4-b2aa-398576941b84/subagents/6793f0d7-bcc0-42b6-8ca7-a4635e61cb29.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 55191,
+      "modified_at": "2026-09-20T17:31:39.921Z",
+      "content_hash": "sha256:974b3915af566d20c240df4a8b03c23f52739470346194bd7f9242252d5579b8",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/be5ee209-9006-4ac4-b2aa-398576941b84/subagents/68e5119d-9ec3-4d5f-be97-f4b15a319125.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 60784,
+      "modified_at": "2026-09-20T16:37:31.739Z",
+      "content_hash": "sha256:f4254e15148b34299e450175092ebc3dfce15732cae6b70ba6b6f326e1e618d8",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/be5ee209-9006-4ac4-b2aa-398576941b84/subagents/986af451-98be-49ca-aea8-957cad2a28e0.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 14556,
+      "modified_at": "2026-09-21T15:21:33.197Z",
+      "content_hash": "sha256:663f77049ac6e75cead558cb13e9547f96c03715fea327243437df161a1d4826",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/be5ee209-9006-4ac4-b2aa-398576941b84/subagents/a6fcb898-c2aa-4d05-a82a-7ae1c8db8115.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 22742,
+      "modified_at": "2026-09-20T16:34:28.909Z",
+      "content_hash": "sha256:665ca1f6ba8120b5f23583cc2877b2ccf26ef8d44aa21a145943492d3018b345",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/be5ee209-9006-4ac4-b2aa-398576941b84/subagents/ae746b1f-7963-4a77-a032-facb5ac5c6af.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 63946,
+      "modified_at": "2026-09-20T16:48:41.960Z",
+      "content_hash": "sha256:fa70235455cab30ae16a03bc7c9dc2dc0d02bbb2e3f15e5b713063560b863dbd",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/be5ee209-9006-4ac4-b2aa-398576941b84/subagents/c56ed7ae-169b-4a55-b4c9-1c6b48e6f26d.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 1817,
+      "modified_at": "2026-09-21T15:20:33.475Z",
+      "content_hash": "sha256:edcf3f09857ab857762e83df36eadf0d1cb0dcdada89ae85888bc69f5a5926eb",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/be5ee209-9006-4ac4-b2aa-398576941b84/subagents/d23a9c61-ce39-405e-9f6f-f8c8f7797c50.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 18441,
+      "modified_at": "2026-09-20T17:25:22.382Z",
+      "content_hash": "sha256:cba67346307e34456275a32d62c3f54e7eb5381c1d4fc4905bdc1151626e808f",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/be5ee209-9006-4ac4-b2aa-398576941b84/subagents/d6c0705e-bfa7-40e9-bd71-856c6b1a8d6d.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 108933,
+      "modified_at": "2026-09-21T15:21:34.845Z",
+      "content_hash": "sha256:2f1c8ed614da2a6c3a30868340a82352d927ab881efb56b5f8799e433485f5cd",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/c4b16fa1-8680-4131-95cf-66c4ecf2c7c8/c4b16fa1-8680-4131-95cf-66c4ecf2c7c8.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 119357,
+      "modified_at": "2026-09-20T17:30:10.897Z",
+      "content_hash": "sha256:ccdd525464394d8962fd63837026a153507348d23e75bfd3b98f53107e16a556",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [
+        "journal/2026-09-22.md",
+        "projects/manifesto/concepts/apparatus-p4-operator.md",
+        "projects/aiforall/skills/running-apparatus-p4-tests.md"
+      ],
+      "pages_updated": [
+        "journal/2026-09-20.md",
+        "projects/manifesto/decisions/0008-apparatus-p4-k8s.md",
+        "projects/manifesto/concepts/apparatus-platform.md",
+        "projects/manifesto/references/apparatus-p4-implementation-prompt.md",
+        "projects/manifesto/decisions/index.md",
+        "projects/manifesto/manifesto.md",
+        "projects/aiforall/aiforall.md",
+        "projects/iamrusty/iamrusty.md",
+        "projects/iamrusty/decisions/index.md",
+        "projects/iamrusty/decisions/0410-migration.md",
+        "projects/iamrusty/concepts/oauth-provider-linking.md",
+        "projects/aiforall/decisions/index.md",
+        "projects/manifesto/concepts/index.md",
+        "projects/manifesto/references/index.md",
+        "projects/iamrusty/concepts/index.md",
+        "projects/aiforall/skills/index.md",
+        "projects/aiforall/references/cursor-history-2026-09.md",
+        "projects/aiforall/concepts/orchestrator-agent-harness.md",
+        "index.md"
+      ]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/c8017f8d-4ca1-436c-a2ee-d906b79972f2/c8017f8d-4ca1-436c-a2ee-d906b79972f2.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 71497,
+      "modified_at": "2026-09-20T17:17:35.967Z",
+      "content_hash": "sha256:310c11a02ba44c792b572f5e5644cd952a3f6e4ae953ec6ba6ed2e9d68866bec",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [
+        "journal/2026-09-22.md",
+        "projects/manifesto/concepts/apparatus-p4-operator.md",
+        "projects/aiforall/skills/running-apparatus-p4-tests.md"
+      ],
+      "pages_updated": [
+        "journal/2026-09-20.md",
+        "projects/manifesto/decisions/0008-apparatus-p4-k8s.md",
+        "projects/manifesto/concepts/apparatus-platform.md",
+        "projects/manifesto/references/apparatus-p4-implementation-prompt.md",
+        "projects/manifesto/decisions/index.md",
+        "projects/manifesto/manifesto.md",
+        "projects/aiforall/aiforall.md",
+        "projects/iamrusty/iamrusty.md",
+        "projects/iamrusty/decisions/index.md",
+        "projects/iamrusty/decisions/0410-migration.md",
+        "projects/iamrusty/concepts/oauth-provider-linking.md",
+        "projects/aiforall/decisions/index.md",
+        "projects/manifesto/concepts/index.md",
+        "projects/manifesto/references/index.md",
+        "projects/iamrusty/concepts/index.md",
+        "projects/aiforall/skills/index.md",
+        "projects/aiforall/references/cursor-history-2026-09.md",
+        "projects/aiforall/concepts/orchestrator-agent-harness.md",
+        "index.md"
+      ]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/c8017f8d-4ca1-436c-a2ee-d906b79972f2/subagents/126cd5f2-47ad-490c-b096-ecb67192e154.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 12688,
+      "modified_at": "2026-09-20T16:53:31.722Z",
+      "content_hash": "sha256:df4d3b0bf52c9636c7975ff8fb6e0bee5793d4ffb108dddc402c6c3292a04259",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/c8017f8d-4ca1-436c-a2ee-d906b79972f2/subagents/76d47016-7b84-439b-9a30-04e8665a3cd2.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 95349,
+      "modified_at": "2026-09-20T16:48:16.268Z",
+      "content_hash": "sha256:8793775098d6af962e3273f8a7e756b84f32690445f3e868042abaf68b335c53",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/c8017f8d-4ca1-436c-a2ee-d906b79972f2/subagents/f9714136-d76b-4c3a-aa10-76cb66c4d8e7.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 37617,
+      "modified_at": "2026-09-20T17:10:58.577Z",
+      "content_hash": "sha256:749e977169de8496537611c1bde1df5a8f68ba5d7ddd1c0048388128ec6f0221",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/d5c0a4f7-e945-4de1-aa1c-8fa771ba9733/d5c0a4f7-e945-4de1-aa1c-8fa771ba9733.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 224325,
+      "modified_at": "2026-09-22T06:55:42.907Z",
+      "content_hash": "sha256:08985e9b3c4885a5d2a1097f1200a354fec4869dd3ed5f3a6caebecc94555a4b",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [
+        "journal/2026-09-22.md",
+        "projects/manifesto/concepts/apparatus-p4-operator.md",
+        "projects/aiforall/skills/running-apparatus-p4-tests.md"
+      ],
+      "pages_updated": [
+        "journal/2026-09-20.md",
+        "projects/manifesto/decisions/0008-apparatus-p4-k8s.md",
+        "projects/manifesto/concepts/apparatus-platform.md",
+        "projects/manifesto/references/apparatus-p4-implementation-prompt.md",
+        "projects/manifesto/decisions/index.md",
+        "projects/manifesto/manifesto.md",
+        "projects/aiforall/aiforall.md",
+        "projects/iamrusty/iamrusty.md",
+        "projects/iamrusty/decisions/index.md",
+        "projects/iamrusty/decisions/0410-migration.md",
+        "projects/iamrusty/concepts/oauth-provider-linking.md",
+        "projects/aiforall/decisions/index.md",
+        "projects/manifesto/concepts/index.md",
+        "projects/manifesto/references/index.md",
+        "projects/iamrusty/concepts/index.md",
+        "projects/aiforall/skills/index.md",
+        "projects/aiforall/references/cursor-history-2026-09.md",
+        "projects/aiforall/concepts/orchestrator-agent-harness.md",
+        "index.md"
+      ]
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/d5c0a4f7-e945-4de1-aa1c-8fa771ba9733/subagents/205c90d9-9c03-4132-9809-cd4d27fcb1f2.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 36734,
+      "modified_at": "2026-09-22T05:38:59.108Z",
+      "content_hash": "sha256:2e741b228280d4f7657d813f05e9657d185243ebf0bb6c5403667df18b7d82cd",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/d5c0a4f7-e945-4de1-aa1c-8fa771ba9733/subagents/3edf0b7b-d275-4fee-9822-92179f70b258.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 50387,
+      "modified_at": "2026-09-20T16:55:57.717Z",
+      "content_hash": "sha256:3dbace14827978985692ec71e86e5bb5ab81f72f3ac9aa6615358440c26de484",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/d5c0a4f7-e945-4de1-aa1c-8fa771ba9733/subagents/41953bf3-2021-400a-9af8-62f98a51bb7d.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 61398,
+      "modified_at": "2026-09-22T06:44:57.843Z",
+      "content_hash": "sha256:898bbef00a9f743f9b990b9ff7285b91de8b657604278f1bb975d5731def92f3",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/d5c0a4f7-e945-4de1-aa1c-8fa771ba9733/subagents/484a5483-3519-45ef-b558-8c5a28d3a016.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 86139,
+      "modified_at": "2026-09-21T17:47:40.327Z",
+      "content_hash": "sha256:32708c426347ed553e0d860a2cf18555b2055baf1052256f0aedc25e40e8a658",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/d5c0a4f7-e945-4de1-aa1c-8fa771ba9733/subagents/619281eb-f2f0-48e0-96e1-b6c28d717b13.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 5644,
+      "modified_at": "2026-09-20T16:56:27.006Z",
+      "content_hash": "sha256:48c342c160032e7c5c13c642baf74f5eeb14dcfc2d3e38d4e431f9ff9a282faa",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/f9714136-d76b-4c3a-aa10-76cb66c4d8e7/subagents/93fbf884-75f8-4910-8a5a-2fe1205b3b66.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 8074,
+      "modified_at": "2026-09-20T17:10:58.438Z",
+      "content_hash": "sha256:1287021e7524a410d5cc8d0b0afc0b9d91a2c2a75c667c329d46f2af93ee03d8",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/f9714136-d76b-4c3a-aa10-76cb66c4d8e7/subagents/949e8b80-6e73-4d1b-8c04-5eb1941d20da.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 19479,
+      "modified_at": "2026-09-20T16:56:07.540Z",
+      "content_hash": "sha256:ebd4a1186ca1190d27de4cdbee33b4e1b29025ac374e8dfc22a5a6f388fdf4af",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
+    },
+    "C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/f9714136-d76b-4c3a-aa10-76cb66c4d8e7/subagents/a9dac862-5323-48c1-b53b-0e5806743f2d.jsonl": {
+      "ingested_at": "2026-09-22T06:55:00Z",
+      "size_bytes": 97235,
+      "modified_at": "2026-09-20T17:08:05.638Z",
+      "content_hash": "sha256:f01bffa204aec6d5d91835ad3ade91ea1ca3d294fd8ee3786e8fb79b9baaf531",
+      "source_type": "document",
+      "project": "aiforall",
+      "pages_created": [],
+      "pages_updated": []
     }
   }
 }
