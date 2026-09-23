@@ -6,10 +6,10 @@ use std::time::Duration;
 
 use reqwest::Client;
 use testcontainers::core::ContainerPort;
-use testcontainers::{ContainerAsync, GenericImage, ImageExt, runners::AsyncRunner};
+use testcontainers::{runners::AsyncRunner, ContainerAsync, GenericImage, ImageExt};
 use tokio::sync::Mutex;
 
-use super::{NETWORK_NAME, docker_rm};
+use super::{docker_rm, NETWORK_NAME};
 
 /// Image `OpenBao` (même tag que le compose plateforme, autre conteneur).
 pub const IMAGE: &str = "openbao/openbao";

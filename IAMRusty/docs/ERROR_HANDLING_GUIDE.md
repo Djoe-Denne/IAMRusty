@@ -242,6 +242,7 @@ impl IntoResponse for ApiError {
             ApiError::Domain(e) => match e {
                 DomainError::UserNotFound => (StatusCode::NOT_FOUND, e.to_string()),
                 DomainError::ProviderNotSupported(_) => (StatusCode::BAD_REQUEST, e.to_string()),
+                DomainError::ConnectorNotConfigured(_) => (StatusCode::UNPROCESSABLE_ENTITY, e.to_string()),
                 DomainError::InvalidToken => (StatusCode::UNAUTHORIZED, e.to_string()),
                 DomainError::TokenExpired => (StatusCode::UNAUTHORIZED, e.to_string()),
                 DomainError::AuthorizationError(_) => (StatusCode::UNAUTHORIZED, e.to_string()),
@@ -343,11 +344,14 @@ impl AuthError {
                     status: StatusCode::UNAUTHORIZED,
                 }
             }
-            CommandError::Validation(msg) => {
+            CommandError::Validation { code, .. } if code == "connector_not_configured" => {
+                Self::oauth_connector_not_configured(operation) // HTTP 422
+            }
+            CommandError::Validation { code, message } => {
                 Self::OAuth {
                     operation: operation.to_string(),
-                    error_code: "validation_failed".to_string(),
-                    message: msg.clone(),
+                    error_code: code.clone(),
+                    message: message.clone(),
                     status: StatusCode::BAD_REQUEST,
                 }
             }
@@ -365,7 +369,8 @@ impl AuthError {
 ### OAuth Error Scenarios
 
 **Start Operation Errors**:
-- `invalid_provider`: Unsupported OAuth provider
+- `invalid_provider`: Illegal OAuth provider slug syntax (`parse_provider_slug`), HTTP 400 — not “unsupported provider”
+- `connector_not_configured`: Well-formed slug absent from the IdP registry, HTTP 422
 - `invalid_authorization_header`: Malformed Authorization header (linking)
 - `invalid_token`: Invalid JWT token (linking)
 - `state_encoding_failed`: Failed to create OAuth state
@@ -390,7 +395,7 @@ The HTTP layer uses `CatchPanicLayer` for comprehensive panic recovery:
 ```rust
 pub async fn serve(state: AppState, addr: &str) -> anyhow::Result<()> {
     let app = Router::new()
-        .route("/api/auth/{provider}/start", get(oauth_start))
+        .route("/api/auth/{slug}/login", get(oauth_login_start))
         .route("/api/auth/{provider}/callback", get(oauth_callback))
         .route("/api/token/refresh", post(refresh_token))
         .route(
@@ -473,7 +478,7 @@ fn handle_panic(err: Box<dyn std::any::Any + Send + 'static>) -> axum::response:
 **Validation Error (400)**:
 ```json
 {
-  "operation": "start",
+  "operation": "login_start",
   "error": "invalid_provider",
   "message": "Invalid provider"
 }
@@ -513,28 +518,24 @@ fn handle_panic(err: Box<dyn std::any::Any + Send + 'static>) -> axum::response:
 ### 1. Error Handling in Handlers
 
 ```rust
-pub async fn oauth_start(
+pub async fn oauth_login_start(
     State(state): State<AppState>,
-    Path(provider_name): Path<String>,
-    headers: HeaderMap,
+    Path(provider_path): Path<ProviderPath>, // no Valid<Path>
 ) -> Result<Redirect, AuthError> {
-    // Use context-aware error methods
-    let provider = match provider_name.to_lowercase().as_str() {
-        "github" => Provider::GitHub,
-        "gitlab" => Provider::GitLab,
-        _ => return Err(AuthError::oauth_invalid_provider("start")),
-    };
-    
-    // Chain errors with ? operator
-    let encoded_state = oauth_state.encode()
-        .map_err(|_| AuthError::oauth_state_encoding_failed("start"))?;
-    
-    // Use command service with error conversion
-    let base_auth_url = state.command_service
-        .generate_login_start_url(provider, context)
+    // Syntax → 400 invalid_provider; off registry → 422 connector_not_configured
+    let provider = parse_provider_slug(&provider_path.provider_name, "login_start")?;
+
+    let encoded_state = oauth_state
+        .encode()
+        .map_err(|_| AuthError::oauth_state_encoding_failed("login_start"))?;
+    let command = GenerateOAuthStartUrlCommand::new(provider, redirect_uri, encoded_state.clone());
+
+    let base_auth_url = state
+        .command_service
+        .execute(command, context)
         .await
-        .map_err(|_| AuthError::oauth_url_generation_failed("start"))?;
-    
+        .map_err(|_| AuthError::oauth_url_generation_failed("login_start"))?;
+
     Ok(Redirect::to(url.as_str()))
 }
 ```
@@ -587,9 +588,9 @@ tracing::error!(
 
 ```rust
 #[tokio::test]
-async fn test_invalid_provider_returns_400() {
+async fn test_invalid_provider_syntax_returns_400() {
     let response = client
-        .get(&format!("{}/api/auth/invalid/start", base_url))
+        .get(&format!("{}/api/auth/hugging-face/login", base_url))
         .send()
         .await
         .expect("Failed to send request");
@@ -601,8 +602,24 @@ async fn test_invalid_provider_returns_400() {
         .await
         .expect("Failed to parse error response");
     
-    assert_eq!(error_response.operation, "start");
+    assert_eq!(error_response.operation, "login_start");
     assert_eq!(error_response.error, "invalid_provider");
+}
+
+#[tokio::test]
+async fn test_unregistered_provider_returns_422() {
+    let response = client
+        .get(&format!("{}/api/auth/facebook/login", base_url))
+        .send()
+        .await
+        .expect("Failed to send request");
+
+    assert_eq!(response.status(), 422);
+    let error_response: OAuthErrorResponse = response
+        .json()
+        .await
+        .expect("Failed to parse error response");
+    assert_eq!(error_response.error, "connector_not_configured");
 }
 ```
 

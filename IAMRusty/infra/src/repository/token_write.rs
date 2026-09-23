@@ -28,7 +28,7 @@ impl TokenWriteRepositoryImpl {
     /// Convert domain `ProviderTokens` to a database model
     fn to_model(
         user_id: Uuid,
-        provider: Provider,
+        provider: &Provider,
         provider_user_id: String,
         tokens: &ProviderTokens,
     ) -> provider_tokens::ActiveModel {
@@ -55,7 +55,7 @@ impl TokenWriteRepository for TokenWriteRepositoryImpl {
     async fn save_provider_tokens(
         &self,
         user_id: Uuid,
-        provider: Provider,
+        provider: &Provider,
         provider_user_id: String,
         tokens: ProviderTokens,
     ) -> Result<(), Self::Error> {
@@ -96,7 +96,7 @@ impl TokenWriteRepository for TokenWriteRepositoryImpl {
     async fn delete_provider_tokens(
         &self,
         user_id: Uuid,
-        provider: Provider,
+        provider: &Provider,
     ) -> Result<(), Self::Error> {
         debug!(user_id = %user_id, provider = %provider.as_str(), "Deleting provider tokens");
 

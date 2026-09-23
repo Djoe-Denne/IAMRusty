@@ -8,7 +8,7 @@
 - SuperSède : aucune — complète le trou « catalogue des providers » d’[0400](0400-iamrusty-identite-hexagonale.md) sans la réécrire
 - SuperSédée par : —
 
-`Accepted` ratifie une cible. `Réalité` décrit le dépôt. Aujourd’hui le domaine IAM encode encore `Provider::GitHub | GitLab`.
+`Accepted` ratifie une cible. `Réalité` : Implemented. Identité slug (newtype, pas enum `GitHub | GitLab`) : [0411](0411-idp-provider-slug-registry-fail-closed.md).
 
 ## Contexte
 

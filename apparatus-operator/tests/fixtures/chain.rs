@@ -6,19 +6,19 @@ use std::fs;
 use std::net::TcpStream;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use apparatus_contracts::{BindingId, InvokeRequest, new_operation_id};
+use apparatus_contracts::{new_operation_id, BindingId, InvokeRequest};
 use apparatus_operator::admission::AdmitInput;
 use apparatus_operator::admit::{AdmitTarget, Envelope, RegistryAuth};
 use apparatus_operator::{
-    POLICY_ID, ReleaseDigest, digest_manifest, evaluate_conformance, parse_manifest,
-    resolve_install_ref,
+    digest_manifest, evaluate_conformance, parse_manifest, resolve_install_ref, ReleaseDigest,
+    POLICY_ID,
 };
 use async_trait::async_trait;
-use lazaret_application::{PluginEndpointLocator, StaticPluginLocator, empty_command_registry};
+use lazaret_application::{empty_command_registry, PluginEndpointLocator, StaticPluginLocator};
 use lazaret_domain::{
     AsyncKvStore, BindingGrantSnapshot, BindingGrantSnapshotPort, CapabilityConsent,
     GrantFetchError,

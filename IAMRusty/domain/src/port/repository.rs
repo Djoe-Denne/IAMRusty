@@ -28,7 +28,7 @@ pub trait UserReadRepository {
     /// This looks up via the `provider_tokens` table
     async fn find_by_provider_user_id(
         &self,
-        provider: Provider,
+        provider: &Provider,
         provider_user_id: &str,
     ) -> Result<Option<User>, Self::Error>;
 }
@@ -139,14 +139,14 @@ pub trait TokenReadRepository {
     async fn get_provider_tokens(
         &self,
         user_id: Uuid,
-        provider: Provider,
+        provider: &Provider,
     ) -> Result<Option<ProviderTokens>, Self::Error>;
 
     /// Get provider link information (`user_id`, provider, `provider_user_id`)
     async fn get_provider_link(
         &self,
         user_id: Uuid,
-        provider: Provider,
+        provider: &Provider,
     ) -> Result<Option<ProviderLink>, Self::Error>;
 
     /// Get all provider links for a user
@@ -166,7 +166,7 @@ pub trait TokenWriteRepository {
     async fn save_provider_tokens(
         &self,
         user_id: Uuid,
-        provider: Provider,
+        provider: &Provider,
         provider_user_id: String,
         tokens: ProviderTokens,
     ) -> Result<(), Self::Error>;
@@ -175,7 +175,7 @@ pub trait TokenWriteRepository {
     async fn delete_provider_tokens(
         &self,
         user_id: Uuid,
-        provider: Provider,
+        provider: &Provider,
     ) -> Result<(), Self::Error>;
 }
 

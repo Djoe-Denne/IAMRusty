@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+iam-domain = { path = "../domain" }
+
 # Core configuration from rustycog
 rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full"] }
 

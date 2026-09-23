@@ -92,13 +92,13 @@ domain/
 
 #### Entities
 - **User**: Core user entity with identity and business rules
-- **Provider**: OAuth provider enumeration (GitHub, GitLab)
+- **Provider**: typed IdP slug (letters-only, case-fold; catalogue = `[[idp.connectors]]`, ADR-0411)
 - **ProviderTokens**: OAuth tokens from external providers
 - **JwtToken**: JWT token representation
 - **RefreshToken**: Refresh token for token renewal
 
 #### Domain Services
-- **AuthService**: Handles OAuth authentication flow
+- **OAuthService**: Handles OAuth authentication flow (`Arc<HashMap<Provider, Arc<dyn FederatedOAuthClient>>>` injected at `new`)
 - **TokenService**: Manages JWT token operations
 
 #### Ports (Interfaces)
@@ -109,6 +109,7 @@ domain/
 
 #### Domain Errors
 All domain operations return `DomainError` types:
+- `ConnectorNotConfigured`
 - `UserNotFound`
 - `ProviderNotSupported`
 - `TokenExpired`
@@ -125,11 +126,11 @@ where
 {
     pub async fn process_callback(
         &self,
-        provider_name: &str,
+        provider: &Provider,
         code: &str,
+        redirect_uri: &str,
     ) -> Result<(User, String), DomainError> {
         // Pure business logic - no infrastructure concerns
-        let provider = Provider::from_str(provider_name)?;
         let client = self.get_provider_client(provider)?;
         let tokens = client.exchange_code(code).await?;
         let profile = client.get_user_profile(&tokens).await?;
@@ -186,12 +187,13 @@ pub enum AuthUseCaseError {
 impl<U, T> AuthUseCase for AuthUseCaseImpl<U, T> {
     async fn process_callback(
         &self,
-        provider: &str,
+        provider: &Provider,
         code: &str,
+        redirect_uri: &str,
     ) -> Result<AuthResponseDto, AuthUseCaseError> {
         // Orchestrate domain services
         let (user, token) = self.auth_service
-            .process_callback(provider, code)
+            .process_callback(&provider, code, redirect_uri)
             .await
             .map_err(AuthUseCaseError::Domain)?;
 
@@ -287,17 +289,18 @@ http/
 
 ```rust
 pub async fn oauth_callback(
-    Path(provider): Path<String>,
+    Path(provider_path): Path<ProviderPath>,
     Query(params): Query<CallbackParams>,
     State(state): State<AppState>,
 ) -> Result<Json<AuthResponseDto>, ApiError> {
     // Delegate to use case
+    let provider = parse_provider_slug(&provider_path.provider_name, "callback")?;
     let response = state
         .login_usecase
         .login(
-            Provider::from_str(&provider)?,
+            provider,
             params.code,
-            get_redirect_uri(&state.oauth_config, &provider),
+            get_redirect_uri(&state.oauth_config, provider.as_str()),
         )
         .await?;
 
@@ -512,7 +515,7 @@ pub async fn build_app_state(config: AppConfig) -> Result<AppState> {
     let token_repo = CombinedTokenRepository::new(/* ... */);
     
     // Domain services
-    let auth_service = AuthService::new(user_repo, token_repo, token_service);
+    let auth_service = AuthService::new(user_repo, token_repo, token_service, Arc::new(provider_clients));
     
     // Application use cases
     let login_usecase = LoginUseCaseImpl::new(/* ... */);
@@ -663,7 +666,7 @@ pub enum LoginError {
 ```rust
 // Mixed concerns - application and domain logic together
 impl AuthService {
-    pub async fn process_callback(&self, provider: &str, code: &str) 
+    pub async fn process_callback(&self, provider: &Provider, code: &str, redirect_uri: &str) 
         -> Result<AuthResponseDto, ApplicationError> {
         // Business logic mixed with DTO creation
     }
@@ -674,7 +677,7 @@ impl AuthService {
 ```rust
 // Domain Service - Pure business logic
 impl AuthService {
-    pub async fn process_callback(&self, provider: &str, code: &str) 
+    pub async fn process_callback(&self, provider: &Provider, code: &str, redirect_uri: &str) 
         -> Result<(User, String), DomainError> {
         // Pure business logic, returns domain entities
     }
@@ -682,10 +685,10 @@ impl AuthService {
 
 // Use Case - Orchestration and DTO mapping
 impl AuthUseCase {
-    pub async fn process_callback(&self, provider: &str, code: &str) 
+    pub async fn process_callback(&self, provider: &Provider, code: &str, redirect_uri: &str) 
         -> Result<AuthResponseDto, AuthUseCaseError> {
         let (user, token) = self.auth_service
-            .process_callback(provider, code)
+            .process_callback(&provider, code, redirect_uri)
             .await
             .map_err(AuthUseCaseError::Domain)?;
             

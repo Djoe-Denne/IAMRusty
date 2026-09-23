@@ -27,7 +27,7 @@ where
     token_repository: T,
     user_email_repository: UE,
     token_service: TokenService,
-    provider_clients: HashMap<Provider, Arc<dyn FederatedOAuthClient>>,
+    provider_clients: Arc<HashMap<Provider, Arc<dyn FederatedOAuthClient>>>,
 }
 
 impl<U, T, UE> OAuthService<U, T, UE>
@@ -42,39 +42,26 @@ where
         token_repository: T,
         user_email_repository: UE,
         token_service: TokenService,
+        provider_clients: Arc<HashMap<Provider, Arc<dyn FederatedOAuthClient>>>,
     ) -> Self {
         Self {
             user_repository,
             token_repository,
             user_email_repository,
             token_service,
-            provider_clients: HashMap::new(),
+            provider_clients,
         }
-    }
-
-    /// Register a federated `OAuth2` client (one per provider slug).
-    pub fn register_provider_client(
-        &mut self,
-        provider: Provider,
-        client: Arc<dyn FederatedOAuthClient>,
-    ) {
-        self.provider_clients.insert(provider, client);
     }
 
     /// Get federated client for the specified provider
     fn get_provider_client(
         &self,
-        provider: Provider,
+        provider: &Provider,
     ) -> Result<Arc<dyn FederatedOAuthClient>, DomainError> {
         self.provider_clients
-            .get(&provider)
+            .get(provider)
             .cloned()
-            .ok_or_else(|| {
-                DomainError::AuthorizationError(format!(
-                    "Provider client not configured: {}",
-                    provider.as_str()
-                ))
-            })
+            .ok_or_else(|| DomainError::ConnectorNotConfigured(provider.as_str().to_string()))
     }
 }
 
@@ -92,13 +79,10 @@ where
     /// or the federated authorize call fails.
     pub async fn generate_authorize_url(
         &self,
-        provider: &str,
+        provider: &Provider,
         redirect_uri: &str,
         state: &str,
     ) -> Result<String, DomainError> {
-        let provider = Provider::from_str(provider)
-            .ok_or_else(|| DomainError::ProviderNotSupported(provider.to_string()))?;
-
         let client = self.get_provider_client(provider)?;
         let response = client
             .authorize(redirect_uri, state)
@@ -115,14 +99,14 @@ where
     /// lookup fails, the profile has no email, persistence fails, or JWT generation fails.
     pub async fn process_callback(
         &self,
-        provider_name: &str,
+        provider: &Provider,
         code: &str,
         redirect_uri: &str,
     ) -> Result<(User, String, String), DomainError> {
-        let provider = Provider::from_str(provider_name)
-            .ok_or_else(|| DomainError::ProviderNotSupported(provider_name.to_string()))?;
-
-        debug!("Processing OAuth2 callback for provider: {}", provider_name);
+        debug!(
+            "Processing OAuth2 callback for provider: {}",
+            provider.as_str()
+        );
 
         let client = self.get_provider_client(provider)?;
 
@@ -194,7 +178,7 @@ where
     /// Find or create a user based on their provider profile
     async fn find_or_create_user(
         &self,
-        provider: Provider,
+        provider: &Provider,
         profile: ProviderUserProfile,
     ) -> Result<User, DomainError> {
         // Email is required for linking
@@ -275,7 +259,7 @@ where
 
         let tokens = self
             .token_repository
-            .get_provider_tokens(user_id, provider)
+            .get_provider_tokens(user_id, &provider)
             .await
             .map_err(|e| DomainError::RepositoryError(e.to_string()))?
             .ok_or(DomainError::NoTokenForProvider)?;
@@ -307,7 +291,7 @@ where
         // Check if tokens exist for this user and provider
         let existing_tokens = self
             .token_repository
-            .get_provider_tokens(user_id, provider)
+            .get_provider_tokens(user_id, &provider)
             .await
             .map_err(|e| DomainError::RepositoryError(e.to_string()))?;
 
@@ -317,12 +301,179 @@ where
 
         // Delete the tokens
         self.token_repository
-            .delete_provider_tokens(user_id, provider)
+            .delete_provider_tokens(user_id, &provider)
             .await
             .map_err(|e| DomainError::RepositoryError(e.to_string()))?;
 
         debug!(user_id = %user_id, provider = %provider.as_str(), "Revoked provider token");
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod missing_client_tests {
+    use super::*;
+    use crate::entity::provider_link::ProviderLink;
+    use crate::entity::token::JwkSet;
+    use crate::entity::user_email::UserEmail;
+    use crate::port::repository::{
+        TokenReadRepository, TokenWriteRepository, UserEmailReadRepository,
+        UserEmailWriteRepository, UserReadRepository, UserWriteRepository,
+    };
+    use crate::port::service::JwtTokenEncoder;
+    use chrono::Duration;
+
+    #[derive(Debug)]
+    struct StubError;
+
+    impl std::fmt::Display for StubError {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "stub")
+        }
+    }
+
+    impl std::error::Error for StubError {}
+
+    struct StubUser;
+    struct StubTokens;
+    struct StubEmails;
+    struct StubEncoder;
+
+    #[async_trait::async_trait]
+    impl UserReadRepository for StubUser {
+        type Error = StubError;
+        async fn find_by_id(&self, _: Uuid) -> Result<Option<User>, Self::Error> {
+            Err(StubError)
+        }
+        async fn find_by_email(&self, _: &str) -> Result<Option<User>, Self::Error> {
+            Err(StubError)
+        }
+        async fn find_by_username(&self, _: &str) -> Result<Option<User>, Self::Error> {
+            Err(StubError)
+        }
+        async fn find_by_provider_user_id(
+            &self,
+            _: &Provider,
+            _: &str,
+        ) -> Result<Option<User>, Self::Error> {
+            Err(StubError)
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl UserWriteRepository for StubUser {
+        type Error = StubError;
+        async fn create(&self, _: User) -> Result<User, Self::Error> {
+            Err(StubError)
+        }
+        async fn update(&self, _: User) -> Result<User, Self::Error> {
+            Err(StubError)
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl TokenReadRepository for StubTokens {
+        type Error = StubError;
+        async fn get_provider_tokens(
+            &self,
+            _: Uuid,
+            _: &Provider,
+        ) -> Result<Option<ProviderTokens>, Self::Error> {
+            Err(StubError)
+        }
+        async fn get_provider_link(
+            &self,
+            _: Uuid,
+            _: &Provider,
+        ) -> Result<Option<ProviderLink>, Self::Error> {
+            Err(StubError)
+        }
+        async fn get_user_provider_links(&self, _: Uuid) -> Result<Vec<ProviderLink>, Self::Error> {
+            Err(StubError)
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl TokenWriteRepository for StubTokens {
+        type Error = StubError;
+        async fn save_provider_tokens(
+            &self,
+            _: Uuid,
+            _: &Provider,
+            _: String,
+            _: ProviderTokens,
+        ) -> Result<(), Self::Error> {
+            Err(StubError)
+        }
+        async fn delete_provider_tokens(&self, _: Uuid, _: &Provider) -> Result<(), Self::Error> {
+            Err(StubError)
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl UserEmailReadRepository for StubEmails {
+        type Error = StubError;
+        async fn find_by_user_id(&self, _: Uuid) -> Result<Vec<UserEmail>, Self::Error> {
+            Err(StubError)
+        }
+        async fn find_by_id(&self, _: Uuid) -> Result<Option<UserEmail>, Self::Error> {
+            Err(StubError)
+        }
+        async fn find_by_email(&self, _: &str) -> Result<Option<UserEmail>, Self::Error> {
+            Err(StubError)
+        }
+        async fn find_primary_by_user_id(&self, _: Uuid) -> Result<Option<UserEmail>, Self::Error> {
+            Err(StubError)
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl UserEmailWriteRepository for StubEmails {
+        type Error = StubError;
+        async fn create(&self, _: UserEmail) -> Result<UserEmail, Self::Error> {
+            Err(StubError)
+        }
+        async fn update(&self, _: UserEmail) -> Result<UserEmail, Self::Error> {
+            Err(StubError)
+        }
+        async fn delete(&self, _: Uuid) -> Result<(), Self::Error> {
+            Err(StubError)
+        }
+        async fn set_as_primary(&self, _: Uuid, _: Uuid) -> Result<(), Self::Error> {
+            Err(StubError)
+        }
+    }
+
+    impl JwtTokenEncoder for StubEncoder {
+        fn encode(&self, _: &crate::entity::token::TokenClaims) -> Result<String, DomainError> {
+            Err(DomainError::InvalidToken)
+        }
+        fn decode(&self, _: &str) -> Result<crate::entity::token::TokenClaims, DomainError> {
+            Err(DomainError::InvalidToken)
+        }
+        fn jwks(&self) -> JwkSet {
+            JwkSet { keys: vec![] }
+        }
+    }
+
+    #[tokio::test]
+    async fn empty_client_map_returns_connector_not_configured() {
+        let service = OAuthService::new(
+            StubUser,
+            StubTokens,
+            StubEmails,
+            TokenService::new(Arc::new(StubEncoder), Duration::hours(1)),
+            Arc::new(HashMap::new()),
+        );
+        let provider = Provider::parse_slug("github").expect("github slug");
+        let err = service
+            .generate_authorize_url(&provider, "http://localhost/cb", "state")
+            .await
+            .expect_err("empty catalogue");
+        assert!(
+            matches!(err, DomainError::ConnectorNotConfigured(ref slug) if slug == "github"),
+            "unexpected error: {err:?}"
+        );
     }
 }

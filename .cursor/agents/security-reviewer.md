@@ -1,7 +1,7 @@
 ---
 name: security-reviewer
 description: Security / Red-Team Reviewer ancré repo — authn/authz, trust boundaries Apparatus, secrets, IDOR, DoS, races, supply chain, CI, prompt injection. Deux passes (défensive + adversariale). Read-only sauf APPLY SECURITY FIXES. CRITICAL/HIGH = BLOCK.
-model: cursor-grok-4.6-xhigh
+model: grok-4.7-xhigh
 readonly: true
 ---
 

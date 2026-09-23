@@ -59,7 +59,7 @@ where
 
     async fn find_by_provider_user_id(
         &self,
-        provider: Provider,
+        provider: &Provider,
         provider_user_id: &str,
     ) -> Result<Option<User>, Self::Error> {
         self.read_repo
@@ -120,7 +120,7 @@ where
     async fn get_provider_tokens(
         &self,
         user_id: Uuid,
-        provider: Provider,
+        provider: &Provider,
     ) -> Result<Option<ProviderTokens>, Self::Error> {
         self.read_repo.get_provider_tokens(user_id, provider).await
     }
@@ -128,7 +128,7 @@ where
     async fn get_provider_link(
         &self,
         user_id: Uuid,
-        provider: Provider,
+        provider: &Provider,
     ) -> Result<Option<ProviderLink>, Self::Error> {
         self.read_repo.get_provider_link(user_id, provider).await
     }
@@ -152,7 +152,7 @@ where
     async fn save_provider_tokens(
         &self,
         user_id: Uuid,
-        provider: Provider,
+        provider: &Provider,
         provider_user_id: String,
         tokens: ProviderTokens,
     ) -> Result<(), Self::Error> {
@@ -164,7 +164,7 @@ where
     async fn delete_provider_tokens(
         &self,
         user_id: Uuid,
-        provider: Provider,
+        provider: &Provider,
     ) -> Result<(), Self::Error> {
         self.write_repo
             .delete_provider_tokens(user_id, provider)

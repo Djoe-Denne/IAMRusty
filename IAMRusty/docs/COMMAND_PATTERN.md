@@ -734,7 +734,11 @@ impl IAMClient {
 
     // High-level API methods
     pub async fn login_with_github(&self, code: String) -> Result<LoginResponse, ClientError> {
-        let command = LoginCommand::new(Provider::GitHub, code, self.redirect_uri.clone());
+        let command = LoginCommand::new(
+            "github".parse().expect("slug"),
+            code,
+            self.redirect_uri.clone(),
+        );
         let context = CommandContext::new();
         
         self.service

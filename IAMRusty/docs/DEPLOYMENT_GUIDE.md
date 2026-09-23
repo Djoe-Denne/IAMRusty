@@ -392,8 +392,11 @@ cargo run -- up
 The actual HTTP server implements these endpoints:
 
 - `GET /health` - Health check endpoint
-- `GET /api/auth/{provider}/start` - OAuth start (GitHub, GitLab)
-- `GET /api/auth/{provider}/callback` - OAuth callback
+- `GET /api/auth/{provider_name}/login` - OAuth login start (letters-only slug)
+- `GET /api/auth/{provider_name}/callback` - OAuth callback
+- `GET /api/auth/{provider_name}/link` - OAuth link start (authenticated)
+- `GET /api/auth/{provider_name}/relink-start` - OAuth relink start
+- `GET /api/auth/{provider_name}/relink-callback` - OAuth relink callback
 - `POST /api/token/refresh` - Token refresh
 - `GET /api/me` - Get current user (requires auth)
 

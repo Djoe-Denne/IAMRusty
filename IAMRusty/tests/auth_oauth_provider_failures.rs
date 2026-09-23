@@ -39,7 +39,7 @@ async fn github_rate_limit_and_server_error_are_http_failures_without_account_si
 
     idp.mock_token("github").await;
     idp.mock_profile_status("github", 429).await;
-    let state = OAuthTestUtils::create_login_state();
+    let state = OAuthTestUtils::create_login_state("github");
     let rate_limited = client
         .get(format!("{base_url}/api/auth/github/callback"))
         .query(&[("code", "test_auth_code"), ("state", &state)])
@@ -51,7 +51,7 @@ async fn github_rate_limit_and_server_error_are_http_failures_without_account_si
     idp.reset().await;
     idp.mock_token("github").await;
     idp.mock_profile_status("github", 502).await;
-    let state = OAuthTestUtils::create_login_state();
+    let state = OAuthTestUtils::create_login_state("github");
     let unavailable = client
         .get(format!("{base_url}/api/auth/github/callback"))
         .query(&[("code", "test_auth_code"), ("state", &state)])
@@ -70,7 +70,7 @@ async fn gitlab_forbidden_rate_limit_and_server_error_keep_the_same_public_contr
 
     idp.mock_token("gitlab").await;
     idp.mock_profile_status("gitlab", 403).await;
-    let state = OAuthTestUtils::create_login_state();
+    let state = OAuthTestUtils::create_login_state("gitlab");
     let forbidden = client
         .get(format!("{base_url}/api/auth/gitlab/callback"))
         .query(&[("code", "test_auth_code"), ("state", &state)])
@@ -82,7 +82,7 @@ async fn gitlab_forbidden_rate_limit_and_server_error_keep_the_same_public_contr
     idp.reset().await;
     idp.mock_token("gitlab").await;
     idp.mock_profile_status("gitlab", 429).await;
-    let state = OAuthTestUtils::create_login_state();
+    let state = OAuthTestUtils::create_login_state("gitlab");
     let rate_limited = client
         .get(format!("{base_url}/api/auth/gitlab/callback"))
         .query(&[("code", "test_auth_code"), ("state", &state)])
@@ -94,7 +94,7 @@ async fn gitlab_forbidden_rate_limit_and_server_error_keep_the_same_public_contr
     idp.reset().await;
     idp.mock_token("gitlab").await;
     idp.mock_profile_status("gitlab", 502).await;
-    let state = OAuthTestUtils::create_login_state();
+    let state = OAuthTestUtils::create_login_state("gitlab");
     let unavailable = client
         .get(format!("{base_url}/api/auth/gitlab/callback"))
         .query(&[("code", "test_auth_code"), ("state", &state)])
@@ -112,7 +112,7 @@ async fn github_rejects_invalid_authorization_codes_and_clients_without_writing_
     let idp = IdpConnectFixtures::service().await;
 
     idp.mock_s2s_unauthorized("github", "/v1/token").await;
-    let state = OAuthTestUtils::create_login_state();
+    let state = OAuthTestUtils::create_login_state("github");
     let invalid_code = client
         .get(format!("{base_url}/api/auth/github/callback"))
         .query(&[("code", "expired-or-replayed-code"), ("state", &state)])
@@ -123,7 +123,7 @@ async fn github_rejects_invalid_authorization_codes_and_clients_without_writing_
 
     idp.reset().await;
     idp.mock_s2s_unauthorized("github", "/v1/token").await;
-    let state = OAuthTestUtils::create_login_state();
+    let state = OAuthTestUtils::create_login_state("github");
     let invalid_client = client
         .get(format!("{base_url}/api/auth/github/callback"))
         .query(&[("code", "test_auth_code"), ("state", &state)])
@@ -141,7 +141,7 @@ async fn gitlab_rejects_invalid_authorization_codes_and_clients_without_writing_
     let idp = IdpConnectFixtures::service().await;
 
     idp.mock_s2s_unauthorized("gitlab", "/v1/token").await;
-    let state = OAuthTestUtils::create_login_state();
+    let state = OAuthTestUtils::create_login_state("gitlab");
     let invalid_code = client
         .get(format!("{base_url}/api/auth/gitlab/callback"))
         .query(&[("code", "expired-or-replayed-code"), ("state", &state)])
@@ -152,7 +152,7 @@ async fn gitlab_rejects_invalid_authorization_codes_and_clients_without_writing_
 
     idp.reset().await;
     idp.mock_s2s_unauthorized("gitlab", "/v1/token").await;
-    let state = OAuthTestUtils::create_login_state();
+    let state = OAuthTestUtils::create_login_state("gitlab");
     let invalid_client = client
         .get(format!("{base_url}/api/auth/gitlab/callback"))
         .query(&[("code", "test_auth_code"), ("state", &state)])

@@ -228,8 +228,8 @@ async fn test_oauth_start_unsupported_provider_returns_422() {
         .await
         .expect("Failed to setup test server");
 
-    // Test unsupported providers
-    let unsupported_providers = vec!["facebook", "google", "twitter", "unknown", "bitbucket", ""];
+    // Test unsupported providers (letters-only slugs absent from the boot registry)
+    let unsupported_providers = vec!["facebook", "google", "twitter", "unknown", "bitbucket"];
 
     for provider in unsupported_providers {
         let response = client
@@ -238,22 +238,53 @@ async fn test_oauth_start_unsupported_provider_returns_422() {
             .await
             .expect("Failed to send request");
 
-        // ❌ Should return 400 for unsupported providers
         assert_eq!(
             response.status(),
             422,
-            "Should return 422 Unprocessable Entity for unsupported provider: {provider}"
+            "Should return 422 Unprocessable Entity for unregistered provider: {provider}"
         );
 
-        // Should return JSON error response
         let error_response: Value = response
             .json()
             .await
             .expect("Should return JSON error response");
 
-        assert!(
-            error_response.get("provider_name").is_some(),
-            "Error response should contain provider_name"
+        assert_eq!(
+            error_response["error"]["error_code"], "connector_not_configured",
+            "Unregistered slug {provider} should be connector_not_configured"
+        );
+    }
+}
+
+#[tokio::test]
+#[serial]
+async fn test_oauth_start_illegal_syntax_returns_400() {
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
+
+    let overlong = "a".repeat(51);
+    for provider in ["hugging-face", "github2", overlong.as_str()] {
+        let response = client
+            .get(format!("{base_url}/api/auth/{provider}/login"))
+            .send()
+            .await
+            .expect("Failed to send request");
+
+        assert_eq!(
+            response.status(),
+            400,
+            "Should return 400 for illegal provider syntax: {provider}"
+        );
+
+        let error_response: Value = response
+            .json()
+            .await
+            .expect("Should return JSON error response");
+
+        assert_eq!(
+            error_response["error"]["error_code"], "invalid_provider",
+            "Illegal slug {provider} should be invalid_provider"
         );
     }
 }

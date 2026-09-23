@@ -75,7 +75,7 @@ impl UserReadRepository for UserReadRepositoryImpl {
 
     async fn find_by_provider_user_id(
         &self,
-        provider: Provider,
+        provider: &Provider,
         provider_user_id: &str,
     ) -> Result<Option<DomainUser>, Self::Error> {
         debug!(

@@ -201,16 +201,15 @@ pub struct CallbackRequest {
 
 ### Creating Custom Validation Functions
 
+These `validator` crate examples are **generic**. They are **not** OAuth Path admission. Route slug admission is `Provider::parse_slug` / HTTP helper `parse_provider_slug` (400 `invalid_provider` / 422 `connector_not_configured` below). Do **not** teach `validate_provider_name` as the `{provider_name}` route-slug validator.
+
 ```rust
 use validator::ValidationError;
 
 pub fn validate_provider_name(provider: &str) -> Result<(), ValidationError> {
-    let valid_providers = ["github", "gitlab"];
-    
-    if !valid_providers.contains(&provider.to_lowercase().as_str()) {
+    if provider.is_empty() || !PROVIDER_REGEX.is_match(provider) {
         return Err(ValidationError::new("invalid_provider"));
     }
-    
     Ok(())
 }
 
@@ -228,6 +227,8 @@ pub fn validate_refresh_token(token: &str) -> Result<(), ValidationError> {
 ```
 
 ### Using Custom Validators
+
+Generic `#[validate(custom)]` illustration — still **not** OAuth Path admission (`Path<ProviderPath>` is parsed with `parse_provider_slug`, without `Valid<Path>`).
 
 ```rust
 #[derive(Validate, Deserialize)]
@@ -504,10 +505,12 @@ Combine validation with other extractors:
 ```rust
 pub async fn oauth_callback(
     State(state): State<AppState>,
-    Valid(Path(provider_path)): Valid<Path<ProviderPath>>,
+    Path(provider_path): Path<ProviderPath>,
     Valid(Query(query)): Valid<Query<OAuthCallbackQuery>>,
 ) -> Result<Json<OAuthResponse>, AuthError> {
-    // Both path and query parameters are validated
+    // Path slug: syntax → 400 `invalid_provider` via `parse_provider_slug`.
+    // Well-formed slug off the IdP registry → 422 `connector_not_configured`.
+    // Do not wrap `Path<ProviderPath>` in `Valid` — axum_valid would map syntax to 422.
 }
 ```
 
@@ -517,13 +520,10 @@ Use clear documentation for your validation rules:
 
 ```rust
 /// OAuth provider path parameter
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize)]
 pub struct ProviderPath {
     /// Provider name (github, gitlab, etc.)
-    /// Must be lowercase letters only and match supported providers
-    #[validate(length(min = 1, max = 50, message = "Provider name must be between 1 and 50 characters"))]
-    #[validate(regex(path = "*PROVIDER_REGEX", message = "Provider name can only contain lowercase letters"))]
-    #[validate(custom(function = "validate_provider_name", message = "Invalid provider name"))]
+    /// Syntax is admitted by `parse_provider_slug` (400 `invalid_provider`), not `Valid<Path>`.
     pub provider_name: String,
 }
 ```
@@ -539,11 +539,8 @@ use axum_valid::Valid;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize)]
 pub struct ProviderPath {
-    #[validate(length(min = 1, max = 50))]
-    #[validate(regex(path = "*PROVIDER_REGEX"))]
-    #[validate(custom(function = "validate_provider_name"))]
     pub provider_name: String,
 }
 
@@ -564,10 +561,11 @@ pub struct OAuthCallbackQuery {
 
 pub async fn oauth_callback(
     State(state): State<AppState>,
-    Valid(Path(provider_path)): Valid<Path<ProviderPath>>,
+    Path(provider_path): Path<ProviderPath>,
     Valid(Query(query)): Valid<Query<OAuthCallbackQuery>>,
 ) -> Result<Json<OAuthResponse>, AuthError> {
-    // All input is validated at this point
+    // Query still uses Valid. Path does not: syntax is `parse_provider_slug` → 400 `invalid_provider`.
+    // A well-formed slug absent from the registry is 422 `connector_not_configured`.
     let provider = parse_provider(&provider_path.provider_name)?;
     
     if let Some(error) = query.error {
@@ -644,6 +642,8 @@ error[E0277]: the trait bound `PROVIDER_REGEX: AsRegex` is not satisfied
 ```rust
 error[E0425]: cannot find function `validate_provider_name` in this scope
 ```
+
+(`validate_provider_name` is the generic crate-validator example above, not the OAuth Path slug helper.)
 
 **Solution**: Import the validation module:
 ```rust

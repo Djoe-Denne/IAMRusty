@@ -151,7 +151,7 @@ where
         state: String,
     ) -> Result<String, OAuthError> {
         self.oauth
-            .generate_authorize_url(provider.as_str(), &redirect_uri, &state)
+            .generate_authorize_url(&provider, &redirect_uri, &state)
             .await
             .map_err(Into::into)
     }
@@ -165,7 +165,7 @@ where
         // Delegate to domain service - note: we ignore the JWT token since we'll generate proper tokens
         let (user, _jwt_token, email) = self
             .oauth
-            .process_callback(provider.as_str(), &code, &redirect_uri)
+            .process_callback(&provider, &code, &redirect_uri)
             .await?;
 
         // Check if user is complete (has username) or needs registration

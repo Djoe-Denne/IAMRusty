@@ -11,6 +11,10 @@ pub enum DomainError {
     #[error("Provider not supported: {0}")]
     ProviderNotSupported(String),
 
+    /// IdP connector is not configured for this provider slug
+    #[error("IdP connector not configured: {0}")]
+    ConnectorNotConfigured(String),
+
     /// Business rule violation
     #[error("Business rule violation: {0}")]
     BusinessRuleViolation(String),

@@ -158,7 +158,7 @@ async fn test_oauth_flow() {
     let _github = GitHubFixtures::service().await;
     
     let response = client
-        .get(&format!("{}/api/auth/github/start", base_url))
+        .get(&format!("{}/api/auth/github/login", base_url))
         .send().await?;
     
     // Verify redirect, state, parameters, etc.

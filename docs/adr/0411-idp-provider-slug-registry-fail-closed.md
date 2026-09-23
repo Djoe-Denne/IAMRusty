@@ -1,14 +1,14 @@
 # ADR-0411 : Le provider IdP est un slug typé ; le registry boot est le catalogue ouvert ; l’admission est fail-closed
 
-- Statut : Proposed
-- Réalité : Unimplemented
+- Statut : Accepted
+- Réalité : Implemented
 - Date : 2026-09-22
-- Décideurs : (à remplir à l’acceptation)
+- Décideurs : acceptation humaine 2026-09-22
 - Jalon concerné : IAM-IdP (hors Apparatus P0–P6)
 - SuperSède : aucune — gradue le leftover 0407 §8 et le « long terme » 0408 sans réécrire 0407–0410
 - SuperSédée par : —
 
-`Accepted` ratifiera la cible. `Réalité` restera `Unimplemented` tant que l’enum fermé, le skip boot et `validate` incomplet sont dans le dépôt.
+`Accepted` ratifie la cible (humain, 2026-09-22). `Réalité` : **Implemented** pour GitHub+GitLab existants (newtype slug, registry ouvert fail-closed, 400/422).
 
 ## Contexte
 
@@ -64,7 +64,7 @@ Hors décision : nest monolith (reste 0408) ; OIDC Id Token (0409) ; Hive org-sy
 
 ## Contrat d’implémentation (slices, pas de code)
 
-0407–0410 restent Accepted / Implemented. 0411 est **Proposed / Unimplemented** jusqu’à Accept humain puis code.
+0407–0410 restent Accepted / Implemented. 0411 est **Accepted / Implemented** (GitHub+GitLab). Pas de service Hugging Face livré.
 
 ### Hors scope
 
@@ -95,4 +95,4 @@ Hors décision : nest monolith (reste 0408) ; OIDC Id Token (0409) ; Hive org-sy
 - ADR : [0407](0407-contrat-authn-federee-vendor-neutral.md) §8, [0408](0408-connecteurs-idp-services-http.md) (registry + long terme), [0409](0409-confiance-callback-oauth-idp-connect.md), [0410](0410-migration-iam-connecteurs-idp.md) (routes + 422)
 - Code : `IAMRusty/domain/src/entity/provider.rs`, `IAMRusty/configuration/src/idp.rs`, `IAMRusty/setup/src/app.rs` (`setup_http_idp_clients`), `IAMRusty/http/src/validation.rs`, `IAMRusty/http/src/handlers/auth.rs`, `IAMRusty/http/src/idp_registry.rs`, `IAMRusty/infra/src/repository/token.rs`, `token_read.rs`, gabarit `GitHubConnect/`
 - Guide : `IAMRusty/docs/PROVIDER_FACTORY_GUIDE.md`
-- Preuve d’implémentation : `aucune`
+- Preuve d’implémentation : `IAMRusty/domain/src/entity/provider.rs` (newtype + tests parse/serde) ; `IAMRusty/configuration/src/idp.rs` (`validate` completitude) ; `IAMRusty/setup/src/app.rs` (`setup_http_idp_clients` sans skip, test `huggingface`) ; `IAMRusty/http/src/handlers/auth.rs` (400/422) ; `IAMRusty/infra/src/repository/token.rs` + `token_read.rs` (plus de `unwrap_or(GitHub)`) ; IT `auth_oauth_start` / `auth_oauth_callback`

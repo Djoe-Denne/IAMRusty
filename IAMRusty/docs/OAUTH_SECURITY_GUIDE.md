@@ -27,7 +27,7 @@ The IAM service implements the OAuth2 Authorization Code flow with PKCE-like sec
 │ App     │                                              │   Service   │
 └─────────┘                                              └─────────────┘
      │                                                           │
-     │ 1. GET /api/auth/{provider}/start                        │
+     │ 1. GET /api/auth/{provider_name}/login                   │
      │ ────────────────────────────────────────────────────────▶│
      │                                                           │
      │ 2. 303 Redirect to Provider + encrypted state           │
@@ -65,14 +65,11 @@ The OAuth state parameter encodes operation context and security information:
 ```rust
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OAuthState {
-    /// Operation type
     pub operation: OAuthOperation,
-    /// Timestamp for expiration
-    pub timestamp: i64,
-    /// Random nonce for uniqueness
     pub nonce: String,
-    /// Optional user ID for linking operations
-    pub user_id: Option<Uuid>,
+    /// Canonical IdP slug bound at start (CSRF cross-provider check)
+    pub provider: String,
+    pub exp: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -92,53 +89,40 @@ pub enum OAuthOperation {
 
 ```rust
 impl OAuthState {
-    pub fn new_login() -> Self {
+    pub fn new_login(provider: impl Into<String>) -> Self {
         Self {
             operation: OAuthOperation::Login,
-            timestamp: chrono::Utc::now().timestamp(),
-            nonce: generate_secure_nonce(),
-            user_id: None,
+            nonce: uuid::Uuid::new_v4().to_string(),
+            provider: provider.into(),
+            exp: Utc::now().timestamp() + STATE_TTL_SECS,
         }
     }
-    
-    pub fn new_link(user_id: Uuid) -> Self {
+
+    pub fn new_link(user_id: Uuid, provider: impl Into<String>) -> Self {
         Self {
             operation: OAuthOperation::Link { user_id },
-            timestamp: chrono::Utc::now().timestamp(),
-            nonce: generate_secure_nonce(),
-            user_id: Some(user_id),
+            nonce: uuid::Uuid::new_v4().to_string(),
+            provider: provider.into(),
+            exp: Utc::now().timestamp() + STATE_TTL_SECS,
         }
     }
-    
-    pub fn encode(&self) -> Result<String, StateError> {
-        let json = serde_json::to_string(self)?;
-        let encoded = base64::encode_config(json.as_bytes(), base64::URL_SAFE);
-        Ok(encoded)
-    }
-    
-    pub fn decode(encoded: &str) -> Result<Self, StateError> {
-        let decoded = base64::decode_config(encoded, base64::URL_SAFE)?;
-        let json = String::from_utf8(decoded)?;
-        let state: OAuthState = serde_json::from_str(&json)?;
-        
-        // Validate timestamp (30 minute expiration)
-        let now = chrono::Utc::now().timestamp();
-        if now - state.timestamp > 1800 {
-            return Err(StateError::Expired);
-        }
-        
-        Ok(state)
-    }
+
+    // HMAC-signed encode stays (`payload.mac`). See `http/src/oauth_state.rs`.
+    // Connect S2S HMAC is ADR-0409 and is unchanged.
+    pub fn encode(&self) -> Result<String, StateError> { /* HMAC sign */ }
+
+    pub fn decode(encoded: &str) -> Result<Self, StateError> { /* HMAC verify, exp, replay */ }
 }
 ```
 
 ### State Security Features
 
 1. **Uniqueness**: Each state contains a cryptographically random nonce
-2. **Expiration**: States expire after 30 minutes
+2. **Expiration**: States expire after 600 seconds (`exp`)
 3. **Operation Binding**: State encodes the intended operation
 4. **User Binding**: Link operations include authenticated user ID
-5. **Tamper Detection**: Invalid states are rejected
+5. **Provider Binding**: Signed payload includes `provider`. Path slug ≠ `state.provider` → `400` `invalid_state`
+6. **Tamper Detection**: HMAC signature; unsigned or tampered states are rejected
 
 ## CSRF Protection
 
@@ -158,7 +142,7 @@ OAuth2 CSRF attacks occur when:
 ```rust
 pub async fn oauth_callback(
     State(state): State<AppState>,
-    Path(provider_name): Path<String>,
+    Path(provider_path): Path<ProviderPath>,
     Query(query): Query<OAuthCallbackQuery>,
 ) -> Result<Json<OAuthResponse>, AuthError> {
     // Validate state parameter presence
@@ -168,12 +152,19 @@ pub async fn oauth_callback(
     } else {
         return Err(AuthError::oauth_missing_state("callback"));
     };
-    
+
+    let provider = parse_provider_slug(&provider_path.provider_name, "callback")?;
+    // Path slug must match the slug bound in the signed payload.
+    if oauth_state.provider != provider.as_str() {
+        return Err(AuthError::oauth_invalid_state("callback"));
+    }
+
     // State validation includes:
-    // - Proper decoding (base64 + JSON)
-    // - Timestamp validation (expiration check)
+    // - HMAC signature (`oauth_state.rs`; Connect S2S HMAC is ADR-0409)
+    // - exp (TTL 600 s)
     // - Operation context verification
-    
+    // - Path slug == signed `provider`
+
     // Continue with operation based on validated state
     match oauth_state.operation {
         OAuthOperation::Login => handle_login_callback(...).await,
@@ -187,28 +178,20 @@ pub async fn oauth_callback(
 **Redirect URI Enforcement**:
 ```rust
 // Exact match validation in configuration
-let redirect_uri = match provider {
-    Provider::GitHub => &state.oauth_config.github.redirect_uri,
-    Provider::GitLab => &state.oauth_config.gitlab.redirect_uri,
-}.clone();
+let redirect_uri = idp
+    .redirect_uri(provider.as_str(), IdpRedirectFlow::Callback)
+    .ok_or_else(|| AuthError::oauth_connector_not_configured("login_start"))?
+    .to_string();
 
 // Provider validates redirect_uri matches registered value
 ```
 
 #### 3. Session Binding
 
-**Link Operations**:
+**Link Operations** (separate `GET /api/auth/{provider_name}/link`, not a login-start mode):
 ```rust
-// Link operations require authenticated session
-let oauth_state = if let Some(auth_header) = headers.get("Authorization") {
-    let token = extract_bearer_token(auth_header)?;
-    let user_id = validate_jwt_token(token).await?;
-    
-    // State includes authenticated user ID
-    OAuthState::new_link(user_id)
-} else {
-    OAuthState::new_login()
-};
+// Link requires an authenticated session; login uses OAuthState::new_login(provider)
+let oauth_state = OAuthState::new_link(user_id, provider);
 ```
 
 ## Token Security
@@ -290,30 +273,18 @@ pub async fn validate_token(&self, token: &str) -> Result<Uuid, UserError> {
 #### 1. Authentication Requirements
 
 ```rust
-pub async fn oauth_start(
+pub async fn oauth_login_start(
     State(state): State<AppState>,
-    Path(provider_name): Path<String>,
-    headers: HeaderMap,
+    Path(provider_path): Path<ProviderPath>,
 ) -> Result<Redirect, AuthError> {
-    let oauth_state = if let Some(auth_header) = headers.get("Authorization") {
-        // Link operation requires valid authentication
-        let token = extract_bearer_token(auth_header)
-            .map_err(|_| AuthError::oauth_invalid_authorization_header("start"))?;
-        
-        let user_id = state.user_usecase
-            .validate_token(token)
-            .await
-            .map_err(|_| AuthError::oauth_invalid_token("start"))?;
-        
-        OAuthState::new_link(user_id)
-    } else {
-        OAuthState::new_login()
-    };
-    
-    // State encodes operation and user context
+    // GET /api/auth/{provider_name}/login — operation `login_start`
+    let oauth_state = OAuthState::new_login(provider);
     let encoded_state = oauth_state.encode()
-        .map_err(|_| AuthError::oauth_state_encoding_failed("start"))?;
+        .map_err(|_| AuthError::oauth_state_encoding_failed("login_start"))?;
 }
+
+// Authenticated link is GET /api/auth/{provider_name}/link
+let link_state = OAuthState::new_link(user_id, provider);
 ```
 
 #### 2. Provider Conflict Detection
@@ -370,24 +341,10 @@ pub async fn link_provider(
 **Detection**:
 ```rust
 pub fn decode(encoded: &str) -> Result<Self, StateError> {
-    // Base64 decoding failure indicates tampering
-    let decoded = base64::decode_config(encoded, base64::URL_SAFE)
-        .map_err(|_| StateError::InvalidEncoding)?;
-    
-    // JSON parsing failure indicates tampering
-    let json = String::from_utf8(decoded)
-        .map_err(|_| StateError::InvalidFormat)?;
-    
-    let state: OAuthState = serde_json::from_str(&json)
-        .map_err(|_| StateError::InvalidFormat)?;
-    
-    // Timestamp validation prevents replay attacks
-    let now = chrono::Utc::now().timestamp();
-    if now - state.timestamp > 1800 {
-        return Err(StateError::Expired);
-    }
-    
-    Ok(state)
+    // HMAC verification (payload.mac); unsigned or bad MAC → invalid
+    // JSON parse of the signed payload; missing `provider` is invalid
+    // exp (TTL 600 s) + nonce replay
+    OAuthState::decode(encoded)
 }
 ```
 
@@ -472,8 +429,13 @@ if query.state.is_none() {
     return Err(AuthError::oauth_missing_state("callback"));
 }
 
-// Reject expired states
-if now - state.timestamp > STATE_EXPIRATION_SECONDS {
+// Reject expired states (`exp`, TTL 600 s)
+if state.exp < Utc::now().timestamp() {
+    return Err(AuthError::oauth_invalid_state("callback"));
+}
+
+// Path slug must match signed payload
+if oauth_state.provider != provider.as_str() {
     return Err(AuthError::oauth_invalid_state("callback"));
 }
 

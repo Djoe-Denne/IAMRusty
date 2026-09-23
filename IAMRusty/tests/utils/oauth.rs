@@ -9,15 +9,15 @@ pub struct OAuthTestUtils;
 
 impl OAuthTestUtils {
     /// Create a valid OAuth state for login operation
-    pub fn create_login_state() -> String {
-        OAuthState::new_login()
+    pub fn create_login_state(provider: impl Into<String>) -> String {
+        OAuthState::new_login(provider)
             .encode()
             .expect("signed login state")
     }
 
     /// Create a valid OAuth state for link operation
-    pub fn create_link_state(user_id: Uuid) -> String {
-        OAuthState::new_link(user_id)
+    pub fn create_link_state(user_id: Uuid, provider: impl Into<String>) -> String {
+        OAuthState::new_link(user_id, provider)
             .encode()
             .expect("signed link state")
     }

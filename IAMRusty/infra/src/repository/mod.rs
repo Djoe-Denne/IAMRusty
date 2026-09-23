@@ -12,6 +12,7 @@ pub mod email_verification_read;
 pub mod email_verification_write;
 pub mod password_reset_token_read;
 pub mod password_reset_token_write;
+mod provider_link_map;
 pub mod refresh_token_read;
 pub mod refresh_token_write;
 pub mod signup_transaction;

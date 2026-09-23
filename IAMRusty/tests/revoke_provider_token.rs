@@ -288,6 +288,15 @@ async fn test_revoke_provider_token_returns_422_when_provider_is_unsupported() {
             422,
             "Should return 422 for unsupported provider: '{provider}'"
         );
+
+        let error_response: Value = response
+            .json()
+            .await
+            .expect("Should return JSON error response");
+        assert_eq!(
+            error_response["error"]["error_code"], "connector_not_configured",
+            "Unregistered slug {provider} should be connector_not_configured"
+        );
     }
 }
 

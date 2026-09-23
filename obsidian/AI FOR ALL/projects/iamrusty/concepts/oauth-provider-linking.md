@@ -19,13 +19,13 @@ updated: 2026-09-22T12:49:00Z
 # OAuth Provider Linking
 
 > [!note] Catalogue providers
-> Open question « only GH/GL » : cible vivante [[projects/iamrusty/decisions/0407-contrat-federe]] / [[projects/iamrusty/decisions/0408-connecteurs-http]] (**Accepted**). Linking **reste IAM** ([[projects/iamrusty/decisions/0409-confiance-oauth]]).
+> Open question « only GH/GL » : cible vivante [[projects/iamrusty/decisions/0407-contrat-federe]] / [[projects/iamrusty/decisions/0408-connecteurs-http]] / [[projects/iamrusty/decisions/0411-slug-registry]] (**Accepted**). Linking **reste IAM** ([[projects/iamrusty/decisions/0409-confiance-oauth]]).
 
 `[[projects/iamrusty/iamrusty]]` treats external providers as attachable identities rather than separate users. A logged-in account can add GitHub or GitLab credentials to the same provider-agnostic user record, while provider tokens and secondary emails are stored explicitly for later reuse.
 
 ## Key Ideas
 
-- The HTTP layer separates unauthenticated OAuth login from authenticated linking, even though some docs still describe the behavior as two modes of the same `/start` endpoint. ^[ambiguous]
+- The HTTP layer separates unauthenticated OAuth **login** (`GET /api/auth/{provider_name}/login`) from authenticated **linking** (`GET /api/auth/{provider_name}/link`). Relink uses `/relink-start` and `/relink-callback`.
 - `OAuthState` marks whether the callback is handling login or link behavior, and link flows bind the pending operation to a specific authenticated user.
 - `ProviderLinkService` verifies the target user exists, blocks linking a provider that already belongs to the same or a different user, and persists the provider token set after success.
 - Provider emails are handled carefully: a new provider email becomes a secondary unverified email, while first-time link attempts fail if that email already belongs to another user.
@@ -34,7 +34,7 @@ updated: 2026-09-22T12:49:00Z
 
 ## Open Questions
 
-- The current source set only covers GitHub and GitLab as v1 route slugs; extra IdPs are new Connect services (ADR-0407–0410 **Implemented**), not more in-process IAM wiring.
+- GitHub and GitLab are the Implemented Connect services; extra IdPs are new Connect services plus a complete `[[idp.connectors]]` line (ADR-0407–0411), not enum variants or in-process IAM wiring.
 - The user-facing conflict-resolution experience is only partially documented, especially when provider profile data and existing account data disagree. ^[ambiguous]
 
 ## Sources

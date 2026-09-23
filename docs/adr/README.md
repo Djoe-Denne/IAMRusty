@@ -133,7 +133,7 @@ Wiki (pointeurs, pas canon) : `obsidian/AI FOR ALL/projects/iamrusty/decisions/`
 | [0408](0408-connecteurs-idp-services-http.md) | GitHub/GitLab Connect = services HTTP + crate contrat ; pas de factory in-process | Accepted | Implemented |
 | [0409](0409-confiance-callback-oauth-idp-connect.md) | Callback/CSRF/linking = IAM ; secrets vendor + appel OAuth = connecteur ; HMAC+HTTPS | Accepted | Implemented |
 | [0410](0410-migration-iam-connecteurs-idp.md) | Migration incrémentale ; routes `/api/auth/{provider}` conservées | Accepted | Implemented |
-| [0411](0411-idp-provider-slug-registry-fail-closed.md) | Provider = slug typé ; catalogue = registry au boot ; admission fail-closed ; pas de hot-load | Proposed | Unimplemented |
+| [0411](0411-idp-provider-slug-registry-fail-closed.md) | Provider = slug typé ; catalogue = registry au boot ; admission fail-closed ; pas de hot-load | Accepted | Implemented |
 
 ## Vague 4 — Cloud portable / cluster (0600+, hors Apparatus)
 

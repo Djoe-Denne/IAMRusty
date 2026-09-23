@@ -72,16 +72,16 @@ where
         let user = self.load_user(user_id).await?;
 
         // Step 2: Check for provider conflicts
-        self.check_provider_conflicts(user_id, provider, &provider_user_id)
+        self.check_provider_conflicts(user_id, &provider, &provider_user_id)
             .await?;
 
         // Step 3: Handle email from provider
         let (new_email_added, new_email) = self
-            .handle_provider_email(user_id, provider, provider_profile.email)
+            .handle_provider_email(user_id, &provider, provider_profile.email)
             .await?;
 
         // Step 4: Save provider tokens
-        self.save_provider_tokens(user_id, provider, provider_user_id, provider_tokens)
+        self.save_provider_tokens(user_id, &provider, provider_user_id, provider_tokens)
             .await?;
 
         // Step 5: Get all user emails for response
@@ -120,7 +120,7 @@ where
         // Step 2: Verify user already has this provider linked
         let existing_tokens = self
             .tokens
-            .get_provider_tokens(user_id, provider)
+            .get_provider_tokens(user_id, &provider)
             .await
             .map_err(|e| DomainError::RepositoryError(e.to_string()))?;
 
@@ -132,11 +132,11 @@ where
 
         // Step 3: Handle email from provider (don't enforce uniqueness for relink)
         let (new_email_added, new_email) = self
-            .handle_provider_email_for_relink(user_id, provider, provider_profile.email)
+            .handle_provider_email_for_relink(user_id, &provider, provider_profile.email)
             .await?;
 
         // Step 4: Save provider tokens (this will replace existing ones)
-        self.save_provider_tokens(user_id, provider, provider_user_id, provider_tokens)
+        self.save_provider_tokens(user_id, &provider, provider_user_id, provider_tokens)
             .await?;
 
         // Step 5: Get all user emails for response
@@ -169,7 +169,7 @@ where
     async fn check_provider_conflicts(
         &self,
         user_id: Uuid,
-        provider: Provider,
+        provider: &Provider,
         provider_user_id: &str,
     ) -> Result<(), DomainError>
     where
@@ -196,7 +196,7 @@ where
     async fn handle_provider_email(
         &self,
         user_id: Uuid,
-        provider: Provider,
+        provider: &Provider,
         email: Option<String>,
     ) -> Result<(bool, Option<String>), DomainError>
     where
@@ -242,7 +242,7 @@ where
     async fn handle_provider_email_for_relink(
         &self,
         user_id: Uuid,
-        provider: Provider,
+        provider: &Provider,
         email: Option<String>,
     ) -> Result<(bool, Option<String>), DomainError>
     where
@@ -287,7 +287,7 @@ where
     async fn save_provider_tokens(
         &self,
         user_id: Uuid,
-        provider: Provider,
+        provider: &Provider,
         provider_user_id: String,
         tokens: ProviderTokens,
     ) -> Result<(), DomainError>

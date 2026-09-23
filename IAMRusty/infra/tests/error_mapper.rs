@@ -9,6 +9,7 @@ fn iam_error_mapper_round_trips_domain_and_service_errors() {
     let domain_errors = [
         DomainError::UserNotFound,
         DomainError::ProviderNotSupported("github".into()),
+        DomainError::ConnectorNotConfigured("github".into()),
         DomainError::BusinessRuleViolation("rule".into()),
         DomainError::InvalidToken,
         DomainError::TokenExpired,

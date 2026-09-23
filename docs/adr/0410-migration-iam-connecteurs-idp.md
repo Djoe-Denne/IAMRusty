@@ -74,6 +74,7 @@ Idem `GitLabConnect/`, ports 8086/8447, fixtures GitLab. Même feature `server` 
 **S5 — Retrait in-process IAM**  
 - Supprimer `OAuthProviderFactory<GH, GL>`, `infra/src/auth/github.rs` + `gitlab.rs`, `OAuthConfig.github/gitlab`.  
 - `setup/src/app.rs` : uniquement adapters HTTP + `register_provider_client`.  
+  Post-0411 : la map est injectée à `OAuthService::new` (plus de `register_provider_client`).  
 - Retirer `idp.mode=in_process`.  
 - Mettre à jour `IAMRusty/docs/PROVIDER_FACTORY_GUIDE.md` (cible = nouveau connecteur, pas l’enum IAM).  
 - Fiches `docs/services/github-connect.md`, `gitlab-connect.md`.

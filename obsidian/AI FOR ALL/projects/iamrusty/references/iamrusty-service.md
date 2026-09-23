@@ -31,11 +31,10 @@ This page is the IAMRusty-specific companion to `[[projects/rustycog/references/
 
 - The service is split across domain, application, infrastructure, HTTP, configuration, setup, and migration crates, but its composition root is specialized around auth, token, provider, and queue-backed event services rather than generic CRUD flows.
 - `setup/src/app.rs` is the key runtime assembly point, creating database pools, combined repositories, JWT and registration-token services, password adapters, queue-backed event publishing, use cases, and the final `GenericCommandService`.
-- The HTTP route table includes public signup, login, verification, resend-verification, registration completion, password reset, OAuth login, callback, token refresh, and JWKS endpoints, plus authenticated profile, provider-token, link, relink, and authenticated reset behavior.
+- The HTTP route table includes public signup, login, verification, resend-verification, registration completion, password reset, OAuth **login** (`/api/auth/{provider_name}/login`), callback, token refresh, and JWKS endpoints, plus authenticated profile, provider-token, **link**, **relink**, and authenticated reset behavior.
 - The runtime builds separate OAuth and token-repository instances for login, provider linking, and internal provider-token operations, which keeps those flows isolated while still sharing domain abstractions.
 - Event publishing is part of the service composition, not an afterthought: `create_multi_queue_event_publisher` is wired into auth, registration, and password-reset flows through `IAMErrorMapper`.
 - IAMRusty separates event concerns cleanly: `iam-events` defines domain-event contracts, while `[[projects/rustycog/references/rustycog-events]]` provides transport adapters and publisher runtime behavior.
-- The high-level docs and the current route table do not match perfectly; some documentation still describes `/start`-style endpoints and older callback assumptions that differ from the live `http/src/lib.rs` surface. ^[ambiguous]
 
 ## Open Questions
 

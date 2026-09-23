@@ -1,5 +1,8 @@
 //! Federated IdP connector registry (`[idp]`).
 
+use std::str::FromStr;
+
+use iam_domain::entity::provider::Provider;
 use serde::{Deserialize, Deserializer, Serialize};
 
 /// Minimum HMAC secret length (bytes after trim). Same fail-closed rule as `HttpIdpConnector`.
@@ -100,19 +103,27 @@ impl IdpConfig {
         Ok(())
     }
 
-    /// Fail closed unless the registry has connectors and every HMAC secret is ≥16 bytes.
-    ///
-    /// Unknown slugs are allowed here; setup still fails if no known provider is wired.
+    /// Fail closed unless every registry line is complete and charset-ok.
     ///
     /// # Errors
     ///
-    /// Returns a message when connectors are empty, ids collide, or a secret is too short.
+    /// Returns a message when the registry is empty, an `id` is illegal or duplicated,
+    /// `base_url` is empty, HMAC is shorter than 16 bytes after trim, or `redirect_uris`
+    /// do not resolve both Callback and Relink.
     pub fn validate(&self) -> Result<(), String> {
         if self.connectors.is_empty() {
             return Err("idp.connectors must not be empty".to_string());
         }
         self.ensure_unique_connector_ids()?;
         for connector in &self.connectors {
+            Provider::from_str(&connector.id)
+                .map_err(|_| format!("illegal IdP connector id: {}", connector.id))?;
+            if connector.base_url.trim().is_empty() {
+                return Err(format!(
+                    "base_url for IdP connector {} must not be empty",
+                    connector.id
+                ));
+            }
             let trimmed = connector.hmac_secret.trim();
             if trimmed.is_empty() {
                 return Err(format!(
@@ -123,6 +134,18 @@ impl IdpConfig {
             if trimmed.len() < MIN_HMAC_SECRET_LEN {
                 return Err(format!(
                     "hmac_secret for IdP connector {} must be at least {MIN_HMAC_SECRET_LEN} bytes",
+                    connector.id
+                ));
+            }
+            if connector.redirect_uri(IdpRedirectFlow::Callback).is_none() {
+                return Err(format!(
+                    "redirect_uris for IdP connector {} must include a callback URI",
+                    connector.id
+                ));
+            }
+            if connector.redirect_uri(IdpRedirectFlow::Relink).is_none() {
+                return Err(format!(
+                    "redirect_uris for IdP connector {} must include a relink-callback URI",
                     connector.id
                 ));
             }
@@ -303,5 +326,40 @@ mod tests {
             connectors: vec![connector("github", "sixteen-bytes-ok")],
         };
         config.validate().expect("16-byte hmac");
+    }
+
+    #[test]
+    fn validate_rejects_partial_redirect_uris() {
+        let mut only_callback = connector("github", "sixteen-bytes-ok");
+        only_callback.redirect_uris =
+            vec!["http://127.0.0.1:8081/iam/api/auth/github/callback".to_string()];
+        let err = IdpConfig {
+            connectors: vec![only_callback],
+        }
+        .validate()
+        .expect_err("partial redirect_uris");
+        assert!(err.contains("relink-callback"));
+    }
+
+    #[test]
+    fn validate_rejects_empty_base_url() {
+        let mut empty_base = connector("github", "sixteen-bytes-ok");
+        empty_base.base_url = "   ".to_string();
+        let err = IdpConfig {
+            connectors: vec![empty_base],
+        }
+        .validate()
+        .expect_err("empty base_url");
+        assert!(err.contains("base_url"));
+    }
+
+    #[test]
+    fn validate_rejects_illegal_id() {
+        let err = IdpConfig {
+            connectors: vec![connector("hugging-face", "sixteen-bytes-ok")],
+        }
+        .validate()
+        .expect_err("illegal id");
+        assert!(err.contains("illegal IdP connector id"));
     }
 }

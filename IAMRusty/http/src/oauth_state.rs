@@ -52,6 +52,8 @@ pub struct OAuthState {
     pub operation: OAuthOperation,
     /// Random nonce for security
     pub nonce: String,
+    /// Canonical IdP slug bound at start (CSRF cross-provider check)
+    pub provider: String,
     /// Unix expiry timestamp
     #[serde(default)]
     pub exp: i64,
@@ -86,22 +88,24 @@ pub enum StateError {
 }
 
 impl OAuthState {
-    /// Create a new login state
+    /// Create a new login state for `provider` (canonical slug).
     #[must_use]
-    pub fn new_login() -> Self {
+    pub fn new_login(provider: impl Into<String>) -> Self {
         Self {
             operation: OAuthOperation::Login,
             nonce: uuid::Uuid::new_v4().to_string(),
+            provider: provider.into(),
             exp: Utc::now().timestamp() + STATE_TTL_SECS,
         }
     }
 
-    /// Create a new link provider state
+    /// Create a new link provider state for `provider` (canonical slug).
     #[must_use]
-    pub fn new_link(user_id: Uuid) -> Self {
+    pub fn new_link(user_id: Uuid, provider: impl Into<String>) -> Self {
         Self {
             operation: OAuthOperation::Link { user_id },
             nonce: uuid::Uuid::new_v4().to_string(),
+            provider: provider.into(),
             exp: Utc::now().timestamp() + STATE_TTL_SECS,
         }
     }
@@ -200,19 +204,20 @@ mod tests {
 
     #[test]
     fn test_login_state_roundtrip() {
-        let state = OAuthState::new_login();
+        let state = OAuthState::new_login("github");
         let encoded = state.encode().unwrap();
         let decoded = OAuthState::decode(&encoded).unwrap();
 
         assert!(decoded.is_login());
         assert_eq!(decoded.operation, state.operation);
         assert_eq!(decoded.nonce, state.nonce);
+        assert_eq!(decoded.provider, "github");
     }
 
     #[test]
     fn test_link_state_roundtrip() {
         let user_id = Uuid::new_v4();
-        let state = OAuthState::new_link(user_id);
+        let state = OAuthState::new_link(user_id, "gitlab");
         let encoded = state.encode().unwrap();
         let decoded = OAuthState::decode(&encoded).unwrap();
 
@@ -220,6 +225,7 @@ mod tests {
         assert_eq!(decoded.get_link_user_id(), Some(user_id));
         assert_eq!(decoded.operation, state.operation);
         assert_eq!(decoded.nonce, state.nonce);
+        assert_eq!(decoded.provider, "gitlab");
     }
 
     #[test]
@@ -237,12 +243,26 @@ mod tests {
 
     #[test]
     fn replayed_state_is_rejected() {
-        let state = OAuthState::new_login();
+        let state = OAuthState::new_login("github");
         let encoded = state.encode().unwrap();
         assert!(OAuthState::decode(&encoded).is_ok());
         assert!(matches!(
             OAuthState::decode(&encoded),
             Err(StateError::Replay)
         ));
+    }
+
+    #[test]
+    fn decode_rejects_missing_provider_field() {
+        let json = serde_json::json!({
+            "operation": { "type": "login" },
+            "nonce": Uuid::new_v4().to_string(),
+            "exp": Utc::now().timestamp() + 60
+        })
+        .to_string();
+        let payload = general_purpose::URL_SAFE_NO_PAD.encode(json.as_bytes());
+        let mac = sign(&payload).unwrap();
+        let encoded = format!("{payload}.{mac}");
+        assert!(OAuthState::decode(&encoded).is_err());
     }
 }

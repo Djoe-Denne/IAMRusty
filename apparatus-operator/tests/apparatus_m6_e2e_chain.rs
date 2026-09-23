@@ -5,20 +5,20 @@
 //! invoke / sonde Kind T11 est sauté ou remplacé par un mock du hop.
 
 use std::fs;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 use apparatus_operator::admission::{
-    AdmissionStatus, AdmissionStore, PersistentAdmissionStore, would_schedule,
+    would_schedule, AdmissionStatus, AdmissionStore, PersistentAdmissionStore,
 };
-use apparatus_operator::admit::{ENVELOPE_ARTIFACT_TYPE, push_and_sign_envelope};
+use apparatus_operator::admit::{push_and_sign_envelope, ENVELOPE_ARTIFACT_TYPE};
 use apparatus_operator::controller::{
-    BINDING_LABEL, IsolationLabels, PLUGIN_INVOKE_PORT, PLUGINS_NAMESPACE, PROJECT_LABEL,
-    ReconcileOutcome, SYSTEM_NAMESPACE, WorkloadReconciler, cr_name_for, pod_name_for,
+    cr_name_for, pod_name_for, IsolationLabels, ReconcileOutcome, WorkloadReconciler,
+    BINDING_LABEL, PLUGINS_NAMESPACE, PLUGIN_INVOKE_PORT, PROJECT_LABEL, SYSTEM_NAMESPACE,
 };
 use apparatus_operator::desired_state::{
-    DesiredStateSource, HttpComponentsClient, ReadyBinding, reconcile_ready,
+    reconcile_ready, DesiredStateSource, HttpComponentsClient, ReadyBinding,
 };
 use lazaret_application::{
     EnrollCommand, GrantService, IdentityService, InvokeService, PluginEndpointLocator,
@@ -34,11 +34,11 @@ use serial_test::serial;
 use uuid::Uuid;
 
 use chain::{
-    CANARY_LABEL, CANARY_URL, CRI_BUILD_TAG, CRI_IMAGE_NAME, CountingLocator, MemoryPort, NoopKv,
-    PortForward, TempStorePath, active_component_json, admit_target, app_state,
-    assert_descriptor_shape, catalog_envelope, cri_hex, descriptor_from_disk,
-    docker_build_reference_kv_http, invoke_body, passing_input, snapshot, spawn_manifesto_stub,
-    wait_tcp, wget_blocked_signal, wget_reached_target, workload_csr,
+    active_component_json, admit_target, app_state, assert_descriptor_shape, catalog_envelope,
+    cri_hex, descriptor_from_disk, docker_build_reference_kv_http, invoke_body, passing_input,
+    snapshot, spawn_manifesto_stub, wait_tcp, wget_blocked_signal, wget_reached_target,
+    workload_csr, CountingLocator, MemoryPort, NoopKv, PortForward, TempStorePath, CANARY_LABEL,
+    CANARY_URL, CRI_BUILD_TAG, CRI_IMAGE_NAME,
 };
 
 #[allow(dead_code)]

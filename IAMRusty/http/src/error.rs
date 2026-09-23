@@ -299,6 +299,11 @@ fn map_domain_error(domain_error: DomainError) -> (StatusCode, String, String) {
             "provider_not_supported".into(),
             msg,
         ),
+        DomainError::ConnectorNotConfigured(provider) => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "connector_not_configured".into(),
+            format!("IdP connector is not configured for this provider: {provider}"),
+        ),
         DomainError::BusinessRuleViolation(msg) => (
             StatusCode::BAD_REQUEST,
             "business_rule_violation".into(),
@@ -609,6 +614,9 @@ impl AuthError {
                 message: "Authentication failed".to_string(),
                 status: StatusCode::UNAUTHORIZED,
             },
+            CommandError::Validation { code, .. } if code == "connector_not_configured" => {
+                Self::oauth_connector_not_configured(operation)
+            }
             CommandError::Validation { code, message } => Self::OAuth {
                 operation: operation.to_string(),
                 error_code: code.clone(),
@@ -694,6 +702,9 @@ impl AuthError {
                 message: "User not found".to_string(),
                 status: StatusCode::NOT_FOUND,
             },
+            CommandError::Validation { code, .. } if code == "connector_not_configured" => {
+                Self::oauth_connector_not_configured(operation)
+            }
             CommandError::Validation { code, message } => Self::OAuth {
                 operation: operation.to_string(),
                 error_code: code.clone(),
@@ -741,6 +752,9 @@ impl AuthError {
     #[must_use]
     pub fn oauth_start_failed(command_error: &CommandError, provider: &str) -> Self {
         match command_error {
+            CommandError::Validation { code, .. } if code == "connector_not_configured" => {
+                Self::oauth_connector_not_configured("oauth_start")
+            }
             CommandError::Validation { code, message } => Self::OAuth {
                 operation: "oauth_start".to_string(),
                 error_code: code.clone(),
@@ -803,6 +817,9 @@ impl AuthError {
                 message: "User not found".to_string(),
                 status: StatusCode::NOT_FOUND,
             },
+            CommandError::Validation { code, .. } if code == "connector_not_configured" => {
+                Self::oauth_connector_not_configured("link_provider")
+            }
             CommandError::Validation { code, message } => Self::OAuth {
                 operation: "link_provider".to_string(),
                 error_code: code.clone(),
@@ -960,6 +977,9 @@ impl AuthError {
                     message: format!("Unsupported provider: {provider}"),
                     status: StatusCode::UNPROCESSABLE_ENTITY,
                 }
+            }
+            CommandError::Validation { code, .. } if code == "connector_not_configured" => {
+                Self::oauth_connector_not_configured("internal_token")
             }
             CommandError::Business { code, .. } if code == "no_token_for_provider" => Self::OAuth {
                 operation: "internal_token".to_string(),

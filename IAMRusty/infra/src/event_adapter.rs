@@ -22,6 +22,9 @@ impl ErrorMapper<DomainError> for IAMErrorMapper {
             DomainError::ProviderNotSupported(provider) => {
                 ServiceError::validation(format!("Provider not supported: {provider}"))
             }
+            DomainError::ConnectorNotConfigured(provider) => {
+                ServiceError::validation(format!("IdP connector not configured: {provider}"))
+            }
             DomainError::BusinessRuleViolation(message) => ServiceError::business(message),
             DomainError::InvalidToken => ServiceError::authentication("Invalid token"),
             DomainError::TokenExpired => ServiceError::authentication("Token expired"),

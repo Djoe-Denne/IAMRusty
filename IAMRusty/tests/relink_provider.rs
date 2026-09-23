@@ -155,6 +155,15 @@ async fn test_generate_relink_provider_start_url_unsupported_provider() {
             422,
             "Should return 422 for unsupported provider: '{provider}'"
         );
+
+        let error_response: Value = response
+            .json()
+            .await
+            .expect("Should return JSON error response");
+        assert_eq!(
+            error_response["error"]["error_code"], "connector_not_configured",
+            "Unregistered slug {provider} should be connector_not_configured"
+        );
     }
 }
 
@@ -339,12 +348,21 @@ async fn test_relink_provider_callback_returns_422_when_provider_is_unsupported(
             422,
             "Should return 422 for unsupported provider: '{provider}'"
         );
+
+        let error_response: Value = response
+            .json()
+            .await
+            .expect("Should return JSON error response");
+        assert_eq!(
+            error_response["error"]["error_code"], "connector_not_configured",
+            "Unregistered slug {provider} should be connector_not_configured"
+        );
     }
 }
 
 #[tokio::test]
 #[serial]
-async fn test_relink_provider_callback_returns_422_when_missing_code_parameter() {
+async fn test_relink_provider_callback_returns_400_missing_code() {
     // Setup test environment
     let (_fixture, base_url, client) = setup_test_server()
         .await
@@ -372,6 +390,23 @@ async fn test_relink_provider_callback_returns_422_when_missing_code_parameter()
         400,
         "Should return 400 for missing code parameter"
     );
+
+    let error_response: Value = response
+        .json()
+        .await
+        .expect("Should return JSON error response");
+    assert_eq!(error_response["error"]["error_code"], "missing_code");
+
+    let empty_code = client
+        .get(format!("{base_url}/api/auth/github/relink-callback"))
+        .header("Authorization", format!("Bearer {jwt_token}"))
+        .query(&[("code", "")])
+        .send()
+        .await
+        .expect("Failed to send empty-code request");
+    assert_eq!(empty_code.status(), 400);
+    let empty_body: Value = empty_code.json().await.expect("json");
+    assert_eq!(empty_body["error"]["error_code"], "missing_code");
 }
 
 #[tokio::test]

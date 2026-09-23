@@ -17,13 +17,13 @@ pub enum FactoryError {
 
 /// Factory wrapping one federated client per provider slug.
 pub struct OAuthProviderFactory {
-    clients: HashMap<Provider, Arc<dyn FederatedOAuthClient>>,
+    clients: Arc<HashMap<Provider, Arc<dyn FederatedOAuthClient>>>,
 }
 
 impl OAuthProviderFactory {
     /// Create a factory from a per-slug client map.
     #[must_use]
-    pub fn new(clients: HashMap<Provider, Arc<dyn FederatedOAuthClient>>) -> Self {
+    pub const fn new(clients: Arc<HashMap<Provider, Arc<dyn FederatedOAuthClient>>>) -> Self {
         Self { clients }
     }
 
@@ -32,9 +32,9 @@ impl OAuthProviderFactory {
     /// # Errors
     ///
     /// Returns [`FactoryError::UnsupportedProvider`] when the slug has no registered client.
-    pub fn get(&self, provider: Provider) -> Result<Arc<dyn FederatedOAuthClient>, FactoryError> {
+    pub fn get(&self, provider: &Provider) -> Result<Arc<dyn FederatedOAuthClient>, FactoryError> {
         self.clients
-            .get(&provider)
+            .get(provider)
             .cloned()
             .ok_or_else(|| FactoryError::UnsupportedProvider(provider.as_str().to_string()))
     }

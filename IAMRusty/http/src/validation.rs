@@ -17,9 +17,6 @@ fn compile_regex(pattern: &'static str) -> Regex {
     Regex::new(pattern).expect("static validation regex is valid")
 }
 
-/// Regex for validating provider names (letters only, case-insensitive)
-pub static PROVIDER_REGEX: LazyLock<Regex> = LazyLock::new(|| compile_regex(r"^[a-zA-Z]+$"));
-
 /// Regex for validating JWT tokens (base64url format)
 pub static JWT_TOKEN_REGEX: LazyLock<Regex> =
     LazyLock::new(|| compile_regex(r"^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$"));
@@ -90,30 +87,6 @@ const COMMON_WEAK_PASSWORDS: &[&str] = &[
     "mustang",
     "1234567890",
 ];
-
-/// Custom validation function for provider names.
-///
-/// # Errors
-///
-/// Returns a [`ValidationError`] with code `invalid_provider` when the name is not
-/// `github` or `gitlab` (comparison is case-insensitive).
-pub fn validate_provider_name(provider: &str) -> Result<(), ValidationError> {
-    debug!("Validating provider name: '{provider}'");
-
-    let valid_providers = ["github", "gitlab"];
-    let lowercase_provider = provider.to_lowercase();
-
-    debug!("Lowercase provider: '{lowercase_provider}'");
-    debug!("Valid providers: {valid_providers:?}");
-
-    if !valid_providers.contains(&lowercase_provider.as_str()) {
-        warn!("Invalid provider name '{provider}' (lowercase: '{lowercase_provider}')");
-        return Err(ValidationError::new("invalid_provider"));
-    }
-
-    debug!("Provider name '{provider}' is valid");
-    Ok(())
-}
 
 /// Custom validation function for non-empty strings.
 ///
@@ -410,36 +383,9 @@ pub fn validate_refresh_token(token: &str) -> Result<(), ValidationError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::handlers::auth::{OAuthCallbackQuery, ProviderPath};
+    use crate::handlers::auth::OAuthCallbackQuery;
     use crate::handlers::token::RefreshTokenRequest;
     use validator::Validate;
-
-    #[test]
-    fn test_provider_validation() {
-        // Valid provider
-        let valid_provider = ProviderPath {
-            provider_name: "github".to_string(),
-        };
-        assert!(valid_provider.validate().is_ok());
-
-        // Invalid provider
-        let invalid_provider = ProviderPath {
-            provider_name: "invalid".to_string(),
-        };
-        assert!(invalid_provider.validate().is_err());
-
-        // Empty provider
-        let empty_provider = ProviderPath {
-            provider_name: String::new(),
-        };
-        assert!(empty_provider.validate().is_err());
-
-        // Provider with uppercase letters
-        let uppercase_provider = ProviderPath {
-            provider_name: "GitHub".to_string(),
-        };
-        assert!(uppercase_provider.validate().is_ok());
-    }
 
     #[test]
     fn test_oauth_callback_query_validation() {
@@ -500,12 +446,6 @@ mod tests {
 
     #[test]
     fn test_custom_validation_functions() {
-        // Test provider validation
-        assert!(validate_provider_name("github").is_ok());
-        assert!(validate_provider_name("gitlab").is_ok());
-        assert!(validate_provider_name("invalid").is_err());
-        assert!(validate_provider_name("").is_err());
-
         // Test refresh token validation
         assert!(validate_refresh_token("valid_token_123").is_ok());
         assert!(validate_refresh_token("short").is_err());

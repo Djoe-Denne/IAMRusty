@@ -105,7 +105,7 @@ where
 {
     /// Create a new `LinkProviderUseCaseImpl`
     pub fn new(
-        clients: HashMap<Provider, Arc<dyn FederatedOAuthClient>>,
+        clients: Arc<HashMap<Provider, Arc<dyn FederatedOAuthClient>>>,
         provider_link_service: Arc<ProviderLinkService<UR, UER, TR>>,
     ) -> Self {
         Self {
@@ -122,7 +122,7 @@ where
     ) -> Result<String, LinkProviderError> {
         let client = self
             .auth_factory
-            .get(provider)
+            .get(&provider)
             .map_err(|_| LinkProviderError::ProviderNotConfigured(provider.as_str().to_string()))?;
         let response = client
             .authorize(&redirect_uri, &state)
@@ -134,7 +134,7 @@ where
     /// Exchange authorization code for tokens and user profile
     async fn fetch_provider_profile(
         &self,
-        provider: Provider,
+        provider: &Provider,
         code: String,
         redirect_uri: String,
     ) -> Result<
@@ -201,7 +201,7 @@ where
         redirect_uri: String,
     ) -> Result<LinkProviderResponse, LinkProviderError> {
         let (tokens, profile) = self
-            .fetch_provider_profile(provider, code, redirect_uri)
+            .fetch_provider_profile(&provider, code, redirect_uri)
             .await?;
 
         let result = self
@@ -225,7 +225,7 @@ where
         redirect_uri: String,
     ) -> Result<LinkProviderResponse, LinkProviderError> {
         let (tokens, profile) = self
-            .fetch_provider_profile(provider, code, redirect_uri)
+            .fetch_provider_profile(&provider, code, redirect_uri)
             .await?;
 
         let result = self

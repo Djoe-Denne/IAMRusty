@@ -174,7 +174,12 @@ fn command_failure_helpers_cover_oauth_and_auth_branches() {
     let already_same = CommandError::business("provider_already_linked_same_user", "dup");
     let already_other = CommandError::business("provider_already_linked", "dup");
 
+    let connector = CommandError::validation("connector_not_configured", "missing client");
     let _ = AuthError::oauth_login_failed("login", &auth_failed);
+    let _ = AuthError::oauth_login_failed("login", &connector);
+    let _ = AuthError::oauth_link_failed("link", &connector, "github");
+    let _ = AuthError::oauth_start_failed(&connector, "github");
+    let _ = AuthError::link_provider_failed(&connector, "github");
     let _ = AuthError::oauth_login_failed("login", &validation);
     let _ = AuthError::oauth_login_failed("login", &provider_error);
     let _ = AuthError::oauth_login_failed("login", &retry);
@@ -217,6 +222,7 @@ fn api_error_maps_domain_command_user_and_token_errors() {
     let domain_errors = [
         DomainError::UserNotFound,
         DomainError::ProviderNotSupported("x".into()),
+        DomainError::ConnectorNotConfigured("github".into()),
         DomainError::BusinessRuleViolation("x".into()),
         DomainError::InvalidToken,
         DomainError::TokenExpired,
@@ -284,4 +290,27 @@ fn api_error_maps_domain_command_user_and_token_errors() {
         status_of_api(ApiError::InternalServerError("x".into())),
         StatusCode::INTERNAL_SERVER_ERROR
     );
+}
+
+#[test]
+fn connector_not_configured_maps_to_422() {
+    assert_eq!(
+        status_of_api(ApiError::Domain(DomainError::ConnectorNotConfigured(
+            "github".into()
+        ))),
+        StatusCode::UNPROCESSABLE_ENTITY
+    );
+    let err = AuthError::oauth_login_failed(
+        "login",
+        &CommandError::validation("connector_not_configured", "missing client"),
+    );
+    match err {
+        AuthError::OAuth {
+            error_code, status, ..
+        } => {
+            assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+            assert_eq!(error_code, "connector_not_configured");
+        }
+        other => panic!("expected OAuth variant, got {other:?}"),
+    }
 }

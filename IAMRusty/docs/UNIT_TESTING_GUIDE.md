@@ -91,20 +91,24 @@ Our unit tests focus on the domain layer services:
 Services use dependency injection for testability:
 
 ```rust
-pub struct AuthService<U, T> 
+pub struct OAuthService<U, T, UE>
 where
     U: UserRepository,
     T: TokenRepository,
+    UE: UserEmailRepository,
 {
     user_repository: U,
     token_repository: T,
+    user_email_repository: UE,
     token_service: TokenService,
-    provider_clients: HashMap<Provider, Arc<dyn FederatedOAuthClient>>,
+    provider_clients: Arc<HashMap<Provider, Arc<dyn FederatedOAuthClient>>>,
 }
 ```
 
+The IdP catalogue is injected at `OAuthService::new(..., provider_clients)`. There is no `register_provider_client`.
+
 This design enables:
-- **Mock Injection**: Replace real repositories with mocks
+- **Mock Injection**: Replace real repositories with mocks; inject an `Arc<HashMap<Provider, _>>` at construction
 - **Isolated Testing**: Test business logic without database
 - **Fast Execution**: No I/O operations during testing
 
@@ -178,21 +182,29 @@ async fn success_with_existing_user(
 
 ```rust
 #[rstest]
-#[case("github", Provider::GitHub)]
-#[case("gitlab", Provider::GitLab)]
-#[test]
-fn success_with_valid_provider(#[case] provider_str: &str, #[case] provider: Provider) {
-    // Test runs for each case
-    let mut auth_service = auth_service();
+#[case("github", Provider::parse_slug("github").unwrap())]
+#[case("gitlab", Provider::parse_slug("gitlab").unwrap())]
+#[tokio::test]
+async fn success_with_valid_provider(#[case] _provider_str: &str, #[case] provider: Provider) {
     let mut mock_client = MockOAuth2Client::new();
-    
+
     mock_client
         .expect_generate_authorize_url()
         .times(1)
         .returning(|| "https://github.com/login/oauth/authorize?client_id=test".to_string());
 
-    auth_service.register_provider_client(provider, Box::new(mock_client));
-    let result = auth_service.generate_authorize_url(provider_str);
+    let mut clients: HashMap<Provider, Arc<dyn FederatedOAuthClient>> = HashMap::new();
+    clients.insert(provider.clone(), Arc::new(mock_client));
+    let auth_service = OAuthService::new(
+        user_repo,
+        token_repo,
+        user_email_repo,
+        token_service,
+        Arc::new(clients),
+    );
+    let result = auth_service
+        .generate_authorize_url(&provider, "http://localhost/cb", "state")
+        .await;
 
     assert_ok!(&result);
 }
@@ -203,9 +215,8 @@ fn success_with_valid_provider(#[case] provider_str: &str, #[case] provider: Pro
 ```rust
 #[tokio::test]
 async fn error_when_profile_missing_email(sample_provider_tokens: ProviderTokens) {
-    let mut auth_service = auth_service();
-    let provider = Provider::GitHub;
-    
+    let provider = Provider::parse_slug("github").expect("slug");
+
     // Create invalid scenario
     let mut profile_without_email = sample_provider_profile();
     profile_without_email.email = None;
@@ -216,16 +227,26 @@ async fn error_when_profile_missing_email(sample_provider_tokens: ProviderTokens
         .expect_exchange_code()
         .times(1)
         .returning(move |_| Ok(sample_provider_tokens.clone()));
-    
+
     mock_client
         .expect_get_user_profile()
         .times(1)
         .returning(move |_| Ok(profile_without_email.clone()));
 
-    auth_service.register_provider_client(provider, Box::new(mock_client));
+    let mut clients: HashMap<Provider, Arc<dyn FederatedOAuthClient>> = HashMap::new();
+    clients.insert(provider.clone(), Arc::new(mock_client));
+    let auth_service = OAuthService::new(
+        user_repo,
+        token_repo,
+        user_email_repo,
+        token_service,
+        Arc::new(clients),
+    );
 
     // Test error scenario
-    let result = auth_service.process_callback("github", "auth_code").await;
+    let result = auth_service
+        .process_callback(&provider, "auth_code", "http://localhost/cb")
+        .await;
 
     assert_err!(&result);
     match result.unwrap_err() {
@@ -234,6 +255,30 @@ async fn error_when_profile_missing_email(sample_provider_tokens: ProviderTokens
         }
         _ => panic!("Expected UserProfileError"),
     }
+}
+```
+
+Empty catalogue at construction (no `register_provider_client`):
+
+```rust
+#[tokio::test]
+async fn empty_client_map_returns_connector_not_configured() {
+    let service = OAuthService::new(
+        StubUser,
+        StubTokens,
+        StubEmails,
+        TokenService::new(Arc::new(StubEncoder), Duration::hours(1)),
+        Arc::new(HashMap::new()),
+    );
+    let provider = Provider::parse_slug("github").expect("github slug");
+    let err = service
+        .generate_authorize_url(&provider, "http://localhost/cb", "state")
+        .await
+        .expect_err("empty catalogue");
+    assert!(
+        matches!(err, DomainError::ConnectorNotConfigured(ref slug) if slug == "github"),
+        "unexpected error: {err:?}"
+    );
 }
 ```
 
@@ -253,33 +298,27 @@ mod tests {
         
         #[test]
         fn new_creates_auth_service_with_empty_provider_clients() { /* */ }
-        
-        #[test] 
-        fn register_provider_client_adds_client_to_map() { /* */ }
+
+        #[tokio::test]
+        async fn empty_client_map_returns_connector_not_configured() { /* */ }
     }
 
     mod generate_authorize_url {
         use super::*;
-        
+
         #[rstest]
-        #[case("github", Provider::GitHub)]
-        #[case("gitlab", Provider::GitLab)]
-        #[test]
-        fn success_with_valid_provider(/* */) { /* */ }
-        
-        #[test]
-        fn error_with_unsupported_provider() { /* */ }
+        #[case("github", Provider::parse_slug("github").unwrap())]
+        #[case("gitlab", Provider::parse_slug("gitlab").unwrap())]
+        #[tokio::test]
+        async fn success_with_valid_provider(/* */) { /* */ }
     }
 
     mod process_callback {
         use super::*;
-        
+
         #[rstest]
         #[tokio::test]
         async fn success_with_existing_user(/* */) { /* */ }
-        
-        #[tokio::test]
-        async fn error_with_unsupported_provider() { /* */ }
     }
 }
 ```

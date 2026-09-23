@@ -27,7 +27,7 @@ impl TokenRepositoryImpl {
     /// Convert domain `ProviderTokens` to a database model
     fn to_model(
         user_id: Uuid,
-        provider: Provider,
+        provider: &Provider,
         provider_user_id: String,
         tokens: &ProviderTokens,
     ) -> provider_tokens::ActiveModel {
@@ -52,16 +52,6 @@ impl TokenRepositoryImpl {
             expires_in: model.expires_in.and_then(|e| u64::try_from(e).ok()),
         }
     }
-
-    /// Convert a database model to domain `ProviderLink`
-    fn to_provider_link(model: provider_tokens::Model) -> ProviderLink {
-        ProviderLink {
-            user_id: model.user_id,
-            provider: Provider::from_str(&model.provider).unwrap_or(Provider::GitHub),
-            provider_user_id: model.provider_user_id,
-            linked_at: chrono::DateTime::<Utc>::from_naive_utc_and_offset(model.created_at, Utc),
-        }
-    }
 }
 
 #[async_trait]
@@ -71,7 +61,7 @@ impl TokenReadRepository for TokenRepositoryImpl {
     async fn get_provider_tokens(
         &self,
         user_id: Uuid,
-        provider: Provider,
+        provider: &Provider,
     ) -> Result<Option<ProviderTokens>, Self::Error> {
         let tokens = ProviderTokensEntity::find()
             .filter(provider_tokens::Column::UserId.eq(user_id))
@@ -85,7 +75,7 @@ impl TokenReadRepository for TokenRepositoryImpl {
     async fn get_provider_link(
         &self,
         user_id: Uuid,
-        provider: Provider,
+        provider: &Provider,
     ) -> Result<Option<ProviderLink>, Self::Error> {
         let token = ProviderTokensEntity::find()
             .filter(provider_tokens::Column::UserId.eq(user_id))
@@ -93,7 +83,9 @@ impl TokenReadRepository for TokenRepositoryImpl {
             .one(&self.db)
             .await?;
 
-        Ok(token.map(Self::to_provider_link))
+        Ok(token
+            .map(super::provider_link_map::to_provider_link)
+            .transpose()?)
     }
 
     async fn get_user_provider_links(
@@ -105,7 +97,10 @@ impl TokenReadRepository for TokenRepositoryImpl {
             .all(&self.db)
             .await?;
 
-        Ok(tokens.into_iter().map(Self::to_provider_link).collect())
+        tokens
+            .into_iter()
+            .map(super::provider_link_map::to_provider_link)
+            .collect::<Result<Vec<_>, _>>()
     }
 }
 
@@ -116,7 +111,7 @@ impl TokenWriteRepository for TokenRepositoryImpl {
     async fn save_provider_tokens(
         &self,
         user_id: Uuid,
-        provider: Provider,
+        provider: &Provider,
         provider_user_id: String,
         tokens: ProviderTokens,
     ) -> Result<(), Self::Error> {
@@ -153,7 +148,7 @@ impl TokenWriteRepository for TokenRepositoryImpl {
     async fn delete_provider_tokens(
         &self,
         user_id: Uuid,
-        provider: Provider,
+        provider: &Provider,
     ) -> Result<(), Self::Error> {
         let result = ProviderTokensEntity::delete_many()
             .filter(provider_tokens::Column::UserId.eq(user_id))
@@ -169,5 +164,50 @@ impl TokenWriteRepository for TokenRepositoryImpl {
         );
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod provider_link_mapping_tests {
+    use super::*;
+    use chrono::NaiveDateTime;
+
+    fn model(provider: &str) -> provider_tokens::Model {
+        provider_tokens::Model {
+            id: 1,
+            user_id: Uuid::nil(),
+            provider: provider.to_string(),
+            access_token: "tok".to_string(),
+            refresh_token: None,
+            expires_in: None,
+            created_at: NaiveDateTime::default(),
+            updated_at: NaiveDateTime::default(),
+            provider_user_id: "u1".to_string(),
+        }
+    }
+
+    #[test]
+    fn gitlab_row_is_not_github() {
+        let link = crate::repository::provider_link_map::to_provider_link(model("gitlab"))
+            .expect("gitlab slug");
+        assert_eq!(link.provider.as_str(), "gitlab");
+        let github = Provider::parse_slug("github").expect("github");
+        assert_ne!(link.provider, github);
+    }
+
+    #[test]
+    fn bitbucket_row_is_not_github() {
+        let link = crate::repository::provider_link_map::to_provider_link(model("bitbucket"))
+            .expect("bitbucket slug");
+        assert_eq!(link.provider.as_str(), "bitbucket");
+        let github = Provider::parse_slug("github").expect("github");
+        assert_ne!(link.provider, github);
+    }
+
+    #[test]
+    fn illegal_row_is_mapping_error() {
+        let err = crate::repository::provider_link_map::to_provider_link(model("not-github"))
+            .expect_err("illegal slug");
+        assert!(err.to_string().contains("invalid provider slug"));
     }
 }

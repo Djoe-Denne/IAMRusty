@@ -33,7 +33,7 @@ tracing = { workspace = true }
 async-trait = { workspace = true }
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["test-util"] }
+tokio = { workspace = true, features = ["rt", "macros", "test-util"] }
 # Testing libraries for comprehensive unit testing
 mockall = { workspace = true }
 rstest = { workspace = true }

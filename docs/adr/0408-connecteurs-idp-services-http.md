@@ -12,6 +12,8 @@
 
 Composition actuelle : `OAuthProviderFactory<GH, GL>` (`IAMRusty/application/src/usecase/factory/oauth_provider.rs`), config typée `OAuthConfig { github, gitlab }` (`IAMRusty/configuration/src/lib.rs`), `setup/src/app.rs` instancie quatre clients (login+link × GH/GL) et `register_provider_client`. Dual runtime [0404](0404-runtime-microservices-et-monolithe.md) : standalones compose + nest `oodhive-monolith`.
 
+Le câblage Implemented actuel est [ADR-0411](0411-idp-provider-slug-registry-fail-closed.md) : `Arc<HashMap<Provider, Arc<dyn FederatedOAuthClient>>>` injecté au boot dans `OAuthService::new`, plus de `register_provider_client`.
+
 Un nouveau service HTTP plateforme suit `docs/guides/nouveau-service.md` (events, OpenFGA, nest, `SERVICE_PREFIX`). Les connecteurs du premier slice sont des **authentifiers S2S**, pas des BC métier user-facing.
 
 Hive a déjà `ExternalProviderClient` (`Hive/domain/src/port/service.rs`, `HttpExternalProviderClient`) pour **sync d’org** GitHub/GitLab/Confluence — autre contrat, hors slice.
@@ -35,7 +37,7 @@ Hive a déjà `ExternalProviderClient` (`Hive/domain/src/port/service.rs`, `Http
 
    Le champ registry est **`redirect_uris`** (tableau), **pas** un `redirect_uri` unique. Il **doit** contenir le callback **et** le relink-callback (les deux URIs encore littérales `127.0.0.1:8081` dans `IAMRusty/http/src/handlers/auth.rs` jusqu’au slice S2 — [0410](0410-migration-iam-connecteurs-idp.md), allowlist [0409](0409-confiance-callback-oauth-idp-connect.md) §6). Le `redirect_uri` envoyé à `authorize` / `exchange_code` (0407) est **choisi** dans ce tableau.
 
-   v1 : la liste peut ne contenir que `github` et `gitlab` ; `ProviderPath` peut encore matcher ces slugs. Long terme : IdP supplémentaire = ligne de config + service, sans recompiler le domaine IAM.
+   v1 : le registry peut ne contenir que `github` et `gitlab`. Syntaxe `ProviderPath` = lettres ; admission = registry boot. Identité slug + fail-closed : [0411](0411-idp-provider-slug-registry-fail-closed.md). IdP N+1 = ligne de config + service, sans recompiler `iam-domain`.
 4. **Dual runtime 0404** : v1 = **standalones compose seulement**. **Pas de nest** dans `oodhive-monolith`. Les connecteurs n’exposent pas de routes navigateur ; le monolithe n’a rien à préfixer pour l’UX. Une ADR future pourra nider si un runtime unique devient obligatoire.
 5. **Forme crate** : hexagone **mince** (configuration, domain mapping vendor→profil, infra HTTP vendor, http S2S, setup, tests). **Exceptions** à la checklist `nouveau-service` v1 :
    - pas d’OpenFGA, pas de `UserIdExtractor` / bearer IAM utilisateur (0409) ;

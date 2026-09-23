@@ -30,7 +30,7 @@ async fn test_oauth_callback_gitlab_successful_flow_creates_jwt_for_new_user() {
     idp.mock_gitlab_happy_alice().await;
 
     // Create valid state for login operation
-    let state = OAuthTestUtils::create_login_state();
+    let state = OAuthTestUtils::create_login_state("gitlab");
 
     // Make callback request with authorization code
     let response = client
@@ -85,7 +85,7 @@ async fn test_oauth_callback_replay_same_state_returns_400_invalid_state() {
     let idp = IdpConnectFixtures::service().await;
     idp.mock_gitlab_happy_alice().await;
 
-    let state = OAuthTestUtils::create_login_state();
+    let state = OAuthTestUtils::create_login_state("gitlab");
     let callback = format!("{base_url}/api/auth/gitlab/callback");
 
     let first = client
@@ -146,7 +146,7 @@ async fn test_oauth_callback_links_external_account_with_valid_link_state() {
     idp.mock_github_happy_arthur().await;
 
     // Create valid state for link operation with existing user ID
-    let state = OAuthTestUtils::create_link_state(existing_user.id());
+    let state = OAuthTestUtils::create_link_state(existing_user.id(), "github");
 
     // Make callback request for linking
     let response = client
@@ -257,7 +257,7 @@ async fn test_oauth_callback_associates_new_provider_for_same_user() {
     idp.mock_gitlab_happy_alice().await;
 
     // Create valid state for link operation
-    let state = OAuthTestUtils::create_link_state(existing_user.id());
+    let state = OAuthTestUtils::create_link_state(existing_user.id(), "gitlab");
 
     // Make callback request to associate GitLab with existing user
     let response = client
@@ -386,7 +386,7 @@ async fn test_oauth_callback_prevents_linking_provider_already_bound_to_another_
     idp.mock_github_happy_arthur().await;
 
     // Create valid state for link operation with second user ID
-    let state = OAuthTestUtils::create_link_state(second_user.id());
+    let state = OAuthTestUtils::create_link_state(second_user.id(), "github");
 
     // Attempt to link Arthur's GitHub account to second user (should fail)
     let response = client
@@ -472,7 +472,7 @@ async fn test_oauth_callback_fails_on_invalid_authorization_code() {
     idp.mock_s2s_unauthorized("github", "/v1/token").await;
 
     // Create valid state
-    let state = OAuthTestUtils::create_login_state();
+    let state = OAuthTestUtils::create_login_state("github");
 
     // Make callback request with invalid authorization code
     let response = client
@@ -539,7 +539,7 @@ async fn test_oauth_callback_fails_on_expired_authorization_code() {
     idp.mock_s2s_unauthorized("github", "/v1/token").await; // Using invalid_code as expired_code may not exist
 
     // Create valid state
-    let state = OAuthTestUtils::create_login_state();
+    let state = OAuthTestUtils::create_login_state("github");
 
     // Make callback request with expired authorization code
     let response = client
@@ -639,7 +639,7 @@ async fn test_oauth_callback_returns_400_on_missing_code_parameter() {
         .expect("Failed to setup test server");
 
     // Create valid state
-    let state = OAuthTestUtils::create_login_state();
+    let state = OAuthTestUtils::create_login_state("github");
 
     // Make callback request without code parameter
     let response = client
@@ -760,7 +760,7 @@ async fn test_oauth_callback_returns_401_when_provider_refuses_user() {
     idp.mock_profile_status("github", 401).await;
 
     // Create valid state
-    let state = OAuthTestUtils::create_login_state();
+    let state = OAuthTestUtils::create_login_state("github");
 
     // Make callback request where provider refuses user access
     let response = client
@@ -828,7 +828,7 @@ async fn test_oauth_callback_returns_401_when_provider_rejects_user() {
     idp.mock_profile_status("github", 401).await; // Using unauthorized as account_suspended may not exist
 
     // Create valid state
-    let state = OAuthTestUtils::create_login_state();
+    let state = OAuthTestUtils::create_login_state("github");
 
     // Make callback request where provider rejects user
     let response = client
@@ -890,7 +890,7 @@ async fn test_oauth_callback_unsupported_provider_returns_422() {
         .expect("Failed to setup test server");
 
     // Create valid state
-    let state = OAuthTestUtils::create_login_state();
+    let state = OAuthTestUtils::create_login_state("github");
 
     // Test unsupported providers
     let unsupported_providers = vec!["facebook", "google", "twitter", "unknown"];
@@ -903,11 +903,10 @@ async fn test_oauth_callback_unsupported_provider_returns_422() {
             .await
             .expect("Failed to send callback request");
 
-        // ❌ Should return 422 for unsupported providers (validation error)
         assert_eq!(
             response.status(),
             422,
-            "Should return 422 Unprocessable Entity for unsupported provider: {provider}"
+            "Should return 422 Unprocessable Entity for unregistered provider: {provider}"
         );
 
         let error_response: Value = response
@@ -915,11 +914,9 @@ async fn test_oauth_callback_unsupported_provider_returns_422() {
             .await
             .expect("Should return JSON error response");
 
-        // axum-valid returns validation errors in a different format
-        // Check for validation error structure
-        assert!(
-            error_response.get("provider_name").is_some(),
-            "Response should contain validation errors for provider: {provider}"
+        assert_eq!(
+            error_response["error"]["error_code"], "connector_not_configured",
+            "Unregistered slug {provider} should be connector_not_configured"
         );
     }
 }
@@ -949,7 +946,7 @@ async fn test_oauth_callback_case_insensitive_providers() {
     ];
 
     for (provider_input, auth_code) in valid_cases {
-        let state = OAuthTestUtils::create_login_state();
+        let state = OAuthTestUtils::create_login_state(provider_input.to_ascii_lowercase());
 
         let response = client
             .get(format!("{base_url}/api/auth/{provider_input}/callback"))
@@ -983,7 +980,7 @@ async fn oauth_callback_connector_401_is_iam_error() {
     let idp = IdpConnectFixtures::service().await;
     idp.mock_s2s_unauthorized("github", "/v1/token").await;
 
-    let state = OAuthTestUtils::create_login_state();
+    let state = OAuthTestUtils::create_login_state("github");
     let response = client
         .get(format!("{base_url}/api/auth/github/callback"))
         .query(&[("code", "test_auth_code"), ("state", &state)])
@@ -993,4 +990,35 @@ async fn oauth_callback_connector_401_is_iam_error() {
 
     assert_ne!(response.status(), 200);
     assert_ne!(response.status(), 202);
+}
+
+#[tokio::test]
+#[serial]
+async fn test_oauth_callback_rejects_cross_provider_state() {
+    let (_fixture, base_url, client) = setup_test_server()
+        .await
+        .expect("Failed to setup test server");
+
+    let state = iam_http_server::OAuthState::new_login("github")
+        .encode()
+        .expect("signed github login state");
+
+    let response = client
+        .get(format!("{base_url}/api/auth/gitlab/callback"))
+        .query(&[("code", "test_auth_code"), ("state", state.as_str())])
+        .send()
+        .await
+        .expect("Failed to send callback request");
+
+    assert_eq!(
+        response.status(),
+        400,
+        "GitHub-minted state on GitLab callback must be invalid_state"
+    );
+
+    let error_response: Value = response
+        .json()
+        .await
+        .expect("Should return JSON error response");
+    assert_eq!(error_response["error"]["error_code"], "invalid_state");
 }

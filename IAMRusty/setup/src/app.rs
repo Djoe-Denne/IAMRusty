@@ -347,15 +347,14 @@ fn setup_oauth_and_link(
         token_service,
         registration_token_service,
     } = deps;
-    let mut oauth_service = iam_domain::service::oauth_service::OAuthService::new(
+    let clients = Arc::new(clients.by_slug);
+    let oauth_service = iam_domain::service::oauth_service::OAuthService::new(
         user_repo.clone(),
         token_repo_login,
         user_email_repo.clone(),
         iam_domain::service::TokenService::new(token_service.clone(), Duration::hours(1)),
+        clients.clone(),
     );
-    for (provider, client) in &clients.by_slug {
-        oauth_service.register_provider_client(*provider, client.clone());
-    }
     let oauth = Arc::new(OAuthUseCaseImpl::new(
         Arc::new(oauth_service),
         registration_token_service,
@@ -366,10 +365,7 @@ fn setup_oauth_and_link(
         Arc::new(user_email_repo),
         Arc::new(token_repo_link),
     ));
-    let link_provider = Arc::new(LinkProviderUseCaseImpl::new(
-        clients.by_slug,
-        provider_link_service,
-    ));
+    let link_provider = Arc::new(LinkProviderUseCaseImpl::new(clients, provider_link_service));
     (oauth, link_provider)
 }
 
@@ -471,6 +467,7 @@ fn setup_provider_user_token(
             token_service.clone(),
             Duration::hours(1),
         ),
+        Arc::new(HashMap::new()),
     );
     let provider = Arc::new(ProviderUseCaseImpl::new(Arc::new(provider_auth_service)));
     let user = Arc::new(UserUseCaseImpl::new(Arc::new(
@@ -679,20 +676,11 @@ fn setup_http_idp_clients(
     idp.validate().map_err(DomainError::OAuth2Error)?;
     let mut by_slug = HashMap::new();
     for connector in &idp.connectors {
-        let provider = match connector.id.to_lowercase().as_str() {
-            "github" => Provider::GitHub,
-            "gitlab" => Provider::GitLab,
-            _ => continue,
-        };
+        let provider = Provider::parse_slug(&connector.id).map_err(|_| {
+            DomainError::OAuth2Error(format!("illegal IdP connector id: {}", connector.id))
+        })?;
         let client = HttpIdpConnector::new(&connector.base_url, &connector.hmac_secret)?;
         by_slug.insert(provider, Arc::new(client) as Arc<dyn FederatedOAuthClient>);
-    }
-    if by_slug.is_empty() {
-        return Err(DomainError::OAuth2Error(
-            "idp.connectors must include at least one known provider (github or gitlab)"
-                .to_string(),
-        )
-        .into());
     }
     Ok(by_slug)
 }
@@ -771,23 +759,78 @@ pub async fn run_server(app: IAMRustyApp, app_config: ServerConfig) -> Result<()
 mod tests {
     use super::setup_http_idp_clients;
     use iam_configuration::{IdpConfig, IdpConnectorConfig};
+    use iam_domain::entity::provider::Provider;
+
+    fn complete_connector(id: &str) -> IdpConnectorConfig {
+        IdpConnectorConfig {
+            id: id.to_string(),
+            base_url: format!("http://127.0.0.1:9/{id}-connect"),
+            hmac_secret: "sixteen-bytes-ok".to_string(),
+            redirect_uris: vec![
+                format!("http://127.0.0.1:8080/iam/api/auth/{id}/callback"),
+                format!("http://127.0.0.1:8080/iam/api/auth/{id}/relink-callback"),
+            ],
+        }
+    }
 
     #[test]
-    fn setup_rejects_unknown_only_connectors() {
+    fn setup_wires_huggingface_complete_line() {
         let idp = IdpConfig {
-            connectors: vec![IdpConnectorConfig {
-                id: "google".to_string(),
-                base_url: "http://127.0.0.1:9/google-connect".to_string(),
-                hmac_secret: "sixteen-bytes-ok".to_string(),
-                redirect_uris: vec![
-                    "http://127.0.0.1:8080/iam/api/auth/google/callback".to_string(),
-                ],
-            }],
+            connectors: vec![complete_connector("huggingface")],
+        };
+        let by_slug = setup_http_idp_clients(&idp).expect("complete huggingface line boots");
+        let expected = Provider::parse_slug("huggingface").expect("slug");
+        assert!(by_slug.contains_key(&expected));
+        assert_eq!(by_slug.len(), 1);
+    }
+
+    #[test]
+    fn setup_wires_github_and_gitlab() {
+        let idp = IdpConfig {
+            connectors: vec![complete_connector("github"), complete_connector("gitlab")],
+        };
+        let by_slug = setup_http_idp_clients(&idp).expect("github+gitlab boot");
+        assert!(by_slug.contains_key(&Provider::parse_slug("github").expect("github")));
+        assert!(by_slug.contains_key(&Provider::parse_slug("gitlab").expect("gitlab")));
+        assert_eq!(by_slug.len(), 2);
+    }
+
+    #[test]
+    fn setup_rejects_illegal_id() {
+        let idp = IdpConfig {
+            connectors: vec![complete_connector("hugging-face")],
         };
         match setup_http_idp_clients(&idp) {
             Ok(_) => panic!("expected fail-closed boot"),
             Err(err) => assert!(
-                err.to_string().contains("known provider"),
+                err.to_string().contains("illegal IdP connector id"),
+                "unexpected error: {err}"
+            ),
+        }
+    }
+
+    #[test]
+    fn setup_rejects_short_hmac() {
+        let mut connector = complete_connector("github");
+        connector.hmac_secret = "fifteen-bytes!!".to_string();
+        let idp = IdpConfig {
+            connectors: vec![connector],
+        };
+        match setup_http_idp_clients(&idp) {
+            Ok(_) => panic!("expected fail-closed boot"),
+            Err(err) => assert!(
+                err.to_string().contains("at least 16"),
+                "unexpected error: {err}"
+            ),
+        }
+    }
+
+    #[test]
+    fn setup_rejects_empty_registry() {
+        match setup_http_idp_clients(&IdpConfig::default()) {
+            Ok(_) => panic!("expected fail-closed boot"),
+            Err(err) => assert!(
+                err.to_string().contains("must not be empty"),
                 "unexpected error: {err}"
             ),
         }

@@ -51,9 +51,10 @@ You (orchestrator) stay the control plane.
 
 ## Model priority (user policy)
 
-1. `cursor-grok-4.6-xhigh` for greedy work (orchestration, architecture, hard implementation, complex security/correctness/perf reviews, emergency, ADR, expert, implementer with judgment). There is no Grok 4.6 high slug; use xhigh instead of high.
-2. `composer-2.5-fast` for reading tasks (Explore, mechanical-worker, test-reviewer, cursor-guide, ci-investigator).
-3. Allowed slugs only: `inherit`, `composer-2.5-fast`, `cursor-grok-4.6-xhigh`, `muse-spark-1.3-max`. Never pick another model silently.
+1. `grok-4.7-xhigh` for high-caution reasoning only: `hard-implementer`, `architecte`, `expert-engineer`, `security-reviewer`. When spawning these agents, pass this slug (do not inherit the orchestrator's 4.6). There is no Grok 4.7 high slug.
+2. `cursor-grok-4.6-xhigh` for other greedy work (orchestration, implementer with judgment, emergency, ADR, correctness/perf reviews). There is no Grok 4.6 high slug; use xhigh instead of high.
+3. `composer-2.5-fast` for reading tasks (Explore, mechanical-worker, test-reviewer, cursor-guide, ci-investigator).
+4. Allowed slugs only: `inherit`, `composer-2.5-fast`, `cursor-grok-4.6-xhigh`, `grok-4.7-xhigh`, `muse-spark-1.3-max`. Never pick another model silently.
 
 Do not turn a three-line change into a five-agent meeting. Use the minimum ceremony that matches the risk.
 

@@ -64,6 +64,12 @@ impl CommandErrorMapper for OAuthLoginErrorMapper {
                             OAuthLoginErrorCode::ProviderError.as_str(),
                             "Provider not supported",
                         ),
+                        DomainError::ConnectorNotConfigured(provider) => CommandError::validation(
+                            "connector_not_configured",
+                            format!(
+                                "IdP connector is not configured for this provider: {provider}"
+                            ),
+                        ),
                         DomainError::AuthorizationError(_) => CommandError::business(
                             OAuthLoginErrorCode::AuthenticationFailed.as_str(),
                             "Authorization failed",

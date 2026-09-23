@@ -35,59 +35,52 @@ Authorization: Bearer <jwt_token>
 
 ### Token Lifecycle
 
-1. **Obtain Token**: Use OAuth2 flow via `/api/auth/{provider}/start` and `/api/auth/{provider}/callback`
+1. **Obtain Token**: Use OAuth2 flow via `/api/auth/{provider_name}/login` and `/api/auth/{provider_name}/callback`
 2. **Use Token**: Include in Authorization header for protected endpoints
 3. **Refresh Token**: Use `/api/token/refresh` before expiration
 4. **Token Expiry**: Default 3600 seconds (1 hour)
 
 ### OAuth Authentication
 
-#### Start OAuth Flow
+#### Login start
 
 ```http
-GET /api/auth/{provider}/start
+GET /api/auth/{provider_name}/login
 ```
 
-Initiates OAuth2 authentication flow. Supports both login and provider linking operations.
+Initiates unauthenticated OAuth2 login (`oauth_login_start`, operation `login_start`). Linking and relink are separate routes (not modes of login).
 
 **Path Parameters:**
-- `provider` (string, required): OAuth2 provider (`github`, `gitlab`)
-
-**Headers:**
-- `Authorization` (string, optional): Bearer token for provider linking
-
-**Operation Types:**
-- **Login**: No Authorization header → Creates/authenticates user
-- **Link Provider**: With Authorization header → Links provider to existing user
+- `provider_name` (string, required): letters-only IdP slug (`github`, `gitlab`, `huggingface`). Hyphens are illegal.
 
 **Response:**
 - **Status**: `303 See Other`
 - **Headers**: `Location: <provider_oauth_url>`
 
 **Error Responses:**
-- `400 Bad Request`: Invalid provider
-- `401 Unauthorized`: Invalid token (for linking)
+- `400 Bad Request` `invalid_provider`: illegal slug syntax
+- `422 Unprocessable Entity` `connector_not_configured`: well-formed slug absent from `[[idp.connectors]]`
 
 **Example:**
 ```bash
-# Login flow
-curl "https://iam.example.com/api/auth/github/start"
-
-# Provider linking flow
-curl -H "Authorization: Bearer eyJ..." \
-     "https://iam.example.com/api/auth/github/start"
+curl "https://iam.example.com/api/auth/github/login"
 ```
+
+Related authenticated OAuth routes:
+- `GET /api/auth/{provider_name}/link` — link start
+- `GET /api/auth/{provider_name}/relink-start` — relink start
+- `GET /api/auth/{provider_name}/relink-callback` — relink callback (missing/empty `code` → `400` `missing_code`, operation `relink_provider`)
 
 #### OAuth Callback
 
 ```http
-GET /api/auth/{provider}/callback
+GET /api/auth/{provider_name}/callback
 ```
 
 Handles OAuth2 provider callback and processes authorization code.
 
 **Path Parameters:**
-- `provider` (string, required): OAuth2 provider (`github`, `gitlab`)
+- `provider_name` (string, required): letters-only IdP slug (`github`, `gitlab`, `huggingface`)
 
 **Query Parameters:**
 - `code` (string, required): Authorization code from provider
@@ -144,9 +137,10 @@ Handles OAuth2 provider callback and processes authorization code.
 ```
 
 **Error Responses:**
-- `400 Bad Request`: Invalid parameters, missing code/state
+- `400 Bad Request`: Invalid parameters, missing code/state, illegal slug syntax
 - `401 Unauthorized`: Authentication failed
 - `409 Conflict`: Provider already linked
+- `422 Unprocessable Entity`: well-formed slug absent from the IdP registry (`connector_not_configured`)
 
 ### Email/Password Authentication
 
@@ -508,14 +502,16 @@ Returns OAuth2 access token for authenticated user and provider. **Internal use 
 | 401 | Unauthorized | Authentication required/failed |
 | 404 | Not Found | Resource not found |
 | 409 | Conflict | Resource conflict (e.g., provider already linked) |
+| 422 | Unprocessable Entity | Well-formed slug absent from the IdP registry |
 | 500 | Internal Server Error | Server-side errors |
 
 ### OAuth Error Codes
 
-#### Start Operation Errors
+#### Login start operation errors (`login_start`)
 | Error Code | Description | HTTP Status |
 |------------|-------------|-------------|
-| `invalid_provider` | Unsupported OAuth provider | 400 |
+| `invalid_provider` | Illegal OAuth provider slug syntax (`parse_provider_slug`), not “unsupported provider” | 400 |
+| `connector_not_configured` | Well-formed slug absent from the IdP registry | 422 |
 | `invalid_authorization_header` | Malformed Authorization header | 400 |
 | `invalid_token` | Invalid/expired JWT token | 401 |
 | `state_encoding_failed` | Failed to create OAuth state | 500 |
@@ -578,7 +574,7 @@ The API implements rate limiting to prevent abuse:
 
 **1. Start OAuth Flow**
 ```bash
-curl -i "https://iam.example.com/api/auth/github/start"
+curl -i "https://iam.example.com/api/auth/github/login"
 ```
 
 **Response:**
@@ -651,7 +647,7 @@ curl -X POST "https://iam.example.com/api/token/refresh" \
 **1. Start Linking (Authenticated)**
 ```bash
 curl -H "Authorization: Bearer eyJ..." \
-     "https://iam.example.com/api/auth/gitlab/start"
+     "https://iam.example.com/api/auth/gitlab/link"
 ```
 
 **2. Complete Linking**
@@ -691,17 +687,31 @@ curl "https://iam.example.com/api/auth/gitlab/callback?code=def456&state=abc123"
 
 ### Error Handling Examples
 
-**Invalid Provider**
+**Illegal slug syntax (400 `invalid_provider`)**
 ```bash
-curl "https://iam.example.com/api/auth/invalid/start"
+curl "https://iam.example.com/api/auth/hugging-face/login"
 ```
 
 **Response (400)**:
 ```json
 {
-  "operation": "start",
+  "operation": "login_start",
   "error": "invalid_provider",
   "message": "Invalid provider"
+}
+```
+
+**Well-formed slug off registry (422 `connector_not_configured`)**
+```bash
+curl "https://iam.example.com/api/auth/facebook/login"
+```
+
+**Response (422)**:
+```json
+{
+  "operation": "login_start",
+  "error": "connector_not_configured",
+  "message": "IdP connector is not configured for this provider"
 }
 ```
 
@@ -767,7 +777,7 @@ class IAMClient:
         self.client_id = client_id
     
     def get_auth_url(self, provider):
-        response = requests.get(f"{self.base_url}/api/auth/{provider}/start")
+        response = requests.get(f"{self.base_url}/api/auth/{provider}/login")
         return response.headers['Location']
     
     def get_user(self, access_token):

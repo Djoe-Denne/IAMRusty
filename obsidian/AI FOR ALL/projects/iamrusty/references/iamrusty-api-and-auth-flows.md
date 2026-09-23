@@ -27,18 +27,16 @@ These sources describe the current HTTP behavior of `[[projects/iamrusty/iamrust
 
 ## Key Ideas
 
-- The live route table exposes public signup, login, verify, resend-verification, complete-registration, username-check, password-reset, OAuth login, OAuth callback, token refresh, and JWKS behavior.
-- Authenticated routes add `/api/me`, authenticated password reset, provider-token retrieval and revoke, provider link, and provider relink behavior.
-- The handler layer relies on `axum_valid` for path, query, and JSON validation, then dispatches typed commands with metadata-rich `CommandContext` values.
+- The live route table exposes public signup, login, verify, resend-verification, complete-registration, username-check, password-reset, OAuth **login** (`/api/auth/{provider_name}/login`), OAuth callback, token refresh, and JWKS behavior.
+- Authenticated routes add `/api/me`, authenticated password reset, provider-token retrieval and revoke, provider **link** (`/link`), and provider **relink** (`/relink-start`, `/relink-callback`).
+- The handler layer relies on `axum_valid` for **query and JSON** validation (`Valid<Query>` / `Valid<Json>`). OAuth path slugs use `Path<ProviderPath>` **without** `Valid<Path>` (`parse_provider_slug`): illegal syntax → 400 `invalid_provider`; well-formed slug off registry → 422 `connector_not_configured` ([ADR-0411](docs/adr/0411-idp-provider-slug-registry-fail-closed.md)).
 - OAuth login callbacks hand off provider results into `domain/src/service/oauth_service.rs`, where provider identities are resolved into existing users or new incomplete registrations.
 - Email/password signup and OAuth can both yield incomplete users who must finish registration later with a registration token and a chosen username.
 - Resend verification and password-reset request flows intentionally return success-style responses even when the email does not exist, reducing user-enumeration leaks.
-- The docs and code disagree in several high-signal places: docs often describe `/api/auth/{provider}/start`, `POST /api/auth/verify`, and signup requests that include username, while the current code exposes separate `/login` and `/link` starts, `GET /api/auth/verify` with query parameters, and two-step registration completion. ^[ambiguous]
 
 ## Open Questions
 
 - The OAuth callback handler currently hardcodes `http://127.0.0.1:8081/...` redirect URIs for provider callbacks, which looks test-oriented rather than like the final production behavior. ^[ambiguous]
-- Validation docs emphasize 422 behavior, while some API docs still describe 400 for malformed input; the external contract should be treated as partially drifted until confirmed end to end. ^[ambiguous]
 
 ## Sources
 

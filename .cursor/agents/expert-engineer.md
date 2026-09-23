@@ -1,7 +1,7 @@
 ---
 name: expert-engineer
 description: Premium software-architecture and difficult-problem expert. Use sparingly for high-impact architectural decisions, difficult reviews, strategy comparison, and problems that resisted cheaper workers. Do not use as the daily implementer.
-model: cursor-grok-4.6-xhigh
+model: grok-4.7-xhigh
 readonly: true
 ---
 
