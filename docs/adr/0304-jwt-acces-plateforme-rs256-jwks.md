@@ -25,7 +25,7 @@
 6. **BYOKMS** : l’org peut garder la propriété (AWS KMS, GCP KMS, Azure KV / Managed HSM, Scaleway, OpenBao client, HSM, KMIP, PKCS#11, remote signer). IAM construit le signing input ; le KMS signe ; IAM assemble. **Limitation acceptée** : org propriétaire de son KMS = autorité crypto de **son** trust domain (peut produire ses propres principals de ce domain). Elle ne peut pas faire accepter un principal platform, ni d’une autre org, ni un autre issuer. Le KMS ne prouve pas que le digest vient d’IAM — seulement qu’un principal est autorisé à signer.
 7. **`aud` reste `aiforall`.** `aud` ≠ organisation. Audiences user-plane / admin / billing = Non décidé.
 8. **Trust domain par clé** : `platform` | `organization(org_id)`. Registry conceptuelle `SigningKey` : `id`, `kid` opaque, `algorithm`, `trust_scope`, `issuer`, `provider_type`, `provider_key_ref`, `credential_ref` optionnel, `public_key`, `status` (`pending` | `active` | `retiring` | `revoked`), timestamps. `kid` = **public opaque** — jamais org id, ARN, project GCP, resource Azure, chemin OpenBao, URL.
-9. **Issuer lié au trust domain.** Cible : platform `https://iam.<domain>/platform` ; org `https://iam.<domain>/orgs/{slug}`. Propriété : `kid` → trust domain → issuer. Signature valide + mauvais issuer = **REJECT**. SuperSède **explicitement uniquement** la décision 0302 « `iss=iamrusty` unique » **pour la cible**. Runtime reste `iss=iamrusty` tant que Unimplemented. Tokens actuels `iss=iamrusty` = mode platform historique jusqu’au cutoff.
+9. **Issuer lié au trust domain.** Cible, sur le même host que le JWKS (`GET /iam/.well-known/jwks.json`) : platform `https://{host}/iam` ; org `https://{host}/iam/orgs/{slug}`. Le préfixe runtime est `/iam`, pas un sous-domaine `iam.<domain>`. Propriété normative : `kid` → trust domain → issuer. Signature valide + mauvais issuer = **REJECT**. SuperSède **explicitement uniquement** la décision 0302 « `iss=iamrusty` unique » **pour la cible**. Runtime reste `iss=iamrusty` tant que Unimplemented. Tokens actuels `iss=iamrusty` = mode platform historique jusqu’au cutoff.
 10. **Principal canonique = `(iss, sub)`**, jamais `sub` seul.
 11. **Claim `org` = contexte de trust, pas permission.** Cohérence `key.owner == org == issuer` du domain = AuthN. OpenFGA = AuthZ. Pas d’org dans `aud`.
 12. **Jeton platform-managed** : `iss` platform ; pas forcément réémission par org métier. **Jeton organization-managed** : `iss` org, claim `org`, signé seulement par une clé de ce trust domain.
@@ -66,6 +66,7 @@ Dual-verify bornée (RS256 + `kid` ; HS256 = HMAC migration only) puis cutoff HS
 | `aud` = organisation | AuthZ = OpenFGA ; `aud` reste `aiforall` |
 | KMS sur chaque requête API | Failure domain et latence inacceptables |
 | `kid` = org id / ARN / chemin coffre | Fuite d’infra ; `kid` opaque public seulement |
+| Issuer sur un sous-domaine `iam.<domain>` | Le service et le JWKS sont déjà sous le préfixe `/iam` du host gateway |
 | SPIFFE obligatoire pour signer | Port WorkloadIdentity (0307) ; pas de dépendance SPIFFE |
 | Account + Mesh + SPIFFE dans cette ADR | Périmètre crypto JWT seulement |
 
