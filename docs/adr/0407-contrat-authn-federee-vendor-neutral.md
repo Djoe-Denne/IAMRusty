@@ -65,7 +65,7 @@ Hors décision : topologie processus ([0408](0408-connecteurs-idp-services-http.
 - Topologie crate vs microservice (0408).
 - Callback navigateur, secrets, CSRF, HMAC (0409).
 - Ordre d’extraction et tests (0410).
-- Unification JWT HS256 consommateur vs RS256 IAM (0400 / 0302).
+- Unification JWT HS256 consommateur vs RS256 IAM : tranchée par [0304](0304-jwt-acces-plateforme-rs256-jwks.md) (réalité runtime encore HS256).
 - Contrat étendu org-sync / git API (Hive `ExternalProviderClient`).
 
 ## Références

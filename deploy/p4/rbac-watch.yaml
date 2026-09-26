@@ -1,0 +1,31 @@
+# Watch AdmissionRecord dans apparatus-system (SYSTEM_NAMESPACE du binaire).
+# Subject = SA controller du ns aiforall-apparatus (pas le RBAC IT apparatus-system/apparatus-controller).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: apparatus-controller-watch
+  namespace: apparatus-system
+  labels:
+    app.kubernetes.io/name: apparatus-operator
+    app.kubernetes.io/part-of: aiforall
+rules:
+  - apiGroups: ["apparatus.aiforall.dev"]
+    resources: ["admissionrecords"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: apparatus-controller-watch
+  namespace: apparatus-system
+  labels:
+    app.kubernetes.io/name: apparatus-operator
+    app.kubernetes.io/part-of: aiforall
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: apparatus-controller-watch
+subjects:
+  - kind: ServiceAccount
+    name: controller
+    namespace: aiforall-apparatus

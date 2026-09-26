@@ -1,0 +1,32 @@
+# Host overlay for sentinel-sync (CWD-relative `config/sentinel-sync.toml`).
+# Loaded by `SentinelSyncConfig::load()` from the repo root — not RUN_ENV /
+# `config/development.toml`. Compose images keep `sentinel-sync/config/`.
+#
+# SQS host MUST be `localhost` (rustycog LocalStack URL special-case).
+# OpenFGA store_id / authorization_model_id: `openfga/ensure-host-store.ps1`
+# (SENTINEL_SYNC_OPENFGA__* env), same store as the monolith.
+
+[logging]
+level = "debug"
+
+[openfga]
+scheme = "http"
+host = "127.0.0.1"
+port = 8090
+store_id = ""
+
+[idempotency]
+backend = "in-memory"
+
+[queue]
+type = "sqs"
+enabled = true
+region = "us-east-1"
+account_id = "000000000000"
+default_queues = ["sentinel-sync-events"]
+host = "localhost"
+port = 4566
+access_key_id = "test"
+secret_access_key = "test"
+max_retries = 3
+timeout_seconds = 30

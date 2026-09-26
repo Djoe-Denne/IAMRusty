@@ -43,7 +43,7 @@ Préfixe runtime : `/iam` (compose 8080). JWT émetteur : `[jwt]` + `[jwt.secret
 
 ## Non décidé ici
 
-- Unification HS256 local vs RS256 / JWKS consommateur (0302).
+- **Cible** RS256 / JWKS / SigningProvider / issuer par trust domain / Account·Identity : [0304](0304-jwt-acces-plateforme-rs256-jwks.md), [0305](0305-account-identity-trust-domain.md), [0306](0306-hive-iam-configuration-signature.md) — **réalité inchangée** (IdP hexagonal, HS256 aujourd’hui).
 - Catalogue des providers au-delà de GitHub/GitLab déjà câblés.
 - Host Apparatus et bearer IAM interdit sur le plugin (0004).
 

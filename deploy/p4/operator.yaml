@@ -1,0 +1,155 @@
+# Operator P4 — binaire apparatus-controller (J2). Jamais fusion Manifesto.
+# Delta prod D-TRANSIT-TCB (local -dev OK) :
+# - remplacer OpenBao -dev par un bureau Transit dédié ;
+# - séparer Transit du KV plugin ;
+# - seul SA admit-sign appelle Transit pour signer ; controller = verify only.
+# Comptes zot gold local (pas des secrets prod). Admit = signer ; operator = reader.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: zot-registry-accounts
+  namespace: aiforall-apparatus
+  labels:
+    app.kubernetes.io/part-of: aiforall
+    app.kubernetes.io/name: zot-registry-accounts
+type: Opaque
+stringData:
+  signer-user: signer
+  signer-password: apparatus-signer-push
+  reader-user: reader
+  reader-password: apparatus-reader-pull
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: apparatus-operator
+  namespace: aiforall-apparatus
+  labels:
+    app.kubernetes.io/name: apparatus-operator
+    app.kubernetes.io/part-of: aiforall
+    app.kubernetes.io/component: operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: apparatus-operator
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: apparatus-operator
+        app.kubernetes.io/part-of: aiforall
+        app.kubernetes.io/component: operator
+    spec:
+      serviceAccountName: controller
+      automountServiceAccountToken: true
+      securityContext:
+        fsGroup: 65534
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      # OpenBao Compose hote (Transit Cosign verify). Même TCB local que Job Adm-A.
+      hostAliases:
+        - ip: "192.168.65.254"
+          hostnames:
+            - host.docker.internal
+      initContainers:
+        - name: fix-store-perms
+          image: aiforall-apparatus-controller:j2
+          imagePullPolicy: Never
+          command: ["/bin/sh", "-c", "mkdir -p /var/lib/apparatus && chown -R 65534:65534 /var/lib/apparatus"]
+          securityContext:
+            runAsUser: 0
+            runAsNonRoot: false
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+              add: ["CHOWN", "FOWNER"]
+          volumeMounts:
+            - name: admission-store
+              mountPath: /var/lib/apparatus
+      containers:
+        - name: operator
+          image: aiforall-apparatus-controller:j2
+          imagePullPolicy: Never
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: APPARATUS_ADMISSION_STORE_PATH
+              value: /var/lib/apparatus/admission.json
+            - name: APPARATUS_PLUGIN_ENROLL_URL
+              value: http://oodhive-monolith.aiforall-gateway.svc.cluster.local:8080/lazaret/enroll
+            # Re-verify Cosign au schedule (fail-closed). Même pin / Transit / zot que Adm-A.
+            # Ne signe pas (pas d'appel cosign sign) — SA reste controller.
+            - name: APPARATUS_COSIGN_BIN
+              value: /usr/local/bin/cosign
+            - name: APPARATUS_REGISTRY_HOST
+              value: zot.aiforall-platform.svc.cluster.local:5000
+            - name: APPARATUS_REGISTRY_NETWORK
+              value: zot.aiforall-platform.svc.cluster.local:5000
+            - name: APPARATUS_DOCKER_NETWORK
+              value: unused-host-bins
+            - name: APPARATUS_VAULT_ADDR
+              value: http://host.docker.internal:8200
+            - name: APPARATUS_VAULT_ADDR_NETWORK
+              value: http://host.docker.internal:8200
+            - name: APPARATUS_VAULT_AUTH
+              value: kubernetes
+            - name: APPARATUS_VAULT_K8S_ROLE
+              value: controller
+            - name: APPARATUS_TRANSIT_KEY
+              value: apparatus-p4-cosign
+            - name: APPARATUS_REGISTRY_USER
+              valueFrom:
+                secretKeyRef:
+                  name: zot-registry-accounts
+                  key: reader-user
+            - name: APPARATUS_REGISTRY_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: zot-registry-accounts
+                  key: reader-password
+            - name: APPARATUS_REPOSITORY
+              value: apparatus/envelope
+            - name: APPARATUS_ENVELOPE_TAG
+              value: gold
+            # Poll desired_state optionnel : set APPARATUS_MANIFESTO_BASE_URL +
+            # APPARATUS_MANIFESTO_PROJECT_ID (+ bearer) au runtime (prove-gold).
+            # Absent = watch CR seulement (Job Adm-A applique isolation).
+          volumeMounts:
+            - name: admission-store
+              mountPath: /var/lib/apparatus
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            seccompProfile:
+              type: RuntimeDefault
+      volumes:
+        # Partagé avec Job apparatus-admit-gold (JSON VALID + pin CRI + envelopeReference).
+        # hostPath Kind single-node ; emptyDir ne survit pas entre Job et Deployment.
+        - name: admission-store
+          hostPath:
+            path: /var/lib/apparatus-admission
+            type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: apparatus-operator
+  namespace: aiforall-apparatus
+  labels:
+    app.kubernetes.io/name: apparatus-operator
+    app.kubernetes.io/part-of: aiforall
+spec:
+  selector:
+    app.kubernetes.io/name: apparatus-operator
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

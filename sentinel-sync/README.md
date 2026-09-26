@@ -8,9 +8,9 @@ Worker d’autorisation : consomme les événements domaine (Hive, Manifesto, IA
 
 ## Lancer
 
-1. Store + model (`openfga/model.fga`) déjà poussés.
+1. Store + model (`openfga/model.fga`) déjà poussés (`just sentinel-sync` / `just monolith` appellent `openfga/ensure-host-store.ps1`).
 2. Config queue + `store_id` / `authorization_model_id`.
-3. `cargo run -p sentinel-sync`
+3. `just sentinel-sync` (CWD racine) ou `cargo run -p sentinel-sync`
 
 Un event sans bras de translator est un no-op (le store FGA ne bouge pas).
 

@@ -6,9 +6,11 @@
 //! dans le worker de build. Ce module ne compile ni n'exécute le code auteur.
 
 use std::fs;
+use std::io::{Read, Write};
+use std::net::{TcpStream, ToSocketAddrs};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 
@@ -57,6 +59,137 @@ pub struct AdmitTarget {
     pub tag: String,
     /// Identité autorisée à pousser.
     pub auth: RegistryAuth,
+}
+
+impl AdmitTarget {
+    /// Lit la cible Cosign/Transit/registry depuis les mêmes env que le Job Adm-A.
+    ///
+    /// Utilisé au schedule (controller) pour re-vérifier la signature. Env absentes
+    /// ⇒ erreur (fail-closed côté appelant).
+    ///
+    /// # Errors
+    ///
+    /// Variable obligatoire absente ou vide.
+    pub fn from_schedule_env() -> Result<Self, AdmitError> {
+        fn or_default(name: &str, fallback: &str) -> String {
+            std::env::var(name).unwrap_or_else(|_| fallback.to_owned())
+        }
+        Ok(Self {
+            registry_host: env_required_admit("APPARATUS_REGISTRY_HOST")?,
+            registry_network: env_required_admit("APPARATUS_REGISTRY_NETWORK")?,
+            docker_network: env_required_admit("APPARATUS_DOCKER_NETWORK")?,
+            vault_addr_host: env_required_admit("APPARATUS_VAULT_ADDR")?,
+            vault_addr_network: env_required_admit("APPARATUS_VAULT_ADDR_NETWORK")?,
+            vault_token: resolve_vault_token()?,
+            transit_key: env_required_admit("APPARATUS_TRANSIT_KEY")?,
+            repository: or_default("APPARATUS_REPOSITORY", "apparatus/envelope"),
+            tag: or_default("APPARATUS_ENVELOPE_TAG", "t10"),
+            auth: RegistryAuth {
+                username: env_required_admit("APPARATUS_REGISTRY_USER")?,
+                password: env_required_admit("APPARATUS_REGISTRY_PASSWORD")?,
+            },
+        })
+    }
+}
+
+const K8S_SA_TOKEN_PATH: &str = "/var/run/secrets/kubernetes.io/serviceaccount/token";
+
+fn env_required_admit(name: &str) -> Result<String, AdmitError> {
+    match std::env::var(name) {
+        Ok(value) if !value.trim().is_empty() => Ok(value),
+        _ => Err(AdmitError::new(format!(
+            "missing required environment variable {name}"
+        ))),
+    }
+}
+
+/// `APPARATUS_VAULT_AUTH=kubernetes` → login SA JWT. Sinon `APPARATUS_VAULT_TOKEN` (IT).
+/// Pas de fallback root.
+fn resolve_vault_token() -> Result<String, AdmitError> {
+    match std::env::var("APPARATUS_VAULT_AUTH") {
+        Ok(mode) if mode.eq_ignore_ascii_case("kubernetes") => login_vault_kubernetes(),
+        _ => env_required_admit("APPARATUS_VAULT_TOKEN"),
+    }
+}
+
+fn login_vault_kubernetes() -> Result<String, AdmitError> {
+    let role = env_required_admit("APPARATUS_VAULT_K8S_ROLE")?;
+    let vault_addr = env_required_admit("APPARATUS_VAULT_ADDR")?;
+    let jwt = fs::read_to_string(K8S_SA_TOKEN_PATH).map_err(|_| {
+        AdmitError::new("missing kubernetes serviceaccount token (no root fallback)")
+    })?;
+    let jwt = jwt.trim();
+    if jwt.is_empty() {
+        return Err(AdmitError::new(
+            "empty kubernetes serviceaccount token (no root fallback)",
+        ));
+    }
+    let body = serde_json::json!({ "role": role, "jwt": jwt }).to_string();
+    let (status, resp) = http_post_json(&vault_addr, "/v1/auth/kubernetes/login", &body)?;
+    if status != 200 {
+        return Err(AdmitError::new(format!(
+            "kubernetes login failed status={status} (no root fallback)"
+        )));
+    }
+    serde_json::from_str::<serde_json::Value>(&resp)
+        .ok()
+        .and_then(|v| {
+            v.get("auth")?
+                .get("client_token")?
+                .as_str()
+                .filter(|t| !t.is_empty())
+                .map(str::to_owned)
+        })
+        .ok_or_else(|| AdmitError::new("kubernetes login missing client_token"))
+}
+
+fn http_post_json(base: &str, path: &str, body: &str) -> Result<(u16, String), AdmitError> {
+    let rest = base
+        .strip_prefix("http://")
+        .ok_or_else(|| AdmitError::new("APPARATUS_VAULT_ADDR must be http://host:port"))?
+        .trim_end_matches('/');
+    let (host, port) = match rest.rsplit_once(':') {
+        Some((h, p)) => (
+            h,
+            p.parse::<u16>()
+                .map_err(|_| AdmitError::new("invalid APPARATUS_VAULT_ADDR port"))?,
+        ),
+        None => (rest, 80u16),
+    };
+    let addr = (host, port)
+        .to_socket_addrs()
+        .map_err(|err| AdmitError::new(format!("vault dns: {err}")))?
+        .next()
+        .ok_or_else(|| AdmitError::new("vault dns: no address"))?;
+    let mut stream = TcpStream::connect_timeout(&addr, Duration::from_secs(10))
+        .map_err(|err| AdmitError::new(format!("vault connect: {err}")))?;
+    let _ = stream.set_read_timeout(Some(Duration::from_secs(10)));
+    let _ = stream.set_write_timeout(Some(Duration::from_secs(10)));
+    let host_header = if port == 80 {
+        host.to_owned()
+    } else {
+        format!("{host}:{port}")
+    };
+    let req = format!(
+        "POST {path} HTTP/1.1\r\nHost: {host_header}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+        body.len()
+    );
+    stream
+        .write_all(req.as_bytes())
+        .map_err(|err| AdmitError::new(format!("vault write: {err}")))?;
+    let mut buf = Vec::new();
+    stream
+        .read_to_end(&mut buf)
+        .map_err(|err| AdmitError::new(format!("vault read: {err}")))?;
+    let text = String::from_utf8_lossy(&buf);
+    let (head, rest_body) = text.split_once("\r\n\r\n").unwrap_or((text.as_ref(), ""));
+    let status = head
+        .lines()
+        .next()
+        .and_then(|line| line.split_whitespace().nth(1))
+        .and_then(|code| code.parse::<u16>().ok())
+        .unwrap_or(0);
+    Ok((status, rest_body.to_owned()))
 }
 
 /// Document d'enveloppe : digest 0002 + pin CRI.
@@ -181,6 +314,10 @@ pub async fn push_and_sign_envelope(
         "manifest".to_owned(),
         "fetch".to_owned(),
         "--plain-http".to_owned(),
+        "--username".to_owned(),
+        target.auth.username.clone(),
+        "--password".to_owned(),
+        target.auth.password.clone(),
         "--descriptor".to_owned(),
         tagged,
     ];
@@ -362,6 +499,10 @@ pub fn verify_cosign_signature(target: &AdmitTarget, digest_ref: &str) -> Result
         "--insecure-ignore-tlog".to_owned(),
         "--allow-insecure-registry".to_owned(),
         "--allow-http-registry".to_owned(),
+        "--registry-username".to_owned(),
+        target.auth.username.clone(),
+        "--registry-password".to_owned(),
+        target.auth.password.clone(),
         "--key".to_owned(),
         key_uri,
         digest_ref.to_owned(),
@@ -405,6 +546,10 @@ pub fn signature_tag_exists(target: &AdmitTarget, digest_ref: &str) -> Result<bo
         "manifest".to_owned(),
         "fetch".to_owned(),
         "--plain-http".to_owned(),
+        "--username".to_owned(),
+        target.auth.username.clone(),
+        "--password".to_owned(),
+        target.auth.password.clone(),
         sig_ref,
     ];
     let output = run_cli(

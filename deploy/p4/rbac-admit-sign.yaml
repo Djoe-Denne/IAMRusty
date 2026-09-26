@@ -1,0 +1,34 @@
+# Adm-A : SA admit-sign (aiforall-apparatus) écrit VALID dans apparatus-system.
+# Pas de verbs pods/plugins. Pas de retarget apparatus-p4-it.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: apparatus-admit-sign
+  namespace: apparatus-system
+  labels:
+    app.kubernetes.io/name: apparatus-operator
+    app.kubernetes.io/part-of: aiforall
+rules:
+  - apiGroups: ["apparatus.aiforall.dev"]
+    resources: ["admissionrecords"]
+    verbs: ["create", "get", "delete", "update", "patch"]
+  - apiGroups: ["apparatus.aiforall.dev"]
+    resources: ["admissionrecords/status"]
+    verbs: ["create", "get", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: apparatus-admit-sign
+  namespace: apparatus-system
+  labels:
+    app.kubernetes.io/name: apparatus-operator
+    app.kubernetes.io/part-of: aiforall
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: apparatus-admit-sign
+subjects:
+  - kind: ServiceAccount
+    name: admit-sign
+    namespace: aiforall-apparatus

@@ -1,0 +1,8 @@
+# Cet overlay démo seulement : le stub nginx M2 ne doit plus servir ok sur le chemin de preuve.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lazaret
+  namespace: aiforall-gateway
+spec:
+  replicas: 0

@@ -12,6 +12,7 @@ default = []
 admit = ["dep:reqwest"]
 # T10 : client Kubernetes (kube + k8s-openapi v1_32). Jamais dans Manifesto/Lazaret.
 controller = [
+    "admit",
     "dep:kube",
     "dep:k8s-openapi",
     "dep:tokio",

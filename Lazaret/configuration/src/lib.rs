@@ -232,8 +232,12 @@ pub struct AppConfig {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PluginHopConfig {
     /// Plugin base URL (`http://host:port`). Empty disables the hop.
+    /// Dette : `StaticPluginLocator`. Le gold path Kind utilise `use_dns_formula`.
     #[serde(default)]
     pub endpoint_url: String,
+    /// Formule DNS Kind `plugin-{32hex}.apparatus-plugins.svc:8080` (ADR-0605).
+    #[serde(default)]
+    pub use_dns_formula: bool,
 }
 
 impl ConfigLoader<Self> for AppConfig {

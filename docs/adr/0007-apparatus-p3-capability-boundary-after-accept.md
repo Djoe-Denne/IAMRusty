@@ -281,7 +281,8 @@ Pour les **points 10, 11, 13, 14** (2026-09-13, ratifié à l’Accept) l’util
 ## Non décidé ici
 
 - Produit ou bibliothèque CA (dette restante du point 2 ; aucun nom **figé** ici) ; rotation et TTL numériques exacts. L’implémentation T3 enregistre des **défauts** (session 15 min, certificat 24 h, nom logiciel `platform-internal-ca`) dans Conséquences / Réalité — ils ne deviennent pas des chiffres Accepted. T13 enregistre un défaut CA TTL `24 * 365` h (8760) de même nature.
-- Modalités d’émission : CSR depuis le workload vs keypair injecté (options résiduelles, pas figées). T3 implémente CSR-from-workload par défaut sans clôturer l’option keypair injecté.
+- Modalités d’émission : CSR depuis le workload vs keypair injecté (options résiduelles, pas figées). T3 implémente CSR-from-workload par défaut sans clôturer l’option keypair injecté ; **ne pas shipper en prod** la CA logicielle / certificat quelconque hors prod — gate pré-prod [0010](0010-gate-preprod-workload-certificate-ca.md) (modalité d’émission + autorité CA)
+
 - Layout des clés Redis comme schéma gelé (point 7) ; TTL KV (aucun chiffre ici).
 - Route Manifesto de lecture **domaine** (binding, consentement, grants) si le contrat HTTP manque (**résidu** du point 5) — jamais une API « pour la gateway » ; aucune URL inventée.
 - SuperSède ou levée partielle de 0006 E (libellé ultérieur, si un HTTP domaine Manifesto est ratifié).

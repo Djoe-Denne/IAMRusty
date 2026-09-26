@@ -4,7 +4,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::entity::ProjectComponent;
-use crate::port::{ComponentRepository, ComponentServicePort};
+use crate::port::{ComponentInfo, ComponentRepository, ComponentServicePort};
 use crate::service::PermissionService;
 
 #[async_trait]
@@ -41,6 +41,15 @@ pub trait ComponentService: Send + Sync {
         project_id: &Uuid,
         component_type: &str,
     ) -> Result<(), DomainError>;
+
+    /// Catalog row for `component_type` (digest / declared at attach). Default: none.
+    async fn catalog_info(
+        &self,
+        component_type: &str,
+    ) -> Result<Option<ComponentInfo>, DomainError> {
+        let _ = component_type;
+        Ok(None)
+    }
 }
 
 pub struct ComponentServiceImpl<CR, CSP>
@@ -188,5 +197,14 @@ where
         }
 
         Ok(())
+    }
+
+    async fn catalog_info(
+        &self,
+        component_type: &str,
+    ) -> Result<Option<ComponentInfo>, DomainError> {
+        self.component_service_port
+            .find_component(component_type)
+            .await
     }
 }

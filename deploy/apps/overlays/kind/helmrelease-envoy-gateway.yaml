@@ -1,0 +1,23 @@
+# HelmRelease Flux — COMMENTÉ / crd-less. Ne pas appliquer : Flux n'est pas
+# requis sur aiforall-local (M3 = helm lint du shim, pas d'install distante).
+#
+# apiVersion: helm.toolkit.fluxcd.io/v2
+# kind: HelmRelease
+# metadata:
+#   name: envoy-gateway
+#   namespace: aiforall-gitops
+# spec:
+#   interval: 30m
+#   chart:
+#     spec:
+#       chart: gateway-helm
+#       version: "v1.3.2"
+#       sourceRef:
+#         kind: HelmRepository
+#         name: envoy-gateway
+#   valuesFrom:
+#     - kind: ConfigMap
+#       name: aiforall-envoy-gateway-shim
+#
+# Upstream documenté : deploy/third-party/envoy-gateway/values.yaml
+# Ce fichier n'est PAS listé dans kustomization.yaml resources.

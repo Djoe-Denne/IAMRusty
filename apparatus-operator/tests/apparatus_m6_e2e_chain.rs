@@ -152,6 +152,9 @@ async fn m6_e2e_0002_0008_chain() {
     store
         .bind_cri(&descriptor, &cri_image)
         .expect("bind_cri pin CRI JSON");
+    store
+        .bind_envelope(&descriptor, &signed.reference)
+        .expect("bind_envelope ref T6");
     assert!(
         would_schedule(&store, &descriptor),
         "would_schedule VALID pour le digest catalogue"
@@ -173,7 +176,8 @@ async fn m6_e2e_0002_0008_chain() {
 
     let reconciler = WorkloadReconciler::connect(&cluster.kubeconfig, &tmp.path)
         .await
-        .unwrap_or_else(|err| panic!("{err}"));
+        .unwrap_or_else(|err| panic!("{err}"))
+        .with_schedule_admit_target(admit_target(&stack));
     let pod_name = pod_name_for(&descriptor);
     let cr_name = cr_name_for(&descriptor);
     reconciler

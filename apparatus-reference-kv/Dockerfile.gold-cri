@@ -1,0 +1,24 @@
+# syntax=docker/dockerfile:1
+# CRI gold reference-kv HTTP (enroll + invoke). Contexte = racine workspace.
+FROM rust:1.89-slim-bookworm AS builder
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential pkg-config libssl-dev ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /usr/src
+COPY . .
+ENV CARGO_TERM_COLOR=never
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,id=reference-kv-http-gold,target=/usr/src/target \
+    cargo build --release -p apparatus-reference-kv --bin reference-kv-http --features http \
+    && cp /usr/src/target/release/reference-kv-http /tmp/reference-kv-http
+
+FROM debian:bookworm-slim
+LABEL apparatus.id=io.aiforall.reference-kv
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends wget ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /tmp/reference-kv-http /usr/local/bin/reference-kv-http
+COPY apparatus-reference-kv/apparatus.toml /apparatus.toml
+EXPOSE 8080
+CMD ["/usr/local/bin/reference-kv-http"]

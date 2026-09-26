@@ -56,10 +56,12 @@ La crate [`readiness/`](../../readiness/) expose `/ready`. Les factories de queu
 ## OpenFGA local
 
 1. Compose démarre migrate puis `openfga run`.
-2. Créer un store et pousser [`openfga/model.fga`](../../openfga/model.fga) (CLI `fga`).
-3. Injecter `HIVE_OPENFGA__STORE_ID`, `HIVE_OPENFGA__AUTHORIZATION_MODEL_ID` (idem `MANIFESTO_`, `TELEGRAPH_`, config sentinel-sync).
+2. Créer un store et pousser [`openfga/model.fga`](../../openfga/model.fga) (CLI `fga`, ou `openfga/ensure-host-store.ps1` sur la chaîne hôte).
+3. Injecter `HIVE_OPENFGA__STORE_ID`, `HIVE_OPENFGA__AUTHORIZATION_MODEL_ID` (idem `MANIFESTO_`, `TELEGRAPH_`, `SENTINEL_SYNC_`).
 
 Sans store_id, les Check HTTP fail-closed (403 + log upstream).
+
+Chaîne hôte (queues + worker) : `just up-infra` → `just monolith` (restart si queues off) → `just sentinel-sync`.
 
 ## Suite
 

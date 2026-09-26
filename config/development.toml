@@ -1,0 +1,135 @@
+# Host overlay for rustycog-config (CWD-relative `config/development.toml`).
+# Used by `just monolith` / `cargo run -p oodhive-monolith` from the repo root.
+# Compose app images mount each service's own `/app/config`, not this file.
+#
+# Shared [database] is overlayed per slice via IAM_/TELEGRAPH_/HIVE_/MANIFESTO_/LAZARET_
+# (see monolith/run-host.ps1).
+# Queues: Manifesto must publish `project_created` → `sentinel-sync-events` (LocalStack).
+# SQS host MUST be `localhost` (rustycog LocalStack URL special-case; not 127.0.0.1).
+# run-host.ps1 keeps IAM/Telegraph/Hive/Lazaret consumers off so they do not steal that queue.
+
+[server]
+host = "0.0.0.0"
+port = 8080
+tls_enabled = false
+
+[auth.jwt]
+hs256_secret = "rustycog-dev-hs256-secret"
+issuer = "iamrusty"
+audience = "aiforall"
+
+[database]
+host = "127.0.0.1"
+port = 5432
+db = "iam_dev"
+[database.creds]
+username = "postgres"
+password = "postgres"
+read_replicas = []
+
+[logging]
+level = "info"
+
+[queue]
+type = "sqs"
+enabled = true
+region = "us-east-1"
+account_id = "000000000000"
+default_queues = ["sentinel-sync-events"]
+host = "localhost"
+port = 4566
+access_key_id = "test"
+secret_access_key = "test"
+max_retries = 3
+timeout_seconds = 30
+
+[queue.queues]
+project_created = ["sentinel-sync-events"]
+project_visibility_changed = ["sentinel-sync-events"]
+project_published = ["sentinel-sync-events"]
+project_archived = ["sentinel-sync-events"]
+component_added = ["sentinel-sync-events"]
+component_removed = ["sentinel-sync-events", "lazaret-kv-events"]
+member_added = ["sentinel-sync-events"]
+member_permissions_updated = ["sentinel-sync-events"]
+member_removed = ["sentinel-sync-events"]
+permission_granted = ["sentinel-sync-events"]
+permission_revoked = ["sentinel-sync-events"]
+project_deleted = ["sentinel-sync-events"]
+project_suspended = ["sentinel-sync-events"]
+project_resumed = ["sentinel-sync-events"]
+project_ownership_transferred = ["sentinel-sync-events"]
+
+[jwt]
+expiration_seconds = 900
+refresh_token_expiration_seconds = 2592000
+issuer = "iamrusty"
+audience = "aiforall"
+oauth_state_secret = "iam-oauth-state-hmac-change-me"
+
+[jwt.secret]
+type = "plain"
+value = "rustycog-dev-hs256-secret"
+
+[[idp.connectors]]
+id = "github"
+base_url = "http://127.0.0.1:8085/github-connect"
+hmac_secret = "change-me-github-connect-hmac"
+redirect_uris = [
+  "http://127.0.0.1:8080/iam/api/auth/github/callback",
+  "http://127.0.0.1:8080/iam/api/auth/github/relink-callback",
+]
+
+[[idp.connectors]]
+id = "gitlab"
+base_url = "http://127.0.0.1:8086/gitlab-connect"
+hmac_secret = "change-me-gitlab-connect-hmac"
+redirect_uris = [
+  "http://127.0.0.1:8080/iam/api/auth/gitlab/callback",
+  "http://127.0.0.1:8080/iam/api/auth/gitlab/relink-callback",
+]
+
+[iam_service]
+base_url = "http://127.0.0.1:8080"
+api_key = ""
+timeout_seconds = 10
+
+[external_provider_service]
+base_url = "http://127.0.0.1:8080"
+api_key = ""
+timeout_seconds = 10
+max_retries = 3
+
+[openfga]
+scheme = "http"
+host = "127.0.0.1"
+port = 8090
+store_id = ""
+cache_ttl_seconds = 0
+
+[manifesto_service]
+base_url = "http://127.0.0.1:8080/manifesto"
+timeout_seconds = 10
+bearer_token = ""
+hs256_secret = "manifesto-grant-snapshot-dev-hs256"
+issuer = "aiforall-platform"
+audience = "manifesto-bindings"
+
+[apparatus.grant_snapshot_auth]
+hs256_secret = "manifesto-grant-snapshot-dev-hs256"
+issuer = "aiforall-platform"
+audience = "manifesto-bindings"
+
+[identity]
+session_ttl_minutes = 15
+cert_ttl_hours = 24
+ca_cert_pem_path = ""
+ca_key_pem_path = ""
+
+[kv]
+backend = "postgres"
+
+[vault]
+base_url = ""
+token = ""
+mount = "secret"

@@ -15,6 +15,9 @@ awslocal sqs create-queue --queue-name user-events
 echo "📋 Creating lazaret-kv-events queue..."
 awslocal sqs create-queue --queue-name lazaret-kv-events
 
+echo "📋 Creating sentinel-sync-events queue..."
+awslocal sqs create-queue --queue-name sentinel-sync-events
+
 # Verify queue was created
 echo "✅ Verifying queue creation..."
 awslocal sqs list-queues

@@ -1,0 +1,103 @@
+# Egress Job admit-sign / operator → zot plateforme + DNS + OpenBao hôte :8200 + kube-api.
+# Enforce sur aiforall-local (Calico v3.29.7). Pas de SuperSède 0601.
+# TCP 443 Service CIDR + 6443 kind docker = watch/apply CR (latent sous kindnet ; requis sous Calico).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-apparatus-admit-egress
+  namespace: aiforall-apparatus
+  labels:
+    app.kubernetes.io/part-of: aiforall
+    aiforall.io/gold: "true"
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # kube-apiserver (kind): kubernetes.default.svc:443 → control-plane:6443.
+    # Sans ça Calico coupe le watch operator (ServiceError Connect). Pas 0.0.0.0/0.
+    - to:
+        - ipBlock:
+            cidr: 10.96.0.0/12
+      ports:
+        - protocol: TCP
+          port: 443
+    - to:
+        - ipBlock:
+            cidr: 172.19.0.0/16
+      ports:
+        - protocol: TCP
+          port: 6443
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: aiforall-platform
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: zot
+      ports:
+        - protocol: TCP
+          port: 5000
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: aiforall-gateway
+      ports:
+        - protocol: TCP
+          port: 8080
+    # OpenBao Compose hôte (même IP que hostAliases). prove-gold / deploy-j3 recale le CIDR.
+    - to:
+        - ipBlock:
+            cidr: 192.168.65.254/32
+      ports:
+        - protocol: TCP
+          port: 8200
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-zot-ingress
+  namespace: aiforall-platform
+  labels:
+    app.kubernetes.io/part-of: aiforall
+    aiforall.io/gold: "true"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: zot
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: aiforall-apparatus
+      ports:
+        - protocol: TCP
+          port: 5000
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53

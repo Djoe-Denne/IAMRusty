@@ -1,0 +1,59 @@
+# syntax=docker/dockerfile:1
+# Image locale J2 : binaire apparatus-controller (watch + re-verify Cosign schedule).
+# Contexte de build = racine du workspace Cargo.
+# kube 4.2.0 exige rustc 1.89. slim (Debian testing) produit glibc 2.38+ ;
+# slim-bookworm aligne le runtime debian:bookworm-slim (Hive / Dockerfile.build).
+FROM rust:1.89-slim-bookworm AS builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    cmake \
+    clang \
+    libclang-dev \
+    nasm \
+    perl \
+    pkg-config \
+    libssl-dev \
+    ca-certificates \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /usr/src
+COPY . .
+
+ENV CARGO_TERM_COLOR=never
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,id=apparatus-controller-target-bookworm,target=/usr/src/target \
+    cargo build --release -p apparatus-operator --bin apparatus-controller --features controller,admit \
+    && cp /usr/src/target/release/apparatus-controller /tmp/apparatus-controller
+
+# Cosign pin aligné sur apparatus-operator/src/admit.rs (COSIGN_IMAGE) / Dockerfile.admit.
+# ORAS non requis sur le controller (verify seulement).
+ARG COSIGN_VERSION=2.4.3
+RUN cd /tmp \
+    && curl -fsSL "https://github.com/sigstore/cosign/releases/download/v${COSIGN_VERSION}/cosign-linux-amd64" \
+      -o cosign-linux-amd64 \
+    && curl -fsSL "https://github.com/sigstore/cosign/releases/download/v${COSIGN_VERSION}/cosign_checksums.txt" \
+      -o cosign_checksums.txt \
+    && grep -E '  cosign-linux-amd64$' cosign_checksums.txt > cosign.sha \
+    && test -s cosign.sha \
+    && sha256sum -c cosign.sha \
+    && mv cosign-linux-amd64 cosign \
+    && chmod 0555 /tmp/cosign
+
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    libssl3 \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /var/lib/apparatus \
+    && chown 65534:65534 /var/lib/apparatus
+
+COPY --from=builder /tmp/apparatus-controller /usr/local/bin/apparatus-controller
+COPY --from=builder /tmp/cosign /usr/local/bin/cosign
+RUN chmod 0555 /usr/local/bin/apparatus-controller /usr/local/bin/cosign
+
+USER 65534:65534
+ENTRYPOINT ["/usr/local/bin/apparatus-controller"]

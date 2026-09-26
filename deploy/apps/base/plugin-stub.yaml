@@ -1,0 +1,55 @@
+# Plugin untrusted : namespace aiforall-plugins, sans SA privilégié.
+# Operator P4 n'est PAS ici — voir deploy/p4/ (kustomize autonome, jamais fusion Manifesto).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: plugin-stub
+  namespace: aiforall-plugins
+  labels:
+    app.kubernetes.io/name: plugin-stub
+    app.kubernetes.io/part-of: aiforall
+    app.kubernetes.io/component: plugin
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: plugin-stub
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: plugin-stub
+        app.kubernetes.io/part-of: aiforall
+        app.kubernetes.io/component: plugin
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: plugin
+          image: registry.k8s.io/pause:3.10
+          ports:
+            - name: http
+              containerPort: 8080
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            seccompProfile:
+              type: RuntimeDefault
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: plugin-stub
+  namespace: aiforall-plugins
+  labels:
+    app.kubernetes.io/name: plugin-stub
+    app.kubernetes.io/part-of: aiforall
+spec:
+  selector:
+    app.kubernetes.io/name: plugin-stub
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

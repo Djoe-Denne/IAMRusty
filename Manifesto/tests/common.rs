@@ -20,7 +20,9 @@ pub use rustycog::testing::common::openfga_testcontainer::TestOpenFga;
 // `tests/fixtures/component_service/`.
 #[path = "fixtures/component_service/mod.rs"]
 mod component_service_fixture;
-pub use component_service_fixture::{ComponentServiceFixtures, ComponentServiceMockService};
+pub use component_service_fixture::{
+    ComponentInfoBody, ComponentServiceFixtures, ComponentServiceMockService,
+};
 
 // Migration crate import
 use manifesto_migration::{Migrator, MigratorTrait};

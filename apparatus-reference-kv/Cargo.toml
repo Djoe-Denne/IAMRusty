@@ -8,7 +8,7 @@ license.workspace = true
 
 [features]
 default = []
-http = ["dep:tokio", "dep:axum"]
+http = ["dep:tokio", "dep:axum", "dep:reqwest", "dep:rcgen", "dep:uuid"]
 
 [[bin]]
 name = "reference-kv-http"
@@ -21,6 +21,9 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 axum = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true, features = ["rt-multi-thread", "macros", "net", "signal"] }
+reqwest = { workspace = true, optional = true }
+rcgen = { workspace = true, optional = true }
+uuid = { workspace = true, optional = true }
 
 [lints]
 workspace = true

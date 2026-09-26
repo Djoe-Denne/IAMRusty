@@ -1,0 +1,15 @@
+[
+  {
+    "component_type": "io.aiforall.reference-kv",
+    "name": "Reference KV",
+    "description": "Host-chain catalog stub for prove-e2e-curl. digest = pin descripteur 0002 (digest_manifest de apparatus-reference-kv/apparatus.toml, M1).",
+    "version": "1.0.0",
+    "endpoint": "http://127.0.0.1:8080/lazaret",
+    "digest": "sha256:98ba747fc572de29d76dfd08f92537782bf0353b652adcace10200020ee560cf",
+    "declared_capabilities": [
+      "project.read",
+      "storage.kv.read",
+      "storage.kv.write"
+    ]
+  }
+]

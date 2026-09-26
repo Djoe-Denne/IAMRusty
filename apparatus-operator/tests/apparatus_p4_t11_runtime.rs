@@ -10,6 +10,7 @@ use std::process::Output;
 use std::time::Duration;
 
 use apparatus_operator::admission::{AdmissionStore, AdmitInput, PersistentAdmissionStore};
+use apparatus_operator::admit::{push_and_sign_envelope, AdmitTarget, Envelope, RegistryAuth};
 use apparatus_operator::controller::{
     cr_name_for, pod_name_for, IsolationLabels, ReconcileOutcome, ScheduleRefuse,
     WorkloadReconciler, BINDING_LABEL, GROUP, KIND, PLUGINS_NAMESPACE, PROJECT_LABEL,
@@ -199,23 +200,55 @@ async fn schedule_plugin(
         .build_and_load_platform_plugin()
         .unwrap_or_else(|err| panic!("{err}"));
     wait_system_canary(cluster);
+    let stack = fixtures::SignRegistryStack::start()
+        .await
+        .unwrap_or_else(|err| panic!("SignRegistryStack: {err}"));
+    let target = AdmitTarget {
+        registry_host: format!("127.0.0.1:{}", stack.zot.port),
+        registry_network: fixtures::zot::TestZot::network_registry(),
+        docker_network: fixtures::SignRegistryStack::network_name().to_owned(),
+        vault_addr_host: stack.transit.host_base_url(),
+        vault_addr_network: fixtures::openbao_transit::TestOpenBaoTransit::network_base_url(),
+        vault_token: fixtures::openbao_transit::TestOpenBaoTransit::token().to_owned(),
+        transit_key: fixtures::openbao_transit::TestOpenBaoTransit::key_name().to_owned(),
+        repository: "apparatus/envelope".to_owned(),
+        tag: "t11".to_owned(),
+        auth: RegistryAuth {
+            username: fixtures::zot::SIGNER_USER.to_owned(),
+            password: fixtures::zot::SIGNER_PASSWORD.to_owned(),
+        },
+    };
+    let signed = push_and_sign_envelope(
+        &target,
+        &Envelope {
+            descriptor_digest: descriptor.clone(),
+            cri_image: cri_image.clone(),
+        },
+    )
+    .await
+    .unwrap_or_else(|err| panic!("push+sign: {err}"));
     let store_path = unique_store_path("schedule");
     let mut store = PersistentAdmissionStore::open(&store_path).expect("open JSON M3");
     let record = store
         .admit(AdmitInput {
             descriptor_digest: descriptor.clone(),
-            observed_descriptor: descriptor.clone(),
+            observed_descriptor: signed.catalog_digest.clone(),
             policy_id: POLICY_ID.to_owned(),
             report_digest,
             conformance_passed: passed,
-            signature_verified: true,
+            signature_verified: signed.signature_verified,
             claimed_verified: false,
         })
         .expect("admit VALID");
     store
         .bind_cri(&record.descriptor_digest, &cri_image)
         .expect("bind_cri pin JSON");
-    let reconciler = connect(cluster, &store_path).await;
+    store
+        .bind_envelope(&record.descriptor_digest, &signed.reference)
+        .expect("bind_envelope ref T6");
+    let reconciler = connect(cluster, &store_path)
+        .await
+        .with_schedule_admit_target(target);
     reset_digest(&reconciler, &descriptor).await;
     reconciler
         .apply_valid_record(&record, &cri_image, Some(&isolation()))

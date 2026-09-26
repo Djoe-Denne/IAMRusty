@@ -1,0 +1,41 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Overlay démo J3 / ADR-0604 — distinct de overlays/kind (M2 nginx stub).
+# Ne SuperSède pas 0601 (canon cluster = 4+1 standalones).
+resources:
+  - ../../base
+  - oodhive-monolith.yaml
+  - invoke-probe-j3-job.yaml
+  - allow-apparatus-plugins-np.yaml
+  - allow-oodhive-compose-egress-np.yaml
+  - allow-oodhive-plugin-hop-egress-np.yaml
+  - apparatus-plugins-np.yaml
+  # reference-kv-plugin-service.yaml = dette (URL manuelle). Nominal 0605 = Service operator nom=Pod.
+patches:
+  - path: patch-lazaret-scale.yaml
+  - path: patch-lazaret-service.yaml
+  - path: patch-plugins-np.yaml
+    target:
+      group: networking.k8s.io
+      version: v1
+      kind: NetworkPolicy
+      name: default-deny
+      namespace: aiforall-plugins
+  - path: patch-plugins-egress-https.yaml
+    target:
+      group: networking.k8s.io
+      version: v1
+      kind: NetworkPolicy
+      name: default-deny
+      namespace: aiforall-plugins
+  - path: patch-gateway-np.yaml
+    target:
+      group: networking.k8s.io
+      version: v1
+      kind: NetworkPolicy
+      name: default-deny
+      namespace: aiforall-gateway
+images:
+  - name: aiforall-oodhive-monolith
+    newName: aiforall-oodhive-monolith
+    newTag: j3

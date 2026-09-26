@@ -12,8 +12,11 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use futures::StreamExt;
-use k8s_openapi::api::core::v1::{Container, ContainerPort, Pod, PodSpec};
+use k8s_openapi::api::core::v1::{
+    Container, ContainerPort, EnvVar, Pod, PodSpec, Service, ServicePort, ServiceSpec,
+};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
+use k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
 use kube::api::{Api, DeleteParams, DynamicObject, Patch, PatchParams, PostParams};
 use kube::core::{ApiResource, GroupVersionKind, ResourceExt};
 use kube::runtime::{watcher, WatchStreamExt};
@@ -42,6 +45,8 @@ pub const KIND: &str = "AdmissionRecord";
 pub const PROJECT_LABEL: &str = "apparatus.aiforall.dev/project";
 /// Label binding (isolation).
 pub const BINDING_LABEL: &str = "apparatus.aiforall.dev/binding";
+/// Label d'instance : Service selector = Pod (ADR-0605).
+pub const INSTANCE_LABEL: &str = "app.kubernetes.io/instance";
 /// Phase cluster écrite uniquement par admit.
 pub const VALID_PHASE: &str = "VALID";
 
@@ -88,6 +93,8 @@ pub enum ScheduleRefuse {
     MissingAdmittedCri,
     /// `spec.criImage` CR présent et différent du pin JSON.
     CriImageMismatch,
+    /// JSON VALID sans `envelopeReference`, ou `cosign verify` KO (fail-closed ADR-0008).
+    SignatureUnverified,
 }
 
 impl fmt::Display for ScheduleRefuse {
@@ -98,6 +105,7 @@ impl fmt::Display for ScheduleRefuse {
             Self::MissingIsolation => f.write_str("missing isolation labels project+binding"),
             Self::MissingAdmittedCri => f.write_str("missing admitted cri pin"),
             Self::CriImageMismatch => f.write_str("CR criImage differs from admitted pin"),
+            Self::SignatureUnverified => f.write_str("envelope signature missing or unverified"),
         }
     }
 }
@@ -140,6 +148,8 @@ impl std::error::Error for ControllerError {}
 pub struct WorkloadReconciler {
     client: Client,
     store_path: PathBuf,
+    /// Cible Cosign injectée (tests). Prod : [`AdmitTarget::from_schedule_env`].
+    schedule_admit_target: Option<crate::admit::AdmitTarget>,
 }
 
 impl WorkloadReconciler {
@@ -158,7 +168,11 @@ impl WorkloadReconciler {
             .map_err(|err| ControllerError::new(format!("kube config: {err}")))?;
         let client = Client::try_from(cfg)
             .map_err(|err| ControllerError::new(format!("kube client: {err}")))?;
-        Ok(Self { client, store_path })
+        Ok(Self {
+            client,
+            store_path,
+            schedule_admit_target: None,
+        })
     }
 
     /// Client inferé (`KUBECONFIG` / in-cluster) + [`admission_store_path_from_env`].
@@ -173,7 +187,21 @@ impl WorkloadReconciler {
         let client = Client::try_default()
             .await
             .map_err(|err| ControllerError::new(format!("kube client: {err}")))?;
-        Ok(Self { client, store_path })
+        Ok(Self {
+            client,
+            store_path,
+            schedule_admit_target: None,
+        })
+    }
+
+    /// Injecte la cible Cosign/Transit pour la re-vérif schedule (tests IT).
+    ///
+    /// Prod lit l'env via [`crate::admit::AdmitTarget::from_schedule_env`]
+    /// (`unsafe_code=forbid` interdit `set_var` dans les tests).
+    #[must_use]
+    pub fn with_schedule_admit_target(mut self, target: crate::admit::AdmitTarget) -> Self {
+        self.schedule_admit_target = Some(target);
+        self
     }
 
     /// Écrit la CR `AdmissionRecord` et le statut [`VALID_PHASE`] (chemin admit).
@@ -314,28 +342,54 @@ impl WorkloadReconciler {
         };
         let pod_name = pod_name_for(&digest);
         let pods: Api<Pod> = Api::namespaced(self.client.clone(), PLUGINS_NAMESPACE);
-        if pods.get(&pod_name).await.is_ok() {
-            return Ok(ReconcileOutcome::Scheduled { pod_name });
+        let labels = plugin_pod_labels(&isolation, &pod_name);
+        let enroll_url = std::env::var("APPARATUS_PLUGIN_ENROLL_URL").ok();
+        if let Ok(existing) = pods.get(&pod_name).await {
+            if existing_plugin_pod_matches(
+                &existing,
+                &isolation,
+                &digest,
+                enroll_url.as_deref(),
+                &pod_name,
+            ) {
+                self.ensure_plugin_service(&pod_name, labels).await?;
+                return Ok(ReconcileOutcome::Scheduled { pod_name });
+            }
+            self.delete_plugin_pod(&pod_name).await?;
         }
-        let spec = envelope_to_podspec(cri_image, &isolation)?;
-        let mut labels = BTreeMap::new();
-        labels.insert(PROJECT_LABEL.to_owned(), isolation.project.clone());
-        labels.insert(BINDING_LABEL.to_owned(), isolation.binding.clone());
+        if let Err(refuse) =
+            gate_schedule_signature(product.envelope_reference.as_deref(), self.admit_target())
+        {
+            eprintln!("apparatus-controller: SignatureUnverified digest={digest_str}");
+            return Ok(ReconcileOutcome::Refused(refuse));
+        }
+        let mut spec = envelope_to_podspec(cri_image, &isolation)?;
+        inject_plugin_workload_env(&mut spec, &isolation, &digest, enroll_url.as_deref());
         let pod = Pod {
             metadata: ObjectMeta {
                 name: Some(pod_name.clone()),
                 namespace: Some(PLUGINS_NAMESPACE.to_owned()),
-                labels: Some(labels),
+                labels: Some(labels.clone()),
                 ..ObjectMeta::default()
             },
             spec: Some(spec),
             ..Pod::default()
         };
         match pods.create(&PostParams::default(), &pod).await {
-            Ok(_) => Ok(ReconcileOutcome::Scheduled { pod_name }),
-            Err(err) if is_already_exists(&err) => Ok(ReconcileOutcome::Scheduled { pod_name }),
+            Ok(_) => {
+                self.ensure_plugin_service(&pod_name, labels).await?;
+                Ok(ReconcileOutcome::Scheduled { pod_name })
+            }
+            Err(err) if is_already_exists(&err) => {
+                self.ensure_plugin_service(&pod_name, labels).await?;
+                Ok(ReconcileOutcome::Scheduled { pod_name })
+            }
             Err(err) => Err(ControllerError::new(format!("create Pod: {err}"))),
         }
+    }
+
+    fn admit_target(&self) -> Option<&crate::admit::AdmitTarget> {
+        self.schedule_admit_target.as_ref()
     }
 
     /// Attend que le Pod soit `Running` et retourne `spec.containers[0].image`.
@@ -403,6 +457,49 @@ impl WorkloadReconciler {
             Err(err) if is_not_found(&err) => Ok(false),
             Err(err) => Err(ControllerError::new(format!("get pod: {err}"))),
         }
+    }
+
+    async fn ensure_plugin_service(
+        &self,
+        pod_name: &str,
+        labels: BTreeMap<String, String>,
+    ) -> Result<(), ControllerError> {
+        let services: Api<Service> = Api::namespaced(self.client.clone(), PLUGINS_NAMESPACE);
+        let service = plugin_cluster_ip_service(pod_name, labels.clone());
+        match services.create(&PostParams::default(), &service).await {
+            Ok(_) => Ok(()),
+            Err(err) if is_already_exists(&err) => match services.get(pod_name).await {
+                Ok(existing) if service_selector_matches(&existing, &labels) => Ok(()),
+                Ok(_) => {
+                    self.replace_plugin_service_selector(&services, pod_name, &labels)
+                        .await
+                }
+                Err(err) if is_not_found(&err) => services
+                    .create(&PostParams::default(), &service)
+                    .await
+                    .map(|_| ())
+                    .map_err(|err| ControllerError::new(format!("create Service: {err}"))),
+                Err(err) => Err(ControllerError::new(format!("get Service: {err}"))),
+            },
+            Err(err) => Err(ControllerError::new(format!("create Service: {err}"))),
+        }
+    }
+
+    async fn replace_plugin_service_selector(
+        &self,
+        services: &Api<Service>,
+        pod_name: &str,
+        labels: &BTreeMap<String, String>,
+    ) -> Result<(), ControllerError> {
+        services
+            .patch(
+                pod_name,
+                &PatchParams::default(),
+                &Patch::Merge(json!({ "spec": { "selector": labels } })),
+            )
+            .await
+            .map(|_| ())
+            .map_err(|err| ControllerError::new(format!("patch Service selector: {err}")))
     }
 
     /// Supprime le Pod plugin (404 ignoré) et attend qu'il soit Gone.
@@ -530,6 +627,116 @@ pub fn pod_name_for(digest: &ReleaseDigest) -> String {
     format!("plugin-{}", &hex[..take])
 }
 
+fn plugin_pod_labels(isolation: &IsolationLabels, pod_name: &str) -> BTreeMap<String, String> {
+    let mut labels = BTreeMap::new();
+    labels.insert(PROJECT_LABEL.to_owned(), isolation.project.clone());
+    labels.insert(BINDING_LABEL.to_owned(), isolation.binding.clone());
+    labels.insert(INSTANCE_LABEL.to_owned(), pod_name.to_owned());
+    labels
+}
+
+fn service_selector_matches(service: &Service, labels: &BTreeMap<String, String>) -> bool {
+    service
+        .spec
+        .as_ref()
+        .and_then(|spec| spec.selector.as_ref())
+        == Some(labels)
+}
+
+fn pod_label<'a>(pod: &'a Pod, key: &str) -> Option<&'a str> {
+    pod.metadata
+        .labels
+        .as_ref()
+        .and_then(|labels| labels.get(key))
+        .map(String::as_str)
+}
+
+fn pod_env<'a>(pod: &'a Pod, name: &str) -> Option<&'a str> {
+    pod.spec
+        .as_ref()
+        .and_then(|spec| spec.containers.first())
+        .and_then(|container| container.env.as_ref())
+        .and_then(|env| env.iter().find(|item| item.name == name))
+        .and_then(|item| item.value.as_deref())
+}
+
+fn existing_plugin_pod_matches(
+    pod: &Pod,
+    isolation: &IsolationLabels,
+    digest: &ReleaseDigest,
+    enroll_url: Option<&str>,
+    pod_name: &str,
+) -> bool {
+    pod_label(pod, PROJECT_LABEL) == Some(isolation.project.as_str())
+        && pod_label(pod, BINDING_LABEL) == Some(isolation.binding.as_str())
+        && pod_label(pod, INSTANCE_LABEL) == Some(pod_name)
+        && pod_env(pod, "BINDING") == Some(isolation.binding.as_str())
+        && pod_env(pod, "PROJECT_ID") == Some(isolation.project.as_str())
+        && pod_env(pod, "RELEASE") == Some(digest.as_str())
+        && match enroll_url.map(str::trim).filter(|value| !value.is_empty()) {
+            None => true,
+            Some(url) => pod_env(pod, "LAZARET_ENROLL_URL") == Some(url),
+        }
+}
+
+/// Service ClusterIP du même nom que le Pod (ADR-0605).
+#[must_use]
+pub fn plugin_cluster_ip_service(pod_name: &str, labels: BTreeMap<String, String>) -> Service {
+    Service {
+        metadata: ObjectMeta {
+            name: Some(pod_name.to_owned()),
+            namespace: Some(PLUGINS_NAMESPACE.to_owned()),
+            labels: Some(labels.clone()),
+            ..ObjectMeta::default()
+        },
+        spec: Some(ServiceSpec {
+            type_: Some("ClusterIP".to_owned()),
+            selector: Some(labels),
+            ports: Some(vec![ServicePort {
+                name: Some("http".to_owned()),
+                port: PLUGIN_INVOKE_PORT,
+                target_port: Some(IntOrString::Int(PLUGIN_INVOKE_PORT)),
+                protocol: Some("TCP".to_owned()),
+                ..ServicePort::default()
+            }]),
+            ..ServiceSpec::default()
+        }),
+        ..Service::default()
+    }
+}
+
+fn inject_plugin_workload_env(
+    spec: &mut PodSpec,
+    isolation: &IsolationLabels,
+    digest: &ReleaseDigest,
+    enroll_url: Option<&str>,
+) {
+    let Some(container) = spec.containers.first_mut() else {
+        return;
+    };
+    let mut env = container.env.take().unwrap_or_default();
+    upsert_env(&mut env, "BINDING", isolation.binding.clone());
+    upsert_env(&mut env, "PROJECT_ID", isolation.project.clone());
+    upsert_env(&mut env, "RELEASE", digest.as_str().to_owned());
+    // Enroll = HTTP 8080 (T14b). Session/invoke = HTTPS 8443. Pas de CA inventée ici.
+    if let Some(url) = enroll_url.map(str::trim).filter(|value| !value.is_empty()) {
+        upsert_env(&mut env, "LAZARET_ENROLL_URL", url.to_owned());
+    }
+    container.env = Some(env);
+}
+
+fn upsert_env(env: &mut Vec<EnvVar>, name: &str, value: String) {
+    if let Some(existing) = env.iter_mut().find(|item| item.name == name) {
+        existing.value = Some(value);
+        return;
+    }
+    env.push(EnvVar {
+        name: name.to_owned(),
+        value: Some(value),
+        ..EnvVar::default()
+    });
+}
+
 /// Watch infini (binaire controller, feature `controller`).
 ///
 /// # Errors
@@ -558,7 +765,7 @@ pub async fn sign_envelope_and_apply_from_env() -> Result<(), ControllerError> {
     use crate::admission::{
         admission_store_path_from_env, AdmissionStore, AdmitInput, PersistentAdmissionStore,
     };
-    use crate::admit::{push_and_sign_envelope, AdmitTarget, Envelope, RegistryAuth};
+    use crate::admit::{push_and_sign_envelope, AdmitTarget, Envelope};
     use crate::conformance::POLICY_ID;
 
     let store_path = admission_store_path_from_env()
@@ -568,21 +775,8 @@ pub async fn sign_envelope_and_apply_from_env() -> Result<(), ControllerError> {
         .map_err(|err| ControllerError::new(format!("APPARATUS_DESCRIPTOR_DIGEST: {err}")))?;
     let report = ReleaseDigest::new(&env_required("APPARATUS_REPORT_DIGEST")?)
         .map_err(|err| ControllerError::new(format!("APPARATUS_REPORT_DIGEST: {err}")))?;
-    let target = AdmitTarget {
-        registry_host: env_required("APPARATUS_REGISTRY_HOST")?,
-        registry_network: env_required("APPARATUS_REGISTRY_NETWORK")?,
-        docker_network: env_required("APPARATUS_DOCKER_NETWORK")?,
-        vault_addr_host: env_required("APPARATUS_VAULT_ADDR")?,
-        vault_addr_network: env_required("APPARATUS_VAULT_ADDR_NETWORK")?,
-        vault_token: env_required("APPARATUS_VAULT_TOKEN")?,
-        transit_key: env_required("APPARATUS_TRANSIT_KEY")?,
-        repository: env_or("APPARATUS_REPOSITORY", "apparatus/envelope"),
-        tag: env_or("APPARATUS_ENVELOPE_TAG", "t10"),
-        auth: RegistryAuth {
-            username: env_required("APPARATUS_REGISTRY_USER")?,
-            password: env_required("APPARATUS_REGISTRY_PASSWORD")?,
-        },
-    };
+    let target = AdmitTarget::from_schedule_env()
+        .map_err(|err| ControllerError::new(format!("AdmitTarget: {err}")))?;
     let envelope = Envelope {
         descriptor_digest: descriptor.clone(),
         cri_image: cri_image.clone(),
@@ -607,6 +801,9 @@ pub async fn sign_envelope_and_apply_from_env() -> Result<(), ControllerError> {
     store
         .bind_cri(&record.descriptor_digest, &signed.cri_image)
         .map_err(|err| ControllerError::new(format!("bind_cri: {err}")))?;
+    store
+        .bind_envelope(&record.descriptor_digest, &signed.reference)
+        .map_err(|err| ControllerError::new(format!("bind_envelope: {err}")))?;
     let isolation = match (
         std::env::var("APPARATUS_PROJECT").ok(),
         std::env::var("APPARATUS_BINDING").ok(),
@@ -643,6 +840,31 @@ fn isolation_from_labels(
             binding: binding.to_owned(),
         }),
         _ => Err(ScheduleRefuse::MissingIsolation),
+    }
+}
+
+/// Gate Cosign avant `pods.create` : ref absente ou verify KO → refuse.
+///
+/// `injected` (tests) prime sur l'env. Env absentes + ref présente = refuse.
+pub fn gate_schedule_signature(
+    envelope_reference: Option<&str>,
+    injected: Option<&crate::admit::AdmitTarget>,
+) -> Result<(), ScheduleRefuse> {
+    let Some(reference) = envelope_reference
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return Err(ScheduleRefuse::SignatureUnverified);
+    };
+    match injected {
+        Some(target) => crate::admit::verify_cosign_signature(target, reference)
+            .map_err(|_| ScheduleRefuse::SignatureUnverified),
+        None => {
+            let target = crate::admit::AdmitTarget::from_schedule_env()
+                .map_err(|_| ScheduleRefuse::SignatureUnverified)?;
+            crate::admit::verify_cosign_signature(&target, reference)
+                .map_err(|_| ScheduleRefuse::SignatureUnverified)
+        }
     }
 }
 
@@ -700,4 +922,230 @@ fn env_required(name: &str) -> Result<String, ControllerError> {
 #[cfg(feature = "admit")]
 fn env_or(name: &str, fallback: &str) -> String {
     std::env::var(name).unwrap_or_else(|_| fallback.to_owned())
+}
+
+#[cfg(test)]
+mod plugin_service_tests {
+    use super::{
+        existing_plugin_pod_matches, inject_plugin_workload_env, plugin_cluster_ip_service,
+        plugin_pod_labels, service_selector_matches, IsolationLabels, BINDING_LABEL,
+        INSTANCE_LABEL, PLUGINS_NAMESPACE, PLUGIN_INVOKE_PORT, PROJECT_LABEL,
+    };
+    use crate::digest::ReleaseDigest;
+    use k8s_openapi::api::core::v1::{Container, Pod, PodSpec, Service, ServiceSpec};
+    use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
+    use k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
+    use std::collections::BTreeMap;
+
+    fn gold_digest() -> ReleaseDigest {
+        ReleaseDigest::new(
+            "sha256:98ba747fc572de29d76dfd08f92537782bf0353b652adcace10200020ee560cf",
+        )
+        .expect("digest")
+    }
+
+    fn matching_pod(
+        isolation: &IsolationLabels,
+        digest: &ReleaseDigest,
+        pod_name: &str,
+        enroll: Option<&str>,
+    ) -> Pod {
+        let mut spec = PodSpec {
+            containers: vec![Container {
+                name: "plugin".to_owned(),
+                ..Container::default()
+            }],
+            ..PodSpec::default()
+        };
+        inject_plugin_workload_env(&mut spec, isolation, digest, enroll);
+        Pod {
+            metadata: ObjectMeta {
+                name: Some(pod_name.to_owned()),
+                labels: Some(plugin_pod_labels(isolation, pod_name)),
+                ..ObjectMeta::default()
+            },
+            spec: Some(spec),
+            ..Pod::default()
+        }
+    }
+
+    #[test]
+    fn cluster_ip_service_name_matches_pod_and_selector() {
+        let isolation = IsolationLabels::try_new("proj-1", "bind-1").expect("labels");
+        let pod_name = "plugin-98ba747fc572de29d76dfd08f9253778";
+        let labels = plugin_pod_labels(&isolation, pod_name);
+        let service = plugin_cluster_ip_service(pod_name, labels.clone());
+        assert_eq!(service.metadata.name.as_deref(), Some(pod_name));
+        assert_eq!(
+            service.metadata.namespace.as_deref(),
+            Some(PLUGINS_NAMESPACE)
+        );
+        let spec = service.spec.expect("spec");
+        assert_eq!(spec.type_.as_deref(), Some("ClusterIP"));
+        assert_eq!(spec.selector.as_ref(), Some(&labels));
+        assert_eq!(
+            labels.get(PROJECT_LABEL).map(String::as_str),
+            Some("proj-1")
+        );
+        assert_eq!(
+            labels.get(BINDING_LABEL).map(String::as_str),
+            Some("bind-1")
+        );
+        assert_eq!(
+            labels.get(INSTANCE_LABEL).map(String::as_str),
+            Some(pod_name)
+        );
+        let port = spec.ports.expect("ports");
+        assert_eq!(port[0].port, PLUGIN_INVOKE_PORT);
+        assert_eq!(
+            port[0].target_port,
+            Some(IntOrString::Int(PLUGIN_INVOKE_PORT))
+        );
+    }
+
+    #[test]
+    fn injects_enroll_http_url_and_isolation_env() {
+        let isolation = IsolationLabels::try_new(
+            "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+            "11111111-2222-3333-4444-555555555555",
+        )
+        .expect("labels");
+        let digest = ReleaseDigest::new(
+            "sha256:98ba747fc572de29d76dfd08f92537782bf0353b652adcace10200020ee560cf",
+        )
+        .expect("digest");
+        let mut spec = PodSpec {
+            containers: vec![Container {
+                name: "plugin".to_owned(),
+                ..Container::default()
+            }],
+            ..PodSpec::default()
+        };
+        let url = "http://oodhive-monolith.aiforall-gateway.svc.cluster.local:8080/lazaret/enroll";
+        inject_plugin_workload_env(&mut spec, &isolation, &digest, Some(url));
+        let env = spec.containers[0].env.as_ref().expect("env");
+        let value = |name: &str| {
+            env.iter()
+                .find(|item| item.name == name)
+                .and_then(|item| item.value.clone())
+        };
+        assert_eq!(
+            value("BINDING").as_deref(),
+            Some(isolation.binding.as_str())
+        );
+        assert_eq!(
+            value("PROJECT_ID").as_deref(),
+            Some(isolation.project.as_str())
+        );
+        assert_eq!(value("RELEASE").as_deref(), Some(digest.as_str()));
+        assert_eq!(value("LAZARET_ENROLL_URL").as_deref(), Some(url));
+    }
+
+    #[test]
+    fn skips_enroll_url_when_operator_env_absent() {
+        let isolation = IsolationLabels::try_new("proj-1", "bind-1").expect("labels");
+        let digest = ReleaseDigest::new(
+            "sha256:98ba747fc572de29d76dfd08f92537782bf0353b652adcace10200020ee560cf",
+        )
+        .expect("digest");
+        let mut spec = PodSpec {
+            containers: vec![Container {
+                name: "plugin".to_owned(),
+                ..Container::default()
+            }],
+            ..PodSpec::default()
+        };
+        inject_plugin_workload_env(&mut spec, &isolation, &digest, Some("  "));
+        let env = spec.containers[0].env.as_ref().expect("env");
+        assert!(env.iter().all(|item| item.name != "LAZARET_ENROLL_URL"));
+    }
+
+    #[test]
+    fn stale_service_selector_does_not_match_desired() {
+        let isolation = IsolationLabels::try_new("proj-1", "bind-1").expect("labels");
+        let pod_name = "plugin-98ba747fc572de29d76dfd08f9253778";
+        let desired = plugin_pod_labels(&isolation, pod_name);
+        let mut leftover = BTreeMap::new();
+        leftover.insert(PROJECT_LABEL.to_owned(), "leftover".to_owned());
+        let stale = Service {
+            spec: Some(ServiceSpec {
+                selector: Some(leftover),
+                ..ServiceSpec::default()
+            }),
+            ..Service::default()
+        };
+        assert!(!service_selector_matches(&stale, &desired));
+        assert!(service_selector_matches(
+            &plugin_cluster_ip_service(pod_name, desired.clone()),
+            &desired
+        ));
+    }
+
+    #[test]
+    fn keeps_pod_when_isolation_env_and_instance_match() {
+        let isolation = IsolationLabels::try_new("proj-1", "bind-1").expect("labels");
+        let digest = gold_digest();
+        let pod_name = "plugin-98ba747fc572de29d76dfd08f9253778";
+        let pod = matching_pod(&isolation, &digest, pod_name, None);
+        assert!(existing_plugin_pod_matches(
+            &pod, &isolation, &digest, None, pod_name
+        ));
+    }
+
+    #[test]
+    fn recreates_pod_on_binding_env_drift() {
+        let isolation = IsolationLabels::try_new("proj-1", "bind-1").expect("labels");
+        let other = IsolationLabels::try_new("proj-1", "bind-2").expect("other");
+        let digest = gold_digest();
+        let pod_name = "plugin-98ba747fc572de29d76dfd08f9253778";
+        let pod = matching_pod(&other, &digest, pod_name, None);
+        assert!(!existing_plugin_pod_matches(
+            &pod, &isolation, &digest, None, pod_name
+        ));
+    }
+
+    #[test]
+    fn recreates_pod_when_enroll_url_set_but_missing() {
+        let isolation = IsolationLabels::try_new("proj-1", "bind-1").expect("labels");
+        let digest = gold_digest();
+        let pod_name = "plugin-98ba747fc572de29d76dfd08f9253778";
+        let pod = matching_pod(&isolation, &digest, pod_name, None);
+        assert!(!existing_plugin_pod_matches(
+            &pod,
+            &isolation,
+            &digest,
+            Some("http://oodhive-monolith.aiforall-gateway.svc.cluster.local:8080/lazaret/enroll"),
+            pod_name
+        ));
+    }
+}
+
+#[cfg(test)]
+mod schedule_signature_gate_tests {
+    use super::{gate_schedule_signature, ScheduleRefuse};
+
+    #[test]
+    fn missing_envelope_reference_refuses_without_kind() {
+        assert_eq!(
+            gate_schedule_signature(None, None),
+            Err(ScheduleRefuse::SignatureUnverified)
+        );
+        assert_eq!(
+            gate_schedule_signature(Some(""), None),
+            Err(ScheduleRefuse::SignatureUnverified)
+        );
+        assert_eq!(
+            gate_schedule_signature(Some("   "), None),
+            Err(ScheduleRefuse::SignatureUnverified)
+        );
+    }
+
+    #[test]
+    fn present_ref_without_admit_target_env_refuses() {
+        // Env schedule absentes (unsafe_code=forbid : pas de set_var) ⇒ fail-closed.
+        assert_eq!(
+            gate_schedule_signature(Some("127.0.0.1:5000/repo@sha256:deadbeef"), None),
+            Err(ScheduleRefuse::SignatureUnverified)
+        );
+    }
 }

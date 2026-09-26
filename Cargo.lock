@@ -182,9 +182,12 @@ version = "0.1.0"
 dependencies = [
  "apparatus-contracts",
  "axum 0.8.9",
+ "rcgen",
+ "reqwest 0.12.28",
  "serde_json",
  "thiserror 2.0.18",
  "tokio",
+ "uuid",
 ]
 
 [[package]]

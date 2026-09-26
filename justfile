@@ -3,9 +3,11 @@
 # Usage: just <task>
 #
 # This justfile orchestrates the full local docker-compose stack:
-#   - postgres, localstack, openfga (infrastructure)
+#   - postgres, localstack, openfga, openbao (infrastructure)
 #   - create-databases, openfga-migrate, build-artifacts (one-shot init)
 #   - iam-service, telegraph-service, hive-service, manifesto-service (apps)
+# Host monolith (J1): `just up-infra` then `just monolith` — never builds apps.
+# Host FGA worker: `just sentinel-sync` after queues-on + monolith restart (not nested).
 #
 # The four application Dockerfiles all start with
 #   FROM local/build-artifacts:latest
@@ -41,6 +43,15 @@ up:
     @Write-Host "Stack is up. Tail logs with: just logs" -ForegroundColor Green
     @just ps
 
+# Infra only for the host monolith (J1). Explicit service list — never
+# `build-artifacts` and never iam/telegraph/hive/manifesto/lazaret-service.
+# Port 8080 stays free so `just monolith` can bind. Does not change `just up`.
+up-infra:
+    @Write-Host "Starting compose infrastructure only (no Rust apps, no build-artifacts)..." -ForegroundColor Cyan
+    docker compose up -d postgres create-databases openfga-migrate openfga localstack openbao openbao-seed platform-mesh-certs
+    @Write-Host "Infra is up. Host chain: just monolith (restart if queues were off) then just sentinel-sync." -ForegroundColor Green
+    @just ps
+
 # Same as `up` but rebuild every image from scratch (no cache).
 rebuild:
     @Write-Host "Rebuilding every image with --no-cache..." -ForegroundColor Cyan
@@ -60,6 +71,34 @@ nuke:
 
 # Restart the whole stack.
 restart: down up
+
+# Host oodhive-monolith (J1). Needs `just up-infra`. Binds 0.0.0.0:8080 —
+# stop compose iam-service if that port is taken.
+# If this process booted with [queue] enabled=false, RESTART it after enabling queues.
+monolith:
+    & ./monolith/run-host.ps1
+
+# Preuves — index :
+#   just prove-gold                  = nominal Kind 0605
+#   just prove-j1 / monolith-prove   = host J1
+#   monolith/prove-e2e-curl.ps1      = curl hôte ≠ preuve
+monolith-prove:
+    & ./monolith/prove-j1.ps1
+
+alias prove-j1 := monolith-prove
+
+# Host sentinel-sync worker (ADR-0303 / 0404). Separate process — not nested in oodhive-monolith.
+# CWD repo root. Loader reads `config/sentinel-sync.toml` + SENTINEL_SYNC_* (RUN_ENV is unused here).
+# Order: just up-infra → queues on → just monolith (restart) → just sentinel-sync.
+sentinel-sync:
+    $env:RUN_ENV = "development"
+    . ./openfga/ensure-host-store.ps1
+    cargo run -p sentinel-sync
+
+# Host Manifesto component catalog stub (GET http://127.0.0.1:9000/api/components).
+# Needed for prove-e2e-curl POST .../components after the OpenFGA Admin grant.
+component-catalog:
+    & ./monolith/run-component-catalog.ps1
 
 # === Observability =========================================================
 
@@ -117,3 +156,39 @@ regenerate-openfga-model-json:
         docker run --rm -v "${PWD}/openfga:/work" -w /work openfga/cli model transform --file model.fga | Set-Content -Path openfga/model.json; \
     }
     @Write-Host "Wrote openfga/model.json" -ForegroundColor Green
+
+# === Local Kubernetes (ADR-0603) ===========================================
+# Kind cluster aiforall-local — never apparatus-p4-it. Does not replace Compose `up`.
+
+deploy-m1:
+    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force; & ./deploy/verify-m1.ps1
+
+deploy-m2:
+    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force; & ./deploy/verify-m2.ps1
+
+deploy-m3:
+    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force; & ./deploy/verify-m3.ps1
+
+# Real apparatus-controller on kind aiforall-local (J2). Never apparatus-p4-it.
+# Does not bind host :8080. Does not replace Compose `up` / `up-infra` / `monolith`.
+deploy-j2:
+    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force; & ./deploy/deploy-j2.ps1
+
+# Demo overlay: oodhive-monolith on kind aiforall-local (J3 / ADR-0604).
+# Distinct from deploy/apps/overlays/kind (M2 nginx stub). Not 0601 canon.
+# Needs `just up-infra` (Postgres/OpenFGA on the Windows host via host.docker.internal).
+# Never apparatus-p4-it. Does not bind host :8080.
+deploy-j3:
+    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force; & ./deploy/deploy-j3.ps1
+
+# Dette hors gold 0605 / 0008 — schedule manuel + Job enroll (0604). Pas une étape nominale.
+debt-schedule-reference-kv:
+    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force; & ./deploy/apps/overlays/kind-demo-monolith/schedule-reference-kv.ps1
+
+# Preuves — index :
+#   just prove-gold                  = nominal Kind 0605
+#   just prove-j1 / monolith-prove   = host J1
+#   monolith/prove-e2e-curl.ps1      = curl hôte ≠ preuve
+prove-gold:
+    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force; & ./deploy/apps/overlays/kind-demo-monolith/prove-gold-path.ps1
+

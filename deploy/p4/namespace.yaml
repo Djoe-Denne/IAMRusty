@@ -1,0 +1,37 @@
+# Dupliqué volontairement pour que `kustomize build deploy/p4` tienne tout seul.
+# Overlay kind crée déjà aiforall-apparatus via deploy/apps/base.
+# apparatus-system : cible watch du binaire (SYSTEM_NAMESPACE hardcodé) — pas le ns du Deployment.
+# apparatus-plugins : cible Pods (PLUGINS_NAMESPACE). Distinct de aiforall-plugins (J3 stub).
+# aiforall-platform : zot in-cluster (enveloppes Adm-A).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: aiforall-apparatus
+  labels:
+    app.kubernetes.io/part-of: aiforall
+    aiforall.io/trust-plane: apparatus
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: aiforall-platform
+  labels:
+    app.kubernetes.io/part-of: aiforall
+    aiforall.io/trust-plane: platform
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: apparatus-system
+  labels:
+    app.kubernetes.io/part-of: aiforall
+    aiforall.io/trust-plane: apparatus
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: apparatus-plugins
+  labels:
+    app.kubernetes.io/part-of: aiforall
+    aiforall.io/trust-plane: apparatus
+    apparatus.aiforall.dev/ns: plugins

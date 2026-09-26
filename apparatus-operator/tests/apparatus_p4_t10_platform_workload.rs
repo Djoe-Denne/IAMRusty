@@ -203,10 +203,14 @@ async fn t10_valid_admission_runs_pinned_cri_pod() {
     store
         .bind_cri(&record.descriptor_digest, &cri_image)
         .expect("bind_cri pin JSON");
+    store
+        .bind_envelope(&record.descriptor_digest, &signed.reference)
+        .expect("bind_envelope ref T6");
 
     let reconciler = WorkloadReconciler::connect(&cluster.kubeconfig, &store_path)
         .await
-        .unwrap_or_else(|err| panic!("{err}"));
+        .unwrap_or_else(|err| panic!("{err}"))
+        .with_schedule_admit_target(admit_target(&stack));
     let pod_name = pod_name_for(&descriptor);
     reconciler
         .delete_plugin_pod(&pod_name)
@@ -441,6 +445,14 @@ async fn t10_kubelet_pulls_pinned_cri_from_zot() {
     store
         .bind_cri(&record.descriptor_digest, &cri_image)
         .expect("bind_cri pin JSON");
+    store
+        .bind_envelope(&record.descriptor_digest, &signed.reference)
+        .expect("bind_envelope ref T6");
+
+    let reconciler = WorkloadReconciler::connect(&cluster.kubeconfig, &store_path)
+        .await
+        .unwrap_or_else(|err| panic!("{err}"))
+        .with_schedule_admit_target(target);
 
     reconciler
         .apply_valid_record(&record, &cri_image, Some(&isolation()))

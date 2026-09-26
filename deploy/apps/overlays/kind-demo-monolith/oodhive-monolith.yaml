@@ -1,0 +1,195 @@
+# Démo J3 uniquement. Infra DB/FGA = Compose hôte via host.docker.internal
+# (Docker Desktop Windows). Pas de Postgres/OpenFGA in-kind.
+# hostAliases : IP Docker Desktop par défaut ; deploy-j3.ps1 la recale depuis le nœud kind.
+# TLS dual-bind (ADR-0007 T14b) : HTTP 8080 health+enroll, HTTPS 8443 session+invoke.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oodhive-monolith
+  namespace: aiforall-gateway
+  labels:
+    app.kubernetes.io/name: oodhive-monolith
+    app.kubernetes.io/part-of: aiforall
+    app.kubernetes.io/component: demo-monolith
+    aiforall.io/overlay: kind-demo-monolith
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: oodhive-monolith
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: oodhive-monolith
+        app.kubernetes.io/part-of: aiforall
+        app.kubernetes.io/component: demo-monolith
+        aiforall.io/overlay: kind-demo-monolith
+    spec:
+      serviceAccountName: gateway
+      automountServiceAccountToken: false
+      dnsPolicy: ClusterFirst
+      dnsConfig:
+        options:
+          - name: ndots
+            value: "1"
+      hostAliases:
+        - ip: 192.168.65.254
+          hostnames:
+            - host.docker.internal
+            - localstack
+      containers:
+        - name: oodhive-monolith
+          image: aiforall-oodhive-monolith:j3
+          imagePullPolicy: Never
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: https
+              containerPort: 8443
+          env:
+            - name: RUN_ENV
+              value: development
+            - name: RUST_LOG
+              value: info
+            - name: OODHIVE_TLS_ENABLED
+              value: "true"
+            - name: OODHIVE_TLS_PORT
+              value: "8443"
+            - name: OODHIVE_TLS_CERT_PATH
+              value: /app/certs/server.crt
+            - name: OODHIVE_TLS_KEY_PATH
+              value: /app/certs/server.key
+            - name: OODHIVE_TLS_CLIENT_CA_PATH
+              value: /app/certs/ca.crt
+            - name: OODHIVE_TLS_CA_KEY_PATH
+              value: /app/certs/ca.key
+            - name: IAM_DATABASE__HOST
+              value: host.docker.internal
+            - name: IAM_DATABASE__PORT
+              value: "5432"
+            - name: IAM_DATABASE__DB
+              value: iam_dev
+            - name: IAM_DATABASE__CREDS__USERNAME
+              value: postgres
+            - name: IAM_DATABASE__CREDS__PASSWORD
+              value: postgres
+            - name: TELEGRAPH_DATABASE__HOST
+              value: host.docker.internal
+            - name: TELEGRAPH_DATABASE__PORT
+              value: "5432"
+            - name: TELEGRAPH_DATABASE__DB
+              value: telegraph_dev
+            - name: TELEGRAPH_DATABASE__CREDS__USERNAME
+              value: postgres
+            - name: TELEGRAPH_DATABASE__CREDS__PASSWORD
+              value: postgres
+            - name: HIVE_DATABASE__HOST
+              value: host.docker.internal
+            - name: HIVE_DATABASE__PORT
+              value: "5432"
+            - name: HIVE_DATABASE__DB
+              value: hive_dev
+            - name: HIVE_DATABASE__CREDS__USERNAME
+              value: postgres
+            - name: HIVE_DATABASE__CREDS__PASSWORD
+              value: postgres
+            - name: MANIFESTO_DATABASE__HOST
+              value: host.docker.internal
+            - name: MANIFESTO_DATABASE__PORT
+              value: "5432"
+            - name: MANIFESTO_DATABASE__DB
+              value: manifesto_dev
+            - name: MANIFESTO_DATABASE__CREDS__USERNAME
+              value: postgres
+            - name: MANIFESTO_DATABASE__CREDS__PASSWORD
+              value: postgres
+            - name: LAZARET_DATABASE__HOST
+              value: host.docker.internal
+            - name: LAZARET_DATABASE__PORT
+              value: "5432"
+            - name: LAZARET_DATABASE__DB
+              value: lazaret_dev
+            - name: LAZARET_DATABASE__CREDS__USERNAME
+              value: postgres
+            - name: LAZARET_DATABASE__CREDS__PASSWORD
+              value: postgres
+            - name: IAM_OPENFGA__HOST
+              value: host.docker.internal
+            - name: TELEGRAPH_OPENFGA__HOST
+              value: host.docker.internal
+            - name: HIVE_OPENFGA__HOST
+              value: host.docker.internal
+            - name: MANIFESTO_OPENFGA__HOST
+              value: host.docker.internal
+            - name: LAZARET_OPENFGA__HOST
+              value: host.docker.internal
+            - name: LAZARET_PLUGIN_HOP__USE_DNS_FORMULA
+              value: "true"
+            - name: MANIFESTO_SERVICE__COMPONENT_SERVICE__BASE_URL
+              value: http://host.docker.internal:9000
+            - name: MANIFESTO_SERVICE__COMPONENT_SERVICE__API_KEY
+              value: aiforall-gold-catalog
+            - name: MANIFESTO_QUEUE__ENABLED
+              value: "true"
+            - name: IAM_QUEUE__ENABLED
+              value: "false"
+            - name: TELEGRAPH_QUEUE__ENABLED
+              value: "false"
+            - name: HIVE_QUEUE__ENABLED
+              value: "false"
+            - name: LAZARET_QUEUE__ENABLED
+              value: "false"
+            - name: MANIFESTO_QUEUE__HOST
+              value: localstack
+            - name: MANIFESTO_QUEUE__PORT
+              value: "4566"
+            - name: MANIFESTO_QUEUE__ENDPOINT_URL
+              value: http://192.168.65.254:4566
+          volumeMounts:
+            - name: tls-certs
+              mountPath: /app/certs
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 2
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 36
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            seccompProfile:
+              type: RuntimeDefault
+      volumes:
+        - name: tls-certs
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oodhive-monolith
+  namespace: aiforall-gateway
+  labels:
+    app.kubernetes.io/name: oodhive-monolith
+    app.kubernetes.io/part-of: aiforall
+    aiforall.io/overlay: kind-demo-monolith
+spec:
+  selector:
+    app.kubernetes.io/name: oodhive-monolith
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+    - name: https
+      port: 8443
+      targetPort: https

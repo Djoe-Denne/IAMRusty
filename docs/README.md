@@ -6,6 +6,7 @@ Documentation d’implémentation et de parcours métier pour ce workspace. Le v
 
 | Besoin | Page |
 |---|---|
+| Atlas visuel (C4, runtime, AuthZ, Apparatus) | [architecture/README.md](architecture/README.md) |
 | Carte des services, ports, préfixes | [platform/overview.md](platform/overview.md) |
 | Compose, monolith, `/ready` | [platform/runtime.md](platform/runtime.md) |
 | JWT émetteur vs consommateur | [platform/authn-jwt.md](platform/authn-jwt.md) |
@@ -15,6 +16,9 @@ Documentation d’implémentation et de parcours métier pour ce workspace. Le v
 
 ## Implémenter
 
+- [platform-local-gold-case-implementation-guide.md](platform-local-gold-case-implementation-guide.md) — cas classique local (signup → projet → KV → pod), sans seed SQL
+- [platform-local-prod-mimic-implementation-guide.md](platform-local-prod-mimic-implementation-guide.md) — prompt session : zot ACL, OpenBao Kubernetes auth, catalogue Bearer (pas une ADR)
+- [gold-path-kind-plugin-crashloop.md](gold-path-kind-plugin-crashloop.md) — marqueur CrashLoop pod gold Kind (pas une ADR)
 - [guides/nouveau-service.md](guides/nouveau-service.md) — checklist plateforme (au-delà de Manifesto)
 - [guides/jwt-consommateur.md](guides/jwt-consommateur.md) — recette `[auth.jwt]` + tests
 - [guides/permissions.md](guides/permissions.md) — UUID profond vs `with_permission_on_param`

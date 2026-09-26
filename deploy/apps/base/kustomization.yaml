@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# First-party Kustomize (0600). Operator P4 : deploy/p4/ — ne pas fusionner ici.
+resources:
+  - namespaces.yaml
+  - serviceaccounts.yaml
+  - platform-workloads.yaml
+  - lazaret.yaml
+  - plugin-stub.yaml
+  - networkpolicies.yaml

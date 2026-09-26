@@ -1,0 +1,13 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: aiforall-local
+# CNI : Calico v3.29.7 (pin GitHub manifests/calico.yaml) installé par deploy-j2.ps1.
+# ≠ fixture IT apparatus-p4-it (tests/fixtures/kind/* intouchable ; IT Linux CI garde 192.168.0.0/16).
+# kindnet interdit : n'enforce pas NetworkPolicy ; recreate obligatoire si présent.
+# Docker Desktop : host.docker.internal = 192.168.65.254 ∈ 192.168.0.0/16 → Calico
+# traite l'hôte comme un pod (Postgres pool timeout). Pin local = 10.244.0.0/16.
+networking:
+  disableDefaultCNI: true
+  podSubnet: "10.244.0.0/16"
+nodes:
+  - role: control-plane

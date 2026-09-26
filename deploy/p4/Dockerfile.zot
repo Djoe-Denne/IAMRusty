@@ -1,0 +1,4 @@
+# Single-platform retag for kind load (Hub multi-arch attested manifests break ctr).
+# Build: docker build --platform linux/amd64 --provenance=false -t aiforall-zot:gold -f deploy/p4/Dockerfile.zot deploy/p4
+# Pin source = ghcr.io/project-zot/zot:v2.1.8 (fixture T6).
+FROM ghcr.io/project-zot/zot:v2.1.8

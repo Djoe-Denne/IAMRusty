@@ -8,9 +8,9 @@
 - SuperSède : aucune
 - SuperSédée par : —
 
-`Accepted` ratifie une cible. `Réalité` décrit le dépôt. Aujourd’hui : Compose + `just` + IT rustycog ([0200](0200-it-infra-reelle-rustycog-testing.md)) ; **aucun** arbre `cloud/` ni `deploy/` ; **aucun** bootstrap OpenTofu / Flux. Cette ADR **ne SuperSède pas** [0008](0008-apparatus-p4-k8s-isolation-outside-manifesto.md) (Accepted / Unimplemented) ni [0500](0500-config-typee-et-compose-local.md). Le compagnon `docs/adr/0008-app01-reconciliation.md` reste **méthode**, pas canon.
+`Accepted` ratifie une cible. `Réalité` décrit le dépôt. Aujourd’hui : Compose + `just` + IT rustycog ([0200](0200-it-infra-reelle-rustycog-testing.md)) ; scaffolding local `deploy/` + `cloud/opentofu/` (module outputs, pas d’apply GKE) = [0603](0603-tranche-locale-deploy-kind-apparatus-lazaret.md) Réalité Partial ; **aucun** bootstrap OpenTofu GKE / Flux live. Cette ADR **ne SuperSède pas** [0008](0008-apparatus-p4-k8s-isolation-outside-manifesto.md) (Accepted / Implemented) ni [0500](0500-config-typee-et-compose-local.md). Le compagnon `docs/adr/0008-app01-reconciliation.md` reste **méthode**, pas canon.
 
-Plage **0600–0699** = Cloud / IaC / GitOps / topologie cluster (Vague 4 living). **Interdit** d’utiliser 0009 (collision sémantique P4), 0411 (prochain IAM-IdP), 0503 (mélangerait CI rétro 0500).
+Plage **0600–0699** = Cloud / IaC / GitOps / topologie cluster (Vague 4 living). **Interdit** d’utiliser 0009 (collision sémantique P4), 0411 (prochain IAM-IdP), 0503 (mélangerait CI rétro 0500). Première tranche livrable **locale** (A+B, sans GKE ni 0602) : [0603](0603-tranche-locale-deploy-kind-apparatus-lazaret.md).
 
 ## Contexte
 

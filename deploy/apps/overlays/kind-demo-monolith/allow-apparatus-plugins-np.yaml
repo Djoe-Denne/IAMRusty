@@ -1,0 +1,27 @@
+# Ingress oodhive-monolith depuis apparatus-plugins (enroll Job + pods operator).
+# Complète default-deny gateway (base) qui n'autorise que aiforall-plugins.
+# 8080 = enroll HTTP ; 8443 = session/invoke mTLS HTTPS (T11b/T14b).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-apparatus-plugins
+  namespace: aiforall-gateway
+  labels:
+    app.kubernetes.io/part-of: aiforall
+    aiforall.io/overlay: kind-demo-monolith
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: oodhive-monolith
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: apparatus-plugins
+      ports:
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 8443

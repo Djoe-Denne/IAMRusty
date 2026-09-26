@@ -1,0 +1,21 @@
+# HORS GOLD 0605 — Service leftover `apparatus-reference-kv` (dette 0604).
+# Nominal : ClusterIP operator du même nom que le Pod (`plugin-{32hex}`).
+# Conservé comme secours, non listé dans kustomization.yaml.
+apiVersion: v1
+kind: Service
+metadata:
+  name: apparatus-reference-kv
+  namespace: apparatus-plugins
+  labels:
+    app.kubernetes.io/name: apparatus-reference-kv
+    app.kubernetes.io/part-of: aiforall
+    aiforall.io/overlay: kind-demo-monolith
+spec:
+  type: ClusterIP
+  selector:
+    apparatus.aiforall.dev/binding: "57756e60-498e-4d0e-bd30-a35888afa660"
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP

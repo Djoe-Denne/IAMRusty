@@ -1,0 +1,160 @@
+# Registry OCI zot in-cluster (ns plateforme) — enveloppes Adm-A seulement.
+# Images CRI plugin restent kind load (Never). Jamais apparatus-p4-it.
+# Gold local : htpasswd signer/reader (pas un secret prod). Probe HTTP Basic = reader.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: zot-config
+  namespace: aiforall-platform
+  labels:
+    app.kubernetes.io/name: zot
+    app.kubernetes.io/part-of: aiforall
+data:
+  config.json: |
+    {
+      "distSpecVersion": "1.1.1",
+      "storage": {
+        "rootDirectory": "/var/lib/zot"
+      },
+      "http": {
+        "address": "0.0.0.0",
+        "port": "5000",
+        "realm": "zot",
+        "auth": {
+          "htpasswd": {
+            "path": "/etc/zot/htpasswd"
+          }
+        },
+        "accessControl": {
+          "repositories": {
+            "**": {
+              "anonymousPolicy": [],
+              "defaultPolicy": [],
+              "policies": [
+                {
+                  "users": ["signer"],
+                  "actions": ["read", "create", "update"]
+                },
+                {
+                  "users": ["reader"],
+                  "actions": ["read"]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "log": {
+        "level": "error"
+      }
+    }
+---
+# signer / apparatus-signer-push + reader / apparatus-reader-pull (gold local only)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: zot-htpasswd
+  namespace: aiforall-platform
+  labels:
+    app.kubernetes.io/name: zot
+    app.kubernetes.io/part-of: aiforall
+type: Opaque
+stringData:
+  htpasswd: |
+    signer:$2y$05$8NKxsQCHizh3Ai5Kn9/36../meRc2JD9If7xKq1k4/B/rTlvtWLOO
+    reader:$2y$05$7.Sb1g8ys/Am1.1gAISb2eTLdpBA60F8W0cHP5ASyzXYHF0d.mviC
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zot
+  namespace: aiforall-platform
+  labels:
+    app.kubernetes.io/name: zot
+    app.kubernetes.io/part-of: aiforall
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: zot
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: zot
+        app.kubernetes.io/part-of: aiforall
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: zot
+          image: aiforall-zot:gold
+          imagePullPolicy: Never
+          args: ["serve", "/etc/zot/config.json"]
+          ports:
+            - name: http
+              containerPort: 5000
+          volumeMounts:
+            - name: config
+              mountPath: /etc/zot/config.json
+              subPath: config.json
+              readOnly: true
+            - name: htpasswd
+              mountPath: /etc/zot/htpasswd
+              subPath: htpasswd
+              readOnly: true
+            - name: data
+              mountPath: /var/lib/zot
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          readinessProbe:
+            httpGet:
+              path: /v2/
+              port: http
+              httpHeaders:
+                - name: Authorization
+                  value: Basic cmVhZGVyOmFwcGFyYXR1cy1yZWFkZXItcHVsbA==
+            initialDelaySeconds: 2
+            periodSeconds: 5
+      volumes:
+        - name: config
+          configMap:
+            name: zot-config
+            items:
+              - key: config.json
+                path: config.json
+        - name: htpasswd
+          secret:
+            secretName: zot-htpasswd
+            items:
+              - key: htpasswd
+                path: htpasswd
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: zot
+  namespace: aiforall-platform
+  labels:
+    app.kubernetes.io/name: zot
+    app.kubernetes.io/part-of: aiforall
+spec:
+  selector:
+    app.kubernetes.io/name: zot
+  ports:
+    - name: http
+      port: 5000
+      targetPort: http

@@ -1,0 +1,10 @@
+# Service plateforme lazaret → pods oodhive-monolith (pas le label lazaret nginx).
+# Re-appliquer overlays/kind restaure le sélecteur M2.
+apiVersion: v1
+kind: Service
+metadata:
+  name: lazaret
+  namespace: aiforall-gateway
+spec:
+  selector:
+    app.kubernetes.io/name: oodhive-monolith

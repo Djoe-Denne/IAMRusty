@@ -134,9 +134,9 @@ services:
     networks:
       - aiforall-network
 
-  # Seed KV v2 at secret/ops/token (T7 shape secret:ops/token#token).
-  # Oneshot then exit 0 (pattern openfga-migrate). Entrypoint overridden to bao
-  # so docker-entrypoint.sh does not wrap a non-server CLI poorly.
+  # Seed KV v2 at secret/ops/token (T7) + Transit Cosign (Adm-A / APPARATUS_TRANSIT_KEY).
+  # Dette D-TRANSIT-TCB : Transit colocalisé sur le même OpenBao -dev que le KV plugin.
+  # Oneshot then exit 0 (pattern openfga-migrate). Entrypoint overridden to sh.
   openbao-seed:
     image: openbao/openbao:2.6.2
     environment:
@@ -147,8 +147,9 @@ services:
     depends_on:
       openbao:
         condition: service_healthy
-    entrypoint: ["bao"]
-    command: ["kv", "put", "secret/ops/token", "token=compose-dev-secret"]
+    volumes:
+      - ./scripts/openbao-gold-seed.sh:/seed.sh:ro
+    entrypoint: ["/bin/sh", "/seed.sh"]
     networks:
       - aiforall-network
 

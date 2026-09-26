@@ -1,0 +1,117 @@
+﻿# Job Adm-A in-cluster (SA admit-sign). Env surcharge par prove-gold.
+# automount token au Pod (SA reste automount=false — prod-ISO 0008).
+# Store JSON partage avec apparatus-operator via hostPath Kind.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: apparatus-admit-gold
+  namespace: aiforall-apparatus
+  labels:
+    app.kubernetes.io/name: apparatus-admit
+    app.kubernetes.io/part-of: aiforall
+    aiforall.io/gold: "true"
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: apparatus-admit
+        app.kubernetes.io/part-of: aiforall
+        aiforall.io/gold: "true"
+    spec:
+      restartPolicy: Never
+      serviceAccountName: admit-sign
+      automountServiceAccountToken: true
+      securityContext:
+        fsGroup: 65534
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: fix-store-perms
+          image: aiforall-apparatus-admit:gold
+          imagePullPolicy: Never
+          command: ["/bin/sh", "-c", "mkdir -p /var/lib/apparatus && chown -R 65534:65534 /var/lib/apparatus"]
+          securityContext:
+            runAsUser: 0
+            runAsNonRoot: false
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+              add: ["CHOWN", "FOWNER"]
+          volumeMounts:
+            - name: admission-store
+              mountPath: /var/lib/apparatus
+      # OpenBao Compose hote (Transit Cosign). Dette D-TRANSIT-TCB : meme -dev que KV.
+      hostAliases:
+        - ip: "192.168.65.254"
+          hostnames:
+            - host.docker.internal
+      containers:
+        - name: admit
+          image: aiforall-apparatus-admit:gold
+          imagePullPolicy: Never
+          env:
+            - name: APPARATUS_ADMISSION_STORE_PATH
+              value: /var/lib/apparatus/admission.json
+            - name: APPARATUS_COSIGN_BIN
+              value: /usr/local/bin/cosign
+            - name: APPARATUS_ORAS_BIN
+              value: /usr/local/bin/oras
+            - name: APPARATUS_REGISTRY_HOST
+              value: zot.aiforall-platform.svc.cluster.local:5000
+            - name: APPARATUS_REGISTRY_NETWORK
+              value: zot.aiforall-platform.svc.cluster.local:5000
+            - name: APPARATUS_DOCKER_NETWORK
+              value: unused-host-bins
+            - name: APPARATUS_VAULT_ADDR
+              value: http://host.docker.internal:8200
+            - name: APPARATUS_VAULT_ADDR_NETWORK
+              value: http://host.docker.internal:8200
+            - name: APPARATUS_VAULT_AUTH
+              value: kubernetes
+            - name: APPARATUS_VAULT_K8S_ROLE
+              value: admit-sign
+            - name: APPARATUS_TRANSIT_KEY
+              value: apparatus-p4-cosign
+            - name: APPARATUS_REGISTRY_USER
+              valueFrom:
+                secretKeyRef:
+                  name: zot-registry-accounts
+                  key: signer-user
+            - name: APPARATUS_REGISTRY_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: zot-registry-accounts
+                  key: signer-password
+            - name: APPARATUS_REPOSITORY
+              value: apparatus/envelope
+            - name: APPARATUS_ENVELOPE_TAG
+              value: gold
+            # Overridden by prove-gold (CRI pin + digests + isolation).
+            - name: APPARATUS_CRI_IMAGE
+              value: "apparatus-reference-kv@sha256:07b9e8aa1f1ee8a78d50cc142798778a1ee47c2da95d5de94575bd4ed20c70ab"
+            - name: APPARATUS_DESCRIPTOR_DIGEST
+              value: "sha256:98ba747fc572de29d76dfd08f92537782bf0353b652adcace10200020ee560cf"
+            - name: APPARATUS_REPORT_DIGEST
+              value: "sha256:715b2e4c77accec63f2f5376cbaf95e3ac138168af2066aabf46626862e2e43d"
+          volumeMounts:
+            - name: admission-store
+              mountPath: /var/lib/apparatus
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            seccompProfile:
+              type: RuntimeDefault
+      volumes:
+        - name: admission-store
+          hostPath:
+            path: /var/lib/apparatus-admission
+            type: DirectoryOrCreate

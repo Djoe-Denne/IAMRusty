@@ -1,0 +1,63 @@
+# Preuve J3 : POST in-cluster (pas GET, pas localhost hote).
+# 401 + JSON unauthorized = succes. ok / ok\n = echec (nginx encore en chemin).
+# Image j3-curl:local (kind load) : busybox wget n'ecrit pas le corps HTTP 4xx.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: invoke-probe-j3
+  namespace: aiforall-plugins
+  labels:
+    app.kubernetes.io/name: invoke-probe-j3
+    app.kubernetes.io/part-of: aiforall
+    aiforall.io/overlay: kind-demo-monolith
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: invoke-probe-j3
+        app.kubernetes.io/part-of: aiforall
+        app.kubernetes.io/component: plugin
+        aiforall.io/overlay: kind-demo-monolith
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      containers:
+        - name: probe
+          image: j3-curl:local
+          imagePullPolicy: Never
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              URL="http://lazaret.aiforall-gateway.svc.cluster.local:8080/lazaret/invoke?project_id=00000000-0000-0000-0000-000000000000"
+              BODY='{"binding_id":"00000000-0000-0000-0000-000000000000","operation_id":"00000000-0000-0000-0000-000000000000","operation":"kv.get","params":{}}'
+              i=0
+              while [ "$i" -lt 30 ]; do
+                code=$(curl -sS -o /tmp/body -w "%{http_code}" -X POST "$URL" -H "Content-Type: application/json" --data "$BODY" || true)
+                echo "HTTP $code"
+                echo "BODY $(cat /tmp/body 2>/dev/null || true)"
+                if [ -f /tmp/body ]; then
+                  if grep -qx 'ok' /tmp/body; then
+                    echo "J3 FAIL: nginx stub still in path (body ok)" >&2
+                    exit 1
+                  fi
+                  if [ "$code" = "401" ] && grep -q 'unauthorized' /tmp/body; then
+                    echo "J3 OK: POST lazaret.aiforall-gateway.svc.cluster.local:8080/lazaret/invoke"
+                    exit 0
+                  fi
+                fi
+                i=$((i + 1))
+                sleep 2
+              done
+              echo "J3 FAIL: timeout waiting for 401 JSON unauthorized" >&2
+              exit 1
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            runAsNonRoot: true
+            runAsUser: 100
+            runAsGroup: 101
+            seccompProfile:
+              type: RuntimeDefault

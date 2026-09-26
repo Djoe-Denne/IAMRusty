@@ -14,6 +14,28 @@ use tracing::{debug, error, info};
 
 use super::processors::ComponentStatusProcessor;
 
+/// Restrict the apparatus listener to `component_status_changed` destinations.
+/// The shared `[queue.queues]` map also lists AuthZ files (`sentinel-sync-events`);
+/// rustycog consumers poll `all_queue_urls()`, which would otherwise steal those
+/// messages (visibility hold, no delete) from sentinel-sync.
+fn apparatus_listener_queue_config(queue_config: &QueueConfig) -> QueueConfig {
+    match queue_config {
+        QueueConfig::Sqs(sqs) => match sqs.queues.get("component_status_changed") {
+            Some(dest) if !dest.is_empty() => {
+                let mut narrowed = sqs.clone();
+                narrowed.queues = std::collections::HashMap::from([(
+                    "component_status_changed".to_string(),
+                    dest.clone(),
+                )]);
+                narrowed.default_queues = dest.clone();
+                QueueConfig::Sqs(narrowed)
+            }
+            _ => QueueConfig::Disabled,
+        },
+        other => other.clone(),
+    }
+}
+
 /// Event consumer for apparatus domain events
 pub struct ApparatusEventConsumer {
     inner_consumer: Arc<ConcreteEventConsumer>,
@@ -31,11 +53,14 @@ impl ApparatusEventConsumer {
         queue_config: &QueueConfig,
         component_processor: Arc<ComponentStatusProcessor>,
     ) -> Result<Self, DomainError> {
-        let signaled = create_signaled_event_consumer("manifesto", queue_config)
-            .await
-            .map_err(|e| {
-                DomainError::internal_error(&format!("Failed to create event consumer: {e}"))
-            })?;
+        let signaled = create_signaled_event_consumer(
+            "manifesto",
+            &apparatus_listener_queue_config(queue_config),
+        )
+        .await
+        .map_err(|e| {
+            DomainError::internal_error(&format!("Failed to create event consumer: {e}"))
+        })?;
 
         Ok(Self {
             inner_consumer: signaled.consumer,

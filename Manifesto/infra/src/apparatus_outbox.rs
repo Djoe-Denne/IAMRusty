@@ -1,7 +1,7 @@
 //! Écriture atomique du binding Apparatus + étape externe (T4 / T3).
 //!
 //! Insère la ligne `apparatus_bindings` (`source = 'managed'`,
-//! `desired_generation = 1`, `next_retry_at = now()`, `digest` non résolu)
+//! `desired_generation = 1`, `next_retry_at = now()`, digest catalogue optionnel)
 //! et exécute la fermeture externe fournie par l'appelant dans la
 //! même transaction Postgres : tout échec (insertion ou fermeture) annule
 //! l'ensemble, rien n'est partiellement persisté.
@@ -15,8 +15,8 @@ use std::fmt::Display;
 use uuid::Uuid;
 
 const INSERT_MANAGED_BINDING: &str = "INSERT INTO apparatus_bindings \
-     (component_id, source, desired_generation, next_retry_at) \
-     VALUES ($1, 'managed', 1, NOW())";
+     (component_id, source, desired_generation, next_retry_at, digest, declared_capabilities) \
+     VALUES ($1, 'managed', 1, NOW(), $2, $3::jsonb)";
 
 const INSERT_CLEANUP_JOB: &str = "INSERT INTO apparatus_cleanup_jobs \
      (component_id, project_id, desired_generation, digest) \
@@ -52,17 +52,27 @@ pub(crate) struct BindingCleanupRow {
 
 /// Insère un binding `managed` avec `desired_generation = 1` et `next_retry_at = now()`.
 ///
+/// `digest` / `declared_capabilities` viennent du catalogue à l'attache (ADR-0605).
+/// Types non Apparatus : `digest = None` et `declared_capabilities = []`.
+///
 /// # Errors
 ///
 /// Retourne [`DbErr`] si l'insertion échoue.
-pub(crate) async fn insert_managed_binding<C>(db: &C, component_id: Uuid) -> Result<(), DbErr>
+pub(crate) async fn insert_managed_binding<C>(
+    db: &C,
+    component_id: Uuid,
+    digest: Option<String>,
+    declared_capabilities: Vec<String>,
+) -> Result<(), DbErr>
 where
     C: ConnectionTrait,
 {
+    let declared_json = serde_json::to_string(&declared_capabilities)
+        .expect("declared_capabilities is a Vec<String>");
     db.execute(Statement::from_sql_and_values(
         DbBackend::Postgres,
         INSERT_MANAGED_BINDING,
-        [component_id.into()],
+        [component_id.into(), digest.into(), declared_json.into()],
     ))
     .await
     .map(|_| ())
@@ -242,7 +252,7 @@ where
     E: Display,
 {
     let txn = db.begin().await?;
-    let insert = insert_managed_binding(&txn, component_id).await;
+    let insert = insert_managed_binding(&txn, component_id, None, Vec::new()).await;
     let result: Result<(), ApparatusAtomicError> = match insert {
         Err(db_err) => Err(ApparatusAtomicError::Db(db_err)),
         Ok(()) => {

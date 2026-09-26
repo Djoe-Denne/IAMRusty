@@ -6,8 +6,8 @@ use std::sync::Arc;
 use anyhow::Error;
 use axum::Router;
 use lazaret_application::{
-    empty_command_registry, EmptyPluginLocator, GrantService, IdentityService, InvokeService,
-    PluginEndpointLocator, StaticPluginLocator,
+    empty_command_registry, DigestDnsPluginLocator, EmptyPluginLocator, GrantService,
+    IdentityService, InvokeService, PluginEndpointLocator, StaticPluginLocator,
 };
 use lazaret_configuration::AppConfig;
 use lazaret_domain::{
@@ -264,6 +264,9 @@ fn build_named_connectors(config: &AppConfig) -> Result<Arc<NamedConnectorProxy>
 }
 
 fn plugin_endpoint_locator(config: &AppConfig) -> Arc<dyn PluginEndpointLocator> {
+    if config.plugin_hop.use_dns_formula {
+        return Arc::new(DigestDnsPluginLocator);
+    }
     let url = config.plugin_hop.endpoint_url.trim();
     if url.is_empty() {
         Arc::new(EmptyPluginLocator)

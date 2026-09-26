@@ -6,7 +6,7 @@ Décisions d’architecture **acceptées ou proposées**, distinctes des notes d
 |---|---|---|
 | Conception | Vision, protocoles, écarts code, plan de livraison | Wiki Manifesto (`obsidian/AI FOR ALL/projects/manifesto/`) |
 | Décision | Un choix irréversible (ou coûteux à changer), avec alternatives | **Ici** (`docs/adr/`) |
-| Handbook | État actuel du code et recettes d’implémentation | `docs/` (hors `adr/` et `reviews/`) |
+| Handbook | État actuel du code et recettes d’implémentation | `docs/` (hors `adr/` et `reviews/`) ; atlas visuel [`architecture/`](../architecture/README.md) |
 
 `docs/project/Archi.md` est l’ADR historique du Project Service (cible 2024–2025, en partie caduque). Ne pas y empiler Apparatus.
 
@@ -21,7 +21,7 @@ Décisions d’architecture **acceptées ou proposées**, distinctes des notes d
 7. **Accepter tôt les invariants qui figent P0.** Reporter les mécanismes qui dépendent de P2/P4 (worker, lease/fencing, moteur d’isolation, pipeline OCI).
 8. **Traçabilité non circulaire.** La baseline Apparatus est le document utilisateur et le wiki commité le 9 septembre 2026 (`d0664e3`). Un hub wiki mis à jour après une ADR ne constitue pas une preuve indépendante de son acceptation.
 
-## Vague 1 — Apparatus (0001–0008 Accepted)
+## Vague 1 — Apparatus (0001–0008 Accepted ; 0009–0011 Proposed)
 
 | ID | Décision | Réalité | Notes wiki |
 |---|---|---|---|
@@ -33,6 +33,9 @@ Décisions d’architecture **acceptées ou proposées**, distinctes des notes d
 | [0006](0006-apparatus-p2-reconciliation-in-process.md) | Réconciliation P2 = contrôleur in-process Manifesto, sans infra réelle | Implemented | bindings, plan — Accepted 2026-09-12 |
 | [0007](0007-apparatus-p3-capability-boundary-after-accept.md) | Frontière P3 = BC Lazaret, distinct de Manifesto ; 0006 G et E restent | Implemented | Accepted 2026-09-13 ; Réalité Implemented (A-DEC 2026-09-20) ; holes hors-jalon, ne bloquent plus Implemented |
 | [0008](0008-apparatus-p4-k8s-isolation-outside-manifesto.md) | Moteur P4 = K8s hors Manifesto ; Cosign + Transit ; admission worker-only ; operator+Jobs ; enveloppe ≠ image CRI ; 4 SA | Implemented | Accepted 2026-09-20 ; Implemented A-DEC 2026-09-22 ; Kind = V1 ; dette D-TRANSIT-TCB / D-ADMB / D-PROD ; [0008-closeout.md](0008-closeout.md) |
+| [0009](0009-gate-preprod-scale-on-demand-isolation-instance.md) | Limite pod-H24 / partage-par-digest OK hors prod ; **bloquante avant prod** (scale on demand + isolation instance explicite) | Unimplemented | Proposed 2026-09-25 ; complète 0008, ne le SuperSède pas ; mécanisme = [0011](0011-apparatus-p4-pod-par-binding.md) ; fermeture Réalité ssi 0011 Accepted **et** Implemented |
+| [0010](0010-gate-preprod-workload-certificate-ca.md) | CA logicielle / CSR vs keypair OK hors prod ; **bloquante avant prod** (modalité d’émission + autorité CA) | Unimplemented | Proposed 2026-09-25 ; complète 0007, ne le SuperSède pas ; mécanisme CSR/keypair/produit CA Non décidé |
+| [0011](0011-apparatus-p4-pod-par-binding.md) | Runtime plugin V1 = Pod par binding (projet × binding) ; operator P4 crée / met au repos / détruit ; même digest, deux projets ⇒ deux Pods sauf partage explicite | Unimplemented | Proposed 2026-09-26 ; complète 0009, ne SuperSède pas 0008/0009 ; fermeture Réalité de 0009 via cet ADR |
 
 Ratification 0001–0005 : revue orchestrée du 2026-09-10. ADR-0002 / 0003 / 0005 : Réalité **Implemented** (A-DEC 2026-09-22 ; chaîne Kind M1–M6 ; Kind = V1) ; Factory/host = P5/P6 **après** ; dette D-TRANSIT-TCB / D-ADMB / D-PROD. ADR-0006 : Accept explicite utilisateur du 2026-09-12 (checklist A–M figée). `Accepted` fixe la cible ; T1–T7 + writer backoff §D sont livrés (Réalité Implemented). ADR-0007 : Accept explicite utilisateur du 2026-09-13 (« accepté ») ; checklist 1–14 ratifiée ; G et E **non levées**. Réalité **Implemented** (A-DEC 2026-09-20 ; T1–T14b livrés) ; holes (`APP-05`, G/E, pas K8s-as-P3, pas de second protocole) **hors-jalon**, ne bloquent plus Implemented. Inventaire de clôture : [0007-closeout.md](0007-closeout.md). ADR-0008 : ratification chat « Je valide tout. Je ratifie tout. » du 2026-09-20 (même force que 0007 « accepté ») ; README L17 / L158 : `Accepted` typiquement après PR — **écart documenté** comme 0006/0007. Réalité **Implemented** (A-DEC 2026-09-22 ; T2–T12 `apparatus-operator` + Kind `apparatus-p4-it` + M1–M6) ; dette TCB **hors-jalon**, ne bloque plus Implemented. Inventaire de clôture : [0008-closeout.md](0008-closeout.md).
 
@@ -61,10 +64,10 @@ Les identifiants ne sont **pas** un seul compteur global. Plages thématiques :
 
 | Plage | Sujet | Statut typique |
 |---|---|---|
-| **0001–0099** | Apparatus (plateforme) | Vague 1 : 0002–0008 `Implemented` sauf 0001 `Partial` |
+| **0001–0099** | Apparatus (plateforme) | Vague 1 : 0002–0008 `Implemented` sauf 0001 `Partial` ; **0009–0011** `Proposed` / `Unimplemented` (gates pré-prod ; 0011 = mécanisme de 0009) ; prochain libre **0012+** |
 | **0100–0199** | Hexagone RustyCog / responsabilités des crates | Rétroactif, architecture actuelle |
 | **0200–0299** | Tests (IT vs unitaires, mocks vs infra réelle) | Rétroactif |
-| **0300–0399** | Événements, outbox, AuthN/AuthZ | Rétroactif |
+| **0300–0399** | Événements, outbox, AuthN/AuthZ | 0300–0303 : rétroactif ; **0304–0306** vivant AuthN (`Accepted` / `Unimplemented`) ; **0307–0309** Proposed / Unimplemented |
 | **0400–0499** | Services du workspace et runtimes | 0400–0406 : rétroactif Vague 2 ; **0407+ : vivant IAM-IdP** (`Accepted` / `Implemented`) |
 | **0500–0599** | Config, CI, qualité, framework rustycog | Rétroactif |
 | **0600–0699** | Cloud / IaC / GitOps / topologie cluster | **Vague 4 living** (`Proposed` / `Unimplemented`) |
@@ -100,6 +103,14 @@ Ces ADR photographient le dépôt **tel qu’il est**. `Accepted` + `Implemented
 | [0301](0301-outbox-transactionnel-rustycog.md) | Publication durable = outbox transactionnel | Partial |
 | [0302](0302-authn-jwt-authz-openfga.md) | AuthN JWT plateforme ; AuthZ OpenFGA réelle en IT | Implemented |
 | [0303](0303-sentinel-sync-worker-fga.md) | `sentinel-sync` = worker événements → tuples, pas un service hexagonal | Implemented |
+| [0304](0304-jwt-acces-plateforme-rs256-jwks.md) | Access JWT = RS256 + kid + JWKS ; SigningProvider Transit\|PEM ; issuer par trust domain | Unimplemented |
+| [0305](0305-account-identity-trust-domain.md) | HumanAccount ≠ Identity ; principal `(iss, sub)` ; trust platform vs org-managed | Unimplemented |
+| [0306](0306-hive-iam-configuration-signature.md) | Config signature org = commande synchrone Hive→IAM ; pas de secret dans les events | Unimplemented |
+| [0307](0307-workload-identity-port.md) | WorkloadIdentity = port ; SPIFFE évalué, pas dépendance obligatoire | Unimplemented |
+| [0308](0308-mesh-authn-jwt.md) | Mesh/gateway AuthN JWT → principal `(iss, sub)` | Unimplemented |
+| [0309](0309-remote-signer.md) | Remote signer = Sign / GetPublicKey (HSM/KMIP) | Unimplemented |
+
+**0304–0306** : `Accepted` / `Unimplemented` (acceptation humaine 2026-09-26). **0307–0309** : `Proposed` / `Unimplemented`. 0304 complète [0302](0302-authn-jwt-authz-openfga.md) : ne SuperSède **pas** 0302 entière (AuthZ OpenFGA, Bearer, `aud` restent) — **seulement** la décision « `iss=iamrusty` unique » **à l’implémentation** (cible issuer par trust domain). Related : Account/trust [0305](0305-account-identity-trust-domain.md), config signer [0306](0306-hive-iam-configuration-signature.md).
 
 ### 0400 — Services et runtimes
 
@@ -123,7 +134,7 @@ Ces ADR photographient le dépôt **tel qu’il est**. `Accepted` + `Implemented
 
 ## Vague 3 — IAM living / IdP fédérés (0407+, hors Apparatus)
 
-Jalon **IAM-IdP** : le template P0–P6 Apparatus ne s’applique pas. IAM reste l’IdP *plateforme* ([0400](0400-iamrusty-identite-hexagonale.md)) ; les Connect sont des *federated authenticators*. **Ne pas** utiliser 0009 (collision sémantique P4). **Ne pas** réécrire 0100–0502. Prochains libres services/runtimes : **0412+**.
+Jalon **IAM-IdP** : le template P0–P6 Apparatus ne s’applique pas. IAM reste l’IdP *plateforme* ([0400](0400-iamrusty-identite-hexagonale.md)) ; les Connect sont des *federated authenticators*. **0009** est Apparatus (gate pré-prod) — **interdit** de le réutiliser pour IAM. **Ne pas** réécrire 0100–0502. Prochains libres services/runtimes : **0412+**.
 
 Wiki (pointeurs, pas canon) : `obsidian/AI FOR ALL/projects/iamrusty/decisions/`. Index Manifesto 0001–0008 : **hors sujet**.
 
@@ -137,19 +148,22 @@ Wiki (pointeurs, pas canon) : `obsidian/AI FOR ALL/projects/iamrusty/decisions/`
 
 ## Vague 4 — Cloud portable / cluster (0600+, hors Apparatus)
 
-Jalon **Cloud-portable** : le template P0–P6 Apparatus ne s’applique pas. P4 ([0008](0008-apparatus-p4-k8s-isolation-outside-manifesto.md), Accepted / Implemented ; dette D-TRANSIT-TCB / D-ADMB / D-PROD) **s’insère** dans cette plateforme ; 0600/0601/0602 **ne sont pas** des ADR Apparatus et **ne SuperSèdent pas** 0008. **Ne pas** utiliser 0009 (collision sémantique P4), 0412 (prochain IAM-IdP), 0503 (CI rétro 0500). **Ne pas** réécrire 0001–0008 ni 0100–0502 ni 0407–0411. Prochain libre cloud : **0603+**.
+Jalon **Cloud-portable** : le template P0–P6 Apparatus ne s’applique pas. P4 ([0008](0008-apparatus-p4-k8s-isolation-outside-manifesto.md), Accepted / Implemented ; dette D-TRANSIT-TCB / D-ADMB / D-PROD) **s’insère** dans cette plateforme ; 0600/0601/0602 **ne sont pas** des ADR Apparatus et **ne SuperSèdent pas** 0008. **0009** est pris (Apparatus, gate pré-prod scale on demand — [0009](0009-gate-preprod-scale-on-demand-isolation-instance.md)). **0010** est pris (Apparatus, gate pré-prod certificat / CA — [0010](0010-gate-preprod-workload-certificate-ca.md)). **0011** est pris (Apparatus, mécanisme pod-par-binding de 0009 — [0011](0011-apparatus-p4-pod-par-binding.md)). **Ne pas** utiliser 0412 (prochain IAM-IdP), 0503 (CI rétro 0500). **Ne pas** réécrire 0001–0011 ni 0100–0502 ni 0407–0411. **0605** est pris (gold path Kind J3 / DNS / attach — [0605](0605-gold-path-kind-j3-dns-attach.md)). Prochain libre Apparatus : **0012+**. Prochain libre cloud : **0606+**.
 
-Wiki (pointeurs, pas canon) : `obsidian/AI FOR ALL/projects/aiforall/decisions/0600-cloud-portable.md`, `0601-cluster-topology.md`, `0602-observabilite-portable.md`. Index Manifesto 0001–0008 : **Related seulement** (P4 se loge ici), pas une fusion Apparatus.
+Wiki (pointeurs, pas canon) : `obsidian/AI FOR ALL/projects/aiforall/decisions/0600-cloud-portable.md`, `0601-cluster-topology.md`, `0602-observabilite-portable.md`, `0603-tranche-locale.md`, `0604-j3-overlay-demo-monolith.md`. Index Manifesto 0001–0008 : **Related seulement** (P4 se loge ici), pas une fusion Apparatus.
 
-Contrat : `docs/platform-cloud-v1-implementation-contract.md`. Canon Vague 4 = **0600 + 0601 + 0602**.
+Contrats : cloud C/0602 = `docs/platform-cloud-v1-implementation-contract.md` ; **tranche locale A+B** = `docs/platform-local-v1-implementation-contract.md` ([0603](0603-tranche-locale-deploy-kind-apparatus-lazaret.md)) ; **cas classique local (gold path)** = `docs/platform-local-gold-case-implementation-guide.md` + [0605](0605-gold-path-kind-j3-dns-attach.md) (ne SuperSède pas 0601/0604). Canon Vague 4 cible = **0600 + 0601 + 0602** ; **séquence livrable locale** = **0603** (ne SuperSède pas 0600) ; **écart J3 monolithe démo** = **0604** (ne SuperSède pas 0601) ; **0604** est pris ; **0605** est pris.
 
 | ID | Décision | Statut | Réalité |
 |---|---|---|---|
 | [0600](0600-cloud-portable-opentofu-k8s-gitops.md) | Trois couches compose/kind/remote k8s ; OpenTofu jusqu’au cluster ; premier adapter **GKE (`gcp`)** ; **Flux** + Kustomize ; image digest commune | Proposed | Unimplemented |
 | [0601](0601-cluster-trust-namespaces-standalones.md) | Unité cluster = 4+1 Deployments ; namespaces `aiforall-*` identiques ; pas ns-per-tenant | Proposed | Unimplemented |
 | [0602](0602-observabilite-portable-otlp-lgtm.md) | Câble tracing+OTLP rustycog (plan A) ; LGTM/Tempo premier adaptateur cluster derrière collector/Alloy (plan B) ; W3C `traceparent` | Proposed | Unimplemented |
+| [0603](0603-tranche-locale-deploy-kind-apparatus-lazaret.md) | Première tranche livrable = locale A+B (`deploy/` + `cloud/opentofu/`) ; preuve Apparatus↔Lazaret en manifests ; pas GKE ni 0602 | Proposed | Partial |
+| [0604](0604-j3-overlay-demo-monolith-kind-invoke.md) | Overlay kind démo non canon : `oodhive-monolith` prouve plugins → `/lazaret/invoke` ; pas SuperSéde 0601 (canon = 4+1) | Proposed | Implemented |
+| [0605](0605-gold-path-kind-j3-dns-attach.md) | Gold path Kind = J3 HTTP 200 (monolithe seul Lazaret) ; DNS Service=Pod ; attach digest+declared = writer managed | Proposed | Implemented |
 
-0601 **ferme** le Non décidé 0404 « 1 vs 4 Deployments » sans éditer 0404. 0602 **ferme** Q3 0600 (câble apps vs premier adaptateur cluster LGTM/Tempo) **sans** SuperSéder 0600. Grafana n’est **pas** dans le SDK Rust. 0500 (liste Compose stale vs `docker-compose.yml` actuel) : écart **cité** dans 0600/0601, **pas corrigé** dans la photographie Accepted.
+0601 **ferme** le Non décidé 0404 « 1 vs 4 Deployments » sans éditer 0404. 0602 **ferme** Q3 0600 (câble apps vs premier adaptateur cluster LGTM/Tempo) **sans** SuperSéder 0600. 0603 **enregistre** la séquence locale-first **sans** SuperSéder 0600/0601. 0604 **enregistre** l’écart J3 (overlay monolithe démo) **sans** SuperSéder 0601. 0605 **ferme** le gold path local Kind (J3 / DNS operator / attach writer) **sans** SuperSéder 0601 ni 0604. Grafana n’est **pas** dans le SDK Rust. 0500 (liste Compose stale vs `docker-compose.yml` actuel) : écart **cité** dans 0600/0601, **pas corrigé** dans la photographie Accepted.
 
 ## Comment en ajouter une
 

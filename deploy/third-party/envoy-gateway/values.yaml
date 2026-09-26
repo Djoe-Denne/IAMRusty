@@ -1,0 +1,15 @@
+# Shim Helm Tiers — Envoy Gateway (ADR-0600 Gateway API).
+# Ce chart n'installe PAS iam / hive / manifesto / telegraph / lazaret.
+#
+# Installer l'upstream (hors M3, pas exigé sur aiforall-local) :
+#   helm install eg oci://docker.io/envoyproxy/gateway-helm \
+#     --version v1.3.2 \
+#     -n envoy-gateway-system --create-namespace
+#
+# Flux HelmRelease commenté : deploy/apps/overlays/kind/helmrelease-envoy-gateway.yaml
+
+upstream:
+  oci: oci://docker.io/envoyproxy/gateway-helm
+  chart: gateway-helm
+  version: v1.3.2
+  namespace: envoy-gateway-system

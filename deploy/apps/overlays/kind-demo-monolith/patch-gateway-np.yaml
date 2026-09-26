@@ -1,0 +1,13 @@
+# Ajoute apparatus-plugins à l'ingress gateway (en plus de aiforall-plugins).
+# Ports 8080 (HTTP) + 8443 (HTTPS session/invoke).
+- op: add
+  path: /spec/ingress/0/from/-
+  value:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: apparatus-plugins
+- op: add
+  path: /spec/ingress/0/ports/-
+  value:
+    protocol: TCP
+    port: 8443

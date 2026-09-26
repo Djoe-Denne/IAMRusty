@@ -1,0 +1,56 @@
+# Trust planes ADR-0601. Pas de namespace aiforall-obs (0602, hors tranche 0603).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: aiforall-platform
+  labels:
+    app.kubernetes.io/part-of: aiforall
+    aiforall.io/trust-plane: platform
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: aiforall-gateway
+  labels:
+    app.kubernetes.io/part-of: aiforall
+    aiforall.io/trust-plane: gateway
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: aiforall-apparatus
+  labels:
+    app.kubernetes.io/part-of: aiforall
+    aiforall.io/trust-plane: apparatus
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: aiforall-plugins
+  labels:
+    app.kubernetes.io/part-of: aiforall
+    aiforall.io/trust-plane: plugins
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: aiforall-data
+  labels:
+    app.kubernetes.io/part-of: aiforall
+    aiforall.io/trust-plane: data
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: aiforall-secrets
+  labels:
+    app.kubernetes.io/part-of: aiforall
+    aiforall.io/trust-plane: secrets
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: aiforall-gitops
+  labels:
+    app.kubernetes.io/part-of: aiforall
+    aiforall.io/trust-plane: gitops

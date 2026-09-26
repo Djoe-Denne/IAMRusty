@@ -1,0 +1,16 @@
+**/target
+.git
+**/.git
+.cursor
+.serena
+obsidian
+**/.DS_Store
+**/*.md
+deploy
+cloud
+docs
+openfga
+local
+monolith/prove-j1*
+monolith/run-host.ps1
+**/*.ps1

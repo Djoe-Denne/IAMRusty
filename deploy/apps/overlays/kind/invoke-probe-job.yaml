@@ -1,0 +1,48 @@
+# Preuve M2 : GET http://lazaret.aiforall-gateway.svc.cluster.local:8080/lazaret/invoke → 200
+# (assert Lazaret/http = SERVICE_PREFIX + INVOKE_PATH). RestartPolicy Never.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: invoke-probe
+  namespace: aiforall-plugins
+  labels:
+    app.kubernetes.io/name: invoke-probe
+    app.kubernetes.io/part-of: aiforall
+spec:
+  backoffLimit: 8
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: invoke-probe
+        app.kubernetes.io/part-of: aiforall
+        app.kubernetes.io/component: plugin
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      containers:
+        - name: probe
+          image: busybox:1.37
+          command:
+            - /bin/sh
+            - -c
+            - |
+              i=0
+              while [ "$i" -lt 90 ]; do
+                if wget -q -O /tmp/body "http://lazaret.aiforall-gateway.svc.cluster.local:8080/lazaret/invoke" && test -s /tmp/body; then
+                  exit 0
+                fi
+                i=$((i + 1))
+                sleep 2
+              done
+              echo "invoke-probe timeout after 180s" >&2
+              exit 1
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            seccompProfile:
+              type: RuntimeDefault

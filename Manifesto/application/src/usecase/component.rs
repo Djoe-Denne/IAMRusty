@@ -9,6 +9,7 @@ use manifesto_domain::{
     entity::ProjectComponent,
     service::{ComponentService, MemberService, PermissionService, ProjectService},
     value_objects::ComponentStatus,
+    ComponentInfo,
 };
 use manifesto_events::{
     ComponentAddedEvent, ComponentRemovedEvent, ComponentStatusChangedEvent, ManifestoDomainEvent,
@@ -23,7 +24,7 @@ use crate::{
         ComponentResponse, UpdateComponentRequest, UpsertBindingConsentRequest,
     },
     usecase::binding_grant::{BindingConsentWriter, BindingGrantSnapshotReader},
-    usecase::project::ProjectAuthorizationUnitOfWork,
+    usecase::project::{ManagedBindingAttach, ProjectAuthorizationUnitOfWork},
     usecase::world_read::{
         caller_can_read_component, enforce_world_read_or_principal, require_project_mutation_actor,
     },
@@ -218,6 +219,56 @@ impl ComponentUseCaseImpl {
     }
 }
 
+/// `io.aiforall.reference-kv` (gold path) exige un digest catalogue. Autres types : pin optionnel.
+const REFERENCE_KV_TYPE: &str = "io.aiforall.reference-kv";
+
+/// Résout digest + declared depuis le catalogue. Fail-closed si reference-kv sans digest.
+///
+/// # Errors
+///
+/// [`ApplicationError::Validation`] when a managed Apparatus type has no catalog digest.
+pub fn attach_from_catalog(
+    component_type: &str,
+    info: Option<&ComponentInfo>,
+) -> Result<ManagedBindingAttach, ApplicationError> {
+    let digest = info
+        .and_then(|row| row.digest.as_deref())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned);
+    let declared_capabilities = info
+        .and_then(|row| row.declared_capabilities.clone())
+        .unwrap_or_default();
+    if component_type == REFERENCE_KV_TYPE && digest.is_none() {
+        return Err(ApplicationError::Validation(format!(
+            "catalog digest required for managed type {component_type}"
+        )));
+    }
+    Ok(ManagedBindingAttach {
+        digest,
+        declared_capabilities,
+    })
+}
+
+/// Attach managed (`digest` ou `io.aiforall.reference-kv`) exige le UoW
+/// qui appelle `insert_managed_binding`. Sans UoW : fail-closed, pas de persist.
+fn require_uow_for_managed_attach(
+    has_uow: bool,
+    attach: &ManagedBindingAttach,
+    component_type: &str,
+) -> Result<(), ApplicationError> {
+    if has_uow {
+        return Ok(());
+    }
+    if attach.digest.is_some() || component_type == REFERENCE_KV_TYPE {
+        return Err(ApplicationError::Validation(
+            "managed attach requires authorization unit of work for insert_managed_binding"
+                .to_owned(),
+        ));
+    }
+    Ok(())
+}
+
 #[async_trait]
 impl ComponentUseCase for ComponentUseCaseImpl {
     async fn add_component(
@@ -241,6 +292,17 @@ impl ComponentUseCase for ComponentUseCaseImpl {
             .validate_component_type(&request.component_type)
             .await?;
 
+        let catalog = self
+            .component_service
+            .catalog_info(&request.component_type)
+            .await?;
+        let attach = attach_from_catalog(&request.component_type, catalog.as_ref())?;
+        require_uow_for_managed_attach(
+            self.authorization_uow.is_some(),
+            &attach,
+            &request.component_type,
+        )?;
+
         self.enforce_component_quota(&project_id).await?;
 
         // Check uniqueness
@@ -259,7 +321,7 @@ impl ComponentUseCase for ComponentUseCaseImpl {
             component.added_at,
         ));
         let created = if let Some(uow) = &self.authorization_uow {
-            uow.save_component_with_events(project_id, component, true, vec![event.into()])
+            uow.save_component_with_events(project_id, component, true, attach, vec![event.into()])
                 .await?
         } else {
             self.permission_service
@@ -410,8 +472,14 @@ impl ComponentUseCase for ComponentUseCaseImpl {
             Utc::now(),
         ));
         let updated = if let Some(uow) = &self.authorization_uow {
-            uow.save_component_with_events(project_id, component, false, vec![event.into()])
-                .await?
+            uow.save_component_with_events(
+                project_id,
+                component,
+                false,
+                ManagedBindingAttach::default(),
+                vec![event.into()],
+            )
+            .await?
         } else {
             let updated = self.component_service.update_component(component).await?;
             let domain_ev: Box<dyn DomainEvent> = event.into();
@@ -508,5 +576,102 @@ impl ComponentUseCase for ComponentUseCaseImpl {
             ApplicationError::Internal("binding consent writer is not configured".to_owned())
         })?;
         writer.upsert(project_id, component_id, request).await
+    }
+}
+
+#[cfg(test)]
+mod attach_from_catalog_tests {
+    use super::*;
+    use manifesto_domain::ComponentInfo;
+
+    fn info(digest: Option<&str>, declared: Option<Vec<&str>>) -> ComponentInfo {
+        ComponentInfo {
+            component_type: "io.aiforall.reference-kv".to_owned(),
+            name: "Reference KV".to_owned(),
+            description: None,
+            version: "1.0.0".to_owned(),
+            endpoint: "http://127.0.0.1:8080/lazaret".to_owned(),
+            digest: digest.map(ToOwned::to_owned),
+            declared_capabilities: declared
+                .map(|caps| caps.into_iter().map(ToOwned::to_owned).collect()),
+        }
+    }
+
+    #[test]
+    fn reference_kv_without_digest_fails_closed() {
+        let err = attach_from_catalog(REFERENCE_KV_TYPE, Some(&info(None, None)))
+            .expect_err("fail-closed");
+        match err {
+            ApplicationError::Validation(msg) => {
+                assert!(msg.contains("catalog digest required"));
+            }
+            other => panic!("expected validation, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn reference_kv_with_digest_writes_declared() {
+        let pin = attach_from_catalog(
+            REFERENCE_KV_TYPE,
+            Some(&info(
+                Some("sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+                Some(vec!["project.read", "storage.kv.read"]),
+            )),
+        )
+        .expect("pin");
+        assert_eq!(
+            pin.digest.as_deref(),
+            Some("sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+        );
+        assert_eq!(
+            pin.declared_capabilities,
+            vec!["project.read".to_owned(), "storage.kv.read".to_owned()]
+        );
+    }
+
+    #[test]
+    fn taskboard_without_digest_skips_apparatus_pin() {
+        let pin = attach_from_catalog("taskboard", None).expect("legacy type");
+        assert!(pin.digest.is_none());
+        assert!(pin.declared_capabilities.is_empty());
+    }
+
+    #[test]
+    fn managed_attach_without_uow_fails_closed() {
+        let pin = attach_from_catalog(
+            REFERENCE_KV_TYPE,
+            Some(&info(
+                Some("sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+                Some(vec!["storage.kv.read"]),
+            )),
+        )
+        .expect("pin");
+        let err = require_uow_for_managed_attach(false, &pin, REFERENCE_KV_TYPE)
+            .expect_err("fail-closed");
+        match err {
+            ApplicationError::Validation(msg) => {
+                assert!(msg.contains("insert_managed_binding"));
+            }
+            other => panic!("expected validation, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn managed_attach_with_uow_ok() {
+        let pin = attach_from_catalog(
+            REFERENCE_KV_TYPE,
+            Some(&info(
+                Some("sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+                None,
+            )),
+        )
+        .expect("pin");
+        require_uow_for_managed_attach(true, &pin, REFERENCE_KV_TYPE).expect("uow wired");
+    }
+
+    #[test]
+    fn legacy_type_without_uow_still_allowed() {
+        let pin = attach_from_catalog("wiki", None).expect("legacy");
+        require_uow_for_managed_attach(false, &pin, "wiki").expect("not managed");
     }
 }

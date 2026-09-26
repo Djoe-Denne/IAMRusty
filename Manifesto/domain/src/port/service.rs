@@ -10,6 +10,12 @@ pub struct ComponentInfo {
     pub description: Option<String>,
     pub version: String,
     pub endpoint: String,
+    /// Pin descripteur 0002 (`sha256:` + 64 hex). Absent pour les types non Apparatus.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub digest: Option<String>,
+    /// Capacités `requires` du manifeste de type. Absent = non fourni par le catalogue.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub declared_capabilities: Option<Vec<String>>,
 }
 
 /// Port for interacting with the component service/register
@@ -24,5 +30,16 @@ pub trait ComponentServicePort: Send + Sync {
         Ok(components
             .iter()
             .any(|c| c.component_type == component_type))
+    }
+
+    /// Lookup one catalog row by type (digest / declared_capabilities for attach).
+    async fn find_component(
+        &self,
+        component_type: &str,
+    ) -> Result<Option<ComponentInfo>, DomainError> {
+        let components = self.list_available_components().await?;
+        Ok(components
+            .into_iter()
+            .find(|c| c.component_type == component_type))
     }
 }

@@ -33,6 +33,15 @@ use crate::{
     ApplicationError,
 };
 
+/// Pin catalogue écrit dans `apparatus_bindings` à l'attache (ADR-0605).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ManagedBindingAttach {
+    /// Digest descripteur 0002, ou `None` pour les types non Apparatus.
+    pub digest: Option<String>,
+    /// Capacités déclarées du manifeste de type (`[]` si absentes du catalogue).
+    pub declared_capabilities: Vec<String>,
+}
+
 /// Persists a project and its owner membership in one unit of work.
 #[async_trait]
 pub trait ProjectAuthorizationUnitOfWork: Send + Sync {
@@ -173,6 +182,7 @@ pub trait ProjectAuthorizationUnitOfWork: Send + Sync {
         project_id: uuid::Uuid,
         component: ProjectComponent,
         create_acl: bool,
+        attach: ManagedBindingAttach,
         events: Vec<Box<dyn DomainEvent>>,
     ) -> Result<ProjectComponent, ApplicationError>;
 

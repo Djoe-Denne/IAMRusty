@@ -1,0 +1,6 @@
+apiVersion: v2
+name: aiforall-envoy-gateway-shim
+description: Lintable third-party shim documenting upstream Envoy Gateway. Does not deploy AIForAll 4+1 slices.
+type: application
+version: 0.1.0
+appVersion: "1.3.2"

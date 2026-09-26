@@ -18,7 +18,7 @@ Le flux actuel : IAM émet le JWT ; Hive / Manifesto / Telegraph (et l’extract
 
 ## Décision
 
-1. **AuthN** = JWT plateforme vérifié par **rustycog-http** (`UserIdExtractor`) en **HS256** (`Authorization: Bearer`). IAMRusty est l’émetteur (`iss=iamrusty`, `aud=aiforall`, même HMAC que les consommateurs).
+1. **AuthN** = JWT plateforme vérifié par **rustycog-http** (`UserIdExtractor`) en **HS256** (`Authorization: Bearer`). IAMRusty est l’émetteur (`iss=iamrusty`, `aud=aiforall`, même HMAC que les consommateurs). **`iss=iamrusty` unique = RÉALITÉ runtime** ; la **cible** issuer par trust domain est [0304](0304-jwt-acces-plateforme-rs256-jwks.md) / [0305](0305-account-identity-trust-domain.md) — **seule** cette décision d’issuer unique est appelée à être remplacée à l’implémentation (OpenFGA et Bearer inchangés ; 0304 ne SuperSède pas cette ADR entière).
 2. **AuthZ** = **OpenFGA** réelle. Hive, Manifesto et Telegraph câblent les routes avec **`with_permission_on`** / **`with_permission_on_param`** (types du modèle `openfga/model.fga`).
 3. **IAM est l’IdP, pas un PDP FGA** : composition root en **`InMemoryPermissionChecker`** (`has_openfga() == false`).
 4. L’**impersonation** décrite dans `docs/project/Archi.md` est **caduque** : pas de service d’impersonation, pas de JWT `iss=impersonation-service` dans le runtime livré.
@@ -42,13 +42,14 @@ Les IT Hive / Manifesto / Telegraph utilisent `TestOpenFga` (conteneur). Défaut
 
 ## Non décidé ici
 
-- Unification émetteur RS256 IAM vs consommateur HS256-only (le composition root refuse déjà RS256 côté HTTP).
+- Algorithme d’accès RS256/JWKS + issuer par trust domain : cible [0304](0304-jwt-acces-plateforme-rs256-jwks.md) / [0305](0305-account-identity-trust-domain.md) (complète ; ne SuperSède pas cette ADR entière) ; réalité runtime encore HS256 / `iss=iamrusty` tant que l’extractor ne lit pas le JWKS.
 - Unification des quatre stratégies de câblage OpenFGA.
 - Modèle FGA détaillé (relations, wildcards) au-delà de `with_permission_on` — voir 0303 pour l’écriture des tuples.
 
 ## Références
 
 - Handbook : `docs/platform/authn-jwt.md`, `docs/platform/authz-openfga.md`, `docs/platform/overview.md`
+- Cible JWT / trust : [0304](0304-jwt-acces-plateforme-rs256-jwks.md), [0305](0305-account-identity-trust-domain.md)
 - Historique caduc : `docs/project/Archi.md` (section Impersonation Service)
 - AuthN : `rustycog/rustycog-http/src/jwt_handler.rs` (`UserIdExtractor`, HS256)
 - AuthZ : `Hive/http/src/lib.rs`, `Manifesto/http/src/lib.rs`, `Telegraph/http/src/lib.rs` (`with_permission_on`)

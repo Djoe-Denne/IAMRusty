@@ -1,0 +1,32 @@
+# Overlay démo J3 seulement. default-deny gateway = DNS kube-system.
+# Union : DNS + TCP Compose hôte (Postgres/OpenFGA/OpenBao/Localstack) + catalogue :9000.
+# Pas de SuperSède 0601 ; pas de Postgres in-kind.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-oodhive-compose-egress
+  namespace: aiforall-gateway
+  labels:
+    app.kubernetes.io/part-of: aiforall
+    aiforall.io/overlay: kind-demo-monolith
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: oodhive-monolith
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 5432
+        - protocol: TCP
+          port: 8090
+        - protocol: TCP
+          port: 8200
+        - protocol: TCP
+          port: 4566
+        - protocol: TCP
+          port: 9000

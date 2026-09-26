@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Operator P4 — kustomize build autonome.
+# Jamais fusion Manifesto (ADR-0008 / 0600 / 0603). Ne pas pointer apparatus-p4-it.
+resources:
+  - namespace.yaml
+  - serviceaccounts.yaml
+  - operator.yaml
+  - crd-admissionrecord.yaml
+  - rbac-watch.yaml
+  - rbac-plugins.yaml
+  - rbac-admit-sign.yaml
+  - zot.yaml
+  - allow-admit-zot-np.yaml
+  # admit-job.yaml : appliqué par prove-gold (env isolation dynamique), pas au deploy-j2.
+images:
+  - name: aiforall-apparatus-controller
+    newName: aiforall-apparatus-controller
+    newTag: j2

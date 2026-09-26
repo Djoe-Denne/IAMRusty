@@ -1,0 +1,114 @@
+# Dette / secours ADR-0604 — pas G4. Runtime Pod = plugin-{32hex} ;
+# image/CRI peut encore s'appeler apparatus-reference-kv. Hors gold 0605.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: lazaret-enroll-reference-kv
+  namespace: apparatus-plugins
+  labels:
+    app.kubernetes.io/name: lazaret-enroll-reference-kv
+    app.kubernetes.io/part-of: aiforall
+    aiforall.io/overlay: kind-demo-monolith
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: lazaret-enroll-reference-kv
+        app.kubernetes.io/part-of: aiforall
+        app.kubernetes.io/component: enroll-probe
+        aiforall.io/overlay: kind-demo-monolith
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      containers:
+        - name: enroll
+          image: j3-enroll:local
+          imagePullPolicy: Never
+          env:
+            - name: PROJECT_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: lazaret-enroll-identity
+                  key: project_id
+            - name: BINDING
+              valueFrom:
+                configMapKeyRef:
+                  name: lazaret-enroll-identity
+                  key: binding
+            - name: RELEASE
+              valueFrom:
+                configMapKeyRef:
+                  name: lazaret-enroll-identity
+                  key: release
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              ENROLL_URL="http://oodhive-monolith.aiforall-gateway.svc.cluster.local:8080/lazaret/enroll"
+              SESSION_URL="https://oodhive-monolith.aiforall-gateway.svc.cluster.local:8443/lazaret/session"
+              INVOKE_URL="https://oodhive-monolith.aiforall-gateway.svc.cluster.local:8443/lazaret/invoke?project_id=${PROJECT_ID}"
+              INSTANCE="$(cat /proc/sys/kernel/random/uuid)"
+              OP_ID="$(cat /proc/sys/kernel/random/uuid)"
+              openssl req -new -newkey rsa:2048 -nodes \
+                -keyout /tmp/key.pem -out /tmp/csr.pem \
+                -subj "/CN=apparatus-reference-kv" >/dev/null 2>&1
+              CSR_JSON=$(awk 'BEGIN{printf "\""} {gsub(/\\/,"\\\\"); gsub(/"/,"\\\""); printf "%s\\n", $0} END{printf "\""}' /tmp/csr.pem)
+              BODY=$(printf '{"csr_pem":%s,"instance":"%s","binding":"%s","release":"%s","generation":1,"grant_revision":1,"project_id":"%s"}' \
+                "$CSR_JSON" "$INSTANCE" "$BINDING" "$RELEASE" "$PROJECT_ID")
+              enroll_code=$(curl -sS --connect-timeout 5 --max-time 30 -o /tmp/enroll.body -w "%{http_code}" -X POST "$ENROLL_URL" \
+                -H "Content-Type: application/json" --data "$BODY" || true)
+              echo "ENROLL HTTP $enroll_code"
+              echo "ENROLL BODY $(cat /tmp/enroll.body 2>/dev/null || true)"
+              case "$enroll_code" in
+                200|201) ;;
+                *) echo "FAIL enroll" >&2; exit 1 ;;
+              esac
+              jq -r '.certificate_pem' /tmp/enroll.body > /tmp/cert.pem
+              test -s /tmp/cert.pem
+              grep -q "BEGIN CERTIFICATE" /tmp/cert.pem
+
+              session_code=$(curl -sS --connect-timeout 5 --max-time 30 -o /tmp/session.body -w "%{http_code}" \
+                -X POST "$SESSION_URL" \
+                --cert /tmp/cert.pem --key /tmp/key.pem -k || true)
+              echo "SESSION HTTP $session_code"
+              echo "SESSION BODY $(cat /tmp/session.body 2>/dev/null || true)"
+              if [ "$session_code" != "200" ]; then
+                echo "FAIL session (expected 200 with client cert)" >&2
+                exit 1
+              fi
+              TOKEN=$(jq -r '.session_token // empty' /tmp/session.body)
+              test -n "$TOKEN"
+
+              INVOKE_BODY=$(printf '{"binding_id":"%s","operation_id":"%s","operation":"kv.get","params":{"key":"j3-probe"}}' \
+                "$BINDING" "$OP_ID")
+              invoke_code=$(curl -sS --connect-timeout 5 --max-time 30 -o /tmp/invoke.body -w "%{http_code}" \
+                -X POST "$INVOKE_URL" \
+                -H "Content-Type: application/json" \
+                -H "Authorization: Bearer ${TOKEN}" \
+                --data "$INVOKE_BODY" -k || true)
+              echo "INVOKE HTTP $invoke_code"
+              echo "INVOKE BODY $(cat /tmp/invoke.body 2>/dev/null || true)"
+              case "$invoke_code" in
+                200|201|202|204) ;;
+                *)
+                  echo "FAIL invoke: expected 2xx, got ${invoke_code:-empty}" >&2
+                  exit 1
+                  ;;
+              esac
+              grep -q '"hostname"' /tmp/invoke.body || {
+                echo "FAIL invoke: missing hostname (not apparatus-reference-kv)" >&2
+                exit 1
+              }
+              echo "OK enroll+session+invoke (HTTP $invoke_code, reference-kv hostname)"
+              exit 0
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            seccompProfile:
+              type: RuntimeDefault

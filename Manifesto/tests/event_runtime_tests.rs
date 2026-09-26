@@ -11,7 +11,7 @@ use manifesto_domain::{
 use manifesto_infra::{
     ApparatusBindingSourceLookup, ApparatusEventConsumer, ComponentStatusProcessor,
 };
-use rustycog::config::{KafkaConfig, QueueConfig};
+use rustycog::config::{KafkaConfig, QueueConfig, SqsConfig};
 use rustycog::core::error::{DomainError, ServiceError};
 use uuid::Uuid;
 
@@ -158,6 +158,36 @@ async fn test_apparatus_consumer_is_noop_when_queue_is_disabled() {
         .expect("Disabled queue should still build a consumer");
 
     assert!(consumer.is_noop());
+}
+
+#[tokio::test]
+async fn test_apparatus_consumer_is_noop_when_sqs_has_no_component_status_queue() {
+    let project_id = Uuid::new_v4();
+    let component_service = Arc::new(InMemoryComponentService::new(build_pending_component(
+        project_id,
+        "taskboard",
+    )));
+    let processor = Arc::new(ComponentStatusProcessor::new(
+        component_service,
+        Arc::new(AbsentBindingSource),
+    ));
+
+    let mut sqs = SqsConfig::default();
+    sqs.enabled = true;
+    sqs.default_queues = vec!["sentinel-sync-events".to_string()];
+    sqs.queues.insert(
+        "project_created".to_string(),
+        vec!["sentinel-sync-events".to_string()],
+    );
+
+    let consumer = ApparatusEventConsumer::new(&QueueConfig::Sqs(sqs), processor)
+        .await
+        .expect("AuthZ-only SQS map should still build a consumer");
+
+    assert!(
+        consumer.is_noop(),
+        "apparatus listener must not poll sentinel-sync-events"
+    );
 }
 
 #[tokio::test]

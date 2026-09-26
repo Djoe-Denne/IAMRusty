@@ -1,6 +1,8 @@
 # Contrat d’implémentation — plateforme cloud portable V1
 
-Canon : [ADR-0600](adr/0600-cloud-portable-opentofu-k8s-gitops.md), [ADR-0601](adr/0601-cluster-trust-namespaces-standalones.md), [ADR-0602](adr/0602-observabilite-portable-otlp-lgtm.md). Statut ADR : **Proposed** / **Unimplemented**. Ne pas coder tant que l’Accept humain n’est pas donné, sauf scaffolding explicitement demandé après Accept.
+> **Tranche locale 0603** : contrat [platform-local-v1-implementation-contract.md](platform-local-v1-implementation-contract.md) — scaffolding couches A+B (`deploy/` + `cloud/opentofu/`) autorisé sans Accept GKE. **0602**, `deploy/obs/`, et couche **C** (GKE / live) restent **hors tranche** et sous ce document cloud.
+
+Canon : [ADR-0600](adr/0600-cloud-portable-opentofu-k8s-gitops.md), [ADR-0601](adr/0601-cluster-trust-namespaces-standalones.md), [ADR-0602](adr/0602-observabilite-portable-otlp-lgtm.md). Statut ADR : **Proposed** / **Unimplemented**. Ne pas coder tant que l’Accept humain n’est pas donné, sauf scaffolding explicitement demandé après Accept — **exception locale** : voir encadré 0603 ci-dessus.
 
 **Hors scope de ce contrat (tour docs)** : code applicatif des slices, retarget des gates Manifesto, édition des ADR Accepted (0001–0008, 0100–0502, 0407–0410), `cargo test` / Clippy « plateforme » comme preuve cloud. **Ne pas** scaffolder `deploy/obs/` ni le SDK OTel **dans le même work** que l’IaC. Bootstrap rustycog (0602 plan A) = **work séparé**, après Accept.
 

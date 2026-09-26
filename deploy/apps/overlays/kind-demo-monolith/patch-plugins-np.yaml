@@ -1,0 +1,3 @@
+- op: replace
+  path: /spec/egress/1/to/0/podSelector/matchLabels/app.kubernetes.io~1name
+  value: oodhive-monolith

@@ -7,6 +7,7 @@ use crate::config::{load_monolith_config, MonolithConfig};
 use crate::routes::{compose_routes, MonolithRouters};
 
 pub async fn run() -> anyhow::Result<()> {
+    setup_logging_once();
     let MonolithConfig {
         server,
         iam,
@@ -15,8 +16,6 @@ pub async fn run() -> anyhow::Result<()> {
         manifesto,
         lazaret,
     } = load_monolith_config()?;
-
-    setup_logging_once();
 
     let iam_app = Box::pin(iam_setup::app::build_app_state(iam, None)).await?;
     let telegraph_app = Box::pin(telegraph_setup::AppBuilder::new(telegraph).build()).await?;
@@ -98,19 +97,28 @@ async fn wait_for_shutdown_or_failure(
 }
 
 async fn wait_for_first_background_task(
-    background_tasks: Vec<JoinHandle<anyhow::Result<()>>>,
+    mut background_tasks: Vec<JoinHandle<anyhow::Result<()>>>,
 ) -> anyhow::Result<()> {
-    if background_tasks.is_empty() {
-        pending::<()>().await;
-        unreachable!("pending future never resolves");
-    }
+    loop {
+        if background_tasks.is_empty() {
+            pending::<()>().await;
+            unreachable!("pending future never resolves");
+        }
 
-    let (result, _index, remaining_tasks) = select_all(background_tasks).await;
-    for task in remaining_tasks {
-        task.abort();
+        let (result, _index, remaining_tasks) = select_all(background_tasks).await;
+        match &result {
+            Ok(Ok(())) => {
+                tracing::warn!("Monolith background task exited cleanly; HTTP listener continues");
+                background_tasks = remaining_tasks;
+            }
+            _ => {
+                for task in remaining_tasks {
+                    task.abort();
+                }
+                return flatten_join_result("Monolith background task", result);
+            }
+        }
     }
-
-    flatten_join_result("Monolith background task", result)
 }
 
 fn flatten_join_result(

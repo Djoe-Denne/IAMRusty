@@ -105,6 +105,7 @@ Temporary Items
 .env.local
 .env.production
 .env.staging
+.env.openfga
 *.local
 
 # Logs

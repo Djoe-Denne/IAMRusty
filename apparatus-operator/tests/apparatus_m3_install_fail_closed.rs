@@ -11,6 +11,7 @@ use apparatus_operator::admission::{
     would_schedule, AdmissionRecord, AdmissionStatus, AdmissionStore, AdmitInput, AdmitRefuse,
     BindCriError, PersistentAdmissionStore,
 };
+use apparatus_operator::admit::{push_and_sign_envelope, AdmitTarget, Envelope, RegistryAuth};
 use apparatus_operator::controller::{
     pod_name_for, IsolationLabels, ReconcileOutcome, ScheduleRefuse, WorkloadReconciler,
     PLUGINS_NAMESPACE,
@@ -119,6 +120,24 @@ fn isolation() -> IsolationLabels {
     IsolationLabels::try_new("presses-nord", "shift-0300").expect("labels isolation")
 }
 
+fn admit_target(stack: &fixtures::SignRegistryStack) -> AdmitTarget {
+    AdmitTarget {
+        registry_host: format!("127.0.0.1:{}", stack.zot.port),
+        registry_network: fixtures::zot::TestZot::network_registry(),
+        docker_network: fixtures::SignRegistryStack::network_name().to_owned(),
+        vault_addr_host: stack.transit.host_base_url(),
+        vault_addr_network: fixtures::openbao_transit::TestOpenBaoTransit::network_base_url(),
+        vault_token: fixtures::openbao_transit::TestOpenBaoTransit::token().to_owned(),
+        transit_key: fixtures::openbao_transit::TestOpenBaoTransit::key_name().to_owned(),
+        repository: "apparatus/envelope".to_owned(),
+        tag: "m3".to_owned(),
+        auth: RegistryAuth {
+            username: fixtures::zot::SIGNER_USER.to_owned(),
+            password: fixtures::zot::SIGNER_PASSWORD.to_owned(),
+        },
+    }
+}
+
 fn cr_only_record(descriptor: &ReleaseDigest, report_digest: ReleaseDigest) -> AdmissionRecord {
     AdmissionRecord {
         descriptor_digest: descriptor.clone(),
@@ -126,6 +145,7 @@ fn cr_only_record(descriptor: &ReleaseDigest, report_digest: ReleaseDigest) -> A
         report_digest,
         status: AdmissionStatus::Valid,
         cri_image: None,
+        envelope_reference: None,
     }
 }
 
@@ -328,7 +348,10 @@ async fn m3_kind_cr_only_valid_does_not_schedule() {
 #[serial]
 async fn m3_kind_json_valid_m1_schedules_pinned_pod() {
     let cluster = fixtures::kind::KindCluster::ensure().unwrap_or_else(|err| panic!("{err}"));
-    let (input, descriptor, _) = passing_input();
+    let stack = fixtures::SignRegistryStack::start()
+        .await
+        .unwrap_or_else(|err| panic!("SignRegistryStack: {err}"));
+    let (mut input, descriptor, _) = passing_input();
     let cri_image = docker_build_reference_kv_cri_pin();
     assert!(
         cri_image.contains("@sha256:"),
@@ -338,6 +361,17 @@ async fn m3_kind_json_valid_m1_schedules_pinned_pod() {
         !cri_image.contains(":latest"),
         "pin CRI sans latest: {cri_image}"
     );
+    let target = admit_target(&stack);
+    let signed = push_and_sign_envelope(
+        &target,
+        &Envelope {
+            descriptor_digest: descriptor.clone(),
+            cri_image: cri_image.clone(),
+        },
+    )
+    .await
+    .unwrap_or_else(|err| panic!("push+sign: {err}"));
+    input.signature_verified = signed.signature_verified;
 
     let tmp = TempStorePath::new("valid-m1");
     let mut store = PersistentAdmissionStore::open(&tmp.path).expect("open JSON");
@@ -345,6 +379,9 @@ async fn m3_kind_json_valid_m1_schedules_pinned_pod() {
     store
         .bind_cri(&descriptor, &cri_image)
         .expect("bind_cri pin M1 JSON");
+    store
+        .bind_envelope(&descriptor, &signed.reference)
+        .expect("bind_envelope ref T6");
     assert!(
         would_schedule(&store, &descriptor),
         "ligne JSON VALID requise avant schedule"
@@ -353,7 +390,8 @@ async fn m3_kind_json_valid_m1_schedules_pinned_pod() {
 
     let reconciler = WorkloadReconciler::connect(&cluster.kubeconfig, &tmp.path)
         .await
-        .unwrap_or_else(|err| panic!("{err}"));
+        .unwrap_or_else(|err| panic!("{err}"))
+        .with_schedule_admit_target(target);
     let pod_name = pod_name_for(&descriptor);
     reconciler
         .delete_plugin_pod(&pod_name)

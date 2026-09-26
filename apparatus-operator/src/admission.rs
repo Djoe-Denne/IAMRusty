@@ -77,6 +77,9 @@ pub struct AdmissionRecord {
     pub status: AdmissionStatus,
     /// Pin CRI persisté par [`PersistentAdmissionStore::bind_cri`] (absent après admit).
     pub cri_image: Option<String>,
+    /// Référence OCI enveloppe signée (`host/repo@sha256:…`), persistée par
+    /// [`PersistentAdmissionStore::bind_envelope`] après Adm-A (absente après admit seul).
+    pub envelope_reference: Option<String>,
 }
 
 /// Entrée du chemin d'admission (booléens T5/T6, pas une enveloppe signée T6).
@@ -176,6 +179,7 @@ pub fn evaluate_admit(input: AdmitInput) -> Result<AdmissionRecord, AdmitRefuse>
         report_digest,
         status: AdmissionStatus::Valid,
         cri_image: None,
+        envelope_reference: None,
     })
 }
 
@@ -297,6 +301,36 @@ impl std::error::Error for BindCriError {
     }
 }
 
+/// Échec de [`PersistentAdmissionStore::bind_envelope`].
+#[derive(Debug)]
+pub enum BindEnvelopeError {
+    /// Pas de ligne JSON VALID pour ce digest.
+    NotValid,
+    /// Référence vide ou whitespace-only.
+    EmptyReference,
+    /// Échec d'écriture JSON (mémoire restaurée).
+    Persist(io::Error),
+}
+
+impl fmt::Display for BindEnvelopeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::NotValid => f.write_str("bind_envelope: digest is not VALID"),
+            Self::EmptyReference => f.write_str("bind_envelope: envelope reference is empty"),
+            Self::Persist(err) => write!(f, "bind_envelope persist: {err}"),
+        }
+    }
+}
+
+impl std::error::Error for BindEnvelopeError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Persist(err) => Some(err),
+            _ => None,
+        }
+    }
+}
+
 impl PersistentAdmissionStore {
     /// Ouvre le JSON existant, ou un store vide si le fichier est absent.
     ///
@@ -364,6 +398,43 @@ impl PersistentAdmissionStore {
         }
         Ok(())
     }
+
+    /// Écrit la référence d'enveloppe signée sur une ligne déjà VALID, puis persiste.
+    ///
+    /// N'admet pas : [`AdmissionStore::admit`] laisse `envelope_reference` à `None`.
+    ///
+    /// # Errors
+    ///
+    /// Digest non VALID, référence vide, ou écriture JSON.
+    pub fn bind_envelope(
+        &mut self,
+        digest: &ReleaseDigest,
+        envelope_reference: &str,
+    ) -> Result<(), BindEnvelopeError> {
+        if !self.records.contains_key(digest) {
+            return Err(BindEnvelopeError::NotValid);
+        }
+        let trimmed = envelope_reference.trim();
+        if trimmed.is_empty() {
+            return Err(BindEnvelopeError::EmptyReference);
+        }
+        let previous = {
+            let record = self
+                .records
+                .get_mut(digest)
+                .ok_or(BindEnvelopeError::NotValid)?;
+            let previous = record.envelope_reference.clone();
+            record.envelope_reference = Some(trimmed.to_owned());
+            previous
+        };
+        if let Err(err) = self.persist() {
+            if let Some(record) = self.records.get_mut(digest) {
+                record.envelope_reference = previous;
+            }
+            return Err(BindEnvelopeError::Persist(err));
+        }
+        Ok(())
+    }
 }
 
 impl AdmissionStore for PersistentAdmissionStore {
@@ -410,6 +481,12 @@ struct DiskRecord {
     status: DiskStatus,
     #[serde(rename = "criImage", default, skip_serializing_if = "Option::is_none")]
     cri_image: Option<String>,
+    #[serde(
+        rename = "envelopeReference",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    envelope_reference: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -427,6 +504,7 @@ impl DiskRecord {
                 phase: DISK_VALID_PHASE.to_owned(),
             },
             cri_image: record.cri_image.clone(),
+            envelope_reference: record.envelope_reference.clone(),
         }
     }
 
@@ -445,6 +523,7 @@ impl DiskRecord {
             report_digest,
             status: AdmissionStatus::Valid,
             cri_image: self.cri_image,
+            envelope_reference: self.envelope_reference,
         })
     }
 }

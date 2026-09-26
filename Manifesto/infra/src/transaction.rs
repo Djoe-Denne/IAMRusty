@@ -482,6 +482,7 @@ impl ProjectAuthorizationUnitOfWork for ProjectAuthorizationUnitOfWorkImpl {
         project_id: uuid::Uuid,
         component: manifesto_domain::entity::ProjectComponent,
         create_acl: bool,
+        attach: manifesto_application::ManagedBindingAttach,
         events: Vec<Box<dyn DomainEvent>>,
     ) -> Result<manifesto_domain::entity::ProjectComponent, ApplicationError> {
         let txn =
@@ -503,13 +504,16 @@ impl ProjectAuthorizationUnitOfWork for ProjectAuthorizationUnitOfWorkImpl {
             .await?;
             if create_acl {
                 // Create managed: desired_generation=1, next_retry_at=now(), même txn ACL + outbox.
-                crate::apparatus_outbox::insert_managed_binding(&txn, component.id)
-                    .await
-                    .map_err(|e| {
-                        ApplicationError::Internal(format!(
-                            "failed to record apparatus binding: {e}"
-                        ))
-                    })?;
+                crate::apparatus_outbox::insert_managed_binding(
+                    &txn,
+                    component.id,
+                    attach.digest,
+                    attach.declared_capabilities,
+                )
+                .await
+                .map_err(|e| {
+                    ApplicationError::Internal(format!("failed to record apparatus binding: {e}"))
+                })?;
             } else {
                 crate::apparatus_outbox::bump_managed_desired_generation(&txn, component.id)
                     .await

@@ -1,0 +1,4 @@
+# curl + openssl + jq for in-cluster Lazaret enroll → session mTLS → invoke.
+# Single-platform for kind load (Hub multi-arch attested manifests break ctr).
+FROM --platform=linux/amd64 alpine:3.20
+RUN apk add --no-cache curl openssl ca-certificates jq

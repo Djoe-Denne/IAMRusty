@@ -34,6 +34,7 @@ Publication : `notification_created` → `telegraph-events` / `sentinel-sync-eve
 - IAM ne rend pas d’email ; il publie un contrat d’événement (0400, 0300).
 - Un client ne POST pas « envoie ce SMS » sur `/telegraph`.
 - Ajouter un canal live (SMS) exige une décision + des routes / processeurs, pas seulement un variant de template.
+- Telegraph **n’est pas** le canal de configuration KMS / signature org ([0306](0306-hive-iam-configuration-signature.md) ; correction « Telegraf » → Telegraph).
 
 ## Alternatives rejetées
 

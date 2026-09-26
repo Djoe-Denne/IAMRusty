@@ -52,6 +52,7 @@ Central entry point for this vault. Use the area indexes for full catalogs; use 
 
 - [[projects/aiforall/decisions/index]] — vague 2 rétroactive (0100–0502) : hexagone, tests, events, services, plateforme.
 - [[projects/manifesto/decisions/index]] — vague 1 Apparatus 0001–0008 Accepted ; P2 Implemented ; 0007 Implemented ; 0008 Partial.
+- Atlas visuel du dépôt (Mermaid, canon code) : `docs/architecture/README.md` — le wiki reste la couche conception.
 
 ## Fonctionnalité — Apparatus
 

@@ -48,8 +48,8 @@ fn default_backend() -> String {
 }
 
 impl SentinelSyncConfig {
-    /// Load config from `config/sentinel-sync.toml` and `SENTINEL_SYNC__*`
-    /// env vars. Mirrors the convention used by every other `RustyCog` service.
+    /// Load config from `config/sentinel-sync.toml` and `SENTINEL_SYNC_*`
+    /// env vars (`prefix_separator = "_"` like rustycog-config: `SENTINEL_SYNC_OPENFGA__STORE_ID`).
     pub fn load() -> Result<Self, rustycog::config::ConfigError> {
         use rustycog::config::{Config, Environment, File, FileFormat};
 
@@ -63,6 +63,7 @@ impl SentinelSyncConfig {
             )
             .add_source(
                 Environment::with_prefix("SENTINEL_SYNC")
+                    .prefix_separator("_")
                     .separator("__")
                     .try_parsing(true),
             );

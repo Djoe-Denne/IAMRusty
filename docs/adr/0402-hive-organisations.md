@@ -46,6 +46,7 @@ Hive expose déjà un hexagone `/hive` : organisations, rôles, membres, invitat
 - Transfert de projet / changement d’organisation (`APP-07`, 0001).
 - Fidélité OpenAPI Hive vs implémentation (écart déjà noté en 0100).
 - Catalogue des providers externes et politique de sync.
+- **Cible** : membership désignera le principal `(iss, sub)` ([0305](0305-account-identity-trust-domain.md)) ; config signer org = commande synchrone Hive→IAM ([0306](0306-hive-iam-configuration-signature.md)). Hive reste SoT org/membership. **Réalité** : `OrganizationMember.user_id` seul.
 
 ## Références
 

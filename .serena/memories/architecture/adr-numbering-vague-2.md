@@ -4,7 +4,7 @@ Schéma de numérotation `docs/adr/` :
 - 0001–0099 Apparatus (existant 0001–0005, ne pas réécrire)
 - 0100–0199 hexagone RustyCog / crates
 - 0200–0299 tests
-- 0300–0399 events / outbox / AuthN-AuthZ
+- 0300–0399 events / outbox / AuthN-AuthZ (0300–0303 rétro Vague 2 ; 0304+ vivant AuthN JWT, premier = 0304 Accepted / Unimplemented, complète 0302)
 - 0400–0499 services / runtimes
 - 0500–0599 config / CI / rustycog framework
 

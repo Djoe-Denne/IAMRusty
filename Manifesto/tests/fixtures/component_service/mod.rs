@@ -16,6 +16,7 @@
 pub mod resources;
 pub mod service;
 
+pub use resources::ComponentInfoBody;
 pub use service::ComponentServiceMockService;
 
 /// Namespace for component-catalog fixtures.

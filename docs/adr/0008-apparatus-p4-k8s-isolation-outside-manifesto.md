@@ -71,7 +71,7 @@ Photo post-M6 (A-DEC 2026-09-22) : 0002 / 0003 / 0005 / 0008 = **Implemented** ;
 - `APP-02` (politique catalogue / publishers)
 - `APP-05` (options A/B dans 0004 — **reste ouvert**, A-DEC)
 - `APP-03`, `APP-06` (dont **budget / CPU numériques**)
-- Drain / destruction des bindings déjà `ready` (0005, README L138 — ADR future)
+- Drain / destruction des bindings déjà `ready` (0005, README) ; **ne pas shipper en prod** la limite pod-H24 / partage-par-digest — gate pré-prod [0009](0009-gate-preprod-scale-on-demand-isolation-instance.md) (scale on demand + isolation d’instance explicite)
 - Split admission vs signer (colocation 0003 possible, **pas** tranchée)
 - Produit registry IT concret (zot / ORAS vs `registry:2`) — contrainte : artifacts **et** pull d’image
 - Adm-B webhook comme complément **après** cette ADR, jamais source `VALID`

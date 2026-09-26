@@ -4,7 +4,9 @@
 //! `HOSTNAME` pour prouver que l'appel a atteint le Pod.
 
 use std::net::SocketAddr;
+use std::path::Path;
 use std::sync::Arc;
+use std::time::Duration;
 
 use apparatus_contracts::{
     digest_str, new_operation_id, BindRequest, BindResponse, ConfigureRequest, ConfigureResponse,
@@ -18,6 +20,8 @@ use axum::extract::State;
 use axum::http::StatusCode;
 use axum::routing::{get, post};
 use axum::{Json, Router};
+use rcgen::{CertificateParams, KeyPair};
+use uuid::Uuid;
 
 type Backend = Arc<ReferenceKvBackend<InMemoryKvStore>>;
 
@@ -29,6 +33,7 @@ struct AppState {
 
 #[tokio::main]
 async fn main() {
+    enroll_from_env_or_exit().await;
     let port: u16 = std::env::var("PORT")
         .ok()
         .and_then(|raw| raw.parse().ok())
@@ -149,4 +154,111 @@ fn stamp_hostname(response: &mut InvokeResponse, hostname: &str) {
             });
         }
     }
+}
+
+const WORKLOAD_CERT_PATH: &str = "/tmp/lazaret-workload-cert.pem";
+const WORKLOAD_KEY_PATH: &str = "/tmp/lazaret-workload-key.pem";
+
+struct EnrollCfg {
+    url: String,
+    binding: Uuid,
+    project_id: Uuid,
+    release: String,
+}
+
+fn enroll_cfg_from_env() -> Option<EnrollCfg> {
+    let url = std::env::var("LAZARET_ENROLL_URL").ok()?;
+    if url.trim().is_empty() {
+        return None;
+    }
+    let binding = env_uuid("BINDING").or_else(|| env_uuid("APPARATUS_BINDING"))?;
+    let project_id = env_uuid("PROJECT_ID").or_else(|| env_uuid("APPARATUS_PROJECT"))?;
+    let release = std::env::var("RELEASE")
+        .ok()
+        .or_else(|| std::env::var("APPARATUS_RELEASE").ok())?;
+    if release.trim().is_empty() {
+        return None;
+    }
+    Some(EnrollCfg {
+        url,
+        binding,
+        project_id,
+        release,
+    })
+}
+
+fn env_uuid(name: &str) -> Option<Uuid> {
+    std::env::var(name).ok().and_then(|raw| raw.parse().ok())
+}
+
+async fn enroll_from_env_or_exit() {
+    let Some(cfg) = enroll_cfg_from_env() else {
+        return;
+    };
+    if Path::new(WORKLOAD_CERT_PATH).is_file() && Path::new(WORKLOAD_KEY_PATH).is_file() {
+        eprintln!("workload already enrolled on disk, skip POST /lazaret/enroll");
+        return;
+    }
+    match enroll_workload(&cfg).await {
+        Ok(()) => {}
+        Err(err) if err.contains("409") => {
+            eprintln!("enroll already present (409), continue serving");
+        }
+        Err(err) => {
+            eprintln!("enroll failed: {err}");
+            std::process::exit(1);
+        }
+    }
+}
+
+async fn enroll_workload(cfg: &EnrollCfg) -> Result<(), String> {
+    let key = KeyPair::generate().map_err(|err| format!("workload key: {err}"))?;
+    let params = CertificateParams::new(vec!["apparatus-reference-kv".to_owned()])
+        .map_err(|err| format!("csr params: {err}"))?;
+    let csr = params
+        .serialize_request(&key)
+        .map_err(|err| format!("csr: {err}"))?;
+    let csr_pem = csr.pem().map_err(|err| format!("csr pem: {err}"))?;
+    let instance = Uuid::new_v4();
+    let body = serde_json::json!({
+        "csr_pem": csr_pem,
+        "instance": instance,
+        "binding": cfg.binding,
+        "release": cfg.release,
+        "generation": 1,
+        "grant_revision": 1,
+        "project_id": cfg.project_id,
+    });
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(15))
+        .build()
+        .map_err(|err| format!("http client: {err}"))?;
+    let response = client
+        .post(&cfg.url)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|err| format!("POST enroll: {err}"))?;
+    let status = response.status();
+    let text = response.text().await.unwrap_or_default();
+    if status.as_u16() == 409 {
+        return Err("409".to_owned());
+    }
+    if !status.is_success() {
+        return Err(format!("HTTP {status} {text}"));
+    }
+    let parsed: serde_json::Value =
+        serde_json::from_str(&text).map_err(|err| format!("enroll json: {err} {text}"))?;
+    let cert_pem = parsed
+        .get("certificate_pem")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| format!("missing certificate_pem: {text}"))?;
+    std::fs::write(WORKLOAD_CERT_PATH, cert_pem).map_err(|err| format!("write cert: {err}"))?;
+    std::fs::write(WORKLOAD_KEY_PATH, key.serialize_pem())
+        .map_err(|err| format!("write key: {err}"))?;
+    eprintln!(
+        "enroll HTTP {} written to {WORKLOAD_CERT_PATH}",
+        status.as_u16()
+    );
+    Ok(())
 }

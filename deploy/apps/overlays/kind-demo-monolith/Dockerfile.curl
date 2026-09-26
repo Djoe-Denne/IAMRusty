@@ -1,0 +1,4 @@
+# curl+jq+shell for gold-path in-cluster HTTP (session mTLS files + JSON).
+# Single-platform for kind load (Hub multi-arch attested manifests break ctr).
+FROM --platform=linux/amd64 alpine:3.20
+RUN apk add --no-cache curl jq ca-certificates

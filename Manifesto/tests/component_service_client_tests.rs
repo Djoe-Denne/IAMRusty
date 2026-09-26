@@ -56,6 +56,8 @@ async fn test_component_service_client_sends_api_key_and_parses_success_response
                 description: Some("Collaborative kanban board".to_string()),
                 version: "1.2.3".to_string(),
                 endpoint: "https://components.example/taskboard".to_string(),
+                digest: None,
+                declared_capabilities: None,
             }]),
         )
         .mount(&server)

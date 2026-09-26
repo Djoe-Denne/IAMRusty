@@ -11,6 +11,7 @@ use std::process::Command;
 use apparatus_operator::admission::{
     would_schedule, AdmissionStore, AdmitInput, PersistentAdmissionStore,
 };
+use apparatus_operator::admit::{push_and_sign_envelope, AdmitTarget, Envelope, RegistryAuth};
 use apparatus_operator::controller::{
     pod_name_for, IsolationLabels, ReconcileOutcome, ScheduleRefuse, WorkloadReconciler,
     BINDING_LABEL, PLUGINS_NAMESPACE, PROJECT_LABEL,
@@ -329,7 +330,10 @@ async fn m4_http_skips_non_active_and_missing_digest() {
 #[serial]
 async fn m4_ready_valid_digest_schedules() {
     let cluster = fixtures::kind::KindCluster::ensure().unwrap_or_else(|err| panic!("{err}"));
-    let (input, descriptor, _) = passing_input();
+    let stack = fixtures::SignRegistryStack::start()
+        .await
+        .unwrap_or_else(|err| panic!("SignRegistryStack: {err}"));
+    let (mut input, descriptor, _) = passing_input();
     let cri_image = docker_build_reference_kv_cri_pin();
     assert!(
         cri_image.contains("@sha256:"),
@@ -339,6 +343,31 @@ async fn m4_ready_valid_digest_schedules() {
         !cri_image.contains(":latest"),
         "pin CRI sans latest: {cri_image}"
     );
+    let target = AdmitTarget {
+        registry_host: format!("127.0.0.1:{}", stack.zot.port),
+        registry_network: fixtures::zot::TestZot::network_registry(),
+        docker_network: fixtures::SignRegistryStack::network_name().to_owned(),
+        vault_addr_host: stack.transit.host_base_url(),
+        vault_addr_network: fixtures::openbao_transit::TestOpenBaoTransit::network_base_url(),
+        vault_token: fixtures::openbao_transit::TestOpenBaoTransit::token().to_owned(),
+        transit_key: fixtures::openbao_transit::TestOpenBaoTransit::key_name().to_owned(),
+        repository: "apparatus/envelope".to_owned(),
+        tag: "m4".to_owned(),
+        auth: RegistryAuth {
+            username: fixtures::zot::SIGNER_USER.to_owned(),
+            password: fixtures::zot::SIGNER_PASSWORD.to_owned(),
+        },
+    };
+    let signed = push_and_sign_envelope(
+        &target,
+        &Envelope {
+            descriptor_digest: descriptor.clone(),
+            cri_image: cri_image.clone(),
+        },
+    )
+    .await
+    .unwrap_or_else(|err| panic!("push+sign: {err}"));
+    input.signature_verified = signed.signature_verified;
 
     let project_id = Uuid::new_v4();
     let component_id = Uuid::new_v4();
@@ -353,6 +382,9 @@ async fn m4_ready_valid_digest_schedules() {
     store
         .bind_cri(&descriptor, &cri_image)
         .expect("bind_cri pin M1 JSON");
+    store
+        .bind_envelope(&descriptor, &signed.reference)
+        .expect("bind_envelope ref T6");
     assert!(
         would_schedule(&store, &descriptor),
         "ligne JSON VALID requise avant schedule"
@@ -361,7 +393,8 @@ async fn m4_ready_valid_digest_schedules() {
 
     let reconciler = WorkloadReconciler::connect(&cluster.kubeconfig, &tmp.path)
         .await
-        .unwrap_or_else(|err| panic!("{err}"));
+        .unwrap_or_else(|err| panic!("{err}"))
+        .with_schedule_admit_target(target);
     let pod_name = pod_name_for(&descriptor);
     reconciler
         .delete_plugin_pod(&pod_name)

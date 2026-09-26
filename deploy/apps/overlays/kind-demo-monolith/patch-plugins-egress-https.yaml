@@ -1,0 +1,6 @@
+# HTTPS session/invoke (8443) en plus de enroll HTTP (8080).
+- op: add
+  path: /spec/egress/1/ports/-
+  value:
+    protocol: TCP
+    port: 8443

@@ -21,6 +21,18 @@ use crate::{GrantService, IdentityService};
 pub trait PluginEndpointLocator: Send + Sync {
     /// Return `http://host:port` for this binding, or `None` to stay in-process.
     async fn locate(&self, binding_id: &str, instance_id: &str) -> Option<String>;
+
+    /// Kind/gold hop: same as [`Self::locate`] unless the impl uses `release`
+    /// (digest descripteur 0002) to build `plugin-{32hex}.apparatus-plugins.svc`.
+    async fn locate_release(
+        &self,
+        binding_id: &str,
+        instance_id: &str,
+        release: &str,
+    ) -> Option<String> {
+        let _ = release;
+        self.locate(binding_id, instance_id).await
+    }
 }
 
 /// Default locator: no hop.
@@ -56,6 +68,46 @@ impl PluginEndpointLocator for StaticPluginLocator {
         } else {
             Some(self.url.clone())
         }
+    }
+}
+
+/// Kind/gold locator: DNS formula, no kube client (ADR-0605).
+#[derive(Debug, Default, Clone, Copy)]
+pub struct DigestDnsPluginLocator;
+
+/// `http://plugin-{32 hex}.apparatus-plugins.svc:8080` — same 32 hex as `pod_name_for`.
+#[must_use]
+pub fn plugin_dns_endpoint(release: &str) -> Option<String> {
+    let hex = release
+        .strip_prefix("sha256:")
+        .unwrap_or(release.trim())
+        .trim();
+    if hex.len() < 32 {
+        return None;
+    }
+    let take = &hex[..32];
+    if !take
+        .bytes()
+        .all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
+    {
+        return None;
+    }
+    Some(format!("http://plugin-{take}.apparatus-plugins.svc:8080"))
+}
+
+#[async_trait]
+impl PluginEndpointLocator for DigestDnsPluginLocator {
+    async fn locate(&self, _binding_id: &str, _instance_id: &str) -> Option<String> {
+        None
+    }
+
+    async fn locate_release(
+        &self,
+        _binding_id: &str,
+        _instance_id: &str,
+        release: &str,
+    ) -> Option<String> {
+        plugin_dns_endpoint(release)
     }
 }
 
@@ -214,7 +266,11 @@ impl InvokeService {
         let instance = proof.identity.instance.to_string();
         if let Some(endpoint) = self
             .locator
-            .locate(request.binding_id.as_str(), &instance)
+            .locate_release(
+                request.binding_id.as_str(),
+                &instance,
+                proof.identity.release.as_str(),
+            )
             .await
         {
             return self.forward_invoke(&endpoint, request).await;
@@ -399,4 +455,25 @@ pub const fn invoke_path() -> &'static str {
 
 fn plugin_invoke_url(endpoint: &str) -> String {
     format!("{}{INVOKE_PATH}", endpoint.trim_end_matches('/'))
+}
+
+#[cfg(test)]
+mod plugin_dns_tests {
+    use super::plugin_dns_endpoint;
+
+    const DIGEST: &str = "sha256:98ba747fc572de29d76dfd08f92537782bf0353b652adcace10200020ee560cf";
+
+    #[test]
+    fn formula_matches_pod_name_32_hex() {
+        assert_eq!(
+            plugin_dns_endpoint(DIGEST).as_deref(),
+            Some("http://plugin-98ba747fc572de29d76dfd08f9253778.apparatus-plugins.svc:8080")
+        );
+    }
+
+    #[test]
+    fn rejects_short_or_non_hex() {
+        assert!(plugin_dns_endpoint("sha256:abc").is_none());
+        assert!(plugin_dns_endpoint("latest").is_none());
+    }
 }

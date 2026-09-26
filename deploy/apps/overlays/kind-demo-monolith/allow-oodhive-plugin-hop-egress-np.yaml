@@ -1,0 +1,24 @@
+# Egress oodhive-monolith → plugin HTTP 8080 (enforced Calico sur aiforall-local).
+# Union avec default-deny (DNS) et allow-oodhive-compose-egress (Compose).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-oodhive-plugin-hop-egress
+  namespace: aiforall-gateway
+  labels:
+    app.kubernetes.io/part-of: aiforall
+    aiforall.io/overlay: kind-demo-monolith
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: oodhive-monolith
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: apparatus-plugins
+      ports:
+        - protocol: TCP
+          port: 8080

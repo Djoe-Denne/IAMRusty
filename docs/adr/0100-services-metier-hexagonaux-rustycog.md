@@ -42,7 +42,7 @@ Les divergences JWT, mapping d’erreurs, fidélité OpenAPI Hive et les quatre 
 
 ## Non décidé ici
 
-- Unification JWT HS256 consommateur vs RS256 IAM (0302).
+- Unification JWT HS256 consommateur vs RS256 IAM : tranchée par [0304](0304-jwt-acces-plateforme-rs256-jwks.md) (réalité runtime encore HS256).
 - Unification des 4 stratégies OpenFGA.
 - Logging : wiki encore « Manifesto hand-rolled » ; le code actuel réexporte `rustycog::logger::setup_logging` dans les 4 `configuration`.
 - NATS, CAS global, ACL générique, host Apparatus.

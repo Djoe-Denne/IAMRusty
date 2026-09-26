@@ -1,0 +1,3 @@
+This chart is a lintable shim for upstream Envoy Gateway (Gateway API).
+It does not deploy iam, hive, manifesto, telegraph, or lazaret.
+See values.yaml for upstream chart coordinates.

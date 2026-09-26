@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lazaret-invoke-stub
+  namespace: aiforall-gateway
+  labels:
+    app.kubernetes.io/name: lazaret
+    app.kubernetes.io/part-of: aiforall
+data:
+  default.conf: |
+    server {
+        listen 8080;
+        server_name _;
+        location = /lazaret/invoke {
+            default_type text/plain;
+            return 200 'ok\n';
+        }
+        location / {
+            return 404;
+        }
+    }
