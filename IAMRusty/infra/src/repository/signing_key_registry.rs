@@ -147,19 +147,41 @@ impl SigningKeyRegistry for SeaOrmSigningKeyRegistry {
     }
 }
 
-/// Bootstrap an active platform key from PEM config when none exists.
+/// Bootstrap an active platform key when none exists.
+///
+/// When `provider_type` is [`SigningProviderType::RemoteHttp`] and an active platform key
+/// already exists (e.g. prior PEM bootstrap), upserts kid / public key / provider to the
+/// remote material so JWKS never stays on a PEM overlay while HSM signs.
 ///
 /// # Errors
 ///
-/// Returns [`DomainError`] on DB or insert failure.
+/// Returns [`DomainError`] on DB or insert/update failure.
 pub async fn bootstrap_platform_signing_key(
     registry: &SeaOrmSigningKeyRegistry,
     kid: &str,
     issuer: &str,
     public_key_pem: &str,
     provider_key_ref: &str,
+    provider_type: SigningProviderType,
 ) -> Result<SigningKey, DomainError> {
-    if let Some(existing) = registry.find_active_platform_key().await? {
+    if let Some(mut existing) = registry.find_active_platform_key().await? {
+        if provider_type == SigningProviderType::RemoteHttp {
+            let needs_upsert = existing.provider_type != SigningProviderType::RemoteHttp
+                || existing.kid != kid
+                || existing.public_key != public_key_pem
+                || existing.provider_key_ref != provider_key_ref
+                || existing.issuer != issuer;
+            if needs_upsert {
+                existing.kid = kid.to_string();
+                existing.issuer = issuer.to_string();
+                existing.provider_type = SigningProviderType::RemoteHttp;
+                existing.provider_key_ref = provider_key_ref.to_string();
+                existing.public_key = public_key_pem.to_string();
+                existing.updated_at = Utc::now();
+                registry.update(&existing).await?;
+            }
+            return Ok(existing);
+        }
         return Ok(existing);
     }
     let now = Utc::now();
@@ -169,7 +191,7 @@ pub async fn bootstrap_platform_signing_key(
         algorithm: "RS256".to_string(),
         trust_scope: TrustScope::Platform,
         issuer: issuer.to_string(),
-        provider_type: SigningProviderType::PemFile,
+        provider_type,
         provider_key_ref: provider_key_ref.to_string(),
         credential_ref: None,
         public_key: public_key_pem.to_string(),

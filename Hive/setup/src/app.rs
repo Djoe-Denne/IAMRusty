@@ -17,7 +17,7 @@ use hive_domain::service::{
 use hive_http::{create_app_routes, create_router};
 use hive_infra::{
     external_provider::external_provider_client::HttpExternalProviderClient,
-    iam::{HttpIamOrganizationSignerClient, StaticCredential},
+    iam::{compose_workload_identity, HttpIamOrganizationSignerClient},
     repository::{
         ExternalLinkReadRepositoryImpl, ExternalLinkRepositoryImpl,
         ExternalLinkWriteRepositoryImpl, ExternalProviderReadRepositoryImpl,
@@ -486,13 +486,15 @@ pub(crate) fn resolve_iam_signer_client(
     config: &AppConfig,
     injected: Option<IamSignerClient>,
 ) -> Result<(IamSignerClient, bool), Error> {
+    // InProcess / injected capability: never compose WIF (ADR-0306 / 0307).
     if let Some(client) = injected {
         return Ok((client, true));
     }
-    let iam_workload = Arc::new(StaticCredential::from_pair(
+    let iam_workload = compose_workload_identity(
+        config.iam_service.workload.as_ref(),
+        &config.iam_service.api_key,
         "iam-internal-token",
-        config.iam_service.api_key.clone(),
-    )?) as Arc<dyn hive_domain::port::service::WorkloadIdentity>;
+    )?;
     let http = Arc::new(HttpIamOrganizationSignerClient::with_workload(
         &config.iam_service.base_url,
         "iam-internal-token",
@@ -698,7 +700,7 @@ mod resolve_iam_signer_tests {
     }
 
     #[test]
-    fn without_injection_builds_http_client() {
+    fn resolve_iam_signer_client_default_still_http_static() {
         let config = minimal_iam_config();
         let (client, used_injected) =
             resolve_iam_signer_client(&config, None).expect("http client builds");
@@ -711,6 +713,39 @@ mod resolve_iam_signer_tests {
         assert!(injected_flag);
         assert!(Arc::ptr_eq(&resolved, &injected));
         assert!(!Arc::ptr_eq(&client, &resolved));
+    }
+
+    #[test]
+    fn resolve_iam_signer_client_wif_uses_injected_port() {
+        use hive_configuration::{GcpWorkloadConfig, WorkloadIdentityConfig};
+
+        // Injected InProcess → short-circuit, WIF config ignored.
+        let mut config = minimal_iam_config();
+        config.iam_service.workload = Some(WorkloadIdentityConfig {
+            provider: Some("gcp".into()),
+            aws: None,
+            gcp: Some(GcpWorkloadConfig {
+                token_url: "http://127.0.0.1:3000/v1/token".into(),
+                subject_token_file: "config/test-oidc.jwt".into(),
+                audience: "//iam.googleapis.com/projects/test".into(),
+            }),
+            azure: None,
+        });
+        let injected: IamSignerClient = Arc::new(CapturingIamSigner);
+        let (resolved, used_injected) =
+            resolve_iam_signer_client(&config, Some(injected.clone())).expect("inject");
+        assert!(used_injected);
+        assert!(
+            Arc::ptr_eq(&resolved, &injected),
+            "injected client must short-circuit before WIF compose"
+        );
+
+        // WIF without injection → HTTP client builds (not Static-only fail on empty api_key).
+        config.iam_service.api_key.clear();
+        let (http, used_injected) =
+            resolve_iam_signer_client(&config, None).expect("wif http client builds");
+        assert!(!used_injected);
+        assert!(!Arc::ptr_eq(&http, &injected));
     }
 
     #[test]

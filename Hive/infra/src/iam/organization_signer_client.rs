@@ -184,6 +184,7 @@ mod tests {
             base_url: "http://127.0.0.1:8080".into(),
             api_key: "  ".into(),
             timeout_seconds: 10,
+            workload: None,
         };
         assert!(HttpIamOrganizationSignerClient::from_config(&config).is_err());
     }
@@ -194,6 +195,7 @@ mod tests {
             base_url: "http://127.0.0.1:8080".into(),
             api_key: "iam-internal-test-token".into(),
             timeout_seconds: 10,
+            workload: None,
         };
         assert!(HttpIamOrganizationSignerClient::from_config(&config).is_ok());
     }

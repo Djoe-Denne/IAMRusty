@@ -37,7 +37,7 @@ use iam_infra::{
     },
     signing::{
         DefaultOrganizationSignerProbe, DefaultOrganizationSignerRotator, PemSigningProvider,
-        RotateContext, StaticCredential, TransitClientConfig,
+        RemoteSigningProvider, RotateContext, TransitClientConfig, compose_workload_identity,
     },
     token::{JwtAlgorithm, JwtTokenService},
     transaction::IamOutboxUnitOfWorkImpl,
@@ -47,8 +47,9 @@ use rustycog::permission::{InMemoryPermissionChecker, PermissionChecker};
 
 use iam_configuration::{AppConfig, IdpConfig, SecretStorage};
 use iam_domain::entity::provider::Provider;
-use iam_domain::entity::signing_key::JWKS_RETIRE_SKEW_SECONDS;
+use iam_domain::entity::signing_key::{JWKS_RETIRE_SKEW_SECONDS, SigningProviderType};
 use iam_domain::error::DomainError;
+use iam_domain::port::SigningProvider;
 use iam_domain::port::service::FederatedOAuthClient;
 use readiness::{
     ComponentStatus, QueueRole, ReadinessProbe, attach_ready,
@@ -709,20 +710,7 @@ async fn setup_jwt(
     let registry = Arc::new(SeaOrmSigningKeyRegistry::new(db.clone()));
     let identity_repo = Arc::new(SeaOrmIdentityRepository::new(db));
     let pem_root = organization_signer_pem_root(&config.jwt.secret);
-    let transit = match config.jwt.transit_endpoint() {
-        Some((url, token)) => {
-            let workload = Arc::new(
-                StaticCredential::from_pair("openbao-token", token)
-                    .map_err(|e| anyhow::anyhow!("jwt.transit_token invalid: {e}"))?,
-            );
-            Some(TransitClientConfig {
-                base_url: url,
-                workload: workload as Arc<dyn iam_domain::port::WorkloadIdentity>,
-                token_ref: "openbao-token".to_string(),
-            })
-        }
-        None => None,
-    };
+    let transit = resolve_transit_client_config(&config.jwt)?;
     let mut probe = DefaultOrganizationSignerProbe::new(pem_root.clone());
     if let Some(ref t) = transit {
         probe = probe.with_transit(t.clone());
@@ -747,6 +735,11 @@ async fn setup_jwt(
         transit.map(|t| t.base_url),
     )));
 
+    let remote_cfg = config
+        .jwt
+        .remote_http_endpoint()
+        .map_err(|e| anyhow::anyhow!("remote signer: {e}"))?;
+
     let (jwt_algorithm, signing_bits) = match jwt_algorithm_config {
         iam_configuration::JwtAlgorithm::HS256(secret) => {
             tracing::warn!("HS256 JWT algorithm configured — access tokens should be RS256");
@@ -767,38 +760,54 @@ async fn setup_jwt(
                 key_pair.private_key.len(),
                 key_pair.public_key.len()
             );
-            let provider = Arc::new(
-                PemSigningProvider::new(&key_pair.private_key, key_pair.public_key.clone())
-                    .map_err(|e| anyhow::anyhow!("PEM signing provider: {e}"))?,
-            ) as Arc<dyn iam_domain::port::SigningProvider>;
+            let jwt_algorithm = JwtAlgorithm::RS256(iam_domain::entity::token::JwtKeyPair {
+                private_key: key_pair.private_key.clone(),
+                public_key: key_pair.public_key.clone(),
+                kid: key_pair.kid.clone(),
+            });
+            // Remote access signer: skip PEM access-signer bootstrap (no mixed PEM+remote JWKS/kid).
+            if remote_cfg.is_some() {
+                tracing::info!(
+                    "Remote access signer requested — skipping PEM access-signer bootstrap"
+                );
+                (jwt_algorithm, None)
+            } else {
+                let provider = Arc::new(
+                    PemSigningProvider::new(&key_pair.private_key, key_pair.public_key.clone())
+                        .map_err(|e| anyhow::anyhow!("PEM signing provider: {e}"))?,
+                ) as Arc<dyn iam_domain::port::SigningProvider>;
 
-            let bootstrapped = bootstrap_platform_signing_key(
-                registry.as_ref(),
-                &key_pair.kid,
-                &platform_issuer,
-                &key_pair.public_key,
-                "pem:config/jwt.secret",
-            )
-            .await
-            .map_err(|e| anyhow::anyhow!("signing key bootstrap: {e}"))?;
+                let bootstrapped = bootstrap_platform_signing_key(
+                    registry.as_ref(),
+                    &key_pair.kid,
+                    &platform_issuer,
+                    &key_pair.public_key,
+                    "pem:config/jwt.secret",
+                    SigningProviderType::PemFile,
+                )
+                .await
+                .map_err(|e| anyhow::anyhow!("signing key bootstrap: {e}"))?;
 
-            let jwk = JwtTokenService::jwk_from_pem(
-                &bootstrapped.public_key,
-                &bootstrapped.kid,
-                &bootstrapped.issuer,
-            )
-            .map_err(|e| anyhow::anyhow!("JWKS build: {e}"))?;
-            let jwks = iam_domain::entity::token::JwkSet { keys: vec![jwk] };
+                let jwk = JwtTokenService::jwk_from_pem(
+                    &bootstrapped.public_key,
+                    &bootstrapped.kid,
+                    &bootstrapped.issuer,
+                )
+                .map_err(|e| anyhow::anyhow!("JWKS build: {e}"))?;
+                let jwks = iam_domain::entity::token::JwkSet { keys: vec![jwk] };
 
-            (
-                JwtAlgorithm::RS256(iam_domain::entity::token::JwtKeyPair {
-                    private_key: key_pair.private_key,
-                    public_key: key_pair.public_key,
-                    kid: key_pair.kid.clone(),
-                }),
-                Some((provider, bootstrapped.kid, bootstrapped.issuer, jwks)),
-            )
+                (
+                    jwt_algorithm,
+                    Some((provider, bootstrapped.kid, bootstrapped.issuer, jwks)),
+                )
+            }
         }
+    };
+
+    let signing_bits = if let Some(remote) = remote_cfg {
+        Some(remote_signing_bits(config, registry.as_ref(), &platform_issuer, remote).await?)
+    } else {
+        signing_bits
     };
 
     let mut token_service = JwtTokenService::with_refresh_expiration(
@@ -842,6 +851,58 @@ fn setup_oauth_clients(config: &AppConfig) -> Result<OauthClients> {
     Ok(OauthClients { by_slug })
 }
 
+async fn remote_signing_bits(
+    config: &AppConfig,
+    registry: &SeaOrmSigningKeyRegistry,
+    platform_issuer: &str,
+    remote: &iam_configuration::RemoteSignerConfig,
+) -> Result<(
+    Arc<dyn iam_domain::port::SigningProvider>,
+    String,
+    String,
+    iam_domain::entity::token::JwkSet,
+)> {
+    let static_secret = remote.token.as_deref().unwrap_or("");
+    let workload =
+        compose_workload_identity(config.jwt.workload.as_ref(), static_secret, "remote-signer")
+            .map_err(|e| anyhow::anyhow!("jwt.workload / jwt.remote.token invalid: {e}"))?;
+    let provider = RemoteSigningProvider::new(
+        &remote.url,
+        &remote.key_id,
+        "RS256",
+        "remote-signer",
+        workload,
+    )
+    .map_err(|e| anyhow::anyhow!("remote signing provider: {e}"))?;
+    let public_key = provider
+        .public_key()
+        .await
+        .map_err(|e| anyhow::anyhow!("remote public key: {e}"))?;
+    let bootstrapped = bootstrap_platform_signing_key(
+        registry,
+        &remote.key_id,
+        platform_issuer,
+        &public_key,
+        "remote:jwt.remote",
+        SigningProviderType::RemoteHttp,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!("signing key bootstrap: {e}"))?;
+    let jwk = JwtTokenService::jwk_from_pem(
+        &bootstrapped.public_key,
+        &bootstrapped.kid,
+        &bootstrapped.issuer,
+    )
+    .map_err(|e| anyhow::anyhow!("JWKS build: {e}"))?;
+    let jwks = iam_domain::entity::token::JwkSet { keys: vec![jwk] };
+    Ok((
+        Arc::new(provider) as Arc<dyn iam_domain::port::SigningProvider>,
+        bootstrapped.kid,
+        bootstrapped.issuer,
+        jwks,
+    ))
+}
+
 fn organization_signer_pem_root(secret: &SecretStorage) -> PathBuf {
     match secret {
         SecretStorage::PemFile {
@@ -853,6 +914,72 @@ fn organization_signer_pem_root(secret: &SecretStorage) -> PathBuf {
             .unwrap_or_else(|| PathBuf::from("config/keys/organizations")),
         _ => PathBuf::from("config/keys/organizations"),
     }
+}
+
+/// Resolve Transit HTTP client config: WIF when configured, else static token.
+///
+/// Static token remains optional skip (no Transit) when WIF is absent — matching
+/// prior `transit_endpoint()` behaviour. WIF incomplete → fail-closed at boot.
+fn resolve_transit_client_config(
+    jwt: &iam_configuration::JwtConfig,
+) -> Result<Option<TransitClientConfig>> {
+    let url = jwt
+        .transit_url
+        .as_deref()
+        .map(str::trim)
+        .filter(|u| !u.is_empty())
+        .map(str::to_string)
+        .or_else(|| {
+            if let SecretStorage::Vault { url, .. } = &jwt.secret {
+                let u = url.trim();
+                if u.is_empty() {
+                    None
+                } else {
+                    Some(u.to_string())
+                }
+            } else {
+                None
+            }
+        });
+    let Some(url) = url else {
+        return Ok(None);
+    };
+
+    let provider = jwt
+        .workload
+        .as_ref()
+        .and_then(|w| w.provider.as_deref())
+        .unwrap_or("static")
+        .trim()
+        .to_ascii_lowercase();
+    let is_wif = matches!(provider.as_str(), "aws" | "gcp" | "azure");
+
+    let mut static_secret = jwt
+        .transit_token
+        .as_deref()
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if static_secret.is_empty() {
+        if let SecretStorage::Vault { token, .. } = &jwt.secret {
+            static_secret = token.trim().to_string();
+        }
+    }
+
+    if !is_wif && static_secret.is_empty() {
+        // Preserve prior skip when Transit URL is set without a static token.
+        return Ok(None);
+    }
+
+    let workload =
+        compose_workload_identity(jwt.workload.as_ref(), &static_secret, "openbao-token")
+            .map_err(|e| anyhow::anyhow!("jwt.workload / transit_token invalid: {e}"))?;
+
+    Ok(Some(TransitClientConfig {
+        base_url: url,
+        workload,
+        token_ref: "openbao-token".to_string(),
+    }))
 }
 
 fn setup_http_idp_clients(

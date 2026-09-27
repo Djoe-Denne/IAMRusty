@@ -74,6 +74,8 @@ pub enum SigningProviderType {
     AwsKms,
     GcpKms,
     AzureKeyVault,
+    /// HTTP Sign / GetPublicKey adapter (ADR-0309). Not a cloud BYOKMS.
+    RemoteHttp,
 }
 
 impl SigningProviderType {
@@ -92,6 +94,7 @@ impl From<&SigningProviderType> for String {
             SigningProviderType::AwsKms => "aws_kms".to_string(),
             SigningProviderType::GcpKms => "gcp_kms".to_string(),
             SigningProviderType::AzureKeyVault => "azure_key_vault".to_string(),
+            SigningProviderType::RemoteHttp => "remote_http".to_string(),
         }
     }
 }
@@ -106,6 +109,7 @@ impl std::str::FromStr for SigningProviderType {
             "aws_kms" => Ok(Self::AwsKms),
             "gcp_kms" => Ok(Self::GcpKms),
             "azure_key_vault" => Ok(Self::AzureKeyVault),
+            "remote_http" | "remote" => Ok(Self::RemoteHttp),
             other => Err(format!("unknown signing provider type: {other}")),
         }
     }

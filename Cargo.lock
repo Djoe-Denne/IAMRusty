@@ -2329,6 +2329,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "ext-authz"
+version = "0.1.0"
+dependencies = [
+ "axum 0.8.9",
+ "axum-test 17.3.0",
+ "base64 0.22.1",
+ "jsonwebtoken",
+ "reqwest 0.12.28",
+ "rustycog-framework",
+ "serde",
+ "serde_json",
+ "serial_test",
+ "tokio",
+ "tracing",
+ "uuid",
+ "wiremock",
+]
+
+[[package]]
 name = "fastrand"
 version = "1.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3088,6 +3107,8 @@ dependencies = [
  "sea-orm",
  "serde",
  "serde_json",
+ "serial_test",
+ "tempfile",
  "testcontainers 0.23.3",
  "testcontainers-modules 0.11.6",
  "thiserror 2.0.18",
@@ -3650,6 +3671,7 @@ dependencies = [
  "serde_json",
  "serial_test",
  "sha2 0.10.9",
+ "tempfile",
  "thiserror 1.0.69",
  "tokio",
  "toml 0.8.23",

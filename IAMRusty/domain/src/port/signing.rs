@@ -40,10 +40,18 @@ pub trait SigningProvider: Send + Sync {
 }
 
 /// Opaque credential material obtained via [`WorkloadIdentity`].
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct WorkloadCredential {
     /// Bearer / token / password material (never logged by callers).
     pub secret: String,
+}
+
+impl std::fmt::Debug for WorkloadCredential {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("WorkloadCredential")
+            .field("secret", &"[redacted]")
+            .finish()
+    }
 }
 
 /// Port for obtaining s2s / KMS credentials without baking SA key JSON into Hive DB.
@@ -84,4 +92,25 @@ pub trait OrganizationSignerRotator: Send + Sync {
     ///
     /// Returns [`DomainError`] when no Active key exists, material cannot be minted, or persistence fails.
     async fn rotate(&self, organization_id: Uuid) -> Result<SigningKey, DomainError>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::WorkloadCredential;
+
+    #[test]
+    fn workload_credential_debug_redacts_secret() {
+        let cred = WorkloadCredential {
+            secret: "super-secret-token".into(),
+        };
+        let rendered = format!("{cred:?}");
+        assert!(
+            rendered.contains("[redacted]"),
+            "expected redacted Debug, got {rendered}"
+        );
+        assert!(
+            !rendered.contains("super-secret-token"),
+            "secret leaked in Debug: {rendered}"
+        );
+    }
 }

@@ -173,9 +173,10 @@ async fn mint_material(
         }
         SigningProviderType::AwsKms
         | SigningProviderType::GcpKms
-        | SigningProviderType::AzureKeyVault => Err(DomainError::ProviderNotSupported(
-            String::from(&provider_type),
-        )),
+        | SigningProviderType::AzureKeyVault
+        | SigningProviderType::RemoteHttp => Err(DomainError::ProviderNotSupported(String::from(
+            &provider_type,
+        ))),
     }
 }
 

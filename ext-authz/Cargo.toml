@@ -1,0 +1,36 @@
+[package]
+name = "ext-authz"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Envoy HTTP ext_authz — mesh JWT AuthN (ADR-0308)"
+license.workspace = true
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "ext-authz"
+path = "src/main.rs"
+
+[lib]
+name = "ext_authz"
+path = "src/lib.rs"
+
+[dependencies]
+axum = { workspace = true }
+base64 = { workspace = true }
+jsonwebtoken = { workspace = true }
+reqwest = { workspace = true }
+rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+axum-test = { workspace = true }
+rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full", "test-utils"] }
+serial_test = { workspace = true }
+uuid = { workspace = true }
+wiremock = { workspace = true }

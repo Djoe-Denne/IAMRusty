@@ -1,9 +1,8 @@
-Jalon : architecture actuelle / AuthN SigningProvider.
-Chemin : docs/adr/0309-remote-signer.md
-Statut : Proposed · Réalité : Unimplemented
+# ADR-0309 Remote signer (events/authz)
 
-- Contrat minimal Sign(key_id, algorithm, digest) et GetPublicKey, canal mTLS ou workload identity.
-- Derrière : HSM, KMIP, PKCS#11. Pas un dépendance de 0304.
-- Runtime : aucun remote signer JWT.
-
-Voir le fichier ADR.
+- Canon : `docs/adr/0309-remote-signer.md`
+- Statut : Accepted — Réalité : Partial (**pas Implemented**)
+- Preuve : `IAMRusty/infra/src/signing/remote.rs` + tests wiremock `remote_signer` — Sign digest-only, GetPublicKey, WorkloadIdentity, URL fail-closed
+- Gaps : vendor HSM / KMIP Non décidé ; pas de HSM réel
+- Contrat minimal Sign / GetPublicKey ; IAM assemble le JWT
+- Voir le fichier ADR.

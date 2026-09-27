@@ -59,9 +59,17 @@ pub struct OrganizationSignerResponse {
 
 /// Opaque s2s / KMS credential obtained via [`WorkloadIdentity`].
 /// Never logged; never stored in Hive DB or domain events.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct WorkloadCredential {
     pub secret: String,
+}
+
+impl std::fmt::Debug for WorkloadCredential {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("WorkloadCredential")
+            .field("secret", &"[redacted]")
+            .finish()
+    }
 }
 
 /// Port for obtaining s2s / KMS credentials without baking SA key JSON into Hive DB.
@@ -186,6 +194,27 @@ pub struct ExternalProviderInfo {
     pub config_schema: serde_json::Value,
     pub supported_features: Vec<String>,
     pub provider_source: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::WorkloadCredential;
+
+    #[test]
+    fn workload_credential_debug_redacts_secret() {
+        let cred = WorkloadCredential {
+            secret: "super-secret-token".into(),
+        };
+        let rendered = format!("{cred:?}");
+        assert!(
+            rendered.contains("[redacted]"),
+            "expected redacted Debug, got {rendered}"
+        );
+        assert!(
+            !rendered.contains("super-secret-token"),
+            "secret leaked in Debug: {rendered}"
+        );
+    }
 }
 
 // Permission types are now provided by rustycog-permission crate

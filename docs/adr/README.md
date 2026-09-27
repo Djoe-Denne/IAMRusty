@@ -67,7 +67,7 @@ Les identifiants ne sont **pas** un seul compteur global. Plages thématiques :
 | **0001–0099** | Apparatus (plateforme) | Vague 1 : 0002–0008 `Implemented` sauf 0001 `Partial` ; **0009–0011** `Proposed` / `Unimplemented` (gates pré-prod ; 0011 = mécanisme de 0009) ; prochain libre **0012+** |
 | **0100–0199** | Hexagone RustyCog / responsabilités des crates | Rétroactif, architecture actuelle |
 | **0200–0299** | Tests (IT vs unitaires, mocks vs infra réelle) | Rétroactif |
-| **0300–0399** | Événements, outbox, AuthN/AuthZ | 0300–0303 : rétroactif ; **0304** Accepted / Partial ; **0305** Accepted / Implemented ; **0306** Accepted / Partial ; **0307** Proposed / Partial ; **0308–0309** Proposed / Unimplemented |
+| **0300–0399** | Événements, outbox, AuthN/AuthZ | 0300–0303 : rétroactif ; **0304** Accepted / Partial ; **0305** Accepted / Implemented ; **0306** Accepted / Partial ; **0307** Accepted / Implemented ; **0308–0309** Accepted / Partial |
 | **0400–0499** | Services du workspace et runtimes | 0400–0406 : rétroactif Vague 2 ; **0407+ : vivant IAM-IdP** (`Accepted` / `Implemented`) |
 | **0500–0599** | Config, CI, qualité, framework rustycog | Rétroactif |
 | **0600–0699** | Cloud / IaC / GitOps / topologie cluster | **Vague 4 living** (`Proposed` / `Unimplemented`) |
@@ -107,11 +107,11 @@ Ces ADR photographient le dépôt **tel qu’il est**. `Accepted` + `Implemented
 | [0304](0304-jwt-acces-plateforme-rs256-jwks.md) | Access JWT = RS256 + kid + JWKS ; SigningProvider Transit\|PEM ; issuer par trust domain | Accepted / Partial |
 | [0305](0305-account-identity-trust-domain.md) | HumanAccount ≠ Identity ; principal `(iss, sub)` ; trust platform vs org-managed | Accepted / Implemented |
 | [0306](0306-hive-iam-configuration-signature.md) | Config signature org = commande synchrone Hive→IAM ; pas de secret dans les events | Accepted / Partial |
-| [0307](0307-workload-identity-port.md) | WorkloadIdentity = port ; SPIFFE évalué, pas dépendance obligatoire | Proposed / Partial |
-| [0308](0308-mesh-authn-jwt.md) | Mesh/gateway AuthN JWT → principal `(iss, sub)` | Unimplemented |
-| [0309](0309-remote-signer.md) | Remote signer = Sign / GetPublicKey (HSM/KMIP) | Unimplemented |
+| [0307](0307-workload-identity-port.md) | WorkloadIdentity = port ; SPIFFE évalué, pas dépendance obligatoire | Accepted / Implemented |
+| [0308](0308-mesh-authn-jwt.md) | Mesh/gateway AuthN JWT → principal `(iss, sub)` | Accepted / Partial |
+| [0309](0309-remote-signer.md) | Remote signer = Sign / GetPublicKey (HSM/KMIP) | Accepted / Partial |
 
-**0304** : `Accepted` / `Partial`. **0305** : `Accepted` / `Implemented`. **0306** : `Accepted` / `Partial` (amendement transport 2026-09-27 ; InProcess monolithe présent dans le working tree via setter nommé ; motif sac plateforme → [0104](0104-outbound-overrides-composition-root.md) Proposed / Partial). **0307** : `Proposed` / `Partial`. **0308–0309** : Proposed / Unimplemented. 0304 complète [0302](0302-authn-jwt-authz-openfga.md) : ne SuperSède **pas** 0302 entière (AuthZ OpenFGA, Bearer, `aud` restent) — **seulement** la décision « `iss=iamrusty` unique » **à l’implémentation** (cible issuer par trust domain). Related : Account/trust [0305](0305-account-identity-trust-domain.md), config signer [0306](0306-hive-iam-configuration-signature.md).
+**0304** : `Accepted` / `Partial`. **0305** : `Accepted` / `Implemented`. **0306** : `Accepted` / `Partial` (amendement transport 2026-09-27 ; InProcess monolithe présent dans le working tree via setter nommé ; motif sac plateforme → [0104](0104-outbound-overrides-composition-root.md) Proposed / Partial). **0307** : `Accepted` / `Implemented`. **0308–0309** : `Accepted` / `Partial` (0308 : crate `ext-authz/` ; overlay Envoy commenté, mTLS absent ; 0309 : remote HTTP digest-only + wiremock ; vendor HSM Non décidé — **pas Implemented**). 0304 complète [0302](0302-authn-jwt-authz-openfga.md) : ne SuperSède **pas** 0302 entière (AuthZ OpenFGA, Bearer, `aud` restent) — **seulement** la décision « `iss=iamrusty` unique » **à l’implémentation** (cible issuer par trust domain). Related : Account/trust [0305](0305-account-identity-trust-domain.md), config signer [0306](0306-hive-iam-configuration-signature.md).
 
 ### 0400 — Services et runtimes
 

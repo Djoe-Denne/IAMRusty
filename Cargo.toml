@@ -8,6 +8,7 @@ members = [
     "manifesto-events",
     "telegraph-events",
     "readiness",
+    "ext-authz",
     
     # IAMRusty service crates
     "IAMRusty",

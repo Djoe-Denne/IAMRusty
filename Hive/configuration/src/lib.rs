@@ -17,6 +17,51 @@ pub struct IamServiceConfig {
     pub base_url: String,
     pub api_key: String,
     pub timeout_seconds: u64,
+    /// Optional OIDC WIF / static workload identity (ADR-0307). Absent → static.
+    #[serde(default)]
+    pub workload: Option<WorkloadIdentityConfig>,
+}
+
+/// Cloud WIF / static workload identity selection (ADR-0307).
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+pub struct WorkloadIdentityConfig {
+    /// `static` | `aws` | `gcp` | `azure`. Absent → static.
+    #[serde(default)]
+    pub provider: Option<String>,
+    #[serde(default)]
+    pub aws: Option<AwsWorkloadConfig>,
+    #[serde(default)]
+    pub gcp: Option<GcpWorkloadConfig>,
+    #[serde(default)]
+    pub azure: Option<AzureWorkloadConfig>,
+}
+
+/// AWS STS `AssumeRoleWithWebIdentity` WIF parameters.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AwsWorkloadConfig {
+    pub token_url: String,
+    pub subject_token_file: String,
+    pub role_arn: String,
+    pub role_session_name: String,
+    pub audience: String,
+}
+
+/// GCP STS token-exchange WIF parameters.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct GcpWorkloadConfig {
+    pub token_url: String,
+    pub subject_token_file: String,
+    pub audience: String,
+}
+
+/// Azure AD client-assertion WIF parameters.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AzureWorkloadConfig {
+    pub token_url: String,
+    pub subject_token_file: String,
+    pub tenant_id: String,
+    pub client_id: String,
+    pub scope: String,
 }
 
 /// External Provider service configuration
@@ -67,6 +112,7 @@ impl Default for IamServiceConfig {
             base_url: "http://localhost:8080".to_string(),
             api_key: String::new(),
             timeout_seconds: 10,
+            workload: None,
         }
     }
 }

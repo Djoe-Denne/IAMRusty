@@ -73,7 +73,7 @@ Introduire le port synchrone Hive→IAM après (ou avec) SigningKeyRegistry ([03
 - Crypto : [0304](0304-jwt-acces-plateforme-rs256-jwks.md) ; trust : [0305](0305-account-identity-trust-domain.md)
 - Composition / dual runtime : [0102](0102-setup-composition-root.md), [0404](0404-runtime-microservices-et-monolithe.md)
 - Motif overrides sortants (plateforme) : [0104](0104-outbound-overrides-composition-root.md) (Proposed / Partial)
-- Credential HTTP : [0307](0307-workload-identity-port.md) (Proposed — pas Accepté ici)
+- Credential HTTP : [0307](0307-workload-identity-port.md) (Accepted / Partial)
 - Hive / Telegraph : [0402](0402-hive-organisations.md), [0403](0403-telegraph-notifications-event-driven.md)
 - Preuves runtime (Partial — HTTP + InProcess setter nommé) :
   - Hive handlers : `Hive/http/src/handlers/organization_signer.rs` (`configure`/`test`/`rotate`/`disable`)

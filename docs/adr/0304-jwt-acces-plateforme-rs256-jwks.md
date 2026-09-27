@@ -81,7 +81,7 @@ Dual-verify bornée (RS256 + `kid` ; HS256 = HMAC migration only dans test.toml)
 
 - Complète : [0302](0302-authn-jwt-authz-openfga.md) (AuthN/AuthZ ; ne SuperSède pas l’ADR entière)
 - Modèle trust : [0305](0305-account-identity-trust-domain.md) ; config signer : [0306](0306-hive-iam-configuration-signature.md)
-- Proposed : [0307](0307-workload-identity-port.md), [0308](0308-mesh-authn-jwt.md), [0309](0309-remote-signer.md)
+- Accepted / Partial : [0307](0307-workload-identity-port.md) ; Accepted / Unimplemented : [0308](0308-mesh-authn-jwt.md), [0309](0309-remote-signer.md)
 - IdP : [0400](0400-iamrusty-identite-hexagonale.md)
 - Handbook : `docs/platform/authn-jwt.md`
 - Non-canon : `IAMRusty/docs/JWT_CONFIGURATION_GUIDE.md`

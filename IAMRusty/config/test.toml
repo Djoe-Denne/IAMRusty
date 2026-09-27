@@ -59,6 +59,15 @@ private_key_path = "config/keys/test-platform.pem"
 public_key_path = "config/keys/test-platform.pub"
 key_id = "test-rs256-kid-01"
 
+# ADR-0307: single GCP WIF block for test harness (AWS/Azure covered in iam-infra tests).
+[jwt.workload]
+provider = "gcp"
+
+[jwt.workload.gcp]
+token_url = "http://127.0.0.1:3000/v1/token"
+subject_token_file = "config/test-oidc.jwt"
+audience = "//iam.googleapis.com/projects/test/locations/global/workloadIdentityPools/test/providers/oidc"
+
 # Enable maximum logging for tests
 [logging]
 level = "debug"

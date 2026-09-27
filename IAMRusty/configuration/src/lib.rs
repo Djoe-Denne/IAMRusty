@@ -203,6 +203,74 @@ pub struct JwtConfig {
     /// Optional Transit token (StaticCredential secret). Prefer env / secret inject.
     #[serde(default)]
     pub transit_token: Option<String>,
+    /// Optional OIDC WIF / static workload identity (ADR-0307). Absent → static.
+    #[serde(default)]
+    pub workload: Option<WorkloadIdentityConfig>,
+    /// Signing backend override: `pem` | `transit` | `remote` (ADR-0309).
+    #[serde(default)]
+    pub backend: Option<String>,
+    /// Alias of [`Self::backend`] (`provider = "remote"` also selects remote HTTP).
+    #[serde(default)]
+    pub provider: Option<String>,
+    /// Remote Sign / GetPublicKey endpoint (ADR-0309). Absent → PEM / Transit default.
+    #[serde(default)]
+    pub remote: Option<RemoteSignerConfig>,
+}
+
+/// `[jwt.remote]` — HTTP remote signer (digest only; no private key).
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+pub struct RemoteSignerConfig {
+    /// Base URL (`POST {url}/sign`, `GET {url}/keys/{key_id}`).
+    #[serde(default)]
+    pub url: String,
+    /// Opaque remote key id (never a private key).
+    #[serde(default)]
+    pub key_id: String,
+    /// Optional static secret for [`crate::JwtConfig::workload`] fallback.
+    #[serde(default)]
+    pub token: Option<String>,
+}
+
+/// Cloud WIF / static workload identity selection (ADR-0307).
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+pub struct WorkloadIdentityConfig {
+    /// `static` | `aws` | `gcp` | `azure`. Absent → static.
+    #[serde(default)]
+    pub provider: Option<String>,
+    #[serde(default)]
+    pub aws: Option<AwsWorkloadConfig>,
+    #[serde(default)]
+    pub gcp: Option<GcpWorkloadConfig>,
+    #[serde(default)]
+    pub azure: Option<AzureWorkloadConfig>,
+}
+
+/// AWS STS `AssumeRoleWithWebIdentity` WIF parameters.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AwsWorkloadConfig {
+    pub token_url: String,
+    pub subject_token_file: String,
+    pub role_arn: String,
+    pub role_session_name: String,
+    pub audience: String,
+}
+
+/// GCP STS token-exchange WIF parameters.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct GcpWorkloadConfig {
+    pub token_url: String,
+    pub subject_token_file: String,
+    pub audience: String,
+}
+
+/// Azure AD client-assertion WIF parameters.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AzureWorkloadConfig {
+    pub token_url: String,
+    pub subject_token_file: String,
+    pub tenant_id: String,
+    pub client_id: String,
+    pub scope: String,
 }
 
 impl JwtConfig {
@@ -321,6 +389,44 @@ impl JwtConfig {
         format!("{}/orgs/{org_slug}", self.platform_issuer())
     }
 
+    /// Signing backend string (`backend` then `provider`).
+    #[must_use]
+    pub fn signing_backend(&self) -> Option<&str> {
+        self.backend
+            .as_deref()
+            .or(self.provider.as_deref())
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+    }
+
+    /// Whether config selects the remote HTTP signer (ADR-0309).
+    #[must_use]
+    pub fn remote_is_requested(&self) -> bool {
+        self.signing_backend()
+            .is_some_and(|s| s.eq_ignore_ascii_case("remote"))
+    }
+
+    /// Remote signer block when `backend`/`provider` = `remote`.
+    ///
+    /// Returns `Ok(None)` unless remote is explicitly requested — a bare `jwt.remote.url`
+    /// without `backend`/`provider` = `remote` is ignored (not activated).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SecretError::InvalidFormat`] when remote is requested and `jwt.remote.url` is empty.
+    pub fn remote_http_endpoint(&self) -> Result<Option<&RemoteSignerConfig>, SecretError> {
+        if !self.remote_is_requested() {
+            return Ok(None);
+        }
+        let url = self.remote.as_ref().map(|r| r.url.trim()).unwrap_or("");
+        if url.is_empty() {
+            return Err(SecretError::InvalidFormat(
+                "remote signer url absent — fail-closed".to_string(),
+            ));
+        }
+        Ok(self.remote.as_ref())
+    }
+
     /// Effective JWKS URL: explicit `jwks_url` or derived from `public_base_url`.
     #[must_use]
     pub fn effective_jwks_url(&self) -> Option<String> {
@@ -377,6 +483,10 @@ impl Default for JwtConfig {
             oauth_state_secret: default_oauth_state_secret(),
             transit_url: None,
             transit_token: None,
+            workload: None,
+            backend: None,
+            provider: None,
+            remote: None,
         }
     }
 }
@@ -508,6 +618,10 @@ impl ConfigLoader<Self> for AppConfig {
                 oauth_state_secret: default_oauth_state_secret(),
                 transit_url: None,
                 transit_token: None,
+                workload: None,
+                backend: None,
+                provider: None,
+                remote: None,
             },
             logging: LoggingConfig::default(),
             scaleway: ScalewayConfig::default(),

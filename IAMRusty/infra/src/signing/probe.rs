@@ -55,7 +55,8 @@ impl OrganizationSignerProbe for DefaultOrganizationSignerProbe {
             }
             SigningProviderType::AwsKms
             | SigningProviderType::GcpKms
-            | SigningProviderType::AzureKeyVault => Err(DomainError::ProviderNotSupported(
+            | SigningProviderType::AzureKeyVault
+            | SigningProviderType::RemoteHttp => Err(DomainError::ProviderNotSupported(
                 String::from(&key.provider_type),
             )),
         }

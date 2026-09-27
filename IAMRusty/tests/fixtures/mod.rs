@@ -2,6 +2,8 @@
 // pub mod common;
 pub mod db;
 pub mod idp_connect;
+pub mod remote_signer;
+pub mod wif;
 
 /// Distinguishes “leave the default” from “assign this value” (including `None`).
 #[derive(Debug, Clone, Default)]
@@ -24,3 +26,5 @@ impl<T: Clone> OptionalField<T> {
 pub use db::DbFixtures;
 #[allow(unused_imports)]
 pub use idp_connect::IdpConnectFixtures;
+#[allow(unused_imports)]
+pub use remote_signer::RemoteSignerFixtures;

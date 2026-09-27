@@ -1,15 +1,15 @@
 # ADR-0309 : Remote signer = contrat minimal Sign / GetPublicKey derrière HSM ou KMIP
 
-- Statut : Proposed
-- Réalité : Unimplemented
-- Date : 2026-09-26
-- Décideurs : Djoé Denne (proposition 2026-09-26 — Accept humain requis)
+- Statut : Accepted
+- Réalité : Partial
+- Date : 2026-09-26 (acceptation humaine 2026-09-27)
+- Décideurs : Djoé Denne (acceptation humaine 2026-09-27)
 - Jalon concerné : architecture actuelle / AuthN SigningProvider (hors P-Apparatus)
 - SuperSède : aucune
 - SuperSédée par : —
 - Related : [0304](0304-jwt-acces-plateforme-rs256-jwks.md), [0307](0307-workload-identity-port.md)
 
-`Proposed` : contrat minimal pour un SigningProvider distant. `Réalité : Unimplemented` — pas de remote signer JWT dans le dépôt.
+`Accepted` ratifie le contrat Sign/GetPublicKey ; vendor HSM reste Non décidé. `Réalité : Partial` : adapter HTTP `RemoteSigningProvider` (digest-only Sign, GetPublicKey, WorkloadIdentity, URL fail-closed) + tests wiremock ; **pas** de HSM/KMIP réel. **Pas Implemented.**
 
 ## Contexte
 
@@ -24,11 +24,16 @@
 
 ## État runtime
 
-Remote signer JWT : **ABSENT**. OpenBao Transit = Cosign Apparatus seulement.
+**Partial** — adapter HTTP livré, vendor HSM absent :
+
+- `IAMRusty/infra/src/signing/remote.rs` : `RemoteSigningProvider` impl `SigningProvider` — `sign_digest` → `POST {url}/sign` (digest only) ; `GET {url}/keys/{key_id}` ; auth via `WorkloadIdentity` ; URL / `key_id` vides = fail-closed.
+- Preuve IT : `IAMRusty/infra/tests/remote_signer.rs` (+ fixtures `IAMRusty/tests/fixtures/remote_signer/`) wiremock.
+- OpenBao Transit = Cosign Apparatus / chemin Transit IAM existant — **pas** un HSM remote JWT.
+- **Gaps** : vendor HSM / protocole KMIP concret = Non décidé ; pas de HSM réel en IT.
 
 ## Migration
 
-Après le port `SigningProvider` ([0304](0304-jwt-acces-plateforme-rs256-jwks.md) §19). Transit / PEM d’abord ; adapter remote signer optionnel. Accept humain requis.
+Après le port `SigningProvider` ([0304](0304-jwt-acces-plateforme-rs256-jwks.md) §19). Transit / PEM d’abord ; adapter remote HTTP optionnel déjà présent ; brancher un vendor HSM quand choisi.
 
 ## Conséquences
 
@@ -49,4 +54,4 @@ Après le port `SigningProvider` ([0304](0304-jwt-acces-plateforme-rs256-jwks.md
 ## Références
 
 - [0304](0304-jwt-acces-plateforme-rs256-jwks.md) §6, §19, §22 ; [0307](0307-workload-identity-port.md)
-- Preuve d’implémentation : **aucune**
+- Preuve Partial : `IAMRusty/infra/src/signing/remote.rs` ; `IAMRusty/infra/tests/remote_signer.rs` ; fixtures `IAMRusty/tests/fixtures/remote_signer/`

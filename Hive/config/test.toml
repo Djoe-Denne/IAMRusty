@@ -26,6 +26,15 @@ base_url = "http://127.0.0.1:8080"
 api_key = "iam-internal-test-token"
 timeout_seconds = 10
 
+# ADR-0307: single GCP WIF block for test harness (AWS/Azure covered in hive-infra tests).
+[iam_service.workload]
+provider = "gcp"
+
+[iam_service.workload.gcp]
+token_url = "http://127.0.0.1:3000/v1/token"
+subject_token_file = "config/test-oidc.jwt"
+audience = "//iam.googleapis.com/projects/test/locations/global/workloadIdentityPools/test/providers/oidc"
+
 [external_provider_service]
 base_url = "http://127.0.0.1:8080"
 api_key = ""

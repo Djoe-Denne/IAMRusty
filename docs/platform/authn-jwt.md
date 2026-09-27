@@ -68,7 +68,7 @@ En test HS256 fenêtre : `create_jwt_token(user_id)` pose encore `iss=iamrusty` 
 
 ## Cible (ADR-0304)
 
-Ratifiée : [ADR-0304](../adr/0304-jwt-acces-plateforme-rs256-jwks.md). Identity : [0305](../adr/0305-account-identity-trust-domain.md). Config signer Hive→IAM : [0306](../adr/0306-hive-iam-configuration-signature.md) (transport au composition root : InProcess monolithe / HTTP micro). WorkloadIdentity port : [0307](../adr/0307-workload-identity-port.md) (Proposed).
+Ratifiée : [ADR-0304](../adr/0304-jwt-acces-plateforme-rs256-jwks.md). Identity : [0305](../adr/0305-account-identity-trust-domain.md). Config signer Hive→IAM : [0306](../adr/0306-hive-iam-configuration-signature.md) (transport au composition root : InProcess monolithe / HTTP micro). WorkloadIdentity : [0307](../adr/0307-workload-identity-port.md) (Accepted / Implemented) — adapters OIDC WIF AWS/GCP/Azure sur le chemin HTTP (preuve wiremock `wif_exchanges`) avec fallback `StaticCredential` si provider absent. Mesh AuthN [0308](../adr/0308-mesh-authn-jwt.md) (`ext-authz/` Check HTTP) et remote signer HTTP [0309](../adr/0309-remote-signer.md) : Accepted / Partial (pas Implemented).
 
 ## Suite
 
