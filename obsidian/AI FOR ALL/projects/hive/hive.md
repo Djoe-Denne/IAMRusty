@@ -11,14 +11,14 @@ sources:
   - Hive/http/src/lib.rs
   - Hive/application/src/command/factory.rs
 summary: >-
-  Hive : organisations et permissions. T14b : HTTPS compose port 8443,
-  CA mesh optionnelle (pas rustls required).
+  Hive : organisations et permissions. Signer d’org = commande synchrone
+  vers IAM (0306), métadonnées seulement. HTTPS compose port 8443.
 provenance:
   extracted: 0.74
   inferred: 0.16
   ambiguous: 0.10
 created: 2026-04-14T18:56:22.3888182Z
-updated: 2026-09-20T10:35:00Z
+updated: 2026-09-27T09:20:00Z
 ---
 
 # Hive
@@ -53,6 +53,7 @@ updated: 2026-09-20T10:35:00Z
 - [[projects/hive/references/hive-testing-and-api-fixtures]] - Real DB, JWT, and external-provider fixture patterns in the Hive tests.
 - [[projects/hive/skills/building-organization-management-services]] - Reusable workflow for building Hive-style org-management services.
 - [[projects/aiforall/concepts/https-platform-mesh]] — T14b HTTPS + CA client optionnelle.
+- [[projects/aiforall/decisions/0304-access-jwt-trust]] — commandes signer d’organisation, sans secret dans les events.
 
 ## Open Questions
 

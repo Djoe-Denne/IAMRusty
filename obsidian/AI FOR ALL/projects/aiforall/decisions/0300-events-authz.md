@@ -3,9 +3,9 @@ title: "ADR 0300–0303 — contrat events, outbox, JWT, sentinel-sync"
 category: decisions
 tags: [architecture, events, authz, visibility/internal]
 aliases: [outbox, jwt openfga]
-summary: "Crates *-events = contrat sans transport. Outbox same-txn Hive/Manifesto seulement (Partial). AuthN HS256 ; AuthZ OpenFGA. sentinel-sync = worker, pas un hexagone."
+summary: "Crates *-events = contrat sans transport. Outbox same-txn Hive/Manifesto seulement (Partial). AuthZ OpenFGA. Cible AuthN = 0304 RS256, plus HS256."
 created: 2026-09-12T10:20:00Z
-updated: 2026-09-12T10:20:00Z
+updated: 2026-09-27T09:20:00Z
 sources:
   - docs/adr/0300-crates-events-contrat-sans-transport.md
   - docs/adr/0301-outbox-transactionnel-rustycog.md
@@ -13,8 +13,8 @@ sources:
   - docs/adr/0303-sentinel-sync-worker-fga.md
   - docs/platform/events-outbox.md
 provenance:
-  extracted: 0.90
-  inferred: 0.08
+  extracted: 0.86
+  inferred: 0.12
   ambiguous: 0.02
 ---
 
@@ -42,11 +42,11 @@ Publication durable = outbox rustycog, pas un `send` après `COMMIT`. La file n�
 
 Une IT ne doit pas traiter l’absence de message SQS comme preuve d’absence d’état métier. Voir [[projects/rustycog/references/rustycog-outbox]].
 
-## 0302 — JWT HS256 + OpenFGA (Implemented)
+## 0302 — Bearer + OpenFGA (Implemented pour l’AuthZ)
 
-AuthN = Bearer HS256 via rustycog-http `UserIdExtractor` (`iss=iamrusty`, `aud=aiforall`). IAM est l’émetteur. AuthZ = OpenFGA `with_permission_on` (Hive, Manifesto, Telegraph). IAM = IdP, `InMemoryPermissionChecker`, pas de PDP FGA.
+AuthZ = OpenFGA `with_permission_on` (Hive, Manifesto, Telegraph). IAM = IdP, `InMemoryPermissionChecker`, pas de PDP FGA. `aud=aiforall` et le Bearer restent.
 
-L’impersonation de `docs/project/Archi.md` est **caduque**. JWKS existe sur le routeur IAM mais l’extractor ne l’utilise pas — [[projects/aiforall/concepts/jwt-issuer-vs-consumer]].
+La cible AuthN n’est plus HS256 / `iss=iamrusty` unique. ADR-0304 SuperSède cette décision-là seulement : [[projects/aiforall/decisions/0304-access-jwt-trust]]. Photo du 12 sept. (extracteur HS256) : [[projects/aiforall/concepts/jwt-issuer-vs-consumer]]. L’impersonation de `docs/project/Archi.md` est **caduque**.
 
 ## 0303 — sentinel-sync = worker
 

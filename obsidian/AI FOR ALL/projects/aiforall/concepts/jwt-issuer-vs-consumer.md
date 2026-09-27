@@ -11,36 +11,41 @@ sources:
   - projects/iamrusty/concepts/jwt-algorithm-enforcement-and-test-relaxation.md
   - cursor-conversation/jwt-jwks-unification-2026-08-29
   - docs/adr/0302-authn-jwt-authz-openfga.md
+  - docs/adr/0304-jwt-acces-plateforme-rs256-jwks.md
 summary: >-
-  IAM mints HS256 with iss/aud; extractors verify the same HMAC (ADR 0302). RS256/JWKS unused. Impersonation Archi.md caduque.
+  Cible 0304 : access RS256, kid opaque, JWKS, issuer par trust domain.
+  Réalité Partial. HS256 = fenêtre de migration, plus le contrat cible.
 provenance:
-  extracted: 0.86
+  extracted: 0.84
   inferred: 0.12
-  ambiguous: 0.02
+  ambiguous: 0.04
 created: 2026-08-31T13:30:00Z
-updated: 2026-09-12T10:20:00Z
+updated: 2026-09-27T09:20:00Z
 ---
 
 # JWT issuer versus consumer
 
 How-to (GitHub handbook, not this page): `docs/platform/authn-jwt.md` and `docs/guides/jwt-consommateur.md`.
 
-## Current contract (2026-09-01)
+## Current contract (2026-09-27)
 
-- **Issuer** is IAMRusty `[jwt]` + `[jwt.secret]`. Checked-in TOMLs mint **HS256** with `issuer = "iamrusty"` and `audience = "aiforall"`. Claims: `sub`, `iss`, `aud`, `exp`, `iat`, `jti`.
-- **Consumers** (Hive, Manifesto, Telegraph, IAM's own extractor) use `[auth.jwt]` (`hs256_secret`, `issuer`, `audience`). rustycog-http `UserIdExtractor` is **HS256-only**.
-- Telegraph gained `issuer` / `audience` on 2026-09-01 (`68ac628`) — all four services now share the same consumer block.
-- IAM `JwtConfig::http_verifier_auth` **refuses RS256**: an RSA issuer would 401 every `.authenticated()` route. Feature `test-relaxed-jwt` is a no-op leftover.
-- Test helper `create_jwt_token` emits the same `iss`/`aud` and `rustycog-test-hs256-secret`.
+Cible : [[projects/aiforall/decisions/0304-access-jwt-trust]] (ADR-0304 Accepted / Réalité Partial).
+
+- Access token = RS256 + `kid` opaque. JWKS canonique `GET /iam/.well-known/jwks.json`. Principal = `(iss, sub)`. `aud` reste `aiforall`.
+- L’émetteur logique est IAMRusty. L’opération crypto est un `SigningProvider` (OpenBao Transit autorisé ; PEM = dev). Les consommateurs ne connaissent pas le KMS.
+- Issuer cible : `https://{host}/iam` (platform) ou `https://{host}/iam/orgs/{slug}` (org). Cela remplace, pour la cible seulement, `iss=iamrusty`.
+- Réalité Partial : mint RS256, JWKS, extracteur rustycog RS256, rotate N+1, probe Transit. Pas de BYOKMS cloud, pas de remote signer (0309).
+- HS256 et `iss=iamrusty` restent la fenêtre de migration / les tokens historiques, plus le contrat à écrire. La photo du 1er sept. (extracteur HS256-only, refus RS256) est caduque comme cible.
 
 ## Still a platform gap
 
-- JWKS (`GET /iam/.well-known/jwks.json`) exists on the IAM router. The shared extractor does **not** use it.
-- Unification toward one RS256/JWKS story (started 2026-08-29) is unfinished. Do not flip production `[jwt.secret]` to PEM until rustycog-http verifies JWKS. ^[ambiguous]
+- Adapters cloud BYOKMS et remote signer ne sont pas dans le dépôt.
+- Le mesh qui valide puis émet `(iss, sub)` est ADR-0308 Proposed / Unimplemented.
 
 ## Related
 
-- [[projects/aiforall/decisions/0300-events-authz]] — ADR 0302
+- [[projects/aiforall/decisions/0300-events-authz]] — ADR 0302 (AuthZ inchangé)
+- [[projects/aiforall/decisions/0304-access-jwt-trust]] — cible 0304–0309
 - [[concepts/architecture-coherence-across-services]]
 - [[projects/iamrusty/iamrusty]]
 - [[skills/using-rustycog-http]]

@@ -34,9 +34,9 @@ sources:
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/94f1da54-afad-406b-bf7e-0726eeb26f35/94f1da54-afad-406b-bf7e-0726eeb26f35.jsonl
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/c8017f8d-4ca1-436c-a2ee-d906b79972f2/c8017f8d-4ca1-436c-a2ee-d906b79972f2.jsonl
 summary: >-
-  Cursor sept. 2026 : P2 Implemented, Lazaret Implemented, P4-core Partial,
-  IAM-IdP 0407–0410 Accepted. Ingest 20–22 sept. Pas de verbatim.
-updated: 2026-09-22T06:55:00Z
+  Cursor sept. 2026 jusqu’au 27 : P4 Kind V1, Connect IdP, gold path 0605,
+  JWT 0304–0309. Distillé par sujet, pas de verbatim.
+updated: 2026-09-27T09:20:00Z
 created: 2026-09-09T16:45:00Z
 provenance:
   extracted: 0.72
@@ -142,10 +142,20 @@ ADR-0007 Accepted / **Implemented** (A-DEC 2026-09-20, hors-jalon APP-05). HEAD 
 - A-DEC + ADR-0008 Accepted. Prompt P4. [[journal/2026-09-20]]
 - IAM-IdP : 0407–0410 **Accepted** ; contrat HTTP connecteurs. [[projects/iamrusty/decisions/index]]
 - Cloud : 0600–0602 **Proposed** (OTLP vendor-neutral, pas d’implémentation). [[projects/aiforall/decisions/0602-observabilite-portable]]
-- P4-core T2–T12 **livrés** `apparatus-operator` ; tests 22 sept. **livrés** (pin 64 hex, pull zot IfNotPresent, RBAC, NotValid, automount) ; Kind IT Calico v3.29.7 ; T11 **vert** ; Cosign fail-closed ; 0008 **Partial**. [[journal/2026-09-22]] [[projects/manifesto/concepts/apparatus-p4-operator]]
+- P4-core T2–T12 **livrés** `apparatus-operator` ; tests 22 sept. **livrés** (pin 64 hex, pull zot IfNotPresent, RBAC, NotValid, automount) ; Kind IT Calico v3.29.7 ; T11 **vert** ; Cosign fail-closed. Le matin du 22, 0008 est encore noté Partial ; l’addendum A-DEC du jour le passe **Implemented**. [[journal/2026-09-22]] [[projects/manifesto/concepts/apparatus-p4-operator]]
+
+## 22–27 sept. (après ingest 06:55Z)
+
+- IdP : crates `GitHubConnect` / `GitLabConnect`, retrait du vendor in-process, slug registry 0411, OAuth `/login`. [[projects/iamrusty/decisions/index]]
+- Kind local : J1–J3, overlay démo, puis gold path HTTP 200 (`just prove-gold`, Service = nom du Pod, Job `admit-sign`). [[projects/aiforall/decisions/0605-gold-path-kind]]
+- Gates écrites, non implémentées : 0009 scale, 0010 CA, 0011 pod par binding. [[projects/manifesto/decisions/0009-0011-gates-preprod]]
+- AuthN : 0304 Accepted / Partial (RS256 JWKS), 0306 signer org Hive→IAM Implemented, 0308–0309 non livrés. Revue S6 HIGH PEM fermée le 27. [[projects/aiforall/decisions/0304-access-jwt-trust]]
+- Harnais : modèles à forte caution → `grok-4.7-xhigh`. [[projects/aiforall/concepts/orchestrator-agent-harness]]
+- `sentinel-sync` reconfirmé hors `oodhive-monolith`.
 
 ## Related
 
+- [[journal/2026-09-27]]
 - [[journal/2026-09-22]]
 - [[journal/2026-09-20]]
 - [[journal/2026-09-18]]

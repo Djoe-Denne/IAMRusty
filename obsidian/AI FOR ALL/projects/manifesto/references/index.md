@@ -7,7 +7,7 @@ provenance:
   extracted: 0.75
   inferred: 0.23
   ambiguous: 0.02
-updated: 2026-09-22T06:55:00Z
+updated: 2026-09-27T09:20:00Z
 sources:
   - "C:/Users/djden/.codex/attachments/486d0052-5759-4277-bcc1-9f209ce353d4/pasted-text.txt"
 ---
@@ -25,7 +25,7 @@ Use `[[projects/rustycog/references/index]]` for shared command, config, HTTP, p
 
 ## Apparatus — décisions
 
-- [[projects/manifesto/decisions/index]] — ADR 0001–0008 Accepted ; 0008 Partial.
+- [[projects/manifesto/decisions/index]] — ADR 0001–0008 Accepted ; 0002–0008 Implemented sauf 0001 Partial ; gates [[projects/manifesto/decisions/0009-0011-gates-preprod]].
 
 ## Apparatus — références de conception future
 

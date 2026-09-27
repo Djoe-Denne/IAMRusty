@@ -16,7 +16,7 @@ summary: >-
   ADR-0008 Accepted 2026-09-20. Réalité Implemented (A-DEC 2026-09-22, Kind V1).
   T2–T12 + M1–M6 ; dette D-TRANSIT-TCB / D-ADMB / D-PROD. Moteur K8s hors Manifesto.
 created: 2026-09-20T15:53:00Z
-updated: 2026-09-22T14:00:00Z
+updated: 2026-09-27T09:20:00Z
 provenance:
   extracted: 0.88
   inferred: 0.10
@@ -31,7 +31,7 @@ Canon : `docs/adr/0008-apparatus-p4-k8s-isolation-outside-manifesto.md`. Hub ADR
 
 Ratification chat « Je valide tout. Je ratifie tout. » — même force que 0007 « accepté » (2026-09-13). README L17/L128 : `Accepted` typiquement après PR ; **écart documenté** comme 0006/0007.
 
-Réalité **Implemented** (A-DEC 2026-09-22). Kind = environnement V1. Crate [[projects/manifesto/concepts/apparatus-p4-operator]] T2–T12 + chaîne M1–M6 ; Calico v3.29.7 ; T11 vert ; Cosign fail-closed. **0002 / 0003 / 0005** Implemented ce tour. Dette hors-jalon : **D-TRANSIT-TCB** (Transit `-dev`) ; **D-ADMB** (webhook, jamais source `VALID`) ; **D-PROD**. Closeout canon : `docs/adr/0008-closeout.md`. Journal : [[journal/2026-09-22]].
+Réalité **Implemented** (A-DEC 2026-09-22). Kind = environnement V1. Crate [[projects/manifesto/concepts/apparatus-p4-operator]] T2–T12 + chaîne M1–M6 ; Calico v3.29.7 ; T11 vert ; Cosign fail-closed. **0002 / 0003 / 0005** Implemented ce tour. Dette hors-jalon : **D-TRANSIT-TCB** (Transit `-dev`) ; **D-ADMB** (webhook, jamais source `VALID`) ; **D-PROD**. Closeout canon : `docs/adr/0008-closeout.md`. Journal : [[journal/2026-09-22]]. Gates préprod (pas ce moteur) : [[projects/manifesto/decisions/0009-0011-gates-preprod]]. Gold path local : [[projects/aiforall/decisions/0605-gold-path-kind]].
 
 Ne SuperSède **pas** 0003 ni 0005. 0004/0006/0007 inchangés (Implemented). **APP-05**, G/E, pas de 2ᵉ protocole ; `invoke` = Lazaret.
 

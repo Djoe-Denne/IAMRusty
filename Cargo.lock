@@ -3168,6 +3168,7 @@ name = "hive-setup"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "axum 0.8.9",
  "hive-application",
  "hive-configuration",
@@ -4453,6 +4454,7 @@ name = "lazaret-setup"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "axum 0.8.9",
  "lazaret-application",
  "lazaret-configuration",
@@ -4465,6 +4467,7 @@ dependencies = [
  "sea-orm",
  "tokio",
  "tracing",
+ "uuid",
 ]
 
 [[package]]
@@ -5126,17 +5129,23 @@ name = "oodhive-monolith"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "axum 0.8.9",
  "futures",
  "hive-configuration",
+ "hive-domain",
  "hive-http",
  "hive-setup",
+ "iam-application",
  "iam-configuration",
+ "iam-domain",
  "iam-http_server",
  "iam-setup",
  "lazaret-configuration",
+ "lazaret-domain",
  "lazaret-http",
  "lazaret-setup",
+ "manifesto-application",
  "manifesto-configuration",
  "manifesto-http_server",
  "manifesto-setup",
@@ -5148,6 +5157,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]

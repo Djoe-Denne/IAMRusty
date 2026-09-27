@@ -84,8 +84,18 @@ type RepositoryBundle = (
     Arc<RolePermissionRepositoryImpl>,
     Arc<MemberRoleRepositoryImpl>,
     Arc<HttpExternalProviderClient>,
-    Arc<HttpIamOrganizationSignerClient>,
+    Arc<dyn hive_domain::port::service::IamOrganizationSignerClient>,
 );
+
+/// IAM organization-signer port used by Hive (HTTP or InProcess).
+pub type IamSignerClient = Arc<dyn hive_domain::port::service::IamOrganizationSignerClient>;
+
+/// Host-injected outbound adapters for Hive (ADR-0104). `Default` = HTTP clients.
+#[derive(Clone, Default)]
+pub struct HiveOutboundOverrides {
+    /// IAM organization-signer client. `None` → HTTP (ADR-0306).
+    pub iam_organization_signer: Option<IamSignerClient>,
+}
 
 /// Application context for dependency injection
 pub struct Application {
@@ -101,8 +111,9 @@ impl Application {
     /// # Errors
     ///
     /// Returns an error if database, event publisher, auth, or `OpenFGA` setup fails.
-    pub async fn new(config: AppConfig) -> Result<Self, Error> {
+    pub async fn new(config: AppConfig, overrides: HiveOutboundOverrides) -> Result<Self, Error> {
         tracing::info!("Initializing Hive application...");
+        let iam_signer_client = overrides.iam_organization_signer;
 
         // Setup database connection
         let db = setup_database(&config).await?;
@@ -135,7 +146,7 @@ impl Application {
             role_usecase,
             iam_signer_client,
             organization_repo,
-        ) = setup_application(db, &config, event_publisher)?;
+        ) = setup_application(db, &config, event_publisher, iam_signer_client)?;
 
         // Setup command registry
         let command_registry = HiveCommandRegistryFactory::create_hive_registry(
@@ -311,6 +322,7 @@ fn setup_application(
     db: DbConnectionPool,
     config: &AppConfig,
     event_publisher: Arc<dyn EventPublisher<DomainError>>,
+    iam_signer_client: Option<IamSignerClient>,
 ) -> Result<ApplicationUseCases, Error> {
     let (
         organization_service,
@@ -321,7 +333,7 @@ fn setup_application(
         sync_service,
         iam_signer_client,
         organization_repo,
-    ) = setup_domain(&db, config)?;
+    ) = setup_domain(&db, config, iam_signer_client)?;
 
     let outbox_unit_of_work = Arc::new(HiveOutboxUnitOfWorkImpl::new(db, OutboxRecorder));
 
@@ -379,6 +391,7 @@ fn setup_application(
 fn setup_domain(
     db: &DbConnectionPool,
     config: &AppConfig,
+    iam_signer_client: Option<IamSignerClient>,
 ) -> Result<
     (
         Arc<dyn hive_domain::service::OrganizationService>,
@@ -405,7 +418,7 @@ fn setup_domain(
         member_role_repo,
         provider_client,
         iam_signer_client,
-    ) = setup_infra(db, config)?;
+    ) = setup_infra(db, config, iam_signer_client)?;
 
     let role_service = Arc::new(RoleServiceImpl::new(
         member_role_repo,
@@ -464,8 +477,37 @@ fn setup_domain(
     ))
 }
 
+/// Resolve IAM organization-signer client (ADR-0306).
+///
+/// Without injection → HTTP adapter. With setter → injected capability (InProcess).
+///
+/// Returns `(client, used_injected)` so unit tests can prove the transport choice.
+pub(crate) fn resolve_iam_signer_client(
+    config: &AppConfig,
+    injected: Option<IamSignerClient>,
+) -> Result<(IamSignerClient, bool), Error> {
+    if let Some(client) = injected {
+        return Ok((client, true));
+    }
+    let iam_workload = Arc::new(StaticCredential::from_pair(
+        "iam-internal-token",
+        config.iam_service.api_key.clone(),
+    )?) as Arc<dyn hive_domain::port::service::WorkloadIdentity>;
+    let http = Arc::new(HttpIamOrganizationSignerClient::with_workload(
+        &config.iam_service.base_url,
+        "iam-internal-token",
+        iam_workload,
+        config.iam_service.timeout_seconds,
+    )?) as IamSignerClient;
+    Ok((http, false))
+}
+
 /// Setup repositories
-fn setup_infra(db: &DbConnectionPool, config: &AppConfig) -> Result<RepositoryBundle, Error> {
+fn setup_infra(
+    db: &DbConnectionPool,
+    config: &AppConfig,
+    iam_signer_override: Option<IamSignerClient>,
+) -> Result<RepositoryBundle, Error> {
     tracing::info!("Setting up repositories...");
 
     let organization_read_repo = OrganizationReadRepositoryImpl::new(db.get_read_connection());
@@ -541,16 +583,7 @@ fn setup_infra(db: &DbConnectionPool, config: &AppConfig) -> Result<RepositoryBu
         config.external_provider_service.max_retries,
     )?;
 
-    let iam_workload = Arc::new(StaticCredential::from_pair(
-        "iam-internal-token",
-        config.iam_service.api_key.clone(),
-    )?) as Arc<dyn hive_domain::port::service::WorkloadIdentity>;
-    let iam_signer_client = Arc::new(HttpIamOrganizationSignerClient::with_workload(
-        &config.iam_service.base_url,
-        "iam-internal-token",
-        iam_workload,
-        config.iam_service.timeout_seconds,
-    )?);
+    let (iam_signer_client, _) = resolve_iam_signer_client(config, iam_signer_override)?;
 
     tracing::info!("Repositories initialized");
     Ok((
@@ -572,13 +605,35 @@ fn setup_infra(db: &DbConnectionPool, config: &AppConfig) -> Result<RepositoryBu
 /// Application builder for Hive
 pub struct AppBuilder {
     config: AppConfig,
+    overrides: HiveOutboundOverrides,
 }
 
 impl AppBuilder {
-    /// Create a new app builder
+    /// Create a new app builder (default outbound transport = HTTP).
     #[must_use]
     pub const fn new(config: AppConfig) -> Self {
-        Self { config }
+        Self {
+            config,
+            overrides: HiveOutboundOverrides {
+                iam_organization_signer: None,
+            },
+        }
+    }
+
+    /// Replace the outbound-overrides bag (monolith host API, ADR-0104).
+    #[must_use]
+    pub fn with_outbound(mut self, bag: HiveOutboundOverrides) -> Self {
+        self.overrides = bag;
+        self
+    }
+
+    /// Inject an InProcess (or test) IAM organization-signer client (ADR-0306).
+    ///
+    /// Sugar over [`Self::with_outbound`]: writes `iam_organization_signer`.
+    #[must_use]
+    pub fn with_iam_organization_signer_client(mut self, client: IamSignerClient) -> Self {
+        self.overrides.iam_organization_signer = Some(client);
+        self
     }
 
     /// Build the Hive application.
@@ -587,6 +642,87 @@ impl AppBuilder {
     ///
     /// Returns an error if application initialization fails.
     pub async fn build(self) -> Result<Application, anyhow::Error> {
-        Application::new(self.config).await
+        Application::new(self.config, self.overrides).await
+    }
+}
+
+#[cfg(test)]
+mod resolve_iam_signer_tests {
+    use super::*;
+    use async_trait::async_trait;
+    use hive_domain::port::service::{
+        ConfigureOrganizationSignerRequest, IamOrganizationSignerClient, OrganizationSignerResponse,
+    };
+    use uuid::Uuid;
+
+    struct CapturingIamSigner;
+
+    #[async_trait]
+    impl IamOrganizationSignerClient for CapturingIamSigner {
+        async fn configure_organization_signer(
+            &self,
+            _org_id: Uuid,
+            _request: &ConfigureOrganizationSignerRequest,
+        ) -> Result<OrganizationSignerResponse, DomainError> {
+            unreachable!("resolver test must not call configure")
+        }
+
+        async fn test_organization_signer(
+            &self,
+            _org_id: Uuid,
+        ) -> Result<OrganizationSignerResponse, DomainError> {
+            unreachable!("resolver test must not call test")
+        }
+
+        async fn rotate_organization_signer(
+            &self,
+            _org_id: Uuid,
+        ) -> Result<OrganizationSignerResponse, DomainError> {
+            unreachable!("resolver test must not call rotate")
+        }
+
+        async fn disable_organization_signer(
+            &self,
+            _org_id: Uuid,
+        ) -> Result<OrganizationSignerResponse, DomainError> {
+            unreachable!("resolver test must not call disable")
+        }
+    }
+
+    fn minimal_iam_config() -> AppConfig {
+        let mut config = AppConfig::default();
+        config.iam_service.base_url = "http://127.0.0.1:9".into();
+        config.iam_service.api_key = "test-internal-token".into();
+        config.iam_service.timeout_seconds = 1;
+        config
+    }
+
+    #[test]
+    fn without_injection_builds_http_client() {
+        let config = minimal_iam_config();
+        let (client, used_injected) =
+            resolve_iam_signer_client(&config, None).expect("http client builds");
+        assert!(!used_injected, "default transport must be HTTP");
+        // Prove we did not keep a Capturing stub: a second resolve with injection
+        // yields a different Arc than this default client.
+        let injected: IamSignerClient = Arc::new(CapturingIamSigner);
+        let (resolved, injected_flag) =
+            resolve_iam_signer_client(&config, Some(injected.clone())).expect("inject");
+        assert!(injected_flag);
+        assert!(Arc::ptr_eq(&resolved, &injected));
+        assert!(!Arc::ptr_eq(&client, &resolved));
+    }
+
+    #[test]
+    fn with_injection_uses_provided_client_not_http() {
+        let config = minimal_iam_config();
+        let injected: IamSignerClient = Arc::new(CapturingIamSigner);
+        let (resolved, used_injected) =
+            resolve_iam_signer_client(&config, Some(injected.clone())).expect("inject");
+        assert!(used_injected);
+        assert!(
+            Arc::ptr_eq(&resolved, &injected),
+            "injected client must be the one threaded into the bundle"
+        );
     }
 }

@@ -1,9 +1,12 @@
 use std::future::pending;
+use std::sync::Arc;
 
 use futures::future::select_all;
 use tokio::task::{JoinError, JoinHandle};
 
 use crate::config::{load_monolith_config, MonolithConfig};
+use crate::in_process_binding_grant::InProcessBindingGrantClient;
+use crate::in_process_iam_signer::InProcessIamOrganizationSignerClient;
 use crate::routes::{compose_routes, MonolithRouters};
 
 pub async fn run() -> anyhow::Result<()> {
@@ -17,11 +20,39 @@ pub async fn run() -> anyhow::Result<()> {
         lazaret,
     } = load_monolith_config()?;
 
+    // IAM first — InProcess signer requires the application façade (ADR-0306).
     let iam_app = Box::pin(iam_setup::app::build_app_state(iam, None)).await?;
+    let iam_signer_facade = iam_app.organization_signer().ok_or_else(|| {
+        anyhow::anyhow!(
+            "IAM organization signer façade unavailable; refusing HTTP fallback in monolith (ADR-0306 fail-closed)"
+        )
+    })?;
+    let in_process_signer: Arc<dyn hive_domain::port::service::IamOrganizationSignerClient> =
+        Arc::new(InProcessIamOrganizationSignerClient::new(iam_signer_facade));
+
     let telegraph_app = Box::pin(telegraph_setup::AppBuilder::new(telegraph).build()).await?;
-    let hive_app = Box::pin(hive_setup::AppBuilder::new(hive).build()).await?;
+    let hive_app = Box::pin(
+        hive_setup::AppBuilder::new(hive)
+            .with_iam_organization_signer_client(in_process_signer)
+            .build(),
+    )
+    .await?;
     let manifesto_app = Box::pin(manifesto_setup::Application::new(manifesto)).await?;
-    let lazaret_app = Box::pin(lazaret_setup::AppBuilder::new(lazaret).build()).await?;
+    let binding_grant_reader = manifesto_app.binding_grant_snapshots().ok_or_else(|| {
+        anyhow::anyhow!(
+            "Manifesto binding grant snapshot reader unavailable; refusing HTTP fallback in monolith (ADR-0104 fail-closed)"
+        )
+    })?;
+    let in_process_grants: Arc<dyn lazaret_domain::BindingGrantSnapshotPort> =
+        Arc::new(InProcessBindingGrantClient::new(binding_grant_reader));
+    let lazaret_app = Box::pin(
+        lazaret_setup::AppBuilder::new(lazaret)
+            .with_outbound(lazaret_setup::LazaretOutboundOverrides {
+                binding_grant_snapshots: Some(in_process_grants),
+            })
+            .build(),
+    )
+    .await?;
 
     let mut background_tasks = Vec::new();
     background_tasks.extend(iam_app.start_background_tasks());

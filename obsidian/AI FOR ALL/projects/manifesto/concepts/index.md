@@ -2,8 +2,8 @@
 title: Manifesto Concepts Index
 category: navigation
 tags: [index, concepts, projects]
-summary: "Concepts Manifesto : ACL, P2 Implemented, P3 Lazaret Implemented, P4 operator Partial."
-updated: 2026-09-22T06:55:00Z
+summary: "Concepts Manifesto : ACL, P2 Implemented, P3 Lazaret Implemented, P4 operator (0008 Implemented)."
+updated: 2026-09-27T09:20:00Z
 provenance:
   extracted: 0.75
   inferred: 0.23
@@ -30,7 +30,7 @@ sources:
 - [[projects/manifesto/concepts/apparatus-p1-persistence]] — persistance P1.
 - [[projects/manifesto/concepts/apparatus-p2-reconciliation]] — contrôleur in-process Implemented (ADR-0006).
 - [[projects/lazaret/lazaret]] — frontière P3 Implemented (ADR-0007).
-- [[projects/manifesto/concepts/apparatus-p4-operator]] — crate operator Kind/zot (ADR-0008 Partial).
+- [[projects/manifesto/concepts/apparatus-p4-operator]] — crate operator Kind/zot (ADR-0008 Implemented). Gates : [[projects/manifesto/decisions/0009-0011-gates-preprod]].
 - [[projects/manifesto/concepts/apparatus-platform]] — vision et frontières.
 - [[projects/manifesto/concepts/apparatus-bindings-and-lifecycle]] — identités, migration et réconciliation.
 - [[projects/manifesto/concepts/apparatus-capabilities-and-isolation]] — identité, droits, réseau et données.

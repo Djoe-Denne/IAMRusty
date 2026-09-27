@@ -61,6 +61,7 @@ type ApplicationUseCases = (
     Arc<dyn manifesto_application::MemberUseCase>,
     Option<Arc<ApparatusEventConsumer>>,
     ComponentStatus,
+    Option<Arc<dyn manifesto_application::BindingGrantSnapshotReader>>,
 );
 
 type DomainServices = (
@@ -104,6 +105,7 @@ pub struct Application {
     pub readiness: Arc<ReadinessProbe>,
     /// Dedicated HS256 extractor for the binding grant snapshot GET.
     pub grant_snapshot_extractor: Arc<UserIdExtractor>,
+    binding_grant_snapshots: Option<Arc<dyn manifesto_application::BindingGrantSnapshotReader>>,
 }
 
 impl Application {
@@ -195,6 +197,7 @@ impl Application {
             member_usecase,
             apparatus_event_consumer,
             consumer_status,
+            binding_grant_snapshots,
         ) = setup_application(db, &config, event_publisher, permission_checker.clone()).await?;
 
         // Setup command registry
@@ -234,6 +237,7 @@ impl Application {
             apparatus_runtime,
             readiness,
             grant_snapshot_extractor,
+            binding_grant_snapshots,
         })
     }
 
@@ -359,6 +363,17 @@ impl Application {
         self.readiness.clone()
     }
 
+    /// Binding-grant snapshot reader (ADR-0104 InProcess injection).
+    ///
+    /// Present after a successful [`Self::new`]. Callers in the monolith
+    /// composition root must fail-closed if this returns [`None`].
+    #[must_use]
+    pub fn binding_grant_snapshots(
+        &self,
+    ) -> Option<Arc<dyn manifesto_application::BindingGrantSnapshotReader>> {
+        self.binding_grant_snapshots.clone()
+    }
+
     #[must_use]
     pub fn start_background_tasks(&self) -> Vec<tokio::task::JoinHandle<anyhow::Result<()>>> {
         let mut tasks = Vec::new();
@@ -445,9 +460,9 @@ async fn setup_application(
     let apparatus_binding_source = Arc::new(SqlApparatusBindingSourceLookup::new(
         db.get_read_connection().as_ref().clone(),
     ));
-    let binding_grant_reader = Arc::new(SqlBindingGrantSnapshotReader::new(
-        db.get_read_connection().as_ref().clone(),
-    ));
+    let binding_grant_reader: Arc<dyn manifesto_application::BindingGrantSnapshotReader> = Arc::new(
+        SqlBindingGrantSnapshotReader::new(db.get_read_connection().as_ref().clone()),
+    );
     let binding_consent_writer = Arc::new(SqlBindingConsentWriter::new(
         db.get_write_connection().as_ref().clone(),
     ));
@@ -485,7 +500,7 @@ async fn setup_application(
             org_permission_checker,
         )
         .with_authorization_uow(project_authorization_uow.clone())
-        .with_binding_grant_reader(binding_grant_reader)
+        .with_binding_grant_reader(binding_grant_reader.clone())
         .with_binding_consent_writer(binding_consent_writer),
     );
 
@@ -528,6 +543,7 @@ async fn setup_application(
         member_usecase,
         apparatus_event_consumer,
         consumer_status,
+        Some(binding_grant_reader),
     ))
 }
 

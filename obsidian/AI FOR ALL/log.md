@@ -282,6 +282,8 @@ title: Wiki Log
 - [2026-09-22T06:55:00Z] CLAUDE_HISTORY_INGEST source=cursor-transcripts mode=append subagents_included=true conversations=10 pages_updated=18 pages_created=3 vault="obsidian/AI FOR ALL" topic=p4-core-operator-idp-otlp
 - [2026-09-22T06:55:00Z] WIKI_UPDATE project=aiforall pages_updated=18 pages_created=3 source_cwd=C:/Users/djden/source/repos/AIForAll vault="obsidian/AI FOR ALL" topic=chat-since-2026-09-20T10:35Z qmd=skip
 - [2026-09-22T12:49:00Z] WIKI_UPDATE project=iamrusty pages_updated=11 pages_created=0 source_cwd=C:/Users/djden/source/repos/AIForAll topic=iam-idp-s5-s6-implemented
+- [2026-09-27T09:20:00Z] INGEST source="C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts" pages_updated=20 pages_created=4 mode=append parents_touched=28 nested_touched=237 adr_sources=54 added=317 updated=2 since=2026-09-22T06:55:00Z skipped_current_session=91f31192
+- [2026-09-27T09:20:00Z] WIKI_UPDATE project=aiforall pages_updated=20 pages_created=4 source_cwd=C:/Users/djden/source/repos/AIForAll last_commit_synced=2473baa7a54595931a4eff76a33431f56776db20 vault="obsidian/AI FOR ALL" topic=jwt-0304-gold-0605-idp-connect qmd=skip
 
 
 

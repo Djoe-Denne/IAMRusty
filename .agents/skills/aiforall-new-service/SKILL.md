@@ -3,9 +3,11 @@ name: aiforall-new-service
 description: >-
   Platform checklist for adding a new AIForAll RustyCog service (not just the
   Manifesto crate slice): events crate, OpenFGA model, sentinel-sync translator,
-  docker-compose, oodhive-monolith nest, SERVICE_PREFIX, [auth.jwt]. Use when
-  scaffolding a new bounded context, registering a service in the monolith or
-  compose file, adding hive-events-style contracts, or wiring a new OpenFGA type.
+  docker-compose, oodhive-monolith nest, SERVICE_PREFIX, [auth.jwt],
+  `*OutboundOverrides`. Use when scaffolding a new bounded context,
+  registering a service in the monolith or compose file, adding
+  hive-events-style contracts, wiring a new OpenFGA type, or adding a
+  cross-hexagon outbound port (HTTP vs InProcess, ADR 0104).
 ---
 
 # New AIForAll service (platform)
@@ -18,6 +20,7 @@ This skill is the **workspace wiring**. Human how-to: `docs/guides/nouveau-servi
 - User asks to add a service beside Hive / Manifesto / Telegraph / IAM.
 - Touching `monolith/src/routes.rs`, root `docker-compose.yml`, `openfga/model.fga`, or `sentinel-sync/src/translator/`.
 - Adding a `*-events` crate or a new `SERVICE_PREFIX`.
+- Adding a cross-hexagon outbound port (`*OutboundOverrides`, ADR 0104).
 
 ## Checklist (in order)
 
@@ -27,9 +30,10 @@ This skill is the **workspace wiring**. Human how-to: `docs/guides/nouveau-servi
 4. `foo-events` workspace member. If the event changes FGA: translator module + register in `sentinel-sync/src/main.rs`. Unknown events are silent no-ops.
 5. `[queue.queues]` → physical queues (`sentinel-sync-events` or `telegraph-events`). Default `enabled = false`.
 6. `MonolithRouters` + `.nest(foo_http::SERVICE_PREFIX, …)` in `monolith/src/routes.rs`. Do not call service `run()`.
-7. Root `Cargo.toml` members, `docker-compose.yml` service + `create-databases` (`foo_dev`), host port ≥ 8084.
-8. `tests/common.rs` returns a **prefixed** base URL. `create_jwt_token` + `TestOpenFga::allow` as needed.
-9. Service README + `docs/services/<name>.md`.
+7. Cross-hexagon outbound port? Field on the consumer `*OutboundOverrides` bag; InProcess bridge only in `monolith/`. Canonical: `.agents/skills/rustycog/references/outbound-overrides.md` (ADR 0104). Do not put `EventPublisher` in that bag.
+8. Root `Cargo.toml` members, `docker-compose.yml` service + `create-databases` (`foo_dev`), host port ≥ 8084.
+9. `tests/common.rs` returns a **prefixed** base URL. `create_jwt_token` + `TestOpenFga::allow` as needed.
+10. Service README + `docs/services/<name>.md`.
 
 ## Forbidden
 
@@ -38,9 +42,11 @@ This skill is the **workspace wiring**. Human how-to: `docs/guides/nouveau-servi
 - OpenFGA `object_type` not in `model.fga`.
 - Domain event that should move AuthZ with no translator arm.
 - Re-declaring `#[path = "fixtures/mod.rs"]` in every `*_test.rs`.
+- DI / `HashMap` / consumer→provider crate / config `in_process` for outbound adapters (ADR 0104).
 
 ## Related
 
 - `docs/guides/nouveau-service.md`
 - `docs/platform/overview.md`
 - `.agents/skills/rustycog/SKILL.md`
+- `.agents/skills/rustycog/references/outbound-overrides.md` (ADR 0104)

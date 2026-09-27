@@ -23,21 +23,20 @@ sources:
   - docs/apparatus-p4-implementation-prompt.md
   - manifesto-events/src/component.rs
 summary: >-
-  Plan conception P0–P6. Canon 2026-09-20 : P2 Implemented, 0007
-  Implemented (A-DEC), APP-01 = ADR-0008 Partial. Corps ^[inferred]
-  encore photo P3 Partial — ne pas promouvoir en contrat.
+  Plan conception P0–P6, photo datée. Canon courant : 0007 et 0008
+  Implemented (A-DEC). Le corps reste une photo, pas le contrat.
 provenance:
   extracted: 0.30
   inferred: 0.66
   ambiguous: 0.04
 created: 2026-09-09T17:50:00Z
-updated: 2026-09-22T10:00:00Z
+updated: 2026-09-27T09:20:00Z
 ---
 
 # Apparatus — plan d’implémentation et décisions restantes
 
 > [!warning] Conception, pas canon
-> Le corps ci-dessous est une **photo P3 datée** (`^[inferred]`, 0007 **alors** Partial, APP-01 **alors** ouvert). **Canon courant (2026-09-22)** : 0007 **Implemented** (A-DEC) — [[projects/manifesto/references/0007-closeout]] ; APP-01 = [[projects/manifesto/decisions/0008-apparatus-p4-k8s]] (**Accepted / Partial**, T2–T12 livrés). **Ne pas** relivrer P4-core ni traiter APP-01 comme ouvert. Ne pas traiter L152 `KubernetesAdapter` comme contrat Manifesto. Prompts `docs/` : POST-LOT **historiques** — [[projects/manifesto/references/apparatus-p4-implementation-prompt]].
+> Le corps ci-dessous est une **photo P3 datée** (`^[inferred]`, 0007 **alors** Partial, APP-01 **alors** ouvert). **Canon courant (2026-09-27)** : 0007 **Implemented** — [[projects/manifesto/references/0007-closeout]] ; APP-01 = [[projects/manifesto/decisions/0008-apparatus-p4-k8s]] (**Accepted / Implemented**, A-DEC 2026-09-22). Les cellules du tableau qui disent encore Partial sont cette photo, pas le statut git. **Ne pas** relivrer P4-core. Gates préprod : [[projects/manifesto/decisions/0009-0011-gates-preprod]]. Prompts `docs/` : POST-LOT **historiques** — [[projects/manifesto/references/apparatus-p4-implementation-prompt]].
 
 Plan proposé pour [[projects/manifesto/concepts/apparatus-platform]], sans date ni estimation d’effort inventée. La source utilisateur fixe la vision ; les choix ci-dessous préparent une implémentation future. L’existant est référencé dans [[projects/manifesto/references/apparatus-source-reconciliation]].
 

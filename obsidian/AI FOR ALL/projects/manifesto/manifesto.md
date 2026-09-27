@@ -21,14 +21,14 @@ sources:
   - docs/adr/0007-closeout.md
   - docs/adr/0008-apparatus-p4-k8s-isolation-outside-manifesto.md
 summary: >-
-  Manifesto : slice hexagonale (ADR 0401). P2 Implemented ; Lazaret P3
-  Implemented (A-DEC). Moteur P4 = 0008 Partial. Factory/host hors livré.
+  Manifesto : slice hexagonale (ADR 0401). P2 et P3 Implemented.
+  Moteur P4 = 0008 Implemented (Kind V1). Factory/host hors livré.
 provenance:
   extracted: 0.76
   inferred: 0.22
   ambiguous: 0.02
 created: 2026-04-14T16:54:59.5971424Z
-updated: 2026-09-22T06:55:00Z
+updated: 2026-09-27T09:20:00Z
 ---
 
 # Manifesto
@@ -64,9 +64,9 @@ Manifesto is the project-management service for AIForAll. Use `[[projects/rustyc
 
 ## Apparatus
 
-Le rationnel reste [[projects/manifesto/concepts/apparatus-platform]]. **P0** : [[projects/manifesto/concepts/apparatus-p0-contracts]]. **P1** persistance : [[projects/manifesto/concepts/apparatus-p1-persistence]]. **P2** réconciliation in-process (**Implemented**) : [[projects/manifesto/concepts/apparatus-p2-reconciliation]]. **P3** frontière = [[projects/lazaret/lazaret]] (**Implemented**, A-DEC 2026-09-20). Moteur P4 = [[projects/manifesto/decisions/0008-apparatus-p4-k8s]] (**Accepted / Partial**, crate [[projects/manifesto/concepts/apparatus-p4-operator]]). Factory / host restent hors livré (ADR 0406). Zéro token `k8s` sous `Manifesto/*/src`.
+Le rationnel reste [[projects/manifesto/concepts/apparatus-platform]]. **P0** : [[projects/manifesto/concepts/apparatus-p0-contracts]]. **P1** persistance : [[projects/manifesto/concepts/apparatus-p1-persistence]]. **P2** réconciliation in-process (**Implemented**) : [[projects/manifesto/concepts/apparatus-p2-reconciliation]]. **P3** frontière = [[projects/lazaret/lazaret]] (**Implemented**, A-DEC 2026-09-20). Moteur P4 = [[projects/manifesto/decisions/0008-apparatus-p4-k8s]] (**Accepted / Implemented**, Kind V1, crate [[projects/manifesto/concepts/apparatus-p4-operator]]). Gates préprod : [[projects/manifesto/decisions/0009-0011-gates-preprod]]. Factory / host restent hors livré (ADR 0406). Zéro token `k8s` sous `Manifesto/*/src`.
 
-Les ADR vague 1 0001–0008 sont **Accepted** ([[projects/manifesto/decisions/index]]). Réalité : 0004/0006/0007 Implemented ; 0008 Partial ; 0001–0003/0005 Partial. Photographie service : ADR 0401 — [[projects/aiforall/decisions/0400-services-runtime]].
+Les ADR vague 1 0001–0008 sont **Accepted** ([[projects/manifesto/decisions/index]]). Réalité : 0002–0008 Implemented sauf **0001 Partial**. 0009–0011 sont Proposed / Unimplemented. Photographie service : ADR 0401 — [[projects/aiforall/decisions/0400-services-runtime]].
 
 ## Related
 

@@ -5,11 +5,10 @@ tags: [architecture, iam, oauth, visibility/internal]
 status: accepted
 feature_status: implemented
 summary: >-
-  Hub des ADR Accepted 0407–0411 (IAM-IdP). Réalité Implemented :
-  connecteurs HTTP HMAC, Provider = slug registry, plus d’enum GH/GL.
-  Canon git : docs/adr/. Distinct de 0100–0502 et Apparatus 0001–0008.
+  Hub ADR 0407–0411 Accepted / Implemented. Crates GitHubConnect et
+  GitLabConnect en HEAD. OAuth démarre sur /login. Slug fail-closed.
 created: 2026-09-20T16:15:00Z
-updated: 2026-09-22T15:10:00Z
+updated: 2026-09-27T09:20:00Z
 sources:
   - docs/adr/README.md
   - docs/adr/0407-contrat-authn-federee-vendor-neutral.md
@@ -26,6 +25,8 @@ provenance:
 # IAMRusty — décisions vivantes
 
 Canon : `docs/adr/0407`–`0411`. Jalon **IAM-IdP** (hors Apparatus). Statut **Accepted**. Réalité **Implemented** : IAM parle aux vendors via Connect HMAC S2S ; `Provider` = slug registry (0411). Pas de HuggingFaceConnect, pas de nest monolith.
+
+Binaires dans le workspace depuis `b634413` (`GitHubConnect/`, `GitLabConnect/`). `66a232c` : le flux OAuth démarre sur `/login` (plus `/start`) ; connecteur incomplet ou slug hors registry = fail-closed. Voir [[journal/2026-09-27]].
 
 Ne pas confondre avec [[projects/aiforall/decisions/index|vague 2 rétroactive]] (`0100`–`0502`) ni [[projects/manifesto/decisions/index|vague 1 Apparatus]] (`0001`–`0008`).
 
@@ -44,4 +45,6 @@ Ne pas confondre avec [[projects/aiforall/decisions/index|vague 2 rétroactive]]
 - [[projects/iamrusty/concepts/oauth-state-and-csrf-protection]]
 - [[projects/iamrusty/skills/extending-iamrusty-with-oauth-providers]]
 - [[journal/2026-09-20]]
+- [[journal/2026-09-27]]
 - [[journal/2026-09-22]]
+- [[projects/aiforall/decisions/0304-access-jwt-trust]]

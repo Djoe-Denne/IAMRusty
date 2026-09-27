@@ -6,11 +6,10 @@ tags: [architecture, components, visibility/internal]
 status: accepted
 feature_status: implemented
 summary: >-
-  Hub ADR Apparatus 0001–0008 Accepted. 0002/0003/0005/0008 Implemented
-  (A-DEC 2026-09-22, Kind V1) ; 0001 Partial ; 0004/0006/0007 Implemented.
-  Dette D-TRANSIT-TCB / D-ADMB / D-PROD. APP-05 ouvert.
+  Hub Apparatus 0001–0008 Accepted. 0002–0008 Implemented sauf 0001 Partial.
+  Gates 0009–0011 Proposed / Unimplemented. Dette TCB, APP-05 ouvert.
 created: 2026-09-10T06:32:00Z
-updated: 2026-09-22T14:00:00Z
+updated: 2026-09-27T09:20:00Z
 sources:
   - docs/adr/README.md
   - docs/adr/0001-apparatus-binding-owned-by-manifesto.md
@@ -54,6 +53,9 @@ Les ADR Apparatus 0001–0008 sont **Accepted**. `Accepted` fixe une cible ; il 
 | [0006](../../../../../docs/adr/0006-apparatus-p2-reconciliation-in-process.md) — [[projects/manifesto/decisions/0006-apparatus-p2-reconciliation]] | Réconciliation P2 = contrôleur in-process Manifesto, sans infra réelle | Implemented |
 | [0007](../../../../../docs/adr/0007-apparatus-p3-capability-boundary-after-accept.md) — [[projects/manifesto/decisions/0007-apparatus-p3-lazaret]] | Frontière P3 = BC Lazaret, distinct de Manifesto ; 0006 G et E restent | Implemented |
 | [0008](../../../../../docs/adr/0008-apparatus-p4-k8s-isolation-outside-manifesto.md) — [[projects/manifesto/decisions/0008-apparatus-p4-k8s]] | Moteur P4 = K8s hors Manifesto ; Cosign + Transit ; Adm-A ; operator+Jobs ; enveloppe ≠ image CRI ; 4 SA | Implemented |
+| [0009](../../../../../docs/adr/0009-gate-preprod-scale-on-demand-isolation-instance.md) — [[projects/manifesto/decisions/0009-0011-gates-preprod]] | Gate préprod : scale on demand, pod H24 partagé bloquant avant prod | Unimplemented |
+| [0010](../../../../../docs/adr/0010-gate-preprod-workload-certificate-ca.md) — [[projects/manifesto/decisions/0009-0011-gates-preprod]] | Gate préprod : modalité certificat workload et CA | Unimplemented |
+| [0011](../../../../../docs/adr/0011-apparatus-p4-pod-par-binding.md) — [[projects/manifesto/decisions/0009-0011-gates-preprod]] | Un Pod par binding (projet × binding) | Unimplemented |
 
 Preuve P0 : [[projects/manifesto/concepts/apparatus-p0-contracts]] ; ADR-0002 **Implemented** (A-DEC 2026-09-22 ; M1–M6 ; Factory/host = P5/P6 après). Preuve P1 : [[projects/manifesto/concepts/apparatus-p1-persistence]]. ADR-0006 Accepted 2026-09-12 ; Réalité Implemented (T1–T7 + writer §D). Concept : [[projects/manifesto/concepts/apparatus-p2-reconciliation]]. ADR-0007 Accepted 2026-09-13 ; Réalité Implemented (A-DEC 2026-09-20 ; T1–T14b ; holes hors-jalon APP-05 encore ouvert, 0006 G/E, pas K8s-as-P3, pas de second protocole). Service : [[projects/lazaret/lazaret]]. Mesh : [[projects/aiforall/concepts/https-platform-mesh]]. Pointeur : [[projects/manifesto/decisions/0007-apparatus-p3-lazaret]]. ADR-0008 Accepted 2026-09-20 ; Réalité **Implemented** (A-DEC 2026-09-22 ; T2–T12 + M1–M6 ; Kind V1 ; dette D-TRANSIT-TCB / D-ADMB / D-PROD). Closeout : `docs/adr/0008-closeout.md`. Pointeur : [[projects/manifesto/decisions/0008-apparatus-p4-k8s]].
 

@@ -64,3 +64,4 @@ Use this page when starting a new service that should look like the `Manifesto` 
 - `using-rustycog-http.md` — RouteBuilder and middleware order
 - `using-rustycog-permission.md` — centralized `PermissionChecker` and `with_permission_on`
 - `using-rustycog-testing.md` — integration test bootstrap
+- `outbound-overrides.md` — typed outbound bag at the composition root (ADR 0104); not the events/outbox seam

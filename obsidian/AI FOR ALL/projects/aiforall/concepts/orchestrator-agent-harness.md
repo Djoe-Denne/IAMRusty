@@ -17,14 +17,14 @@ sources:
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/a340bab3-a47f-4710-af1e-3d4bff06e4a2/a340bab3-a47f-4710-af1e-3d4bff06e4a2.jsonl
   - .cursor/review-briefings/README.md
 summary: >-
-  Toute tâche projet passe par orchestrator. Reviewers persistent sous
-  .cursor/review-briefings/. Grok xhigh ; Composer lecture-only.
+  Toute tâche projet passe par orchestrator. Reviewers sous
+  .cursor/review-briefings/. Forte caution = grok-4.7-xhigh.
 provenance:
   extracted: 0.86
   inferred: 0.14
   ambiguous: 0.00
 created: 2026-09-11T05:45:00Z
-updated: 2026-09-22T06:55:00Z
+updated: 2026-09-27T09:20:00Z
 ---
 
 # Harnais orchestrator Cursor
@@ -71,6 +71,8 @@ La session du 10 sept. a remplacé des occurrences Muse trop coûteuses par **Gr
 Le 16 sept., le slug `High` n’existe pas dans la liste sous-agents → fallback **`cursor-grok-4.6-xhigh`**. `composer-2.5-fast` est réservé à la lecture. Une passe `glm-5p3` a été posée sur 12 agents puis le frontmatter Architecte est revenu à Grok. ^[ambiguous]
 
 Le 12–13 sept., P2 a été mené sous ce harnais (TDD T1–T7, aujourd’hui Implemented). Agents `adr-*` aussi versionnés `.codex/agents/*.toml` (`5991670`). P3 Lazaret (13–16 sept.) idem. P4-core (21–22 sept.) : Kind `apparatus-p4-it` ; orchestrateur parfois abort alors que les workers ont déjà écrit — reprendre le lot, ne pas relivrer T1. [[journal/2026-09-22]]
+
+Le 23 sept., `hard-implementer` passe à `grok-4.7-xhigh`. Le harnais réserve ce slug à `hard-implementer`, `architecte`, `expert-engineer` et `security-reviewer`. L’orchestrateur et le reste du travail gourmand restent sur `cursor-grok-4.6-xhigh`. [[journal/2026-09-27]]
 
 ## Patterns durables (P1, 12 sept.)
 

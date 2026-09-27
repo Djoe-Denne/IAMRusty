@@ -11,14 +11,14 @@ sources:
   - IAMRusty/setup/src/app.rs
   - IAMRusty/http/src/lib.rs
 summary: >-
-  IAMRusty : IAM, OAuth, JWT. T14b : HTTPS compose port 8444, CA mesh
-  optionnelle (pas rustls required).
+  IAMRusty : IAM, OAuth, JWT RS256 (0304 Partial). IdP via GitHubConnect
+  et GitLabConnect. HTTPS compose port 8444.
 provenance:
   extracted: 0.74
   inferred: 0.18
   ambiguous: 0.08
 created: 2026-04-14T17:46:37.6929647Z
-updated: 2026-09-22T12:49:00Z
+updated: 2026-09-27T09:20:00Z
 ---
 
 # IAMRusty
@@ -28,7 +28,7 @@ updated: 2026-09-22T12:49:00Z
 - [[projects/iamrusty/concepts/index]] — concepts
 - [[projects/iamrusty/skills/index]] — skills
 - [[projects/iamrusty/references/index]] — references
-- [[projects/iamrusty/decisions/index]] — décisions vivantes IAM-IdP (ADR **Accepted** / **Implemented** 0407–0410 ; canon `docs/adr/`)
+- [[projects/iamrusty/decisions/index]] — décisions vivantes IAM-IdP (ADR **Accepted** / **Implemented** 0407–0411 ; crates Connect en HEAD ; canon `docs/adr/`)
 
 `IAMRusty` is the identity service in the AIForAll workspace. Use `[[projects/rustycog/references/index]]` for the shared service shell and crate behavior; use this page and the linked IAMRusty references for the auth, OAuth, JWT, and event-contract choices that specialize that baseline.
 

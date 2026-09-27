@@ -8,16 +8,20 @@ license.workspace = true
 
 [dependencies]
 anyhow = { workspace = true }
+async-trait = { workspace = true }
 axum = { workspace = true }
 futures = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+uuid = { workspace = true }
 
 readiness = { path = "../readiness" }
 rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full"] }
 
+iam-application = { path = "../IAMRusty/application" }
 iam-configuration = { path = "../IAMRusty/configuration" }
+iam-domain = { path = "../IAMRusty/domain" }
 iam-http_server = { path = "../IAMRusty/http" }
 iam-setup = { path = "../IAMRusty/setup" }
 
@@ -26,13 +30,20 @@ telegraph-http_server = { path = "../Telegraph/http" }
 telegraph-setup = { path = "../Telegraph/setup" }
 
 hive-configuration = { path = "../Hive/configuration" }
+hive-domain = { path = "../Hive/domain" }
 hive-http = { path = "../Hive/http" }
 hive-setup = { path = "../Hive/setup" }
 
+manifesto-application = { path = "../Manifesto/application" }
 manifesto-configuration = { path = "../Manifesto/configuration" }
 manifesto-http_server = { path = "../Manifesto/http" }
 manifesto-setup = { path = "../Manifesto/setup" }
 
 lazaret-configuration = { path = "../Lazaret/configuration" }
+lazaret-domain = { path = "../Lazaret/domain" }
 lazaret-http = { path = "../Lazaret/http" }
 lazaret-setup = { path = "../Lazaret/setup" }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+async-trait = { workspace = true }

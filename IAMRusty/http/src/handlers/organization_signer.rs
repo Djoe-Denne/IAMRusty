@@ -5,12 +5,11 @@ use axum::{
     http::{HeaderMap, StatusCode},
     Extension, Json,
 };
-use chrono::Utc;
-use iam_domain::entity::signing_key::{
-    opaque_kid, SigningKey, SigningKeyStatus, SigningProviderType, TrustScope,
-    FORBIDDEN_TRANSIT_KEY_NAME,
+use iam_application::usecase::organization_signer::{
+    ConfigureOrganizationSignerInput, OrganizationSignerFacade, OrganizationSignerFacadeImpl,
+    OrganizationSignerResult, ISSUER_OWNED_BY_OTHER_ORGANIZATION,
+    NO_ACTIVE_ORGANIZATION_SIGNING_KEY,
 };
-use iam_domain::entity::token::Jwk;
 use iam_domain::error::DomainError;
 use iam_domain::port::repository::{IdentityRepository, SigningKeyRegistry};
 use iam_domain::port::{OrganizationSignerProbe, OrganizationSignerRotator};
@@ -24,6 +23,7 @@ use crate::rate_limit::require_internal_service_token;
 /// Runtime context for org-signer / org-identity internal routes.
 #[derive(Clone)]
 pub struct SignerRouteContext {
+    pub facade: Arc<dyn OrganizationSignerFacade>,
     pub registry: Arc<dyn SigningKeyRegistry<Error = DomainError>>,
     pub identity_repo: Arc<dyn IdentityRepository<Error = DomainError>>,
     pub public_base_url: String,
@@ -35,6 +35,42 @@ pub struct SignerRouteContext {
     pub skew_seconds: u64,
     /// Optional Transit base URL (mint / probe). Never taken from Hive body.
     pub transit_base_url: Option<String>,
+}
+
+impl SignerRouteContext {
+    /// Build context and wire the application façade from the same ports.
+    #[must_use]
+    pub fn new(
+        registry: Arc<dyn SigningKeyRegistry<Error = DomainError>>,
+        identity_repo: Arc<dyn IdentityRepository<Error = DomainError>>,
+        public_base_url: impl Into<String>,
+        probe: Arc<dyn OrganizationSignerProbe>,
+        rotator: Arc<dyn OrganizationSignerRotator>,
+        pem_root: PathBuf,
+        expiration_seconds: u64,
+        skew_seconds: u64,
+        transit_base_url: Option<String>,
+    ) -> Self {
+        let public_base_url = public_base_url.into();
+        let facade = Arc::new(OrganizationSignerFacadeImpl::new(
+            registry.clone(),
+            public_base_url.clone(),
+            probe.clone(),
+            rotator.clone(),
+        )) as Arc<dyn OrganizationSignerFacade>;
+        Self {
+            facade,
+            registry,
+            identity_repo,
+            public_base_url,
+            probe,
+            rotator,
+            pem_root,
+            expiration_seconds,
+            skew_seconds,
+            transit_base_url,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -70,78 +106,52 @@ pub struct OrganizationIdentityResponse {
     pub kind: String,
 }
 
-fn unsupported_cloud(provider_type: &str) -> bool {
-    matches!(
-        provider_type,
-        "aws_kms" | "gcp_kms" | "azure_key_vault" | "AwsKms" | "GcpKms" | "AzureKeyVault"
-    )
-}
-
-fn org_issuer(public_base_url: &str, org_slug: &str) -> String {
-    format!(
-        "{}/iam/orgs/{org_slug}",
-        public_base_url.trim_end_matches('/')
-    )
-}
-
-const MAX_PUBLIC_KEY_BYTES: usize = 16 * 1024;
-
-fn require_rsa_public_pem(public_key: &str) -> Result<(), StatusCode> {
-    if public_key.len() > MAX_PUBLIC_KEY_BYTES {
-        return Err(StatusCode::BAD_REQUEST);
-    }
-    Jwk::from_rsa_pem(public_key, "validate", "validate")
-        .map(|_| ())
-        .map_err(|_| StatusCode::BAD_REQUEST)
-}
-
-fn issuer_owned_by_other_organization(keys: &[SigningKey], org_id: Uuid) -> bool {
-    keys.iter()
-        .any(|k| k.organization_id.is_some_and(|id| id != org_id))
-}
-
-/// PEM `provider_key_ref` must be a relative path under `{org_id}/` (no `..`).
-///
-/// # Errors
-///
-/// Returns [`StatusCode::BAD_REQUEST`] when the ref is empty, absolute, contains `..`,
-/// or is not under `{org_id}/`.
-fn require_org_scoped_pem_ref(org_id: Uuid, provider_key_ref: &str) -> Result<(), StatusCode> {
-    let requested = std::path::Path::new(provider_key_ref);
-    if provider_key_ref.trim().is_empty() || requested.is_absolute() {
-        return Err(StatusCode::BAD_REQUEST);
-    }
-    if requested
-        .components()
-        .any(|c| matches!(c, std::path::Component::ParentDir))
-    {
-        return Err(StatusCode::BAD_REQUEST);
-    }
-
-    let org = org_id.to_string();
-    let mut components = requested.components();
-    let under_org = matches!(
-        components.next(),
-        Some(std::path::Component::Normal(first)) if first == org.as_str()
-    ) && components.next().is_some();
-    if !under_org {
-        return Err(StatusCode::BAD_REQUEST);
-    }
-    Ok(())
-}
-
-fn map_rotate_error(err: DomainError) -> StatusCode {
+fn map_signer_error(err: DomainError) -> StatusCode {
     match err {
+        DomainError::BusinessRuleViolation(ref message)
+            if message == ISSUER_OWNED_BY_OTHER_ORGANIZATION =>
+        {
+            StatusCode::CONFLICT
+        }
         DomainError::AuthorizationError(ref message)
-            if message.contains("no active organization signing key") =>
+            if message.contains(NO_ACTIVE_ORGANIZATION_SIGNING_KEY) =>
         {
             StatusCode::NOT_FOUND
         }
-        DomainError::AuthorizationError(_) | DomainError::ProviderNotSupported(_) => {
-            StatusCode::BAD_REQUEST
-        }
+        DomainError::AuthorizationError(_)
+        | DomainError::ProviderNotSupported(_)
+        | DomainError::BusinessRuleViolation(_)
+        | DomainError::TokenValidationFailed(_)
+        | DomainError::InvalidToken => StatusCode::BAD_REQUEST,
         DomainError::ExternalServiceError { .. } => StatusCode::BAD_GATEWAY,
+        DomainError::UserNotFound | DomainError::TokenNotFound => StatusCode::NOT_FOUND,
         _ => StatusCode::INTERNAL_SERVER_ERROR,
+    }
+}
+
+fn map_rotate_error(err: DomainError) -> StatusCode {
+    map_signer_error(err)
+}
+
+fn map_probe_error(err: DomainError) -> StatusCode {
+    match err {
+        DomainError::AuthorizationError(_)
+        | DomainError::TokenValidationFailed(_)
+        | DomainError::ProviderNotSupported(_)
+        | DomainError::BusinessRuleViolation(_) => StatusCode::BAD_REQUEST,
+        DomainError::ExternalServiceError { .. } => StatusCode::BAD_GATEWAY,
+        _ => StatusCode::BAD_GATEWAY,
+    }
+}
+
+impl From<OrganizationSignerResult> for SignerResponse {
+    fn from(value: OrganizationSignerResult) -> Self {
+        Self {
+            signing_profile_id: value.signing_profile_id,
+            kid: value.kid,
+            status: value.status,
+            issuer: value.issuer,
+        }
     }
 }
 
@@ -155,78 +165,21 @@ pub async fn configure_organization_signer(
     Json(body): Json<ConfigureSignerBody>,
 ) -> Result<Json<SignerResponse>, StatusCode> {
     require_internal_service_token(&headers)?;
-    if unsupported_cloud(&body.provider_type) {
-        return Err(StatusCode::BAD_REQUEST);
-    }
-    let provider_type: SigningProviderType = body
-        .provider_type
-        .parse()
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
-    if provider_type.is_unsupported_cloud_byokms() {
-        return Err(StatusCode::BAD_REQUEST);
-    }
-    if body.provider_key_ref == FORBIDDEN_TRANSIT_KEY_NAME {
-        return Err(StatusCode::BAD_REQUEST);
-    }
-    if provider_type == SigningProviderType::PemFile {
-        require_org_scoped_pem_ref(org_id, &body.provider_key_ref)?;
-    }
-    require_rsa_public_pem(&body.public_key)?;
-
-    let issuer = org_issuer(&ctx.public_base_url, &body.org_slug);
-    let existing = ctx
-        .registry
-        .find_by_issuer(&issuer)
+    let result = ctx
+        .facade
+        .configure(
+            org_id,
+            &ConfigureOrganizationSignerInput {
+                provider_type: body.provider_type,
+                provider_key_ref: body.provider_key_ref,
+                credential_ref: body.credential_ref,
+                public_key: body.public_key,
+                org_slug: body.org_slug,
+            },
+        )
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    if issuer_owned_by_other_organization(&existing, org_id) {
-        return Err(StatusCode::CONFLICT);
-    }
-
-    let org_keys = ctx
-        .registry
-        .find_by_organization(org_id)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    for mut previous in org_keys {
-        if previous.status.can_sign() {
-            previous.status = SigningKeyStatus::Retiring;
-            previous.updated_at = Utc::now();
-            ctx.registry
-                .update(&previous)
-                .await
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-        }
-    }
-
-    let now = Utc::now();
-    let kid = opaque_kid();
-    let key = SigningKey {
-        id: Uuid::new_v4(),
-        kid: kid.clone(),
-        algorithm: "RS256".to_string(),
-        trust_scope: TrustScope::Organization,
-        issuer: issuer.clone(),
-        provider_type,
-        provider_key_ref: body.provider_key_ref,
-        credential_ref: body.credential_ref,
-        public_key: body.public_key,
-        status: SigningKeyStatus::Active,
-        organization_id: Some(org_id),
-        created_at: now,
-        updated_at: now,
-    };
-    ctx.registry
-        .insert(&key)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    Ok(Json(SignerResponse {
-        signing_profile_id: key.id,
-        kid,
-        status: String::from(&key.status),
-        issuer,
-    }))
+        .map_err(map_signer_error)?;
+    Ok(Json(result.into()))
 }
 
 /// POST `/internal/organizations/{org_id}/signer/test`
@@ -236,31 +189,23 @@ pub async fn test_organization_signer(
     Extension(ctx): Extension<Arc<SignerRouteContext>>,
 ) -> Result<Json<SignerResponse>, StatusCode> {
     require_internal_service_token(&headers)?;
-    let keys = ctx
-        .registry
-        .find_by_organization(org_id)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let key = keys
-        .into_iter()
-        .find(|k| k.status.can_sign())
-        .ok_or(StatusCode::NOT_FOUND)?;
-    ctx.probe.challenge(&key).await.map_err(map_probe_error)?;
-    Ok(Json(SignerResponse {
-        signing_profile_id: key.id,
-        kid: key.kid,
-        status: String::from(&key.status),
-        issuer: key.issuer,
-    }))
-}
-
-fn map_probe_error(err: DomainError) -> StatusCode {
-    match err {
-        DomainError::AuthorizationError(_)
-        | DomainError::TokenValidationFailed(_)
-        | DomainError::ProviderNotSupported(_) => StatusCode::BAD_REQUEST,
-        _ => StatusCode::BAD_GATEWAY,
-    }
+    let result = ctx.facade.test(org_id).await.map_err(|e| {
+        // Preserve probe BAD_GATEWAY vs BAD_REQUEST distinction for challenge failures.
+        match &e {
+            DomainError::AuthorizationError(m)
+                if m.contains(NO_ACTIVE_ORGANIZATION_SIGNING_KEY) =>
+            {
+                StatusCode::NOT_FOUND
+            }
+            DomainError::AuthorizationError(_)
+            | DomainError::TokenValidationFailed(_)
+            | DomainError::ProviderNotSupported(_)
+            | DomainError::BusinessRuleViolation(_) => map_probe_error(e),
+            DomainError::ExternalServiceError { .. } => map_probe_error(e),
+            _ => map_signer_error(e),
+        }
+    })?;
+    Ok(Json(result.into()))
 }
 
 /// POST `/internal/organizations/{org_id}/signer/rotate`
@@ -270,13 +215,8 @@ pub async fn rotate_organization_signer(
     Extension(ctx): Extension<Arc<SignerRouteContext>>,
 ) -> Result<Json<SignerResponse>, StatusCode> {
     require_internal_service_token(&headers)?;
-    let key = ctx.rotator.rotate(org_id).await.map_err(map_rotate_error)?;
-    Ok(Json(SignerResponse {
-        signing_profile_id: key.id,
-        kid: key.kid,
-        status: String::from(&key.status),
-        issuer: key.issuer,
-    }))
+    let result = ctx.facade.rotate(org_id).await.map_err(map_rotate_error)?;
+    Ok(Json(result.into()))
 }
 
 /// POST `/internal/organizations/{org_id}/signer/disable`
@@ -286,28 +226,8 @@ pub async fn disable_organization_signer(
     Extension(ctx): Extension<Arc<SignerRouteContext>>,
 ) -> Result<Json<SignerResponse>, StatusCode> {
     require_internal_service_token(&headers)?;
-    let keys = ctx
-        .registry
-        .find_by_organization(org_id)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let mut last = None;
-    for mut key in keys {
-        key.status = SigningKeyStatus::Revoked;
-        key.updated_at = Utc::now();
-        ctx.registry
-            .update(&key)
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-        last = Some(key);
-    }
-    let key = last.ok_or(StatusCode::NOT_FOUND)?;
-    Ok(Json(SignerResponse {
-        signing_profile_id: key.id,
-        kid: key.kid,
-        status: String::from(&key.status),
-        issuer: key.issuer,
-    }))
+    let result = ctx.facade.disable(org_id).await.map_err(map_signer_error)?;
+    Ok(Json(result.into()))
 }
 
 /// POST `/internal/organizations/{org_id}/identities` — ensure org-managed identity.
@@ -345,7 +265,13 @@ pub async fn create_organization_managed_identity(
 mod tests {
     use super::*;
     use async_trait::async_trait;
+    use chrono::Utc;
+    use iam_application::usecase::organization_signer::require_org_scoped_pem_ref;
     use iam_domain::entity::identity::{Identity, IdentityKind};
+    use iam_domain::entity::signing_key::{
+        opaque_kid, SigningKey, SigningKeyStatus, SigningProviderType, TrustScope,
+        FORBIDDEN_TRANSIT_KEY_NAME,
+    };
     use iam_domain::entity::token::JwkSet;
     use std::collections::HashMap;
     use std::sync::Mutex;
@@ -367,6 +293,24 @@ mod tests {
             created_at: now,
             updated_at: now,
         }
+    }
+
+    fn test_signer_ctx(
+        registry: Arc<FakeRegistry>,
+        identity_repo: Arc<FakeIdentityRepo>,
+        rotator: Arc<dyn OrganizationSignerRotator>,
+    ) -> Arc<SignerRouteContext> {
+        Arc::new(SignerRouteContext::new(
+            registry,
+            identity_repo,
+            "http://127.0.0.1",
+            Arc::new(NoopProbe),
+            rotator,
+            std::env::temp_dir(),
+            900,
+            60,
+            None,
+        ))
     }
 
     #[derive(Default)]
@@ -564,34 +508,63 @@ mod tests {
         headers
     }
 
-    #[test]
-    fn reject_invalid_rsa_public_pem() {
-        assert_eq!(
-            require_rsa_public_pem("not-a-pem"),
-            Err(StatusCode::BAD_REQUEST)
+    #[tokio::test]
+    async fn reject_invalid_rsa_public_pem_via_configure() {
+        let org_id = Uuid::new_v4();
+        let registry = Arc::new(FakeRegistry::default());
+        let ctx = test_signer_ctx(
+            registry,
+            Arc::new(FakeIdentityRepo::default()),
+            Arc::new(StubRotator {
+                registry: Arc::new(FakeRegistry::default()),
+                next_public_key: "x".into(),
+            }),
         );
+        let err = configure_organization_signer(
+            internal_headers(),
+            Path(org_id),
+            Extension(ctx),
+            Json(ConfigureSignerBody {
+                provider_type: "pem_file".into(),
+                provider_key_ref: format!("{org_id}/kid.pem"),
+                credential_ref: None,
+                public_key: "not-a-pem".into(),
+                org_slug: "acme".into(),
+            }),
+        )
+        .await
+        .expect_err("bad pem");
+        assert_eq!(err, StatusCode::BAD_REQUEST);
     }
 
-    #[test]
-    fn reject_oversized_rsa_public_pem() {
-        let oversized = "x".repeat(MAX_PUBLIC_KEY_BYTES + 1);
-        assert_eq!(
-            require_rsa_public_pem(&oversized),
-            Err(StatusCode::BAD_REQUEST)
+    #[tokio::test]
+    async fn reject_oversized_rsa_public_pem_via_configure() {
+        let org_id = Uuid::new_v4();
+        let registry = Arc::new(FakeRegistry::default());
+        let ctx = test_signer_ctx(
+            registry,
+            Arc::new(FakeIdentityRepo::default()),
+            Arc::new(StubRotator {
+                registry: Arc::new(FakeRegistry::default()),
+                next_public_key: "x".into(),
+            }),
         );
-    }
-
-    #[test]
-    fn issuer_conflict_when_another_org_owns_it() {
-        let owner = Uuid::new_v4();
-        let other = Uuid::new_v4();
-        let keys = vec![sample_org_key(
-            owner,
-            "http://127.0.0.1/iam/orgs/acme",
-            "unused",
-        )];
-        assert!(issuer_owned_by_other_organization(&keys, other));
-        assert!(!issuer_owned_by_other_organization(&keys, owner));
+        let oversized = "x".repeat(16 * 1024 + 1);
+        let err = configure_organization_signer(
+            internal_headers(),
+            Path(org_id),
+            Extension(ctx),
+            Json(ConfigureSignerBody {
+                provider_type: "pem_file".into(),
+                provider_key_ref: format!("{org_id}/kid.pem"),
+                credential_ref: None,
+                public_key: oversized,
+                org_slug: "acme".into(),
+            }),
+        )
+        .await
+        .expect_err("oversized pem");
+        assert_eq!(err, StatusCode::BAD_REQUEST);
     }
 
     #[test]
@@ -614,17 +587,11 @@ mod tests {
             registry: registry.clone(),
             next_public_key: new_pub.to_string(),
         });
-        let ctx = Arc::new(SignerRouteContext {
-            registry: registry.clone(),
-            identity_repo: Arc::new(FakeIdentityRepo::default()),
-            public_base_url: "http://127.0.0.1".into(),
-            probe: Arc::new(NoopProbe),
+        let ctx = test_signer_ctx(
+            registry.clone(),
+            Arc::new(FakeIdentityRepo::default()),
             rotator,
-            pem_root: std::env::temp_dir(),
-            expiration_seconds: 900,
-            skew_seconds: 60,
-            transit_base_url: None,
-        });
+        );
 
         let response = rotate_organization_signer(internal_headers(), Path(org_id), Extension(ctx))
             .await
@@ -645,20 +612,14 @@ mod tests {
     async fn create_org_identity_requires_active_key() {
         let org_id = Uuid::new_v4();
         let registry = Arc::new(FakeRegistry::default());
-        let ctx = Arc::new(SignerRouteContext {
-            registry: registry.clone(),
-            identity_repo: Arc::new(FakeIdentityRepo::default()),
-            public_base_url: "http://127.0.0.1".into(),
-            probe: Arc::new(NoopProbe),
-            rotator: Arc::new(StubRotator {
-                registry: registry.clone(),
+        let ctx = test_signer_ctx(
+            registry.clone(),
+            Arc::new(FakeIdentityRepo::default()),
+            Arc::new(StubRotator {
+                registry,
                 next_public_key: "x".into(),
             }),
-            pem_root: std::env::temp_dir(),
-            expiration_seconds: 900,
-            skew_seconds: 60,
-            transit_base_url: None,
-        });
+        );
         let err = create_organization_managed_identity(
             internal_headers(),
             Path(org_id),
@@ -713,20 +674,14 @@ mod tests {
         let active = sample_org_key(org_id, "http://127.0.0.1/iam/orgs/acme", pub_pem);
         registry.insert(&active).await.unwrap();
         let identities = Arc::new(FakeIdentityRepo::default());
-        let ctx = Arc::new(SignerRouteContext {
-            registry: registry.clone(),
-            identity_repo: identities.clone(),
-            public_base_url: "http://127.0.0.1".into(),
-            probe: Arc::new(NoopProbe),
-            rotator: Arc::new(StubRotator {
+        let ctx = test_signer_ctx(
+            registry.clone(),
+            identities.clone(),
+            Arc::new(StubRotator {
                 registry,
                 next_public_key: "x".into(),
             }),
-            pem_root: std::env::temp_dir(),
-            expiration_seconds: 900,
-            skew_seconds: 60,
-            transit_base_url: None,
-        });
+        );
         let user = Uuid::new_v4();
         let first = create_organization_managed_identity(
             internal_headers(),
@@ -781,22 +736,10 @@ mod tests {
     fn configure_pem_ref_must_stay_under_org_subtree() {
         let org_id = Uuid::new_v4();
         let other = Uuid::new_v4();
-        assert_eq!(
-            require_org_scoped_pem_ref(org_id, "test-platform.pem"),
-            Err(StatusCode::BAD_REQUEST)
-        );
-        assert_eq!(
-            require_org_scoped_pem_ref(org_id, &format!("{other}/kid.pem")),
-            Err(StatusCode::BAD_REQUEST)
-        );
-        assert_eq!(
-            require_org_scoped_pem_ref(org_id, "../test-platform.pem"),
-            Err(StatusCode::BAD_REQUEST)
-        );
-        assert_eq!(
-            require_org_scoped_pem_ref(org_id, &format!("{org_id}/kid.pem")),
-            Ok(())
-        );
+        assert!(require_org_scoped_pem_ref(org_id, "test-platform.pem").is_err());
+        assert!(require_org_scoped_pem_ref(org_id, &format!("{other}/kid.pem")).is_err());
+        assert!(require_org_scoped_pem_ref(org_id, "../test-platform.pem").is_err());
+        assert!(require_org_scoped_pem_ref(org_id, &format!("{org_id}/kid.pem")).is_ok());
     }
 
     #[tokio::test]
@@ -805,20 +748,14 @@ mod tests {
         let other = Uuid::new_v4();
         let pub_pem = include_str!("../../../config/keys/test-platform.pub");
         let registry = Arc::new(FakeRegistry::default());
-        let ctx = Arc::new(SignerRouteContext {
-            registry: registry.clone(),
-            identity_repo: Arc::new(FakeIdentityRepo::default()),
-            public_base_url: "http://127.0.0.1".into(),
-            probe: Arc::new(NoopProbe),
-            rotator: Arc::new(StubRotator {
+        let ctx = test_signer_ctx(
+            registry.clone(),
+            Arc::new(FakeIdentityRepo::default()),
+            Arc::new(StubRotator {
                 registry,
                 next_public_key: "x".into(),
             }),
-            pem_root: std::env::temp_dir(),
-            expiration_seconds: 900,
-            skew_seconds: 60,
-            transit_base_url: None,
-        });
+        );
 
         let platform = configure_organization_signer(
             internal_headers(),
@@ -875,20 +812,14 @@ mod tests {
         let other = Uuid::new_v4();
         let pub_pem = include_str!("../../../config/keys/test-platform.pub");
         let registry = Arc::new(FakeRegistry::default());
-        let ctx = Arc::new(SignerRouteContext {
-            registry: registry.clone(),
-            identity_repo: Arc::new(FakeIdentityRepo::default()),
-            public_base_url: "http://127.0.0.1".into(),
-            probe: Arc::new(NoopProbe),
-            rotator: Arc::new(StubRotator {
+        let ctx = test_signer_ctx(
+            registry.clone(),
+            Arc::new(FakeIdentityRepo::default()),
+            Arc::new(StubRotator {
                 registry: registry.clone(),
                 next_public_key: "x".into(),
             }),
-            pem_root: std::env::temp_dir(),
-            expiration_seconds: 900,
-            skew_seconds: 60,
-            transit_base_url: None,
-        });
+        );
 
         let err = configure_organization_signer(
             internal_headers(),
@@ -913,20 +844,14 @@ mod tests {
         let org_id = Uuid::new_v4();
         let pub_pem = include_str!("../../../config/keys/test-platform.pub");
         let registry = Arc::new(FakeRegistry::default());
-        let ctx = Arc::new(SignerRouteContext {
-            registry: registry.clone(),
-            identity_repo: Arc::new(FakeIdentityRepo::default()),
-            public_base_url: "http://127.0.0.1".into(),
-            probe: Arc::new(NoopProbe),
-            rotator: Arc::new(StubRotator {
+        let ctx = test_signer_ctx(
+            registry.clone(),
+            Arc::new(FakeIdentityRepo::default()),
+            Arc::new(StubRotator {
                 registry,
                 next_public_key: "x".into(),
             }),
-            pem_root: std::env::temp_dir(),
-            expiration_seconds: 900,
-            skew_seconds: 60,
-            transit_base_url: None,
-        });
+        );
 
         let err = configure_organization_signer(
             internal_headers(),

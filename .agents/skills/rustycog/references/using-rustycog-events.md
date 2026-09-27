@@ -15,6 +15,7 @@ Use this guide when integrating `rustycog-events` in service setup.
 - Assuming queue setup failure always stops startup; factories can degrade to no-op mode.
 - Mixing transport-specific event naming conventions without a shared event-type contract.
 - Treating multi-queue publisher helpers as fully isolated per-queue publishers. ^[ambiguous]
+- Putting domain-event publishers in `*OutboundOverrides` (ADR 0104). Events stay on the outbox + `QueueConfig` seam; the monolith does not inject an in-process event bus. See [outbound-overrides.md](outbound-overrides.md).
 
 ## Source files
 

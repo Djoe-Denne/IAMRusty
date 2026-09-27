@@ -4,14 +4,13 @@ title: >-
 category: navigation
 tags: [index, navigation, wiki]
 summary: >-
-  Index wiki AIForAll : P2 Implemented, Lazaret P3 Implemented (A-DEC),
-  ADR-0008 Accepted / Partial, IAM-IdP 0407–0410 Accepted / Implemented, cloud 0600–0602
-  Proposed. P4-core operator T2–T12.
+  Index wiki AIForAll au 27 sept. 2026 : P4 Kind V1 Implemented, IAM-IdP
+  0407–0411 Implemented, JWT 0304 Partial, gold path 0605 livré en réalité.
 provenance:
   extracted: 0.75
   inferred: 0.23
   ambiguous: 0.02
-updated: 2026-09-22T12:49:00Z
+updated: 2026-09-27T09:20:00Z
 sources:
   - "C:/Users/djden/.codex/attachments/486d0052-5759-4277-bcc1-9f209ce353d4/pasted-text.txt"
   - docs/adr/README.md
@@ -50,8 +49,8 @@ Central entry point for this vault. Use the area indexes for full catalogs; use 
 
 ## Architecture — ADR
 
-- [[projects/aiforall/decisions/index]] — vague 2 rétroactive (0100–0502) : hexagone, tests, events, services, plateforme.
-- [[projects/manifesto/decisions/index]] — vague 1 Apparatus 0001–0008 Accepted ; P2 Implemented ; 0007 Implemented ; 0008 Partial.
+- [[projects/aiforall/decisions/index]] — vague 2 rétroactive (0100–0502) plus JWT 0304–0309 et cloud 0600–0605.
+- [[projects/manifesto/decisions/index]] — Apparatus 0001–0008 Accepted ; 0002–0008 Implemented sauf 0001 Partial ; gates 0009–0011 Proposed.
 - Atlas visuel du dépôt (Mermaid, canon code) : `docs/architecture/README.md` — le wiki reste la couche conception.
 
 ## Fonctionnalité — Apparatus
@@ -61,20 +60,24 @@ Central entry point for this vault. Use the area indexes for full catalogs; use 
 - [[projects/manifesto/concepts/apparatus-p2-reconciliation]] — ticker in-process **Implemented**.
 - [[projects/lazaret/lazaret]] — frontière P3 Implemented (T1–T14b ; A-DEC 2026-09-20).
 - [[projects/aiforall/concepts/https-platform-mesh]] — T14b HTTPS Hive–IAM–Telegraph, dual-bind, CA mesh ≠ CA Lazaret.
-- [[projects/manifesto/concepts/apparatus-platform]] — vision ; Factory/host encore absents. Alias [[entities/paravretius]]. Moteur P4 : [[projects/manifesto/decisions/0008-apparatus-p4-k8s]] (Accepted / Partial). Crate : [[projects/manifesto/concepts/apparatus-p4-operator]].
+- [[projects/manifesto/concepts/apparatus-platform]] — vision ; Factory/host encore absents. Alias [[entities/paravretius]]. Moteur P4 : [[projects/manifesto/decisions/0008-apparatus-p4-k8s]] (Accepted / Implemented). Gates : [[projects/manifesto/decisions/0009-0011-gates-preprod]]. Crate : [[projects/manifesto/concepts/apparatus-p4-operator]].
 - [[projects/manifesto/references/apparatus-implementation-plan]] — phases et preuves P0–P3.
 
 ## Recent Additions
 
-- [[journal/2026-09-22]] — P4-core T2–T12 ; pull zot IfNotPresent ; gel IAM.
+- [[journal/2026-09-27]] — delta 22–27 sept. : Connect IdP, gold path, JWT 0304–0309.
+- [[projects/aiforall/decisions/0304-access-jwt-trust]] — RS256 / JWKS / signer org. 0304 Partial, 0306 Implemented.
+- [[projects/aiforall/decisions/0605-gold-path-kind]] — HTTP 200 Kind, Proposed / Réalité Implemented.
+- [[projects/manifesto/decisions/0009-0011-gates-preprod]] — scale, CA, pod par binding : Proposed / Unimplemented.
+- [[journal/2026-09-22]] — P4-core T2–T12 ; A-DEC 0008 Implemented.
 - [[projects/manifesto/concepts/apparatus-p4-operator]] — crate `apparatus-operator`.
 - [[projects/aiforall/skills/running-apparatus-p4-tests]] — Docker + Kind `--test-threads=1`.
-- [[projects/iamrusty/decisions/index]] — 0407–0410 Accepted / Implemented.
+- [[projects/iamrusty/decisions/index]] — 0407–0411 Accepted / Implemented (crates Connect en HEAD).
 - [[projects/aiforall/decisions/0602-observabilite-portable]] — OTLP Proposed, pas implémenté.
-- [[projects/manifesto/decisions/0008-apparatus-p4-k8s]] — ADR-0008 Accepted / Partial.
+- [[projects/manifesto/decisions/0008-apparatus-p4-k8s]] — ADR-0008 Accepted / Implemented (Kind V1).
 - [[projects/manifesto/references/0007-closeout]] — A-DEC inventaire ; APP-05 reste ouvert.
 - [[projects/manifesto/references/0008-app01-reconciliation]] — méthode RATIFIÉE, pas canon.
-- [[projects/manifesto/references/apparatus-p4-implementation-prompt]] — contrat TDD P4 (P4-core livré, 0008 Partial).
+- [[projects/manifesto/references/apparatus-p4-implementation-prompt]] — contrat TDD P4 historique ; 0008 depuis Implemented (A-DEC).
 - [[journal/2026-09-20]] — HEAD `a27ea5b` : T11b–T14b + SQS ; ingest 0008 / closeout.
 - [[projects/aiforall/concepts/https-platform-mesh]] — mesh HTTPS T14b (Hive 8443, IAM 8444, Telegraph 8445).
 - [[journal/2026-09-18]] — HEAD `9e85edd` : T8 `kv_purge` `f0cf1d2`, T10 enrollment `9e85edd`, flake CI SQS LocalStack.

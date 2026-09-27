@@ -12,7 +12,7 @@ summary: >-
   deploy/ + cloud/opentofu/ ; preuve Apparatus↔Lazaret en manifests ;
   pas GKE, pas 0602. Lazaret ≠ Factory. Ne SuperSède pas 0600/0601/0008.
 created: 2026-09-25T10:51:00Z
-updated: 2026-09-25T10:51:00Z
+updated: 2026-09-27T09:20:00Z
 provenance:
   extracted: 0.92
   inferred: 0.06
@@ -25,4 +25,4 @@ Canon : `docs/adr/0603-tranche-locale-deploy-kind-apparatus-lazaret.md`. Hub : [
 
 ## Statut : Proposed (2026-09-25)
 
-Réalité **Partial** : `just deploy-m1` / `deploy-m2` / `deploy-m3`. Scaffolding A+B autorisé sans Accept GKE. Ne SuperSède **pas** 0600, 0601, ni 0008. Lazaret = gateway P3 ; Factory = P5/P6 non livré.
+Réalité **Partial** : `just deploy-m1` / `deploy-m2` / `deploy-m3`, arbres `deploy/` et `cloud/opentofu/`. Pas GKE, pas Flux live, pas 0602. Scaffolding A+B autorisé sans Accept GKE. Ne SuperSède **pas** 0600, 0601, ni 0008. Suite locale : [[projects/aiforall/decisions/0604-j3-overlay-demo-monolith]] et [[projects/aiforall/decisions/0605-gold-path-kind]] (Réalité Implemented, Statut Proposed). Lazaret = gateway P3 ; Factory = P5/P6 non livré.

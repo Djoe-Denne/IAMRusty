@@ -15,7 +15,7 @@ use lazaret_configuration::{load_config, ConnectorEntry};
 use lazaret_domain::{
     BindingGrantSnapshot, CapabilityConsent, PrincipalMembership, WorkloadIdentity,
 };
-use lazaret_setup::Application;
+use lazaret_setup::{Application, LazaretOutboundOverrides};
 use rcgen::{CertificateParams, KeyPair};
 use rustycog::testing::{ServiceTestDescriptor, TestFixture};
 use serial_test::serial;
@@ -94,7 +94,9 @@ async fn boot(
     let mut config = load_config().expect("config");
     config.manifesto_service.base_url = manifesto_url;
     config.connectors = connectors;
-    let app = Application::new(config).await.expect("app");
+    let app = Application::new(config, LazaretOutboundOverrides::default())
+        .await
+        .expect("app");
     (fixture, app)
 }
 

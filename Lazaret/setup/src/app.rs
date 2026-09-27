@@ -28,6 +28,13 @@ use rustycog::http::{AppState, UserIdExtractor};
 use rustycog::permission::{InMemoryPermissionChecker, PermissionChecker};
 use sea_orm::DatabaseConnection;
 
+/// Host-injected outbound adapters for Lazaret (ADR-0104). `Default` = HTTP clients.
+#[derive(Clone, Default)]
+pub struct LazaretOutboundOverrides {
+    /// Manifesto binding-grant snapshots. `None` → HTTP.
+    pub binding_grant_snapshots: Option<Arc<dyn BindingGrantSnapshotPort>>,
+}
+
 /// Application context for standalone and monolith embedding.
 pub struct Application {
     /// Loaded configuration.
@@ -50,8 +57,12 @@ impl Application {
     /// # Errors
     ///
     /// Returns an error if database, auth, identity, KV, or queue setup fails.
-    pub async fn new(config: AppConfig) -> Result<Self, Error> {
+    pub async fn new(
+        config: AppConfig,
+        overrides: LazaretOutboundOverrides,
+    ) -> Result<Self, Error> {
         tracing::info!("Initializing Lazaret application...");
+        let injected_snapshots = overrides.binding_grant_snapshots;
 
         let db = DbConnectionPool::new(&config.database).await?;
         let db_write = db.get_write_connection();
@@ -68,10 +79,7 @@ impl Application {
             Arc::new(InMemoryPermissionChecker::new());
 
         let state = AppState::new(command_service, user_id_extractor, permission_checker);
-        let snapshots: Arc<dyn BindingGrantSnapshotPort> = Arc::new(
-            HttpBindingGrantClient::from_config(&config.manifesto_service)
-                .map_err(|e| anyhow::anyhow!("Invalid Manifesto service configuration: {e}"))?,
-        );
+        let (snapshots, _) = resolve_binding_grant_snapshots(&config, injected_snapshots)?;
         let (identity, ca) =
             build_identity_service(&config.identity, snapshots.clone(), kv_conn.clone())
                 .map_err(|e| anyhow::anyhow!("Invalid identity configuration: {e}"))?;
@@ -187,16 +195,60 @@ impl Application {
     }
 }
 
+/// Resolve Manifesto binding-grant snapshots (ADR-0104).
+///
+/// Without injection → HTTP adapter. With setter → injected capability (InProcess).
+///
+/// Returns `(client, used_injected)` so unit tests can prove the transport choice.
+pub(crate) fn resolve_binding_grant_snapshots(
+    config: &AppConfig,
+    injected: Option<Arc<dyn BindingGrantSnapshotPort>>,
+) -> Result<(Arc<dyn BindingGrantSnapshotPort>, bool), Error> {
+    if let Some(snapshots) = injected {
+        return Ok((snapshots, true));
+    }
+    let http = Arc::new(
+        HttpBindingGrantClient::from_config(&config.manifesto_service)
+            .map_err(|e| anyhow::anyhow!("Invalid Manifesto service configuration: {e}"))?,
+    ) as Arc<dyn BindingGrantSnapshotPort>;
+    Ok((http, false))
+}
+
 /// Application builder for Lazaret.
 pub struct AppBuilder {
     config: AppConfig,
+    overrides: LazaretOutboundOverrides,
 }
 
 impl AppBuilder {
-    /// Create a new app builder.
+    /// Create a new app builder (default outbound transport = HTTP).
     #[must_use]
     pub const fn new(config: AppConfig) -> Self {
-        Self { config }
+        Self {
+            config,
+            overrides: LazaretOutboundOverrides {
+                binding_grant_snapshots: None,
+            },
+        }
+    }
+
+    /// Replace the outbound-overrides bag (monolith host API, ADR-0104).
+    #[must_use]
+    pub fn with_outbound(mut self, bag: LazaretOutboundOverrides) -> Self {
+        self.overrides = bag;
+        self
+    }
+
+    /// Inject an InProcess (or test) binding-grant snapshot port.
+    ///
+    /// Sugar over [`Self::with_outbound`]: writes `binding_grant_snapshots`.
+    #[must_use]
+    pub fn with_binding_grant_snapshots(
+        mut self,
+        snapshots: Arc<dyn BindingGrantSnapshotPort>,
+    ) -> Self {
+        self.overrides.binding_grant_snapshots = Some(snapshots);
+        self
     }
 
     /// Build the application.
@@ -205,7 +257,7 @@ impl AppBuilder {
     ///
     /// Returns an error if application initialization fails.
     pub async fn build(self) -> Result<Application, anyhow::Error> {
-        Application::new(self.config).await
+        Application::new(self.config, self.overrides).await
     }
 }
 
@@ -394,4 +446,57 @@ async fn run_http_with_background(
     let _ = background_handle.await;
     let _ = server_handle.await;
     shutdown_result
+}
+
+#[cfg(test)]
+mod resolve_binding_grant_tests {
+    use super::*;
+    use async_trait::async_trait;
+    use lazaret_domain::{BindingGrantSnapshot, GrantFetchError};
+    use uuid::Uuid;
+
+    struct CapturingGrantPort;
+
+    #[async_trait]
+    impl BindingGrantSnapshotPort for CapturingGrantPort {
+        async fn fetch(
+            &self,
+            _project_id: Uuid,
+            _component_id: Uuid,
+            _principal: Option<Uuid>,
+        ) -> Result<BindingGrantSnapshot, GrantFetchError> {
+            unreachable!("resolver test must not call fetch")
+        }
+    }
+
+    fn minimal_config() -> AppConfig {
+        AppConfig::default()
+    }
+
+    #[test]
+    fn without_injection_builds_http_client() {
+        let config = minimal_config();
+        let (client, used_injected) =
+            resolve_binding_grant_snapshots(&config, None).expect("http client builds");
+        assert!(!used_injected, "default transport must be HTTP");
+        let injected: Arc<dyn BindingGrantSnapshotPort> = Arc::new(CapturingGrantPort);
+        let (resolved, injected_flag) =
+            resolve_binding_grant_snapshots(&config, Some(injected.clone())).expect("inject");
+        assert!(injected_flag);
+        assert!(Arc::ptr_eq(&resolved, &injected));
+        assert!(!Arc::ptr_eq(&client, &resolved));
+    }
+
+    #[test]
+    fn with_injection_uses_provided_client_not_http() {
+        let config = minimal_config();
+        let injected: Arc<dyn BindingGrantSnapshotPort> = Arc::new(CapturingGrantPort);
+        let (resolved, used_injected) =
+            resolve_binding_grant_snapshots(&config, Some(injected.clone())).expect("inject");
+        assert!(used_injected);
+        assert!(
+            Arc::ptr_eq(&resolved, &injected),
+            "injected client must be the one threaded into the bundle"
+        );
+    }
 }

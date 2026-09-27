@@ -119,6 +119,17 @@ impl IAMRustyApp {
         self.app_state.clone()
     }
 
+    /// Organization-signer application façade (ADR-0306 InProcess injection).
+    ///
+    /// Present when JWT/signing registry was wired at build time. Callers in the
+    /// monolith composition root must fail-closed if this returns [`None`].
+    #[must_use]
+    pub fn organization_signer(
+        &self,
+    ) -> Option<Arc<dyn iam_application::usecase::OrganizationSignerFacade>> {
+        self.signer.as_ref().map(|ctx| ctx.facade.clone())
+    }
+
     #[must_use]
     pub fn start_background_tasks(&self) -> Vec<tokio::task::JoinHandle<anyhow::Result<()>>> {
         let dispatcher = self.outbox_dispatcher.clone();
@@ -722,19 +733,19 @@ async fn setup_jwt(
         pem_root: pem_root.clone(),
         transit: transit.clone(),
     }));
-    let signer_ctx = Some(Arc::new(SignerRouteContext {
-        registry: registry.clone()
+    let signer_ctx = Some(Arc::new(SignerRouteContext::new(
+        registry.clone()
             as Arc<dyn iam_domain::port::repository::SigningKeyRegistry<Error = DomainError>>,
-        identity_repo: identity_repo
+        identity_repo
             as Arc<dyn iam_domain::port::repository::IdentityRepository<Error = DomainError>>,
-        public_base_url: config.jwt.public_base_url.clone(),
-        probe: Arc::new(probe),
-        rotator: rotator as Arc<dyn iam_domain::port::OrganizationSignerRotator>,
+        config.jwt.public_base_url.clone(),
+        Arc::new(probe),
+        rotator as Arc<dyn iam_domain::port::OrganizationSignerRotator>,
         pem_root,
-        expiration_seconds: config.jwt.expiration_seconds,
-        skew_seconds: JWKS_RETIRE_SKEW_SECONDS as u64,
-        transit_base_url: transit.map(|t| t.base_url),
-    }));
+        config.jwt.expiration_seconds,
+        JWKS_RETIRE_SKEW_SECONDS as u64,
+        transit.map(|t| t.base_url),
+    )));
 
     let (jwt_algorithm, signing_bits) = match jwt_algorithm_config {
         iam_configuration::JwtAlgorithm::HS256(secret) => {

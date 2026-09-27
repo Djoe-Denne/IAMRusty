@@ -9,15 +9,14 @@ sources:
   - docs/apparatus-p4-core-implementation-prompt.md
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/d5c0a4f7-e945-4de1-aa1c-8fa771ba9733/d5c0a4f7-e945-4de1-aa1c-8fa771ba9733.jsonl
 summary: >-
-  Contrat TDD P4 : APP-01 tranché, ADR-0008 Accepted / Partial.
-  P4-core T2–T12 livré dans apparatus-operator. T1 absence déjà là.
-  Pas Implemented (Transit-dev, Adm-B).
+  Prompt TDD P4 historique. P4-core livré. ADR-0008 est Implemented
+  depuis l’A-DEC du 22 sept. Dette TCB / Adm-B documentée, pas un statut Partial.
 provenance:
   extracted: 0.90
   inferred: 0.08
   ambiguous: 0.02
 created: 2026-09-20T15:55:00Z
-updated: 2026-09-22T10:00:00Z
+updated: 2026-09-27T09:20:00Z
 ---
 
 # Prompt d’implémentation Apparatus P4
@@ -26,10 +25,10 @@ Source : `docs/apparatus-p4-implementation-prompt.md` et `docs/apparatus-p4-core
 
 ## État
 
-- **APP-01 tranché.** ADR-0008 **Accepted** / Réalité **Partial**.
+- **APP-01 tranché.** ADR-0008 **Accepted** / Réalité **Implemented** (A-DEC 2026-09-22). La consigne « ne pas flipper » du lot est close. Dette restante : D-TRANSIT-TCB, D-ADMB, D-PROD — pas un retour à Partial.
 - Phase 0 **faite**. T1 absence (`Manifesto/tests/apparatus_p4_t1_absence.rs`) **déjà livrée** — ne pas relivrer.
-- T2–T12 **P4-core livrés** dans [[projects/manifesto/concepts/apparatus-p4-operator]] (2026-09-21/22). Ne pas flipper 0008 en Implemented.
-- Slice-1 laisse 0002 / 0003 / 0005 **Partial**. Interdit SuperSède 0003/0005.
+- T2–T12 **P4-core livrés** dans [[projects/manifesto/concepts/apparatus-p4-operator]] (2026-09-21/22).
+- 0002 / 0003 / 0005 sont **Implemented** depuis le même A-DEC. Interdit SuperSède 0003/0005. Gates suivantes : [[projects/manifesto/decisions/0009-0011-gates-preprod]].
 
 ## Gel A-DEC (ne pas rouvrir)
 

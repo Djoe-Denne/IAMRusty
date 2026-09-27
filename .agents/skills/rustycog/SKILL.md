@@ -1,6 +1,6 @@
 ---
 name: rustycog
-description: Workflows and pitfalls for building Rust microservices and modular-monolith-compatible services on the RustyCog platform — covers scaffolding services in the Manifesto style and the per-crate usage of rustycog-core, rustycog-config, rustycog-db, rustycog-command, rustycog-events, rustycog-http, rustycog-permission, rustycog-testing, and rustycog-logger. Use when scaffolding a RustyCog/Manifesto service, wiring AppState, RouteBuilder, DbConnectionPool, CommandRegistry, PermissionChecker, QueueConfig, DomainEvent, service route prefixes, `create_router`, `serve_router`, or monolith-compatible setup/background-task APIs, or when the user mentions any rustycog-* crate, hexagonal Rust services, the Manifesto template, or RustyCog setup/composition root work.
+description: Workflows and pitfalls for building Rust microservices and modular-monolith-compatible services on the RustyCog platform — covers scaffolding services in the Manifesto style and the per-crate usage of rustycog-core, rustycog-config, rustycog-db, rustycog-command, rustycog-events, rustycog-http, rustycog-permission, rustycog-testing, and rustycog-logger. Use when scaffolding a RustyCog/Manifesto service, wiring AppState, RouteBuilder, DbConnectionPool, CommandRegistry, PermissionChecker, QueueConfig, DomainEvent, `*OutboundOverrides`, `AppBuilder::with_outbound`, monolith InProcess outbound bridges, ADR 0104, service route prefixes, `create_router`, `serve_router`, or monolith-compatible setup/background-task APIs, or when the user mentions any rustycog-* crate, hexagonal Rust services, the Manifesto template, or RustyCog setup/composition root work.
 ---
 
 # RustyCog
@@ -15,6 +15,7 @@ Trigger this skill when the user is:
 - Adding or changing wiring for any `rustycog-*` crate.
 - Touching `AppState`, `RouteBuilder`, `create_router`, `serve_router`, `SERVICE_PREFIX`, `DbConnectionPool`, `CommandRegistryBuilder`, `PermissionChecker`, `OpenFgaClientConfig`, `setup_logging`, `QueueConfig`, or `DomainEvent`.
 - Making a service work in both standalone microservice mode and the `oodhive-monolith` modular monolith.
+- Adding a cross-hexagon outbound port (`*OutboundOverrides`, InProcess vs HTTP, ADR 0104).
 - Debugging a RustyCog setup pitfall (config prefix surprises, `max_attempts = 0` disabling retries, missing OpenFGA type, etc.).
 
 ## Dispatch table
@@ -30,6 +31,7 @@ Pick the smallest set of references that match the task. Load each only when nee
 | `DbConnectionPool`, read/write split, replica fallback | [references/using-rustycog-db.md](references/using-rustycog-db.md) |
 | Defining `Command`/`CommandHandler`, registry, retry policy | [references/using-rustycog-command.md](references/using-rustycog-command.md) |
 | Domain events, publishers/consumers, multi-queue setup | [references/using-rustycog-events.md](references/using-rustycog-events.md) |
+| Cross-hexagon outbound HTTP vs InProcess (`*OutboundOverrides`, `with_outbound`, monolith bridges, ADR 0104) | [references/outbound-overrides.md](references/outbound-overrides.md) |
 | `RouteBuilder`, auth modes, middleware composition | [references/using-rustycog-http.md](references/using-rustycog-http.md) |
 | `PermissionChecker`, OpenFGA-backed guards, with_permission_on | [references/using-rustycog-permission.md](references/using-rustycog-permission.md) |
 | Integration tests, `setup_test_server`, prefixed URLs, Kafka/SQS, real `TestOpenFga` | [references/using-rustycog-testing.md](references/using-rustycog-testing.md) |
@@ -52,6 +54,7 @@ These hold across every RustyCog crate and override anything that contradicts th
 - **Object type must exist in `openfga/model.fga`.** Typos fail closed with 403 plus a logged OpenFGA error.
 - **Standalone and monolith paths share one prefix contract.** Each HTTP crate should expose `SERVICE_PREFIX`, `create_router(state)` for embedding, and `create_prefixed_router(state)` for standalone serving; integration test helpers should return base URLs already ending in the service prefix.
 - **The monolith composes setup outputs, not service `run()` methods.** Build each service through setup, extract routers, start only background tasks, and serve one composed top-level router.
+- **Outbound RPC overrides are a typed bag, not DI.** Cross-hexagon outbound ports live on the consumer setup’s `*OutboundOverrides` (`Default` = HTTP). Only `oodhive-monolith` injects InProcess bridges. Domain events are a different seam (outbox + `QueueConfig`). See [references/outbound-overrides.md](references/outbound-overrides.md) and ADR 0104.
 - **`OpenFgaClientConfig.cache_ttl_seconds = Some(0)` is the test-config opt-out for `CachedPermissionChecker`.** The composition root must honor it (skip the cache decoration entirely when 0); otherwise grant-then-revoke flows in tests serve a stale allow.
 - **`max_attempts = 0` disables retries.** It does not mean "default" or "infinite" — set it intentionally.
 - **`setup_logging` is a global singleton.** Call it exactly once, early, and never alongside hand-rolled `tracing_subscriber` setup.
@@ -65,7 +68,7 @@ If the task is "build a new RustyCog service from scratch", follow this order re
 1. Read [references/building-rustycog-services.md](references/building-rustycog-services.md) first — it sets the vertical-slice shape. Then `.agents/skills/aiforall-new-service/SKILL.md` for compose / OpenFGA / sentinel-sync / monolith.
 2. Decide `rustycog-meta` umbrella vs individual `rustycog-*` crates and lock that into the workspace `Cargo.toml`.
 3. Write the typed config struct (see `using-rustycog-config`), include `[auth.jwt]`, and decide explicitly between `setup_logging` and hand-rolled tracing.
-4. Build the composition root: `DbConnectionPool` → repositories → command registry → `AppState`.
+4. Build the composition root: `DbConnectionPool` → repositories → command registry → `AppState`. Cross-hexagon outbound ports: typed `*OutboundOverrides` bag ([outbound-overrides.md](references/outbound-overrides.md)), not DI.
 5. Compose routes through `RouteBuilder`, expose `create_router`/`create_prefixed_router`, and add permissions only on routes that need them.
 6. Add integration tests with service-prefixed `setup_test_server` base URLs before adding Kafka/SQS-backed checks.
 

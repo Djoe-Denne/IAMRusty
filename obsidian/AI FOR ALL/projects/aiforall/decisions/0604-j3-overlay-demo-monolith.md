@@ -3,16 +3,15 @@ title: "ADR-0604 — J3 overlay démo monolithe kind invoke (Proposed)"
 category: decisions
 tags: [architecture, platform, kubernetes, visibility/internal]
 status: proposed
-feature_status: unimplemented
+feature_status: implemented
 sources:
   - docs/adr/0604-j3-overlay-demo-monolith-kind-invoke.md
   - docs/platform-local-monolith-kind-implementation-plan.md
 summary: >-
-  Canon : docs/adr/0604. Écart J3 = overlay kind démo non canon :
-  Deployment oodhive-monolith prouve plugins → /lazaret/invoke ;
-  pas SuperSéde 0601 (canon cluster = 4+1). M2 stub reste 0603.
+  Overlay kind démo : Deployment oodhive-monolith, plugins vers
+  /lazaret/invoke. Statut Proposed, Réalité Implemented. Pas l’unité prod 4+1.
 created: 2026-09-25T12:36:00Z
-updated: 2026-09-25T12:36:00Z
+updated: 2026-09-27T09:20:00Z
 provenance:
   extracted: 0.94
   inferred: 0.04
@@ -25,4 +24,4 @@ Canon : `docs/adr/0604-j3-overlay-demo-monolith-kind-invoke.md`. Hub : [[project
 
 ## Statut : Proposed (2026-09-25)
 
-Réalité **Unimplemented**. Overlay démo séparé de M2 ; preuve = plugins POST `/lazaret/invoke` (401 métier OK) ; faux amis extra-port / hostNetwork interdits. Ne SuperSède **pas** 0601, 0404, 0600, 0603, 0008. J4 = retirer overlay (plus tard).
+Réalité **Implemented** (HEAD `2d88b0e`, accord de coding ; Statut inchangé). Overlay démo séparé de M2 : Deployment `oodhive-monolith`, image `aiforall-oodhive-monolith:j3`, `just deploy-j3`. Preuve plugins → `/lazaret/invoke`. Faux amis extra-port / hostNetwork interdits. Ne SuperSède **pas** 0601, 0404, 0600, 0603, 0008. Le HTTP 200 métier du gold path est [[projects/aiforall/decisions/0605-gold-path-kind]], pas cette ADR. J4 = retirer l’overlay (plus tard). « Calico hors J3 » reste vrai pour cet overlay ; Calico v3.29.7 sur `aiforall-local` appartient au gold path.

@@ -20,7 +20,7 @@ provenance:
   inferred: 0.12
   ambiguous: 0.02
 created: 2026-09-17T10:55:00Z
-updated: 2026-09-20T10:35:00Z
+updated: 2026-09-27T09:20:00Z
 ---
 
 # Identité workload Lazaret
@@ -68,5 +68,7 @@ TLS compose Lazaret (distinct du mesh T14b) : `tls_port` 8080, volume `./Lazaret
 
 - [[projects/lazaret/concepts/grants-secrets-and-named-proxy]]
 - [[projects/aiforall/concepts/jwt-issuer-vs-consumer]] — émetteur IAM vs consommateur
+- [[projects/aiforall/decisions/0304-access-jwt-trust]] — port `WorkloadIdentity` (0307) ≠ ce certificat Lazaret
+- [[projects/manifesto/decisions/0009-0011-gates-preprod]] — gate CA 0010, encore Proposed
 - [[projects/iamrusty/iamrusty]]
 - [[journal/2026-09-20]]
