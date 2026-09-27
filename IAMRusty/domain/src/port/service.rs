@@ -9,13 +9,17 @@ use uuid::Uuid;
 pub use idp_connect_contract::FederatedOAuthClient;
 
 /// JWT token encoder/decoder
+///
+/// `encode` is async so RS256 can call [`crate::port::SigningProvider::sign_digest`]
+/// (PEM local or OpenBao Transit) on the login/refresh path only.
+#[async_trait]
 pub trait JwtTokenEncoder: Send + Sync {
     /// Encode a token with the given claims.
     ///
     /// # Errors
     ///
     /// Returns [`DomainError`] if encoding or signing the token fails.
-    fn encode(&self, claims: &TokenClaims) -> Result<String, DomainError>;
+    async fn encode(&self, claims: &TokenClaims) -> Result<String, DomainError>;
 
     /// Decode a token and validate its signature.
     ///

@@ -63,6 +63,9 @@ impl ErrorMapper<DomainError> for IAMErrorMapper {
             DomainError::EventError(message) => {
                 ServiceError::infrastructure(format!("Event error: {message}"))
             }
+            DomainError::ExternalServiceError { service, message } => {
+                ServiceError::infrastructure(format!("{service}: {message}"))
+            }
             DomainError::TokenNotFound => ServiceError::authentication("Token not found"),
         }
     }

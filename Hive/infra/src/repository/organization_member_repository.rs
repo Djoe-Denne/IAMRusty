@@ -44,6 +44,7 @@ impl OrganizationMemberMapper {
             id: Some(model.id),
             organization_id: model.organization_id,
             user_id: model.user_id,
+            issuer: model.issuer.clone(),
             roles: vec![],
             status,
             invited_by_user_id: model.invited_by_user_id,
@@ -66,6 +67,7 @@ impl OrganizationMemberMapper {
             id: ActiveValue::Set(member.id.unwrap_or_else(Uuid::new_v4)),
             organization_id: ActiveValue::Set(member.organization_id),
             user_id: ActiveValue::Set(member.user_id),
+            issuer: ActiveValue::Set(member.issuer.clone()),
             status: ActiveValue::Set(status_str.to_string()),
             invited_by_user_id: ActiveValue::Set(member.invited_by_user_id),
             invited_at: ActiveValue::Set(member.invited_at),
@@ -88,7 +90,43 @@ impl OrganizationMemberReadRepositoryImpl {
         Self { db }
     }
 
+    /// Loads the membership for `(organization_id, issuer, user_id)`, if any.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the query fails or `status` is not a recognized [`MemberStatus`].
+    pub async fn find_by_organization_issuer_and_user_with_connection<C>(
+        db: &C,
+        organization_id: &Uuid,
+        issuer: &str,
+        user_id: &Uuid,
+    ) -> Result<Option<OrganizationMember>, DomainError>
+    where
+        C: ConnectionTrait,
+    {
+        let aliases = hive_domain::platform_issuer_aliases(issuer);
+        let models = OrganizationMembers::find()
+            .filter(organization_members::Column::OrganizationId.eq(*organization_id))
+            .filter(organization_members::Column::Issuer.is_in(aliases))
+            .filter(organization_members::Column::UserId.eq(*user_id))
+            .all(db)
+            .await
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
+
+        let model = models
+            .iter()
+            .find(|m| m.issuer == issuer)
+            .or_else(|| models.first());
+
+        match model {
+            Some(model) => Ok(Some(OrganizationMemberMapper::to_domain(model)?)),
+            None => Ok(None),
+        }
+    }
+
     /// Loads the membership for `organization_id` and `user_id`, if any.
+    ///
+    /// Prefer [`Self::find_by_organization_issuer_and_user_with_connection`] when issuer is known.
     ///
     /// # Errors
     ///
@@ -144,6 +182,26 @@ impl OrganizationMemberReadRepository for OrganizationMemberReadRepositoryImpl {
         Self::find_by_organization_and_user_with_connection(
             self.db.as_ref(),
             organization_id,
+            user_id,
+        )
+        .await
+    }
+
+    async fn find_by_organization_issuer_and_user(
+        &self,
+        organization_id: &Uuid,
+        issuer: &str,
+        user_id: &Uuid,
+    ) -> Result<Option<OrganizationMember>, DomainError> {
+        debug!(
+            "Finding organization member by org {}, issuer {}, user {}",
+            organization_id, issuer, user_id
+        );
+
+        Self::find_by_organization_issuer_and_user_with_connection(
+            self.db.as_ref(),
+            organization_id,
+            issuer,
             user_id,
         )
         .await
@@ -427,6 +485,17 @@ impl OrganizationMemberReadRepository for OrganizationMemberRepositoryImpl {
     ) -> Result<Option<OrganizationMember>, DomainError> {
         self.read_repo
             .find_by_organization_and_user(organization_id, user_id)
+            .await
+    }
+
+    async fn find_by_organization_issuer_and_user(
+        &self,
+        organization_id: &Uuid,
+        issuer: &str,
+        user_id: &Uuid,
+    ) -> Result<Option<OrganizationMember>, DomainError> {
+        self.read_repo
+            .find_by_organization_issuer_and_user(organization_id, issuer, user_id)
             .await
     }
 

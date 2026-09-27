@@ -78,6 +78,7 @@ pub trait InvitationService: Send + Sync {
         &self,
         token: String,
         user_id: Uuid,
+        issuer: &str,
     ) -> Result<OrganizationMember, DomainError>;
 
     /// Cancel an invitation.
@@ -265,6 +266,7 @@ where
         &self,
         token: String,
         user_id: Uuid,
+        issuer: &str,
     ) -> Result<OrganizationMember, DomainError> {
         let invitation = self
             .invitation_repo
@@ -316,6 +318,7 @@ where
             .add_member(
                 invitation.organization_id,
                 user_id,
+                issuer,
                 invitation.role_permissions,
                 Some(invitation.invited_by_user_id),
             )

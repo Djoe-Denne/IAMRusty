@@ -107,6 +107,31 @@ pub fn create_router(state: AppState) -> Router {
         )
         .authenticated()
         .with_permission_on(Permission::Admin, "organization")
+        // Organization signer (Hive → IAM ADR-0306)
+        .post(
+            "/api/organizations/{organization_id}/signer/configure",
+            configure_organization_signer,
+        )
+        .authenticated()
+        .with_permission_on(Permission::Admin, "organization")
+        .post(
+            "/api/organizations/{organization_id}/signer/test",
+            test_organization_signer,
+        )
+        .authenticated()
+        .with_permission_on(Permission::Admin, "organization")
+        .post(
+            "/api/organizations/{organization_id}/signer/rotate",
+            rotate_organization_signer,
+        )
+        .authenticated()
+        .with_permission_on(Permission::Admin, "organization")
+        .post(
+            "/api/organizations/{organization_id}/signer/disable",
+            disable_organization_signer,
+        )
+        .authenticated()
+        .with_permission_on(Permission::Admin, "organization")
         .into_router()
 }
 

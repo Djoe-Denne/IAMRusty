@@ -1,7 +1,7 @@
 # ADR-0306 : Config signature org = commande synchrone Hive→IAM ; pas de secret dans les events
 
 - Statut : Accepted
-- Réalité : Unimplemented
+- Réalité : Implemented
 - Date : 2026-09-26
 - Décideurs : Djoé Denne (acceptation humaine 2026-09-26)
 - Jalon concerné : architecture actuelle / AuthN signature org (complète 0304 / 0305 ; hors P-Apparatus)
@@ -9,7 +9,7 @@
 - SuperSédée par : —
 - Related : [0304](0304-jwt-acces-plateforme-rs256-jwks.md), [0305](0305-account-identity-trust-domain.md), [0400](0400-iamrusty-identite-hexagonale.md), [0402](0402-hive-organisations.md), [0403](0403-telegraph-notifications-event-driven.md)
 
-`Accepted` ratifie le canal de configuration signer. `Réalité : Unimplemented` : pas de client HTTP Hive→IAM pour configurer un signer ; pas de secrets KMS dans Hive ; Telegraph = notifications seulement.
+`Accepted` ratifie le canal de configuration signer. `Réalité : Implemented` : client HTTP Hive→IAM via WorkloadIdentity/StaticCredential + routes admin configure/test/rotate/disable + rotate N+1 + probe PEM/Transit ; persist metadata only ; pas d’adapters AWS/GCP/Azure ; pas d’events SigningProfile*.
 
 ## Contexte
 
@@ -26,7 +26,9 @@ Les orgs doivent pouvoir activer une clé dédiée ou un BYOKMS ([0304](0304-jwt
 
 ## État runtime
 
-Pas de client HTTP Hive→IAM pour config signer. Events Hive : `OrganizationCreatedEvent`, `MemberJoinedEvent` (`hive-events`) — pas de secret KMS. Telegraph consomme `iam-events` (notifications) — pas de bus commandes. OpenBao Transit = Cosign Apparatus, pas Sign JWT user.
+`HttpIamOrganizationSignerClient` câblé dans `Hive/setup` ; routes admin Hive `POST /api/organizations/{id}/signer/{configure,test,rotate,disable}` (permission Admin). Sur succès : persist org `signing_profile_id` + `signing_status` uniquement. IAM refuse BYOKMS aws/gcp/azure (pas d’adapters). Pas de secret dans les domain events. Telegraph = notifications seulement. Les PEM d’organisation vivent sous `{keys}/organizations/{org_id}/…` ; la clé plateforme reste hors de cette racine.
+
+`RotateOrganizationSigner` runtime : N+1 réel (Pending puis Active, ancienne Active → Retiring) ; PEM biclé sous pem_root ou Transit create+read public ; probe Transit live.
 
 ## Migration
 
@@ -56,5 +58,9 @@ Introduire le port synchrone Hive→IAM après (ou avec) SigningKeyRegistry ([03
 
 - Crypto : [0304](0304-jwt-acces-plateforme-rs256-jwks.md) ; trust : [0305](0305-account-identity-trust-domain.md)
 - Hive / Telegraph : [0402](0402-hive-organisations.md), [0403](0403-telegraph-notifications-event-driven.md)
-- Preuves absences : pas de client Hive→IAM config ; `hive-events` sans secret KMS ; Telegraph = `iam-events` notifications
-- Preuve d’implémentation de **cette** cible : **aucune** (`Réalité : Unimplemented`)
+- Preuves runtime (Implemented) :
+  - Hive handlers : `Hive/http/src/handlers/organization_signer.rs` (`configure`/`test`/`rotate`/`disable`)
+  - Client s2s : `Hive/infra/src/iam/organization_signer_client.rs` `HttpIamOrganizationSignerClient` (`x-iam-internal-token` via WorkloadIdentity/StaticCredential (`iam-internal-token`)), câblé `Hive/setup`
+  - Routes IAM internes : `IAMRusty/http/src/handlers/organization_signer.rs`
+  - Persist UX only : `Hive/domain/src/entity/organization.rs` (`signing_profile_id`, `signing_status`) ; pas de secret dans events
+- Gaps vs cible : pas d’adapters BYOKMS aws/gcp/azure ; pas d’events SigningProfile*

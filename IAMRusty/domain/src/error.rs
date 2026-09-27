@@ -79,4 +79,19 @@ pub enum DomainError {
     /// Event publishing error
     #[error("Event publishing error: {0}")]
     EventError(String),
+
+    /// External service (OpenBao Transit, WorkloadIdentity, …)
+    #[error("External service error ({service}): {message}")]
+    ExternalServiceError { service: String, message: String },
+}
+
+impl DomainError {
+    /// Build an external-service failure for adapters (Transit, WorkloadIdentity, …).
+    #[must_use]
+    pub fn external_service_error(service: &str, message: &str) -> Self {
+        Self::ExternalServiceError {
+            service: service.to_string(),
+            message: message.to_string(),
+        }
+    }
 }

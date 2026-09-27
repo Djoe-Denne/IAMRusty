@@ -127,6 +127,7 @@ async fn test_internal_provider_token_github_success_returns_access_token() {
         user.id(),
         &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
     )
+    .await
     .expect("Failed to create JWT token");
 
     // Make request to internal provider token endpoint
@@ -191,6 +192,7 @@ async fn test_internal_provider_token_gitlab_success_returns_access_token() {
         user.id(),
         &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
     )
+    .await
     .expect("Failed to create JWT token");
 
     // Make request to internal provider token endpoint
@@ -260,6 +262,7 @@ async fn test_internal_provider_token_returns_401_when_token_is_expired() {
         user_id,
         &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
     )
+    .await
     .expect("Failed to create expired JWT token");
 
     // Make request with expired token
@@ -293,6 +296,7 @@ async fn test_internal_provider_token_returns_401_when_token_has_invalid_signatu
         user_id,
         &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
     )
+    .await
     .expect("Failed to create invalid signature JWT token");
 
     // Make request with invalid signature token
@@ -326,6 +330,7 @@ async fn test_internal_provider_token_returns_422_when_provider_is_unsupported()
         user_id,
         &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
     )
+    .await
     .expect("Failed to create JWT token");
 
     // Test unsupported providers
@@ -370,6 +375,7 @@ async fn test_internal_provider_token_returns_404_when_no_token_for_provider() {
         user.id(),
         &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
     )
+    .await
     .expect("Failed to create JWT token");
 
     // Make request for GitHub token when user has no GitHub token
@@ -418,6 +424,7 @@ async fn test_internal_provider_token_returns_401_when_user_not_found() {
         non_existent_user_id,
         &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
     )
+    .await
     .expect("Failed to create JWT token");
 
     // Make request with token for non-existent user
@@ -498,6 +505,7 @@ async fn test_internal_provider_token_case_insensitive_providers() {
         user.id(),
         &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
     )
+    .await
     .expect("Failed to create JWT token");
 
     // Test different case variations of GitHub
@@ -562,6 +570,7 @@ async fn test_internal_provider_token_different_users_different_tokens() {
         user1.id(),
         &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
     )
+    .await
     .expect("Failed to create JWT token for user1");
     let response1 = client
         .post(format!("{base_url}/internal/github/token"))
@@ -582,6 +591,7 @@ async fn test_internal_provider_token_different_users_different_tokens() {
         user2.id(),
         &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
     )
+    .await
     .expect("Failed to create JWT token for user2");
     let response2 = client
         .post(format!("{base_url}/internal/github/token"))
@@ -647,6 +657,7 @@ async fn test_internal_provider_token_user_with_multiple_providers() {
         user.id(),
         &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
     )
+    .await
     .expect("Failed to create JWT token");
 
     // Test GitHub token retrieval
@@ -704,6 +715,7 @@ async fn test_internal_provider_token_concurrent_requests_same_user() {
         user.id(),
         &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
     )
+    .await
     .expect("Failed to create JWT token");
 
     // Make multiple concurrent requests

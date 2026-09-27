@@ -9,11 +9,11 @@ tls_key_path = "./certs/key.pem"
 tls_port = 8443
 
 [auth.jwt]
-hs256_secret = "rustycog-dev-hs256-secret"
-issuer = "iamrusty"
 audience = "aiforall"
+jwks_url = "http://127.0.0.1:8080/iam/.well-known/jwks.json"
+allowed_algorithms = ["RS256"]
 
-# Workload identity — dedicated session key, not [auth.jwt].
+
 [identity]
 session_ttl_minutes = 15
 cert_ttl_hours = 24

@@ -413,7 +413,9 @@ where
         &self,
         _command: GetJwksCommand,
     ) -> Result<iam_domain::entity::token::JwkSet, CommandError> {
-        // Get JWKS is synchronous, so we can call it directly
-        Ok(self.token_use_case.get_jwks())
+        self.token_use_case
+            .get_jwks()
+            .await
+            .map_err(|e| TokenErrorMapper.map_error(Box::new(e)))
     }
 }

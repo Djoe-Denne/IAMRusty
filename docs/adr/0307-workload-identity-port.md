@@ -1,7 +1,7 @@
 # ADR-0307 : WorkloadIdentity = port conceptuel ; SPIFFE évalué, pas dépendance obligatoire
 
 - Statut : Proposed
-- Réalité : Unimplemented
+- Réalité : Partial
 - Date : 2026-09-26
 - Décideurs : Djoé Denne (proposition 2026-09-26 — Accept humain requis)
 - Jalon concerné : architecture actuelle / AuthN s2s & cloud WIF (hors P-Apparatus)
@@ -9,7 +9,7 @@
 - SuperSédée par : —
 - Related : [0304](0304-jwt-acces-plateforme-rs256-jwks.md), [0306](0306-hive-iam-configuration-signature.md), [0308](0308-mesh-authn-jwt.md), [0309](0309-remote-signer.md), [0601](0601-cluster-trust-namespaces-standalones.md)
 
-`Proposed` : recommandation de frontière. **Pas** une dépendance de [0304](0304-jwt-acces-plateforme-rs256-jwks.md). `Réalité : Unimplemented` : SPIFFE / SPIRE **ABSENT** du runtime (mentions doc seulement, ex. 0601 « pas V1 »).
+`Proposed` : recommandation de frontière. **Pas** une dépendance de [0304](0304-jwt-acces-plateforme-rs256-jwks.md). `Réalité : Partial` : port `WorkloadIdentity` + `StaticCredential` branchés côté Hive s2s et IAM Transit ; **pas** SPIFFE/SPIRE.
 
 ## Contexte
 
@@ -24,7 +24,7 @@ IAM doit appeler des KMS / remote signers et Hive doit appeler IAM en s2s ([0306
 
 ## État runtime
 
-SPIFFE/SPIRE : **ABSENT**. Mentions documentaires seulement. Pas d’implémentation du port `WorkloadIdentity`.
+Port `WorkloadIdentity` livré dans IAM **et** Hive + adapters `StaticCredential`. Hive `HttpIamOrganizationSignerClient` résout `iam-internal-token` via le port. Transit IAM + probe consomment le port. SPIFFE/SPIRE : **ABSENT**. Pas d’adapters OIDC WIF / X509.
 
 ## Migration
 
@@ -50,4 +50,10 @@ Le port peut avancer avec WIF / static / PEM sans SPIRE. L’évaluation SPIFFE 
 ## Références
 
 - [0304](0304-jwt-acces-plateforme-rs256-jwks.md) §19–§21 ; [0306](0306-hive-iam-configuration-signature.md) ; [0601](0601-cluster-trust-namespaces-standalones.md)
-- Preuve d’absence SPIFFE runtime : dépôt (doc only) — **aucune** implémentation
+- Preuves runtime (Partial — port livré, pas SPIFFE) :
+  - Port IAM : `IAMRusty/domain/src/port/signing.rs` (`WorkloadIdentity`, `WorkloadCredential`)
+  - Adapter IAM : `IAMRusty/infra/src/signing/static_credential.rs`
+  - Port Hive : `Hive/domain/src/port/service.rs` (`WorkloadIdentity`, `WorkloadCredential`)
+  - Adapter Hive : `Hive/infra/src/iam/static_credential.rs` (export `Hive/infra/src/iam/mod.rs`)
+  - Garde-fou : `IAMRusty/infra/tests/signing_provider_ports.rs` `no_spiffe_spire_binary_in_tree`
+- Gaps : pas SPIFFE/SPIRE ; pas WIF cloud natif

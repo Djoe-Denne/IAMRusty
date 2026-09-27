@@ -46,6 +46,7 @@ async fn test_revoke_provider_token_github_success() {
         user.id(),
         &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
     )
+    .await
     .expect("Failed to create JWT token");
 
     // Verify token exists before revoke
@@ -132,6 +133,7 @@ async fn test_revoke_provider_token_gitlab_success() {
         user.id(),
         &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
     )
+    .await
     .expect("Failed to create JWT token");
 
     // Make request to revoke GitLab provider token
@@ -205,6 +207,7 @@ async fn test_revoke_provider_token_returns_401_when_token_is_expired() {
         user_id,
         &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
     )
+    .await
     .expect("Failed to create expired JWT token");
 
     // Make request with expired token
@@ -237,6 +240,7 @@ async fn test_revoke_provider_token_returns_401_when_token_has_invalid_signature
         user_id,
         &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
     )
+    .await
     .expect("Failed to create invalid signature JWT token");
 
     // Make request with invalid signature token
@@ -269,6 +273,7 @@ async fn test_revoke_provider_token_returns_422_when_provider_is_unsupported() {
         user_id,
         &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
     )
+    .await
     .expect("Failed to create JWT token");
 
     // Test unsupported providers
@@ -321,6 +326,7 @@ async fn test_revoke_provider_token_returns_404_when_no_token_for_provider() {
         user.id(),
         &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
     )
+    .await
     .expect("Failed to create JWT token");
 
     // Make request to revoke GitHub token when user has no GitHub token
@@ -367,6 +373,7 @@ async fn test_revoke_provider_token_returns_401_when_user_not_found() {
         non_existent_user_id,
         &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
     )
+    .await
     .expect("Failed to create JWT token");
 
     // Make request to revoke token for non-existent user
@@ -424,6 +431,7 @@ async fn test_revoke_provider_token_idempotent_on_already_revoked() {
         user.id(),
         &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
     )
+    .await
     .expect("Failed to create JWT token");
 
     // First revoke - should succeed
@@ -509,6 +517,7 @@ async fn test_revoke_provider_token_different_users_different_tokens() {
         user1.id(),
         &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
     )
+    .await
     .expect("Failed to create JWT token for user1");
     let response1 = client
         .delete(format!("{base_url}/internal/github/revoke"))
@@ -542,6 +551,7 @@ async fn test_revoke_provider_token_different_users_different_tokens() {
         user2.id(),
         &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
     )
+    .await
     .expect("Failed to create JWT token for user2");
     let response2 = client
         .delete(format!("{base_url}/internal/github/revoke"))

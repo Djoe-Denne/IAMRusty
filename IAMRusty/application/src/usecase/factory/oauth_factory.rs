@@ -1,5 +1,8 @@
 use crate::usecase::oauth::{OAuthUseCase, OAuthUseCaseImpl};
-use iam_domain::port::repository::{TokenRepository, UserEmailRepository, UserRepository};
+use iam_domain::error::DomainError;
+use iam_domain::port::repository::{
+    IdentityRepository, TokenRepository, UserEmailRepository, UserRepository,
+};
 use iam_domain::port::service::{AuthTokenService, RegistrationTokenService};
 use iam_domain::service::oauth_service::OAuthService;
 use std::sync::Arc;
@@ -13,6 +16,8 @@ impl OAuthFactory {
         oauth_service: Arc<OAuthService<UR, TR, UER>>,
         registration_token_service: Arc<RTS>,
         token_service: Arc<TS>,
+        identity_repo: Arc<dyn IdentityRepository<Error = DomainError>>,
+        platform_issuer: impl Into<String>,
     ) -> Arc<dyn OAuthUseCase>
     where
         UR: UserRepository + Send + Sync + 'static,
@@ -29,6 +34,8 @@ impl OAuthFactory {
             oauth_service,
             registration_token_service,
             token_service,
+            identity_repo,
+            platform_issuer,
         ))
     }
 }

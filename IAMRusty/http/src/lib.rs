@@ -26,6 +26,11 @@ pub use handlers::{
         relink_provider_callback, resend_verification_email, revoke_provider_token, signup,
         verify_email,
     },
+    organization_signer::{
+        configure_organization_signer, create_organization_managed_identity,
+        disable_organization_signer, rotate_organization_signer, test_organization_signer,
+        SignerRouteContext,
+    },
     password_reset::{
         request_password_reset, reset_password_authenticated, reset_password_unauthenticated,
         validate_reset_token,
@@ -42,8 +47,13 @@ pub const SERVICE_PREFIX: &str = "/iam";
 ///
 /// `idp` is attached as an axum [`Extension`] so OAuth handlers resolve
 /// redirect URIs from this app instance, not a process-wide lock.
-pub fn create_router(state: AppState, idp: Arc<IdpConfig>) -> Router {
-    RouteBuilder::new(state)
+/// `signer` enables Hive→IAM org-signer internal RPC (ADR-0306).
+pub fn create_router(
+    state: AppState,
+    idp: Arc<IdpConfig>,
+    signer: Option<Arc<SignerRouteContext>>,
+) -> Router {
+    let builder = RouteBuilder::new(state)
         .health_check()
         // Public authentication routes
         .get("/.well-known/jwks.json", jwks)
@@ -62,6 +72,27 @@ pub fn create_router(state: AppState, idp: Arc<IdpConfig>) -> Router {
         .get("/api/auth/{provider_name}/login", oauth_login_start)
         .get("/api/auth/{provider_name}/callback", oauth_callback)
         .post("/api/token/refresh", refresh_token)
+        // Internal org-signer RPC — NOT `.authenticated()`; token gate only.
+        .post(
+            "/internal/organizations/{org_id}/signer/configure",
+            configure_organization_signer,
+        )
+        .post(
+            "/internal/organizations/{org_id}/signer/test",
+            test_organization_signer,
+        )
+        .post(
+            "/internal/organizations/{org_id}/signer/rotate",
+            rotate_organization_signer,
+        )
+        .post(
+            "/internal/organizations/{org_id}/signer/disable",
+            disable_organization_signer,
+        )
+        .post(
+            "/internal/organizations/{org_id}/identities",
+            create_organization_managed_identity,
+        )
         // Authenticated routes
         .get("/api/me", get_user)
         .authenticated()
@@ -85,10 +116,16 @@ pub fn create_router(state: AppState, idp: Arc<IdpConfig>) -> Router {
             "/api/auth/{provider_name}/relink-callback",
             relink_provider_callback,
         )
-        .authenticated()
+        .authenticated();
+
+    let mut router = builder
         .into_router()
         .layer(middleware::from_fn(rate_limit_auth))
-        .layer(Extension(idp))
+        .layer(Extension(idp));
+    if let Some(signer) = signer {
+        router = router.layer(Extension(signer));
+    }
+    router
 }
 
 /// Create the IAM router under its bounded-context prefix.
@@ -96,10 +133,11 @@ pub fn create_prefixed_router(
     state: AppState,
     probe: Arc<ReadinessProbe>,
     idp: Arc<IdpConfig>,
+    signer: Option<Arc<SignerRouteContext>>,
 ) -> Router {
     Router::new().nest(
         SERVICE_PREFIX,
-        attach_ready(create_router(state, idp), probe),
+        attach_ready(create_router(state, idp, signer), probe),
     )
 }
 
@@ -113,6 +151,7 @@ pub async fn create_app_routes(
     config: ServerConfig,
     probe: Arc<ReadinessProbe>,
     idp: Arc<IdpConfig>,
+    signer: Option<Arc<SignerRouteContext>>,
 ) -> anyhow::Result<()> {
-    rustycog::http::serve_router(create_prefixed_router(state, probe, idp), config).await
+    rustycog::http::serve_router(create_prefixed_router(state, probe, idp, signer), config).await
 }

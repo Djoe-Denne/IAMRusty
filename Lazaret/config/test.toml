@@ -9,6 +9,9 @@ tls_enabled = false
 hs256_secret = "rustycog-test-hs256-secret"
 issuer = "iamrusty"
 audience = "aiforall"
+jwks_url = "http://127.0.0.1:8081/iam/.well-known/jwks.json"
+allowed_algorithms = ["RS256", "HS256"]
+
 
 [identity]
 session_ttl_minutes = 15

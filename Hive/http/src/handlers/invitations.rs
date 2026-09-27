@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Extension, Path, Query, State},
     response::Json,
 };
 use hive_application::{
@@ -8,7 +8,7 @@ use hive_application::{
     InvitationListResponse, InvitationResponse, ListInvitationsCommand, PaginationRequest,
 };
 use rustycog::command::CommandContext;
-use rustycog::http::{AppState, AuthUser, OptionalAuthUser, ValidatedJson};
+use rustycog::http::{AppState, AuthUser, JwtPrincipal, OptionalAuthUser, ValidatedJson};
 use rustycog::permission::ResourceId;
 
 use crate::error::HttpError;
@@ -157,10 +157,11 @@ pub async fn accept_invitation(
     State(state): State<AppState>,
     Path(token): Path<String>,
     auth_user: AuthUser,
+    Extension(principal): Extension<JwtPrincipal>,
 ) -> Result<Json<()>, HttpError> {
     tracing::info!("Accepting invitation");
 
-    let command = AcceptInvitationCommand::new(token, auth_user.user_id);
+    let command = AcceptInvitationCommand::new(token, auth_user.user_id, principal.iss.clone());
     let context = CommandContext::new()
         .with_user_id(auth_user.user_id)
         .with_metadata("operation".to_string(), "accept_invitation".to_string());

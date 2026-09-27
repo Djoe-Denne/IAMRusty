@@ -19,16 +19,23 @@ pub struct AddMemberCommand {
     pub organization_id: Uuid,
     pub request: AddMemberRequest,
     pub added_by_user_id: Uuid,
+    pub issuer: String,
 }
 
 impl AddMemberCommand {
     #[must_use]
-    pub fn new(organization_id: Uuid, request: &AddMemberRequest, added_by_user_id: Uuid) -> Self {
+    pub fn new(
+        organization_id: Uuid,
+        request: &AddMemberRequest,
+        added_by_user_id: Uuid,
+        issuer: impl Into<String>,
+    ) -> Self {
         Self {
             command_id: Uuid::new_v4(),
             organization_id,
             request: request.clone(),
             added_by_user_id,
+            issuer: issuer.into(),
         }
     }
 }
@@ -68,6 +75,7 @@ impl CommandHandler<AddMemberCommand> for AddMemberCommandHandler {
                 command.organization_id,
                 &command.request,
                 command.added_by_user_id,
+                &command.issuer,
             )
             .await
             .map_err(|e| CommandError::business("add_member_failed", e.to_string()))
@@ -81,17 +89,23 @@ pub struct RemoveMemberCommand {
     pub organization_id: Uuid,
     pub user_id: Uuid,
     pub removed_by_user_id: Uuid,
+    pub issuer: String,
 }
 
 impl RemoveMemberCommand {
     #[must_use]
-    pub fn new(organization_id: Uuid, user_id: Uuid, removed_by_user_id: Uuid) -> Self {
-        // TODO: Get removed_by_user_id from context
+    pub fn new(
+        organization_id: Uuid,
+        user_id: Uuid,
+        removed_by_user_id: Uuid,
+        issuer: impl Into<String>,
+    ) -> Self {
         Self {
             command_id: Uuid::new_v4(),
             organization_id,
             user_id,
             removed_by_user_id,
+            issuer: issuer.into(),
         }
     }
 }
@@ -127,7 +141,7 @@ impl RemoveMemberCommandHandler {
 impl CommandHandler<RemoveMemberCommand> for RemoveMemberCommandHandler {
     async fn handle(&self, command: RemoveMemberCommand) -> Result<(), CommandError> {
         self.member_usecase
-            .remove_member(command.organization_id, command.user_id)
+            .remove_member(command.organization_id, command.user_id, &command.issuer)
             .await
             .map_err(|e| CommandError::business("remove_member_failed", e.to_string()))
     }
@@ -141,6 +155,7 @@ pub struct ListMembersCommand {
     pub organization_id: Uuid,
     pub pagination: PaginationRequest,
     pub user_id: Option<Uuid>,
+    pub issuer: String,
 }
 
 impl ListMembersCommand {
@@ -149,12 +164,14 @@ impl ListMembersCommand {
         organization_id: Uuid,
         pagination: PaginationRequest,
         user_id: Option<Uuid>,
+        issuer: impl Into<String>,
     ) -> Self {
         Self {
             command_id: Uuid::new_v4(),
             organization_id,
             pagination,
             user_id,
+            issuer: issuer.into(),
         }
     }
 }
@@ -196,7 +213,12 @@ impl CommandHandler<ListMembersCommand> for ListMembersCommandHandler {
             CommandError::authentication("unauthenticated", "Requester required to list members")
         })?;
         self.member_usecase
-            .list_members(command.organization_id, &command.pagination, requester_id)
+            .list_members(
+                command.organization_id,
+                &command.pagination,
+                requester_id,
+                &command.issuer,
+            )
             .await
             .map_err(|e| CommandError::business("list_members_failed", e.to_string()))
     }
@@ -209,16 +231,23 @@ pub struct GetMemberCommand {
     pub organization_id: Uuid,
     pub user_id: Uuid,
     pub requesting_user_id: Option<Uuid>,
+    pub issuer: String,
 }
 
 impl GetMemberCommand {
     #[must_use]
-    pub fn new(organization_id: Uuid, user_id: Uuid, requesting_user_id: Option<Uuid>) -> Self {
+    pub fn new(
+        organization_id: Uuid,
+        user_id: Uuid,
+        requesting_user_id: Option<Uuid>,
+        issuer: impl Into<String>,
+    ) -> Self {
         Self {
             command_id: Uuid::new_v4(),
             organization_id,
             user_id,
             requesting_user_id,
+            issuer: issuer.into(),
         }
     }
 }
@@ -257,7 +286,12 @@ impl CommandHandler<GetMemberCommand> for GetMemberCommandHandler {
             CommandError::authentication("unauthenticated", "Requester required to get a member")
         })?;
         self.member_usecase
-            .get_member(command.organization_id, command.user_id, requester_id)
+            .get_member(
+                command.organization_id,
+                command.user_id,
+                requester_id,
+                &command.issuer,
+            )
             .await
             .map_err(|e| CommandError::business("get_member_failed", e.to_string()))
     }
@@ -271,6 +305,7 @@ pub struct UpdateMemberCommand {
     pub user_id: Uuid,
     pub request: UpdateMemberRolesRequest,
     pub requesting_user_id: Uuid,
+    pub issuer: String,
 }
 
 impl UpdateMemberCommand {
@@ -280,6 +315,7 @@ impl UpdateMemberCommand {
         user_id: Uuid,
         request: &UpdateMemberRolesRequest,
         requesting_user_id: Uuid,
+        issuer: impl Into<String>,
     ) -> Self {
         Self {
             command_id: Uuid::new_v4(),
@@ -287,6 +323,7 @@ impl UpdateMemberCommand {
             user_id,
             request: request.clone(),
             requesting_user_id,
+            issuer: issuer.into(),
         }
     }
 }
@@ -327,6 +364,7 @@ impl CommandHandler<UpdateMemberCommand> for UpdateMemberCommandHandler {
                 command.user_id,
                 &command.request,
                 command.requesting_user_id,
+                &command.issuer,
             )
             .await
             .map_err(|e| CommandError::business("update_member_failed", e.to_string()))

@@ -22,6 +22,8 @@ pub struct RefreshTokenResponse {
     pub refresh_token: String,
     /// Refresh token expiration time in seconds
     pub refresh_expires_in: u64,
+    /// User that owns the refreshed session
+    pub user_id: Uuid,
 }
 
 /// Refresh token domain service trait
@@ -160,6 +162,7 @@ where
             expires_in: access_expires_in,
             refresh_token: new_refresh_token.token,
             refresh_expires_in,
+            user_id: old_token.user_id,
         })
     }
 

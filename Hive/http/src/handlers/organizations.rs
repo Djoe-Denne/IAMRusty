@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Extension, Path, Query, State},
     response::Json,
 };
 use hive_application::{
@@ -9,7 +9,7 @@ use hive_application::{
     UpdateOrganizationCommand, UpdateOrganizationRequest,
 };
 use rustycog::command::{CommandContext, CommandError};
-use rustycog::http::{AppState, AuthUser, OptionalAuthUser, ValidatedJson};
+use rustycog::http::{AppState, AuthUser, JwtPrincipal, OptionalAuthUser, ValidatedJson};
 use rustycog::permission::ResourceId;
 
 use crate::error::HttpError;
@@ -43,11 +43,12 @@ fn error_mapper(error: &CommandError) -> HttpError {
 pub async fn create_organization(
     State(state): State<AppState>,
     auth_user: AuthUser,
+    Extension(principal): Extension<JwtPrincipal>,
     ValidatedJson(request): ValidatedJson<CreateOrganizationRequest>,
 ) -> Result<Json<OrganizationResponse>, HttpError> {
     tracing::info!("Creating organization: {}", request.name);
 
-    let command = CreateOrganizationCommand::new(request, auth_user.user_id);
+    let command = CreateOrganizationCommand::new(request, auth_user.user_id, principal.iss.clone());
     let context = CommandContext::new().with_user_id(auth_user.user_id);
 
     let result = state

@@ -24,11 +24,16 @@ impl TokenService {
     /// # Errors
     ///
     /// Returns [`DomainError`] if the encoder cannot sign the token.
-    pub fn generate_token(&self, user_id: &str, username: &str) -> Result<String, DomainError> {
+    pub async fn generate_token(
+        &self,
+        user_id: &str,
+        username: &str,
+    ) -> Result<String, DomainError> {
         let claims = TokenClaims::new(user_id, username, self.token_duration);
 
         self.token_encoder
             .encode(&claims)
+            .await
             .map_err(|e| DomainError::TokenGenerationFailed(e.to_string()))
     }
 
@@ -67,8 +72,9 @@ mod tests {
     mock! {
         pub TokenEnc {}
 
+        #[async_trait::async_trait]
         impl JwtTokenEncoder for TokenEnc {
-            fn encode(&self, claims: &TokenClaims) -> Result<String, DomainError>;
+            async fn encode(&self, claims: &TokenClaims) -> Result<String, DomainError>;
             fn decode(&self, token: &str) -> Result<TokenClaims, DomainError>;
             fn jwks(&self) -> JwkSet;
         }
@@ -143,8 +149,8 @@ mod tests {
         use super::*;
 
         #[rstest]
-        #[test]
-        fn success_with_valid_inputs(
+        #[tokio::test]
+        async fn success_with_valid_inputs(
             sample_user_id: String,
             sample_username: String,
             token_duration: Duration,
@@ -160,15 +166,17 @@ mod tests {
 
             let service = TokenService::new(Arc::new(mock_encoder), token_duration);
 
-            let result = service.generate_token(&sample_user_id, &sample_username);
+            let result = service
+                .generate_token(&sample_user_id, &sample_username)
+                .await;
 
             assert_ok!(&result);
             assert_eq!(result.unwrap(), expected_token);
         }
 
         #[rstest]
-        #[test]
-        fn creates_claims_with_correct_duration(
+        #[tokio::test]
+        async fn creates_claims_with_correct_duration(
             sample_user_id: String,
             sample_username: String,
             token_duration: Duration,
@@ -188,14 +196,16 @@ mod tests {
 
             let service = TokenService::new(Arc::new(mock_encoder), token_duration);
 
-            let result = service.generate_token(&sample_user_id, &sample_username);
+            let result = service
+                .generate_token(&sample_user_id, &sample_username)
+                .await;
 
             assert_ok!(&result);
         }
 
         #[rstest]
-        #[test]
-        fn error_when_encoder_fails(
+        #[tokio::test]
+        async fn error_when_encoder_fails(
             sample_user_id: String,
             sample_username: String,
             token_duration: Duration,
@@ -208,7 +218,9 @@ mod tests {
 
             let service = TokenService::new(Arc::new(mock_encoder), token_duration);
 
-            let result = service.generate_token(&sample_user_id, &sample_username);
+            let result = service
+                .generate_token(&sample_user_id, &sample_username)
+                .await;
 
             assert_err!(&result);
             match result.unwrap_err() {
@@ -227,8 +239,8 @@ mod tests {
             "very_long_username_that_exceeds_normal_length",
             "Long strings should work"
         )]
-        #[test]
-        fn handles_edge_case_inputs(
+        #[tokio::test]
+        async fn handles_edge_case_inputs(
             #[case] user_id: &str,
             #[case] username: &str,
             #[case] description: &str,
@@ -242,7 +254,7 @@ mod tests {
 
             let service = TokenService::new(Arc::new(mock_encoder), token_duration);
 
-            let result = service.generate_token(user_id, username);
+            let result = service.generate_token(user_id, username).await;
 
             assert_ok!(&result);
             assert!(!description.is_empty());
@@ -415,8 +427,8 @@ mod tests {
         use super::*;
 
         #[rstest]
-        #[test]
-        fn generate_and_validate_token_workflow(
+        #[tokio::test]
+        async fn generate_and_validate_token_workflow(
             sample_user_id: String,
             sample_username: String,
             token_duration: Duration,
@@ -443,7 +455,9 @@ mod tests {
             let service = TokenService::new(Arc::new(mock_encoder), token_duration);
 
             // Generate token
-            let generate_result = service.generate_token(&sample_user_id, &sample_username);
+            let generate_result = service
+                .generate_token(&sample_user_id, &sample_username)
+                .await;
             assert_ok!(&generate_result);
             let token = generate_result.unwrap();
 

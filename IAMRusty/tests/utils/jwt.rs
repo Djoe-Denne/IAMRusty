@@ -59,28 +59,7 @@ pub struct JwtTestUtils;
 
 impl JwtTestUtils {
     /// Create a valid JWT token for testing with JWT encoder
-    pub fn create_valid_token(user_id: Uuid, config: &JwtConfig) -> Result<String, anyhow::Error> {
-        let jwt_service = create_jwt_service_from_config(config)?;
-
-        let claims = TokenClaims {
-            sub: user_id.to_string(),
-            username: "test_user".to_string(),
-            iss: iam_domain::entity::token::DEFAULT_JWT_ISSUER.to_string(),
-            aud: iam_domain::entity::token::DEFAULT_JWT_AUDIENCE.to_string(),
-            exp: (Utc::now() + Duration::hours(1)).timestamp(),
-            iat: Utc::now().timestamp(),
-            jti: Uuid::new_v4().to_string(),
-        };
-
-        let token = jwt_service
-            .encode(&claims)
-            .map_err(|e| anyhow::anyhow!("Failed to encode JWT token: {e}"))?;
-
-        Ok(token)
-    }
-
-    /// Create an expired JWT token for testing
-    pub fn create_expired_token(
+    pub async fn create_valid_token(
         user_id: Uuid,
         config: &JwtConfig,
     ) -> Result<String, anyhow::Error> {
@@ -89,7 +68,34 @@ impl JwtTestUtils {
         let claims = TokenClaims {
             sub: user_id.to_string(),
             username: "test_user".to_string(),
-            iss: iam_domain::entity::token::DEFAULT_JWT_ISSUER.to_string(),
+            iss: config.platform_issuer(),
+            org: None,
+            aud: iam_domain::entity::token::DEFAULT_JWT_AUDIENCE.to_string(),
+            exp: (Utc::now() + Duration::hours(1)).timestamp(),
+            iat: Utc::now().timestamp(),
+            jti: Uuid::new_v4().to_string(),
+        };
+
+        let token = jwt_service
+            .encode(&claims)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to encode JWT token: {e}"))?;
+
+        Ok(token)
+    }
+
+    /// Create an expired JWT token for testing
+    pub async fn create_expired_token(
+        user_id: Uuid,
+        config: &JwtConfig,
+    ) -> Result<String, anyhow::Error> {
+        let jwt_service = create_jwt_service_from_config(config)?;
+
+        let claims = TokenClaims {
+            sub: user_id.to_string(),
+            username: "test_user".to_string(),
+            iss: config.platform_issuer(),
+            org: None,
             aud: iam_domain::entity::token::DEFAULT_JWT_AUDIENCE.to_string(),
             exp: (Utc::now() - Duration::hours(1)).timestamp(),
             iat: (Utc::now() - Duration::hours(2)).timestamp(),
@@ -98,13 +104,14 @@ impl JwtTestUtils {
 
         let token = jwt_service
             .encode(&claims)
+            .await
             .map_err(|e| anyhow::anyhow!("Failed to encode JWT token: {e}"))?;
 
         Ok(token)
     }
 
     /// Create an invalid JWT token for testing
-    pub fn create_invalid_token(
+    pub async fn create_invalid_token(
         user_id: Uuid,
         config: &JwtConfig,
     ) -> Result<String, anyhow::Error> {
@@ -113,7 +120,8 @@ impl JwtTestUtils {
         let claims = TokenClaims {
             sub: user_id.to_string(),
             username: "test_user".to_string(),
-            iss: iam_domain::entity::token::DEFAULT_JWT_ISSUER.to_string(),
+            iss: config.platform_issuer(),
+            org: None,
             aud: iam_domain::entity::token::DEFAULT_JWT_AUDIENCE.to_string(),
             exp: (Utc::now() + Duration::hours(1)).timestamp(),
             iat: Utc::now().timestamp(),
@@ -122,6 +130,7 @@ impl JwtTestUtils {
 
         let mut token = jwt_service
             .encode(&claims)
+            .await
             .map_err(|e| anyhow::anyhow!("Failed to encode JWT token: {e}"))?;
 
         // Corrupt the token to make it invalid
@@ -187,15 +196,15 @@ impl JwtTestUtils {
     }
 
     /// Create a JWT token with custom expiration
-    pub fn create_token_with_expiration(
+    pub async fn create_token_with_expiration(
         user_id: Uuid,
         config: &JwtConfig,
         expiration_hours: i64,
     ) -> Result<String, anyhow::Error> {
         if expiration_hours > 0 {
-            Self::create_valid_token(user_id, config)
+            Self::create_valid_token(user_id, config).await
         } else {
-            Self::create_expired_token(user_id, config)
+            Self::create_expired_token(user_id, config).await
         }
     }
 
@@ -289,44 +298,44 @@ impl JwtTestUtils {
 // These delegate to the new JwtTestUtils struct methods
 
 /// Create a valid JWT token for testing with JWT encoder
-pub fn create_valid_jwt_token_with_encoder(
+pub async fn create_valid_jwt_token_with_encoder(
     user_id: Uuid,
     config: &JwtConfig,
 ) -> Result<String, anyhow::Error> {
-    JwtTestUtils::create_valid_token(user_id, config)
+    JwtTestUtils::create_valid_token(user_id, config).await
 }
 
 /// Create an expired JWT token for testing
-pub fn create_expired_jwt_token_with_encoder(
+pub async fn create_expired_jwt_token_with_encoder(
     user_id: Uuid,
     config: &JwtConfig,
 ) -> Result<String, anyhow::Error> {
-    JwtTestUtils::create_expired_token(user_id, config)
+    JwtTestUtils::create_expired_token(user_id, config).await
 }
 
 /// Create an invalid JWT token for testing
-pub fn create_invalid_jwt_token_with_encoder(
+pub async fn create_invalid_jwt_token_with_encoder(
     user_id: Uuid,
     config: &JwtConfig,
 ) -> Result<String, anyhow::Error> {
-    JwtTestUtils::create_invalid_token(user_id, config)
+    JwtTestUtils::create_invalid_token(user_id, config).await
 }
 
 /// Create a JWT token with custom expiration
-pub fn create_jwt_token_with_expiration(
+pub async fn create_jwt_token_with_expiration(
     user_id: Uuid,
     config: &JwtConfig,
     expiration_hours: i64,
 ) -> Result<String, anyhow::Error> {
-    JwtTestUtils::create_token_with_expiration(user_id, config, expiration_hours)
+    JwtTestUtils::create_token_with_expiration(user_id, config, expiration_hours).await
 }
 
 /// Create an invalid JWT token
-pub fn create_invalid_jwt_token(
+pub async fn create_invalid_jwt_token(
     user_id: Uuid,
     config: &JwtConfig,
 ) -> Result<String, anyhow::Error> {
-    JwtTestUtils::create_invalid_token(user_id, config)
+    JwtTestUtils::create_invalid_token(user_id, config).await
 }
 
 /// Create a valid registration token for testing

@@ -157,6 +157,7 @@ async fn test_oauth_provider_linked_to_different_user_returns_409() {
         second_user.id(),
         &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
     )
+    .await
     .expect("Failed to create JWT token");
 
     // Try to link GitHub from second user (should conflict)

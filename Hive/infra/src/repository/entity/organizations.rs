@@ -17,6 +17,8 @@ pub struct Model {
     pub avatar_url: Option<String>,
     pub owner_user_id: Uuid,
     pub settings: Value,
+    pub signing_profile_id: Option<Uuid>,
+    pub signing_status: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

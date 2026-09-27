@@ -265,4 +265,27 @@ mod tests {
         assert!(written.contains(&"viewer"));
         assert!(written.contains(&"member"));
     }
+
+    #[test]
+    fn member_joined_with_issuer_still_emits_user_uuid() {
+        let org_id = Uuid::new_v4();
+        let user_id = Uuid::new_v4();
+        let mut evt = MemberJoinedEvent::new(
+            org_id,
+            "ACME".to_string(),
+            user_id,
+            vec![Role::new("write".to_string(), "organization".to_string())],
+            Utc::now(),
+        );
+        evt.issuer = Some("http://127.0.0.1:8081/iam".into());
+        let delta = HiveTranslator::new()
+            .translate(&to_json(HiveDomainEvent::MemberJoined(evt)))
+            .unwrap()
+            .unwrap();
+        assert!(delta
+            .writes
+            .iter()
+            .all(|t| { t.user_type == "user" && t.user_id == user_id.to_string() }));
+        assert!(!delta.writes.is_empty());
+    }
 }

@@ -31,6 +31,9 @@ pub struct MemberInvitedEvent {
     pub invitation_token: String,
     pub expires_at: DateTime<Utc>,
     pub message: Option<String>,
+    /// Trust-domain issuer of the principal when known (ADR-0305).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub issuer: Option<String>,
 }
 
 /// Event published when a member joins an organization
@@ -43,6 +46,8 @@ pub struct MemberJoinedEvent {
     pub user_id: Uuid,
     pub roles: Vec<Role>,
     pub joined_at: DateTime<Utc>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub issuer: Option<String>,
 }
 
 /// Event published when a member's roles are updated
@@ -55,6 +60,8 @@ pub struct MemberRolesUpdatedEvent {
     pub user_id: Uuid,
     pub roles: Vec<Role>,
     pub updated_at: DateTime<Utc>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub issuer: Option<String>,
 }
 
 /// Event published when a member is removed from an organization
@@ -69,6 +76,8 @@ pub struct MemberRemovedEvent {
     pub user_email: String,
     pub removed_by_user_id: Uuid,
     pub removed_at: DateTime<Utc>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub issuer: Option<String>,
 }
 
 pub struct MemberInvitedEventData {
@@ -101,6 +110,7 @@ impl MemberInvitedEvent {
             invitation_token: data.invitation_token,
             expires_at: data.expires_at,
             message: data.message,
+            issuer: None,
         }
     }
 }
@@ -121,6 +131,7 @@ impl MemberJoinedEvent {
             user_id,
             roles,
             joined_at,
+            issuer: None,
         }
     }
 }
@@ -141,6 +152,7 @@ impl MemberRolesUpdatedEvent {
             user_id,
             roles,
             updated_at,
+            issuer: None,
         }
     }
 }
@@ -163,6 +175,7 @@ impl MemberRemovedEvent {
             user_email,
             removed_by_user_id,
             removed_at,
+            issuer: None,
         }
     }
 }

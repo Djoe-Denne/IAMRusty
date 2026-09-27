@@ -21,15 +21,21 @@ pub struct CreateOrganizationCommand {
     pub command_id: Uuid,
     pub request: CreateOrganizationRequest,
     pub user_id: Uuid,
+    pub issuer: String,
 }
 
 impl CreateOrganizationCommand {
     #[must_use]
-    pub fn new(request: CreateOrganizationRequest, user_id: Uuid) -> Self {
+    pub fn new(
+        request: CreateOrganizationRequest,
+        user_id: Uuid,
+        issuer: impl Into<String>,
+    ) -> Self {
         Self {
             command_id: Uuid::new_v4(),
             request,
             user_id,
+            issuer: issuer.into(),
         }
     }
 }
@@ -84,7 +90,7 @@ impl CommandHandler<CreateOrganizationCommand> for CreateOrganizationCommandHand
         command: CreateOrganizationCommand,
     ) -> Result<OrganizationResponse, CommandError> {
         self.organization_usecase
-            .create_organization(&command.request, command.user_id)
+            .create_organization(&command.request, command.user_id, &command.issuer)
             .await
             .map_err(|e| CommandError::business("create_failed", e.to_string()))
     }

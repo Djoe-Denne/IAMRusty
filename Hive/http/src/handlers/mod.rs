@@ -1,6 +1,7 @@
 pub mod external_links;
 pub mod invitations;
 pub mod members;
+pub mod organization_signer;
 pub mod organizations;
 pub mod roles;
 pub mod sync_jobs;
@@ -9,6 +10,7 @@ pub mod sync_jobs;
 pub use external_links::*;
 pub use invitations::*;
 pub use members::*;
+pub use organization_signer::*;
 pub use organizations::*;
 pub use roles::*;
 pub use sync_jobs::*;

@@ -390,3 +390,88 @@ where
 {
     type Error = <T as PasswordResetTokenReadRepository>::Error;
 }
+
+/// Registry for platform / organization signing keys (ADR-0304).
+#[async_trait::async_trait]
+pub trait SigningKeyRegistry: Send + Sync {
+    /// Error type returned by this registry
+    type Error: std::error::Error + Send + Sync + 'static;
+
+    /// Insert a new signing key row.
+    async fn insert(&self, key: &crate::entity::signing_key::SigningKey)
+        -> Result<(), Self::Error>;
+
+    /// Find a key by opaque kid.
+    async fn find_by_kid(
+        &self,
+        kid: &str,
+    ) -> Result<Option<crate::entity::signing_key::SigningKey>, Self::Error>;
+
+    /// Active platform signing key used to mint new access tokens.
+    async fn find_active_platform_key(
+        &self,
+    ) -> Result<Option<crate::entity::signing_key::SigningKey>, Self::Error>;
+
+    /// Keys eligible for JWKS (`active` | `retiring`), never HMAC/oct.
+    async fn list_jwks_keys(
+        &self,
+    ) -> Result<Vec<crate::entity::signing_key::SigningKey>, Self::Error>;
+
+    /// Update key status / public material.
+    async fn update(&self, key: &crate::entity::signing_key::SigningKey)
+        -> Result<(), Self::Error>;
+
+    /// Find organization signing keys by org id.
+    async fn find_by_organization(
+        &self,
+        organization_id: Uuid,
+    ) -> Result<Vec<crate::entity::signing_key::SigningKey>, Self::Error>;
+
+    /// Find keys bound to an issuer URL (any status).
+    async fn find_by_issuer(
+        &self,
+        issuer: &str,
+    ) -> Result<Vec<crate::entity::signing_key::SigningKey>, Self::Error>;
+}
+
+/// Identity repository — `(issuer, subject)` principals (ADR-0305).
+#[async_trait::async_trait]
+pub trait IdentityRepository: Send + Sync {
+    /// Error type returned by this repository
+    type Error: std::error::Error + Send + Sync + 'static;
+
+    /// Find by unique `(issuer, subject)`.
+    async fn find_by_issuer_subject(
+        &self,
+        issuer: &str,
+        subject: &str,
+    ) -> Result<Option<crate::entity::identity::Identity>, Self::Error>;
+
+    /// List identities for a HumanAccount (`users.id`).
+    async fn find_by_user_id(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Vec<crate::entity::identity::Identity>, Self::Error>;
+
+    /// Insert a new identity.
+    async fn create(
+        &self,
+        identity: &crate::entity::identity::Identity,
+    ) -> Result<crate::entity::identity::Identity, Self::Error>;
+
+    /// Ensure a platform identity exists for `user_id` at `issuer`.
+    async fn ensure_platform_identity(
+        &self,
+        user_id: Uuid,
+        issuer: &str,
+    ) -> Result<crate::entity::identity::Identity, Self::Error>;
+
+    /// Ensure an organization-managed identity exists for `(user_id, issuer, kind)`.
+    ///
+    /// Idempotent lookup by `(user_id, issuer, OrganizationManaged)`; subject stays opaque.
+    async fn ensure_organization_managed_identity(
+        &self,
+        user_id: Uuid,
+        issuer: &str,
+    ) -> Result<crate::entity::identity::Identity, Self::Error>;
+}

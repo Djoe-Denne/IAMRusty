@@ -146,7 +146,8 @@ where
             // Generate a JWT token for complete users
             let jwt_token = self
                 .token_service
-                .generate_token(&user.id.to_string(), username)?;
+                .generate_token(&user.id.to_string(), username)
+                .await?;
             Ok((user, jwt_token, email))
         } else {
             // Return incomplete user - let the use case handle the registration flow
@@ -445,8 +446,12 @@ mod missing_client_tests {
         }
     }
 
+    #[async_trait::async_trait]
     impl JwtTokenEncoder for StubEncoder {
-        fn encode(&self, _: &crate::entity::token::TokenClaims) -> Result<String, DomainError> {
+        async fn encode(
+            &self,
+            _: &crate::entity::token::TokenClaims,
+        ) -> Result<String, DomainError> {
             Err(DomainError::InvalidToken)
         }
         fn decode(&self, _: &str) -> Result<crate::entity::token::TokenClaims, DomainError> {

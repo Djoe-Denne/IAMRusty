@@ -15,6 +15,22 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use url::Url;
 
+fn decode_jwt_header(jwt: &str) -> Result<Value, Box<dyn std::error::Error>> {
+    let header_encoded = jwt.split('.').next().ok_or("Invalid JWT format")?;
+    let decoded_bytes = match general_purpose::URL_SAFE_NO_PAD.decode(header_encoded) {
+        Ok(bytes) => bytes,
+        Err(_) => {
+            let padded = match header_encoded.len() % 4 {
+                0 => header_encoded.to_string(),
+                n => format!("{}{}", header_encoded, "=".repeat(4 - n)),
+            };
+            general_purpose::URL_SAFE.decode(padded)?
+        }
+    };
+    let header_str = String::from_utf8(decoded_bytes)?;
+    Ok(serde_json::from_str(&header_str)?)
+}
+
 /// Helper function to decode and verify JWT structure (for testing)
 fn decode_jwt_payload(jwt: &str) -> Result<Value, Box<dyn std::error::Error>> {
     let parts: Vec<&str> = jwt.split('.').collect();
@@ -414,6 +430,14 @@ async fn test_login_completed_user_returns_200_with_tokens() {
         response_body["refresh_token"].is_string(),
         "Should return refresh token"
     );
+
+    let access_token = response_body["access_token"]
+        .as_str()
+        .expect("access_token string");
+    let header = decode_jwt_header(access_token).expect("jwt header");
+    assert_eq!(header["alg"], "RS256");
+    assert_eq!(header["typ"], "aiforall-access+jwt");
+    assert_eq!(header["kid"], "test-rs256-kid-01");
 }
 
 #[tokio::test]

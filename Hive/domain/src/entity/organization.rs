@@ -15,6 +15,12 @@ pub struct Organization {
     pub avatar_url: Option<String>,
     pub owner_user_id: Uuid,
     pub settings: Value,
+    /// UX-only IAM signing profile id (ADR-0306) — never a secret.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub signing_profile_id: Option<Uuid>,
+    /// UX-only signing status (`active` / `disabled` / …).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub signing_status: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -45,6 +51,8 @@ impl Organization {
             settings: serde_json::json!({
                 "visibility": "Private",
             }),
+            signing_profile_id: None,
+            signing_status: None,
             created_at: now,
             updated_at: now,
         })

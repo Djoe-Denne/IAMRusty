@@ -3,6 +3,7 @@ pub mod factory;
 pub mod invitation;
 pub mod member;
 pub mod organization;
+pub mod organization_signer;
 pub mod role;
 pub mod sync_job;
 
@@ -12,5 +13,6 @@ pub use factory::*;
 pub use invitation::*;
 pub use member::*;
 pub use organization::*;
+pub use organization_signer::*;
 pub use role::*;
 pub use sync_job::*;

@@ -31,6 +31,7 @@ pub trait MemberUseCase: Send + Sync {
         organization_id: Uuid,
         request: &AddMemberRequest,
         user_id: Uuid,
+        issuer: &str,
     ) -> Result<MemberResponse, ApplicationError>;
 
     /// Remove a member from an organization
@@ -38,6 +39,7 @@ pub trait MemberUseCase: Send + Sync {
         &self,
         organization_id: Uuid,
         user_id: Uuid,
+        issuer: &str,
     ) -> Result<(), ApplicationError>;
 
     /// Update a member's role
@@ -47,6 +49,7 @@ pub trait MemberUseCase: Send + Sync {
         user_id: Uuid,
         request: &UpdateMemberRolesRequest,
         requester_id: Uuid,
+        issuer: &str,
     ) -> Result<MemberResponse, ApplicationError>;
 
     /// List organization members
@@ -55,6 +58,7 @@ pub trait MemberUseCase: Send + Sync {
         organization_id: Uuid,
         pagination: &PaginationRequest,
         requester_id: Uuid,
+        issuer: &str,
     ) -> Result<MemberListResponse, ApplicationError>;
 
     /// Get a specific member
@@ -63,6 +67,7 @@ pub trait MemberUseCase: Send + Sync {
         organization_id: Uuid,
         user_id: Uuid,
         requester_id: Uuid,
+        issuer: &str,
     ) -> Result<MemberResponse, ApplicationError>;
 }
 
@@ -125,9 +130,10 @@ impl MemberUseCaseImpl {
         &self,
         organization_id: Uuid,
         user_id: Uuid,
+        issuer: &str,
     ) -> Result<OrganizationMember, ApplicationError> {
         self.member_service
-            .get_member(organization_id, user_id)
+            .get_member(organization_id, user_id, issuer)
             .await
             .map_err(ApplicationError::Domain)
     }
@@ -136,6 +142,7 @@ impl MemberUseCaseImpl {
         &self,
         organization_id: Uuid,
         actor_id: Uuid,
+        issuer: &str,
         roles: &[RolePermission],
     ) -> Result<(), ApplicationError> {
         if !roles
@@ -144,7 +151,9 @@ impl MemberUseCaseImpl {
         {
             return Ok(());
         }
-        let actor = self.require_org_member(organization_id, actor_id).await?;
+        let actor = self
+            .require_org_member(organization_id, actor_id, issuer)
+            .await?;
         let actor_privileged = actor
             .roles
             .iter()
@@ -191,13 +200,17 @@ impl MemberUseCaseImpl {
                 )
             })
             .collect();
-        let event = HiveDomainEvent::MemberJoined(MemberJoinedEvent::new(
-            member.organization_id,
-            organization_name.to_string(),
-            member.user_id,
-            roles,
-            member.joined_at.unwrap_or_else(Utc::now),
-        ));
+        let event = HiveDomainEvent::MemberJoined({
+            let mut e = MemberJoinedEvent::new(
+                member.organization_id,
+                organization_name.to_string(),
+                member.user_id,
+                roles,
+                member.joined_at.unwrap_or_else(Utc::now),
+            );
+            e.issuer = Some(member.issuer.clone());
+            e
+        });
 
         self.record_or_publish_event(event.into()).await
     }
@@ -210,15 +223,20 @@ impl MemberUseCaseImpl {
         user_id: Uuid,
         user_email: &str,
         removed_by_user_id: Uuid,
+        issuer: &str,
     ) -> Result<(), ApplicationError> {
-        let event = HiveDomainEvent::MemberRemoved(MemberRemovedEvent::new(
-            organization_id,
-            organization_name.to_string(),
-            user_id,
-            user_email.to_string(),
-            removed_by_user_id,
-            Utc::now(),
-        ));
+        let event = HiveDomainEvent::MemberRemoved({
+            let mut e = MemberRemovedEvent::new(
+                organization_id,
+                organization_name.to_string(),
+                user_id,
+                user_email.to_string(),
+                removed_by_user_id,
+                Utc::now(),
+            );
+            e.issuer = Some(issuer.to_string());
+            e
+        });
 
         self.record_or_publish_event(event.into()).await
     }
@@ -238,13 +256,17 @@ impl MemberUseCaseImpl {
                 )
             })
             .collect();
-        let event = HiveDomainEvent::MemberRolesUpdated(MemberRolesUpdatedEvent::new(
-            member.organization_id,
-            organization_name.to_string(),
-            member.user_id,
-            roles,
-            Utc::now(),
-        ));
+        let event = HiveDomainEvent::MemberRolesUpdated({
+            let mut e = MemberRolesUpdatedEvent::new(
+                member.organization_id,
+                organization_name.to_string(),
+                member.user_id,
+                roles,
+                Utc::now(),
+            );
+            e.issuer = Some(member.issuer.clone());
+            e
+        });
 
         self.record_or_publish_event(event.into()).await
     }
@@ -257,6 +279,7 @@ impl MemberUseCase for MemberUseCaseImpl {
         organization_id: Uuid,
         request: &AddMemberRequest,
         user_id: Uuid,
+        issuer: &str,
     ) -> Result<MemberResponse, ApplicationError> {
         // Get organization for validation and events
         let organization = self
@@ -272,7 +295,7 @@ impl MemberUseCase for MemberUseCaseImpl {
             .collect::<Result<_, _>>()
             .map_err(ApplicationError::Domain)?;
 
-        self.require_can_assign_roles(organization_id, user_id, &role_permissions)
+        self.require_can_assign_roles(organization_id, user_id, issuer, &role_permissions)
             .await?;
 
         let member = if let Some(outbox_unit_of_work) = &self.outbox_unit_of_work {
@@ -285,17 +308,22 @@ impl MemberUseCase for MemberUseCaseImpl {
                     )
                 })
                 .collect();
-            let event = HiveDomainEvent::MemberJoined(MemberJoinedEvent::new(
-                organization_id,
-                organization.name.clone(),
-                request.user_id,
-                roles,
-                Utc::now(),
-            ));
+            let event = HiveDomainEvent::MemberJoined({
+                let mut e = MemberJoinedEvent::new(
+                    organization_id,
+                    organization.name.clone(),
+                    request.user_id,
+                    roles,
+                    Utc::now(),
+                );
+                e.issuer = Some(issuer.to_string());
+                e
+            });
             outbox_unit_of_work
                 .add_member(
                     organization_id,
                     request.user_id,
+                    issuer.to_string(),
                     role_permissions.clone(),
                     Some(user_id),
                     event.into(),
@@ -307,6 +335,7 @@ impl MemberUseCase for MemberUseCaseImpl {
                 .add_member(
                     organization_id,
                     request.user_id,
+                    issuer,
                     role_permissions.clone(),
                     Some(user_id),
                 )
@@ -324,6 +353,7 @@ impl MemberUseCase for MemberUseCaseImpl {
         &self,
         organization_id: Uuid,
         user_id: Uuid,
+        issuer: &str,
     ) -> Result<(), ApplicationError> {
         // Get organization for validation and events
         let organization = self
@@ -333,20 +363,24 @@ impl MemberUseCase for MemberUseCaseImpl {
             .map_err(ApplicationError::Domain)?;
 
         if let Some(outbox_unit_of_work) = &self.outbox_unit_of_work {
-            let event = HiveDomainEvent::MemberRemoved(MemberRemovedEvent::new(
-                organization_id,
-                organization.name.clone(),
-                user_id,
-                "user@example.com".to_string(),
-                user_id,
-                Utc::now(),
-            ));
+            let event = HiveDomainEvent::MemberRemoved({
+                let mut e = MemberRemovedEvent::new(
+                    organization_id,
+                    organization.name.clone(),
+                    user_id,
+                    "user@example.com".to_string(),
+                    user_id,
+                    Utc::now(),
+                );
+                e.issuer = Some(issuer.to_string());
+                e
+            });
             outbox_unit_of_work
-                .remove_member(organization_id, user_id, event.into())
+                .remove_member(organization_id, user_id, issuer.to_string(), event.into())
                 .await?;
         } else {
             self.member_service
-                .remove_member(organization_id, user_id)
+                .remove_member(organization_id, user_id, issuer)
                 .await
                 .map_err(ApplicationError::Domain)?;
             self.publish_member_removed_event(
@@ -355,6 +389,7 @@ impl MemberUseCase for MemberUseCaseImpl {
                 user_id,
                 "user@example.com",
                 user_id,
+                issuer,
             )
             .await?;
         }
@@ -367,8 +402,9 @@ impl MemberUseCase for MemberUseCaseImpl {
         organization_id: Uuid,
         pagination: &PaginationRequest,
         requester_id: Uuid,
+        issuer: &str,
     ) -> Result<MemberListResponse, ApplicationError> {
-        self.require_org_member(organization_id, requester_id)
+        self.require_org_member(organization_id, requester_id, issuer)
             .await?;
 
         let members = self
@@ -420,13 +456,14 @@ impl MemberUseCase for MemberUseCaseImpl {
         organization_id: Uuid,
         user_id: Uuid,
         requester_id: Uuid,
+        issuer: &str,
     ) -> Result<MemberResponse, ApplicationError> {
-        self.require_org_member(organization_id, requester_id)
+        self.require_org_member(organization_id, requester_id, issuer)
             .await?;
 
         let member = self
             .member_service
-            .get_member(organization_id, user_id)
+            .get_member(organization_id, user_id, issuer)
             .await
             .map_err(ApplicationError::Domain)?;
 
@@ -439,6 +476,7 @@ impl MemberUseCase for MemberUseCaseImpl {
         user_id: Uuid,
         request: &UpdateMemberRolesRequest,
         requester_id: Uuid,
+        issuer: &str,
     ) -> Result<MemberResponse, ApplicationError> {
         let organization = self
             .organization_service
@@ -453,12 +491,12 @@ impl MemberUseCase for MemberUseCaseImpl {
             .collect::<Result<_, _>>()
             .map_err(ApplicationError::Domain)?;
 
-        self.require_can_assign_roles(organization_id, requester_id, &role_permissions)
+        self.require_can_assign_roles(organization_id, requester_id, issuer, &role_permissions)
             .await?;
 
         let member = self
             .member_service
-            .update_member_roles(organization_id, user_id, role_permissions.clone())
+            .update_member_roles(organization_id, user_id, issuer, role_permissions.clone())
             .await
             .map_err(ApplicationError::Domain)?;
 

@@ -23,6 +23,10 @@ pub struct TokenClaims {
     /// Audience
     pub aud: String,
 
+    /// Optional organization trust-context claim (not a permission).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub org: Option<String>,
+
     /// JWT expiration timestamp
     pub exp: i64,
 
@@ -61,6 +65,7 @@ impl TokenClaims {
             username: username.to_string(),
             iss: issuer.to_string(),
             aud: audience.to_string(),
+            org: None,
             exp: (now + expires_in).timestamp(),
             iat: now.timestamp(),
             jti: Uuid::new_v4().to_string(),
@@ -97,7 +102,8 @@ pub struct Jwk {
     /// Key ID
     pub kid: String,
 
-    /// Key usage
+    /// Key usage (`use` in JOSE).
+    #[serde(rename = "use")]
     pub use_: String,
 
     /// Algorithm
@@ -108,6 +114,63 @@ pub struct Jwk {
 
     /// Exponent (RS256)
     pub e: String,
+
+    /// Issuer bound to this key (custom claim; must equal JWT `iss`).
+    pub iss: String,
+}
+
+impl Jwk {
+    /// Build an RS256 JWK from a public PEM (never HMAC / `oct`).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string if the PEM cannot be parsed as an RSA public key.
+    pub fn from_rsa_pem(public_key_pem: &str, kid: &str, issuer: &str) -> Result<Self, String> {
+        use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+        use rsa::{pkcs8::DecodePublicKey, traits::PublicKeyParts, RsaPublicKey};
+
+        let rsa_pub = RsaPublicKey::from_public_key_pem(public_key_pem)
+            .map_err(|e| format!("Failed to parse RSA public key PEM: {e}"))?;
+        Ok(Self {
+            kty: "RSA".to_string(),
+            kid: kid.to_string(),
+            use_: "sig".to_string(),
+            alg: "RS256".to_string(),
+            n: URL_SAFE_NO_PAD.encode(rsa_pub.n().to_bytes_be()),
+            e: URL_SAFE_NO_PAD.encode(rsa_pub.e().to_bytes_be()),
+            iss: issuer.to_string(),
+        })
+    }
+}
+
+impl JwkSet {
+    /// Convert registry keys to JWKS. Non-RS256 and invalid RSA PEMs are skipped (never fail-closed).
+    #[must_use]
+    pub fn from_registry_keys(keys: &[crate::entity::signing_key::SigningKey]) -> Self {
+        let mut jwks_keys = Vec::with_capacity(keys.len());
+        for key in keys {
+            if !key.algorithm.eq_ignore_ascii_case("RS256") {
+                tracing::warn!(
+                    kid = %key.kid,
+                    algorithm = %key.algorithm,
+                    "skipping JWKS key with non-RS256 algorithm"
+                );
+                continue;
+            }
+            match Jwk::from_rsa_pem(&key.public_key, &key.kid, &key.issuer) {
+                Ok(jwk) => jwks_keys.push(jwk),
+                Err(e) => {
+                    tracing::warn!(
+                        kid = %key.kid,
+                        issuer = %key.issuer,
+                        error = %e,
+                        "skipping JWKS key with invalid RSA public PEM"
+                    );
+                }
+            }
+        }
+        Self { keys: jwks_keys }
+    }
 }
 
 /// JWT token data

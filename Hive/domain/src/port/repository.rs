@@ -67,6 +67,14 @@ pub trait OrganizationMemberReadRepository: Send + Sync {
     /// Find member by ID
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<OrganizationMember>, DomainError>;
 
+    /// Find member by organization, issuer, and user ID
+    async fn find_by_organization_issuer_and_user(
+        &self,
+        organization_id: &Uuid,
+        issuer: &str,
+        user_id: &Uuid,
+    ) -> Result<Option<OrganizationMember>, DomainError>;
+
     /// Find member by organization and user ID
     async fn find_by_organization_and_user(
         &self,

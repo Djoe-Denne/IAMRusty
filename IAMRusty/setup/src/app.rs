@@ -2,10 +2,11 @@ use anyhow::Result;
 use axum::Router;
 use chrono::Duration;
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tracing::info;
 
-use iam_http_server::{create_app_routes, create_router};
+use iam_http_server::{SignerRouteContext, create_app_routes, create_router};
 use iam_infra::{
     auth::{
         HttpIdpConnector, PasswordResetServiceAdapter, PasswordService, PasswordServiceAdapter,
@@ -13,6 +14,7 @@ use iam_infra::{
     db::DbConnectionPool,
     event_adapter::IAMErrorMapper,
     repository::{
+        SeaOrmIdentityRepository, SeaOrmSigningKeyRegistry, bootstrap_platform_signing_key,
         combined_email_verification_repository::CombinedEmailVerificationRepository,
         combined_password_reset_token_repository::CombinedPasswordResetTokenRepository,
         combined_repository::{
@@ -33,14 +35,19 @@ use iam_infra::{
         user_read::UserReadRepositoryImpl,
         user_write::UserWriteRepositoryImpl,
     },
-    token::JwtTokenService,
+    signing::{
+        DefaultOrganizationSignerProbe, DefaultOrganizationSignerRotator, PemSigningProvider,
+        RotateContext, StaticCredential, TransitClientConfig,
+    },
+    token::{JwtAlgorithm, JwtTokenService},
     transaction::IamOutboxUnitOfWorkImpl,
 };
 use rustycog::http::{AppState, UserIdExtractor};
 use rustycog::permission::{InMemoryPermissionChecker, PermissionChecker};
 
-use iam_configuration::{AppConfig, IdpConfig};
+use iam_configuration::{AppConfig, IdpConfig, SecretStorage};
 use iam_domain::entity::provider::Provider;
+use iam_domain::entity::signing_key::JWKS_RETIRE_SKEW_SECONDS;
 use iam_domain::error::DomainError;
 use iam_domain::port::service::FederatedOAuthClient;
 use readiness::{
@@ -71,6 +78,7 @@ pub struct IAMRustyApp {
     outbox_dispatcher: Arc<OutboxDispatcher<DomainError>>,
     readiness: Arc<ReadinessProbe>,
     idp: Arc<IdpConfig>,
+    signer: Option<Arc<SignerRouteContext>>,
 }
 
 impl IAMRustyApp {
@@ -79,18 +87,24 @@ impl IAMRustyApp {
         outbox_dispatcher: Arc<OutboxDispatcher<DomainError>>,
         readiness: Arc<ReadinessProbe>,
         idp: Arc<IdpConfig>,
+        signer: Option<Arc<SignerRouteContext>>,
     ) -> Self {
         Self {
             app_state,
             outbox_dispatcher,
             readiness,
             idp,
+            signer,
         }
     }
 
     pub fn router(&self) -> Router {
         attach_ready(
-            create_router(self.app_state.clone(), self.idp.clone()),
+            create_router(
+                self.app_state.clone(),
+                self.idp.clone(),
+                self.signer.clone(),
+            ),
             self.readiness.clone(),
         )
     }
@@ -203,7 +217,7 @@ where
         }
     );
 
-    let repos = setup_repositories(&db_pool);
+    let repos = setup_repositories(&db_pool, config.jwt.platform_issuer());
     let idp = Arc::new(config.idp.clone());
     let oauth_clients = setup_oauth_clients(&config)?;
 
@@ -211,7 +225,8 @@ where
     let password_service = Arc::new(PasswordService::new());
     let password_service_adapter = Arc::new(PasswordServiceAdapter::new(password_service.clone()));
 
-    let (http_verifier_auth, token_service, registration_token_service) = setup_jwt(&config)?;
+    let (http_verifier_auth, inline_jwks, token_service, registration_token_service, signer_ctx) =
+        setup_jwt(&config, db_pool.get_write_connection()).await?;
 
     let outbox_unit_of_work = Arc::new(IamOutboxUnitOfWorkImpl::new(
         db_pool.clone(),
@@ -233,10 +248,10 @@ where
     let registry = CommandRegistryFactory::create_iam_registry(usecases, &config.command);
     let command_service = Arc::new(GenericCommandService::new(Arc::new(registry)));
 
-    // Verifier secret comes from the issuer (`[jwt.secret]`), not a
-    // second `[auth.jwt]` copy that can drift.
-    let user_id_extractor = UserIdExtractor::new(http_verifier_auth)
-        .map_err(|e| anyhow::anyhow!("Invalid auth configuration: {e}"))?;
+    // Seed inline JWKS so IAM does not HTTP-call itself before listen.
+    let user_id_extractor =
+        UserIdExtractor::from_config_with_inline_jwks(http_verifier_auth, &inline_jwks)
+            .map_err(|e| anyhow::anyhow!("Invalid auth configuration: {e}"))?;
 
     // IAM routes are never guarded by `with_permission_on` — IAM is the
     // identity provider, not a resource service — so we plug in an empty
@@ -257,6 +272,7 @@ where
         outbox_dispatcher,
         readiness,
         idp,
+        signer_ctx,
     ))
 }
 
@@ -294,6 +310,10 @@ struct IamRepos {
     token_repo_login: TokenRepo,
     token_repo_link: TokenRepo,
     refresh_token_repo: RefreshRepo,
+    identity_repo: Arc<dyn iam_domain::port::repository::IdentityRepository<Error = DomainError>>,
+    signing_key_registry:
+        Arc<dyn iam_domain::port::repository::SigningKeyRegistry<Error = DomainError>>,
+    platform_issuer: String,
 }
 
 struct OauthClients {
@@ -308,6 +328,8 @@ struct OauthLinkDeps {
     clients: OauthClients,
     token_service: Arc<JwtTokenService>,
     registration_token_service: Arc<iam_infra::token::RegistrationTokenServiceImpl>,
+    identity_repo: Arc<dyn iam_domain::port::repository::IdentityRepository<Error = DomainError>>,
+    platform_issuer: String,
 }
 
 struct AuthRegistrationDeps<EP> {
@@ -322,6 +344,8 @@ struct AuthRegistrationDeps<EP> {
     registration_token_service: Arc<iam_infra::token::RegistrationTokenServiceImpl>,
     outbox_unit_of_work: Arc<IamOutboxUnitOfWorkImpl>,
     refresh_token_repo: RefreshRepo,
+    identity_repo: Arc<dyn iam_domain::port::repository::IdentityRepository<Error = DomainError>>,
+    platform_issuer: String,
 }
 
 struct IamUsecasesDeps<EP> {
@@ -346,6 +370,8 @@ fn setup_oauth_and_link(
         clients,
         token_service,
         registration_token_service,
+        identity_repo,
+        platform_issuer,
     } = deps;
     let clients = Arc::new(clients.by_slug);
     let oauth_service = iam_domain::service::oauth_service::OAuthService::new(
@@ -359,6 +385,8 @@ fn setup_oauth_and_link(
         Arc::new(oauth_service),
         registration_token_service,
         token_service,
+        identity_repo,
+        platform_issuer,
     ));
     let provider_link_service = Arc::new(iam_domain::service::ProviderLinkService::new(
         Arc::new(user_repo),
@@ -392,6 +420,8 @@ where
         registration_token_service,
         outbox_unit_of_work,
         refresh_token_repo,
+        identity_repo,
+        platform_issuer,
     } = deps;
     let signup_transaction = Arc::new(SignupTransactionImpl::new(db_pool.get_write_connection()));
     let auth_service = Arc::new(
@@ -409,7 +439,11 @@ where
             outbox_unit_of_work.clone(),
         ),
     );
-    let login_auth = Arc::new(LoginUseCaseImpl::new(auth_service));
+    let login_auth = Arc::new(LoginUseCaseImpl::new(
+        auth_service,
+        identity_repo.clone(),
+        platform_issuer.clone(),
+    ));
     let registration_service = Arc::new(
         iam_domain::service::RegistrationServiceImpl::new_with_outbox_unit_of_work(
             iam_domain::service::registration_service::RegistrationServiceDependencies {
@@ -424,7 +458,11 @@ where
             outbox_unit_of_work.clone(),
         ),
     );
-    let registration = Arc::new(RegistrationUseCaseImpl::new(registration_service));
+    let registration = Arc::new(RegistrationUseCaseImpl::new(
+        registration_service,
+        identity_repo,
+        platform_issuer,
+    ));
     let password_reset_service_adapter =
         Arc::new(PasswordResetServiceAdapter::new(password_service));
     let password_reset = Arc::new(
@@ -450,6 +488,12 @@ fn setup_provider_user_token(
     user_email_repo: UserEmailRepo,
     refresh_token_repo: RefreshRepo,
     token_service: Arc<JwtTokenService>,
+    signing_key_registry: Arc<
+        dyn iam_domain::port::repository::SigningKeyRegistry<Error = DomainError>,
+    >,
+    identity_repo: Arc<dyn iam_domain::port::repository::IdentityRepository<Error = DomainError>>,
+    platform_issuer: String,
+    access_token_expiration_seconds: u64,
 ) -> (
     Arc<dyn ProviderUseCase>,
     Arc<dyn UserUseCase>,
@@ -477,12 +521,16 @@ fn setup_provider_user_token(
             token_service.clone(),
         ),
     )));
-    let token = Arc::new(TokenUseCaseImpl::new(Arc::new(
-        iam_domain::service::RefreshTokenServiceImpl::new(
+    let token = Arc::new(TokenUseCaseImpl::with_expiration(
+        Arc::new(iam_domain::service::RefreshTokenServiceImpl::new(
             Arc::new(refresh_token_repo),
             token_service,
-        ),
-    )));
+        )),
+        signing_key_registry,
+        identity_repo,
+        platform_issuer,
+        access_token_expiration_seconds,
+    ));
     (provider, user, token)
 }
 
@@ -511,6 +559,9 @@ where
         token_repo_login,
         token_repo_link,
         refresh_token_repo,
+        identity_repo,
+        signing_key_registry,
+        platform_issuer,
     } = repos;
     let (oauth, link_provider) = setup_oauth_and_link(OauthLinkDeps {
         user_repo: user_repo.clone(),
@@ -520,6 +571,8 @@ where
         clients,
         token_service: token_service.clone(),
         registration_token_service: registration_token_service.clone(),
+        identity_repo: identity_repo.clone(),
+        platform_issuer: platform_issuer.clone(),
     });
     let (login_auth, registration, password_reset) = setup_auth_registration_password(
         db_pool,
@@ -535,6 +588,8 @@ where
             registration_token_service,
             outbox_unit_of_work,
             refresh_token_repo: refresh_token_repo.clone(),
+            identity_repo: identity_repo.clone(),
+            platform_issuer: platform_issuer.clone(),
         },
     );
     let (provider, user, token) = setup_provider_user_token(
@@ -542,7 +597,11 @@ where
         user_repo,
         user_email_repo,
         refresh_token_repo,
-        token_service,
+        token_service.clone(),
+        signing_key_registry,
+        identity_repo,
+        platform_issuer,
+        token_service.access_token_expiration_seconds(),
     );
     IamRegistryUseCases {
         oauth,
@@ -556,7 +615,7 @@ where
     }
 }
 
-fn setup_repositories(db_pool: &DbConnectionPool) -> IamRepos {
+fn setup_repositories(db_pool: &DbConnectionPool, platform_issuer: String) -> IamRepos {
     let user_repo = CombinedUserRepository::new(
         UserReadRepositoryImpl::new(db_pool.get_read_connection()),
         UserWriteRepositoryImpl::new(db_pool.get_write_connection()),
@@ -593,6 +652,14 @@ fn setup_repositories(db_pool: &DbConnectionPool) -> IamRepos {
         RefreshTokenReadRepositoryImpl::new(db_pool.get_read_connection()),
         RefreshTokenWriteRepositoryImpl::new(db_pool.get_write_connection()),
     );
+    let identity_repo = Arc::new(SeaOrmIdentityRepository::new(
+        db_pool.get_write_connection(),
+    ))
+        as Arc<dyn iam_domain::port::repository::IdentityRepository<Error = DomainError>>;
+    let signing_key_registry = Arc::new(SeaOrmSigningKeyRegistry::new(
+        db_pool.get_write_connection(),
+    ))
+        as Arc<dyn iam_domain::port::repository::SigningKeyRegistry<Error = DomainError>>;
     IamRepos {
         user_repo,
         user_email_repo,
@@ -601,32 +668,86 @@ fn setup_repositories(db_pool: &DbConnectionPool) -> IamRepos {
         token_repo_login,
         token_repo_link,
         refresh_token_repo,
+        identity_repo,
+        signing_key_registry,
+        platform_issuer,
     }
 }
 
-fn setup_jwt(
+async fn setup_jwt(
     config: &AppConfig,
+    db: Arc<sea_orm::DatabaseConnection>,
 ) -> Result<(
     iam_configuration::AuthConfig,
+    String,
     Arc<JwtTokenService>,
     Arc<iam_infra::token::RegistrationTokenServiceImpl>,
+    Option<Arc<SignerRouteContext>>,
 )> {
     let http_verifier_auth = config.jwt.http_verifier_auth().map_err(|e| {
-        tracing::error!("JWT issuer is incompatible with rustycog-http verifier: {e}");
-        anyhow::anyhow!("JWT issuer is incompatible with rustycog-http verifier: {e}")
+        tracing::error!("JWT verifier config invalid: {e}");
+        anyhow::anyhow!("JWT verifier config invalid: {e}")
     })?;
     tracing::info!("Setting up JWT token service");
     let jwt_algorithm_config = config.jwt.create_jwt_algorithm().map_err(|e| {
         tracing::error!("Failed to create JWT algorithm from configuration: {e}");
         anyhow::anyhow!("Failed to create JWT algorithm from configuration: {e}")
     })?;
-    let jwt_algorithm = match jwt_algorithm_config {
-        iam_configuration::JwtAlgorithm::HS256(secret) => {
-            tracing::info!(
-                "Using HMAC256 JWT algorithm (secret length: {})",
-                secret.len()
+
+    let platform_issuer = config.jwt.platform_issuer();
+    let registry = Arc::new(SeaOrmSigningKeyRegistry::new(db.clone()));
+    let identity_repo = Arc::new(SeaOrmIdentityRepository::new(db));
+    let pem_root = organization_signer_pem_root(&config.jwt.secret);
+    let transit = match config.jwt.transit_endpoint() {
+        Some((url, token)) => {
+            let workload = Arc::new(
+                StaticCredential::from_pair("openbao-token", token)
+                    .map_err(|e| anyhow::anyhow!("jwt.transit_token invalid: {e}"))?,
             );
-            iam_infra::token::JwtAlgorithm::HS256(secret)
+            Some(TransitClientConfig {
+                base_url: url,
+                workload: workload as Arc<dyn iam_domain::port::WorkloadIdentity>,
+                token_ref: "openbao-token".to_string(),
+            })
+        }
+        None => None,
+    };
+    let mut probe = DefaultOrganizationSignerProbe::new(pem_root.clone());
+    if let Some(ref t) = transit {
+        probe = probe.with_transit(t.clone());
+    }
+    let rotator = Arc::new(DefaultOrganizationSignerRotator::new(RotateContext {
+        registry: registry.clone()
+            as Arc<dyn iam_domain::port::repository::SigningKeyRegistry<Error = DomainError>>,
+        pem_root: pem_root.clone(),
+        transit: transit.clone(),
+    }));
+    let signer_ctx = Some(Arc::new(SignerRouteContext {
+        registry: registry.clone()
+            as Arc<dyn iam_domain::port::repository::SigningKeyRegistry<Error = DomainError>>,
+        identity_repo: identity_repo
+            as Arc<dyn iam_domain::port::repository::IdentityRepository<Error = DomainError>>,
+        public_base_url: config.jwt.public_base_url.clone(),
+        probe: Arc::new(probe),
+        rotator: rotator as Arc<dyn iam_domain::port::OrganizationSignerRotator>,
+        pem_root,
+        expiration_seconds: config.jwt.expiration_seconds,
+        skew_seconds: JWKS_RETIRE_SKEW_SECONDS as u64,
+        transit_base_url: transit.map(|t| t.base_url),
+    }));
+
+    let (jwt_algorithm, signing_bits) = match jwt_algorithm_config {
+        iam_configuration::JwtAlgorithm::HS256(secret) => {
+            tracing::warn!("HS256 JWT algorithm configured — access tokens should be RS256");
+            (
+                JwtAlgorithm::HS256(secret),
+                None::<(
+                    Arc<dyn iam_domain::port::SigningProvider>,
+                    String,
+                    String,
+                    iam_domain::entity::token::JwkSet,
+                )>,
+            )
         }
         iam_configuration::JwtAlgorithm::RS256(key_pair) => {
             tracing::info!(
@@ -635,21 +756,59 @@ fn setup_jwt(
                 key_pair.private_key.len(),
                 key_pair.public_key.len()
             );
-            iam_infra::token::JwtAlgorithm::RS256(iam_domain::entity::token::JwtKeyPair {
-                private_key: key_pair.private_key,
-                public_key: key_pair.public_key,
-                kid: key_pair.kid,
-            })
+            let provider = Arc::new(
+                PemSigningProvider::new(&key_pair.private_key, key_pair.public_key.clone())
+                    .map_err(|e| anyhow::anyhow!("PEM signing provider: {e}"))?,
+            ) as Arc<dyn iam_domain::port::SigningProvider>;
+
+            let bootstrapped = bootstrap_platform_signing_key(
+                registry.as_ref(),
+                &key_pair.kid,
+                &platform_issuer,
+                &key_pair.public_key,
+                "pem:config/jwt.secret",
+            )
+            .await
+            .map_err(|e| anyhow::anyhow!("signing key bootstrap: {e}"))?;
+
+            let jwk = JwtTokenService::jwk_from_pem(
+                &bootstrapped.public_key,
+                &bootstrapped.kid,
+                &bootstrapped.issuer,
+            )
+            .map_err(|e| anyhow::anyhow!("JWKS build: {e}"))?;
+            let jwks = iam_domain::entity::token::JwkSet { keys: vec![jwk] };
+
+            (
+                JwtAlgorithm::RS256(iam_domain::entity::token::JwtKeyPair {
+                    private_key: key_pair.private_key,
+                    public_key: key_pair.public_key,
+                    kid: key_pair.kid.clone(),
+                }),
+                Some((provider, bootstrapped.kid, bootstrapped.issuer, jwks)),
+            )
         }
     };
-    let token_service = Arc::new(
-        JwtTokenService::with_refresh_expiration(
-            jwt_algorithm.clone(),
-            config.jwt.expiration_seconds,
-            config.jwt.refresh_token_expiration_seconds,
-        )
-        .with_issuer_audience(config.jwt.issuer.clone(), config.jwt.audience.clone()),
-    );
+
+    let mut token_service = JwtTokenService::with_refresh_expiration(
+        jwt_algorithm.clone(),
+        config.jwt.expiration_seconds,
+        config.jwt.refresh_token_expiration_seconds,
+    )
+    .with_issuer_audience(platform_issuer.clone(), config.jwt.audience.clone());
+
+    let inline_jwks = if let Some((provider, kid, issuer, jwks)) = signing_bits {
+        let json =
+            serde_json::to_string(&jwks).map_err(|e| anyhow::anyhow!("JWKS serialize: {e}"))?;
+        token_service = token_service.with_signing_provider(provider, kid, issuer, jwks);
+        json
+    } else {
+        use iam_domain::port::service::JwtTokenEncoder;
+        serde_json::to_string(&JwtTokenEncoder::jwks(&token_service))
+            .unwrap_or_else(|_| "{\"keys\":[]}".to_string())
+    };
+
+    let token_service = Arc::new(token_service);
     iam_http_server::configure_oauth_state_secret(config.jwt.oauth_state_secret.clone());
     if !config.internal_service_token.is_empty() {
         iam_http_server::configure_internal_service_token(config.internal_service_token.clone());
@@ -660,14 +819,29 @@ fn setup_jwt(
     );
     Ok((
         http_verifier_auth,
+        inline_jwks,
         token_service,
         registration_token_service,
+        signer_ctx,
     ))
 }
 
 fn setup_oauth_clients(config: &AppConfig) -> Result<OauthClients> {
     let by_slug = setup_http_idp_clients(&config.idp)?;
     Ok(OauthClients { by_slug })
+}
+
+fn organization_signer_pem_root(secret: &SecretStorage) -> PathBuf {
+    match secret {
+        SecretStorage::PemFile {
+            private_key_path, ..
+        } => Path::new(private_key_path)
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+            .map(|parent| parent.join("organizations"))
+            .unwrap_or_else(|| PathBuf::from("config/keys/organizations")),
+        _ => PathBuf::from("config/keys/organizations"),
+    }
 }
 
 fn setup_http_idp_clients(
@@ -713,7 +887,10 @@ pub async fn run_server(app: IAMRustyApp, app_config: ServerConfig) -> Result<()
         let app_state = app.app_state.clone();
         let probe = app.readiness.clone();
         let idp = app.idp.clone();
-        tokio::spawn(async move { create_app_routes(app_state, server_config, probe, idp).await })
+        let signer = app.signer.clone();
+        tokio::spawn(async move {
+            create_app_routes(app_state, server_config, probe, idp, signer).await
+        })
     };
 
     let mut background_tasks = app.start_background_tasks();
@@ -757,9 +934,10 @@ pub async fn run_server(app: IAMRustyApp, app_config: ServerConfig) -> Result<()
 
 #[cfg(test)]
 mod tests {
-    use super::setup_http_idp_clients;
-    use iam_configuration::{IdpConfig, IdpConnectorConfig};
+    use super::{organization_signer_pem_root, setup_http_idp_clients};
+    use iam_configuration::{IdpConfig, IdpConnectorConfig, SecretStorage};
     use iam_domain::entity::provider::Provider;
+    use std::path::{Path, PathBuf};
 
     fn complete_connector(id: &str) -> IdpConnectorConfig {
         IdpConnectorConfig {
@@ -834,5 +1012,18 @@ mod tests {
                 "unexpected error: {err}"
             ),
         }
+    }
+
+    #[test]
+    fn organization_signer_pem_root_excludes_platform_pem() {
+        let secret = SecretStorage::PemFile {
+            private_key_path: "config/keys/test-platform.pem".to_string(),
+            public_key_path: "config/keys/test-platform.pub".to_string(),
+            key_id: Some("test-platform".to_string()),
+        };
+        let root = organization_signer_pem_root(&secret);
+        let platform = Path::new("config/keys/test-platform.pem");
+        assert!(!platform.starts_with(&root));
+        assert_eq!(root, PathBuf::from("config/keys/organizations"));
     }
 }

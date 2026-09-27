@@ -1,10 +1,11 @@
-Jalon : architecture actuelle / AuthN signature org.
-Chemin : docs/adr/0306-hive-iam-configuration-signature.md
-Statut : Accepted · Réalité : Unimplemented
+# ADR-0306 digest
 
-- Config signer = commande synchrone RPC/HTTP s2s Hive→IAM après AuthZ org admin. Pas de secret dans les events.
-- Pas Telegraph (correction « Telegraf » → Telegraph = notifications 0403). Aucun bus de commandes Hive→IAM n’existe.
-- Commandes : Configure/Test/Rotate/DisableOrganizationSigner. Hive = métadonnées UX ; secrets dans OpenBao via IAM.
-- Runtime : pas de client Hive→IAM ; events MemberJoined / OrganizationCreated sans KMS.
+- Jalon : Hive→IAM configuration signature
+- Chemin : `docs/adr/0306-hive-iam-configuration-signature.md`
+- Statut : Accepted
+- Réalité : Implemented
 
-Voir le fichier ADR.
+- Configure / test / rotate N+1 / disable sync ; Hive metadata only.
+- Probe PEM + Transit ; pas de secrets dans events ; pas SigningProfile* events.
+- Client Hive s2s via WorkloadIdentity/StaticCredential.
+- Voir le fichier ADR.

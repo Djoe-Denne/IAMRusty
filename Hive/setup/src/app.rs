@@ -17,6 +17,7 @@ use hive_domain::service::{
 use hive_http::{create_app_routes, create_router};
 use hive_infra::{
     external_provider::external_provider_client::HttpExternalProviderClient,
+    iam::{HttpIamOrganizationSignerClient, StaticCredential},
     repository::{
         ExternalLinkReadRepositoryImpl, ExternalLinkRepositoryImpl,
         ExternalLinkWriteRepositoryImpl, ExternalProviderReadRepositoryImpl,
@@ -58,6 +59,8 @@ type ApplicationUseCases = (
     Arc<dyn hive_application::ExternalLinkUseCase>,
     Arc<dyn hive_application::SyncJobUseCase>,
     Arc<dyn hive_application::RoleUseCase>,
+    Arc<dyn hive_domain::port::service::IamOrganizationSignerClient>,
+    Arc<dyn hive_domain::OrganizationRepository>,
 );
 
 type DomainServices = (
@@ -81,6 +84,7 @@ type RepositoryBundle = (
     Arc<RolePermissionRepositoryImpl>,
     Arc<MemberRoleRepositoryImpl>,
     Arc<HttpExternalProviderClient>,
+    Arc<HttpIamOrganizationSignerClient>,
 );
 
 /// Application context for dependency injection
@@ -129,6 +133,8 @@ impl Application {
             external_link_usecase,
             sync_job_usecase,
             role_usecase,
+            iam_signer_client,
+            organization_repo,
         ) = setup_application(db, &config, event_publisher)?;
 
         // Setup command registry
@@ -139,14 +145,15 @@ impl Application {
             external_link_usecase,
             sync_job_usecase,
             role_usecase,
+            iam_signer_client,
+            organization_repo,
             &config.command,
         );
 
         // Create command service
         let command_service = Arc::new(GenericCommandService::new(Arc::new(command_registry)));
 
-        // Same HS256 secret as IAM `[jwt.secret]` — rustycog-http cannot
-        // verify IAM JWKS/RS256 (rustycog-framework 0.1.1).
+        // RS256 JWKS verifier (`[auth.jwt]` with jwks_url / allowed_algorithms).
         let user_id_extractor = UserIdExtractor::new(config.auth.clone())
             .map_err(|e| anyhow::anyhow!("Invalid auth configuration: {e}"))?;
 
@@ -312,6 +319,8 @@ fn setup_application(
         external_provider_service,
         role_service,
         sync_service,
+        iam_signer_client,
+        organization_repo,
     ) = setup_domain(&db, config)?;
 
     let outbox_unit_of_work = Arc::new(HiveOutboxUnitOfWorkImpl::new(db, OutboxRecorder));
@@ -362,10 +371,27 @@ fn setup_application(
         external_link_usecase,
         sync_job_usecase,
         role_usecase,
+        iam_signer_client,
+        organization_repo,
     ))
 }
 
-fn setup_domain(db: &DbConnectionPool, config: &AppConfig) -> Result<DomainServices, Error> {
+fn setup_domain(
+    db: &DbConnectionPool,
+    config: &AppConfig,
+) -> Result<
+    (
+        Arc<dyn hive_domain::service::OrganizationService>,
+        Arc<dyn hive_domain::service::MemberService>,
+        Arc<dyn hive_domain::service::InvitationService>,
+        Arc<dyn hive_domain::service::ExternalProviderService>,
+        Arc<dyn hive_domain::service::RoleService>,
+        Arc<dyn hive_domain::service::SyncService>,
+        Arc<dyn hive_domain::port::service::IamOrganizationSignerClient>,
+        Arc<dyn hive_domain::OrganizationRepository>,
+    ),
+    Error,
+> {
     let (
         organization_repo,
         member_repo,
@@ -378,6 +404,7 @@ fn setup_domain(db: &DbConnectionPool, config: &AppConfig) -> Result<DomainServi
         role_permission_repo,
         member_role_repo,
         provider_client,
+        iam_signer_client,
     ) = setup_infra(db, config)?;
 
     let role_service = Arc::new(RoleServiceImpl::new(
@@ -415,11 +442,15 @@ fn setup_domain(db: &DbConnectionPool, config: &AppConfig) -> Result<DomainServi
     let sync_service = Arc::new(SyncServiceImpl::new(
         sync_job_repo,
         external_link_repo,
-        organization_repo,
+        organization_repo.clone(),
         organization_service.clone(),
         invitation_service.clone(),
         provider_client,
     ));
+
+    let organization_repo_dyn: Arc<dyn hive_domain::OrganizationRepository> = organization_repo;
+    let iam_signer_dyn: Arc<dyn hive_domain::port::service::IamOrganizationSignerClient> =
+        iam_signer_client;
 
     Ok((
         organization_service,
@@ -428,6 +459,8 @@ fn setup_domain(db: &DbConnectionPool, config: &AppConfig) -> Result<DomainServi
         external_provider_service,
         role_service,
         sync_service,
+        iam_signer_dyn,
+        organization_repo_dyn,
     ))
 }
 
@@ -508,6 +541,17 @@ fn setup_infra(db: &DbConnectionPool, config: &AppConfig) -> Result<RepositoryBu
         config.external_provider_service.max_retries,
     )?;
 
+    let iam_workload = Arc::new(StaticCredential::from_pair(
+        "iam-internal-token",
+        config.iam_service.api_key.clone(),
+    )?) as Arc<dyn hive_domain::port::service::WorkloadIdentity>;
+    let iam_signer_client = Arc::new(HttpIamOrganizationSignerClient::with_workload(
+        &config.iam_service.base_url,
+        "iam-internal-token",
+        iam_workload,
+        config.iam_service.timeout_seconds,
+    )?);
+
     tracing::info!("Repositories initialized");
     Ok((
         Arc::new(organization_repo),
@@ -521,6 +565,7 @@ fn setup_infra(db: &DbConnectionPool, config: &AppConfig) -> Result<RepositoryBu
         Arc::new(role_permission_repo),
         Arc::new(member_role_repo),
         Arc::new(provider_client),
+        iam_signer_client,
     ))
 }
 

@@ -6,6 +6,7 @@
 pub mod auth;
 pub mod event_adapter;
 pub mod repository;
+pub mod signing;
 pub mod token;
 pub mod transaction;
 

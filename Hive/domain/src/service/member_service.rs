@@ -35,6 +35,7 @@ pub trait MemberService: Send + Sync {
         &self,
         organization_id: Uuid,
         user_id: Uuid,
+        issuer: &str,
         roles: Vec<RolePermission>,
         added_by_user_id: Option<Uuid>,
     ) -> Result<OrganizationMember, DomainError>;
@@ -44,9 +45,15 @@ pub trait MemberService: Send + Sync {
      *
      * @param `organization_id` - The ID of the organization to remove the member from
      * @param `user_id` - The ID of the user to remove as a member
+     * @param `issuer` - Trust-domain issuer of the member principal
      * @param `removed_by_user_id` - The ID of the user who removed the member. If Option empty, bypass permission check, used for system operations such as owner removal
      */
-    async fn remove_member(&self, organization_id: Uuid, user_id: Uuid) -> Result<(), DomainError>;
+    async fn remove_member(
+        &self,
+        organization_id: Uuid,
+        user_id: Uuid,
+        issuer: &str,
+    ) -> Result<(), DomainError>;
 
     /**
      * Remove all members from an organization
@@ -56,15 +63,17 @@ pub trait MemberService: Send + Sync {
     async fn remove_organization_members(&self, organization_id: Uuid) -> Result<(), DomainError>;
 
     /**
-     * Get a member by organization and user ID
+     * Get a member by organization, issuer, and user ID
      *
      * @param `organization_id` - The ID of the organization to get the member from
      * @param `user_id` - The ID of the user to get as a member
+     * @param `issuer` - Trust-domain issuer of the member principal
      */
     async fn get_member(
         &self,
         organization_id: Uuid,
         user_id: Uuid,
+        issuer: &str,
     ) -> Result<OrganizationMember, DomainError>;
 
     /**
@@ -94,12 +103,14 @@ pub trait MemberService: Send + Sync {
      *
      * @param `organization_id` - The ID of the organization to update the member's role in
      * @param `member_id` - The ID of the member to update the role of
+     * @param `issuer` - Trust-domain issuer of the member principal
      * @param roles - The roles to assign to the member
      */
     async fn update_member_roles(
         &self,
         organization_id: Uuid,
         member_id: Uuid,
+        issuer: &str,
         roles: Vec<RolePermission>,
     ) -> Result<OrganizationMember, DomainError>;
 }
@@ -121,6 +132,24 @@ where
             organization_repo,
             role_service,
         }
+    }
+
+    async fn find_member_for_principal(
+        &self,
+        organization_id: Uuid,
+        user_id: Uuid,
+        issuer: &str,
+    ) -> Result<Option<OrganizationMember>, DomainError> {
+        for candidate in crate::entity::membership_lookup_issuers(issuer) {
+            if let Some(member) = self
+                .member_repo
+                .find_by_organization_issuer_and_user(&organization_id, &candidate, &user_id)
+                .await?
+            {
+                return Ok(Some(member));
+            }
+        }
+        Ok(None)
     }
 
     async fn update_member_roles(
@@ -153,6 +182,7 @@ where
         &self,
         organization_id: Uuid,
         user_id: Uuid,
+        issuer: &str,
         roles: Vec<RolePermission>,
         added_by_user_id: Option<Uuid>,
     ) -> Result<OrganizationMember, DomainError> {
@@ -169,21 +199,20 @@ where
                 DomainError::entity_not_found("Organization", &organization_id.to_string())
             })?;
 
-        // Business rule: Check if user is already a member
+        // Already a member under the JWT issuer or the historical platform alias.
         if self
-            .member_repo
-            .find_by_organization_and_user(&organization_id, &user_id)
+            .find_member_for_principal(organization_id, user_id, issuer)
             .await?
             .is_some()
         {
             return Err(DomainError::resource_already_exists(
                 "OrganizationMember",
-                &format!("user_id={user_id}, organization_id={organization_id}"),
+                &format!("user_id={user_id}, organization_id={organization_id}, issuer={issuer}"),
             ));
         }
 
         // Create new member
-        let member = OrganizationMember::new(organization_id, user_id, added_by_user_id);
+        let member = OrganizationMember::new(organization_id, user_id, issuer, added_by_user_id);
         let mut saved_member = self.member_repo.save(&member).await?;
 
         let roles = self
@@ -198,7 +227,12 @@ where
     }
 
     /// Remove a member from an organization
-    async fn remove_member(&self, organization_id: Uuid, user_id: Uuid) -> Result<(), DomainError> {
+    async fn remove_member(
+        &self,
+        organization_id: Uuid,
+        user_id: Uuid,
+        issuer: &str,
+    ) -> Result<(), DomainError> {
         // Validate organization exists
         self.organization_repo
             .find_by_id(&organization_id)
@@ -207,15 +241,15 @@ where
                 DomainError::entity_not_found("Organization", &organization_id.to_string())
             })?;
 
-        // Find the member
         let member = self
-            .member_repo
-            .find_by_organization_and_user(&organization_id, &user_id)
+            .find_member_for_principal(organization_id, user_id, issuer)
             .await?
             .ok_or_else(|| {
                 DomainError::entity_not_found(
                     "OrganizationMember",
-                    &format!("user_id={user_id}, organization_id={organization_id}"),
+                    &format!(
+                        "user_id={user_id}, organization_id={organization_id}, issuer={issuer}"
+                    ),
                 )
             })?;
 
@@ -241,29 +275,32 @@ where
         &self,
         organization_id: Uuid,
         user_id: Uuid,
+        issuer: &str,
         roles: Vec<RolePermission>,
     ) -> Result<OrganizationMember, DomainError> {
         let resolved_roles = self
             .role_service
             .find_role_permissions_by_organization(&organization_id, &roles)
             .await?;
-        let mut member = self.get_member(organization_id, user_id).await?;
+        let mut member = self.get_member(organization_id, user_id, issuer).await?;
         self.update_member_roles(&mut member, resolved_roles).await
     }
 
-    /// Get a member by organization and user ID
+    /// Get a member by organization, issuer, and user ID
     async fn get_member(
         &self,
         organization_id: Uuid,
         user_id: Uuid,
+        issuer: &str,
     ) -> Result<OrganizationMember, DomainError> {
-        self.member_repo
-            .find_by_organization_and_user(&organization_id, &user_id)
+        self.find_member_for_principal(organization_id, user_id, issuer)
             .await?
             .ok_or_else(|| {
                 DomainError::entity_not_found(
                     "OrganizationMember",
-                    &format!("user_id={user_id}, organization_id={organization_id}"),
+                    &format!(
+                        "user_id={user_id}, organization_id={organization_id}, issuer={issuer}"
+                    ),
                 )
             })
     }

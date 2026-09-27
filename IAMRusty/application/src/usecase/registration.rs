@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use iam_domain::error::DomainError;
+use iam_domain::port::repository::IdentityRepository;
 use iam_domain::service::RegistrationService;
 use std::sync::Arc;
 
@@ -38,15 +39,23 @@ where
     RS: RegistrationService,
 {
     registration_service: Arc<RS>,
+    identity_repo: Arc<dyn IdentityRepository<Error = DomainError>>,
+    platform_issuer: String,
 }
 
 impl<RS> RegistrationUseCaseImpl<RS>
 where
     RS: RegistrationService + Send + Sync,
 {
-    pub const fn new(registration_service: Arc<RS>) -> Self {
+    pub fn new(
+        registration_service: Arc<RS>,
+        identity_repo: Arc<dyn IdentityRepository<Error = DomainError>>,
+        platform_issuer: impl Into<String>,
+    ) -> Self {
         Self {
             registration_service,
+            identity_repo,
+            platform_issuer: platform_issuer.into(),
         }
     }
 }
@@ -65,6 +74,11 @@ where
             .registration_service
             .complete_registration(&request.registration_token, request.username)
             .await?;
+
+        self.identity_repo
+            .ensure_platform_identity(result.user.id, &self.platform_issuer)
+            .await
+            .map_err(RegistrationError::DomainError)?;
 
         // Convert domain result to DTO
         Ok(CompleteRegistrationResponse {

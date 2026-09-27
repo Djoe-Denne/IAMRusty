@@ -18,6 +18,7 @@ async fn relink_bearer(db: std::sync::Arc<sea_orm::DatabaseConnection>) -> Strin
         user.id(),
         &load_config_part::<JwtConfig>("jwt").expect("jwt config"),
     )
+    .await
     .expect("jwt")
 }
 
@@ -205,6 +206,7 @@ async fn test_relink_provider_callback_github_success() {
         user.id(),
         &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
     )
+    .await
     .expect("Failed to create JWT token");
 
     // Make callback request to relink GitHub provider
@@ -295,6 +297,7 @@ async fn test_relink_provider_callback_returns_401_when_token_is_expired() {
         user_id,
         &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
     )
+    .await
     .expect("Failed to create expired JWT token");
 
     // Make request with expired token
@@ -328,6 +331,7 @@ async fn test_relink_provider_callback_returns_422_when_provider_is_unsupported(
         user_id,
         &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
     )
+    .await
     .expect("Failed to create JWT token");
 
     // Test unsupported providers
@@ -374,6 +378,7 @@ async fn test_relink_provider_callback_returns_400_missing_code() {
         user_id,
         &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
     )
+    .await
     .expect("Failed to create JWT token");
 
     // Make request without code parameter
@@ -440,6 +445,7 @@ async fn test_relink_provider_callback_returns_422_when_provider_not_currently_l
         user.id(),
         &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
     )
+    .await
     .expect("Failed to create JWT token");
 
     // Make callback request to relink GitHub provider (should fail - no existing link)
@@ -516,6 +522,7 @@ async fn test_relink_provider_callback_gitlab_success() {
         user.id(),
         &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
     )
+    .await
     .expect("Failed to create JWT token");
 
     // Make callback request to relink GitLab provider
@@ -591,6 +598,7 @@ async fn test_relink_provider_callback_user_with_multiple_providers() {
         user.id(),
         &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
     )
+    .await
     .expect("Failed to create JWT token");
 
     // Make callback request to relink only GitHub provider

@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Extension, Path, Query, State},
     response::Json,
 };
 use hive_application::{
@@ -8,7 +8,7 @@ use hive_application::{
     UpdateMemberRolesRequest,
 };
 use rustycog::command::CommandContext;
-use rustycog::http::{AppState, AuthUser, OptionalAuthUser, ValidatedJson};
+use rustycog::http::{AppState, AuthUser, JwtPrincipal, OptionalAuthUser, ValidatedJson};
 use rustycog::permission::ResourceId;
 
 use crate::error::HttpError;
@@ -23,11 +23,17 @@ pub async fn add_member(
     State(state): State<AppState>,
     Path(organization_id): Path<ResourceId>,
     auth_user: AuthUser,
+    Extension(principal): Extension<JwtPrincipal>,
     ValidatedJson(request): ValidatedJson<AddMemberRequest>,
 ) -> Result<Json<MemberResponse>, HttpError> {
     tracing::info!("Adding member to organization: {}", organization_id);
 
-    let command = AddMemberCommand::new(organization_id.id(), &request, auth_user.user_id);
+    let command = AddMemberCommand::new(
+        organization_id.id(),
+        &request,
+        auth_user.user_id,
+        principal.iss.clone(),
+    );
     let context = CommandContext::new().with_user_id(auth_user.user_id);
 
     let result = state
@@ -51,11 +57,17 @@ pub async fn list_members(
     State(state): State<AppState>,
     Path(organization_id): Path<ResourceId>,
     auth_user: OptionalAuthUser,
+    Extension(principal): Extension<JwtPrincipal>,
     Query(pagination): Query<PaginationRequest>,
 ) -> Result<Json<MemberListResponse>, HttpError> {
     tracing::info!("Listing members for organization: {}", organization_id);
 
-    let command = ListMembersCommand::new(organization_id.id(), pagination, auth_user.user_id());
+    let command = ListMembersCommand::new(
+        organization_id.id(),
+        pagination,
+        auth_user.user_id(),
+        principal.iss.clone(),
+    );
     let context =
         CommandContext::new().with_metadata("operation".to_string(), "list_members".to_string());
 
@@ -80,6 +92,7 @@ pub async fn get_member(
     State(state): State<AppState>,
     Path((organization_id, user_id)): Path<(ResourceId, ResourceId)>,
     auth_user: OptionalAuthUser,
+    Extension(principal): Extension<JwtPrincipal>,
 ) -> Result<Json<MemberResponse>, HttpError> {
     tracing::info!(
         "Getting member {} from organization: {}",
@@ -87,7 +100,12 @@ pub async fn get_member(
         organization_id
     );
 
-    let command = GetMemberCommand::new(organization_id.id(), user_id.id(), auth_user.user_id());
+    let command = GetMemberCommand::new(
+        organization_id.id(),
+        user_id.id(),
+        auth_user.user_id(),
+        principal.iss.clone(),
+    );
     let context =
         CommandContext::new().with_metadata("operation".to_string(), "get_member".to_string());
 
@@ -112,6 +130,7 @@ pub async fn remove_member(
     State(state): State<AppState>,
     Path((organization_id, user_id)): Path<(ResourceId, ResourceId)>,
     auth_user: AuthUser,
+    Extension(principal): Extension<JwtPrincipal>,
 ) -> Result<Json<()>, HttpError> {
     tracing::info!(
         "Removing member {} from organization: {}",
@@ -119,7 +138,12 @@ pub async fn remove_member(
         organization_id
     );
 
-    let command = RemoveMemberCommand::new(organization_id.id(), user_id.id(), auth_user.user_id);
+    let command = RemoveMemberCommand::new(
+        organization_id.id(),
+        user_id.id(),
+        auth_user.user_id,
+        principal.iss.clone(),
+    );
     let context =
         CommandContext::new().with_metadata("operation".to_string(), "remove_member".to_string());
 
@@ -144,6 +168,7 @@ pub async fn update_member(
     State(state): State<AppState>,
     Path((organization_id, user_id)): Path<(ResourceId, ResourceId)>,
     auth_user: AuthUser,
+    Extension(principal): Extension<JwtPrincipal>,
     ValidatedJson(request): ValidatedJson<UpdateMemberRolesRequest>,
 ) -> Result<Json<MemberResponse>, HttpError> {
     tracing::info!(
@@ -157,6 +182,7 @@ pub async fn update_member(
         user_id.id(),
         &request,
         auth_user.user_id,
+        principal.iss.clone(),
     );
     let context =
         CommandContext::new().with_metadata("operation".to_string(), "update_member".to_string());

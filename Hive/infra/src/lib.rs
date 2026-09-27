@@ -2,11 +2,13 @@
 
 pub mod event;
 pub mod external_provider;
+pub mod iam;
 pub mod repository;
 pub mod transaction;
 
 // Re-export key implementations
 pub use event::*;
 pub use external_provider::*;
+pub use iam::*;
 pub use repository::*;
 pub use transaction::*;

@@ -13,6 +13,8 @@ use rustycog::command::{Command, CommandErrorMapper};
 use rustycog::core::error::DomainError;
 use uuid::Uuid;
 
+const TEST_ISSUER: &str = "http://127.0.0.1/iam";
+
 fn application_errors() -> Vec<ApplicationError> {
     vec![
         ApplicationError::Domain(DomainError::invalid_input("bad")),
@@ -42,6 +44,7 @@ fn organization_commands_validate_and_map_errors() {
             avatar_url: None,
         },
         user_id,
+        TEST_ISSUER,
     );
     assert!(empty.validate().is_err());
     let empty_slug = CreateOrganizationCommand::new(
@@ -52,6 +55,7 @@ fn organization_commands_validate_and_map_errors() {
             avatar_url: None,
         },
         user_id,
+        TEST_ISSUER,
     );
     assert!(empty_slug.validate().is_err());
     let created = CreateOrganizationCommand::new(
@@ -62,6 +66,7 @@ fn organization_commands_validate_and_map_errors() {
             avatar_url: None,
         },
         user_id,
+        TEST_ISSUER,
     );
     assert_eq!(created.command_type(), "create_organization");
     assert!(created.validate().is_ok());
@@ -125,19 +130,25 @@ fn member_invitation_sync_and_link_commands_cover_types_and_mappers() {
             permissions: MemberRolePermission::Read,
         }],
     };
-    let add = AddMemberCommand::new(org_id, &request, user_id);
+    let add = AddMemberCommand::new(org_id, &request, user_id, TEST_ISSUER);
     assert_eq!(add.command_type(), "add_member");
     assert!(add.validate().is_ok());
     assert_eq!(
-        RemoveMemberCommand::new(org_id, request.user_id, user_id).command_type(),
+        RemoveMemberCommand::new(org_id, request.user_id, user_id, TEST_ISSUER).command_type(),
         "remove_member"
     );
     assert_eq!(
-        ListMembersCommand::new(org_id, PaginationRequest::default(), Some(user_id)).command_type(),
+        ListMembersCommand::new(
+            org_id,
+            PaginationRequest::default(),
+            Some(user_id),
+            TEST_ISSUER,
+        )
+        .command_type(),
         "list_members"
     );
     assert_eq!(
-        GetMemberCommand::new(org_id, request.user_id, Some(user_id)).command_type(),
+        GetMemberCommand::new(org_id, request.user_id, Some(user_id), TEST_ISSUER).command_type(),
         "get_member"
     );
     let update = UpdateMemberCommand::new(
@@ -147,6 +158,7 @@ fn member_invitation_sync_and_link_commands_cover_types_and_mappers() {
             roles: request.roles.clone(),
         },
         user_id,
+        TEST_ISSUER,
     );
     assert_eq!(update.command_type(), "update_member");
     map_all(&MemberErrorMapper);

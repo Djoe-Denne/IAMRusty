@@ -31,6 +31,7 @@ pub trait OrganizationService: Send + Sync {
     async fn create_organization(
         &self,
         organization: &Organization,
+        issuer: &str,
     ) -> Result<Organization, DomainError>;
 
     /**
@@ -125,6 +126,7 @@ where
     async fn create_organization(
         &self,
         organization: &Organization,
+        issuer: &str,
     ) -> Result<Organization, DomainError> {
         // Business rule: Check if organization with same slug already exists
         if self
@@ -156,6 +158,7 @@ where
             .add_member(
                 saved_org.id,
                 organization.owner_user_id,
+                issuer,
                 vec![owner_role_permission],
                 None,
             )

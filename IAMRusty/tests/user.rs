@@ -15,23 +15,26 @@ use uuid::Uuid;
 use iam_configuration::{load_config_part, JwtAlgorithm};
 
 /// Create a valid JWT token for testing using the proper JWT service
-fn create_valid_jwt_token(user_id: Uuid, config: &iam_configuration::JwtConfig) -> String {
+async fn create_valid_jwt_token(user_id: Uuid, config: &iam_configuration::JwtConfig) -> String {
     utils::jwt::create_valid_jwt_token_with_encoder(user_id, config)
+        .await
         .expect("Failed to create valid JWT token")
 }
 
 /// Create an expired JWT token for testing using the proper JWT service
-fn create_expired_jwt_token(user_id: Uuid, config: &iam_configuration::JwtConfig) -> String {
+async fn create_expired_jwt_token(user_id: Uuid, config: &iam_configuration::JwtConfig) -> String {
     utils::jwt::create_expired_jwt_token_with_encoder(user_id, config)
+        .await
         .expect("Failed to create expired JWT token")
 }
 
 /// Create an invalid JWT token for testing using the proper JWT service
-fn create_invalid_signature_jwt_token(
+async fn create_invalid_signature_jwt_token(
     user_id: Uuid,
     config: &iam_configuration::JwtConfig,
 ) -> String {
     utils::jwt::create_invalid_jwt_token_with_encoder(user_id, config)
+        .await
         .expect("Failed to create invalid JWT token")
 }
 
@@ -65,7 +68,8 @@ async fn test_get_user_returns_correct_info_when_token_is_valid() {
         user.id(),
         &load_config_part::<iam_configuration::JwtConfig>("jwt")
             .expect("Failed to load JWT config"),
-    );
+    )
+    .await;
 
     // Make request to /me endpoint
     let response = client
@@ -118,7 +122,8 @@ async fn test_get_user_returns_401_when_token_is_expired() {
         user_id,
         &load_config_part::<iam_configuration::JwtConfig>("jwt")
             .expect("Failed to load JWT config"),
-    );
+    )
+    .await;
 
     // Make request with expired token
     let response = client
@@ -297,7 +302,8 @@ async fn test_get_user_returns_401_when_user_not_found_in_database() {
         non_existent_user_id,
         &load_config_part::<iam_configuration::JwtConfig>("jwt")
             .expect("Failed to load JWT config"),
-    );
+    )
+    .await;
 
     // Make request with token for non-existent user
     let _response = client
@@ -375,7 +381,8 @@ async fn test_get_user_returns_correct_primary_email_when_user_has_multiple_emai
         user.id(),
         &load_config_part::<iam_configuration::JwtConfig>("jwt")
             .expect("Failed to load JWT config"),
-    );
+    )
+    .await;
 
     // Make request to /me endpoint
     let response = client
@@ -422,7 +429,8 @@ async fn test_get_user_handles_user_with_no_primary_email() {
         user.id(),
         &load_config_part::<iam_configuration::JwtConfig>("jwt")
             .expect("Failed to load JWT config"),
-    );
+    )
+    .await;
 
     // Make request to /me endpoint
     let response = client
@@ -479,7 +487,8 @@ async fn test_get_user_concurrent_requests_with_same_token() {
         user.id(),
         &load_config_part::<iam_configuration::JwtConfig>("jwt")
             .expect("Failed to load JWT config"),
-    );
+    )
+    .await;
 
     // Make multiple concurrent requests with the same token
     let mut handles = vec![];

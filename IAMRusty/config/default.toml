@@ -9,9 +9,9 @@ tls_key_path = "./certs/key.pem"
 tls_port = 8443
 
 [auth.jwt]
-hs256_secret = "rustycog-dev-hs256-secret"
-issuer = "iamrusty"
 audience = "aiforall"
+jwks_url = "http://127.0.0.1:8080/iam/.well-known/jwks.json"
+allowed_algorithms = ["RS256"]
 
 [database]
 # Database connection details
@@ -47,14 +47,19 @@ redirect_uris = [
 [jwt]
 expiration_seconds = 900  # 15 minutes
 refresh_token_expiration_seconds = 2592000  # 30 days
-issuer = "iamrusty"
+issuer = "http://127.0.0.1:8080/iam"
 audience = "aiforall"
+public_base_url = "http://127.0.0.1:8080"
+jwks_url = "http://127.0.0.1:8080/iam/.well-known/jwks.json"
+allowed_algorithms = ["RS256"]
 oauth_state_secret = "iam-oauth-state-hmac-change-me"
 
-# JWT secret configuration using HS256 shared secret
+# JWT secret configuration using RS256 PEM
 [jwt.secret]
-type = "plain"
-value = "rustycog-dev-hs256-secret"
+type = "pem_file"
+private_key_path = "config/keys/test-platform.pem"
+public_key_path = "config/keys/test-platform.pub"
+key_id = "test-rs256-kid-01"
 
 [command]
 [command.retry]

@@ -150,6 +150,9 @@ temp/
 # TLS/SSL Certificates and Keys
 certs/
 *.pem
+# Checked-in IAM test RSA key (matches rustycog TEST_RS256_* fixtures).
+!IAMRusty/config/keys/test-platform.pem
+!IAMRusty/config/keys/test-platform.pub
 *.crt
 *.key
 *.p12

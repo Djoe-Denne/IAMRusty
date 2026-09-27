@@ -3,7 +3,9 @@
 use async_trait::async_trait;
 use iam_domain::error::DomainError;
 use iam_domain::port::{
-    repository::{EmailVerificationRepository, UserEmailRepository, UserRepository},
+    repository::{
+        EmailVerificationRepository, IdentityRepository, UserEmailRepository, UserRepository,
+    },
     service::{AuthTokenService, RegistrationTokenService},
 };
 use iam_domain::service::auth_service::{AuthError, AuthService};
@@ -100,6 +102,8 @@ where
     EP: EventPublisher<DomainError>,
 {
     auth_service: Arc<AuthService<UR, UER, EVR, PS, TS, RTS, EP>>,
+    identity_repo: Arc<dyn IdentityRepository<Error = DomainError>>,
+    platform_issuer: String,
 }
 
 impl<UR, UER, EVR, PS, TS, RTS, EP> LoginUseCaseImpl<UR, UER, EVR, PS, TS, RTS, EP>
@@ -113,8 +117,16 @@ where
     EP: EventPublisher<DomainError>,
 {
     #[must_use]
-    pub const fn new(auth_service: Arc<AuthService<UR, UER, EVR, PS, TS, RTS, EP>>) -> Self {
-        Self { auth_service }
+    pub fn new(
+        auth_service: Arc<AuthService<UR, UER, EVR, PS, TS, RTS, EP>>,
+        identity_repo: Arc<dyn IdentityRepository<Error = DomainError>>,
+        platform_issuer: impl Into<String>,
+    ) -> Self {
+        Self {
+            auth_service,
+            identity_repo,
+            platform_issuer: platform_issuer.into(),
+        }
     }
 }
 
@@ -134,7 +146,18 @@ where
     }
 
     async fn login(&self, request: LoginRequest) -> Result<LoginResponse, LoginError> {
-        self.auth_service.login(request).await.map_err(Into::into)
+        let response = self
+            .auth_service
+            .login(request)
+            .await
+            .map_err(LoginError::from)?;
+        if let LoginResponse::Success { user, .. } = &response {
+            self.identity_repo
+                .ensure_platform_identity(user.id, &self.platform_issuer)
+                .await
+                .map_err(|e| LoginError::AuthServiceError(e.to_string()))?;
+        }
+        Ok(response)
     }
 
     async fn verify_email(

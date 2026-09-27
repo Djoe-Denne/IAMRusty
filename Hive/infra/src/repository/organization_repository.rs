@@ -32,6 +32,8 @@ impl OrganizationMapper {
             avatar_url: model.avatar_url,
             owner_user_id: model.owner_user_id,
             settings: model.settings,
+            signing_profile_id: model.signing_profile_id,
+            signing_status: model.signing_status,
             created_at: model.created_at,
             updated_at: model.updated_at,
         }
@@ -47,6 +49,8 @@ impl OrganizationMapper {
             avatar_url: ActiveValue::Set(organization.avatar_url.clone()),
             owner_user_id: ActiveValue::Set(organization.owner_user_id),
             settings: ActiveValue::Set(organization.settings.clone()),
+            signing_profile_id: ActiveValue::Set(organization.signing_profile_id),
+            signing_status: ActiveValue::Set(organization.signing_status.clone()),
             created_at: ActiveValue::Set(organization.created_at),
             updated_at: ActiveValue::Set(organization.updated_at),
         }

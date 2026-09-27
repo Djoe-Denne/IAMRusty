@@ -1,7 +1,7 @@
 # ADR-0305 : HumanAccount ≠ Identity ; principal = (iss, sub) ; trust platform vs organization-managed
 
 - Statut : Accepted
-- Réalité : Unimplemented
+- Réalité : Implemented
 - Date : 2026-09-26
 - Décideurs : Djoé Denne (acceptation humaine 2026-09-26)
 - Jalon concerné : architecture actuelle / AuthN identité (complète 0302 / 0304 ; hors P-Apparatus)
@@ -9,7 +9,7 @@
 - SuperSédée par : —
 - Related : [0302](0302-authn-jwt-authz-openfga.md), [0304](0304-jwt-acces-plateforme-rs256-jwks.md), [0306](0306-hive-iam-configuration-signature.md), [0400](0400-iamrusty-identite-hexagonale.md), [0402](0402-hive-organisations.md)
 
-`Accepted` ratifie le modèle Account / Identity / Trust. `Réalité : Unimplemented` : Hive stocke encore `user_id` seul ; IAM n’expose pas encore HumanAccount / Identity / trust domains au sens de cette ADR.
+`Accepted` ratifie le modèle Account / Identity / Trust. `Réalité : Implemented` : table `identities` + `ensure_platform_identity` sur login/refresh ; `ensure_organization_managed_identity` + RPC interne IAM ; Hive membership porte `issuer` depuis `JwtPrincipal.iss` ; pas d’UX switch d’identity ni second JWT org.
 
 ## Contexte
 
@@ -31,11 +31,11 @@ Aujourd’hui un `sub` UUID user sert à la fois d’identité AuthN et de clé 
 
 ## État runtime
 
-Hive : `OrganizationMember { organization_id, user_id, … }` (`Hive/domain/src/entity/organization_member.rs`) ; routes `/hive` … `/members/{user_id}` ; events `OrganizationCreatedEvent`, `MemberJoinedEvent` (pas `MembershipAdded`). IAM : `TokenClaims` sans claim `org` ; `iss=iamrusty` unique. Pas de modèle HumanAccount / Identity / trust domain au sens de cette ADR.
+IAM : table `identities` ; `SeaOrmIdentityRepository::ensure_platform_identity` câblé sur login + refresh (`platform_issuer = {public_base_url}/iam`). Hive : `OrganizationMember.issuer` + lookups `find_by_organization_issuer_and_user` ; handlers extraient `JwtPrincipal.iss`. Events `MemberJoined` / `Removed` / `RolesUpdated` portent `issuer: Option<String>`. Sentinel-sync continue `user:{uuid}` (ignore issuer). OrganizationManagedIdentity persistée via RPC interne ; pas de JWT org ni linking multi-domain UX.
 
 ## Migration
 
-Membership Hive devra porter `(iss, sub)` ; tokens `iss=iamrusty` = platform historique jusqu’au cutoff issuer ([0304](0304-jwt-acces-plateforme-rs256-jwks.md)). Linking et OrganizationManagedIdentity = après SigningKey / issuer par domain.
+Membership Hive porte `(iss, sub)` ; tokens `iss=iamrusty` = platform historique jusqu’au cutoff issuer ([0304](0304-jwt-acces-plateforme-rs256-jwks.md)). OrganizationManagedIdentity est persistée (RPC interne) ; linking UX et schéma FGA multi-issuer restent Non décidé.
 
 ## Conséquences
 
@@ -65,5 +65,11 @@ Membership Hive devra porter `(iss, sub)` ; tokens `iss=iamrusty` = platform his
 - Config signer : [0306](0306-hive-iam-configuration-signature.md)
 - IdP / Hive : [0400](0400-iamrusty-identite-hexagonale.md), [0402](0402-hive-organisations.md)
 - AuthN/AuthZ : [0302](0302-authn-jwt-authz-openfga.md)
-- Preuve runtime membership : `Hive/domain/src/entity/organization_member.rs` ; handlers `Hive/http/src/handlers/members.rs` ; events `hive-events` (`OrganizationCreatedEvent`, `MemberJoinedEvent`)
-- Preuve d’implémentation de **cette** cible : **aucune** (`Réalité : Unimplemented`)
+- Preuves runtime (Implemented) :
+  - Table `identities` : `IAMRusty/migration/src/m20220101_000003_identities.rs` ; `IAMRusty/infra/src/repository/entity/identities.rs`
+  - `ensure_platform_identity` sur login/refresh : `IAMRusty/application/src/usecase/{login,token}.rs`, `IAMRusty/infra/src/repository/identity_repository.rs`
+  - Membership `(iss, sub)` : `Hive/domain/src/entity/organization_member.rs` `OrganizationMember.issuer` ; handlers `Hive/http/src/handlers/members.rs` (`JwtPrincipal.iss`) ; `find_by_organization_issuer_and_user`
+  - Events issuer optionnel : `hive-events/src/member.rs` (`MemberJoinedEvent`, `MemberRemovedEvent`, `MemberRolesUpdatedEvent`)
+  - Unit : `IAMRusty/domain/tests/identity_ensure.rs`, `Hive/domain/tests/member_issuer.rs`
+  - FGA reste `user:{uuid}` : `sentinel-sync/src/fga_client.rs`
+- Gaps vs cible : linking multi-domain, switch d’identity UX, mint JWT org

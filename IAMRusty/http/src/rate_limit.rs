@@ -35,11 +35,24 @@ pub fn require_internal_service_token(headers: &HeaderMap) -> Result<(), StatusC
         .get("x-iam-internal-token")
         .and_then(|value| value.to_str().ok())
         .unwrap_or("");
-    if presented == expected {
+    if constant_time_token_eq(presented.as_bytes(), expected.as_bytes()) {
         Ok(())
     } else {
         Err(StatusCode::FORBIDDEN)
     }
+}
+
+/// Compare two buffers without exiting on the first differing byte.
+/// Length mismatch is folded into the accumulator; both sides are always scanned.
+fn constant_time_token_eq(left: &[u8], right: &[u8]) -> bool {
+    let max_len = left.len().max(right.len());
+    let mut acc = left.len() ^ right.len();
+    for i in 0..max_len {
+        let l = left.get(i).copied().unwrap_or(0);
+        let r = right.get(i).copied().unwrap_or(0);
+        acc |= usize::from(l ^ r);
+    }
+    acc == 0
 }
 
 fn buckets() -> &'static Mutex<HashMap<String, (Instant, u32)>> {
@@ -101,4 +114,46 @@ fn take_slot(key: String) -> bool {
     let allowed = entry.1 <= LIMIT;
     drop(store);
     allowed
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn headers_with_token(token: &str) -> HeaderMap {
+        let mut headers = HeaderMap::new();
+        headers.insert("x-iam-internal-token", token.parse().expect("header"));
+        headers
+    }
+
+    #[test]
+    fn internal_token_equal() {
+        configure_internal_service_token("iam-handler-unit-token");
+        assert!(constant_time_token_eq(b"same-secret", b"same-secret"));
+        assert_eq!(
+            require_internal_service_token(&headers_with_token("iam-handler-unit-token")),
+            Ok(())
+        );
+    }
+
+    #[test]
+    fn internal_token_different() {
+        configure_internal_service_token("iam-handler-unit-token");
+        assert!(!constant_time_token_eq(b"same-secret", b"other-secret"));
+        assert_eq!(
+            require_internal_service_token(&headers_with_token("wrong-handler-unit-token")),
+            Err(StatusCode::FORBIDDEN)
+        );
+    }
+
+    #[test]
+    fn internal_token_different_length() {
+        configure_internal_service_token("iam-handler-unit-token");
+        assert!(!constant_time_token_eq(b"short", b"much-longer-token"));
+        assert!(!constant_time_token_eq(b"much-longer-token", b"short"));
+        assert_eq!(
+            require_internal_service_token(&headers_with_token("short")),
+            Err(StatusCode::FORBIDDEN)
+        );
+    }
 }

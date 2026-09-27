@@ -371,6 +371,11 @@ fn map_domain_error(domain_error: DomainError) -> (StatusCode, String, String) {
         DomainError::EventError(msg) => {
             (StatusCode::INTERNAL_SERVER_ERROR, "event_error".into(), msg)
         }
+        DomainError::ExternalServiceError { service, message } => (
+            StatusCode::BAD_GATEWAY,
+            "external_service_error".into(),
+            format!("{service}: {message}"),
+        ),
         DomainError::TokenNotFound => (
             StatusCode::UNAUTHORIZED,
             "token_not_found".into(),

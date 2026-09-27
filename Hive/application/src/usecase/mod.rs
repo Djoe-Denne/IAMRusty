@@ -18,6 +18,7 @@ pub trait HiveOutboxUnitOfWork: Send + Sync {
     async fn create_organization(
         &self,
         organization: Organization,
+        issuer: String,
         event: Box<dyn DomainEvent + 'static>,
     ) -> Result<Organization, ApplicationError>;
 
@@ -37,6 +38,7 @@ pub trait HiveOutboxUnitOfWork: Send + Sync {
         &self,
         organization_id: Uuid,
         user_id: Uuid,
+        issuer: String,
         roles: Vec<RolePermission>,
         added_by_user_id: Option<Uuid>,
         event: Box<dyn DomainEvent + 'static>,
@@ -46,6 +48,7 @@ pub trait HiveOutboxUnitOfWork: Send + Sync {
         &self,
         organization_id: Uuid,
         user_id: Uuid,
+        issuer: String,
         event: Box<dyn DomainEvent + 'static>,
     ) -> Result<(), ApplicationError>;
 

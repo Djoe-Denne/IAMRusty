@@ -33,6 +33,7 @@ pub trait OrganizationUseCase: Send + Sync {
         &self,
         request: &CreateOrganizationRequest,
         user_id: Uuid,
+        issuer: &str,
     ) -> Result<OrganizationResponse, ApplicationError>;
 
     /**
@@ -262,6 +263,7 @@ impl OrganizationUseCase for OrganizationUseCaseImpl {
         &self,
         request: &CreateOrganizationRequest,
         user_id: Uuid,
+        issuer: &str,
     ) -> Result<OrganizationResponse, ApplicationError> {
         // Create the organization
         let organization = Organization::new(
@@ -281,12 +283,12 @@ impl OrganizationUseCase for OrganizationUseCaseImpl {
                 organization.created_at,
             ));
             outbox_unit_of_work
-                .create_organization(organization, event.into())
+                .create_organization(organization, issuer.to_string(), event.into())
                 .await?
         } else {
             let saved_org = self
                 .organization_service
-                .create_organization(&organization)
+                .create_organization(&organization, issuer)
                 .await
                 .map_err(ApplicationError::Domain)?;
             self.publish_organization_created_event(&saved_org).await?;

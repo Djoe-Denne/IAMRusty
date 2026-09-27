@@ -76,6 +76,7 @@ impl HiveOutboxUnitOfWorkImpl {
     async fn persist_new_organization(
         txn: &DatabaseTransaction,
         organization: &Organization,
+        issuer: &str,
     ) -> Result<Organization, ApplicationError> {
         if OrganizationWriteRepositoryImpl::exists_by_slug_with_connection(txn, &organization.slug)
             .await?
@@ -129,7 +130,8 @@ impl HiveOutboxUnitOfWorkImpl {
                 ))
             })?;
 
-        let member = OrganizationMember::new(saved_org.id, organization.owner_user_id, None);
+        let member =
+            OrganizationMember::new(saved_org.id, organization.owner_user_id, issuer, None);
         let saved_member =
             OrganizationMemberWriteRepositoryImpl::save_with_connection(txn, &member).await?;
         let member_id = saved_member.id.ok_or_else(|| {
@@ -151,6 +153,7 @@ impl HiveOutboxUnitOfWorkImpl {
         txn: &DatabaseTransaction,
         organization_id: Uuid,
         user_id: Uuid,
+        issuer: &str,
         roles: Vec<RolePermission>,
         added_by_user_id: Option<Uuid>,
     ) -> Result<OrganizationMember, ApplicationError> {
@@ -163,23 +166,33 @@ impl HiveOutboxUnitOfWorkImpl {
                 ))
             })?;
 
-        if OrganizationMemberReadRepositoryImpl::find_by_organization_and_user_with_connection(
-            txn,
-            &organization_id,
-            &user_id,
-        )
-        .await?
-        .is_some()
-        {
+        let mut already_member = false;
+        for candidate in hive_domain::membership_lookup_issuers(issuer) {
+            if OrganizationMemberReadRepositoryImpl::find_by_organization_issuer_and_user_with_connection(
+                txn,
+                &organization_id,
+                &candidate,
+                &user_id,
+            )
+            .await?
+            .is_some()
+            {
+                already_member = true;
+                break;
+            }
+        }
+        if already_member {
             return Err(ApplicationError::Domain(
                 DomainError::resource_already_exists(
                     "OrganizationMember",
-                    &format!("user_id={user_id}, organization_id={organization_id}"),
+                    &format!(
+                        "user_id={user_id}, organization_id={organization_id}, issuer={issuer}"
+                    ),
                 ),
             ));
         }
 
-        let member = OrganizationMember::new(organization_id, user_id, added_by_user_id);
+        let member = OrganizationMember::new(organization_id, user_id, issuer, added_by_user_id);
         let mut saved_member =
             OrganizationMemberWriteRepositoryImpl::save_with_connection(txn, &member).await?;
         let resolved_roles =
@@ -224,11 +237,12 @@ impl HiveOutboxUnitOfWork for HiveOutboxUnitOfWorkImpl {
     async fn create_organization(
         &self,
         organization: Organization,
+        issuer: String,
         event: Box<dyn DomainEvent + 'static>,
     ) -> Result<Organization, ApplicationError> {
         let txn = self.begin().await?;
         let result = async {
-            let saved = Self::persist_new_organization(&txn, &organization).await?;
+            let saved = Self::persist_new_organization(&txn, &organization, &issuer).await?;
             self.record(&txn, event.as_ref()).await?;
             Ok(saved)
         }
@@ -282,15 +296,22 @@ impl HiveOutboxUnitOfWork for HiveOutboxUnitOfWorkImpl {
         &self,
         organization_id: Uuid,
         user_id: Uuid,
+        issuer: String,
         roles: Vec<RolePermission>,
         added_by_user_id: Option<Uuid>,
         event: Box<dyn DomainEvent + 'static>,
     ) -> Result<OrganizationMember, ApplicationError> {
         let txn = self.begin().await?;
         let result = async {
-            let saved =
-                Self::persist_new_member(&txn, organization_id, user_id, roles, added_by_user_id)
-                    .await?;
+            let saved = Self::persist_new_member(
+                &txn,
+                organization_id,
+                user_id,
+                &issuer,
+                roles,
+                added_by_user_id,
+            )
+            .await?;
             self.record(&txn, event.as_ref()).await?;
             Ok(saved)
         }
@@ -302,6 +323,7 @@ impl HiveOutboxUnitOfWork for HiveOutboxUnitOfWorkImpl {
         &self,
         organization_id: Uuid,
         user_id: Uuid,
+        issuer: String,
         event: Box<dyn DomainEvent + 'static>,
     ) -> Result<(), ApplicationError> {
         let txn = self.begin().await?;
@@ -314,19 +336,27 @@ impl HiveOutboxUnitOfWork for HiveOutboxUnitOfWorkImpl {
                         &organization_id.to_string(),
                     ))
                 })?;
-            let member =
-                OrganizationMemberReadRepositoryImpl::find_by_organization_and_user_with_connection(
+            let mut member = None;
+            for candidate in hive_domain::membership_lookup_issuers(&issuer) {
+                member = OrganizationMemberReadRepositoryImpl::find_by_organization_issuer_and_user_with_connection(
                     &txn,
                     &organization_id,
+                    &candidate,
                     &user_id,
                 )
-                .await?
-                .ok_or_else(|| {
-                    ApplicationError::Domain(DomainError::entity_not_found(
-                        "OrganizationMember",
-                        &format!("user_id={user_id}, organization_id={organization_id}"),
-                    ))
-                })?;
+                .await?;
+                if member.is_some() {
+                    break;
+                }
+            }
+            let member = member.ok_or_else(|| {
+                ApplicationError::Domain(DomainError::entity_not_found(
+                    "OrganizationMember",
+                    &format!(
+                        "user_id={user_id}, organization_id={organization_id}, issuer={issuer}"
+                    ),
+                ))
+            })?;
             let member_id = member.id.ok_or_else(|| {
                 ApplicationError::Domain(DomainError::invalid_input("Member ID is required"))
             })?;

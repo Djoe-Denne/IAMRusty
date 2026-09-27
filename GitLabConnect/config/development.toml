@@ -12,9 +12,10 @@ tls_key_path = "/app/certs/gitlab-connect-service.key"
 tls_client_ca_path = "/app/certs/ca.crt"
 
 [auth.jwt]
-hs256_secret = "rustycog-dev-hs256-secret"
-issuer = "iamrusty"
 audience = "aiforall"
+jwks_url = "http://127.0.0.1:8080/iam/.well-known/jwks.json"
+allowed_algorithms = ["RS256"]
+
 
 [logging]
 level = "debug"

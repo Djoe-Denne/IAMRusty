@@ -11,6 +11,8 @@ pub struct OrganizationMember {
     pub id: Option<Uuid>,
     pub organization_id: Uuid,
     pub user_id: Uuid,
+    /// Trust-domain issuer of the member principal (ADR-0305). Historical default: `iamrusty`.
+    pub issuer: String,
     pub roles: Vec<OrganizationMemberRolePermission>,
     pub status: MemberStatus,
     pub invited_by_user_id: Option<Uuid>,
@@ -40,14 +42,23 @@ impl From<MemberStatus> for String {
 }
 
 impl OrganizationMember {
-    /// Create a new organization member (for direct addition)
+    /// Create a new organization member (for direct addition).
+    ///
+    /// `issuer` is the trust-domain issuer from the authenticated JWT principal.
+    /// Historical HS256 IT tokens use `iamrusty`.
     #[must_use]
-    pub fn new(organization_id: Uuid, user_id: Uuid, invited_by_user_id: Option<Uuid>) -> Self {
+    pub fn new(
+        organization_id: Uuid,
+        user_id: Uuid,
+        issuer: impl Into<String>,
+        invited_by_user_id: Option<Uuid>,
+    ) -> Self {
         let now = Utc::now();
         Self {
             id: None,
             organization_id,
             user_id,
+            issuer: issuer.into(),
             roles: vec![],
             status: MemberStatus::Active,
             invited_by_user_id,
@@ -145,4 +156,40 @@ impl OrganizationMember {
     pub const fn is_suspended(&self) -> bool {
         matches!(self.status, MemberStatus::Suspended)
     }
+}
+
+/// Historical platform issuer used by SQL backfill and HS256 tests (ADR-0305).
+pub const HISTORICAL_PLATFORM_ISSUER: &str = "iamrusty";
+
+/// Platform IAM issuer URLs end with `/iam` and are not org-scoped (`/iam/orgs/`).
+#[must_use]
+pub fn is_platform_url_issuer(issuer: &str) -> bool {
+    issuer.ends_with("/iam") && !issuer.contains("/iam/orgs/")
+}
+
+/// Issuers to try for membership lookup / duplicate detection.
+///
+/// Org-managed issuers (`/iam/orgs/`) are never aliased. Platform URL
+/// issuers also match historical `iamrusty` rows.
+#[must_use]
+pub fn platform_issuer_aliases(issuer: &str) -> Vec<String> {
+    if issuer.contains("/iam/orgs/") {
+        return vec![issuer.to_string()];
+    }
+    if issuer == HISTORICAL_PLATFORM_ISSUER || is_platform_url_issuer(issuer) {
+        let mut aliases = vec![issuer.to_string()];
+        if issuer != HISTORICAL_PLATFORM_ISSUER {
+            aliases.push(HISTORICAL_PLATFORM_ISSUER.to_string());
+        }
+        return aliases;
+    }
+    vec![issuer.to_string()]
+}
+
+/// Issuers to try for membership lookup / duplicate detection.
+///
+/// Exact `principal.iss` first; if it is a platform URL, also try `iamrusty`.
+#[must_use]
+pub fn membership_lookup_issuers(principal_iss: &str) -> Vec<String> {
+    platform_issuer_aliases(principal_iss)
 }

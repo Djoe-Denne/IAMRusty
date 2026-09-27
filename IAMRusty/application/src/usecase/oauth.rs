@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use iam_domain::entity::{provider::Provider, user::User};
 use iam_domain::error::DomainError;
 use iam_domain::port::{
-    repository::{TokenRepository, UserEmailRepository, UserRepository},
+    repository::{IdentityRepository, TokenRepository, UserEmailRepository, UserRepository},
     service::{AuthTokenService, RegistrationTokenService},
 };
 use iam_domain::service::oauth_service::OAuthService;
@@ -107,6 +107,8 @@ where
     oauth: Arc<OAuthService<UR, TR, UER>>,
     registration_token: Arc<RTS>,
     token: Arc<TS>,
+    identity_repo: Arc<dyn IdentityRepository<Error = DomainError>>,
+    platform_issuer: String,
 }
 
 impl<UR, TR, UER, RTS, TS> OAuthUseCaseImpl<UR, TR, UER, RTS, TS>
@@ -118,15 +120,19 @@ where
     TS: AuthTokenService,
 {
     /// Create a new `OAuthUseCaseImpl`
-    pub const fn new(
+    pub fn new(
         oauth: Arc<OAuthService<UR, TR, UER>>,
         registration_token: Arc<RTS>,
         token: Arc<TS>,
+        identity_repo: Arc<dyn IdentityRepository<Error = DomainError>>,
+        platform_issuer: impl Into<String>,
     ) -> Self {
         Self {
             oauth,
             registration_token,
             token,
+            identity_repo,
+            platform_issuer: platform_issuer.into(),
         }
     }
 }
@@ -211,6 +217,11 @@ where
         let now = chrono::Utc::now();
         let expires_in =
             u64::try_from((access_token.expires_at - now).num_seconds().max(0)).unwrap_or(0);
+
+        self.identity_repo
+            .ensure_platform_identity(user.id, &self.platform_issuer)
+            .await
+            .map_err(OAuthError::DomainError)?;
 
         Ok(OAuthResponse::Login(OAuthLoginResponse {
             user,

@@ -1,10 +1,11 @@
-Jalon : architecture actuelle / AuthN JWT (complète 0302).
-Chemin : docs/adr/0304-jwt-acces-plateforme-rs256-jwks.md
-Statut : Accepted · Réalité : Unimplemented
+# ADR-0304 digest
 
-- Access JWT = RS256 + kid opaque + JWKS ; SigningProvider (OpenBao Transit Sign, clé non exportée, ou PEM dev) ; issuer par trust domain (`https://{host}/iam` et `https://{host}/iam/orgs/{slug}`, pas un sous-domaine).
-- SuperSède « OpenBao ne signe pas » (ancienne 0304) + **cible seulement** la décision 0302 `iss=iamrusty` unique — **pas** 0302 entière (OpenFGA, Bearer, aud=aiforall restent).
-- Quatre rôles : émetteur logique IAM, propriétaire clé (plateforme|org), SigningProvider, JWKS `GET /iam/.well-known/jwks.json`. KMS = LOGIN/REFRESH only. Principal = (iss, sub). typ cible = `aiforall-access+jwt`.
-- Runtime : HS256 partagé ; boot refuse RS256 ; JWKS inutilisé ; Transit = Cosign Apparatus only.
+- Jalon : AuthN JWT plateforme
+- Chemin : `docs/adr/0304-jwt-acces-plateforme-rs256-jwks.md`
+- Statut : Accepted
+- Réalité : Partial
 
-Voir le fichier ADR.
+- Access RS256 + kid opaque + JWKS ; encodeur = clé plateforme au boot.
+- Rotate org N+1 (Pending→Active, ancienne Retiring) ; retiring hors JWKS après TTL+60s.
+- Probe Transit live (config IAM `transit_url`/`transit_token`) ; cloud BYOKMS / 0309 absents.
+- Voir le fichier ADR.

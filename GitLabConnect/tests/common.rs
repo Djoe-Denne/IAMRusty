@@ -33,6 +33,7 @@ pub fn test_config(gitlab_base: &str) -> AppConfig {
                 hs256_secret: Some("rustycog-test-hs256-secret".to_owned()),
                 issuer: Some("iamrusty".to_owned()),
                 audience: Some("aiforall".to_owned()),
+                ..JwtAuthConfig::default()
             },
         },
         logging: LoggingConfig {

@@ -19,6 +19,12 @@ use super::{
         SearchOrganizationsCommand, SearchOrganizationsCommandHandler, UpdateOrganizationCommand,
         UpdateOrganizationCommandHandler,
     },
+    organization_signer::{
+        ConfigureOrganizationSignerCommand, ConfigureOrganizationSignerCommandHandler,
+        DisableOrganizationSignerCommand, OrganizationSignerActionHandler,
+        OrganizationSignerErrorMapper, RotateOrganizationSignerCommand,
+        TestOrganizationSignerCommand,
+    },
     role::{
         GetRoleCommand, GetRoleCommandHandler, ListRolesCommand, ListRolesCommandHandler,
         RoleErrorMapper,
@@ -29,6 +35,8 @@ use crate::usecase::{
     ExternalLinkUseCase, InvitationUseCase, MemberUseCase, OrganizationUseCase, RoleUseCase,
     SyncJobUseCase,
 };
+use hive_domain::port::service::IamOrganizationSignerClient;
+use hive_domain::OrganizationRepository;
 use rustycog::command::{CommandRegistry, CommandRegistryBuilder, RegistryConfig};
 use rustycog::config::CommandConfig;
 use std::sync::Arc;
@@ -45,6 +53,8 @@ impl HiveCommandRegistryFactory {
         external_link_usecase: Arc<dyn ExternalLinkUseCase>,
         sync_job_usecase: Arc<dyn SyncJobUseCase>,
         role_usecase: Arc<dyn RoleUseCase>,
+        iam_signer_client: Arc<dyn IamOrganizationSignerClient>,
+        organization_repo: Arc<dyn OrganizationRepository>,
         command_config: &CommandConfig,
     ) -> CommandRegistry {
         let builder = CommandRegistryBuilder::with_config(RegistryConfig::from_retry_config(
@@ -56,6 +66,8 @@ impl HiveCommandRegistryFactory {
         let builder = register_invitation_commands(builder, invitation_usecase);
         let builder = register_external_link_commands(builder, external_link_usecase);
         let builder = register_sync_job_commands(builder, sync_job_usecase);
+        let builder =
+            register_organization_signer_commands(builder, iam_signer_client, organization_repo);
         builder.build()
     }
 }
@@ -230,6 +242,44 @@ fn register_sync_job_commands(
         start_sync_job_handler,
         sync_job_error_mapper,
     )
+}
+
+fn register_organization_signer_commands(
+    builder: CommandRegistryBuilder,
+    iam_signer_client: Arc<dyn IamOrganizationSignerClient>,
+    organization_repo: Arc<dyn OrganizationRepository>,
+) -> CommandRegistryBuilder {
+    let configure_handler = Arc::new(ConfigureOrganizationSignerCommandHandler::new(
+        iam_signer_client.clone(),
+        organization_repo.clone(),
+    ));
+    let action_handler = Arc::new(OrganizationSignerActionHandler::new(
+        iam_signer_client,
+        organization_repo,
+    ));
+    let error_mapper = Arc::new(OrganizationSignerErrorMapper);
+
+    builder
+        .register::<ConfigureOrganizationSignerCommand, _>(
+            "configure_organization_signer".to_string(),
+            configure_handler,
+            error_mapper.clone(),
+        )
+        .register::<TestOrganizationSignerCommand, _>(
+            "test_organization_signer".to_string(),
+            action_handler.clone(),
+            error_mapper.clone(),
+        )
+        .register::<RotateOrganizationSignerCommand, _>(
+            "rotate_organization_signer".to_string(),
+            action_handler.clone(),
+            error_mapper.clone(),
+        )
+        .register::<DisableOrganizationSignerCommand, _>(
+            "disable_organization_signer".to_string(),
+            action_handler,
+            error_mapper,
+        )
 }
 
 impl HiveCommandRegistryFactory {

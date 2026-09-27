@@ -170,7 +170,7 @@ impl SecretStorage {
 /// JWT configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JwtConfig {
-    /// JWT secret storage configuration
+    /// JWT secret storage configuration (PEM for RS256 issuance; plain only for HS256 tests).
     pub secret: SecretStorage,
     /// Access token expiration time in seconds (default: 15 minutes)
     #[serde(default = "default_jwt_expiration")]
@@ -178,15 +178,31 @@ pub struct JwtConfig {
     /// Refresh token expiration time in seconds (default: 30 days)
     #[serde(default = "default_refresh_token_expiration")]
     pub refresh_token_expiration_seconds: u64,
-    /// JWT issuer claim
+    /// JWT issuer claim (HS256 / legacy). Production RS256 uses [`Self::platform_issuer`].
     #[serde(default = "default_jwt_issuer")]
     pub issuer: String,
     /// JWT audience claim
     #[serde(default = "default_jwt_audience")]
     pub audience: String,
+    /// Public base URL of the platform (no trailing slash). Issuers are derived from this.
+    #[serde(default = "default_public_base_url")]
+    pub public_base_url: String,
+    /// JWKS URL for the HTTP verifier (typically `{public_base_url}/iam/.well-known/jwks.json`).
+    #[serde(default)]
+    pub jwks_url: Option<String>,
+    /// Allowed verify algorithms for IAM's own `UserIdExtractor`.
+    /// Empty → RS256-only when `jwks_url` is set.
+    #[serde(default)]
+    pub allowed_algorithms: Vec<String>,
     /// HMAC secret for OAuth state (must not be the JWT secret)
     #[serde(default = "default_oauth_state_secret")]
     pub oauth_state_secret: String,
+    /// Optional OpenBao / Vault Transit base URL for org-signer mint + probe.
+    #[serde(default)]
+    pub transit_url: Option<String>,
+    /// Optional Transit token (StaticCredential secret). Prefer env / secret inject.
+    #[serde(default)]
+    pub transit_token: Option<String>,
 }
 
 impl JwtConfig {
@@ -247,41 +263,101 @@ impl JwtConfig {
         }
     }
 
-    /// Auth config for rustycog-http `UserIdExtractor` (HS256 only).
+    /// Auth config for rustycog-http `UserIdExtractor` (RS256 JWKS + optional HS256 window).
     ///
-    /// `[jwt.secret]` is the issuer source of truth. HMAC material is copied
-    /// into `AuthConfig` so IAM, Manifesto, Telegraph and Hive share one
-    /// secret. RSA is rejected: rustycog-http 0.1.1 cannot verify JWKS/RS256,
-    /// so an RS256 issuer would 401 every `.authenticated()` route.
+    /// Production / default: `allowed_algorithms=["RS256"]`, `jwks_url` set, no HS256 secret.
+    /// IAM seeds inline JWKS at setup so it does not HTTP-call itself before listen.
     ///
     /// # Errors
     ///
-    /// Returns [`SecretError`] if the issuer is RS256/RSA (HS256-only verifier)
-    /// or if the HMAC secret cannot be resolved.
+    /// Returns [`SecretError`] if RSA PEM material cannot be resolved when required for
+    /// issuer setup, or if neither JWKS nor HS256 material is configured.
     pub fn http_verifier_auth(&self) -> Result<AuthConfig, SecretError> {
-        if self.uses_rsa() {
-            return Err(SecretError::InvalidFormat(
-                "IAM issuer is RS256 but rustycog-http UserIdExtractor only verifies HS256. \
-                 Configure [jwt.secret] type=\"plain\" with the same value as \
-                 Manifesto/Telegraph/Hive [auth.jwt].hs256_secret. JWKS/RS256 verification \
-                 is not available in rustycog-framework 0.1.1."
-                    .to_string(),
-            ));
+        let mut auth = AuthConfig::default();
+        auth.jwt.audience = Some(self.audience.clone());
+
+        let jwks_url = self.effective_jwks_url();
+        if let Some(url) = jwks_url {
+            auth.jwt.jwks_url = Some(url);
+            auth.jwt.allowed_algorithms = if self.allowed_algorithms.is_empty() {
+                vec!["RS256".to_string()]
+            } else {
+                self.allowed_algorithms.clone()
+            };
+            // RS256 issuer URL is carried by JWK `iss`; do not force HS256 issuer here.
+            if auth.jwt.allowed_algorithms.iter().any(|a| a == "HS256") {
+                if let Ok(JwtSecret::Hmac(secret)) = self.resolve_secret() {
+                    auth.jwt.hs256_secret = Some(secret);
+                    auth.jwt.issuer = Some(self.issuer.clone());
+                }
+            }
+            return Ok(auth);
         }
 
+        // Legacy HS256-only path (tests that have not migrated yet).
         match self.resolve_secret()? {
             JwtSecret::Hmac(secret) => {
-                let mut auth = AuthConfig::default();
                 auth.jwt.hs256_secret = Some(secret);
                 auth.jwt.issuer = Some(self.issuer.clone());
-                auth.jwt.audience = Some(self.audience.clone());
+                auth.jwt.allowed_algorithms = vec!["HS256".to_string()];
                 Ok(auth)
             }
             JwtSecret::Rsa { .. } => Err(SecretError::InvalidFormat(
-                "IAM issuer is RS256 but rustycog-http UserIdExtractor only verifies HS256."
+                "RS256 issuer requires jwks_url (or public_base_url) for UserIdExtractor"
                     .to_string(),
             )),
         }
+    }
+
+    /// Platform issuer URL: `{public_base_url}/iam`.
+    #[must_use]
+    pub fn platform_issuer(&self) -> String {
+        format!("{}/iam", self.public_base_url.trim_end_matches('/'))
+    }
+
+    /// Organization issuer URL: `{public_base_url}/iam/orgs/{slug}`.
+    #[must_use]
+    pub fn organization_issuer(&self, org_slug: &str) -> String {
+        format!("{}/orgs/{org_slug}", self.platform_issuer())
+    }
+
+    /// Effective JWKS URL: explicit `jwks_url` or derived from `public_base_url`.
+    #[must_use]
+    pub fn effective_jwks_url(&self) -> Option<String> {
+        if let Some(url) = &self.jwks_url {
+            if !url.trim().is_empty() {
+                return Some(url.clone());
+            }
+        }
+        let base = self.public_base_url.trim();
+        if base.is_empty() {
+            None
+        } else {
+            Some(format!(
+                "{}/iam/.well-known/jwks.json",
+                base.trim_end_matches('/')
+            ))
+        }
+    }
+
+    /// Resolve optional Transit URL + token from `[jwt].transit_*` or `secret = vault`.
+    #[must_use]
+    pub fn transit_endpoint(&self) -> Option<(String, String)> {
+        if let (Some(url), Some(token)) = (&self.transit_url, &self.transit_token) {
+            let url = url.trim();
+            let token = token.trim();
+            if !url.is_empty() && !token.is_empty() {
+                return Some((url.to_string(), token.to_string()));
+            }
+        }
+        if let SecretStorage::Vault { url, token, .. } = &self.secret {
+            let url = url.trim();
+            let token = token.trim();
+            if !url.is_empty() && !token.is_empty() {
+                return Some((url.to_string(), token.to_string()));
+            }
+        }
+        None
     }
 }
 
@@ -295,7 +371,12 @@ impl Default for JwtConfig {
             refresh_token_expiration_seconds: default_refresh_token_expiration(),
             issuer: default_jwt_issuer(),
             audience: default_jwt_audience(),
+            public_base_url: default_public_base_url(),
+            jwks_url: None,
+            allowed_algorithms: Vec::new(),
             oauth_state_secret: default_oauth_state_secret(),
+            transit_url: None,
+            transit_token: None,
         }
     }
 }
@@ -377,6 +458,10 @@ fn default_oauth_state_secret() -> String {
     "iam-oauth-state-hmac-change-me".to_string()
 }
 
+fn default_public_base_url() -> String {
+    "http://127.0.0.1:8080".to_string()
+}
+
 /// Global configuration cache
 static CONFIG_CACHE: OnceLock<Arc<Mutex<Option<AppConfig>>>> = OnceLock::new();
 
@@ -417,7 +502,12 @@ impl ConfigLoader<Self> for AppConfig {
                 refresh_token_expiration_seconds: default_refresh_token_expiration(),
                 issuer: default_jwt_issuer(),
                 audience: default_jwt_audience(),
+                public_base_url: default_public_base_url(),
+                jwks_url: None,
+                allowed_algorithms: vec!["RS256".to_string()],
                 oauth_state_secret: default_oauth_state_secret(),
+                transit_url: None,
+                transit_token: None,
             },
             logging: LoggingConfig::default(),
             scaleway: ScalewayConfig::default(),
@@ -564,6 +654,8 @@ mod tests {
             secret: SecretStorage::PlainText {
                 value: "rustycog-dev-hs256-secret".to_string(),
             },
+            public_base_url: String::new(),
+            jwks_url: None,
             ..JwtConfig::default()
         };
 
@@ -577,21 +669,46 @@ mod tests {
     }
 
     #[test]
-    fn http_verifier_auth_rejects_rsa_issuer() {
+    fn http_verifier_auth_accepts_rsa_issuer() {
         let jwt = JwtConfig {
             secret: SecretStorage::PemFile {
                 private_key_path: "unused-private.pem".to_string(),
                 public_key_path: "unused-public.pem".to_string(),
                 key_id: Some("kid".to_string()),
             },
+            public_base_url: "http://127.0.0.1:8080".to_string(),
+            jwks_url: Some("http://127.0.0.1:8080/iam/.well-known/jwks.json".to_string()),
+            allowed_algorithms: vec!["RS256".to_string()],
             ..JwtConfig::default()
         };
 
-        let err = jwt
+        let auth = jwt
             .http_verifier_auth()
-            .expect_err("RSA issuer is incompatible with rustycog-http 0.1.1");
-        let message = err.to_string();
-        assert!(message.contains("RS256"), "{message}");
-        assert!(message.contains("HS256"), "{message}");
+            .expect("RSA issuer must map to JWKS AuthConfig");
+        assert_eq!(
+            auth.jwt.jwks_url.as_deref(),
+            Some("http://127.0.0.1:8080/iam/.well-known/jwks.json")
+        );
+        assert_eq!(auth.jwt.allowed_algorithms, vec!["RS256".to_string()]);
+        assert!(auth.jwt.hs256_secret.is_none());
+    }
+
+    #[test]
+    fn http_verifier_auth_rs256_only_excludes_hs256() {
+        let jwt = JwtConfig {
+            secret: SecretStorage::PemFile {
+                private_key_path: "unused-private.pem".to_string(),
+                public_key_path: "unused-public.pem".to_string(),
+                key_id: Some("kid".to_string()),
+            },
+            public_base_url: "http://127.0.0.1:8080".to_string(),
+            jwks_url: Some("http://127.0.0.1:8080/iam/.well-known/jwks.json".to_string()),
+            allowed_algorithms: vec!["RS256".to_string()],
+            ..JwtConfig::default()
+        };
+        let auth = jwt.http_verifier_auth().expect("RS256 config");
+        assert_eq!(auth.jwt.allowed_algorithms, vec!["RS256".to_string()]);
+        assert!(!auth.jwt.allowed_algorithms.iter().any(|a| a == "HS256"));
+        assert!(auth.jwt.hs256_secret.is_none());
     }
 }

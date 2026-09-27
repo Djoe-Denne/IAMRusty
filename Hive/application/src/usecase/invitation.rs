@@ -24,8 +24,12 @@ pub trait InvitationUseCase: Send + Sync {
         invited_by_user_id: Uuid,
     ) -> Result<InvitationResponse, ApplicationError>;
 
-    async fn accept_invitation(&self, token: String, user_id: Uuid)
-        -> Result<(), ApplicationError>;
+    async fn accept_invitation(
+        &self,
+        token: String,
+        user_id: Uuid,
+        issuer: &str,
+    ) -> Result<(), ApplicationError>;
 
     async fn cancel_invitation(&self, invitation_id: Uuid) -> Result<(), ApplicationError>;
 
@@ -230,9 +234,10 @@ impl InvitationUseCase for InvitationUseCaseImpl {
         &self,
         token: String,
         user_id: Uuid,
+        issuer: &str,
     ) -> Result<(), ApplicationError> {
         self.invitation_service
-            .accept_invitation(token, user_id)
+            .accept_invitation(token, user_id, issuer)
             .await
             .map_err(ApplicationError::Domain)?;
 

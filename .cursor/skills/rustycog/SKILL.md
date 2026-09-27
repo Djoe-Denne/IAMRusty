@@ -56,7 +56,7 @@ These hold across every RustyCog crate and override anything that contradicts th
 - **`max_attempts = 0` disables retries.** It does not mean "default" or "infinite" — set it intentionally.
 - **`setup_logging` is a global singleton.** Call it exactly once, early, and never alongside hand-rolled `tracing_subscriber` setup.
 - **Queue factories can degrade to no-op.** A "successful" startup does not prove the transport is live — add an explicit health check.
-- **Bearer verification is HS256 + optional `iss`/`aud`.** Platform values: issuer `iamrusty`, audience `aiforall`. Do not mint RS256 for consumers.
+- **Bearer verification is RS256 + JWKS** (`allowed_algorithms=["RS256"]`, `aud=aiforall`, platform `iss={public_base_url}/iam`). Middleware inserts `JwtPrincipal`. Test.toml may keep a dual HS256 window; do not mint HS256 for RS256-only runtime consumers.
 
 ## Workflow when starting a new service
 

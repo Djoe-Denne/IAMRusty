@@ -11,6 +11,7 @@ pub struct Model {
     pub id: Uuid,
     pub organization_id: Uuid,
     pub user_id: Uuid,
+    pub issuer: String,
     pub status: String,
     pub invited_by_user_id: Option<Uuid>,
     pub invited_at: Option<DateTime<Utc>>,

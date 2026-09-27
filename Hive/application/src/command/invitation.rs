@@ -210,15 +210,17 @@ pub struct AcceptInvitationCommand {
     pub command_id: Uuid,
     pub token: String,
     pub user_id: Uuid,
+    pub issuer: String,
 }
 
 impl AcceptInvitationCommand {
     #[must_use]
-    pub fn new(token: String, user_id: Uuid) -> Self {
+    pub fn new(token: String, user_id: Uuid, issuer: impl Into<String>) -> Self {
         Self {
             command_id: Uuid::new_v4(),
             token,
             user_id,
+            issuer: issuer.into(),
         }
     }
 }
@@ -260,7 +262,7 @@ impl AcceptInvitationCommandHandler {
 impl CommandHandler<AcceptInvitationCommand> for AcceptInvitationCommandHandler {
     async fn handle(&self, command: AcceptInvitationCommand) -> Result<(), CommandError> {
         self.invitation_usecase
-            .accept_invitation(command.token, command.user_id)
+            .accept_invitation(command.token, command.user_id, &command.issuer)
             .await
             .map_err(|e| CommandError::business("accept_invitation_failed", e.to_string()))
     }
