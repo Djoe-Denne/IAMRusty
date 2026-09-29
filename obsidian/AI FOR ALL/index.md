@@ -65,8 +65,10 @@ Central entry point for this vault. Use the area indexes for full catalogs; use 
 
 ## Recent Additions
 
+- [[journal/2026-09-29]] — e2e Envoy 0308 : 403 sans JWT, iss/sub recréés, `x-principal-foo` encore transmis.
+- [[projects/aiforall/concepts/mesh-ext-authz-opt-in]] — ext_authz opt-in, Accepted / Partial, mTLS de hop ouvert.
 - [[journal/2026-09-27]] — delta 22–27 sept. : Connect IdP, gold path, JWT 0304–0309.
-- [[projects/aiforall/decisions/0304-access-jwt-trust]] — RS256 / JWKS / signer org. 0304 Partial, 0306 Implemented.
+- [[projects/aiforall/decisions/0304-access-jwt-trust]] — RS256 / JWKS. 0304 Partial, 0307 Implemented, 0308 et 0309 Partial.
 - [[projects/aiforall/decisions/0605-gold-path-kind]] — HTTP 200 Kind, Proposed / Réalité Implemented.
 - [[projects/manifesto/decisions/0009-0011-gates-preprod]] — scale, CA, pod par binding : Proposed / Unimplemented.
 - [[journal/2026-09-22]] — P4-core T2–T12 ; A-DEC 0008 Implemented.

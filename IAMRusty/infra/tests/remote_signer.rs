@@ -126,12 +126,10 @@ fn remote_url_absent_is_fail_closed() {
         }),
         ..JwtConfig::default()
     };
-    assert!(
-        url_without_backend
-            .remote_http_endpoint()
-            .expect("url alone must not activate remote")
-            .is_none()
-    );
+    assert!(url_without_backend
+        .remote_http_endpoint()
+        .expect("url alone must not activate remote")
+        .is_none());
 }
 
 #[tokio::test]
@@ -178,7 +176,8 @@ async fn remote_rejects_private_key_from_remote() {
         .await
         .expect_err("PRIVATE KEY from remote must be rejected");
     assert!(
-        err.to_string().contains("private key") || err.to_string().to_ascii_lowercase().contains("private"),
+        err.to_string().contains("private key")
+            || err.to_string().to_ascii_lowercase().contains("private"),
         "{err}"
     );
 }

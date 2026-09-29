@@ -57,12 +57,16 @@ impl AuthzState {
     }
 }
 
-/// HTTP Check router (`POST /` and `POST /check`).
+/// HTTP Check router. `POST /` and `POST /check`, plus any other path/method
+/// Envoy forwards (client path, including a doubled slash from `path_prefix: /`).
 #[must_use]
 pub fn check_router(state: Arc<AuthzState>) -> Router {
     Router::new()
         .route("/", post(check))
         .route("/check", post(check))
+        // Envoy http_service forwards the client path (and `path_prefix: /`
+        // yields `//…`). Check is not a dedicated URL.
+        .fallback(check)
         .with_state(state)
 }
 
@@ -264,6 +268,22 @@ mod tests {
 
     #[tokio::test]
     #[serial]
+    async fn denies_envoy_client_path_without_bearer() {
+        let (server, _jwks) = server_with_jwks(&test_rs256_jwks_json()).await;
+        for path in ["/deny-spoof", "//deny-spoof"] {
+            let response = server
+                .post(path)
+                .add_header("x-principal-iss", "https://spoofed.example")
+                .add_header("x-principal-sub", "00000000-0000-0000-0000-000000000000")
+                .add_header("x-principal-org", "attacker-org")
+                .await;
+            response.assert_status(StatusCode::FORBIDDEN);
+            assert!(response.maybe_header("x-principal-iss").is_none());
+        }
+    }
+
+    #[tokio::test]
+    #[serial]
     async fn rejects_spoofed_x_principal_without_bearer() {
         let (server, _jwks) = server_with_jwks(&test_rs256_jwks_json()).await;
         let response = server
@@ -394,8 +414,7 @@ mod tests {
     async fn poll_revokes_kid_without_check_refetch() {
         let user = Uuid::new_v4();
         let token = create_rs256_jwt_token(user);
-        let (state, jwks) =
-            state_with_jwks(&test_rs256_jwks_json(), Duration::ZERO).await;
+        let (state, jwks) = state_with_jwks(&test_rs256_jwks_json(), Duration::ZERO).await;
         let server = axum_test::TestServer::new(check_router(state.clone())).expect("server");
 
         server

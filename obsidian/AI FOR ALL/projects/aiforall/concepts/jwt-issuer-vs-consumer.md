@@ -20,7 +20,7 @@ provenance:
   inferred: 0.12
   ambiguous: 0.04
 created: 2026-08-31T13:30:00Z
-updated: 2026-09-27T09:20:00Z
+updated: 2026-09-29T14:45:00Z
 ---
 
 # JWT issuer versus consumer
@@ -40,7 +40,7 @@ Cible : [[projects/aiforall/decisions/0304-access-jwt-trust]] (ADR-0304 Accepted
 ## Still a platform gap
 
 - Adapters cloud BYOKMS et remote signer ne sont pas dans le dépôt.
-- Le mesh qui valide puis émet `(iss, sub)` est ADR-0308 Proposed / Unimplemented.
+- Le mesh qui valide puis émet `(iss, sub)` est ADR-0308 **Accepted / Partial** : opt-in ext_authz, mTLS de hop encore absent. [[projects/aiforall/concepts/mesh-ext-authz-opt-in]]
 
 ## Related
 

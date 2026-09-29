@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Opt-in mesh AuthN (ADR-0308) — séparés de overlays/kind (comme kind-demo-monolith).
+# NE PAS ajouter à deploy/apps/overlays/kind/kustomization.yaml.
+# helmrelease-envoy-gateway.yaml reste commenté / hors resources (Flux hors aiforall-local).
+# Apply manuel: kubectl apply -k deploy/apps/overlays/kind-mesh
+resources:
+  - ../../base/namespaces.yaml
+  - ext-authz.yaml
+  - envoy-mesh.yaml

@@ -149,12 +149,17 @@ ADR-0007 Accepted / **Implemented** (A-DEC 2026-09-20, hors-jalon APP-05). HEAD 
 - IdP : crates `GitHubConnect` / `GitLabConnect`, retrait du vendor in-process, slug registry 0411, OAuth `/login`. [[projects/iamrusty/decisions/index]]
 - Kind local : J1–J3, overlay démo, puis gold path HTTP 200 (`just prove-gold`, Service = nom du Pod, Job `admit-sign`). [[projects/aiforall/decisions/0605-gold-path-kind]]
 - Gates écrites, non implémentées : 0009 scale, 0010 CA, 0011 pod par binding. [[projects/manifesto/decisions/0009-0011-gates-preprod]]
-- AuthN : 0304 Accepted / Partial (RS256 JWKS), 0306 signer org Hive→IAM Implemented, 0308–0309 non livrés. Revue S6 HIGH PEM fermée le 27. [[projects/aiforall/decisions/0304-access-jwt-trust]]
+- AuthN : 0304 Accepted / Partial (RS256 JWKS), 0306 signer org Hive→IAM Implemented, 0307 WIF Implemented, 0308–0309 Partial au 29 sept. Revue S6 HIGH PEM fermée le 27. [[projects/aiforall/decisions/0304-access-jwt-trust]] [[projects/aiforall/concepts/mesh-ext-authz-opt-in]]
 - Harnais : modèles à forte caution → `grok-4.7-xhigh`. [[projects/aiforall/concepts/orchestrator-agent-harness]]
 - `sentinel-sync` reconfirmé hors `oodhive-monolith`.
 
+## 29 sept.
+
+- ADR-0308 Accepted / Partial. E2e Envoy : deny sans JWT, recreate iss/sub, `x-principal-foo` encore vu par l’upstream. mTLS de hop non fait. [[journal/2026-09-29]] [[projects/aiforall/concepts/mesh-ext-authz-opt-in]]
+
 ## Related
 
+- [[journal/2026-09-29]]
 - [[journal/2026-09-27]]
 - [[journal/2026-09-22]]
 - [[journal/2026-09-20]]

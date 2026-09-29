@@ -440,6 +440,43 @@ services:
     networks:
       - aiforall-network
 
+  # Mesh AuthN opt-in (ADR-0308 Partial). Not started by plain `docker compose up`.
+  # Launch: `docker compose --profile mesh up`
+  # Envoy HTTP ext_authz → ext-authz Check. JWT in-process remains the service default.
+  ext-authz:
+    profiles: ["mesh"]
+    build:
+      context: .
+      dockerfile: ext-authz/Dockerfile
+    ports:
+      # Host 8090 is OpenFGA HTTP; keep Check internal-first, publish 8092 if needed.
+      - "8092:8090"
+    environment:
+      - PORT=8090
+      - EXT_AUTHZ_AUDIENCE=aiforall
+      - EXT_AUTHZ_JWKS_URL=http://iam-service:8080/iam/.well-known/jwks.json
+    depends_on:
+      build-artifacts:
+        condition: service_completed_successfully
+      iam-service:
+        condition: service_started
+    networks:
+      - aiforall-network
+
+  envoy-mesh:
+    profiles: ["mesh"]
+    image: envoyproxy/envoy:v1.31-latest
+    ports:
+      - "10000:10000"
+    volumes:
+      - ./deploy/mesh/envoy.yaml:/etc/envoy/envoy.yaml:ro
+    command: ["-c", "/etc/envoy/envoy.yaml", "--log-level", "info"]
+    depends_on:
+      - ext-authz
+      - iam-service
+    networks:
+      - aiforall-network
+
   create-databases:
     image: postgres:15-alpine
     environment:

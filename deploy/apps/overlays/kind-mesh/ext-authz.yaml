@@ -1,0 +1,63 @@
+# Opt-in mesh AuthN (ADR-0308). Manual apply only — not in overlays/kind.
+apiVersion: v1
+kind: Service
+metadata:
+  name: ext-authz
+  namespace: aiforall-gateway
+  labels:
+    app.kubernetes.io/name: ext-authz
+    app.kubernetes.io/part-of: aiforall
+    app.kubernetes.io/component: mesh-authn
+spec:
+  selector:
+    app.kubernetes.io/name: ext-authz
+  ports:
+    - name: http
+      port: 8090
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ext-authz
+  namespace: aiforall-gateway
+  labels:
+    app.kubernetes.io/name: ext-authz
+    app.kubernetes.io/part-of: aiforall
+    app.kubernetes.io/component: mesh-authn
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ext-authz
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ext-authz
+        app.kubernetes.io/part-of: aiforall
+        app.kubernetes.io/component: mesh-authn
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: ext-authz
+          image: aiforall-ext-authz:local
+          ports:
+            - name: http
+              containerPort: 8090
+          env:
+            - name: PORT
+              value: "8090"
+            - name: EXT_AUTHZ_AUDIENCE
+              value: aiforall
+            # IAM stub/pause in base — replace when a real JWKS endpoint is available.
+            - name: EXT_AUTHZ_JWKS_URL
+              value: http://iam.aiforall-platform.svc.cluster.local:8080/iam/.well-known/jwks.json
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            seccompProfile:
+              type: RuntimeDefault

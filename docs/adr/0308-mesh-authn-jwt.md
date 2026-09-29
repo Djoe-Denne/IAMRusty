@@ -9,7 +9,7 @@
 - SuperSédée par : —
 - Related : [0304](0304-jwt-acces-plateforme-rs256-jwks.md), [0305](0305-account-identity-trust-domain.md), [0307](0307-workload-identity-port.md)
 
-`Accepted` ratifie ext_authz (pas filtre JWT Envoy, pas sidecar). `Réalité : Partial` : crate `ext-authz/` (Check HTTP, strip+recreate `X-Principal-Iss`/`Sub`, cache JWKS + poll, `aud` obligatoire) ; overlay Envoy Kind **toujours commenté** ; mTLS absent ; staleness chiffrée Non décidé. **Pas Implemented.**
+`Accepted` ratifie ext_authz (pas filtre JWT Envoy, pas sidecar). `Réalité : Partial` : crate `ext-authz/` (Check HTTP, strip+recreate `X-Principal-Iss`/`Sub`, cache JWKS + poll, `aud` obligatoire) ; profil Compose / overlay Kind **opt-in** (`--profile mesh`, `kind-mesh/`) ; overlay Flux Envoy Kind **toujours commenté** ; mTLS absent ; staleness chiffrée Non décidé. **Pas Implemented.**
 
 ## Contexte
 
@@ -26,15 +26,18 @@ Après RS256 + JWKS + issuer par trust domain ([0304](0304-jwt-acces-plateforme-
 
 ## État runtime
 
-**Partial** — livré dans le dépôt, pas branché mesh :
+**Partial** — livré dans le dépôt ; mesh **opt-in uniquement** (pas le défaut) :
 
 - Crate `ext-authz/` : HTTP Check (`POST /`, `POST /check`) ; strip de tout `X-Principal-*` client puis recreate `x-principal-iss` / `x-principal-sub` ; cache JWKS process-local + poll fond ; `EXT_AUTHZ_AUDIENCE` obligatoire (fail-closed boot).
-- Overlay `deploy/apps/overlays/kind/helmrelease-envoy-gateway.yaml` : **COMMENTÉ** (pas de policy JWT Envoy, pas de wiring ext_authz en Kind).
-- **Gaps** : overlay commenté ; mTLS absent ; staleness chiffrée révocation = Non décidé (0304 §17).
+- **Profil Compose opt-in** : `docker compose --profile mesh up` démarre `ext-authz` + `envoy-mesh` (`deploy/mesh/envoy.yaml`, HTTP `ext_authz` → Check). Absent de `docker compose up` plain.
+- **Overlay Kind opt-in séparé** : `deploy/apps/overlays/kind-mesh/` (`kubectl apply -k …`) — **pas** dans `overlays/kind/kustomization.yaml`.
+- Overlay Flux `deploy/apps/overlays/kind/helmrelease-envoy-gateway.yaml` : **COMMENTÉ** et hors `resources` (Flux hors aiforall-local).
+- Preuve E2E sans Envoy runtime : harness cargo **stand-in** `ext-authz/tests/mesh_path_standin.rs` (contrat Check ; n’affirme pas qu’Envoy a tourné).
+- **Gaps** : mesh non défaut ; mTLS absent ; overlay Flux Kind toujours commenté ; staleness chiffrée révocation = Non décidé (0304 §17). **Pas Implemented.**
 
 ## Migration
 
-Validation JWT reste aussi dans rustycog-http tant que le mesh n’est pas activé. Overlay Envoy Kind **reste commenté**. Ne pas déployer un ext_authz mesh sans décommenter / câbler l’overlay.
+Validation JWT reste aussi dans rustycog-http (défaut services). Overlay Envoy Flux Kind **reste commenté**. Profil `--profile mesh` / overlay `kind-mesh` = opt-in local ; ne pas traiter comme activation mesh plateforme.
 
 ## Conséquences
 
@@ -58,5 +61,6 @@ Validation JWT reste aussi dans rustycog-http tant que le mesh n’est pas activ
 ## Références
 
 - [0304](0304-jwt-acces-plateforme-rs256-jwks.md) §14, §17 ; [0305](0305-account-identity-trust-domain.md)
-- Overlay : `deploy/apps/overlays/kind/helmrelease-envoy-gateway.yaml` (commenté)
-- Preuve Partial : `ext-authz/` (`src/check.rs`, `src/jwks_cache.rs`, `src/config.rs`, `src/main.rs` ; tests Check / strip / aud / poll dans `check.rs`)
+- Overlay Flux Kind : `deploy/apps/overlays/kind/helmrelease-envoy-gateway.yaml` (commenté)
+- Opt-in : `docker compose --profile mesh` ; `deploy/mesh/envoy.yaml` ; `deploy/apps/overlays/kind-mesh/`
+- Preuve Partial : `ext-authz/` (`src/check.rs`, …) ; stand-in `tests/mesh_path_standin.rs` (pas preuve Envoy runtime)

@@ -1,0 +1,174 @@
+# Opt-in Envoy HTTP ext_authz wiring (ADR-0308). Manual apply only.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: envoy-mesh-config
+  namespace: aiforall-gateway
+  labels:
+    app.kubernetes.io/name: envoy-mesh
+    app.kubernetes.io/part-of: aiforall
+    app.kubernetes.io/component: mesh-authn
+data:
+  envoy.yaml: |
+    # Opt-in mesh. HTTP ext_authz → ext-authz Service. No Envoy JWT filter.
+    # Early header_mutation strips known client X-Principal-* (iss/sub/org) BEFORE ext_authz.
+    # Recreate iss/sub remains in ext-authz; allowed_upstream_headers forwards those.
+    # Do NOT request_headers_to_remove iss/sub on the route.
+    # Do NOT set http_service.path_prefix: it is prepended (`/` + `/foo` = `//foo`).
+    # Check accepts the client path.
+    static_resources:
+      listeners:
+        - name: listener_mesh
+          address:
+            socket_address:
+              address: 0.0.0.0
+              port_value: 10000
+          filter_chains:
+            - filters:
+                - name: envoy.filters.network.http_connection_manager
+                  typed_config:
+                    "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                    stat_prefix: mesh_ingress
+                    codec_type: AUTO
+                    route_config:
+                      name: local_route
+                      virtual_hosts:
+                        - name: backend
+                          domains: ["*"]
+                          routes:
+                            - match:
+                                prefix: "/"
+                              route:
+                                cluster: backend
+                    http_filters:
+                      - name: envoy.filters.http.header_mutation
+                        typed_config:
+                          "@type": type.googleapis.com/envoy.extensions.filters.http.header_mutation.v3.HeaderMutation
+                          mutations:
+                            request_mutations:
+                              - remove: "x-principal-iss"
+                              - remove: "x-principal-sub"
+                              - remove: "x-principal-org"
+                      - name: envoy.filters.http.ext_authz
+                        typed_config:
+                          "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
+                          transport_api_version: V3
+                          failure_mode_allow: false
+                          http_service:
+                            server_uri:
+                              uri: http://ext-authz.aiforall-gateway.svc.cluster.local:8090/
+                              cluster: ext_authz
+                              timeout: 5s
+                            authorization_request:
+                              allowed_headers:
+                                patterns:
+                                  - exact: authorization
+                                  - prefix: x-principal-
+                            authorization_response:
+                              allowed_upstream_headers:
+                                patterns:
+                                  - exact: x-principal-iss
+                                  - exact: x-principal-sub
+                      - name: envoy.filters.http.router
+                        typed_config:
+                          "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+      clusters:
+        - name: ext_authz
+          connect_timeout: 5s
+          type: STRICT_DNS
+          lb_policy: ROUND_ROBIN
+          load_assignment:
+            cluster_name: ext_authz
+            endpoints:
+              - lb_endpoints:
+                  - endpoint:
+                      address:
+                        socket_address:
+                          address: ext-authz.aiforall-gateway.svc.cluster.local
+                          port_value: 8090
+        - name: backend
+          connect_timeout: 5s
+          type: STRICT_DNS
+          lb_policy: ROUND_ROBIN
+          load_assignment:
+            cluster_name: backend
+            endpoints:
+              - lb_endpoints:
+                  - endpoint:
+                      address:
+                        socket_address:
+                          address: iam.aiforall-platform.svc.cluster.local
+                          port_value: 8080
+    admin:
+      address:
+        socket_address:
+          address: 127.0.0.1
+          port_value: 9901
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: envoy-mesh
+  namespace: aiforall-gateway
+  labels:
+    app.kubernetes.io/name: envoy-mesh
+    app.kubernetes.io/part-of: aiforall
+    app.kubernetes.io/component: mesh-authn
+spec:
+  selector:
+    app.kubernetes.io/name: envoy-mesh
+  ports:
+    - name: http
+      port: 10000
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: envoy-mesh
+  namespace: aiforall-gateway
+  labels:
+    app.kubernetes.io/name: envoy-mesh
+    app.kubernetes.io/part-of: aiforall
+    app.kubernetes.io/component: mesh-authn
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: envoy-mesh
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: envoy-mesh
+        app.kubernetes.io/part-of: aiforall
+        app.kubernetes.io/component: mesh-authn
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: envoy
+          image: envoyproxy/envoy:v1.31-latest
+          args:
+            - -c
+            - /etc/envoy/envoy.yaml
+            - --log-level
+            - info
+          ports:
+            - name: http
+              containerPort: 10000
+          volumeMounts:
+            - name: config
+              mountPath: /etc/envoy
+              readOnly: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            runAsNonRoot: true
+            runAsUser: 101
+            runAsGroup: 101
+            seccompProfile:
+              type: RuntimeDefault
+      volumes:
+        - name: config
+          configMap:
+            name: envoy-mesh-config

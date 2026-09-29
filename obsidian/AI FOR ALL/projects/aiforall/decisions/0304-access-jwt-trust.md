@@ -13,13 +13,13 @@ sources:
   - docs/adr/0309-remote-signer.md
 summary: >-
   Cible access JWT : RS256, kid opaque, JWKS, issuer par trust domain.
-  0304 Partial ; 0305 et 0306 Implemented ; 0307 Partial ; 0308 et 0309 non livrés.
+  0304 Partial ; 0305–0307 Implemented ; 0308 et 0309 Partial.
 provenance:
   extracted: 0.88
   inferred: 0.10
   ambiguous: 0.02
 created: 2026-09-27T09:20:00Z
-updated: 2026-09-27T09:20:00Z
+updated: 2026-09-29T14:45:00Z
 ---
 
 # ADR 0304–0309 — JWT d'accès, trust et signature
@@ -52,21 +52,23 @@ Commandes : `ConfigureOrganizationSigner`, `TestOrganizationSigner`, `RotateOrga
 
 HEAD `2473baa` : commandes Hive `organization_signer` + client `Hive/infra/src/iam/organization_signer_client.rs`. Revue S6–S8 (27 sept.) : correctness PASS ; le HIGH « PEM racine partagée » du 26 sept. est fermé (préfixe `{org_id}/`). Résidu de durcissement FS noté, non bloquant.
 
-## 0307 — Port WorkloadIdentity (Proposed / Partial)
+## 0307 — Port WorkloadIdentity (Accepted / Implemented)
 
-Port conceptuel. SPIFFE est évalué, pas une dépendance obligatoire, et pas une dépendance de 0304. Réalité **Partial** : port `WorkloadIdentity` + `StaticCredential`. Distinct du certificat workload Lazaret : [[projects/lazaret/concepts/workload-identity]].
+Port conceptuel. SPIFFE est évalué, pas une dépendance obligatoire, et pas une dépendance de 0304. Réalité **Implemented** : adapters OIDC WIF HTTP + `compose_workload_identity`. Pas de maillage X509 (ça reste 0308). Distinct du certificat workload Lazaret : [[projects/lazaret/concepts/workload-identity]].
 
-## 0308 — Mesh AuthN JWT (Proposed / Unimplemented)
+## 0308 — Mesh AuthN JWT (Accepted / Partial)
 
-Le gateway valide `alg`, `kid`, signature, `typ`, `iss`, `aud`, `exp`, trust scope, puis produit `(iss, sub)`. Pas livré.
+Le gateway valide le JWT puis produit `(iss, sub)` via HTTP ext_authz. Opt-in livré (crate, compose `--profile mesh`, overlay `kind-mesh`). mTLS de hop absent. Détail runtime : [[projects/aiforall/concepts/mesh-ext-authz-opt-in]]. Pas Implemented.
 
-## 0309 — Remote signer (Proposed / Unimplemented)
+## 0309 — Remote signer (Accepted / Partial)
 
-Contrat minimal `Sign` / `GetPublicKey` derrière HSM ou KMIP. Pas de remote signer JWT dans le dépôt.
+Contrat `Sign` / `GetPublicKey`. Adapter HTTP digest-only livré. Pas de HSM/KMIP réel. Pas Implemented. Hors du chemin mesh 0308.
 
 ## Related
 
 - [[projects/iamrusty/iamrusty]]
 - [[projects/hive/hive]]
 - [[projects/aiforall/concepts/https-platform-mesh]]
+- [[projects/aiforall/concepts/mesh-ext-authz-opt-in]]
+- [[journal/2026-09-29]]
 - [[journal/2026-09-27]]
