@@ -41,6 +41,7 @@ spec:
       containers:
         - name: ext-authz
           image: aiforall-ext-authz:local
+          imagePullPolicy: Never
           ports:
             - name: http
               containerPort: 8090
@@ -51,7 +52,17 @@ spec:
               value: aiforall
             # IAM stub/pause in base — replace when a real JWKS endpoint is available.
             - name: EXT_AUTHZ_JWKS_URL
-              value: http://iam.aiforall-platform.svc.cluster.local:8080/iam/.well-known/jwks.json
+              value: https://iam.aiforall-platform.svc.cluster.local:8443/iam/.well-known/jwks.json
+            - name: EXT_AUTHZ_TLS_CERT
+              value: /app/certs/ext-authz.crt
+            - name: EXT_AUTHZ_TLS_KEY
+              value: /app/certs/ext-authz.key
+            - name: EXT_AUTHZ_TLS_CA
+              value: /app/certs/ca.crt
+          volumeMounts:
+            - name: certs
+              mountPath: /app/certs
+              readOnly: true
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -61,3 +72,7 @@ spec:
             runAsGroup: 65534
             seccompProfile:
               type: RuntimeDefault
+      volumes:
+        - name: certs
+          secret:
+            secretName: platform-mesh-certs

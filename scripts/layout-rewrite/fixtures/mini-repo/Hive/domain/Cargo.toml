@@ -1,0 +1,5 @@
+[package]
+name = "hive-domain"
+
+[dependencies]
+hive-events = { path = "../../hive-events" }

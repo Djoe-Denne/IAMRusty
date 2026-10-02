@@ -68,10 +68,7 @@ impl JwksCache {
         if url.is_empty() {
             return Err("JWKS URL is empty".into());
         }
-        let http = reqwest::Client::builder()
-            .timeout(Duration::from_secs(10))
-            .build()
-            .map_err(|e| e.to_string())?;
+        let http = build_http_client()?;
         Ok(Arc::new(Self {
             url,
             poll_interval,
@@ -224,6 +221,44 @@ impl JwksCache {
         }
         Ok(CachedDoc { raw, kids })
     }
+}
+
+fn build_http_client() -> Result<reqwest::Client, String> {
+    let ca = non_empty_env("EXT_AUTHZ_TLS_CA");
+    let cert = non_empty_env("EXT_AUTHZ_TLS_CERT");
+    let key = non_empty_env("EXT_AUTHZ_TLS_KEY");
+    let mut builder = reqwest::Client::builder()
+        .use_rustls_tls()
+        .timeout(Duration::from_secs(10));
+    match (ca, cert, key) {
+        (None, None, None) => {}
+        (Some(ca_path), Some(cert_path), Some(key_path)) => {
+            let ca_pem = std::fs::read(&ca_path).map_err(|err| format!("read {ca_path}: {err}"))?;
+            let mut identity =
+                std::fs::read(&cert_path).map_err(|err| format!("read {cert_path}: {err}"))?;
+            identity.push(b'\n');
+            identity
+                .extend(std::fs::read(&key_path).map_err(|err| format!("read {key_path}: {err}"))?);
+            let root = reqwest::Certificate::from_pem(&ca_pem)
+                .map_err(|err| format!("parse CA: {err}"))?;
+            let id = reqwest::Identity::from_pem(&identity)
+                .map_err(|err| format!("parse client identity: {err}"))?;
+            builder = builder.add_root_certificate(root).identity(id);
+        }
+        _ => {
+            return Err(
+                "EXT_AUTHZ_TLS_CA, EXT_AUTHZ_TLS_CERT and EXT_AUTHZ_TLS_KEY must be set together"
+                    .into(),
+            );
+        }
+    }
+    builder.build().map_err(|err| err.to_string())
+}
+
+fn non_empty_env(name: &str) -> Option<String> {
+    std::env::var(name)
+        .ok()
+        .filter(|value| !value.trim().is_empty())
 }
 
 fn parse_kid_status(raw: &str) -> Result<HashMap<String, KeyStatus>, String> {

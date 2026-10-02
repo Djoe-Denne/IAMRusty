@@ -2333,16 +2333,19 @@ name = "ext-authz"
 version = "0.1.0"
 dependencies = [
  "axum 0.8.9",
+ "axum-server",
  "axum-test 17.3.0",
  "base64 0.22.1",
  "jsonwebtoken",
  "reqwest 0.12.28",
+ "rustls 0.23.40",
  "rustycog-framework",
  "serde",
  "serde_json",
  "serial_test",
  "tokio",
  "tracing",
+ "tracing-subscriber",
  "uuid",
  "wiremock",
 ]
@@ -6540,6 +6543,7 @@ dependencies = [
  "uuid",
  "validator",
  "wiremock",
+ "x509-parser",
 ]
 
 [[package]]

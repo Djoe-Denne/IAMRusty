@@ -20,9 +20,9 @@ WORKDIR /app
 
 # Copy the binary from builder stage
 COPY --from=build-source /app/target/release/hive-service /app/hive-service
-# hive-migration crate exposes its binary as `migration`; rename it inside
-# the container so the entrypoint can call /app/migration like other services.
-COPY --from=build-source /app/target/release/migration /app/migration
+# Workspace binaries share target/release: `migration` belongs to Lazaret.
+# Rename inside the container so the entrypoint can call /app/migration.
+COPY --from=build-source /app/target/release/hivemigration /app/migration
 
 # Copy entrypoint script
 COPY Hive/docker-entrypoint.sh /app/docker-entrypoint.sh

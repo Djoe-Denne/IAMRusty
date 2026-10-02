@@ -153,7 +153,7 @@ services:
     networks:
       - aiforall-network
 
-  # Platform mesh CA + leaves (Hive/IAM/Telegraph/GitHub Connect). Distinct from Lazaret CA.
+  # Platform mesh CA + leaves (Hive/IAM/Telegraph/Manifesto/GitHub Connect). Distinct from Lazaret CA.
   platform-mesh-certs:
     image: alpine:3.20
     volumes:
@@ -183,6 +183,8 @@ services:
       # docker-entrypoint.sh script. The service binary itself reads its
       # database settings from config/development.toml.
       - DATABASE_URL=postgres://postgres:postgres@postgres:5432/iam_dev
+      # Dev-only shared secret for Hive → IAM internal routes (Hive refuses to boot when empty).
+      - IAM_INTERNAL_SERVICE_TOKEN=iam-internal-dev-token
     volumes:
       - ./IAMRusty/config:/app/config
       - ./certs/platform-mesh:/app/certs
@@ -248,6 +250,7 @@ services:
     environment:
       - RUST_ENVIRONMENT=development
       - DATABASE_URL=postgres://postgres:postgres@postgres:5432/hive_dev
+      - HIVE_IAM_SERVICE__API_KEY=iam-internal-dev-token
     volumes:
       - ./Hive/config:/app/config
       - ./certs/platform-mesh:/app/certs
@@ -274,13 +277,17 @@ services:
       dockerfile: Manifesto/Dockerfile
     ports:
       - "8083:8080"   # HTTP port
+      - "8448:8443"   # HTTPS
     environment:
       - RUST_ENVIRONMENT=development
       - DATABASE_URL=postgres://postgres:postgres@postgres:5432/manifesto_dev
       - MANIFESTO_APPARATUS__GRANT_SNAPSHOT_AUTH__HS256_SECRET=manifesto-grant-snapshot-dev-hs256
     volumes:
       - ./Manifesto/config:/app/config
+      - ./certs/platform-mesh:/app/certs
     depends_on:
+      platform-mesh-certs:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       localstack:
@@ -441,10 +448,13 @@ services:
       - aiforall-network
 
   # Mesh AuthN opt-in (ADR-0308 Partial). Not started by plain `docker compose up`.
-  # Launch: `docker compose --profile mesh up`
+  # Launch with the overlay that requires service client certs and trusts the gateway principal:
+  #   docker compose -f docker-compose.yml -f deploy/mesh/compose.yaml --profile mesh up
+  # Replayable e2e: bash scripts/mesh-authn-e2e.sh
   # Envoy HTTP ext_authz → ext-authz Check. JWT in-process remains the service default.
   ext-authz:
     profiles: ["mesh"]
+    image: aiforall-ext-authz:local
     build:
       context: .
       dockerfile: ext-authz/Dockerfile
@@ -454,9 +464,14 @@ services:
     environment:
       - PORT=8090
       - EXT_AUTHZ_AUDIENCE=aiforall
-      - EXT_AUTHZ_JWKS_URL=http://iam-service:8080/iam/.well-known/jwks.json
+      - EXT_AUTHZ_JWKS_URL=https://iam-service:8443/iam/.well-known/jwks.json
+      - EXT_AUTHZ_TLS_CERT=/app/certs/ext-authz.crt
+      - EXT_AUTHZ_TLS_KEY=/app/certs/ext-authz.key
+      - EXT_AUTHZ_TLS_CA=/app/certs/ca.crt
+    volumes:
+      - ./certs/platform-mesh:/app/certs:ro
     depends_on:
-      build-artifacts:
+      platform-mesh-certs:
         condition: service_completed_successfully
       iam-service:
         condition: service_started
@@ -470,10 +485,21 @@ services:
       - "10000:10000"
     volumes:
       - ./deploy/mesh/envoy.yaml:/etc/envoy/envoy.yaml:ro
+      - ./certs/platform-mesh:/etc/envoy/certs:ro
     command: ["-c", "/etc/envoy/envoy.yaml", "--log-level", "info"]
     depends_on:
-      - ext-authz
-      - iam-service
+      platform-mesh-certs:
+        condition: service_completed_successfully
+      ext-authz:
+        condition: service_started
+      iam-service:
+        condition: service_started
+      hive-service:
+        condition: service_started
+      telegraph-service:
+        condition: service_started
+      manifesto-service:
+        condition: service_started
     networks:
       - aiforall-network
 
@@ -484,15 +510,17 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    # WITH (FORCE): clients outside this stack (e.g. Kind pods via host port 5432)
+    # would otherwise block the drop.
     command: >
       sh -c "
         echo 'Creating databases...' &&
-        psql -h postgres -U postgres -c 'DROP DATABASE IF EXISTS  iam_dev;' &&
-        psql -h postgres -U postgres -c 'DROP DATABASE IF EXISTS telegraph_dev;' &&
-        psql -h postgres -U postgres -c 'DROP DATABASE IF EXISTS hive_dev;' &&
-        psql -h postgres -U postgres -c 'DROP DATABASE IF EXISTS manifesto_dev;' &&
-        psql -h postgres -U postgres -c 'DROP DATABASE IF EXISTS lazaret_dev;' &&
-        psql -h postgres -U postgres -c 'DROP DATABASE IF EXISTS openfga_dev;' &&
+        psql -h postgres -U postgres -c 'DROP DATABASE IF EXISTS iam_dev WITH (FORCE);' &&
+        psql -h postgres -U postgres -c 'DROP DATABASE IF EXISTS telegraph_dev WITH (FORCE);' &&
+        psql -h postgres -U postgres -c 'DROP DATABASE IF EXISTS hive_dev WITH (FORCE);' &&
+        psql -h postgres -U postgres -c 'DROP DATABASE IF EXISTS manifesto_dev WITH (FORCE);' &&
+        psql -h postgres -U postgres -c 'DROP DATABASE IF EXISTS lazaret_dev WITH (FORCE);' &&
+        psql -h postgres -U postgres -c 'DROP DATABASE IF EXISTS openfga_dev WITH (FORCE);' &&
         psql -h postgres -U postgres -c 'CREATE DATABASE iam_dev;' &&
         psql -h postgres -U postgres -c 'CREATE DATABASE telegraph_dev;' &&
         psql -h postgres -U postgres -c 'CREATE DATABASE hive_dev;' &&

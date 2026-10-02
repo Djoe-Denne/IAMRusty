@@ -1,0 +1,11 @@
+[workspace]
+members = [
+    "IAMRusty",
+    "Hive",
+    "monolith",
+    "ext-authz",
+    "iam-events",
+]
+
+[workspace.dependencies]
+rustycog = { path = "rustycog" }

@@ -277,6 +277,7 @@ async fn spawn_https(
         tls_cert_path: cert_path.to_string_lossy().into_owned(),
         tls_key_path: key_path.to_string_lossy().into_owned(),
         tls_client_ca_path: ca_path.to_string_lossy().into_owned(),
+        tls_require_client_cert: false,
         tls_port: port,
     };
     let handle = tokio::spawn(async move {

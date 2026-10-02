@@ -1,0 +1,8 @@
+version: '3.8'
+services:
+  iam:
+    build:
+      context: ..
+      dockerfile: IAMRusty/Dockerfile
+    volumes:
+      - ../certs/platform-mesh:/certs

@@ -13,6 +13,7 @@ use rustycog::http::UserIdExtractor;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
+use tracing::debug;
 
 /// Check service state: local JWKS cache + optional test kid registry.
 pub struct AuthzState {
@@ -80,27 +81,27 @@ async fn check(
     strip_all_x_principal(&mut headers);
 
     let Some(token) = bearer_token(&headers) else {
-        return deny();
+        return deny("missing bearer token");
     };
 
     let header = match decode_header(&token) {
         Ok(h) => h,
-        Err(_) => return deny(),
+        Err(err) => return deny(&format!("undecodable JWT header: {err}")),
     };
     let Some(kid) = header.kid.clone() else {
-        return deny();
+        return deny("JWT header without kid");
     };
 
     if state
         .status_override(&kid)
         .is_some_and(KeyStatus::is_denied)
     {
-        return deny();
+        return deny(&format!("kid {kid} denied by registry"));
     }
 
     let doc = match state.cache.document_for_kid(&kid).await {
         Ok(d) => d,
-        Err(_) => return deny(),
+        Err(err) => return deny(&err),
     };
 
     if state
@@ -108,30 +109,31 @@ async fn check(
         .status_for_kid(&kid)
         .is_some_and(KeyStatus::is_denied)
     {
-        return deny();
+        return deny(&format!("kid {kid} is pending or revoked in JWKS"));
     }
 
     let extractor = match UserIdExtractor::from_inline_jwks(&doc, Some(state.audience.as_str())) {
         Ok(e) => e,
-        Err(_) => return deny(),
+        Err(err) => return deny(&format!("JWKS rejected: {err}")),
     };
 
     match extractor.extract_principal(&token).await {
         Ok(principal) => allow(&principal.iss, &principal.sub.to_string()),
-        Err(_) => deny(),
+        Err(err) => deny(&format!("JWT rejected: {err}")),
     }
 }
 
-fn deny() -> (StatusCode, HeaderMap) {
+fn deny(reason: &str) -> (StatusCode, HeaderMap) {
+    debug!(reason, "check denied");
     (StatusCode::FORBIDDEN, HeaderMap::new())
 }
 
 fn allow(iss: &str, sub: &str) -> (StatusCode, HeaderMap) {
     let Ok(iss_value) = HeaderValue::from_str(iss) else {
-        return deny();
+        return deny("iss is not a valid header value");
     };
     let Ok(sub_value) = HeaderValue::from_str(sub) else {
-        return deny();
+        return deny("sub is not a valid header value");
     };
     let mut headers = HeaderMap::new();
     headers.insert(HeaderName::from_static("x-principal-iss"), iss_value);

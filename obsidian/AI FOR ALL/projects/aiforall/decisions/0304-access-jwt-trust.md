@@ -19,7 +19,7 @@ provenance:
   inferred: 0.10
   ambiguous: 0.02
 created: 2026-09-27T09:20:00Z
-updated: 2026-09-29T14:45:00Z
+updated: 2026-10-01T16:45:00Z
 ---
 
 # ADR 0304–0309 — JWT d'accès, trust et signature
@@ -58,7 +58,7 @@ Port conceptuel. SPIFFE est évalué, pas une dépendance obligatoire, et pas un
 
 ## 0308 — Mesh AuthN JWT (Accepted / Partial)
 
-Le gateway valide le JWT puis produit `(iss, sub)` via HTTP ext_authz. Opt-in livré (crate, compose `--profile mesh`, overlay `kind-mesh`). mTLS de hop absent. Détail runtime : [[projects/aiforall/concepts/mesh-ext-authz-opt-in]]. Pas Implemented.
+Le gateway valide le JWT puis produit `(iss, sub)` via HTTP ext_authz. Opt-in Compose : mTLS hops + §7 (le service ne revérifie pas le JWT). Kind encore un cluster `backend`, sans §7. Page dédiée : [[projects/aiforall/decisions/0308-mesh-authn-jwt]]. Runtime : [[projects/aiforall/concepts/mesh-ext-authz-opt-in]]. Pas Implemented.
 
 ## 0309 — Remote signer (Accepted / Partial)
 
@@ -70,5 +70,7 @@ Contrat `Sign` / `GetPublicKey`. Adapter HTTP digest-only livré. Pas de HSM/KMI
 - [[projects/hive/hive]]
 - [[projects/aiforall/concepts/https-platform-mesh]]
 - [[projects/aiforall/concepts/mesh-ext-authz-opt-in]]
+- [[projects/aiforall/concepts/mesh-gateway-principal-trust]]
+- [[journal/2026-09-30]]
 - [[journal/2026-09-29]]
 - [[journal/2026-09-27]]

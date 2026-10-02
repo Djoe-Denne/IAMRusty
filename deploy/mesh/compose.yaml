@@ -1,0 +1,37 @@
+# Mesh profile overlay (ADR-0308). Not loaded by plain `docker compose up`.
+# Service HTTPS stays optional (T14b) unless this file is merged:
+#   docker compose -f docker-compose.yml -f deploy/mesh/compose.yaml --profile mesh up
+# Replayable e2e: bash scripts/mesh-authn-e2e.sh
+#
+# AUTH__MESH__TRUSTED_GATEWAY_SAN: services take the principal from the
+# x-principal-iss/sub headers only on an mTLS connection whose client
+# certificate carries this DNS SAN, and no longer verify the bearer JWT.
+# Authenticated routes on the plain HTTP port answer 401 in this mode.
+#
+# EXT_AUTHZ_JWKS_POLL_SECS is the poll already implemented in ext-authz.
+# It is not an ADR staleness TTL (0304 §17 stays undecided).
+services:
+  iam-service:
+    environment:
+      - IAM_SERVER__TLS_REQUIRE_CLIENT_CERT=true
+      - IAM_AUTH__MESH__TRUSTED_GATEWAY_SAN=envoy-mesh
+
+  hive-service:
+    environment:
+      - HIVE_SERVER__TLS_REQUIRE_CLIENT_CERT=true
+      - HIVE_AUTH__MESH__TRUSTED_GATEWAY_SAN=envoy-mesh
+
+  telegraph-service:
+    environment:
+      - TELEGRAPH_SERVER__TLS_REQUIRE_CLIENT_CERT=true
+      - TELEGRAPH_AUTH__MESH__TRUSTED_GATEWAY_SAN=envoy-mesh
+
+  manifesto-service:
+    environment:
+      - MANIFESTO_SERVER__TLS_REQUIRE_CLIENT_CERT=true
+      - MANIFESTO_AUTH__MESH__TRUSTED_GATEWAY_SAN=envoy-mesh
+
+  ext-authz:
+    environment:
+      - EXT_AUTHZ_JWKS_POLL_SECS=2
+      - RUST_LOG=info,ext_authz=debug

@@ -426,6 +426,7 @@ fn grant_snapshot_user_id_extractor(config: &AppConfig) -> Result<Arc<UserIdExtr
             audience: Some(auth.audience.clone()),
             ..JwtAuthConfig::default()
         },
+        ..AuthConfig::default()
     })
     .map_err(|e| anyhow::anyhow!("Invalid grant snapshot auth configuration: {e}"))?;
     Ok(Arc::new(extractor))

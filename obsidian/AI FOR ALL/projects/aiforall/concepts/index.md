@@ -10,7 +10,7 @@ provenance:
   inferred: 0.1
   ambiguous: 0.00
 created: 2026-08-31T13:30:00Z
-updated: 2026-09-29T14:45:00Z
+updated: 2026-10-01T16:45:00Z
 ---
 
 # AIForAll Concepts
@@ -20,6 +20,7 @@ updated: 2026-09-29T14:45:00Z
 - [[projects/aiforall/concepts/queue-readiness-signaling]]
 - [[projects/aiforall/concepts/jwt-issuer-vs-consumer]]
 - [[projects/aiforall/concepts/mesh-ext-authz-opt-in]]
+- [[projects/aiforall/concepts/mesh-gateway-principal-trust]]
 - [[projects/aiforall/concepts/orchestrator-agent-harness]]
 - [[projects/aiforall/concepts/architecte-agent]]
 - [[projects/aiforall/concepts/https-platform-mesh]]

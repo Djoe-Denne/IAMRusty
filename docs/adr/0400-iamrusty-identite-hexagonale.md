@@ -25,7 +25,7 @@ Le handbook (`docs/services/iamrusty.md`) et les routes `/iam` montrent déjà u
    - link (authentifié) : `GET /api/auth/{provider_name}/link` (et relink) → attache un provider à un compte existant.
 4. IAM **publie** `user_signed_up` / `user_email_verified` / `password_reset_requested` vers le contrat `iam-events` (consommé par Telegraph, 0403). Il n’est pas le service de notification.
 
-Préfixe runtime : `/iam` (compose 8080). JWT émetteur : `[jwt]` + `[jwt.secret]` (HS256 aujourd’hui). JWT consommateur de ses propres routes (`/api/me`, …) : `[auth.jwt]`.
+Préfixe runtime : `/iam` (compose 8080). JWT émetteur : `[jwt]` + `[jwt.secret]` (HS256 aujourd’hui). JWT consommateur de ses propres routes (`/api/me`, …) : `[auth.jwt]`. En overlay mesh, voir [0308](0308-mesh-authn-jwt.md) §7 (principal passerelle, pas de revérification JWT).
 
 ## Conséquences
 

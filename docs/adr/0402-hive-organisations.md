@@ -18,7 +18,7 @@ Hive expose déjà un hexagone `/hive` : organisations, rôles, membres, invitat
 
 ## Décision
 
-1. **Hive** est le bounded context **organisations**. Préfixe `/hive` (compose 8082). JWT consommateur `[auth.jwt]` (`iss=iamrusty`, `aud=aiforall`).
+1. **Hive** est le bounded context **organisations**. Préfixe `/hive` (compose 8082). JWT consommateur `[auth.jwt]` (`iss=iamrusty`, `aud=aiforall`). En overlay mesh, voir [0308](0308-mesh-authn-jwt.md) §7.
 2. Le périmètre HTTP livré est :
    - CRUD / search / list d’organisations ;
    - **membres** (`/api/organizations/{id}/members`) ;

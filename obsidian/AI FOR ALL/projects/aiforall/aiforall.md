@@ -16,13 +16,13 @@ sources:
   - docs/adr/0007-closeout.md
 summary: >-
   Workspace RustyCog. P2 et P3 Implemented. ADR-0008 Accepted / Implemented
-  (Kind V1). JWT 0304 Partial. Gold path 0605 livré en réalité. Factory/host hors livré.
+  (Kind V1). JWT 0304 Partial. Mesh 0308 Partial (§7 Compose). Gold path 0605 livré en réalité. Factory/host hors livré.
 provenance:
   extracted: 0.80
   inferred: 0.16
   ambiguous: 0.04
 created: 2026-04-14T16:54:59.5971424Z
-updated: 2026-09-27T09:20:00Z
+updated: 2026-10-01T16:45:00Z
 ---
 
 # AIForAll
@@ -39,7 +39,7 @@ AIForAll is a Rust-based microservices workspace centered on [[projects/iamrusty
 - Queue factories must surface rustycog no-ops on `/ready` — [[projects/aiforall/concepts/queue-readiness-signaling]].
 - Project work is routed through [[projects/aiforall/concepts/orchestrator-agent-harness]]. Architecture vivante : [[projects/aiforall/concepts/architecte-agent]].
 - Apparatus P0 crates live at workspace root ; P2 ticker is in Manifesto (**Implemented**) — [[projects/manifesto/concepts/apparatus-p2-reconciliation]] (ADR 0006). Frontière P3 : [[projects/lazaret/lazaret]] (ADR 0007 **Implemented** T1–T14b ; hors-jalon APP-05 / G/E / K8s-as-P3 / 2e proto). Moteur P4 : [[projects/manifesto/decisions/0008-apparatus-p4-k8s]] (ADR-0008 **Accepted** / **Implemented**, Kind V1 ; dette D-TRANSIT-TCB / D-ADMB / D-PROD). Gates préprod : [[projects/manifesto/decisions/0009-0011-gates-preprod]]. Mesh HTTPS : [[projects/aiforall/concepts/https-platform-mesh]]. Factory/host hors livré (ADR 0406).
-- Access JWT cible RS256 / JWKS : [[projects/aiforall/decisions/0304-access-jwt-trust]] (0304 Partial). Connecteurs IdP : [[projects/iamrusty/decisions/index]] (0407–0411 Implemented). Gold path Kind : [[projects/aiforall/decisions/0605-gold-path-kind]].
+- Access JWT cible RS256 / JWKS : [[projects/aiforall/decisions/0304-access-jwt-trust]] (0304 Partial). Mesh AuthN : [[projects/aiforall/decisions/0308-mesh-authn-jwt]] (Partial, §7 Compose). Connecteurs IdP : [[projects/iamrusty/decisions/index]] (0407–0411 Implemented). Gold path Kind : [[projects/aiforall/decisions/0605-gold-path-kind]].
 
 ## Runtime Modes
 

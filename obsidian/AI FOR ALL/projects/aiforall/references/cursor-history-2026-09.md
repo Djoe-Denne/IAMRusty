@@ -32,11 +32,12 @@ sources:
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/4f3bb8d7-c6d7-4238-a320-445fe479de6b/4f3bb8d7-c6d7-4238-a320-445fe479de6b.jsonl
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/d5c0a4f7-e945-4de1-aa1c-8fa771ba9733/d5c0a4f7-e945-4de1-aa1c-8fa771ba9733.jsonl
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/94f1da54-afad-406b-bf7e-0726eeb26f35/94f1da54-afad-406b-bf7e-0726eeb26f35.jsonl
+  - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/23daa0aa-3a66-4665-8db4-80c94e4e20a7/23daa0aa-3a66-4665-8db4-80c94e4e20a7.jsonl
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/c8017f8d-4ca1-436c-a2ee-d906b79972f2/c8017f8d-4ca1-436c-a2ee-d906b79972f2.jsonl
 summary: >-
-  Cursor sept. 2026 jusqu’au 27 : P4 Kind V1, Connect IdP, gold path 0605,
-  JWT 0304–0309. Distillé par sujet, pas de verbatim.
-updated: 2026-09-27T09:20:00Z
+  Cursor sept. 2026 jusqu’au 30 : P4 Kind V1, Connect IdP, gold path 0605,
+  JWT 0304–0309, mesh §7 + e2e Compose. Distillé par sujet, pas de verbatim.
+updated: 2026-10-01T16:45:00Z
 created: 2026-09-09T16:45:00Z
 provenance:
   extracted: 0.72
@@ -157,8 +158,13 @@ ADR-0007 Accepted / **Implemented** (A-DEC 2026-09-20, hors-jalon APP-05). HEAD 
 
 - ADR-0308 Accepted / Partial. E2e Envoy : deny sans JWT, recreate iss/sub, `x-principal-foo` encore vu par l’upstream. mTLS de hop non fait. [[journal/2026-09-29]] [[projects/aiforall/concepts/mesh-ext-authz-opt-in]]
 
+## 30 sept.
+
+- `trust_envoy` + `compose_then_kind`. rustycog `2290d45`. E2e Compose 48 OK. Chat seul : [[projects/aiforall/references/cursor-chat-mesh-authn-2026-09-30]] [[journal/2026-09-30]] [[projects/aiforall/decisions/0308-mesh-authn-jwt]]
+
 ## Related
 
+- [[journal/2026-09-30]]
 - [[journal/2026-09-29]]
 - [[journal/2026-09-27]]
 - [[journal/2026-09-22]]

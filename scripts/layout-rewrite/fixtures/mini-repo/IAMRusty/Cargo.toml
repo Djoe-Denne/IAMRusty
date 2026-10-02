@@ -1,0 +1,6 @@
+[package]
+name = "IAMRusty"
+
+[dependencies]
+domain = { path = "./domain" }
+http = { path = "http" }

@@ -7,7 +7,7 @@ summary: >-
   Hub 0100–0502. IAM 0407–0411 Implemented. Cloud 0600–0602 Proposed.
   0603 Partial ; 0604 et 0605 Réalité Implemented, Statut Proposed.
 created: 2026-09-12T10:20:00Z
-updated: 2026-09-27T09:20:00Z
+updated: 2026-10-01T16:45:00Z
 sources:
   - docs/adr/README.md
   - docs/adr/0100-services-metier-hexagonaux-rustycog.md
@@ -40,7 +40,7 @@ Pas un compteur global. Un sujet hexagonal n’est **pas** `0006`.
 | 0001–0099 | Apparatus | [[projects/manifesto/decisions/index]] |
 | 0100–0199 | Hexagone / crates | [[projects/aiforall/decisions/0100-hexagone-rustycog]] |
 | 0200–0299 | Tests IT, mocks, files | [[projects/aiforall/decisions/0200-strategie-tests]] |
-| 0300–0399 | Events, outbox, AuthN/AuthZ | [[projects/aiforall/decisions/0300-events-authz]], [[projects/aiforall/decisions/0304-access-jwt-trust]] |
+| 0300–0399 | Events, outbox, AuthN/AuthZ | [[projects/aiforall/decisions/0300-events-authz]], [[projects/aiforall/decisions/0304-access-jwt-trust]], [[projects/aiforall/decisions/0308-mesh-authn-jwt]] |
 | 0400–0499 | Services et runtimes | [[projects/aiforall/decisions/0400-services-runtime]] |
 | 0500–0599 | Config, CI, rustycog | [[projects/aiforall/decisions/0500-plateforme-qualite]] |
 | 0600–0699 | Cloud / IaC / GitOps / cluster | [[projects/aiforall/decisions/0600-cloud-portable]], [[projects/aiforall/decisions/0601-cluster-topology]], [[projects/aiforall/decisions/0602-observabilite-portable]], [[projects/aiforall/decisions/0603-tranche-locale]], [[projects/aiforall/decisions/0604-j3-overlay-demo-monolith]], [[projects/aiforall/decisions/0605-gold-path-kind]] |
@@ -86,6 +86,7 @@ Elles **ne font pas** partie de cette vague 2 et **ne se fusionnent pas** dans [
 - [[concepts/integration-testing-with-real-infrastructure]]
 - [[journal/2026-09-12]]
 - [[projects/aiforall/decisions/0304-access-jwt-trust]]
+- [[projects/aiforall/decisions/0308-mesh-authn-jwt]]
 - [[projects/aiforall/decisions/0605-gold-path-kind]]
 - [[journal/2026-09-27]]
 - [[journal/2026-09-22]]

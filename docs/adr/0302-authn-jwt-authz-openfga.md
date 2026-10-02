@@ -14,7 +14,7 @@
 
 Tous les HTTP métier doivent identifier un sujet, puis autoriser une action sur un objet. La tentation est de recoller AuthN et AuthZ dans IAM, ou de relire `docs/project/Archi.md` (impersonation JWT, registry) comme architecture vivante.
 
-Le flux actuel : IAM émet le JWT ; Hive / Manifesto / Telegraph (et l’extractor IAM) vérifient le Bearer ; OpenFGA Check porte l’AuthZ métier.
+Le flux actuel : IAM émet le JWT ; Hive / Manifesto / Telegraph (et l’extractor IAM) vérifient le Bearer ; OpenFGA Check porte l’AuthZ métier. En overlay mesh, ce n’est plus la seule réalité : le service peut lire le principal injecté par la passerelle sans revérifier le JWT ([0308](0308-mesh-authn-jwt.md) §7).
 
 ## Décision
 

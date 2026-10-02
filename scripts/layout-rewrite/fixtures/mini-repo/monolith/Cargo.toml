@@ -1,0 +1,6 @@
+[package]
+name = "monolith"
+
+[dependencies]
+iam = { path = "../IAMRusty/application" }
+readiness = { path = "../readiness" }

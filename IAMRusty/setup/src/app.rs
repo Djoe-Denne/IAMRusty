@@ -696,10 +696,11 @@ async fn setup_jwt(
     Arc<iam_infra::token::RegistrationTokenServiceImpl>,
     Option<Arc<SignerRouteContext>>,
 )> {
-    let http_verifier_auth = config.jwt.http_verifier_auth().map_err(|e| {
+    let mut http_verifier_auth = config.jwt.http_verifier_auth().map_err(|e| {
         tracing::error!("JWT verifier config invalid: {e}");
         anyhow::anyhow!("JWT verifier config invalid: {e}")
     })?;
+    http_verifier_auth.mesh = config.auth.mesh.clone();
     tracing::info!("Setting up JWT token service");
     let jwt_algorithm_config = config.jwt.create_jwt_algorithm().map_err(|e| {
         tracing::error!("Failed to create JWT algorithm from configuration: {e}");

@@ -10,12 +10,10 @@ metadata:
     app.kubernetes.io/component: mesh-authn
 data:
   envoy.yaml: |
-    # Opt-in mesh. HTTP ext_authz → ext-authz Service. No Envoy JWT filter.
-    # Early header_mutation strips known client X-Principal-* (iss/sub/org) BEFORE ext_authz.
-    # Recreate iss/sub remains in ext-authz; allowed_upstream_headers forwards those.
-    # Do NOT request_headers_to_remove iss/sub on the route.
-    # Do NOT set http_service.path_prefix: it is prepended (`/` + `/foo` = `//foo`).
-    # Check accepts the client path.
+    # Opt-in mesh. HTTP ext_authz. No Envoy JWT filter. No sidecar.
+    # Lua strips every x-principal-* header before ext_authz.
+    # allowed_upstream_headers forwards only iss/sub. No path_prefix.
+    # failure_mode_allow: false. Client certs required. Certs: secret platform-mesh-certs.
     static_resources:
       listeners:
         - name: listener_mesh
@@ -24,7 +22,21 @@ data:
               address: 0.0.0.0
               port_value: 10000
           filter_chains:
-            - filters:
+            - transport_socket:
+                name: envoy.transport_sockets.tls
+                typed_config:
+                  "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
+                  require_client_certificate: true
+                  common_tls_context:
+                    tls_certificates:
+                      - certificate_chain:
+                          filename: /etc/envoy/certs/envoy-mesh.crt
+                        private_key:
+                          filename: /etc/envoy/certs/envoy-mesh.key
+                    validation_context:
+                      trusted_ca:
+                        filename: /etc/envoy/certs/ca.crt
+              filters:
                 - name: envoy.filters.network.http_connection_manager
                   typed_config:
                     "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
@@ -41,14 +53,23 @@ data:
                               route:
                                 cluster: backend
                     http_filters:
-                      - name: envoy.filters.http.header_mutation
+                      - name: envoy.filters.http.lua
                         typed_config:
-                          "@type": type.googleapis.com/envoy.extensions.filters.http.header_mutation.v3.HeaderMutation
-                          mutations:
-                            request_mutations:
-                              - remove: "x-principal-iss"
-                              - remove: "x-principal-sub"
-                              - remove: "x-principal-org"
+                          "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
+                          default_source_code:
+                            inline_string: |
+                              function envoy_on_request(request_handle)
+                                local headers = request_handle:headers()
+                                local doomed = {}
+                                for key, _ in pairs(headers) do
+                                  if string.sub(string.lower(key), 1, 12) == "x-principal-" then
+                                    table.insert(doomed, key)
+                                  end
+                                end
+                                for _, key in ipairs(doomed) do
+                                  headers:remove(key)
+                                end
+                              end
                       - name: envoy.filters.http.ext_authz
                         typed_config:
                           "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
@@ -56,7 +77,7 @@ data:
                           failure_mode_allow: false
                           http_service:
                             server_uri:
-                              uri: http://ext-authz.aiforall-gateway.svc.cluster.local:8090/
+                              uri: https://ext-authz.aiforall-gateway.svc.cluster.local:8090/
                               cluster: ext_authz
                               timeout: 5s
                             authorization_request:
@@ -77,6 +98,20 @@ data:
           connect_timeout: 5s
           type: STRICT_DNS
           lb_policy: ROUND_ROBIN
+          transport_socket:
+            name: envoy.transport_sockets.tls
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+              sni: ext-authz.aiforall-gateway.svc.cluster.local
+              common_tls_context:
+                tls_certificates:
+                  - certificate_chain:
+                      filename: /etc/envoy/certs/envoy-mesh.crt
+                    private_key:
+                      filename: /etc/envoy/certs/envoy-mesh.key
+                validation_context:
+                  trusted_ca:
+                    filename: /etc/envoy/certs/ca.crt
           load_assignment:
             cluster_name: ext_authz
             endpoints:
@@ -90,6 +125,20 @@ data:
           connect_timeout: 5s
           type: STRICT_DNS
           lb_policy: ROUND_ROBIN
+          transport_socket:
+            name: envoy.transport_sockets.tls
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+              sni: iam.aiforall-platform.svc.cluster.local
+              common_tls_context:
+                tls_certificates:
+                  - certificate_chain:
+                      filename: /etc/envoy/certs/envoy-mesh.crt
+                    private_key:
+                      filename: /etc/envoy/certs/envoy-mesh.key
+                validation_context:
+                  trusted_ca:
+                    filename: /etc/envoy/certs/ca.crt
           load_assignment:
             cluster_name: backend
             endpoints:
@@ -98,7 +147,7 @@ data:
                       address:
                         socket_address:
                           address: iam.aiforall-platform.svc.cluster.local
-                          port_value: 8080
+                          port_value: 8443
     admin:
       address:
         socket_address:
@@ -159,6 +208,9 @@ spec:
             - name: config
               mountPath: /etc/envoy
               readOnly: true
+            - name: certs
+              mountPath: /etc/envoy/certs
+              readOnly: true
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -172,3 +224,6 @@ spec:
         - name: config
           configMap:
             name: envoy-mesh-config
+        - name: certs
+          secret:
+            secretName: platform-mesh-certs

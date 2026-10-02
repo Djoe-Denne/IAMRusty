@@ -39,7 +39,7 @@ Server and meta packaging guidance now live directly in:
 
 ## Project Skills
 
-- AIForAll: [[projects/aiforall/skills/index]] (runtime modes, Sonar policy, [[projects/aiforall/skills/running-parallel-sonar-lanes]])
+- AIForAll: [[projects/aiforall/skills/index]] (runtime modes, mesh e2e 0308, Sonar policy, [[projects/aiforall/skills/running-parallel-sonar-lanes]])
 - IAMRusty: <!-- [[projects/iamrusty/skills/index]] -->
 - Hive: [[projects/hive/skills/index]]
 - Telegraph: <!-- [[projects/telegraph/skills/index]] -->

@@ -12,6 +12,7 @@ sources:
   - cursor-conversation/jwt-jwks-unification-2026-08-29
   - docs/adr/0302-authn-jwt-authz-openfga.md
   - docs/adr/0304-jwt-acces-plateforme-rs256-jwks.md
+  - docs/adr/0308-mesh-authn-jwt.md
 summary: >-
   Cible 0304 : access RS256, kid opaque, JWKS, issuer par trust domain.
   Réalité Partial. HS256 = fenêtre de migration, plus le contrat cible.
@@ -20,7 +21,7 @@ provenance:
   inferred: 0.12
   ambiguous: 0.04
 created: 2026-08-31T13:30:00Z
-updated: 2026-09-29T14:45:00Z
+updated: 2026-10-01T16:45:00Z
 ---
 
 # JWT issuer versus consumer
@@ -40,12 +41,13 @@ Cible : [[projects/aiforall/decisions/0304-access-jwt-trust]] (ADR-0304 Accepted
 ## Still a platform gap
 
 - Adapters cloud BYOKMS et remote signer ne sont pas dans le dépôt.
-- Le mesh qui valide puis émet `(iss, sub)` est ADR-0308 **Accepted / Partial** : opt-in ext_authz, mTLS de hop encore absent. [[projects/aiforall/concepts/mesh-ext-authz-opt-in]]
+- Le mesh qui valide puis émet `(iss, sub)` est ADR-0308 **Accepted / Partial** : opt-in ext_authz. Sur Compose, mTLS de hop + mode passerelle §7 sont livrés ; le défaut reste JWT in-process. [[projects/aiforall/concepts/mesh-ext-authz-opt-in]] [[projects/aiforall/concepts/mesh-gateway-principal-trust]]
 
 ## Related
 
 - [[projects/aiforall/decisions/0300-events-authz]] — ADR 0302 (AuthZ inchangé)
 - [[projects/aiforall/decisions/0304-access-jwt-trust]] — cible 0304–0309
+- [[projects/aiforall/decisions/0308-mesh-authn-jwt]] — overlay mesh §7
 - [[concepts/architecture-coherence-across-services]]
 - [[projects/iamrusty/iamrusty]]
 - [[skills/using-rustycog-http]]

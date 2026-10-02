@@ -139,6 +139,7 @@ fn dual_bind_config(
         tls_cert_path: pki.server_cert_path.clone(),
         tls_key_path: pki.server_key_path.clone(),
         tls_client_ca_path,
+        tls_require_client_cert: false,
         tls_port: tls_listen,
     }
 }

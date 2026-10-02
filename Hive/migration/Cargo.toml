@@ -11,7 +11,7 @@ name = "hive_migration"
 path = "src/lib.rs"
 
 [[bin]]
-name = "migration"
+name = "hivemigration"
 path = "src/main.rs"
 
 [dependencies]

@@ -181,6 +181,11 @@ deploy-j2:
 deploy-j3:
     Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force; & ./deploy/deploy-j3.ps1
 
+# Mesh AuthN sur kind aiforall-local (ADR-0308). Image Linux chargee dans le cluster.
+# Le binaire hote est `cargo build` a la racine (target/). Ne pas lancer un second cargo en parallele.
+deploy-mesh:
+    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force; & ./deploy/deploy-mesh.ps1
+
 # Dette hors gold 0605 / 0008 — schedule manuel + Job enroll (0604). Pas une étape nominale.
 debt-schedule-reference-kv:
     Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force; & ./deploy/apps/overlays/kind-demo-monolith/schedule-reference-kv.ps1

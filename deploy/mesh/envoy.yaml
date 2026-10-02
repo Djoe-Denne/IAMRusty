@@ -1,14 +1,14 @@
 # Opt-in mesh profile (ADR-0308). NOT the default stack.
-# Launch: docker compose --profile mesh up
+# Launch: docker compose -f docker-compose.yml -f deploy/mesh/compose.yaml --profile mesh up
+# Replayable e2e: bash scripts/mesh-authn-e2e.sh
 # Kind: kubectl apply -k deploy/apps/overlays/kind-mesh
-# Does not claim Envoy ran in CI; wiring only. Flux Kind helmrelease stays commented.
-#
-# HTTP ext_authz → cluster ext-authz (http_service). No Envoy JWT filter.
-# Early header_mutation strips known client X-Principal-* (iss/sub/org) BEFORE ext_authz.
-# Recreate iss/sub remains in ext-authz; allowed_upstream_headers forwards those.
+# HTTP ext_authz. No Envoy JWT filter. No sidecar.
+# Lua strips every request header whose name starts with x-principal- BEFORE ext_authz.
+# header_mutation cannot match a prefix; Lua is used only for this strip.
+# allowed_upstream_headers forwards only iss/sub recreated by Check.
 # Do NOT request_headers_to_remove iss/sub on the route.
-# Do NOT set http_service.path_prefix: it is prepended (`/` + `/foo` = `//foo`).
-# Check accepts the client path.
+# Do NOT set http_service.path_prefix (`/` + `/foo` = `//foo`).
+# failure_mode_allow: false. Client certs are required on every hop.
 
 static_resources:
   listeners:
@@ -18,7 +18,21 @@ static_resources:
           address: 0.0.0.0
           port_value: 10000
       filter_chains:
-        - filters:
+        - transport_socket:
+            name: envoy.transport_sockets.tls
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
+              require_client_certificate: true
+              common_tls_context:
+                tls_certificates:
+                  - certificate_chain:
+                      filename: /etc/envoy/certs/envoy-mesh.crt
+                    private_key:
+                      filename: /etc/envoy/certs/envoy-mesh.key
+                validation_context:
+                  trusted_ca:
+                    filename: /etc/envoy/certs/ca.crt
+          filters:
             - name: envoy.filters.network.http_connection_manager
               typed_config:
                 "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
@@ -31,18 +45,39 @@ static_resources:
                       domains: ["*"]
                       routes:
                         - match:
-                            prefix: "/"
+                            prefix: "/iam/"
                           route:
-                            cluster: backend
+                            cluster: iam
+                        - match:
+                            prefix: "/hive/"
+                          route:
+                            cluster: hive
+                        - match:
+                            prefix: "/telegraph/"
+                          route:
+                            cluster: telegraph
+                        - match:
+                            prefix: "/manifesto/"
+                          route:
+                            cluster: manifesto
                 http_filters:
-                  - name: envoy.filters.http.header_mutation
+                  - name: envoy.filters.http.lua
                     typed_config:
-                      "@type": type.googleapis.com/envoy.extensions.filters.http.header_mutation.v3.HeaderMutation
-                      mutations:
-                        request_mutations:
-                          - remove: "x-principal-iss"
-                          - remove: "x-principal-sub"
-                          - remove: "x-principal-org"
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
+                      default_source_code:
+                        inline_string: |
+                          function envoy_on_request(request_handle)
+                            local headers = request_handle:headers()
+                            local doomed = {}
+                            for key, _ in pairs(headers) do
+                              if string.sub(string.lower(key), 1, 12) == "x-principal-" then
+                                table.insert(doomed, key)
+                              end
+                            end
+                            for _, key in ipairs(doomed) do
+                              headers:remove(key)
+                            end
+                          end
                   - name: envoy.filters.http.ext_authz
                     typed_config:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
@@ -50,12 +85,10 @@ static_resources:
                       failure_mode_allow: false
                       http_service:
                         server_uri:
-                          uri: http://ext-authz:8090/
+                          uri: https://ext-authz:8090/
                           cluster: ext_authz
                           timeout: 5s
                         authorization_request:
-                          # Forward Bearer; remaining unlisted X-Principal-* still
-                          # reach ext-authz (never trust client).
                           allowed_headers:
                             patterns:
                               - exact: authorization
@@ -74,6 +107,20 @@ static_resources:
       connect_timeout: 5s
       type: STRICT_DNS
       lb_policy: ROUND_ROBIN
+      transport_socket:
+        name: envoy.transport_sockets.tls
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+          sni: ext-authz
+          common_tls_context:
+            tls_certificates:
+              - certificate_chain:
+                  filename: /etc/envoy/certs/envoy-mesh.crt
+                private_key:
+                  filename: /etc/envoy/certs/envoy-mesh.key
+            validation_context:
+              trusted_ca:
+                filename: /etc/envoy/certs/ca.crt
       load_assignment:
         cluster_name: ext_authz
         endpoints:
@@ -84,20 +131,117 @@ static_resources:
                       address: ext-authz
                       port_value: 8090
 
-    # Demo upstream for local mesh profile (IAM HTTP on compose network).
-    - name: backend
+    - name: iam
       connect_timeout: 5s
       type: STRICT_DNS
       lb_policy: ROUND_ROBIN
+      transport_socket:
+        name: envoy.transport_sockets.tls
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+          sni: iam-service
+          common_tls_context:
+            tls_certificates:
+              - certificate_chain:
+                  filename: /etc/envoy/certs/envoy-mesh.crt
+                private_key:
+                  filename: /etc/envoy/certs/envoy-mesh.key
+            validation_context:
+              trusted_ca:
+                filename: /etc/envoy/certs/ca.crt
       load_assignment:
-        cluster_name: backend
+        cluster_name: iam
         endpoints:
           - lb_endpoints:
               - endpoint:
                   address:
                     socket_address:
                       address: iam-service
-                      port_value: 8080
+                      port_value: 8443
+
+    - name: hive
+      connect_timeout: 5s
+      type: STRICT_DNS
+      lb_policy: ROUND_ROBIN
+      transport_socket:
+        name: envoy.transport_sockets.tls
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+          sni: hive-service
+          common_tls_context:
+            tls_certificates:
+              - certificate_chain:
+                  filename: /etc/envoy/certs/envoy-mesh.crt
+                private_key:
+                  filename: /etc/envoy/certs/envoy-mesh.key
+            validation_context:
+              trusted_ca:
+                filename: /etc/envoy/certs/ca.crt
+      load_assignment:
+        cluster_name: hive
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: hive-service
+                      port_value: 8443
+
+    - name: telegraph
+      connect_timeout: 5s
+      type: STRICT_DNS
+      lb_policy: ROUND_ROBIN
+      transport_socket:
+        name: envoy.transport_sockets.tls
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+          sni: telegraph-service
+          common_tls_context:
+            tls_certificates:
+              - certificate_chain:
+                  filename: /etc/envoy/certs/envoy-mesh.crt
+                private_key:
+                  filename: /etc/envoy/certs/envoy-mesh.key
+            validation_context:
+              trusted_ca:
+                filename: /etc/envoy/certs/ca.crt
+      load_assignment:
+        cluster_name: telegraph
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: telegraph-service
+                      port_value: 8443
+
+    - name: manifesto
+      connect_timeout: 5s
+      type: STRICT_DNS
+      lb_policy: ROUND_ROBIN
+      transport_socket:
+        name: envoy.transport_sockets.tls
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+          sni: manifesto-service
+          common_tls_context:
+            tls_certificates:
+              - certificate_chain:
+                  filename: /etc/envoy/certs/envoy-mesh.crt
+                private_key:
+                  filename: /etc/envoy/certs/envoy-mesh.key
+            validation_context:
+              trusted_ca:
+                filename: /etc/envoy/certs/ca.crt
+      load_assignment:
+        cluster_name: manifesto
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: manifesto-service
+                      port_value: 8443
 
 admin:
   address:

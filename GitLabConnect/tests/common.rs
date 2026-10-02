@@ -35,6 +35,7 @@ pub fn test_config(gitlab_base: &str) -> AppConfig {
                 audience: Some("aiforall".to_owned()),
                 ..JwtAuthConfig::default()
             },
+            ..AuthConfig::default()
         },
         logging: LoggingConfig {
             level: "debug".to_owned(),

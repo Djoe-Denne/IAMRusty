@@ -43,7 +43,7 @@
 
 ## État runtime
 
-Access JWT = RS256 + `kid` + `typ=aiforall-access+jwt` via `PemSigningProvider` / Transit adapter ; `iss` = `{public_base_url}/iam` ; `aud=aiforall`. JWKS = `SigningKeyRegistry::list_jwks_keys` (pending+active+retiring ; retiring hors fenêtre après TTL access + skew 60s ; fallback bootstrap cache). Rotate org = N+1 (Pending puis Active / ancienne Retiring) ; probe Transit = `sign_digest` + verify PKCS1v15 (URL Transit depuis config IAM, refuse fermé sans URL). `UserIdExtractor` vérifie RS256 + JWKS et expose `JwtPrincipal`. Runtime TOMLs : `allowed_algorithms=["RS256"]`. HS256 = uniquement le flag explicite `allowed_algorithms` dans les `test.toml` (pas le défaut). Adapters AWS/GCP/Azure BYOKMS **absents**. Remote signer ([0309](0309-remote-signer.md)) **absent**.
+Access JWT = RS256 + `kid` + `typ=aiforall-access+jwt` via `PemSigningProvider` / Transit adapter ; `iss` = `{public_base_url}/iam` ; `aud=aiforall`. JWKS = `SigningKeyRegistry::list_jwks_keys` (pending+active+retiring ; retiring hors fenêtre après TTL access + skew 60s ; fallback bootstrap cache). Rotate org = N+1 (Pending puis Active / ancienne Retiring) ; probe Transit = `sign_digest` + verify PKCS1v15 (URL Transit depuis config IAM, refuse fermé sans URL). `UserIdExtractor` vérifie RS256 + JWKS et expose `JwtPrincipal` (défaut in-process). En overlay mesh, le service peut au contraire faire confiance au principal passerelle sans revérifier le JWT ([0308](0308-mesh-authn-jwt.md) §7). Runtime TOMLs : `allowed_algorithms=["RS256"]`. HS256 = uniquement le flag explicite `allowed_algorithms` dans les `test.toml` (pas le défaut). Adapters AWS/GCP/Azure BYOKMS **absents**. Remote signer ([0309](0309-remote-signer.md)) **absent**.
 
 ## Migration
 
@@ -81,7 +81,7 @@ Dual-verify bornée (RS256 + `kid` ; HS256 = HMAC migration only dans test.toml)
 
 - Complète : [0302](0302-authn-jwt-authz-openfga.md) (AuthN/AuthZ ; ne SuperSède pas l’ADR entière)
 - Modèle trust : [0305](0305-account-identity-trust-domain.md) ; config signer : [0306](0306-hive-iam-configuration-signature.md)
-- Accepted / Partial : [0307](0307-workload-identity-port.md) ; Accepted / Unimplemented : [0308](0308-mesh-authn-jwt.md), [0309](0309-remote-signer.md)
+- Accepted / Partial : [0307](0307-workload-identity-port.md), [0308](0308-mesh-authn-jwt.md) (mode passerelle §7) ; Accepted / Unimplemented : [0309](0309-remote-signer.md)
 - IdP : [0400](0400-iamrusty-identite-hexagonale.md)
 - Handbook : `docs/platform/authn-jwt.md`
 - Non-canon : `IAMRusty/docs/JWT_CONFIGURATION_GUIDE.md`

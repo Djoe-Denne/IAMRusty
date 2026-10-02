@@ -1,0 +1,27 @@
+---
+description: Compilation locale — Docker Linux par défaut, cargo Windows seulement si nécessaire
+alwaysApply: true
+---
+
+# Compilation locale
+
+L’hôte est Windows. Kind et les conteneurs de test tournent dans la VM Linux de Docker Desktop. Un `.exe` de `target\` ne démarre pas dans Kind.
+
+## Défaut
+
+Tests locaux, images Kind, mesh : compiler dans Docker (`docker build`, `just deploy-mesh`, `just deploy-j3`). Kind ne compile pas. Il charge une image Linux déjà construite (`kind load`).
+
+Ne pas lancer `cargo build`, `cargo test` ou `cargo check` sur l’hôte Windows pour ce travail.
+
+## Windows, seulement si c’est indispensable
+
+Un `cargo` hôte est permis uniquement si l’utilisateur demande un binaire Windows, ou si l’outil ne peut pas tourner dans Docker. Le dire avant de le lancer. Un seul `cargo` à la fois. Jamais en parallèle d’un `docker build` qui compile Rust, ni d’un `cargo check` de l’IDE.
+
+## Dossier `target`
+
+Le dépôt source est partagé. Le dossier `target\` ne l’est pas.
+
+- `cargo` Windows écrit `target\` pour `x86_64-pc-windows-msvc`.
+- Docker écrit son propre cache BuildKit (artefacts `x86_64-unknown-linux-gnu`), ignoré par `.dockerignore`.
+
+Un `cargo check` Windows ne relit pas ces artefacts Linux. Monter le `target\` hôte dans le conteneur mélange les deux cibles et casse les deux builds. Ne pas le faire.

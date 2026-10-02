@@ -18,7 +18,7 @@ Le dépôt stocke déjà `project_members` (et grants d’instance) en SQL, vers
 
 ## Décision
 
-1. **Manifesto** est le bounded context **projets, composants, membership projet**. Préfixe `/manifesto` (compose 8083). JWT consommateur `[auth.jwt]`.
+1. **Manifesto** est le bounded context **projets, composants, membership projet**. Préfixe `/manifesto` (compose 8083). JWT consommateur `[auth.jwt]`. En overlay mesh, voir [0308](0308-mesh-authn-jwt.md) §7.
 2. **Membership = vérité SQL** (`project_members`, rôles / `ProjectMemberRolePermission`). OpenFGA (`project`, `component`) est le PDP de Check, alimenté par l’outbox → `sentinel-sync` (0301, 0303), pas le seul registre des membres.
 3. **CAS `projects.revision`** : toute mutation qui change l’AuthZ prend un verrou `SELECT … FOR UPDATE` sur `(id, revision)`, incrémente, et mappe un conflit en **409**.
 4. **ACL d’instance + outbox = même transaction** (`ProjectAuthorizationUnitOfWorkImpl`) : écriture projet/membre/grants SQL + `OutboxRecorder.record` puis commit. Rollback du domaine = rollback de l’outbox. Permission refusée → 403.

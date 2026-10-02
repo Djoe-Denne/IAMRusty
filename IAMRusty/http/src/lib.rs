@@ -9,6 +9,7 @@ use readiness::{attach_ready, ReadinessProbe};
 use rustycog::http::{AppState, RouteBuilder};
 use std::sync::Arc;
 
+use crate::handlers::mesh_echo::mesh_echo_headers;
 use crate::rate_limit::rate_limit_auth;
 
 pub mod error;
@@ -120,6 +121,10 @@ pub fn create_router(
 
     let mut router = builder
         .into_router()
+        .route(
+            "/mesh/echo-headers",
+            axum::routing::get(mesh_echo_headers).post(mesh_echo_headers),
+        )
         .layer(middleware::from_fn(rate_limit_auth))
         .layer(Extension(idp));
     if let Some(signer) = signer {

@@ -18,7 +18,7 @@ Telegraph consomme déjà `iam-events` et n’expose que la lecture / l’acquit
 
 ## Décision
 
-1. **Telegraph** est le bounded context **notifications**. Préfixe `/telegraph` (compose 8081). JWT consommateur `[auth.jwt]`.
+1. **Telegraph** est le bounded context **notifications**. Préfixe `/telegraph` (compose 8081). JWT consommateur `[auth.jwt]`. En overlay mesh, voir [0308](0308-mesh-authn-jwt.md) §7.
 2. **Pilotage event-driven** : processeurs infra (`email`, `notification`) + **`CommunicationFactory`** (descripteurs TOML → email / notification in-app). Telegraph **consomme `iam-events`** (`user_signed_up`, `user_email_verified`, `password_reset_requested`).
 3. **HTTP étroit**, authentifié, limité à :
    - `GET /api/notifications`

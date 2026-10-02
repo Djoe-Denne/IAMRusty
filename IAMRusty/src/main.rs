@@ -30,6 +30,7 @@ async fn main() -> anyhow::Result<()> {
             String::new()
         },
         tls_client_ca_path: config.server.tls_client_ca_path.clone(),
+        tls_require_client_cert: config.server.tls_require_client_cert,
         tls_port: if config.server.tls_enabled {
             config.server.tls_port
         } else {

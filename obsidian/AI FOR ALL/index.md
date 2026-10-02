@@ -59,14 +59,19 @@ Central entry point for this vault. Use the area indexes for full catalogs; use 
 - [[projects/manifesto/concepts/apparatus-p1-persistence]] — persistance P1 T1–T7 (commit `7455ee5`).
 - [[projects/manifesto/concepts/apparatus-p2-reconciliation]] — ticker in-process **Implemented**.
 - [[projects/lazaret/lazaret]] — frontière P3 Implemented (T1–T14b ; A-DEC 2026-09-20).
-- [[projects/aiforall/concepts/https-platform-mesh]] — T14b HTTPS Hive–IAM–Telegraph, dual-bind, CA mesh ≠ CA Lazaret.
+- [[projects/aiforall/concepts/https-platform-mesh]] — T14b HTTPS IAM/Telegraph/Hive/Manifesto, dual-bind, CA mesh ≠ CA Lazaret.
 - [[projects/manifesto/concepts/apparatus-platform]] — vision ; Factory/host encore absents. Alias [[entities/paravretius]]. Moteur P4 : [[projects/manifesto/decisions/0008-apparatus-p4-k8s]] (Accepted / Implemented). Gates : [[projects/manifesto/decisions/0009-0011-gates-preprod]]. Crate : [[projects/manifesto/concepts/apparatus-p4-operator]].
 - [[projects/manifesto/references/apparatus-implementation-plan]] — phases et preuves P0–P3.
 
 ## Recent Additions
 
+- [[journal/2026-09-30]] — `trust_envoy` + e2e Compose 48 OK ; rien commité AIForAll.
+- [[projects/aiforall/decisions/0308-mesh-authn-jwt]] — 0308 Accepted / Partial, mode passerelle §7.
+- [[projects/aiforall/concepts/mesh-gateway-principal-trust]] — rustycog `trusted_gateway_san`, pin `2290d45`.
+- [[projects/aiforall/skills/running-mesh-authn-e2e]] — `hivemigration`, FORCE, `build-artifacts` d’abord.
+- [[projects/aiforall/references/cursor-chat-mesh-authn-2026-09-30]] — distillat du chat `23daa0aa`.
 - [[journal/2026-09-29]] — e2e Envoy 0308 : 403 sans JWT, iss/sub recréés, `x-principal-foo` encore transmis.
-- [[projects/aiforall/concepts/mesh-ext-authz-opt-in]] — ext_authz opt-in, Accepted / Partial, mTLS de hop ouvert.
+- [[projects/aiforall/concepts/mesh-ext-authz-opt-in]] — ext_authz opt-in, Accepted / Partial ; Compose §7 prouvé le 30 sept.
 - [[journal/2026-09-27]] — delta 22–27 sept. : Connect IdP, gold path, JWT 0304–0309.
 - [[projects/aiforall/decisions/0304-access-jwt-trust]] — RS256 / JWKS. 0304 Partial, 0307 Implemented, 0308 et 0309 Partial.
 - [[projects/aiforall/decisions/0605-gold-path-kind]] — HTTP 200 Kind, Proposed / Réalité Implemented.
@@ -81,7 +86,7 @@ Central entry point for this vault. Use the area indexes for full catalogs; use 
 - [[projects/manifesto/references/0008-app01-reconciliation]] — méthode RATIFIÉE, pas canon.
 - [[projects/manifesto/references/apparatus-p4-implementation-prompt]] — contrat TDD P4 historique ; 0008 depuis Implemented (A-DEC).
 - [[journal/2026-09-20]] — HEAD `a27ea5b` : T11b–T14b + SQS ; ingest 0008 / closeout.
-- [[projects/aiforall/concepts/https-platform-mesh]] — mesh HTTPS T14b (Hive 8443, IAM 8444, Telegraph 8445).
+- [[projects/aiforall/concepts/https-platform-mesh]] — mesh HTTPS T14b (IAM 8443, Telegraph 8444, Hive 8445, Manifesto 8448).
 - [[journal/2026-09-18]] — HEAD `9e85edd` : T8 `kv_purge` `f0cf1d2`, T10 enrollment `9e85edd`, flake CI SQS LocalStack.
 - [[entities/paravretius]] — nom historique ; canon Apparatus / Lazaret ; absent du code.
 - [[projects/lazaret/lazaret]] — P3 Partial T1–T10 (T8 file `lazaret-kv-events`, T10 `apparatus_enrollments`).

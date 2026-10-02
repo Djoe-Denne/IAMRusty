@@ -6,8 +6,14 @@ sources:
   - rustycog/rustycog-http/src/builder.rs
   - rustycog/rustycog-http/src/lib.rs
   - rustycog/rustycog-http/src/middleware_permission.rs
-summary: Step-by-step guide for assembling Axum services with RouteBuilder, auth modes, the centralized OpenFGA permission guard, and shared middleware.
-updated: 2026-04-20
+summary: >-
+  RouteBuilder, auth modes, OpenFGA guard. Overlay mesh : trusted_gateway_san
+  non vide = principal passerelle, pas de JWT in-process.
+updated: 2026-10-01T16:45:00Z
+provenance:
+  extracted: 0.80
+  inferred: 0.18
+  ambiguous: 0.02
 ---
 
 # Using RustyCog HTTP
@@ -28,6 +34,7 @@ Use this guide when wiring [[projects/rustycog/references/rustycog-http]].
 - Using a non-UUID path parameter for the resource id — the middleware only binds the deepest UUID-shaped segment into `ResourceRef`.
 - Naming an `object_type` that is not defined in [openfga/model.fga](../../../openfga/model.fga) — every check returns 403 with an upstream error logged.
 - Trying to wire a per-route checker. The single composition-root checker on `AppState` is shared across every request.
+- In mesh mode, a non-empty `auth.mesh.trusted_gateway_san` makes rustycog trust `x-principal-iss`/`sub` from the gateway SAN only and skip in-process JWT. Empty SAN keeps [[projects/aiforall/concepts/jwt-issuer-vs-consumer]]. See [[projects/aiforall/concepts/mesh-gateway-principal-trust]].
 
 ## Source files
 

@@ -29,6 +29,7 @@ pub fn load_monolith_config() -> anyhow::Result<MonolithConfig> {
             tls_cert_path: String::new(),
             tls_key_path: String::new(),
             tls_client_ca_path: String::new(),
+            tls_require_client_cert: false,
             tls_port: 0,
         },
         Some(tls) => {
@@ -49,6 +50,7 @@ pub fn load_monolith_config() -> anyhow::Result<MonolithConfig> {
                 tls_cert_path: tls.cert_path,
                 tls_key_path: tls.key_path,
                 tls_client_ca_path: tls.client_ca_path,
+                tls_require_client_cert: false,
                 tls_port: tls.port,
             }
         }
