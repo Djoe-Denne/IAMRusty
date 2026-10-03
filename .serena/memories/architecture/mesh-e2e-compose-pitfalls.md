@@ -1,11 +1,13 @@
-# E2E mesh Compose — pièges durables
+# E2E mesh — pièges durables
 
-- Commande : `bash scripts/mesh-authn-e2e.sh` (cas dans `scripts/mesh-authn-e2e-cases.sh`). Compiler dans Docker, pas `cargo` Windows. Ne pas monter le `target\` hôte.
-- Construire `build-artifacts` **avant** les images services. Un `compose build` parallèle copie des binaires périmés depuis `local/build-artifacts`.
-- Hive : binaire `hivemigration` (collision avec Lazaret `migration` dans `target/release` partagé). Le Dockerfile copie `hivemigration` vers `/app/migration`. Sinon Hive applique les migrations Lazaret et `organizations` n'existe pas.
-- Hive ne démarre pas si `iam_service.api_key` est vide (StaticCredential fail-closed). `docker-compose.yml` (fichier de base, pas seulement l'overlay mesh) pose `IAM_INTERNAL_SERVICE_TOKEN` et `HIVE_IAM_SERVICE__API_KEY` au même secret de dev.
-- `create-databases` dans le compose de base : `DROP DATABASE … WITH (FORCE)`. Le pod Kind `oodhive-monolith` via le port hôte 5432 bloquait le DROP. Chaque `docker compose up` coupe ces sessions et recrée les bases.
-- Healthchecks Docker Hive, Telegraph, Manifesto : `curl http://localhost:8080/health` est faux. La route réelle est `/{préfixe}/health`. IAM n'a pas de HEALTHCHECK. Conteneurs marqués unhealthy alors que l'e2e joint `https://{svc}-service:8443/{svc}/health`.
-- `jwks_url` des `development.toml` pointe `http://127.0.0.1:8080/iam/.well-known/jwks.json`. Dans un conteneur ce n'est pas IAM. Le mode mesh ne fetch pas le JWKS, donc l'e2e ne le montre pas. Hors overlay, Hive/Telegraph/Manifesto ne vérifient pas un JWT RS256. IAM injecte le JWKS en mémoire.
-- `deploy/apps/overlays/kind-mesh/README.md` décrit le mesh Compose ; `envoy-mesh.yaml` à côté route encore `prefix: /` vers `cluster: backend`.
+- Preuve e2e (2026-10-02) : `bash scripts/mesh-authn-kind-e2e.sh` sur `kind-aiforall-local`. Exit 0. `scripts/mesh-authn-e2e.sh` (Compose) n'est plus la preuve.
+- Compiler dans Docker, pas `cargo` Windows. Ne pas monter le `target\` hôte. `build-artifacts` avant les images services. Kind ne compile pas : `kind load`.
+- Hive : binaire `hivemigration` (collision Lazaret `migration`). Dockerfile copie vers `/app/migration`.
+- Hive refuse de démarrer si `iam_service.api_key` est vide. Secret de dev partagé IAM/Hive dans le compose de base.
+- `DROP DATABASE … WITH (FORCE)` dans le compose de base. Incompatible avec un pod Kind sur le port hôte 5432. Le Postgres `kind-mesh` n'a pas de hostPort.
+- Healthchecks : `/{préfixe}/health`. `jwks_url` des toml = 127.0.0.1 pour l'hôte ; Compose override `*_AUTH__JWT__JWKS_URL` vers `iam-service`.
+- Kind `aiforall-platform` est default-deny. Sans `networkpolicy.yaml`, DNS et JWKS expirent. Le pod e2e alpine a besoin d'egress 80/443 pour `apk`. Appeler Envoy en `https://envoy-mesh:10000` (SAN = `envoy-mesh`, pas le FQDN).
+- Images multi-arch (postgres, openfga, alpine) : `kind load` échoue tant qu'un `docker build --platform linux/amd64` n'a pas écrasé le tag.
+- Telegraph avec file désactivée : le consommateur no-op termine et arrêtait le processus. Le working tree garde le serveur HTTP dans ce cas. Image Kind rechargée.
+- IT Manifesto : conteneur Docker déjà là `openfga_test-fga` → 409. Ne pas `docker rm -f` spontanément.
 - Voir `mem:architecture/events-authz-adr-0308`.

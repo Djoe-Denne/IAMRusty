@@ -175,6 +175,7 @@ impl MemberUseCaseImpl {
                 .ok_or_else(|| DomainError::internal_error("member missing id after persist"))?,
             organization_id: member.organization_id,
             user_id: member.user_id,
+            issuer: member.issuer.clone(),
             status: member.status.clone().into(),
             joined_at: member.joined_at,
             invited_by_user_id: member.invited_by_user_id,

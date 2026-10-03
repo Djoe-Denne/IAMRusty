@@ -161,42 +161,44 @@ impl TelegraphApp {
             "Telegraph service started successfully - both event consumer and HTTP server are running"
         );
 
-        // Wait for shutdown signal or any service to complete/fail
-        let shutdown_result: Result<(), anyhow::Error> = tokio::select! {
-            _ = tokio::signal::ctrl_c() => {
-                info!("Shutdown signal received, stopping Telegraph service");
-                Ok(())
-            }
-            result = &mut consumer_handle => {
-                match result {
-                    Ok(Ok(())) => {
-                        info!("Event consumer completed successfully");
-                        Ok(())
-                    }
-                    Ok(Err(e)) => {
-                        error!("Event consumer failed: {e}");
-                        Err(anyhow::anyhow!("Event consumer failed: {e}"))
-                    }
-                    Err(e) => {
-                        error!("Event consumer task panicked: {e}");
-                        Err(anyhow::anyhow!("Event consumer task panicked: {e}"))
+        // A disabled queue uses a no-op consumer that returns immediately.
+        // That completion must not stop the HTTP server.
+        let shutdown_result: Result<(), anyhow::Error> = loop {
+            tokio::select! {
+                _ = tokio::signal::ctrl_c() => {
+                    info!("Shutdown signal received, stopping Telegraph service");
+                    break Ok(());
+                }
+                result = &mut consumer_handle, if !consumer_handle.is_finished() => {
+                    match result {
+                        Ok(Ok(())) => {
+                            info!("Event consumer completed; HTTP server keeps running");
+                        }
+                        Ok(Err(e)) => {
+                            error!("Event consumer failed: {e}");
+                            break Err(anyhow::anyhow!("Event consumer failed: {e}"));
+                        }
+                        Err(e) => {
+                            error!("Event consumer task panicked: {e}");
+                            break Err(anyhow::anyhow!("Event consumer task panicked: {e}"));
+                        }
                     }
                 }
-            }
-            result = &mut server_handle => {
-                match result {
-                    Ok(Ok(())) => {
-                        info!("HTTP server completed successfully");
-                        Ok(())
-                    }
-                    Ok(Err(e)) => {
-                        error!("HTTP server failed: {e}");
-                        Err(anyhow::anyhow!("HTTP server failed: {e}"))
-                    }
-                    Err(e) => {
-                        error!("HTTP server task panicked: {e}");
-                        Err(anyhow::anyhow!("HTTP server task panicked: {e}"))
-                    }
+                result = &mut server_handle => {
+                    break match result {
+                        Ok(Ok(())) => {
+                            info!("HTTP server completed successfully");
+                            Ok(())
+                        }
+                        Ok(Err(e)) => {
+                            error!("HTTP server failed: {e}");
+                            Err(anyhow::anyhow!("HTTP server failed: {e}"))
+                        }
+                        Err(e) => {
+                            error!("HTTP server task panicked: {e}");
+                            Err(anyhow::anyhow!("HTTP server task panicked: {e}"))
+                        }
+                    };
                 }
             }
         };

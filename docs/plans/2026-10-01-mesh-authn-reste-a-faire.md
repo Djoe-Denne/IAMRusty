@@ -30,7 +30,11 @@ Le passage Envoy → service authentifié est prouvé. Ces trous empêchent de d
 7. **Suites de tests des services non rejouées** après le bump rustycog. Seule la compilation Docker de `github-connect-service`, `gitlab-connect-service`, `manifesto-setup` et `iam-setup` a réussi. Hive, Telegraph, Manifesto et IAM (tests d’intégration) n’ont pas tourné.
 8. **Livrer le couple git.** Le code AIForAll dépend du gitlink `2290d45`. Sans lui, `auth.mesh` ne compile pas. rustycog est déjà sur GitHub ; AIForAll ne l’a pas enregistré. Commit seulement sur demande.
 
-## 2. Kind — projet suivant, pas commencé
+## 2. Kind — overlay branché (2026-10-02), 0308 reste Partial
+
+`deploy/apps/overlays/kind-mesh` route `/iam/`, `/hive/`, `/telegraph/`, `/manifesto/` et laisse signup/login/JWKS sans Check. `platform-services.yaml` charge les images Docker (`kind load`), pose `TRUSTED_GATEWAY_SAN=envoy-mesh`, et garde Postgres in-cluster sans hostPort 5432. Le HelmRelease Flux reste commenté. Preuve : `bash scripts/mesh-authn-kind-e2e.sh` — exit 0 le 2026-10-02 (signup/login/JWKS, deny sans JWT, `sub`, `user_id`, `issuer`, bypass `mesh-client` 401). Ne pas passer 0308 à Implemented (staleness, mesh non défaut, Flux).
+
+## 2 bis. Kind — état d’origine (avant l’overlay)
 
 Décision `compose_then_kind`. L’objectif « comme en prod, en local, via Kind » n’est pas tenu.
 
@@ -39,6 +43,20 @@ Décision `compose_then_kind`. L’objectif « comme en prod, en local, via Kind
 - `deploy/apps/overlays/kind/helmrelease-envoy-gateway.yaml` reste commenté et hors `resources`.
 - Les services Kind ne sont pas les images Linux construites ici. Kind ne compile pas : il faut `kind load` d’images déjà buildées en Docker.
 - Il manque un e2e Kind du même contrat (deny sans JWT, allow avec principal utilisé, contournement refusé).
+
+## Décisions d’implémentation — Phase C (2026-10-02)
+
+Pas une ADR. 0308 reste **Accepted / Partial**. Ne pas passer à Implemented.
+
+1. **Routes `.might_be_authenticated()` en mode mesh** (`trusted_gateway_san` non vide) : anonyme seulement si le certificat client porte le SAN `envoy-mesh`. Sans ce SAN (pas de cert, cert `mesh-client`, HTTP clair) → 401, pas de lecture utile. SAN passerelle + en-têtes principal valides → principal posé. SAN passerelle + en-têtes absents ou invalides → anonyme, sans insérer de `Uuid`. `trusted_gateway_san` vide : inchangé. `.authenticated()` reste 401 si le principal passerelle est refusé (0308 §7).
+2. **Ports hôte** : l’overlay `deploy/mesh/compose.yaml` retire la publication hôte des quatre services (`ports: !override []`). Le `docker-compose.yml` de base garde 8080–8083 et 8443/8444/8445/8448. Envoy `10000` reste publié. Le réseau Compose interne reste ouvert (Hive → `http://iam-service:8080`, ext-authz → JWKS IAM, e2e).
+3. **Signup, login, JWKS** : routes Envoy exactes, avant le préfixe `/iam/`, `ExtAuthzPerRoute.disabled: true`. Le filtre ext_authz du listener (et `.fallback(check)` dans `ext-authz`) reste pour le reste. Pas de Check permissif.
+
+Phase D (0306/0307) n’est pas cette phase : ne pas faire passer `/iam/internal/organizations/{id}/signer/*` par un JWT utilisateur.
+
+### Phase D — signataire d’organisation (0306)
+
+Hive HTTP `/hive/api/organizations/{id}/signer/{configure,test,rotate,disable}` est `.authenticated()` + Admin. Hive appelle `http://iam-service:8080/iam/internal/organizations/{id}/signer/...` avec `x-iam-internal-token` (pas le JWT utilisateur, pas Envoy). Ces routes IAM ne sont pas `.authenticated()` : gate token seulement. `/internal/{provider}/token|revoke` restent `.authenticated()` et hors e2e. L’e2e configure le signataire via Envoy + JWT (PEM publique déjà montée, `provider_key_ref` `{org_id}/e2e.pem`, sans secret ajouté) ; le même URL Hive en direct (mesh-client + Bearer ou spoof) est 401. IAM interne `:8080` sans `x-iam-internal-token` répond 403 (gate existante, pas 401). 0307 reste un port credential, pas du mTLS mesh. Le profil mesh n’embarque pas sentinel-sync : l’e2e crée le store OpenFGA avant Hive, puis écrit le tuple `owner` après `POST /organizations` pour que GET member et signer Admin ne restent pas 403.
 
 ## 3. Ne pas faire pour « finir » 0308
 

@@ -65,13 +65,15 @@ Central entry point for this vault. Use the area indexes for full catalogs; use 
 
 ## Recent Additions
 
+- [[journal/2026-10-02]] — e2e Kind OK ; IT hors Kind ; 0308 toujours Partial.
+- [[projects/aiforall/references/mesh-authn-close-2026-10-02]] — amendement canaux et prompt de clôture.
 - [[journal/2026-09-30]] — `trust_envoy` + e2e Compose 48 OK ; rien commité AIForAll.
-- [[projects/aiforall/decisions/0308-mesh-authn-jwt]] — 0308 Accepted / Partial, mode passerelle §7.
-- [[projects/aiforall/concepts/mesh-gateway-principal-trust]] — rustycog `trusted_gateway_san`, pin `2290d45`.
-- [[projects/aiforall/skills/running-mesh-authn-e2e]] — `hivemigration`, FORCE, `build-artifacts` d’abord.
+- [[projects/aiforall/decisions/0308-mesh-authn-jwt]] — 0308 Accepted / Partial ; e2e = Kind (amendement 2026-10-02).
+- [[projects/aiforall/concepts/mesh-gateway-principal-trust]] — rustycog `trusted_gateway_san`, pin `2290d45`, 401 hors SAN.
+- [[projects/aiforall/skills/running-mesh-authn-e2e]] — preuve = `mesh-authn-kind-e2e.sh`.
 - [[projects/aiforall/references/cursor-chat-mesh-authn-2026-09-30]] — distillat du chat `23daa0aa`.
 - [[journal/2026-09-29]] — e2e Envoy 0308 : 403 sans JWT, iss/sub recréés, `x-principal-foo` encore transmis.
-- [[projects/aiforall/concepts/mesh-ext-authz-opt-in]] — ext_authz opt-in, Accepted / Partial ; Compose §7 prouvé le 30 sept.
+- [[projects/aiforall/concepts/mesh-ext-authz-opt-in]] — ext_authz opt-in, Partial ; e2e Kind du 2 oct.
 - [[journal/2026-09-27]] — delta 22–27 sept. : Connect IdP, gold path, JWT 0304–0309.
 - [[projects/aiforall/decisions/0304-access-jwt-trust]] — RS256 / JWKS. 0304 Partial, 0307 Implemented, 0308 et 0309 Partial.
 - [[projects/aiforall/decisions/0605-gold-path-kind]] — HTTP 200 Kind, Proposed / Réalité Implemented.

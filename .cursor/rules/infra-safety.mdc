@@ -1,0 +1,25 @@
+---
+description: Garde-fous infrastructure locale (Docker, Kind, Envoy) — diagnostic read-only, pas de destruction automatique
+alwaysApply: true
+---
+
+# Infra safety (local)
+
+Périmètre : Docker Desktop, Compose, Kind `aiforall-local`, Envoy du dépôt, CI GitHub du dépôt. Pas de prod.
+
+## Les 10 règles
+
+1. Diagnostic **read-only d'abord**.
+2. Ne **jamais lire les Secrets** sauf demande explicite de l'utilisateur.
+3. Ne **jamais supprimer** volume, container, namespace ou cluster automatiquement.
+4. Jamais `kind delete cluster`.
+5. Jamais `docker system prune`.
+6. Jamais `docker volume prune`.
+7. Jamais `kubectl delete namespace`.
+8. Jamais `helm uninstall` automatiquement.
+9. Jamais exposer l'Admin Envoy hors loopback / réseau local contrôlé.
+10. Jamais modifier un cluster non identifié comme **dev local** (`kind-aiforall-local` uniquement).
+
+## Clusters hors périmètre
+
+Ne jamais écrire sur `kind-apparatus-p4-it` ni `rancher-desktop`. Ne pas installer Helm. Ne pas lancer `docker compose down -v` ni `docker rm -f` de façon spontanée.

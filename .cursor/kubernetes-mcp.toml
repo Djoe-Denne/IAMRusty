@@ -1,0 +1,11 @@
+# kubernetes-mcp-server 0.0.67 — local Cursor MCP (read-only).
+# CLI verified: --config, --version; runtime settings in TOML.
+# Toolsets helm/kcp/kiali/kubevirt/netobserv/tekton intentionally omitted.
+
+read_only = true
+toolsets = ["core", "config"]
+
+[[denied_resources]]
+group = ""
+version = "v1"
+kind = "Secret"

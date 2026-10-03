@@ -222,6 +222,7 @@ services:
     environment:
       - RUST_ENVIRONMENT=development
       - DATABASE_URL=postgres://postgres:postgres@postgres:5432/telegraph_dev
+      - TELEGRAPH_AUTH__JWT__JWKS_URL=http://iam-service:8080/iam/.well-known/jwks.json
     volumes:
       - ./Telegraph/config:/app/config
       - ./certs/platform-mesh:/app/certs
@@ -251,6 +252,7 @@ services:
       - RUST_ENVIRONMENT=development
       - DATABASE_URL=postgres://postgres:postgres@postgres:5432/hive_dev
       - HIVE_IAM_SERVICE__API_KEY=iam-internal-dev-token
+      - HIVE_AUTH__JWT__JWKS_URL=http://iam-service:8080/iam/.well-known/jwks.json
     volumes:
       - ./Hive/config:/app/config
       - ./certs/platform-mesh:/app/certs
@@ -282,6 +284,7 @@ services:
       - RUST_ENVIRONMENT=development
       - DATABASE_URL=postgres://postgres:postgres@postgres:5432/manifesto_dev
       - MANIFESTO_APPARATUS__GRANT_SNAPSHOT_AUTH__HS256_SECRET=manifesto-grant-snapshot-dev-hs256
+      - MANIFESTO_AUTH__JWT__JWKS_URL=http://iam-service:8080/iam/.well-known/jwks.json
     volumes:
       - ./Manifesto/config:/app/config
       - ./certs/platform-mesh:/app/certs
@@ -511,7 +514,11 @@ services:
       postgres:
         condition: service_healthy
     # WITH (FORCE): clients outside this stack (e.g. Kind pods via host port 5432)
-    # would otherwise block the drop.
+    # would otherwise block the drop. Compose and a Kind workload on host port
+    # 5432 are mutually exclusive: every `docker compose up` drops these
+    # databases. Kind mesh postgres stays in-cluster and does not publish 5432.
+    # IAM_INTERNAL_SERVICE_TOKEN / HIVE_IAM_SERVICE__API_KEY below are dev-only
+    # secrets, same class as postgres/postgres, and are not mesh-profile-only.
     command: >
       sh -c "
         echo 'Creating databases...' &&

@@ -1,0 +1,78 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  // Config projet OpenCode (AIForAll) — portage des définitions Cursor
+  // (.cursor/agents/*.md, .cursor/mcp.json) dans les formats OpenCode V2.
+  //
+  // Distinction Réalité vs réel : les serveurs MCP ci-dessous sont les mêmes
+  // que .cursor/mcp.json MINUS context-mode, qui reste un plugin TS des autres
+  // plateformes (pas un serveur stdio MCP) — voir docs/opencode-agents-installation.md.
+  //
+  // Politique OpenCode dédiée, évolution utilisateur 2026-10-03 :
+  //   implementer : openai/gpt-6.1-sol#medium ; hard-implementer : #high
+  //   expert-engineer : openai/gpt-6.1-sol#max (read-only)
+  //   emergency-engineer (leaf) / emergency-thinker (takeover) : openai/gpt-6-astra#max
+  //   orchestrator inchangé : openai/gpt-6-luna#xhigh (default_agent)
+  //   Autres modèles inchangés : openai/gpt-6.1-sol#xhigh
+  //        (architecte, security-reviewer, adr-*) ; openai/gpt-6-astra#high
+  //        (correctness-reviewer, rust-perf-reviewer)
+  //   Tier 3 lecture/mécanique    : zai-coding-plan/glm-5.3-flash#max
+  //        (secours : opencode-go/glm-5.3-flash#max)
+  //        (Explore, mechanical-worker, test-reviewer)
+  "default_agent": "orchestrator",
+  "skills": [
+    ".agents/skills",
+    ".cursor/skills"
+  ],
+  "mcp": {
+    // Serena (proxy 1MCP) met ~90 s à démarrer.
+    "timeout": {
+      "startup": 150000
+    },
+    "servers": {
+      "grepai": {
+        "type": "local",
+        "command": [
+          "C:\\Users\\djden\\AppData\\Local\\Programs\\grepai\\grepai.exe",
+          "mcp-serve",
+          "C:\\Users\\djden\\source\\repos\\AIForAll"
+        ]
+      },
+      "serena": {
+        "type": "local",
+        "command": [
+          "powershell.exe",
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "C:\\Users\\djden\\.config\\1mcp\\serena-proxy.ps1",
+          "-ProjectPath",
+          "C:\\Users\\djden\\source\\repos\\AIForAll"
+        ]
+      },
+      "kubernetes-mcp-server": {
+        "type": "local",
+        "command": [
+          "C:\\Program Files\\nodejs\\node.exe",
+          "C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npx-cli.js",
+          "-y",
+          "kubernetes-mcp-server@0.0.67",
+          "--config",
+          "C:\\Users\\djden\\source\\repos\\AIForAll\\.cursor\\kubernetes-mcp.toml",
+          "--log-file",
+          "stderr",
+          "--disable-multi-cluster"
+        ]
+      },
+      "ig-mcp-server": {
+        "type": "local",
+        "command": [
+          "C:\\Users\\djden\\AppData\\Local\\Programs\\ig-mcp-server\\ig-mcp-server.exe",
+          "-read-only",
+          "-context",
+          "kind-aiforall-local"
+        ]
+      }
+    }
+  }
+}

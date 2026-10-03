@@ -21,7 +21,7 @@ pub fn configure_internal_service_token(token: impl Into<String>) {
     let _ = INTERNAL_TOKEN.set(token.into());
 }
 
-/// Required header value for `/internal/{provider}/token`.
+/// Required header value for `/internal/{provider}/token` and `/revoke`.
 ///
 /// # Errors
 ///

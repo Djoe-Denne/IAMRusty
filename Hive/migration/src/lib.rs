@@ -11,6 +11,7 @@ mod m20240101_000009_create_resources_table;
 mod m20240101_000010_create_role_permissions_table;
 mod m20240101_000012_create_organization_member_role_permissions_table;
 mod m20240101_000013_member_issuer;
+mod m20261003_000014_role_permission_organization_scope;
 
 pub struct Migrator;
 
@@ -30,6 +31,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20240101_000012_create_organization_member_role_permissions_table::Migration),
             Box::new(m20240101_000013_member_issuer::Migration),
             rustycog::outbox::outbox_migration(),
+            Box::new(m20261003_000014_role_permission_organization_scope::Migration),
         ]
     }
 }

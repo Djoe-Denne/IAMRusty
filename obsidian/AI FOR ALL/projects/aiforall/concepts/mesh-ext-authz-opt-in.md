@@ -11,14 +11,14 @@ sources:
   - scripts/mesh-authn-e2e.sh
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/23daa0aa-3a66-4665-8db4-80c94e4e20a7/23daa0aa-3a66-4665-8db4-80c94e4e20a7.jsonl
 summary: >-
-  AuthN mesh opt-in : Envoy + ext-authz. Partial. Compose §7 + mTLS hops
-  prouvés le 30 sept. Kind encore un cluster backend, pas Implemented.
+  AuthN mesh opt-in, Partial. E2e = Kind (OK 2026-10-02). IT hors Kind.
+  Flux commenté ne bloque plus Implemented.
 provenance:
-  extracted: 0.90
-  inferred: 0.08
+  extracted: 0.88
+  inferred: 0.10
   ambiguous: 0.02
 created: 2026-09-29T14:45:00Z
-updated: 2026-10-01T16:45:00Z
+updated: 2026-10-02T14:55:00Z
 ---
 
 # Mesh ext_authz opt-in (ADR-0308)
@@ -40,19 +40,34 @@ Canon : `docs/adr/0308-mesh-authn-jwt.md`. Décision : [[projects/aiforall/decis
 - Compose : `ext-authz` et `envoy-mesh` ont `profiles: ["mesh"]`.
 - `deploy/mesh/envoy.yaml` : routes `/iam/` `/hive/` `/telegraph/` `/manifesto/` vers clusters homonymes ; Lua strip ; `allowed_upstream_headers` iss/sub seulement ; `failure_mode_allow: false`.
 - Overlay `deploy/mesh/compose.yaml` : client cert requis + `TRUSTED_GATEWAY_SAN=envoy-mesh`.
-- `kind-mesh/` : apply manuel, un seul cluster `backend`. HelmRelease Flux Envoy Kind commenté.
+- `kind-mesh/` : routes `/iam/` `/hive/` `/telegraph/` `/manifesto/`, workloads réels, `TRUSTED_GATEWAY_SAN=envoy-mesh`, Postgres in-cluster sans hostPort 5432. Pas dans `overlays/kind`. HelmRelease Flux commenté, hors critère d’Implemented.
 
 ## Preuve 29 sept. (partielle, dépassée)
 
 E2e Envoy Windows / HTTP clair : deny sans JWT, recreate iss/sub. `x-principal-foo` encore transmis. Pas de compose profile, pas de mTLS. Conservé comme photo. [[journal/2026-09-29]]
 
-## Preuve 30 sept. (Compose isoprod)
+## Preuve 30 sept. (Compose, plus la preuve e2e)
 
-`bash scripts/mesh-authn-e2e.sh` : 48 OK, 0 FAIL, pile démontée. Allow + deny + contournement + témoin clé passerelle. Détail : [[projects/aiforall/skills/running-mesh-authn-e2e]] [[journal/2026-09-30]].
+`bash scripts/mesh-authn-e2e.sh` : 48 OK, 0 FAIL, pile démontée. Photo historique. Depuis l’amendement 2026-10-02 ce script n’est plus la preuve e2e. [[journal/2026-09-30]]
 
-## Encore ouvert
+## Preuve 2 oct. (Kind)
 
-- Mesh par défaut ; Kind §7 ; Flux Envoy ; routes publiques IAM ; S2S `.authenticated()` direct ; TTL staleness.
+`bash scripts/mesh-authn-kind-e2e.sh` : KIND MESH E2E OK. Deny sans JWT, `sub`, `user_id` Telegraph, `issuer` Hive, contournement `mesh-client` refusé, signup / login / JWKS via Envoy. [[journal/2026-10-02]] [[projects/aiforall/skills/running-mesh-authn-e2e]]
+
+## Canaux (2026-10-02)
+
+- IT : pas Kind. Third parties sur Compose. Le code les lance encore en testcontainers. ^[extracted]
+- E2E : entièrement Kind.
+- Local isoprod hors IT : Postgres, Redis et le reste via Kind. Redis n’est pas déployé dans `kind-mesh`. ^[extracted]
+- Le mesh opt-in n’est pas un trou. Flux commenté non plus. ^[inferred]
+
+## Encore ouvert pour Implemented
+
+- S2S `POST /iam/internal/{provider}/token` et `revoke` (`.authenticated()`) = 401 en direct. Le signataire 0306, lui, utilise `x-iam-internal-token`.
+- Gitlink rustycog `2290d45` non commité ; le working tree ajoute le 401 hors SAN `envoy-mesh`.
+- Staleness : pas de TTL (0304 §17). Ne pas en inventer un pour clôturer.
+
+Prompt de clôture : `docs/0308-mesh-close-implementation-prompt.md`. [[projects/aiforall/references/mesh-authn-close-2026-10-02]]
 
 ## Related
 

@@ -9,6 +9,10 @@ use hive_infra::repository::entity::{
     organization_members, organizations, permissions, resources, role_permissions,
 };
 
+/// Platform test issuer, matching `TEST_PLATFORM_ISSUER` in `rustycog-testing`
+/// and `TEST_ISSUER` in `Hive/application/tests/command_coverage.rs`.
+const TEST_ISSUER: &str = "http://127.0.0.1/iam";
+
 /// Builder-style DB fixtures for Hive, mirroring the structure used in `IAMRusty/tests/fixtures/db`.
 pub struct DbFixtures;
 
@@ -480,6 +484,8 @@ impl OrganizationFixtureBuilder {
             avatar_url: Set(self.avatar_url),
             owner_user_id: Set(self.owner_user_id),
             settings: Set(self.settings),
+            signing_profile_id: Set(None),
+            signing_status: Set(None),
             created_at: Set(now),
             updated_at: Set(now),
         }
@@ -579,6 +585,7 @@ impl OrganizationMemberFixtureBuilder {
             id: Set(self.id),
             organization_id: Set(self.organization_id.expect("organization_id is required")),
             user_id: Set(self.user_id.expect("user_id is required")),
+            issuer: Set(TEST_ISSUER.to_string()),
             status: Set(self.status),
             invited_by_user_id: Set(self.invited_by_user_id),
             invited_at: Set(self.invited_at),

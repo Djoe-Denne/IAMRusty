@@ -30,7 +30,7 @@ impl ExtAuthzConfig {
         let poll_secs = std::env::var("EXT_AUTHZ_JWKS_POLL_SECS")
             .ok()
             .and_then(|s| s.parse().ok())
-            .unwrap_or(300);
+            .unwrap_or(60);
         let neg_secs = std::env::var("EXT_AUTHZ_JWKS_NEGATIVE_TTL_SECS")
             .ok()
             .and_then(|s| s.parse().ok())

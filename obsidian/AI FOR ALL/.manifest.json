@@ -8,12 +8,14 @@
   "projects": {
     "aiforall": {
       "source_cwd": "C:/Users/djden/source/repos/AIForAll",
-      "last_synced": "2026-10-01T16:45:00Z",
+      "last_synced": "2026-10-02T14:55:00Z",
       "last_commit_synced": "2473baa7a54595931a4eff76a33431f56776db20",
-      "sync_note": "Mesh 0308 §7 Compose + e2e 48 OK ; gitlink rustycog 2290d45 non commité",
+      "sync_note": "0308 amendement 2026-10-02 : e2e Kind OK ; IT hors Kind ; Partial ; gitlink non commité",
       "conversations_ingested": 130,
       "conversations_total": 648,
       "pages_in_vault": [
+        "journal/2026-10-02.md",
+        "projects/aiforall/references/mesh-authn-close-2026-10-02.md",
         "journal/2026-09-30.md",
         "projects/aiforall/decisions/0308-mesh-authn-jwt.md",
         "projects/aiforall/concepts/mesh-gateway-principal-trust.md",

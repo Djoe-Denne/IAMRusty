@@ -64,9 +64,9 @@ EOF
 }
 
 issue_leaf "iam-service" "DNS:iam.aiforall-platform.svc.cluster.local"
-issue_leaf "hive-service"
-issue_leaf "telegraph-service"
-issue_leaf "manifesto-service"
+issue_leaf "hive-service" "DNS:hive.aiforall-platform.svc.cluster.local"
+issue_leaf "telegraph-service" "DNS:telegraph.aiforall-platform.svc.cluster.local"
+issue_leaf "manifesto-service" "DNS:manifesto.aiforall-platform.svc.cluster.local"
 issue_leaf "github-connect-service"
 issue_leaf "gitlab-connect-service"
 issue_leaf "envoy-mesh"

@@ -6,5 +6,28 @@ kind: Kustomization
 # Apply manuel: kubectl apply -k deploy/apps/overlays/kind-mesh
 resources:
   - ../../base/namespaces.yaml
+  - platform-services.yaml
+  - networkpolicy.yaml
   - ext-authz.yaml
   - envoy-mesh.yaml
+generatorOptions:
+  disableNameSuffixHash: true
+configMapGenerator:
+  - name: iam-dev-config
+    namespace: aiforall-platform
+    files:
+      - development.toml=../../../../IAMRusty/config/development.toml
+      - test-platform.pem=../../../../IAMRusty/config/keys/test-platform.pem
+      - test-platform.pub=../../../../IAMRusty/config/keys/test-platform.pub
+  - name: hive-dev-config
+    namespace: aiforall-platform
+    files:
+      - development.toml=../../../../Hive/config/development.toml
+  - name: telegraph-dev-config
+    namespace: aiforall-platform
+    files:
+      - development.toml=../../../../Telegraph/config/development.toml
+  - name: manifesto-dev-config
+    namespace: aiforall-platform
+    files:
+      - development.toml=../../../../Manifesto/config/development.toml

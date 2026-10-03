@@ -1,0 +1,19 @@
+---
+description: Runtime local Docker/Kind/WSL à la demande, baux de session, arrêt réversible et restitution RAM
+alwaysApply: true
+---
+
+# Cycle de vie local (canon)
+
+- Charger `.agents/skills/local-runtime-lifecycle/SKILL.md` pour démarrer/terminer Docker, Kind, WSL, E2E, test local ou IT. Respecter `AGENTS.md` et `.cursor/rules/infra-safety.mdc`.
+- Ne démarrer que pour un besoin de test demandé/validation active ; jamais réveiller un runtime arrêté pour docs/statique. E2E/manuels locaux : contexte `kind-aiforall-local` seul, réutiliser le nœud arrêté ou créer si absent selon le dépôt. IT : harness testcontainers réel existant, jamais Kind ni migration Compose.
+- Compiler Linux dans Docker, un seul cargo, cache Linux séparé de `target` hôte.
+- Inventaire AVANT + IDs créés/redémarrés pour la tâche + cluster + demande utilisateur + bail explicite. Jamais déduire la propriété du nom/image ni s'approprier une ressource ancienne.
+- Le parent possède le bail partagé des workers/background validations. Le worker rend l'inventaire ; il n'arrête pas ce que le parent utilise encore. Persister un ledger compact non secret avant opérations longues pour récupération.
+- À succès/échec, avant retour final, arrêter gracieusement les fixtures/nœuds Kind possédés sans besoin actif. Rétention seulement pour tâche suivante réellement active/bail parent ou keepalive utilisateur explicite, jamais session simplement idle.
+- Ce stop réversible bénéficie de la permission permanente utilisateur ; annoncer IDs/périmètre et perte de mémoire volatile. Stop ≠ delete : aucun prune, rm-f, reset, suppression de volume/container/namespace/cluster ; retrait éventuel soumis aux garde-fous destructifs et permission explicite ciblée.
+- Vérifier l'inventaire final, même si harness/Ryuk prétend nettoyer (CLI absent/Ryuk désactivé peut laisser des fixtures). Pas de retries automatiques laissant des fixtures.
+- Jamais `kind-apparatus-p4-it` ni `rancher-desktop` ; une autorisation ponctuelle passée ne devient pas permanente.
+- Pour RAM : Docker Desktop puis `wsl --shutdown` uniquement sans autre workload/bail ni propriété inconnue/cluster protégé affecté. WSL shutdown arrête TOUTES les distributions. Sinon pas de shutdown global : résidu + arbitrage ciblé.
+- Vérifier états Docker Desktop/WSL et vmmem/RAM disponible ; ne pas utiliser Docker CLI après shutdown (réveil possible), ni prétendre zéro RAM sans mesure.
+- Ne pas interrompre git/publisher hôte. Nettoyage bloqué → ressources restantes explicites. Ces prompts ne sont pas un moniteur idle ; kill/déconnexion brutale ne garantit pas l'arrêt. Aucun daemon/hook installé.

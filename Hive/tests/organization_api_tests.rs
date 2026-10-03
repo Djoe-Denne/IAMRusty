@@ -1,13 +1,21 @@
 use reqwest::StatusCode;
 use rustycog::testing::http::jwt::create_jwt_token;
-use sea_orm::{ActiveModelTrait, EntityTrait, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, IntoActiveModel,
+    QueryFilter, QueryOrder, Set, Statement, TransactionTrait,
+};
 use serial_test::serial;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
 use hive_application::dto::organization::{CreateOrganizationRequest, OrganizationResponse};
 use hive_infra::repository::entity::organizations;
 use hive_infra::repository::entity::{external_links, external_providers};
+use hive_infra::repository::entity::{
+    organization_member_role_permissions, organization_members, permissions, resources,
+    role_permissions,
+};
+use hive_migration::{Migrator, MigratorTrait};
 
 mod common;
 use common::{fixtures::db::DbFixtures, setup_test_server, Permission, ResourceRef, Subject};
@@ -43,6 +51,225 @@ async fn create_organization_happy_path() {
         .unwrap()
         .unwrap();
     assert_eq!(org.name, created_org.name);
+}
+
+#[tokio::test]
+#[serial]
+async fn create_two_organizations_preserves_scoped_default_role_permissions() {
+    let (fixture, server_url, client, _openfga) = setup_test_server().await.unwrap();
+    let db = fixture.db();
+    let owner_id = Uuid::new_v4();
+    let token = create_jwt_token(owner_id);
+    let permissions = permissions::Entity::find().all(db.as_ref()).await.unwrap();
+    let resources = resources::Entity::find().all(db.as_ref()).await.unwrap();
+    let expected: HashSet<_> = permissions
+        .iter()
+        .flat_map(|permission| {
+            resources
+                .iter()
+                .map(move |resource| (permission.id.clone(), resource.id.clone()))
+        })
+        .collect();
+    assert!(!expected.is_empty(), "Default role catalog must be seeded");
+
+    // The same catalog must be available to two distinct organizations without
+    // globally deduplicating their roles or weakening the per-organization key.
+    let mut created_ids = Vec::new();
+    for label in ["first", "second"] {
+        let org = create_scoped_role_test_organization(&client, &server_url, &token, label).await;
+        created_ids.push(org.id);
+        let roles = role_permissions::Entity::find()
+            .filter(role_permissions::Column::OrganizationId.eq(org.id))
+            .all(db.as_ref())
+            .await
+            .unwrap();
+        let combinations: HashSet<_> = roles
+            .iter()
+            .map(|role| (role.permission_id.clone(), role.resource_id.clone()))
+            .collect();
+        assert_eq!(
+            combinations, expected,
+            "Complete default catalog for {label}"
+        );
+        assert_eq!(
+            roles.len(),
+            expected.len(),
+            "No duplicate roles for {label}"
+        );
+
+        let member = organization_members::Entity::find()
+            .filter(organization_members::Column::OrganizationId.eq(org.id))
+            .filter(organization_members::Column::UserId.eq(owner_id))
+            .one(db.as_ref())
+            .await
+            .unwrap()
+            .expect("Organization owner must be a member");
+        let owner_role = roles
+            .iter()
+            .find(|role| role.name == "organization:owner")
+            .expect("Default organization owner role must remain");
+        let assigned = organization_member_role_permissions::Entity::find()
+            .filter(organization_member_role_permissions::Column::MemberId.eq(member.id))
+            .all(db.as_ref())
+            .await
+            .unwrap();
+        assert_eq!(assigned.len(), 1);
+        assert_eq!(assigned[0].role_permission_id, owner_role.id);
+
+        let mut duplicate = owner_role.clone().into_active_model();
+        duplicate.id = Set(Uuid::new_v4());
+        let error = duplicate.insert(db.as_ref()).await.unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("idx_role_permissions_org_unique_combo"),
+            "Duplicate permission/resource in one organization must be rejected: {error}"
+        );
+    }
+    cleanup_scoped_role_test_organizations(db.as_ref(), created_ids).await;
+}
+
+async fn create_scoped_role_test_organization(
+    client: &reqwest::Client,
+    server_url: &str,
+    token: &str,
+    label: &str,
+) -> OrganizationResponse {
+    let body = CreateOrganizationRequest {
+        name: format!("Scoped roles {label}"),
+        slug: format!("scoped-roles-{}", Uuid::new_v4()),
+        description: None,
+        avatar_url: None,
+    };
+    let response = client
+        .post(format!("{server_url}/api/organizations"))
+        .header("Authorization", format!("Bearer {token}"))
+        .json(&body)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK, "Create {label} org");
+    response.json().await.unwrap()
+}
+
+async fn cleanup_scoped_role_test_organizations(db: &impl ConnectionTrait, ids: Vec<Uuid>) {
+    // Only our own test-created rows cascade away. In particular, do not leave
+    // cross-org collisions for the harness's next migrations-down reset.
+    for id in ids {
+        let result = organizations::Entity::delete_by_id(id)
+            .exec(db)
+            .await
+            .unwrap();
+        assert_eq!(result.rows_affected, 1);
+    }
+}
+
+async fn role_permission_scope_state(
+    db: &impl ConnectionTrait,
+) -> (
+    Vec<role_permissions::Model>,
+    Vec<organization_member_role_permissions::Model>,
+) {
+    let roles = role_permissions::Entity::find()
+        .order_by_asc(role_permissions::Column::Id)
+        .all(db)
+        .await
+        .unwrap();
+    let assignments = organization_member_role_permissions::Entity::find()
+        .order_by_asc(organization_member_role_permissions::Column::Id)
+        .all(db)
+        .await
+        .unwrap();
+    (roles, assignments)
+}
+
+async fn role_permission_scope_indexes(db: &impl ConnectionTrait) -> Vec<String> {
+    db.query_all(Statement::from_string(
+        DbBackend::Postgres,
+        "SELECT indexname FROM pg_indexes WHERE schemaname = current_schema() \
+         AND indexname IN ('idx_role_permissions_unique_combo', \
+         'idx_role_permissions_org_unique_combo') ORDER BY indexname",
+    ))
+    .await
+    .unwrap()
+    .into_iter()
+    .map(|row| row.try_get("", "indexname").unwrap())
+    .collect()
+}
+
+#[tokio::test]
+#[serial]
+async fn role_permission_scope_migration_round_trip_preserves_populated_rows() {
+    let (fixture, server_url, client, _openfga) = setup_test_server().await.unwrap();
+    let db = fixture.db();
+    let token = create_jwt_token(Uuid::new_v4());
+    let org = create_scoped_role_test_organization(&client, &server_url, &token, "upgrade").await;
+    let txn = db.begin().await.unwrap();
+    let before = role_permission_scope_state(&txn).await;
+    assert!(!before.0.is_empty() && !before.1.is_empty());
+
+    // Simulate the populated previous schema without changing the shared DB:
+    // all DDL and migration-history changes are inside this outer transaction.
+    Migrator::down(&txn, Some(1)).await.unwrap();
+    assert_eq!(role_permission_scope_state(&txn).await, before);
+    assert_eq!(
+        role_permission_scope_indexes(&txn).await,
+        vec![String::from("idx_role_permissions_unique_combo")]
+    );
+
+    Migrator::up(&txn, Some(1)).await.unwrap();
+    assert_eq!(role_permission_scope_state(&txn).await, before);
+    assert_eq!(
+        role_permission_scope_indexes(&txn).await,
+        vec![String::from("idx_role_permissions_org_unique_combo")]
+    );
+
+    // Down succeeds with no cross-org collisions and preserves role IDs and
+    // owner assignment IDs/member IDs/role IDs, not just the row counts.
+    Migrator::down(&txn, Some(1)).await.unwrap();
+    assert_eq!(role_permission_scope_state(&txn).await, before);
+    assert_eq!(
+        role_permission_scope_indexes(&txn).await,
+        vec![String::from("idx_role_permissions_unique_combo")]
+    );
+    txn.rollback().await.unwrap();
+    assert_eq!(role_permission_scope_state(db.as_ref()).await, before);
+    assert_eq!(
+        role_permission_scope_indexes(db.as_ref()).await,
+        vec![String::from("idx_role_permissions_org_unique_combo")]
+    );
+    cleanup_scoped_role_test_organizations(db.as_ref(), vec![org.id]).await;
+}
+
+#[tokio::test]
+#[serial]
+async fn role_permission_scope_migration_rejects_colliding_downgrade_without_loss() {
+    let (fixture, server_url, client, _openfga) = setup_test_server().await.unwrap();
+    let db = fixture.db();
+    let token = create_jwt_token(Uuid::new_v4());
+    let first = create_scoped_role_test_organization(&client, &server_url, &token, "first").await;
+    let second = create_scoped_role_test_organization(&client, &server_url, &token, "second").await;
+    let txn = db.begin().await.unwrap();
+    let before = role_permission_scope_state(&txn).await;
+
+    // PostgreSQL's nested migration transaction must roll back the failed
+    // global index creation, keeping both organizations and the scoped index.
+    let error = Migrator::down(&txn, Some(1)).await.unwrap_err();
+    assert!(error
+        .to_string()
+        .contains("idx_role_permissions_unique_combo"));
+    assert_eq!(role_permission_scope_state(&txn).await, before);
+    assert_eq!(
+        role_permission_scope_indexes(&txn).await,
+        vec![String::from("idx_role_permissions_org_unique_combo")]
+    );
+    // The failed down must also leave the migration recorded as applied: an
+    // up with no pending migrations is a no-op, not another CREATE INDEX.
+    Migrator::up(&txn, Some(1)).await.unwrap();
+    assert_eq!(role_permission_scope_state(&txn).await, before);
+    txn.rollback().await.unwrap();
+    assert_eq!(role_permission_scope_state(db.as_ref()).await, before);
+    cleanup_scoped_role_test_organizations(db.as_ref(), vec![first.id, second.id]).await;
 }
 
 #[tokio::test]

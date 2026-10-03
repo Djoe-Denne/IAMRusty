@@ -58,10 +58,31 @@ async fn test_revoke_provider_token_github_success() {
         "Provider token should exist before revoke"
     );
 
+    // User authentication alone cannot revoke an internal provider token.
+    for internal_token in [None, Some("wrong-internal-token")] {
+        let mut request = client
+            .delete(format!("{base_url}/internal/github/revoke"))
+            .header("Authorization", format!("Bearer {jwt_token}"));
+        if let Some(internal_token) = internal_token {
+            request = request.header("X-IAM-Internal-Token", internal_token);
+        }
+        let response = request.send().await.expect("Failed to send gate request");
+        assert_eq!(
+            response.status(),
+            403,
+            "Internal token gate must fail closed"
+        );
+        assert!(
+            provider_token.check(db.clone()).await.expect("Check token"),
+            "Rejected revoke must leave the provider token intact"
+        );
+    }
+
     // Make request to revoke provider token endpoint
     let response = client
         .delete(format!("{base_url}/internal/github/revoke"))
         .header("Authorization", format!("Bearer {jwt_token}"))
+        .header("X-IAM-Internal-Token", "iam-internal-test-token")
         .send()
         .await
         .expect("Failed to send request");
@@ -140,6 +161,7 @@ async fn test_revoke_provider_token_gitlab_success() {
     let response = client
         .delete(format!("{base_url}/internal/gitlab/revoke"))
         .header("Authorization", format!("Bearer {jwt_token}"))
+        .header("X-IAM-Internal-Token", "iam-internal-test-token")
         .send()
         .await
         .expect("Failed to send request");
@@ -214,6 +236,7 @@ async fn test_revoke_provider_token_returns_401_when_token_is_expired() {
     let response = client
         .delete(format!("{base_url}/internal/github/revoke"))
         .header("Authorization", format!("Bearer {expired_token}"))
+        .header("X-IAM-Internal-Token", "iam-internal-test-token")
         .send()
         .await
         .expect("Failed to send request");
@@ -247,6 +270,7 @@ async fn test_revoke_provider_token_returns_401_when_token_has_invalid_signature
     let response = client
         .delete(format!("{base_url}/internal/github/revoke"))
         .header("Authorization", format!("Bearer {invalid_token}"))
+        .header("X-IAM-Internal-Token", "iam-internal-test-token")
         .send()
         .await
         .expect("Failed to send request");
@@ -283,6 +307,7 @@ async fn test_revoke_provider_token_returns_422_when_provider_is_unsupported() {
         let response = client
             .delete(format!("{base_url}/internal/{provider}/revoke"))
             .header("Authorization", format!("Bearer {jwt_token}"))
+            .header("X-IAM-Internal-Token", "iam-internal-test-token")
             .send()
             .await
             .expect("Failed to send request");
@@ -333,6 +358,7 @@ async fn test_revoke_provider_token_returns_404_when_no_token_for_provider() {
     let response = client
         .delete(format!("{base_url}/internal/github/revoke"))
         .header("Authorization", format!("Bearer {jwt_token}"))
+        .header("X-IAM-Internal-Token", "iam-internal-test-token")
         .send()
         .await
         .expect("Failed to send request");
@@ -380,6 +406,7 @@ async fn test_revoke_provider_token_returns_401_when_user_not_found() {
     let response = client
         .delete(format!("{base_url}/internal/github/revoke"))
         .header("Authorization", format!("Bearer {jwt_token}"))
+        .header("X-IAM-Internal-Token", "iam-internal-test-token")
         .send()
         .await
         .expect("Failed to send request");
@@ -438,6 +465,7 @@ async fn test_revoke_provider_token_idempotent_on_already_revoked() {
     let response1 = client
         .delete(format!("{base_url}/internal/github/revoke"))
         .header("Authorization", format!("Bearer {jwt_token}"))
+        .header("X-IAM-Internal-Token", "iam-internal-test-token")
         .send()
         .await
         .expect("Failed to send first request");
@@ -457,6 +485,7 @@ async fn test_revoke_provider_token_idempotent_on_already_revoked() {
     let response2 = client
         .delete(format!("{base_url}/internal/github/revoke"))
         .header("Authorization", format!("Bearer {jwt_token}"))
+        .header("X-IAM-Internal-Token", "iam-internal-test-token")
         .send()
         .await
         .expect("Failed to send second request");
@@ -522,6 +551,7 @@ async fn test_revoke_provider_token_different_users_different_tokens() {
     let response1 = client
         .delete(format!("{base_url}/internal/github/revoke"))
         .header("Authorization", format!("Bearer {jwt_token1}"))
+        .header("X-IAM-Internal-Token", "iam-internal-test-token")
         .send()
         .await
         .expect("Failed to send request");
@@ -556,6 +586,7 @@ async fn test_revoke_provider_token_different_users_different_tokens() {
     let response2 = client
         .delete(format!("{base_url}/internal/github/revoke"))
         .header("Authorization", format!("Bearer {jwt_token2}"))
+        .header("X-IAM-Internal-Token", "iam-internal-test-token")
         .send()
         .await
         .expect("Failed to send request");

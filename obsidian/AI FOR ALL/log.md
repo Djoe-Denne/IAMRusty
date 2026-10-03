@@ -288,6 +288,9 @@ title: Wiki Log
 - [2026-10-01T16:45:00Z] INGEST source="C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/23daa0aa-3a66-4665-8db4-80c94e4e20a7/23daa0aa-3a66-4665-8db4-80c94e4e20a7.jsonl" pages_updated=12 pages_created=5 mode=append topic=mesh-0308-gateway-trust vault="obsidian/AI FOR ALL"
 - [2026-10-01T16:45:00Z] WIKI_UPDATE project=aiforall pages_updated=12 pages_created=5 source_cwd=C:/Users/djden/source/repos/AIForAll last_commit_synced=2473baa7a54595931a4eff76a33431f56776db20 vault="obsidian/AI FOR ALL" topic=mesh-authn-jwt-0308-s7 qmd=skip note=working-tree-uncommitted
 - [2026-10-01T16:55:00Z] QMD_UPDATE collection=aiforall-wiki files_new=7 files_updated=12 files_unchanged=235 embed_chunks=89 embed_docs=19
+- [2026-10-02T14:55:00Z] INGEST source="cursor-session-mesh-0308-close" pages_updated=5 pages_created=2 mode=append topic=mesh-kind-e2e-channels vault="obsidian/AI FOR ALL"
+- [2026-10-02T14:55:00Z] WIKI_UPDATE project=aiforall pages_updated=5 pages_created=2 source_cwd=C:/Users/djden/source/repos/AIForAll vault="obsidian/AI FOR ALL" topic=0308-amendment-kind-e2e note=working-tree-uncommitted
+- [2026-10-02T15:00:00Z] QMD_UPDATE collection=aiforall-wiki files_new=2 files_updated=7 files_unchanged=247 embed_chunks=59 embed_docs=9 note=qmd-update-scans-all-collections ff8-wiki-side=2new-2updated
 
 
 

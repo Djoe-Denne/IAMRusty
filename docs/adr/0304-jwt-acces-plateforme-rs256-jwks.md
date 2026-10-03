@@ -33,7 +33,7 @@
 14. **Révocation urgence** : `status=revoked`, stop signatures, retrait confiance, propagation validators. Delete JWKS ≠ instantané (cache). Propriété : propagation maximale documentée ; mécanisme détaillé = [0308](0308-mesh-authn-jwt.md). Ne pas confondre révocation clé vs session.
 15. **Refresh** : opaques, rotatifs, révocables. Révoquer un refresh n’annule pas les access JWT déjà émis. Pas de deny-list `jti` ici.
 16. **Headers `jku`, `x5u`, `jwk`** ignorés / refusés comme trust roots. `kid` ne construit jamais URL / path / host.
-17. **Cache JWKS** : pas de fetch par requête ; `kid` connu = validation locale ; `kid` inconnu = refresh coalescé (singleflight), negative cache, last-known-good, refresh périodique. Détail mesh = [0308](0308-mesh-authn-jwt.md). Consommateurs ne parlent pas au KMS.
+17. **Cache JWKS** : pas de fetch par requête ; `kid` connu = validation locale ; `kid` inconnu = refresh coalescé (singleflight), negative cache, last-known-good, refresh périodique. Détail mesh = [0308](0308-mesh-authn-jwt.md). Consommateurs ne parlent pas au KMS. Amendement 2026-10-02, chiffres dans 0308 point 6 : refresh 60 s en staging / prod (configurable), 2 s en local / Kind / tests ; staleness max après révocation = 60 s.
 18. **`typ` cible = `aiforall-access+jwt`** (rien dans le runtime ne prouve `at+jwt`). Décision, pas implémenté.
 19. **Port conceptuel `SigningProvider`** (`sign_digest`, `public_key`, `capabilities`) ; algo domaine RS256 ; mapping vendor dans l’adapter. Séparer `CredentialProvider` / `WorkloadIdentity` ([0307](0307-workload-identity-port.md)). WIF (OIDC / X509) préféré. `StaticCredential` = fallback ; secret dans OpenBao ; jamais Hive DB ; jamais domain event. Ordre : OIDC WIF, X509/mTLS, static.
 20. **JWKS unique** acceptable maintenant ; limite ~1000+ à surveiller ; 10000+ ⇒ évolution sharding / JWKS par issuer. Pas de surconception.
@@ -73,7 +73,7 @@ Dual-verify bornée (RS256 + `kid` ; HS256 = HMAC migration only dans test.toml)
 
 - Audiences user-plane / admin / billing.
 - Deny-list `jti` / `auth_version` / `session_version` (ADR future).
-- Mécanisme mesh de propagation révocation clé ([0308](0308-mesh-authn-jwt.md)).
+- Push de révocation (le poll et les durées sont décidés dans [0308](0308-mesh-authn-jwt.md) point 6, 2026-10-02).
 - Contrat remote signer détaillé ([0309](0309-remote-signer.md)).
 - UX switch d’identity / membership `(iss, sub)` ([0305](0305-account-identity-trust-domain.md), [0306](0306-hive-iam-configuration-signature.md)).
 

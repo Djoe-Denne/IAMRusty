@@ -236,9 +236,54 @@ compose build
 echo "Pile mesh"
 compose up -d
 
-cid=$(compose ps -q iam-service)
+cid=""
+deadline=$(( $(date +%s) + 180 ))
+while [ -z "$cid" ]; do
+  cid=$(compose ps -q iam-service 2>/dev/null || true)
+  if [ -n "$cid" ]; then
+    break
+  fi
+  if [ "$(date +%s)" -ge "$deadline" ]; then
+    echo "FAIL iam-service n a pas demarre" >&2
+    exit 1
+  fi
+  sleep 2
+done
 net=$(docker inspect -f '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}' "$cid")
 net=${net%% *}
+
+echo "Store OpenFGA (apres create-databases, avant les cas Hive AuthZ)"
+fga_out=$(MSYS_NO_PATHCONV=1 docker run --rm --network "$net" \
+  -v "$(hostpath "$ROOT/openfga/model.json"):/model.json:ro" \
+  alpine:3.20 \
+  sh -c 'apk add --no-cache curl jq >/dev/null
+deadline=$(( $(date +%s) + 120 ))
+while :; do
+  if curl -fsS http://openfga:8080/healthz >/dev/null 2>&1; then
+    break
+  fi
+  if [ "$(date +%s)" -ge "$deadline" ]; then
+    echo "FAIL OpenFGA healthz" >&2
+    exit 1
+  fi
+  sleep 1
+done
+store_id=$(curl -sS -X POST http://openfga:8080/stores \
+  -H "content-type: application/json" \
+  -d "{\"name\":\"aiforall-mesh-e2e\"}" | jq -r .id)
+[ -n "$store_id" ] && [ "$store_id" != "null" ] || { echo "FAIL store id" >&2; exit 1; }
+model_id=$(curl -sS -X POST "http://openfga:8080/stores/${store_id}/authorization-models" \
+  -H "content-type: application/json" \
+  --data-binary @/model.json | jq -r ".authorization_model_id")
+[ -n "$model_id" ] && [ "$model_id" != "null" ] || { echo "FAIL model id" >&2; exit 1; }
+printf "%s %s\n" "$store_id" "$model_id"')
+fga_line=$(printf '%s\n' "$fga_out" | tail -n 1)
+fga_store=${fga_line%% *}
+fga_model=${fga_line##* }
+export HIVE_OPENFGA__STORE_ID="$fga_store"
+export HIVE_OPENFGA__AUTHORIZATION_MODEL_ID="$fga_model"
+echo "OpenFGA store $HIVE_OPENFGA__STORE_ID"
+compose up -d --no-deps --force-recreate hive-service
 
 write_envoy "$RUN/clear-authz.yaml" ext-authz clear ext-authz tls iam-service
 write_envoy "$RUN/foreign-authz.yaml" ext-authz foreign ext-authz tls iam-service
@@ -287,6 +332,8 @@ echo "OK audience vide"
 
 echo "Cas"
 MSYS_NO_PATHCONV=1 docker run --rm --network "$net" \
+  -e OPENFGA_STORE_ID="$HIVE_OPENFGA__STORE_ID" \
+  -e OPENFGA_MODEL_ID="$HIVE_OPENFGA__AUTHORIZATION_MODEL_ID" \
   -v "$(hostpath "$ROOT/scripts/mesh-authn-e2e-cases.sh"):/cases.sh:ro" \
   -v "$(hostpath "$ROOT/certs/platform-mesh"):/certs:ro" \
   -v "$(hostpath "$FOREIGN"):/foreign:ro" \

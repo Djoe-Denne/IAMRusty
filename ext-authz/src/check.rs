@@ -465,7 +465,7 @@ mod tests {
     }
 
     #[test]
-    fn from_env_requires_audience() {
+    fn from_env_requires_audience_and_configures_jwks_polling() {
         std::env::remove_var("EXT_AUTHZ_AUDIENCE");
         std::env::set_var("EXT_AUTHZ_JWKS_URL", "http://example/.well-known/jwks.json");
         let err = ExtAuthzConfig::from_env().expect_err("empty audience must fail-closed");
@@ -473,6 +473,15 @@ mod tests {
             err.contains("EXT_AUTHZ_AUDIENCE") || err.contains("fail-closed"),
             "{err}"
         );
+        std::env::set_var("EXT_AUTHZ_AUDIENCE", "aiforall");
+        std::env::remove_var("EXT_AUTHZ_JWKS_POLL_SECS");
+        let config = ExtAuthzConfig::from_env().expect("default configuration");
+        assert_eq!(config.poll_interval, Duration::from_secs(60));
+        std::env::set_var("EXT_AUTHZ_JWKS_POLL_SECS", "2");
+        let config = ExtAuthzConfig::from_env().expect("local configuration");
+        assert_eq!(config.poll_interval, Duration::from_secs(2));
+        std::env::remove_var("EXT_AUTHZ_JWKS_POLL_SECS");
+        std::env::remove_var("EXT_AUTHZ_AUDIENCE");
         std::env::remove_var("EXT_AUTHZ_JWKS_URL");
     }
 }

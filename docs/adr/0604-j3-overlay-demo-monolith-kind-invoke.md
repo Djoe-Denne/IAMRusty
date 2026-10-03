@@ -26,7 +26,7 @@ NetworkPolicy base (`deploy/apps/base/networkpolicies.yaml`) : pods `aiforall-pl
 1. **Canon inchangé.** [0601](0601-cluster-trust-namespaces-standalones.md) reste le canon cluster : 4+1 standalones. Le monolithe n’entre **pas** dans prod / staging / kind **canon**. Cette ADR ne réécrit pas M2 comme preuve monolithe.
 2. **J3 = overlay démo séparé.** Sur kind **`aiforall-local` seulement**, un overlay Kustomize **démo, non canon**, **distinct** de `deploy/apps/overlays/kind` (M2 stub nginx `ok\n` reste la preuve stub 0603). Cet overlay déploie un Deployment nommé **`oodhive-monolith`** + Service, **à la place** du stub nginx Lazaret **pour ce chemin de preuve**. Le stub nginx de **cet** overlay démo ne doit plus pouvoir servir `ok\n` sur le chemin de preuve (sinon le stub n’est pas remplacé).
 3. **Preuve J3.** Pod ou Job dans `aiforall-plugins` → **POST** vers le Service du nest monolithe `/lazaret/invoke`. Contrat métier acceptable : réponse **401** JSON unauthorized (authn absente / rejet métier). **Interdit** comme preuve : extraPortMapping kind, hostNetwork, curl vers localhost / IP hôte.
-4. **Config in-cluster (bornes).** rustycog a besoin de `config/*.toml`. La démo kind **peut** réutiliser l’infra Compose (Postgres, OpenFGA, …) via DNS hôte (`host.docker.internal` ou équivalent documenté). **Ne pas** poser Postgres / OpenFGA dans kind pour J3. **Ne pas** vendre extraPortMapping comme preuve invoke.
+4. **Config in-cluster (bornes de la tranche J3 livrée).** rustycog a besoin de `config/*.toml`. La démo kind livrée réutilise l’infra Compose (Postgres, OpenFGA, …) via DNS hôte (`host.docker.internal`). **Ne pas** vendre extraPortMapping comme preuve invoke. Amendement 2026-10-02 ([0308](0308-mesh-authn-jwt.md) point 8) : hors tests d’intégration, le local isoprod sert les third parties dans Kind. Le point 4 reste la photo de la tranche J3 telle qu’elle a été codée (`host.docker.internal:5432`). Cet écart n’est pas résorbé ici ; il ne prime pas sur 0308 pour le canal isoprod.
 5. **Hors monolithe / hors cette ADR comme impl.** Operator = `deploy/p4` (J2) ; pas Factory ; pas [0602](0602-observabilite-portable-otlp-lgtm.md) ; pas GKE ; pas Calico sur `aiforall-local` ; pas retarget fixture `apparatus-p4-it`.
 6. **J4 (plus tard).** Retirer l’overlay démo et revenir 4+1. **Pas** d’implémentation J4 dans cette ADR ; seule l’intention de séquence est notée.
 
@@ -45,7 +45,7 @@ NetworkPolicy base (`deploy/apps/base/networkpolicies.yaml`) : pods `aiforall-pl
 | SuperSéder 0601 : monolithe = unité kind/prod | Contredit 0404 + 0601 ; blast IAM/Hive/Manifesto/Telegraph |
 | Extra-port / hostNetwork / localhost hôte comme « preuve invoke » | Faux ami : ne prouve pas plugins → Service in-cluster |
 | Fusionner monolithe dans `deploy/apps/overlays/kind` (M2) | Écrase la preuve stub 0603 ; confond canon et démo |
-| Poser Postgres/OpenFGA dans kind pour J3 | Hors tranche ; Compose hôte suffit via DNS hôte |
+| Poser Postgres/OpenFGA dans kind pour la tranche J3 livrée | Photo de tranche : Compose hôte via DNS hôte. Cible isoprod ultérieure : [0308](0308-mesh-authn-jwt.md) point 8 (2026-10-02), third parties in-kind hors IT |
 | Calico / CNI enforce sur `aiforall-local` | Hors J3 ; kindnet reste le runtime local |
 | Retarget `apparatus-p4-it` ou Factory | Fixture IT P4 et P5/P6 hors scope |
 | Implémenter J4 dans cette ADR | Séquence future ; pas le livrable J3 |

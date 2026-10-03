@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "skills": {
+    "ci-cd": {
+      "source": "iuliandita/skills",
+      "sourceType": "github",
+      "skillPath": "skills/ci-cd/SKILL.md",
+      "computedHash": "9207b7f31922bc5f3a1aa48b7faa726ce64a4b7b5f2ec56245d156a62c513396"
+    },
+    "debug-triage": {
+      "source": "iuliandita/skills",
+      "sourceType": "github",
+      "skillPath": "skills/debug-triage/SKILL.md",
+      "computedHash": "9358b0ce3ef0c8054265350e55a4dad81c0218896f418829e80ba2b9351c567f"
+    },
+    "docker-build-strategies": {
+      "source": "docker/skills",
+      "sourceType": "github",
+      "skillPath": "skills/docker-build-strategies/SKILL.md",
+      "computedHash": "e6a297d613873cf74b030655ee8405ca4434980cfb0dfd412ac5aa4e213d3d5c"
+    },
+    "docker-compose-patterns": {
+      "source": "docker/skills",
+      "sourceType": "github",
+      "skillPath": "skills/docker-compose-patterns/SKILL.md",
+      "computedHash": "391f366bb0e60f5c7c48ecc814b917e7dae797edbb58625d228cb951d7a538ee"
+    },
+    "docker-destructive-guardrails": {
+      "source": "docker/skills",
+      "sourceType": "github",
+      "skillPath": "skills/docker-destructive-guardrails/SKILL.md",
+      "computedHash": "f6c72f2ba003b2d6dc480f97beb0e166a61b5acfb1f0f6f31af2fa21a66bd9f2"
+    },
+    "kubernetes": {
+      "source": "iuliandita/skills",
+      "sourceType": "github",
+      "skillPath": "skills/kubernetes/SKILL.md",
+      "computedHash": "f1e944ef53adb89e04e65465b4ff474c2353d572c81c2df7f8ecef46131c3a27"
+    },
+    "kubernetes-health": {
+      "source": "iuliandita/skills",
+      "sourceType": "github",
+      "skillPath": "skills/kubernetes-health/SKILL.md",
+      "computedHash": "d9b3fe421678b0a953ed4e6d1d2ea7626e35aa3db4e4c22d5aba756954cfca7f"
+    },
+    "networking": {
+      "source": "iuliandita/skills",
+      "sourceType": "github",
+      "skillPath": "skills/networking/SKILL.md",
+      "computedHash": "58fdf01dd2ae2b20b49e3b0a43362d008ae7a149250e989b32f94034b6a1a2d7"
+    },
+    "observability": {
+      "source": "iuliandita/skills",
+      "sourceType": "github",
+      "skillPath": "skills/observability/SKILL.md",
+      "computedHash": "3c8442e7349b541974060bd975a187b54267951a838ecbbcecae37e70039e101"
+    }
+  }
+}

@@ -30,6 +30,29 @@
         "-ProjectPath",
         "C:\\Users\\djden\\source\\repos\\AIForAll"
       ]
+    },
+    "kubernetes-mcp-server": {
+      "type": "stdio",
+      "command": "C:\\Program Files\\nodejs\\node.exe",
+      "args": [
+        "C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npx-cli.js",
+        "-y",
+        "kubernetes-mcp-server@0.0.67",
+        "--config",
+        "C:\\Users\\djden\\source\\repos\\AIForAll\\.cursor\\kubernetes-mcp.toml",
+        "--log-file",
+        "stderr",
+        "--disable-multi-cluster"
+      ]
+    },
+    "ig-mcp-server": {
+      "type": "stdio",
+      "command": "C:\\Users\\djden\\AppData\\Local\\Programs\\ig-mcp-server\\ig-mcp-server.exe",
+      "args": [
+        "-read-only",
+        "-context",
+        "kind-aiforall-local"
+      ]
     }
   }
 }

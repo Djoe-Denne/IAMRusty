@@ -130,6 +130,27 @@ async fn test_internal_provider_token_github_success_returns_access_token() {
     .await
     .expect("Failed to create JWT token");
 
+    // User authentication alone cannot disclose an internal provider token.
+    for internal_token in [None, Some("wrong-internal-token")] {
+        let mut request = client
+            .post(format!("{base_url}/internal/github/token"))
+            .header("Authorization", format!("Bearer {jwt_token}"));
+        if let Some(internal_token) = internal_token {
+            request = request.header("X-IAM-Internal-Token", internal_token);
+        }
+        let response = request.send().await.expect("Failed to send gate request");
+        assert_eq!(
+            response.status(),
+            403,
+            "Internal token gate must fail closed for {internal_token:?}"
+        );
+        let response_body = response.text().await.expect("Failed to read gate response");
+        assert!(
+            !response_body.contains("access_token"),
+            "Rejected token request must not disclose access_token for {internal_token:?}"
+        );
+    }
+
     // Make request to internal provider token endpoint
     let response = client
         .post(format!("{base_url}/internal/github/token"))

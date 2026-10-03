@@ -19,7 +19,7 @@ provenance:
   inferred: 0.10
   ambiguous: 0.02
 created: 2026-10-01T16:45:00Z
-updated: 2026-10-01T16:45:00Z
+updated: 2026-10-02T14:55:00Z
 ---
 
 # Confiance principal passerelle (mesh rustycog)
@@ -28,7 +28,7 @@ Décision : [[projects/aiforall/decisions/0308-mesh-authn-jwt]]. Opt-in Envoy : 
 
 ## Contrat rustycog
 
-`AuthConfig.mesh.trusted_gateway_san` (vide = JWT in-process). Pin sibling poussé : `2290d45` « feat(http): trust gateway principal in mesh mode ». Fichiers : `mesh_principal.rs`, `middleware_auth.rs`, tests `rustycog-http/tests/mesh_gateway_auth.rs`. Le gitlink AIForAll pointe ce SHA ; non commité dans AIForAll.
+`AuthConfig.mesh.trusted_gateway_san` (vide = JWT in-process). Pin `2290d45`. Le working tree (non commité) refuse aussi `.might_be_authenticated()` si le SAN n’est pas `envoy-mesh` : 401, pas de lecture anonyme. Tests `mesh_gateway_auth` : 4 OK en Docker (2026-10-02). Le gitlink AIForAll pointe `2290d45` ; non commité.
 
 IAM `setup` copie `config.auth.mesh` dans `http_verifier_auth` pour que `/api/me` suive le même mode.
 

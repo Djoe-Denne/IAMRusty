@@ -50,7 +50,9 @@ spec:
               value: "8090"
             - name: EXT_AUTHZ_AUDIENCE
               value: aiforall
-            # IAM stub/pause in base — replace when a real JWKS endpoint is available.
+            - name: EXT_AUTHZ_JWKS_POLL_SECS
+              value: "2"
+            # Real IAM from platform-services.yaml (not the pause image in overlays/kind).
             - name: EXT_AUTHZ_JWKS_URL
               value: https://iam.aiforall-platform.svc.cluster.local:8443/iam/.well-known/jwks.json
             - name: EXT_AUTHZ_TLS_CERT

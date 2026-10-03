@@ -177,13 +177,36 @@ email="mesh-${stamp}@example.com"
 user="mesh${stamp}"
 pass="MeshTest1a"
 
+# POST/GET IAM public routes through Envoy without Bearer. ext_authz must not
+# increment denied or ok (Check is disabled on these exact paths).
+public_envoy() {
+  req_label="$1"
+  req_method="$2"
+  req_path="$3"
+  shift 3
+  denied_before=$(authz_stat envoy-mesh denied)
+  ok_before=$(authz_stat envoy-mesh ok)
+  code=$(http_code --cacert /certs/ca.crt --cert /certs/mesh-client.crt --key /certs/mesh-client.key \
+    -X "$req_method" "$@" "https://envoy-mesh:10000${req_path}")
+  denied_after=$(authz_stat envoy-mesh denied)
+  ok_after=$(authz_stat envoy-mesh ok)
+  case "$code" in
+    2*) ;;
+    *) fail "$req_label: HTTP $code" ;;
+  esac
+  [ "${denied_after:-0}" = "${denied_before:-0}" ] \
+    || fail "$req_label: ext_authz.denied (${denied_before:-0} -> ${denied_after:-0})"
+  [ "${ok_after:-0}" = "${ok_before:-0}" ] \
+    || fail "$req_label: ext_authz.ok (${ok_before:-0} -> ${ok_after:-0})"
+  ok "$req_label (HTTP $code, ext_authz inchange)"
+}
+
 echo "Emission JWT IAM"
-signup=$(curl -sS --http1.1 --cacert /certs/ca.crt --cert /certs/mesh-client.crt --key /certs/mesh-client.key \
+public_envoy "signup via Envoy sans Bearer" POST /iam/api/auth/signup \
   -H 'content-type: application/json' \
-  -d "{\"email\":\"${email}\",\"password\":\"${pass}\"}" \
-  "https://iam-service:8443/iam/api/auth/signup") || fail "signup reseau"
-reg=$(printf '%s' "$signup" | jq -r '.registration_token // empty')
-[ -n "$reg" ] || fail "signup sans registration_token: $signup"
+  -d "{\"email\":\"${email}\",\"password\":\"${pass}\"}"
+reg=$(jq -r '.registration_token // empty' /tmp/body)
+[ -n "$reg" ] || fail "signup sans registration_token"
 
 curl -sS --http1.1 --cacert /certs/ca.crt --cert /certs/mesh-client.crt --key /certs/mesh-client.key \
   -H 'content-type: application/json' \
@@ -195,12 +218,11 @@ updated=$(PGPASSWORD=postgres psql -h postgres -U postgres -d iam_dev -v ON_ERRO
   "UPDATE user_emails SET is_verified = true WHERE email = '${email}' RETURNING email;")
 printf '%s' "$updated" | grep -q "$email" || fail "email non verifie en base: ${updated}"
 
-login=$(curl -sS --http1.1 --cacert /certs/ca.crt --cert /certs/mesh-client.crt --key /certs/mesh-client.key \
+public_envoy "login via Envoy sans Bearer" POST /iam/api/auth/login \
   -H 'content-type: application/json' \
-  -d "{\"email\":\"${email}\",\"password\":\"${pass}\"}" \
-  "https://iam-service:8443/iam/api/auth/login") || fail "login reseau"
-token=$(printf '%s' "$login" | jq -r '.access_token // empty')
-[ -n "$token" ] || fail "login sans access_token: $login"
+  -d "{\"email\":\"${email}\",\"password\":\"${pass}\"}"
+token=$(jq -r '.access_token // empty' /tmp/body)
+[ -n "$token" ] || fail "login sans access_token"
 
 header_b64=$(printf '%s' "$token" | cut -d. -f1)
 payload_b64=$(printf '%s' "$token" | cut -d. -f2)
@@ -211,9 +233,8 @@ kid=$(b64url_decode "$header_b64" | jq -r '.kid')
 [ -n "$iss" ] && [ "$iss" != "null" ] || fail "iss absent"
 [ -n "$sub" ] && [ "$sub" != "null" ] || fail "sub absent"
 
-jwks=$(curl -sS --http1.1 --cacert /certs/ca.crt --cert /certs/mesh-client.crt --key /certs/mesh-client.key \
-  "https://iam-service:8443/iam/.well-known/jwks.json") || fail "jwks"
-n=$(printf '%s' "$jwks" | jq -r --arg kid "$kid" '.keys[] | select(.kid==$kid) | .n')
+public_envoy "JWKS via Envoy sans Bearer" GET /iam/.well-known/jwks.json
+n=$(jq -r --arg kid "$kid" '.keys[] | select(.kid==$kid) | .n' /tmp/body)
 [ -n "$n" ] && [ "$n" != "null" ] || fail "kid $kid absent du JWKS IAM"
 mod=$(openssl rsa -pubin -in /keys/test-platform.pub -modulus -noout | cut -d= -f2)
 n_pem=$(python3 -c 'import base64,sys; print(base64.urlsafe_b64encode(bytes.fromhex(sys.argv[1])).decode().rstrip("="))' "$mod")
@@ -361,8 +382,20 @@ service_allow "Hive cree une organisation via Envoy" hive POST /hive/api/organiz
   '.owner_user_id == $sub' \
   -H 'content-type: application/json' \
   -d "{\"name\":\"Mesh org ${stamp}\",\"slug\":\"mesh-org-${stamp}\"}"
-service_allow "Telegraph liste les notifications via Envoy" telegraph GET /telegraph/api/notifications \
-  'type == "object"'
+org_id=$(jq -r '.id // empty' /tmp/body)
+[ -n "$org_id" ] && [ "$org_id" != "null" ] || fail "organisation sans id"
+[ -n "${OPENFGA_STORE_ID:-}" ] || fail "OPENFGA_STORE_ID absent (bootstrap e2e)"
+write_body=$(jq -n --arg user "user:${sub}" --arg object "organization:${org_id}" \
+  '{writes:{tuple_keys:[{user:$user,relation:"owner",object:$object}]}}')
+write_code=$(http_code -H 'content-type: application/json' -d "$write_body" \
+  -X POST "http://openfga:8080/stores/${OPENFGA_STORE_ID}/write")
+[ "$write_code" = "200" ] || fail "OpenFGA write owner: HTTP $write_code"
+ok "OpenFGA owner tuple pour l organisation e2e"
+service_allow "Hive membre owner porte l'issuer du JWT" hive GET \
+  "/hive/api/organizations/${org_id}/members/${sub}" \
+  '.issuer == $iss and .user_id == $sub'
+service_allow "Telegraph notifications portent user_id du JWT" telegraph GET /telegraph/api/notifications \
+  '.user_id == $sub'
 service_allow "Manifesto cree un projet via Envoy" manifesto POST /manifesto/api/projects \
   '.owner_id == $sub and .created_by == $sub' \
   -H 'content-type: application/json' \
@@ -386,6 +419,67 @@ for route in "iam GET /iam/api/me" "hive GET /hive/api/organizations" \
   handshake_fails "$svc :8443 sans certificat client" \
     --cacert /certs/ca.crt "https://${svc}-service:8443/${svc}/health"
 done
+
+# Optional routes: mesh-client / HTTP must not continue anonymous.
+direct_unauthorized "Hive search :8443 mesh-client + spoof" \
+  "https://hive-service:8443/hive/api/organizations/search?query=mesh" \
+  $MESH_CLIENT -H "$SPOOF_ISS" -H "$SPOOF_SUB"
+direct_unauthorized "Hive search :8080 HTTP + spoof" \
+  "http://hive-service:8080/hive/api/organizations/search?query=mesh" \
+  -H "$SPOOF_ISS" -H "$SPOOF_SUB"
+direct_unauthorized "Manifesto projects :8443 mesh-client + spoof" \
+  "https://manifesto-service:8443/manifesto/api/projects" \
+  $MESH_CLIENT -H "$SPOOF_ISS" -H "$SPOOF_SUB"
+direct_unauthorized "Manifesto projects :8080 HTTP + spoof" \
+  "http://manifesto-service:8080/manifesto/api/projects" \
+  -H "$SPOOF_ISS" -H "$SPOOF_SUB"
+
+search_before=$(cluster_stat envoy-mesh hive upstream_rq_total)
+search_code=$(gateway_call GET "/hive/api/organizations/search?query=mesh" "$token")
+search_after=$(cluster_stat envoy-mesh hive upstream_rq_total)
+[ "$search_code" != "401" ] || fail "Hive search via Envoy + JWT: HTTP $search_code"
+[ "${search_after:-0}" -gt "${search_before:-0}" ] || fail "Hive search via Envoy: hive non appele"
+ok "Hive search via Envoy + JWT (HTTP $search_code, hive appele)"
+
+anon_code=$(http_code --cacert /certs/ca.crt --cert /certs/envoy-mesh.crt --key /certs/envoy-mesh.key \
+  "https://hive-service:8443/hive/api/organizations/search?query=mesh")
+[ "$anon_code" = "200" ] || fail "Hive search envoy-mesh sans principal: HTTP $anon_code"
+ok "Hive search envoy-mesh sans principal (HTTP 200 anonyme)"
+
+# Hive signer via Envoy (user JWT) then IAM S2S on :8080 with internal token.
+pubkey=$(cat /keys/test-platform.pub)
+signer_body=$(jq -n --arg ref "${org_id}/e2e.pem" --arg pk "$pubkey" \
+  '{provider_type:"pem_file",provider_key_ref:$ref,public_key:$pk}')
+signer_path="/hive/api/organizations/${org_id}/signer/configure"
+signer_before=$(cluster_stat envoy-mesh hive upstream_rq_total)
+signer_code=$(gateway_call POST "$signer_path" "$token" \
+  -H 'content-type: application/json' -d "$signer_body")
+signer_after=$(cluster_stat envoy-mesh hive upstream_rq_total)
+[ "$signer_code" != "401" ] || fail "Hive signer configure via Envoy: HTTP 401"
+[ "${signer_after:-0}" -gt "${signer_before:-0}" ] || fail "Hive signer configure: hive non appele"
+case "$signer_code" in
+  2*)
+    jq -e '.kid and .signing_profile_id' /tmp/body >/dev/null \
+      || fail "Hive signer configure via Envoy: corps incomplet"
+    ok "Hive signer configure via Envoy (HTTP $signer_code)"
+    ;;
+  *)
+    fail "Hive signer configure via Envoy: HTTP $signer_code"
+    ;;
+esac
+direct_unauthorized "Hive signer bypass Envoy mesh-client + Bearer" \
+  "https://hive-service:8443${signer_path}" $MESH_CLIENT -X POST -H "$BEARER" \
+  -H 'content-type: application/json' -d "$signer_body"
+direct_unauthorized "Hive signer bypass Envoy mesh-client + spoof" \
+  "https://hive-service:8443${signer_path}" $MESH_CLIENT -X POST \
+  -H "$SPOOF_ISS" -H "$SPOOF_SUB" \
+  -H 'content-type: application/json' -d "$signer_body"
+iam_code=$(http_code -X POST \
+  "http://iam-service:8080/iam/internal/organizations/${org_id}/signer/test")
+case "$iam_code" in
+  401|403) ok "IAM signer interne sans token (HTTP $iam_code)" ;;
+  *) fail "IAM signer interne sans token: HTTP $iam_code" ;;
+esac
 
 code=$(http_code --cacert /certs/ca.crt --cert /certs/envoy-mesh.crt --key /certs/envoy-mesh.key \
   -H "$SPOOF_ISS" -H "$SPOOF_SUB" "https://iam-service:8443/iam/api/me")

@@ -49,9 +49,45 @@ data:
                           domains: ["*"]
                           routes:
                             - match:
-                                prefix: "/"
+                                path: /iam/.well-known/jwks.json
                               route:
-                                cluster: backend
+                                cluster: iam
+                              typed_per_filter_config:
+                                envoy.filters.http.ext_authz:
+                                  "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
+                                  disabled: true
+                            - match:
+                                path: /iam/api/auth/signup
+                              route:
+                                cluster: iam
+                              typed_per_filter_config:
+                                envoy.filters.http.ext_authz:
+                                  "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
+                                  disabled: true
+                            - match:
+                                path: /iam/api/auth/login
+                              route:
+                                cluster: iam
+                              typed_per_filter_config:
+                                envoy.filters.http.ext_authz:
+                                  "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
+                                  disabled: true
+                            - match:
+                                prefix: "/iam/"
+                              route:
+                                cluster: iam
+                            - match:
+                                prefix: "/hive/"
+                              route:
+                                cluster: hive
+                            - match:
+                                prefix: "/telegraph/"
+                              route:
+                                cluster: telegraph
+                            - match:
+                                prefix: "/manifesto/"
+                              route:
+                                cluster: manifesto
                     http_filters:
                       - name: envoy.filters.http.lua
                         typed_config:
@@ -121,7 +157,7 @@ data:
                         socket_address:
                           address: ext-authz.aiforall-gateway.svc.cluster.local
                           port_value: 8090
-        - name: backend
+        - name: iam
           connect_timeout: 5s
           type: STRICT_DNS
           lb_policy: ROUND_ROBIN
@@ -140,13 +176,94 @@ data:
                   trusted_ca:
                     filename: /etc/envoy/certs/ca.crt
           load_assignment:
-            cluster_name: backend
+            cluster_name: iam
             endpoints:
               - lb_endpoints:
                   - endpoint:
                       address:
                         socket_address:
                           address: iam.aiforall-platform.svc.cluster.local
+                          port_value: 8443
+        - name: hive
+          connect_timeout: 5s
+          type: STRICT_DNS
+          lb_policy: ROUND_ROBIN
+          transport_socket:
+            name: envoy.transport_sockets.tls
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+              sni: hive.aiforall-platform.svc.cluster.local
+              common_tls_context:
+                tls_certificates:
+                  - certificate_chain:
+                      filename: /etc/envoy/certs/envoy-mesh.crt
+                    private_key:
+                      filename: /etc/envoy/certs/envoy-mesh.key
+                validation_context:
+                  trusted_ca:
+                    filename: /etc/envoy/certs/ca.crt
+          load_assignment:
+            cluster_name: hive
+            endpoints:
+              - lb_endpoints:
+                  - endpoint:
+                      address:
+                        socket_address:
+                          address: hive.aiforall-platform.svc.cluster.local
+                          port_value: 8443
+        - name: telegraph
+          connect_timeout: 5s
+          type: STRICT_DNS
+          lb_policy: ROUND_ROBIN
+          transport_socket:
+            name: envoy.transport_sockets.tls
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+              sni: telegraph.aiforall-platform.svc.cluster.local
+              common_tls_context:
+                tls_certificates:
+                  - certificate_chain:
+                      filename: /etc/envoy/certs/envoy-mesh.crt
+                    private_key:
+                      filename: /etc/envoy/certs/envoy-mesh.key
+                validation_context:
+                  trusted_ca:
+                    filename: /etc/envoy/certs/ca.crt
+          load_assignment:
+            cluster_name: telegraph
+            endpoints:
+              - lb_endpoints:
+                  - endpoint:
+                      address:
+                        socket_address:
+                          address: telegraph.aiforall-platform.svc.cluster.local
+                          port_value: 8443
+        - name: manifesto
+          connect_timeout: 5s
+          type: STRICT_DNS
+          lb_policy: ROUND_ROBIN
+          transport_socket:
+            name: envoy.transport_sockets.tls
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+              sni: manifesto.aiforall-platform.svc.cluster.local
+              common_tls_context:
+                tls_certificates:
+                  - certificate_chain:
+                      filename: /etc/envoy/certs/envoy-mesh.crt
+                    private_key:
+                      filename: /etc/envoy/certs/envoy-mesh.key
+                validation_context:
+                  trusted_ca:
+                    filename: /etc/envoy/certs/ca.crt
+          load_assignment:
+            cluster_name: manifesto
+            endpoints:
+              - lb_endpoints:
+                  - endpoint:
+                      address:
+                        socket_address:
+                          address: manifesto.aiforall-platform.svc.cluster.local
                           port_value: 8443
     admin:
       address:

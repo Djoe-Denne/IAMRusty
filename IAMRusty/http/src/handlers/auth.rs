@@ -1058,13 +1058,20 @@ pub struct RevokeProviderTokenResponse {
 /// # Errors
 ///
 /// Returns [`AuthError`] when the provider is unknown or revoking the provider token
-/// fails.
+/// fails, or when the internal service token is missing or invalid.
 pub async fn revoke_provider_token(
     State(state): State<AppState>,
     Extension(idp): Extension<Arc<IdpConfig>>,
     Path(provider_path): Path<ProviderPath>,
+    headers: HeaderMap,
     auth_user: AuthUser,
 ) -> Result<Json<RevokeProviderTokenResponse>, AuthError> {
+    crate::rate_limit::require_internal_service_token(&headers).map_err(|_| AuthError::OAuth {
+        operation: "revoke_provider_token".to_string(),
+        error_code: "forbidden".to_string(),
+        message: "internal service token required".to_string(),
+        status: StatusCode::FORBIDDEN,
+    })?;
     debug!(
         "Revoke provider token request for provider: {} and user: {}",
         provider_path.provider_name, auth_user.user_id

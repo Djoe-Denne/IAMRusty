@@ -12,21 +12,28 @@
 # It is not an ADR staleness TTL (0304 §17 stays undecided).
 services:
   iam-service:
+    ports: !override []
     environment:
       - IAM_SERVER__TLS_REQUIRE_CLIENT_CERT=true
       - IAM_AUTH__MESH__TRUSTED_GATEWAY_SAN=envoy-mesh
 
   hive-service:
+    ports: !override []
     environment:
       - HIVE_SERVER__TLS_REQUIRE_CLIENT_CERT=true
       - HIVE_AUTH__MESH__TRUSTED_GATEWAY_SAN=envoy-mesh
+      # Mesh e2e bootstraps the store (sentinel-sync is not in this profile).
+      - HIVE_OPENFGA__STORE_ID=${HIVE_OPENFGA__STORE_ID:-}
+      - HIVE_OPENFGA__AUTHORIZATION_MODEL_ID=${HIVE_OPENFGA__AUTHORIZATION_MODEL_ID:-}
 
   telegraph-service:
+    ports: !override []
     environment:
       - TELEGRAPH_SERVER__TLS_REQUIRE_CLIENT_CERT=true
       - TELEGRAPH_AUTH__MESH__TRUSTED_GATEWAY_SAN=envoy-mesh
 
   manifesto-service:
+    ports: !override []
     environment:
       - MANIFESTO_SERVER__TLS_REQUIRE_CLIENT_CERT=true
       - MANIFESTO_AUTH__MESH__TRUSTED_GATEWAY_SAN=envoy-mesh

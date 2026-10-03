@@ -56,11 +56,44 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-Write-Host "mesh : kind load $Image --name $ClusterName" -ForegroundColor Cyan
-& kind load docker-image $Image --name $ClusterName
-if ($LASTEXITCODE -ne 0) {
-    Write-Host 'mesh echec : kind load' -ForegroundColor Red
-    exit $LASTEXITCODE
+$loadImages = @(
+    $Image,
+    'aiforall-iam-service:latest',
+    'aiforall-hive-service:latest',
+    'aiforall-telegraph-service:latest',
+    'aiforall-manifesto-service:latest',
+    'postgres:15-alpine',
+    'openfga/openfga:latest',
+    'alpine:3.20'
+)
+foreach ($img in $loadImages) {
+    & docker image inspect $img *> $null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "mesh : docker pull $img" -ForegroundColor Cyan
+        & docker pull $img
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "mesh echec : image absente $img" -ForegroundColor Red
+            exit $LASTEXITCODE
+        }
+    }
+    Write-Host "mesh : kind load $img --name $ClusterName" -ForegroundColor Cyan
+    & kind load docker-image $img --name $ClusterName
+    if ($LASTEXITCODE -ne 0) {
+        # Multi-arch indexes (postgres, openfga, alpine) fail ctr import until
+        # the tag is a single linux/amd64 image.
+        $df = Join-Path $env:TEMP 'kind-single.Dockerfile'
+        Set-Content -Path $df -Value "FROM $img`n" -Encoding ascii
+        & docker build --platform linux/amd64 -t $img -f $df $env:TEMP
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "mesh echec : image mono-arch $img" -ForegroundColor Red
+            exit $LASTEXITCODE
+        }
+        & kind load docker-image $img --name $ClusterName
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "mesh echec : kind load $img" -ForegroundColor Red
+            exit $LASTEXITCODE
+        }
+    }
 }
 
 function Invoke-Kubectl {
@@ -75,35 +108,60 @@ function Invoke-Kubectl {
 Invoke-Kubectl @('apply', '-f', 'deploy/apps/base/namespaces.yaml')
 
 $certDir = Join-Path $RepoRoot 'certs/platform-mesh'
-$secretArgs = @(
-    '--context', $KindContext,
-    '-n', $Namespace,
-    'create', 'secret', 'generic', 'platform-mesh-certs',
-    '--from-file=ca.crt',
-    '--from-file=envoy-mesh.crt',
-    '--from-file=envoy-mesh.key',
-    '--from-file=ext-authz.crt',
-    '--from-file=ext-authz.key',
-    '--dry-run=client', '-o', 'yaml'
+$certFiles = @(
+    'ca.crt',
+    'envoy-mesh.crt', 'envoy-mesh.key',
+    'ext-authz.crt', 'ext-authz.key',
+    'iam-service.crt', 'iam-service.key',
+    'hive-service.crt', 'hive-service.key',
+    'telegraph-service.crt', 'telegraph-service.key',
+    'manifesto-service.crt', 'manifesto-service.key',
+    'mesh-client.crt', 'mesh-client.key'
 )
-Push-Location $certDir
-try {
-    $secretYaml = & kubectl @secretArgs
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+foreach ($ns in @($Namespace, 'aiforall-platform')) {
+    $secretArgs = @(
+        '--context', $KindContext,
+        '-n', $ns,
+        'create', 'secret', 'generic', 'platform-mesh-certs',
+        '--dry-run=client', '-o', 'yaml'
+    )
+    foreach ($file in $certFiles) {
+        $secretArgs += "--from-file=$file"
+    }
+    Push-Location $certDir
+    try {
+        $secretYaml = & kubectl @secretArgs
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    }
+    finally {
+        Pop-Location
+    }
+    $secretYaml | kubectl --context $KindContext apply -f -
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "mesh echec : secret platform-mesh-certs ($ns)" -ForegroundColor Red
+        exit $LASTEXITCODE
+    }
 }
-finally {
-    Pop-Location
-}
-$secretYaml | kubectl --context $KindContext apply -f -
+
+$meshYaml = & kubectl kustomize --load-restrictor LoadRestrictionsNone 'deploy/apps/overlays/kind-mesh'
 if ($LASTEXITCODE -ne 0) {
-    Write-Host 'mesh echec : secret platform-mesh-certs' -ForegroundColor Red
+    Write-Host 'mesh echec : kustomize kind-mesh' -ForegroundColor Red
+    exit $LASTEXITCODE
+}
+$meshYaml | kubectl --context $KindContext apply -f -
+if ($LASTEXITCODE -ne 0) {
+    Write-Host 'mesh echec : apply kind-mesh' -ForegroundColor Red
     exit $LASTEXITCODE
 }
 
-Invoke-Kubectl @('apply', '-k', 'deploy/apps/overlays/kind-mesh')
-
+Invoke-Kubectl @('rollout', 'status', 'deployment/postgres', '-n', 'aiforall-platform', '--timeout=180s')
+Invoke-Kubectl @('rollout', 'status', 'deployment/openfga', '-n', 'aiforall-platform', '--timeout=180s')
+Invoke-Kubectl @('rollout', 'status', 'deployment/iam', '-n', 'aiforall-platform', '--timeout=240s')
+Invoke-Kubectl @('rollout', 'status', 'deployment/hive', '-n', 'aiforall-platform', '--timeout=240s')
+Invoke-Kubectl @('rollout', 'status', 'deployment/telegraph', '-n', 'aiforall-platform', '--timeout=240s')
+Invoke-Kubectl @('rollout', 'status', 'deployment/manifesto', '-n', 'aiforall-platform', '--timeout=240s')
 Invoke-Kubectl @('rollout', 'status', 'deployment/ext-authz', '-n', $Namespace, '--timeout=180s')
 Invoke-Kubectl @('rollout', 'status', 'deployment/envoy-mesh', '-n', $Namespace, '--timeout=180s')
 
-Write-Host 'mesh : ext-authz et envoy-mesh sont Ready sur aiforall-local.' -ForegroundColor Green
-Write-Host 'IAM Kind (aiforall-platform/iam) reste l image pause M1. Le JWT reel est celui du monolithe J3 ou du profil Compose.' -ForegroundColor Yellow
+Write-Host 'mesh : services reels, ext-authz et envoy-mesh sont Ready sur aiforall-local.' -ForegroundColor Green
+Write-Host 'Preuve : bash scripts/mesh-authn-kind-e2e.sh' -ForegroundColor Green

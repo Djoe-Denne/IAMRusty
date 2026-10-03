@@ -107,6 +107,8 @@ pub fn create_router(
             reset_password_authenticated,
         )
         .authenticated()
+        // In mesh mode AuthUser comes from the envoy-mesh peer's principal,
+        // not a user JWT. Both S2S handlers also require the internal token gate.
         .post("/internal/{provider_name}/token", internal_provider_token)
         .authenticated()
         .delete("/internal/{provider_name}/revoke", revoke_provider_token)

@@ -172,6 +172,7 @@ async fn spawn_server(config: ServerConfig) -> tokio::task::JoinHandle<anyhow::R
         app_state(),
         Arc::new(ReadinessProbe::new("iam")),
         Arc::new(IdpConfig::default()),
+        None,
     );
     tokio::spawn(async move { serve_router(router, config).await })
 }

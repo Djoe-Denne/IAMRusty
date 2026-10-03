@@ -17,6 +17,7 @@ pub struct GetNotificationsInput {
 /// Response for getting user notifications
 #[derive(Debug, Clone, Serialize)]
 pub struct GetNotificationsResponse {
+    pub user_id: Uuid,
     pub notifications: Vec<NotificationResponse>,
     pub total_count: u64,
     pub page: u8,
@@ -150,6 +151,7 @@ impl NotificationUseCaseTrait for NotificationUseCaseImpl {
         let has_more = current_last_index < total_count;
 
         Ok(GetNotificationsResponse {
+            user_id: input.user_id,
             notifications: notification_responses,
             total_count,
             page,

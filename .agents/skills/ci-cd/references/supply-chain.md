@@ -1,0 +1,506 @@
+# CI/CD Supply Chain Security
+
+Cross-platform supply chain hardening patterns, incident timeline, and PCI-DSS 4.0 compliance.
+Reviewed September 2026 - post-Trivy compromise and the TeamPCP npm/PyPI worm wave.
+
+---
+
+## Incident Timeline
+
+These are real supply chain attacks that exploited CI/CD pipelines. They're here because
+they inform every recommendation in this document.
+
+### reviewdog/action-setup (CVE-2025-30154) - March 11, 2025
+
+- **2-hour window** (18:42-20:31 UTC)
+- Payload dumped CI runner memory, exposing env vars and secrets to workflow logs (double-base64 encoded)
+- Root cause: reviewdog org auto-invited contributors to `@reviewdog/actions-maintainer` team with **write access**. Compromised contributor account.
+- Enabled the downstream tj-actions attack.
+
+### tj-actions/changed-files (CVE-2025-30066) - March 10-14, 2025
+
+- Attacker modified action to execute malicious Python script extracting secrets from Runner Worker process memory
+- All version tags force-pushed to malicious commit - even "pinned" tag users got hit
+- **23,000+ repositories affected**. Leaked PATs, npm tokens, RSA keys, AWS keys.
+- Coinbase was specifically targeted (Palo Alto Unit42 confirmed).
+- CISA issued alert March 18, 2025.
+- **Lesson**: mutable tags are not security boundaries. SHA pinning is the only protection.
+
+### aquasecurity/trivy-action (CVE-2026-33634) - March 2026
+
+- **CVSS 9.4**. Threat actor: **TeamPCP**.
+- Late Feb 2026: attackers exploited misconfigured GH Actions environment, extracted privileged token
+- March 1: Aqua disclosed, rotated credentials - but rotation was **incomplete**
+- March 19, ~17:43 UTC: attacker force-pushed **76 of 77** version tags in `trivy-action` and all 7 tags in `setup-trivy` to credential-stealing code
+- Simultaneously published malicious Trivy binary v0.69.4 via compromised `aqua-bot` service account
+- March 22: malicious v0.69.5 and v0.69.6 Docker Hub images published
+- Downstream: stolen credentials used to compromise dozens of npm packages distributing **CanisterWorm** (self-propagating worm)
+- **Lesson**: even security tools' own CI is a target. "We trust our scanning tool" is circular reasoning.
+
+**Known safe Trivy versions**:
+- Current new pins (September 2026): binary v0.74.0+ from official releases, pinned by checksum or image digest
+- March 2026 rollback: binary v0.69.2 or v0.69.3
+- `trivy-action`: **v0.35.0** was the March rollback tag; pin the verified commit SHA, not the tag
+- `setup-trivy`: v0.2.6 was the March rollback tag; pin the verified commit SHA, not the tag
+- **DO NOT USE**: v0.69.4, v0.69.5, v0.69.6
+
+**IOC**: check for a repo named `tpcp-docs` in your org - its presence indicates the fallback
+exfiltration mechanism was triggered.
+
+### TeamPCP npm/PyPI wave - "Mini Shai-Hulud" (April-May 2026)
+
+- TeamPCP's follow-up to the Trivy compromise: a self-propagating worm across npm and PyPI.
+- April 29: four official SAP `@sap/*` npm packages poisoned (09:55-12:14 UTC). April 30: PyTorch `lightning` PyPI 2.6.2/2.6.3. May 11: 84 malicious versions across 42 `@tanstack/*` packages (19:20-19:26 UTC). Mistral AI, UiPath, OpenSearch also hit.
+- Harvests GitHub/npm tokens, CI/CD secrets, cloud creds, and API keys; ~1,800 developers across npm + PyPI (and PHP).
+- **Lesson**: a single compromised maintainer namespace fans out to a whole package family within minutes. Pin by digest, enable npm trusted publishing / provenance, and scope CI tokens narrowly.
+
+### HackerBot-Claw (February 2026)
+
+- Automated campaign scanning public repos for vulnerable `pull_request_target` workflows
+- Hit repos including microsoft/ai-discovery-agent, DataDog/datadog-iac-scanner, avelino/awesome-go, project-akri/akri, aquasecurity/trivy, and RustPython/RustPython ([write-up](https://www.stepsecurity.io/blog/hackerbot-claw-github-actions-exploitation))
+- Modified build/deploy scripts via PRs to exfiltrate service principals, API keys, IMDS tokens
+
+### TrapDoor multi-registry campaign - May 2026
+
+- Coordinated malware across npm, PyPI, and crates.io (34+ packages, 384+ artifacts)
+- Steals SSH keys and cloud/crypto credentials; PyPI import-time exec, Rust `build.rs` abuse
+- Hides zero-width-Unicode prompt injection in `.cursorrules` / `CLAUDE.md` to subvert AI coding
+  agents in the pipeline - scan committed agent rule files, not just dependencies
+
+---
+
+## SHA Pinning
+
+### Why
+
+Tags are Git references. They can be force-pushed, redirected, or deleted. A tag named `v4`
+today can point to completely different code tomorrow. Every major CI/CD supply chain attack
+exploited tag mutability.
+
+SHA commits are immutable content-addressed objects. They cannot be redirected.
+
+### How (GitHub Actions)
+
+```yaml
+# DO NOT
+- uses: actions/checkout@v4
+
+# DO
+- uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+```
+
+### How (GitLab CI/CD)
+
+```yaml
+# DO NOT
+image: aquasec/trivy:latest
+
+# DO
+image:
+  name: aquasec/trivy:0.74.0@sha256:<digest>
+```
+
+### How (Docker images in any CI)
+
+```bash
+# Get the digest
+docker inspect --format='{{index .RepoDigests 0}}' aquasec/trivy:0.74.0
+
+# Pin to digest
+image: aquasec/trivy@sha256:abc123def456...
+```
+
+### Automation (sustainable SHA pinning)
+
+Manual SHA updates are unsustainable. Use automation:
+
+**Dependabot** (GitHub):
+```yaml
+# .github/dependabot.yml
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+```
+
+**Renovate** (any platform):
+```json
+{
+  "extends": [
+    "config:recommended",
+    "helpers:pinGitHubActionDigestsToSemver"
+  ]
+}
+```
+
+### Org-level enforcement (GitHub)
+
+GitHub shipped org-level SHA pinning enforcement in August 2025. Admins can require all
+workflows use full-length commit SHAs. Workflows using tag references fail at parse time.
+
+Settings > Actions > General > Actions permissions > Require action pinning.
+
+---
+
+## Image Signing (Sigstore / cosign)
+
+Docker is retiring DCT/Notary in favor of Sigstore ([announced July 2025, ends 2026-12-08](https://www.docker.com/blog/docker-content-trust-retirement-and-migration-guidance/)). cosign is the industry standard.
+
+### Sign in CI (keyless)
+
+```yaml
+# GitHub Actions
+- uses: sigstore/cosign-installer@<sha>
+- env:
+    DIGEST: ${{ steps.build.outputs.digest }}
+    IMAGE: ghcr.io/${{ github.repository }}
+  run: cosign sign --yes "$IMAGE@$DIGEST"
+  # keyless signing is default since cosign v2.0 - no COSIGN_EXPERIMENTAL needed
+```
+
+Keyless signing: workflow gets OIDC token from GitHub -> Sigstore's Fulcio CA mints a
+short-lived X.509 cert (10 min) binding the public key to the workflow identity -> signature
+recorded in Rekor transparency log. No long-lived signing keys to manage.
+
+### Verify at admission (Kubernetes)
+
+```yaml
+# Kyverno policy (verify cosign signature)
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: verify-image-signatures
+spec:
+  validationFailureAction: Enforce
+  rules:
+    - name: verify-cosign
+      match:
+        any:
+          - resources:
+              kinds: ["Pod"]
+      verifyImages:
+        - imageReferences: ["ghcr.io/my-org/*"]
+          attestors:
+            - entries:
+                - keyless:
+                    issuer: "https://token.actions.githubusercontent.com"
+                    subject: "https://github.com/my-org/my-repo/.github/workflows/release.yml@refs/heads/main"
+```
+
+---
+
+## SBOM Generation
+
+An SBOM can support the software/component inventory required by PCI DSS 6.3.2.
+The standard does not prescribe this particular file format or artifact signing.
+
+### Formats
+
+| Format | Org | Best for |
+|--------|-----|----------|
+| **SPDX** | Linux Foundation | Compliance, licensing |
+| **CycloneDX** | OWASP | Security, vulnerability correlation |
+
+Choose the format supported by your inventory tooling and documented control evidence.
+
+### Generation in CI
+
+**GitHub Actions (anchore/sbom-action)**:
+```yaml
+- uses: anchore/sbom-action@<sha>
+  with:
+    image: ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+    format: spdx-json
+    output-file: sbom.spdx.json
+```
+
+**GitLab CI (syft)**:
+```yaml
+generate-sbom:
+  image: anchore/syft:1.42
+  script:
+    - syft $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA -o spdx-json=sbom.spdx.json
+  artifacts:
+    paths: [sbom.spdx.json]
+    expire_in: 90 days
+```
+
+**Docker BuildKit (inline)**:
+```bash
+docker buildx build --sbom=true --provenance=true -t myapp:1.0.0 --push .
+```
+
+### Storage
+
+Store SBOMs according to the documented retention/access policy, for example:
+- Attach to GitHub releases as assets
+- Store as GitLab CI artifacts with policy-defined retention
+- Push to OCI registry alongside the image (BuildKit attestations)
+- Index in a vulnerability management system (Dependency-Track, GUAC)
+
+---
+
+## SLSA Provenance
+
+SLSA (Supply-chain Levels for Software Artifacts) is a framework for build integrity.
+
+| Level | Meaning | Effort |
+|-------|---------|--------|
+| **Build L1** | Provenance exists | Capture actual build inputs/process |
+| **Build L2** | Hosted build platform generates signed provenance | Verify producer and consumer requirements |
+| **Build L3** | Hardened build platform with isolation and protected signing | Evaluate platform guarantees |
+
+[SLSA v1.2 build levels](https://slsa.dev/spec/v1.2/build-track-basics) stop at L3. An attestation action
+alone does not prove a level; verify the platform and consumer requirements. Example:
+
+```yaml
+- uses: actions/attest-build-provenance@<sha>
+  with:
+    subject-name: ghcr.io/${{ github.repository }}
+    subject-digest: ${{ steps.build.outputs.digest }}
+    push-to-registry: true
+```
+
+Verification:
+```bash
+gh attestation verify oci://ghcr.io/org/repo@sha256:... --owner org
+```
+
+---
+
+## Workflow Linting
+
+### Zizmor (GitHub Actions)
+
+Static analysis linter specifically for GitHub Actions. Low false-positive rate. Catches:
+- Unpinned actions
+- Overly broad permissions
+- Expression injection (${{ }} in run blocks)
+- Dangerous triggers (pull_request_target)
+
+```yaml
+- uses: woodruffw/zizmor-action@<sha>
+```
+
+### StepSecurity Harden-Runner
+
+Runtime monitoring of network egress and file system access in CI jobs. Detected the tj-actions
+attack anomalies.
+
+```yaml
+- uses: step-security/harden-runner@<sha>  # v2.14.2 (v2.12.0 min - CVE-2025-32955)
+  with:
+    egress-policy: audit
+```
+
+**Note**: v2.12.0 patches CVE-2025-32955 (Docker group privilege escalation bypass). Latest:
+v2.21.1 (August 2026). Do not use versions below v2.12.0 for security-critical workloads.
+
+---
+
+## Secret Management in CI
+
+### Rules (all platforms)
+
+1. **Never echo secrets.** Not even in debug mode. CI logs are often accessible to more people
+   than the secrets themselves.
+2. **Never pass as CLI arguments.** Visible in `ps` output and process listings.
+3. **Never write to artifacts.** Artifacts are downloadable by anyone with repo access.
+4. **Use environment variables.** Set via CI secret variables, not inline in config.
+5. **Scope minimally.** Production secrets only accessible on protected branches/tags.
+6. **Rotate on exposure.** If a secret appears in logs, rotate immediately.
+
+### GitHub Actions
+
+```yaml
+env:
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+```
+
+Secrets are masked in logs by default. But be aware:
+- Base64-encoding bypasses masking
+- Splitting a secret across multiple commands bypasses masking
+- `ACTIONS_STEP_DEBUG=true` can expose secrets in debug output
+
+### GitLab CI
+
+```yaml
+variables:
+  DATABASE_URL: $DATABASE_URL  # set via CI/CD Variables UI
+```
+
+Mark variables as:
+- **Protected**: only available on protected branches/tags
+- **Masked**: hidden in job logs (must be 8+ chars, no newlines)
+- **File**: injected as a file path, not inline value
+
+### Forgejo
+
+```yaml
+env:
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+```
+
+Same syntax as GitHub. No environment-level scoping yet.
+
+---
+
+## PCI-DSS CI/CD Assessment Boundaries
+
+Use the applicable standard and entity scope, not tool presence, to assess compliance.
+[PCI SSC requirement text](https://listings.pcisecuritystandards.org/documents/PCI-DSS-v4-0-SAQ-D-Service-Provider.pdf)
+includes software review (6.2.3), software/component inventory (6.3.2), and documented
+production change approval/testing/recovery (6.5.1). Manual review conditions are separately
+assessable. Automated review needs documented coverage and findings handling; SAST/DAST/SCA
+are not a universal substitute for all required review evidence.
+
+SBOMs, signed artifacts, protected environments, and pipeline records can support documented
+controls. Do not invent a universal reviewer count, 90-day artifact retention, or signing
+mandate from these requirements. A customized approach needs its own documented assessment;
+no generic pipeline can declare equivalence or compliance by itself.
+
+
+## AI-Age Supply Chain Risks
+
+### Slopsquatting
+
+AI code assistants hallucinate package names. ~20% of AI-suggested packages don't exist.
+43% of hallucinated names are consistently repeated across similar prompts. Attackers register
+these phantom names and wait.
+
+**Real-world**: registered phantom package names have been observed collecting real downloads;
+treat any unreviewed AI-suggested dependency as untrusted.
+
+**Defenses in CI**:
+- `--frozen-lockfile` / `npm ci` (not `npm install`)
+- `bun audit` / `npm audit` in CI
+- SCA scanning (Trivy, Grype)
+- Manual review of new dependencies in PRs
+- Never `npm install <package>` directly from AI suggestions without verifying the package exists
+
+### AI agents in CI/CD
+
+OWASP Top 10 for Agentic Applications (2026):
+- **AI should never own production deployments.** March 2026: AI-assisted Terraform workflow
+  deleted production infrastructure through escalating cleanup logic.
+- AI code review bots vulnerable to prompt injection via PR descriptions
+- AI agents with CI/CD credentials need:
+  - Dedicated service identities (not shared human credentials)
+  - Least-privilege RBAC
+  - Audit logging of all actions
+  - Human-in-the-loop for destructive operations
+
+### Prompt injection in CI
+
+Malicious instructions in issue titles, PR descriptions, or code comments can redirect AI
+tools connected to CI workflows:
+- System prompt extraction via crafted PR descriptions
+- Credential exfiltration through AI-generated CI commands
+- Build artifact poisoning through AI-modified build steps
+
+**Defense**: treat all user-generated content (issues, PRs, comments) as untrusted input.
+AI tools in CI should never execute commands based on issue/PR text.
+
+---
+
+## Post-Compromise Incident Response
+
+When a supply chain compromise is confirmed (malicious action executed, secrets exposed,
+artifact tampered), follow these steps immediately. Speed matters - the tj-actions attack
+had a 2-hour window, and automated exfiltration begins within seconds.
+
+### 1. Contain (first 30 minutes)
+
+- **Disable affected workflows.** Remove or comment out the compromised action/image reference
+  in all repos. Push directly to protected branches if needed (this is the exception to
+  "no direct pushes").
+- **Revoke exposed secrets.** Every secret accessible to the compromised workflow is burned.
+  Rotate immediately:
+  - Cloud credentials (AWS keys, GCP service accounts, Azure SPs)
+  - Registry tokens (GHCR, Docker Hub, GitLab registry, npm)
+  - API keys and PATs (GitHub, GitLab, third-party services)
+  - Database connection strings
+  - SSH keys used by CI runners
+- **Invalidate active sessions.** Revoke OAuth tokens and OIDC federations that may have been
+  obtained using stolen credentials.
+- **Quarantine affected runners.** If self-hosted, take runners offline. Compromised runners
+  may have persistent backdoors.
+
+### 2. Assess (first 4 hours)
+
+- **Identify the blast radius.** Check which workflows ran the compromised action/image during
+  the attack window. GitHub: audit log + workflow run history. GitLab: CI/CD job logs + audit events.
+- **Check for IOCs.** For known attacks:
+  - tj-actions: double-base64 encoded secrets in workflow logs
+  - Trivy: `tpcp-docs` repo in your org (fallback exfiltration marker)
+  - General: unexpected outbound network connections in runner logs
+- **Audit published artifacts.** Any container image, npm package, or binary built during the
+  attack window is suspect. Check digests against known-good builds.
+- **Review downstream consumers.** If your org publishes packages or images, your compromised
+  artifacts may now be in your users' supply chains.
+
+### 3. Remediate
+
+- **Pin to verified-safe SHAs.** Replace the compromised action with a known-good SHA. Do not
+  trust new tags published shortly after disclosure - attackers sometimes publish "fix" tags
+  that are also malicious (as seen with Trivy v0.69.4/5/6).
+- **Rebuild affected artifacts.** Any image, package, or binary built during the attack window
+  must be rebuilt from clean inputs and re-signed.
+- **Revoke compromised artifacts.** Delete or yank published packages that were built during
+  the window. For container images, delete the tag and digest from the registry.
+- **Update SBOM.** Regenerate SBOMs for all affected releases to reflect the rebuilt artifacts.
+
+### 4. Harden (within 1 week)
+
+- **Enable SHA pinning enforcement** (GitHub org setting, shipped Aug 2025).
+- **Deploy egress monitoring** (StepSecurity Harden-Runner) to detect anomalous outbound
+  connections from CI jobs.
+- **Audit all third-party actions/images** currently in use. Verify SHAs, check for known
+  compromises, remove unused dependencies.
+- **Document the incident.** For the incident and applicable assessment evidence, record what happened, when it was
+  detected, what was rotated, and what was rebuilt. QSAs will ask for this.
+
+### Secret rotation checklist
+
+| Secret type | Where to rotate | Verification |
+|-------------|-----------------|--------------|
+| GitHub PAT | Settings > Developer settings > Personal access tokens | `gh auth status` |
+| AWS access keys | IAM console or `aws iam create-access-key` | `aws sts get-caller-identity` |
+| GCP service account | `gcloud iam service-accounts keys create` | `gcloud auth list` |
+| npm token | `npm token revoke` + `npm token create` | `npm whoami` |
+| Docker Hub token | Hub settings > Security > Access tokens | `docker login` |
+| GitLab CI variables | Project > Settings > CI/CD > Variables | Re-run a pipeline |
+| SSH deploy keys | Regenerate keypair, update repo deploy key settings | `ssh -T git@host` |
+
+**Rule**: when in doubt, rotate. A rotated secret that wasn't actually exposed costs minutes.
+A leaked secret that wasn't rotated costs weeks.
+
+---
+
+## Quick Reference: Pipeline Security Checklist
+
+Run through this before shipping any pipeline to production:
+
+- [ ] All third-party actions/images SHA-pinned (not tag-pinned)
+- [ ] Dependabot/Renovate configured to auto-update SHAs
+- [ ] Explicit `permissions:` block (GitHub) or protected variables (GitLab)
+- [ ] No secrets in config files, comments, or default values
+- [ ] SAST running on every PR/MR
+- [ ] Dependency scanning on every PR/MR
+- [ ] Secret detection on every PR/MR
+- [ ] SBOM generated on every release
+- [ ] Container images scanned before deployment
+- [ ] Manual approval gate for production deployment
+- [ ] Branch protection enabled on main/production
+- [ ] Required reviewers for merges
+- [ ] Audit logging enabled
+- [ ] CI tool images pinned to known-safe versions
+- [ ] No `allow_failure` without documented justification
+- [ ] Concurrency control prevents parallel production deploys
+- [ ] Artifact retention meets the documented applicable policy
