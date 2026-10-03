@@ -10,7 +10,7 @@ provenance:
   inferred: 0.1
   ambiguous: 0.00
 created: 2026-08-31T13:30:00Z
-updated: 2026-10-01T16:45:00Z
+updated: 2026-10-03T15:10:00Z
 ---
 
 # AIForAll Concepts
@@ -24,3 +24,5 @@ updated: 2026-10-01T16:45:00Z
 - [[projects/aiforall/concepts/orchestrator-agent-harness]]
 - [[projects/aiforall/concepts/architecte-agent]]
 - [[projects/aiforall/concepts/https-platform-mesh]]
+- [[projects/aiforall/concepts/s2s-internal-token-revoke]] — S2S token/revoke : SAN envoy-mesh + gate interne, sans JWT utilisateur.
+- [[projects/aiforall/concepts/local-runtime-lifecycle]] — Docker/Kind/WSL à la demande, baux, arrêt propre et RAM.

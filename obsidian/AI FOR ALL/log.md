@@ -296,3 +296,6 @@ title: Wiki Log
 
 
 
+- [2026-10-03T15:10:00Z] INGEST source="opencode-conversation-2026-10-03-0308-closure" pages_updated=3 pages_created=6 mode=append topic=adr0308-proof-runtime-lifecycle vault="obsidian/AI FOR ALL"
+- [2026-10-03T15:10:00Z] WIKI_SYNC project=aiforall last_commit_synced=043c7282d6f3d0434a7a0221dd6aaca4ee8d0cb0 note="preuve 0308 verte 35 OK ; migration Hive role_permissions ; runtime local arrete +8,5 Go ; gitlink rustycog dirty (pas de push)"
+- [2026-10-03T15:14:00Z] QMD_UPDATE collection=aiforall-wiki files_new=6 files_updated=4 embed_chunks=65 embed_docs=10
